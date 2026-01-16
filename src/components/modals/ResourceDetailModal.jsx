@@ -565,6 +565,8 @@ const ResourceDetailContent = ({
     army = {},
     dailyMilitaryExpense = null,
     history = {},
+    treasuryChangeLog = [],
+    daysElapsed = 0,
     epoch = 0,
     techsUnlocked = [],
     onClose,
@@ -1024,6 +1026,30 @@ const ResourceDetailContent = ({
         ? treasuryHistory[treasuryHistory.length - 1]
         : resources[resourceKey] || 0;
     const latestTax = taxHistory.length ? taxHistory[taxHistory.length - 1] : 0;
+    const treasuryEntries = Array.isArray(treasuryChangeLog) ? treasuryChangeLog : [];
+    const fiscalDay = useMemo(() => {
+        if (!treasuryEntries.length) return Number.isFinite(daysElapsed) ? daysElapsed : 0;
+        let latest = null;
+        treasuryEntries.forEach((entry) => {
+            if (!Number.isFinite(entry?.day)) return;
+            if (latest === null || entry.day > latest) latest = entry.day;
+        });
+        return latest ?? (Number.isFinite(daysElapsed) ? daysElapsed : 0);
+    }, [treasuryEntries, daysElapsed]);
+    const fiscalTreasuryEntries = useMemo(
+        () => treasuryEntries.filter(entry => entry?.day === fiscalDay),
+        [treasuryEntries, fiscalDay]
+    );
+    const actualTreasuryIncome = useMemo(() => {
+        return fiscalTreasuryEntries.reduce((sum, entry) => {
+            const amount = Number(entry?.amount || 0);
+            if (!Number.isFinite(amount) || amount <= 0) return sum;
+            return sum + amount;
+        }, 0);
+    }, [fiscalTreasuryEntries]);
+    const hasActualTreasury = fiscalTreasuryEntries.length > 0;
+    const displayedTreasuryIncome = hasActualTreasury ? actualTreasuryIncome : latestTax;
+    const treasuryIncomeLabel = hasActualTreasury ? '国库收入统计' : '国库收入估算';
 
     // totalActualDemand 和 totalActualSupply 直接从 useMemo 中解构使用
 
@@ -1091,11 +1117,11 @@ const ResourceDetailContent = ({
                                     </p>
                                 </div>
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 lg:p-2.5">
-                                    <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日税收</p>
+                                      <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日国库收入</p>
                                     <p className="mt-1 text-base lg:text-lg font-bold text-emerald-200 font-mono leading-none">
-                                        {formatAmount(latestTax)}
+                                        {formatAmount(displayedTreasuryIncome)}
                                     </p>
-                                    <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-emerald-200/80 leading-none">净税额估算</p>
+                                      <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-emerald-200/80 leading-none">{treasuryIncomeLabel}</p>
                                 </div>
                             </div>
                             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
@@ -1163,9 +1189,9 @@ const ResourceDetailContent = ({
                                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
                                     <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                                         <div>
-                                            <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日净税收走势</p>
+                                              <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日国库收入走势</p>
                                             <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
-                                                当前 {formatAmount(latestTax)} / 日
+                                                当前 {formatAmount(displayedTreasuryIncome)} / 日
                                             </p>
                                         </div>
                                         <Icon name="Activity" size={14} className="text-emerald-300" />
@@ -1173,7 +1199,7 @@ const ResourceDetailContent = ({
                                     <SimpleLineChart
                                         data={taxHistory}
                                         color="#34d399"
-                                        label="每日净税收"
+                                        label="每日国库收入"
                                     />
                                 </div>
                             </div>

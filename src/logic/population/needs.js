@@ -10,6 +10,18 @@ import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxury
 import { applyBuyPriceControl } from '../officials/cabinetSynergy';
 import { getResourceConsumptionMultiplier, getMaxConsumptionMultiplierBonus } from '../../config/difficulty';
 
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
 /**
  * Process needs consumption for all strata
  * @param {Object} params - Consumption parameters
@@ -36,7 +48,8 @@ export const processNeedsConsumption = ({
     potentialResources = null,  // 已解锁建筑可产出资源集合（用于门控需求）
     priceControls = null,       // 政府价格管制设置
     leftFactionDominant = false, // 是否左派主导（只有左派主导时价格管制才生效）
-    difficulty = 'normal'
+    difficulty = 'normal',
+    onTreasuryChange,
 }) => {
     const res = { ...resources };
     const updatedWealth = { ...wealth };
@@ -158,17 +171,19 @@ export const processNeedsConsumption = ({
 
                     // Apply price control financial transaction (treasury fallback handled inside)
                     let finalEffectivePrice = marketPrice;
-                    if (priceControlActive) {
-                        const pcResult = applyBuyPriceControl({
-                            resourceKey: resKey,
-                            amount,
-                            marketPrice,
-                            priceControls,
-                            taxBreakdown,
-                            resources: res,
-                        });
-                        finalEffectivePrice = pcResult.effectivePrice;
-                    }
+                        if (priceControlActive) {
+                            const pcResult = applyBuyPriceControl({
+                                resourceKey: resKey,
+                                amount,
+                                marketPrice,
+                                priceControls,
+                                taxBreakdown,
+                                resources: res,
+                                onTreasuryChange,
+                                applyTreasuryChange: (delta, reason) => applyTreasuryChange(res, delta, reason, onTreasuryChange),
+                            });
+                            finalEffectivePrice = pcResult.effectivePrice;
+                        }
 
                     // 2) Transaction tax is based on finalEffectivePrice
                     const taxRate = getResourceTaxRate(resKey);
@@ -180,7 +195,7 @@ export const processNeedsConsumption = ({
                     if (taxPaid < 0) {
                         const subsidyAmount = Math.abs(taxPaid);
                         if ((res.silver || 0) >= subsidyAmount) {
-                            res.silver -= subsidyAmount;
+                            applyTreasuryChange(res, -subsidyAmount, 'consumption_subsidy', onTreasuryChange);
                             taxBreakdown.subsidy += subsidyAmount;
                             actualCost -= subsidyAmount;
                             roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyAmount;

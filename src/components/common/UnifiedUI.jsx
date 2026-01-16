@@ -6,6 +6,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './UIComponents';
+export { Icon };
 import {
   getButtonStyles,
   getCardStyles,
@@ -241,6 +242,18 @@ export const Tabs = ({ tabs, activeTab, onChange, className = '' }) => {
   );
 };
 
+// ==================== 工具提示组件 ====================
+export const Tooltip = ({ content, children }) => {
+  return (
+      <div className="relative group">
+          {children}
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs p-2 bg-black/90 border border-ancient-gold/30 rounded shadow-xl z-50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-xs text-ancient-parchment">
+              {content}
+          </div>
+      </div>
+  );
+};
+
 // ==================== 信息卡片组件 ====================
 export const InfoCard = ({
   icon,
@@ -378,6 +391,7 @@ export default {
   ListItem,
   ProgressBar,
   Tabs,
+  Tooltip,
   InfoCard,
   CollapsibleCard,
   ActionCard,

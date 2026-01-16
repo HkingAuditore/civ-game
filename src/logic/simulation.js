@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { isResourceUnlocked } from '../utils/resources';
@@ -10,6 +10,7 @@ import { calculateLivingStandards } from './population/needs';
 import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinetSynergy';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 import { debugLog } from '../utils/debugFlags';
+import { processPriceConvergence } from './diplomacy/treatyEffects';
 import {
     calculateCoalitionInfluenceShare,
     calculateLegitimacy,
@@ -20,6 +21,47 @@ import {
     getGovernmentType, // Determine current polity
 } from './rulingCoalition';
 import { getPolityEffects } from '../config/polityEffects';
+
+const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
+const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
+
+const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange }) => {
+    const treaties = Array.isArray(nation.treaties) ? nation.treaties : [];
+    const activeTreaties = [];
+    const expiredTreaties = [];
+    let maintenanceTotal = 0;
+
+    treaties.forEach((treaty) => {
+        if (isTreatyActive(treaty, tick)) {
+            activeTreaties.push(treaty);
+            if (treaty.direction === 'player_to_ai' && Number.isFinite(treaty.maintenancePerDay)) {
+                maintenanceTotal += Math.max(0, treaty.maintenancePerDay);
+            }
+        } else {
+            expiredTreaties.push(treaty);
+        }
+    });
+
+    if (expiredTreaties.length > 0) {
+        expiredTreaties.forEach((treaty) => {
+            logs.push(`Treaty with ${nation.name} expired (${getTreatyLabel(treaty.type)}).`);
+        });
+    }
+
+    if (maintenanceTotal > 0 && resources) {
+        const currentSilver = resources.silver || 0;
+        const paid = Math.max(0, Math.min(currentSilver, maintenanceTotal));
+        resources.silver = currentSilver - paid;
+        if (typeof onTreasuryChange === 'function' && paid > 0) {
+            onTreasuryChange(-paid, 'treaty_maintenance');
+        }
+        nation.budget = (nation.budget || 0) + paid;
+        nation.wealth = (nation.wealth || 0) + paid;
+    }
+
+    nation.treaties = activeTreaties;
+};
+
 
 // ============================================================================
 // REFACTORED MODULE IMPORTS
@@ -81,6 +123,7 @@ import {
     calculateFinalTaxes,
     // Trading functions
     simulateMerchantTrade,
+    analyzeTradeOpportunities,
 } from './economy';
 
 import {
@@ -132,6 +175,7 @@ import {
     getMaxConsumptionMultiplierBonus,
     getRelationChangeMultipliers
 } from '../config/difficulty';
+import { EconomyLedger, TRANSACTION_CATEGORIES } from './economy/ledger';
 import {
     calculateFinancialStatus,
     calculateOfficialPropertyProfit,
@@ -182,10 +226,23 @@ import {
     initializeAIDevelopmentBaseline,
     processAIIndependentGrowth,
     updateAIDevelopment,
+    checkAIEpochProgression,
     initializeRebelEconomy,
     processPostWarRecovery,
     processInstallmentPayment,
+    // International Organization functions
+    processOrganizationMonthlyUpdate,
+    getOrganizationEffects,
+    // Population Migration functions
+    processMonthlyMigration,
+    applyMigrationToPopStructure,
+    generateMigrationLogs,
+    // Rebellion System functions
+    processRebellionSystemDaily,
+    getRebellionRiskAssessment,
 } from './diplomacy';
+import { calculateOverseasInvestmentSummary, processOverseasInvestments, processForeignInvestments, processOverseasInvestmentUpgrades, processForeignInvestmentUpgrades } from './diplomacy/overseasInvestment';
+import { processManualTradeRoutes } from './economy/manualTrade';
 
 export const simulateTick = ({
     resources,
@@ -206,13 +263,14 @@ export const simulateTick = ({
     militaryWageRatio = 1,
     militaryQueue = [],
     nations = [],
+    diplomacyOrganizations = null,
     tick = 0,
     techsUnlocked = [],
     activeFestivalEffects = [],
     classWealthHistory,
     classNeedsHistory,
     merchantState = { pendingTrades: [], lastTradeTime: 0 },
-    tradeRouteTax = 0,
+    tradeRouteTax: initialTradeRouteTax = 0,
     maxPopBonus = 0,
     eventApprovalModifiers = {},
     eventStabilityModifier = 0,
@@ -222,35 +280,172 @@ export const simulateTick = ({
     eventStratumDemandModifiers = {},    // { stratumKey: percentModifier }
     eventBuildingProductionModifiers = {}, // { buildingIdOrCat: percentModifier }
     livingStandardStreaks = {},
-    buildingUpgrades = {}, // ½¨ÖşÉı¼¶×´Ì¬
-    rulingCoalition = [], // Ö´ÕşÁªÃË³ÉÔ±½×²ã
-    previousLegitimacy = 0, // ÉÏÒ»tickµÄºÏ·¨ĞÔÖµ£¬ÓÃÓÚ¼ÆËãË°ÊÕĞŞÕı
-    migrationCooldowns = {}, // ½×²ãÇ¨ÒÆÀäÈ´×´Ì¬
+    buildingUpgrades = {}, // å»ºç­‘å‡çº§çŠ¶æ€
+    rulingCoalition = [], // æ‰§æ”¿è”ç›Ÿæˆå‘˜é˜¶å±‚
+    previousLegitimacy = 0, // ä¸Šä¸€tickçš„åˆæ³•æ€§å€¼ï¼Œç”¨äºè®¡ç®—ç¨æ”¶ä¿®æ­£
+    migrationCooldowns = {}, // é˜¶å±‚è¿ç§»å†·å´çŠ¶æ€
 
-    difficulty, // ÓÎÏ·ÄÑ¶ÈÉèÖÃ
-    officials = [], // ¹ÙÔ±ÁĞ±í
+    difficulty, // æ¸¸æˆéš¾åº¦è®¾ç½®
+    officials = [], // å®˜å‘˜åˆ—è¡¨
     activeDecrees, // [NEW] Reform decrees
-    officialsPaid = true, // ÊÇ·ñ×ã¶îÖ§¸¶Ğ½Ë®
+    officialsPaid = true, // æ˜¯å¦è¶³é¢æ”¯ä»˜è–ªæ°´
     quotaTargets = {}, // [NEW] Quota system targets for Left Dominance
     expansionSettings = {}, // [NEW] Expansion settings for Right Dominance
     cabinetStatus = {}, // [NEW] Cabinet status for synergy/dominance
-    priceControls = null, // [NEW] Õş¸®¼Û¸ñ¹ÜÖÆÉèÖÃ
-    previousTaxShock = {}, // [NEW] ÉÏÒ»tick¸÷½×²ãµÄÀÛ»ıË°ÊÕ³å»÷Öµ£¬ÓÃÓÚ·ÀÖ¹"¿ìËÙÌ§Ë°ºó½µË°"µÄÂ©¶´
+    priceControls = null, // [NEW] æ”¿åºœä»·æ ¼ç®¡åˆ¶è®¾ç½®
+    previousTaxShock = {}, // [NEW] ä¸Šä¸€tickå„é˜¶å±‚çš„ç´¯ç§¯ç¨æ”¶å†²å‡»å€¼ï¼Œç”¨äºé˜²æ­¢"å¿«é€ŸæŠ¬ç¨åé™ç¨"çš„æ¼æ´
     eventEffectSettings = {}, // [NEW] Event effect settings including log visibility
+    foreignInvestments = [], // [NEW] Foreign investments for profit calculation
+    overseasInvestments = [], // [NEW] Overseas investments for processing
+    tradeRoutes = {}, // [NEW] Trade routes for manual trade processing
+    foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
+    tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
     const priceMap = { ...(market?.prices || {}) };
+    let calculatedTradeRouteTax = 0;
 
-    // === Òø±Ò±ä»¯×·×ÙÆ÷ ===
-    const silverChangeLog = [];
-    const trackSilverChange = (amount, reason) => {
-        silverChangeLog.push({ amount, reason, balance: res.silver || 0 });
+    // === Process Manual Trade Routes (Worker Side) ===
+    let tradeRouteSummary = null;
+    if (tradeRoutes && tradeRoutes.routes && tradeRoutes.routes.length > 0) {
+        tradeRouteSummary = processManualTradeRoutes({
+            tradeRoutes,
+            nations,
+            resources: res, // Pass current resources snapshot
+            daysElapsed: tick,
+            market: { prices: priceMap },
+            popStructure: previousPopStructure,
+            taxPolicies,
+            diplomacyOrganizations
+        });
+
+        if (tradeRouteSummary) {
+            calculatedTradeRouteTax = tradeRouteSummary.tradeTax || 0;
+
+            // [MOVED] Resource deltas application moved to after log system initialization
+            // to ensure silver changes are properly tracked.
+        }
+    }
+
+    // === èµ„æºå˜åŒ–è¿½è¸ªç³»ç»Ÿ ===
+    // Silver change log (aggregated for performance)
+    // ä½¿ç”¨ Map èšåˆï¼šæ¯ä¸ª reason åªç»´æŠ¤ä¸€ä¸ªç´¯åŠ å€¼ï¼Œè€Œä¸æ˜¯è®°å½•æ¯ä¸€æ¡
+    const silverChangeTotals = new Map();
+    const silverChangeLog = {
+        // è®°å½•æ–¹æ³•ï¼šç´¯åŠ åˆ°å¯¹åº”çš„ key
+        record: (amount, reason) => {
+            if (!Number.isFinite(amount) || amount === 0) return;
+            const key = reason || 'unknown';
+            silverChangeTotals.set(key, (silverChangeTotals.get(key) || 0) + amount);
+        },
+        // å…¼å®¹æ•°ç»„ push çš„è°ƒç”¨ï¼ˆLedger ç”¨ï¼‰
+        push: (entry) => {
+            if (!entry || !Number.isFinite(entry.amount) || entry.amount === 0) return;
+            const key = entry.reason || 'unknown';
+            silverChangeTotals.set(key, (silverChangeTotals.get(key) || 0) + entry.amount);
+        },
+        // è½¬æ¢ä¸ºæ•°ç»„ä¾› useGameLoop ä½¿ç”¨
+        toArray: () => Array.from(silverChangeTotals.entries()).map(([reason, amount]) => ({
+            amount,
+            reason,
+        })),
+        // å…¼å®¹æ•°ç»„çš„ length å±æ€§
+        get length() { return silverChangeTotals.size; },
     };
+    const trackSilverChange = (amount, reason) => {
+        silverChangeLog.record(amount, reason);
+    };
+
+    // General resource change log (for all resource types)
+    const resourceChangeLog = {};
+    const trackResourceChange = (resourceType, amount, reason) => {
+        if (!resourceChangeLog[resourceType]) {
+            resourceChangeLog[resourceType] = [];
+        }
+        resourceChangeLog[resourceType].push({ amount, reason, balance: res[resourceType] || 0 });
+    };
+
+    // Track trade tax in silver log if any
+    if (calculatedTradeRouteTax > 0) {
+        // We add it to 'rates' later, but for 'trackSilverChange' purposes we should log it?
+        // Actually trackSilverChange is defined below. We will call it there.
+    }
+
+    // Helper: modify res[resourceType] AND track the change in one call (for traceability)
+    const applyResourceChange = (resourceType, amount, reason) => {
+        if (amount === 0) return;
+        res[resourceType] = (res[resourceType] || 0) + amount;
+        trackResourceChange(resourceType, amount, reason);
+        // Also track silver changes in the dedicated log for financial reporting
+        if (resourceType === 'silver') {
+            trackSilverChange(amount, reason);
+        }
+    };
+
+    // Convenience wrapper for silver (most common case)
+    const applySilverChange = (amount, reason) => {
+        applyResourceChange('silver', amount, reason);
+    };
+
+    // Record trade tax if calculated
+    if (calculatedTradeRouteTax > 0) {
+        // Note: Manual trade logic adds the *resources* (import/export), but the tax revenue
+        // is usually handled as a separate silver addition.
+    }
+    // [FIX] Trade tax is calculated per-tick based on active routes.
+    // Do not add initialTradeRouteTax (previous tick's value) to avoid double counting/accumulation.
+    const tradeRouteTax = calculatedTradeRouteTax;
+
+    // [FIXED] Apply trade route resource deltas AFTER log system is initialized
+    if (tradeRouteSummary && tradeRouteSummary.resourceDelta) {
+        Object.entries(tradeRouteSummary.resourceDelta).forEach(([key, delta]) => {
+            // Use applyResourceChange to ensure logging (especially for silver)
+            applyResourceChange(key, delta, 'trade_route_transaction');
+        });
+    }
+
+    // Adapter callback for external modules (different argument order)
+    // External modules call: onResourceChange(delta, reason, resourceType)
+    const onResourceChangeCallback = (delta, reason, resourceType) => {
+        applyResourceChange(resourceType, delta, reason);
+    };
+
+    // === é˜¶å±‚è´¢å¯Œå˜åŒ–è¿½è¸ªç³»ç»Ÿ ===
+    // Class wealth change log (for financial reporting)
+    const classWealthChangeLog = {};
+    const trackClassWealthChange = (stratumKey, amount, reason) => {
+        if (!classWealthChangeLog[stratumKey]) {
+            classWealthChangeLog[stratumKey] = [];
+        }
+        classWealthChangeLog[stratumKey].push({ amount, reason, balance: wealth[stratumKey] || 0 });
+    };
+
+    // Helper: modify wealth[stratumKey] AND track the change in one call (for traceability)
+    // Used for non-ledger wealth changes (layoffs, decay, capital flight, etc.)
+    const applyClassWealthChange = (stratumKey, amount, reason) => {
+        if (amount === 0) return;
+        wealth[stratumKey] = Math.max(0, (wealth[stratumKey] || 0) + amount);
+        trackClassWealthChange(stratumKey, amount, reason);
+    };
+
+    // Helper: transfer wealth between strata with tracking (for population transfers)
+    const transferClassWealth = (fromStratum, toStratum, amount, reason) => {
+        if (amount <= 0) return;
+        const available = wealth[fromStratum] || 0;
+        const actualTransfer = Math.min(available, amount);
+        if (actualTransfer > 0) {
+            applyClassWealthChange(fromStratum, -actualTransfer, `${reason}_out`);
+            applyClassWealthChange(toStratum, actualTransfer, `${reason}_in`);
+        }
+    };
+
     const startingSilver = res.silver || 0;
 
-    // NEW: Track actual consumption by stratum for UI display
-    const stratumConsumption = {};
+    // === Process Overseas & Foreign Investments (Worker Side) ===
+    let updatedOverseasInvestments = [...overseasInvestments];
+    let updatedForeignInvestments = [...foreignInvestments];
+    let investmentLogs = [];
     // NEW: Track supply source breakdown
     const supplyBreakdown = {};
 
@@ -275,17 +470,21 @@ export const simulateTick = ({
     if (Object.keys(STRATA).length > 0) {
         Object.keys(STRATA).forEach(key => {
             classFinancialData[key] = {
-                income: { wage: 0, ownerRevenue: 0, subsidy: 0 },
+                income: { wage: 0, ownerRevenue: 0, subsidy: 0, salary: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
                 expense: {
                     headTax: 0,
                     transactionTax: 0,
                     businessTax: 0,
                     tariffs: 0,
-                    essentialNeeds: {},  // »ù´¡ĞèÇóÏû·Ñ { resource: cost }
-                    luxuryNeeds: {},     // Éİ³ŞĞèÇóÏû·Ñ { resource: cost }
+                    essentialNeeds: {},  // åŸºç¡€éœ€æ±‚æ¶ˆè´¹ { resource: cost }
+                    luxuryNeeds: {},     // å¥¢ä¾ˆéœ€æ±‚æ¶ˆè´¹ { resource: cost }
                     decay: 0,
                     productionCosts: 0,
-                    wages: 0  // ¹¤×ÊÖ§³ö£¨ÒµÖ÷Ö§¸¶¸ø¹¤ÈË£©
+                    wages: 0,  // å·¥èµ„æ”¯å‡ºï¼ˆä¸šä¸»æ”¯ä»˜ç»™å·¥äººï¼‰
+                    tradeExportPurchase: 0, // è´¸æ˜“å‡ºå£è´­ä¹°æˆæœ¬
+                    capitalFlight: 0, // èµ„æœ¬å¤–é€ƒ
+                    buildingCost: 0, // å»ºç­‘å»ºé€ /å‡çº§æˆæœ¬
+                    layoffTransfer: 0 // è£å‘˜æ—¶éšäººå£è½¬ç§»çš„è´¢å¯Œ
                 }
             };
         });
@@ -309,8 +508,8 @@ export const simulateTick = ({
         livingCostBreakdown,
         ECONOMIC_INFLUENCE?.wage || {}
     );
-    // ×¢Òâ£º²»ÔÙÔÚ´Ë´¦È«¾Ö½â¹¹ market ²ÎÊı£¬¶øÊÇÔÚ¼Û¸ñ¼ÆËãÑ­»·ÖĞ¶¯Ì¬»ñÈ¡
-    // ÕâÑù¿ÉÒÔÖ§³ÖÃ¿¸ö×ÊÔ´Ê¹ÓÃ²»Í¬µÄ¾­¼Ã²ÎÊıÅäÖÃ
+    // æ³¨æ„ï¼šä¸å†åœ¨æ­¤å¤„å…¨å±€è§£æ„ market å‚æ•°ï¼Œè€Œæ˜¯åœ¨ä»·æ ¼è®¡ç®—å¾ªç¯ä¸­åŠ¨æ€è·å–
+    // è¿™æ ·å¯ä»¥æ”¯æŒæ¯ä¸ªèµ„æºä½¿ç”¨ä¸åŒçš„ç»æµå‚æ•°é…ç½®
     const previousWages = market?.wages || {};
     const getLivingCostFloor = (role) => {
         const base = wageLivingCosts?.[role];
@@ -334,22 +533,118 @@ export const simulateTick = ({
     const demandBreakdown = {};
     const supply = {};
     const wealth = initializeWealth(classWealth);
+
+    // Apply Overseas Investment Profits (Calculated above) to Wealth
+    // We need to re-run calculation or extract it?
+    // Actually, processOverseasInvestments depends on 'classWealth' input.
+    // If we pass the raw 'classWealth' param, it's fine.
+    // But we need to update the 'wealth' object (which is the working copy) with the profits.
+    // Let's move the Overseas Investment execution AFTER wealth init?
+    // Yes, cleaner.
+    // [FIX] æ·»åŠ ç¼ºå¤±çš„ getHeadTaxRate æœ¬åœ°åŒ…è£…å‡½æ•°
     const getHeadTaxRate = (key) => getHeadTaxRateFromModule(key, headTaxRates);
+
     const getResourceTaxRate = (resource) => {
         const rate = resourceTaxRates[resource];
-        if (typeof rate === 'number') return rate; // ÔÊĞí¸ºË°ÂÊ
+        if (typeof rate === 'number') return rate; // å…è®¸è´Ÿç¨ç‡
         return 0;
     };
     const getBusinessTaxRate = (buildingId) => {
         const rate = businessTaxRates[buildingId];
-        if (typeof rate === 'number') return rate; // ÔÊĞí¸ºË°ÂÊ£¨²¹Ìù£©
-        return 1; // Ä¬ÈÏË°ÂÊÏµÊıÎª1£¬ÓëUIÏÔÊ¾Ò»ÖÂ
+        if (typeof rate === 'number') return rate; // å…è®¸è´Ÿç¨ç‡ï¼ˆè¡¥è´´ï¼‰
+        return 1; // é»˜è®¤ç¨ç‡ç³»æ•°ä¸º1ï¼Œä¸UIæ˜¾ç¤ºä¸€è‡´
     };
     // REFACTORED: Use imported function from ./economy/taxes
     const taxBreakdown = initializeTaxBreakdown();
 
+    // Initialize Ledger
+    const ledger = new EconomyLedger({
+        resources: res,
+        wealth: wealth,
+        officials: officials, // Note: officials array reference passed, but modification might need care
+        classFinancialData: classFinancialData,
+        taxBreakdown: taxBreakdown,
+        silverChangeLog: silverChangeLog,
+        buildingFinancialData: buildingFinancialData,
+        classWealthChangeLog: classWealthChangeLog, // Track all class wealth changes
+    }, { safeWealth });
+
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
+
+    // === Execute Investment Logic (Now that Wealth/Ledger is ready) ===
+
+    // 1. Overseas Investments (Player -> AI)
+    if (overseasInvestments.length > 0) {
+        const oiResult = processOverseasInvestments({
+            overseasInvestments, // Use original input
+            nations,
+            organizations: diplomacyOrganizations?.organizations || [],
+            resources: res,
+            marketPrices: priceMap,
+            classWealth: wealth, // Use the working wealth object (simulating direct mutation)
+            daysElapsed: tick,
+        });
+
+        updatedOverseasInvestments = oiResult.updatedInvestments;
+        investmentLogs.push(...oiResult.logs);
+
+        // Apply profits to wealth
+        if (oiResult.profitByStratum) {
+            Object.entries(oiResult.profitByStratum).forEach(([stratum, profit]) => {
+                if (profit > 0) {
+                    // Update wealth directly
+                    wealth[stratum] = (wealth[stratum] || 0) + profit;
+                    // Log in financial data
+                    if (classFinancialData[stratum]) {
+                        classFinancialData[stratum].income.ownerRevenue = (classFinancialData[stratum].income.ownerRevenue || 0) + profit;
+                    }
+                }
+            });
+        }
+
+        // Apply market/player resource changes
+        if (oiResult.playerInventoryChanges) {
+            Object.entries(oiResult.playerInventoryChanges).forEach(([key, delta]) => {
+                // [FIX] Use applyResourceChange to ensure tracking (especially for silver)
+                applyResourceChange(key, delta, 'overseas_investment_return');
+            });
+        }
+
+        // [FIX] Apply market changes to target nations (supply/demand impact)
+        if (oiResult.marketChanges) {
+            // marketChanges structure: { [nationId]: { [resource]: amount } }
+            Object.entries(oiResult.marketChanges).forEach(([nationId, changes]) => {
+                const nation = nations.find(n => n.id === nationId);
+                if (nation && nation.inventory) {
+                    Object.entries(changes).forEach(([resKey, amount]) => {
+                        nation.inventory[resKey] = Math.max(0, (nation.inventory[resKey] || 0) + amount);
+                    });
+                }
+            });
+        }
+
+        // Process Upgrades
+        const upgradeResult = processOverseasInvestmentUpgrades({
+            overseasInvestments: updatedOverseasInvestments,
+            nations,
+            classWealth: wealth,
+            marketPrices: priceMap,
+            daysElapsed: tick,
+        });
+
+        if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
+            updatedOverseasInvestments = upgradeResult.updatedInvestments;
+            investmentLogs.push(...upgradeResult.logs);
+            // Deduct costs
+            if (upgradeResult.wealthChanges) {
+                Object.entries(upgradeResult.wealthChanges).forEach(([stratum, delta]) => {
+                    // delta is negative for cost
+                    wealth[stratum] = Math.max(0, (wealth[stratum] || 0) + delta);
+                });
+            }
+        }
+    }
 
     // 2.1 Calculate Cabinet Effects
     // [NEW] Calculate cabinet status to get synergy, dominance, and reform decree effects
@@ -403,7 +698,7 @@ export const simulateTick = ({
         applyEffects(cabinetStatus.decreeEffects, bonuses);
     }
 
-    // Ó¦ÓÃ¹ÙÔ±Ğ§¹û£¨º¬Ğ½Ë®²»×ã¼õÒæ£©
+    // åº”ç”¨å®˜å‘˜æ•ˆæœï¼ˆå«è–ªæ°´ä¸è¶³å‡ç›Šï¼‰
     const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
     const officialEffectsForBonuses = {
         ...activeOfficialEffects,
@@ -416,57 +711,57 @@ export const simulateTick = ({
     };
     applyEffects(officialEffectsForBonuses, bonuses);
 
-    // === Ó¦ÓÃ¹ÙÔ±×¨ÊôĞ§¹ûµ½ bonuses ===
-    // ¿ÆÑĞËÙ¶È ¡ú scienceBonus
+    // === åº”ç”¨å®˜å‘˜ä¸“å±æ•ˆæœåˆ° bonuses ===
+    // ç§‘ç ”é€Ÿåº¦ â†’ scienceBonus
     if (activeOfficialEffects.researchSpeed) {
         bonuses.scienceBonus = (bonuses.scienceBonus || 0) + activeOfficialEffects.researchSpeed;
     }
-    // Ë°ÊÕĞ§ÂÊ ¡ú ´æ´¢¹©Ë°ÊÕ¼ÆËãÊ¹ÓÃ
+    // ç¨æ”¶æ•ˆç‡ â†’ å­˜å‚¨ä¾›ç¨æ”¶è®¡ç®—ä½¿ç”¨
     bonuses.taxEfficiencyBonus = activeOfficialEffects.taxEfficiency || 0;
-    // ¸¯°Ü ¡ú ´æ´¢¹©Ë°ÊÕ¼ÆËãÊ¹ÓÃ (¸ºÃæĞ§¹û)
+    // è…è´¥ â†’ å­˜å‚¨ä¾›ç¨æ”¶è®¡ç®—ä½¿ç”¨ (è´Ÿé¢æ•ˆæœ)
     bonuses.corruption = activeOfficialEffects.corruption || 0;
-    // ÊÕÈë°Ù·Ö±È ¡ú ´æ´¢¹©²ÆÕş¼ÆËãÊ¹ÓÃ
+    // æ”¶å…¥ç™¾åˆ†æ¯” â†’ å­˜å‚¨ä¾›è´¢æ”¿è®¡ç®—ä½¿ç”¨
     if (activeOfficialEffects.incomePercentBonus) {
         bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + activeOfficialEffects.incomePercentBonus;
     }
-    // ÈË¿ÚÔö³¤ ¡ú ´æ´¢¹©ÈË¿Ú¼ÆËãÊ¹ÓÃ
+    // äººå£å¢é•¿ â†’ å­˜å‚¨ä¾›äººå£è®¡ç®—ä½¿ç”¨
     bonuses.populationGrowthBonus = activeOfficialEffects.populationGrowth || 0;
-    // ¾ü·Ñ½µµÍ ¡ú ´æ´¢¹©¾ü·Ñ¼ÆËãÊ¹ÓÃ
+    // å†›è´¹é™ä½ â†’ å­˜å‚¨ä¾›å†›è´¹è®¡ç®—ä½¿ç”¨
     bonuses.militaryUpkeepMod = activeOfficialEffects.militaryUpkeep || 0;
-    // Ã³Ò×¼Ó³É ¡ú ´æ´¢¹©Ã³Ò×¼ÆËãÊ¹ÓÃ
+    // è´¸æ˜“åŠ æˆ â†’ å­˜å‚¨ä¾›è´¸æ˜“è®¡ç®—ä½¿ç”¨
     bonuses.tradeBonusMod = activeOfficialEffects.tradeBonus || 0;
-    // ½¨Öş³É±¾ ¡ú ´æ´¢¹©½¨Öş¹ºÂòÊ¹ÓÃ
+    // å»ºç­‘æˆæœ¬ â†’ å­˜å‚¨ä¾›å»ºç­‘è´­ä¹°ä½¿ç”¨
     bonuses.buildingCostMod = activeOfficialEffects.buildingCostMod || 0;
-    // Õ½Ê±Éú²ú¼Ó³É ¡ú ´æ´¢¹©Éú²ú¼ÆËãÊ¹ÓÃ
+    // æˆ˜æ—¶ç”Ÿäº§åŠ æˆ â†’ å­˜å‚¨ä¾›ç”Ÿäº§è®¡ç®—ä½¿ç”¨
     bonuses.wartimeProduction = activeOfficialEffects.wartimeProduction || 0;
-    // ×ÊÔ´ÀË·Ñ ¡ú ´æ´¢¹©ĞèÇó/Éú²úÏûºÄÊ¹ÓÃ
+    // èµ„æºæµªè´¹ â†’ å­˜å‚¨ä¾›éœ€æ±‚/ç”Ÿäº§æ¶ˆè€—ä½¿ç”¨
     bonuses.resourceWaste = activeOfficialEffects.resourceWaste || {};
-    // ÁªÃËÂúÒâ¶È ¡ú ´æ´¢¹©ÂúÒâ¶È¼ÆËãÊ¹ÓÃ
+    // è”ç›Ÿæ»¡æ„åº¦ â†’ å­˜å‚¨ä¾›æ»¡æ„åº¦è®¡ç®—ä½¿ç”¨
     bonuses.coalitionApproval = activeOfficialEffects.coalitionApproval || 0;
-    // ºÏ·¨ĞÔ¼Ó³É ¡ú ´æ´¢¹©ºÏ·¨ĞÔĞŞÕıÊ¹ÓÃ
+    // åˆæ³•æ€§åŠ æˆ â†’ å­˜å‚¨ä¾›åˆæ³•æ€§ä¿®æ­£ä½¿ç”¨
     bonuses.legitimacyBonus = activeOfficialEffects.legitimacyBonus || 0;
-    // ×éÖ¯¶ÈÔö³¤ĞŞÕı£¨¸ºÖµ½µµÍÔö³¤£©
+    // ç»„ç»‡åº¦å¢é•¿ä¿®æ­£ï¼ˆè´Ÿå€¼é™ä½å¢é•¿ï¼‰
     bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + (activeOfficialEffects.organizationDecay || 0);
-    // ÅÉÏµ³åÍ» ¡ú ÎÈ¶¨¶È³Í·£
+    // æ´¾ç³»å†²çª â†’ ç¨³å®šåº¦æƒ©ç½š
     bonuses.factionConflict = (bonuses.factionConflict || 0) + (activeOfficialEffects.factionConflict || 0);
-    // Íâ½»ÀäÈ´ĞŞÕı
+    // å¤–äº¤å†·å´ä¿®æ­£
     bonuses.diplomaticCooldown = activeOfficialEffects.diplomaticCooldown || 0;
-    // Íâ½»¹ØÏµË¥¼õ
+    // å¤–äº¤å…³ç³»è¡°å‡
     bonuses.diplomaticIncident = activeOfficialEffects.diplomaticIncident || 0;
-    // Íâ½»¼Ó³É ¡ú ´æ´¢¹©Íâ½»¹ØÏµ¼ÆËãÊ¹ÓÃ
+    // å¤–äº¤åŠ æˆ â†’ å­˜å‚¨ä¾›å¤–äº¤å…³ç³»è®¡ç®—ä½¿ç”¨
     bonuses.diplomaticBonus = activeOfficialEffects.diplomaticBonus || 0;
-    // Éú²úÔ­ÁÏ³É±¾ĞŞÕı ¡ú ´æ´¢¹©½¨ÖşÉú²ú¼ÆËãÊ¹ÓÃ
+    // ç”Ÿäº§åŸæ–™æˆæœ¬ä¿®æ­£ â†’ å­˜å‚¨ä¾›å»ºç­‘ç”Ÿäº§è®¡ç®—ä½¿ç”¨
     bonuses.officialProductionInputCost = activeOfficialEffects.productionInputCost || {};
 
-    // === Ó¦ÓÃÕşÖÎÁ¢³¡Ğ§¹û ===
-    // ¹¹½¨¼ò»¯µÄÓÎÏ·×´Ì¬ÓÃÓÚÌõ¼ş¼ì²é
+    // === åº”ç”¨æ”¿æ²»ç«‹åœºæ•ˆæœ ===
+    // æ„å»ºç®€åŒ–çš„æ¸¸æˆçŠ¶æ€ç”¨äºæ¡ä»¶æ£€æŸ¥
     const stanceCheckState = {
         classApproval: previousApproval,
         classInfluence: market?.classInfluence || {},
         totalInfluence: market?.totalInfluence || 1,
         classLivingStandard: market?.classLivingStandard || {},
         classIncome: market?.classIncome || {},
-        stability: currentStability / 100, // ×ª»»Îª0-1
+        stability: currentStability / 100, // è½¬æ¢ä¸º0-1
         legitimacy: previousLegitimacy,
         taxPolicies: policies,
         rulingCoalition,
@@ -478,7 +773,7 @@ export const simulateTick = ({
     const stanceResult = getAggregatedStanceEffects(officials, stanceCheckState);
     const stanceEffects = stanceResult.aggregatedEffects;
 
-    // Ó¦ÓÃÁ¢³¡Ğ§¹ûµ½ bonuses
+    // åº”ç”¨ç«‹åœºæ•ˆæœåˆ° bonuses
     if (stanceEffects.stability) {
         bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + stanceEffects.stability;
     }
@@ -524,9 +819,9 @@ export const simulateTick = ({
     if (stanceEffects.diplomaticBonus) {
         bonuses.diplomaticBonus = (bonuses.diplomaticBonus || 0) + stanceEffects.diplomaticBonus;
     }
-    // Á¢³¡ÂúÒâ¶ÈĞ§¹û´æ´¢¹©ºóĞøÊ¹ÓÃ
+    // ç«‹åœºæ»¡æ„åº¦æ•ˆæœå­˜å‚¨ä¾›åç»­ä½¿ç”¨
     bonuses.stanceApprovalEffects = stanceEffects.approval || {};
-    // Á¢³¡Éú²ú³É±¾Ğ§¹û´æ´¢¹©ºóĞøÊ¹ÓÃ
+    // ç«‹åœºç”Ÿäº§æˆæœ¬æ•ˆæœå­˜å‚¨ä¾›åç»­ä½¿ç”¨
     bonuses.stanceProductionInputCost = stanceEffects.productionInputCost || {};
 
     // Destructure for backward compatibility with existing code
@@ -601,7 +896,7 @@ export const simulateTick = ({
     }
 
     // Apply Polity Effects (Government Type Bonuses)
-    // ¸ù¾İµ±Ç°Ö´ÕşÁªÃË¼ÆËãÕşÌå£¬²¢Ó¦ÓÃÕşÌåĞ§¹û
+    // æ ¹æ®å½“å‰æ‰§æ”¿è”ç›Ÿè®¡ç®—æ”¿ä½“ï¼Œå¹¶åº”ç”¨æ”¿ä½“æ•ˆæœ
     // Use previous tick data to avoid circular dependency and TDZ issues
     let currentPolityEffects = null;
     if (rulingCoalition && rulingCoalition.length > 0) {
@@ -648,17 +943,11 @@ export const simulateTick = ({
     let currentBuildingId = null;
 
     const sellProduction = (resource, amount, ownerKey) => {
-        // ÌØÊâ´¦ÀíÒø±Ò²ú³ö£ºÖ±½Ó×÷ÎªËùÓĞÕßÊÕÈë£¬²»½øÈë¹ú¿â£¬²»½»Ë°
+        // ç‰¹æ®Šå¤„ç†é“¶å¸äº§å‡ºï¼šç›´æ¥ä½œä¸ºæ‰€æœ‰è€…æ”¶å…¥ï¼Œä¸è¿›å…¥å›½åº“ï¼Œä¸äº¤ç¨
         if (resource === 'silver' && amount > 0) {
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + amount;
-            if (classFinancialData[ownerKey]) {
-                // Silver production is direct revenue
-                classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + amount;
-            }
-            // Per-building realized owner revenue (if building context exists)
-            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
-                buildingFinancialData[currentBuildingId].ownerRevenue += amount;
-            }
+            // ä½¿ç”¨ Ledger è®°å½•æ”¶å…¥
+            ledger.transfer('void', ownerKey, amount, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
             return;
         }
         if (amount <= 0) return;
@@ -667,8 +956,8 @@ export const simulateTick = ({
             supply[resource] = (supply[resource] || 0) + amount;
             const marketPrice = getPrice(resource);
 
-            // [NEW] ¼Û¸ñ¹ÜÖÆ¼ì²é£¨³öÊÛ²à£©£ºÕş¸®±£µ×ÊÕ¹º»òÊÕ³¬¶îÀûÈóË°
-            // Ö»ÓĞ×óÅÉÖ÷µ¼ÇÒÆôÓÃÊ±²ÅÉúĞ§
+            // [NEW] ä»·æ ¼ç®¡åˆ¶æ£€æŸ¥ï¼ˆå‡ºå”®ä¾§ï¼‰ï¼šæ”¿åºœä¿åº•æ”¶è´­æˆ–æ”¶è¶…é¢åˆ©æ¶¦ç¨
+            // åªæœ‰å·¦æ´¾ä¸»å¯¼ä¸”å¯ç”¨æ—¶æ‰ç”Ÿæ•ˆ
             const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
             const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentBuyPrices?.[resource] !== undefined;
 
@@ -680,7 +969,8 @@ export const simulateTick = ({
                     marketPrice,
                     priceControls,
                     taxBreakdown,
-                    resources: res
+                    resources: res,
+                    onTreasuryChange: trackSilverChange,
                 });
                 if (pcResult.success) {
                     effectivePrice = pcResult.effectivePrice;
@@ -688,25 +978,13 @@ export const simulateTick = ({
             }
 
             const grossIncome = effectivePrice * amount;
-            // Note: Tax is handled on consumption side generally for 'Resource Tax', 
-            // but we might want to consider if 'Sales Tax' applies. 
-            // Current login assumes getResourceTaxRate is consumption tax.
+            const netIncome = grossIncome;
 
-            let netIncome = grossIncome;
-
-            // ¼ÇÂ¼ownerµÄ¾»ÏúÊÛÊÕÈë£¨ÔÚtick½áÊøÊ±Í³Ò»½áËãµ½wealth£©
+            // è®°å½•ownerçš„å‡€é”€å”®æ”¶å…¥ (æœ¬åœ°è¿½è¸ª)
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
 
-            // Per-building realized owner revenue (if building context exists)
-            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
-                buildingFinancialData[currentBuildingId].ownerRevenue += netIncome;
-            }
-
-            // NEW: Detailed tracking
-            if (classFinancialData[ownerKey]) {
-                // Track net income as owner revenue (profit from sales)
-                classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + netIncome;
-            }
+            // ä½¿ç”¨ Ledger è®°å½•æ”¶å…¥
+            ledger.transfer('void', ownerKey, netIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
         }
     };
 
@@ -719,15 +997,15 @@ export const simulateTick = ({
     const directIncomeApplied = {};
     const roleVacancyTargets = {};
     let totalMaxPop = 5;
-    let militaryCapacity = 0; // ĞÂÔö£º¾üÊÂÈİÁ¿
+    let militaryCapacity = 0; // æ–°å¢ï¼šå†›äº‹å®¹é‡
     totalMaxPop += extraMaxPop;
     totalMaxPop += maxPopBonus;
     const armyPopulationDemand = calculateArmyPopulation(army);
     const armyFoodNeed = calculateArmyFoodNeed(army);
 
-    // ¼ÆËãµ±Ç°¾ü¶ÓÊıÁ¿£¨Ö»°üÀ¨ÒÑÍê³ÉÑµÁ·µÄ£©
+    // è®¡ç®—å½“å‰å†›é˜Ÿæ•°é‡ï¼ˆåªåŒ…æ‹¬å·²å®Œæˆè®­ç»ƒçš„ï¼‰
     const currentArmyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
-    // ÑµÁ·¶ÓÁĞÊıÁ¿½«ÔÚºóÃæµ¥¶À´¦Àí
+    // è®­ç»ƒé˜Ÿåˆ—æ•°é‡å°†åœ¨åé¢å•ç‹¬å¤„ç†
     const totalArmyCount = currentArmyCount;
 
     ROLE_PRIORITY.forEach(role => jobsAvailable[role] = 0);
@@ -764,30 +1042,21 @@ export const simulateTick = ({
     });
 
     const applyRoleIncomeToWealth = () => {
-        Object.entries(roleWagePayout).forEach(([role, payout]) => {
-            if (payout <= 0) {
-                directIncomeApplied[role] = payout;
-                return;
-            }
-            const alreadyApplied = directIncomeApplied[role] || 0;
-            const netPayout = payout - alreadyApplied;
-            if (netPayout > 0) {
-                // [FIX] Apply safe wealth limit to prevent overflow
-                wealth[role] = safeWealth((wealth[role] || 0) + netPayout);
-            }
-            directIncomeApplied[role] = payout;
-        });
+        // [REFACTORED] Wealth is now updated immediately via Ledger.
+        // This function is kept empty or removed to prevent double counting.
+        // We keep it empty if called elsewhere, or remove calls.
+        // For now, empty implementation.
     };
 
     // console.log('[TICK] Processing buildings...'); // Commented for performance
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count > 0) {
-            // buildingUpgrades[b.id] ¸ñÊ½Îª { µÈ¼¶: ÊıÁ¿ }£¬ÀıÈç { "1": 2, "2": 1 }
-            // ±íÊ¾ 2¸ö1¼¶½¨Öş£¬1¸ö2¼¶½¨Öş
+            // buildingUpgrades[b.id] æ ¼å¼ä¸º { ç­‰çº§: æ•°é‡ }ï¼Œä¾‹å¦‚ { "1": 2, "2": 1 }
+            // è¡¨ç¤º 2ä¸ª1çº§å»ºç­‘ï¼Œ1ä¸ª2çº§å»ºç­‘
             const levelCounts = buildingUpgrades[b.id] || {};
 
-            // ¼ÆËãÒÑÉı¼¶µÄ½¨ÖşÊıÁ¿
+            // è®¡ç®—å·²å‡çº§çš„å»ºç­‘æ•°é‡
             let upgradedCount = 0;
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
                 const lvl = parseInt(lvlStr);
@@ -796,10 +1065,10 @@ export const simulateTick = ({
                 }
             });
 
-            // 0¼¶£¨Î´Éı¼¶£©µÄÊıÁ¿ = ×ÜÊı - ÒÑÉı¼¶ÊıÁ¿
+            // 0çº§ï¼ˆæœªå‡çº§ï¼‰çš„æ•°é‡ = æ€»æ•° - å·²å‡çº§æ•°é‡
             const level0Count = Math.max(0, count - upgradedCount);
 
-            // ¹¹½¨ÍêÕûµÄµÈ¼¶·Ö²¼£¬ÓÃÓÚºóĞø±éÀú
+            // æ„å»ºå®Œæ•´çš„ç­‰çº§åˆ†å¸ƒï¼Œç”¨äºåç»­éå†
             const fullLevelCounts = { 0: level0Count };
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
                 const lvl = parseInt(lvlStr);
@@ -808,7 +1077,7 @@ export const simulateTick = ({
                 }
             });
 
-            // ±éÀúÃ¿¸öµÈ¼¶£¬ÀÛ¼ÓÆäĞ§¹û
+            // éå†æ¯ä¸ªç­‰çº§ï¼Œç´¯åŠ å…¶æ•ˆæœ
             Object.entries(fullLevelCounts).forEach(([lvlStr, lvlCount]) => {
                 if (lvlCount <= 0) return;
                 const level = parseInt(lvlStr);
@@ -820,24 +1089,24 @@ export const simulateTick = ({
                 const catBonus = 1 + (categoryBonuses[b.cat] || 0);
                 buildingBonus *= catBonus;
 
-                // maxPop - ³ËÒÔ¸ÃµÈ¼¶½¨ÖşÊıÁ¿
+                // maxPop - ä¹˜ä»¥è¯¥ç­‰çº§å»ºç­‘æ•°é‡
                 if (config.output?.maxPop) {
                     totalMaxPop += (config.output.maxPop * buildingBonus * lvlCount);
                 }
 
-                // militaryCapacity - ³ËÒÔ¸ÃµÈ¼¶½¨ÖşÊıÁ¿
+                // militaryCapacity - ä¹˜ä»¥è¯¥ç­‰çº§å»ºç­‘æ•°é‡
                 if (config.output?.militaryCapacity) {
                     militaryCapacity += (config.output.militaryCapacity * buildingBonus * lvlCount);
                 }
 
-                // jobs - Ê¹ÓÃÉı¼¶ºóµÄÅäÖÃ£¬³ËÒÔ¸ÃµÈ¼¶½¨ÖşÊıÁ¿
+                // jobs - ä½¿ç”¨å‡çº§åçš„é…ç½®ï¼Œä¹˜ä»¥è¯¥ç­‰çº§å»ºç­‘æ•°é‡
                 if (config.jobs) {
                     for (let role in config.jobs) {
                         jobsAvailable[role] = (jobsAvailable[role] || 0) + config.jobs[role] * lvlCount;
                     }
                 }
 
-                // ¼ÇÂ¼ÒÑÉú²úµÄ×ÊÔ´ÀàĞÍ
+                // è®°å½•å·²ç”Ÿäº§çš„èµ„æºç±»å‹
                 if (config.output) {
                     Object.entries(config.output).forEach(([resKey, amount]) => {
                         if (!RESOURCES[resKey]) return;
@@ -851,9 +1120,9 @@ export const simulateTick = ({
     });
     // console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity); // Commented for performance
 
-    // ========== ¹ÙÔ±Í¶×Ê²úÒµµÄÒµÖ÷¸ÚÎ»ĞŞÕı ==========
-    // ¹ÙÔ±Í¶×ÊµÄ²úÒµÓÉ¹ÙÔ±×Ô¼ºµ£ÈÎÒµÖ÷£¬²»Ó¦ÔÙ¼ÆËãÔ­Ê¼ÒµÖ÷£¨ÈçµØÖ÷£©µÄ¸ÚÎ»
-    // Í³¼Æ¸÷½¨ÖşÀàĞÍ±»¹ÙÔ±Í¶×ÊµÄÊıÁ¿£¬´Ó jobsAvailable ÖĞ¼õÈ¥¶ÔÓ¦µÄÔ­Ê¼ÒµÖ÷¸ÚÎ»Êı
+    // ========== å®˜å‘˜æŠ•èµ„äº§ä¸šçš„ä¸šä¸»å²—ä½ä¿®æ­£ ==========
+    // å®˜å‘˜æŠ•èµ„çš„äº§ä¸šç”±å®˜å‘˜è‡ªå·±æ‹…ä»»ä¸šä¸»ï¼Œä¸åº”å†è®¡ç®—åŸå§‹ä¸šä¸»ï¼ˆå¦‚åœ°ä¸»ï¼‰çš„å²—ä½
+    // ç»Ÿè®¡å„å»ºç­‘ç±»å‹è¢«å®˜å‘˜æŠ•èµ„çš„æ•°é‡ï¼Œä» jobsAvailable ä¸­å‡å»å¯¹åº”çš„åŸå§‹ä¸šä¸»å²—ä½æ•°
     const officialPropertyCountByBuilding = {};
     (officials || []).forEach(official => {
         (official.ownedProperties || []).forEach(prop => {
@@ -864,7 +1133,7 @@ export const simulateTick = ({
         });
     });
 
-    // ´Ó jobsAvailable ÖĞ¼õÈ¥¹ÙÔ±Í¶×Ê²úÒµµÄÔ­Ê¼ÒµÖ÷¸ÚÎ»
+    // ä» jobsAvailable ä¸­å‡å»å®˜å‘˜æŠ•èµ„äº§ä¸šçš„åŸå§‹ä¸šä¸»å²—ä½
     Object.entries(officialPropertyCountByBuilding).forEach(([buildingId, count]) => {
         const building = BUILDINGS.find(b => b.id === buildingId);
         if (!building || !building.owner || !building.jobs) return;
@@ -873,9 +1142,37 @@ export const simulateTick = ({
         const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
 
         if (ownerSlotsPerBuilding > 0 && jobsAvailable[ownerRole]) {
-            // ¼õÈ¥¹ÙÔ±Í¶×Ê²úÒµµÄÔ­Ê¼ÒµÖ÷¸ÚÎ»Êı
+            // å‡å»å®˜å‘˜æŠ•èµ„äº§ä¸šçš„åŸå§‹ä¸šä¸»å²—ä½æ•°
             const slotsToRemove = ownerSlotsPerBuilding * count;
             jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
+        }
+    });
+
+    // ========== å¤–èµ„æŠ•èµ„äº§ä¸šçš„ä¸šä¸»å²—ä½ä¿®æ­£ ==========
+    // å¤–èµ„æŠ•èµ„çš„äº§ä¸šç”±å¤–å›½æŠ•èµ„è€…æ‹…ä»»ä¸šä¸»ï¼Œä¸åº”è®¡ç®—æœ¬åœ°ä¸šä¸»çš„å²—ä½
+    // ç»Ÿè®¡å„å»ºç­‘ç±»å‹è¢«å¤–èµ„æŠ•èµ„çš„æ•°é‡ï¼Œä» jobsAvailable ä¸­å‡å»å¯¹åº”çš„åŸå§‹ä¸šä¸»å²—ä½æ•°
+    const foreignInvestmentCountByBuilding = {};
+    (foreignInvestments || []).forEach(investment => {
+        // åªç»Ÿè®¡æ­£åœ¨è¿è¥çš„å¤–èµ„ä¼ä¸š
+        if (investment.status === 'operating' && investment.buildingId) {
+            foreignInvestmentCountByBuilding[investment.buildingId] =
+                (foreignInvestmentCountByBuilding[investment.buildingId] || 0) + 1;
+        }
+    });
+
+    // ä» jobsAvailable ä¸­å‡å»å¤–èµ„æŠ•èµ„äº§ä¸šçš„åŸå§‹ä¸šä¸»å²—ä½
+    Object.entries(foreignInvestmentCountByBuilding).forEach(([buildingId, count]) => {
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (!building || !building.owner || !building.jobs) return;
+
+        const ownerRole = building.owner;
+        const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
+
+        if (ownerSlotsPerBuilding > 0 && jobsAvailable[ownerRole]) {
+            // å‡å»å¤–èµ„æŠ•èµ„äº§ä¸šçš„åŸå§‹ä¸šä¸»å²—ä½æ•°
+            const slotsToRemove = ownerSlotsPerBuilding * count;
+            jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
+            // console.log(`[å¤–èµ„å²—ä½ä¿®æ­£] ${building.name}: ç§»é™¤ ${slotsToRemove} ä¸ª ${ownerRole} å²—ä½ (å¤–èµ„ ${count} ä¸ª)`);
         }
     });
 
@@ -902,8 +1199,8 @@ export const simulateTick = ({
     }
     totalMaxPop = Math.floor(totalMaxPop);
 
-    // ¾üÈË¸ÚÎ»°üÀ¨£ºÒÑÓĞ¾ü¶Ó + µÈ´ıÈËÔ±µÄ¸ÚÎ» + ÑµÁ·ÖĞµÄ¸ÚÎ»
-    // ¼ÆËãÒÑÓĞ¾ü¶ÓµÄÈË¿ÚĞèÇó
+    // å†›äººå²—ä½åŒ…æ‹¬ï¼šå·²æœ‰å†›é˜Ÿ + ç­‰å¾…äººå‘˜çš„å²—ä½ + è®­ç»ƒä¸­çš„å²—ä½
+    // è®¡ç®—å·²æœ‰å†›é˜Ÿçš„äººå£éœ€æ±‚
     let currentArmyPopNeeded = 0;
     Object.entries(army).forEach(([unitId, count]) => {
         if (!count || count <= 0) return;
@@ -912,7 +1209,7 @@ export const simulateTick = ({
         currentArmyPopNeeded += count * popCost;
     });
 
-    // ¼ÆËã¶ÓÁĞÖĞµÄÈË¿ÚĞèÇó
+    // è®¡ç®—é˜Ÿåˆ—ä¸­çš„äººå£éœ€æ±‚
     const queuePopNeeded = (militaryQueue || []).reduce((sum, item) => {
         if (item.status === 'waiting' || item.status === 'training') {
             const unit = UNIT_TYPES[item.unitId];
@@ -922,7 +1219,7 @@ export const simulateTick = ({
         return sum;
     }, 0);
 
-    // ×Ü¸ÚÎ»ĞèÇó = ÏÖÓĞ¾ü¶ÓÈË¿Ú + ¶ÓÁĞËùĞèÈË¿Ú
+    // æ€»å²—ä½éœ€æ±‚ = ç°æœ‰å†›é˜Ÿäººå£ + é˜Ÿåˆ—æ‰€éœ€äººå£
     const soldierJobsNeeded = currentArmyPopNeeded + queuePopNeeded;
     // console.log('[TICK] Adding soldier jobs. currentArmyPop:', currentArmyPopNeeded, 'queuePop:', queuePopNeeded, 'total:', soldierJobsNeeded); // Commented for performance
     if (soldierJobsNeeded > 0) {
@@ -930,16 +1227,16 @@ export const simulateTick = ({
     }
     // console.log('[TICK] Soldier jobs added. jobsAvailable.soldier:', jobsAvailable.soldier); // Commented for performance
 
-    // Ö°Òµ³Ö¾Ã»¯£º»ùÓÚÉÏÒ»Ö¡×´Ì¬½øĞĞÔö¼õ£¬¶ø·ÇÃ¿Ö¡ÖØÖÃ
+    // èŒä¸šæŒä¹…åŒ–ï¼šåŸºäºä¸Šä¸€å¸§çŠ¶æ€è¿›è¡Œå¢å‡ï¼Œè€Œéæ¯å¸§é‡ç½®
     // console.log('[TICK] Starting population allocation...'); // Commented for performance
     const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
-    const popStructure = {};
+    let popStructure = {};
 
     let diff = 0;
 
     if (!hasPreviousPopStructure) {
-        // Ê×´ÎÔËĞĞ£º°´¸ÚÎ»ĞèÇó½øĞĞÒ»´ÎĞÔ³õÊ¼·ÖÅä
-        // ÕâÄÜÈ·±£ÀıÈç¾ü¶Ó/ÑµÁ·¶ÓÁĞ²úÉúµÄ `soldier` ¸ÚÎ»ÔÚ¿ª¾Ö¾ÍÄÜÄÃµ½ÈË
+        // é¦–æ¬¡è¿è¡Œï¼šæŒ‰å²—ä½éœ€æ±‚è¿›è¡Œä¸€æ¬¡æ€§åˆå§‹åˆ†é…
+        // è¿™èƒ½ç¡®ä¿ä¾‹å¦‚å†›é˜Ÿ/è®­ç»ƒé˜Ÿåˆ—äº§ç”Ÿçš„ `soldier` å²—ä½åœ¨å¼€å±€å°±èƒ½æ‹¿åˆ°äºº
         let remainingPop = population;
         ROLE_PRIORITY.forEach(role => {
             const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -949,22 +1246,22 @@ export const simulateTick = ({
         });
         popStructure.unemployed = Math.max(0, remainingPop);
     } else {
-        // ¼Ì³ĞÉÏÒ»Ö¡×´Ì¬
+        // ç»§æ‰¿ä¸Šä¸€å¸§çŠ¶æ€
         ROLE_PRIORITY.forEach(role => {
             const prevCount = (previousPopStructure[role] || 0);
             popStructure[role] = Math.max(0, prevCount);
         });
         popStructure.unemployed = Math.max(0, (previousPopStructure.unemployed || 0));
 
-        // ´¦ÀíÈË¿Ú±ä»¯£¨Ôö³¤»ò¼õÉÙ£©
+        // å¤„ç†äººå£å˜åŒ–ï¼ˆå¢é•¿æˆ–å‡å°‘ï¼‰
         const assignedPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0) + (popStructure.unemployed || 0);
         diff = population - assignedPop;
 
         if (diff > 0) {
-            // ÈË¿ÚÔö³¤£ºĞÂÈË¼ÓÈëÊ§ÒµÕß
+            // äººå£å¢é•¿ï¼šæ–°äººåŠ å…¥å¤±ä¸šè€…
             popStructure.unemployed = (popStructure.unemployed || 0) + diff;
         } else if (diff < 0) {
-            // ÈË¿Ú¼õÉÙ£º½ö´ÓÊ§ÒµÕßÖĞ¿Û³ı£¬²»×Ô¶¯´Ó¸÷Ö°Òµ¿Û³ı£¨·ÀÖ¹ÈË¿Ú±»Îü×ß£©
+            // äººå£å‡å°‘ï¼šä»…ä»å¤±ä¸šè€…ä¸­æ‰£é™¤ï¼Œä¸è‡ªåŠ¨ä»å„èŒä¸šæ‰£é™¤ï¼ˆé˜²æ­¢äººå£è¢«å¸èµ°ï¼‰
             let reductionNeeded = -diff;
             const unemployedReduction = Math.min(popStructure.unemployed || 0, reductionNeeded);
             if (unemployedReduction > 0) {
@@ -972,8 +1269,8 @@ export const simulateTick = ({
                 reductionNeeded -= unemployedReduction;
             }
 
-            // ×¢ÊÍµô×Ô¶¯´Ó¸÷Ö°Òµ¿Û³ıÈË¿ÚµÄÂß¼­
-            // Èç¹û»¹ĞèÒª¼õÉÙÈË¿Ú£¬±£³ÖÏÖ×´£¨²»×Ô¶¯ÖØĞÂ·ÖÅä£©
+            // æ³¨é‡Šæ‰è‡ªåŠ¨ä»å„èŒä¸šæ‰£é™¤äººå£çš„é€»è¾‘
+            // å¦‚æœè¿˜éœ€è¦å‡å°‘äººå£ï¼Œä¿æŒç°çŠ¶ï¼ˆä¸è‡ªåŠ¨é‡æ–°åˆ†é…ï¼‰
             if (reductionNeeded > 0) {
                 const initialTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0);
                 if (initialTotal > 0) {
@@ -993,7 +1290,7 @@ export const simulateTick = ({
                         if (remove <= 0) return;
                         popStructure[role] = current - remove;
                         reductionNeeded -= remove;
-                        // ×¢Òâ£º²Æ¸»²»¿Û³ı£¬Áô¸øĞÒ´æÕß¾ùÌ¯£¨±äÏàÔö¼ÓÈË¾ù²Æ¸»£©
+                        // æ³¨æ„ï¼šè´¢å¯Œä¸æ‰£é™¤ï¼Œç•™ç»™å¹¸å­˜è€…å‡æ‘Šï¼ˆå˜ç›¸å¢åŠ äººå‡è´¢å¯Œï¼‰
                     });
                     if (reductionNeeded > 0) {
                         ROLE_PRIORITY.forEach(role => {
@@ -1014,10 +1311,10 @@ export const simulateTick = ({
     // REFACTORED: Use calculateWeightedAverageWage imported from ./economy/wages
     const defaultWageEstimate = calculateWeightedAverageWage(popStructure, previousWages);
 
-    // ´¦Àí¸ÚÎ»ÉÏÏŞ£¨²ÃÔ±£©£ºÈç¹ûÖ°ÒµÈËÊı³¬¹ı¸ÚÎ»Êı£¬½«¶à³öµÄÈË×ªÎªÊ§Òµ
-    // ×¢Òâ£ºofficial ½×²ã²»²ÎÓë×ÔÓÉÁ÷¶¯£¬ÈËÊıÓÉ¹ÍÓ¶µÄ¹ÙÔ±Êı¾ö¶¨
+    // å¤„ç†å²—ä½ä¸Šé™ï¼ˆè£å‘˜ï¼‰ï¼šå¦‚æœèŒä¸šäººæ•°è¶…è¿‡å²—ä½æ•°ï¼Œå°†å¤šå‡ºçš„äººè½¬ä¸ºå¤±ä¸š
+    // æ³¨æ„ï¼šofficial é˜¶å±‚ä¸å‚ä¸è‡ªç”±æµåŠ¨ï¼Œäººæ•°ç”±é›‡ä½£çš„å®˜å‘˜æ•°å†³å®š
     ROLE_PRIORITY.forEach(role => {
-        if (role === 'official') return; // ¹ÙÔ±²»²ÎÓëÆÕÍ¨²ÃÔ±Âß¼­
+        if (role === 'official') return; // å®˜å‘˜ä¸å‚ä¸æ™®é€šè£å‘˜é€»è¾‘
 
         const current = popStructure[role] || 0;
         const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -1026,41 +1323,41 @@ export const simulateTick = ({
             const roleWealth = wealth[role] || 0;
             const perCapWealth = current > 0 ? roleWealth / current : 0;
 
-            // ²ÃÔ±£ºÈË¿ÚÒÆÖÁÊ§Òµ£¬²¢Ğ¯´ø²Æ¸»
+            // è£å‘˜ï¼šäººå£ç§»è‡³å¤±ä¸šï¼Œå¹¶æºå¸¦è´¢å¯Œ
             popStructure[role] = slots;
             popStructure.unemployed = (popStructure.unemployed || 0) + layoffs;
 
             if (perCapWealth > 0) {
                 const transfer = perCapWealth * layoffs;
-                wealth[role] = Math.max(0, roleWealth - transfer);
-                wealth.unemployed = (wealth.unemployed || 0) + transfer;
+                // Use ledger for tracking layoff wealth transfer
+                ledger.transfer(role, 'unemployed', transfer, TRANSACTION_CATEGORIES.EXPENSE.LAYOFF_TRANSFER, TRANSACTION_CATEGORIES.EXPENSE.LAYOFF_TRANSFER);
             }
         }
     });
 
-    // === ¹ÙÔ±½×²ãÌØÊâ´¦Àí ===
-    // ¹ÙÔ±ÈËÊı = min(½¨ÖşÌá¹©µÄ¸ÚÎ», ¹ÍÓ¶µÄ¹ÙÔ±Êı)
+    // === å®˜å‘˜é˜¶å±‚ç‰¹æ®Šå¤„ç† ===
+    // å®˜å‘˜äººæ•° = min(å»ºç­‘æä¾›çš„å²—ä½, é›‡ä½£çš„å®˜å‘˜æ•°)
     const officialJobs = jobsAvailable.official || 0;
     const hiredOfficialCount = Array.isArray(officials) ? officials.length : 0;
     const actualOfficialCount = hiredOfficialCount; // Allow all hired officials to be counted, even if exceeding jobs
     popStructure.official = actualOfficialCount;
-    // ¹ÙÔ±²Æ¸»ÓÉÃ¿Î»¹ÙÔ±¶ÀÁ¢³ÖÓĞ£¬²»¼ÆÈë wealth.official£¨ÇåÁãÒÔ±ÜÃâÖØ¸´£©
+    // å®˜å‘˜è´¢å¯Œç”±æ¯ä½å®˜å‘˜ç‹¬ç«‹æŒæœ‰ï¼Œä¸è®¡å…¥ wealth.officialï¼ˆæ¸…é›¶ä»¥é¿å…é‡å¤ï¼‰
     wealth.official = 0;
 
     let taxModifier = 1.0;
 
-    // Ö´ÕşÁªÃËºÏ·¨ĞÔ¼ÆËã£¨³õ²½£¬´ıÓ°ÏìÁ¦¼ÆËãºó»á¾«È·¼ÆËã£©
-    // ´Ë´¦Ê¹ÓÃÉÏÒ»tickµÄÊı¾İ¹ÀËã£¬±ÜÃâÑ­»·ÒÀÀµ
+    // æ‰§æ”¿è”ç›Ÿåˆæ³•æ€§è®¡ç®—ï¼ˆåˆæ­¥ï¼Œå¾…å½±å“åŠ›è®¡ç®—åä¼šç²¾ç¡®è®¡ç®—ï¼‰
+    // æ­¤å¤„ä½¿ç”¨ä¸Šä¸€tickçš„æ•°æ®ä¼°ç®—ï¼Œé¿å…å¾ªç¯ä¾èµ–
     let coalitionLegitimacy = 0;
-    // Ê¹ÓÃÉÏÒ»tickµÄºÏ·¨ĞÔ¼ÆËãË°ÊÕĞŞÕı£¨±ÜÃâÑ­»·ÒÀÀµ£©
+    // ä½¿ç”¨ä¸Šä¸€tickçš„åˆæ³•æ€§è®¡ç®—ç¨æ”¶ä¿®æ­£ï¼ˆé¿å…å¾ªç¯ä¾èµ–ï¼‰
     let legitimacyTaxModifier = getLegitimacyTaxModifier(previousLegitimacy);
 
-    // ½«ºÏ·¨ĞÔË°ÊÕĞŞÕıºÍÇìµä/ÕşÁî/¿Æ¼¼µÄË°ÊÕ¼Ó³ÉÕûºÏµ½×ÜÌåË°ÊÕĞŞÕıÖĞ
-    // bonuses.taxBonus ÊÇÀ´×Ô effects.taxIncome µÄÀÛ¼ÓÖµ£¨ÈçÇìµäĞ§¹û¡¢ÕşÁîĞ§¹ûµÈ£©
+    // å°†åˆæ³•æ€§ç¨æ”¶ä¿®æ­£å’Œåº†å…¸/æ”¿ä»¤/ç§‘æŠ€çš„ç¨æ”¶åŠ æˆæ•´åˆåˆ°æ€»ä½“ç¨æ”¶ä¿®æ­£ä¸­
+    // bonuses.taxBonus æ˜¯æ¥è‡ª effects.taxIncome çš„ç´¯åŠ å€¼ï¼ˆå¦‚åº†å…¸æ•ˆæœã€æ”¿ä»¤æ•ˆæœç­‰ï¼‰
     const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
 
-    // [FIX] ÌáÇ°¶¨Òå¿Õ¸ÚÎ»ÊÕÈëÔ¤¹Àº¯Êı£¬ÓÃÓÚ fillVacancies Ê±µÄÖÇÄÜ¹¤×ÊÅĞ¶Ï
-    // Âß¼­Óë simulation Î²²¿µÄ estimateVacantRoleIncome ÀàËÆ£¬µ«Ö»ÄÜÊ¹ÓÃÉÏÒ» tick µÄÊı¾İ (market.wages)
+    // [FIX] æå‰å®šä¹‰ç©ºå²—ä½æ”¶å…¥é¢„ä¼°å‡½æ•°ï¼Œç”¨äº fillVacancies æ—¶çš„æ™ºèƒ½å·¥èµ„åˆ¤æ–­
+    // é€»è¾‘ä¸ simulation å°¾éƒ¨çš„ estimateVacantRoleIncome ç±»ä¼¼ï¼Œä½†åªèƒ½ä½¿ç”¨ä¸Šä¸€ tick çš„æ•°æ® (market.wages)
     const estimatePotentialIncomeForVacancy = (role) => {
         const VACANT_BONUS = 1.2;
         let ownerIncome = 0;
@@ -1080,11 +1377,11 @@ export const simulateTick = ({
             const isOwner = building.owner === role;
 
             if (isOwner) {
-                // ÒµÖ÷Ô¤¹À£º²ú³ö - ³É±¾ - ¹ÍÔ±¹¤×Ê - Ë°
+                // ä¸šä¸»é¢„ä¼°ï¼šäº§å‡º - æˆæœ¬ - é›‡å‘˜å·¥èµ„ - ç¨
                 let outputValue = 0;
                 if (config.output) {
                     Object.entries(config.output).forEach(([resource, amount]) => {
-                        // Ìø¹ıÌØÊâ×ÊÔ´
+                        // è·³è¿‡ç‰¹æ®Šèµ„æº
                         if (!RESOURCES[resource]) return;
                         const price = priceMap[resource] || getBasePrice(resource);
                         outputValue += amount * price;
@@ -1100,7 +1397,7 @@ export const simulateTick = ({
                 let wageCost = 0;
                 Object.entries(jobs).forEach(([jobRole, slots]) => {
                     if (jobRole === role || !slots || slots <= 0) return;
-                    // Ê¹ÓÃÉÏÒ» tick µÄ¹¤×Ê×÷Îª²Î¿¼
+                    // ä½¿ç”¨ä¸Šä¸€ tick çš„å·¥èµ„ä½œä¸ºå‚è€ƒ
                     const avgPaidWage = market?.wages?.[jobRole] ?? getExpectedWage(jobRole);
                     wageCost += avgPaidWage * slots;
                 });
@@ -1117,15 +1414,15 @@ export const simulateTick = ({
                 ownerIncome += profitPerOwner * roleSlots * count;
                 ownerSlots += roleSlots * count;
             } else {
-                // ¹ÍÔ±Ô¤¹À£ºÊ¹ÓÃÉÏÒ» tick ÊĞ³¡¹¤×Ê£¬Èç¹ûÎª 0 Ôò³¢ÊÔ´Ó building ÊôĞÔÍÆ¶Ï
-                // ×¢Òâ£ºÕâÀïÊÇÒ»¸ö¹Ø¼üµã£¬Èç¹ûÃ»ÓĞÀúÊ·¹¤×Ê£¬ÎÒÃÇÓ¦¸ÃÏàĞÅ building µÄ wagePressure Âğ£¿
-                // simulation Î²²¿µÄÂß¼­ÊÇÖ±½ÓÈ¡ market.wages£¬µ«ÕâÀïÕıÊÇÒòÎª market.wages µÍ²Åµ¼ÖÂÃ»ÈËÀ´
-                // ¼ÈÈ»ÊÇ¹ÍÔ±£¬Ö÷Òª¿´"ÆÚÍû¹¤×Ê" + "¿ÕÈ±¼Ó³É"
-                // µ«Èç¹û¸Ã¸ÚÎ»ÊÇ¸ßÀûÈóĞĞÒµµÄ¹¤ÈË£¬Ó¦¸ÃÄÜ¸øµÃÆğ¸ß¹¤×Ê¡£
-                // ¼òµ¥Æğ¼û£¬ÎÒÃÇ¶Ô¹ÍÔ±Ò²Ó¦ÓÃ VACANT_BONUS µ½ getExpectedWage ÉÏ
+                // é›‡å‘˜é¢„ä¼°ï¼šä½¿ç”¨ä¸Šä¸€ tick å¸‚åœºå·¥èµ„ï¼Œå¦‚æœä¸º 0 åˆ™å°è¯•ä» building å±æ€§æ¨æ–­
+                // æ³¨æ„ï¼šè¿™é‡Œæ˜¯ä¸€ä¸ªå…³é”®ç‚¹ï¼Œå¦‚æœæ²¡æœ‰å†å²å·¥èµ„ï¼Œæˆ‘ä»¬åº”è¯¥ç›¸ä¿¡ building çš„ wagePressure å—ï¼Ÿ
+                // simulation å°¾éƒ¨çš„é€»è¾‘æ˜¯ç›´æ¥å– market.wagesï¼Œä½†è¿™é‡Œæ­£æ˜¯å› ä¸º market.wages ä½æ‰å¯¼è‡´æ²¡äººæ¥
+                // æ—¢ç„¶æ˜¯é›‡å‘˜ï¼Œä¸»è¦çœ‹"æœŸæœ›å·¥èµ„" + "ç©ºç¼ºåŠ æˆ"
+                // ä½†å¦‚æœè¯¥å²—ä½æ˜¯é«˜åˆ©æ¶¦è¡Œä¸šçš„å·¥äººï¼Œåº”è¯¥èƒ½ç»™å¾—èµ·é«˜å·¥èµ„ã€‚
+                // ç®€å•èµ·è§ï¼Œæˆ‘ä»¬å¯¹é›‡å‘˜ä¹Ÿåº”ç”¨ VACANT_BONUS åˆ° getExpectedWage ä¸Š
                 const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
 
-                // ¼ÆËãË°ºó£¨ËäÈ»ÕâÀïÖ»Ëã¹¤×Ê²¿·Ö£¬Í³Ò»ºóÃæ´¦Àí£©
+                // è®¡ç®—ç¨åï¼ˆè™½ç„¶è¿™é‡Œåªç®—å·¥èµ„éƒ¨åˆ†ï¼Œç»Ÿä¸€åé¢å¤„ç†ï¼‰
                 employeeWage += avgPaidWage * roleSlots * count;
                 employeeSlots += roleSlots * count;
             }
@@ -1134,23 +1431,23 @@ export const simulateTick = ({
         const totalSlots = ownerSlots + employeeSlots;
         if (totalSlots <= 0) return getExpectedWage(role);
 
-        // Èç¹ûÊÇ´¿¹ÍÔ±¸ÚÎ»ÇÒÀúÊ·¹¤×Ê¼«µÍ£¬³¢ÊÔ¸ù¾İĞĞÒµÀûÈó·´ÍÆ£¿
-        // Ä¿Ç°Ôİ²»¸ãÌ«¸´ÔÓ£¬ÏÈ½ö¶Ô"ÓĞ²ú³öµ«Ã»¹¤×Ê"µÄÇé¿ö×ö¶µµ×
-        // µ«¶ÔÓÚ worker ÕâÖÖ´¿¹ÍÔ±£¬Èç¹û market.wages ÊÇ 0£¬ÕâÀïËã³öÀ´»¹ÊÇ 0
-        // ĞèÒªÒ»¸ö»úÖÆÈÃ"¿ÕµÄ¸ßÀûÈó¹¤³§"¹ã²¥¸ß¹¤×Ê
-        // ÔÚ building production loop ÖĞÎÒÃÇÓĞ wagePressure£¬µ«ÕâÀï»¹ÊÇ start of tick
+        // å¦‚æœæ˜¯çº¯é›‡å‘˜å²—ä½ä¸”å†å²å·¥èµ„æä½ï¼Œå°è¯•æ ¹æ®è¡Œä¸šåˆ©æ¶¦åæ¨ï¼Ÿ
+        // ç›®å‰æš‚ä¸æå¤ªå¤æ‚ï¼Œå…ˆä»…å¯¹"æœ‰äº§å‡ºä½†æ²¡å·¥èµ„"çš„æƒ…å†µåšå…œåº•
+        // ä½†å¯¹äº worker è¿™ç§çº¯é›‡å‘˜ï¼Œå¦‚æœ market.wages æ˜¯ 0ï¼Œè¿™é‡Œç®—å‡ºæ¥è¿˜æ˜¯ 0
+        // éœ€è¦ä¸€ä¸ªæœºåˆ¶è®©"ç©ºçš„é«˜åˆ©æ¶¦å·¥å‚"å¹¿æ’­é«˜å·¥èµ„
+        // åœ¨ building production loop ä¸­æˆ‘ä»¬æœ‰ wagePressureï¼Œä½†è¿™é‡Œè¿˜æ˜¯ start of tick
 
-        // ¸Ä½ø£ºÈç¹ûÊÇ¹ÍÔ±£¬ÇÒ¼ÆËã³öµÄ employeeWage ºÜµÍ£¬µ«ËùÔÚµÄ¹¤³§ºÜ×¬Ç®...
-        // ÕâÌ«¸´ÔÓÁË¡£Ä¿Ç°ÏÈ¸´ÓÃÔ­ÓĞÂß¼­£¬ÒÀÀµ VACANT_BONUS ÌáÉıÎüÒıÁ¦
+        // æ”¹è¿›ï¼šå¦‚æœæ˜¯é›‡å‘˜ï¼Œä¸”è®¡ç®—å‡ºçš„ employeeWage å¾ˆä½ï¼Œä½†æ‰€åœ¨çš„å·¥å‚å¾ˆèµšé’±...
+        // è¿™å¤ªå¤æ‚äº†ã€‚ç›®å‰å…ˆå¤ç”¨åŸæœ‰é€»è¾‘ï¼Œä¾èµ– VACANT_BONUS æå‡å¸å¼•åŠ›
         const totalIncome = ownerIncome + employeeWage;
         const averageIncome = totalIncome / totalSlots;
         return Math.max(getExpectedWage(role), averageIncome * VACANT_BONUS);
     };
 
-    // [FIX] ÖÇÄÜ¹¤×Ê»ñÈ¡Æ÷
+    // [FIX] æ™ºèƒ½å·¥èµ„è·å–å™¨
     const getSmartExpectedWage = (role) => {
         const currentPop = popStructure[role] || 0;
-        // Èç¹ûÃ»ÈË¸ÉÕâ¸ö»î£¬»òÕßÈËºÜÉÙ£¬¾ÍÊ¹ÓÃ"»­±ı"Ä£Ê½£¨Ô¤¹ÀÇ±Á¦£©À´ÎüÒıÈË
+        // å¦‚æœæ²¡äººå¹²è¿™ä¸ªæ´»ï¼Œæˆ–è€…äººå¾ˆå°‘ï¼Œå°±ä½¿ç”¨"ç”»é¥¼"æ¨¡å¼ï¼ˆé¢„ä¼°æ½œåŠ›ï¼‰æ¥å¸å¼•äºº
         if (currentPop <= 5) {
             const potential = estimatePotentialIncomeForVacancy(role);
             const standard = getExpectedWage(role);
@@ -1159,21 +1456,21 @@ export const simulateTick = ({
         return getExpectedWage(role);
     };
 
-    // ×Ô¶¯Ìî²¹£¨ÕĞ¹¤£©£ºÊ¹ÓÃ job.js ÖĞµÄ fillVacancies º¯Êı£¬Ö§³Ö½×²ãÁ÷¶¯
+    // è‡ªåŠ¨å¡«è¡¥ï¼ˆæ‹›å·¥ï¼‰ï¼šä½¿ç”¨ job.js ä¸­çš„ fillVacancies å‡½æ•°ï¼Œæ”¯æŒé˜¶å±‚æµåŠ¨
     const filledResult = fillVacancies({
         popStructure,
         jobsAvailable,
         wealth,
-        getExpectedWage: getSmartExpectedWage, // [FIX] Ê¹ÓÃÖÇÄÜ¹¤×ÊÔ¤¹À
+        getExpectedWage: getSmartExpectedWage, // [FIX] ä½¿ç”¨æ™ºèƒ½å·¥èµ„é¢„ä¼°
         getHeadTaxRate,
         effectiveTaxModifier
     });
 
-    // ÖØĞÂ¸³Öµ¸üĞÂºóµÄÈË¿Ú½á¹¹ºÍ²Æ¸»
-    // ×¢Òâ£ºfillVacancies »áÖ±½ÓĞŞ¸Ä´«ÈëµÄ¶ÔÏóÒıÓÃ£¬µ«ÔÚ React/Redux Ä£Ê½ÏÂÍ¨³£½¨Òé·µ»ØĞÂ¶ÔÏó
-    // ÕâÀï fillVacancies ·µ»ØÁË { popStructure, wealth }£¬ÎÒÃÇ½«Æä½â¹¹»ØÀ´È·±£ÒıÓÃÕıÈ·
-    // (ËäÈ» simulation.js ÖĞ popStructure ºÍ wealth ÊÇ¾Ö²¿±äÁ¿£¬¿ÉÒÔÖ±½ÓĞŞ¸Ä)
-    // ±£³Ö´úÂëÇåÎú£º
+    // é‡æ–°èµ‹å€¼æ›´æ–°åçš„äººå£ç»“æ„å’Œè´¢å¯Œ
+    // æ³¨æ„ï¼šfillVacancies ä¼šç›´æ¥ä¿®æ”¹ä¼ å…¥çš„å¯¹è±¡å¼•ç”¨ï¼Œä½†åœ¨ React/Redux æ¨¡å¼ä¸‹é€šå¸¸å»ºè®®è¿”å›æ–°å¯¹è±¡
+    // è¿™é‡Œ fillVacancies è¿”å›äº† { popStructure, wealth }ï¼Œæˆ‘ä»¬å°†å…¶è§£æ„å›æ¥ç¡®ä¿å¼•ç”¨æ­£ç¡®
+    // (è™½ç„¶ simulation.js ä¸­ popStructure å’Œ wealth æ˜¯å±€éƒ¨å˜é‡ï¼Œå¯ä»¥ç›´æ¥ä¿®æ”¹)
+    // ä¿æŒä»£ç æ¸…æ™°ï¼š
     // const { popStructure: updatedPop, wealth: updatedWealth } = filledResult;
 
     const classApproval = {};
@@ -1196,13 +1493,13 @@ export const simulateTick = ({
         const gain = amountPerDay;
         const current = res[resKey] || 0;
         if (gain >= 0) {
-            res[resKey] = current + gain;
+            applyResourceChange(resKey, gain, 'passive_gain');
             rates[resKey] = (rates[resKey] || 0) + gain;
         } else {
             const needed = Math.abs(gain);
             const spent = Math.min(current, needed);
             if (spent > 0) {
-                res[resKey] = current - spent;
+                applyResourceChange(resKey, -spent, 'passive_cost');
                 rates[resKey] = (rates[resKey] || 0) - spent;
             }
         }
@@ -1215,13 +1512,13 @@ export const simulateTick = ({
         const gain = amountPerPop * totalPopulation;
         const current = res[resKey] || 0;
         if (gain >= 0) {
-            res[resKey] = current + gain;
+            applyResourceChange(resKey, gain, 'passive_pop_gain');
             rates[resKey] = (rates[resKey] || 0) + gain;
         } else {
             const needed = Math.abs(gain);
             const spent = Math.min(current, needed);
             if (spent > 0) {
-                res[resKey] = current - spent;
+                applyResourceChange(resKey, -spent, 'passive_pop_cost');
                 rates[resKey] = (rates[resKey] || 0) - spent;
             }
         }
@@ -1238,29 +1535,29 @@ export const simulateTick = ({
             const modification = Math.abs(currentRate) * percent;
             if (currentRate >= 0) {
                 // Production resource: positive percent = more production
-                res[resKey] = (res[resKey] || 0) + modification;
+                applyResourceChange(resKey, modification, 'passive_percent_gain');
                 rates[resKey] = currentRate + modification;
             } else {
                 // Consumption resource: positive percent = less consumption (better)
-                res[resKey] = (res[resKey] || 0) - modification;
+                applyResourceChange(resKey, -modification, 'passive_percent_cost');
                 rates[resKey] = currentRate - modification;
             }
         } else {
             // If rate is 0, use a base value scaled by population for the modifier
             const baseValue = totalPopulation * 0.01; // 1% of population as base
             const modification = baseValue * percent;
-            res[resKey] = (res[resKey] || 0) + modification;
+            applyResourceChange(resKey, modification, 'passive_percent_base_gain');
             rates[resKey] = (rates[resKey] || 0) + modification;
         }
     });
 
     const zeroApprovalClasses = {};
-    // ÔÊĞí¸ºµÄ needsReduction (¼´Ôö¼ÓĞèÇó)£¬ÏÂÏŞÉèÎª -2 (ĞèÇó·­3±¶)£¬ÉÏÏŞ 0.95
+    // å…è®¸è´Ÿçš„ needsReduction (å³å¢åŠ éœ€æ±‚)ï¼Œä¸‹é™è®¾ä¸º -2 (éœ€æ±‚ç¿»3å€)ï¼Œä¸Šé™ 0.95
     const effectiveNeedsReduction = Math.max(-2, Math.min(0.95, needsReduction || 0));
     const needsRequirementMultiplier = 1 - effectiveNeedsReduction;
 
-    // [FIX] ±£´æË°Ç°´æ¿î¿ìÕÕ£¬ÓÃÓÚºóĞøTaxShock¼ÆËã
-    // ÕâÑù¼´Ê¹Ë°ÊÕÕ¥¸ÉÁË´æ¿î£¬Ò²ÄÜÕıÈ·¼ÆËãË°ÊÕÕ¼±ÈÀ´´¥·¢³Í·£
+    // [FIX] ä¿å­˜ç¨å‰å­˜æ¬¾å¿«ç…§ï¼Œç”¨äºåç»­TaxShockè®¡ç®—
+    // è¿™æ ·å³ä½¿ç¨æ”¶æ¦¨å¹²äº†å­˜æ¬¾ï¼Œä¹Ÿèƒ½æ­£ç¡®è®¡ç®—ç¨æ”¶å æ¯”æ¥è§¦å‘æƒ©ç½š
     const preTaxWealth = {};
     Object.keys(STRATA).forEach(key => {
         preTaxWealth[key] = wealth[key] || 0;
@@ -1286,30 +1583,19 @@ export const simulateTick = ({
         if (due !== 0) {
             if (due > 0) {
                 const paid = Math.min(available, due);
-                wealth[key] = available - paid;
-                taxBreakdown.headTax += paid;
-                // ¼ÇÂ¼ÈËÍ·Ë°Ö§³ö
+                ledger.transfer(key, 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
+                // è®°å½•äººå¤´ç¨æ”¯å‡º (æœ¬åœ°è¿½è¸ªç”¨äºé€»è¾‘åˆ¤æ–­)
                 roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
                 roleExpense[key] = (roleExpense[key] || 0) + paid;
-                roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid; // Head tax is a living expense
-                if (classFinancialData[key]) {
-                    classFinancialData[key].expense.headTax = (classFinancialData[key].expense.headTax || 0) + paid;
-                }
+                roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid;
             } else {
                 const subsidyNeeded = -due;
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyNeeded) {
-                    res.silver = treasury - subsidyNeeded;
-                    // [FIX] Apply safe wealth limit to prevent overflow
-                    wealth[key] = safeWealth(available + subsidyNeeded);
-                    taxBreakdown.subsidy += subsidyNeeded;
-                    // ¼ÇÂ¼Õş¸®²¹ÖúÊÕÈë
+                    ledger.transfer('state', key, subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+                    // è®°å½•æ”¿åºœè¡¥åŠ©æ”¶å…¥ (æœ¬åœ°è¿½è¸ª)
                     roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
-                    roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded; // Subsidy counts as personal income
-
-                    if (classFinancialData[key]) {
-                        classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyNeeded;
-                    }
+                    roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded;
                 }
             }
         }
@@ -1326,12 +1612,12 @@ export const simulateTick = ({
         const count = builds[b.id] || 0;
         if (count === 0) return;
 
-        // --- ¼ÆËãÉı¼¶¼Ó³ÉºóµÄ»ù´¡ÊıÖµ ---
-        // buildingUpgrades[b.id] ¸ñÊ½Îª { µÈ¼¶: ÊıÁ¿ }£¬ÀıÈç { "1": 2, "2": 1 }
+        // --- è®¡ç®—å‡çº§åŠ æˆåçš„åŸºç¡€æ•°å€¼ ---
+        // buildingUpgrades[b.id] æ ¼å¼ä¸º { ç­‰çº§: æ•°é‡ }ï¼Œä¾‹å¦‚ { "1": 2, "2": 1 }
         const storedLevelCounts = buildingUpgrades[b.id] || {};
         const effectiveOps = { input: {}, output: {}, jobs: {} };
 
-        // ¼ÆËãÒÑÉı¼¶µÄ½¨ÖşÊıÁ¿
+        // è®¡ç®—å·²å‡çº§çš„å»ºç­‘æ•°é‡
         let upgradedCount = 0;
         let hasUpgrades = false;
         Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -1342,10 +1628,10 @@ export const simulateTick = ({
             }
         });
 
-        // 0¼¶£¨Î´Éı¼¶£©µÄÊıÁ¿ = ×ÜÊı - ÒÑÉı¼¶ÊıÁ¿
+        // 0çº§ï¼ˆæœªå‡çº§ï¼‰çš„æ•°é‡ = æ€»æ•° - å·²å‡çº§æ•°é‡
         const level0Count = Math.max(0, count - upgradedCount);
 
-        // ¹¹½¨ÍêÕûµÄµÈ¼¶·Ö²¼
+        // æ„å»ºå®Œæ•´çš„ç­‰çº§åˆ†å¸ƒ
         const levelCounts = { 0: level0Count };
         Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
             const lvl = parseInt(lvlStr);
@@ -1354,8 +1640,8 @@ export const simulateTick = ({
             }
         });
 
-        // === ¹¹½¨ owner ·Ö×éÓ³Éä ===
-        // Ã¿¸ö owner ¿ÉÄÜÓµÓĞ²»Í¬µÈ¼¶µÄ½¨Öş£¬¼ÇÂ¼ { ownerKey: { levels: { lvl: count }, totalCount: N } }
+        // === æ„å»º owner åˆ†ç»„æ˜ å°„ ===
+        // æ¯ä¸ª owner å¯èƒ½æ‹¥æœ‰ä¸åŒç­‰çº§çš„å»ºç­‘ï¼Œè®°å½• { ownerKey: { levels: { lvl: count }, totalCount: N } }
         const ownerLevelGroups = {};
         Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
             if (lvlCount <= 0) return;
@@ -1369,25 +1655,25 @@ export const simulateTick = ({
             ownerLevelGroups[ownerKey].totalCount += lvlCount;
         });
 
-        // ³õÊ¼»¯ËùÓĞÉæ¼°µÄ owner µÄ²Æ¸»
+        // åˆå§‹åŒ–æ‰€æœ‰æ¶‰åŠçš„ owner çš„è´¢å¯Œ
         Object.keys(ownerLevelGroups).forEach(ownerKey => {
             if (wealth[ownerKey] === undefined) {
                 wealth[ownerKey] = STRATA[ownerKey]?.startingWealth || 0;
             }
         });
 
-        // »ñÈ¡Ö÷Òª owner£¨ÓÃÓÚÏòºó¼æÈİÏÖÓĞÂß¼­ÖĞµÄ²¿·ÖÅĞ¶Ï£©
+        // è·å–ä¸»è¦ ownerï¼ˆç”¨äºå‘åå…¼å®¹ç°æœ‰é€»è¾‘ä¸­çš„éƒ¨åˆ†åˆ¤æ–­ï¼‰
         const primaryOwnerKey = b.owner || 'state';
 
         let multiplier = 1.0;
 
         if (!hasUpgrades && level0Count === count) {
-            // ÎŞÉı¼¶¿ìËÙÂ·¾¶
+            // æ— å‡çº§å¿«é€Ÿè·¯å¾„
             if (b.input) for (const [k, v] of Object.entries(b.input)) effectiveOps.input[k] = v * count;
             if (b.output) for (const [k, v] of Object.entries(b.output)) effectiveOps.output[k] = v * count;
             if (b.jobs) for (const [k, v] of Object.entries(b.jobs)) effectiveOps.jobs[k] = v * count;
         } else {
-            // ¾ÛºÏ¼ÆËã¸÷µÈ¼¶½¨ÖşµÄinput/output/jobs
+            // èšåˆè®¡ç®—å„ç­‰çº§å»ºç­‘çš„input/output/jobs
             for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
                 if (lvlCount <= 0) continue;
                 const lvl = parseInt(lvlStr);
@@ -1400,11 +1686,11 @@ export const simulateTick = ({
         // -----------------------------
         const currentEpoch = EPOCHS[epoch];
 
-        // ========== ¼Ó·¨µş¼ÓÄ£Ê½ ==========
-        // ÊÕ¼¯ËùÓĞ¼Ó³É°Ù·Ö±È£¬×îºóÍ³Ò»¼ÆËã multiplier = 1 + ËùÓĞ¼Ó³ÉÖ®ºÍ
+        // ========== åŠ æ³•å åŠ æ¨¡å¼ ==========
+        // æ”¶é›†æ‰€æœ‰åŠ æˆç™¾åˆ†æ¯”ï¼Œæœ€åç»Ÿä¸€è®¡ç®— multiplier = 1 + æ‰€æœ‰åŠ æˆä¹‹å’Œ
         let bonusSum = 0;
 
-        // 1. Ê±´ú¼Ó³É
+        // 1. æ—¶ä»£åŠ æˆ
         if (currentEpoch && currentEpoch.bonuses) {
             if (b.cat === 'gather' && currentEpoch.bonuses.gatherBonus) {
                 bonusSum += currentEpoch.bonuses.gatherBonus;
@@ -1414,7 +1700,7 @@ export const simulateTick = ({
             }
         }
 
-        // 2. È«¾ÖÉú²ú/¹¤Òµ modifier£¨À´×Ô buff/debuff£©
+        // 2. å…¨å±€ç”Ÿäº§/å·¥ä¸š modifierï¼ˆæ¥è‡ª buff/debuffï¼‰
         let productionBonusSum = 0;
         let industryBonusSum = 0;
         productionBuffs.forEach(buff => {
@@ -1425,7 +1711,7 @@ export const simulateTick = ({
             if (debuff.production) productionBonusSum += debuff.production;
             if (debuff.industryBonus) industryBonusSum += debuff.industryBonus;
         });
-        // ÕşÁî¼Ó³É
+        // æ”¿ä»¤åŠ æˆ
         productionBonusSum += productionBonus;
         industryBonusSum += industryBonus;
 
@@ -1436,30 +1722,30 @@ export const simulateTick = ({
             bonusSum += industryBonusSum;
         }
 
-        // 2.5 Õ½Ê±²ú³ö¼Ó³É£¨½öÔÚÕ½ÕùÖĞÉúĞ§£©
+        // 2.5 æˆ˜æ—¶äº§å‡ºåŠ æˆï¼ˆä»…åœ¨æˆ˜äº‰ä¸­ç”Ÿæ•ˆï¼‰
         if (isPlayerAtWar && bonuses.wartimeProduction) {
             bonusSum += bonuses.wartimeProduction;
         }
 
-        // 3. Àà±ğ¼Ó³É£¨categoryBonuses ÏÖÔÚÖ±½Ó´æ´¢¼Ó³É°Ù·Ö±È£¬Èç 0.25 = +25%£©
+        // 3. ç±»åˆ«åŠ æˆï¼ˆcategoryBonuses ç°åœ¨ç›´æ¥å­˜å‚¨åŠ æˆç™¾åˆ†æ¯”ï¼Œå¦‚ 0.25 = +25%ï¼‰
         const categoryBonus = categoryBonuses[b.cat];
         if (categoryBonus && categoryBonus !== 0) {
             bonusSum += categoryBonus;
         }
 
-        // 4. ÊÂ¼ş¼Ó³É
+        // 4. äº‹ä»¶åŠ æˆ
         const buildingSpecificMod = eventBuildingProductionModifiers[b.id] || 0;
         const buildingCategoryMod = eventBuildingProductionModifiers[b.cat] || 0;
         const buildingAllMod = eventBuildingProductionModifiers['all'] || 0;
         bonusSum += buildingSpecificMod + buildingCategoryMod + buildingAllMod;
 
-        // 5. ½¨ÖşÌØ¶¨¿Æ¼¼¼Ó³É£¨buildingBonuses ÏÖÔÚÖ±½Ó´æ´¢¼Ó³É°Ù·Ö±È£¬Èç 0.25 = +25%£©
+        // 5. å»ºç­‘ç‰¹å®šç§‘æŠ€åŠ æˆï¼ˆbuildingBonuses ç°åœ¨ç›´æ¥å­˜å‚¨åŠ æˆç™¾åˆ†æ¯”ï¼Œå¦‚ 0.25 = +25%ï¼‰
         const buildingBonus = buildingBonuses[b.id];
         if (buildingBonus && buildingBonus !== 0) {
             bonusSum += buildingBonus;
         }
 
-        // Ó¦ÓÃ¼Ó³É£º»ù´¡³ËÊı ¡Á (1 + ×Ü¼Ó³É)
+        // åº”ç”¨åŠ æˆï¼šåŸºç¡€ä¹˜æ•° Ã— (1 + æ€»åŠ æˆ)
         multiplier *= (1 + bonusSum);
 
         // Init per-building realized financial stats container
@@ -1485,6 +1771,13 @@ export const simulateTick = ({
         // when actually paying wages.
         if (Object.keys(effectiveOps.jobs).length > 0) {
             buildingJobFill[b.id] = buildingJobFill[b.id] || {};
+
+            // [CRITICAL FIX] ä½¿ç”¨ç“¶é¢ˆæ³•åˆ™è®¡ç®—åˆ°å²—ç‡
+            // ç”Ÿäº§å—é™äºæœ€ä½çš„éä¸šä¸»è§’è‰²å¡«å……ç‡ï¼ˆå·¥äººæ˜¯ç”Ÿäº§çš„ç“¶é¢ˆï¼‰
+            // ä¸šä¸»å¯ä»¥ç®¡ç†ä½†ä¸èƒ½æ›¿ä»£å·¥äººç”Ÿäº§
+            let minNonOwnerFillRate = Infinity;
+            let hasNonOwnerRole = false;
+
             for (let role in effectiveOps.jobs) {
                 const roleRequired = effectiveOps.jobs[role];
                 if (!roleWageStats[role]) {
@@ -1502,6 +1795,14 @@ export const simulateTick = ({
                 buildingFinancialData[b.id].filledByRole[role] =
                     (buildingFinancialData[b.id].filledByRole[role] || 0) + roleFilled;
 
+                // [CRITICAL FIX] å¯¹äºéä¸šä¸»è§’è‰²ï¼Œè¿½è¸ªæœ€ä½å¡«å……ç‡ä½œä¸ºç”Ÿäº§ç“¶é¢ˆ
+                const isOwnerRole = Object.keys(ownerLevelGroups).includes(role);
+                if (!isOwnerRole && roleRequired > 0) {
+                    hasNonOwnerRole = true;
+                    const roleFillRate = roleRequired > 0 ? roleFilled / roleRequired : 0;
+                    minNonOwnerFillRate = Math.min(minNonOwnerFillRate, roleFillRate);
+                }
+
                 const vacancySlots = Math.max(0, roleRequired - roleFilled);
                 if (vacancySlots > 1e-3) {
                     const availableSlots = vacancySlots >= 1 ? Math.floor(vacancySlots) : 1;
@@ -1512,7 +1813,7 @@ export const simulateTick = ({
                         availableSlots,
                     });
                 }
-                if (!Object.keys(ownerLevelGroups).includes(role) && roleFilled > 0) {
+                if (!isOwnerRole && roleFilled > 0) {
                     const cached = roleExpectedWages[role] ?? getExpectedWage(role);
                     const livingFloor = getLivingCostFloor(role);
                     const adjustedWage = Math.max(cached, livingFloor);
@@ -1527,7 +1828,18 @@ export const simulateTick = ({
                     });
                 }
             }
-            if (totalSlots > 0) staffingRatio = filledSlots / totalSlots;
+
+            // [CRITICAL FIX] åˆ°å²—ç‡è®¡ç®—ä½¿ç”¨ç“¶é¢ˆæ³•åˆ™ï¼š
+            // - å¦‚æœæœ‰éä¸šä¸»è§’è‰²ï¼ˆå·¥äººï¼‰ï¼Œä½¿ç”¨æœ€ä½å·¥äººå¡«å……ç‡ä½œä¸ºç”Ÿäº§ä¸Šé™
+            // - å¦‚æœåªæœ‰ä¸šä¸»è§’è‰²ï¼ˆå¦‚å†œåœºåªæœ‰peasantï¼‰ï¼Œä½¿ç”¨å¹³å‡å¡«å……ç‡
+            if (hasNonOwnerRole) {
+                // æœ‰å·¥äººè§’è‰²æ—¶ï¼Œç”Ÿäº§å—æœ€ä½å·¥äººå¡«å……ç‡é™åˆ¶
+                staffingRatio = minNonOwnerFillRate === Infinity ? 0 : minNonOwnerFillRate;
+            } else if (totalSlots > 0) {
+                // åªæœ‰ä¸šä¸»è§’è‰²æ—¶ï¼ˆè‡ªè¥å»ºç­‘ï¼‰ï¼Œä½¿ç”¨æ™®é€šå¹³å‡
+                staffingRatio = filledSlots / totalSlots;
+            }
+
             if (totalSlots > 0) {
                 buildingStaffingRatios[b.id] = staffingRatio;
             }
@@ -1555,27 +1867,27 @@ export const simulateTick = ({
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
 
-        // === Ó¦ÓÃÉú²ú³É±¾ĞŞÕı£¨¹ÙÔ±Ğ§¹û + ÕşÖÎÁ¢³¡Ğ§¹û£© ===
-        // Ö»¶ÔÓĞ input ÇÒÓĞ output µÄ½¨ÖşÉúĞ§£¨¼Ó¹¤Àà½¨Öş£©
+        // === åº”ç”¨ç”Ÿäº§æˆæœ¬ä¿®æ­£ï¼ˆå®˜å‘˜æ•ˆæœ + æ”¿æ²»ç«‹åœºæ•ˆæœï¼‰ ===
+        // åªå¯¹æœ‰ input ä¸”æœ‰ output çš„å»ºç­‘ç”Ÿæ•ˆï¼ˆåŠ å·¥ç±»å»ºç­‘ï¼‰
         const hasInput = Object.keys(effectiveOps.input).length > 0;
         const hasOutput = Object.keys(effectiveOps.output).some(k => k !== 'maxPop' && k !== 'militaryCapacity');
         if (hasInput && hasOutput) {
-            // ºÏ²¢¹ÙÔ±Ğ§¹ûºÍÕşÖÎÁ¢³¡Ğ§¹û
+            // åˆå¹¶å®˜å‘˜æ•ˆæœå’Œæ”¿æ²»ç«‹åœºæ•ˆæœ
             const officialInputCostMod = bonuses.officialProductionInputCost?.[b.id] || 0;
             const stanceInputCostMod = bonuses.stanceProductionInputCost?.[b.id] || 0;
             const totalInputCostMod = officialInputCostMod + stanceInputCostMod;
 
-            // Ó¦ÓÃĞŞÕı£ºÕıÖµÔö¼ÓÏûºÄ£¬¸ºÖµ¼õÉÙÏûºÄ
+            // åº”ç”¨ä¿®æ­£ï¼šæ­£å€¼å¢åŠ æ¶ˆè€—ï¼Œè´Ÿå€¼å‡å°‘æ¶ˆè€—
             if (totalInputCostMod !== 0) {
                 const inputModMultiplier = 1 + totalInputCostMod;
-                // È·±£ĞŞÕıºóµÄÏûºÄ²»µÍÓÚÔ­Ê¼µÄ 20%
+                // ç¡®ä¿ä¿®æ­£åçš„æ¶ˆè€—ä¸ä½äºåŸå§‹çš„ 20%
                 const safeMultiplier = Math.max(0.2, inputModMultiplier);
                 for (const [resKey, amount] of Object.entries(effectiveOps.input)) {
                     effectiveOps.input[resKey] = amount * safeMultiplier;
                 }
             }
 
-            // ×ÊÔ´ÀË·Ñ£º¶ÔÍ¶Èë×ÊÔ´Ôö¼Ó¶îÍâÏûºÄ
+            // èµ„æºæµªè´¹ï¼šå¯¹æŠ•å…¥èµ„æºå¢åŠ é¢å¤–æ¶ˆè€—
             if (bonuses.resourceWaste) {
                 for (const [resKey, amount] of Object.entries(effectiveOps.input)) {
                     const wasteMod = bonuses.resourceWaste?.[resKey] || 0;
@@ -1611,22 +1923,22 @@ export const simulateTick = ({
             }
         }
 
-        // ·ÀËÀËø»úÖÆ£º²É¼¯Àà½¨ÖşÔÚÈ±ÉÙÊäÈëÔ­ÁÏÊ±½øÈëµÍĞ§Ä£Ê½
+        // é˜²æ­»é”æœºåˆ¶ï¼šé‡‡é›†ç±»å»ºç­‘åœ¨ç¼ºå°‘è¾“å…¥åŸæ–™æ—¶è¿›å…¥ä½æ•ˆæ¨¡å¼
         let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
         // Potential target multiplier (if staffed)
         let simTargetMultiplier = simBaseMultiplier * Math.max(0, Math.min(1, resourceLimit));
 
         if (b.cat === 'gather' && resourceLimit === 0 && Object.keys(effectiveOps.input).length > 0) {
-            // ½øÈëµÍĞ§Ä£Ê½£º20%Ğ§ÂÊ£¬²»ÏûºÄÔ­ÁÏ
+            // è¿›å…¥ä½æ•ˆæ¨¡å¼ï¼š20%æ•ˆç‡ï¼Œä¸æ¶ˆè€—åŸæ–™
             targetMultiplier = baseMultiplier * 0.2;
             simTargetMultiplier = simBaseMultiplier * 0.2;
             isInLowEfficiencyMode = true;
-            inputCostPerMultiplier = 0; // µÍĞ§Ä£Ê½ÏÂ²»ÏûºÄÔ­ÁÏ£¬Òò´Ë³É±¾Îª0
+            inputCostPerMultiplier = 0; // ä½æ•ˆæ¨¡å¼ä¸‹ä¸æ¶ˆè€—åŸæ–™ï¼Œå› æ­¤æˆæœ¬ä¸º0
 
-            // Ìí¼ÓÈÕÖ¾ÌáÊ¾£¨Ã¿¸ö½¨ÖşÀàĞÍÖ»ÌáÊ¾Ò»´Î£¬±ÜÃâË¢ÆÁ£©
-            const inputNames = Object.keys(effectiveOps.input).map(k => RESOURCES[k]?.name || k).join('¡¢');
-            if (tick % 30 === 0) { // Ã¿30¸ötickÌáÊ¾Ò»´Î
-                recordAggregatedLog(`?? ${b.name} È±ÉÙ ${inputNames}£¬¹¤ÈËÕıÔÚÍ½ÊÖ×÷Òµ£¨Ğ§ÂÊ20%£©`);
+            // æ·»åŠ æ—¥å¿—æç¤ºï¼ˆæ¯ä¸ªå»ºç­‘ç±»å‹åªæç¤ºä¸€æ¬¡ï¼Œé¿å…åˆ·å±ï¼‰
+            const inputNames = Object.keys(effectiveOps.input).map(k => RESOURCES[k]?.name || k).join('ã€');
+            if (tick % 30 === 0) { // æ¯30ä¸ªtickæç¤ºä¸€æ¬¡
+                recordAggregatedLog(`?? ${b.name} ç¼ºå°‘ ${inputNames}ï¼Œå·¥äººæ­£åœ¨å¾’æ‰‹ä½œä¸šï¼ˆæ•ˆç‡20%ï¼‰`);
             }
         }
 
@@ -1639,8 +1951,8 @@ export const simulateTick = ({
                 producesTradableOutput = true;
                 const perMultiplierAmount = totalAmount;
                 const grossValue = perMultiplierAmount * getPrice(resKey);
-                // ĞŞÕı£ºÉú²úÕßÖ»»ñµÃÉÌÆ·µÄ»ù´¡ÊĞ³¡¼ÛÖµ£¬Ïû·ÑË°»ò²¹Ìù·¢ÉúÔÚÏû·Ñ¶Ë
-                // Ö®Ç°µÄÂß¼­´íÎóµØÈÏÎªÉú²úÕß»ñµÃ²¹Ìù£¬»ò³Ğµ£Ë°ÊÕ
+                // ä¿®æ­£ï¼šç”Ÿäº§è€…åªè·å¾—å•†å“çš„åŸºç¡€å¸‚åœºä»·å€¼ï¼Œæ¶ˆè´¹ç¨æˆ–è¡¥è´´å‘ç”Ÿåœ¨æ¶ˆè´¹ç«¯
+                // ä¹‹å‰çš„é€»è¾‘é”™è¯¯åœ°è®¤ä¸ºç”Ÿäº§è€…è·å¾—è¡¥è´´ï¼Œæˆ–æ‰¿æ‹…ç¨æ”¶
                 const netValue = grossValue;
                 outputValuePerMultiplier += netValue;
             }
@@ -1663,13 +1975,13 @@ export const simulateTick = ({
         const wageCostPerMultiplier = baseWageCostPerMultiplier * wagePressure;
         const estimatedWageCost = wageCostPerMultiplier * simTargetMultiplier;
 
-        // Ô¤¹ÀÓªÒµË°³É±¾
-        // ¾üÊÂÀà½¨Öş²»ÊÕÓªÒµË°
-        // ¾Ó×¡Àà½¨Öş£¨ÎŞownerÇÒ²ú³ömaxPopµÄcivic½¨Öş£©²»ÊÕÓªÒµË°
+        // é¢„ä¼°è¥ä¸šç¨æˆæœ¬
+        // å†›äº‹ç±»å»ºç­‘ä¸æ”¶è¥ä¸šç¨
+        // å±…ä½ç±»å»ºç­‘ï¼ˆæ— ownerä¸”äº§å‡ºmaxPopçš„civicå»ºç­‘ï¼‰ä¸æ”¶è¥ä¸šç¨
         const isHousingBuilding = b.cat === 'civic' && !b.owner && b.output?.maxPop > 0;
         const isMilitaryBuilding = b.cat === 'military';
-        // ÓªÒµË°¶î = ½¨Öş»ù×¼Ë°¶î ¡Á Ë°ÂÊÏµÊı
-        // businessTaxBase Ä¬ÈÏÎª 0.1£¬Ë°ÂÊÏµÊıÓÉÍæ¼ÒÉèÖÃ£¨Ä¬ÈÏ1£©
+        // è¥ä¸šç¨é¢ = å»ºç­‘åŸºå‡†ç¨é¢ Ã— ç¨ç‡ç³»æ•°
+        // businessTaxBase é»˜è®¤ä¸º 0.1ï¼Œç¨ç‡ç³»æ•°ç”±ç©å®¶è®¾ç½®ï¼ˆé»˜è®¤1ï¼‰
         const businessTaxBase = b.businessTaxBase ?? 0.1;
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
@@ -1685,18 +1997,18 @@ export const simulateTick = ({
         let debugMarginRatio = null;
         let debugData = null;
 
-        // BUG FIX: Êµ¼Ê¿ÉÖ§¸¶µÄ¹¤×Ê²»ÄÜ³¬¹ı (ÊÕÈë - Ô­ÁÏ³É±¾)
-        // Èç¹ûÊĞ³¡¹¤×Ê¹ı¸ß£¬½¨ÖşÖ»»áÖ§¸¶ËüÄÜÖ§¸¶µÄ²¿·Ö£¬¶ø²»ÊÇÏ÷¼õ²úÁ¿
-        // Õâ±ÜÃâÁË¹¤×ÊÍ¨ÕÍµ¼ÖÂµÄ²úÁ¿±ÀÀ£
+        // BUG FIX: å®é™…å¯æ”¯ä»˜çš„å·¥èµ„ä¸èƒ½è¶…è¿‡ (æ”¶å…¥ - åŸæ–™æˆæœ¬)
+        // å¦‚æœå¸‚åœºå·¥èµ„è¿‡é«˜ï¼Œå»ºç­‘åªä¼šæ”¯ä»˜å®ƒèƒ½æ”¯ä»˜çš„éƒ¨åˆ†ï¼Œè€Œä¸æ˜¯å‰Šå‡äº§é‡
+        // è¿™é¿å…äº†å·¥èµ„é€šèƒ€å¯¼è‡´çš„äº§é‡å´©æºƒ
         const actualPayableWageCost = Math.min(estimatedWageCost, valueAvailableForLabor);
-        // ¼ÆËãÊµ¼ÊÃ¿µ¥Î»³ËÊıµÄ¹¤×Ê³É±¾£¨ÓÃÓÚaffordableMultiplier¼ÆËã£©
+        // è®¡ç®—å®é™…æ¯å•ä½ä¹˜æ•°çš„å·¥èµ„æˆæœ¬ï¼ˆç”¨äºaffordableMultiplierè®¡ç®—ï¼‰
         const actualWageCostPerMultiplier = targetMultiplier > 0 ? actualPayableWageCost / targetMultiplier : 0;
-        // Êµ¼ÊÔËÓª³É±¾ = Ô­ÁÏ³É±¾ + Êµ¼Ê¿ÉÖ§¸¶¹¤×Ê³É±¾
+        // å®é™…è¿è¥æˆæœ¬ = åŸæ–™æˆæœ¬ + å®é™…å¯æ”¯ä»˜å·¥èµ„æˆæœ¬
         const actualOperatingCostPerMultiplier = inputCostPerMultiplier + actualWageCostPerMultiplier;
 
         if (producesTradableOutput) {
 
-            // ½«ÓªÒµË°¼ÆÈë×Ü³É±¾£¨Ö»¿¼ÂÇÕıË°£¬²¹Ìù²»¼ÆÈë³É±¾£©
+            // å°†è¥ä¸šç¨è®¡å…¥æ€»æˆæœ¬ï¼ˆåªè€ƒè™‘æ­£ç¨ï¼Œè¡¥è´´ä¸è®¡å…¥æˆæœ¬ï¼‰
             const estimatedCost = estimatedInputCost + actualPayableWageCost + Math.max(0, estimatedBusinessTax);
             if (estimatedCost > 0 && estimatedRevenue <= 0) {
                 actualMultiplier = 0;
@@ -1709,7 +2021,7 @@ export const simulateTick = ({
             } else {
                 debugMarginRatio = estimatedCost > 0 ? estimatedRevenue / estimatedCost : null;
             }
-            // DEBUG: ´æ´¢µ÷ÊÔÊı¾İµ½¾Ö²¿±äÁ¿
+            // DEBUG: å­˜å‚¨è°ƒè¯•æ•°æ®åˆ°å±€éƒ¨å˜é‡
             debugData = {
                 baseMultiplier,
                 resourceLimit,
@@ -1717,9 +2029,9 @@ export const simulateTick = ({
                 estimatedRevenue,
                 estimatedInputCost,
                 estimatedWageCost,
-                actualPayableWageCost, // ĞÂÔö£ºÊµ¼Ê¿ÉÖ§¸¶µÄ¹¤×Ê³É±¾
-                actualWageCostPerMultiplier, // ĞÂÔö£ºÊµ¼ÊÃ¿µ¥Î»¹¤×Ê³É±¾
-                actualOperatingCostPerMultiplier, // ĞÂÔö£ºÊµ¼ÊÔËÓª³É±¾
+                actualPayableWageCost, // æ–°å¢ï¼šå®é™…å¯æ”¯ä»˜çš„å·¥èµ„æˆæœ¬
+                actualWageCostPerMultiplier, // æ–°å¢ï¼šå®é™…æ¯å•ä½å·¥èµ„æˆæœ¬
+                actualOperatingCostPerMultiplier, // æ–°å¢ï¼šå®é™…è¿è¥æˆæœ¬
                 estimatedBusinessTax,
                 estimatedCost,
                 marginRatio: debugMarginRatio,
@@ -1739,8 +2051,8 @@ export const simulateTick = ({
             };
         }
         if (actualOperatingCostPerMultiplier > 0) {
-            // ¼ì²éËùÓĞ owner µÄ²Æ¸»ÊÇ·ñ×ã¹»Ö§¸¶ÔËÓª³É±¾
-            // BUG FIX: Ê¹ÓÃÊµ¼Ê¿ÉÖ§¸¶µÄÔËÓª³É±¾£¬¶ø²»ÊÇ»ùÓÚÊĞ³¡¹¤×ÊµÄ³É±¾
+            // æ£€æŸ¥æ‰€æœ‰ owner çš„è´¢å¯Œæ˜¯å¦è¶³å¤Ÿæ”¯ä»˜è¿è¥æˆæœ¬
+            // BUG FIX: ä½¿ç”¨å®é™…å¯æ”¯ä»˜çš„è¿è¥æˆæœ¬ï¼Œè€Œä¸æ˜¯åŸºäºå¸‚åœºå·¥èµ„çš„æˆæœ¬
             let minAffordableMultiplier = Infinity;
             const ownerDetails = [];
             Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
@@ -1756,7 +2068,7 @@ export const simulateTick = ({
 
             actualMultiplier = Math.min(actualMultiplier, Math.max(0, affordableMultiplier));
             simActualMultiplier = Math.min(simActualMultiplier, Math.max(0, simAffordableMultiplier));
-            // DEBUG: ¸üĞÂµ÷ÊÔÊı¾İ
+            // DEBUG: æ›´æ–°è°ƒè¯•æ•°æ®
             if (debugData) {
                 debugData.totalOperatingCostPerMultiplier = totalOperatingCostPerMultiplier;
                 debugData.minAffordableMultiplier = minAffordableMultiplier;
@@ -1765,7 +2077,7 @@ export const simulateTick = ({
                 debugData.ownerDetails = ownerDetails;
             }
         }
-        // ´æ´¢µ÷ÊÔÊı¾İµ½ buildingDebugData
+        // å­˜å‚¨è°ƒè¯•æ•°æ®åˆ° buildingDebugData
         if (debugData) {
             buildingDebugData[b.id] = debugData;
         }
@@ -1776,7 +2088,7 @@ export const simulateTick = ({
 
         const zeroApprovalFactor = 0.3;
         let approvalMultiplier = 1;
-        // ¼ì²éËùÓĞ owner µÄÂúÒâ¶È
+        // æ£€æŸ¥æ‰€æœ‰ owner çš„æ»¡æ„åº¦
         Object.keys(ownerLevelGroups).forEach(oKey => {
             if (zeroApprovalClasses[oKey]) {
                 approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
@@ -1798,10 +2110,10 @@ export const simulateTick = ({
 
         let plannedWageBill = 0;
 
-        // µÍĞ§Ä£Ê½ÏÂ²»ÏûºÄÊäÈëÔ­ÁÏ£¨Í½ÊÖ²É¼¯£©
+        // ä½æ•ˆæ¨¡å¼ä¸‹ä¸æ¶ˆè€—è¾“å…¥åŸæ–™ï¼ˆå¾’æ‰‹é‡‡é›†ï¼‰
         if (Object.keys(effectiveOps.input).length > 0 && !isInLowEfficiencyMode) {
-            // === °´µÈ¼¶¾«È·¼ÆËãÃ¿¸öµÈ¼¶µÄ×ÊÔ´ĞèÇó ===
-            // ¹¹½¨ levelInputNeeds: { lvl: { resKey: amount } }
+            // === æŒ‰ç­‰çº§ç²¾ç¡®è®¡ç®—æ¯ä¸ªç­‰çº§çš„èµ„æºéœ€æ±‚ ===
+            // æ„å»º levelInputNeeds: { lvl: { resKey: amount } }
             const levelInputNeeds = {};
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
                 if (lvlCount <= 0) return;
@@ -1810,12 +2122,12 @@ export const simulateTick = ({
                 if (!config.input || Object.keys(config.input).length === 0) return;
                 levelInputNeeds[lvl] = {};
                 Object.entries(config.input).forEach(([resKey, perBuildingAmount]) => {
-                    // ¸ÃµÈ¼¶µÄ×ÜĞèÇó = µ¥½¨ÖşĞèÇó ¡Á ½¨ÖşÊıÁ¿ ¡Á Êµ¼ÊĞ§ÂÊ
+                    // è¯¥ç­‰çº§çš„æ€»éœ€æ±‚ = å•å»ºç­‘éœ€æ±‚ Ã— å»ºç­‘æ•°é‡ Ã— å®é™…æ•ˆç‡
                     levelInputNeeds[lvl][resKey] = perBuildingAmount * lvlCount * actualMultiplier;
                 });
             });
 
-            // ±éÀúÃ¿¸ö×ÊÔ´£¬°´µÈ¼¶±ÈÀı·ÖÅäÊµ¼ÊÏû·ÑÁ¿
+            // éå†æ¯ä¸ªèµ„æºï¼ŒæŒ‰ç­‰çº§æ¯”ä¾‹åˆ†é…å®é™…æ¶ˆè´¹é‡
             for (const [resKey, totalAmount] of Object.entries(effectiveOps.input)) {
                 if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) continue;
 
@@ -1829,13 +2141,13 @@ export const simulateTick = ({
                     const price = getPrice(resKey);
                     const taxRate = getResourceTaxRate(resKey);
 
-                    // === °´µÈ¼¶¾«È··ÖÅä³É±¾ ===
+                    // === æŒ‰ç­‰çº§ç²¾ç¡®åˆ†é…æˆæœ¬ ===
                     Object.entries(levelInputNeeds).forEach(([lvlStr, resNeeds]) => {
                         const lvl = parseInt(lvlStr);
                         const levelNeed = resNeeds[resKey] || 0;
                         if (levelNeed <= 0) return;
 
-                        // ¸ÃµÈ¼¶Êµ¼ÊÏû·ÑÁ¿ = ĞèÇóÁ¿ ¡Á Ïû·Ñ±ÈÀı
+                        // è¯¥ç­‰çº§å®é™…æ¶ˆè´¹é‡ = éœ€æ±‚é‡ Ã— æ¶ˆè´¹æ¯”ä¾‹
                         const levelConsumed = levelNeed * consumeRatio;
                         if (levelConsumed <= 0) return;
 
@@ -1849,43 +2161,21 @@ export const simulateTick = ({
                         if (taxPaid < 0) {
                             const subsidyAmount = Math.abs(taxPaid);
                             if ((res.silver || 0) >= subsidyAmount) {
-                                res.silver -= subsidyAmount;
-                                taxBreakdown.subsidy += subsidyAmount;
+                                ledger.transfer('state', ownerKey, subsidyAmount, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                                 totalCost -= subsidyAmount;
                                 roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
-                                if (classFinancialData[ownerKey]) {
-                                    classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
-                                }
                             }
                         } else if (taxPaid > 0) {
-                            taxBreakdown.industryTax += taxPaid;
+                            ledger.transfer(ownerKey, 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX);
                             totalCost += taxPaid;
-                            if (classFinancialData[ownerKey]) {
-                                classFinancialData[ownerKey].expense.transactionTax = (classFinancialData[ownerKey].expense.transactionTax || 0) + taxPaid;
-                            }
                         }
 
-                        const currentWealth = wealth[ownerKey] || 0;
-                        let actualPaidFromWealth = 0;
-                        let paidFromIncome = 0;
-
-                        if (currentWealth >= totalCost) {
-                            actualPaidFromWealth = totalCost;
-                            wealth[ownerKey] = currentWealth - totalCost;
-                        } else {
-                            actualPaidFromWealth = currentWealth;
-                            wealth[ownerKey] = 0;
-                            paidFromIncome = totalCost - actualPaidFromWealth;
-                            roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) - paidFromIncome;
-                        }
+                        // Pay base cost
+                        ledger.transfer(ownerKey, 'void', baseCost, TRANSACTION_CATEGORIES.EXPENSE.PRODUCTION_COST, TRANSACTION_CATEGORIES.EXPENSE.PRODUCTION_COST, { buildingId: b.id });
                         roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
 
-                        // Per-building realized production input costs
+                        // Per-building realized production input costs (manual update for building stats if ledger doesn't support aggregate yet)
                         buildingFinancialData[b.id].productionCosts += totalCost;
-
-                        if (classFinancialData[ownerKey]) {
-                            classFinancialData[ownerKey].expense.productionCosts = (classFinancialData[ownerKey].expense.productionCosts || 0) + totalCost;
-                        }
                     });
 
                     demand[resKey] = (demand[resKey] || 0) + consumed;
@@ -1909,14 +2199,14 @@ export const simulateTick = ({
             });
         }
 
-        // === °´µÈ¼¶·Ö±ğ¼ÆËã¹¤×ÊÑ¹Á¦Òò×Ó ===
-        // Ã¿¸öµÈ¼¶¿ÉÄÜÓĞ²»Í¬µÄ²ú³ö¼ÛÖµ£¬Òò´Ë wagePressure Ó¦¸Ã²»Í¬
+        // === æŒ‰ç­‰çº§åˆ†åˆ«è®¡ç®—å·¥èµ„å‹åŠ›å› å­ ===
+        // æ¯ä¸ªç­‰çº§å¯èƒ½æœ‰ä¸åŒçš„äº§å‡ºä»·å€¼ï¼Œå› æ­¤ wagePressure åº”è¯¥ä¸åŒ
         const levelWagePressures = {};
         Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
             const lvl = parseInt(lvlStr);
             const config = getBuildingEffectiveConfig(b, lvl);
 
-            // ¼ÆËã¸ÃµÈ¼¶µÄ²ú³ö¼ÛÖµ
+            // è®¡ç®—è¯¥ç­‰çº§çš„äº§å‡ºä»·å€¼
             let levelOutputValue = 0;
             if (config.output) {
                 Object.entries(config.output).forEach(([resKey, amount]) => {
@@ -1924,12 +2214,12 @@ export const simulateTick = ({
                     if (!isTradableResource(resKey)) return;
                     const perBuildingAmount = amount;
                     const grossValue = perBuildingAmount * getPrice(resKey);
-                    // ĞŞÕı£ºÉú²úÕßÖ»»ñµÃÉÌÆ·µÄ»ù´¡ÊĞ³¡¼ÛÖµ
+                    // ä¿®æ­£ï¼šç”Ÿäº§è€…åªè·å¾—å•†å“çš„åŸºç¡€å¸‚åœºä»·å€¼
                     levelOutputValue += grossValue;
                 });
             }
 
-            // ¼ÆËã¸ÃµÈ¼¶µÄÊäÈë³É±¾
+            // è®¡ç®—è¯¥ç­‰çº§çš„è¾“å…¥æˆæœ¬
             let levelInputCost = 0;
             if (config.input) {
                 Object.entries(config.input).forEach(([resKey, amount]) => {
@@ -1940,7 +2230,7 @@ export const simulateTick = ({
                 });
             }
 
-            // ¼ÆËã¸ÃµÈ¼¶µÄ¹¤×Ê³É±¾£¨Ê¹ÓÃ»ù´¡¹¤×Ê¹ÀËã£©
+            // è®¡ç®—è¯¥ç­‰çº§çš„å·¥èµ„æˆæœ¬ï¼ˆä½¿ç”¨åŸºç¡€å·¥èµ„ä¼°ç®—ï¼‰
             let levelWageCost = 0;
             const levelOwnerKey = config.owner || 'state';
             if (config.jobs) {
@@ -1951,7 +2241,7 @@ export const simulateTick = ({
                 });
             }
 
-            // ¼ÆËã¸ÃµÈ¼¶µÄ¹¤×ÊÑ¹Á¦Òò×Ó
+            // è®¡ç®—è¯¥ç­‰çº§çš„å·¥èµ„å‹åŠ›å› å­
             const valueAvailable = Math.max(0, levelOutputValue - levelInputCost);
             const coverage = levelWageCost > 0 ? valueAvailable / levelWageCost : 1;
             let levelWagePressure = 1;
@@ -1965,7 +2255,7 @@ export const simulateTick = ({
             levelWagePressures[lvl] = levelWagePressure;
         });
 
-        // ¼ÆËãÕûÌå¼ÓÈ¨Æ½¾ùµÄ wagePressure£¨ÓÃÓÚÏòºó¼æÈİ£©
+        // è®¡ç®—æ•´ä½“åŠ æƒå¹³å‡çš„ wagePressureï¼ˆç”¨äºå‘åå…¼å®¹ï¼‰
         let totalWeightedPressure = 0;
         let totalWeight = 0;
         Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -1987,10 +2277,10 @@ export const simulateTick = ({
             // Prefer plan.ownerKey if already provided; fallback to building's default owner.
             const planOwnerKey = plan.ownerKey || b.owner || 'state';
 
-            // ¸ù¾İ½ÇÉ«ÔÚ¸÷µÈ¼¶µÄ·Ö²¼£¬¼ÆËã¼ÓÈ¨Æ½¾ùµÄ¹¤×ÊÑ¹Á¦Òò×Ó
+            // æ ¹æ®è§’è‰²åœ¨å„ç­‰çº§çš„åˆ†å¸ƒï¼Œè®¡ç®—åŠ æƒå¹³å‡çš„å·¥èµ„å‹åŠ›å› å­
             let planWagePressure = avgWagePressure;
 
-            // Èç¹ûÓĞ¶à¸öµÈ¼¶£¬°´±ÈÀı¼ÆËã¸Ã½ÇÉ«µÄÆ½¾ù¹¤×ÊÑ¹Á¦
+            // å¦‚æœæœ‰å¤šä¸ªç­‰çº§ï¼ŒæŒ‰æ¯”ä¾‹è®¡ç®—è¯¥è§’è‰²çš„å¹³å‡å·¥èµ„å‹åŠ›
             if (Object.keys(levelCounts).length > 1) {
                 let roleWeightedPressure = 0;
                 let roleWeight = 0;
@@ -2016,7 +2306,7 @@ export const simulateTick = ({
             if (wageMode === 'subsistence') {
                 // Get the role's living cost as the wage base
                 const roleLivingCost = wageLivingCosts?.[plan.role] || getLivingCostFloor(plan.role);
-                // Wage = living cost ¡Á multiplier (e.g., 1.5 = subsistence + 50% buffer)
+                // Wage = living cost Ã— multiplier (e.g., 1.5 = subsistence + 50% buffer)
                 // This is a FIXED wage based on actual needs, not market dynamics
                 expectedSlotWage = roleLivingCost * subsistenceMultiplier;
             }
@@ -2027,7 +2317,7 @@ export const simulateTick = ({
                 ...plan,
                 ownerKey: planOwnerKey,
                 expectedSlotWage,
-                wagePressure: planWagePressure, // ±£´æÓÃÓÚµ÷ÊÔ
+                wagePressure: planWagePressure, // ä¿å­˜ç”¨äºè°ƒè¯•
                 wageMode, // Track for debugging
                 subsistenceMultiplier: wageMode === 'subsistence' ? subsistenceMultiplier : undefined,
             };
@@ -2042,8 +2332,8 @@ export const simulateTick = ({
         buildingFinancialData[b.id].wagePaidRatioByOwner = ownerPaidRatio;
 
         if (plannedWageBill > 0) {
-            // === °´µÈ¼¶¾«È·¼ÆËãÃ¿¸ö owner µÄ¹¤×ÊÔğÈÎ ===
-            // ¹¹½¨ ownerWageBills: { ownerKey: totalWageBill }
+            // === æŒ‰ç­‰çº§ç²¾ç¡®è®¡ç®—æ¯ä¸ª owner çš„å·¥èµ„è´£ä»» ===
+            // æ„å»º ownerWageBills: { ownerKey: totalWageBill }
             const ownerWageBills = {};
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
                 if (lvlCount <= 0) return;
@@ -2052,10 +2342,10 @@ export const simulateTick = ({
                 const ownerKey = config.owner || 'state';
                 if (!ownerWageBills[ownerKey]) ownerWageBills[ownerKey] = 0;
 
-                // ¼ÆËã¸ÃµÈ¼¶µÄ¹¤×Ê³É±¾
+                // è®¡ç®—è¯¥ç­‰çº§çš„å·¥èµ„æˆæœ¬
                 if (config.jobs) {
                     Object.entries(config.jobs).forEach(([role, slots]) => {
-                        // Ìø¹ıÒµÖ÷½ÇÉ«
+                        // è·³è¿‡ä¸šä¸»è§’è‰²
                         if (role === ownerKey) return;
 
                         let wage;
@@ -2074,7 +2364,7 @@ export const simulateTick = ({
                 }
             });
 
-            // °´Ã¿¸ö owner µÄÊµ¼Ê¹¤×ÊÔğÈÎÖ§¸¶£¨²¢¼ÇÂ¼Ã¿¸ö owner µÄÖ§¸¶±ÈÀı£©
+            // æŒ‰æ¯ä¸ª owner çš„å®é™…å·¥èµ„è´£ä»»æ”¯ä»˜ï¼ˆå¹¶è®°å½•æ¯ä¸ª owner çš„æ”¯ä»˜æ¯”ä¾‹ï¼‰
             Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
                 if (ownerBill <= 0) {
                     ownerPaidRatio[oKey] = 0;
@@ -2096,12 +2386,8 @@ export const simulateTick = ({
                 const disposableWealth = Math.max(0, available - reservedWealth);
                 const paid = Math.min(disposableWealth, ownerBill);
 
-                wealth[oKey] = available - paid;
+                ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
                 roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
-
-                if (classFinancialData[oKey]) {
-                    classFinancialData[oKey].expense.wages = (classFinancialData[oKey].expense.wages || 0) + paid;
-                }
 
                 ownerPaidRatio[oKey] = ownerBill > 0 ? paid / ownerBill : 0;
             });
@@ -2125,11 +2411,11 @@ export const simulateTick = ({
                 buildingFinancialData[b.id].wagesByRole[plan.role] =
                     (buildingFinancialData[b.id].wagesByRole[plan.role] || 0) + payout;
 
+                // ä½¿ç”¨ Ledger å‘æ”¾å·¥èµ„
+                ledger.transfer('void', plan.role, payout, TRANSACTION_CATEGORIES.INCOME.WAGE, TRANSACTION_CATEGORIES.INCOME.WAGE, { buildingId: b.id });
+
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
                 roleLaborIncome[plan.role] = (roleLaborIncome[plan.role] || 0) + payout; // Wages are labor income
-                if (classFinancialData[plan.role]) {
-                    classFinancialData[plan.role].income.wage = (classFinancialData[plan.role].income.wage || 0) + payout;
-                }
             }
         });
 
@@ -2142,8 +2428,8 @@ export const simulateTick = ({
         });
 
         if (Object.keys(effectiveOps.output).length > 0) {
-            // === °´µÈ¼¶¾«È·¼ÆËã²ú³öÊÕÈë·ÖÅä ===
-            // ¹¹½¨ levelOutputAmounts: { lvl: { resKey: amount } }
+            // === æŒ‰ç­‰çº§ç²¾ç¡®è®¡ç®—äº§å‡ºæ”¶å…¥åˆ†é… ===
+            // æ„å»º levelOutputAmounts: { lvl: { resKey: amount } }
             const levelOutputAmounts = {};
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
                 if (lvlCount <= 0) return;
@@ -2160,7 +2446,7 @@ export const simulateTick = ({
                 let amount = totalAmount * actualMultiplier;
                 if (!amount || amount <= 0) continue;
 
-                // Îª¿É½»Ò××ÊÔ´Ìí¼Ó²ú³ö¸¡¶¯£¨80%-120%£©
+                // ä¸ºå¯äº¤æ˜“èµ„æºæ·»åŠ äº§å‡ºæµ®åŠ¨ï¼ˆ80%-120%ï¼‰
                 let variationFactor = 1;
                 if (isTradableResource(resKey) && resKey !== 'silver') {
                     const resourceDef = RESOURCES[resKey];
@@ -2188,14 +2474,14 @@ export const simulateTick = ({
 
                 if (resKey === 'maxPop') continue;
                 if (isTradableResource(resKey)) {
-                    // === °´µÈ¼¶¾«È··ÖÅä²ú³öÊÕÈë ===
+                    // === æŒ‰ç­‰çº§ç²¾ç¡®åˆ†é…äº§å‡ºæ”¶å…¥ ===
                     Object.entries(levelOutputAmounts).forEach(([lvlStr, resOutputs]) => {
                         const lvl = parseInt(lvlStr);
                         const levelBaseOutput = resOutputs[resKey] || 0;
                         if (levelBaseOutput <= 0) return;
 
-                        // ¸ÃµÈ¼¶Êµ¼Ê²ú³ö = »ù´¡²ú³ö ¡Á ¸¡¶¯Òò×Ó ¡Á ¸÷ÖÖ¼Ó³É
-                        // ¼ÆËã¸ÃµÈ¼¶Õ¼×Ü²ú³öµÄ±ÈÀı
+                        // è¯¥ç­‰çº§å®é™…äº§å‡º = åŸºç¡€äº§å‡º Ã— æµ®åŠ¨å› å­ Ã— å„ç§åŠ æˆ
+                        // è®¡ç®—è¯¥ç­‰çº§å æ€»äº§å‡ºçš„æ¯”ä¾‹
                         const baseTotal = totalAmount * actualMultiplier;
                         const proportion = baseTotal > 0 ? levelBaseOutput / baseTotal : 0;
                         const levelAmount = amount * proportion;
@@ -2213,60 +2499,71 @@ export const simulateTick = ({
                     if (!supplyBreakdown[resKey]) supplyBreakdown[resKey] = { buildings: {}, imports: 0 };
                     supplyBreakdown[resKey].buildings[b.id] = (supplyBreakdown[resKey].buildings[b.id] || 0) + amount;
                 } else {
-                    res[resKey] = (res[resKey] || 0) + amount;
+                    if (resKey === 'silver') {
+                        // [FIX] é“¶å¸äº§å‡ºéœ€è¦æŒ‰ owner åˆ†é…ï¼Œä¸èƒ½ç›´æ¥å…¨é¢è¿›å›½åº“
+                        Object.entries(levelOutputAmounts).forEach(([lvlStr, resOutputs]) => {
+                            const lvl = parseInt(lvlStr);
+                            const levelBaseOutput = resOutputs[resKey] || 0;
+                            if (levelBaseOutput <= 0) return;
+
+                            // è®¡ç®—è¯¥ç­‰çº§(å³è¯¥owner)åº”å¾—çš„ä»½é¢
+                            const baseTotal = totalAmount * actualMultiplier;
+                            const proportion = baseTotal > 0 ? levelBaseOutput / baseTotal : 0;
+                            const levelAmount = amount * proportion;
+
+                            if (levelAmount <= 0) return;
+
+                            const config = getBuildingEffectiveConfig(b, lvl);
+                            const ownerKey = config.owner || 'state';
+
+                            if (ownerKey === 'state') {
+                                applyResourceChange(resKey, levelAmount, 'building_production_direct');
+                            } else {
+                                // ç§æœ‰å»ºç­‘äº§å‡ºçš„é“¶å¸ç›´æ¥è¿›å…¥ä¸šä¸»å£è¢‹
+                                ledger.transfer('void', ownerKey, levelAmount, 'building_production_direct', 'building_production_direct', { buildingId: b.id });
+                            }
+                        });
+                    } else {
+                        applyResourceChange(resKey, amount, 'building_production_direct');
+                    }
                 }
             }
         }
 
-        // ÓªÒµË°ÊÕÈ¡£ºÃ¿´Î½¨Öş²ú³öÊ±ÊÕÈ¡¹Ì¶¨Òø±ÒÖµ
-        // businessTaxPerBuilding ÒÑÔÚÉÏÃæÉùÃ÷£¬Ö±½ÓÊ¹ÓÃ
+        // è¥ä¸šç¨æ”¶å–ï¼šæ¯æ¬¡å»ºç­‘äº§å‡ºæ—¶æ”¶å–å›ºå®šé“¶å¸å€¼
+        // businessTaxPerBuilding å·²åœ¨ä¸Šé¢å£°æ˜ï¼Œç›´æ¥ä½¿ç”¨
         if (businessTaxPerBuilding !== 0 && count > 0) {
             const totalBusinessTax = businessTaxPerBuilding * count * actualMultiplier;
 
             if (totalBusinessTax > 0) {
-                // ÕıÖµ£º°´ owner ±ÈÀıÊÕË°
-                let actualTaxCollected = 0;
+                // æ­£å€¼ï¼šæŒ‰ owner æ¯”ä¾‹æ”¶ç¨
                 Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                     const proportion = group.totalCount / count;
                     const ownerTax = totalBusinessTax * proportion;
                     const ownerWealth = wealth[oKey] || 0;
                     if (ownerWealth >= ownerTax) {
-                        wealth[oKey] = ownerWealth - ownerTax;
+                        ledger.transfer(oKey, 'state', ownerTax, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, { buildingId: b.id });
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
-
-                        // Per-building: accumulate business tax paid (only positive tax)
-                        buildingFinancialData[b.id].businessTaxPaid += ownerTax;
-
-                        actualTaxCollected += ownerTax;
-                        if (classFinancialData[oKey]) {
-                            classFinancialData[oKey].expense.businessTax = (classFinancialData[oKey].expense.businessTax || 0) + ownerTax;
-                        }
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
-                        recordAggregatedLog(`?? ${STRATA[oKey]?.name || oKey} ÎŞÁ¦Ö§¸¶ ${b.name} µÄÓªÒµË°£¬Õş¸®·ÅÆúÕ÷ÊÕ¡£`);
+                        recordAggregatedLog(`?? ${STRATA[oKey]?.name || oKey} æ— åŠ›æ”¯ä»˜ ${b.name} çš„è¥ä¸šç¨ï¼Œæ”¿åºœæ”¾å¼ƒå¾æ”¶ã€‚`);
                     }
                 });
-                taxBreakdown.businessTax += actualTaxCollected;
+                // taxBreakdown ç”± Ledger è‡ªåŠ¨æ›´æ–°
             } else if (totalBusinessTax < 0) {
-                // ¸ºÖµ£º°´ owner ±ÈÀı·¢·Å²¹Ìù
+                // è´Ÿå€¼ï¼šæŒ‰ owner æ¯”ä¾‹å‘æ”¾è¡¥è´´
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyAmount) {
-                    res.silver = treasury - subsidyAmount;
-                    taxBreakdown.subsidy += subsidyAmount;
                     Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                         const proportion = group.totalCount / count;
                         const ownerSubsidy = subsidyAmount * proportion;
-                        // [FIX] Apply safe wealth limit to prevent overflow
-                        wealth[oKey] = safeWealth((wealth[oKey] || 0) + ownerSubsidy);
+                        ledger.transfer('state', oKey, ownerSubsidy, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                         roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidy;
-                        if (classFinancialData[oKey]) {
-                            classFinancialData[oKey].income.subsidy = (classFinancialData[oKey].income.subsidy || 0) + ownerSubsidy;
-                        }
                     });
                 } else {
                     if (tick % 30 === 0) {
-                        recordAggregatedLog(`?? ¹ú¿â¿ÕĞé£¬ÎŞ·¨Îª ${b.name} Ö§¸¶ÓªÒµ²¹Ìù£¡`);
+                        recordAggregatedLog(`?? å›½åº“ç©ºè™šï¼Œæ— æ³•ä¸º ${b.name} æ”¯ä»˜è¥ä¸šè¡¥è´´ï¼`);
                     }
                 }
             }
@@ -2280,7 +2577,7 @@ export const simulateTick = ({
                 const merchantWealth = wealth[marketOwnerKey] || 0;
                 let availableMerchantWealth = merchantWealth;
                 if (availableMerchantWealth <= 0) {
-                    // Ã»ÓĞ¿ÉÓÃÓÚÃ³Ò×µÄ×Ê½ğ
+                    // æ²¡æœ‰å¯ç”¨äºè´¸æ˜“çš„èµ„é‡‘
                 } else {
                     const surpluses = [];
                     Object.entries(res).forEach(([resKey, amount]) => {
@@ -2295,18 +2592,18 @@ export const simulateTick = ({
                     if (surpluses.length > 0) {
                         const shortageTargets = [];
                         Object.keys(RESOURCES).forEach(resourceKey => {
-                                if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
-                                const stock = res[resourceKey] || 0;
-                                const netRate = rates[resourceKey] || 0;
-                                const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
-                                const stockGap = Math.max(0, 200 - stock);
-                                const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
-                                const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
-                                if (shortageAmount <= 0) return;
-                                const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
-                                const requiredValue = shortageAmount * importPrice;
-                                if (requiredValue <= 0) return;
-                                shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
+                            if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
+                            const stock = res[resourceKey] || 0;
+                            const netRate = rates[resourceKey] || 0;
+                            const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
+                            const stockGap = Math.max(0, 200 - stock);
+                            const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
+                            const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
+                            if (shortageAmount <= 0) return;
+                            const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
+                            const requiredValue = shortageAmount * importPrice;
+                            if (requiredValue <= 0) return;
+                            shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
                         });
 
                         if (shortageTargets.length > 0) {
@@ -2336,10 +2633,10 @@ export const simulateTick = ({
 
                                     const exportValue = exportAmount * sourcePrice;
                                     availableMerchantWealth -= exportValue;
-                                    wealth[marketOwnerKey] = availableMerchantWealth;
+                                    ledger.transfer(marketOwnerKey, 'void', exportValue, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE);
                                     roleExpense[marketOwnerKey] = (roleExpense[marketOwnerKey] || 0) + exportValue;
 
-                                    res[sourceResource] = Math.max(0, currentStock - exportAmount);
+                                    applyResourceChange(sourceResource, -exportAmount, 'trade_export_deduction');
                                     supply[sourceResource] = (supply[sourceResource] || 0) + exportAmount;
                                     rates[sourceResource] = (rates[sourceResource] || 0) - exportAmount;
                                     surplus.stock = Math.max(0, surplus.stock - exportAmount);
@@ -2352,10 +2649,10 @@ export const simulateTick = ({
                                     if (importAmount <= 0) continue;
 
                                     const importCost = importAmount * target.importPrice;
-                                    wealth[marketOwnerKey] += importCost;
+                                    ledger.transfer('void', marketOwnerKey, importCost, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE);
                                     availableMerchantWealth += importCost;
 
-                                    res[target.resource] = (res[target.resource] || 0) + importAmount;
+                                    applyResourceChange(target.resource, importAmount, 'trade_import_gain');
                                     supply[target.resource] = (supply[target.resource] || 0) + importAmount;
                                     rates[target.resource] = (rates[target.resource] || 0) + importAmount;
 
@@ -2375,7 +2672,7 @@ export const simulateTick = ({
                                     if (importCost > logThreshold) {
                                         const fromName = RESOURCES[sourceResource]?.name || sourceResource;
                                         const toName = RESOURCES[target.resource]?.name || target.resource;
-                                        // logs.push(`?? ÊĞ³¡£ºÉÌÈË¶¯ÓÃ×ÔÓĞ×Ê½ğ ${exportValue.toFixed(1)} Òø±Ò¹ºÈë ${exportAmount.toFixed(1)} ${fromName}£¬»»»Ø ${importAmount.toFixed(1)} ${toName}¡£`);
+                                        // logs.push(`?? å¸‚åœºï¼šå•†äººåŠ¨ç”¨è‡ªæœ‰èµ„é‡‘ ${exportValue.toFixed(1)} é“¶å¸è´­å…¥ ${exportAmount.toFixed(1)} ${fromName}ï¼Œæ¢å› ${importAmount.toFixed(1)} ${toName}ã€‚`);
                                     }
                                 }
                             });
@@ -2385,20 +2682,20 @@ export const simulateTick = ({
             }
         }
 
-        // NOTE: ¹¤×ÊÖ§¸¶ÒÑÔÚ produceBuilding µÄ preparedWagePlans.forEach ÖĞ´¦Àí
-        // ÕâÀïÖ»ĞèÒªÍ³¼Æ×Ü¸ÚÎ»Êı£¬²»ÄÜÖØ¸´Ö§¸¶¹¤×Ê£¨Ö®Ç°µÄ BUG£©
+        // NOTE: å·¥èµ„æ”¯ä»˜å·²åœ¨ produceBuilding çš„ preparedWagePlans.forEach ä¸­å¤„ç†
+        // è¿™é‡Œåªéœ€è¦ç»Ÿè®¡æ€»å²—ä½æ•°ï¼Œä¸èƒ½é‡å¤æ”¯ä»˜å·¥èµ„ï¼ˆä¹‹å‰çš„ BUGï¼‰
         if (b.jobs) {
             Object.entries(b.jobs).forEach(([role, perBuilding]) => {
                 const roleSlots = perBuilding * count;
                 if (roleSlots <= 0) return;
-                // Ö»Í³¼Æ¸ÚÎ»Êı£¬²»ÔÙÖØ¸´Ö§¸¶¹¤×Ê
-                // roleWageStats[role].totalSlots ÒÑÔÚ produceBuilding ÖĞ¸üĞÂ
+                // åªç»Ÿè®¡å²—ä½æ•°ï¼Œä¸å†é‡å¤æ”¯ä»˜å·¥èµ„
+                // roleWageStats[role].totalSlots å·²åœ¨ produceBuilding ä¸­æ›´æ–°
             });
         }
     });
 
-    // === ĞÂ¾ü·Ñ¼ÆËãÏµÍ³ ===
-    // 1. »ñÈ¡¾ü¶Ó×ÊÔ´Î¬»¤ĞèÇó
+    // === æ–°å†›è´¹è®¡ç®—ç³»ç»Ÿ ===
+    // 1. è·å–å†›é˜Ÿèµ„æºç»´æŠ¤éœ€æ±‚
     const armyMaintenanceMultiplier = getArmyMaintenanceMultiplier(difficulty);
     const baseArmyMaintenance = calculateArmyMaintenance(army);
     // Apply difficulty multiplier
@@ -2412,19 +2709,19 @@ export const simulateTick = ({
         armyMaintenance[resource] = isPlayerAtWar ? amount * WAR_MILITARY_MULTIPLIER : amount;
     });
 
-    // 2. ´ÓÊĞ³¡¹ºÂòÎ¬»¤×ÊÔ´£¨ÏûºÄ×ÊÔ´¡¢Ôö¼ÓĞèÇó£©
+    // 2. ä»å¸‚åœºè´­ä¹°ç»´æŠ¤èµ„æºï¼ˆæ¶ˆè€—èµ„æºã€å¢åŠ éœ€æ±‚ï¼‰
     let totalResourceCost = 0;
     const armyResourceConsumption = {};
 
     Object.entries(armyMaintenance).forEach(([resource, needed]) => {
         if (needed <= 0) return;
         if (resource === 'silver') {
-            // Òø±ÒÖ±½Ó¼ÆÈë³É±¾
+            // é“¶å¸ç›´æ¥è®¡å…¥æˆæœ¬
             totalResourceCost += needed;
             return;
         }
 
-        // ´ÓÊĞ³¡¹ºÂò£ºÏûºÄ¿â´æ×ÊÔ´
+        // ä»å¸‚åœºè´­ä¹°ï¼šæ¶ˆè€—åº“å­˜èµ„æº
         const available = res[resource] || 0;
         const consumed = Math.min(available, needed);
 
@@ -2433,7 +2730,7 @@ export const simulateTick = ({
             rates[resource] = (rates[resource] || 0) - consumed;
             armyResourceConsumption[resource] = consumed;
 
-            // Ôö¼ÓÊĞ³¡ĞèÇó£¨Ó°Ïì¼Û¸ñ£©
+            // å¢åŠ å¸‚åœºéœ€æ±‚ï¼ˆå½±å“ä»·æ ¼ï¼‰
             demand[resource] = (demand[resource] || 0) + needed;
         }
 
@@ -2451,28 +2748,29 @@ export const simulateTick = ({
                 priceControls,
                 taxBreakdown,
                 resources: res,
+                onTreasuryChange: trackSilverChange,
             });
             effectivePrice = pcResult.effectivePrice;
         }
         totalResourceCost += needed * effectivePrice;
 
-        // Èç¹û×ÊÔ´²»×ã£¬¼ÇÂ¼ÈÕÖ¾
+        // å¦‚æœèµ„æºä¸è¶³ï¼Œè®°å½•æ—¥å¿—
         if (consumed < needed && tick % 30 === 0) {
             const shortage = needed - consumed;
-            recordAggregatedLog(`?? ¾ü¶ÓÎ¬»¤×ÊÔ´²»×ã£ºÈ±ÉÙ ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/ÈÕ`);
+            recordAggregatedLog(`?? å†›é˜Ÿç»´æŠ¤èµ„æºä¸è¶³ï¼šç¼ºå°‘ ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/æ—¥`);
         }
     });
 
-    // 3. ¼ÆËãÊ±´ú¼Ó³ÉºÍ¹æÄ£³Í·£
+    // 3. è®¡ç®—æ—¶ä»£åŠ æˆå’Œè§„æ¨¡æƒ©ç½š
     const epochMultiplier = 1 + epoch * 0.1;
     const armyPopulation = calculateArmyPopulation(army);
     const scalePenalty = calculateArmyScalePenalty(armyPopulation, population);
     const effectiveWageMultiplier = Math.max(0.5, militaryWageRatio ?? 1);
 
-    // 4. ×Ü¾ü·Ñ = ×ÊÔ´³É±¾ ¡Á Ê±´ú¼Ó³É ¡Á ¹æÄ£³Í·£ ¡Á ¾üâÃ±¶ÂÊ
+    // 4. æ€»å†›è´¹ = èµ„æºæˆæœ¬ Ã— æ—¶ä»£åŠ æˆ Ã— è§„æ¨¡æƒ©ç½š Ã— å†›é¥·å€ç‡
     const totalArmyCost = totalResourceCost * epochMultiplier * scalePenalty * effectiveWageMultiplier;
 
-    // ¼ÇÂ¼¾ü·ÑÊı¾İ£¨ÓÃÓÚÕ½ÕùÅâ¿î¼ÆËã£©
+    // è®°å½•å†›è´¹æ•°æ®ï¼ˆç”¨äºæˆ˜äº‰èµ”æ¬¾è®¡ç®—ï¼‰
     const armyExpenseResult = {
         dailyExpense: totalArmyCost,
         resourceCost: totalResourceCost,
@@ -2482,32 +2780,49 @@ export const simulateTick = ({
         resourceConsumption: armyResourceConsumption
     };
 
+    // [DEBUG] Military Logic Inspection
+    let militaryDebug = {
+        totalArmyCost,
+        availableSilver: res.silver,
+        applied: false,
+        reason: null,
+        logSizeBefore: silverChangeLog.length
+    };
+
     if (totalArmyCost > 0) {
+        // [DEBUG] Military Log Trace
+        console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
         const available = res.silver || 0;
         if (available >= totalArmyCost) {
-            res.silver = available - totalArmyCost;
-            trackSilverChange(-totalArmyCost, `¾ü¶ÓÎ¬»¤Ö§³ö`);
+            applySilverChange(-totalArmyCost, 'expense_army_maintenance');
+            militaryDebug.applied = true;
+            militaryDebug.reason = 'expense_army_maintenance';
+
             rates.silver = (rates.silver || 0) - totalArmyCost;
             roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
             roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
-            // [FIX] Í¬²½µ½ classFinancialData ÒÔ±£³Ö¸ÅÀÀºÍ²ÆÎñÃæ°åÊı¾İÒ»ÖÂ
+            // [FIX] åŒæ­¥åˆ° classFinancialData ä»¥ä¿æŒæ¦‚è§ˆå’Œè´¢åŠ¡é¢æ¿æ•°æ®ä¸€è‡´
             if (classFinancialData.soldier) {
                 classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
             }
+
+            // [DEBUG] Verify Log Immediate
+            const logLast = silverChangeLog[silverChangeLog.length - 1];
+            militaryDebug.logEntryFound = logLast && logLast.reason === 'expense_army_maintenance';
+            militaryDebug.logSizeAfter = silverChangeLog.length;
         } else if (totalArmyCost > 0) {
-            // ²¿·ÖÖ§¸¶
-            const partialPay = available * 0.9; // Áô10%µ×
+            // éƒ¨åˆ†æ”¯ä»˜
+            const partialPay = available * 0.9; // ç•™10%åº•
             if (partialPay > 0) {
-                res.silver = available - partialPay;
-                trackSilverChange(-partialPay, `¾ü¶ÓÎ¬»¤Ö§³ö£¨²¿·ÖÖ§¸¶£©`);
+                applySilverChange(-partialPay, 'expense_army_maintenance_partial');
                 rates.silver = (rates.silver || 0) - partialPay;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
-                // [FIX] Í¬²½µ½ classFinancialData ÒÔ±£³Ö¸ÅÀÀºÍ²ÆÎñÃæ°åÊı¾İÒ»ÖÂ
+                // [FIX] åŒæ­¥åˆ° classFinancialData ä»¥ä¿æŒæ¦‚è§ˆå’Œè´¢åŠ¡é¢æ¿æ•°æ®ä¸€è‡´
                 if (classFinancialData.soldier) {
                     classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + partialPay;
                 }
             }
-            logs.push(`?? ¾üâÃ²»×ã£¡Ó¦¸¶${totalArmyCost.toFixed(0)}Òø±Ò£¬½öÄÜÖ§¸¶${partialPay.toFixed(0)}Òø±Ò£¬¾üĞÄ²»ÎÈ¡£`);
+            logs.push(`?? å†›é¥·ä¸è¶³ï¼åº”ä»˜${totalArmyCost.toFixed(0)}é“¶å¸ï¼Œä»…èƒ½æ”¯ä»˜${partialPay.toFixed(0)}é“¶å¸ï¼Œå†›å¿ƒä¸ç¨³ã€‚`);
         }
     }
 
@@ -2519,8 +2834,10 @@ export const simulateTick = ({
     // console.log('[TICK] Starting needs calculation...'); // Commented for performance
     const needsReport = {};
     const classShortages = {};
-    // ÊÕ¼¯¸÷½×²ãµÄ²Æ¸»³ËÊı£¨ÓÃÓÚUIÏÔÊ¾"Ë­³Ôµ½ÁËbuff"£©
+    // æ”¶é›†å„é˜¶å±‚çš„è´¢å¯Œä¹˜æ•°ï¼ˆç”¨äºUIæ˜¾ç¤º"è°åƒåˆ°äº†buff"ï¼‰
     const stratumWealthMultipliers = {};
+    // [FIX] æ·»åŠ ç¼ºå¤±çš„ stratumConsumption åˆå§‹åŒ–ï¼Œç”¨äºè¿½è¸ªå„é˜¶å±‚æ¶ˆè´¹
+    const stratumConsumption = {};
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') {
             needsReport[key] = { satisfactionRatio: 1, totalTrackedNeeds: 0 };
@@ -2537,7 +2854,7 @@ export const simulateTick = ({
 
         let satisfactionSum = 0;
         let tracked = 0;
-        const shortages = []; // ¸ÄÎª¶ÔÏóÊı×é£¬¼ÇÂ¼¶ÌÈ±Ô­Òò
+        const shortages = []; // æ”¹ä¸ºå¯¹è±¡æ•°ç»„ï¼Œè®°å½•çŸ­ç¼ºåŸå› 
 
         // Calculate wealth ratio for this stratum (used for luxury needs unlock)
         const startingWealthForLuxury = def.startingWealth || 1;
@@ -2610,11 +2927,11 @@ export const simulateTick = ({
                 continue;
             }
             if (!potentialResources.has(resKey)) {
-                // Ö»ÓĞÒÑ½âËø½¨ÖşÄÜ²ú³öµÄ×ÊÔ´²Å»á²úÉúĞèÇó
+                // åªæœ‰å·²è§£é”å»ºç­‘èƒ½äº§å‡ºçš„èµ„æºæ‰ä¼šäº§ç”Ÿéœ€æ±‚
                 continue;
             }
 
-            // »ù´¡ĞèÇóÁ¿
+            // åŸºç¡€éœ€æ±‚é‡
             let requirement = perCapita * count * needsRequirementMultiplier;
             if (requirement <= 0) continue;
 
@@ -2644,14 +2961,14 @@ export const simulateTick = ({
                 requirement *= WAR_MILITARY_MULTIPLIER;
             }
 
-            // ĞÂÔö£º¼ÆËã¹ÙÔ±Æ½¾ùÌ°À·¶È£¨½öÔÚ¼ÆËã¹ÙÔ±½×²ãĞèÇóÊ±ÉúĞ§£©
+            // æ–°å¢ï¼šè®¡ç®—å®˜å‘˜å¹³å‡è´ªå©ªåº¦ï¼ˆä»…åœ¨è®¡ç®—å®˜å‘˜é˜¶å±‚éœ€æ±‚æ—¶ç”Ÿæ•ˆï¼‰
             let officialGreedModifier = 1.0;
             if (key === 'official' && officials && officials.length > 0) {
                 const totalGreed = officials.reduce((sum, off) => sum + (off.greed || 1.0), 0);
                 officialGreedModifier = totalGreed / officials.length;
             }
 
-            // Ó¦ÓÃĞèÇóµ¯ĞÔµ÷Õû
+            // åº”ç”¨éœ€æ±‚å¼¹æ€§è°ƒæ•´
             if (isTradableResource(resKey)) {
                 const resourceMarketConfig = resourceInfo?.marketConfig || {};
                 const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
@@ -2659,7 +2976,7 @@ export const simulateTick = ({
                     ? resourceMarketConfig.demandElasticity
                     : (defaultMarketInfluence.demandElasticity || 0.5);
 
-                // 1. ²Æ¸»Ó°Ïì£º½×²ã²Æ¸»Ïà¶ÔÓÚÆğÊ¼²Æ¸»µÄ±ä»¯
+                // 1. è´¢å¯Œå½±å“ï¼šé˜¶å±‚è´¢å¯Œç›¸å¯¹äºèµ·å§‹è´¢å¯Œçš„å˜åŒ–
                 const startingWealth = def.startingWealth || 1;
                 const currentWealth = (wealth[key] || 0) / Math.max(1, count);
 
@@ -2669,40 +2986,40 @@ export const simulateTick = ({
                 const effectiveWealth = Math.max(currentWealth, projectedIncomeWealth);
 
                 const wealthRatio = effectiveWealth / startingWealth;
-                // 2024-12¸üĞÂ£ºÊ¹ÓÃÍ³Ò»µÄcalculateWealthMultiplierº¯Êı
-                // ¸Ãº¯ÊıÏÖÔÚÖ§³Ö¸ß²Æ¸»±ÈÂÊ²¹³¥µÍÊÕÈë
-                // incomeRatioÔÚÕâÀïÊ¹ÓÃwealthRatio½üËÆ£¨ÒòÎª¸ß²Æ¸»ÒâÎ¶×ÅÀúÊ·ÉÏÊÕÈë¸ß£©
+                // 2024-12æ›´æ–°ï¼šä½¿ç”¨ç»Ÿä¸€çš„calculateWealthMultiplierå‡½æ•°
+                // è¯¥å‡½æ•°ç°åœ¨æ”¯æŒé«˜è´¢å¯Œæ¯”ç‡è¡¥å¿ä½æ”¶å…¥
+                // incomeRatioåœ¨è¿™é‡Œä½¿ç”¨wealthRatioè¿‘ä¼¼ï¼ˆå› ä¸ºé«˜è´¢å¯Œæ„å‘³ç€å†å²ä¸Šæ”¶å…¥é«˜ï¼‰
                 let wealthElasticity = def.wealthElasticity || 1.0;
 
-                // Ó¦ÓÃ¹ÙÔ±Ì°À·¶ÈĞŞÕı£ºÌ°À·¶ÈÖ±½Ó·Å´ó²Æ¸»µ¯ĞÔ£¬ÒâÎ¶×ÅÔ½ÓĞÇ®Ô½ÏëÍ¨¹ıÏû·ÑÕ¹Ê¾
+                // åº”ç”¨å®˜å‘˜è´ªå©ªåº¦ä¿®æ­£ï¼šè´ªå©ªåº¦ç›´æ¥æ”¾å¤§è´¢å¯Œå¼¹æ€§ï¼Œæ„å‘³ç€è¶Šæœ‰é’±è¶Šæƒ³é€šè¿‡æ¶ˆè´¹å±•ç¤º
                 if (key === 'official') {
                     wealthElasticity *= officialGreedModifier;
                 }
 
                 const maxMultiplier = Math.max(1, (def.maxConsumptionMultiplier || 6) + getMaxConsumptionMultiplierBonus(difficulty));
                 const wealthMultiplier = calculateWealthMultiplier(wealthRatio, wealthRatio, wealthElasticity, maxMultiplier);
-                // ¼ÇÂ¼²Æ¸»³ËÊı£¨È¡×îºóÒ»´Î¼ÆËãµÄÖµ£¬ÓÃÓÚUIÏÔÊ¾£©
+                // è®°å½•è´¢å¯Œä¹˜æ•°ï¼ˆå–æœ€åä¸€æ¬¡è®¡ç®—çš„å€¼ï¼Œç”¨äºUIæ˜¾ç¤ºï¼‰
                 if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
                     stratumWealthMultipliers[key] = wealthMultiplier;
                 }
 
-                // 2. ¼Û¸ñÓ°Ïì£ºµ±Ç°¼Û¸ñÏà¶ÔÓÚ»ù´¡¼Û¸ñµÄ±ä»¯
+                // 2. ä»·æ ¼å½±å“ï¼šå½“å‰ä»·æ ¼ç›¸å¯¹äºåŸºç¡€ä»·æ ¼çš„å˜åŒ–
                 const currentPrice = getPrice(resKey);
                 const basePrice = resourceInfo.basePrice || 1;
                 const priceRatio = currentPrice / basePrice;
-                // ¼Û¸ñ±ä»¯¶ÔĞèÇóµÄÓ°Ïì£º¼Û¸ñÉÏÕÇ¡úĞèÇóÏÂ½µ£¬¼Û¸ñÏÂµø¡úĞèÇóÉÏÕÇ
-                // Ê¹ÓÃĞèÇóµ¯ĞÔ£º¼Û¸ñ±ä»¯1%£¬ĞèÇó·´Ïò±ä»¯elasticity%
+                // ä»·æ ¼å˜åŒ–å¯¹éœ€æ±‚çš„å½±å“ï¼šä»·æ ¼ä¸Šæ¶¨â†’éœ€æ±‚ä¸‹é™ï¼Œä»·æ ¼ä¸‹è·Œâ†’éœ€æ±‚ä¸Šæ¶¨
+                // ä½¿ç”¨éœ€æ±‚å¼¹æ€§ï¼šä»·æ ¼å˜åŒ–1%ï¼Œéœ€æ±‚åå‘å˜åŒ–elasticity%
                 const priceMultiplier = Math.pow(priceRatio, -demandElasticity);
 
-                // 3. Ã¿ÈÕËæ»ú¸¡¶¯£¨80%-120%£©
+                // 3. æ¯æ—¥éšæœºæµ®åŠ¨ï¼ˆ80%-120%ï¼‰
                 const dailyVariation = 0.8 + Math.random() * 0.4;
 
-                // ×ÛºÏµ÷ÕûĞèÇó
+                // ç»¼åˆè°ƒæ•´éœ€æ±‚
                 requirement *= wealthMultiplier * priceMultiplier * dailyVariation;
 
-                // È·±£ĞèÇó²»»á±ä³É¸ºÊı»ò¹ı´ó
+                // ç¡®ä¿éœ€æ±‚ä¸ä¼šå˜æˆè´Ÿæ•°æˆ–è¿‡å¤§
                 requirement = Math.max(0, requirement);
-                requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 8); // ×î¶à8±¶£¨ÅäºÏ¸üµÍµÄ²Æ¸»³ËÊıÉÏÏŞ£©
+                requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 8); // æœ€å¤š8å€ï¼ˆé…åˆæ›´ä½çš„è´¢å¯Œä¹˜æ•°ä¸Šé™ï¼‰
             }
             const available = res[resKey] || 0;
             let satisfied = 0;
@@ -2710,7 +3027,7 @@ export const simulateTick = ({
             if (isTradableResource(resKey)) {
                 const marketPrice = getPrice(resKey);
 
-                // [NEW] ¼Û¸ñ¹ÜÖÆ¼ì²é£ºÖ»ÓĞ×óÅÉÖ÷µ¼ÇÒÆôÓÃÊ±²ÅÉúĞ§
+                // [NEW] ä»·æ ¼ç®¡åˆ¶æ£€æŸ¥ï¼šåªæœ‰å·¦æ´¾ä¸»å¯¼ä¸”å¯ç”¨æ—¶æ‰ç”Ÿæ•ˆ
                 const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
                 const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined && priceControls.governmentSellPrices[resKey] !== null;
 
@@ -2726,7 +3043,7 @@ export const simulateTick = ({
                 const affordable = priceWithTax > 0 ? Math.min(requirement, (wealth[key] || 0) / priceWithTax) : requirement;
                 const amount = Math.min(requirement, available, affordable);
 
-                // ÏÈ²»Í³¼ÆĞèÇó£¬µÈÊµ¼ÊÏû·ÑºóÔÙÍ³¼Æ
+                // å…ˆä¸ç»Ÿè®¡éœ€æ±‚ï¼Œç­‰å®é™…æ¶ˆè´¹åå†ç»Ÿè®¡
                 if (amount > 0) {
                     res[resKey] = available - amount;
                     rates[resKey] = (rates[resKey] || 0) - amount;
@@ -2740,7 +3057,8 @@ export const simulateTick = ({
                             marketPrice,
                             priceControls,
                             taxBreakdown,
-                            resources: res
+                            resources: res,
+                            onTreasuryChange: trackSilverChange,
                         });
                         // If success (treasury sufficient for subsidy), use gov price
                         // If fail (treasury empty), it returns marketPrice
@@ -2755,91 +3073,52 @@ export const simulateTick = ({
                     if (taxPaid < 0) {
                         const subsidyAmount = Math.abs(taxPaid);
                         if ((res.silver || 0) >= subsidyAmount) {
-                            res.silver -= subsidyAmount;
-                            taxBreakdown.subsidy += subsidyAmount;
+                            ledger.transfer('state', key, subsidyAmount, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                             totalCost -= subsidyAmount;
                             // Record consumption subsidy as income
                             roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyAmount;
                             roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyAmount; // Subsidy is personal income
-                            // [FIX] Í¬²½µ½ classFinancialData ÒÔ±£³Ö¸ÅÀÀºÍ²ÆÎñÃæ°åÊı¾İÒ»ÖÂ
-                            if (classFinancialData[key]) {
-                                classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyAmount;
-                            }
                         } else {
                             if (tick % 20 === 0) {
-                                recordAggregatedLog(`¹ú¿â¿ÕĞé£¬ÎŞ·¨Îª ${STRATA[key]?.name || key} Ö§¸¶ ${RESOURCES[resKey]?.name || resKey} Ïû·Ñ²¹Ìù£¡`);
+                                recordAggregatedLog(`å›½åº“ç©ºè™šï¼Œæ— æ³•ä¸º ${STRATA[key]?.name || key} æ”¯ä»˜ ${RESOURCES[resKey]?.name || resKey} æ¶ˆè´¹è¡¥è´´ï¼`);
                             }
                         }
                     } else if (taxPaid > 0) {
-                        taxBreakdown.industryTax += taxPaid;
+                        ledger.transfer(key, 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX);
                         totalCost += taxPaid;
                     }
 
-                    wealth[key] = Math.max(0, (wealth[key] || 0) - totalCost);
+                    // Wealth deduction for consumption
+                    const isEssential = def.needs && def.needs.hasOwnProperty(resKey);
+                    const expenseCat = isEssential ? TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION;
+
+                    ledger.transfer(key, 'void', totalCost, expenseCat, expenseCat, { resource: resKey, quantity: amount, price: finalEffectivePrice });
+
                     roleExpense[key] = (roleExpense[key] || 0) + totalCost;
                     roleLivingExpense[key] = (roleLivingExpense[key] || 0) + totalCost; // Needs consumption is living expense
                     satisfied = amount;
 
-                    // Í³¼ÆÊµ¼ÊÏû·ÑµÄĞèÇóÁ¿£¬¶ø²»ÊÇÔ­Ê¼ĞèÇóÁ¿
+                    // ç»Ÿè®¡å®é™…æ¶ˆè´¹çš„éœ€æ±‚é‡ï¼Œè€Œä¸æ˜¯åŸå§‹éœ€æ±‚é‡
                     demand[resKey] = (demand[resKey] || 0) + amount;
 
                     // NEW: Track consumption by stratum
                     if (!stratumConsumption[key]) stratumConsumption[key] = {};
                     stratumConsumption[key][resKey] = (stratumConsumption[key][resKey] || 0) + amount;
-
-                    if (classFinancialData[key]) {
-                        // ·ÖÀà¼ÇÂ¼£ºbaseNeeds ÖĞµÄ×ÊÔ´ÊÇ±ØĞèÆ·£¬ÆäËûÊÇÉİ³ŞÆ·
-                        // ´æ´¢ { cost, quantity, price } ÒÔ±ã UI ÏÔÊ¾ÏêÇé
-                        const needEntry = {
-                            cost: totalCost,
-                            quantity: amount,
-                            price: finalEffectivePrice
-                        };
-
-                        if (def.needs && def.needs.hasOwnProperty(resKey)) {
-                            // ±ØĞèÆ·Ïû·Ñ
-                            classFinancialData[key].expense.essentialNeeds = classFinancialData[key].expense.essentialNeeds || {};
-                            const existing = classFinancialData[key].expense.essentialNeeds[resKey];
-                            if (existing && typeof existing === 'object') {
-                                existing.cost += totalCost;
-                                existing.quantity += amount;
-                            } else {
-                                classFinancialData[key].expense.essentialNeeds[resKey] = needEntry;
-                            }
-                        } else {
-                            // Éİ³ŞÆ·Ïû·Ñ
-                            classFinancialData[key].expense.luxuryNeeds = classFinancialData[key].expense.luxuryNeeds || {};
-                            const existing = classFinancialData[key].expense.luxuryNeeds[resKey];
-                            if (existing && typeof existing === 'object') {
-                                existing.cost += totalCost;
-                                existing.quantity += amount;
-                            } else {
-                                classFinancialData[key].expense.luxuryNeeds[resKey] = needEntry;
-                            }
-                        }
-
-                        // Also track transaction tax component for needs
-                        // Note: taxBreakdown.industryTax is updated above for positive tax
-                        // taxPaid was calculated above
-                        if (taxPaid > 0) {
-                            classFinancialData[key].expense.transactionTax = (classFinancialData[key].expense.transactionTax || 0) + taxPaid;
-                        }
-                    }
                 }
 
-                // ¼ÇÂ¼¶ÌÈ±Ô­Òò
+                // è®°å½•çŸ­ç¼ºåŸå› 
                 const ratio = requirement > 0 ? satisfied / requirement : 1;
                 satisfactionSum += ratio;
                 tracked += 1;
                 if (ratio < 0.99) {
-                    // ÅĞ¶Ï¶ÌÈ±Ô­Òò£ºÂò²»Æğ vs È±»õ
+                    // åˆ¤æ–­çŸ­ç¼ºåŸå› ï¼šä¹°ä¸èµ· vs ç¼ºè´§
                     const canAfford = affordable >= requirement * 0.99;
                     const inStock = available >= requirement * 0.99;
-                    let reason = 'both'; // ¼ÈÈ±»õÓÖÂò²»Æğ
+                    let reason = 'both'; // æ—¢ç¼ºè´§åˆä¹°ä¸èµ·
                     if (canAfford && !inStock) {
-                        reason = 'outOfStock'; // ÓĞÇ®µ«È±»õ
+                        reason = 'outOfStock'; // æœ‰é’±ä½†ç¼ºè´§
                     } else if (!canAfford && inStock) {
-                        reason = 'unaffordable'; // ÓĞ»õµ«Âò²»Æğ
+                        reason = 'unaffordable'; // æœ‰è´§ä½†ä¹°ä¸èµ·
                     }
                     shortages.push({ resource: resKey, reason });
                 }
@@ -2854,7 +3133,7 @@ export const simulateTick = ({
                 satisfactionSum += ratio;
                 tracked += 1;
                 if (ratio < 0.99) {
-                    // ·Ç½»Ò××ÊÔ´Ö»¿ÉÄÜÊÇÈ±»õ
+                    // éäº¤æ˜“èµ„æºåªå¯èƒ½æ˜¯ç¼ºè´§
                     shortages.push({ resource: resKey, reason: 'outOfStock' });
                 }
             }
@@ -2867,10 +3146,10 @@ export const simulateTick = ({
         classShortages[key] = shortages;
     });
 
-    // ¼ÆËãÀÍ¶¯Ğ§ÂÊ£¬ÌØ±ğ¹Ø×¢Ê³ÎïºÍ²¼ÁÏµÄ»ù´¡ĞèÇó
+    // è®¡ç®—åŠ³åŠ¨æ•ˆç‡ï¼Œç‰¹åˆ«å…³æ³¨é£Ÿç‰©å’Œå¸ƒæ–™çš„åŸºç¡€éœ€æ±‚
     let workforceNeedWeighted = 0;
     let workforceTotal = 0;
-    let basicNeedsDeficit = 0; // »ù´¡ĞèÇóÈ±Ê§µÄÑÏÖØ³Ì¶È
+    let basicNeedsDeficit = 0; // åŸºç¡€éœ€æ±‚ç¼ºå¤±çš„ä¸¥é‡ç¨‹åº¦
 
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -2879,14 +3158,14 @@ export const simulateTick = ({
         const needLevel = needsReport[key]?.satisfactionRatio ?? 1;
         workforceNeedWeighted += needLevel * count;
 
-        // ¼ì²éÊ³ÎïºÍ²¼ÁÏµÄ»ù´¡ĞèÇóÂú×ãÇé¿ö
+        // æ£€æŸ¥é£Ÿç‰©å’Œå¸ƒæ–™çš„åŸºç¡€éœ€æ±‚æ»¡è¶³æƒ…å†µ
         const def = STRATA[key];
         if (def && def.needs) {
             const shortages = classShortages[key] || [];
             const hasBasicShortage = shortages.some(s => s.resource === 'food' || s.resource === 'cloth');
 
             if (hasBasicShortage) {
-                // »ù´¡ĞèÇóÎ´Âú×ã£¬ÀÛ¼ÆÈ±Ê§ÈË¿ÚÊı
+                // åŸºç¡€éœ€æ±‚æœªæ»¡è¶³ï¼Œç´¯è®¡ç¼ºå¤±äººå£æ•°
                 basicNeedsDeficit += count;
             }
         }
@@ -2895,15 +3174,15 @@ export const simulateTick = ({
     const laborNeedAverage = workforceTotal > 0 ? workforceNeedWeighted / workforceTotal : 1;
     let laborEfficiencyFactor = 0.3 + 0.7 * laborNeedAverage;
 
-    // Èç¹ûÓĞ»ù´¡ĞèÇóÈ±Ê§£¬¶îÍâ½µµÍĞ§ÂÊ
+    // å¦‚æœæœ‰åŸºç¡€éœ€æ±‚ç¼ºå¤±ï¼Œé¢å¤–é™ä½æ•ˆç‡
     if (basicNeedsDeficit > 0 && workforceTotal > 0) {
         const basicDeficitRatio = basicNeedsDeficit / workforceTotal;
-        // »ù´¡ĞèÇóÈ±Ê§µ¼ÖÂ¶îÍâµÄĞ§ÂÊ³Í·££º×î¶à¶îÍâ½µµÍ40%Ğ§ÂÊ
+        // åŸºç¡€éœ€æ±‚ç¼ºå¤±å¯¼è‡´é¢å¤–çš„æ•ˆç‡æƒ©ç½šï¼šæœ€å¤šé¢å¤–é™ä½40%æ•ˆç‡
         const basicPenalty = basicDeficitRatio * 0.4;
         laborEfficiencyFactor = Math.max(0.1, laborEfficiencyFactor - basicPenalty);
 
         if (basicDeficitRatio > 0.1) {
-            logs.push(`»ù´¡ĞèÇó£¨Ê³Îï/²¼ÁÏ£©ÑÏÖØ¶ÌÈ±£¬ÀÍ¶¯Ğ§ÂÊ´ó·ùÏÂ½µ£¡`);
+            logs.push(`åŸºç¡€éœ€æ±‚ï¼ˆé£Ÿç‰©/å¸ƒæ–™ï¼‰ä¸¥é‡çŸ­ç¼ºï¼ŒåŠ³åŠ¨æ•ˆç‡å¤§å¹…ä¸‹é™ï¼`);
         }
     }
 
@@ -2917,7 +3196,7 @@ export const simulateTick = ({
                 res[resKey] = Math.max(0, (res[resKey] || 0) - reduction);
             }
         });
-        // logs.push('ÀÍ¶¯Á¦ÒòĞèÇóÎ´Âú×ã¶øĞ§ÂÊÏÂ½µ¡£');
+        // logs.push('åŠ³åŠ¨åŠ›å› éœ€æ±‚æœªæ»¡è¶³è€Œæ•ˆç‡ä¸‹é™ã€‚');
     }
 
     // Decree approval modifiers now come from `activeDecrees` (timed system)
@@ -2932,19 +3211,14 @@ export const simulateTick = ({
     let decreeApprovalModifiers = calculateDecreeApprovalModifiers(decreesFromActiveForApproval);
 
     // Keep a few legacy special-cases, but key off `activeDecrees`
-    if (activeDecrees?.forced_labor) {
-        if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 5);
-    }
+    // Forced labor static penalty is handled by calculateDecreeApprovalModifiers
 
     if (activeDecrees?.tithe) {
-        if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 2);
         const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
         if (titheDue > 0) {
             const available = wealth.cleric || 0;
             const paid = Math.min(available, titheDue);
-            wealth.cleric = Math.max(0, available - paid);
-            taxBreakdown.headTax += paid;
-            // ¼ÇÂ¼Ê²Ò»Ë°Ö§³ö
+            ledger.transfer('cleric', 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
             roleExpense.cleric = (roleExpense.cleric || 0) + paid;
         }
     }
@@ -3013,9 +3287,9 @@ export const simulateTick = ({
     // --- Right Dominance: Free Market (Owner Expansion) ---
     // Owners automatically build new buildings using their wealth.
     let newBuildingsCount = { ...buildings };
-    // [DEBUG] ÁÙÊ±µ÷ÊÔĞÅÏ¢ - ×·×Ù×ÔÓÉÊĞ³¡»úÖÆÎÊÌâ
+    // [DEBUG] ä¸´æ—¶è°ƒè¯•ä¿¡æ¯ - è¿½è¸ªè‡ªç”±å¸‚åœºæœºåˆ¶é—®é¢˜
     const _freeMarketDebug = {
-        // ´«ÈëµÄ cabinetStatus
+        // ä¼ å…¥çš„ cabinetStatus
         cabinetStatusReceived: {
             hasCabinetStatus: !!cabinetStatus,
             hasDominance: !!cabinetStatus?.dominance,
@@ -3023,7 +3297,7 @@ export const simulateTick = ({
             synergy: cabinetStatus?.synergy,
             level: cabinetStatus?.level,
         },
-        // expansionSettings ¼ì²é
+        // expansionSettings æ£€æŸ¥
         expansionSettings: {
             hasSettings: !!expansionSettings,
             settingsKeys: expansionSettings ? Object.keys(expansionSettings) : [],
@@ -3031,7 +3305,7 @@ export const simulateTick = ({
                 ? Object.values(expansionSettings).filter(s => s?.allowed).length
                 : 0,
         },
-        // ×îÖÕÌõ¼şÅĞ¶Ï
+        // æœ€ç»ˆæ¡ä»¶åˆ¤æ–­
         conditionCheck: {
             isDominanceRight: cabinetStatus?.dominance?.faction === 'right',
             hasExpansionSettings: !!expansionSettings,
@@ -3040,7 +3314,7 @@ export const simulateTick = ({
         epochParam: epoch,
     };
 
-    // [NEW DEBUG] ÏêÏ¸Êä³ö´«ÈëµÄ²ÎÊı
+    // [NEW DEBUG] è¯¦ç»†è¾“å‡ºä¼ å…¥çš„å‚æ•°
     console.log('[FREE MARKET SIMULATION DEBUG]', {
         dominanceCheck: {
             hasDominance: !!cabinetStatus?.dominance,
@@ -3061,7 +3335,7 @@ export const simulateTick = ({
     });
 
     if (cabinetStatus.dominance?.faction === 'right' && expansionSettings) {
-        // ¹¹Ôì market ¶ÔÏó£¬°üº¬ prices ºÍ wages ÓÃÓÚÀûÈó¼ÆËã
+        // æ„é€  market å¯¹è±¡ï¼ŒåŒ…å« prices å’Œ wages ç”¨äºåˆ©æ¶¦è®¡ç®—
         const marketForExpansion = {
             prices: priceMap,
             wages: market?.wages || {}
@@ -3074,7 +3348,7 @@ export const simulateTick = ({
             expansionSettings,
             newBuildingsCount,
             marketForExpansion,
-            taxPolicies,  // [NEW] ´«µİË°ÊÕÕş²ßÓÃÓÚÓªÒµË°¼ÆËã
+            taxPolicies,  // [NEW] ä¼ é€’ç¨æ”¶æ”¿ç­–ç”¨äºè¥ä¸šç¨è®¡ç®—
             buildingStaffingRatios
         );
 
@@ -3090,7 +3364,7 @@ export const simulateTick = ({
             // Apply wealth deductions
             Object.entries(wealthDeductions).forEach(([stratum, amount]) => {
                 if (wealth[stratum]) {
-                    wealth[stratum] = Math.max(0, wealth[stratum] - amount);
+                    ledger.transfer(stratum, 'void', amount, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
                 }
             });
             // Update the main `builds` object for the rest of the tick
@@ -3118,26 +3392,26 @@ export const simulateTick = ({
         if (!official) return official;
         const normalizedOfficial = migrateOfficialForInvestment(official, tick);
 
-        // ³õÊ¼»¯ wealth£¨Ïòºó¼æÈİ£º¾É´æµµ¿ÉÄÜÃ»ÓĞ wealth£©
-        // [FIX] Ìí¼Ó°²È«¼ì²é£º²Æ¸»ÉÏÏŞ1Õ×£¨1e12£©£¬·ÀÖ¹¼«´óÊıÖµµ¼ÖÂÏµÍ³±ÀÀ£
-        const MAX_WEALTH = 1e12; // ×î´ó²Æ¸»£º1Õ×
+        // åˆå§‹åŒ– wealthï¼ˆå‘åå…¼å®¹ï¼šæ—§å­˜æ¡£å¯èƒ½æ²¡æœ‰ wealthï¼‰
+        // [FIX] æ·»åŠ å®‰å…¨æ£€æŸ¥ï¼šè´¢å¯Œä¸Šé™1å…†ï¼ˆ1e12ï¼‰ï¼Œé˜²æ­¢æå¤§æ•°å€¼å¯¼è‡´ç³»ç»Ÿå´©æºƒ
+        const MAX_WEALTH = 1e12; // æœ€å¤§è´¢å¯Œï¼š1å…†
         let rawWealth = typeof normalizedOfficial.wealth === 'number' ? normalizedOfficial.wealth : 400;
-        // ¼ì²éÊÇ·ñÎªÓĞĞ§ÊıÖµ£¬ÎŞĞ§ÔòÖØÖÃÎª400
+        // æ£€æŸ¥æ˜¯å¦ä¸ºæœ‰æ•ˆæ•°å€¼ï¼Œæ— æ•ˆåˆ™é‡ç½®ä¸º400
         if (!Number.isFinite(rawWealth) || rawWealth < 0) {
             rawWealth = 400;
         }
         let currentWealth = Math.min(rawWealth, MAX_WEALTH);
 
-        // [DEBUG] ×·×Ù¹ÙÔ±²Æ¸»±ä»¯
+        // [DEBUG] è¿½è¸ªå®˜å‘˜è´¢å¯Œå˜åŒ–
         const debugInitialWealth = currentWealth;
 
-        // ÊÕÈë£ºÈç¹û×ã¶îÖ§¸¶Ğ½Ë®£¬»ñµÃĞ½Ë®
+        // æ”¶å…¥ï¼šå¦‚æœè¶³é¢æ”¯ä»˜è–ªæ°´ï¼Œè·å¾—è–ªæ°´
         if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
             currentWealth += normalizedOfficial.salary;
             totalOfficialIncome += normalizedOfficial.salary;
             totalOfficialLaborIncome += normalizedOfficial.salary; // Add to labor income
             console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
-            // ¼ÇÂ¼ÙºÂ»µ½²ÆÎñÊı¾İ
+            // è®°å½•ä¿¸ç¦„åˆ°è´¢åŠ¡æ•°æ®
             if (classFinancialData.official) {
                 classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + normalizedOfficial.salary;
             }
@@ -3145,7 +3419,7 @@ export const simulateTick = ({
             console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: NO SALARY! officialsPaid=${officialsPaid}, salary=${normalizedOfficial.salary}, wealth=${currentWealth}`);
         }
 
-        // Ö§³ö£º¹ÙÔ±¶ÀÁ¢¹ºÂòÉÌÆ·£¬¸üĞÂÊĞ³¡¹©ĞèÓëË°ÊÕ
+        // æ”¯å‡ºï¼šå®˜å‘˜ç‹¬ç«‹è´­ä¹°å•†å“ï¼Œæ›´æ–°å¸‚åœºä¾›éœ€ä¸ç¨æ”¶
         const officialNeeds = STRATA.official?.needs || { food: 1.2, cloth: 0.2 };
         const officialLuxuryNeeds = STRATA.official?.luxuryNeeds || {};
         let dailyExpense = 0;
@@ -3204,20 +3478,15 @@ export const simulateTick = ({
                 if (taxPaid < 0) {
                     const subsidyAmount = Math.abs(taxPaid);
                     if ((res.silver || 0) >= subsidyAmount) {
-                        res.silver -= subsidyAmount;
-                        taxBreakdown.subsidy += subsidyAmount;
+                        ledger.transfer('state', 'official', subsidyAmount, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                         totalCost -= subsidyAmount;
                         totalOfficialIncome += subsidyAmount;
                         totalOfficialLaborIncome += subsidyAmount; // Add to labor income
-                        if (classFinancialData.official) {
-                            classFinancialData.official.income.subsidy =
-                                (classFinancialData.official.income.subsidy || 0) + subsidyAmount;
-                        }
                     } else if (tick % 20 === 0) {
-                        recordAggregatedLog(`¹ú¿â¿ÕĞé£¬ÎŞ·¨Îª ¹ÙÔ± Ö§¸¶ ${RESOURCES[resource]?.name || resource} Ïû·Ñ²¹Ìù£¡`);
+                        recordAggregatedLog(`å›½åº“ç©ºè™šï¼Œæ— æ³•ä¸º å®˜å‘˜ æ”¯ä»˜ ${RESOURCES[resource]?.name || resource} æ¶ˆè´¹è¡¥è´´ï¼`);
                     }
                 } else if (taxPaid > 0) {
-                    taxBreakdown.industryTax += taxPaid;
+                    ledger.transfer('official', 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX);
                     totalCost += taxPaid;
                 }
 
@@ -3243,22 +3512,9 @@ export const simulateTick = ({
                 if (!stratumConsumption.official) stratumConsumption.official = {};
                 stratumConsumption.official[resource] = (stratumConsumption.official[resource] || 0) + amount;
 
-                if (classFinancialData.official) {
-                    const needEntry = { cost: totalCost, quantity: amount, price };
-                    const bucket = isLuxury ? 'luxuryNeeds' : 'essentialNeeds';
-                    classFinancialData.official.expense[bucket] = classFinancialData.official.expense[bucket] || {};
-                    const existing = classFinancialData.official.expense[bucket][resource];
-                    if (existing && typeof existing === 'object') {
-                        existing.cost += totalCost;
-                        existing.quantity += amount;
-                    } else {
-                        classFinancialData.official.expense[bucket][resource] = needEntry;
-                    }
-                    if (taxPaid > 0) {
-                        classFinancialData.official.expense.transactionTax =
-                            (classFinancialData.official.expense.transactionTax || 0) + taxPaid;
-                    }
-                }
+                // ä½¿ç”¨ Ledger è®°å½•æ”¯å‡º (æ›´æ–° classFinancialData å’Œ aggregate wealth)
+                const expenseCat = isLuxury ? TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION;
+                ledger.transfer('official', 'void', totalCost, expenseCat, expenseCat, { resource, quantity: amount, price });
             } else {
                 const amount = Math.min(requirement, available);
                 if (amount > 0) {
@@ -3275,13 +3531,13 @@ export const simulateTick = ({
             consumeOfficialResource(resource, baseAmount, false);
         });
 
-        // »ùÓÚ²Æ¸»Ë®Æ½µÄÉİ³ŞĞèÇó
-        // [FIX] ÏŞÖÆwealthRatioÉÏÏŞ·ÀÖ¹ÊıÖµÒç³ö£¨¼«´ó²Æ¸»Öµ»áµ¼ÖÂºóĞø¼ÆËã±¬Õ¨£©
-        const rawWealthRatio = currentWealth / 400; // Ïà¶ÔÓÚ³õÊ¼²Æ¸»µÄ±ÈÀı
-        const wealthRatio = Math.min(rawWealthRatio, 1e9); // ÉÏÏŞ10ÒÚ±¶
+        // åŸºäºè´¢å¯Œæ°´å¹³çš„å¥¢ä¾ˆéœ€æ±‚
+        // [FIX] é™åˆ¶wealthRatioä¸Šé™é˜²æ­¢æ•°å€¼æº¢å‡ºï¼ˆæå¤§è´¢å¯Œå€¼ä¼šå¯¼è‡´åç»­è®¡ç®—çˆ†ç‚¸ï¼‰
+        const rawWealthRatio = currentWealth / 400; // ç›¸å¯¹äºåˆå§‹è´¢å¯Œçš„æ¯”ä¾‹
+        const wealthRatio = Math.min(rawWealthRatio, 1e9); // ä¸Šé™10äº¿å€
         if (wealthRatio >= 1.0 && officialLuxuryNeeds) {
             const wealthBase = Math.max(1, Math.min(currentWealth / 400, 1e9));
-            // [FIX] ÏŞÖÆÏû·Ñ³ËÊıÉÏÏŞÎª100±¶£¬·ÀÖ¹¼«´ó²Æ¸»µ¼ÖÂµÄÏû·Ñ±¬Õ¨
+            // [FIX] é™åˆ¶æ¶ˆè´¹ä¹˜æ•°ä¸Šé™ä¸º100å€ï¼Œé˜²æ­¢æå¤§è´¢å¯Œå¯¼è‡´çš„æ¶ˆè´¹çˆ†ç‚¸
             const rawConsumptionMultiplier = 1.0 + Math.log10(wealthBase) * 1.6;
             const consumptionMultiplier = Math.min(100.0, Number.isFinite(rawConsumptionMultiplier) ? rawConsumptionMultiplier : 1.0);
             const salaryBase = Math.max(1, Math.min((normalizedOfficial.salary || 0) / 400, 1e9));
@@ -3301,10 +3557,10 @@ export const simulateTick = ({
             });
         }
 
-        // [DEBUG] ×·×Ù²Æ¸»±ä»¯ - ÉÌÆ·Ïû·Ñºó£¨ÈËÍ·Ë°Ö®Ç°£©
+        // [DEBUG] è¿½è¸ªè´¢å¯Œå˜åŒ– - å•†å“æ¶ˆè´¹åï¼ˆäººå¤´ç¨ä¹‹å‰ï¼‰
         const debugAfterGoodsConsumption = currentWealth;
 
-        // ÈËÍ·Ë°£º¹ÙÔ±ÓµÓĞ¶ÀÁ¢²Æ¸»£¬Òò´ËÔÚ´Ëµ¥¶À½áËã
+        // äººå¤´ç¨ï¼šå®˜å‘˜æ‹¥æœ‰ç‹¬ç«‹è´¢å¯Œï¼Œå› æ­¤åœ¨æ­¤å•ç‹¬ç»“ç®—
         const headRate = getHeadTaxRate('official');
         const headBase = STRATA.official?.headTaxBase ?? 0.01;
         const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
@@ -3314,37 +3570,31 @@ export const simulateTick = ({
                 const taxPaid = Math.min(currentWealth, plannedPerCapitaTax);
                 debugHeadTaxPaid = taxPaid;
                 currentWealth = Math.max(0, currentWealth - taxPaid);
-                taxBreakdown.headTax += taxPaid;
+                ledger.transfer('official', 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
+
                 roleHeadTaxPaid.official = (roleHeadTaxPaid.official || 0) + taxPaid;
                 roleExpense.official = (roleExpense.official || 0) + taxPaid;
-                if (classFinancialData.official) {
-                    classFinancialData.official.expense.headTax = (classFinancialData.official.expense.headTax || 0) + taxPaid;
-                }
             } else {
                 const subsidyNeeded = Math.abs(plannedPerCapitaTax);
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyNeeded) {
-                    res.silver = treasury - subsidyNeeded;
+                    ledger.transfer('state', 'official', subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                     currentWealth += subsidyNeeded;
-                    taxBreakdown.subsidy += subsidyNeeded;
                     totalOfficialIncome += subsidyNeeded;
                     totalOfficialLaborIncome += subsidyNeeded; // Add to labor income
-                    if (classFinancialData.official) {
-                        classFinancialData.official.income.subsidy = (classFinancialData.official.income.subsidy || 0) + subsidyNeeded;
-                    }
                 }
             }
         }
 
-        // [BUG FIX] ÒÆ³ıÖØ¸´¿ÛÖ§³öµÄ´úÂë
-        // dailyExpense ÒÑÔÚ consumeOfficialResource ÖĞÊµÊ±´Ó currentWealth ¿Û³ı£¨µÚ2948ĞĞ£©
-        // ÕâÀï²»Ó¦¸ÃÔÙ¿ÛÒ»´Î£¬·ñÔò»áµ¼ÖÂ¹ÙÔ±²Æ¸»±»Ë«ÖØ¿Û¼õ£¬´æ¿îÎŞ·¨»ıÀÛ
+        // [BUG FIX] ç§»é™¤é‡å¤æ‰£æ”¯å‡ºçš„ä»£ç 
+        // dailyExpense å·²åœ¨ consumeOfficialResource ä¸­å®æ—¶ä» currentWealth æ‰£é™¤ï¼ˆç¬¬2948è¡Œï¼‰
+        // è¿™é‡Œä¸åº”è¯¥å†æ‰£ä¸€æ¬¡ï¼Œå¦åˆ™ä¼šå¯¼è‡´å®˜å‘˜è´¢å¯Œè¢«åŒé‡æ‰£å‡ï¼Œå­˜æ¬¾æ— æ³•ç§¯ç´¯
 
-        // [DEBUG] ×·×Ù²Æ¸»±ä»¯ - ÈËÍ·Ë°ºó
+        // [DEBUG] è¿½è¸ªè´¢å¯Œå˜åŒ– - äººå¤´ç¨å
         const debugAfterConsumption = currentWealth;
         const debugPlannedHeadTax = plannedPerCapitaTax;
 
-        // ¹ÙÔ±²úÒµÊÕÒæ½áËã£¨¶ÀÁ¢ºËËã£©
+        // å®˜å‘˜äº§ä¸šæ”¶ç›Šç»“ç®—ï¼ˆç‹¬ç«‹æ ¸ç®—ï¼‰
         let totalPropertyIncome = 0;
         if (normalizedOfficial.ownedProperties?.length) {
             normalizedOfficial.ownedProperties.forEach(prop => {
@@ -3365,16 +3615,13 @@ export const simulateTick = ({
         if (totalPropertyIncome > 0) {
             currentWealth += totalPropertyIncome;
             totalOfficialIncome += totalPropertyIncome;
-            if (classFinancialData.official) {
-                classFinancialData.official.income.ownerRevenue =
-                    (classFinancialData.official.income.ownerRevenue || 0) + totalPropertyIncome;
-            }
+            ledger.transfer('void', 'official', totalPropertyIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
         }
 
-        // [DEBUG] ×·×Ù²Æ¸»±ä»¯ - ²úÒµÊÕÒæºó
+        // [DEBUG] è¿½è¸ªè´¢å¯Œå˜åŒ– - äº§ä¸šæ”¶ç›Šå
         const debugAfterProperty = currentWealth;
 
-        // ¼ÆËã²ÆÎñÂúÒâ¶È
+        // è®¡ç®—è´¢åŠ¡æ»¡æ„åº¦
         const totalIncomeForSatisfaction = (normalizedOfficial.salary || 0) + totalPropertyIncome;
         const financialSatisfaction = calculateFinancialStatus(
             { ...normalizedOfficial, wealth: currentWealth },
@@ -3394,13 +3641,13 @@ export const simulateTick = ({
             salarySatisfaction = 'uncomfortable';
         }
         const satisfactionOrder = ['satisfied', 'uncomfortable', 'struggling', 'desperate'];
-        // Èç¹û²ÆÎñ×´¿öÁ¼ºÃ(satisfied£¬¼´²Æ¸»³ä×ã)£¬Ö±½ÓÊ¹ÓÃ²ÆÎñÂúÒâ¶È£¬ºöÂÔĞ½×ÊÂúÒâ¶È
-        // ±ÜÃâÓĞÇ®ÈË½öÒòĞ½×Ê±ÈÀıµÍ¾Í±»ÅĞ¶¨Îª²»ÂúÒâ
+        // å¦‚æœè´¢åŠ¡çŠ¶å†µè‰¯å¥½(satisfiedï¼Œå³è´¢å¯Œå……è¶³)ï¼Œç›´æ¥ä½¿ç”¨è´¢åŠ¡æ»¡æ„åº¦ï¼Œå¿½ç•¥è–ªèµ„æ»¡æ„åº¦
+        // é¿å…æœ‰é’±äººä»…å› è–ªèµ„æ¯”ä¾‹ä½å°±è¢«åˆ¤å®šä¸ºä¸æ»¡æ„
         let combinedSatisfaction;
         if (financialSatisfaction === 'satisfied') {
             combinedSatisfaction = 'satisfied';
         } else {
-            // ²ÆÎñ×´¿ö²»¼ÑÊ±£¬È¡Á½ÕßÖĞ¸ü²îµÄ
+            // è´¢åŠ¡çŠ¶å†µä¸ä½³æ—¶ï¼Œå–ä¸¤è€…ä¸­æ›´å·®çš„
             const finalSatisfactionIndex = Math.max(
                 satisfactionOrder.indexOf(financialSatisfaction),
                 satisfactionOrder.indexOf(salarySatisfaction)
@@ -3408,7 +3655,7 @@ export const simulateTick = ({
             combinedSatisfaction = satisfactionOrder[finalSatisfactionIndex] || financialSatisfaction;
         }
 
-        // ²úÒµÍ¶×Ê¾ö²ß
+        // äº§ä¸šæŠ•èµ„å†³ç­–
         const investmentDecision = processOfficialInvestment(
             { ...normalizedOfficial, wealth: currentWealth },
             tick,
@@ -3438,10 +3685,13 @@ export const simulateTick = ({
             });
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
-            logs.push(`?? ¹ÙÔ±${normalizedOfficial.name}Í¶×ÊÁË ${investmentDecision.buildingId}£¨»¨·Ñ ${Math.ceil(investmentDecision.cost)} Òø£©`);
+            if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
+                // Log investment
+                logs.push(`ğŸ—ï¸ å®˜å‘˜${normalizedOfficial.name}æŠ•èµ„äº† ${investmentDecision.buildingId}ï¼ˆèŠ±è´¹ ${Math.ceil(investmentDecision.cost)} é“¶ï¼‰`);
+            }
         }
 
-        // ²úÒµÉı¼¶¾ö²ß
+        // äº§ä¸šå‡çº§å†³ç­–
         const upgradeDecision = processOfficialBuildingUpgrade(
             { ...normalizedOfficial, wealth: currentWealth, ownedProperties, investmentProfile },
             tick,
@@ -3469,7 +3719,7 @@ export const simulateTick = ({
             }
         }
 
-        // [DEBUG] ×·×Ù²Æ¸»±ä»¯ - Í¶×Ê/Éı¼¶ºó
+        // [DEBUG] è¿½è¸ªè´¢å¯Œå˜åŒ– - æŠ•èµ„/å‡çº§å
         const debugAfterInvestment = currentWealth;
         const debugInvestmentCost = investmentDecision?.cost || 0;
         const debugUpgradeCost = upgradeDecision?.cost || 0;
@@ -3477,33 +3727,33 @@ export const simulateTick = ({
         totalOfficialWealth += currentWealth;
         totalOfficialExpense += dailyExpense;
 
-        // ========== ÖÒ³Ï¶È¸üĞÂ ==========
-        let newLoyalty = normalizedOfficial.loyalty ?? 75; // Ä¬ÈÏÖµ¼æÈİ¾É´æµµ
+        // ========== å¿ è¯šåº¦æ›´æ–° ==========
+        let newLoyalty = normalizedOfficial.loyalty ?? 75; // é»˜è®¤å€¼å…¼å®¹æ—§å­˜æ¡£
         let newLowLoyaltyDays = normalizedOfficial.lowLoyaltyDays ?? 0;
 
-        // ÕşÖÎËßÇóÂú×ã³Ì¶È
-        // ×¢Òâ£ºpoliticalStance ¿ÉÄÜÊÇ×Ö·û´®£¨stanceId£©»ò¶ÔÏó£¬ĞèÒª¼æÈİÁ½ÖÖÇé¿ö
+        // æ”¿æ²»è¯‰æ±‚æ»¡è¶³ç¨‹åº¦
+        // æ³¨æ„ï¼špoliticalStance å¯èƒ½æ˜¯å­—ç¬¦ä¸²ï¼ˆstanceIdï¼‰æˆ–å¯¹è±¡ï¼Œéœ€è¦å…¼å®¹ä¸¤ç§æƒ…å†µ
         const stanceId = typeof normalizedOfficial.politicalStance === 'string'
             ? normalizedOfficial.politicalStance
             : normalizedOfficial.politicalStance?.stanceId;
-        // conditionParams ´æ´¢ÔÚµ¥¶À×Ö¶Î stanceConditionParams ÖĞ
+        // conditionParams å­˜å‚¨åœ¨å•ç‹¬å­—æ®µ stanceConditionParams ä¸­
         const conditionParams = normalizedOfficial.stanceConditionParams || [];
 
-        // ¼ÆËã×ÜÓ°ÏìÁ¦£¨´ÓclassInfluence¶ÔÏóÀÛ¼Ó£©
+        // è®¡ç®—æ€»å½±å“åŠ›ï¼ˆä»classInfluenceå¯¹è±¡ç´¯åŠ ï¼‰
         const computedTotalInfluence = Object.values(classInfluence || {}).reduce((sum, v) => sum + (v || 0), 0);
 
-        // [FIX] ¹¹½¨ classIncome Ê±£¬ÓÉÓÚ roleWagePayout.official ÔÚÑ­»·½áÊøºó²ÅÉèÖÃ£¬
-        // ÕâÀïĞèÒªÎª¹ÙÔ±½×²ãÊ¹ÓÃµ±Ç°¹ÙÔ±µÄĞ½×Ê×÷ÎªÔ¤¹ÀÊÕÈë
+        // [FIX] æ„å»º classIncome æ—¶ï¼Œç”±äº roleWagePayout.official åœ¨å¾ªç¯ç»“æŸåæ‰è®¾ç½®ï¼Œ
+        // è¿™é‡Œéœ€è¦ä¸ºå®˜å‘˜é˜¶å±‚ä½¿ç”¨å½“å‰å®˜å‘˜çš„è–ªèµ„ä½œä¸ºé¢„ä¼°æ”¶å…¥
         const estimatedClassIncome = {
             ...roleWagePayout,
-            // ¹ÙÔ±ÊÕÈëÊ¹ÓÃµ±Ç°¹ÙÔ±µÄĞ½×Ê£¨Èç¹ûÓĞÖ§¸¶µÄ»°£©¼ÓÉÏ²úÒµÊÕÈëÔ¤¹À
+            // å®˜å‘˜æ”¶å…¥ä½¿ç”¨å½“å‰å®˜å‘˜çš„è–ªèµ„ï¼ˆå¦‚æœæœ‰æ”¯ä»˜çš„è¯ï¼‰åŠ ä¸Šäº§ä¸šæ”¶å…¥é¢„ä¼°
             official: officialsPaid ? (normalizedOfficial.salary || 0) + (normalizedOfficial.lastDayPropertyIncome || 0) : 0
         };
 
         const stanceGameState = {
             classApproval: classApproval,
             classInfluence: classInfluence,
-            classIncome: estimatedClassIncome,  // [FIX] Ê¹ÓÃ°üº¬¹ÙÔ±ÊÕÈëÔ¤¹ÀµÄÊı¾İ
+            classIncome: estimatedClassIncome,  // [FIX] ä½¿ç”¨åŒ…å«å®˜å‘˜æ”¶å…¥é¢„ä¼°çš„æ•°æ®
             totalInfluence: computedTotalInfluence,
             stability: (currentStability ?? 50) / 100,
             rulingCoalition: rulingCoalition,
@@ -3520,30 +3770,30 @@ export const simulateTick = ({
             conditionParams
         );
 
-        // Ó¦ÓÃÖÒ³Ï¶È±ä»¯
+        // åº”ç”¨å¿ è¯šåº¦å˜åŒ–
         const { DAILY_CHANGES, COUP_THRESHOLD, MAX, MIN } = LOYALTY_CONFIG;
 
-        // ÕşÖÎËßÇó
+        // æ”¿æ²»è¯‰æ±‚
         newLoyalty += isStanceMet ? DAILY_CHANGES.stanceSatisfied : DAILY_CHANGES.stanceUnsatisfied;
 
-        // ²ÆÎñ×´¿ö
+        // è´¢åŠ¡çŠ¶å†µ
         if (combinedSatisfaction === 'satisfied') newLoyalty += DAILY_CHANGES.financialSatisfied;
         else if (combinedSatisfaction === 'uncomfortable') newLoyalty += DAILY_CHANGES.financialUncomfortable;
         else if (combinedSatisfaction === 'struggling') newLoyalty += DAILY_CHANGES.financialStruggling;
         else if (combinedSatisfaction === 'desperate') newLoyalty += DAILY_CHANGES.financialDesperate;
 
-        // ¹ú¼ÒÎÈ¶¨¶È
-        const stabilityValue = (currentStability ?? 50) / 100; // currentStabilityÊÇ0-100£¬×ªÎª0-1
+        // å›½å®¶ç¨³å®šåº¦
+        const stabilityValue = (currentStability ?? 50) / 100; // currentStabilityæ˜¯0-100ï¼Œè½¬ä¸º0-1
         if (stabilityValue > 0.7) newLoyalty += DAILY_CHANGES.stabilityHigh;
         else if (stabilityValue < 0.3) newLoyalty += DAILY_CHANGES.stabilityLow;
 
-        // Ğ½×Ê·¢·Å
+        // è–ªèµ„å‘æ”¾
         newLoyalty += officialsPaid ? DAILY_CHANGES.salaryPaid : DAILY_CHANGES.salaryUnpaid;
 
-        // ÏŞÖÆ·¶Î§
+        // é™åˆ¶èŒƒå›´
         newLoyalty = Math.max(MIN, Math.min(MAX, newLoyalty));
 
-        // ×·×ÙµÍÖÒ³Ï¶È³ÖĞøÌìÊı
+        // è¿½è¸ªä½å¿ è¯šåº¦æŒç»­å¤©æ•°
         if (newLoyalty < COUP_THRESHOLD) {
             newLowLoyaltyDays += 1;
         } else {
@@ -3552,7 +3802,7 @@ export const simulateTick = ({
 
         return {
             ...normalizedOfficial,
-            // [FIX] È·±£·µ»ØµÄ²Æ¸»ÖµÔÚ°²È«·¶Î§ÄÚ
+            // [FIX] ç¡®ä¿è¿”å›çš„è´¢å¯Œå€¼åœ¨å®‰å…¨èŒƒå›´å†…
             wealth: Math.min(MAX_WEALTH, Number.isFinite(currentWealth) ? Math.max(0, currentWealth) : 400),
             lastDayExpense: dailyExpense,
             financialSatisfaction: combinedSatisfaction,
@@ -3562,11 +3812,11 @@ export const simulateTick = ({
             lastDayExpenseBreakdown: expenseBreakdown,
             lastDayLuxuryExpense: luxuryExpense,
             lastDayEssentialExpense: essentialExpense,
-            // ÖÒ³Ï¶ÈÏµÍ³
+            // å¿ è¯šåº¦ç³»ç»Ÿ
             loyalty: newLoyalty,
             lowLoyaltyDays: newLowLoyaltyDays,
             isStanceSatisfied: isStanceMet,
-            // [DEBUG] µ÷ÊÔ×Ö¶Î
+            // [DEBUG] è°ƒè¯•å­—æ®µ
             _debug: {
                 initialWealth: debugInitialWealth,
                 salaryPaid: officialsPaid,
@@ -3599,11 +3849,11 @@ export const simulateTick = ({
         popStructure: { ...popStructure, official: 0 }, // Exclude official to prevent double count/deduction
         wealth,
         classIncome: roleWagePayout,
-        classExpense: roleExpense, // ĞÂÔö£ºÖ§³öÊı¾İ
+        classExpense: roleExpense, // æ–°å¢ï¼šæ”¯å‡ºæ•°æ®
         classShortages,
         epoch,
         techsUnlocked,
-        priceMap: getPrice, // ´«µİ¼Û¸ñ»ñÈ¡º¯Êı
+        priceMap: getPrice, // ä¼ é€’ä»·æ ¼è·å–å‡½æ•°
         livingStandardStreaks
     });
 
@@ -3611,25 +3861,25 @@ export const simulateTick = ({
     const officialCount = updatedOfficials.length;
     if (officialCount > 0) {
         const avgWealth = totalOfficialWealth / officialCount;
-        let pLevel = '³àÆ¶';
+        let pLevel = 'èµ¤è´«';
         let pCap = 30;
 
-        if (avgWealth > 300) { pLevel = 'Éİ»ª'; pCap = 95; }
-        else if (avgWealth > 100) { pLevel = '¸»Ô£'; pCap = 85; }
-        else if (avgWealth > 50) { pLevel = 'Ğ¡¿µ'; pCap = 75; }
-        else if (avgWealth > 20) { pLevel = 'ÎÂ±¥'; pCap = 60; }
-        else { pLevel = 'Æ¶À§'; pCap = 45; }
+        if (avgWealth > 300) { pLevel = 'å¥¢å'; pCap = 95; }
+        else if (avgWealth > 100) { pLevel = 'å¯Œè£•'; pCap = 85; }
+        else if (avgWealth > 50) { pLevel = 'å°åº·'; pCap = 75; }
+        else if (avgWealth > 20) { pLevel = 'æ¸©é¥±'; pCap = 60; }
+        else { pLevel = 'è´«å›°'; pCap = 45; }
 
         const wealthRatio = avgWealth / 400;
         const styleMap = {
-            'Éİ»ª': { icon: 'Crown', color: 'text-purple-400' },
-            '¸»Ô£': { icon: 'Gem', color: 'text-blue-400' },
-            'Ğ¡¿µ': { icon: 'Home', color: 'text-green-400' },
-            'ÎÂ±¥': { icon: 'UtensilsCrossed', color: 'text-yellow-400' },
-            'Æ¶À§': { icon: 'AlertTriangle', color: 'text-orange-400' },
-            '³àÆ¶': { icon: 'Skull', color: 'text-red-500' }
+            'å¥¢å': { icon: 'Crown', color: 'text-purple-400' },
+            'å¯Œè£•': { icon: 'Gem', color: 'text-blue-400' },
+            'å°åº·': { icon: 'Home', color: 'text-green-400' },
+            'æ¸©é¥±': { icon: 'UtensilsCrossed', color: 'text-yellow-400' },
+            'è´«å›°': { icon: 'AlertTriangle', color: 'text-orange-400' },
+            'èµ¤è´«': { icon: 'Skull', color: 'text-red-500' }
         };
-        const style = styleMap[pLevel] || styleMap['³àÆ¶'];
+        const style = styleMap[pLevel] || styleMap['èµ¤è´«'];
 
         livingStandardsResult.classLivingStandard.official = {
             level: pLevel,
@@ -3638,8 +3888,8 @@ export const simulateTick = ({
             approvalCap: pCap,
             needsMet: 1.0,
             wealthRatio: wealthRatio,
-            wealthPerCapita: avgWealth, // ĞŞ¸´£ºÌí¼ÓÈË¾ù²Æ¸»×Ö¶Î
-            wealthMultiplier: Math.min(6, 1 + Math.log(Math.max(1, avgWealth / 100)) * 0.5), // »ùÓÚÊÕÈëµÄÏû·ÑÄÜÁ¦
+            wealthPerCapita: avgWealth, // ä¿®å¤ï¼šæ·»åŠ äººå‡è´¢å¯Œå­—æ®µ
+            wealthMultiplier: Math.min(6, 1 + Math.log(Math.max(1, avgWealth / 100)) * 0.5), // åŸºäºæ”¶å…¥çš„æ¶ˆè´¹èƒ½åŠ›
             icon: style.icon,
             color: style.color,
             bgColor: style.color.replace('text-', 'bg-').replace('-400', '-900/20'),
@@ -3659,8 +3909,8 @@ export const simulateTick = ({
     const classLivingStandard = livingStandardsResult.classLivingStandard;
     const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
 
-    // [NEW] ÀÛ»ıË°ÊÕ³å»÷Öµ£ºÓÃÓÚ·ÀÖ¹"¿ìËÙÌ§Ë°ºó½µË°"µÄÂ©¶´
-    // µ±Ë°ÂÊ½µµÍºó£¬ÀÛ»ı³å»÷»á»ºÂıË¥¼õ£¬¶ø·ÇÁ¢¼´ÏûÊ§
+    // [NEW] ç´¯ç§¯ç¨æ”¶å†²å‡»å€¼ï¼šç”¨äºé˜²æ­¢"å¿«é€ŸæŠ¬ç¨åé™ç¨"çš„æ¼æ´
+    // å½“ç¨ç‡é™ä½åï¼Œç´¯ç§¯å†²å‡»ä¼šç¼“æ…¢è¡°å‡ï¼Œè€Œéç«‹å³æ¶ˆå¤±
     const updatedTaxShock = {};
 
     Object.keys(STRATA).forEach(key => {
@@ -3669,14 +3919,14 @@ export const simulateTick = ({
         const satisfactionInfo = needsReport[key];
         const satisfaction = satisfactionInfo?.satisfactionRatio ?? 1;
 
-        // »ñÈ¡Éú»îË®Æ½¶ÔÂúÒâ¶ÈµÄÉÏÏŞÓ°Ïì
+        // è·å–ç”Ÿæ´»æ°´å¹³å¯¹æ»¡æ„åº¦çš„ä¸Šé™å½±å“
         const livingStandard = classLivingStandard[key];
         let livingStandardApprovalCap = livingStandard?.approvalCap ?? 100;
 
-        // Ö´ÕşÁªÃË½×²ãµÄapprovalCap³Í·££¨ÆÚÍûÌá¸ß£©
+        // æ‰§æ”¿è”ç›Ÿé˜¶å±‚çš„approvalCapæƒ©ç½šï¼ˆæœŸæœ›æé«˜ï¼‰
         const isCoalition = isCoalitionMember(key, rulingCoalition);
         if (isCoalition) {
-            const livingLevel = livingStandard?.level || 'ÎÂ±¥';
+            const livingLevel = livingStandard?.level || 'æ¸©é¥±';
             const penalty = getCoalitionApprovalCapPenalty(livingLevel, true);
             livingStandardApprovalCap = Math.max(0, livingStandardApprovalCap - penalty);
         }
@@ -3685,9 +3935,9 @@ export const simulateTick = ({
 
         // Scale base approval with living standard
         const livingLevel = livingStandard?.level;
-        if (livingLevel === 'Éİ»ª') targetApproval = 95;
-        else if (livingLevel === '¸»Ô£') targetApproval = 85;
-        else if (livingLevel === 'Ğ¡¿µ') targetApproval = 75;
+        if (livingLevel === 'å¥¢å') targetApproval = 95;
+        else if (livingLevel === 'å¯Œè£•') targetApproval = 85;
+        else if (livingLevel === 'å°åº·') targetApproval = 75;
 
         if (isCoalition && bonuses.coalitionApproval) {
             targetApproval += bonuses.coalitionApproval;
@@ -3709,78 +3959,78 @@ export const simulateTick = ({
             targetApproval += 5; // Tax relief bonus
         }
 
-        // Ë°ÊÕ³å»÷£ºµ±ÈËÍ·Ë°Õ¼´æ¿î±ÈÀı¹ı¸ßÊ±£¬²úÉú·´¸Ğ
-        // [FIX] Ê¹ÓÃË°Ç°´æ¿î¼ÆËãË°ÊÕ³å»÷£¬±ÜÃâ"Õ¥¸ÉºóÎŞ³Í·£"µÄÂ©¶´
+        // ç¨æ”¶å†²å‡»ï¼šå½“äººå¤´ç¨å å­˜æ¬¾æ¯”ä¾‹è¿‡é«˜æ—¶ï¼Œäº§ç”Ÿåæ„Ÿ
+        // [FIX] ä½¿ç”¨ç¨å‰å­˜æ¬¾è®¡ç®—ç¨æ”¶å†²å‡»ï¼Œé¿å…"æ¦¨å¹²åæ— æƒ©ç½š"çš„æ¼æ´
         const headTaxPaidPerCapita = (roleHeadTaxPaid[key] || 0) / Math.max(1, count);
-        // Ë°Ç°ÈË¾ù´æ¿îÓÃÓÚTaxShock¼ÆËã
+        // ç¨å‰äººå‡å­˜æ¬¾ç”¨äºTaxShockè®¡ç®—
         const preTaxWealthPerCapita = (preTaxWealth[key] || 0) / Math.max(1, count);
-        // Ë°ÊÕÕ¼´æ¿îµÄ±ÈÀı£¨Ã¿ÌìË°ÊÕ / Ë°Ç°ÈË¾ù´æ¿î£©
+        // ç¨æ”¶å å­˜æ¬¾çš„æ¯”ä¾‹ï¼ˆæ¯å¤©ç¨æ”¶ / ç¨å‰äººå‡å­˜æ¬¾ï¼‰
         const taxToWealthRatio = preTaxWealthPerCapita > 0.01 ? headTaxPaidPerCapita / preTaxWealthPerCapita : 0;
-        // µ±Ë°ÊÕ³¬¹ı´æ¿îµÄ5%Ê±¿ªÊ¼²úÉú³å»÷£¬³¬¹ı20%Ê±´ïµ½×î´ó³Í·£
-        // [ENHANCED] ×î´ó³Í·£´Ó25ÌáÉıµ½50£¬¸üÑÏÀ÷³Í·£Ñ¹Õ¥ĞĞÎª
-        // 5%ÒÔÏÂÎŞ³Í·££¬5%-20%ÏßĞÔÔö³¤µ½25£¬20%-100%¼ÌĞøÔö³¤µ½50
-        const taxShockThreshold = 0.05; // 5%ãĞÖµ
-        const taxShockMaxRatio = 0.20;  // 20%´ïµ½ÖĞµÈ³Í·£
-        const taxShockExtremeRatio = 1.0; // 100%´ïµ½×î´ó³Í·£
+        // å½“ç¨æ”¶è¶…è¿‡å­˜æ¬¾çš„5%æ—¶å¼€å§‹äº§ç”Ÿå†²å‡»ï¼Œè¶…è¿‡20%æ—¶è¾¾åˆ°æœ€å¤§æƒ©ç½š
+        // [ENHANCED] æœ€å¤§æƒ©ç½šä»25æå‡åˆ°50ï¼Œæ›´ä¸¥å‰æƒ©ç½šå‹æ¦¨è¡Œä¸º
+        // 5%ä»¥ä¸‹æ— æƒ©ç½šï¼Œ5%-20%çº¿æ€§å¢é•¿åˆ°25ï¼Œ20%-100%ç»§ç»­å¢é•¿åˆ°50
+        const taxShockThreshold = 0.05; // 5%é˜ˆå€¼
+        const taxShockMaxRatio = 0.20;  // 20%è¾¾åˆ°ä¸­ç­‰æƒ©ç½š
+        const taxShockExtremeRatio = 1.0; // 100%è¾¾åˆ°æœ€å¤§æƒ©ç½š
         let instantTaxShock = 0;
         if (taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0) {
             if (taxToWealthRatio <= taxShockMaxRatio) {
-                // 5%-20%: 0-25·ÖÏßĞÔÔö³¤
+                // 5%-20%: 0-25åˆ†çº¿æ€§å¢é•¿
                 instantTaxShock = ((taxToWealthRatio - taxShockThreshold) / (taxShockMaxRatio - taxShockThreshold)) * 25;
             } else {
-                // 20%-100%: 25-50·ÖÏßĞÔÔö³¤
+                // 20%-100%: 25-50åˆ†çº¿æ€§å¢é•¿
                 instantTaxShock = 25 + Math.min(25, ((taxToWealthRatio - taxShockMaxRatio) / (taxShockExtremeRatio - taxShockMaxRatio)) * 25);
             }
         }
 
-        // [NEW] ÀÛ»ıË°ÊÕ³å»÷»úÖÆ£º·ÀÖ¹"¿ìËÙÌ§Ë°ºó½µË°"µÄÂ©¶´
-        // Ô­Àí£ºÃñÖÚ¶Ô±»°şÏ÷µÄ¼ÇÒä²»»áÒòË°ÂÊ½µµÍ¶øÁ¢¼´ÏûÊ§
-        // - µ±Ç°³å»÷»áÀÛ¼Óµ½ÀúÊ·ÀÛ»ıÖµ
-        // - ÀúÊ·ÀÛ»ıÖµÃ¿tickË¥¼õÒ»¶¨±ÈÀı£¨Ä£Äâ·ßÅ­Öğ½¥Æ½Ï¢£©
-        // - ×îÖÕ³Í·£È¡µ±Ç°³å»÷ºÍÀÛ»ı³å»÷µÄ½Ï´óÖµ
+        // [NEW] ç´¯ç§¯ç¨æ”¶å†²å‡»æœºåˆ¶ï¼šé˜²æ­¢"å¿«é€ŸæŠ¬ç¨åé™ç¨"çš„æ¼æ´
+        // åŸç†ï¼šæ°‘ä¼—å¯¹è¢«å‰¥å‰Šçš„è®°å¿†ä¸ä¼šå› ç¨ç‡é™ä½è€Œç«‹å³æ¶ˆå¤±
+        // - å½“å‰å†²å‡»ä¼šç´¯åŠ åˆ°å†å²ç´¯ç§¯å€¼
+        // - å†å²ç´¯ç§¯å€¼æ¯tickè¡°å‡ä¸€å®šæ¯”ä¾‹ï¼ˆæ¨¡æ‹Ÿæ„¤æ€’é€æ¸å¹³æ¯ï¼‰
+        // - æœ€ç»ˆæƒ©ç½šå–å½“å‰å†²å‡»å’Œç´¯ç§¯å†²å‡»çš„è¾ƒå¤§å€¼
         const prevAccumulatedShock = previousTaxShock[key] || 0;
-        const taxShockDecayRate = 0.03; // Ã¿tickË¥¼õ3%£¨Ô¼Ğè23ÌìË¥¼õ50%£©
-        const taxShockAccumulationRate = 0.5; // µ±Ç°³å»÷µÄ50%»áÀÛ¼Óµ½ÀúÊ·Öµ
+        const taxShockDecayRate = 0.03; // æ¯tickè¡°å‡3%ï¼ˆçº¦éœ€23å¤©è¡°å‡50%ï¼‰
+        const taxShockAccumulationRate = 0.5; // å½“å‰å†²å‡»çš„50%ä¼šç´¯åŠ åˆ°å†å²å€¼
 
-        // ÀÛ»ı¹«Ê½£º¾ÉÀÛ»ı * (1 - Ë¥¼õÂÊ) + ĞÂ³å»÷ * ÀÛ»ıÂÊ
+        // ç´¯ç§¯å…¬å¼ï¼šæ—§ç´¯ç§¯ * (1 - è¡°å‡ç‡) + æ–°å†²å‡» * ç´¯ç§¯ç‡
         const newAccumulatedShock = Math.max(0,
             prevAccumulatedShock * (1 - taxShockDecayRate) + instantTaxShock * taxShockAccumulationRate
         );
         updatedTaxShock[key] = newAccumulatedShock;
 
-        // ×îÖÕ³Í·££ºÈ¡¼´Ê±³å»÷ºÍÀÛ»ı³å»÷µÄ½Ï´óÖµ
-        // ÕâÈ·±£ÁË£º
-        // 1. ¸ßË°ÆÚ¼ä£º¼´Ê±³å»÷Õ¼Ö÷µ¼
-        // 2. ½µË°ºó£ºÀÛ»ı³å»÷¼ÌĞøÉúĞ§£¬Öğ½¥Ë¥¼õ
+        // æœ€ç»ˆæƒ©ç½šï¼šå–å³æ—¶å†²å‡»å’Œç´¯ç§¯å†²å‡»çš„è¾ƒå¤§å€¼
+        // è¿™ç¡®ä¿äº†ï¼š
+        // 1. é«˜ç¨æœŸé—´ï¼šå³æ—¶å†²å‡»å ä¸»å¯¼
+        // 2. é™ç¨åï¼šç´¯ç§¯å†²å‡»ç»§ç»­ç”Ÿæ•ˆï¼Œé€æ¸è¡°å‡
         const taxShockPenalty = Math.max(instantTaxShock, newAccumulatedShock);
 
-        // Resource Shortage Logic - Çø·Ö»ù´¡ĞèÇóºÍÉİ³ŞĞèÇó¶ÌÈ±
+        // Resource Shortage Logic - åŒºåˆ†åŸºç¡€éœ€æ±‚å’Œå¥¢ä¾ˆéœ€æ±‚çŸ­ç¼º
         const shortages = classShortages[key] || [];
         const basicShortages = shortages.filter(s => s.isBasic);
         const luxuryShortages = shortages.filter(s => !s.isBasic);
         const totalNeeds = satisfactionInfo?.totalTrackedNeeds ?? 0;
 
-        // »ù´¡ĞèÇó¶ÌÈ± - ÑÏÖØ³Í·£
+        // åŸºç¡€éœ€æ±‚çŸ­ç¼º - ä¸¥é‡æƒ©ç½š
         if (basicShortages.length > 0 && totalNeeds > 0) {
             if (basicShortages.length >= Object.keys(STRATA[key]?.needs || {}).length) {
-                // ËùÓĞ»ù´¡ĞèÇó¶¼¶ÌÈ± ¡ú ÉÏÏŞ0
+                // æ‰€æœ‰åŸºç¡€éœ€æ±‚éƒ½çŸ­ç¼º â†’ ä¸Šé™0
                 targetApproval = Math.min(targetApproval, 0);
             } else {
-                // ²¿·Ö»ù´¡ĞèÇó¶ÌÈ± ¡ú ÉÏÏŞ30
+                // éƒ¨åˆ†åŸºç¡€éœ€æ±‚çŸ­ç¼º â†’ ä¸Šé™30
                 targetApproval = Math.min(targetApproval, 30);
             }
         }
 
-        // Éİ³ŞĞèÇó¶ÌÈ± - ½ÏÇá³Í·££¬ÓëÈ±ÉÙÊıÁ¿Ïà¹Ø
-        // Ã¿È±ÉÙ1ÖÖÉİ³ŞÆ·£¬³Í·£-3£¬×î¶à³Í·£-15
+        // å¥¢ä¾ˆéœ€æ±‚çŸ­ç¼º - è¾ƒè½»æƒ©ç½šï¼Œä¸ç¼ºå°‘æ•°é‡ç›¸å…³
+        // æ¯ç¼ºå°‘1ç§å¥¢ä¾ˆå“ï¼Œæƒ©ç½š-3ï¼Œæœ€å¤šæƒ©ç½š-15
         if (luxuryShortages.length > 0) {
             const luxuryPenalty = Math.min(15, luxuryShortages.length * 3);
             targetApproval -= luxuryPenalty;
         }
 
         const livingTracker = updatedLivingStandardStreaks[key] || {};
-        if (livingTracker.level === '³àÆ¶' || livingTracker.level === 'Æ¶À§') {
-            const penaltyBase = livingTracker.level === '³àÆ¶' ? 2.5 : 1.5;
+        if (livingTracker.level === 'èµ¤è´«' || livingTracker.level === 'è´«å›°') {
+            const penaltyBase = livingTracker.level === 'èµ¤è´«' ? 2.5 : 1.5;
             const penalty = Math.min(30, Math.ceil((livingTracker.streak || 0) * penaltyBase));
             if (penalty > 0) {
                 targetApproval -= penalty;
@@ -3854,7 +4104,7 @@ export const simulateTick = ({
             eventBonus: 0,
             decreeBonus: 0,
             officialTargetBonus: 0,
-            legitimacyPenalty: 0,  // [NEW] ·Ç·¨Õş¸®³Í·£
+            legitimacyPenalty: 0,  // [NEW] éæ³•æ”¿åºœæƒ©ç½š
             taxShockPenalty: 0,
             shockCapApplied: null,
             currentApprovalStart: 0,
@@ -3884,8 +4134,8 @@ export const simulateTick = ({
         }
 
         // Poverty penalty (if any)
-        if ((livingTracker?.level === '³àÆ¶' || livingTracker?.level === 'Æ¶À§')) {
-            const penaltyBase = livingTracker.level === '³àÆ¶' ? 2.5 : 1.5;
+        if ((livingTracker?.level === 'èµ¤è´«' || livingTracker?.level === 'è´«å›°')) {
+            const penaltyBase = livingTracker.level === 'èµ¤è´«' ? 2.5 : 1.5;
             const penalty = Math.min(30, Math.ceil((livingTracker.streak || 0) * penaltyBase));
             approvalBreakdown[key].povertyPenalty = -penalty;
         }
@@ -3931,11 +4181,11 @@ export const simulateTick = ({
             approvalBreakdown[key].officialTargetBonus = officialBonus;
         }
 
-        // [FIX] ·Ç·¨Õş¸®³Í·££ºÊ¹ÓÃÉÏÒ»tickµÄºÏ·¨ĞÔÀ´Ó°ÏìÄ¿±êÂúÒâ¶È
-        // ¶ø²»ÊÇÔÚ¹ßĞÔ¼ÆËãÖ®ºóÖ±½Ó¿Û³ıµ±Ç°ºÃ¸Ğ¶È£¨Õâ»áµ¼ÖÂÎŞÏŞÏÂ½µµÄBUG£©
+        // [FIX] éæ³•æ”¿åºœæƒ©ç½šï¼šä½¿ç”¨ä¸Šä¸€tickçš„åˆæ³•æ€§æ¥å½±å“ç›®æ ‡æ»¡æ„åº¦
+        // è€Œä¸æ˜¯åœ¨æƒ¯æ€§è®¡ç®—ä¹‹åç›´æ¥æ‰£é™¤å½“å‰å¥½æ„Ÿåº¦ï¼ˆè¿™ä¼šå¯¼è‡´æ— é™ä¸‹é™çš„BUGï¼‰
         const prevLegitimacyModifier = getLegitimacyApprovalModifier(previousLegitimacy);
         if (prevLegitimacyModifier < 0) {
-            targetApproval += prevLegitimacyModifier;  // Ó¦ÓÃµ½Ä¿±ê£¬Í¨¹ı¹ßĞÔ»ºÂıÓ°Ïì
+            targetApproval += prevLegitimacyModifier;  // åº”ç”¨åˆ°ç›®æ ‡ï¼Œé€šè¿‡æƒ¯æ€§ç¼“æ…¢å½±å“
             approvalBreakdown[key].legitimacyPenalty = prevLegitimacyModifier;
         }
 
@@ -3955,7 +4205,7 @@ export const simulateTick = ({
             currentApproval = Math.max(0, currentApproval - taxShockPenalty);
             approvalBreakdown[key].taxShockPenalty = -taxShockPenalty;
 
-            // [ENHANCED] ³å»÷Ô½´óÉÏÏŞÔ½µÍ£¬×îµÍ¿Éµ½0£¨¼«¶ËÑ¹Õ¥½«Òı·¢³¹µ×·´¸Ğ£©
+            // [ENHANCED] å†²å‡»è¶Šå¤§ä¸Šé™è¶Šä½ï¼Œæœ€ä½å¯åˆ°0ï¼ˆæç«¯å‹æ¦¨å°†å¼•å‘å½»åº•åæ„Ÿï¼‰
             if (taxShockPenalty > 5) {
                 const shockCap = Math.max(0, 70 - taxShockPenalty * 2);
                 approvalBreakdown[key].shockCapApplied = shockCap;
@@ -4002,34 +4252,34 @@ export const simulateTick = ({
 
         if (currentWealth > 0 && population > 0) {
             // Check living standard to see if decay should apply
-            // Only apply decay if living standard is at least "Comfortable" (Ğ¡¿µ)
-            // Levels: ³àÆ¶ (Destitute), Æ¶À§ (Poor), ÎÂ±¥ (Subsistence), Ğ¡¿µ (Comfortable)...
+            // Only apply decay if living standard is at least "Comfortable" (å°åº·)
+            // Levels: èµ¤è´« (Destitute), è´«å›° (Poor), æ¸©é¥± (Subsistence), å°åº· (Comfortable)...
             const standard = classLivingStandard[key];
             const level = standard?.level;
 
             // Skip decay for Destitute, Poor, and Subsistence
-            if (level === '³àÆ¶' || level === 'Æ¶À§' || level === 'ÎÂ±¥') {
+            if (level === 'èµ¤è´«' || level === 'è´«å›°' || level === 'æ¸©é¥±') {
                 return;
             }
 
             // Calculate per-capita wealth and apply decay rate
-            // ¸ù¾İÉú»îË®Æ½µµÎ»ÉèÖÃ²»Í¬µÄ»Ó»ôÂÊ£¬¸Õ½øÈëĞ¡¿µÊ±»Ó»ôºÜÉÙ
+            // æ ¹æ®ç”Ÿæ´»æ°´å¹³æ¡£ä½è®¾ç½®ä¸åŒçš„æŒ¥éœç‡ï¼Œåˆšè¿›å…¥å°åº·æ—¶æŒ¥éœå¾ˆå°‘
             const perCapitaWealth = currentWealth / population;
             const wealthRatio = WEALTH_BASELINE > 0 ? perCapitaWealth / WEALTH_BASELINE : 0;
 
             // Safeguard: Only apply decay if they have accumulated some wealth buffer (e.g. > 120% baseline)
             // This prevents "newly comfortable" strata from immediately losing their savings
-            if (wealthRatio < 1.2 && level !== 'Éİ»ª') {
+            if (wealthRatio < 1.2 && level !== 'å¥¢å') {
                 return;
             }
 
-            let decayRate = WEALTH_DECAY_RATE; // Ä¬ÈÏ0.5% (Éİ»ª)
-            if (level === 'Ğ¡¿µ') {
-                decayRate = 0.001; // 0.1% - ¸Õ½øÈëĞ¡¿µ£¬»Ó»ôºÜÉÙ
-            } else if (level === '¸»Ô£') {
-                decayRate = 0.003; // 0.3% - ¿ªÊ¼ÏíÊÜÉú»î
+            let decayRate = WEALTH_DECAY_RATE; // é»˜è®¤0.5% (å¥¢å)
+            if (level === 'å°åº·') {
+                decayRate = 0.001; // 0.1% - åˆšè¿›å…¥å°åº·ï¼ŒæŒ¥éœå¾ˆå°‘
+            } else if (level === 'å¯Œè£•') {
+                decayRate = 0.003; // 0.3% - å¼€å§‹äº«å—ç”Ÿæ´»
             }
-            // 'Éİ»ª' ±£³ÖÄ¬ÈÏµÄ0.5%
+            // 'å¥¢å' ä¿æŒé»˜è®¤çš„0.5%
 
             const perCapitaDecay = perCapitaWealth * decayRate;
             // Removed Math.max(1, floor(...)) to allow fractional decay and prevent subsidy waste
@@ -4049,12 +4299,9 @@ export const simulateTick = ({
             decay = Math.min(decay, maxDecay);
 
             if (decay > 0) {
-                wealth[key] = Math.max(0, currentWealth - decay);
+                ledger.transfer(key, 'void', decay, TRANSACTION_CATEGORIES.EXPENSE.DECAY, TRANSACTION_CATEGORIES.EXPENSE.DECAY);
                 // Record decay as expense so UI balances
                 roleExpense[key] = (roleExpense[key] || 0) + decay;
-                if (classFinancialData[key]) {
-                    classFinancialData[key].expense.decay = (classFinancialData[key].expense.decay || 0) + decay;
-                }
             }
         }
     });
@@ -4078,7 +4325,7 @@ export const simulateTick = ({
 
     const baseTotalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
 
-    // Ó¦ÓÃ¹ÙÔ±¶Ô³öÉí½×²ãµÄÓ°ÏìÁ¦¼Ó³É£¨·½°¸A£ºÖ±½ÓÔö¼Ó¡°¾ø¶ÔÓ°ÏìÁ¦µãÊı¡±£¬±ÜÃâºóÆÚ±»½×²ã»ùÊıÏ¡ÊÍ£©
+    // åº”ç”¨å®˜å‘˜å¯¹å‡ºèº«é˜¶å±‚çš„å½±å“åŠ›åŠ æˆï¼ˆæ–¹æ¡ˆAï¼šç›´æ¥å¢åŠ â€œç»å¯¹å½±å“åŠ›ç‚¹æ•°â€ï¼Œé¿å…åæœŸè¢«é˜¶å±‚åŸºæ•°ç¨€é‡Šï¼‰
     const officialInfluencePoints = getOfficialInfluencePoints(officials || [], officialsPaid, {
         classInfluence,
         totalInfluence: baseTotalInfluence,
@@ -4093,7 +4340,7 @@ export const simulateTick = ({
 
     let totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
 
-    // Ö´ÕşÁªÃËºÏ·¨ĞÔ¾«È·¼ÆËã£¨Ó°ÏìÁ¦ÒÑ¼ÆËãÍê³É£©
+    // æ‰§æ”¿è”ç›Ÿåˆæ³•æ€§ç²¾ç¡®è®¡ç®—ï¼ˆå½±å“åŠ›å·²è®¡ç®—å®Œæˆï¼‰
     const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
     coalitionLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
     if (bonuses.legitimacyBonus) {
@@ -4102,18 +4349,18 @@ export const simulateTick = ({
     legitimacyTaxModifier = getLegitimacyTaxModifier(coalitionLegitimacy);
     const legitimacyApprovalModifier = getLegitimacyApprovalModifier(coalitionLegitimacy);
 
-    // [FIX BUG] ·Ç·¨Õş¸®ÂúÒâ¶È³Í·£µÄÓ¦ÓÃ·½Ê½ÒÑ¸Ä±ä£º
-    // Ö®Ç°µÄ BUG: Ã¿¸ö tick ¶¼Ö±½Ó´Óµ±Ç°ºÃ¸Ğ¶È¿Û³ı -15£¬µ¼ÖÂÎŞÏŞÏÂ½µ
-    // ĞŞ¸´: ³Í·£ÒÑÔÚÉÏ·½¹ßĞÔ¼ÆËãÑ­»·ÖĞÓ¦ÓÃµ½ targetApproval£¬ÕâÀï²»ÔÙÖØ¸´Ó¦ÓÃ
-    // ±£Áô´Ë´¦´úÂë×¢ÊÍÒÔËµÃ÷Éè¼ÆÒâÍ¼
-    // NOTE: legitimacyApprovalModifier ÏÖÔÚÓ¦¸ÃÔÚ approvalBreakdown ÖĞÌåÏÖ£¨ĞèÒªÔÚÉÏ·½Ñ­»·Ìí¼Ó£©
+    // [FIX BUG] éæ³•æ”¿åºœæ»¡æ„åº¦æƒ©ç½šçš„åº”ç”¨æ–¹å¼å·²æ”¹å˜ï¼š
+    // ä¹‹å‰çš„ BUG: æ¯ä¸ª tick éƒ½ç›´æ¥ä»å½“å‰å¥½æ„Ÿåº¦æ‰£é™¤ -15ï¼Œå¯¼è‡´æ— é™ä¸‹é™
+    // ä¿®å¤: æƒ©ç½šå·²åœ¨ä¸Šæ–¹æƒ¯æ€§è®¡ç®—å¾ªç¯ä¸­åº”ç”¨åˆ° targetApprovalï¼Œè¿™é‡Œä¸å†é‡å¤åº”ç”¨
+    // ä¿ç•™æ­¤å¤„ä»£ç æ³¨é‡Šä»¥è¯´æ˜è®¾è®¡æ„å›¾
+    // NOTE: legitimacyApprovalModifier ç°åœ¨åº”è¯¥åœ¨ approvalBreakdown ä¸­ä½“ç°ï¼ˆéœ€è¦åœ¨ä¸Šæ–¹å¾ªç¯æ·»åŠ ï¼‰
 
     let exodusPopulationLoss = 0;
     let extraStabilityPenalty = 0;
     if (bonuses.factionConflict) {
         extraStabilityPenalty += bonuses.factionConflict;
     }
-    // ĞŞÕıÈË¿ÚÍâÁ÷£¨Exodus£©£º·ßÅ­ÈË¿ÚÀë¿ªÊ±´ø×ß²Æ¸»£¨×Ê±¾ÍâÌÓ£©
+    // ä¿®æ­£äººå£å¤–æµï¼ˆExodusï¼‰ï¼šæ„¤æ€’äººå£ç¦»å¼€æ—¶å¸¦èµ°è´¢å¯Œï¼ˆèµ„æœ¬å¤–é€ƒï¼‰
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
         if (count === 0) return;
@@ -4129,59 +4376,59 @@ export const simulateTick = ({
                 const perCapWealth = count > 0 ? currentWealth / count : 0;
                 const fleeingCapital = perCapWealth * leaving;
 
-                // ¹Ø¼üĞŞ¸Ä£º¿Û³ıÀë¿ªÈË¿Ú´ø×ßµÄ²Æ¸»£¨×Ê±¾ÍâÌÓ£©
+                // å…³é”®ä¿®æ”¹ï¼šæ‰£é™¤ç¦»å¼€äººå£å¸¦èµ°çš„è´¢å¯Œï¼ˆèµ„æœ¬å¤–é€ƒï¼‰
                 // Note: This is NOT recorded as expense because it's population movement,
                 // not economic activity. The wealth moves with the people leaving.
                 if (fleeingCapital > 0) {
-                    wealth[key] = Math.max(0, currentWealth - fleeingCapital);
+                    ledger.transfer(key, 'void', fleeingCapital, TRANSACTION_CATEGORIES.EXPENSE.CAPITAL_FLIGHT, TRANSACTION_CATEGORIES.EXPENSE.CAPITAL_FLIGHT);
                 }
 
-                // [FIX] Í¬²½¸üĞÂpopStructure£¬È·±£ÈË¿ÚÕæÕı´Ó¸Ã½×²ãÒÆ³ı
-                // ÕâÑù·¿Îİ/¸ÚÎ»²ÅÄÜ¿Õ³öÀ´±»ĞÂÈËÌî²¹
+                // [FIX] åŒæ­¥æ›´æ–°popStructureï¼Œç¡®ä¿äººå£çœŸæ­£ä»è¯¥é˜¶å±‚ç§»é™¤
+                // è¿™æ ·æˆ¿å±‹/å²—ä½æ‰èƒ½ç©ºå‡ºæ¥è¢«æ–°äººå¡«è¡¥
                 popStructure[key] = Math.max(0, count - leaving);
             }
             exodusPopulationLoss += leaving;
 
-            // Éú³ÉÏêÏ¸µÄ¶ÌÈ±Ô­ÒòÈÕÖ¾
+            // ç”Ÿæˆè¯¦ç»†çš„çŸ­ç¼ºåŸå› æ—¥å¿—
             const shortageDetails = (classShortages[key] || []).map(shortage => {
                 const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
                 const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
                 const resName = RESOURCES[resKey]?.name || resKey;
 
                 if (reason === 'unaffordable') {
-                    return `${resName}(Âò²»Æğ)`;
+                    return `${resName}(ä¹°ä¸èµ·)`;
                 } else if (reason === 'outOfStock') {
-                    return `${resName}(È±»õ)`;
+                    return `${resName}(ç¼ºè´§)`;
                 } else if (reason === 'both') {
-                    return `${resName}(È±»õÇÒÂò²»Æğ)`;
+                    return `${resName}(ç¼ºè´§ä¸”ä¹°ä¸èµ·)`;
                 }
                 return resName;
-            }).join('¡¢');
+            }).join('ã€');
 
-            const shortageMsg = shortageDetails ? `£¬¶ÌÈ±×ÊÔ´£º${shortageDetails}` : '';
-            logs.push(`${className} ½×²ã¶ÔÕş¾ÖÊ§Íû£¬${leaving} ÈËÀë¿ªÁË¹ú¼Ò£¬´ø×ßÁË ${(leaving * (wealth[key] || 0) / Math.max(1, count)).toFixed(1)} Òø±Ò${shortageMsg}¡£`);
+            const shortageMsg = shortageDetails ? `ï¼ŒçŸ­ç¼ºèµ„æºï¼š${shortageDetails}` : '';
+            logs.push(`${className} é˜¶å±‚å¯¹æ”¿å±€å¤±æœ›ï¼Œ${leaving} äººç¦»å¼€äº†å›½å®¶ï¼Œå¸¦èµ°äº† ${(leaving * (wealth[key] || 0) / Math.max(1, count)).toFixed(1)} é“¶å¸${shortageMsg}ã€‚`);
         } else if (influenceShare >= 0.12) {
             const penalty = Math.min(0.2, 0.05 + influenceShare * 0.15);
             extraStabilityPenalty += penalty;
 
-            // ÎªÎÈ¶¨¶È³Í·£Ò²Ìí¼Ó¶ÌÈ±ÏêÇé
+            // ä¸ºç¨³å®šåº¦æƒ©ç½šä¹Ÿæ·»åŠ çŸ­ç¼ºè¯¦æƒ…
             const shortageDetails = (classShortages[key] || []).map(shortage => {
                 const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
                 const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
                 const resName = RESOURCES[resKey]?.name || resKey;
 
                 if (reason === 'unaffordable') {
-                    return `${resName}(Âò²»Æğ)`;
+                    return `${resName}(ä¹°ä¸èµ·)`;
                 } else if (reason === 'outOfStock') {
-                    return `${resName}(È±»õ)`;
+                    return `${resName}(ç¼ºè´§)`;
                 } else if (reason === 'both') {
-                    return `${resName}(È±»õÇÒÂò²»Æğ)`;
+                    return `${resName}(ç¼ºè´§ä¸”ä¹°ä¸èµ·)`;
                 }
                 return resName;
-            }).join('¡¢');
+            }).join('ã€');
 
-            const shortageMsg = shortageDetails ? `£¨¶ÌÈ±£º${shortageDetails}£©` : '';
-            logs.push(`${className} ½×²ãµÄ·ßÅ­ÕıÔÚÏ÷ÈõÉç»áÎÈ¶¨${shortageMsg}¡£`);
+            const shortageMsg = shortageDetails ? `ï¼ˆçŸ­ç¼ºï¼š${shortageDetails}ï¼‰` : '';
+            logs.push(`${className} é˜¶å±‚çš„æ„¤æ€’æ­£åœ¨å‰Šå¼±ç¤¾ä¼šç¨³å®š${shortageMsg}ã€‚`);
         }
     });
 
@@ -4234,7 +4481,7 @@ export const simulateTick = ({
     });
 
     const visibleEpoch = epoch;
-    // ¼ÇÂ¼±¾»ØºÏÀ´×ÔÕ½ÕùÅâ¿î£¨º¬·ÖÆÚ£©µÄ²ÆÕşÊÕÈë
+    // è®°å½•æœ¬å›åˆæ¥è‡ªæˆ˜äº‰èµ”æ¬¾ï¼ˆå«åˆ†æœŸï¼‰çš„è´¢æ”¿æ”¶å…¥
     let warIndemnityIncome = 0;
     const playerPopulationBaseline = Math.max(5, population || 5);
     const playerWealthBaseline = Math.max(100, (res.silver ?? resources?.silver ?? 0));
@@ -4252,20 +4499,50 @@ export const simulateTick = ({
         }
     });
 
+    let updatedOrganizations = diplomacyOrganizations?.organizations ? [...diplomacyOrganizations.organizations] : [];
+    let organizationUpdatesOccurred = false;
+
     let updatedNations = (nations || []).map(nation => {
         const next = { ...nation };
-        const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
-        if (!visible) {
-            // µ±¹ú¼ÒÒòÊ±´ú±ä»¯¶ø²»¿É¼ûÊ±£¬Çå³ıÕ½Õù×´Ì¬ºÍÏà¹ØÊı¾İ
-            if (next.isAtWar) {
-                next.isAtWar = false;
-                next.warDuration = 0;
-                next.warScore = 0;
-                next.warStartDay = undefined;
-                logs.push(`??? Ëæ×ÅÊ±´ú±äÇ¨£¬Óë ${next.name} µÄÕ½ÕùÒÑ³ÉÎªÀúÊ·¡£`);
+
+        // [UI COMPATIBILITY] Derive alliedWithPlayer from organization membership
+        next.alliedWithPlayer = updatedOrganizations.some(org =>
+            org.type === 'military_alliance' &&
+            org.members.includes(nation.id) &&
+            org.members.includes('player')
+        );
+
+        // Apply manual trade deltas (from processManualTradeRoutes)
+        if (tradeRouteSummary?.nationDelta && tradeRouteSummary.nationDelta[nation.id]) {
+            const delta = tradeRouteSummary.nationDelta[nation.id];
+            next.budget = Math.max(0, (next.budget || 0) + (delta.budget || 0));
+            next.relation = Math.min(100, Math.max(-100, (next.relation || 0) + (delta.relation || 0)));
+            if (delta.inventory) {
+                next.inventory = next.inventory || {};
+                Object.entries(delta.inventory).forEach(([k, v]) => {
+                    next.inventory[k] = Math.max(0, (next.inventory[k] || 0) + v);
+                });
             }
+        }
+
+        // [MODIFIED] AIå›½å®¶ä¸å†å› æ—¶ä»£è¿‡æœŸè€Œæ¶ˆå¤±ï¼Œå‘å±•å®Œå…¨ç‹¬ç«‹
+        const visible = visibleEpoch >= (nation.appearEpoch ?? 0);
+        if (!visible) {
             return next;
         }
+
+        // Initialize nation epoch if not present (Independent AI Era System)
+        if (next.epoch === undefined) {
+            // If already initialized (legacy save), sync to global epoch once to maintain status quo
+            if (next.foreignPower?.initializedAtTick) {
+                next.epoch = visibleEpoch;
+            } else {
+                // New spawn: start at its historical appearance era
+                next.epoch = next.appearEpoch ?? 0;
+            }
+        }
+
+        processNationTreaties({ nation: next, tick, resources: res, logs, onTreasuryChange: trackSilverChange });
 
         if (next.isRebelNation) {
             // REFACTORED: Using module function for rebel economy initialization
@@ -4281,6 +4558,8 @@ export const simulateTick = ({
                     population,
                     army,
                     logs,
+                    onTreasuryChange: trackSilverChange,
+                    onResourceChange: onResourceChangeCallback,
                 });
                 raidPopulationLoss += rebelResult.raidPopulationLoss;
             }
@@ -4364,8 +4643,8 @@ export const simulateTick = ({
         }
         if (next.isAtWar) {
             next.warDuration = (next.warDuration || 0) + 1;
-            // ÀÛ¼ÆÓë¸Ã¹úÕ½ÕùÆÚ¼äµÄ¾ü·ÑÖ§³ö£¨ÓÃÓÚÕ½ÕùÅâ¿î¼ÆËã£©
-            // ×¢Òâ£ºÈç¹ûÍ¬Ê±Óë¶à¸ö¹ú¼Ò½»Õ½£¬¾ü·Ñ°´¹ú¼ÒÊıÁ¿·ÖÌ¯
+            // ç´¯è®¡ä¸è¯¥å›½æˆ˜äº‰æœŸé—´çš„å†›è´¹æ”¯å‡ºï¼ˆç”¨äºæˆ˜äº‰èµ”æ¬¾è®¡ç®—ï¼‰
+            // æ³¨æ„ï¼šå¦‚æœåŒæ—¶ä¸å¤šä¸ªå›½å®¶äº¤æˆ˜ï¼Œå†›è´¹æŒ‰å›½å®¶æ•°é‡åˆ†æ‘Š
             const warringNationsCount = (nations || []).filter(n => n.isAtWar).length || 1;
             const dailyExpenseShare = (armyExpenseResult?.dailyExpense || 0) / warringNationsCount;
             next.warTotalExpense = (next.warTotalExpense || 0) + dailyExpenseShare;
@@ -4380,6 +4659,8 @@ export const simulateTick = ({
                     army,
                     logs,
                     difficultyLevel: difficulty,
+                    onTreasuryChange: trackSilverChange,
+                    onResourceChange: onResourceChangeCallback,
                 });
                 raidPopulationLoss += militaryResult.raidPopulationLoss;
             }
@@ -4392,7 +4673,7 @@ export const simulateTick = ({
                 }
 
                 // REFACTORED: Using module function for AI surrender demand check
-                // ´«ÈëÍæ¼Ò²Æ¸»£¬Ê¹Åâ¿î¼ÆËãÓëÍæ¼ÒÖ÷¶¯ÇóºÍÊ±Ò»ÖÂ
+                // ä¼ å…¥ç©å®¶è´¢å¯Œï¼Œä½¿èµ”æ¬¾è®¡ç®—ä¸ç©å®¶ä¸»åŠ¨æ±‚å’Œæ—¶ä¸€è‡´
                 checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
 
                 // Check if AI should offer unconditional peace when player is in desperate situation
@@ -4400,7 +4681,7 @@ export const simulateTick = ({
             }
         } else if (next.warDuration) {
             next.warDuration = 0;
-            next.warTotalExpense = 0; // Çå³ıÕ½Õù¾ü·Ñ¼ÇÂ¼
+            next.warTotalExpense = 0; // æ¸…é™¤æˆ˜äº‰å†›è´¹è®°å½•
         }
         const relation = next.relation ?? 50;
 
@@ -4417,7 +4698,7 @@ export const simulateTick = ({
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) - dailyPenalty));
         }
 
-        // Ó¦ÓÃ¹ÙÔ±ºÍÕşÖÎÁ¢³¡µÄÍâ½»¼Ó³Éµ½Íæ¼ÒÓëAIµÄ¹ØÏµ
+        // åº”ç”¨å®˜å‘˜å’Œæ”¿æ²»ç«‹åœºçš„å¤–äº¤åŠ æˆåˆ°ç©å®¶ä¸AIçš„å…³ç³»
         if (bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
             // On hard: improving is harder
             const dailyBonus = (bonuses.diplomaticBonus / 30) * relationMultipliers.good;
@@ -4426,7 +4707,20 @@ export const simulateTick = ({
 
         // REFACTORED: Using module function for AI alliance breaking check
         if (shouldUpdateDiplomacy) {
-            checkAIBreakAlliance(next, logs);
+            const breakResult = checkAIBreakAlliance(next, logs, { organizations: updatedOrganizations });
+            if (breakResult && breakResult.memberLeaveRequests) {
+                breakResult.memberLeaveRequests.forEach(req => {
+                    const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
+                    if (orgIndex >= 0) {
+                        const org = updatedOrganizations[orgIndex];
+                        updatedOrganizations[orgIndex] = {
+                            ...org,
+                            members: org.members.filter(m => m !== req.nationId)
+                        };
+                        organizationUpdatesOccurred = true;
+                    }
+                });
+            }
         }
 
         const aggression = next.aggression ?? 0.2;
@@ -4445,6 +4739,7 @@ export const simulateTick = ({
                 stabilityValue,
                 logs,
                 difficultyLevel: difficulty,
+                diplomacyOrganizations: { organizations: updatedOrganizations }, // [NEW] Pass organization state
             });
         }
 
@@ -4454,6 +4749,7 @@ export const simulateTick = ({
             nation: next,
             resources: res,
             logs,
+            onTreasuryChange: trackSilverChange,
         });
 
         // REFACTORED: Using module function for post-war recovery
@@ -4463,9 +4759,13 @@ export const simulateTick = ({
         if (shouldUpdateTrade) {
             initializeAIDevelopmentBaseline({ nation: next, tick });
             processAIIndependentGrowth({ nation: next, tick });
+
+            // [NEW] Check for independent epoch progression
+            checkAIEpochProgression(next, logs);
+
             updateAIDevelopment({
                 nation: next,
-                epoch,
+                epoch: next.epoch, // [MODIFIED] Use nation's own epoch for development
                 playerPopulationBaseline,
                 playerWealthBaseline,
                 tick,
@@ -4486,10 +4786,156 @@ export const simulateTick = ({
         updatedNations = processMonthlyRelationDecay(updatedNations, difficulty);
     }
 
+    // ========================================================================
+    // INTERNATIONAL ORGANIZATION MONTHLY UPDATE (Phase 2 Integration)
+    // Process organization membership fees and effects
+    // ========================================================================
+    let organizationUpdateResult = null;
+    if (isMonthTick && shouldUpdateDiplomacy && diplomacyOrganizations?.organizations?.length > 0) {
+        organizationUpdateResult = processOrganizationMonthlyUpdate({
+            organizations: diplomacyOrganizations.organizations,
+            nations: updatedNations,
+            playerWealth: res.silver || 0,
+            daysElapsed: tick,
+        });
+
+        // æ‰£é™¤ç»„ç»‡æˆå‘˜è´¹
+        if (organizationUpdateResult.fees.player > 0) {
+            const feeToDeduct = Math.min(res.silver || 0, organizationUpdateResult.fees.player);
+            if (feeToDeduct > 0) {
+                applySilverChange(-feeToDeduct, 'organization_membership_fee');
+            }
+        }
+
+        // æ›´æ–°AIå›½å®¶çš„è´¹ç”¨
+        if (organizationUpdateResult.fees.ai) {
+            for (const [nationId, fee] of Object.entries(organizationUpdateResult.fees.ai)) {
+                const nation = updatedNations.find(n => n.id === nationId);
+                if (nation) {
+                    nation.wealth = Math.max(0, (nation.wealth || 0) - fee);
+                }
+            }
+        }
+
+        // æ·»åŠ æ—¥å¿—
+        organizationUpdateResult.logs.forEach(log => logs.push(log));
+    }
+
+    // ========================================================================
+    // POPULATION MIGRATION MONTHLY UPDATE (Phase 2 Integration)
+    // Process international population movement
+    // ========================================================================
+    let populationMigrationResult = null;
+    if (isMonthTick && shouldUpdateDiplomacy) {
+        populationMigrationResult = processMonthlyMigration({
+            nations: updatedNations,
+            epoch,
+            playerPopulation: nextPopulation,
+            playerResources: res,
+            classApproval: previousApproval,
+            daysElapsed: tick,
+            maxPop: totalMaxPop, // [NEW] Pass maxPop for cap enforcement
+        });
+
+        // åº”ç”¨äººå£å˜åŒ–
+        if (populationMigrationResult.immigrantsIn > 0 || populationMigrationResult.emigrantsOut > 0) {
+            const netMigration = populationMigrationResult.immigrantsIn - populationMigrationResult.emigrantsOut;
+            nextPopulation = Math.max(10, nextPopulation + netMigration);
+
+            // åº”ç”¨äººå£ç»“æ„å˜åŒ–
+            if (Object.keys(populationMigrationResult.byStratum).length > 0) {
+                popStructure = applyMigrationToPopStructure(
+                    popStructure,
+                    populationMigrationResult.byStratum,
+                    nextPopulation - netMigration  // å˜åŒ–å‰çš„äººå£
+                );
+            }
+
+            // æ·»åŠ ç§»æ°‘æ—¥å¿—
+            const migrationLogs = generateMigrationLogs(populationMigrationResult.events);
+            migrationLogs.forEach(log => logs.push(log));
+        }
+    }
+
+    // ========================================================================
+    // REBELLION SYSTEM DAILY UPDATE (Phase 4 Integration)
+    // Process AI nation stability, dissident organization, and civil wars
+    // ========================================================================
+    let rebellionSystemResult = null;
+    if (shouldUpdateDiplomacy) {
+        rebellionSystemResult = processRebellionSystemDaily(updatedNations, {
+            daysElapsed: tick,
+            epoch,
+        });
+
+        // åº”ç”¨å›ä¹±ç³»ç»Ÿæ›´æ–°
+        if (rebellionSystemResult && rebellionSystemResult.updates) {
+            for (const update of rebellionSystemResult.updates) {
+                const nationIndex = updatedNations.findIndex(n => n.id === update.id);
+                if (nationIndex >= 0) {
+                    updatedNations[nationIndex] = {
+                        ...updatedNations[nationIndex],
+                        ...update,
+                    };
+                }
+            }
+        }
+
+        // å¤„ç†å›ä¹±äº‹ä»¶
+        if (rebellionSystemResult && rebellionSystemResult.events) {
+            for (const event of rebellionSystemResult.events) {
+                if (event.type === 'civil_war_started') {
+                    logs.push(`âš”ï¸ ${event.nationName} çˆ†å‘å†…æˆ˜ï¼åå¯¹æ´¾åŠ¿åŠ›ä¸æ”¿åºœå†›äº¤æˆ˜ä¸­...`);
+                } else if (event.type === 'civil_war_ended') {
+                    if (event.winner === 'rebels') {
+                        logs.push(`ğŸ´ ${event.nationName} çš„å›å†›å–å¾—èƒœåˆ©ï¼Œæ”¿æƒæ›´è¿­ä¸º${event.newGovernment || 'æ–°æ”¿åºœ'}ï¼`);
+                    } else {
+                        logs.push(`ğŸ›ï¸ ${event.nationName} çš„æ”¿åºœå†›å¹³å®šå›ä¹±ï¼Œæ¢å¤ç§©åºã€‚`);
+                    }
+                }
+            }
+        }
+    }
+
     // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
-        epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch) && !n.isRebelNation
+        epoch >= (n.appearEpoch ?? 0) && !n.isRebelNation
     );
+
+    // ========================================================================
+    // PRICE CONVERGENCE DAILY UPDATE (Phase 4.2 Integration)
+    // Process market price convergence for free trade agreement nations
+    // ========================================================================
+    let priceConvergenceResult = null;
+    if (shouldUpdateDiplomacy && market?.prices) {
+        priceConvergenceResult = processPriceConvergence(market.prices, updatedNations, tick);
+
+        // æ›´æ–°å¸‚åœºä»·æ ¼
+        if (priceConvergenceResult.marketPrices) {
+            market = {
+                ...market,
+                prices: priceConvergenceResult.marketPrices,
+            };
+        }
+
+        // æ›´æ–°AIå›½å®¶ä»·æ ¼
+        if (priceConvergenceResult.nationPriceUpdates) {
+            for (const update of priceConvergenceResult.nationPriceUpdates) {
+                const nationIndex = updatedNations.findIndex(n => n.id === update.nationId);
+                if (nationIndex >= 0) {
+                    updatedNations[nationIndex] = {
+                        ...updatedNations[nationIndex],
+                        nationPrices: update.nationPrices,
+                    };
+                }
+            }
+        }
+
+        // æ·»åŠ æ—¥å¿—
+        if (priceConvergenceResult.logs) {
+            priceConvergenceResult.logs.forEach(log => logs.push(log));
+        }
+    }
 
     // REFACTORED: Using module function for ally cold events
     // Note: Must use visibleNations to avoid triggering events for destroyed/expired nations
@@ -4505,13 +4951,13 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-AI trade
     if (shouldUpdateTrade) {
-        processAITrade(visibleNations, logs);
+        processAITrade(visibleNations, logs, diplomacyOrganizations);
     }
 
 
     // REFACTORED: Using module function for AI-Player trade
     if (shouldUpdateTrade) {
-        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies);
+        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies, diplomacyOrganizations, trackSilverChange);
     }
 
 
@@ -4523,14 +4969,35 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-AI alliance formation
     if (shouldUpdateDiplomacy) {
-        processAIAllianceFormation(visibleNations, tick, logs);
+        const allianceResult = processAIAllianceFormation(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+
+        if (allianceResult && allianceResult.createdOrganizations.length > 0) {
+            updatedOrganizations.push(...allianceResult.createdOrganizations);
+            organizationUpdatesOccurred = true;
+        }
+
+        if (allianceResult && allianceResult.memberJoinRequests.length > 0) {
+            allianceResult.memberJoinRequests.forEach(req => {
+                const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
+                if (orgIndex >= 0) {
+                    const org = updatedOrganizations[orgIndex];
+                    if (!org.members.includes(req.nationId)) {
+                        updatedOrganizations[orgIndex] = {
+                            ...org,
+                            members: [...org.members, req.nationId]
+                        };
+                        organizationUpdatesOccurred = true;
+                    }
+                }
+            });
+        }
     }
 
 
     // REFACTORED: Using module functions for AI-AI war system
     if (shouldUpdateAI) {
-        processCollectiveAttackWarmonger(visibleNations, tick, logs);
-        processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs);
+        processCollectiveAttackWarmonger(visibleNations, tick, logs, { organizations: updatedOrganizations });
+        processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs, { organizations: updatedOrganizations });
         processAIAIWarProgression(visibleNations, updatedNations, tick, logs);
     }
 
@@ -4590,22 +5057,22 @@ export const simulateTick = ({
         res.food = 0;
         if (Math.random() > 0.9 && nextPopulation > 2) {
             nextPopulation = nextPopulation - 1;
-            // [FIX] Í¬²½´ÓpopStructureÖĞ¿Û¼õ£¬ÓÅÏÈ´ÓÊ§ÒµÕß¿Û
+            // [FIX] åŒæ­¥ä»popStructureä¸­æ‰£å‡ï¼Œä¼˜å…ˆä»å¤±ä¸šè€…æ‰£
             if ((popStructure.unemployed || 0) > 0) {
                 popStructure.unemployed = popStructure.unemployed - 1;
             } else {
-                // Èç¹ûÃ»ÓĞÊ§ÒµÕß£¬Ëæ»ú´ÓÒ»¸öÓĞÈËµÄ½×²ã¿Û
+                // å¦‚æœæ²¡æœ‰å¤±ä¸šè€…ï¼Œéšæœºä»ä¸€ä¸ªæœ‰äººçš„é˜¶å±‚æ‰£
                 const rolesWithPop = ROLE_PRIORITY.filter(r => (popStructure[r] || 0) > 0);
                 if (rolesWithPop.length > 0) {
                     const randomRole = rolesWithPop[Math.floor(Math.random() * rolesWithPop.length)];
                     popStructure[randomRole] = Math.max(0, (popStructure[randomRole] || 0) - 1);
                 }
             }
-            logs.push("¼¢»Äµ¼ÖÂÈË¿Ú¼õÉÙ£¡");
+            logs.push("é¥¥è’å¯¼è‡´äººå£å‡å°‘ï¼");
         }
     }
 
-    // »ù´¡ĞèÇó£¨Ê³Îï/²¼ÁÏ£©³¤ÆÚÎ´Âú×ãµ¼ÖÂËÀÍö
+    // åŸºç¡€éœ€æ±‚ï¼ˆé£Ÿç‰©/å¸ƒæ–™ï¼‰é•¿æœŸæœªæ»¡è¶³å¯¼è‡´æ­»äº¡
     let starvationDeaths = 0;
     Object.keys(STRATA).forEach(key => {
         // Officials are immune to starvation death (handled by salary/hiring logic)
@@ -4617,15 +5084,15 @@ export const simulateTick = ({
         const def = STRATA[key];
         if (!def || !def.needs) return;
 
-        // ¼ì²éÊ³ÎïºÍ²¼ÁÏĞèÇóÊÇ·ñÂú×ã
+        // æ£€æŸ¥é£Ÿç‰©å’Œå¸ƒæ–™éœ€æ±‚æ˜¯å¦æ»¡è¶³
         const shortages = classShortages[key] || [];
         const lackingFood = shortages.some(s => (typeof s === 'string' ? s : s.resource) === 'food');
         const lackingCloth = shortages.some(s => (typeof s === 'string' ? s : s.resource) === 'cloth');
 
-        // ¼ì²éÀúÊ·¼ÇÂ¼£¬ÅĞ¶ÏÊÇ·ñ³¤ÆÚÈ±·¦
+        // æ£€æŸ¥å†å²è®°å½•ï¼Œåˆ¤æ–­æ˜¯å¦é•¿æœŸç¼ºä¹
         const needsHistory = (classNeedsHistory || {})[key];
         if (needsHistory && needsHistory.length >= 5) {
-            // ¼ì²é×î½ü5¸ötickµÄĞèÇóÂú×ãÇé¿ö
+            // æ£€æŸ¥æœ€è¿‘5ä¸ªtickçš„éœ€æ±‚æ»¡è¶³æƒ…å†µ
             const recentHistory = needsHistory.slice(-5);
             const avgSatisfaction = recentHistory.reduce((a, b) => a + b, 0) / recentHistory.length;
 
@@ -4652,22 +5119,22 @@ export const simulateTick = ({
                     popStructure[key] = Math.max(0, count - deaths);
                     starvationDeaths += deaths;
 
-                    const reason = lackingFood && lackingCloth ? 'Ê³ÎïºÍ²¼ÁÏ' : (lackingFood ? 'Ê³Îï' : '²¼ÁÏ');
-                    recordAggregatedLog(`${className} ½×²ãÒò³¤ÆÚÈ±·¦${reason}£¬${deaths} ÈËËÀÍö£¡`);
+                    const reason = lackingFood && lackingCloth ? 'é£Ÿç‰©å’Œå¸ƒæ–™' : (lackingFood ? 'é£Ÿç‰©' : 'å¸ƒæ–™');
+                    recordAggregatedLog(`${className} é˜¶å±‚å› é•¿æœŸç¼ºä¹${reason}ï¼Œ${deaths} äººæ­»äº¡ï¼`);
                 }
             }
         }
     });
 
-    // [FIX] ¼ÆËãnextPopulationÊ±£¬Ö±½ÓÊ¹ÓÃpopStructureµÄ×ÜºÍ
-    // ÒòÎªexodusºÍstarvationÒÑ¾­ÔÚpopStructureÖĞÕıÈ·¿Û¼õÁË
-    // Ö»ÓĞraidPopulationLossĞèÒªµ¥¶À´¦Àí£¨Èç¹ûÓĞµÄ»°£©
+    // [FIX] è®¡ç®—nextPopulationæ—¶ï¼Œç›´æ¥ä½¿ç”¨popStructureçš„æ€»å’Œ
+    // å› ä¸ºexoduså’Œstarvationå·²ç»åœ¨popStructureä¸­æ­£ç¡®æ‰£å‡äº†
+    // åªæœ‰raidPopulationLosséœ€è¦å•ç‹¬å¤„ç†ï¼ˆå¦‚æœæœ‰çš„è¯ï¼‰
     const popStructureTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0)
         + (popStructure.unemployed || 0);
 
-    // raidPopulationLoss Èç¹û´æÔÚ£¬ÇÒÎ´ÔÚpopStructureÖĞ¿Û¼õ£¬Ôòµ¥¶À´¦Àí
+    // raidPopulationLoss å¦‚æœå­˜åœ¨ï¼Œä¸”æœªåœ¨popStructureä¸­æ‰£å‡ï¼Œåˆ™å•ç‹¬å¤„ç†
     if (raidPopulationLoss > 0) {
-        // ´ÓÊ§ÒµÕßÖĞÓÅÏÈ¿Û¼õraidËğÊ§
+        // ä»å¤±ä¸šè€…ä¸­ä¼˜å…ˆæ‰£å‡raidæŸå¤±
         let raidReduction = raidPopulationLoss;
         if ((popStructure.unemployed || 0) >= raidReduction) {
             popStructure.unemployed = popStructure.unemployed - raidReduction;
@@ -4675,7 +5142,7 @@ export const simulateTick = ({
             const fromUnemployed = popStructure.unemployed || 0;
             popStructure.unemployed = 0;
             raidReduction -= fromUnemployed;
-            // Ê£ÓàµÄ°´±ÈÀı´Ó¸÷½×²ã¿Û¼õ
+            // å‰©ä½™çš„æŒ‰æ¯”ä¾‹ä»å„é˜¶å±‚æ‰£å‡
             const totalPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0);
             if (totalPop > 0 && raidReduction > 0) {
                 ROLE_PRIORITY.forEach(role => {
@@ -4691,7 +5158,7 @@ export const simulateTick = ({
         }
     }
 
-    // ×îÖÕÈË¿Ú = popStructureµÄ×ÜºÍ
+    // æœ€ç»ˆäººå£ = popStructureçš„æ€»å’Œ
     nextPopulation = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0)
         + (popStructure.unemployed || 0);
     nextPopulation = Math.max(0, Math.floor(nextPopulation));
@@ -4708,31 +5175,31 @@ export const simulateTick = ({
     if (shouldUpdatePrices) {
         updatedWages = {};
         Object.entries(roleWageStats).forEach(([role, data]) => {
-    
+
             let currentSignal = 0;
-    
+
             const pop = popStructure[role] || 0;
-    
-    
-    
+
+
+
             if (pop > 0) {
-    
+
                 // [FIX] Use roleLaborIncome and roleLivingExpense to calculate wage signal
                 // This prevents high Owner Revenue (Profit) from artificially inflating the expected Labor Wage.
                 const laborIncome = roleLaborIncome[role] || 0;
                 const livingExpense = roleLivingExpense[role] || 0;
-    
+
                 // If a role has NO labor income (e.g. pure Capitalist who only owns buildings),
                 // we should not let their profit signal drive labor wages.
                 // However, if they have NO labor income, their "Wage Signal" might simply be their Living Expenses
                 // (i.e. if they were to work, they'd need at least this much).
-    
+
                 // Fallback: if no labor income but has general income, we might be in a weird state.
                 // Ideally, we just look at Labor Income - Living Expense.
-    
+
                 let effectiveIncome = laborIncome;
                 let effectiveExpense = livingExpense;
-    
+
                 // If completely zero labor income (no one working in this role),
                 // the signal would be -Expense/Pop (negative).
                 // This correctly pushes wages up ( Wait? No. (Inc - Exp) -> Signal. Signal is target. Negative Target -> 0 wage?)
@@ -4741,11 +5208,11 @@ export const simulateTick = ({
                 // This implies: "We are starving (Expense > Income), so we accept LOWER wages??"
                 // NO. The simulation logic assumes "Signal" is "What we CAN SAVE".
                 // That assumption seems flawed if it drives expected wage.
-    
+
                 // Actually, let's keep the formula structure but swap variables.
                 // If the game economy relies on "Savings" as the signal for "Worker Wealth" -> "Wage Expectation",
                 // then we are doing the right thing by removing Owner Profit (which is huge wealth).
-    
+
                 // Special Case: If labor income is 0 (pure owner), do not drive wage to negative infinity.
                 // Just use 0 or keep previous.
                 if (laborIncome === 0 && roleWageStats[role].totalSlots === 0) {
@@ -4754,332 +5221,332 @@ export const simulateTick = ({
                 } else {
                     currentSignal = (effectiveIncome - effectiveExpense) / pop;
                 }
-    
+
             } else {
-    
+
                 if (data.weightedWage > 0 && data.totalSlots > 0) {
-    
+
                     currentSignal = data.weightedWage / data.totalSlots;
-    
+
                 } else {
-    
+
                     currentSignal = previousWages[role] || 0;
-    
+
                 }
-    
+
             }
-    
-    
-    
+
+
+
             currentSignal = Math.max(0, currentSignal);
-    
-    
-    
+
+
+
             const prev = previousWages[role] || 0;
-    
+
             const smoothed = prev + (currentSignal - prev) * wageSmoothing;
-    
-    
-    
+
+
+
             updatedWages[role] = parseFloat(smoothed.toFixed(2));
-    
+
         });
 
 
 
-    const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
+        const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
 
-    // calculateMinProfitMargin is imported from ./utils/helpers
+        // calculateMinProfitMargin is imported from ./utils/helpers
 
-    // »ñÈ¡È«¾ÖÄ¬ÈÏµÄÊĞ³¡²ÎÊı£¨×÷Îª fallback£©
-    const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
-    const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
-    const defaultVirtualDemandPerPop = Math.max(0, defaultMarketInfluence.virtualDemandPerPop || 0);
-    // Ó¦ÓÃÄÑ¶È³ËÊıµ½¿â´æÄ¿±êÌìÊı£¨µÍÄÑ¶È=¸ü¶à»º³å=¸üÎÈ¶¨¾­¼Ã£¬¸ßÄÑ¶È=¸üÉÙ»º³å=¸ü²¨¶¯¾­¼Ã£©
-    const inventoryMultiplier = getInventoryTargetDaysMultiplier(difficulty);
-    const defaultInventoryTargetDays = Math.max(0.1, (defaultMarketInfluence.inventoryTargetDays ?? 1.5) * inventoryMultiplier);
-    const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
+        // è·å–å…¨å±€é»˜è®¤çš„å¸‚åœºå‚æ•°ï¼ˆä½œä¸º fallbackï¼‰
+        const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
+        const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
+        const defaultVirtualDemandPerPop = Math.max(0, defaultMarketInfluence.virtualDemandPerPop || 0);
+        // åº”ç”¨éš¾åº¦ä¹˜æ•°åˆ°åº“å­˜ç›®æ ‡å¤©æ•°ï¼ˆä½éš¾åº¦=æ›´å¤šç¼“å†²=æ›´ç¨³å®šç»æµï¼Œé«˜éš¾åº¦=æ›´å°‘ç¼“å†²=æ›´æ³¢åŠ¨ç»æµï¼‰
+        const inventoryMultiplier = getInventoryTargetDaysMultiplier(difficulty);
+        const defaultInventoryTargetDays = Math.max(0.1, (defaultMarketInfluence.inventoryTargetDays ?? 1.5) * inventoryMultiplier);
+        const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
 
-    // ĞÂµÄÊĞ³¡¼Û¸ñËã·¨£ºÃ¿¸ö½¨ÖşÓĞ×Ô¼ºµÄ³öÊÛ¼Û¸ñ£¬ÊĞ³¡¼ÛÊÇ¼ÓÈ¨Æ½¾ù
+        // æ–°çš„å¸‚åœºä»·æ ¼ç®—æ³•ï¼šæ¯ä¸ªå»ºç­‘æœ‰è‡ªå·±çš„å‡ºå”®ä»·æ ¼ï¼Œå¸‚åœºä»·æ˜¯åŠ æƒå¹³å‡
         Object.keys(RESOURCES).forEach(resource => {
-        if (!isTradableResource(resource)) return;
+            if (!isTradableResource(resource)) return;
 
-        const resourceDef = RESOURCES[resource];
-        const resourceMarketConfig = resourceDef?.marketConfig || {};
+            const resourceDef = RESOURCES[resource];
+            const resourceMarketConfig = resourceDef?.marketConfig || {};
 
-        // »ñÈ¡×ÊÔ´µÄ¾­¼Ã²ÎÊı
-        const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined
-            ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
-            : defaultSupplyDemandWeight;
-        const virtualDemandPerPop = resourceMarketConfig.virtualDemandPerPop !== undefined
-            ? Math.max(0, resourceMarketConfig.virtualDemandPerPop)
-            : defaultVirtualDemandPerPop;
-        // ×ÊÔ´ÌØ¶¨µÄ¿â´æÄ¿±êÌìÊıÒ²Ó¦ÓÃÄÑ¶È³ËÊı
-        const inventoryTargetDays = resourceMarketConfig.inventoryTargetDays !== undefined
-            ? Math.max(0.1, resourceMarketConfig.inventoryTargetDays * inventoryMultiplier)
-            : defaultInventoryTargetDays;
-        const inventoryPriceImpact = resourceMarketConfig.inventoryPriceImpact !== undefined
-            ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
-            : defaultInventoryPriceImpact;
+            // è·å–èµ„æºçš„ç»æµå‚æ•°
+            const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined
+                ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
+                : defaultSupplyDemandWeight;
+            const virtualDemandPerPop = resourceMarketConfig.virtualDemandPerPop !== undefined
+                ? Math.max(0, resourceMarketConfig.virtualDemandPerPop)
+                : defaultVirtualDemandPerPop;
+            // èµ„æºç‰¹å®šçš„åº“å­˜ç›®æ ‡å¤©æ•°ä¹Ÿåº”ç”¨éš¾åº¦ä¹˜æ•°
+            const inventoryTargetDays = resourceMarketConfig.inventoryTargetDays !== undefined
+                ? Math.max(0.1, resourceMarketConfig.inventoryTargetDays * inventoryMultiplier)
+                : defaultInventoryTargetDays;
+            const inventoryPriceImpact = resourceMarketConfig.inventoryPriceImpact !== undefined
+                ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
+                : defaultInventoryPriceImpact;
 
-        const sup = supply[resource] || 0;
-        const dem = demand[resource] || 0;
-        const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
-        const adjustedDemand = dem + virtualDemandBaseline;
-
-
-        // ¼ÆËãµ±Ç°¿â´æ¿ÉÒÔÖ§³Å¶àÉÙÌì
-        const dailyDemand = adjustedDemand;
-        const inventoryStock = res[resource] || 0;
-        // µ±¿â´æÎª0Ê±£¬ÎŞÂÛĞèÇóÈçºÎ¶¼Ó¦¸Ã´¥·¢¶ÌÈ±¼Û¸ñ£¨·µ»Ø¼«µÍÌìÊı£©
-        // µ±¿â´æ>0µ«ĞèÇó=0Ê±£¬¿â´æ³ä×ã£¬·µ»ØÄ¿±êÌìÊı
-        const inventoryDays = inventoryStock <= 0
-            ? 0.01  // ¿â´æÎª0Ê±£¬ÊÓÎª¼«¶È¶ÌÈ±£¬´¥·¢×î´óÕÇ¼Û
-            : (dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays);
-
-        // DEBUG: ¼Û¸ñ¼ÆËãµ÷ÊÔÈÕÖ¾£¨Ã¿5¸ötickÊä³öÒ»´Î£¬±ÜÃâË¢ÆÁ£©
-        // if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
-        //     console.log(`[¼Û¸ñµ÷ÊÔ] ${RESOURCES[resource]?.name || resource}:`, {
-        //         tick,
-        //         inventoryStock: inventoryStock.toFixed(2),
-        //         demand: dem.toFixed(2),
-        //         virtualDemand: virtualDemandBaseline.toFixed(2),
-        //         dailyDemand: dailyDemand.toFixed(2),
-        //         inventoryDays: inventoryDays.toFixed(2),
-        //         inventoryTargetDays,
-        //         inventoryRatio: (inventoryDays / inventoryTargetDays).toFixed(3),
-        //         currentPrice: (priceMap[resource] || 0).toFixed(2),
-        //     });
-        // }
+            const sup = supply[resource] || 0;
+            const dem = demand[resource] || 0;
+            const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
+            const adjustedDemand = dem + virtualDemandBaseline;
 
 
-        // ÊÕ¼¯ËùÓĞÉú²ú¸Ã×ÊÔ´µÄ½¨Öş¼°Æä³öÊÛ¼Û¸ñ
-        const buildingPrices = [];
-        let totalOutput = 0;
+            // è®¡ç®—å½“å‰åº“å­˜å¯ä»¥æ”¯æ’‘å¤šå°‘å¤©
+            const dailyDemand = adjustedDemand;
+            const inventoryStock = res[resource] || 0;
+            // å½“åº“å­˜ä¸º0æ—¶ï¼Œæ— è®ºéœ€æ±‚å¦‚ä½•éƒ½åº”è¯¥è§¦å‘çŸ­ç¼ºä»·æ ¼ï¼ˆè¿”å›æä½å¤©æ•°ï¼‰
+            // å½“åº“å­˜>0ä½†éœ€æ±‚=0æ—¶ï¼Œåº“å­˜å……è¶³ï¼Œè¿”å›ç›®æ ‡å¤©æ•°
+            const inventoryDays = inventoryStock <= 0
+                ? 0.01  // åº“å­˜ä¸º0æ—¶ï¼Œè§†ä¸ºæåº¦çŸ­ç¼ºï¼Œè§¦å‘æœ€å¤§æ¶¨ä»·
+                : (dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays);
 
-        BUILDINGS.forEach(building => {
-            const buildingCount = builds[building.id] || 0;
-            if (buildingCount <= 0) return;
+            // DEBUG: ä»·æ ¼è®¡ç®—è°ƒè¯•æ—¥å¿—ï¼ˆæ¯5ä¸ªtickè¾“å‡ºä¸€æ¬¡ï¼Œé¿å…åˆ·å±ï¼‰
+            // if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
+            //     console.log(`[ä»·æ ¼è°ƒè¯•] ${RESOURCES[resource]?.name || resource}:`, {
+            //         tick,
+            //         inventoryStock: inventoryStock.toFixed(2),
+            //         demand: dem.toFixed(2),
+            //         virtualDemand: virtualDemandBaseline.toFixed(2),
+            //         dailyDemand: dailyDemand.toFixed(2),
+            //         inventoryDays: inventoryDays.toFixed(2),
+            //         inventoryTargetDays,
+            //         inventoryRatio: (inventoryDays / inventoryTargetDays).toFixed(3),
+            //         currentPrice: (priceMap[resource] || 0).toFixed(2),
+            //     });
+            // }
 
-            // »ñÈ¡¸Ã½¨ÖşµÄÉı¼¶µÈ¼¶·Ö²¼
-            // buildingUpgrades[building.id] ¸ñÊ½Îª { µÈ¼¶: ÊıÁ¿ }
-            const storedLevelCounts = buildingUpgrades[building.id] || {};
 
-            // ¼ÆËãÒÑÉı¼¶µÄ½¨ÖşÊıÁ¿
-            let upgradedCount = 0;
-            Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-                const lvl = parseInt(lvlStr);
-                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                    upgradedCount += lvlCount;
-                }
+            // æ”¶é›†æ‰€æœ‰ç”Ÿäº§è¯¥èµ„æºçš„å»ºç­‘åŠå…¶å‡ºå”®ä»·æ ¼
+            const buildingPrices = [];
+            let totalOutput = 0;
+
+            BUILDINGS.forEach(building => {
+                const buildingCount = builds[building.id] || 0;
+                if (buildingCount <= 0) return;
+
+                // è·å–è¯¥å»ºç­‘çš„å‡çº§ç­‰çº§åˆ†å¸ƒ
+                // buildingUpgrades[building.id] æ ¼å¼ä¸º { ç­‰çº§: æ•°é‡ }
+                const storedLevelCounts = buildingUpgrades[building.id] || {};
+
+                // è®¡ç®—å·²å‡çº§çš„å»ºç­‘æ•°é‡
+                let upgradedCount = 0;
+                Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+                    const lvl = parseInt(lvlStr);
+                    if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                        upgradedCount += lvlCount;
+                    }
+                });
+
+                // æ„å»ºå®Œæ•´çš„ç­‰çº§åˆ†å¸ƒï¼ˆåŒ…æ‹¬0çº§ï¼‰
+                const levelCounts = { 0: Math.max(0, buildingCount - upgradedCount) };
+                Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+                    const lvl = parseInt(lvlStr);
+                    if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                        levelCounts[lvl] = lvlCount;
+                    }
+                });
+
+                // æŒ‰ç­‰çº§åˆ†ç»„è®¡ç®—
+                Object.entries(levelCounts).forEach(([levelStr, count]) => {
+                    const level = parseInt(levelStr);
+                    const config = getBuildingEffectiveConfig(building, level);
+
+                    const outputAmount = config.output?.[resource];
+                    if (!outputAmount || outputAmount <= 0) return;
+
+                    // ä½¿ç”¨åŸºç¡€å»ºç­‘çš„ marketConfigï¼ˆå‡çº§é…ç½®å¯ä»¥è¦†ç›–ï¼Œå¦åˆ™æ²¿ç”¨åŸºç¡€ï¼‰
+                    const buildingMarketConfig = building.marketConfig || {};
+                    const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
+                    const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
+
+                    const resourceSpecificPriceLivingCosts = buildLivingCostMap(
+                        livingCostBreakdown,
+                        buildingPriceWeights
+                    );
+                    const resourceSpecificWageLivingCosts = buildLivingCostMap(
+                        livingCostBreakdown,
+                        buildingWageWeights
+                    );
+
+                    // è®¡ç®—åŸææ–™æˆæœ¬ï¼ˆå«ç¨ï¼‰- ä½¿ç”¨å‡çº§åçš„ input
+                    let inputCost = 0;
+                    if (config.input) {
+                        Object.entries(config.input).forEach(([inputKey, amount]) => {
+                            if (!amount || amount <= 0) return;
+                            const inputPrice = priceMap[inputKey] || getBasePrice(inputKey);
+                            const inputTaxRate = getResourceTaxRate(inputKey);
+
+                            // åŸææ–™æˆæœ¬ = ä»·æ ¼ Ã— æ•°é‡ Ã— (1 + ç¨ç‡)
+                            // å¦‚æœç¨ç‡ä¸ºè´Ÿï¼ˆè¡¥è´´ï¼‰ï¼Œåˆ™æˆæœ¬é™ä½
+                            const baseCost = amount * inputPrice;
+                            const taxCost = baseCost * inputTaxRate;
+                            inputCost += baseCost + taxCost;
+                        });
+                    }
+
+                    // è®¡ç®—å·¥èµ„æˆæœ¬ - ä½¿ç”¨å‡çº§åçš„ jobsï¼Œä½† owner ä»åŸºç¡€å»ºç­‘è·å–
+                    let laborCost = 0;
+                    const ownerKey = building.owner;
+                    const effectiveJobs = config.jobs || {};
+                    const isSelfOwned = ownerKey && effectiveJobs[ownerKey];
+                    if (Object.keys(effectiveJobs).length > 0 && !isSelfOwned) {
+                        Object.entries(effectiveJobs).forEach(([role, slots]) => {
+                            if (!slots || slots <= 0) return;
+                            const wage = updatedWages[role] || getExpectedWage(role);
+                            laborCost += slots * wage;
+                        });
+                    }
+
+                    // è®¡ç®—è¥ä¸šç¨æˆæœ¬
+                    const businessTaxMultiplier = policies?.businessTaxRates?.[building.id] ?? 1;
+                    const businessTaxBase = building.businessTaxBase ?? 0.1;
+                    const businessTaxCost = businessTaxBase * businessTaxMultiplier;
+
+                    // è®¡ç®—ä¸šä¸»ç”Ÿæ´»éœ€æ±‚æˆæœ¬ - ä½¿ç”¨å‡çº§åçš„ jobs ä¸­çš„ owner æ•°é‡
+                    let ownerLivingCost = 0;
+                    if (ownerKey) {
+                        const ownerLivingCostBase = resourceSpecificWageLivingCosts[ownerKey] || 0;
+                        ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
+                    }
+
+                    // æˆæœ¬ä»· = (åŸææ–™æˆæœ¬å«ç¨ + å·¥èµ„æˆæœ¬ + è¥ä¸šç¨æˆæœ¬ + ä¸šä¸»ç”Ÿæ´»éœ€æ±‚æˆæœ¬) / äº§å‡ºæ•°é‡
+                    const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
+                    const costPrice = totalCost / outputAmount;
+
+                    // === ä¸‰å±‚ä»·æ ¼æ¨¡å‹ ===
+                    // 1. è®¡ç®—ä¾›éœ€è°ƒæ•´ç³»æ•°ï¼ˆåŸºäºåº“å­˜å¤©æ•°ï¼‰
+                    const inventoryRatio = inventoryDays / inventoryTargetDays;
+                    let priceMultiplier = 1.0;
+
+                    if (inventoryRatio < 0.5) {
+                        // åº“å­˜ç´§å¼ ï¼Œå¤§å¹…æ¶¨ä»·
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // æœ€é«˜6å€
+                    } else if (inventoryRatio < 1.0) {
+                        // åº“å­˜åä½ï¼Œé€‚åº¦æ¶¨ä»·
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0å€
+                    } else if (inventoryRatio > 2.0) {
+                        // åº“å­˜ç§¯å‹ï¼Œå¤§å¹…é™ä»·
+                        // ä¿®æ­£ï¼šä»ä¸Šä¸€æ¡£ä½(1.0-2.0)çš„ç»“æŸç‚¹(0.7)ç»§ç»­ä¸‹é™ï¼Œä¿æŒè¿è´¯æ€§
+                        priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // æœ€ä½0.1å€
+                        priceMultiplier = Math.max(0.1, priceMultiplier);
+                    } else if (inventoryRatio > 1.0) {
+                        // åº“å­˜å……è¶³ï¼Œé€‚åº¦é™ä»·
+                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0å€
+                    }
+
+                    // 2. è·å–åŸºç¡€ä»·æ ¼ï¼ˆå¸‚åœºè®¤å¯çš„åˆç†ä»·æ ¼ï¼‰
+                    const basePrice = getBasePrice(resource);
+
+                    // 3. è®¡ç®—å¸‚åœºä»·æ ¼ï¼ˆåŸºäºbasePriceå’Œä¾›éœ€å…³ç³»ï¼‰
+                    let marketBasedPrice = basePrice * priceMultiplier;
+
+                    // 4. æœ€ç»ˆä»·æ ¼ = å¸‚åœºä»·æ ¼ï¼ˆå…è®¸ä½äºæˆæœ¬ä»·ï¼‰
+                    // å½“ä¾›è¿‡äºæ±‚æ—¶ï¼Œä»·æ ¼å¯èƒ½ä½äºæˆæœ¬ï¼Œç”Ÿäº§è€…ä¼šäºæŸ
+                    // è¿™ä¼šä¿ƒä½¿ç”Ÿäº§è€…å‡äº§æˆ–è½¬è¡Œï¼Œå®ç°å¸‚åœºè‡ªæˆ‘è°ƒèŠ‚
+                    let sellingPrice = marketBasedPrice;
+
+                    // ä¸è¶…è¿‡ç‰©ä»·é™é¢
+                    const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
+                    const maxPrice = resourceDef.maxPrice;
+                    sellingPrice = Math.max(sellingPrice, minPrice);
+                    if (maxPrice !== undefined) {
+                        sellingPrice = Math.min(sellingPrice, maxPrice);
+                    }
+
+                    // è®°å½•è¯¥å»ºç­‘ç­‰çº§çš„å‡ºå”®ä»·æ ¼å’Œäº§é‡
+                    const levelOutput = outputAmount * count;
+                    totalOutput += levelOutput;
+                    buildingPrices.push({
+                        price: sellingPrice,
+                        output: levelOutput
+                    });
+                });
             });
 
-            // ¹¹½¨ÍêÕûµÄµÈ¼¶·Ö²¼£¨°üÀ¨0¼¶£©
-            const levelCounts = { 0: Math.max(0, buildingCount - upgradedCount) };
-            Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-                const lvl = parseInt(lvlStr);
-                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                    levelCounts[lvl] = lvlCount;
-                }
-            });
-
-            // °´µÈ¼¶·Ö×é¼ÆËã
-            Object.entries(levelCounts).forEach(([levelStr, count]) => {
-                const level = parseInt(levelStr);
-                const config = getBuildingEffectiveConfig(building, level);
-
-                const outputAmount = config.output?.[resource];
-                if (!outputAmount || outputAmount <= 0) return;
-
-                // Ê¹ÓÃ»ù´¡½¨ÖşµÄ marketConfig£¨Éı¼¶ÅäÖÃ¿ÉÒÔ¸²¸Ç£¬·ñÔòÑØÓÃ»ù´¡£©
-                const buildingMarketConfig = building.marketConfig || {};
-                const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
-                const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
-
-                const resourceSpecificPriceLivingCosts = buildLivingCostMap(
-                    livingCostBreakdown,
-                    buildingPriceWeights
-                );
-                const resourceSpecificWageLivingCosts = buildLivingCostMap(
-                    livingCostBreakdown,
-                    buildingWageWeights
-                );
-
-                // ¼ÆËãÔ­²ÄÁÏ³É±¾£¨º¬Ë°£©- Ê¹ÓÃÉı¼¶ºóµÄ input
-                let inputCost = 0;
-                if (config.input) {
-                    Object.entries(config.input).forEach(([inputKey, amount]) => {
-                        if (!amount || amount <= 0) return;
-                        const inputPrice = priceMap[inputKey] || getBasePrice(inputKey);
-                        const inputTaxRate = getResourceTaxRate(inputKey);
-
-                        // Ô­²ÄÁÏ³É±¾ = ¼Û¸ñ ¡Á ÊıÁ¿ ¡Á (1 + Ë°ÂÊ)
-                        // Èç¹ûË°ÂÊÎª¸º£¨²¹Ìù£©£¬Ôò³É±¾½µµÍ
-                        const baseCost = amount * inputPrice;
-                        const taxCost = baseCost * inputTaxRate;
-                        inputCost += baseCost + taxCost;
-                    });
-                }
-
-                // ¼ÆËã¹¤×Ê³É±¾ - Ê¹ÓÃÉı¼¶ºóµÄ jobs£¬µ« owner ´Ó»ù´¡½¨Öş»ñÈ¡
-                let laborCost = 0;
-                const ownerKey = building.owner;
-                const effectiveJobs = config.jobs || {};
-                const isSelfOwned = ownerKey && effectiveJobs[ownerKey];
-                if (Object.keys(effectiveJobs).length > 0 && !isSelfOwned) {
-                    Object.entries(effectiveJobs).forEach(([role, slots]) => {
-                        if (!slots || slots <= 0) return;
-                        const wage = updatedWages[role] || getExpectedWage(role);
-                        laborCost += slots * wage;
-                    });
-                }
-
-                // ¼ÆËãÓªÒµË°³É±¾
-                const businessTaxMultiplier = policies?.businessTaxRates?.[building.id] ?? 1;
-                const businessTaxBase = building.businessTaxBase ?? 0.1;
-                const businessTaxCost = businessTaxBase * businessTaxMultiplier;
-
-                // ¼ÆËãÒµÖ÷Éú»îĞèÇó³É±¾ - Ê¹ÓÃÉı¼¶ºóµÄ jobs ÖĞµÄ owner ÊıÁ¿
-                let ownerLivingCost = 0;
-                if (ownerKey) {
-                    const ownerLivingCostBase = resourceSpecificWageLivingCosts[ownerKey] || 0;
-                    ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
-                }
-
-                // ³É±¾¼Û = (Ô­²ÄÁÏ³É±¾º¬Ë° + ¹¤×Ê³É±¾ + ÓªÒµË°³É±¾ + ÒµÖ÷Éú»îĞèÇó³É±¾) / ²ú³öÊıÁ¿
-                const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
-                const costPrice = totalCost / outputAmount;
-
-                // === Èı²ã¼Û¸ñÄ£ĞÍ ===
-                // 1. ¼ÆËã¹©Ğèµ÷ÕûÏµÊı£¨»ùÓÚ¿â´æÌìÊı£©
+            // è®¡ç®—å¸‚åœºä»·ï¼šæ‰€æœ‰å»ºç­‘çš„åŠ æƒå¹³å‡ä»·æ ¼
+            let marketPrice = 0;
+            if (totalOutput > 0 && buildingPrices.length > 0) {
+                let weightedSum = 0;
+                buildingPrices.forEach(bp => {
+                    weightedSum += bp.price * bp.output;
+                });
+                marketPrice = weightedSum / totalOutput;
+            } else {
+                // å¦‚æœæ²¡æœ‰å»ºç­‘ç”Ÿäº§ï¼Œæ ¹æ®åº“å­˜æƒ…å†µè°ƒæ•´åŸºç¡€ä»·æ ¼
+                const basePrice = getBasePrice(resource);
                 const inventoryRatio = inventoryDays / inventoryTargetDays;
                 let priceMultiplier = 1.0;
 
                 if (inventoryRatio < 0.5) {
-                    // ¿â´æ½ôÕÅ£¬´ó·ùÕÇ¼Û
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // ×î¸ß6±¶
+                    // åº“å­˜ç´§å¼ ï¼Œå¤§å¹…æ¶¨ä»·
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // æœ€é«˜6å€
                 } else if (inventoryRatio < 1.0) {
-                    // ¿â´æÆ«µÍ£¬ÊÊ¶ÈÕÇ¼Û
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0±¶
+                    // åº“å­˜åä½ï¼Œé€‚åº¦æ¶¨ä»·
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0å€
                 } else if (inventoryRatio > 2.0) {
-                    // ¿â´æ»ıÑ¹£¬´ó·ù½µ¼Û
-                    // ĞŞÕı£º´ÓÉÏÒ»µµÎ»(1.0-2.0)µÄ½áÊøµã(0.7)¼ÌĞøÏÂ½µ£¬±£³ÖÁ¬¹áĞÔ
-                    priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // ×îµÍ0.1±¶
+                    // åº“å­˜ç§¯å‹ï¼Œå¤§å¹…é™ä»·
+                    // ä¿®æ­£ï¼šä»ä¸Šä¸€æ¡£ä½(1.0-2.0)çš„ç»“æŸç‚¹(0.7)ç»§ç»­ä¸‹é™ï¼Œä¿æŒè¿è´¯æ€§
+                    priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // æœ€ä½0.1å€
                     priceMultiplier = Math.max(0.1, priceMultiplier);
                 } else if (inventoryRatio > 1.0) {
-                    // ¿â´æ³ä×ã£¬ÊÊ¶È½µ¼Û
-                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0±¶
+                    // åº“å­˜å……è¶³ï¼Œé€‚åº¦é™ä»·
+                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0å€
                 }
 
-                // 2. »ñÈ¡»ù´¡¼Û¸ñ£¨ÊĞ³¡ÈÏ¿ÉµÄºÏÀí¼Û¸ñ£©
-                const basePrice = getBasePrice(resource);
+                marketPrice = basePrice * priceMultiplier;
 
-                // 3. ¼ÆËãÊĞ³¡¼Û¸ñ£¨»ùÓÚbasePriceºÍ¹©Ğè¹ØÏµ£©
-                let marketBasedPrice = basePrice * priceMultiplier;
-
-                // 4. ×îÖÕ¼Û¸ñ = ÊĞ³¡¼Û¸ñ£¨ÔÊĞíµÍÓÚ³É±¾¼Û£©
-                // µ±¹©¹ıÓÚÇóÊ±£¬¼Û¸ñ¿ÉÄÜµÍÓÚ³É±¾£¬Éú²úÕß»á¿÷Ëğ
-                // Õâ»á´ÙÊ¹Éú²úÕß¼õ²ú»ò×ªĞĞ£¬ÊµÏÖÊĞ³¡×ÔÎÒµ÷½Ú
-                let sellingPrice = marketBasedPrice;
-
-                // ²»³¬¹ıÎï¼ÛÏŞ¶î
+                // é™åˆ¶ä»·æ ¼èŒƒå›´
                 const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
                 const maxPrice = resourceDef.maxPrice;
-                sellingPrice = Math.max(sellingPrice, minPrice);
+                marketPrice = Math.max(marketPrice, minPrice);
                 if (maxPrice !== undefined) {
-                    sellingPrice = Math.min(sellingPrice, maxPrice);
+                    marketPrice = Math.min(marketPrice, maxPrice);
                 }
-
-                // ¼ÇÂ¼¸Ã½¨ÖşµÈ¼¶µÄ³öÊÛ¼Û¸ñºÍ²úÁ¿
-                const levelOutput = outputAmount * count;
-                totalOutput += levelOutput;
-                buildingPrices.push({
-                    price: sellingPrice,
-                    output: levelOutput
-                });
-            });
-        });
-
-        // ¼ÆËãÊĞ³¡¼Û£ºËùÓĞ½¨ÖşµÄ¼ÓÈ¨Æ½¾ù¼Û¸ñ
-        let marketPrice = 0;
-        if (totalOutput > 0 && buildingPrices.length > 0) {
-            let weightedSum = 0;
-            buildingPrices.forEach(bp => {
-                weightedSum += bp.price * bp.output;
-            });
-            marketPrice = weightedSum / totalOutput;
-        } else {
-            // Èç¹ûÃ»ÓĞ½¨ÖşÉú²ú£¬¸ù¾İ¿â´æÇé¿öµ÷Õû»ù´¡¼Û¸ñ
-            const basePrice = getBasePrice(resource);
-            const inventoryRatio = inventoryDays / inventoryTargetDays;
-            let priceMultiplier = 1.0;
-
-            if (inventoryRatio < 0.5) {
-                // ¿â´æ½ôÕÅ£¬´ó·ùÕÇ¼Û
-                priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // ×î¸ß6±¶
-            } else if (inventoryRatio < 1.0) {
-                // ¿â´æÆ«µÍ£¬ÊÊ¶ÈÕÇ¼Û
-                priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0±¶
-            } else if (inventoryRatio > 2.0) {
-                // ¿â´æ»ıÑ¹£¬´ó·ù½µ¼Û
-                // ĞŞÕı£º´ÓÉÏÒ»µµÎ»(1.0-2.0)µÄ½áÊøµã(0.7)¼ÌĞøÏÂ½µ£¬±£³ÖÁ¬¹áĞÔ
-                priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // ×îµÍ0.1±¶
-                priceMultiplier = Math.max(0.1, priceMultiplier);
-            } else if (inventoryRatio > 1.0) {
-                // ¿â´æ³ä×ã£¬ÊÊ¶È½µ¼Û
-                priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0±¶
             }
 
-            marketPrice = basePrice * priceMultiplier;
 
-            // ÏŞÖÆ¼Û¸ñ·¶Î§
+            // æˆ˜äº‰ç‰©ä»·ä¸Šæ¶¨ï¼šè®¡ç®—ä¸ç©å®¶ç›´æ¥äº¤æˆ˜çš„æ•Œå¯¹å›½å®¶æ•°é‡
+            // æ³¨æ„ï¼šç»Ÿè®¡ä¸ç©å®¶äº¤æˆ˜çš„AIå›½å®¶ï¼ˆnation.isAtWarè¡¨ç¤ºè¯¥AIä¸ç©å®¶äº¤æˆ˜ï¼‰
+            let warCount = 0;
+            updatedNations.forEach(n => {
+                if (n.isAtWar === true) {
+                    warCount++;
+                }
+            });
+            // AIå›½å®¶ä¹‹é—´çš„æˆ˜äº‰ä¹Ÿä¼šå½±å“ç‰©ä»·ï¼ˆå›½é™…å±€åŠ¿ç´§å¼ ï¼‰
+            let foreignWarCount = 0;
+            updatedNations.forEach(n => {
+                if (!n.isPlayer && n.foreignWars) {
+                    Object.values(n.foreignWars).forEach(war => {
+                        if (war?.isAtWar) foreignWarCount++;
+                    });
+                }
+            });
+            foreignWarCount = Math.floor(foreignWarCount / 2); // æ¯åœºæˆ˜äº‰è¢«è®¡ç®—ä¸¤æ¬¡ï¼Œéœ€è¦é™¤ä»¥2
+
+            // æˆ˜äº‰ç‰©ä»·ç³»æ•°ï¼šæ¯åœºä¸ç©å®¶çš„æˆ˜äº‰å¢åŠ 2.5%ç‰©ä»·ï¼Œæ¯åœºAIé—´æˆ˜äº‰å¢åŠ 1%ç‰©ä»·
+            const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
+
+            // ã€ä¿®å¤ã€‘å°†æˆ˜äº‰ä¹˜æ•°åº”ç”¨åˆ°ç›®æ ‡ä»·æ ¼ï¼ˆmarketPriceï¼‰ï¼Œè€Œéå¹³æ»‘åçš„ä»·æ ¼
+            // è¿™æ ·å¹³æ»‘å¤„ç†ä¼šæ­£ç¡®åœ°å‘æˆ˜äº‰è°ƒæ•´åçš„ç›®æ ‡ä»·æ ¼ç§»åŠ¨ï¼Œé¿å…ä»·æ ¼å¡åœ¨ä¸Šé™
+            const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
+
+            // å¹³æ»‘å¤„ç†ï¼šå‘æˆ˜äº‰è°ƒæ•´åçš„ç›®æ ‡ä»·æ ¼å¹³æ»‘ç§»åŠ¨
+            const prevPrice = priceMap[resource] || warAdjustedMarketPrice;
+            const smoothed = prevPrice + (warAdjustedMarketPrice - prevPrice) * 0.1;
+
+            // åº”ç”¨ä»·æ ¼é™åˆ¶
             const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
             const maxPrice = resourceDef.maxPrice;
-            marketPrice = Math.max(marketPrice, minPrice);
+            let finalPrice = smoothed;
+            finalPrice = Math.max(finalPrice, minPrice);
             if (maxPrice !== undefined) {
-                marketPrice = Math.min(marketPrice, maxPrice);
+                finalPrice = Math.min(finalPrice, maxPrice);
             }
-        }
-
-
-        // Õ½ÕùÎï¼ÛÉÏÕÇ£º¼ÆËãÓëÍæ¼ÒÖ±½Ó½»Õ½µÄµĞ¶Ô¹ú¼ÒÊıÁ¿
-        // ×¢Òâ£ºÍ³¼ÆÓëÍæ¼Ò½»Õ½µÄAI¹ú¼Ò£¨nation.isAtWar±íÊ¾¸ÃAIÓëÍæ¼Ò½»Õ½£©
-        let warCount = 0;
-        updatedNations.forEach(n => {
-            if (n.isAtWar === true) {
-                warCount++;
-            }
-        });
-        // AI¹ú¼ÒÖ®¼äµÄÕ½ÕùÒ²»áÓ°ÏìÎï¼Û£¨¹ú¼Ê¾ÖÊÆ½ôÕÅ£©
-        let foreignWarCount = 0;
-        updatedNations.forEach(n => {
-            if (!n.isPlayer && n.foreignWars) {
-                Object.values(n.foreignWars).forEach(war => {
-                    if (war?.isAtWar) foreignWarCount++;
-                });
-            }
-        });
-        foreignWarCount = Math.floor(foreignWarCount / 2); // Ã¿³¡Õ½Õù±»¼ÆËãÁ½´Î£¬ĞèÒª³ıÒÔ2
-
-        // Õ½ÕùÎï¼ÛÏµÊı£ºÃ¿³¡ÓëÍæ¼ÒµÄÕ½ÕùÔö¼Ó2.5%Îï¼Û£¬Ã¿³¡AI¼äÕ½ÕùÔö¼Ó1%Îï¼Û
-        const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
-
-        // ¡¾ĞŞ¸´¡¿½«Õ½Õù³ËÊıÓ¦ÓÃµ½Ä¿±ê¼Û¸ñ£¨marketPrice£©£¬¶ø·ÇÆ½»¬ºóµÄ¼Û¸ñ
-        // ÕâÑùÆ½»¬´¦Àí»áÕıÈ·µØÏòÕ½Õùµ÷ÕûºóµÄÄ¿±ê¼Û¸ñÒÆ¶¯£¬±ÜÃâ¼Û¸ñ¿¨ÔÚÉÏÏŞ
-        const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
-
-        // Æ½»¬´¦Àí£ºÏòÕ½Õùµ÷ÕûºóµÄÄ¿±ê¼Û¸ñÆ½»¬ÒÆ¶¯
-        const prevPrice = priceMap[resource] || warAdjustedMarketPrice;
-        const smoothed = prevPrice + (warAdjustedMarketPrice - prevPrice) * 0.1;
-
-        // Ó¦ÓÃ¼Û¸ñÏŞÖÆ
-        const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
-        const maxPrice = resourceDef.maxPrice;
-        let finalPrice = smoothed;
-        finalPrice = Math.max(finalPrice, minPrice);
-        if (maxPrice !== undefined) {
-            finalPrice = Math.min(finalPrice, maxPrice);
-        }
 
             updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
         });
@@ -5136,15 +5603,16 @@ export const simulateTick = ({
 
     const previousMerchantLockedCapital = Math.max(0, merchantState?.lockedCapital ?? sumLockedCapital(merchantState?.pendingTrades || []));
 
-    // ¡¾ĞŞ¸´¡¿ÔÚ×ªÖ°ÆÀ¹ÀÇ°ÏÈÖ´ĞĞÉÌÈË½»Ò×£¬È·±£ÉÌÈËÊÕÈë±»ÕıÈ·¼ÆËã
+    // ã€ä¿®å¤ã€‘åœ¨è½¬èŒè¯„ä¼°å‰å…ˆæ‰§è¡Œå•†äººäº¤æ˜“ï¼Œç¡®ä¿å•†äººæ”¶å…¥è¢«æ­£ç¡®è®¡ç®—
     const previousMerchantWealth = classWealthResult.merchant || 0;
-    // DEBUG: µ÷ÊÔÉÌÈËÃ³Ò×µ÷ÓÃ
+    // DEBUG: è°ƒè¯•å•†äººè´¸æ˜“è°ƒç”¨
     debugLog('simulation', '[SIMULATION DEBUG] Calling simulateMerchantTrade, policies:', {
         hasExportTariff: !!policies.exportTariffMultipliers,
         hasImportTariff: !!policies.importTariffMultipliers,
         merchantPop: popStructure?.merchant || 0,
     });
     const updatedMerchantState = simulateMerchantTrade({
+        ledger, // [REFACTORED] Pass ledger for financial transactions
         res,
         wealth,
         popStructure,
@@ -5172,6 +5640,11 @@ export const simulateTick = ({
 
         // Control whether to log merchant trade initiation messages
         shouldLogMerchantTrades: eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? true,
+        // [NEW] Control official logs
+        shouldLogOfficialEvents: eventEffectSettings?.logVisibility?.showOfficialLogs ?? true,
+
+        // Treasury change callback for resource tracking
+        onTreasuryChange: applySilverChange,
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
     updatedMerchantState.lockedCapital = merchantLockedCapital;
@@ -5196,7 +5669,7 @@ export const simulateTick = ({
             tradeSummary[trade.type][key].profit += trade.profit;
             totalProfit += trade.profit;
 
-            // °´»ï°é¹ú¼Ò·Ö×é
+            // æŒ‰ä¼™ä¼´å›½å®¶åˆ†ç»„
             const partnerId = trade.partnerId || 'unknown';
             if (!partnerSummary[partnerId]) {
                 const partnerNation = updatedNations.find(n => n?.id === partnerId);
@@ -5218,20 +5691,20 @@ export const simulateTick = ({
         const partnerParts = [];
         Object.values(partnerSummary).forEach(p => {
             const items = [];
-            if (p.exports.length > 0) items.push(`³ö¿Ú${p.exports.join(',')}`);
-            if (p.imports.length > 0) items.push(`½ø¿Ú${p.imports.join(',')}`);
+            if (p.exports.length > 0) items.push(`å‡ºå£${p.exports.join(',')}`);
+            if (p.imports.length > 0) items.push(`è¿›å£${p.imports.join(',')}`);
             if (items.length > 0) {
                 partnerParts.push(`${p.name}(${items.join(', ')})`);
             }
         });
 
-        if (partnerParts.length > 0) {
-            const profitText = totalProfit >= 0 ? `Ó¯Àû${totalProfit.toFixed(1)}` : `¿÷Ëğ${Math.abs(totalProfit).toFixed(1)}`;
-            logs.push(`?? ÉÌÈËÃ³Ò×Íê³É: ${partnerParts.join('; ')}£¬${profitText}Òø±Ò`);
+        if (partnerParts.length > 0 && updatedMerchantState.shouldLogMerchantTrades) {
+            const profitText = totalProfit >= 0 ? `ç›ˆåˆ©${totalProfit.toFixed(1)}` : `äºæŸ${Math.abs(totalProfit).toFixed(1)}`;
+            logs.push(`ğŸ“¦ å•†äººè´¸æ˜“å®Œæˆ: ${partnerParts.join('; ')}ï¼Œ${profitText}é“¶å¸`);
         }
 
 
-        // Ó¦ÓÃ¹ÙÔ±Ã³Ò×¼Ó³Éµ½ÉÌÈË²Æ¸»
+        // åº”ç”¨å®˜å‘˜è´¸æ˜“åŠ æˆåˆ°å•†äººè´¢å¯Œ
         if (bonuses.tradeBonusMod && totalProfit > 0) {
             const tradeBonus = totalProfit * bonuses.tradeBonusMod;
             wealth.merchant = (wealth.merchant || 0) + tradeBonus;
@@ -5245,7 +5718,7 @@ export const simulateTick = ({
         delete updatedMerchantState.completedTrades;
     }
 
-    // ÔöÇ¿×ªÖ°£¨Migration£©Âß¼­£º»ùÓÚÊĞ³¡¼Û¸ñºÍÇ±ÔÚÊÕÒæµÄÖ°ÒµÁ÷¶¯
+    // å¢å¼ºè½¬èŒï¼ˆMigrationï¼‰é€»è¾‘ï¼šåŸºäºå¸‚åœºä»·æ ¼å’Œæ½œåœ¨æ”¶ç›Šçš„èŒä¸šæµåŠ¨
     const roleVacancies = {};
     ROLE_PRIORITY.forEach(role => {
         roleVacancies[role] = Math.max(0, (jobsAvailable[role] || 0) - (popStructure[role] || 0));
@@ -5267,16 +5740,16 @@ export const simulateTick = ({
     const vacantRoleIncomeCache = tickCache.getOrCompute(tick, 'vacantRoleIncomeCache', () => new Map());
 
     /**
-     * Îª¿Õ¸ÚÎ»Ô¤¹ÀÊÕÈë£¨Çø·ÖÒµÖ÷ºÍ¹ÍÔ±£©
-     * ½â¾ö¶ñĞÔÑ­»·£ºÎŞÈË¹¤×÷ ¡ú ÊÕÈëÎª0 ¡ú ¸üÎŞÈËÔ¸ÒâÈ¥
-     * @param {string} role - ½ÇÉ«key
-     * @returns {number} Ô¤¹ÀµÄÈË¾ùÊÕÈë
+     * ä¸ºç©ºå²—ä½é¢„ä¼°æ”¶å…¥ï¼ˆåŒºåˆ†ä¸šä¸»å’Œé›‡å‘˜ï¼‰
+     * è§£å†³æ¶æ€§å¾ªç¯ï¼šæ— äººå·¥ä½œ â†’ æ”¶å…¥ä¸º0 â†’ æ›´æ— äººæ„¿æ„å»
+     * @param {string} role - è§’è‰²key
+     * @returns {number} é¢„ä¼°çš„äººå‡æ”¶å…¥
      */
     const estimateVacantRoleIncome = (role) => {
         if (vacantRoleIncomeCache.has(role)) {
             return vacantRoleIncomeCache.get(role);
         }
-        // ¿Õ¸ÚÎ»ÎüÒıÁ¦¼Ó³ÉÏµÊı
+        // ç©ºå²—ä½å¸å¼•åŠ›åŠ æˆç³»æ•°
         const VACANT_BONUS = 1.2;
 
         let ownerIncome = 0;
@@ -5296,19 +5769,19 @@ export const simulateTick = ({
             const isOwner = building.owner === role;
 
             if (isOwner) {
-                // ===== ÒµÖ÷ÊÕÈëÔ¤¹À =====
-                // ¼ÆËã½¨Öş²ú³ö¼ÛÖµ
+                // ===== ä¸šä¸»æ”¶å…¥é¢„ä¼° =====
+                // è®¡ç®—å»ºç­‘äº§å‡ºä»·å€¼
                 let outputValue = 0;
                 if (config.output) {
                     Object.entries(config.output).forEach(([resource, amount]) => {
                         if (!amount || amount <= 0) return;
-                        if (!RESOURCES[resource]) return; // Ìø¹ı maxPop, militaryCapacity µÈ
+                        if (!RESOURCES[resource]) return; // è·³è¿‡ maxPop, militaryCapacity ç­‰
                         const price = priceMap[resource] || getBasePrice(resource);
                         outputValue += amount * price;
                     });
                 }
 
-                // ¼ÆËãÔ­²ÄÁÏ³É±¾
+                // è®¡ç®—åŸææ–™æˆæœ¬
                 let inputCost = 0;
                 if (config.input) {
                     Object.entries(config.input).forEach(([resource, amount]) => {
@@ -5318,8 +5791,8 @@ export const simulateTick = ({
                     });
                 }
 
-                // ¼ÆËã¹ÍÔ±¹¤×ÊÖ§³ö£¨³ıÒµÖ÷ÍâµÄÆäËû¸ÚÎ»£©
-                // Ê¹ÓÃ¡°Êµ¼Ê·¢³öµÄÆ½¾ù¹¤×Ê¡±£¨market.wages / updatedWages£©£¬¶ø²»ÊÇÀíÂÛÔ¤ÆÚ¹¤×Ê
+                // è®¡ç®—é›‡å‘˜å·¥èµ„æ”¯å‡ºï¼ˆé™¤ä¸šä¸»å¤–çš„å…¶ä»–å²—ä½ï¼‰
+                // ä½¿ç”¨â€œå®é™…å‘å‡ºçš„å¹³å‡å·¥èµ„â€ï¼ˆmarket.wages / updatedWagesï¼‰ï¼Œè€Œä¸æ˜¯ç†è®ºé¢„æœŸå·¥èµ„
                 let wageCost = 0;
                 Object.entries(jobs).forEach(([jobRole, slots]) => {
                     if (jobRole === role || !slots || slots <= 0) return;
@@ -5327,14 +5800,14 @@ export const simulateTick = ({
                     wageCost += avgPaidWage * slots;
                 });
 
-                // ¼ÆËãË°·Ñ³É±¾£¨ÈËÍ·Ë° + ÓªÒµË°£©
+                // è®¡ç®—ç¨è´¹æˆæœ¬ï¼ˆäººå¤´ç¨ + è¥ä¸šç¨ï¼‰
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
                 const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
                 const businessTaxCost = businessTaxBase * businessTaxRate;
 
-                // ÒµÖ÷¾»ÊÕÈë = ²ú³ö - Ô­²ÄÁÏ - ¹ÍÔ±¹¤×Ê - Ë°·Ñ
+                // ä¸šä¸»å‡€æ”¶å…¥ = äº§å‡º - åŸææ–™ - é›‡å‘˜å·¥èµ„ - ç¨è´¹
                 const netProfit = outputValue - inputCost - wageCost - headTaxCost - businessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
 
@@ -5342,12 +5815,12 @@ export const simulateTick = ({
                 ownerSlots += roleSlots * count;
 
             } else {
-                // ===== ¹ÍÔ±¹¤×ÊÔ¤¹À =====
+                // ===== é›‡å‘˜å·¥èµ„é¢„ä¼° =====
                 // Use the actual average wage that this role is currently being paid,
                 // otherwise vacancy signals can be wildly optimistic/pessimistic.
                 const avgPaidWage = updatedWages?.[role] ?? market?.wages?.[role] ?? getExpectedWage(role);
 
-                // ¼ÆËãË°ºó¹¤×Ê
+                // è®¡ç®—ç¨åå·¥èµ„
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const netWage = avgPaidWage - taxCost;
@@ -5357,10 +5830,10 @@ export const simulateTick = ({
             }
         });
 
-        // ¼ÆËã¼ÓÈ¨Æ½¾ùÊÕÈë
+        // è®¡ç®—åŠ æƒå¹³å‡æ”¶å…¥
         const totalSlots = ownerSlots + employeeSlots;
         if (totalSlots <= 0) {
-            // Ã»ÓĞ½¨ÖşÌá¹©Õâ¸ö¸ÚÎ»£ºÒ²Ê¹ÓÃ¡°¸ÚÎ»·¢³ö¹¤×ÊµÄÆ½¾ùÊı¡±×÷ÎªĞÅºÅ
+            // æ²¡æœ‰å»ºç­‘æä¾›è¿™ä¸ªå²—ä½ï¼šä¹Ÿä½¿ç”¨â€œå²—ä½å‘å‡ºå·¥èµ„çš„å¹³å‡æ•°â€ä½œä¸ºä¿¡å·
             const avgPaidWage = updatedWages?.[role] ?? market?.wages?.[role] ?? getExpectedWage(role);
             const fallback = avgPaidWage * VACANT_BONUS;
             vacantRoleIncomeCache.set(role, fallback);
@@ -5370,7 +5843,7 @@ export const simulateTick = ({
         const totalIncome = ownerIncome + employeeWage;
         const averageIncome = totalIncome / totalSlots;
 
-        // Ó¦ÓÃÎüÒıÁ¦¼Ó³É
+        // åº”ç”¨å¸å¼•åŠ›åŠ æˆ
         const result = Math.max(0, averageIncome * VACANT_BONUS);
         vacantRoleIncomeCache.set(role, result);
         return result;
@@ -5398,21 +5871,21 @@ export const simulateTick = ({
         const historicalIncomePerCapita = lastTickIncome !== null ? lastTickIncome : effectivePerCapDelta;
         const fallbackIncome = netIncomePerCapita !== 0 ? netIncomePerCapita : disposableWage;
 
-        // ¡¾¿Õ¸ÚÎ»Ô¤¹ÀÊÕÈë¡¿µ±¸ÃĞĞÒµÎŞÈË¹¤×÷Ê±£¬Ê¹ÓÃ»ùÓÚ½¨Öş²ú³öµÄÔ¤¹ÀÊÕÈë
-        // ½â¾ö¶ñĞÔÑ­»·£ºÎŞÈË¹¤×÷ ¡ú ÊÕÈëÎª0 ¡ú ¸üÎŞÈËÔ¸ÒâÈ¥
+        // ã€ç©ºå²—ä½é¢„ä¼°æ”¶å…¥ã€‘å½“è¯¥è¡Œä¸šæ— äººå·¥ä½œæ—¶ï¼Œä½¿ç”¨åŸºäºå»ºç­‘äº§å‡ºçš„é¢„ä¼°æ”¶å…¥
+        // è§£å†³æ¶æ€§å¾ªç¯ï¼šæ— äººå·¥ä½œ â†’ æ”¶å…¥ä¸º0 â†’ æ›´æ— äººæ„¿æ„å»
         let incomeSignal;
         if (pop === 0) {
-            // ÎŞÈË¹¤×÷Ê±£¬Ê¹ÓÃÔ¤¹ÀÊÕÈë£¨Çø·ÖÒµÖ÷ºÍ¹ÍÔ±£©
+            // æ— äººå·¥ä½œæ—¶ï¼Œä½¿ç”¨é¢„ä¼°æ”¶å…¥ï¼ˆåŒºåˆ†ä¸šä¸»å’Œé›‡å‘˜ï¼‰
             incomeSignal = estimateVacantRoleIncome(role);
         } else if (role === 'merchant' || historicalIncomePerCapita !== 0) {
-            // ÉÌÈËÌØÀı£ºÓÅÏÈÊ¹ÓÃµ±Ç°ÔËÓªÊÕÈë£¨Net Income£©£¬ºöÂÔÒò½ø»õµ¼ÖÂµÄ²Æ¸»£¨Wealth£©²¨¶¯
+            // å•†äººç‰¹ä¾‹ï¼šä¼˜å…ˆä½¿ç”¨å½“å‰è¿è¥æ”¶å…¥ï¼ˆNet Incomeï¼‰ï¼Œå¿½ç•¥å› è¿›è´§å¯¼è‡´çš„è´¢å¯Œï¼ˆWealthï¼‰æ³¢åŠ¨
             incomeSignal = role === 'merchant' ? fallbackIncome : historicalIncomePerCapita;
         } else {
             incomeSignal = fallbackIncome;
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
-        // ÒÔÉÏÒ»tickµÄÈË¾ù¾»ÊÕÈëÎªÖ÷µ¼£¬¸¨ÒÔĞ¡·ùÎÈ¶¨¶È½±Àø£¬±ÜÃâÀíÂÛ¹¤×ÊÎóµ¼
+        // ä»¥ä¸Šä¸€tickçš„äººå‡å‡€æ”¶å…¥ä¸ºä¸»å¯¼ï¼Œè¾…ä»¥å°å¹…ç¨³å®šåº¦å¥–åŠ±ï¼Œé¿å…ç†è®ºå·¥èµ„è¯¯å¯¼
         const potentialIncome = incomeSignal + stabilityBonus;
 
         return {
@@ -5425,7 +5898,7 @@ export const simulateTick = ({
         };
     });
 
-    // ¹ıÂËµô 'official' ½×²ã£¬·ÀÖ¹Æä²ÎÓë×Ô¶¯×ªÖ°£¨¹ÙÔ±Ö»ÄÜÍ¨¹ıÈÎÃü²úÉú£©
+    // è¿‡æ»¤æ‰ 'official' é˜¶å±‚ï¼Œé˜²æ­¢å…¶å‚ä¸è‡ªåŠ¨è½¬èŒï¼ˆå®˜å‘˜åªèƒ½é€šè¿‡ä»»å‘½äº§ç”Ÿï¼‰
     const migrationRoles = activeRoleMetrics.filter(r => r.role !== 'official');
 
     const totalMigratablePop = migrationRoles.reduce((sum, r) => r.pop > 0 ? sum + r.pop : sum, 0);
@@ -5433,12 +5906,12 @@ export const simulateTick = ({
         ? migrationRoles.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
         : 0;
 
-    // ¼ÆËãÆ½¾ùÈË¾ù²Æ¸»£¬ÓÃÓÚÅĞ¶Ï¸»Ô£½×²ãµÄ×ªÖ°ãĞÖµ
+    // è®¡ç®—å¹³å‡äººå‡è´¢å¯Œï¼Œç”¨äºåˆ¤æ–­å¯Œè£•é˜¶å±‚çš„è½¬èŒé˜ˆå€¼
     const averagePerCapWealth = totalMigratablePop > 0
         ? migrationRoles.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
         : 0;
 
-    // ============== ¼ÆËã¹©Ğè±ÈºÍ½ÇÉ«-×ÊÔ´Ó³Éä£¨ÓÃÓÚ×ÊÔ´¶ÌÈ±½ô¼±×ªÖ°£©==============
+    // ============== è®¡ç®—ä¾›éœ€æ¯”å’Œè§’è‰²-èµ„æºæ˜ å°„ï¼ˆç”¨äºèµ„æºçŸ­ç¼ºç´§æ€¥è½¬èŒï¼‰==============
     // Supply/Demand ratio for each resource
     const supplyDemandRatio = {};
     Object.keys(RESOURCES).forEach(resKey => {
@@ -5489,7 +5962,7 @@ export const simulateTick = ({
         }
     });
 
-    // Ê¹ÓÃhandleJobMigration´¦Àí½×²ãÇ¨ÒÆ£¨°üº¬tier×èÁ¦ÏµÊıºÍÀäÈ´»úÖÆ£©
+    // ä½¿ç”¨handleJobMigrationå¤„ç†é˜¶å±‚è¿ç§»ï¼ˆåŒ…å«tieré˜»åŠ›ç³»æ•°å’Œå†·å´æœºåˆ¶ï¼‰
     const migrationResult = handleJobMigration({
         popStructure,
         wealth,
@@ -5502,12 +5975,12 @@ export const simulateTick = ({
         supplyDemandRatio,
         roleProducesResource
     });
-    // ¸üĞÂÇ¨ÒÆºóµÄ×´Ì¬
+    // æ›´æ–°è¿ç§»åçš„çŠ¶æ€
     Object.assign(popStructure, migrationResult.popStructure);
     Object.assign(wealth, migrationResult.wealth);
     const updatedMigrationCooldowns = migrationResult.migrationCooldowns;
 
-    // ÉÌÈË½»Ò×ÒÑÔÚ×ªÖ°Âß¼­Ç°Ö´ĞĞ£¬ÕâÀïÖ»ĞèÓ¦ÓÃÊÕÈëµ½²Æ¸»
+    // å•†äººäº¤æ˜“å·²åœ¨è½¬èŒé€»è¾‘å‰æ‰§è¡Œï¼Œè¿™é‡Œåªéœ€åº”ç”¨æ”¶å…¥åˆ°è´¢å¯Œ
     applyRoleIncomeToWealth();
 
     // Sync classWealthResult and totalWealth to include income for all classes
@@ -5516,11 +5989,11 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
-    // [FIX] Í¬²½¸üĞÂ classLivingStandard ÖĞµÄ wealthPerCapita
-    // ÒòÎª calculateLivingStandards ÔÚ wealth ÍêÈ«¸üĞÂÇ°µ÷ÓÃ£¬µ¼ÖÂ wealthPerCapita ¿ÉÄÜÖÍºó
-    // ×¢Òâ£ºÌø¹ı¹ÙÔ±½×²ã£¬ÒòÎª¹ÙÔ±²Æ¸»Ê¹ÓÃ¶ÀÁ¢¹ÜÀí»úÖÆ£¨ÔÚµÚ 3306-3320 ĞĞÒÑÕıÈ·ÉèÖÃ£©
+    // [FIX] åŒæ­¥æ›´æ–° classLivingStandard ä¸­çš„ wealthPerCapita
+    // å› ä¸º calculateLivingStandards åœ¨ wealth å®Œå…¨æ›´æ–°å‰è°ƒç”¨ï¼Œå¯¼è‡´ wealthPerCapita å¯èƒ½æ»å
+    // æ³¨æ„ï¼šè·³è¿‡å®˜å‘˜é˜¶å±‚ï¼Œå› ä¸ºå®˜å‘˜è´¢å¯Œä½¿ç”¨ç‹¬ç«‹ç®¡ç†æœºåˆ¶ï¼ˆåœ¨ç¬¬ 3306-3320 è¡Œå·²æ­£ç¡®è®¾ç½®ï¼‰
     Object.keys(STRATA).forEach(key => {
-        // Ìø¹ı¹ÙÔ±½×²ã£¬¹ÙÔ±µÄ wealthPerCapita ÔÚ¹ÙÔ±Ä£ÄâÑ­»·ºóÒÑÕıÈ·ÉèÖÃ
+        // è·³è¿‡å®˜å‘˜é˜¶å±‚ï¼Œå®˜å‘˜çš„ wealthPerCapita åœ¨å®˜å‘˜æ¨¡æ‹Ÿå¾ªç¯åå·²æ­£ç¡®è®¾ç½®
         if (key === 'official') return;
         if (classLivingStandard[key]) {
             const count = popStructure[key] || 0;
@@ -5546,7 +6019,7 @@ export const simulateTick = ({
         }
     }
 
-    // ========== ÒµÖ÷×Ô¶¯Éı¼¶½¨ÖşÏµÍ³ ==========
+    // ========== ä¸šä¸»è‡ªåŠ¨å‡çº§å»ºç­‘ç³»ç»Ÿ ==========
     // Owner Auto-Upgrade: Wealthy owners will automatically upgrade their buildings
     // Uses BASE cost (no scaling with existing upgrades) as per user requirement
     const updatedBuildingUpgrades = { ...buildingUpgrades };
@@ -5635,12 +6108,12 @@ export const simulateTick = ({
             // 1. Deduct resources from market
             Object.entries(baseCost).forEach(([resource, amount]) => {
                 if (resource !== 'silver') {
-                    res[resource] = Math.max(0, (res[resource] || 0) - amount);
+                    applyResourceChange(resource, -amount, 'building_construction_cost');
                 }
             });
 
             // 2. Deduct cost from owner's wealth
-            wealth[ownerKey] = Math.max(0, ownerWealth - totalSilverCost);
+            ledger.transfer(ownerKey, 'void', totalSilverCost, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
 
             // 3. Update building upgrade levels
             if (!updatedBuildingUpgrades[buildingId]) {
@@ -5668,15 +6141,15 @@ export const simulateTick = ({
 
             // 4. Log the upgrade
             const ownerName = STRATA[ownerKey]?.name || ownerKey;
-            const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `µÈ¼¶${toLevel}`;
-            logs.push(`??? ${ownerName}×Ô·¢Í¶×ÊÁË×Ô¼ºµÄ²úÒµ ${b.name} ¡ú ${upgradeName}£¨»¨·Ñ ${Math.ceil(totalSilverCost)} Òø±Ò£©`);
+            const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `ç­‰çº§${toLevel}`;
+            logs.push(`??? ${ownerName}è‡ªå‘æŠ•èµ„äº†è‡ªå·±çš„äº§ä¸š ${b.name} â†’ ${upgradeName}ï¼ˆèŠ±è´¹ ${Math.ceil(totalSilverCost)} é“¶å¸ï¼‰`);
 
             // Only upgrade one building per type per tick to avoid rapid changes
             break;
         }
     });
 
-    // ========== ¹ÙÔ±²úÒµÉı¼¶ÂäµØ ==========
+    // ========== å®˜å‘˜äº§ä¸šå‡çº§è½åœ° ==========
     if (pendingOfficialUpgrades.length > 0) {
         pendingOfficialUpgrades.forEach(upgrade => {
             const { buildingId, fromLevel, toLevel, officialName, cost } = upgrade;
@@ -5699,7 +6172,7 @@ export const simulateTick = ({
                 delete updatedBuildingUpgrades[buildingId];
             }
 
-            logs.push(`??? ¹ÙÔ±${officialName}Éı¼¶ÁË ${buildingId}£¨»¨·Ñ ${Math.ceil(cost)} Òø£©`);
+            logs.push(`??? å®˜å‘˜${officialName}å‡çº§äº† ${buildingId}ï¼ˆèŠ±è´¹ ${Math.ceil(cost)} é“¶ï¼‰`);
         });
     }
 
@@ -5709,15 +6182,38 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
-    // Ó¦ÓÃ¹ÙÔ±Ë°ÊÕĞ§ÂÊ¼Ó³É (Í¬Ê±¼õÈ¥¸¯°ÜËğÊ§)
+    // åº”ç”¨å®˜å‘˜ç¨æ”¶æ•ˆç‡åŠ æˆ (åŒæ—¶å‡å»è…è´¥æŸå¤±)
     const rawTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
     const effectiveTaxEfficiency = Math.max(0, Math.min(1, rawTaxEfficiency));
     const collectedHeadTax = taxBreakdown.headTax * effectiveTaxEfficiency;
     const collectedIndustryTax = taxBreakdown.industryTax * effectiveTaxEfficiency;
     const collectedBusinessTax = taxBreakdown.businessTax * effectiveTaxEfficiency;
-    const collectedTariff = (taxBreakdown.tariff || 0) * effectiveTaxEfficiency; // ¹ØË°ÊÕÈë
+    const collectedTariff = (taxBreakdown.tariff || 0) * effectiveTaxEfficiency; // å…³ç¨æ”¶å…¥
     const taxBaseForCorruption = taxBreakdown.headTax + taxBreakdown.industryTax + taxBreakdown.businessTax + (taxBreakdown.tariff || 0);
     const efficiencyNoCorruption = Math.max(0, Math.min(1, efficiency * (1 + (bonuses.taxEfficiencyBonus || 0))));
+
+    // è®¡ç®—æ•ˆç‡æŸå¤±ï¼ˆç¨æ”¶æ•ˆç‡ < 1 å¯¼è‡´çš„æŸå¤±ï¼‰
+    // Ledger æ·»åŠ äº† taxBreakdown.xxxï¼ˆå…¨é¢ï¼‰ï¼Œä½†å®é™…åªæœ‰ collectedXxxï¼ˆæ•ˆç‡è°ƒæ•´åï¼‰è¿›å…¥å›½åº“
+    // å·®é¢ = å…¨é¢ - æ”¶åˆ°çš„ = taxBreakdown.xxx * (1 - effectiveTaxEfficiency)
+    const efficiencyLoss = taxBaseForCorruption * (1 - effectiveTaxEfficiency);
+
+    console.log('[TAX DEBUG] Efficiency Calc:', {
+        efficiency,
+        bonuses: bonuses.taxEfficiencyBonus,
+        rawTaxEfficiency,
+        effectiveTaxEfficiency,
+        taxBase: taxBaseForCorruption,
+        efficiencyLoss,
+        officialsCount: updatedOfficials.length
+    });
+
+    // å…ˆä»å›½åº“æ‰£é™¤æ•ˆç‡æŸå¤±ï¼ˆæ— è®ºæœ‰æ²¡æœ‰å®˜å‘˜ï¼‰
+    if (efficiencyLoss > 0) {
+        applySilverChange(-efficiencyLoss, 'tax_efficiency_loss');
+        console.log('[TAX DEBUG] Applied efficiency loss:', -efficiencyLoss);
+    }
+
+    // ç„¶åè®¡ç®—è…è´¥ï¼ˆå®˜å‘˜ä»æ•ˆç‡æŸå¤±ä¸­è·å–çš„éƒ¨åˆ†ï¼‰
     const corruptionLoss = Math.max(0, taxBaseForCorruption * (efficiencyNoCorruption - effectiveTaxEfficiency));
     if (corruptionLoss > 0 && updatedOfficials.length > 0) {
         const paidMultiplier = officialsPaid ? 1 : 0.5;
@@ -5741,46 +6237,97 @@ export const simulateTick = ({
             classWealthResult.official = Math.max(0, wealth.official);
             totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
             totalOfficialIncome += distributed;
-            if (classFinancialData.official) {
-                classFinancialData.official.income.corruption =
-                    (classFinancialData.official.income.corruption || 0) + distributed;
-            }
+            // è…è´¥å®é™…ä¸Šæ˜¯æ•ˆç‡æŸå¤±çš„ä¸€éƒ¨åˆ†ï¼Œå·²ç»è¢«æ‰£é™¤äº†ï¼Œè¿™é‡Œåªæ˜¯ç»™å®˜å‘˜åŠ è´¢å¯Œ
+            // ä¸å†è°ƒç”¨ ledger.transferï¼Œå› ä¸ºé“¶å­å·²ç»ä»å›½åº“æ‰£é™¤äº†
+            ledger.transfer('void', 'official', distributed, TRANSACTION_CATEGORIES.INCOME.CORRUPTION, TRANSACTION_CATEGORIES.INCOME.CORRUPTION);
         }
     }
-    const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // ¹ØË°²¹ÌùÖ§³ö
+    const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // å…³ç¨è¡¥è´´æ”¯å‡º
     const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
-    // ½«Ë°ÊÕÓëÕ½ÕùÅâ¿îÒ»²¢ÊÓÎª²ÆÕşÊÕÈë
+    // å°†ç¨æ”¶ä¸æˆ˜äº‰èµ”æ¬¾ä¸€å¹¶è§†ä¸ºè´¢æ”¿æ”¶å…¥
     const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
     // NEW: Apply income percentage bonus (from tech/decree effects)
     const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
-    const totalFiscalIncome = baseFiscalIncome * incomePercentMultiplier;
 
-    res.silver = (res.silver || 0) + totalFiscalIncome;
-    trackSilverChange(totalFiscalIncome, `Ë°ÊÕÊÕÈë£¨º¬Õ½ÕùÅâ¿î£©`);
-    rates.silver = (rates.silver || 0) + totalFiscalIncome;
+    // ç¨æ”¶å¤„ç†
+    // æ³¨æ„ï¼šLedger å·²å°†ç¨æ”¶ (taxBreakdown.xxx) æ·»åŠ åˆ°å›½åº“å¹¶è®°å½•æ—¥å¿—
+    // ç¨æ”¶æ•ˆç‡æŸå¤±å·²é€šè¿‡è…è´¥åˆ†é…ç»™å®˜å‘˜ï¼ˆç¬¬ 6082-6105 è¡Œï¼‰
+    // è¿™é‡Œåªéœ€è¦å¤„ç†æ”¶å…¥å€ç‡åŠ æˆï¼ˆå¦‚æœ incomePercentMultiplier > 1ï¼‰
+
+    // è®¡ç®—æœ€ç»ˆç¨é¢ï¼ˆç”¨äº rates æ˜¾ç¤ºï¼‰
+    const finalHeadTax = collectedHeadTax * incomePercentMultiplier;
+    const finalIndustryTax = collectedIndustryTax * incomePercentMultiplier;
+    const finalBusinessTax = collectedBusinessTax * incomePercentMultiplier;
+    const finalTariff = collectedTariff * incomePercentMultiplier;
+
+    // æ”¶å…¥å€ç‡åŠ æˆéƒ¨åˆ†ï¼ˆé¢å¤–æ”¶å…¥ï¼‰
+    if (incomePercentMultiplier > 1) {
+        const headTaxBonus = collectedHeadTax * (incomePercentMultiplier - 1);
+        const industryTaxBonus = collectedIndustryTax * (incomePercentMultiplier - 1);
+        const businessTaxBonus = collectedBusinessTax * (incomePercentMultiplier - 1);
+        const tariffBonus = collectedTariff * (incomePercentMultiplier - 1);
+
+        if (headTaxBonus > 0) applySilverChange(headTaxBonus, 'headTax'); // ç´¯åŠ åˆ° Ledger çš„è®°å½•
+        if (industryTaxBonus > 0) applySilverChange(industryTaxBonus, 'transactionTax');
+        if (businessTaxBonus > 0) applySilverChange(businessTaxBonus, 'businessTax');
+        if (tariffBonus > 0) applySilverChange(tariffBonus, 'tariffs');
+    }
+
+    // æ›´æ–° ratesï¼ˆç”¨äº UI æ˜¾ç¤ºï¼‰
+    rates.silver = (rates.silver || 0) + finalHeadTax + finalIndustryTax + finalBusinessTax + finalTariff;
+
+    // 5. æˆ˜äº‰èµ”æ¬¾åŠ æˆéƒ¨åˆ†
+    // NOTE: processInstallmentPayment() already recorded the base amount with 'installment_payment_income'
+    // Here we only add the bonus portion from incomePercentMultiplier (if any)
+    const warIndemnityBonus = warIndemnityIncome * (incomePercentMultiplier - 1);
+    if (warIndemnityBonus > 0) {
+        applySilverChange(warIndemnityBonus, 'income_war_indemnity_bonus');
+        rates.silver = (rates.silver || 0) + warIndemnityBonus;
+    }
+    // Update rates for display (base amount was already added in processInstallmentPayment)
+    if (warIndemnityIncome > 0) {
+        rates.silver = (rates.silver || 0) + warIndemnityIncome;
+    }
+
+    // 6. æ”¿ä»¤æ”¶å…¥
+    if (decreeSilverIncome > 0) {
+        applySilverChange(decreeSilverIncome, 'income_policy');
+        rates.silver = (rates.silver || 0) + decreeSilverIncome;
+    }
+
+    // 7. æ”¿ä»¤æ”¯å‡º (æ­¤å‰æœªæ‰£é™¤ï¼Œç°ä¿®æ­£)
+    if (decreeSilverExpense > 0) {
+        const expense = Math.min(res.silver || 0, decreeSilverExpense);
+        if (expense > 0) {
+            applySilverChange(-expense, 'expense_policy');
+            rates.silver = (rates.silver || 0) - expense;
+        }
+    }
 
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
+
+    const totalFiscalIncome = (totalCollectedTax + warIndemnityIncome) * incomePercentMultiplier;
 
     const priceControlIncome = taxBreakdown.priceControlIncome || 0;
     const priceControlExpense = taxBreakdown.priceControlExpense || 0;
     const effectiveTradeRouteTax = Number.isFinite(tradeRouteTax) ? tradeRouteTax : 0;
 
     // Price control income is added to silver here (expense was deducted in real-time)
-    res.silver = (res.silver || 0) + priceControlIncome;
-    trackSilverChange(priceControlIncome, `¼Û¸ñ¹ÜÖÆÊÕÈë`);
-    rates.silver = (rates.silver || 0) + priceControlIncome;
+    if (priceControlIncome !== 0) {
+        applySilverChange(priceControlIncome, 'income_price_control');
+        rates.silver = (rates.silver || 0) + priceControlIncome;
+    }
 
     if (effectiveTradeRouteTax !== 0) {
-        res.silver = (res.silver || 0) + effectiveTradeRouteTax;
-        trackSilverChange(effectiveTradeRouteTax, `Ã³Ò×Â·ÏßË°ÊÕ`);
+        applySilverChange(effectiveTradeRouteTax, 'income_trade_route');
         rates.silver = (rates.silver || 0) + effectiveTradeRouteTax;
     }
 
     const netTax = totalCollectedTax
         - taxBreakdown.subsidy
-        - tariffSubsidy // ¹ØË°²¹ÌùÖ§³ö
+        - tariffSubsidy // å…³ç¨è¡¥è´´æ”¯å‡º
         + warIndemnityIncome
         + decreeSilverIncome
         - decreeSilverExpense
@@ -5794,8 +6341,8 @@ export const simulateTick = ({
             headTax: collectedHeadTax,
             industryTax: collectedIndustryTax,
             businessTax: collectedBusinessTax,
-            tariff: collectedTariff, // ĞÂÔö£º¹ØË°ÊÕÈë
-            tariffSubsidy, // ĞÂÔö£º¹ØË°²¹ÌùÖ§³ö
+            tariff: collectedTariff, // æ–°å¢ï¼šå…³ç¨æ”¶å…¥
+            tariffSubsidy, // æ–°å¢ï¼šå…³ç¨è¡¥è´´æ”¯å‡º
             subsidy: taxBreakdown.subsidy,
             warIndemnity: warIndemnityIncome,
             policyIncome: decreeSilverIncome,
@@ -5806,7 +6353,7 @@ export const simulateTick = ({
             baseFiscalIncome,
             totalFiscalIncome,
             incomePercentMultiplier,
-            // DEBUG: µ÷ÊÔ¹ØË°²ßÂÔ
+            // DEBUG: è°ƒè¯•å…³ç¨ç­–ç•¥
             _debug_tariffPolicies: {
                 hasExport: !!policies.exportTariffMultipliers,
                 hasImport: !!policies.importTariffMultipliers,
@@ -5815,7 +6362,7 @@ export const simulateTick = ({
         },
     };
 
-    // === ¹ÙÔ±¶ÀÁ¢²ÆÎñ¼ÆËã ===
+    // === å®˜å‘˜ç‹¬ç«‹è´¢åŠ¡è®¡ç®— ===
     // Official processing moved to early simulation phase (before living standards)
     // Set official income for UI report (after applyRoleIncomeToWealth to avoid double count in wealth)
     roleWagePayout.official = totalOfficialIncome || 0;
@@ -5824,31 +6371,127 @@ export const simulateTick = ({
 
     if (aggregatedLogs.size > 0) {
         aggregatedLogs.forEach((count, message) => {
-            logs.push(count > 1 ? `${message}£¨¹²${count}´¦£©` : message);
+            logs.push(count > 1 ? `${message}ï¼ˆå…±${count}å¤„ï¼‰` : message);
         });
     }
 
+    // 2. Foreign Investments (AI -> Player) - Executed AFTER jobFill is populated
+    if (foreignInvestments.length > 0) {
+        const fiResult = processForeignInvestments({
+            foreignInvestments: updatedForeignInvestments,
+            nations: updatedNations, // Use updated nations
+            organizations: diplomacyOrganizations?.organizations || [],
+            playerMarket: { prices: updatedPrices },
+            playerResources: res,
+            foreignInvestmentPolicy,
+            daysElapsed: tick,
+            jobFill: buildingJobFill,
+            buildings: builds,
+        });
+
+        updatedForeignInvestments = fiResult.updatedInvestments;
+        investmentLogs.push(...fiResult.logs);
+
+        if (fiResult.taxRevenue > 0) {
+            applySilverChange(fiResult.taxRevenue, 'foreign_investment_tax');
+        }
+
+        // Apply market changes (from foreign operation)
+        if (fiResult.marketChanges) {
+            Object.entries(fiResult.marketChanges).forEach(([key, delta]) => {
+                // If it's resource accumulation/depletion in player market
+                // Note: processForeignInvestments returns 'marketChanges' for player resource changes
+                // But wait, the function modifies playerResources directly? No, it takes it as input.
+                // It returns marketChanges.
+                // Let's verify `processForeignInvestments` implementation.
+                // It calculates profit but does NOT modify `playerResources` in place inside calculation.
+                // It returns `marketChanges`.
+                // [FIX] Silver produced by foreign investors belongs to them (profit), not the state treasury.
+                if (key === 'silver') return;
+
+                // [FIX] Use applyResourceChange to ensure tracking
+                applyResourceChange(key, delta, 'autonomous_investment_return');
+            });
+        }
+
+        // Foreign Upgrades
+        const upgradeResult = processForeignInvestmentUpgrades({
+            foreignInvestments: updatedForeignInvestments,
+            nations: updatedNations,
+            playerMarket: { prices: updatedPrices },
+            playerResources: res,
+            buildingUpgrades: updatedBuildingUpgrades, // Use the updated upgrades from earlier
+            buildingCounts: builds,
+            daysElapsed: tick,
+        });
+
+        if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
+            updatedForeignInvestments = upgradeResult.updatedInvestments;
+            investmentLogs.push(...upgradeResult.logs);
+            // Costs are deducted from owner nation wealth inside updateNations?
+            // No, processForeignInvestmentUpgrades just returns the result. We need to update nations.
+            // But we already finished mapping updatedNations.
+            // We should update `updatedNations` again.
+            upgradeResult.upgrades.forEach(u => {
+                const nation = updatedNations.find(n => n.id === u.ownerNationId);
+                if (nation) {
+                    nation.wealth = Math.max(0, (nation.wealth || 0) - u.cost);
+                }
+            });
+        }
+    }
+
+    // Merge investment logs
+    logs.push(...investmentLogs);
+    // Add manual trade logs
+    if (tradeRouteSummary?.tradeLog) {
+        // Gated by log settings? Usually handled in UI, but simulation just returns them.
+        logs.push(...tradeRouteSummary.tradeLog);
+    }
+
+    // Trade Opportunities Analysis (Throttled: every 10 ticks)
+    const tradeOpportunities = (tick % 10 === 0)
+        ? analyzeTradeOpportunities({
+            nations: updatedNations,
+            res,
+            supply,
+            demand,
+            market: { prices: updatedPrices },
+            tick,
+            taxPolicies: policies,
+            merchantTradePreferences: updatedMerchantState.merchantTradePreferences
+        })
+        : previousTradeOpportunities;
+
     // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
+
+    // [NEW] Calculate foreign investment stats
+    const foreignStats = calculateOverseasInvestmentSummary(updatedForeignInvestments);
+
     return {
+        tradeOpportunities,
+        tradeRoutes: tradeRoutes ? { ...tradeRoutes, routes: tradeRoutes.routes.filter(r => !tradeRouteSummary?.routesToRemove?.includes(r)) } : undefined,
+        overseasInvestments: updatedOverseasInvestments,
+        foreignInvestments: updatedForeignInvestments,
         resources: res,
         rates,
         popStructure,
         maxPop: totalMaxPop,
-        militaryCapacity, // ĞÂÔö£º¾üÊÂÈİÁ¿
+        militaryCapacity, // æ–°å¢ï¼šå†›äº‹å®¹é‡
         population: nextPopulation,
         birthAccumulator,
         classApproval,
         approvalBreakdown,
         classInfluence,
         classWealth: classWealthResult,
-        classLivingStandard, // ¸÷½×²ãÉú»îË®Æ½Êı¾İ
+        classLivingStandard, // å„é˜¶å±‚ç”Ÿæ´»æ°´å¹³æ•°æ®
         totalInfluence,
         totalWealth,
         activeBuffs: newActiveBuffs,
         activeDebuffs: newActiveDebuffs,
         stability: stabilityValue,
-        legitimacy: coalitionLegitimacy, // Ö´ÕşÁªÃËºÏ·¨ĞÔ
-        legitimacyTaxModifier, // Ë°ÊÕĞŞÕıÏµÊı
+        legitimacy: coalitionLegitimacy, // æ‰§æ”¿è”ç›Ÿåˆæ³•æ€§
+        legitimacyTaxModifier, // ç¨æ”¶ä¿®æ­£ç³»æ•°
         logs,
         market: {
             prices: updatedPrices,
@@ -5868,18 +6511,20 @@ export const simulateTick = ({
         classFinancialData, // NEW: Return detailed financial data
         buildingFinancialData, // NEW: Per-building realized financial stats for UI
         buildingDebugData,  // DEBUG: Building production debug data
-        dailyMilitaryExpense: armyExpenseResult, // ĞÂÔö£ºÃ¿ÈÕ¾ü·ÑÊı¾İ£¨ÓÃÓÚÕ½ÕùÅâ¿î¼ÆËã£©
+        dailyMilitaryExpense: armyExpenseResult, // æ–°å¢ï¼šæ¯æ—¥å†›è´¹æ•°æ®ï¼ˆç”¨äºæˆ˜äº‰èµ”æ¬¾è®¡ç®—ï¼‰
         needsShortages: classShortages,
         needsReport,
         livingStandardStreaks: updatedLivingStandardStreaks,
         nations: updatedNations,
         merchantState: updatedMerchantState,
         buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
-        migrationCooldowns: updatedMigrationCooldowns, // ½×²ãÇ¨ÒÆÀäÈ´×´Ì¬
-        taxShock: updatedTaxShock, // [NEW] ¸÷½×²ãÀÛ»ıË°ÊÕ³å»÷Öµ
-        // ¼Ó³ÉĞŞÊÎ·ûÊı¾İ£¬¹©UIÏÔÊ¾"Ë­³Ôµ½ÁËbuff"
+        migrationCooldowns: updatedMigrationCooldowns, // é˜¶å±‚è¿ç§»å†·å´çŠ¶æ€
+        migrationCooldowns: updatedMigrationCooldowns, // é˜¶å±‚è¿ç§»å†·å´çŠ¶æ€
+        diplomacyOrganizations: organizationUpdatesOccurred ? { organizations: updatedOrganizations } : null,
+        taxShock: updatedTaxShock, // [NEW] å„é˜¶å±‚ç´¯ç§¯ç¨æ”¶å†²å‡»å€¼
+        // åŠ æˆä¿®é¥°ç¬¦æ•°æ®ï¼Œä¾›UIæ˜¾ç¤º"è°åƒåˆ°äº†buff"
         modifiers: {
-            // ĞèÇóĞŞÊÎ·û
+            // éœ€æ±‚ä¿®é¥°ç¬¦
             resourceDemand: {
                 ...decreeResourceDemandMod, ...Object.fromEntries(
                     Object.entries(eventResourceDemandModifiers).map(([k, v]) => [k, (decreeResourceDemandMod[k] || 0) + v])
@@ -5890,12 +6535,12 @@ export const simulateTick = ({
                     Object.entries(eventStratumDemandModifiers).map(([k, v]) => [k, (decreeStratumDemandMod[k] || 0) + v])
                 )
             },
-            // ¹©¸øĞŞÊÎ·û
+            // ä¾›ç»™ä¿®é¥°ç¬¦
             resourceSupply: decreeResourceSupplyMod,
-            // ½¨Öş²ú³öĞŞÊÎ·û
+            // å»ºç­‘äº§å‡ºä¿®é¥°ç¬¦
             buildingProduction: { ...buildingBonuses, ...eventBuildingProductionModifiers },
             categoryProduction: categoryBonuses,
-            // À´Ô´·Ö½â£¨ÓÃÓÚÏÔÊ¾ÄÄĞ©ÊÇÕşÁî/ÊÂ¼ş¼Ó³É£©
+            // æ¥æºåˆ†è§£ï¼ˆç”¨äºæ˜¾ç¤ºå“ªäº›æ˜¯æ”¿ä»¤/äº‹ä»¶åŠ æˆï¼‰
             sources: {
                 decreeResourceDemand: decreeResourceDemandMod,
                 decreeStratumDemand: decreeStratumDemandMod,
@@ -5905,20 +6550,20 @@ export const simulateTick = ({
                 eventBuildingProduction: eventBuildingProductionModifiers,
                 techBuildingBonus: buildingBonuses,
                 techCategoryBonus: categoryBonuses,
-                // È«¾ÖÉú²ú¼Ó³É£¨À´×ÔÕşÁîºÍ½ÚÈÕ£©
+                // å…¨å±€ç”Ÿäº§åŠ æˆï¼ˆæ¥è‡ªæ”¿ä»¤å’ŒèŠ‚æ—¥ï¼‰
                 productionBonus: productionBonus,
                 industryBonus: industryBonus,
-                // ¾üÊÂ¼Ó³É
+                // å†›äº‹åŠ æˆ
                 militaryBonus: bonuses.militaryBonus,
-                // ½×²ã²Æ¸»Ôö³¤¶ÔĞèÇóµÄÓ°Ïì£¨²Æ¸»Ô½¸ßĞèÇóÔ½¸ß£©
-                // ½×²ã²Æ¸»Ôö³¤¶ÔĞèÇóµÄÓ°Ïì£¨²Æ¸»Ô½¸ßĞèÇóÔ½¸ß£©
+                // é˜¶å±‚è´¢å¯Œå¢é•¿å¯¹éœ€æ±‚çš„å½±å“ï¼ˆè´¢å¯Œè¶Šé«˜éœ€æ±‚è¶Šé«˜ï¼‰
+                // é˜¶å±‚è´¢å¯Œå¢é•¿å¯¹éœ€æ±‚çš„å½±å“ï¼ˆè´¢å¯Œè¶Šé«˜éœ€æ±‚è¶Šé«˜ï¼‰
                 stratumWealthMultiplier: stratumWealthMultipliers,
-                // ½¨ÖşÔ­ÁÏÏûºÄĞŞÕı£¨¹ÙÔ±Ğ§¹û + ÕşÖÎÁ¢³¡Ğ§¹û£¬ÀÛ¼ÓºÏ²¢£©
+                // å»ºç­‘åŸæ–™æ¶ˆè€—ä¿®æ­£ï¼ˆå®˜å‘˜æ•ˆæœ + æ”¿æ²»ç«‹åœºæ•ˆæœï¼Œç´¯åŠ åˆå¹¶ï¼‰
                 productionInputCost: (() => {
                     const merged = {};
                     const official = bonuses.officialProductionInputCost || {};
                     const stance = bonuses.stanceProductionInputCost || {};
-                    // ºÏ²¢ËùÓĞ key
+                    // åˆå¹¶æ‰€æœ‰ key
                     const allKeys = new Set([...Object.keys(official), ...Object.keys(stance)]);
                     allKeys.forEach(key => {
                         merged[key] = (official[key] || 0) + (stance[key] || 0);
@@ -5926,7 +6571,7 @@ export const simulateTick = ({
                     return merged;
                 })(),
             },
-            // ¹ÙÔ±Ğ§¹ûĞŞÊÎ·û£¨¹©Íâ²¿Ê¹ÓÃ£©
+            // å®˜å‘˜æ•ˆæœä¿®é¥°ç¬¦ï¼ˆä¾›å¤–éƒ¨ä½¿ç”¨ï¼‰
             officialEffects: {
                 buildingCostMod: bonuses.buildingCostMod || 0,
                 militaryUpkeepMod: bonuses.militaryUpkeepMod || 0,
@@ -5944,17 +6589,26 @@ export const simulateTick = ({
                 diplomaticIncident: bonuses.diplomaticIncident || 0,
             },
         },
-        army, // È·±£·µ»Øarmy×´Ì¬£¬ÒÔ±ã±£´æÕ½¶·ËğÊ§
-        officials: updatedOfficials, // ¸üĞÂºóµÄ¹ÙÔ±ÁĞ±í£¨º¬²ÆÎñÊı¾İ£©
-        // ¼ÆËãÓĞĞ§¹ÙÔ±ÈİÁ¿£¨»ùÓÚÊ±´ú¡¢ÕşÌåºÍ¿Æ¼¼£©
+        foreignInvestmentStats: foreignStats, // [NEW] Return calculated foreign stats
+        army, // ç¡®ä¿è¿”å›armyçŠ¶æ€ï¼Œä»¥ä¾¿ä¿å­˜æˆ˜æ–—æŸå¤±
+        officials: updatedOfficials, // æ›´æ–°åçš„å®˜å‘˜åˆ—è¡¨ï¼ˆå«è´¢åŠ¡æ•°æ®ï¼‰
+        // è®¡ç®—æœ‰æ•ˆå®˜å‘˜å®¹é‡ï¼ˆåŸºäºæ—¶ä»£ã€æ”¿ä½“å’Œç§‘æŠ€ï¼‰
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
-        // [DEBUG] ÁÙÊ±µ÷ÊÔ×Ö¶Î - ×·×Ù×ÔÓÉÊĞ³¡»úÖÆÎÊÌâ
+        // [DEBUG] ä¸´æ—¶è°ƒè¯•å­—æ®µ - è¿½è¸ªè‡ªç”±å¸‚åœºæœºåˆ¶é—®é¢˜
         _debug: {
             freeMarket: _freeMarketDebug,
-            silverChangeLog, // Òø±Ò±ä»¯×·×ÙÈÕÖ¾
-            startingSilver,  // tick¿ªÊ¼Ê±µÄÒø±Ò
-            endingSilver: res.silver || 0, // tick½áÊøÊ±µÄÒø±Ò
+            // [DEBUG] Log the log - ä½¿ç”¨èšåˆåçš„æ•°æ®
+            silverChangeLog: (() => {
+                const logArray = silverChangeLog.toArray();
+                const hasMilitary = logArray.some(e => e.reason === 'expense_army_maintenance');
+                console.log('[Simulation End] silverChangeLog has military?', hasMilitary, 'Entries:', logArray.length);
+                return logArray;
+            })(),
+            classWealthChangeLog, // é˜¶å±‚è´¢å¯Œå˜åŒ–è¿½è¸ªæ—¥å¿—
+            startingSilver,  // tickå¼€å§‹æ—¶çš„é“¶å¸
+            endingSilver: res.silver || 0, // tickç»“æŸæ—¶çš„é“¶å¸
+            militaryDebugInfo: militaryDebug // [DEBUG] Pass explicit debug info
         },
     };
 };

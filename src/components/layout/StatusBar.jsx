@@ -1,7 +1,7 @@
 // 顶部状态栏组件 - 史诗风格重构
 // 移动端优先设计，紧凑布局，突出历史感
 
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { RollingNumber } from '../common/MotionComponents';
@@ -31,6 +31,94 @@ export const StatusBar = ({
     gameControls,
 }) => {
     const TAX_POPOVER_Z_INDEX = 95;
+    const MAX_FISCAL_ITEMS = 10;
+    const REASON_LABELS = {
+        '税收收入（含战争赔款）': '税收收入',
+        tax_head: '人头税',
+        tax_industry: '交易税',
+        tax_business: '营业税',
+        tax_tariff: '关税',
+        income_war_indemnity: '战争赔款收入', // legacy - should not appear after fix
+        income_war_indemnity_bonus: '战争赔款加成',
+        income_policy: '政令收入',
+        expense_policy: '政令支出',
+        '价格管制收入': '价格管制收入',
+        income_price_control: '价格管制收入',
+        '贸易路线税收': '贸易路线税收',
+        income_trade_route: '关税',
+        '军队维护支出': '军饷维护',
+        '军队维护支出（部分支付）': '军饷维护',
+        expense_army_maintenance: '军饷维护',
+        expense_army_maintenance_partial: '军饷维护',
+        official_salary: '官员薪俸',
+        forced_subsidy: '强制补贴',
+        treaty_maintenance: '条约维护费',
+        organization_membership_fee: '组织会费',
+        price_control_buy: '价格管制支出',
+        price_control_sell: '价格管制支出',
+        consumption_subsidy: '消费补贴',
+        head_tax_subsidy: '人头税补贴',
+        ai_trade_tariff: '关税',
+        installment_payment_income: '战争赔款收入',
+        vassal_tribute_income: '附庸朝贡',
+        vassal_tribute_cash: '附庸朝贡',
+        war_reparation_receive: '战争赔款收入',
+        war_reparation_payment: '战争赔款支出',
+        war_reparation_pay: '战争赔款支出',
+        diplomatic_trade_export: '外交贸易收入',
+        diplomatic_trade_import: '外交贸易支出',
+        diplomatic_gift: '外交送礼',
+        ai_request_payment: '外交索要',
+        ally_gift: '盟友送礼',
+        politics_spend_silver: '政治支出',
+        decree_enact_cost: '政令支出',
+        strategic_action_cost: '策略行动支出',
+        foreign_investment_tax: '外资税收',
+        treaty_signing_cost: '条约签约费',
+        treaty_negotiate_signing_cost: '条约签约费',
+        treaty_negotiate_signing_gift: '条约赠礼',
+        treaty_negotiate_demand_silver: '条约索赔收入',
+        border_incident_compensation: '外交赔偿',
+        rebel_reform_payment: '叛军妥协支出',
+        auto_replenish_cost: '自动补兵支出',
+        headTax: '人头税',
+        transactionTax: '交易税',
+        businessTax: '营业税',
+        tariffs: '关税',
+        subsidy: '税收补贴',
+        tariff_subsidy: '关税补贴',
+        tradeRouteTax: '贸易路线税收',
+        foreignInvestmentTax: '外资税收',
+        headtax: '人头税',
+        transactiontax: '交易税',
+        businesstax: '营业税',
+        tariff: '关税',
+        tariffsubsidy: '关税补贴',
+        traderoutetax: '贸易路线税收',
+        foreigninvestmenttax: '外资税收',
+        salary: '官员薪俸',
+        militaryPay: '军饷维护',
+        maintenance: '维护费',
+        untracked_delta: '对账差额',
+        // 新增日志映射
+        building_production_direct: '建筑直接产出',
+        passive_gain: '被动收益',
+        passive_cost: '被动支出',
+        passive_pop_gain: '人口红利',
+        passive_pop_cost: '人口维护',
+        passive_percent_gain: '被动加成收益',
+        passive_percent_cost: '被动加成支出',
+        passive_percent_base_gain: '被动基础收益',
+        event_effects_resource_percent: '事件资源加成',
+        event_effects_stratum_percent: '事件阶层需求',
+        event_effects_building_production: '事件建筑产出',
+        trade_import_gain: '贸易进口收入',
+        trade_export_deduction: '贸易出口成本',
+        autonomous_investment_return: '投资回报',
+        trade_route_transaction: '贸易结算',
+        overseas_investment_return: '海外投资收益',
+        tax_efficiency_loss: '征税效率损失',
+    };
 
     // Debug: Check activeEventEffects
     if (activeEventEffects?.forcedSubsidy?.length > 0) {
@@ -115,9 +203,60 @@ export const StatusBar = ({
     const policyIncome = taxes.breakdown?.policyIncome || 0;
     const policyExpense = taxes.breakdown?.policyExpense || 0;
 
+    const currentDay = gameState.daysElapsed || 0;
+    const treasuryEntries = Array.isArray(gameState?.treasuryChangeLog) ? gameState.treasuryChangeLog : [];
+    const latestTreasuryDay = useMemo(() => {
+        let latest = null;
+        treasuryEntries.forEach((entry) => {
+            if (!Number.isFinite(entry?.day)) return;
+            if (latest === null || entry.day > latest) latest = entry.day;
+        });
+        return latest;
+    }, [treasuryEntries]);
+    const fiscalDay = (latestTreasuryDay !== null && latestTreasuryDay !== undefined)
+        ? latestTreasuryDay
+        : currentDay;
+    const fiscalTreasuryEntries = useMemo(
+        () => treasuryEntries.filter(entry => entry?.day === fiscalDay),
+        [treasuryEntries, fiscalDay]
+    );
+    const actualFiscalSummary = useMemo(() => {
+        const totals = new Map();
+        let net = 0;
+        fiscalTreasuryEntries.forEach(entry => {
+            const amount = Number(entry?.amount || 0);
+            if (!Number.isFinite(amount) || amount === 0) return;
+            const rawReason = typeof entry?.reason === 'string' ? entry.reason.trim() : entry?.reason;
+            const lowerReason = typeof rawReason === 'string' ? rawReason.toLowerCase() : rawReason;
+            const label = REASON_LABELS[rawReason] || REASON_LABELS[lowerReason] || rawReason || '未知';
+            totals.set(label, (totals.get(label) || 0) + amount);
+            net += amount;
+        });
+        const buildItems = (isIncome) => {
+            const items = Array.from(totals.entries())
+                .filter(([, amount]) => (isIncome ? amount > 0 : amount < 0))
+                .map(([label, amount]) => ({ label, amount }))
+                .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+            if (items.length <= MAX_FISCAL_ITEMS) return items;
+            const kept = items.slice(0, MAX_FISCAL_ITEMS - 1);
+            const restSum = items.slice(MAX_FISCAL_ITEMS - 1)
+                .reduce((sum, item) => sum + item.amount, 0);
+            kept.push({ label: isIncome ? '其他收入' : '其他支出', amount: restSum });
+            return kept;
+        };
+        return {
+            net,
+            incomeItems: buildItems(true),
+            expenseItems: buildItems(false),
+        };
+    }, [fiscalTreasuryEntries]);
+    const hasActualFiscal = fiscalTreasuryEntries.length > 0;
+    const isCurrentDayFiscal = fiscalDay === currentDay;
+    const fiscalTitle = hasActualFiscal
+        ? `财政收支 (${isCurrentDayFiscal ? '本日·实际' : '上日·实际'})`
+        : '财政收支 (本日·估算)';
     // Net silver shown in the status bar should match the fiscal breakdown the player sees.
-    // Use the legacy netSilverPerDay (computed from taxes breakdown + upkeep) for display.
-    const displayNetSilver = Number(netSilverPerDay ?? 0);
+    const displayNetSilver = Number(hasActualFiscal ? actualFiscalSummary.net : (netSilverPerDay ?? 0));
 
     // Keep realized values for showing actual payouts (they are useful when treasury is insufficient).
     const actualOfficialSalaryPaid = Number(gameState?.fiscalActual?.officialSalaryPaid ?? officialSalaryPerDay ?? 0);
@@ -361,7 +500,7 @@ export const StatusBar = ({
                                 <div className={`flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded ${displayNetSilver >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
                                     <Icon name={displayNetSilver >= 0 ? 'TrendingUp' : 'TrendingDown'} size={9} className={netSilverClass} />
                                     <span className={`font-mono ${netSilverClass}`}>
-                                        {displayNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
+                                        {displayNetSilver >= 0 ? '+' : '-'}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
                                     </span>
                                 </div>
                             </button>
@@ -391,108 +530,146 @@ export const StatusBar = ({
                                                 <div className="flex items-center justify-between text-[11px] text-ancient-parchment mb-2">
                                                     <span className="font-bold flex items-center gap-1.5">
                                                         <Icon name="BarChart" size={12} className="text-ancient-gold" />
-                                                        财政收支 (本日·实际)
+                                                        {fiscalTitle}
                                                     </span>
                                                     <button onClick={() => setShowTaxDetail(false)}>
                                                         <Icon name="X" size={14} className="text-ancient-stone hover:text-white" />
                                                     </button>
                                                 </div>
                                                 <div className="text-[10px] space-y-1.5">
-                                                    {/* 收入项 */}
-                                                    <div className="stat-item-compact">
-                                                        <span className="text-ancient-stone">人头税</span>
-                                                        <span className="text-green-300 font-mono">+{formatNumberShortCN(Math.abs(adjustedHeadTax), { decimals: 1 })}</span>
-                                                    </div>
-                                                    <div className="stat-item-compact">
-                                                        <span className="text-ancient-stone">交易税</span>
-                                                        <span className="text-green-300 font-mono">+{formatNumberShortCN(Math.abs(adjustedIndustryTax), { decimals: 1 })}</span>
-                                                    </div>
-                                                    <div className="stat-item-compact">
-                                                        <span className="text-ancient-stone">营业税</span>
-                                                        <span className="text-green-300 font-mono">+{formatNumberShortCN(Math.abs(adjustedBusinessTax), { decimals: 1 })}</span>
-                                                    </div>
-                                                    <div className="stat-item-compact">
-                                                        <span className="text-ancient-stone">关税</span>
-                                                        <span className={`${tradeTaxClass} font-mono`}>{tradeTax >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(tradeTax || 0), { decimals: 1 })}</span>
-                                                    </div>
-                                                    {policyIncome > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">政令收益</span>
-                                                            <span className="text-green-300 font-mono">+{formatNumberShortCN(policyIncome, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {(taxes.breakdown?.priceControlIncome || 0) > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">价格管制收入</span>
-                                                            <span className="text-green-300 font-mono">+{formatNumberShortCN(taxes.breakdown.priceControlIncome, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {(taxes.breakdown?.warIndemnity || 0) > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">战争赔款收入</span>
-                                                            <span className="text-green-300 font-mono">+{formatNumberShortCN(adjustedWarIndemnity, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="epic-divider" />
-
-                                                    {/* 支出项 */}
-                                                    <div className="stat-item-compact">
-                                                        <span className="text-ancient-stone">军饷维护</span>
-                                                        <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(window.__GAME_MILITARY_EXPENSE__?.dailyExpense || silverUpkeepPerDay || 0), { decimals: 1 })}</span>
-                                                    </div>
-                                                    {officialSalaryPerDay > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">官员薪俸</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(actualOfficialSalaryPaid, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {officialSalaryPerDay > 0 && actualOfficialSalaryPaid !== officialSalaryPerDay && (
-                                                        <div className="text-[10px] text-amber-400/90 leading-tight">
-                                                            应付 {formatNumberShortCN(officialSalaryPerDay, { decimals: 1 })}（国库不足）
-                                                        </div>
-                                                    )}
-                                                    {taxes.breakdown?.subsidy > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">税收补贴</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(taxes.breakdown.subsidy, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {(taxes.breakdown?.tariffSubsidy || 0) > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">关税补贴</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(taxes.breakdown.tariffSubsidy, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {(taxes.breakdown?.priceControlExpense || 0) > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">价格管制支出</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(taxes.breakdown.priceControlExpense, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {policyExpense > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">政令支出</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(policyExpense, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {playerInstallmentPayment && playerInstallmentPayment.remainingDays > 0 && (
-                                                        <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">战争赔款支出</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(playerInstallmentPayment.amount || 0, { decimals: 1 })}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {activeEventEffects?.forcedSubsidy?.length > 0 && (
+                                                    {hasActualFiscal ? (
                                                         <>
-                                                            <div className="stat-item-compact">
-                                                                <span className="text-ancient-stone">强制补贴</span>
-                                                                <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(actualForcedSubsidyPaid || 0), { decimals: 1 })}</span>
-                                                            </div>
-                                                            {actualForcedSubsidyUnpaid > 0 && (
-                                                                <div className="text-[10px] text-amber-400/90 leading-tight">
-                                                                    欠付 {formatNumberShortCN(actualForcedSubsidyUnpaid, { decimals: 1 })}（国库不足）
+                                                            {actualFiscalSummary.incomeItems.map((item) => (
+                                                                <div className="stat-item-compact" key={`income-${item.label}`}>
+                                                                    <span className="text-ancient-stone">{item.label}</span>
+                                                                    <span className="text-green-300 font-mono">
+                                                                        +{formatNumberShortCN(Math.abs(item.amount), { decimals: 1 })}
+                                                                    </span>
                                                                 </div>
+                                                            ))}
+                                                            {actualFiscalSummary.incomeItems.length === 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">暂无收入</span>
+                                                                    <span className="text-ancient-stone">+0</span>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="epic-divider" />
+
+                                                            {actualFiscalSummary.expenseItems.map((item) => (
+                                                                <div className="stat-item-compact" key={`expense-${item.label}`}>
+                                                                    <span className="text-ancient-stone">{item.label}</span>
+                                                                    <span className="text-red-300 font-mono">
+                                                                        -{formatNumberShortCN(Math.abs(item.amount), { decimals: 1 })}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                            {actualFiscalSummary.expenseItems.length === 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">暂无支出</span>
+                                                                    <span className="text-ancient-stone">-0</span>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {/* 收入项 */}
+                                                            <div className="stat-item-compact">
+                                                                <span className="text-ancient-stone">人头税</span>
+                                                                <span className="text-green-300 font-mono">+{formatNumberShortCN(Math.abs(adjustedHeadTax), { decimals: 1 })}</span>
+                                                            </div>
+                                                            <div className="stat-item-compact">
+                                                                <span className="text-ancient-stone">交易税</span>
+                                                                <span className="text-green-300 font-mono">+{formatNumberShortCN(Math.abs(adjustedIndustryTax), { decimals: 1 })}</span>
+                                                            </div>
+                                                            <div className="stat-item-compact">
+                                                                <span className="text-ancient-stone">营业税</span>
+                                                                <span className="text-green-300 font-mono">+{formatNumberShortCN(Math.abs(adjustedBusinessTax), { decimals: 1 })}</span>
+                                                            </div>
+                                                            <div className="stat-item-compact">
+                                                                <span className="text-ancient-stone">关税</span>
+                                                                <span className={`${tradeTaxClass} font-mono`}>{tradeTax >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(tradeTax || 0), { decimals: 1 })}</span>
+                                                            </div>
+                                                            {policyIncome > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">政令收益</span>
+                                                                    <span className="text-green-300 font-mono">+{formatNumberShortCN(policyIncome, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+                                                            {(taxes.breakdown?.priceControlIncome || 0) > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">价格管制收入</span>
+                                                                    <span className="text-green-300 font-mono">+{formatNumberShortCN(taxes.breakdown.priceControlIncome, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+                                                            {(taxes.breakdown?.warIndemnity || 0) > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">战争赔款收入</span>
+                                                                    <span className="text-green-300 font-mono">+{formatNumberShortCN(adjustedWarIndemnity, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="epic-divider" />
+
+                                                            {/* 支出项 */}
+                                                            <div className="stat-item-compact">
+                                                                <span className="text-ancient-stone">军饷维护</span>
+                                                                <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(window.__GAME_MILITARY_EXPENSE__?.dailyExpense || silverUpkeepPerDay || 0), { decimals: 1 })}</span>
+                                                            </div>
+                                                            {officialSalaryPerDay > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">官员薪俸</span>
+                                                                    <span className="text-red-300 font-mono">-{formatNumberShortCN(actualOfficialSalaryPaid, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+                                                            {officialSalaryPerDay > 0 && actualOfficialSalaryPaid !== officialSalaryPerDay && (
+                                                                <div className="text-[10px] text-amber-400/90 leading-tight">
+                                                                    应付 {formatNumberShortCN(officialSalaryPerDay, { decimals: 1 })}（国库不足）
+                                                                </div>
+                                                            )}
+                                                            {taxes.breakdown?.subsidy > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">税收补贴</span>
+                                                                    <span className="text-red-300 font-mono">-{formatNumberShortCN(taxes.breakdown.subsidy, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+                                                            {(taxes.breakdown?.tariffSubsidy || 0) > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">关税补贴</span>
+                                                                    <span className="text-red-300 font-mono">-{formatNumberShortCN(taxes.breakdown.tariffSubsidy, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+                                                            {(taxes.breakdown?.priceControlExpense || 0) > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">价格管制支出</span>
+                                                                    <span className="text-red-300 font-mono">-{formatNumberShortCN(taxes.breakdown.priceControlExpense, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+                                                            {policyExpense > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">政令支出</span>
+                                                                    <span className="text-red-300 font-mono">-{formatNumberShortCN(policyExpense, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+                                                            {playerInstallmentPayment && playerInstallmentPayment.remainingDays > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">战争赔款支出</span>
+                                                                    <span className="text-red-300 font-mono">-{formatNumberShortCN(playerInstallmentPayment.amount || 0, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {activeEventEffects?.forcedSubsidy?.length > 0 && (
+                                                                <>
+                                                                    <div className="stat-item-compact">
+                                                                        <span className="text-ancient-stone">强制补贴</span>
+                                                                        <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(actualForcedSubsidyPaid || 0), { decimals: 1 })}</span>
+                                                                    </div>
+                                                                    {actualForcedSubsidyUnpaid > 0 && (
+                                                                        <div className="text-[10px] text-amber-400/90 leading-tight">
+                                                                            欠付 {formatNumberShortCN(actualForcedSubsidyUnpaid, { decimals: 1 })}（国库不足）
+                                                                        </div>
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </>
                                                     )}
@@ -503,7 +680,7 @@ export const StatusBar = ({
                                                     <div className="stat-item-compact bg-ancient-gold/10">
                                                         <span className="font-bold text-ancient-parchment">净收益</span>
                                                         <span className={`font-bold font-mono ${netSilverClass}`}>
-                                                            {displayNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
+                                                            {displayNetSilver >= 0 ? '+' : '-'}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
                                                         </span>
                                                     </div>
                                                 </div>

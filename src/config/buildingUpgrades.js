@@ -787,15 +787,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "深煤矿",
             cost: { plank: 150, tools: 40, silver: 500 },
-            input: { tools: 0.15, wood: 0.4, food: 0.6 }, // 略微增加投入
-            output: { coal: 2.0 }, // 约3x基础产量
-            jobs: { miner: 10, capitalist: 1 }, // +1 miner
+            input: { tools: 0.35, wood: 0.5, food: 0.8 }, // 略微增加投入
+            output: { coal: 5.0 }, // 约1.6x基础产量
+            jobs: { miner: 13, capitalist: 1 }, // +1 miner
         },
         {
             name: "大煤矿",
             cost: { brick: 100, tools: 60, silver: 1100 },
-            input: { tools: 0.25, wood: 0.6, food: 0.9 }, // 合理增加投入
-            output: { coal: 4.0, iron: 0.1 }, // 约 6.15x 基础产量 + 煤矿伴生铁翻倍
+            input: { tools: 0.55, wood: 0.8, food: 1.2 }, // 合理增加投入
+            output: { coal: 8.0, iron: 0.2 }, // 约 2.6x 基础产量 + 煤矿伴生铁
             jobs: { miner: 9, capitalist: 1 }, // +3 miners 大规模采矿
         },
     ],
@@ -805,16 +805,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大炼钢厂",
             cost: { brick: 200, iron: 120, silver: 750, science: 150 },
-            input: { iron: 0.35, coal: 0.35, science: 0.15 },
-            output: { steel: 0.52 }, // 1.3x
-            jobs: { engineer: 3, worker: 4, capitalist: 1 }, // keep same, efficiency upgrade
+            input: { iron: 1.2, coal: 1.2, science: 0.3 },
+            output: { steel: 1.2 }, // 1.7x (Fixed regression)
+            jobs: { engineer: 5, worker: 7, capitalist: 1 }, // keep same
         },
         {
             name: "钢铁联合厂",
             cost: { steel: 100, iron: 200, silver: 1700, science: 350 },
-            input: { iron: 0.55, coal: 0.55, science: 0.30 },
-            output: { steel: 0.9, tools: 0.1 }, // 2.25x + 钢工具副产
-            jobs: { engineer: 3, worker: 5, capitalist: 1 }, // +1 worker only
+            input: { iron: 2.4, coal: 2.4, science: 0.6 },
+            output: { steel: 2.4, tools: 0.2 }, // 2.0x of Lv1
+            jobs: { engineer: 5, worker: 8, capitalist: 1 }, // +1 worker only
         },
     ],
 
@@ -823,15 +823,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "大工厂",
             cost: { brick: 300, steel: 120, silver: 850, science: 200 },
-            input: { steel: 0.52, coal: 0.52, science: 0.30 },
-            output: { tools: 3.12 }, // 1.3x of base 2.40
+            input: { steel: 3.0, coal: 3.0, science: 0.75 },
+            output: { tools: 22.0 }, // ~1.5x of base 15.0
             jobs: { worker: 20, engineer: 4, capitalist: 1 },
         },
         {
             name: "制造中心",
             cost: { steel: 200, tools: 80, silver: 1900, science: 450 },
-            input: { steel: 0.90, coal: 0.90, science: 0.50 },
-            output: { tools: 5.4, steel: 0.02, science: 0.05 }, // 2.25x + 废钢回收&工艺改良
+            input: { steel: 4.2, coal: 4.2, science: 1.0 },
+            output: { tools: 32.0, steel: 0.1, science: 0.2 }, // ~2.1x + 废钢回收&工艺改良
             jobs: { worker: 21, engineer: 4, capitalist: 1 },
         },
     ],

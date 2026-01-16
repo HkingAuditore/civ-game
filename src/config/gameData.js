@@ -9,6 +9,20 @@ import { GAME_SPEEDS, RESOURCES } from './gameConstants';
 import { TECHS } from './technologies';
 import { COUNTRIES } from './countries';
 import { MILITARY_ACTIONS } from './militaryActions';
+import {
+  DIPLOMACY_ERA_UNLOCK,
+  TREATY_CONFIGS,
+  TREATY_TYPE_LABELS,
+  OPEN_MARKET_TREATY_TYPES,
+  PEACE_TREATY_TYPES,
+  ORGANIZATION_EFFECTS,
+  DIPLOMACY_SOVEREIGNTY_TYPES,
+  DIPLOMACY_ORGANIZATION_TYPES,
+  OVERSEAS_BUILDING_MODES,
+  DEFAULT_VASSAL_STATUS,
+  getTreatyDuration,
+  getTreatyBreachPenalty
+} from './diplomacy';
 import { 
   INDUSTRY_CHAINS, 
   CHAIN_SYNERGIES, 
@@ -52,6 +66,19 @@ export {
   
   // 固定军事行动
   MILITARY_ACTIONS,
+
+  // 外交扩展配置
+  DIPLOMACY_ERA_UNLOCK,
+  TREATY_CONFIGS,
+  TREATY_TYPE_LABELS,
+  OPEN_MARKET_TREATY_TYPES,
+  PEACE_TREATY_TYPES,
+  DIPLOMACY_SOVEREIGNTY_TYPES,
+  DIPLOMACY_ORGANIZATION_TYPES,
+  OVERSEAS_BUILDING_MODES,
+  DEFAULT_VASSAL_STATUS,
+  getTreatyDuration,
+  getTreatyBreachPenalty,
 
   // 产业链系统
   INDUSTRY_CHAINS,
