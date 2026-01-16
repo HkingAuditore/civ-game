@@ -1,5 +1,6 @@
 import { RESOURCES, TREATY_CONFIGS, TREATY_VALUES } from '../../config';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
+import { ORGANIZATION_TYPE_CONFIGS } from './organizationDiplomacy';
 
 const BASE_CHANCE_BY_TYPE = {
     peace_treaty: 0.45,
@@ -20,6 +21,24 @@ const getResourceGiftValue = (resourceKey, amount) => {
     return Math.max(0, basePrice * amount);
 };
 
+// Calculate total value of multiple resources
+const getMultiResourceGiftValue = (resources = [], resourceKey = '', resourceAmount = 0) => {
+    let total = 0;
+    // Support new array format
+    if (Array.isArray(resources) && resources.length > 0) {
+        for (const res of resources) {
+            if (res.key && res.amount > 0) {
+                total += getResourceGiftValue(res.key, res.amount);
+            }
+        }
+    }
+    // Also support old single resource format
+    if (resourceKey && resourceAmount > 0) {
+        total += getResourceGiftValue(resourceKey, resourceAmount);
+    }
+    return total;
+};
+
 const getResourceDealValue = (resourceKey, amount, nation, daysElapsed = 0) => {
     if (!resourceKey || !Number.isFinite(amount) || amount <= 0) return 0;
     const basePrice = RESOURCES[resourceKey]?.basePrice || 0;
@@ -28,6 +47,219 @@ const getResourceDealValue = (resourceKey, amount, nation, daysElapsed = 0) => {
     // Economic Utility: High value if they have shortage, Low value if surplus
     const multiplier = tradeStatus.isShortage ? 2.0 : (tradeStatus.isSurplus ? 0.5 : 1.0);
     return Math.max(0, basePrice * amount * multiplier);
+};
+
+/**
+ * Calculate the actual economic benefit of a treaty type for a nation
+ * Based on production capacity, economic strength, and trade situation
+ */
+const calculateTreatyBenefitForNation = ({
+    type,
+    nationWealth,
+    nationPower,
+    nationProduction = 0,
+    otherWealth,
+    otherPower,
+    otherProduction = 0,
+    relation = 50,
+    organization = null,
+    organizationMode = null,
+    durationDays = 365,
+}) => {
+    let benefit = 0;
+    let risk = 0;
+    let strategicValue = 0;
+    
+    const wealthRatio = otherWealth > 0 ? nationWealth / otherWealth : 1;
+    const powerRatio = otherPower > 0 ? nationPower / otherPower : 1;
+    const productionRatio = otherProduction > 0 ? nationProduction / otherProduction : 1;
+    const durationFactor = Math.min(3, durationDays / 365); // Scale benefits by duration
+    
+    switch (type) {
+        case 'trade_agreement':
+            // Trade agreement benefits both, but more for the one with higher production
+            // If you produce more, you sell more
+            if (productionRatio > 1) {
+                benefit = 500 * productionRatio * durationFactor;
+                strategicValue = 25 + Math.min(15, (productionRatio - 1) * 15);
+            } else {
+                benefit = 500 * durationFactor; // Still beneficial but less
+                strategicValue = 30; // Weaker party values the trade relationship more
+            }
+            // Risk: If partner is much wealthier, they may dominate trade
+            if (wealthRatio < 0.5) {
+                risk = 200 * durationFactor;
+            }
+            break;
+            
+        case 'free_trade':
+            // Free trade massively benefits the stronger producer
+            if (productionRatio > 1.2) {
+                benefit = 1500 * productionRatio * durationFactor;
+                risk = 100; // Small risk of dependency
+            } else if (productionRatio < 0.8) {
+                benefit = 300 * durationFactor; // Benefit from cheaper imports
+                risk = 800 * (1 / productionRatio) * durationFactor; // Risk of being flooded by imports
+            } else {
+                benefit = 800 * durationFactor;
+                risk = 200 * durationFactor;
+            }
+            // Dumping risk based on wealth difference
+            if (wealthRatio < 0.6) {
+                risk += 500 * durationFactor; // Risk of economic domination
+            }
+            strategicValue = 30;
+            break;
+            
+        case 'investment_pact':
+            // Investment benefits the one receiving investment (weaker economy)
+            if (wealthRatio < 1) {
+                benefit = 800 * (1 / wealthRatio) * durationFactor; // Weaker gets more benefit
+                risk = 300 * durationFactor; // Risk of foreign control
+            } else {
+                benefit = 400 * durationFactor; // Investor gets some return
+                risk = 200 * durationFactor; // Risk of investment loss
+            }
+            strategicValue = 25;
+            break;
+            
+        case 'open_market':
+            // Open market benefits both but more for the stronger economy
+            if (wealthRatio > 1.2) {
+                benefit = 600 * wealthRatio * durationFactor;
+                strategicValue = 25 + Math.min(25, (wealthRatio - 1) * 20); // Stronger economy gains strategic advantage
+            } else if (wealthRatio < 0.8) {
+                benefit = 400 * durationFactor;
+                risk = 300 * (1 / wealthRatio) * durationFactor; // Weaker faces competition risk
+                strategicValue = 35; // Still valuable for market access
+            } else {
+                benefit = 500 * durationFactor;
+                risk = 100 * durationFactor;
+                strategicValue = 30; // Balanced benefit
+            }
+            break;
+            
+        case 'academic_exchange':
+            // Academic exchange is usually mutually beneficial with low risk
+            benefit = 300 * durationFactor;
+            risk = 50; // Minimal risk
+            strategicValue = 40; // High strategic/soft power value
+            break;
+            
+        case 'defensive_pact':
+            // Defensive pact benefits the weaker party more
+            if (powerRatio < 1) {
+                benefit = 1000 * (1 / powerRatio) * durationFactor; // Weaker gets security
+                strategicValue = 60;
+            } else {
+                benefit = 300 * durationFactor; // Stronger gets an ally
+                risk = 200 * durationFactor; // Risk of being dragged into wars
+                strategicValue = 30;
+            }
+            break;
+            
+        case 'military_alliance':
+            // Military alliance - calculate based on organization strength
+            if (organization && organizationMode) {
+                const orgMembers = organization.members?.length || 1;
+                const orgTotalPower = organization.totalMilitaryPower || nationPower;
+                
+                if (organizationMode === 'invite') {
+                    // Inviting someone to your alliance
+                    // Value depends on what the other party brings
+                    benefit = 200 + (otherPower * 0.01); // Value of new member's military
+                    strategicValue = 50 + Math.min(50, orgMembers * 10); // Larger alliance = more strategic
+                } else if (organizationMode === 'join') {
+                    // Joining someone's alliance
+                    // Value depends on alliance strength
+                    benefit = 500 + (orgTotalPower * 0.005);
+                    strategicValue = 40 + Math.min(60, orgTotalPower / 1000);
+                    risk = 300; // Risk of losing autonomy
+                }
+            } else {
+                // Standalone military alliance consideration
+                if (powerRatio < 0.8) {
+                    benefit = 1500 * (1 / powerRatio);
+                    strategicValue = 80;
+                } else {
+                    benefit = 500;
+                    strategicValue = 40;
+                    risk = 300;
+                }
+            }
+            break;
+            
+        case 'economic_bloc':
+            // Economic bloc - major economic integration
+            if (organization && organizationMode) {
+                const orgMembers = organization.members?.length || 1;
+                const orgTotalWealth = organization.totalEconomicPower || nationWealth;
+                
+                if (organizationMode === 'invite') {
+                    // Inviting to your bloc - you gain market access
+                    benefit = 300 + (otherWealth * 0.002);
+                    strategicValue = 40 + Math.min(40, orgMembers * 8);
+                    // If you're much stronger, target faces dumping risk
+                    if (wealthRatio > 1.5 || productionRatio > 1.5) {
+                        // You benefit more from weaker partner
+                        benefit += 500;
+                    }
+                } else if (organizationMode === 'join') {
+                    // Joining a bloc
+                    benefit = 400 + (orgTotalWealth * 0.001);
+                    strategicValue = 35 + Math.min(50, orgTotalWealth / 10000);
+                    // Risk of being dominated if you're weaker
+                    if (wealthRatio < 0.7) {
+                        risk = 800; // Significant dumping/domination risk
+                    } else {
+                        risk = 200;
+                    }
+                }
+            } else {
+                // Standalone
+                if (wealthRatio > 1.2) {
+                    benefit = 1000 * wealthRatio;
+                    strategicValue = 50;
+                } else {
+                    benefit = 500;
+                    risk = 600 * (1 / wealthRatio);
+                    strategicValue = 30;
+                }
+            }
+            break;
+            
+        case 'peace_treaty':
+            // Peace is always valuable, more so if you're weaker
+            benefit = 500;
+            if (powerRatio < 0.8) {
+                benefit = 1000 * (1 / powerRatio);
+            }
+            strategicValue = 20;
+            break;
+            
+        case 'non_aggression':
+            // Non-aggression benefits weaker party more
+            benefit = 300;
+            if (powerRatio < 0.9) {
+                benefit = 600 * (1 / powerRatio);
+            }
+            strategicValue = 15;
+            break;
+            
+        default:
+            benefit = 300;
+            strategicValue = 10;
+    }
+    
+    // Relation modifier: Better relations reduce perceived risk
+    const relationModifier = Math.max(0.5, Math.min(1.5, relation / 50));
+    risk = risk / relationModifier;
+    
+    return {
+        benefit: Math.round(benefit),
+        risk: Math.round(risk),
+        strategicValue: Math.round(strategicValue),
+    };
 };
 
 export const calculateDealScore = ({
@@ -39,93 +271,191 @@ export const calculateDealScore = ({
     targetPower = 0,
     playerWealth = 0,
     targetWealth = 0,
+    playerProduction = 0,
+    targetProduction = 0,
+    organization = null,
+    organizationMode = null,
 }) => {
     const type = proposal.type;
     const relation = nation.relation || 0;
     const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
+    
+    // Support both old single resource format and new multi-resource format
+    const offerResources = Array.isArray(proposal.resources) ? proposal.resources : [];
     const resourceKey = proposal.resourceKey || '';
     const resourceAmount = Math.max(0, Math.floor(Number(proposal.resourceAmount) || 0));
+    const demandResources = Array.isArray(proposal.demandResources) ? proposal.demandResources : [];
     const demandSilver = Math.max(0, Math.floor(Number(proposal.demandSilver) || 0));
     const demandResourceKey = proposal.demandResourceKey || '';
     const demandResourceAmount = Math.max(0, Math.floor(Number(proposal.demandResourceAmount) || 0));
     const maintenancePerDay = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
     const durationDays = Math.max(1, Math.floor(Number(proposal.durationDays) || 365));
 
-    // --- Dynamic Treaty Value Scaling ---
-    const treatyBase = TREATY_VALUES[type] ?? 500;
-    const combinedWealth = Math.max(1000, (playerWealth || 0) + (targetWealth || 0));
-    // Logarithmic scale: 1.0 at 1k wealth, ~3.0 at 1M wealth. Ensures costs grow but don't explode linearly.
-    // Adjusted: scale = log10(wealth) - 2.  (1000 -> 1, 10000 -> 2, 100000 -> 3)
-    const wealthScale = Math.max(1.0, Math.log10(combinedWealth) - 2);
-    const treatyValue = Math.floor(treatyBase * wealthScale);
+    // --- Dynamic Treaty Value for Target Nation ---
+    const targetBenefit = calculateTreatyBenefitForNation({
+        type,
+        nationWealth: targetWealth,
+        nationPower: targetPower,
+        nationProduction: targetProduction,
+        otherWealth: playerWealth,
+        otherPower: playerPower,
+        otherProduction: playerProduction,
+        relation,
+        organization,
+        organizationMode: organizationMode === 'invite' ? 'join' : (organizationMode === 'join' ? 'invite' : organizationMode),
+        durationDays,
+    });
+    
+    // --- Dynamic Treaty Value for Player (for UI display) ---
+    const playerBenefit = calculateTreatyBenefitForNation({
+        type,
+        nationWealth: playerWealth,
+        nationPower: playerPower,
+        nationProduction: playerProduction,
+        otherWealth: targetWealth,
+        otherPower: targetPower,
+        otherProduction: targetProduction,
+        relation,
+        organization,
+        organizationMode,
+        durationDays,
+    });
 
-    // --- Offer & Demand Value ---
-    const offerResourceValue = getResourceDealValue(resourceKey, resourceAmount, nation, daysElapsed);
-    const demandResourceValue = getResourceDealValue(demandResourceKey, demandResourceAmount, nation, daysElapsed);
+    // --- Wealth Scaling ---
+    const combinedWealth = Math.max(1000, (playerWealth || 0) + (targetWealth || 0));
+    const wealthScale = Math.max(1.0, Math.log10(combinedWealth) - 2);
+
+    // --- Offer & Demand Value (now supports multiple resources) ---
+    let offerResourceValue = getResourceDealValue(resourceKey, resourceAmount, nation, daysElapsed);
+    for (const res of offerResources) {
+        if (res.key && res.amount > 0) {
+            offerResourceValue += getResourceDealValue(res.key, res.amount, nation, daysElapsed);
+        }
+    }
+    
+    let demandResourceValue = getResourceDealValue(demandResourceKey, demandResourceAmount, nation, daysElapsed);
+    for (const res of demandResources) {
+        if (res.key && res.amount > 0) {
+            demandResourceValue += getResourceDealValue(res.key, res.amount, nation, daysElapsed);
+        }
+    }
 
     // Maintenance value (NPV approximation)
     const maintenanceValue = maintenancePerDay * Math.min(365, durationDays);
 
-    const offerValue = signingGift + offerResourceValue + maintenanceValue;
-    const demandValue = demandSilver + demandResourceValue;
+    // Raw absolute values
+    const offerValueRaw = signingGift + offerResourceValue + maintenanceValue;
+    const demandValueRaw = demandSilver + demandResourceValue;
+    
+    // --- Scale offer/demand relative to target's wealth ---
+    // A nation with 500 million wealth won't care about 10,000 silver
+    // We normalize the value to a "perceived importance" score
+    // Formula: perceived = (raw / targetWealth) * baseScale
+    // baseScale chosen so that offering 1% of their wealth = ~1000 score points
+    const targetWealthSafe = Math.max(10000, targetWealth || 10000);
+    const valueScaleFactor = 100000; // Offering 1% of their wealth = 1000 score
+    
+    // Perceived value = how significant this amount is to the target
+    // If AI has 500M wealth, 10000 silver = 10000/500000000 * 100000 = 2 points (negligible)
+    // If AI has 100K wealth, 10000 silver = 10000/100000 * 100000 = 10000 points (significant!)
+    const offerValue = Math.round((offerValueRaw / targetWealthSafe) * valueScaleFactor);
+    const demandValue = Math.round((demandValueRaw / targetWealthSafe) * valueScaleFactor);
 
-    // --- Stance & Strategic Calculation ---
+    // --- Stance Modifiers ---
     let stanceScore = 0;
-    let politicalCost = 0; // Represents risk/relation penalty if failed
-    let strategicValue = 0;
-
-    // Relation Impact
-    const relationScore = (relation - 50) * (wealthScale * 10); // Scale relation impact with era/wealth
+    let stancePoliticalCost = 0;
 
     if (stance === 'friendly') {
-        // Friendly: Reduces threshold by boosting score based on relation
-        // Effective only if relations are positive
         if (relation > 20) {
-            stanceScore = (relation - 20) * (wealthScale * 5);
+            stanceScore = (relation - 20) * (wealthScale * 3);
         }
-        strategicValue += 50; // Good for reputation
     } else if (stance === 'aggressive') {
-        // Aggressive: Leverages Power & Wealth Gap
         const powerRatio = targetPower > 0 ? playerPower / targetPower : 2.0;
         const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 2.0;
 
-        if (powerRatio > 1.0) stanceScore += (powerRatio - 1.0) * (treatyValue * 0.5); // Up to 50% of treaty value
-        if (wealthRatio > 1.0) stanceScore += (wealthRatio - 1.0) * (treatyValue * 0.3); // Up to 30% of treaty value
+        if (powerRatio > 1.0) stanceScore += (powerRatio - 1.0) * 300;
+        if (wealthRatio > 1.0) stanceScore += (wealthRatio - 1.0) * 200;
 
-        politicalCost = 20; // Relation penalty if failed
+        stancePoliticalCost = 20;
     } else if (stance === 'threat') {
-        // Threat: Extreme Aggressive
         const powerRatio = targetPower > 0 ? playerPower / targetPower : 2.0;
         if (powerRatio > 1.2) {
-             stanceScore += (powerRatio - 1.0) * (treatyValue * 1.0); // Up to 100% of treaty value
+            stanceScore += (powerRatio - 1.0) * 500;
         } else {
-            stanceScore -= treatyValue * 0.5; // Penalty if bluffing without power
+            stanceScore -= 500; // Penalty if bluffing without power
         }
-        politicalCost = 50; // Severe relation penalty
+        stancePoliticalCost = 50;
     }
 
-    // --- Final Score ---
-    // Score = (Offer + Relation + Stance) - (Demand + TreatyCost)
-    const score = (offerValue + relationScore + stanceScore) - (demandValue + treatyValue);
+    // --- Calculate what target thinks of the deal ---
+    // Positive score = AI thinks it's gaining, Negative = AI thinks it's losing
+    // Score = (What AI gets) - (What AI gives up)
+    // What AI GETS: treaty benefit + silver/resources PLAYER OFFERS + stance bonus (from player's friendly stance)
+    // What AI GIVES: treaty risk + silver/resources PLAYER DEMANDS + relation penalty (if bad relations)
+    
+    // offerValue = what player is GIVING (signingGift + resources) = what AI RECEIVES
+    // demandValue = what player DEMANDS = what AI has to PAY
+    
+    // Relation impact: bad relations make AI more suspicious, good relations help
+    // But don't let it dominate the calculation - cap it
+    const relationImpact = Math.max(-500, Math.min(500, (relation - 50) * 10));
+    
+    const score = (targetBenefit.benefit + offerValue + stanceScore + relationImpact) 
+                - (targetBenefit.risk + demandValue);
+
+    // --- Strategic Value (Dynamic based on treaty and circumstances) ---
+    const strategicValue = playerBenefit.strategicValue;
+    
+    // --- Political Risk (Dynamic based on treaty type and power dynamics) ---
+    let politicalCost = stancePoliticalCost;
+    
+    // Add treaty-specific political risk for the player
+    if (type === 'free_trade' || type === 'economic_bloc') {
+        const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
+        if (wealthRatio < 0.7) {
+            politicalCost += Math.round(50 * (1 / wealthRatio)); // Risk of economic domination
+        }
+    }
+    if (type === 'military_alliance' || type === 'defensive_pact') {
+        const powerRatio = targetPower > 0 ? playerPower / targetPower : 1;
+        if (powerRatio < 0.8) {
+            politicalCost += 20; // Risk of being subordinate
+        }
+    }
+
+    // --- Economic Net Value (for display) ---
+    // This shows the direct monetary exchange in absolute terms (for UI display)
+    const economicNetValue = offerValueRaw - demandValueRaw;
 
     return {
         score,
         breakdown: {
-            offerValue,
-            demandValue,
-            treatyValue,
-            relationScore,
+            offerValue,       // Scaled perceived value
+            demandValue,      // Scaled perceived value
+            offerValueRaw,    // Absolute silver amount
+            demandValueRaw,   // Absolute silver amount
+            treatyValue: targetBenefit.benefit, // What target thinks treaty is worth
+            treatyRisk: targetBenefit.risk, // What target thinks the risk is
+            relationImpact,
             stanceScore,
             maintenanceValue,
-            strategicValue, // For UI display
-            politicalCost,  // For UI display (Risk)
-            wealthScale,    // For debug/UI
+            strategicValue,
+            politicalCost,
+            wealthScale,
+            economicNetValue, // Absolute net value for UI
+            targetWealthSafe, // For debugging
+            // For detailed analysis
+            playerBenefit: playerBenefit.benefit,
+            playerRisk: playerBenefit.risk,
+            targetBenefit: targetBenefit.benefit,
+            targetRisk: targetBenefit.risk,
         },
     };
 };
 
 /**
- * 计算谈判接受率（不包含随机）
+ * Calculate negotiation acceptance chance
+ * Now properly linked to AI's evaluation of the deal
  */
 export const calculateNegotiationAcceptChance = ({
     proposal = {},
@@ -137,6 +467,10 @@ export const calculateNegotiationAcceptChance = ({
     targetPower = 0,
     playerWealth = 0,
     targetWealth = 0,
+    playerProduction = 0,
+    targetProduction = 0,
+    organization = null,
+    organizationMode = null,
 }) => {
     const type = proposal.type;
     const relation = nation.relation || 0;
@@ -144,24 +478,15 @@ export const calculateNegotiationAcceptChance = ({
     const maintenancePerDay = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
     const durationDays = Math.max(1, Math.floor(Number(proposal.durationDays) || 365));
     const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
+    // Support both old single resource format and new multi-resource format
+    const offerResources = Array.isArray(proposal.resources) ? proposal.resources : [];
     const resourceKey = proposal.resourceKey || '';
     const resourceAmount = Math.max(0, Math.floor(Number(proposal.resourceAmount) || 0));
+    const demandResources = Array.isArray(proposal.demandResources) ? proposal.demandResources : [];
+    const demandResourceKey = proposal.demandResourceKey || '';
+    const demandResourceAmount = Math.max(0, Math.floor(Number(proposal.demandResourceAmount) || 0));
 
     const treatyConfig = TREATY_CONFIGS[type] || {};
-    const base = BASE_CHANCE_BY_TYPE[type] ?? 0.25;
-
-    const relationBoost = Math.max(0, (relation - 40) / 100);
-    const aggressionPenalty = aggression * 0.25;
-    const maintenancePenalty = Math.min(0.25, maintenancePerDay / 500000);
-
-    const baseDuration = treatyConfig.baseDuration || 365;
-    const durationBonus = durationDays > baseDuration
-        ? Math.min(0.08, ((durationDays - baseDuration) / baseDuration) * 0.06)
-        : 0;
-
-    const giftValue = signingGift + getResourceGiftValue(resourceKey, resourceAmount);
-    // Adjusted gift bonus scaling
-    const giftBonus = Math.min(0.25, giftValue / Math.max(1000, targetWealth * 0.1));
 
     const deal = calculateDealScore({
         proposal,
@@ -172,36 +497,88 @@ export const calculateNegotiationAcceptChance = ({
         targetPower,
         playerWealth,
         targetWealth,
+        playerProduction,
+        targetProduction,
+        organization,
+        organizationMode,
     });
 
-    // Accept Chance Calculation
-    // Base + Bonuses + (Score / ReferenceValue)
-    // Reference value scales with treaty value to keep chance normalized
-    const referenceValue = Math.max(1000, deal.breakdown.treatyValue);
-    let acceptChance = 0.5 + (deal.score / referenceValue);
+    // --- Accept Chance directly tied to deal score ---
+    // If AI thinks it's gaining (positive score), high chance
+    // If AI thinks it's losing (negative score), low chance
+    
+    // Reference value for normalizing the score
+    const referenceValue = Math.max(500, (deal.breakdown.treatyValue + deal.breakdown.treatyRisk) / 2);
+    
+    // Base chance from deal score: score / referenceValue gives us a -1 to +1 range approximately
+    // We then shift and scale to get a 0-1 chance
+    const scoreChance = 0.5 + (deal.score / referenceValue) * 0.4; // Score contributes up to ±40%
+    
+    // Relation modifier: good relations make deals easier
+    const relationBoost = Math.max(-0.2, Math.min(0.2, (relation - 50) / 200));
+    
+    // Aggression penalty: aggressive nations are harder to negotiate with
+    const aggressionPenalty = aggression * 0.15;
+    
+    // Maintenance penalty: high ongoing costs make deals less attractive
+    const maintenancePenalty = Math.min(0.15, maintenancePerDay / 500000);
+    
+    // Duration bonus: longer deals are slightly more attractive if beneficial
+    const baseDuration = treatyConfig.baseDuration || 365;
+    const durationBonus = deal.score > 0 && durationDays > baseDuration
+        ? Math.min(0.05, ((durationDays - baseDuration) / baseDuration) * 0.03)
+        : 0;
 
-    acceptChance += base - 0.25;
-    acceptChance += relationBoost - aggressionPenalty - maintenancePenalty + durationBonus + giftBonus;
+    // Gift bonus: gifts always help (now supports multiple resources)
+    const giftValue = signingGift + getMultiResourceGiftValue(offerResources, resourceKey, resourceAmount);
+    const giftBonus = Math.min(0.15, giftValue / Math.max(1000, targetWealth * 0.1));
 
-    // Type-specific modifiers
-    if (type === 'open_market' && relation < 55) acceptChance *= 0.4;
-    if (type === 'trade_agreement' && relation < 50) acceptChance *= 0.5;
-    if (type === 'free_trade' && relation < 65) acceptChance *= 0.3;
-    if (type === 'investment_pact' && relation < 60) acceptChance *= 0.4;
-    if (type === 'academic_exchange' && relation < 65) acceptChance *= 0.2;
-    if (type === 'defensive_pact' && relation < 70) acceptChance *= 0.2;
-    if (type === 'military_alliance' && relation < 75) acceptChance *= 0.1; // Very hard if low relation
-    if (type === 'economic_bloc' && relation < 70) acceptChance *= 0.2;
+    let acceptChance = scoreChance + relationBoost - aggressionPenalty - maintenancePenalty + durationBonus + giftBonus;
 
+    // Type-specific relation gates with softer penalties
+    const typeRelationRequirements = {
+        'open_market': 55,
+        'trade_agreement': 50,
+        'free_trade': 65,
+        'investment_pact': 60,
+        'academic_exchange': 65,
+        'defensive_pact': 70,
+        'military_alliance': 75,
+        'economic_bloc': 70,
+    };
+    
+    const requiredRelation = typeRelationRequirements[type];
+    if (requiredRelation && relation < requiredRelation) {
+        const relationDeficit = requiredRelation - relation;
+        acceptChance *= Math.max(0.1, 1 - (relationDeficit / 50)); // Soft penalty based on deficit
+    }
+
+    // Hard relation gate from treaty config
     const minRelation = Number.isFinite(treatyConfig.minRelation) ? treatyConfig.minRelation : null;
     const relationGate = minRelation != null && relation < minRelation;
     if (relationGate) {
-        // If below min relation, chance is severely penalized but theoretically possible with immense gifts/power
         acceptChance = Math.min(0.05, acceptChance * 0.1);
     }
 
+    // Ensure deal score and chance are correlated
+    // If AI thinks it's significantly losing, cap the chance
+    if (deal.score < -1000) {
+        acceptChance = Math.min(acceptChance, 0.1);
+    } else if (deal.score < -500) {
+        acceptChance = Math.min(acceptChance, 0.25);
+    } else if (deal.score < 0) {
+        acceptChance = Math.min(acceptChance, 0.5);
+    }
+    
+    // If AI thinks it's gaining significantly, boost chance
+    if (deal.score > 1000) {
+        acceptChance = Math.max(acceptChance, 0.7);
+    } else if (deal.score > 500) {
+        acceptChance = Math.max(acceptChance, 0.5);
+    }
+
     return {
-        acceptChance: Math.max(0.0, Math.min(1.0, acceptChance)), // Clamp between 0 and 1
+        acceptChance: Math.max(0.0, Math.min(1.0, acceptChance)),
         relationGate,
         minRelation,
         dealScore: deal.score,
@@ -210,7 +587,7 @@ export const calculateNegotiationAcceptChance = ({
 };
 
 /**
- * 生成AI反提案
+ * Generate AI counter-proposal
  */
 export const generateCounterProposal = ({ proposal = {}, nation = {}, round = 1 }) => {
     const relation = nation.relation || 0;
@@ -223,8 +600,7 @@ export const generateCounterProposal = ({ proposal = {}, nation = {}, round = 1 
     const maintenanceBase = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
     const giftBase = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
 
-    // AI demands longer duration for favorable treaties, shorter for unfavorable?
-    // Simplified: AI just varies it slightly
+    // AI adjusts duration
     next.durationDays = Math.ceil(durationBase * (1.15 + Math.random() * 0.2));
 
     if (maintenanceBase > 0) {
@@ -232,17 +608,14 @@ export const generateCounterProposal = ({ proposal = {}, nation = {}, round = 1 
     }
 
     const giftFloor = Math.round(120 + (1 - relation / 100) * 600);
-    // AI asks for more money/gifts
     next.signingGift = Math.ceil(Math.max(giftBase * (1.2 + Math.random() * 0.2), giftFloor));
 
     if (proposal.resourceKey && proposal.resourceAmount) {
-        // AI asks for more resources if offered
         next.resourceAmount = Math.ceil(Math.max(1, proposal.resourceAmount * (1.1 + Math.random() * 0.2)));
     }
 
-    // AI logic could be improved to demand silver if not offered, but this suffices for "Counter Proposal" structure
     if (!next.demandSilver && Math.random() < 0.3) {
-        next.demandSilver = 100; // Small demand added
+        next.demandSilver = 100;
     }
 
     return next;

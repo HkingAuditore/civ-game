@@ -30,6 +30,7 @@ const DiplomacyDashboard = ({
     nations,
     gameState,
     epoch,
+    silver = 0,
     diplomacyOrganizations,
     overseasInvestments,
     market,
@@ -235,16 +236,12 @@ const DiplomacyDashboard = ({
                                             </div>
 
                                             {!isMember ? (
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onDiplomaticAction?.('player', 'join_org', { orgId: org.id });
-                                                    }}
-                                                >
-                                                    申请加入
-                                                </Button>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="text-xs text-ancient-stone/70 px-2 py-1 rounded bg-ancient-stone/10 border border-ancient-stone/20 flex items-center gap-1">
+                                                        <Icon name="MessageSquare" size={12} />
+                                                        需与创始国谈判
+                                                    </span>
+                                                </div>
                                             ) : (
                                                 <span className="text-xs text-green-400 font-bold px-2 py-1 rounded bg-green-900/20 border border-green-500/20 flex items-center gap-1">
                                                     <Icon name="Check" size={12} />
@@ -304,6 +301,7 @@ const DiplomacyDashboard = ({
                     setCreateOrgType(null);
                 }}
                 orgType={createOrgType}
+                silver={silver}
                 onCreate={(name) => {
                     if (onDiplomaticAction && createOrgType) {
                         onDiplomaticAction('player', 'create_org', {

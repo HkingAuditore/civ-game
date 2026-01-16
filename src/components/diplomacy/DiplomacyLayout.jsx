@@ -179,6 +179,7 @@ const DiplomacyLayout = ({
                         epoch={epoch}
                         gameState={gameState}
                         market={market}
+                        silver={resources?.silver || 0}
                         resources={resources}
                         daysElapsed={daysElapsed}
                         tradeRoutes={tradeRoutes}

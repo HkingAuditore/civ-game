@@ -51,14 +51,6 @@ const NationDetailView = ({
         ? relationInfo(nation)
         : { value: 0, label: '未知', color: 'text-ancient-stone', bg: '' };
 
-    // Get player's organizations to invite nation to
-    const playerOrganizations = useMemo(() => {
-        if (!diplomacyOrganizations?.organizations) return [];
-        return diplomacyOrganizations.organizations.filter(org =>
-            Array.isArray(org.members) && org.members.includes('player')
-        );
-    }, [diplomacyOrganizations]);
-
     const tabs = [
         { id: 'overview', label: '国家概览' },
         { id: 'actions', label: '外交行动' },
@@ -163,22 +155,6 @@ const NationDetailView = ({
                             onClick={() => onNegotiate?.()}
                             color="blue"
                         />
-
-                        {/* Invite to Organization Buttons */}
-                        {playerOrganizations.map(org => {
-                            const isMember = Array.isArray(nation.organizationMemberships) && nation.organizationMemberships.includes(org.id);
-                            return (
-                                <ActionCard
-                                    key={org.id}
-                                    icon="Users"
-                                    title={`邀请加入${org.name}`}
-                                    desc={isMember ? '已是成员。' : `邀请该国加入 ${org.name}。`}
-                                    disabled={isMember}
-                                    onClick={() => onDiplomaticAction?.(nation.id, 'join_org', { orgId: org.id })}
-                                    color="purple"
-                                />
-                            );
-                        })}
 
                         <ActionCard
                             icon="MessageSquareWarning"

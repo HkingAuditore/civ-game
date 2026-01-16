@@ -76,11 +76,9 @@ const DiplomacyTabComponent = ({
         durationDays: 365,
         maintenancePerDay: 0,
         signingGift: 0,
-        resourceKey: '',
-        resourceAmount: 0,
+        resources: [], // Array of { key: string, amount: number }
         demandSilver: 0,
-        demandResourceKey: '',
-        demandResourceAmount: 0,
+        demandResources: [], // Array of { key: string, amount: number }
         stance: 'normal',
     });
 
@@ -124,7 +122,12 @@ const DiplomacyTabComponent = ({
 
     // Negotiation Logic
     const getDefaultNegotiationType = () => {
-        const unlockedType = NEGOTIABLE_TREATY_TYPES.find((type) => isDiplomacyUnlocked('treaties', type, epoch));
+        const unlockedType = NEGOTIABLE_TREATY_TYPES.find((type) => {
+            // military_alliance and economic_bloc are organizations, not treaties
+            const isOrganizationType = type === 'military_alliance' || type === 'economic_bloc';
+            const category = isOrganizationType ? 'organizations' : 'treaties';
+            return isDiplomacyUnlocked(category, type, epoch);
+        });
         return unlockedType || 'peace_treaty';
     };
 
@@ -151,6 +154,26 @@ const DiplomacyTabComponent = ({
 
     const negotiationEvaluation = useMemo(() => {
         if (!selectedNation) return { acceptChance: 0, relationGate: false };
+        
+        // Get organization info if relevant
+        let organization = null;
+        let organizationMode = null;
+        const orgType = negotiationDraft.type === 'military_alliance' ? 'military_alliance' : 
+                       (negotiationDraft.type === 'economic_bloc' ? 'economic_bloc' : null);
+        
+        if (orgType && negotiationDraft.targetOrganizationId && negotiationDraft.organizationMode) {
+            const orgs = diplomacyOrganizations?.organizations || [];
+            organization = orgs.find(o => o.id === negotiationDraft.targetOrganizationId);
+            organizationMode = negotiationDraft.organizationMode;
+        }
+        
+        // Get player production (use total goods production as proxy)
+        const playerProduction = gameState?.totalGoodsProduction || 
+                                (gameState?.productionPerDay?.goods || 0);
+        const targetProduction = selectedNation?.productionCapacity || 
+                                selectedNation?.economyScore || 
+                                (selectedNation?.wealth || 0) * 0.01;
+        
         return calculateNegotiationAcceptChance({
             proposal: negotiationDraft,
             nation: selectedNation,
@@ -159,8 +182,14 @@ const DiplomacyTabComponent = ({
             daysElapsed,
             playerWealth: resources?.silver || 0,
             targetWealth: selectedNation?.wealth || 0,
+            playerPower: gameState?.militaryPower || 0,
+            targetPower: selectedNation?.militaryPower || selectedNation?.power || 0,
+            playerProduction,
+            targetProduction,
+            organization,
+            organizationMode,
         });
-    }, [selectedNation, negotiationDraft, epoch, daysElapsed, resources]);
+    }, [selectedNation, negotiationDraft, epoch, daysElapsed, resources, gameState, diplomacyOrganizations]);
 
     const handleNegotiationResult = (result) => {
         if (!result) return;
@@ -293,6 +322,8 @@ const DiplomacyTabComponent = ({
                 isDiplomacyUnlocked={isDiplomacyUnlocked}
                 epoch={epoch}
                 tradableResources={Object.entries(RESOURCES).filter(([key, res]) => res?.type !== 'virtual' && key !== 'silver')}
+                organizations={diplomacyOrganizations?.organizations || []}
+                nations={visibleNations}
             />
 
             <ProvokeDialog
@@ -445,15 +476,20 @@ const DiplomacyTabComponent = ({
                 organization={selectedOrganization}
                 nations={visibleNations}
                 playerNationId="player"
+                silver={resources?.silver || 0}
                 isDiplomacyUnlocked={(type, id) => isDiplomacyUnlocked(type, id, epoch)}
-                onJoin={(orgId) => {
-                    if (onDiplomaticAction) {
-                        onDiplomaticAction('player', 'join_org', { orgId });
-                    }
-                }}
                 onLeave={(orgId) => {
                     if (onDiplomaticAction) {
                         onDiplomaticAction('player', 'leave_org', { orgId });
+                    }
+                }}
+                onNegotiateWithFounder={(founderNation, organization) => {
+                    // Close the organization modal and open negotiation with founder
+                    setShowOrganizationModal(false);
+                    setSelectedOrganization(null);
+                    // Select the founder nation to open diplomacy view
+                    if (founderNation && onSelectNation) {
+                        onSelectNation(founderNation.id);
                     }
                 }}
             />
