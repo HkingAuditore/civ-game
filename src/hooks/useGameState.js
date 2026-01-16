@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
+import { MINISTRIES } from '../config/ministries';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
@@ -707,6 +708,14 @@ export const useGameState = () => {
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
     const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
+    const [ministries, setMinistries] = useState(() => {              // 六部尚书任命
+        const initial = {};
+        if (MINISTRIES) {
+            Object.keys(MINISTRIES).forEach(key => initial[key] = null);
+        }
+        return initial;
+    });
+
     // ========== 内阁协同系统状态 ==========
     // Permanent policy decrees (legacy) - stored as array of { id, active, modifiers, ... }
     const [decrees, setDecrees] = useState([]);
@@ -1308,6 +1317,7 @@ export const useGameState = () => {
                 isPaused,
                 nations,
                 officials,
+                ministries,
                 officialCandidates,
                 lastSelectionDay,
                 officialCapacity,
@@ -1440,6 +1450,13 @@ export const useGameState = () => {
             overseasAssets: Array.isArray(n.overseasAssets) ? n.overseasAssets : [],
         })));
         setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0));
+        setMinistries(data.ministries || (() => {
+            const initial = {};
+            if (MINISTRIES) {
+                Object.keys(MINISTRIES).forEach(key => initial[key] = null);
+            }
+            return initial;
+        })());
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 2);
@@ -2169,6 +2186,8 @@ export const useGameState = () => {
         // 官员系统 (新增)
         officials,
         setOfficials,
+        ministries,
+        setMinistries,
         officialCandidates,
         setOfficialCandidates,
         lastSelectionDay,

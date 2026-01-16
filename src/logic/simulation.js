@@ -186,6 +186,7 @@ import {
 import { LOYALTY_CONFIG } from '../config/officials';
 import { isStanceSatisfied } from '../config/politicalStances';
 import { migrateOfficialForInvestment } from './officials/migration';
+import { calculateMinistryEffects, processMinistryAutoBuild } from './officials/ministry';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -287,6 +288,7 @@ export const simulateTick = ({
 
     difficulty, // 游戏难度设置
     officials = [], // 官员列表
+    ministries = {}, // [NEW] 六部尚书任命
     activeDecrees, // [NEW] Reform decrees
     officialsPaid = true, // 是否足额支付薪水
     quotaTargets = {}, // [NEW] Quota system targets for Left Dominance
@@ -697,6 +699,47 @@ export const simulateTick = ({
     if (cabinetStatus.decreeEffects) {
         applyEffects(cabinetStatus.decreeEffects, bonuses);
     }
+
+    // Ministry Effects (六部尚书)
+    const ministryEffects = calculateMinistryEffects(ministries, officials);
+
+    // Apply ministry bonuses
+    if (ministryEffects.agricultureProduction) {
+        // Apply to gather category (agriculture is part of gather)
+        categoryBonuses.gather = (categoryBonuses.gather || 0) + ministryEffects.agricultureProduction;
+    }
+    if (ministryEffects.industryProduction) {
+        categoryBonuses.industry = (categoryBonuses.industry || 0) + ministryEffects.industryProduction;
+    }
+    if (ministryEffects.tradeRevenue) {
+        bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + ministryEffects.tradeRevenue;
+    }
+    if (ministryEffects.taxEfficiency) {
+        bonuses.taxEfficiencyBonus = (bonuses.taxEfficiencyBonus || 0) + ministryEffects.taxEfficiency;
+    }
+    if (ministryEffects.stability) {
+        bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + ministryEffects.stability;
+    }
+    if (ministryEffects.maxPop) {
+        bonuses.maxPopPercent = (bonuses.maxPopPercent || 0) + ministryEffects.maxPop;
+    }
+    if (ministryEffects.combatPower) {
+        bonuses.militaryBonus = (bonuses.militaryBonus || 0) + ministryEffects.combatPower;
+    }
+    if (ministryEffects.relationGain) {
+        bonuses.diplomaticBonus = (bonuses.diplomaticBonus || 0) + ministryEffects.relationGain;
+    }
+
+    // Ministry Auto-Build (Worker side)
+    const ministryLogs = processMinistryAutoBuild({
+        ministries,
+        officials,
+        resources: res,
+        buildings: builds, // Note: builds is mutable reference to buildings
+        market: { demand, supply, prices: priceMap },
+        tick
+    });
+    logs.push(...ministryLogs);
 
     // 应用官员效果（含薪水不足减益）
     const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
