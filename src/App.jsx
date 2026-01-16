@@ -1143,6 +1143,7 @@ function GameApp({ gameState }) {
                                                 techsUnlocked={gameState.techsUnlocked}
                                                 popStructure={deferredPopStructure}
                                                 jobFill={deferredJobFill}
+                                                buildingJobsRequired={gameState.buildingJobsRequired}
                                                 buildingUpgrades={deferredBuildingUpgrades}
                                                 onBuy={actions.buyBuilding}
                                                 onSell={actions.sellBuilding}
@@ -1151,8 +1152,6 @@ function GameApp({ gameState }) {
                                                 onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
                                                 difficulty={gameState.difficulty}
                                                 buildingCostMod={gameState.modifiers?.officialEffects?.buildingCostMod || 0}
-                                                foreignInvestments={gameState.foreignInvestments}
-                                                officials={gameState.officials}
                                             />
                                         )}
 

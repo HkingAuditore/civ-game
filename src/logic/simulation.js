@@ -1140,6 +1140,13 @@ export const simulateTick = ({
         
         const ownerRole = building.owner;
         const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
+        
+        // 记录每个建筑的实际岗位需求（包括所有角色）
+        buildingJobsRequired[building.id] = {};
+        Object.entries(building.jobs).forEach(([role, perBuilding]) => {
+            buildingJobsRequired[building.id][role] = perBuilding * buildingCount;
+        });
+        
         if (ownerSlotsPerBuilding <= 0) return;
         
         // 构建该建筑的业主实例列表
@@ -1160,9 +1167,16 @@ export const simulateTick = ({
         });
         
         // 减去非阶层业主建筑的业主岗位
-        if (nonStratumCount > 0 && jobsAvailable[ownerRole]) {
+        if (nonStratumCount > 0) {
             const slotsToRemove = ownerSlotsPerBuilding * nonStratumCount;
-            jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
+            // 更新总体 jobsAvailable
+            if (jobsAvailable[ownerRole]) {
+                jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
+            }
+            // 更新该建筑的实际业主岗位需求
+            buildingJobsRequired[building.id][ownerRole] = Math.max(0, 
+                buildingJobsRequired[building.id][ownerRole] - slotsToRemove
+            );
             // debugLog('ownerJobs', `[业主岗位修正] ${building.name}: 移除 ${slotsToRemove} 个 ${ownerRole} 岗位 (非阶层业主 ${nonStratumCount} 个)`);
         }
     });
@@ -1471,6 +1485,7 @@ export const simulateTick = ({
     const logs = [];
     const aggregatedLogs = new Map();
     const buildingJobFill = {};
+    const buildingJobsRequired = {}; // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
     const buildingStaffingRatios = {};
 
     const recordAggregatedLog = (message) => {
@@ -6565,6 +6580,7 @@ export const simulateTick = ({
         classExpense: roleExpense,
         jobFill: buildingJobFill,
         jobsAvailable,
+        buildingJobsRequired, // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
         taxes,
         classFinancialData, // NEW: Return detailed financial data
         buildingFinancialData, // NEW: Per-building realized financial stats for UI

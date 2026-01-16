@@ -17,8 +17,9 @@ import { BUILDING_CHAINS, BUILDING_TO_CHAIN } from '../../config/buildingChains'
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
+ * 优化：接收预计算的业主岗位数，避免重复遍历外资和官员数据
  */
-const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, anchorElement, cost, resources, foreignInvestments = [], officials = [] }) => {
+const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, anchorElement, cost, resources, ownerJobsRequired }) => {
     if (!building || !anchorElement) return null;
 
     const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -124,19 +125,10 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                     <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
                         <div className="text-[10px] text-gray-300 mb-1">岗位</div>
                         {Object.entries(building.jobs).map(([job, perBuilding]) => {
+                            // 优化：业主岗位使用预计算的值，避免重复遍历
                             let required = perBuilding * count;
-                            // [FIX] 业主岗位需要减去外资和官员私产数量
-                            if (building.owner && job === building.owner) {
-                                const foreignCount = (foreignInvestments || []).filter(
-                                    inv => inv.buildingId === building.id && inv.status === 'operating'
-                                ).length;
-                                const officialCount = (officials || []).reduce((sum, official) => {
-                                    return sum + (official.ownedProperties || []).filter(
-                                        prop => prop.buildingId === building.id
-                                    ).length;
-                                }, 0);
-                                const slotsToRemove = perBuilding * (foreignCount + officialCount);
-                                required = Math.max(0, required - slotsToRemove);
+                            if (building.owner && job === building.owner && ownerJobsRequired !== undefined) {
+                                required = ownerJobsRequired;
                             }
                             const assigned = jobFill?.[building.id]?.[job] ?? 0;
                             const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
@@ -195,8 +187,8 @@ const CompactBuildingCard = ({
     jobFill,
     resources,
     hasUpgrades,
-    foreignInvestments = [], // [NEW] 外资投资数据
-    officials = [], // [NEW] 官员数据
+    // 优化：直接传入已计算好的业主岗位数，而非在每个卡片中重复计算
+    ownerJobsRequired = 0,
 }) => {
     const VisualIcon = Icon;
 
@@ -242,22 +234,10 @@ const CompactBuildingCard = ({
                     {building.jobs && Object.keys(building.jobs).length > 0 && (
                         <div className="bg-gray-900/40 rounded px-1 py-0.5">
                             {Object.entries(building.jobs).map(([job, perBuilding]) => {
+                                // 优化：业主岗位使用预计算的值，避免在每个卡片中重复计算
                                 let required = perBuilding * count;
-                                // [FIX] 业主岗位需要减去外资和官员私产数量
                                 if (building.owner && job === building.owner) {
-                                    // 计算该建筑的外资数量
-                                    const foreignCount = (foreignInvestments || []).filter(
-                                        inv => inv.buildingId === building.id && inv.status === 'operating'
-                                    ).length;
-                                    // 计算该建筑的官员私产数量
-                                    const officialCount = (officials || []).reduce((sum, official) => {
-                                        return sum + (official.ownedProperties || []).filter(
-                                            prop => prop.buildingId === building.id
-                                        ).length;
-                                    }, 0);
-                                    // 减去外资和官员私产的业主岗位
-                                    const slotsToRemove = perBuilding * (foreignCount + officialCount);
-                                    required = Math.max(0, required - slotsToRemove);
+                                    required = ownerJobsRequired;
                                 }
                                 const assigned = jobFill?.[building.id]?.[job] ?? 0;
                                 const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
@@ -336,7 +316,19 @@ const CompactBuildingCard = ({
     );
 };
 
-const MemoCompactBuildingCard = memo(CompactBuildingCard);
+// 使用 memo 并添加自定义比较函数，避免不必要的重渲染
+const MemoCompactBuildingCard = memo(CompactBuildingCard, (prevProps, nextProps) => {
+    // 只比较关键属性，避免深度比较大数组
+    return (
+        prevProps.building.id === nextProps.building.id &&
+        prevProps.count === nextProps.count &&
+        prevProps.affordable === nextProps.affordable &&
+        prevProps.silverCost === nextProps.silverCost &&
+        prevProps.hasUpgrades === nextProps.hasUpgrades &&
+        prevProps.ownerJobsRequired === nextProps.ownerJobsRequired &&
+        prevProps.epoch === nextProps.epoch
+    );
+});
 
 
 /**
@@ -356,6 +348,7 @@ const BuildTabComponent = ({
     techsUnlocked,
     popStructure: _popStructure = {}, // 保留以备将来使用
     jobFill = {},
+    buildingJobsRequired = {}, // [NEW] 从模拟端获取的每个建筑的实际岗位需求
     buildingUpgrades = {},
     onBuy,
     onSell,
@@ -364,8 +357,6 @@ const BuildTabComponent = ({
     buildingFinancialData = {},
     difficulty,
     buildingCostMod = 0,
-    foreignInvestments = [], // 外资投资数据
-    officials = [], // 官员数据
 }) => {
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
@@ -375,9 +366,36 @@ const BuildTabComponent = ({
         return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     }, []);
 
-    const handleMouseEnter = (e, building, cost, resources) => {
-        if (canHover) setHoveredBuilding({ building, element: e.currentTarget, cost, resources });
-    };
+    // 优化：使用useCallback稳定化handleMouseEnter，减少子组件重渲染
+    const handleMouseEnter = useCallback((e, building, cost) => {
+        if (canHover) setHoveredBuilding({ building, element: e.currentTarget, cost });
+    }, [canHover]);
+
+    const handleMouseLeave = useCallback(() => {
+        if (canHover) setHoveredBuilding({ building: null, element: null });
+    }, [canHover]);
+
+    // [优化] 使用模拟端预计算的 buildingJobsRequired 数据
+    // 直接从模拟端获取业主岗位数，避免在UI层重复计算
+    const ownerJobsCorrections = useMemo(() => {
+        const corrections = {};
+        BUILDINGS.forEach(building => {
+            if (!building.owner || !building.jobs) return;
+            const count = buildings[building.id] || 0;
+            if (count <= 0) return;
+            const ownerRole = building.owner;
+            
+            // 优先使用模拟端预计算的值
+            if (buildingJobsRequired[building.id] && buildingJobsRequired[building.id][ownerRole] !== undefined) {
+                corrections[building.id] = buildingJobsRequired[building.id][ownerRole];
+            } else {
+                // 降级：没有模拟端数据时使用原始计算（一般不会走到这里）
+                const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
+                corrections[building.id] = ownerSlotsPerBuilding * count;
+            }
+        });
+        return corrections;
+    }, [buildings, buildingJobsRequired]);
 
     const NON_TRADE_KEYS = new Set(['maxPop']);
     const getResourcePrice = (key) => {
@@ -632,6 +650,7 @@ const BuildTabComponent = ({
 
     const cardDataById = useMemo(() => {
         const data = {};
+        const silverResource = resources.silver || 0;
         BUILDINGS.forEach((building) => {
             if (!isBuildingAvailable(building)) return;
 
@@ -640,19 +659,35 @@ const BuildTabComponent = ({
             const averageBuilding = stats.averageBuilding || building;
             const cost = stats.cost || calculateCost(building);
             const upgradeOptions = stats.upgradeOptions || [];
-            const canUpgradeAny = upgradeOptions.some((upgradeCost) => {
+            // 优化：减少 Object.entries 调用次数
+            let canUpgradeAny = false;
+            for (const upgradeCost of upgradeOptions) {
                 const silverCost = upgradeCost.silver || 0;
-                if ((resources.silver || 0) < silverCost) return false;
-                return Object.entries(upgradeCost).every(([res, amount]) =>
-                    res === 'silver' ? true : (resources[res] || 0) >= amount
-                );
-            });
+                if (silverResource < silverCost) continue;
+                let canAfford = true;
+                for (const [res, amount] of Object.entries(upgradeCost)) {
+                    if (res !== 'silver' && (resources[res] || 0) < amount) {
+                        canAfford = false;
+                        break;
+                    }
+                }
+                if (canAfford) {
+                    canUpgradeAny = true;
+                    break;
+                }
+            }
 
             const silverCost = calculateSilverCost(cost, market);
-            const hasMaterials = Object.entries(cost).every(([res, val]) => (resources[res] || 0) >= val);
-            const hasSilver = (resources.silver || 0) >= silverCost;
+            // 优化：减少 Object.entries 调用
+            let hasMaterials = true;
+            for (const [res, val] of Object.entries(cost)) {
+                if ((resources[res] || 0) < val) {
+                    hasMaterials = false;
+                    break;
+                }
+            }
+            const hasSilver = silverResource >= silverCost;
             const affordable = hasMaterials && hasSilver;
-            const actualIncome = getActualOwnerPerCapitaIncome(averageBuilding, count);
 
             data[building.id] = {
                 building: averageBuilding,
@@ -661,11 +696,11 @@ const BuildTabComponent = ({
                 canUpgradeAny,
                 silverCost,
                 affordable,
-                actualIncome,
+                // 移除 actualIncome 计算，因为 CompactBuildingCard 不再使用它
             };
         });
         return data;
-    }, [buildingStatsById, epoch, techsUnlocked, market, jobFill, resources, buildingCostMod]);
+    }, [buildingStatsById, epoch, techsUnlocked, market, resources, buildingCostMod]);
 
     // 建筑链展开状态
     const [expandedChains, setExpandedChains] = useState(new Set());
@@ -727,7 +762,8 @@ const BuildTabComponent = ({
     }, [availableBuildingsByCategory]);
 
     // 渲染单个建筑卡片的辅助函数
-    const renderBuildingCard = useCallback((building, isInChainPopup = false) => {
+    // 优化：减少依赖项，使用预计算的 ownerJobsCorrections
+    const renderBuildingCard = useCallback((building) => {
         const cardData = cardDataById[building.id];
         if (!cardData) return null;
 
@@ -738,8 +774,10 @@ const BuildTabComponent = ({
             canUpgradeAny,
             silverCost,
             affordable,
-            actualIncome,
         } = cardData;
+
+        // 获取预计算的业主岗位数
+        const ownerJobsRequired = ownerJobsCorrections[building.id] ?? (building.jobs?.[building.owner] || 0) * count;
 
         return (
             <MemoCompactBuildingCard
@@ -748,23 +786,21 @@ const BuildTabComponent = ({
                 count={count}
                 affordable={affordable}
                 silverCost={silverCost}
-                ownerIncome={actualIncome}
                 cost={cost}
                 onBuy={onBuy}
                 onSell={onSell}
-                onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost, resources)}
-                onMouseLeave={() => canHover && setHoveredBuilding({ building: null, element: null })}
+                onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost)}
+                onMouseLeave={handleMouseLeave}
                 epoch={epoch}
                 techsUnlocked={techsUnlocked}
                 jobFill={jobFill}
                 resources={resources}
                 onShowDetails={onShowDetails}
                 hasUpgrades={canUpgradeAny}
-                foreignInvestments={foreignInvestments}
-                officials={officials}
+                ownerJobsRequired={ownerJobsRequired}
             />
         );
-    }, [cardDataById, onBuy, onSell, handleMouseEnter, canHover, epoch, techsUnlocked, jobFill, resources, onShowDetails, foreignInvestments, officials]);
+    }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
 
     // 渲染链内容：顶级建筑(带角标) + (展开时)其他建筑
     // 返回数组，直接插入到网格中
@@ -790,7 +826,6 @@ const BuildTabComponent = ({
             canUpgradeAny,
             silverCost,
             affordable,
-            actualIncome,
         } = topCardData;
 
         // 1. 顶级建筑卡片（带链角标）
@@ -801,20 +836,18 @@ const BuildTabComponent = ({
                     count={count}
                     affordable={affordable}
                     silverCost={silverCost}
-                    ownerIncome={actualIncome}
                     cost={cost}
                     onBuy={onBuy}
                     onSell={onSell}
-                    onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost, resources)}
-                    onMouseLeave={() => canHover && setHoveredBuilding({ building: null, element: null })}
+                    onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost)}
+                    onMouseLeave={handleMouseLeave}
                     epoch={epoch}
                     techsUnlocked={techsUnlocked}
                     jobFill={jobFill}
                     resources={resources}
                     onShowDetails={onShowDetails}
                     hasUpgrades={canUpgradeAny}
-                    foreignInvestments={foreignInvestments}
-                    officials={officials}
+                    ownerJobsRequired={ownerJobsCorrections[topBuilding.id] ?? (topBuilding.jobs?.[topBuilding.owner] || 0) * count}
                 />
 
                 {/* 链展开角标 - 右侧偏上 */}
@@ -845,7 +878,7 @@ const BuildTabComponent = ({
         }
 
         return elements;
-    }, [expandedChains, cardDataById, buildings, toggleChainExpand, renderBuildingCard, onBuy, onSell, handleMouseEnter, canHover, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
+    }, [expandedChains, cardDataById, ownerJobsCorrections, toggleChainExpand, renderBuildingCard, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
 
     // 按类别分组建筑
     const categories = {
@@ -951,8 +984,7 @@ const BuildTabComponent = ({
                 jobFill={jobFill}
                 cost={hoveredBuilding.cost}
                 resources={resources}
-                foreignInvestments={foreignInvestments}
-                officials={officials}
+                ownerJobsRequired={hoveredBuilding.building ? ownerJobsCorrections[hoveredBuilding.building.id] : undefined}
             />
         </div>
     );

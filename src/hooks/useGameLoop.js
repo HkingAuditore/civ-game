@@ -510,6 +510,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setJobFill,
         jobsAvailable,
         setJobsAvailable,
+        buildingJobsRequired,
+        setBuildingJobsRequired,
         setDaysElapsed,
         daysElapsed,
         militaryWageRatio,
@@ -2016,6 +2018,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
                     if (result.jobsAvailable) {
                         setJobsAvailable(result.jobsAvailable);
+                    }
+                    if (result.buildingJobsRequired) {
+                        setBuildingJobsRequired(result.buildingJobsRequired);
                     }
                     // [FIX] Save military expense data from simulation
                     console.log('[useGameLoop] Saving dailyMilitaryExpense:', result.dailyMilitaryExpense);

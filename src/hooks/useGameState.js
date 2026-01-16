@@ -999,6 +999,7 @@ export const useGameState = () => {
     });
     const [jobFill, setJobFill] = useState({});
     const [jobsAvailable, setJobsAvailable] = useState({}); // 各阶层可用岗位数量
+    const [buildingJobsRequired, setBuildingJobsRequired] = useState({}); // 每个建筑的实际岗位需求
     const [market, setMarket] = useState(buildInitialMarket());
 
     useEffect(() => {
@@ -2359,6 +2360,8 @@ export const useGameState = () => {
         setJobFill,
         jobsAvailable,
         setJobsAvailable,
+        buildingJobsRequired,
+        setBuildingJobsRequired,
         saveGame,
         loadGame,
         exportSaveToBinary,
