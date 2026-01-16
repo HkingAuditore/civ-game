@@ -156,7 +156,7 @@ const NationDetailView = ({
                             </div>
                         )}
 
-                        <StrategicStatus nation={nation} epoch={epoch} market={market} daysElapsed={daysElapsed} />
+                        <StrategicStatus nation={nation} epoch={epoch} market={market} daysElapsed={daysElapsed} gameState={gameState} />
 
                         <ActiveTreaties nation={nation} daysElapsed={daysElapsed} />
                     </div>
@@ -167,8 +167,8 @@ const NationDetailView = ({
                         <ActionCard
                             icon="Gift"
                             title="赠礼"
-                            desc={giftCooldown.isOnCooldown 
-                                ? `冷却中，还需 ${giftCooldown.remainingDays} 天` 
+                            desc={giftCooldown.isOnCooldown
+                                ? `冷却中，还需 ${giftCooldown.remainingDays} 天`
                                 : "提升关系 (+10)，需要银币。"}
                             cost="银币"
                             onClick={() => onDiplomaticAction?.(nation.id, 'gift')}
@@ -179,8 +179,8 @@ const NationDetailView = ({
                         <ActionCard
                             icon="ScrollText"
                             title="外交谈判"
-                            desc={negotiateCooldown.isOnCooldown 
-                                ? `冷却中，还需 ${negotiateCooldown.remainingDays} 天` 
+                            desc={negotiateCooldown.isOnCooldown
+                                ? `冷却中，还需 ${negotiateCooldown.remainingDays} 天`
                                 : "谈判条约、贸易协定等。"}
                             onClick={() => onNegotiate?.()}
                             color="blue"
@@ -190,8 +190,8 @@ const NationDetailView = ({
                         <ActionCard
                             icon="MessageSquareWarning"
                             title="侮辱"
-                            desc={insultCooldown.isOnCooldown 
-                                ? `冷却中，还需 ${insultCooldown.remainingDays} 天` 
+                            desc={insultCooldown.isOnCooldown
+                                ? `冷却中，还需 ${insultCooldown.remainingDays} 天`
                                 : "大幅降低关系，可能激怒对方。"}
                             onClick={() => onDiplomaticAction?.(nation.id, 'insult')}
                             color="orange"
@@ -200,8 +200,8 @@ const NationDetailView = ({
                         <ActionCard
                             icon="Skull"
                             title="挑拨"
-                            desc={provokeCooldown.isOnCooldown 
-                                ? `冷却中，还需 ${provokeCooldown.remainingDays} 天` 
+                            desc={provokeCooldown.isOnCooldown
+                                ? `冷却中，还需 ${provokeCooldown.remainingDays} 天`
                                 : "消耗银币离间其与其他国家的关系。"}
                             cost="银币"
                             onClick={() => onProvoke?.()}
@@ -393,8 +393,54 @@ const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
     );
 };
 
-const StrategicStatus = ({ nation, epoch }) => {
-    // Generate some fake but plausible preferences based on personality/resources if actual data is missing
+const StrategicStatus = ({ nation, epoch, market, daysElapsed, gameState }) => {
+    // 计算国家的急需资源（基于国际均价）
+    const urgentNeeds = useMemo(() => {
+        const resources = getTradableResources(epoch);
+        const urgentExports = [];
+        const urgentImports = [];
+
+        // 计算国际均价
+        const internationalPrices = {};
+        resources.forEach(([key]) => {
+            const prices = [];
+
+            // 玩家国家价格
+            prices.push(market?.prices?.[key] ?? RESOURCES[key]?.basePrice ?? 1);
+
+            // 所有外国价格
+            const foreignNations = gameState?.foreignNations || [];
+            foreignNations.forEach(foreignNation => {
+                prices.push(calculateForeignPrice(key, foreignNation, daysElapsed));
+            });
+
+            // 计算平均值
+            internationalPrices[key] = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+        });
+
+        // 计算该国的急需
+        resources.forEach(([key, res]) => {
+            const nationPrice = calculateForeignPrice(key, nation, daysElapsed);
+            const avgPrice = internationalPrices[key];
+            const deviation = (nationPrice - avgPrice) / avgPrice;
+
+            if (deviation > 0.15) {  // 高于均价15%以上，需要进口
+                urgentImports.push({ key, name: res.name, deviation });
+            } else if (deviation < -0.15) {  // 低于均价15%以上，有盈余可出口
+                urgentExports.push({ key, name: res.name, deviation: Math.abs(deviation) });
+            }
+        });
+
+        // 按偏离度排序，取前3个
+        urgentExports.sort((a, b) => b.deviation - a.deviation);
+        urgentImports.sort((a, b) => b.deviation - a.deviation);
+
+        return {
+            exports: urgentExports.slice(0, 3),
+            imports: urgentImports.slice(0, 3)
+        };
+    }, [nation, epoch, market, daysElapsed, gameState]);
+
     return (
         <Card className="p-4 bg-ancient-ink/20 border-ancient-gold/10">
             <h3 className="text-xs font-bold text-ancient-gold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-80">
@@ -413,13 +459,19 @@ const StrategicStatus = ({ nation, epoch }) => {
                 <div>
                     <div className="text-[10px] text-ancient-stone uppercase mb-1">当前急需</div>
                     <div className="flex flex-wrap gap-2">
-                        {/* Simple logic to show what they might buy */}
-                        <span className="text-xs text-green-300 flex items-center gap-1">
-                            <Icon name="ArrowDown" size={10} /> 进口粮食
-                        </span>
-                        <span className="text-xs text-blue-300 flex items-center gap-1">
-                            <Icon name="ArrowDown" size={10} /> 进口武器
-                        </span>
+                        {urgentNeeds.imports.length > 0 && urgentNeeds.imports.map((item) => (
+                            <span key={`import-${item.key}`} className="text-xs text-red-400 flex items-center gap-1">
+                                <Icon name="ArrowDown" size={10} /> 进口{item.name}
+                            </span>
+                        ))}
+                        {urgentNeeds.exports.length > 0 && urgentNeeds.exports.map((item) => (
+                            <span key={`export-${item.key}`} className="text-xs text-green-400 flex items-center gap-1">
+                                <Icon name="ArrowUp" size={10} /> 出口{item.name}
+                            </span>
+                        ))}
+                        {urgentNeeds.imports.length === 0 && urgentNeeds.exports.length === 0 && (
+                            <span className="text-xs text-ancient-stone/60 italic">供需平衡</span>
+                        )}
                     </div>
                 </div>
             </div>
