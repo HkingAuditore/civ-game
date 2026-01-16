@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES, STRATA, EPOCHS } from '../../config';
+import { RESOURCES, STRATA, EPOCHS, OWNER_TYPE_LABELS, getOwnerTypeIcon, getOwnerTypeColors } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
@@ -1107,59 +1107,95 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
                     {building.owner && count > 0 && (
                         <DetailSection title="业主构成" icon="Users">
-                            <div className="flex items-center justify-between">
-                                <span>原始业主</span>
-                                <span className="font-mono text-yellow-300">
-                                    {Math.max(0, count - officialOwnership.count - foreignOwnership.count)}
-                                </span>
-                            </div>
-                            {officialOwnership.count > 0 ? (
-                                <div className="mt-1">
-                                    <div className="flex items-center justify-between text-emerald-300">
-                                        <span>官员私产</span>
-                                        <span className="font-mono">{officialOwnership.count}</span>
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-1.5">
-                                        {Object.entries(officialOwnership.owners).slice(0, 4).map(([name, ownedCount]) => (
-                                            <span
-                                                key={`official-owner-${name}`}
-                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-700/40 text-[10px] text-emerald-200"
-                                            >
-                                                {name} × {ownedCount}
+                            {/* 本国商人业主 */}
+                            {(() => {
+                                const stratumCount = Math.max(0, count - officialOwnership.count - foreignOwnership.count);
+                                const stratumColors = getOwnerTypeColors('stratum');
+                                return stratumCount > 0 ? (
+                                    <div className={`p-2 rounded-lg ${stratumColors.bg} border ${stratumColors.border} mb-2`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className={`flex items-center gap-1.5 ${stratumColors.text} text-sm font-semibold`}>
+                                                <Icon name={getOwnerTypeIcon('stratum')} size={14} />
+                                                {OWNER_TYPE_LABELS.stratum}
                                             </span>
-                                        ))}
-                                        {Object.keys(officialOwnership.owners).length > 4 && (
-                                            <span className="text-[10px] text-gray-500">等 {Object.keys(officialOwnership.owners).length} 位</span>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="text-[10px] text-gray-500 mt-1">暂无官员私产</div>
-                            )}
-                            {/* [NEW] 外资显示 */}
-                            {foreignOwnership.count > 0 && (
-                                <div className="mt-2 pt-2 border-t border-gray-700/50">
-                                    <div className="flex items-center justify-between text-amber-300">
-                                        <span className="flex items-center gap-1">
-                                            <Icon name="Globe" size={12} />
-                                            外国投资
-                                        </span>
-                                        <span className="font-mono">{foreignOwnership.count}</span>
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-1.5">
-                                        {Object.entries(foreignOwnership.owners).slice(0, 4).map(([name, ownedCount]) => (
-                                            <span
-                                                key={`foreign-owner-${name}`}
-                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/40 text-[10px] text-amber-200"
-                                            >
-                                                {name} × {ownedCount}
+                                            <span className={`font-mono font-bold ${stratumColors.text}`}>
+                                                {stratumCount} 座
                                             </span>
-                                        ))}
-                                        {Object.keys(foreignOwnership.owners).length > 4 && (
-                                            <span className="text-[10px] text-gray-500">等 {Object.keys(foreignOwnership.owners).length} 国</span>
-                                        )}
+                                        </div>
+                                        <div className="mt-1 text-[10px] text-gray-400">
+                                            由 {STRATA[building.owner]?.name || building.owner} 阶层经营，提供 {stratumCount * (building.jobs?.[building.owner] || 0)} 个业主岗位
+                                        </div>
                                     </div>
-                                </div>
+                                ) : null;
+                            })()}
+
+                            {/* 官员私产 */}
+                            {officialOwnership.count > 0 && (() => {
+                                const officialColors = getOwnerTypeColors('official');
+                                return (
+                                    <div className={`p-2 rounded-lg ${officialColors.bg} border ${officialColors.border} mb-2`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className={`flex items-center gap-1.5 ${officialColors.text} text-sm font-semibold`}>
+                                                <Icon name={getOwnerTypeIcon('official')} size={14} />
+                                                {OWNER_TYPE_LABELS.official}
+                                            </span>
+                                            <span className={`font-mono font-bold ${officialColors.text}`}>
+                                                {officialOwnership.count} 座
+                                            </span>
+                                        </div>
+                                        <div className="mt-1.5 space-y-1">
+                                            {Object.entries(officialOwnership.owners).map(([name, ownedCount]) => (
+                                                <div
+                                                    key={`official-owner-${name}`}
+                                                    className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-black/20"
+                                                >
+                                                    <span className="text-gray-300">{name}</span>
+                                                    <span className={`font-mono ${officialColors.text}`}>{ownedCount} 座</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="mt-1 text-[10px] text-gray-500">
+                                            官员经营，不提供业主岗位
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* 外国投资 */}
+                            {foreignOwnership.count > 0 && (() => {
+                                const foreignColors = getOwnerTypeColors('foreign');
+                                return (
+                                    <div className={`p-2 rounded-lg ${foreignColors.bg} border ${foreignColors.border} mb-2`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className={`flex items-center gap-1.5 ${foreignColors.text} text-sm font-semibold`}>
+                                                <Icon name={getOwnerTypeIcon('foreign')} size={14} />
+                                                {OWNER_TYPE_LABELS.foreign}
+                                            </span>
+                                            <span className={`font-mono font-bold ${foreignColors.text}`}>
+                                                {foreignOwnership.count} 座
+                                            </span>
+                                        </div>
+                                        <div className="mt-1.5 space-y-1">
+                                            {Object.entries(foreignOwnership.owners).map(([name, ownedCount]) => (
+                                                <div
+                                                    key={`foreign-owner-${name}`}
+                                                    className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-black/20"
+                                                >
+                                                    <span className="text-gray-300">{name}</span>
+                                                    <span className={`font-mono ${foreignColors.text}`}>{ownedCount} 座</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="mt-1 text-[10px] text-gray-500">
+                                            外资经营，不提供业主岗位
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* 无业主时显示 */}
+                            {count === 0 && (
+                                <div className="text-[11px] text-gray-500">暂无建筑</div>
                             )}
                         </DetailSection>
                     )}
