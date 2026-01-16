@@ -37,6 +37,7 @@ import {
     VASSAL_TYPE_CONFIGS,
     VASSAL_TYPE_LABELS,
 } from '../config';
+import { MINISTRIES } from '../config/ministries';
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
 import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
@@ -146,6 +147,8 @@ export const useGameActions = (gameState, addLog) => {
         // 官员系统状态
         officials,
         setOfficials,
+        ministries,
+        setMinistries,
         officialCandidates,
         setOfficialCandidates,
         lastSelectionDay,
@@ -1697,6 +1700,67 @@ export const useGameActions = (gameState, addLog) => {
         setOfficials(prev => prev.map(official => (
             official.id === officialId ? { ...official, salary: Math.floor(nextSalary) } : official
         )));
+    };
+
+    /**
+     * 任命尚书
+     * @param {string} ministryId - 部门ID
+     * @param {string} officialId - 官员ID
+     */
+    const assignMinister = (ministryId, officialId) => {
+        if (!setMinistries) return;
+
+        // 检查官员是否存在
+        const official = officials.find(o => o.id === officialId);
+        if (!official) {
+            addLog('该官员不存在。');
+            return;
+        }
+
+        // 检查该官员是否已被任命为其他尚书
+        const currentAssignment = Object.entries(ministries || {}).find(([k, v]) => v === officialId && k !== ministryId);
+        if (currentAssignment) {
+            // 自动解除旧职
+            const oldMinistryId = currentAssignment[0];
+            const oldMinistryName = MINISTRIES[oldMinistryId]?.name || oldMinistryId;
+            addLog(`${official.name} 已卸任 ${oldMinistryName}。`);
+        }
+
+        setMinistries(prev => {
+            const next = { ...prev };
+            // 清除旧职
+            if (currentAssignment) {
+                next[currentAssignment[0]] = null;
+            }
+            // 任命新职
+            next[ministryId] = officialId;
+            return next;
+        });
+
+        const ministryName = MINISTRIES[ministryId]?.name || ministryId;
+        addLog(`任命 ${official.name} 为 ${ministryName}。`);
+    };
+
+    /**
+     * 罢免尚书
+     * @param {string} ministryId - 部门ID
+     */
+    const removeMinister = (ministryId) => {
+        if (!setMinistries) return;
+
+        const officialId = (ministries || {})[ministryId];
+        if (!officialId) return;
+
+        const official = officials.find(o => o.id === officialId);
+        const name = official ? official.name : '该官员';
+
+        setMinistries(prev => ({
+            ...prev,
+            [ministryId]: null
+        }));
+
+        const ministryName = MINISTRIES[ministryId]?.name || ministryId;
+        addLog(`罢免了 ${name} 的 ${ministryName} 职位。`);
     };
 
     // ========== 手动采集 ==========
@@ -5637,6 +5701,8 @@ export const useGameActions = (gameState, addLog) => {
         fireExistingOfficial,
         disposeExistingOfficial,
         updateOfficialSalary,
+        assignMinister,
+        removeMinister,
 
         // 叛乱系统
         handleRebellionAction,
