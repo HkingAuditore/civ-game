@@ -102,6 +102,9 @@ function resolveRandomNationInEvent(event, nations, epoch = 0) {
         // 基础可见性检查
         if (n.visible === false) return false;
 
+        // 排除已被吞并的国家
+        if (n.isAnnexed) return false;
+
         // 时代检查
         const appearEpoch = n.appearEpoch ?? 0;
         const expireEpoch = n.expireEpoch;
