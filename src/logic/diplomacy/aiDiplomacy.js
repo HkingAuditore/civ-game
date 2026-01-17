@@ -15,7 +15,11 @@ import {
     getAllyColdEventCooldown,
     getAllyColdEventChance,
 } from '../../config/difficulty';
-import { canVassalPerformDiplomacy } from './vassalSystem';
+import {
+    canVassalPerformDiplomacy,
+    requiresVassalDiplomacyApproval,
+    buildVassalDiplomacyRequest,
+} from './vassalSystem';
 import { ORGANIZATION_TYPE_CONFIGS } from './organizationDiplomacy';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
@@ -197,7 +201,7 @@ const getSharedOrganizationEffects = (organizationState, nationId, partnerId) =>
     );
 };
 
-export const processAITrade = (visibleNations, logs, diplomacyOrganizations = null) => {
+export const processAITrade = (visibleNations, logs, diplomacyOrganizations = null, vassalDiplomacyRequests = null, tick = 0) => {
     visibleNations.forEach(nation => {
         if (Math.random() > 0.02) return;
         if (nation.isAtWar) return;
@@ -228,6 +232,18 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
 
         const partner = tradeCandidates[Math.floor(Math.random() * tradeCandidates.length)];
         const tradeValue = Math.floor(20 + Math.random() * 60);
+        if (requiresVassalDiplomacyApproval(nation)) {
+            if (Array.isArray(vassalDiplomacyRequests)) {
+                vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                    vassal: nation,
+                    target: partner,
+                    actionType: 'trade',
+                    payload: { tradeValue },
+                    tick,
+                }));
+            }
+            return;
+        }
 
         const taxRate = 0.08;
         const sharedEffects = getSharedOrganizationEffects(diplomacyOrganizations, nation.id, partner.id);
@@ -520,7 +536,7 @@ import { createOrganization } from './organizationDiplomacy';
  * Process AI Economic Bloc formation
  * Conditions: Era 5+, High Wealth, Good Relations
  */
-const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch, vassalDiplomacyRequests = null) => {
     if (!isDiplomacyUnlocked('organizations', 'economic_bloc', epoch)) {
         return { createdOrganizations: [], memberJoinRequests: [] };
     }
@@ -565,6 +581,16 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
             const approval = members.every(member => (member.foreignRelations?.[nation.id] ?? 50) >= 50);
 
             if (approval) {
+                if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                        vassal: nation,
+                        target: partner,
+                        actionType: 'join_org',
+                        payload: { orgId: partnerBloc.id, orgName: partnerBloc.name, orgType: partnerBloc.type },
+                        tick,
+                    }));
+                    return;
+                }
                 result.memberJoinRequests.push({ orgId: partnerBloc.id, nationId: nation.id, orgName: partnerBloc.name });
                 logs.push(`💰 ${nation.name} 此刻申请加入 "${partnerBloc.name}" 以寻求经济合作。`);
             }
@@ -583,6 +609,16 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
             });
 
             if (createResult.success) {
+                if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                        vassal: nation,
+                        target: partner,
+                        actionType: 'create_economic_bloc',
+                        payload: { orgName: name },
+                        tick,
+                    }));
+                    return;
+                }
                 // Founder joins automatically in createOrganization logic? 
                 // We also want the partner to join immediately if possible
                 const newOrg = createResult.organization;
@@ -597,7 +633,7 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
     return result;
 };
 
-export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch, vassalDiplomacyRequests = null) => {
     if (!isDiplomacyUnlocked('organizations', 'military_alliance', epoch)) {
         return { createdOrganizations: [], memberJoinRequests: [] };
     }
@@ -616,6 +652,15 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
         // Check vassal diplomatic restrictions
         const vassalAllianceCheck = canVassalPerformDiplomacy(nation, 'alliance');
         if (!vassalAllianceCheck.allowed) {
+            if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                    vassal: nation,
+                    target: null,
+                    actionType: 'alliance',
+                    payload: { mode: 'seek_partner' },
+                    tick,
+                }));
+            }
             return;
         }
 
@@ -663,6 +708,16 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
             });
 
             if (approval) {
+                if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                        vassal: nation,
+                        target: ally,
+                        actionType: 'join_alliance',
+                        payload: { orgId: allyAlliance.id, orgName: allyAlliance.name },
+                        tick,
+                    }));
+                    return;
+                }
                 result.memberJoinRequests.push({ orgId: allyAlliance.id, nationId: nation.id, orgName: allyAlliance.name });
                 logs.push(`🛡️ ${nation.name} 加入了由 ${ally.name} 所在的 "${allyAlliance.name}"！`);
             }
@@ -687,6 +742,16 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
             });
 
             if (createResult.success) {
+                if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                        vassal: nation,
+                        target: ally,
+                        actionType: 'create_alliance',
+                        payload: { orgName },
+                        tick,
+                    }));
+                    return;
+                }
                 const newOrg = createResult.organization;
                 // Add the ally immediately (simplification)
                 newOrg.members.push(ally.id);
@@ -699,7 +764,14 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
 
     // Process Economic Blocs if Era >= 5
     if (epoch >= 5) {
-        const economicResult = processAIEconomicBlocFormation(visibleNations, tick, logs, diplomacyOrganizations, epoch);
+        const economicResult = processAIEconomicBlocFormation(
+            visibleNations,
+            tick,
+            logs,
+            diplomacyOrganizations,
+            epoch,
+            vassalDiplomacyRequests,
+        );
         result.createdOrganizations.push(...economicResult.createdOrganizations);
         result.memberJoinRequests.push(...economicResult.memberJoinRequests);
     }
@@ -710,7 +782,7 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
 /**
  * AI recruits members to existing organizations (AI-AI only)
  */
-export const processAIOrganizationRecruitment = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+export const processAIOrganizationRecruitment = (visibleNations, tick, logs, diplomacyOrganizations, epoch, vassalDiplomacyRequests = null) => {
     void tick;
     const organizations = diplomacyOrganizations?.organizations || [];
     const result = { memberJoinRequests: [] };
@@ -729,7 +801,7 @@ export const processAIOrganizationRecruitment = (visibleNations, tick, logs, dip
             if (!candidate || candidate.isRebelNation) return false;
             if (org.members.includes(candidate.id)) return false;
             const diplomacyCheck = canVassalPerformDiplomacy(candidate, 'alliance');
-            if (!diplomacyCheck.allowed) return false;
+            if (!diplomacyCheck.allowed && !requiresVassalDiplomacyApproval(candidate)) return false;
             return true;
         });
 
@@ -771,6 +843,16 @@ export const processAIOrganizationRecruitment = (visibleNations, tick, logs, dip
         const relationBoost = Math.max(0, (pick.avgRel - 60) / 800);
         if (Math.random() > baseChance + relationBoost) return;
 
+        if (requiresVassalDiplomacyApproval(pick.candidate) && Array.isArray(vassalDiplomacyRequests)) {
+            vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                vassal: pick.candidate,
+                target: null,
+                actionType: 'join_org',
+                payload: { orgId: org.id, orgName: org.name, orgType: org.type },
+                tick,
+            }));
+            return;
+        }
         result.memberJoinRequests.push({ orgId: org.id, nationId: pick.candidate.id, orgName: org.name });
         logs.push(`🏛️ ${pick.candidate.name} 受邀加入 "${org.name}"。`);
     });
@@ -781,7 +863,7 @@ export const processAIOrganizationRecruitment = (visibleNations, tick, logs, dip
 /**
  * AI evaluates leaving organizations when relations sour or wars break out
  */
-export const processAIOrganizationMaintenance = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+export const processAIOrganizationMaintenance = (visibleNations, tick, logs, diplomacyOrganizations, epoch, vassalDiplomacyRequests = null) => {
     void tick;
     const organizations = diplomacyOrganizations?.organizations || [];
     const result = { memberLeaveRequests: [] };
@@ -822,6 +904,16 @@ export const processAIOrganizationMaintenance = (visibleNations, tick, logs, dip
             const leaveChance = 0.01 + (relationDeficit / 200) + (hasWarWithMember ? 0.08 : 0);
 
             if (avgRel < threshold && Math.random() < leaveChance) {
+                if (requiresVassalDiplomacyApproval(member) && Array.isArray(vassalDiplomacyRequests)) {
+                    vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                        vassal: member,
+                        target: null,
+                        actionType: 'leave_org',
+                        payload: { orgId: org.id, orgName: org.name, orgType: org.type },
+                        tick,
+                    }));
+                    return;
+                }
                 result.memberLeaveRequests.push({ orgId: org.id, nationId: memberId, orgName: org.name });
                 logs.push(`💔 ${member.name} 退出了 "${org.name}"。`);
             }

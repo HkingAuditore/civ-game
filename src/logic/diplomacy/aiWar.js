@@ -28,6 +28,7 @@ import {
     isInGracePeriod,
 } from '../../config/difficulty';
 import { VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
+import { requiresVassalDiplomacyApproval, buildVassalDiplomacyRequest } from './vassalSystem';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -999,7 +1000,7 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs, dip
  * @param {Array} logs - Log array (mutable)
  * @param {Object} diplomacyOrganizations - Org state
  */
-export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs, diplomacyOrganizations) => {
+export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs, diplomacyOrganizations, vassalDiplomacyRequests = null) => {
     visibleNations.forEach(nation => {
         if (!nation.foreignWars) nation.foreignWars = {};
 
@@ -1084,6 +1085,16 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                 warChance = Math.min(0.003, warChance);
 
                 if (Math.random() < warChance) {
+                    if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                        vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                            vassal: nation,
+                            target: otherNation,
+                            actionType: 'declare_war',
+                            payload: { reason: 'ai_war_chance', warChance },
+                            tick,
+                        }));
+                        return;
+                    }
                     nation.foreignWars[otherNation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
                     if (!otherNation.foreignWars) otherNation.foreignWars = {};
                     otherNation.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
@@ -1176,7 +1187,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
  */
-export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs) => {
+export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null) => {
     // Create a set of visible nation IDs for quick lookup
     const visibleNationIds = new Set(visibleNations.map(n => n.id));
 
@@ -1261,6 +1272,25 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
 
                 // 战争结束条件：达到阈值 或 小概率随机结束
                 if (absoluteWarScore >= war.endScoreThreshold || Math.random() < exhaustionEndChance) {
+                    const needsApproval = requiresVassalDiplomacyApproval(nation) || requiresVassalDiplomacyApproval(enemy);
+                    if (needsApproval && Array.isArray(vassalDiplomacyRequests)) {
+                        const requester = requiresVassalDiplomacyApproval(nation) ? nation : enemy;
+                        const target = requester.id === nation.id ? enemy : nation;
+                        if (!war.pendingPeaceApproval) {
+                            vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                                vassal: requester,
+                                target,
+                                actionType: 'propose_peace',
+                                payload: { warScore: war.warScore || 0 },
+                                tick,
+                            }));
+                            war.pendingPeaceApproval = true;
+                            if (enemy.foreignWars?.[nation.id]) {
+                                enemy.foreignWars[nation.id].pendingPeaceApproval = true;
+                            }
+                        }
+                        return;
+                    }
                     const winner = (war.warScore || 0) > 0 ? nation : enemy;
                     const loser = winner.id === nation.id ? enemy : nation;
                     const finalScore = Math.abs(war.warScore || 0);

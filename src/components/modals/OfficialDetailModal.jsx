@@ -80,34 +80,48 @@ const SPECTRUM_CONFIG = {
     right: { bg: 'bg-amber-900/40', border: 'border-amber-500/60', text: 'text-amber-300', label: '右派', icon: 'TrendingUp' },
 };
 
-export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary, currentDay = 0, isStanceSatisfied = null, stability = 50, officialsPaid = true }) => {
+export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary, onUpdateName, currentDay = 0, isStanceSatisfied = null, stability = 50, officialsPaid = true }) => {
     const [salaryDraft, setSalaryDraft] = useState('');
     const [isEditingSalary, setIsEditingSalary] = useState(false);
+    const [nameDraft, setNameDraft] = useState('');
+    const [isEditingName, setIsEditingName] = useState(false);
     const lastOfficialIdRef = useRef(null);
     const pendingSalaryRef = useRef(null); // Track pending salary to prevent reset
+    const pendingNameRef = useRef(null);
 
     useEffect(() => {
         if (!isOpen) {
             setIsEditingSalary(false);
+            setIsEditingName(false);
             pendingSalaryRef.current = null;
+            pendingNameRef.current = null;
             return;
         }
         const currentId = official?.id || null;
         if (currentId !== lastOfficialIdRef.current) {
             lastOfficialIdRef.current = currentId;
             pendingSalaryRef.current = null;
+            pendingNameRef.current = null;
             setSalaryDraft(Number.isFinite(official?.salary) ? String(official.salary) : '');
+            setNameDraft(official?.name || '');
             setIsEditingSalary(false);
+            setIsEditingName(false);
             return;
         }
         // Check if the official.salary matches the pending saved value
         if (pendingSalaryRef.current !== null && official?.salary === pendingSalaryRef.current) {
             pendingSalaryRef.current = null; // Clear pending after sync
         }
+        if (pendingNameRef.current !== null && official?.name === pendingNameRef.current) {
+            pendingNameRef.current = null;
+        }
         if (!isEditingSalary && pendingSalaryRef.current === null) {
             setSalaryDraft(Number.isFinite(official?.salary) ? String(official.salary) : '');
         }
-    }, [official, isOpen, isEditingSalary]);
+        if (!isEditingName && pendingNameRef.current === null) {
+            setNameDraft(official?.name || '');
+        }
+    }, [official, isOpen, isEditingSalary, isEditingName]);
 
     // 产业汇总
     const propertySummary = useMemo(() => {
@@ -183,7 +197,32 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
     const effects = official?.effects || [];
 
     const canEditSalary = typeof onUpdateSalary === 'function' && official?.id;
+    const canEditName = typeof onUpdateName === 'function' && official?.id;
     const parsedSalaryDraft = Number.parseInt(salaryDraft, 10);
+    const displayName = official?.name || '官员';
+    const trimmedNameDraft = nameDraft.trim();
+
+    const handleNameSave = () => {
+        if (!canEditName) return;
+        if (!trimmedNameDraft) {
+            setNameDraft(displayName);
+            setIsEditingName(false);
+            return;
+        }
+        if (trimmedNameDraft === official?.name) {
+            setIsEditingName(false);
+            return;
+        }
+        pendingNameRef.current = trimmedNameDraft;
+        onUpdateName?.(official.id, trimmedNameDraft);
+        setIsEditingName(false);
+    };
+
+    const handleNameCancel = () => {
+        setNameDraft(displayName);
+        pendingNameRef.current = null;
+        setIsEditingName(false);
+    };
 
     // 忠诚度变化原因分析
     const loyaltyReasons = useMemo(() => {
@@ -223,10 +262,60 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
     }, [official, isStanceSatisfied, stability, officialsPaid]);
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`${official?.name || '官员'} · 详细信息`} size="xl">
+        <Modal isOpen={isOpen} onClose={onClose} title={`${displayName} · 详细信息`} size="xl">
             <div className="space-y-4">
-                {/* 顶部信息栏 */}
+                {/* 顶部信息栏 */} 
                 <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-gray-700/50">
+                    {/* 官员姓名 */}
+                    <div className="flex items-center gap-2 min-w-[160px]">
+                        {isEditingName ? (
+                            <input
+                                value={nameDraft}
+                                onChange={(event) => setNameDraft(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') handleNameSave();
+                                    if (event.key === 'Escape') handleNameCancel();
+                                }}
+                                maxLength={20}
+                                className="w-40 bg-gray-900/60 border border-gray-600/60 rounded px-2 py-1 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-emerald-400/60"
+                                placeholder="输入官员姓名"
+                            />
+                        ) : (
+                            <div className="text-base font-semibold text-gray-100 truncate max-w-[10rem]">
+                                {displayName}
+                            </div>
+                        )}
+                        {canEditName && !isEditingName && (
+                            <button
+                                type="button"
+                                className="p-1 rounded bg-gray-800/70 text-gray-300 hover:text-emerald-300 hover:bg-gray-700/70 transition-colors"
+                                onClick={() => setIsEditingName(true)}
+                                title="修改官员姓名"
+                            >
+                                <Icon name="Edit2" size={12} />
+                            </button>
+                        )}
+                        {canEditName && isEditingName && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    className="p-1 rounded bg-emerald-700/70 text-emerald-100 hover:bg-emerald-600/70 transition-colors"
+                                    onClick={handleNameSave}
+                                    title="保存姓名"
+                                >
+                                    <Icon name="Check" size={12} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="p-1 rounded bg-gray-700/70 text-gray-200 hover:bg-gray-600/70 transition-colors"
+                                    onClick={handleNameCancel}
+                                    title="取消修改"
+                                >
+                                    <Icon name="X" size={12} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     {/* 派系标签 */}
                     <div className={`px-2 py-1 rounded text-xs font-semibold ${spectrumStyle.bg} ${spectrumStyle.border} ${spectrumStyle.text} border`}>
                         <Icon name={spectrumStyle.icon} size={12} className="inline mr-1" />

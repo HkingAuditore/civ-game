@@ -433,6 +433,8 @@ const buildMinimalAutoSavePayload = (payload) => ({
     tradeRoutes: payload.tradeRoutes,
     tradeStats: payload.tradeStats,
     diplomacyOrganizations: payload.diplomacyOrganizations,
+    vassalDiplomacyQueue: payload.vassalDiplomacyQueue,
+    vassalDiplomacyHistory: payload.vassalDiplomacyHistory,
     overseasBuildings: payload.overseasBuildings,
     foreignInvestmentPolicy: payload.foreignInvestmentPolicy,
     eventEffectSettings: payload.eventEffectSettings,
@@ -941,6 +943,8 @@ export const useGameState = () => {
     const [tradeRoutes, setTradeRoutes] = useState(buildInitialTradeRoutes); // 玩家创建的贸易路线
     const [tradeStats, setTradeStats] = useState({ tradeTax: 0, tradeRouteTax: 0 }); // 每日贸易路线税收
     const [diplomacyOrganizations, setDiplomacyOrganizations] = useState(buildInitialDiplomacyOrganizations);
+    const [vassalDiplomacyQueue, setVassalDiplomacyQueue] = useState([]);
+    const [vassalDiplomacyHistory, setVassalDiplomacyHistory] = useState([]);
     const [overseasBuildings, setOverseasBuildings] = useState(buildInitialOverseasBuildings);
 
     // ========== 和平协议状态 ==========
@@ -1368,6 +1372,8 @@ export const useGameState = () => {
                 tradeRoutes,
                 tradeStats,
                 diplomacyOrganizations,
+                vassalDiplomacyQueue,
+                vassalDiplomacyHistory,
                 overseasBuildings,
                 overseasInvestments,
                 foreignInvestments,
@@ -1552,6 +1558,8 @@ export const useGameState = () => {
         setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
         setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
         setDiplomacyOrganizations(data.diplomacyOrganizations || buildInitialDiplomacyOrganizations());
+        setVassalDiplomacyQueue(Array.isArray(data.vassalDiplomacyQueue) ? data.vassalDiplomacyQueue : []);
+        setVassalDiplomacyHistory(Array.isArray(data.vassalDiplomacyHistory) ? data.vassalDiplomacyHistory : []);
         setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
         setOverseasInvestments(migrateOverseasInvestments(data.overseasInvestments || []));
         setForeignInvestments(data.foreignInvestments || []);
@@ -2294,6 +2302,10 @@ export const useGameState = () => {
         setTradeStats,
         diplomacyOrganizations,
         setDiplomacyOrganizations,
+        vassalDiplomacyQueue,
+        setVassalDiplomacyQueue,
+        vassalDiplomacyHistory,
+        setVassalDiplomacyHistory,
         overseasInvestments,
         setOverseasInvestments,
         foreignInvestments,

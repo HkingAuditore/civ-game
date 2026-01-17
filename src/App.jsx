@@ -1251,6 +1251,7 @@ function GameApp({ gameState }) {
                                                 onFire={actions.fireExistingOfficial}
                                                 onDispose={actions.disposeExistingOfficial}
                                                 onUpdateOfficialSalary={actions.updateOfficialSalary}
+                                                onUpdateOfficialName={actions.updateOfficialName}
                                                 resources={gameState.resources}
 
                                                 // [NEW] 传递政治立场检查所需的上下文
@@ -1343,6 +1344,11 @@ activeDecrees={gameState.activeDecrees}
                                                 foreignInvestments={gameState.foreignInvestments}
                                                 foreignInvestmentPolicy={gameState.foreignInvestmentPolicy}
                                                 gameState={gameState}
+                                                vassalDiplomacyQueue={gameState.vassalDiplomacyQueue}
+                                                vassalDiplomacyHistory={gameState.vassalDiplomacyHistory}
+                                                onApproveVassalDiplomacy={actions.approveVassalDiplomacyAction}
+                                                onRejectVassalDiplomacy={actions.rejectVassalDiplomacyAction}
+                                                onIssueVassalOrder={actions.issueVassalDiplomacyOrder}
                                             />
                                         )}
 

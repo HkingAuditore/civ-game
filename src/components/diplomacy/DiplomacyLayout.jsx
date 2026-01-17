@@ -4,6 +4,7 @@ import NationList from './NationList';
 import NationDetailView from './NationDetailView';
 import { VassalManagementSheet } from '../panels/VassalManagementSheet';
 import { VassalOverviewPanel } from '../panels/VassalOverviewPanel';
+import { VassalDiplomacyPanel } from '../panels/VassalDiplomacyPanel';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { COLORS } from '../../config/unifiedStyles';
@@ -49,6 +50,13 @@ const DiplomacyLayout = ({
 
     // Organization Actions
     onViewOrganization,
+
+    // Vassal diplomacy controls
+    vassalDiplomacyQueue = [],
+    vassalDiplomacyHistory = [],
+    onApproveVassalDiplomacy,
+    onRejectVassalDiplomacy,
+    onIssueVassalOrder,
 }) => {
     // 移动端视图控制
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
@@ -59,6 +67,7 @@ const DiplomacyLayout = ({
 
     // 附庸概览面板状态
     const [vassalOverviewOpen, setVassalOverviewOpen] = useState(false);
+    const [vassalDiplomacyOpen, setVassalDiplomacyOpen] = useState(false);
 
     // 打开附庸管理面板
     const handleOpenVassalSheet = (nation) => {
@@ -69,6 +78,10 @@ const DiplomacyLayout = ({
     // 打开附庸概览面板
     const handleOpenVassalOverview = () => {
         setVassalOverviewOpen(true);
+    };
+
+    const handleOpenVassalDiplomacy = () => {
+        setVassalDiplomacyOpen(true);
     };
 
     // 从附庸概览选择某个附庸后，打开详细管理
@@ -141,6 +154,10 @@ const DiplomacyLayout = ({
                         <Button size="sm" variant="secondary" onClick={handleOpenVassalOverview}>
                             <Icon name="Crown" size={14} className="mr-1" />
                             附庸概览
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={handleOpenVassalDiplomacy}>
+                            <Icon name="ClipboardList" size={14} className="mr-1" />
+                            附庸外交
                         </Button>
                     </div>
                 </div>
@@ -219,6 +236,18 @@ const DiplomacyLayout = ({
                 onSelectVassal={handleSelectVassal}
                 onAdjustPolicy={handleSelectVassal}
                 onReleaseVassal={(nation) => onDiplomaticAction?.(nation.id, 'release_vassal')}
+            />
+
+            <VassalDiplomacyPanel
+                isOpen={vassalDiplomacyOpen}
+                onClose={() => setVassalDiplomacyOpen(false)}
+                nations={nations}
+                queue={vassalDiplomacyQueue}
+                history={vassalDiplomacyHistory}
+                currentDay={daysElapsed}
+                onApprove={onApproveVassalDiplomacy}
+                onReject={onRejectVassalDiplomacy}
+                onIssueOrder={onIssueVassalOrder}
             />
         </div>
     );

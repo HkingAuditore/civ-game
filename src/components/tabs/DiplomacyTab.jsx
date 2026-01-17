@@ -51,6 +51,11 @@ const DiplomacyTabComponent = ({
     population = {},
     foreignInvestments = [],
     foreignInvestmentPolicy = 'normal',
+    vassalDiplomacyQueue = [],
+    vassalDiplomacyHistory = [],
+    onApproveVassalDiplomacy,
+    onRejectVassalDiplomacy,
+    onIssueVassalOrder,
 }) => {
     // --- State Management ---
     const [selectedNationId, setSelectedNationId] = useState(null);
@@ -335,6 +340,12 @@ const DiplomacyTabComponent = ({
                     setSelectedOrganization(org);
                     setShowOrganizationModal(true);
                 }}
+
+                vassalDiplomacyQueue={vassalDiplomacyQueue}
+                vassalDiplomacyHistory={vassalDiplomacyHistory}
+                onApproveVassalDiplomacy={onApproveVassalDiplomacy}
+                onRejectVassalDiplomacy={onRejectVassalDiplomacy}
+                onIssueVassalOrder={onIssueVassalOrder}
             />
 
             {/* --- Modals & Dialogs --- */}

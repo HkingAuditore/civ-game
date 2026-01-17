@@ -532,6 +532,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
         tradeRoutes,
         setTradeRoutes,
         diplomacyOrganizations,
+        vassalDiplomacyQueue,
+        setVassalDiplomacyQueue,
+        vassalDiplomacyHistory,
+        setVassalDiplomacyHistory,
         tradeStats,
         setTradeStats,
         actionCooldowns,
@@ -608,6 +612,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         merchantState,
         tradeRoutes,
         diplomacyOrganizations,
+        vassalDiplomacyQueue,
+        vassalDiplomacyHistory,
         actions,
         tradeStats,
         actionCooldowns,
@@ -724,6 +730,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
             merchantState,
             tradeRoutes,
             diplomacyOrganizations,
+            vassalDiplomacyQueue,
+            vassalDiplomacyHistory,
             actions,
             tradeStats,
             actionCooldowns,
@@ -748,7 +756,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             priceControls, // [NEW] 计划经济价格管制设置
             foreignInvestments, // [NEW] 海外投资
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls, foreignInvestments]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls, foreignInvestments]);
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
     useEffect(() => {
@@ -2655,6 +2663,81 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
                 if (typeof result.birthAccumulator === 'number') {
                     setBirthAccumulator(result.birthAccumulator);
+                }
+
+                if (Array.isArray(result.vassalDiplomacyRequests) && result.vassalDiplomacyRequests.length > 0) {
+                    const createdDay = current.daysElapsed || 0;
+                    setVassalDiplomacyQueue(prev => {
+                        const existing = Array.isArray(prev) ? prev : [];
+                        const existingSignatures = new Set(
+                            existing
+                                .filter(item => item && item.status === 'pending')
+                                .map(item => item.signature)
+                        );
+                        const incoming = result.vassalDiplomacyRequests.map(req => {
+                            const signature = req.signature
+                                || `${req.vassalId || 'unknown'}:${req.actionType || 'unknown'}:${req.targetId || 'none'}:${req.payload?.orgId || ''}`;
+                            return {
+                                ...req,
+                                id: req.id || `vassal_action_${createdDay}_${Math.random().toString(36).slice(2, 8)}`,
+                                status: 'pending',
+                                createdDay,
+                                expiresAt: req.expiresAt || (createdDay + 60),
+                                signature,
+                            };
+                        }).filter(req => !existingSignatures.has(req.signature));
+
+                        if (incoming.length === 0) return existing;
+                        return [...existing, ...incoming];
+                    });
+                }
+
+                if (vassalDiplomacyQueue?.length) {
+                    const now = current.daysElapsed || 0;
+                    const expired = [];
+                    setVassalDiplomacyQueue(prev => {
+                        const items = Array.isArray(prev) ? prev : [];
+                        const remaining = [];
+                        items.forEach(item => {
+                            if (!item || item.status !== 'pending') {
+                                remaining.push(item);
+                                return;
+                            }
+                            if (item.expiresAt != null && now >= item.expiresAt) {
+                                expired.push({ ...item, status: 'expired', resolvedDay: now });
+                                return;
+                            }
+                            remaining.push(item);
+                        });
+                        return remaining;
+                    });
+                    if (expired.length > 0) {
+                        setVassalDiplomacyHistory(prev => {
+                            const history = Array.isArray(prev) ? prev : [];
+                            return [...expired, ...history].slice(0, 120);
+                        });
+                        const expiredPeace = expired.filter(item => item.actionType === 'propose_peace' && item.targetId);
+                        if (expiredPeace.length > 0) {
+                            const expiredPairs = new Set(expiredPeace.map(item => `${item.vassalId}:${item.targetId}`));
+                            setNations(prev => prev.map(n => {
+                                const match = [...expiredPairs].find(pair => {
+                                    const [vassalId, targetId] = pair.split(':');
+                                    return n.id === vassalId || n.id === targetId;
+                                });
+                                if (!match) return n;
+                                const [vassalId, targetId] = match.split(':');
+                                const enemyId = n.id === vassalId ? targetId : vassalId;
+                                const foreignWars = { ...(n.foreignWars || {}) };
+                                if (foreignWars[enemyId]) {
+                                    foreignWars[enemyId] = {
+                                        ...foreignWars[enemyId],
+                                        pendingPeaceApproval: false,
+                                    };
+                                }
+                                return { ...n, foreignWars };
+                            }));
+                        }
+                    }
                 }
 
                 // 添加新日志

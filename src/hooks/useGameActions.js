@@ -59,7 +59,7 @@ import {
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
 import { getOrganizationStage, getPhaseFromStage } from '../logic/organizationSystem';
-import { ORGANIZATION_TYPE_CONFIGS } from '../logic/diplomacy/organizationDiplomacy';
+import { ORGANIZATION_TYPE_CONFIGS, createOrganization } from '../logic/diplomacy/organizationDiplomacy';
 import { getLegacyPolicyDecrees } from '../logic/officials/cabinetSynergy';
 import {
     triggerSelection,
@@ -120,6 +120,9 @@ export const useGameActions = (gameState, addLog) => {
         setTradeRoutes,
         diplomacyOrganizations,
         setDiplomacyOrganizations,
+        vassalDiplomacyQueue,
+        setVassalDiplomacyQueue,
+        setVassalDiplomacyHistory,
         overseasInvestments,
         setOverseasInvestments,
         foreignInvestments,
@@ -169,6 +172,250 @@ export const useGameActions = (gameState, addLog) => {
 
     const setClassWealthWithReason = (updater, reason, meta = null) => {
         setClassWealth(updater, { reason, meta });
+    };
+
+    const updateOrganizationsState = (updater) => {
+        if (typeof setDiplomacyOrganizations !== 'function') return;
+        setDiplomacyOrganizations(prev => {
+            const current = prev && typeof prev === 'object' ? prev : { organizations: [] };
+            const nextOrgs = updater(Array.isArray(current.organizations) ? current.organizations : []);
+            return { ...current, organizations: nextOrgs };
+        });
+    };
+
+    const pushVassalDiplomacyHistory = (entry) => {
+        if (typeof setVassalDiplomacyHistory !== 'function') return;
+        setVassalDiplomacyHistory(prev => {
+            const history = Array.isArray(prev) ? prev : [];
+            return [entry, ...history].slice(0, 120);
+        });
+    };
+
+    const resolveVassalDiplomacyRequest = (requestId, status, extra = {}) => {
+        if (!requestId || typeof setVassalDiplomacyQueue !== 'function') return;
+        let resolvedItem = null;
+        setVassalDiplomacyQueue(prev => {
+            const items = Array.isArray(prev) ? prev : [];
+            const next = items.filter(item => item?.id !== requestId);
+            resolvedItem = items.find(item => item?.id === requestId) || null;
+            return next;
+        });
+        if (resolvedItem) {
+            if (resolvedItem.actionType === 'propose_peace' && resolvedItem.targetId) {
+                setNations(prev => prev.map(n => {
+                    if (n.id !== resolvedItem.vassalId && n.id !== resolvedItem.targetId) return n;
+                    const enemyId = n.id === resolvedItem.vassalId ? resolvedItem.targetId : resolvedItem.vassalId;
+                    const foreignWars = { ...(n.foreignWars || {}) };
+                    if (foreignWars[enemyId]) {
+                        foreignWars[enemyId] = {
+                            ...foreignWars[enemyId],
+                            pendingPeaceApproval: false,
+                        };
+                    }
+                    return { ...n, foreignWars };
+                }));
+            }
+            pushVassalDiplomacyHistory({
+                ...resolvedItem,
+                status,
+                resolvedDay: daysElapsed,
+                ...extra,
+            });
+        }
+    };
+
+    const executeVassalDiplomacyAction = (request) => {
+        if (!request) return { success: false, message: '无效的外交请求' };
+        const vassal = nations.find(n => n.id === request.vassalId);
+        const target = request.targetId ? nations.find(n => n.id === request.targetId) : null;
+        if (!vassal) return { success: false, message: '附庸不存在' };
+
+        switch (request.actionType) {
+            case 'trade': {
+                if (!target) return { success: false, message: '目标国家不存在' };
+                if (vassal.isAtWar || target.isAtWar) {
+                    return { success: false, message: '战争状态无法贸易' };
+                }
+                const tradeValue = Math.floor(request.payload?.tradeValue || (20 + Math.random() * 60));
+                setNations(prev => prev.map(n => {
+                    if (n.id === vassal.id || n.id === target.id) {
+                        const relationKey = n.id === vassal.id ? target.id : vassal.id;
+                        const nextRelations = { ...(n.foreignRelations || {}) };
+                        nextRelations[relationKey] = Math.min(100, (nextRelations[relationKey] || 50) + 1);
+                        return {
+                            ...n,
+                            wealth: (n.wealth || 0) + tradeValue * 0.05,
+                            foreignRelations: nextRelations,
+                        };
+                    }
+                    return n;
+                }));
+                addLog(`🧾 ${vassal.name} 与 ${target.name} 完成贸易协定（宗主批准）。`);
+                return { success: true };
+            }
+            case 'declare_war': {
+                if (!target) return { success: false, message: '目标国家不存在' };
+                setNations(prev => prev.map(n => {
+                    if (n.id === vassal.id) {
+                        const foreignWars = { ...(n.foreignWars || {}) };
+                        foreignWars[target.id] = { isAtWar: true, warStartDay: daysElapsed, warScore: 0 };
+                        return { ...n, foreignWars };
+                    }
+                    if (n.id === target.id) {
+                        const foreignWars = { ...(n.foreignWars || {}) };
+                        foreignWars[vassal.id] = { isAtWar: true, warStartDay: daysElapsed, warScore: 0 };
+                        return { ...n, foreignWars };
+                    }
+                    return n;
+                }));
+                addLog(`⚔️ ${vassal.name} 向 ${target.name} 宣战（宗主批准）。`);
+                return { success: true };
+            }
+            case 'propose_peace': {
+                if (!target) return { success: false, message: '目标国家不存在' };
+                setNations(prev => prev.map(n => {
+                    if (n.id === vassal.id) {
+                        const foreignWars = { ...(n.foreignWars || {}) };
+                        if (foreignWars[target.id]) {
+                            foreignWars[target.id] = {
+                                ...foreignWars[target.id],
+                                isAtWar: false,
+                                peaceTreatyUntil: daysElapsed + 365,
+                                pendingPeaceApproval: false,
+                            };
+                        }
+                        return { ...n, foreignWars };
+                    }
+                    if (n.id === target.id) {
+                        const foreignWars = { ...(n.foreignWars || {}) };
+                        if (foreignWars[vassal.id]) {
+                            foreignWars[vassal.id] = {
+                                ...foreignWars[vassal.id],
+                                isAtWar: false,
+                                peaceTreatyUntil: daysElapsed + 365,
+                                pendingPeaceApproval: false,
+                            };
+                        }
+                        return { ...n, foreignWars };
+                    }
+                    return n;
+                }));
+                addLog(`🕊️ ${vassal.name} 与 ${target.name} 结束战争（宗主批准）。`);
+                return { success: true };
+            }
+            case 'join_org':
+            case 'join_alliance': {
+                const orgId = request.payload?.orgId;
+                if (!orgId) return { success: false, message: '组织不存在' };
+                updateOrganizationsState(orgs => {
+                    return orgs.map(org => {
+                        if (org.id !== orgId) return org;
+                        const config = ORGANIZATION_TYPE_CONFIGS[org.type];
+                        const maxMembers = config?.maxMembers || 10;
+                        const members = Array.isArray(org.members) ? org.members : [];
+                        if (members.includes(vassal.id) || members.length >= maxMembers) return org;
+                        return { ...org, members: [...members, vassal.id] };
+                    });
+                });
+                addLog(`🏛️ ${vassal.name} 加入了组织（宗主批准）。`);
+                return { success: true };
+            }
+            case 'leave_org': {
+                const orgId = request.payload?.orgId;
+                if (!orgId) return { success: false, message: '组织不存在' };
+                updateOrganizationsState(orgs => {
+                    return orgs.map(org => {
+                        if (org.id !== orgId) return org;
+                        const members = Array.isArray(org.members) ? org.members : [];
+                        if (!members.includes(vassal.id)) return org;
+                        return { ...org, members: members.filter(id => id !== vassal.id) };
+                    });
+                });
+                addLog(`🏛️ ${vassal.name} 退出了组织（宗主批准）。`);
+                return { success: true };
+            }
+            case 'create_alliance':
+            case 'create_economic_bloc': {
+                const orgType = request.actionType === 'create_alliance' ? 'military_alliance' : 'economic_bloc';
+                const orgName = request.payload?.orgName || `${vassal.name}同盟`;
+                const createResult = createOrganization({
+                    type: orgType,
+                    founderId: vassal.id,
+                    founderName: vassal.name,
+                    name: orgName,
+                    epoch,
+                    daysElapsed,
+                });
+                if (!createResult.success) {
+                    return { success: false, message: createResult.reason || '无法创建组织' };
+                }
+                updateOrganizationsState(orgs => [...orgs, createResult.organization]);
+                if (target) {
+                    updateOrganizationsState(orgs => orgs.map(org => {
+                        if (org.id !== createResult.organization.id) return org;
+                        const members = Array.isArray(org.members) ? org.members : [];
+                        if (members.includes(target.id)) return org;
+                        return { ...org, members: [...members, target.id] };
+                    }));
+                }
+                addLog(`🏛️ ${vassal.name} 组建新组织（宗主批准）。`);
+                return { success: true };
+            }
+            default:
+                return { success: false, message: '未知外交类型' };
+        }
+    };
+
+    const approveVassalDiplomacyAction = (requestId) => {
+        const request = (vassalDiplomacyQueue || []).find(item => item?.id === requestId);
+        if (!request) return;
+        const result = executeVassalDiplomacyAction(request);
+        if (result.success) {
+            resolveVassalDiplomacyRequest(requestId, 'approved');
+        } else {
+            resolveVassalDiplomacyRequest(requestId, 'rejected', { failureReason: result.message });
+            if (result.message) addLog(`⚠️ 附庸外交失败：${result.message}`);
+        }
+    };
+
+    const rejectVassalDiplomacyAction = (requestId, reason = 'rejected') => {
+        resolveVassalDiplomacyRequest(requestId, 'rejected', { failureReason: reason });
+        if (reason) addLog(`🛑 已拒绝附庸外交请求：${reason}`);
+    };
+
+    const issueVassalDiplomacyOrder = (vassalId, actionType, payload = {}) => {
+        const vassal = nations.find(n => n.id === vassalId);
+        if (!vassal) {
+            addLog('无法下达指令：附庸不存在');
+            return;
+        }
+        const control = vassal.vassalPolicy?.diplomaticControl || 'guided';
+        if (control === 'autonomous') {
+            addLog(`${vassal.name} 处于自主外交，无法直接下达指令。`);
+            return;
+        }
+        const target = payload?.targetId ? nations.find(n => n.id === payload.targetId) : null;
+        const request = {
+            id: `vassal_order_${daysElapsed}_${Math.random().toString(36).slice(2, 8)}`,
+            vassalId,
+            vassalName: vassal.name,
+            targetId: payload?.targetId || null,
+            targetName: target?.name,
+            actionType,
+            payload,
+            createdDay: daysElapsed,
+            source: 'player',
+        };
+        const result = executeVassalDiplomacyAction(request);
+        if (!result.success) {
+            if (result.message) addLog(`⚠️ 附庸指令失败：${result.message}`);
+            return;
+        }
+        pushVassalDiplomacyHistory({
+            ...request,
+            status: 'ordered',
+            resolvedDay: daysElapsed,
+        });
     };
 
     const toggleDecree = (decreeId) => {
@@ -1697,6 +1944,20 @@ export const useGameActions = (gameState, addLog) => {
         if (!officialId || !Number.isFinite(nextSalary)) return;
         setOfficials(prev => prev.map(official => (
             official.id === officialId ? { ...official, salary: Math.floor(nextSalary) } : official
+        )));
+    };
+
+    /**
+     * 更新官员姓名
+     * @param {string} officialId - 官员ID
+     * @param {string} nextName - 新姓名
+     */
+    const updateOfficialName = (officialId, nextName) => {
+        if (!officialId || typeof nextName !== 'string') return;
+        const trimmedName = nextName.trim();
+        if (!trimmedName) return;
+        setOfficials(prev => prev.map(official => (
+            official.id === officialId ? { ...official, name: trimmedName } : official
         )));
     };
 
@@ -5382,6 +5643,9 @@ export const useGameActions = (gameState, addLog) => {
         handleEnemyPeaceAccept,
         handleEnemyPeaceReject,
         handlePlayerPeaceProposal,
+        approveVassalDiplomacyAction,
+        rejectVassalDiplomacyAction,
+        issueVassalDiplomacyOrder,
 
         // 贸易路线
         handleTradeRouteAction,
@@ -5418,6 +5682,7 @@ export const useGameActions = (gameState, addLog) => {
         fireExistingOfficial,
         disposeExistingOfficial,
         updateOfficialSalary,
+        updateOfficialName,
         // 叛乱系统
         handleRebellionAction,
         handleRebellionWarEnd,

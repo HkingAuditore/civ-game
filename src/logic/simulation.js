@@ -1486,6 +1486,7 @@ export const simulateTick = ({
     const classWealthResult = {};
     const approvalBreakdown = {}; // NEW: per-stratum approval calculation breakdown for UI traceability
     const logs = [];
+    const vassalDiplomacyRequests = [];
     const aggregatedLogs = new Map();
     const buildingJobFill = {};
     const buildingStaffingRatios = {};
@@ -4977,7 +4978,7 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-AI trade
     if (shouldUpdateTrade) {
-        processAITrade(visibleNations, logs, diplomacyOrganizations);
+        processAITrade(visibleNations, logs, diplomacyOrganizations, vassalDiplomacyRequests, tick);
     }
 
 
@@ -5000,8 +5001,22 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-AI alliance formation
     if (shouldUpdateDiplomacy) {
-        const allianceResult = processAIAllianceFormation(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
-        const recruitResult = processAIOrganizationRecruitment(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+        const allianceResult = processAIAllianceFormation(
+            visibleNations,
+            tick,
+            logs,
+            { organizations: updatedOrganizations },
+            visibleEpoch,
+            vassalDiplomacyRequests,
+        );
+        const recruitResult = processAIOrganizationRecruitment(
+            visibleNations,
+            tick,
+            logs,
+            { organizations: updatedOrganizations },
+            visibleEpoch,
+            vassalDiplomacyRequests,
+        );
 
         if (allianceResult && allianceResult.createdOrganizations.length > 0) {
             updatedOrganizations.push(...allianceResult.createdOrganizations);
@@ -5031,7 +5046,14 @@ export const simulateTick = ({
             });
         }
 
-        const maintenanceResult = processAIOrganizationMaintenance(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+        const maintenanceResult = processAIOrganizationMaintenance(
+            visibleNations,
+            tick,
+            logs,
+            { organizations: updatedOrganizations },
+            visibleEpoch,
+            vassalDiplomacyRequests,
+        );
         if (maintenanceResult?.memberLeaveRequests?.length) {
             maintenanceResult.memberLeaveRequests.forEach(req => {
                 const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
@@ -5065,8 +5087,15 @@ export const simulateTick = ({
     // REFACTORED: Using module functions for AI-AI war system
     if (shouldUpdateAI) {
         processCollectiveAttackWarmonger(visibleNations, tick, logs, { organizations: updatedOrganizations });
-        processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs, { organizations: updatedOrganizations });
-        processAIAIWarProgression(visibleNations, updatedNations, tick, logs);
+        processAIAIWarDeclaration(
+            visibleNations,
+            updatedNations,
+            tick,
+            logs,
+            { organizations: updatedOrganizations },
+            vassalDiplomacyRequests,
+        );
+        processAIAIWarProgression(visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests);
     }
 
     // Population fertility calculations (uses constants from ./utils/constants)
@@ -6573,6 +6602,7 @@ export const simulateTick = ({
         legitimacy: coalitionLegitimacy, // 执政联盟合法性
         legitimacyTaxModifier, // 税收修正系数
         logs,
+        vassalDiplomacyRequests,
         market: {
             prices: updatedPrices,
             demand,

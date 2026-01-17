@@ -41,6 +41,7 @@ export const OfficialsPanel = ({
     onUpdateExpansionSettings,
     onEnactDecree,
     onUpdateOfficialSalary,
+    onUpdateOfficialName,
 
     // [NEW] 额外上下文和详细容量
     jobCapacity = 0,
@@ -435,6 +436,7 @@ export const OfficialsPanel = ({
                 onClose={() => setSelectedOfficial(null)}
                 official={selectedOfficial}
                 onUpdateSalary={onUpdateOfficialSalary}
+                onUpdateName={onUpdateOfficialName}
                 currentDay={currentTick}
                 isStanceSatisfied={selectedOfficial?.politicalStance ? isStanceSatisfied(selectedOfficial.politicalStance, stanceContext, selectedOfficial.stanceConditionParams) : null}
                 stability={stability}

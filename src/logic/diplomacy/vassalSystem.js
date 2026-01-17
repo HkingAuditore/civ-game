@@ -1297,6 +1297,40 @@ export const canVassalPerformDiplomacy = (nation, actionType) => {
 };
 
 /**
+ * 是否需要宗主审批附庸外交行动
+ * @param {Object} nation - 附庸国对象
+ * @returns {boolean}
+ */
+export const requiresVassalDiplomacyApproval = (nation) => {
+    if (!nation || nation.vassalOf !== 'player') return false;
+    const control = nation.vassalPolicy?.diplomaticControl || 'guided';
+    return control === 'guided' || control === 'puppet';
+};
+
+/**
+ * 构造附庸外交请求对象（用于审批队列）
+ * @param {Object} params
+ * @returns {Object}
+ */
+export const buildVassalDiplomacyRequest = ({
+    vassal,
+    target,
+    actionType,
+    payload = {},
+    tick = 0,
+    source = 'ai',
+}) => ({
+    vassalId: vassal?.id || null,
+    vassalName: vassal?.name || '附庸国',
+    targetId: target?.id || null,
+    targetName: target?.name || '未知国家',
+    actionType,
+    payload,
+    requestedDay: tick,
+    source,
+});
+
+/**
  * Validate and clean up governor assignments
  * @param {Array} nations - All nations
  * @param {Array} officials - Player officials
