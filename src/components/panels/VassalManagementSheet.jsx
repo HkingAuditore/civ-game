@@ -14,7 +14,8 @@ import {
     calculateEnhancedTribute,
     calculateControlMeasureCost,
     checkGarrisonEffectiveness,
-    calculateGovernorEffectiveness
+    calculateGovernorEffectiveness,
+    getIndependenceChangeBreakdown
 } from '../../logic/diplomacy/vassalSystem';
 import { GOVERNOR_MANDATES, calculateGovernorFullEffects, GOVERNOR_EFFECTS_CONFIG } from '../../logic/diplomacy/vassalGovernors';
 
@@ -319,7 +320,7 @@ const CONTROL_MEASURES = [
 /**
  * 概览 Tab 内容
  */
-const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, autonomy, independence, onDiplomaticAction, onClose }) => (
+const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, autonomy, independence, onDiplomaticAction, onClose, independenceBreakdown }) => (
     <div className="space-y-4">
         {/* 附庸类型标识 */}
         <div className="flex items-center justify-between p-3 bg-purple-900/30 rounded-lg border border-purple-700/40">
@@ -374,8 +375,90 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                 <div className="text-[10px] text-gray-500 mt-1">
                     {independence > 80 ? '即将独立!' : independence > 60 ? '有独立意向' : independence > 30 ? '轻微不满' : '忠诚'}
                 </div>
+                {/* 每日变化预估 */}
+                {independenceBreakdown && (
+                    <div className={`text-[10px] mt-1 font-mono ${
+                        independenceBreakdown.netChange > 0 ? 'text-red-400' : 'text-green-400'
+                    }`}>
+                        每日: {independenceBreakdown.netChange > 0 ? '+' : ''}{independenceBreakdown.netChange.toFixed(2)}%
+                    </div>
+                )}
             </div>
         </div>
+
+        {/* 独立度变化原因 */}
+        {independenceBreakdown && (
+            <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-700/40">
+                <div className="flex items-center gap-2 mb-3">
+                    <Icon name="TrendingUp" size={16} className="text-orange-400" />
+                    <span className="text-sm font-semibold text-gray-200">独立倾向变化原因</span>
+                    <span className={`ml-auto text-sm font-mono ${independenceBreakdown.netChange > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {independenceBreakdown.netChange > 0 ? '+' : ''}{independenceBreakdown.netChange.toFixed(2)}%/天
+                    </span>
+                </div>
+                
+                {/* 增长因素 */}
+                {independenceBreakdown.factors.length > 0 && (
+                    <div className="mb-3">
+                        <div className="text-[10px] text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <Icon name="ArrowUp" size={10} />
+                            增长因素 (+{independenceBreakdown.growthRate.toFixed(2)}%/天)
+                        </div>
+                        <div className="space-y-1">
+                            {independenceBreakdown.factors.map((factor, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-[10px]">
+                                    <span className="text-gray-400">
+                                        {factor.name}
+                                        {factor.description && (
+                                            <span className="text-gray-500 ml-1">({factor.description})</span>
+                                        )}
+                                    </span>
+                                    <span className={`font-mono ${
+                                        factor.effect === 'negative' ? 'text-red-400' : 
+                                        factor.effect === 'positive' ? 'text-green-400' : 'text-gray-300'
+                                    }`}>
+                                        {factor.type === 'multiplier' ? `×${factor.value.toFixed(2)}` : `+${factor.value.toFixed(2)}`}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 减少因素 */}
+                {independenceBreakdown.reductions.length > 0 && (
+                    <div>
+                        <div className="text-[10px] text-green-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <Icon name="ArrowDown" size={10} />
+                            抑制因素 (-{independenceBreakdown.totalReduction.toFixed(2)}%/天)
+                        </div>
+                        <div className="space-y-1">
+                            {independenceBreakdown.reductions.map((reduction, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-[10px]">
+                                    <span className="text-gray-400">
+                                        {reduction.name}
+                                        {reduction.description && (
+                                            <span className="text-gray-500 ml-1">({reduction.description})</span>
+                                        )}
+                                    </span>
+                                    <span className="text-green-400 font-mono">
+                                        -{reduction.value.toFixed(2)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 无减少因素时的提示 */}
+                {independenceBreakdown.reductions.length === 0 && independenceBreakdown.netChange > 0 && (
+                    <div className="text-[10px] text-yellow-400/70 flex items-center gap-1">
+                        <Icon name="AlertTriangle" size={10} />
+                        未启用任何控制措施，独立倾向将持续上升
+                    </div>
+                )}
+            </div>
+        )}
 
         {/* 朝贡信息 */}
         <div className="p-4 bg-amber-900/20 rounded-lg border border-amber-700/40">
@@ -1038,6 +1121,7 @@ export const VassalManagementSheet = memo(({
     onDiplomaticAction,
     officials = [],       // NEW: Officials list for governor selection
     playerMilitary = 1.0, // NEW: Player military strength
+    epoch = 1,            // 当前时代，用于计算独立度变化
 }) => {
     // 所有 hooks 必须在条件返回之前调用
     const [activeTab, setActiveTab] = useState('overview');
@@ -1047,6 +1131,12 @@ export const VassalManagementSheet = memo(({
         if (!nation) return { silver: 0 };
         return calculateEnhancedTribute(nation, playerResources.silver || 10000);
     }, [nation, playerResources]);
+
+    // 计算独立度变化原因分解
+    const independenceBreakdown = useMemo(() => {
+        if (!nation) return null;
+        return getIndependenceChangeBreakdown(nation, epoch, officials);
+    }, [nation, epoch, officials]);
 
     // 预先计算所有派生值
     const independence = nation?.independencePressure || 0;
@@ -1116,6 +1206,7 @@ export const VassalManagementSheet = memo(({
                         independence={independence}
                         onDiplomaticAction={onDiplomaticAction}
                         onClose={onClose}
+                        independenceBreakdown={independenceBreakdown}
                     />
                 )}
 

@@ -266,6 +266,7 @@ export const useGameActions = (gameState, addLog) => {
 
     const getVisibleNations = () => (nations || []).filter(n => {
         if (!n || n.visible === false) return false;
+        if (n.isAnnexed) return false; // 排除已被吞并的国家
         const appearEpoch = n.appearEpoch ?? 0;
         const expireEpoch = n.expireEpoch;
         if (epoch < appearEpoch) return false;
