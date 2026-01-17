@@ -5,6 +5,7 @@ import TreatyTerms from './negotiation/TreatyTerms';
 import DealStatus from './negotiation/DealStatus';
 import { RESOURCES } from '../../config/gameConstants';
 import { DIPLOMACY_ERA_UNLOCK, TREATY_CONFIGS } from '../../config/diplomacy';
+import { ORGANIZATION_TYPE_CONFIGS } from '../../logic/diplomacy/organizationDiplomacy';
 
 const NegotiationDialog = ({
     isOpen,
