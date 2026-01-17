@@ -645,6 +645,252 @@ const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
 };
 
 /**
+ * 计算独立度变化的详细分解
+ * 用于在UI中显示独立度变化的各个原因
+ * @param {Object} nation - 附庸国对象
+ * @param {number} epoch - 当前时代
+ * @param {Array} officials - 官员列表（用于计算总督效果）
+ * @returns {Object} 独立度变化的详细分解
+ */
+export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []) => {
+    const config = INDEPENDENCE_CONFIG;
+    const breakdown = {
+        baseRate: 0.10,           // 基础增长率
+        factors: [],              // 影响因素列表
+        reductions: [],           // 减少因素列表
+        finalDailyChange: 0,      // 最终每日变化
+        netChange: 0,             // 净变化（增长-减少）
+    };
+
+    // === 1. 基础增长率 ===
+    breakdown.factors.push({
+        name: '基础增长',
+        value: 0.10,
+        description: '每日基础独立倾向增长',
+        type: 'base',
+    });
+
+    let rate = 0.10;
+
+    // === 2. 时代系数 ===
+    const eraMultiplier = config.eraMultiplier.base +
+        Math.max(0, epoch - 3) * config.eraMultiplier.perEra;
+    if (eraMultiplier !== 1.0) {
+        breakdown.factors.push({
+            name: '时代系数',
+            value: eraMultiplier,
+            description: epoch > 3 ? `时代${epoch}：民族主义增强` : '早期时代',
+            type: 'multiplier',
+        });
+        rate *= eraMultiplier;
+    }
+
+    // === 3. 阶层满意度影响 ===
+    if (nation?.socialStructure) {
+        const avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
+        const satisfactionMod = Math.max(0.5, 2.5 - (avgSatisfaction / 50));
+        
+        const satisfactionEffect = satisfactionMod > 1.0 ? 'negative' : 'positive';
+        breakdown.factors.push({
+            name: '阶层满意度',
+            value: satisfactionMod,
+            rawValue: avgSatisfaction,
+            description: avgSatisfaction < 30 ? `平均满意度仅${Math.round(avgSatisfaction)}%（极低）` :
+                         avgSatisfaction < 50 ? `平均满意度${Math.round(avgSatisfaction)}%（较低）` :
+                         avgSatisfaction < 70 ? `平均满意度${Math.round(avgSatisfaction)}%（正常）` :
+                         `平均满意度${Math.round(avgSatisfaction)}%（良好）`,
+            type: 'multiplier',
+            effect: satisfactionEffect,
+        });
+        rate *= satisfactionMod;
+    }
+
+    // === 4. 政策影响 ===
+    const vassalPolicy = nation?.vassalPolicy || {};
+
+    // 4.1 劳工政策
+    const laborPolicyId = vassalPolicy.labor || 'standard';
+    const laborConfig = LABOR_POLICY_DEFINITIONS[laborPolicyId];
+    if (laborConfig && laborConfig.independenceGrowthMod !== 1.0) {
+        breakdown.factors.push({
+            name: '劳工政策',
+            value: laborConfig.independenceGrowthMod,
+            description: `${laborConfig.name}`,
+            type: 'multiplier',
+            effect: laborConfig.independenceGrowthMod > 1.0 ? 'negative' : 'positive',
+        });
+        rate *= laborConfig.independenceGrowthMod;
+    }
+
+    // 4.2 贸易政策
+    const tradePolicyId = vassalPolicy.tradePolicy || 'preferential';
+    const tradeConfig = TRADE_POLICY_DEFINITIONS[tradePolicyId];
+    if (tradeConfig && tradeConfig.independenceGrowthMod !== 1.0) {
+        breakdown.factors.push({
+            name: '贸易政策',
+            value: tradeConfig.independenceGrowthMod,
+            description: `${tradeConfig.name}`,
+            type: 'multiplier',
+            effect: tradeConfig.independenceGrowthMod > 1.0 ? 'negative' : 'positive',
+        });
+        rate *= tradeConfig.independenceGrowthMod;
+    }
+
+    // 4.3 治理政策
+    const governancePolicyId = vassalPolicy.governance || 'autonomous';
+    const governanceConfig = GOVERNANCE_POLICY_DEFINITIONS[governancePolicyId];
+    if (governanceConfig && governanceConfig.independenceGrowthMod !== 1.0) {
+        breakdown.factors.push({
+            name: '治理政策',
+            value: governanceConfig.independenceGrowthMod,
+            description: `${governanceConfig.name}`,
+            type: 'multiplier',
+            effect: governanceConfig.independenceGrowthMod > 1.0 ? 'negative' : 'positive',
+        });
+        rate *= governanceConfig.independenceGrowthMod;
+    }
+
+    // 4.4 投资政策
+    const investmentPolicyId = vassalPolicy.investmentPolicy || 'autonomous';
+    if (investmentPolicyId === 'guided') {
+        breakdown.factors.push({
+            name: '投资政策',
+            value: 1.2,
+            description: '引导投资',
+            type: 'multiplier',
+            effect: 'negative',
+        });
+        rate *= 1.2;
+    } else if (investmentPolicyId === 'forced') {
+        breakdown.factors.push({
+            name: '投资政策',
+            value: 1.5,
+            description: '强制投资',
+            type: 'multiplier',
+            effect: 'negative',
+        });
+        rate *= 1.5;
+    }
+
+    // 4.5 军事政策
+    const militaryPolicyId = vassalPolicy.military || 'call_to_arms';
+    const militaryConfig = {
+        autonomous: { name: '自主参战', mod: 0.8 },
+        call_to_arms: { name: '战争征召', mod: 1.0 },
+        auto_join: { name: '自动参战', mod: 1.3 },
+    };
+    const militaryMod = militaryConfig[militaryPolicyId]?.mod || 1.0;
+    if (militaryMod !== 1.0) {
+        breakdown.factors.push({
+            name: '军事政策',
+            value: militaryMod,
+            description: militaryConfig[militaryPolicyId]?.name || militaryPolicyId,
+            type: 'multiplier',
+            effect: militaryMod > 1.0 ? 'negative' : 'positive',
+        });
+        rate *= militaryMod;
+    }
+
+    // === 5. 朝贡率影响 ===
+    const tributeRate = nation.tributeRate || 0;
+    if (tributeRate > 0) {
+        const tributeMod = 1 + tributeRate * 5;
+        breakdown.factors.push({
+            name: '朝贡率',
+            value: tributeMod,
+            rawValue: tributeRate * 100,
+            description: `${Math.round(tributeRate * 100)}%朝贡`,
+            type: 'multiplier',
+            effect: 'negative',
+        });
+        rate *= tributeMod;
+    }
+
+    // 记录增长率
+    breakdown.growthRate = rate;
+
+    // === 6. 控制措施减少 ===
+    let totalReduction = 0;
+    const controlMeasures = vassalPolicy.controlMeasures || {};
+
+    // 6.1 派遣总督
+    const governorData = controlMeasures.governor;
+    if (governorData && (governorData === true || governorData.active)) {
+        const officialId = governorData.officialId;
+        const official = officials.find(o => o.id === officialId);
+        
+        if (official) {
+            // 使用完整的总督效果计算
+            const govEffects = calculateGovernorFullEffects(official, nation);
+            const reduction = govEffects.independenceReduction || 0.2;
+            breakdown.reductions.push({
+                name: '派遣总督',
+                value: reduction,
+                description: `${official.name}（威望${official.prestige || 50}）`,
+                type: 'reduction',
+            });
+            totalReduction += reduction;
+        } else {
+            // 没有指定官员时，使用基础效果
+            const baseReduction = config.controlMeasures?.governor?.independenceReduction || 0.2;
+            breakdown.reductions.push({
+                name: '派遣总督',
+                value: baseReduction,
+                description: '基础效果',
+                type: 'reduction',
+            });
+            totalReduction += baseReduction;
+        }
+    }
+
+    // 6.2 驻军占领
+    const garrisonData = controlMeasures.garrison;
+    if (garrisonData && (garrisonData === true || garrisonData.active)) {
+        const garrisonReduction = config.controlMeasures?.garrison?.independenceReduction || 0.5;
+        breakdown.reductions.push({
+            name: '驻军占领',
+            value: garrisonReduction,
+            description: '军事镇压',
+            type: 'reduction',
+        });
+        totalReduction += garrisonReduction;
+    }
+
+    // 6.3 经济扶持
+    const economicAidData = controlMeasures.economicAid;
+    if (economicAidData && (economicAidData === true || economicAidData.active)) {
+        const aidReduction = config.controlMeasures?.economicAid?.independenceReduction || 0.1;
+        breakdown.reductions.push({
+            name: '经济扶持',
+            value: aidReduction,
+            description: '改善民生',
+            type: 'reduction',
+        });
+        totalReduction += aidReduction;
+    }
+
+    // 6.4 文化同化（降低上限而非直接减少，但也记录）
+    const assimilationData = controlMeasures.assimilation;
+    if (assimilationData && (assimilationData === true || assimilationData.active)) {
+        const capReduction = config.controlMeasures?.assimilation?.independenceCapReduction || 0.05;
+        breakdown.reductions.push({
+            name: '文化同化',
+            value: capReduction,
+            description: '降低独立上限',
+            type: 'cap_reduction',
+        });
+        // 文化同化不直接减少独立度，而是降低上限
+    }
+
+    // === 7. 计算最终结果 ===
+    breakdown.totalReduction = totalReduction;
+    breakdown.finalDailyChange = rate;  // 每日增长
+    breakdown.netChange = rate - totalReduction;  // 净变化
+
+    return breakdown;
+};
+
+/**
  * 检查是否触发独立战争
  * @param {Object} params - 检查参数
  * @returns {boolean} 是否触发

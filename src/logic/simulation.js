@@ -4925,6 +4925,7 @@ export const simulateTick = ({
         epoch >= (n.appearEpoch ?? 0)
         && (n.expireEpoch == null || epoch <= n.expireEpoch)
         && !n.isRebelNation
+        && !n.isAnnexed // 排除已被吞并的国家
     );
 
     // ========================================================================

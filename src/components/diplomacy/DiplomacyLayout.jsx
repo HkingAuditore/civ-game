@@ -207,6 +207,7 @@ const DiplomacyLayout = ({
                     const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
                     return Math.max(0.5, totalUnits / 100);
                 })()}
+                epoch={epoch}
             />
 
             {/* 附庸概览 Bottom Sheet */}
