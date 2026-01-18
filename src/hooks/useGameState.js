@@ -68,6 +68,7 @@ export const getAllSaveSlots = () => {
                     slotIndex: i,
                     isEmpty: false,
                     name: `存档 ${i + 1}`,
+                    empireName: data.empireName || null,
                     updatedAt: data.updatedAt,
                     daysElapsed: data.daysElapsed || 0,
                     epoch: data.epoch || 0,
@@ -95,6 +96,7 @@ export const getAllSaveSlots = () => {
                 isAutoSave: true,
                 isEmpty: false,
                 name: '自动存档',
+                empireName: data.empireName || null,
                 updatedAt: data.updatedAt,
                 daysElapsed: data.daysElapsed || 0,
                 epoch: data.epoch || 0,
@@ -692,6 +694,7 @@ export const useGameState = () => {
     const [autoSaveBlocked, setAutoSaveBlocked] = useState(false); // 自动存档因配额被禁用
     const [isSaving, setIsSaving] = useState(false); // UI保存状态指示
     const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY); // 游戏难度
+    const [empireName, setEmpireName] = useState('我的帝国'); // 国家/帝国名称
     const [eventConfirmationEnabled, setEventConfirmationEnabled] = useState(false); // 事件二次确认开关
     const savingIndicatorTimer = useRef(null);
     const autoSaveQuotaNotifiedRef = useRef(false);
@@ -1160,6 +1163,12 @@ export const useGameState = () => {
                     setDifficulty(newGameDifficulty);
                     localStorage.removeItem('new_game_difficulty');
                 }
+                // 读取并设置帝国名称
+                const newGameEmpireName = localStorage.getItem('new_game_empire_name');
+                if (newGameEmpireName) {
+                    setEmpireName(newGameEmpireName);
+                    localStorage.removeItem('new_game_empire_name');
+                }
                 const newGameScenario = localStorage.getItem('new_game_scenario');
                 if (newGameScenario) {
                     applyScenarioConfig(newGameScenario);
@@ -1390,6 +1399,7 @@ export const useGameState = () => {
                 isAutoSaveEnabled,
                 lastAutoSaveTime: nextLastAuto,
                 difficulty,
+                empireName,
                 eventConfirmationEnabled,
                 updatedAt: timestamp,
                 saveSource: source,
@@ -1568,6 +1578,7 @@ export const useGameState = () => {
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
         setDifficulty(data.difficulty || DEFAULT_DIFFICULTY);
+        setEmpireName(data.empireName || '我的帝国');
         setEventEffectSettings({
             ...DEFAULT_EVENT_EFFECT_SETTINGS,
             ...(data.eventEffectSettings || {}),
@@ -1729,7 +1740,13 @@ export const useGameState = () => {
             }
             const blob = new Blob([fileJson], { type: 'application/octet-stream' });
             const iso = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
-            const filename = `civ-save-${iso}.${SAVE_FILE_EXTENSION}`;
+            // 生成文件名：如果有帝国名称则包含在文件名中，否则使用默认格式
+            const safeEmpireName = empireName
+                ? empireName.replace(/[<>:"/\\|?*\s]/g, '_').slice(0, 20)
+                : '';
+            const filename = safeEmpireName
+                ? `civ-save-${safeEmpireName}-${iso}.${SAVE_FILE_EXTENSION}`
+                : `civ-save-${iso}.${SAVE_FILE_EXTENSION}`;
 
             // 检测运行环境
             const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
@@ -2062,6 +2079,10 @@ export const useGameState = () => {
         if (normalized.scenarioId) {
             localStorage.setItem('new_game_scenario', normalized.scenarioId);
         }
+        // 如果指定了帝国名称，保存到 localStorage 以便新游戏启动时使用
+        if (normalized.empireName) {
+            localStorage.setItem('new_game_empire_name', normalized.empireName);
+        }
         window.location.reload();
     };
 
@@ -2384,6 +2405,9 @@ export const useGameState = () => {
         resetGame,
         eventConfirmationEnabled,
         setEventConfirmationEnabled,
+        // 国家/帝国名称
+        empireName,
+        setEmpireName,
         // 财政数据
         fiscalActual,
         setFiscalActual,

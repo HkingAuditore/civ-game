@@ -79,6 +79,7 @@ const TreatyTerms = ({
     organizations = [],
     nations = [],
     selectedNation,
+    empireName = '我的帝国', // 玩家帝国名称
     t = (k, v) => v
 }) => {
     // Check if selected treaty type is an organization type
@@ -114,7 +115,7 @@ const TreatyTerms = ({
     
     // Helper to get nation name
     const getNationName = (nationId) => {
-        if (nationId === 'player') return t('common.yourNation', '你的国家');
+        if (nationId === 'player') return empireName;
         const nation = nations.find(n => n.id === nationId);
         return nation?.name || t('common.unknownNation', '未知国家');
     };

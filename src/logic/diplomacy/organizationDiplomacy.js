@@ -421,12 +421,13 @@ export function shouldDisbandOrganization(organization) {
  * 获取组织成员列表（用于UI显示）
  * @param {Object} organization - 组织对象
  * @param {Array} nations - 所有国家
+ * @param {string} empireName - 玩家帝国名称
  * @returns {Array} - 成员信息数组
  */
-export function getOrganizationMembers(organization, nations = []) {
+export function getOrganizationMembers(organization, nations = [], empireName = '我的帝国') {
     return organization.members.map(memberId => {
         if (memberId === 'player') {
-            return { id: 'player', name: '你的国家', isPlayer: true, isFounder: memberId === organization.founderId };
+            return { id: 'player', name: empireName, isPlayer: true, isFounder: memberId === organization.founderId };
         }
         const nation = nations.find(n => n.id === memberId);
         return {

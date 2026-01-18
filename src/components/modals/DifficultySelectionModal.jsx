@@ -18,6 +18,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
     const [selectedDifficulty, setSelectedDifficulty] = useState(DEFAULT_DIFFICULTY);
     const [mode, setMode] = useState('standard');
     const [selectedScenario, setSelectedScenario] = useState(null);
+    const [empireName, setEmpireName] = useState(''); // 帝国/国家名称
     const difficultyOptions = getDifficultyOptions();
     const scenarioOptions = getScenarioOptions();
 
@@ -26,6 +27,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
         setSelectedDifficulty(DEFAULT_DIFFICULTY);
         setMode('standard');
         setSelectedScenario(scenarioOptions[0]?.id ?? null);
+        setEmpireName(''); // 重置帝国名称
     }, [isOpen, scenarioOptions]);
 
     const handleConfirm = () => {
@@ -33,6 +35,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
             difficulty: selectedDifficulty,
             scenarioId: mode === 'scenario' ? selectedScenario : null,
             mode,
+            empireName: empireName.trim() || '我的帝国', // 传递帝国名称，默认为"我的帝国"
         });
     };
 
@@ -229,6 +232,25 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                     </motion.div>
                                 );
                             })}
+                        </div>
+
+                        {/* 帝国名称输入 */}
+                        <div className="flex-shrink-0 px-4 mb-3">
+                            <div className="bg-ancient-gold/10 border border-ancient-gold/30 p-3 rounded-lg">
+                                <label className="flex items-center gap-2 mb-2">
+                                    <Icon name="Crown" size={14} className="text-ancient-gold" />
+                                    <span className="text-xs font-bold text-ancient-gold">为你的帝国命名</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={empireName}
+                                    onChange={(e) => setEmpireName(e.target.value)}
+                                    placeholder="我的帝国"
+                                    maxLength={20}
+                                    className="w-full px-3 py-2 bg-gray-800/80 border border-ancient-gold/40 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-ancient-gold/70 transition-colors"
+                                />
+                                <p className="text-[10px] text-gray-500 mt-1.5">帝国名称将显示在存档和游戏界面中</p>
+                            </div>
                         </div>
 
                         {/* 提示信息 */}
