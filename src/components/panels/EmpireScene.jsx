@@ -13,6 +13,7 @@ function EmpireSceneComponent({
     wealth = 0,
     epoch = 0,
     builds = {},
+    empireName = '我的帝国',  // 帝国/国家名称
     isVisible = true  // 新增：控制动画是否运行
 }) {
     const [dayProgress, setDayProgress] = useState(0);
@@ -1371,36 +1372,46 @@ function EmpireSceneComponent({
                 <div className="absolute top-0 left-0 right-0 px-4 py-2 flex items-center justify-between pointer-events-none z-10" style={{
                     background: 'linear-gradient(to bottom, rgba(26,20,16,0.9) 0%, rgba(26,20,16,0.6) 70%, transparent 100%)'
                 }}>
-                    {/* 左侧：年份 */}
-                    <div className="flex items-baseline gap-1">
-                        <span style={{
-                            fontFamily: 'Georgia, "Times New Roman", serif',
-                            fontSize: '18px',
-                            fontWeight: '600',
-                            color: '#d4af37',
-                            textShadow: '0 1px 2px rgba(0,0,0,0.8), 0 0 10px rgba(212,175,55,0.3)'
-                        }}>
-                            {Math.floor(daysElapsed / 360) + 1}
-                        </span>
+                    {/* 左侧：年份和时代 */}
+                    <div className="flex flex-col">
+                        <div className="flex items-baseline gap-1">
+                            <span style={{
+                                fontFamily: 'Georgia, "Times New Roman", serif',
+                                fontSize: '18px',
+                                fontWeight: '600',
+                                color: '#d4af37',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.8), 0 0 10px rgba(212,175,55,0.3)'
+                            }}>
+                                {Math.floor(daysElapsed / 360) + 1}
+                            </span>
+                            <span style={{
+                                fontFamily: 'Georgia, serif',
+                                fontSize: '10px',
+                                color: '#a89070',
+                                letterSpacing: '0.05em'
+                            }}>年</span>
+                        </div>
                         <span style={{
                             fontFamily: 'Georgia, serif',
-                            fontSize: '10px',
+                            fontSize: '9px',
                             color: '#a89070',
                             letterSpacing: '0.05em'
-                        }}>年</span>
-                    </div>
-
-                    {/* 中间：时代名称 */}
-                    <div className="text-center">
-                        <span style={{
-                            fontFamily: 'Georgia, "Times New Roman", serif',
-                            fontSize: '13px',
-                            fontWeight: '500',
-                            color: '#f4e8d0',
-                            letterSpacing: '0.15em',
-                            textShadow: '0 1px 3px rgba(0,0,0,0.9)'
                         }}>
                             {['石器时代', '青铜时代', '古典时代', '封建时代', '探索时代', '启蒙时代', '工业时代', '信息时代'][epoch] || '石器时代'}
+                        </span>
+                    </div>
+
+                    {/* 中间：帝国名称 */}
+                    <div className="text-center flex-1 mx-2">
+                        <span style={{
+                            fontFamily: 'Georgia, "Times New Roman", serif',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            color: '#f4e8d0',
+                            letterSpacing: '0.12em',
+                            textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(212,175,55,0.2)'
+                        }}>
+                            {empireName}
                         </span>
                     </div>
 

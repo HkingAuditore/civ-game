@@ -1401,6 +1401,7 @@ activeDecrees={gameState.activeDecrees}
                                     wealth={gameState.resources.silver}
                                     epoch={gameState.epoch}
                                     builds={gameState.buildings}
+                                    empireName={gameState.empireName}
                                     isVisible={true}  // 桌面端侧边栏始终可见
                                 />
                             </div>
@@ -1652,6 +1653,7 @@ activeDecrees={gameState.activeDecrees}
                             wealth={gameState.resources.silver}
                             epoch={gameState.epoch}
                             builds={gameState.buildings}
+                            empireName={gameState.empireName}
                             isVisible={showEmpireScene}  // 移动端只在打开时激活动画
                         />
                     </div>
@@ -1951,9 +1953,9 @@ activeDecrees={gameState.activeDecrees}
             {/* 难度选择弹窗 */}
             <DifficultySelectionModal
                 isOpen={showDifficultyModal}
-                onConfirm={({ difficulty, scenarioId }) => {
+                onConfirm={({ difficulty, scenarioId, empireName }) => {
                     setShowDifficultyModal(false);
-                    gameState.resetGame({ difficulty, scenarioId });
+                    gameState.resetGame({ difficulty, scenarioId, empireName });
                 }}
                 onCancel={() => setShowDifficultyModal(false)}
             />

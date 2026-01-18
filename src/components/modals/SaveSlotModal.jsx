@@ -157,6 +157,14 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                     </div>
                 ) : (
                     <div className="space-y-1.5">
+                        {/* 帝国名称 */}
+                        {slot.empireName && (
+                            <div className="flex items-center gap-1.5 text-xs mb-1">
+                                <Icon name="Crown" size={10} className="text-ancient-gold" />
+                                <span className="text-ancient-gold font-bold">{slot.empireName}</span>
+                            </div>
+                        )}
+
                         {/* 游戏进度 */}
                         <div className="flex items-center gap-2 text-xs">
                             <span className="text-gray-400">进度:</span>

@@ -24,6 +24,7 @@ const NegotiationDialog = ({
     tradableResources,
     organizations = [],
     nations = [],
+    empireName = '我的帝国', // 玩家帝国名称
     t = (k, v) => v // Default translation function
 }) => {
     // State to toggle Counter Offer view
@@ -249,6 +250,7 @@ const NegotiationDialog = ({
                             organizations={organizations}
                             nations={nations}
                             selectedNation={selectedNation}
+                            empireName={empireName}
                             t={t}
                         />
                     </div>

@@ -9,6 +9,7 @@ const OrganizationDetailsModal = ({
     organization,
     nations = [],
     playerNationId = 'player',
+    empireName = '我的帝国', // 玩家帝国名称
     silver = 0, // Player's current silver for cost calculation
     onLeave,
     onNegotiateWithFounder, // New: callback to open negotiation with founder
@@ -37,7 +38,7 @@ const OrganizationDetailsModal = ({
             if (memberId === playerNationId) {
                 return {
                     id: playerNationId,
-                    name: '你的国家',
+                    name: empireName,
                     isPlayer: true,
                     isFounder: memberId === (organization.founderId || organization.leaderId),
                     relation: 0
@@ -52,7 +53,7 @@ const OrganizationDetailsModal = ({
                 relation: nation?.relation || 0,
             };
         });
-    }, [organization.members, nations, playerNationId, organization.founderId, organization.leaderId]);
+    }, [organization.members, nations, playerNationId, organization.founderId, organization.leaderId, empireName]);
 
     const effects = useMemo(() => {
         return getOrganizationEffectDescriptions(organization.type);

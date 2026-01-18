@@ -367,6 +367,7 @@ const DiplomacyTabComponent = ({
                 tradableResources={Object.entries(RESOURCES).filter(([key, res]) => res?.type !== 'virtual' && key !== 'silver')}
                 organizations={diplomacyOrganizations?.organizations || []}
                 nations={visibleNations}
+                empireName={gameState?.empireName || '我的帝国'}
             />
 
             <ProvokeDialog
@@ -519,6 +520,7 @@ const DiplomacyTabComponent = ({
                 organization={selectedOrganization}
                 nations={visibleNations}
                 playerNationId="player"
+                empireName={gameState?.empireName || '我的帝国'}
                 silver={resources?.silver || 0}
                 isDiplomacyUnlocked={(type, id) => isDiplomacyUnlocked(type, id, epoch)}
                 onLeave={(orgId) => {
