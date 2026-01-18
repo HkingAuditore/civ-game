@@ -1812,6 +1812,7 @@ activeDecrees={gameState.activeDecrees}
                     taxPolicies={gameState.taxPolicies}
                     onUpdateTaxPolicies={gameState.setTaxPolicies}
                     activeDebuffs={gameState.activeDebuffs}
+                    buildingFinancialData={gameState.buildingFinancialData}
                 />
             )}
 
@@ -1880,6 +1881,7 @@ activeDecrees={gameState.activeDecrees}
                 onSkip={tutorialSystem.skipTutorial}
                 onNext={tutorialSystem.nextStep}
                 onClick={tutorialSystem.handleClick}
+                isDetailOpen={activeSheet.type !== null}
             />
 
             {/* 百科模态框 */}

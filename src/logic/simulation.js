@@ -2117,6 +2117,30 @@ export const simulateTick = ({
         // Sim utilization is what drives the wage OFFER signal
         const simUtilization = simBaseMultiplier > 0 ? Math.min(1, simActualMultiplier / simBaseMultiplier) : 0;
 
+        // [UI同步] 将实际产出效率和减产原因存入buildingFinancialData，供UI显示
+        buildingFinancialData[b.id].actualMultiplier = actualMultiplier;
+        buildingFinancialData[b.id].targetMultiplier = targetMultiplier;
+        buildingFinancialData[b.id].baseMultiplier = baseMultiplier;
+        buildingFinancialData[b.id].productionEfficiency = targetMultiplier > 0 ? actualMultiplier / targetMultiplier : 0;
+        // 记录减产原因
+        const reductionReasons = [];
+        if (baseMultiplier < 1 && staffingRatio < 1) {
+            reductionReasons.push({ type: 'staffing', label: '人员不足', factor: staffingRatio });
+        }
+        if (resourceLimit < 1) {
+            reductionReasons.push({ type: 'resource', label: '原料不足', factor: resourceLimit });
+        }
+        if (debugMarginRatio !== null && debugMarginRatio < 1) {
+            reductionReasons.push({ type: 'margin', label: '利润不足', factor: debugMarginRatio });
+        }
+        if (debugData?.affordableMultiplier !== undefined && debugData.affordableMultiplier < targetMultiplier) {
+            reductionReasons.push({ type: 'cashflow', label: '现金流不足', factor: debugData.affordableMultiplier / targetMultiplier });
+        }
+        if (approvalMultiplier < 1) {
+            reductionReasons.push({ type: 'approval', label: '满意度过低', factor: approvalMultiplier });
+        }
+        buildingFinancialData[b.id].reductionReasons = reductionReasons;
+
         let plannedWageBill = 0;
 
         // 低效模式下不消耗输入原料（徒手采集）
