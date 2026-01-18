@@ -49,7 +49,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 1.5,       // 150% growth rate
         buildingUpgradeCostMultiplier: 1.0,    // 80% upgrade cost
         armyMaintenanceMultiplier: 0.5,        // 50% army maintenance
-        maxConsumptionMultiplierBonus: -1,     // -1 to max consumption multiplier (easier economy)
+        maxConsumptionMultiplierBonus: 1,     // -1 to max consumption multiplier (easier economy)
 
         // Diplomacy/Relations modifiers
         // goodChangeMultiplier: relation improvements become easier on lower difficulties
@@ -104,7 +104,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 1.2,       // 120% growth rate
         buildingUpgradeCostMultiplier: 1.2,    // 90% upgrade cost
         armyMaintenanceMultiplier: 0.75,       // 75% army maintenance
-        maxConsumptionMultiplierBonus: 0,      // No change to max consumption multiplier
+        maxConsumptionMultiplierBonus: 3,      // No change to max consumption multiplier
 
         // Diplomacy/Relations modifiers
         goodRelationChangeMultiplier: 1.1,
@@ -148,13 +148,13 @@ export const DIFFICULTY_CONFIG = {
         inventoryTargetDaysMultiplier: 1.0,    // Standard inventory target
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 1.0,           // Standard tax tolerance
-        resourceConsumptionMultiplier: 1.0,    // Standard consumption
+        resourceConsumptionMultiplier: 1.2,    // Standard consumption
         buildingCostBaseMultiplier: 1.5,       // Standard building cost
         techCostMultiplier: 1.5,               // Standard tech cost
         populationGrowthMultiplier: 1.0,       // Standard growth rate
         buildingUpgradeCostMultiplier: 1.5,    // Standard upgrade cost
         armyMaintenanceMultiplier: 1.0,        // Standard army maintenance
-        maxConsumptionMultiplierBonus: 0,      // No change to max consumption multiplier
+        maxConsumptionMultiplierBonus: 6,      // No change to max consumption multiplier
 
         // Diplomacy/Relations modifiers
         goodRelationChangeMultiplier: 1.0,
@@ -197,14 +197,14 @@ export const DIFFICULTY_CONFIG = {
         inventoryTargetDaysMultiplier: 3.0,    // 300% inventory target (harder to maintain stable prices)
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.7,           // 70% tax tolerance (citizens hate taxes more)
-        resourceConsumptionMultiplier: 3.0,    // 300% consumption
+        resourceConsumptionMultiplier: 3.5,    // 300% consumption
         buildingCostBaseMultiplier: 3.0,       // 300% building cost
         techCostMultiplier: 3.0,               // 300% tech cost
         startingSilverMultiplier: 4.0,         // [NEW] starting treasury boost to offset high early building costs
         populationGrowthMultiplier: 0.8,       // 80% growth rate
         buildingUpgradeCostMultiplier: 3.0,    // 300% upgrade cost
         armyMaintenanceMultiplier: 1.5,       // 150% army maintenance
-        maxConsumptionMultiplierBonus: 2,      // +2 to max consumption multiplier (more consumption)
+        maxConsumptionMultiplierBonus: 8,      // +2 to max consumption multiplier (more consumption)
 
         // Diplomacy/Relations modifiers
         // On hard: improving relations is harder, worsening is easier
@@ -247,14 +247,14 @@ export const DIFFICULTY_CONFIG = {
         inventoryTargetDaysMultiplier: 8.0,    // 800% inventory target (requires heavy stockpiling)
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.4,           // 40% tax tolerance
-        resourceConsumptionMultiplier: 5.0,   // 500% consumption
+        resourceConsumptionMultiplier: 6.0,   // 500% consumption
         buildingCostBaseMultiplier: 5.0,      // 500% building cost
         techCostMultiplier: 6.0,              // 600% tech cost
         startingSilverMultiplier: 6.0,        // [NEW] starting treasury boost to offset high early building costs
         populationGrowthMultiplier: 0.5,       // 50% growth rate
         buildingUpgradeCostMultiplier: 5.0,   // 500% upgrade cost
         armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
-        maxConsumptionMultiplierBonus: 4,      // +4 to max consumption multiplier (much more consumption)
+        maxConsumptionMultiplierBonus: 10,      // +4 to max consumption multiplier (much more consumption)
 
         // Diplomacy/Relations modifiers
         goodRelationChangeMultiplier: 0.6,
@@ -302,7 +302,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 0.2,       // 20% growth rate
         buildingUpgradeCostMultiplier: 10.0,   // 1000% upgrade cost
         armyMaintenanceMultiplier: 3.0,        // 300% army maintenance
-        maxConsumptionMultiplierBonus: 8,      // +8 to max consumption multiplier (extreme consumption)
+        maxConsumptionMultiplierBonus: 12,      // +8 to max consumption multiplier (extreme consumption)
 
         // Diplomacy/Relations modifiers
         goodRelationChangeMultiplier: 0.45,

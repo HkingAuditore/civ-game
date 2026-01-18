@@ -187,6 +187,8 @@ const CompactBuildingCard = ({
     jobFill,
     resources,
     hasUpgrades,
+    unlockedOutput = {},
+    actualOutputByRes = {},
     // 优化：直接传入已计算好的业主岗位数，而非在每个卡片中重复计算
     ownerJobsRequired = 0,
 }) => {
@@ -255,22 +257,12 @@ const CompactBuildingCard = ({
                     )}
                     {/* 资源产出 - 更紧凑的显示 */}
                     {(() => {
-                        const unlockedOutput = filterUnlockedResources(building.output, epoch, techsUnlocked);
                         if (Object.keys(unlockedOutput).length === 0) return null;
                         return (
                             <div className="bg-gray-900/40 rounded px-1 py-0.5">
                                 <div className="flex flex-wrap gap-0.5 justify-center">
                                     {Object.entries(unlockedOutput).map(([res, val]) => {
-                                        // 计算总岗位需求和总分配人数
-                                        const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
-                                        const totalAssigned = Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
-
-                                        // 计算有效工作建筑的比例
-                                        const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
-
-                                        // 计算实际总产量
-                                        const actualTotalOutput = val * count * workingRatio;
-
+                                        const actualTotalOutput = actualOutputByRes?.[res] ?? val * count;
                                         return (
                                             <div key={res} className="flex items-center gap-0.5 text-green-300" title={`${RESOURCES[res]?.name} - 单个产出: ${val} / 实际总产出: ${actualTotalOutput.toFixed(1)}`}>
                                                 <Icon name={RESOURCES[res]?.icon || 'Box'} size={8} />
@@ -635,18 +627,38 @@ const BuildTabComponent = ({
         return grouped;
     }, [epoch, techsUnlocked]);
 
+    const buildingJobStatsById = useMemo(() => {
+        const stats = {};
+        BUILDINGS.forEach((building) => {
+            const count = buildingStatsById[building.id]?.count ?? 0;
+            if (count <= 0) {
+                stats[building.id] = { totalRequired: 0, totalAssigned: 0, workingRatio: 0 };
+                return;
+            }
+            const requiredMap = buildingJobsRequired?.[building.id];
+            const totalRequired = requiredMap
+                ? Object.values(requiredMap).reduce((sum, per) => sum + (per || 0), 0)
+                : Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
+            const filledByRole = buildingFinancialData?.[building.id]?.filledByRole;
+            const totalAssigned = filledByRole
+                ? Object.values(filledByRole).reduce((sum, num) => sum + (num || 0), 0)
+                : Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + (num || 0), 0);
+            const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
+            stats[building.id] = { totalRequired, totalAssigned, workingRatio };
+        });
+        return stats;
+    }, [buildingStatsById, buildingJobsRequired, buildingFinancialData, jobFill]);
+
     const categoryWorkersByKey = useMemo(() => {
         const workers = {};
         Object.entries(availableBuildingsByCategory).forEach(([key, list]) => {
             workers[key] = list.reduce((sum, building) => {
-                const buildingJobs = jobFill?.[building.id];
-                if (!buildingJobs) return sum;
-                const assigned = Object.values(buildingJobs).reduce((jobSum, count) => jobSum + (count || 0), 0);
+                const assigned = buildingJobStatsById[building.id]?.totalAssigned || 0;
                 return sum + assigned;
             }, 0);
         });
         return workers;
-    }, [availableBuildingsByCategory, jobFill]);
+    }, [availableBuildingsByCategory, buildingJobStatsById]);
 
     const cardDataById = useMemo(() => {
         const data = {};
@@ -659,6 +671,8 @@ const BuildTabComponent = ({
             const averageBuilding = stats.averageBuilding || building;
             const cost = stats.cost || calculateCost(building);
             const upgradeOptions = stats.upgradeOptions || [];
+            const jobStats = buildingJobStatsById[building.id] || {};
+            const finance = buildingFinancialData?.[building.id];
             // 优化：减少 Object.entries 调用次数
             let canUpgradeAny = false;
             for (const upgradeCost of upgradeOptions) {
@@ -688,6 +702,14 @@ const BuildTabComponent = ({
             }
             const hasSilver = silverResource >= silverCost;
             const affordable = hasMaterials && hasSilver;
+            const unlockedOutput = filterUnlockedResources(averageBuilding.output, epoch, techsUnlocked);
+            const actualOutputByRes = {};
+            const productionEfficiency = finance?.productionEfficiency;
+            const workingRatio = jobStats.workingRatio ?? 0;
+            const outputMultiplier = Number.isFinite(productionEfficiency) ? productionEfficiency : workingRatio;
+            Object.entries(unlockedOutput).forEach(([res, val]) => {
+                actualOutputByRes[res] = val * count * outputMultiplier;
+            });
 
             data[building.id] = {
                 building: averageBuilding,
@@ -696,11 +718,13 @@ const BuildTabComponent = ({
                 canUpgradeAny,
                 silverCost,
                 affordable,
+                unlockedOutput,
+                actualOutputByRes,
                 // 移除 actualIncome 计算，因为 CompactBuildingCard 不再使用它
             };
         });
         return data;
-    }, [buildingStatsById, epoch, techsUnlocked, market, resources, buildingCostMod]);
+    }, [buildingStatsById, buildingJobStatsById, buildingFinancialData, epoch, techsUnlocked, market, resources, buildingCostMod]);
 
     // 建筑链展开状态
     const [expandedChains, setExpandedChains] = useState(new Set());
@@ -774,6 +798,8 @@ const BuildTabComponent = ({
             canUpgradeAny,
             silverCost,
             affordable,
+            unlockedOutput,
+            actualOutputByRes,
         } = cardData;
 
         // 获取预计算的业主岗位数
@@ -798,6 +824,8 @@ const BuildTabComponent = ({
                 onShowDetails={onShowDetails}
                 hasUpgrades={canUpgradeAny}
                 ownerJobsRequired={ownerJobsRequired}
+                unlockedOutput={unlockedOutput}
+                actualOutputByRes={actualOutputByRes}
             />
         );
     }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
@@ -826,6 +854,8 @@ const BuildTabComponent = ({
             canUpgradeAny,
             silverCost,
             affordable,
+            unlockedOutput,
+            actualOutputByRes,
         } = topCardData;
 
         // 1. 顶级建筑卡片（带链角标）
@@ -848,6 +878,8 @@ const BuildTabComponent = ({
                     onShowDetails={onShowDetails}
                     hasUpgrades={canUpgradeAny}
                     ownerJobsRequired={ownerJobsCorrections[topBuilding.id] ?? (topBuilding.jobs?.[topBuilding.owner] || 0) * count}
+                    unlockedOutput={unlockedOutput}
+                    actualOutputByRes={actualOutputByRes}
                 />
 
                 {/* 链展开角标 - 右侧偏上 */}

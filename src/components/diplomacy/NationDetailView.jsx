@@ -96,19 +96,19 @@ const NationDetailView = ({
     return (
         <div className="flex flex-col h-full bg-theme-surface-trans">
             <div
-                className="p-6 border-b border-theme-border flex-shrink-0"
+                className="p-4 md:p-6 border-b border-theme-border flex-shrink-0"
                 style={{ background: 'linear-gradient(to bottom, var(--theme-surface), transparent)' }}
             >
                 {/* Header Section */}
                 <div className="flex justify-between items-start">
                     <div className="flex items-center gap-4">
                         <div
-                            className={`w-16 h-12 flex items-center justify-center bg-black/50 rounded-lg border-2 ${nation.color ? nation.color.replace('text-', 'border-') : 'border-gray-600'} shadow-lg`}
+                            className={`w-12 h-10 md:w-16 md:h-12 flex items-center justify-center bg-black/50 rounded-lg border-2 ${nation.color ? nation.color.replace('text-', 'border-') : 'border-gray-600'} shadow-lg`}
                         >
-                            <Icon name="Flag" size={32} className={nation.color || 'text-gray-400'} />
+                            <Icon name="Flag" size={24} className={`${nation.color || 'text-gray-400'} md:w-8 md:h-8`} />
                         </div>
                         <div>
-                            <h2 className="text-3xl font-bold text-theme-accent tracking-wide font-decorative shadow-black drop-shadow-md">
+                            <h2 className="text-2xl md:text-3xl font-bold text-theme-accent tracking-wide font-decorative shadow-black drop-shadow-md">
                                 {nation.name}
                             </h2>
                             <div className="flex items-center gap-2 mt-1">
@@ -152,11 +152,11 @@ const NationDetailView = ({
                 </div>
             </div>
 
-            <div className="px-6 border-b border-theme-border bg-theme-surface-trans">
+            <div className="px-4 md:px-6 border-b border-theme-border bg-theme-surface-trans">
                 <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} variant="underline" />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-ancient-gold/20 hover:scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/10">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin scrollbar-thumb-ancient-gold/20 hover:scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/10">
                 {activeTab === 'overview' && (
                     <div className="space-y-6">
                         {nation.desc && (
@@ -495,13 +495,13 @@ const DetailedMarketTable = ({ nation, market, epoch, daysElapsed, onTrade }) =>
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-xs md:text-sm">
                 <thead>
                     <tr className="bg-white/5 text-ancient-stone/70 border-b border-white/5">
-                        <th className="p-3 font-medium">资源</th>
-                        <th className="p-3 font-medium text-right">本地价格</th>
-                        <th className="p-3 font-medium text-right">对方价格</th>
-                        <th className="p-3 font-medium text-center">状态</th>
+                        <th className="p-2 md:p-3 font-medium">资源</th>
+                        <th className="p-2 md:p-3 font-medium text-right">本地</th>
+                        <th className="p-2 md:p-3 font-medium text-right">对方</th>
+                        <th className="p-2 md:p-3 font-medium text-center">状态</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -517,22 +517,22 @@ const DetailedMarketTable = ({ nation, market, epoch, daysElapsed, onTrade }) =>
 
                         return (
                             <tr key={key} className="hover:bg-white/5 transition-colors">
-                                <td className="p-3">
+                                <td className="p-2 md:p-3">
                                     <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${isProfitableExport ? 'bg-green-500' : isProfitableImport ? 'bg-blue-500' : 'bg-gray-600'}`}></div>
+                                        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${isProfitableExport ? 'bg-green-500' : isProfitableImport ? 'bg-blue-500' : 'bg-gray-600'}`}></div>
                                         <span className="text-ancient-parchment font-medium">{res.name}</span>
                                     </div>
                                 </td>
-                                <td className="p-3 text-right text-ancient-stone font-mono">
+                                <td className="p-2 md:p-3 text-right text-ancient-stone font-mono">
                                     {localPrice.toFixed(1)}
                                 </td>
-                                <td className="p-3 text-right text-ancient-parchment font-mono font-bold">
+                                <td className="p-2 md:p-3 text-right text-ancient-parchment font-mono font-bold">
                                     {foreignPrice.toFixed(1)}
-                                    <span className={`ml-1 text-[10px] ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-blue-400' : 'text-gray-500'}`}>
+                                    <span className={`ml-1 text-[9px] md:text-[10px] ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-blue-400' : 'text-gray-500'}`}>
                                         ({diff > 0 ? '+' : ''}{diffPercent.toFixed(0)}%)
                                     </span>
                                 </td>
-                                <td className="p-3 text-center">
+                                <td className="p-2 md:p-3 text-center">
                                     {status.shortageAmount > 0 ? (
                                         <Badge variant="danger" className="text-[10px] scale-90">缺口 {Math.round(status.shortageAmount)}</Badge>
                                     ) : status.surplusAmount > 0 ? (
@@ -657,7 +657,7 @@ const ActionCard = ({ icon, title, desc, cost, disabled, onClick, color }) => {
             disabled={disabled}
             onClick={onClick}
             className={`
-                group flex items-start gap-4 p-4 text-left rounded-xl border transition-all duration-300 relative overflow-hidden
+                group flex items-start gap-3 md:gap-4 p-3 md:p-4 text-left rounded-xl border transition-all duration-300 relative overflow-hidden
                 ${disabled
                     ? 'opacity-50 cursor-not-allowed bg-theme-surface-trans border-theme-border text-theme-text'
                     : 'glass-epic border-theme-border text-theme-text hover:border-theme-accent hover:shadow-gold-metal hover:-translate-y-0.5'
@@ -735,7 +735,6 @@ const treatyTypeToLabel = (type) => {
 const MerchantManager = ({ nation, merchantState, onMerchantStateChange }) => {
     const merchantCount = merchantState?.merchantAssignments?.[nation.id] || 0;
 
-    // Assuming a max limit or cost logic could be relevant, but for now just UI
     const handleAdd = () => {
         onMerchantStateChange?.(nation.id, merchantCount + 1);
     };
@@ -747,9 +746,9 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange }) => {
     };
 
     return (
-        <Card className="p-4 bg-blue-900/10 border-blue-500/30 flex items-center justify-between mb-4">
-            <div>
-                <h3 className="text-blue-300 font-bold flex items-center gap-2">
+        <Card className="p-4 bg-blue-900/10 border-blue-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+            <div className="text-center sm:text-left">
+                <h3 className="text-blue-300 font-bold flex items-center justify-center sm:justify-start gap-2">
                     <Icon name="Ship" size={24} />
                     派驻商人
                 </h3>
@@ -757,28 +756,28 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange }) => {
                     商人会自动寻找最有利可图的商品进行贸易。
                 </p>
             </div>
-            <div className="flex items-center gap-4 bg-black/40 p-3 rounded-xl border border-blue-500/30 text-white">
+            <div className="flex items-center gap-4 bg-black/40 p-2 sm:p-3 rounded-xl border border-blue-500/30 text-white w-full sm:w-auto justify-center">
                 <Button
                     size="md"
                     variant="danger"
                     onClick={handleRemove}
                     disabled={merchantCount <= 0}
-                    className="w-12 h-12 flex items-center justify-center p-0 rounded-lg shadow-lg hover:bg-red-600 transition-colors"
+                    className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center p-0 rounded-lg shadow-lg hover:bg-red-600 transition-colors"
                     title="减少商人"
                 >
-                    <Icon name="Minus" size={24} className="text-white" />
+                    <Icon name="Minus" size={20} className="text-white" />
                 </Button>
-                <div className="text-3xl font-bold font-mono w-16 text-center text-blue-100 drop-shadow-md">
+                <div className="text-2xl sm:text-3xl font-bold font-mono w-12 sm:w-16 text-center text-blue-100 drop-shadow-md">
                     {merchantCount}
                 </div>
                 <Button
                     size="md"
                     variant="primary"
                     onClick={handleAdd}
-                    className="w-12 h-12 flex items-center justify-center p-0 rounded-lg shadow-lg hover:bg-blue-600 transition-colors"
+                    className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center p-0 rounded-lg shadow-lg hover:bg-blue-600 transition-colors"
                     title="增加商人"
                 >
-                    <Icon name="Plus" size={24} className="text-white" />
+                    <Icon name="Plus" size={20} className="text-white" />
                 </Button>
             </div>
         </Card>
