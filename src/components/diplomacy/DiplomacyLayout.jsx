@@ -4,7 +4,7 @@ import NationList from './NationList';
 import NationDetailView from './NationDetailView';
 import { VassalManagementSheet } from '../panels/VassalManagementSheet';
 import { VassalOverviewPanel } from '../panels/VassalOverviewPanel';
-import { VassalDiplomacyPanel } from '../panels/VassalDiplomacyPanel';
+// VassalDiplomacyPanel 已合并到 VassalManagementSheet 中
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { COLORS } from '../../config/unifiedStyles';
@@ -67,7 +67,6 @@ const DiplomacyLayout = ({
 
     // 附庸概览面板状态
     const [vassalOverviewOpen, setVassalOverviewOpen] = useState(false);
-    const [vassalDiplomacyOpen, setVassalDiplomacyOpen] = useState(false);
 
     // 打开附庸管理面板
     const handleOpenVassalSheet = (nation) => {
@@ -78,10 +77,6 @@ const DiplomacyLayout = ({
     // 打开附庸概览面板
     const handleOpenVassalOverview = () => {
         setVassalOverviewOpen(true);
-    };
-
-    const handleOpenVassalDiplomacy = () => {
-        setVassalDiplomacyOpen(true);
     };
 
     // 从附庸概览选择某个附庸后，打开详细管理
@@ -153,11 +148,7 @@ const DiplomacyLayout = ({
                         </Button>
                         <Button size="sm" variant="secondary" onClick={handleOpenVassalOverview}>
                             <Icon name="Crown" size={14} className="mr-1" />
-                            附庸概览
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={handleOpenVassalDiplomacy}>
-                            <Icon name="ClipboardList" size={14} className="mr-1" />
-                            附庸外交
+                            附庸管理
                         </Button>
                     </div>
                 </div>
@@ -225,6 +216,15 @@ const DiplomacyLayout = ({
                     return Math.max(0.5, totalUnits / 100);
                 })()}
                 epoch={epoch}
+                // 外交审批相关 props
+                nations={nations}
+                diplomacyOrganizations={diplomacyOrganizations}
+                vassalDiplomacyQueue={vassalDiplomacyQueue}
+                vassalDiplomacyHistory={vassalDiplomacyHistory}
+                currentDay={daysElapsed}
+                onApproveVassalDiplomacy={onApproveVassalDiplomacy}
+                onRejectVassalDiplomacy={onRejectVassalDiplomacy}
+                onIssueVassalOrder={onIssueVassalOrder}
             />
 
             {/* 附庸概览 Bottom Sheet */}
@@ -238,17 +238,7 @@ const DiplomacyLayout = ({
                 onReleaseVassal={(nation) => onDiplomaticAction?.(nation.id, 'release_vassal')}
             />
 
-            <VassalDiplomacyPanel
-                isOpen={vassalDiplomacyOpen}
-                onClose={() => setVassalDiplomacyOpen(false)}
-                nations={nations}
-                queue={vassalDiplomacyQueue}
-                history={vassalDiplomacyHistory}
-                currentDay={daysElapsed}
-                onApprove={onApproveVassalDiplomacy}
-                onReject={onRejectVassalDiplomacy}
-                onIssueOrder={onIssueVassalOrder}
-            />
+
         </div>
     );
 };

@@ -595,9 +595,55 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
                 logs.push(`💰 ${nation.name} 此刻申请加入 "${partnerBloc.name}" 以寻求经济合作。`);
             }
         } else {
-            // Create new Economic Bloc
-            const names = ['贸易同盟', '经济共同体', '自由市场协定', '关税同盟', '繁荣互助会', '商业联合会'];
-            const name = names[Math.floor(Math.random() * names.length)] + (Math.random() > 0.5 ? '' : ` (${nation.name})`);
+            // Create new Economic Bloc with unique name
+            const existingNames = new Set(existingOrgs.map(org => org.name));
+            // 参考历史：汉萨同盟、欧洲经济共同体、北美自由贸易协定、东盟、欧佩克等
+            const baseNames = [
+                // 古典/中世纪风格
+                '商人公会', '通商联盟', '互市同盟', '商贾会社', '行商公所',
+                // 近代风格
+                '关税同盟', '通商条约组织', '贸易互惠协会', '商业联合会', '经济互助理事会',
+                // 现代风格
+                '自由贸易区', '经济共同体', '共同市场', '经济合作组织', '经济联盟',
+                '贸易发展组织', '经济一体化联盟', '繁荣伙伴关系', '经济论坛',
+                // 区域特色
+                '大陆经济圈', '环海贸易区', '内陆通商联盟', '沿海商业同盟'
+            ];
+            const regionPrefixes = ['', '北方', '南方', '东方', '西方', '中央', '环', '泛', '大', '新', '联合'];
+            
+            // Generate unique name
+            let name = null;
+            for (let attempt = 0; attempt < 50 && !name; attempt++) {
+                const baseName = baseNames[Math.floor(Math.random() * baseNames.length)];
+                const usePrefix = Math.random() > 0.5;
+                const regionPrefix = usePrefix ? regionPrefixes[Math.floor(Math.random() * regionPrefixes.length)] : '';
+                const candidate = regionPrefix + baseName;
+                if (!existingNames.has(candidate)) {
+                    name = candidate;
+                }
+            }
+            // Fallback: use numbered generic name
+            if (!name) {
+                const fallbackBases = ['第一经济共同体', '第二商业联盟', '第三贸易协定', '新兴市场联盟', '洲际贸易组织'];
+                for (const fallback of fallbackBases) {
+                    if (!existingNames.has(fallback)) {
+                        name = fallback;
+                        break;
+                    }
+                }
+                // Ultimate fallback with Roman numerals
+                if (!name) {
+                    const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+                    for (let i = 0; i < romanNumerals.length; i++) {
+                        const candidate = `经济合作组织 ${romanNumerals[i]}`;
+                        if (!existingNames.has(candidate)) {
+                            name = candidate;
+                            break;
+                        }
+                    }
+                }
+                if (!name) name = `经济联盟 ${Date.now()}`;
+            }
 
             const createResult = createOrganization({
                 type: 'economic_bloc',
@@ -722,15 +768,42 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
                 logs.push(`🛡️ ${nation.name} 加入了由 ${ally.name} 所在的 "${allyAlliance.name}"！`);
             }
         } else {
-            // Create new alliance
-            // Generate name
-            // Simple AI naming logic
-            const prefixes = ['北方', '南方', '东方', '西方', '神圣', '大', '自由', '联合'];
-            const suffixes = ['协约', '同盟', '公约组织', '防卫阵线', '联盟'];
-            const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-            const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-            // Ensure unique name handling handled by create logic or chance
-            const orgName = `${prefix}${suffix}`;
+            // Create new alliance with unique name
+            const existingNames = new Set(existingOrgs.map(org => org.name));
+            // 参考历史：提洛同盟、伯罗奔尼撒同盟、神圣同盟、三国协约、北约、华约、东南亚条约组织等
+            const allianceTypes = [
+                // 古典风格
+                '城邦联盟', '诸侯同盟', '列国公约', '盟约组织', '誓约同盟',
+                // 中世纪风格  
+                '骑士同盟', '圣战联盟', '王冠同盟', '十字盟约', '护国联盟',
+                // 近代风格
+                '协约国', '同盟国', '轴心联盟', '联合阵线', '互助条约组织',
+                '集体安全条约', '防务协定', '军事互援同盟', '联防公约',
+                // 现代风格
+                '安全合作组织', '战略伙伴联盟', '集体防御条约', '和平伙伴关系',
+                '区域安全论坛', '联合防务机制', '军事协调理事会'
+            ];
+            const regionPrefixes = ['', '北方', '南方', '东方', '西方', '神圣', '大', '泛', '环', '中央', '新', '联合'];
+            
+            // Generate unique name
+            let orgName = null;
+            for (let attempt = 0; attempt < 80 && !orgName; attempt++) {
+                const allianceType = allianceTypes[Math.floor(Math.random() * allianceTypes.length)];
+                const usePrefix = Math.random() > 0.4;
+                const regionPrefix = usePrefix ? regionPrefixes[Math.floor(Math.random() * regionPrefixes.length)] : '';
+                const candidate = regionPrefix + allianceType;
+                if (!existingNames.has(candidate)) {
+                    orgName = candidate;
+                }
+            }
+            // Fallback: use founder name
+            if (!orgName) {
+                orgName = `${nation.name}防御同盟`;
+                let counter = 2;
+                while (existingNames.has(orgName)) {
+                    orgName = `${nation.name}防御同盟 ${counter++}`;
+                }
+            }
 
             const createResult = createOrganization({
                 type: 'military_alliance',

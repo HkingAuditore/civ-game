@@ -52,7 +52,11 @@ export const VassalDiplomacyPanel = memo(({
     const selectedVassal = vassals.find(v => v.id === selectedVassalId) || null;
     const availableTargets = useMemo(() => {
         if (!selectedVassal) return [];
-        return nations.filter(n => n.id !== selectedVassal.id && !n.isAnnexed);
+        return nations.filter(n => 
+            n.id !== selectedVassal.id && 
+            !n.isAnnexed && 
+            n.visible !== false
+        );
     }, [nations, selectedVassal]);
 
     const warTargets = useMemo(() => {
@@ -100,7 +104,7 @@ export const VassalDiplomacyPanel = memo(({
                                         </div>
                                     </div>
                                     <div className="text-xs text-gray-400 mt-1">
-                                        目标：{item.targetName || item.payload?.orgName || '未知'}
+                                        目标：{item.payload?.orgName || item.targetName || '—'}
                                     </div>
                                     <div className="mt-2 flex gap-2">
                                         <Button size="sm" variant="primary" onClick={() => onApprove?.(item.id)}>

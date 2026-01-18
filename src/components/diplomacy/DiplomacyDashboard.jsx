@@ -5,6 +5,7 @@ import { RESOURCES } from '../../config';
 import { isDiplomacyUnlocked } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { CreateOrganizationModal } from '../modals/CreateOrganizationModal';
+import { BottomSheet } from '../tabs/BottomSheet';
 
 const ORG_TYPES = [
     { type: 'military_alliance', name: '军事同盟', icon: 'Shield', era: 3, color: 'text-red-400', desc: '共同防御与军事通行 (时代 3 解锁)' },
@@ -41,6 +42,7 @@ const DiplomacyDashboard = ({
 }) => {
     const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
     const [createOrgType, setCreateOrgType] = useState(null);
+    const [showOrgsSheet, setShowOrgsSheet] = useState(false);
 
     const visibleNations = useMemo(() => {
 
@@ -200,58 +202,36 @@ const DiplomacyDashboard = ({
                             })}
                         </div>
 
-                        {/* Existing Orgs List */}
+                        {/* Existing Orgs List - 只显示前2个 */}
                         {organizations.length > 0 && (
                             <div className="mt-4 space-y-3">
-                                <h4 className="text-sm font-bold text-ancient-stone uppercase tracking-wider">活跃组织</h4>
-                                {organizations.map((org) => {
-                                    const isMember = org.members?.includes('player');
-                                    return (
-                                        <Card
-                                            key={org.id}
-                                            onClick={() => onDiplomaticAction && onViewOrganization && onViewOrganization(org)}
-                                            className={`
-                                                p-4 flex items-center justify-between group transition-all duration-300
-                                                ${onViewOrganization
-                                                    ? 'cursor-pointer hover:bg-ancient-gold/10 hover:border-ancient-gold/40'
-                                                    : ''
-                                                }
-                                                ${isMember
-                                                    ? 'border-ancient-gold/40 bg-ancient-gold/5'
-                                                    : 'border-ancient-stone/20 bg-ancient-ink/30'
-                                                }
-                                            `}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 font-bold text-ancient-parchment">
-                                                    {org.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-ancient-parchment text-base group-hover:text-ancient-gold transition-colors">{org.name}</div>
-                                                    <div className="text-xs text-ancient-stone flex items-center gap-2">
-                                                        <span>{org.members?.length || 0} 个成员国</span>
-                                                        <span className="opacity-50">|</span>
-                                                        <span className="capitalize">{ORG_TYPES.find(t => t.type === org.type)?.name || org.type}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {!isMember ? (
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <span className="text-xs text-ancient-stone/70 px-2 py-1 rounded bg-ancient-stone/10 border border-ancient-stone/20 flex items-center gap-1">
-                                                        <Icon name="MessageSquare" size={12} />
-                                                        需与创始国谈判
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-green-400 font-bold px-2 py-1 rounded bg-green-900/20 border border-green-500/20 flex items-center gap-1">
-                                                    <Icon name="Check" size={12} />
-                                                    成员国
-                                                </span>
-                                            )}
-                                        </Card>
-                                    );
-                                })}
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-bold text-ancient-stone uppercase tracking-wider">活跃组织</h4>
+                                    {organizations.length > 2 && (
+                                        <span className="text-xs text-ancient-stone/60">
+                                            共 {organizations.length} 个组织
+                                        </span>
+                                    )}
+                                </div>
+                                {organizations.slice(0, 2).map((org) => (
+                                    <OrganizationCard 
+                                        key={org.id} 
+                                        org={org} 
+                                        onViewOrganization={onViewOrganization} 
+                                        onDiplomaticAction={onDiplomaticAction}
+                                    />
+                                ))}
+                                {/* 查看全部按钮 */}
+                                {organizations.length > 2 && (
+                                    <button
+                                        onClick={() => setShowOrgsSheet(true)}
+                                        className="w-full p-3 rounded-lg border border-ancient-gold/30 bg-ancient-ink/40 hover:bg-ancient-gold/10 hover:border-ancient-gold/50 transition-all duration-300 flex items-center justify-center gap-2 text-ancient-parchment group"
+                                    >
+                                        <Icon name="Building2" size={16} className="text-ancient-gold/70 group-hover:text-ancient-gold" />
+                                        <span className="text-sm font-medium">查看全部 {organizations.length} 个组织</span>
+                                        <Icon name="ChevronRight" size={16} className="text-ancient-stone group-hover:text-ancient-gold transition-colors" />
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -294,6 +274,34 @@ const DiplomacyDashboard = ({
                 </div>
 
             </div>
+            {/* 组织列表 BottomSheet */}
+            <BottomSheet
+                isOpen={showOrgsSheet}
+                onClose={() => setShowOrgsSheet(false)}
+                title={`🏛️ 全部国际组织 (${organizations.length})`}
+            >
+                <div className="space-y-3">
+                    {organizations.length === 0 ? (
+                        <div className="text-center py-8 text-ancient-stone">
+                            <Icon name="Building2" size={48} className="mx-auto mb-3 opacity-30" />
+                            <p>暂无活跃的国际组织</p>
+                        </div>
+                    ) : (
+                        organizations.map((org) => (
+                            <OrganizationCard
+                                key={org.id}
+                                org={org}
+                                onViewOrganization={(o) => {
+                                    setShowOrgsSheet(false);
+                                    onViewOrganization?.(o);
+                                }}
+                                onDiplomaticAction={onDiplomaticAction}
+                            />
+                        ))
+                    )}
+                </div>
+            </BottomSheet>
+
             {/* Create Org Modal */}
             <CreateOrganizationModal
                 isOpen={showCreateOrgModal}
@@ -317,6 +325,57 @@ const DiplomacyDashboard = ({
 };
 
 // --- Sub-Components ---
+
+/**
+ * 组织卡片组件 - 用于展示单个国际组织
+ */
+const OrganizationCard = ({ org, onViewOrganization, onDiplomaticAction }) => {
+    const isMember = org.members?.includes('player');
+    return (
+        <Card
+            onClick={() => onDiplomaticAction && onViewOrganization && onViewOrganization(org)}
+            className={`
+                p-4 flex items-center justify-between group transition-all duration-300
+                ${onViewOrganization
+                    ? 'cursor-pointer hover:bg-ancient-gold/10 hover:border-ancient-gold/40'
+                    : ''
+                }
+                ${isMember
+                    ? 'border-ancient-gold/40 bg-ancient-gold/5'
+                    : 'border-ancient-stone/20 bg-ancient-ink/30'
+                }
+            `}
+        >
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 font-bold text-ancient-parchment">
+                    {org.name.charAt(0)}
+                </div>
+                <div>
+                    <div className="font-bold text-ancient-parchment text-base group-hover:text-ancient-gold transition-colors">{org.name}</div>
+                    <div className="text-xs text-ancient-stone flex items-center gap-2">
+                        <span>{org.members?.length || 0} 个成员国</span>
+                        <span className="opacity-50">|</span>
+                        <span className="capitalize">{ORG_TYPES.find(t => t.type === org.type)?.name || org.type}</span>
+                    </div>
+                </div>
+            </div>
+
+            {!isMember ? (
+                <div className="flex flex-col items-end gap-1">
+                    <span className="text-xs text-ancient-stone/70 px-2 py-1 rounded bg-ancient-stone/10 border border-ancient-stone/20 flex items-center gap-1">
+                        <Icon name="MessageSquare" size={12} />
+                        需与创始国谈判
+                    </span>
+                </div>
+            ) : (
+                <span className="text-xs text-green-400 font-bold px-2 py-1 rounded bg-green-900/20 border border-green-500/20 flex items-center gap-1">
+                    <Icon name="Check" size={12} />
+                    成员国
+                </span>
+            )}
+        </Card>
+    );
+};
 
 const DashboardCard = ({ title, value, subValue, icon, color, borderColor = 'border-ancient-gold/20', bg = 'bg-ancient-ink/40' }) => (
     <div

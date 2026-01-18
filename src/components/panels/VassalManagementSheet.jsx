@@ -961,64 +961,107 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                     {CONTROL_MEASURES.map(measure => {
                         const isActive = controlMeasures[measure.id]?.active;
                         const dynamicCost = measureCosts[measure.id];
+                        const isGovernor = measure.id === 'governor';
 
                         return (
                             <div
                                 key={measure.id}
                                 className={`
-                                    p-2 rounded-lg border transition-all
+                                    rounded-lg border transition-all overflow-hidden
                                     ${isActive
                                         ? 'border-orange-500 bg-orange-900/30'
                                         : 'border-gray-600/50 bg-gray-800/30'
                                     }
                                 `}
                             >
-                                <div className="flex items-center justify-between mb-1">
-                                    <div className="flex items-center gap-2">
-                                        <Icon
-                                            name={measure.icon}
-                                            size={14}
-                                            className={isActive ? 'text-orange-400' : 'text-gray-400'}
-                                        />
-                                        <span className={`text-xs font-bold ${isActive ? 'text-white' : 'text-gray-300'}`}>
-                                            {measure.title}
-                                        </span>
-                                        {!measure.requiresOfficial && (
-                                            <button
-                                                onClick={() => toggleControlMeasure(measure.id)}
-                                                className={`px-2 py-0.5 text-[10px] rounded ${isActive ? 'bg-orange-600 text-white' : 'bg-gray-700 text-gray-300'}`}
-                                            >
-                                                {isActive ? '启用' : '禁用'}
-                                            </button>
-                                        )}
+                                {/* 可点击的主体区域 */}
+                                <button
+                                    onClick={() => !isGovernor && toggleControlMeasure(measure.id)}
+                                    disabled={isGovernor}
+                                    className={`
+                                        w-full p-3 text-left transition-all
+                                        ${isGovernor
+                                            ? 'cursor-default'
+                                            : isActive
+                                                ? 'hover:bg-orange-800/30 cursor-pointer'
+                                                : 'hover:bg-gray-700/50 cursor-pointer active:bg-gray-600/50'
+                                        }
+                                    `}
+                                >
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`
+                                                p-1.5 rounded-md
+                                                ${isActive ? 'bg-orange-600/50' : 'bg-gray-700/50'}
+                                            `}>
+                                                <Icon
+                                                    name={measure.icon}
+                                                    size={16}
+                                                    className={isActive ? 'text-orange-300' : 'text-gray-400'}
+                                                />
+                                            </div>
+                                            <span className={`text-sm font-bold ${isActive ? 'text-white' : 'text-gray-300'}`}>
+                                                {measure.title}
+                                            </span>
+                                            {/* 状态标签 */}
+                                            <span className={`
+                                                px-2 py-0.5 text-[10px] rounded-full font-medium
+                                                ${isActive
+                                                    ? 'bg-green-600/80 text-green-100'
+                                                    : 'bg-gray-600/80 text-gray-300'
+                                                }
+                                            `}>
+                                                {isActive ? '✓ 已启用' : '未启用'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-amber-300 font-medium">
+                                                {formatNumberShortCN(dynamicCost)}/天
+                                            </span>
+                                            {/* 点击提示图标（非总督） */}
+                                            {!isGovernor && (
+                                                <Icon
+                                                    name={isActive ? 'ToggleRight' : 'ToggleLeft'}
+                                                    size={20}
+                                                    className={isActive ? 'text-orange-400' : 'text-gray-500'}
+                                                />
+                                            )}
+                                        </div>
                                     </div>
-                                    <span className="text-[10px] text-amber-300">
-                                        {formatNumberShortCN(dynamicCost)}/天
-                                    </span>
-                                </div>
-                                <p className="text-[10px] text-gray-400">{measure.description}</p>
-                                <p className={`text-[10px] ${measure.effectColor}`}>{measure.effects}</p>
+                                    <p className="text-[11px] text-gray-400 mb-1">{measure.description}</p>
+                                    <p className={`text-[11px] font-medium ${measure.effectColor}`}>{measure.effects}</p>
+                                    {/* 非总督的点击提示 */}
+                                    {!isGovernor && !isActive && (
+                                        <p className="text-[10px] text-gray-500 mt-1.5 flex items-center gap-1">
+                                            <Icon name="MousePointer" size={10} />
+                                            点击此处启用
+                                        </p>
+                                    )}
+                                </button>
 
                                 {/* Governor: Official Selector & Mandate Selector */}
                                 {measure.id === 'governor' && (
-                                    <div className="mt-2 space-y-2">
+                                    <div className="px-3 pb-3 space-y-2 border-t border-gray-700/50">
                                         {/* Official Selector */}
-                                        <select
-                                            value={controlMeasures.governor?.officialId || ''}
-                                            onChange={(e) => setGovernorOfficial(e.target.value || null)}
-                                            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-[10px] text-white"
-                                        >
-                                            <option value="">-- 选择官员 --</option>
-                                            {officials.length === 0 ? (
-                                                <option value="" disabled>没有可用的官员</option>
-                                            ) : (
-                                                officials.filter(o => o && !o.isBusy).map(official => (
-                                                    <option key={official.id} value={official.id}>
-                                                        {official.name} (威{official.stats?.prestige ?? official.prestige ?? 50}/政{official.stats?.administrative ?? official.administrative ?? 50}/军{official.stats?.military ?? official.military ?? 30}/交{official.stats?.diplomacy ?? official.diplomacy ?? 30})
-                                                    </option>
-                                                ))
-                                            )}
-                                        </select>
+                                        <div className="pt-2">
+                                            <label className="text-[10px] text-gray-400 mb-1 block">指派官员:</label>
+                                            <select
+                                                value={controlMeasures.governor?.officialId || ''}
+                                                onChange={(e) => setGovernorOfficial(e.target.value || null)}
+                                                className="w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-xs text-white hover:border-gray-500 focus:border-blue-500 transition-colors"
+                                            >
+                                                <option value="">-- 选择官员 --</option>
+                                                {officials.length === 0 ? (
+                                                    <option value="" disabled>没有可用的官员</option>
+                                                ) : (
+                                                    officials.filter(o => o && !o.isBusy).map(official => (
+                                                        <option key={official.id} value={official.id}>
+                                                            {official.name} (威{official.stats?.prestige ?? official.prestige ?? 50}/政{official.stats?.administrative ?? official.administrative ?? 50}/军{official.stats?.military ?? official.military ?? 30}/交{official.stats?.diplomacy ?? official.diplomacy ?? 30})
+                                                        </option>
+                                                    ))
+                                                )}
+                                            </select>
+                                        </div>
 
                                         {/* Mandate Selector */}
                                         {controlMeasures.governor?.officialId && (
@@ -1075,7 +1118,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
 
                                 {/* Garrison: Military Check */}
                                 {measure.id === 'garrison' && isActive && (
-                                    <div className={`mt-2 text-[10px] ${garrisonCheck.isEffective ? 'text-green-400' : 'text-red-400'}`}>
+                                    <div className={`px-3 pb-3 text-[11px] ${garrisonCheck.isEffective ? 'text-green-400' : 'text-red-400'}`}>
                                         {garrisonCheck.isEffective
                                             ? `✓ 军力充足 (需${garrisonCheck.requiredStrength.toFixed(1)}, 有${playerMilitary.toFixed(1)})`
                                             : `✗ 军力不足 (需${garrisonCheck.requiredStrength.toFixed(1)}, 有${playerMilitary.toFixed(1)}) - 仅20%效果`
@@ -1112,6 +1155,311 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
 /**
  * 附庸管理 Bottom Sheet
  */
+// 外交操作标签映射
+const ACTION_LABELS = {
+    trade: '贸易协定',
+    declare_war: '宣战',
+    propose_peace: '媾和',
+    join_org: '加入组织',
+    leave_org: '退出组织',
+    join_alliance: '加入同盟',
+    create_alliance: '建立同盟',
+    create_economic_bloc: '建立经济同盟',
+    alliance: '结盟意向',
+};
+
+// 下达指令的操作类型
+const ORDER_ACTIONS = [
+    { id: 'declare_war', label: '宣战' },
+    { id: 'propose_peace', label: '媾和' },
+    { id: 'trade', label: '贸易协定' },
+    { id: 'join_org', label: '加入组织' },
+    { id: 'leave_org', label: '退出组织' },
+    { id: 'create_alliance', label: '建立同盟' },
+    { id: 'create_economic_bloc', label: '建立经济同盟' },
+];
+
+/**
+ * 外交审批 Tab 内容
+ */
+const DiplomacyTab = memo(({
+    nation,
+    nations = [],
+    diplomacyOrganizations = { organizations: [] },
+    vassalDiplomacyQueue = [],
+    vassalDiplomacyHistory = [],
+    currentDay = 0,
+    onApprove,
+    onReject,
+    onIssueOrder,
+}) => {
+    const [selectedAction, setSelectedAction] = useState('declare_war');
+    const [selectedTargetId, setSelectedTargetId] = useState('');
+
+    // 只显示与当前附庸相关的请求
+    const pendingRequests = useMemo(
+        () => (vassalDiplomacyQueue || []).filter(
+            item => item && item.status === 'pending' && item.vassalId === nation?.id
+        ),
+        [vassalDiplomacyQueue, nation?.id]
+    );
+
+    // 只显示与当前附庸相关的历史记录
+    const relatedHistory = useMemo(
+        () => (vassalDiplomacyHistory || []).filter(
+            item => item && item.vassalId === nation?.id
+        ).slice(0, 10),
+        [vassalDiplomacyHistory, nation?.id]
+    );
+
+    // 可选的目标国家（只显示可见且未被吞并的国家）
+    const availableTargets = useMemo(() => {
+        if (!nation) return [];
+        return nations.filter(n => 
+            n.id !== nation.id && 
+            !n.isAnnexed && 
+            n.visible !== false
+        );
+    }, [nations, nation]);
+
+    // 媾和目标（只能选择正在交战的国家）
+    const warTargets = useMemo(() => {
+        if (!nation || !nation.foreignWars) return [];
+        return Object.entries(nation.foreignWars)
+            .filter(([, war]) => war?.isAtWar)
+            .map(([enemyId]) => nations.find(n => n.id === enemyId))
+            .filter(Boolean);
+    }, [nations, nation]);
+
+    // 获取所有组织列表
+    const allOrganizations = useMemo(() => {
+        return diplomacyOrganizations?.organizations || [];
+    }, [diplomacyOrganizations]);
+
+    // 可加入的组织（附庸尚未加入的组织）
+    const joinableOrgs = useMemo(() => {
+        if (!nation) return [];
+        const vassalMemberships = nation.organizationMemberships || [];
+        return allOrganizations.filter(org => 
+            org && 
+            !vassalMemberships.includes(org.id) &&
+            !org.dissolved
+        );
+    }, [allOrganizations, nation]);
+
+    // 可退出的组织（附庸已加入的组织）
+    const leavableOrgs = useMemo(() => {
+        if (!nation) return [];
+        const vassalMemberships = nation.organizationMemberships || [];
+        return allOrganizations.filter(org => 
+            org && 
+            vassalMemberships.includes(org.id) &&
+            !org.dissolved
+        );
+    }, [allOrganizations, nation]);
+
+    // 判断当前操作需要选择什么类型的目标
+    const targetType = useMemo(() => {
+        if (['join_org', 'leave_org'].includes(selectedAction)) return 'organization';
+        if (['declare_war', 'trade', 'propose_peace'].includes(selectedAction)) return 'nation';
+        return 'none'; // create_alliance, create_economic_bloc 等不需要目标
+    }, [selectedAction]);
+
+    const handleIssueOrder = () => {
+        if (!nation || !onIssueOrder) return;
+        
+        // 需要目标的操作类型
+        const needsTarget = targetType !== 'none';
+        if (needsTarget && !selectedTargetId) return;
+        
+        const payload = {};
+        if (targetType === 'organization') {
+            payload.orgId = selectedTargetId;
+            // 找到组织名称
+            const org = allOrganizations.find(o => o.id === selectedTargetId);
+            if (org) payload.orgName = org.name;
+        } else if (selectedTargetId) {
+            payload.targetId = selectedTargetId;
+        }
+        
+        onIssueOrder(nation.id, selectedAction, payload);
+        setSelectedTargetId('');
+    };
+
+    const canIssue = useMemo(() => {
+        if (!nation) return false;
+        if (targetType === 'none') return true;
+        return !!selectedTargetId;
+    }, [nation, targetType, selectedTargetId]);
+
+    // 外交控制策略
+    const diplomaticControl = nation?.vassalPolicy?.diplomaticControl || 'guided';
+    const canControl = diplomaticControl !== 'autonomous';
+
+    return (
+        <div className="space-y-4">
+            {/* 外交控制状态提示 */}
+            <div className={`p-2 rounded-lg border text-xs ${
+                diplomaticControl === 'autonomous' 
+                    ? 'bg-green-900/30 border-green-700/40 text-green-300'
+                    : diplomaticControl === 'puppet'
+                    ? 'bg-red-900/30 border-red-700/40 text-red-300'
+                    : 'bg-blue-900/30 border-blue-700/40 text-blue-300'
+            }`}>
+                <div className="flex items-center gap-2">
+                    <Icon name="Globe" size={14} />
+                    <span>当前外交控制：</span>
+                    <span className="font-bold">
+                        {diplomaticControl === 'autonomous' ? '自主外交' :
+                         diplomaticControl === 'puppet' ? '傀儡外交' : '引导外交'}
+                    </span>
+                </div>
+                <div className="text-[10px] mt-1 opacity-70">
+                    {diplomaticControl === 'autonomous' 
+                        ? '附庸可自主进行外交，无需审批，您也无法下达指令'
+                        : diplomaticControl === 'puppet'
+                        ? '完全控制附庸外交，所有行动需要您的批准'
+                        : '附庸外交需要您的审批，您也可以主动下达指令'}
+                </div>
+            </div>
+
+            {/* 待审批请求 */}
+            <div className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm text-gray-300 mb-2">
+                    <Icon name="ClipboardList" size={14} className="text-amber-400" />
+                    待审批请求
+                    <span className="text-xs text-gray-500">({pendingRequests.length})</span>
+                </div>
+                {pendingRequests.length > 0 ? (
+                    <div className="space-y-2">
+                        {pendingRequests.map(item => (
+                            <div key={item.id} className="border border-gray-700/50 rounded-lg p-3 bg-gray-900/40">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-sm font-semibold text-white">
+                                        {ACTION_LABELS[item.actionType] || item.actionType}
+                                    </div>
+                                    <div className="text-[10px] text-gray-400">
+                                        {item.expiresAt != null ? `剩余 ${Math.max(0, item.expiresAt - currentDay)} 天` : '长期有效'}
+                                    </div>
+                                </div>
+                                <div className="text-xs text-gray-400 mt-1">
+                                    目标：{item.payload?.orgName || item.targetName || '—'}
+                                </div>
+                                <div className="mt-2 flex gap-2">
+                                    <Button size="sm" variant="primary" onClick={() => onApprove?.(item.id)}>
+                                        批准
+                                    </Button>
+                                    <Button size="sm" variant="secondary" onClick={() => onReject?.(item.id, '玩家拒绝')}>
+                                        拒绝
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-xs text-gray-500">暂无待审批请求。</div>
+                )}
+            </div>
+
+            {/* 下达外交指令 */}
+            {canControl && (
+                <div className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-300 mb-2">
+                        <Icon name="ScrollText" size={14} className="text-blue-400" />
+                        下达外交指令
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                            <div className="text-[10px] text-gray-500 mb-1">指令类型</div>
+                            <select
+                                value={selectedAction}
+                                onChange={(e) => {
+                                    setSelectedAction(e.target.value);
+                                    setSelectedTargetId(''); // 切换类型时清空目标
+                                }}
+                                className="w-full bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-gray-200"
+                            >
+                                {ORDER_ACTIONS.map(action => (
+                                    <option key={action.id} value={action.id}>{action.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <div className="text-[10px] text-gray-500 mb-1">
+                                {targetType === 'organization' ? '目标组织' : '目标国家'}
+                            </div>
+                            {targetType === 'none' ? (
+                                <div className="w-full bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-gray-500">
+                                    无需选择目标
+                                </div>
+                            ) : targetType === 'organization' ? (
+                                <select
+                                    value={selectedTargetId}
+                                    onChange={(e) => setSelectedTargetId(e.target.value)}
+                                    className="w-full bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-gray-200"
+                                >
+                                    <option value="">选择组织</option>
+                                    {(selectedAction === 'join_org' ? joinableOrgs : leavableOrgs).map(org => (
+                                        <option key={org.id} value={org.id}>
+                                            {org.name} ({org.type === 'military_alliance' ? '军事同盟' : '经济同盟'})
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <select
+                                    value={selectedTargetId}
+                                    onChange={(e) => setSelectedTargetId(e.target.value)}
+                                    className="w-full bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-gray-200"
+                                >
+                                    <option value="">选择目标</option>
+                                    {(selectedAction === 'propose_peace' ? warTargets : availableTargets).map(target => (
+                                        <option key={target.id} value={target.id}>{target.name}</option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <Button size="sm" variant="primary" onClick={handleIssueOrder} disabled={!canIssue}>
+                            执行指令
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* 最近处理记录 */}
+            <div className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm text-gray-300 mb-2">
+                    <Icon name="History" size={14} className="text-gray-400" />
+                    最近记录
+                </div>
+                {relatedHistory.length > 0 ? (
+                    <div className="space-y-2 text-xs text-gray-400">
+                        {relatedHistory.map(item => (
+                            <div key={item.id} className="flex items-center justify-between">
+                                <span>{ACTION_LABELS[item.actionType] || item.actionType}</span>
+                                <span className={`text-[10px] ${
+                                    item.status === 'approved' ? 'text-green-400' :
+                                    item.status === 'rejected' ? 'text-red-400' :
+                                    item.status === 'ordered' ? 'text-blue-400' :
+                                    item.status === 'expired' ? 'text-yellow-400' : 'text-gray-500'
+                                }`}>
+                                    {item.status === 'approved' ? '已批准' :
+                                     item.status === 'rejected' ? '已拒绝' :
+                                     item.status === 'ordered' ? '已下令' :
+                                     item.status === 'expired' ? '已过期' : item.status}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-xs text-gray-500">暂无记录。</div>
+                )}
+            </div>
+        </div>
+    );
+});
+
 export const VassalManagementSheet = memo(({
     isOpen,
     onClose,
@@ -1122,6 +1470,15 @@ export const VassalManagementSheet = memo(({
     officials = [],       // NEW: Officials list for governor selection
     playerMilitary = 1.0, // NEW: Player military strength
     epoch = 1,            // 当前时代，用于计算独立度变化
+    // 外交审批相关 props
+    nations = [],
+    diplomacyOrganizations = { organizations: [] },
+    vassalDiplomacyQueue = [],
+    vassalDiplomacyHistory = [],
+    currentDay = 0,
+    onApproveVassalDiplomacy,
+    onRejectVassalDiplomacy,
+    onIssueVassalOrder,
 }) => {
     // 所有 hooks 必须在条件返回之前调用
     const [activeTab, setActiveTab] = useState('overview');
@@ -1137,6 +1494,14 @@ export const VassalManagementSheet = memo(({
         if (!nation) return null;
         return getIndependenceChangeBreakdown(nation, epoch, officials);
     }, [nation, epoch, officials]);
+
+    // 计算该附庸的待审批请求数（必须在条件返回之前调用）
+    const pendingCount = useMemo(() => {
+        if (!nation) return 0;
+        return (vassalDiplomacyQueue || []).filter(
+            item => item && item.status === 'pending' && item.vassalId === nation.id
+        ).length;
+    }, [vassalDiplomacyQueue, nation]);
 
     // 预先计算所有派生值
     const independence = nation?.independencePressure || 0;
@@ -1164,6 +1529,7 @@ export const VassalManagementSheet = memo(({
     const tabs = [
         { id: 'overview', label: '概览', icon: 'Eye' },
         { id: 'policy', label: '政策调整', icon: 'Settings' },
+        { id: 'diplomacy', label: '外交审批', icon: 'Globe', badge: pendingCount > 0 ? pendingCount : null },
     ];
 
     return (
@@ -1175,13 +1541,13 @@ export const VassalManagementSheet = memo(({
             <div className="space-y-4">
                 {/* Tab 切换 */}
                 <div className="flex border-b border-gray-700">
-                    {tabs.map(tab => (
+                {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`
                                 flex-1 flex items-center justify-center gap-2 py-2 px-4
-                                text-sm font-medium transition-all
+                                text-sm font-medium transition-all relative
                                 ${activeTab === tab.id
                                     ? 'text-blue-400 border-b-2 border-blue-400'
                                     : 'text-gray-400 hover:text-gray-200'
@@ -1190,6 +1556,11 @@ export const VassalManagementSheet = memo(({
                         >
                             <Icon name={tab.icon} size={16} />
                             {tab.label}
+                            {tab.badge && (
+                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                                    {tab.badge}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -1218,6 +1589,20 @@ export const VassalManagementSheet = memo(({
                         }}
                         officials={officials}
                         playerMilitary={playerMilitary}
+                    />
+                )}
+
+                {activeTab === 'diplomacy' && (
+                    <DiplomacyTab
+                        nation={nation}
+                        nations={nations}
+                        diplomacyOrganizations={diplomacyOrganizations}
+                        vassalDiplomacyQueue={vassalDiplomacyQueue}
+                        vassalDiplomacyHistory={vassalDiplomacyHistory}
+                        currentDay={currentDay}
+                        onApprove={onApproveVassalDiplomacy}
+                        onReject={onRejectVassalDiplomacy}
+                        onIssueOrder={onIssueVassalOrder}
                     />
                 )}
             </div>
