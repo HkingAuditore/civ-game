@@ -189,12 +189,14 @@ const NationDetailView = ({
                         <ActionCard
                             icon="ScrollText"
                             title="外交谈判"
-                            desc={negotiateCooldown.isOnCooldown
-                                ? `冷却中，还需 ${negotiateCooldown.remainingDays} 天`
-                                : "谈判条约、贸易协定等。"}
+                            desc={epoch < 1
+                                ? "未解锁：需要进入下一时代"
+                                : negotiateCooldown.isOnCooldown
+                                    ? `冷却中，还需 ${negotiateCooldown.remainingDays} 天`
+                                    : "谈判条约、贸易协定等。"}
                             onClick={() => onNegotiate?.()}
-                            color="blue"
-                            disabled={negotiateCooldown.isOnCooldown}
+                            color={epoch < 1 ? "gray" : "blue"}
+                            disabled={epoch < 1 || negotiateCooldown.isOnCooldown}
                         />
 
                         <ActionCard
