@@ -441,17 +441,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const [hasImage, setHasImage] = useState(false);
     const [imageError, setImageError] = useState(false);
 
-    // 使用 ref 追踪上一个建筑对象引用
-    const prevBuildingRef = React.useRef(null);
-
-    // 当建筑对象引用变化时重置图片状态
-    if (prevBuildingRef.current !== building) {
-        prevBuildingRef.current = building;
-        if (hasImage || imageError) {
-            setHasImage(false);
-            setImageError(false);
-        }
-    }
+    // 当建筑ID变化时重置图片状态（使用 useEffect 避免渲染中调用 setState）
+    useEffect(() => {
+        setHasImage(false);
+        setImageError(false);
+    }, [building.id]);
 
     // 自动滚动到升级面板
     const upgradePanelRef = useRef(null);
@@ -537,7 +531,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const compactSilverCost = formatCompactCost(nextSilverCost);
 
     // 计算最大可买数量 (限制为100以防卡顿)
-    const calculateMaxBuy = () => {
+    // [性能优化] 使用 useMemo 缓存最大可购买数量，避免每次渲染重新计算
+    const maxBuyCount = useMemo(() => {
         const MAX_SEARCH = 100;
         const currentCount = buildings[building.id] || 0;
         const difficulty = gameState.difficulty;
@@ -559,7 +554,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
             // 检查加上这一个是否超支
             let nextTotalCost = { ...currentTotalCost };
-            let nextTotalSilver = currentTotalSilver; // accum silver for resources + direct silver
+            let nextTotalSilver = currentTotalSilver;
 
             // Update totals
             let possible = true;
@@ -589,7 +584,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             maxCount++;
         }
         return maxCount || 1;
-    };
+    }, [building.id, building.baseCost, buildings, resources, market?.prices, gameState.difficulty, gameState.modifiers?.officialEffects?.buildingCostMod]);
 
     const totalJobSlots = Object.values(effectiveTotalStats.jobs || {}).reduce((sum, val) => sum + val, 0);
     const totalJobsFilled = Object.entries(effectiveTotalStats.jobs || {}).reduce((sum, [role, required]) => {
@@ -694,16 +689,24 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     // 计算实际产出（优先使用 supplyBreakdown 中的数据，包含加成）
     // [CRITICAL FIX] 当没有实际产出时（supplyBreakdown 无数据或为0），不应回退到理论值
     // 这样到岗率为0%的建筑才会正确显示无产出
+    // [改进] 当建筑有产出定义但实际产出为0时，也要显示（方便用户知道是减产了）
     const totalOutputs = Object.entries(effectiveTotalStats.output || {}).map(([resKey, baseAmount]) => {
         // 理论满员产量 = 配置产出 × 科技加成乘数（用于tooltip比较）
         const theoreticalFullOutput = baseAmount * buildingModifiers.totalMultiplier;
         // 实际产出：直接从 supplyBreakdown 获取，没有则为0
         const rawValue = supplyBreakdown[resKey]?.buildings?.[building.id];
-        const actualAmount = (rawValue !== undefined && rawValue > 0) ? rawValue : 0;
+        const actualAmount = rawValue !== undefined ? rawValue : 0;
         // hasBonus 表示有实际产出且与理论值有差异
         const hasBonus = actualAmount > 0 && Math.abs(actualAmount - theoreticalFullOutput) > 0.01;
-        return [resKey, actualAmount, theoreticalFullOutput, hasBonus];
-    }).filter(([, amount]) => amount > 0);
+        // isReduced 表示实际产出低于理论值（减产状态）
+        const isReduced = actualAmount < theoreticalFullOutput * 0.99 && theoreticalFullOutput > 0;
+        return [resKey, actualAmount, theoreticalFullOutput, hasBonus, isReduced];
+    });
+    // 获取减产原因（从 buildingFinancialData 中读取）
+    const buildingFinance = gameState?.buildingFinancialData?.[building.id];
+    const reductionReasons = buildingFinance?.reductionReasons || [];
+    const productionEfficiency = buildingFinance?.productionEfficiency ?? 1;
+    const hasReduction = reductionReasons.length > 0 || productionEfficiency < 0.99;
 
     // 计算实际投入（优先使用 demandBreakdown 中的数据）
     // 同时获取原料成本修正信息
@@ -731,7 +734,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     }, [popStructure, classFinancialData]);
 
     const handleMaxBuy = () => {
-        setBuyCount(calculateMaxBuy());
+        setBuyCount(maxBuyCount);
     };
 
     // ... (rest of the component)
@@ -980,14 +983,21 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                     {totalOutputs.some(([, , , hasBonus]) => hasBonus) && (
                                         <span className="text-amber-400" title="包含科技/事件加成">★</span>
                                     )}
+                                    {hasReduction && (
+                                        <span className="text-red-400" title={`生产效率: ${(productionEfficiency * 100).toFixed(0)}%`}>⚠</span>
+                                    )}
                                 </div>
                                 {totalOutputs.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
-                                        {totalOutputs.map(([resKey, amount, baseAmount, hasBonus]) => (
+                                        {totalOutputs.map(([resKey, amount, baseAmount, hasBonus, isReduced]) => (
                                             <span
                                                 key={`total-out-${resKey}`}
-                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold bg-emerald-900/30 border-emerald-600/40 text-emerald-200"
-                                                title={hasBonus ? `基础: ${formatResourceAmount(baseAmount)} / 实际: ${formatResourceAmount(amount)}` : undefined}
+                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${
+                                                    isReduced
+                                                        ? 'bg-red-900/30 border-red-600/40 text-red-200'
+                                                        : 'bg-emerald-900/30 border-emerald-600/40 text-emerald-200'
+                                                }`}
+                                                title={`理论: ${formatResourceAmount(baseAmount)} / 实际: ${formatResourceAmount(amount)}${isReduced ? ' (减产中)' : ''}`}
                                             >
                                                 <span>{RESOURCES[resKey]?.name || resKey}</span>
                                                 <span className="font-mono">
@@ -999,6 +1009,19 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                     </div>
                                 ) : (
                                     <p className="text-[11px] text-gray-500">暂无产出</p>
+                                )}
+                                {/* 减产原因提示 */}
+                                {hasReduction && reductionReasons.length > 0 && (
+                                    <div className="mt-1.5 text-[9px] text-red-400 flex items-center gap-1 flex-wrap">
+                                        <Icon name="AlertTriangle" size={10} />
+                                        <span>减产原因:</span>
+                                        {reductionReasons.map((reason, idx) => (
+                                            <span key={reason.type} className="bg-red-900/40 px-1.5 py-0.5 rounded">
+                                                {reason.label} ({(reason.factor * 100).toFixed(0)}%)
+                                                {idx < reductionReasons.length - 1 && ','}
+                                            </span>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                             <div>
@@ -1261,8 +1284,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                     </button>
                                 ))}
                                 <button
-                                    onClick={() => setBuyCount(calculateMaxBuy())}
-                                    className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === calculateMaxBuy() && ![1, 5, 10].includes(buyCount)
+                                    onClick={() => setBuyCount(maxBuyCount)}
+                                    className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === maxBuyCount && ![1, 5, 10].includes(buyCount)
                                         ? 'bg-green-600 text-white shadow'
                                         : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                                         }`}

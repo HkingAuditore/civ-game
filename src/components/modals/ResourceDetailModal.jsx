@@ -573,6 +573,7 @@ const ResourceDetailContent = ({
     taxPolicies,
     onUpdateTaxPolicies,
     activeDebuffs = [],
+    buildingFinancialData = {},
 }) => {
     const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].id);
     // Removed isAnimatingOut as framer-motion handles it
@@ -933,9 +934,9 @@ const ResourceDetailContent = ({
             const buildingMultiplier = 1 + totalBonusPct;
 
             const theoreticalAmount = baseAmount * buildingMultiplier * resourceSupplyMultiplier;
-            // 使用实际产出数据，如果没有或为0则回退到理论产出值（与 BuildingDetails.jsx 保持一致）
-            // 当建筑因为某些原因（如业主财富不足）没有实际产出时，仍显示理论值作为参考
-            const actualAmount = (realProduction !== undefined && realProduction > 0) ? realProduction : theoreticalAmount;
+            // [修复] 使用实际产出数据，如果没有数据(undefined)才回退到理论值
+            // 当建筑因为某些原因（如业主财富不足）停产时，实际产出应显示为0或真实值，而非理论值
+            const actualAmount = realProduction !== undefined ? realProduction : theoreticalAmount;
 
             actualSupplyTotal += actualAmount;
             theoreticalSupplyTotal += theoreticalAmount;
@@ -945,6 +946,12 @@ const ResourceDetailContent = ({
             if (eventBuildingPct !== 0) modList.push(`事件 +${(eventBuildingPct * 100).toFixed(0)}%`);
             if (techCategoryPct !== 0) modList.push(`类别科技 +${(techCategoryPct * 100).toFixed(0)}%`);
             if (eventCategoryPct !== 0) modList.push(`类别事件 +${(eventCategoryPct * 100).toFixed(0)}%`);
+
+            // 获取减产信息
+            const finance = buildingFinancialData[building.id];
+            const reductionReasons = finance?.reductionReasons || [];
+            const productionEfficiency = finance?.productionEfficiency ?? 1;
+            const isReduced = actualAmount < theoreticalAmount * 0.99 && theoreticalAmount > 0;
 
             acc.push({
                 id: building.id,
@@ -956,6 +963,9 @@ const ResourceDetailContent = ({
                 formula: perBuilding > 0 ? `${count} 座` : '来自建筑升级',
                 mods: modList,
                 hasBonus: actualAmount !== baseAmount,
+                isReduced,
+                reductionReasons,
+                productionEfficiency,
             });
             return acc;
         }, []);
@@ -1675,7 +1685,13 @@ const ResourceDetailContent = ({
                                                     buildingSupply.map(item => (
                                                         <div
                                                             key={item.id}
-                                                            className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.hasBonus ? 'border-emerald-500/30 bg-emerald-950/20' : 'border-gray-800/60 bg-gray-900/60'} p-2 lg:p-3`}
+                                                            className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${
+                                                                item.isReduced 
+                                                                    ? 'border-red-500/30 bg-red-950/20' 
+                                                                    : item.hasBonus 
+                                                                        ? 'border-emerald-500/30 bg-emerald-950/20' 
+                                                                        : 'border-gray-800/60 bg-gray-900/60'
+                                                            } p-2 lg:p-3`}
                                                         >
                                                             <div>
                                                                 <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
@@ -1683,15 +1699,23 @@ const ResourceDetailContent = ({
                                                                 {item.mods && item.mods.length > 0 && (
                                                                     <p className="text-[9px] text-emerald-400">{item.mods.join(' · ')}</p>
                                                                 )}
+                                                                {/* 显示减产原因 */}
+                                                                {item.isReduced && item.reductionReasons && item.reductionReasons.length > 0 && (
+                                                                    <p className="text-[9px] text-red-400 mt-0.5">
+                                                                        ⚠ 减产: {item.reductionReasons.map(r => `${r.label}(${(r.factor * 100).toFixed(0)}%)`).join(' · ')}
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                             <div className="text-right">
-                                                                <p className="text-sm lg:text-base font-bold text-emerald-200">{formatAmount(item.amount)}</p>
-                                                                {/* {item.isActual && item.id !== 'import' && (
-                                                                    <p className="text-[9px] text-emerald-400">实际产出</p>
-                                                                )} */}
-                                                                {/* {item.hasBonus && !item.isActual && (
-                                                                    <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
-                                                                )} */}
+                                                                <p className={`text-sm lg:text-base font-bold ${item.isReduced ? 'text-red-200' : 'text-emerald-200'}`}>
+                                                                    {formatAmount(item.amount)}
+                                                                </p>
+                                                                {/* 当减产时显示理论产能作为对比 */}
+                                                                {item.isReduced && item.theoreticalAmount > 0 && (
+                                                                    <p className="text-[9px] text-gray-500">
+                                                                        理论: {formatAmount(item.theoreticalAmount)}
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))

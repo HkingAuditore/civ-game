@@ -1,7 +1,7 @@
 // 交互式教程遮罩层组件
 // 显示高亮区域、提示框、进度指示器
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
@@ -19,16 +19,33 @@ export const TutorialOverlay = ({
     onSkip,
     onNext,
     onClick,
+    isDetailOpen = false, // 是否有详情面板打开
 }) => {
     const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+    const tooltipRef = useRef(null);
+    
+    // 判断是否允许自由交互（state-change触发器需要玩家自由操作）
+    const allowFreeInteraction = currentStep?.trigger === 'state-change';
+    
+    // 当允许自由交互且详情页打开时，隐藏高亮框（避免高亮框在错误位置造成困惑）
+    const hideHighlight = allowFreeInteraction && isDetailOpen;
 
     // 计算提示框位置
     useEffect(() => {
         if (!currentStep) return;
 
         const calculateTooltipPosition = () => {
-            const tooltipWidth = 320;
-            const tooltipHeight = 200;
+            // 默认尺寸作为回退
+            let tooltipWidth = 320;
+            let tooltipHeight = 200;
+            
+            // 如果有ref，使用实际尺寸
+            if (tooltipRef.current) {
+                const rect = tooltipRef.current.getBoundingClientRect();
+                tooltipWidth = rect.width || tooltipWidth;
+                tooltipHeight = rect.height || tooltipHeight;
+            }
+            
             const padding = 16;
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
@@ -37,9 +54,37 @@ export const TutorialOverlay = ({
 
             if (targetRect) {
                 // 有高亮目标时，提示框放在目标旁边
-                const position = currentStep.tooltipPosition || 'bottom';
+                const position = currentStep.tooltipPosition || 'auto';
+                
+                // 计算各个方向是否有足够空间
+                const spaceTop = targetRect.top - padding;
+                const spaceBottom = viewportHeight - targetRect.top - targetRect.height - padding;
+                const spaceLeft = targetRect.left - padding;
+                const spaceRight = viewportWidth - targetRect.left - targetRect.width - padding;
+                
+                // 自动选择最佳位置
+                let actualPosition = position;
+                if (position === 'auto') {
+                    // 优先级：下方 > 上方 > 右侧 > 左侧
+                    if (spaceBottom >= tooltipHeight + padding) {
+                        actualPosition = 'bottom';
+                    } else if (spaceTop >= tooltipHeight + padding) {
+                        actualPosition = 'top';
+                    } else if (spaceRight >= tooltipWidth + padding) {
+                        actualPosition = 'right';
+                    } else if (spaceLeft >= tooltipWidth + padding) {
+                        actualPosition = 'left';
+                    } else {
+                        // 都放不下时，选择空间最大的方向
+                        const maxSpace = Math.max(spaceTop, spaceBottom, spaceLeft, spaceRight);
+                        if (maxSpace === spaceBottom) actualPosition = 'bottom';
+                        else if (maxSpace === spaceTop) actualPosition = 'top';
+                        else if (maxSpace === spaceRight) actualPosition = 'right';
+                        else actualPosition = 'left';
+                    }
+                }
 
-                switch (position) {
+                switch (actualPosition) {
                     case 'top':
                         top = targetRect.top - tooltipHeight - padding;
                         left = targetRect.left + (targetRect.width - tooltipWidth) / 2;
@@ -61,21 +106,18 @@ export const TutorialOverlay = ({
                         left = targetRect.left + (targetRect.width - tooltipWidth) / 2;
                 }
 
-                // 确保提示框在视口内
+                // 确保提示框在视口内 - 水平方向调整
                 if (left < padding) left = padding;
                 if (left + tooltipWidth > viewportWidth - padding) {
                     left = viewportWidth - tooltipWidth - padding;
                 }
+                
+                // 确保提示框在视口内 - 垂直方向调整
                 if (top < padding) {
-                    // 如果上方放不下，放到下方
-                    top = targetRect.top + targetRect.height + padding;
+                    top = padding;
                 }
                 if (top + tooltipHeight > viewportHeight - padding) {
-                    // 如果下方放不下，放到上方
-                    top = targetRect.top - tooltipHeight - padding;
-                    if (top < padding) {
-                        top = padding;
-                    }
+                    top = viewportHeight - tooltipHeight - padding;
                 }
             } else {
                 // 无高亮目标时，居中显示
@@ -86,10 +128,17 @@ export const TutorialOverlay = ({
             setTooltipPosition({ top, left });
         };
 
+        // 初始计算
         calculateTooltipPosition();
+        
+        // 延迟再计算一次，确保ref已经获取到实际尺寸
+        const timer = setTimeout(calculateTooltipPosition, 50);
 
         window.addEventListener('resize', calculateTooltipPosition);
-        return () => window.removeEventListener('resize', calculateTooltipPosition);
+        return () => {
+            window.removeEventListener('resize', calculateTooltipPosition);
+            clearTimeout(timer);
+        };
     }, [currentStep, targetRect]);
 
     if (!isActive || !currentStep) return null;
@@ -101,17 +150,18 @@ export const TutorialOverlay = ({
             <div
                 className="fixed inset-0 z-[9999] pointer-events-none"
             >
-                {/* 遮罩层 - 只有当存在高亮目标时才阻止点击 */}
+                {/* 遮罩层 - state-change类型时不阻止点击，允许玩家自由操作 */}
                 <motion.div
-                    className={`absolute inset-0 bg-black/70 ${targetRect ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                    className={`absolute inset-0 bg-black/70 ${targetRect && !allowFreeInteraction ? 'pointer-events-auto' : 'pointer-events-none'}`}
                     initial={{ opacity: 0 }}
-                    animate={{ opacity: targetRect ? 1 : 0.5 }}
+                    animate={{ opacity: allowFreeInteraction ? 0.3 : (targetRect ? 1 : 0.5) }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    onClick={targetRect ? onClick : undefined}
+                    onClick={targetRect && !allowFreeInteraction ? onClick : undefined}
                     style={{
                         // 使用 clip-path 创建高亮区域（镂空部分不会阻止点击）
-                        clipPath: targetRect
+                        // 当允许自由交互时，不使用clip-path，整个遮罩层都是半透明的
+                        clipPath: targetRect && !allowFreeInteraction
                             ? `polygon(
                                 0% 0%, 
                                 0% 100%, 
@@ -128,8 +178,8 @@ export const TutorialOverlay = ({
                     }}
                 />
 
-                {/* 高亮边框 - 纯装饰性，不阻止点击 */}
-                {targetRect && (
+                {/* 高亮边框 - 纯装饰性，不阻止点击；当详情页打开时隐藏 */}
+                {targetRect && !hideHighlight && (
                     <motion.div
                         className="absolute border-2 border-blue-400 rounded-lg pointer-events-none"
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -161,6 +211,7 @@ export const TutorialOverlay = ({
 
                 {/* 提示框 */}
                 <motion.div
+                    ref={tooltipRef}
                     className="absolute w-80 bg-gray-900/95 backdrop-blur-sm border border-blue-500/50 rounded-xl shadow-2xl overflow-hidden pointer-events-auto"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -225,8 +276,8 @@ export const TutorialOverlay = ({
                     )}
                 </motion.div>
 
-                {/* 指向箭头 */}
-                {targetRect && (
+                {/* 指向箭头 - 当详情页打开时隐藏 */}
+                {targetRect && !hideHighlight && (
                     <motion.div
                         className="absolute pointer-events-none"
                         initial={{ opacity: 0 }}

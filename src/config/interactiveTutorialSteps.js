@@ -122,30 +122,18 @@ export const INTERACTIVE_TUTORIAL_STEPS = [
     },
 
     {
-        id: 'find_farm',
-        phase: 'building',
-        type: 'highlight',
-        trigger: 'any-click',
-        content: {
-            title: '🌾 找到农田',
-            description: '农田生产粮食——这是人民生存的必需品。找到农田卡片并点击它查看详情。',
-            hint: '在建筑列表中找到农田',
-        },
-        targetSelector: '[data-building-id="farm"]',
-        highlightPadding: 4,
-    },
-
-    {
         id: 'build_farm',
         phase: 'building',
         type: 'action',
         trigger: 'state-change',
         content: {
             title: '🌾 建造农田',
-            description: '在建筑列表中找到农田，点击绿色的"建造"按钮，或者点击卡片进入详情后建造。\n\n注意：建造需要消耗银币从市场购买原材料！',
-            hint: '建造一个农田后自动继续',
+            description: '农田生产粮食——这是人民生存的必需品。\n\n点击农田卡片上的绿色"+"按钮来建造，或点击卡片进入详情后建造。',
+            hint: '建造一个农田',
         },
-        targetSelector: null, // 不高亮任何元素，避免详情页遮挡问题
+        targetSelector: '[data-building-id="farm"]',
+        highlightPadding: 4,
+        tooltipPosition: 'right', // 提示框显示在右侧，避免遮挡
         validation: {
             type: 'building-count',
             buildingId: 'farm',
