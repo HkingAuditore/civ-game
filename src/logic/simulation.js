@@ -170,11 +170,27 @@ import {
     processOwnerExpansions
 } from './officials/cabinetSynergy'; // [FIX] Import directly from source
 import {
+    ECONOMIC_MINISTER_ROLES,
+    MINISTER_LABELS,
+    buildMinisterRoster,
+    getMinisterStatValue,
+    getMinisterProductionBonus,
+    getMinisterTradeBonus,
+    getMinisterMilitaryBonus,
+    getMinisterTrainingSpeedBonus,
+    getMinisterDiplomaticBonus,
+    isBuildingInMinisterScope,
+    isBuildingUnlockedForMinister,
+    scoreBuildingShortage,
+} from './officials/ministers';
+import {
     getInventoryTargetDaysMultiplier,
     getPopulationGrowthMultiplier,
     getArmyMaintenanceMultiplier,
     getMaxConsumptionMultiplierBonus,
-    getRelationChangeMultipliers
+    getRelationChangeMultipliers,
+    getBuildingCostGrowthFactor,
+    getBuildingCostBaseMultiplier
 } from '../config/difficulty';
 import { EconomyLedger, TRANSACTION_CATEGORIES } from './economy/ledger';
 import {
@@ -187,6 +203,8 @@ import {
 import { LOYALTY_CONFIG } from '../config/officials';
 import { isStanceSatisfied } from '../config/politicalStances';
 import { migrateOfficialForInvestment } from './officials/migration';
+import { calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
+import { calculateSilverCost } from '../utils/economy';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -295,6 +313,8 @@ export const simulateTick = ({
     officials = [], // 官员列表
     activeDecrees, // [NEW] Reform decrees
     officialsPaid = true, // 是否足额支付薪水
+    ministerAssignments = {}, // [NEW] Minister role assignments
+    lastMinisterExpansionDay = 0,
     quotaTargets = {}, // [NEW] Quota system targets for Left Dominance
     expansionSettings = {}, // [NEW] Expansion settings for Right Dominance
     cabinetStatus = {}, // [NEW] Cabinet status for synergy/dominance
@@ -830,6 +850,64 @@ export const simulateTick = ({
     // 立场生产成本效果存储供后续使用
     bonuses.stanceProductionInputCost = stanceEffects.productionInputCost || {};
 
+    // === 部长任命加成 ===
+    const ministerRoster = buildMinisterRoster(officials || []);
+    const ministerEffects = {
+        buildingBonuses: {},
+        tradeBonusMod: 0,
+        militaryBonus: 0,
+        militaryTrainingSpeed: 0,
+        diplomaticBonus: 0,
+    };
+
+    ECONOMIC_MINISTER_ROLES.forEach((role) => {
+        const officialId = ministerAssignments?.[role];
+        const official = officialId ? ministerRoster.get(officialId) : null;
+        if (!official) return;
+        const statValue = getMinisterStatValue(official, role);
+        const productionBonus = getMinisterProductionBonus(role, statValue);
+        if (productionBonus) {
+            BUILDINGS.forEach((building) => {
+                if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;
+                if (!isBuildingInMinisterScope(building, role)) return;
+                ministerEffects.buildingBonuses[building.id] =
+                    (ministerEffects.buildingBonuses[building.id] || 0) + productionBonus;
+            });
+        }
+        if (role === 'commerce') {
+            ministerEffects.tradeBonusMod += getMinisterTradeBonus(statValue);
+        }
+    });
+
+    const militaryOfficialId = ministerAssignments?.military;
+    const militaryOfficial = militaryOfficialId ? ministerRoster.get(militaryOfficialId) : null;
+    if (militaryOfficial) {
+        const statValue = getMinisterStatValue(militaryOfficial, 'military');
+        ministerEffects.militaryBonus += getMinisterMilitaryBonus(statValue);
+        ministerEffects.militaryTrainingSpeed = getMinisterTrainingSpeedBonus(statValue);
+    }
+
+    const diplomacyOfficialId = ministerAssignments?.diplomacy;
+    const diplomacyOfficial = diplomacyOfficialId ? ministerRoster.get(diplomacyOfficialId) : null;
+    if (diplomacyOfficial) {
+        const statValue = getMinisterStatValue(diplomacyOfficial, 'diplomacy');
+        ministerEffects.diplomaticBonus += getMinisterDiplomaticBonus(statValue);
+    }
+
+    Object.entries(ministerEffects.buildingBonuses).forEach(([buildingId, value]) => {
+        bonuses.buildingBonuses[buildingId] = (bonuses.buildingBonuses[buildingId] || 0) + value;
+    });
+    if (ministerEffects.tradeBonusMod) {
+        bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + ministerEffects.tradeBonusMod;
+    }
+    if (ministerEffects.militaryBonus) {
+        bonuses.militaryBonus = (bonuses.militaryBonus || 0) + ministerEffects.militaryBonus;
+    }
+    if (ministerEffects.diplomaticBonus) {
+        bonuses.diplomaticBonus = (bonuses.diplomaticBonus || 0) + ministerEffects.diplomaticBonus;
+    }
+    bonuses.militaryTrainingSpeed = ministerEffects.militaryTrainingSpeed;
+
     // Destructure for backward compatibility with existing code
     const {
         buildingBonuses,
@@ -1134,25 +1212,49 @@ export const simulateTick = ({
     // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
     const buildingJobsRequired = {};
 
-    // 遍历所有有业主的建筑类型
     BUILDINGS.forEach(building => {
-        if (!building.owner || !building.jobs) return;
-        
         const buildingCount = buildings[building.id] || 0;
         if (buildingCount <= 0) return;
-        
-        const ownerRole = building.owner;
-        const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
-        
-        // 记录每个建筑的实际岗位需求（包括所有角色）
-        buildingJobsRequired[building.id] = {};
-        Object.entries(building.jobs).forEach(([role, perBuilding]) => {
-            buildingJobsRequired[building.id][role] = perBuilding * buildingCount;
+
+        const storedLevelCounts = buildingUpgrades[building.id] || {};
+        let upgradedCount = 0;
+        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                upgradedCount += lvlCount;
+            }
         });
-        
-        if (ownerSlotsPerBuilding <= 0) return;
-        
-        // 构建该建筑的业主实例列表
+        const level0Count = Math.max(0, buildingCount - upgradedCount);
+        const levelCounts = { 0: level0Count };
+        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                levelCounts[lvl] = lvlCount;
+            }
+        });
+
+        const totalJobsByRole = {};
+        let ownerSlotsTotal = 0;
+        Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+            if (lvlCount <= 0) return;
+            const lvl = parseInt(lvlStr);
+            const config = getBuildingEffectiveConfig(building, lvl);
+            const jobs = config.jobs || {};
+            Object.entries(jobs).forEach(([role, perBuilding]) => {
+                totalJobsByRole[role] = (totalJobsByRole[role] || 0) + perBuilding * lvlCount;
+            });
+            if (building.owner && jobs[building.owner]) {
+                ownerSlotsTotal += jobs[building.owner] * lvlCount;
+            }
+        });
+
+        if (Object.keys(totalJobsByRole).length <= 0) return;
+
+        buildingJobsRequired[building.id] = totalJobsByRole;
+
+        const ownerRole = building.owner;
+        if (!ownerRole || ownerSlotsTotal <= 0) return;
+
         const ownershipList = buildOwnershipListFromLegacy(
             building.id,
             buildingCount,
@@ -1160,27 +1262,24 @@ export const simulateTick = ({
             foreignInvestments,
             building
         );
-        
-        // 统计非阶层业主的建筑数量
+
         let nonStratumCount = 0;
         ownershipList.forEach(ownership => {
             if (!providesOwnerJobs(ownership.ownerType)) {
                 nonStratumCount += ownership.count || 0;
             }
         });
-        
-        // 减去非阶层业主建筑的业主岗位
+
         if (nonStratumCount > 0) {
-            const slotsToRemove = ownerSlotsPerBuilding * nonStratumCount;
-            // 更新总体 jobsAvailable
+            const averageOwnerSlots = buildingCount > 0 ? ownerSlotsTotal / buildingCount : 0;
+            const slotsToRemove = averageOwnerSlots * nonStratumCount;
             if (jobsAvailable[ownerRole]) {
                 jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
             }
-            // 更新该建筑的实际业主岗位需求
-            buildingJobsRequired[building.id][ownerRole] = Math.max(0, 
-                buildingJobsRequired[building.id][ownerRole] - slotsToRemove
+            buildingJobsRequired[building.id][ownerRole] = Math.max(
+                0,
+                (buildingJobsRequired[building.id][ownerRole] || 0) - slotsToRemove
             );
-            // debugLog('ownerJobs', `[业主岗位修正] ${building.name}: 移除 ${slotsToRemove} 个 ${ownerRole} 岗位 (非阶层业主 ${nonStratumCount} 个)`);
         }
     });
 
@@ -1776,9 +1875,10 @@ export const simulateTick = ({
         const roleExpectedWages = {};
         let expectedWageBillBase = 0;
         const wagePlans = [];
+        const jobRequirements = buildingJobsRequired[b.id] || effectiveOps.jobs;
         // Each wage plan may include ownerKey so we can apply per-owner distribution ratios
         // when actually paying wages.
-        if (Object.keys(effectiveOps.jobs).length > 0) {
+        if (Object.keys(jobRequirements).length > 0) {
             buildingJobFill[b.id] = buildingJobFill[b.id] || {};
 
             // [CRITICAL FIX] 使用瓶颈法则计算到岗率
@@ -1787,8 +1887,8 @@ export const simulateTick = ({
             let minNonOwnerFillRate = Infinity;
             let hasNonOwnerRole = false;
 
-            for (let role in effectiveOps.jobs) {
-                const roleRequired = effectiveOps.jobs[role];
+            for (let role in jobRequirements) {
+                const roleRequired = jobRequirements[role];
                 if (!roleWageStats[role]) {
                     roleWageStats[role] = { totalSlots: 0, weightedWage: 0 };
                 }
@@ -2103,8 +2203,8 @@ export const simulateTick = ({
                 approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
             }
         });
-        if (Object.keys(effectiveOps.jobs).length > 0) {
-            Object.keys(effectiveOps.jobs).forEach(role => {
+        if (Object.keys(jobRequirements).length > 0) {
+            Object.keys(jobRequirements).forEach(role => {
                 if (zeroApprovalClasses[role]) {
                     approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
                 }
@@ -2221,8 +2321,8 @@ export const simulateTick = ({
             }
         }
 
-        if (Object.keys(effectiveOps.jobs).length > 0) {
-            Object.entries(effectiveOps.jobs).forEach(([role, totalAmount]) => {
+        if (Object.keys(jobRequirements).length > 0) {
+            Object.entries(jobRequirements).forEach(([role, totalAmount]) => {
                 const roleSlots = totalAmount;
                 if (roleSlots <= 0) return;
                 if (!roleWageStats[role]) {
@@ -2829,7 +2929,7 @@ export const simulateTick = ({
         if (available >= totalArmyCost) {
             // [FIX] Use Ledger for correct wealth transfer (State -> Soldier)
             ledger.transfer('state', 'soldier', totalArmyCost, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
-            
+
             militaryDebug.applied = true;
             militaryDebug.reason = 'expense_army_maintenance';
 
@@ -2851,7 +2951,7 @@ export const simulateTick = ({
             if (partialPay > 0) {
                 // [FIX] Use Ledger for partial payment too
                 ledger.transfer('state', 'soldier', partialPay, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
-                
+
                 rates.silver = (rates.silver || 0) - partialPay;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
                 // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
@@ -4806,7 +4906,7 @@ export const simulateTick = ({
         // REFACTORED: Using module functions for AI development system
         if (shouldUpdateTrade) {
             initializeAIDevelopmentBaseline({ nation: next, tick });
-            processAIIndependentGrowth({ nation: next, tick });
+            processAIIndependentGrowth({ nation: next, tick, difficulty });
 
             // [NEW] Check for independent epoch progression
             checkAIEpochProgression(next, logs);
@@ -4817,6 +4917,7 @@ export const simulateTick = ({
                 playerPopulationBaseline,
                 playerWealthBaseline,
                 tick,
+                difficulty,
             });
         }
 
@@ -6126,6 +6227,60 @@ export const simulateTick = ({
         }
     });
 
+    // ========== 部长自动扩建系统 ==========
+    let nextLastMinisterExpansionDay = Number.isFinite(lastMinisterExpansionDay) ? lastMinisterExpansionDay : 0;
+    const shouldAttemptMinisterExpansion = ECONOMIC_MINISTER_ROLES.some((role) => ministerAssignments?.[role]);
+
+    if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 5)) {
+        const difficultyLevel = difficulty || 'normal';
+        const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
+        const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
+        const buildingCostMod = bonuses.buildingCostMod || 0;
+        let bestCandidate = null;
+
+        ECONOMIC_MINISTER_ROLES.forEach((role) => {
+            const officialId = ministerAssignments?.[role];
+            const official = officialId ? ministerRoster.get(officialId) : null;
+            if (!official) return;
+
+            BUILDINGS.forEach((building) => {
+                if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;
+                if (!isBuildingInMinisterScope(building, role)) return;
+
+                const staffingRatioRaw = buildingStaffingRatios?.[building.id];
+                const staffingRatio = Number.isFinite(staffingRatioRaw) ? staffingRatioRaw : 1;
+                if (staffingRatio < 0.95) return;
+
+                const shortageScore = scoreBuildingShortage(building, supplyDemandRatio);
+                if (shortageScore <= 0) return;
+
+                const currentCount = builds[building.id] || 0;
+                const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
+                const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
+                const silverCost = calculateSilverCost(adjustedCost, { prices: priceMap });
+                if (!Number.isFinite(silverCost) || silverCost <= 0) return;
+                if ((res.silver || 0) < silverCost) return;
+
+                if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
+                    (shortageScore === bestCandidate.shortageScore && silverCost < bestCandidate.silverCost)) {
+                    bestCandidate = {
+                        role,
+                        building,
+                        shortageScore,
+                        silverCost,
+                    };
+                }
+            });
+        });
+
+        if (bestCandidate) {
+            applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
+            builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
+            nextLastMinisterExpansionDay = tick;
+            logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了 ${bestCandidate.building.name}（花费 ${Math.ceil(bestCandidate.silverCost)} 银币）`);
+        }
+    }
+
     const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
     const merchantWealthDelta = updatedMerchantWealth - previousMerchantWealth;
     if (merchantWealthDelta !== 0) {
@@ -6723,6 +6878,13 @@ export const simulateTick = ({
                 diplomaticCooldown: bonuses.diplomaticCooldown || 0,
                 diplomaticIncident: bonuses.diplomaticIncident || 0,
             },
+            ministerEffects: {
+                buildingBonuses: ministerEffects.buildingBonuses || {},
+                tradeBonusMod: ministerEffects.tradeBonusMod || 0,
+                militaryBonus: ministerEffects.militaryBonus || 0,
+                militaryTrainingSpeed: ministerEffects.militaryTrainingSpeed || 0,
+                diplomaticBonus: ministerEffects.diplomaticBonus || 0,
+            },
         },
         foreignInvestmentStats: foreignStats, // [NEW] Return calculated foreign stats
         army, // 确保返回army状态，以便保存战斗损失
@@ -6730,6 +6892,7 @@ export const simulateTick = ({
         // 计算有效官员容量（基于时代、政体和科技）
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
+        lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
         _debug: {
             freeMarket: _freeMarketDebug,

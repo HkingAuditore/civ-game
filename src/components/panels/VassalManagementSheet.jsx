@@ -287,15 +287,24 @@ const CONTROL_MEASURES = [
         effects: '效果基于官员能力',
         effectColor: 'text-blue-400',
         requiresOfficial: true,
+        mechanics: [
+            '需指定官员才生效',
+            '每日影响独立倾向、精英满意度、动乱与朝贡修正',
+        ],
     },
     {
         id: 'garrison',
         title: '驻军占领',
         icon: 'Shield',
         description: '在附庸境内驻扎军队（需要足够军力）',
-        effects: '独立倾向-0.5/天，平民满意度-3',
+        effects: '独立倾向-0.5/天，平民满意度-3，可用军力下降',
         effectColor: 'text-red-400',
         requiresMilitary: true,
+        mechanics: [
+            '判定：军力 ≥ 附庸军力 × 50%',
+            '军力不足仅 20% 效果',
+            '占用军力 = 附庸军力 × 50%',
+        ],
     },
     {
         id: 'assimilation',
@@ -304,14 +313,22 @@ const CONTROL_MEASURES = [
         description: '推广本国文化和语言',
         effects: '独立倾向上限-0.05/天（长期）',
         effectColor: 'text-purple-400',
+        mechanics: [
+            '每日降低独立上限（最低 30）',
+            '全阶层满意度小幅惩罚',
+        ],
     },
     {
         id: 'economicAid',
         title: '经济扶持',
         icon: 'DollarSign',
         description: '提供经济援助改善民生',
-        effects: '平民满意度+3，下层满意度+5',
+        effects: '平民满意度+3，下层满意度+5，国内投资倾向↑',
         effectColor: 'text-green-400',
+        mechanics: [
+            '优先投资概率 70%',
+            '投资执行概率 ×1.5',
+        ],
     },
 ];
 
@@ -377,9 +394,8 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                 </div>
                 {/* 每日变化预估 */}
                 {independenceBreakdown && (
-                    <div className={`text-[10px] mt-1 font-mono ${
-                        independenceBreakdown.netChange > 0 ? 'text-red-400' : 'text-green-400'
-                    }`}>
+                    <div className={`text-[10px] mt-1 font-mono ${independenceBreakdown.netChange > 0 ? 'text-red-400' : 'text-green-400'
+                        }`}>
                         每日: {independenceBreakdown.netChange > 0 ? '+' : ''}{independenceBreakdown.netChange.toFixed(2)}%
                     </div>
                 )}
@@ -396,7 +412,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                         {independenceBreakdown.netChange > 0 ? '+' : ''}{independenceBreakdown.netChange.toFixed(2)}%/天
                     </span>
                 </div>
-                
+
                 {/* 增长因素 */}
                 {independenceBreakdown.factors.length > 0 && (
                     <div className="mb-3">
@@ -413,10 +429,9 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                                             <span className="text-gray-500 ml-1">({factor.description})</span>
                                         )}
                                     </span>
-                                    <span className={`font-mono ${
-                                        factor.effect === 'negative' ? 'text-red-400' : 
+                                    <span className={`font-mono ${factor.effect === 'negative' ? 'text-red-400' :
                                         factor.effect === 'positive' ? 'text-green-400' : 'text-gray-300'
-                                    }`}>
+                                        }`}>
                                         {factor.type === 'multiplier' ? `×${factor.value.toFixed(2)}` : `+${factor.value.toFixed(2)}`}
                                     </span>
                                 </div>
@@ -598,8 +613,12 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     );
     const [autonomy, setAutonomy] = useState(nation?.autonomy || baseAutonomy);
     const [tributeRate, setTributeRate] = useState(
-        (nation?.tributeRate || baseTributeRate) * 100
+        nation?.tributeRate !== undefined ? nation.tributeRate * 100 : baseTributeRate * 100
     );
+
+    // UI State
+    const [isGovernorSelectorOpen, setIsGovernorSelectorOpen] = useState(false);
+
 
     // 控制手段状态 (NEW: Object format with officialId support)
     const [controlMeasures, setControlMeasures] = useState(() => {
@@ -732,6 +751,8 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const garrisonCheck = useMemo(() => {
         return checkGarrisonEffectiveness(playerMilitary, vassalMilitary);
     }, [playerMilitary, vassalMilitary]);
+    const garrisonCommitmentFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
+    const garrisonCommitment = vassalMilitary * garrisonCommitmentFactor;
 
     // Governor effectiveness - using new deep integration
     const governorEffectiveness = useMemo(() => {
@@ -967,7 +988,8 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             <div
                                 key={measure.id}
                                 className={`
-                                    rounded-lg border transition-all overflow-hidden
+                                    rounded-lg border transition-all
+                                    ${isGovernor ? 'overflow-visible relative z-20' : 'overflow-hidden'}
                                     ${isActive
                                         ? 'border-orange-500 bg-orange-900/30'
                                         : 'border-gray-600/50 bg-gray-800/30'
@@ -1016,7 +1038,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs text-amber-300 font-medium">
-                                                {formatNumberShortCN(dynamicCost)}/天
+                                                {formatNumberShortCN(dynamicCost)} 银币/天
                                             </span>
                                             {/* 点击提示图标（非总督） */}
                                             {!isGovernor && (
@@ -1030,6 +1052,21 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                     </div>
                                     <p className="text-[11px] text-gray-400 mb-1">{measure.description}</p>
                                     <p className={`text-[11px] font-medium ${measure.effectColor}`}>{measure.effects}</p>
+                                    {measure.id === 'garrison' && (
+                                        <div className="text-[10px] text-gray-500 mt-0.5">
+                                            占用军力：{garrisonCommitment.toFixed(1)}（附庸军力 {vassalMilitary.toFixed(1)} × {garrisonCommitmentFactor}）
+                                        </div>
+                                    )}
+                                    {measure.mechanics && (
+                                        <div className="mt-1 space-y-0.5 text-[10px] text-gray-500">
+                                            {measure.mechanics.map((line) => (
+                                                <div key={line} className="flex items-center gap-1">
+                                                    <Icon name="Info" size={10} />
+                                                    <span>{line}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     {/* 非总督的点击提示 */}
                                     {!isGovernor && !isActive && (
                                         <p className="text-[10px] text-gray-500 mt-1.5 flex items-center gap-1">
@@ -1045,22 +1082,60 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                         {/* Official Selector */}
                                         <div className="pt-2">
                                             <label className="text-[10px] text-gray-400 mb-1 block">指派官员:</label>
-                                            <select
-                                                value={controlMeasures.governor?.officialId || ''}
-                                                onChange={(e) => setGovernorOfficial(e.target.value || null)}
-                                                className="w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-xs text-white hover:border-gray-500 focus:border-blue-500 transition-colors"
-                                            >
-                                                <option value="">-- 选择官员 --</option>
-                                                {officials.length === 0 ? (
-                                                    <option value="" disabled>没有可用的官员</option>
-                                                ) : (
-                                                    officials.filter(o => o && !o.isBusy).map(official => (
-                                                        <option key={official.id} value={official.id}>
-                                                            {official.name} (威{official.stats?.prestige ?? official.prestige ?? 50}/政{official.stats?.administrative ?? official.administrative ?? 50}/军{official.stats?.military ?? official.military ?? 30}/交{official.stats?.diplomacy ?? official.diplomacy ?? 30})
-                                                        </option>
-                                                    ))
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() => setIsGovernorSelectorOpen(!isGovernorSelectorOpen)}
+                                                    className="w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-xs text-white hover:border-gray-500 focus:border-blue-500 transition-colors flex items-center justify-between"
+                                                >
+                                                    <span className="truncate">
+                                                        {(() => {
+                                                            const selectedId = controlMeasures.governor?.officialId;
+                                                            if (!selectedId) return '-- 选择官员 --';
+                                                            const selected = officials.find(o => o.id === selectedId);
+                                                            if (!selected) return '未知官员';
+                                                            return `${selected.name} (威${selected.stats?.prestige ?? selected.prestige ?? 50}/政${selected.stats?.administrative ?? selected.administrative ?? 50}/军${selected.stats?.military ?? selected.military ?? 30}/交${selected.stats?.diplomacy ?? selected.diplomacy ?? 30})`;
+                                                        })()}
+                                                    </span>
+                                                    <Icon name={isGovernorSelectorOpen ? "ChevronUp" : "ChevronDown"} size={14} className="text-gray-400 ml-2 flex-shrink-0" />
+                                                </button>
+
+                                                {isGovernorSelectorOpen && (
+                                                    <div className="absolute left-0 top-full mt-1 w-full bg-gray-800 border border-gray-600 rounded shadow-xl max-h-60 overflow-y-auto z-50 py-1">
+                                                        <div
+                                                            className="px-2 py-1.5 hover:bg-gray-700 cursor-pointer text-xs text-gray-400 border-b border-gray-700"
+                                                            onClick={() => {
+                                                                setGovernorOfficial(null);
+                                                                setIsGovernorSelectorOpen(false);
+                                                            }}
+                                                        >
+                                                            -- 取消选择 --
+                                                        </div>
+                                                        {officials.length === 0 ? (
+                                                            <div className="px-2 py-1.5 text-xs text-gray-500">
+                                                                没有可用的官员
+                                                            </div>
+                                                        ) : (
+                                                            officials.filter(o => o && !o.isBusy).map(official => (
+                                                                <div
+                                                                    key={official.id}
+                                                                    className={`px-2 py-1.5 hover:bg-gray-700 cursor-pointer text-xs text-white flex items-center justify-between ${controlMeasures.governor?.officialId === official.id ? 'bg-blue-900/30' : ''}`}
+                                                                    onClick={() => {
+                                                                        setGovernorOfficial(official.id);
+                                                                        setIsGovernorSelectorOpen(false);
+                                                                    }}
+                                                                >
+                                                                    <span className="truncate mr-2">
+                                                                        {official.name} (威{official.stats?.prestige ?? official.prestige ?? 50}/政{official.stats?.administrative ?? official.administrative ?? 50}/军{official.stats?.military ?? official.military ?? 30}/交{official.stats?.diplomacy ?? official.diplomacy ?? 30})
+                                                                    </span>
+                                                                    {controlMeasures.governor?.officialId === official.id && (
+                                                                        <Icon name="Check" size={12} className="text-blue-400 flex-shrink-0" />
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
                                                 )}
-                                            </select>
+                                            </div>
                                         </div>
 
                                         {/* Mandate Selector */}
@@ -1215,9 +1290,9 @@ const DiplomacyTab = memo(({
     // 可选的目标国家（只显示可见且未被吞并的国家）
     const availableTargets = useMemo(() => {
         if (!nation) return [];
-        return nations.filter(n => 
-            n.id !== nation.id && 
-            !n.isAnnexed && 
+        return nations.filter(n =>
+            n.id !== nation.id &&
+            !n.isAnnexed &&
             n.visible !== false
         );
     }, [nations, nation]);
@@ -1240,8 +1315,8 @@ const DiplomacyTab = memo(({
     const joinableOrgs = useMemo(() => {
         if (!nation) return [];
         const vassalMemberships = nation.organizationMemberships || [];
-        return allOrganizations.filter(org => 
-            org && 
+        return allOrganizations.filter(org =>
+            org &&
             !vassalMemberships.includes(org.id) &&
             !org.dissolved
         );
@@ -1251,8 +1326,8 @@ const DiplomacyTab = memo(({
     const leavableOrgs = useMemo(() => {
         if (!nation) return [];
         const vassalMemberships = nation.organizationMemberships || [];
-        return allOrganizations.filter(org => 
-            org && 
+        return allOrganizations.filter(org =>
+            org &&
             vassalMemberships.includes(org.id) &&
             !org.dissolved
         );
@@ -1267,11 +1342,11 @@ const DiplomacyTab = memo(({
 
     const handleIssueOrder = () => {
         if (!nation || !onIssueOrder) return;
-        
+
         // 需要目标的操作类型
         const needsTarget = targetType !== 'none';
         if (needsTarget && !selectedTargetId) return;
-        
+
         const payload = {};
         if (targetType === 'organization') {
             payload.orgId = selectedTargetId;
@@ -1281,7 +1356,7 @@ const DiplomacyTab = memo(({
         } else if (selectedTargetId) {
             payload.targetId = selectedTargetId;
         }
-        
+
         onIssueOrder(nation.id, selectedAction, payload);
         setSelectedTargetId('');
     };
@@ -1299,27 +1374,26 @@ const DiplomacyTab = memo(({
     return (
         <div className="space-y-4">
             {/* 外交控制状态提示 */}
-            <div className={`p-2 rounded-lg border text-xs ${
-                diplomaticControl === 'autonomous' 
-                    ? 'bg-green-900/30 border-green-700/40 text-green-300'
-                    : diplomaticControl === 'puppet'
+            <div className={`p-2 rounded-lg border text-xs ${diplomaticControl === 'autonomous'
+                ? 'bg-green-900/30 border-green-700/40 text-green-300'
+                : diplomaticControl === 'puppet'
                     ? 'bg-red-900/30 border-red-700/40 text-red-300'
                     : 'bg-blue-900/30 border-blue-700/40 text-blue-300'
-            }`}>
+                }`}>
                 <div className="flex items-center gap-2">
                     <Icon name="Globe" size={14} />
                     <span>当前外交控制：</span>
                     <span className="font-bold">
                         {diplomaticControl === 'autonomous' ? '自主外交' :
-                         diplomaticControl === 'puppet' ? '傀儡外交' : '引导外交'}
+                            diplomaticControl === 'puppet' ? '傀儡外交' : '引导外交'}
                     </span>
                 </div>
                 <div className="text-[10px] mt-1 opacity-70">
-                    {diplomaticControl === 'autonomous' 
+                    {diplomaticControl === 'autonomous'
                         ? '附庸可自主进行外交，无需审批，您也无法下达指令'
                         : diplomaticControl === 'puppet'
-                        ? '完全控制附庸外交，所有行动需要您的批准'
-                        : '附庸外交需要您的审批，您也可以主动下达指令'}
+                            ? '完全控制附庸外交，所有行动需要您的批准'
+                            : '附庸外交需要您的审批，您也可以主动下达指令'}
                 </div>
             </div>
 
@@ -1438,16 +1512,15 @@ const DiplomacyTab = memo(({
                         {relatedHistory.map(item => (
                             <div key={item.id} className="flex items-center justify-between">
                                 <span>{ACTION_LABELS[item.actionType] || item.actionType}</span>
-                                <span className={`text-[10px] ${
-                                    item.status === 'approved' ? 'text-green-400' :
+                                <span className={`text-[10px] ${item.status === 'approved' ? 'text-green-400' :
                                     item.status === 'rejected' ? 'text-red-400' :
-                                    item.status === 'ordered' ? 'text-blue-400' :
-                                    item.status === 'expired' ? 'text-yellow-400' : 'text-gray-500'
-                                }`}>
+                                        item.status === 'ordered' ? 'text-blue-400' :
+                                            item.status === 'expired' ? 'text-yellow-400' : 'text-gray-500'
+                                    }`}>
                                     {item.status === 'approved' ? '已批准' :
-                                     item.status === 'rejected' ? '已拒绝' :
-                                     item.status === 'ordered' ? '已下令' :
-                                     item.status === 'expired' ? '已过期' : item.status}
+                                        item.status === 'rejected' ? '已拒绝' :
+                                            item.status === 'ordered' ? '已下令' :
+                                                item.status === 'expired' ? '已过期' : item.status}
                                 </span>
                             </div>
                         ))}
@@ -1541,7 +1614,7 @@ export const VassalManagementSheet = memo(({
             <div className="space-y-4">
                 {/* Tab 切换 */}
                 <div className="flex border-b border-gray-700">
-                {tabs.map(tab => (
+                    {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}

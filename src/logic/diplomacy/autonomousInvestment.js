@@ -6,6 +6,7 @@ import {
     getInvestableBuildings // [NEW] Dynamic building list for stratum
 } from './overseasInvestment';
 import { BUILDINGS, RESOURCES } from '../../config';
+import { INDEPENDENCE_CONFIG } from '../../config/diplomacy';
 import { debugLog } from '../../utils/debugFlags';
 
 // [NEW] 外资投资的最低到岗率要求 (95%)
@@ -33,6 +34,9 @@ export function processClassAutonomousInvestment({
     const INVESTOR_STRATA = ['capitalist', 'merchant', 'artisan', 'peasant', 'lumberjack'];
     const MIN_ROI_THRESHOLD = 0.15; // 15% Annualized ROI
     const INVESTMENT_CHANCE = 0.3; // 30% chance to actually invest if a good opportunity is found (to avoid draining all cash at once)
+    const economicAidConfig = INDEPENDENCE_CONFIG?.controlMeasures?.economicAid || {};
+    const investmentFocusChance = economicAidConfig.investmentFocusChance || 0;
+    const investmentChanceMultiplier = economicAidConfig.investmentChanceMultiplier || 1;
 
     // Helper: Check if we can invest in a nation
     // Only allow investment to nations with: vassal status OR investment agreement
@@ -60,6 +64,11 @@ export function processClassAutonomousInvestment({
         console.log(`🤖 [AUTO-INVEST] 检查目标 ${targetNation.name}: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgPact=${hasOrgInvestmentPact} => ${canInvest}`);
         return canInvest;
     };
+    const isEconomicAidActive = (targetNation) => {
+        if (!targetNation || targetNation.vassalOf !== 'player') return false;
+        const aid = targetNation.vassalPolicy?.controlMeasures?.economicAid;
+        return aid === true || (aid && aid.active !== false);
+    };
 
     // 2. Shuffle strata to give random chance of who invests first
     const strata = [...INVESTOR_STRATA].sort(() => Math.random() - 0.5);
@@ -85,7 +94,15 @@ export function processClassAutonomousInvestment({
         if (validNations.length === 0) continue;
 
         // Shuffle nations to avoid always investing in the same one
-        const shuffledNations = [...validNations].sort(() => Math.random() - 0.5);
+        const preferredTargets = validNations.filter(isEconomicAidActive);
+        const preferAidTargets = preferredTargets.length > 0 && investmentFocusChance > 0
+            && Math.random() < investmentFocusChance;
+        const targetPool = preferAidTargets ? preferredTargets : validNations;
+        if (preferAidTargets) {
+            console.log(`🤖 [AUTO-INVEST] ${stratum} 经济扶持优先目标: ${preferredTargets.map(n => n.name).join(', ')}`);
+        }
+        const preferredTargetIds = new Set(preferredTargets.map(n => n.id));
+        const shuffledNations = [...targetPool].sort(() => Math.random() - 0.5);
 
         for (const targetNation of shuffledNations) {
             // 4. Find best building to invest in
@@ -136,10 +153,14 @@ export function processClassAutonomousInvestment({
 
                 if (annualROI > MIN_ROI_THRESHOLD) {
                     // Found a good investment!
+                    const isPreferredTarget = preferredTargetIds.has(targetNation.id);
+                    const effectiveInvestmentChance = isPreferredTarget
+                        ? Math.min(1, INVESTMENT_CHANCE * investmentChanceMultiplier)
+                        : INVESTMENT_CHANCE;
                     const roll = Math.random();
-                    console.log(`🤖 [AUTO-INVEST] ${stratum} ROI足够! roll=${roll.toFixed(3)}, threshold=${INVESTMENT_CHANCE}, willInvest=${roll <= INVESTMENT_CHANCE}`);
-                    if (roll > INVESTMENT_CHANCE) {
-                        console.log(`🤖 [AUTO-INVEST] ${stratum} 随机跳过投资 (${(INVESTMENT_CHANCE * 100).toFixed(0)}%概率)`);
+                    console.log(`🤖 [AUTO-INVEST] ${stratum} ROI足够! roll=${roll.toFixed(3)}, threshold=${effectiveInvestmentChance}, willInvest=${roll <= effectiveInvestmentChance}`);
+                    if (roll > effectiveInvestmentChance) {
+                        console.log(`🤖 [AUTO-INVEST] ${stratum} 随机跳过投资 (${(effectiveInvestmentChance * 100).toFixed(0)}%概率)`);
                         continue; // Chance to skip
                     }
 

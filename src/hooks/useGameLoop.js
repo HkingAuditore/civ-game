@@ -75,7 +75,7 @@ import {
     createRebelNation,
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
-import { getTreatyDailyMaintenance } from '../config/diplomacy';
+import { getTreatyDailyMaintenance, INDEPENDENCE_CONFIG } from '../config/diplomacy';
 import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
 import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
 import { LOYALTY_CONFIG } from '../config/officials';
@@ -564,6 +564,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setOfficials, // 官员状态更新函数
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
+        ministerAssignments,
+        lastMinisterExpansionDay,
+        setLastMinisterExpansionDay,
         setFiscalActual, // [NEW] realized fiscal numbers per tick
         setDailyMilitaryExpense, // [NEW] store simulation military expense for UI
         overseasInvestments, // 海外投资列表
@@ -631,6 +634,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         difficulty, // 游戏难度
         officials,
         officialCapacity, // [FIX] 添加官员容量，用于 getCabinetStatus 计算
+        ministerAssignments,
+        lastMinisterExpansionDay,
         activeDecrees, // [NEW] Pass activeDecrees to simulation
         quotaTargets, // [NEW] Planned Economy targets
         expansionSettings, // [NEW] Free Market settings
@@ -753,10 +758,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
             expansionSettings, // 自由市场扩张设置
             quotaTargets, // 计划经济目标配额
             officialCapacity, // 官员容量
+            ministerAssignments,
+            lastMinisterExpansionDay,
             priceControls, // [NEW] 计划经济价格管制设置
             foreignInvestments, // [NEW] 海外投资
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls, foreignInvestments]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, lastMinisterExpansionDay, priceControls, foreignInvestments]);
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
     useEffect(() => {
@@ -1034,6 +1041,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 官员系统
                 officials: current.officials || [],
                 officialsPaid: canAffordOfficials,
+                ministerAssignments: current.ministerAssignments || {},
+                lastMinisterExpansionDay: current.lastMinisterExpansionDay ?? 0,
                 foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
                 overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
                 foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal', // [NEW] Pass policy
@@ -1585,7 +1594,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     // Calculate player military strength from army
                     const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
-                    const playerMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
+                    const baseMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
+                    const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
+                    const garrisonCommitment = (current.nations || []).reduce((sum, nation) => {
+                        if (nation.vassalOf !== 'player') return sum;
+                        const garrison = nation.vassalPolicy?.controlMeasures?.garrison;
+                        const isActive = garrison === true || (garrison && garrison.active !== false);
+                        if (!isActive) return sum;
+                        const vassalStrength = nation.militaryStrength || 0.5;
+                        return sum + (vassalStrength * garrisonFactor);
+                    }, 0);
+                    const playerMilitaryStrength = Math.max(0.1, baseMilitaryStrength - garrisonCommitment);
 
                     const vassalUpdateResult = processVassalUpdates({
                         nations: current.nations,
@@ -2045,6 +2064,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // [NEW] Update buildings count (from Free Market expansion)
                     if (nextBuildings) {
                         setBuildings(nextBuildings);
+                    }
+                    if (typeof result.lastMinisterExpansionDay === 'number') {
+                        setLastMinisterExpansionDay(result.lastMinisterExpansionDay);
                     }
                     // [DEBUG] 临时日志 - 追踪自由市场机制问题
                     if (result._debug) {
@@ -4272,7 +4294,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 Object.entries(replenishCounts).forEach(([unitId, count]) => {
                                     const unit = UNIT_TYPES[unitId];
                                     if (!unit) return;
-                                    const trainTime = unit.trainingTime || unit.trainDays || 1;
+                                    const trainingSpeedBonus = result.modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
+                                    const trainingMultiplier = Math.max(0.5, 1 - trainingSpeedBonus);
+                                    const baseTrainTime = unit.trainingTime || unit.trainDays || 1;
+                                    const trainTime = Math.max(1, Math.ceil(baseTrainTime * trainingMultiplier));
                                     for (let i = 0; i < count; i++) {
                                         replenishItems.push({
                                             unitId,

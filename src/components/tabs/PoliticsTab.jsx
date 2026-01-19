@@ -333,6 +333,10 @@ const PoliticsTabComponent = ({
     onDispose,
     onUpdateOfficialSalary,
     onUpdateOfficialName,
+    ministerAssignments = {},
+    lastMinisterExpansionDay = 0,
+    onAssignMinister,
+    onClearMinister,
 
     // Cabinet Synergy Props
     classWealth = {},
@@ -786,6 +790,10 @@ const PoliticsTabComponent = ({
                         onDispose={onDispose}
                         onUpdateOfficialSalary={onUpdateOfficialSalary}
                         onUpdateOfficialName={onUpdateOfficialName}
+                        ministerAssignments={ministerAssignments}
+                        lastMinisterExpansionDay={lastMinisterExpansionDay}
+                        onAssignMinister={onAssignMinister}
+                        onClearMinister={onClearMinister}
                         // Cabinet Synergy Props
                         epoch={epoch}
                         popStructure={popStructure}

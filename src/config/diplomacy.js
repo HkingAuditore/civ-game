@@ -681,6 +681,7 @@ export const INDEPENDENCE_CONFIG = {
             independenceReduction: 0.5,  // Per day reduction
             commonerSatisfactionPenalty: -3,  // Commoner satisfaction penalty
             militaryStrengthRequirement: 0.5, // Player military must be >= 50% of vassal
+            militaryCommitmentFactor: 0.5,    // Reduce available military by vassal strength * factor
         },
         assimilation: {         // 文化同化
             baseCost: 60,       // Base daily cost (reduced from 100)
@@ -696,6 +697,8 @@ export const INDEPENDENCE_CONFIG = {
             underclassSatisfactionBonus: 5,  // Underclass satisfaction bonus
             vassalWealthTransfer: 0.001,     // 0.1% of cost transferred to vassal wealth
             independenceReduction: 0.1,      // Small independence reduction from goodwill
+            investmentFocusChance: 0.7,      // Prefer this vassal when autonomous investment triggers
+            investmentChanceMultiplier: 1.5, // Increase investment execution chance
         },
     },
 

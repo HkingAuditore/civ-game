@@ -859,14 +859,16 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     // 6.3 经济扶持
     const economicAidData = controlMeasures.economicAid;
     if (economicAidData && (economicAidData === true || economicAidData.active)) {
-        const aidReduction = config.controlMeasures?.economicAid?.independenceReduction || 0.1;
-        breakdown.reductions.push({
-            name: '经济扶持',
-            value: aidReduction,
-            description: '改善民生',
-            type: 'reduction',
-        });
-        totalReduction += aidReduction;
+        const aidReduction = config.controlMeasures?.economicAid?.independenceReduction || 0;
+        if (aidReduction > 0) {
+            breakdown.reductions.push({
+                name: '经济扶持',
+                value: aidReduction,
+                description: '改善民生',
+                type: 'reduction',
+            });
+            totalReduction += aidReduction;
+        }
     }
 
     // 6.4 文化同化（降低上限而非直接减少，但也记录）

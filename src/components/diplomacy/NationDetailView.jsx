@@ -168,6 +168,8 @@ const NationDetailView = ({
 
                         <StrategicStatus nation={nation} epoch={epoch} market={market} daysElapsed={daysElapsed} gameState={gameState} />
 
+                        <ActiveWars nation={nation} gameState={gameState} daysElapsed={daysElapsed} />
+
                         <ActiveTreaties nation={nation} daysElapsed={daysElapsed} />
                     </div>
                 )}
@@ -463,9 +465,76 @@ const StrategicStatus = ({ nation, epoch, market, daysElapsed, gameState }) => {
                 <div>
                     <div className="text-[10px] text-ancient-stone uppercase mb-1">国家偏好</div>
                     <div className="flex flex-wrap gap-2">
-                        {/* Placeholder logic for preferences - simplified for UI overhaul */}
-                        <Badge variant="neutral" className="text-xs">注重军事</Badge>
-                        <Badge variant="neutral" className="text-xs">贸易保护</Badge>
+                        {(() => {
+                            const traits = [];
+                            if (nation.culturalTraits) {
+                                // 1. Handle Boolean Traits
+                                const TRAIT_MAPPING = {
+                                    militaryFocus: { label: '注重军事', color: 'text-red-300 border-red-800 bg-red-900/40' },
+                                    militaryTradition: { label: '军事传统', color: 'text-red-300 border-red-800 bg-red-900/40' },
+                                    militarySociety: { label: '尚武社会', color: 'text-red-400 border-red-800 bg-red-900/40' },
+                                    warlike: { label: '好战', color: 'text-red-500 border-red-800 bg-red-900/40' },
+
+                                    isolationist: { label: '孤立主义', color: 'text-gray-300 border-gray-700 bg-gray-800/40' },
+                                    isolationism: { label: '闭关锁国', color: 'text-gray-300 border-gray-700 bg-gray-800/40' },
+
+                                    religiousFocus: { label: '宗教狂热', color: 'text-yellow-300 border-yellow-800 bg-yellow-900/40' },
+                                    religiousFervor: { label: '宗教狂热', color: 'text-yellow-300 border-yellow-800 bg-yellow-900/40' },
+                                    divineKingship: { label: '神权', color: 'text-yellow-300 border-yellow-800 bg-yellow-900/40' },
+
+                                    peacefulTrade: { label: '和平贸易', color: 'text-green-300 border-green-800 bg-green-900/40' },
+                                    agriculturalFocus: { label: '农业立国', color: 'text-green-300 border-green-800 bg-green-900/40' },
+
+                                    miningExpertise: { label: '矿业专精', color: 'text-amber-300 border-amber-800 bg-amber-900/40' },
+                                    craftExcellence: { label: '工匠精神', color: 'text-amber-300 border-amber-800 bg-amber-900/40' },
+
+                                    navalSupremacy: { label: '海上霸权', color: 'text-blue-300 border-blue-800 bg-blue-900/40' },
+                                    navalTradition: { label: '航海传统', color: 'text-blue-300 border-blue-800 bg-blue-900/40' },
+                                    seafaringMastery: { label: '航海大师', color: 'text-blue-300 border-blue-800 bg-blue-900/40' },
+
+                                    culturalHegemony: { label: '文化霸权', color: 'text-purple-300 border-purple-800 bg-purple-900/40' },
+                                    philosophyCenter: { label: '哲学中心', color: 'text-purple-300 border-purple-800 bg-purple-900/40' },
+
+                                    raidingCulture: { label: '掠夺文化', color: 'text-orange-400 border-orange-800 bg-orange-900/40' },
+                                    revolutionaryZeal: { label: '革命狂热', color: 'text-red-400 border-red-800 bg-red-900/40' },
+                                    financialExpertise: { label: '金融专精', color: 'text-emerald-300 border-emerald-800 bg-emerald-900/40' },
+                                };
+
+                                Object.entries(nation.culturalTraits).forEach(([key, value]) => {
+                                    if (value === true && TRAIT_MAPPING[key]) {
+                                        traits.push(TRAIT_MAPPING[key]);
+                                    }
+                                });
+
+                                // 2. Handle Trading Style
+                                if (nation.culturalTraits.tradingStyle) {
+                                    const STYLE_MAP = {
+                                        aggressive: { label: '激进贸易', color: 'text-orange-300 border-orange-800 bg-orange-900/40' },
+                                        merchant: { label: '商业至上', color: 'text-yellow-300 border-yellow-800 bg-yellow-900/40' },
+                                        maritime: { label: '海上贸易', color: 'text-blue-300 border-blue-800 bg-blue-900/40' },
+                                        monopolistic: { label: '垄断经营', color: 'text-purple-300 border-purple-800 bg-purple-900/40' },
+                                        capitalist: { label: '自由资本', color: 'text-emerald-300 border-emerald-800 bg-emerald-900/40' },
+                                    };
+                                    const style = STYLE_MAP[nation.culturalTraits.tradingStyle];
+                                    if (style) traits.push(style);
+                                }
+                            }
+
+                            // Fallback if no traits found
+                            if (traits.length === 0) {
+                                return <span className="text-xs text-ancient-stone/50 italic">无明显倾向</span>;
+                            }
+
+                            return traits.map((trait, index) => (
+                                <Badge
+                                    key={index}
+                                    variant="neutral"
+                                    className={`text-xs border ${trait.color}`}
+                                >
+                                    {trait.label}
+                                </Badge>
+                            ));
+                        })()}
                     </div>
                 </div>
                 <div>
@@ -781,6 +850,82 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange }) => {
                 >
                     <Icon name="Plus" size={20} className="text-white" />
                 </Button>
+            </div>
+        </Card>
+    );
+};
+
+const ActiveWars = ({ nation, gameState, daysElapsed }) => {
+    // Collect all active wars
+    const activeWars = useMemo(() => {
+        const wars = [];
+
+        // 1. War with Player
+        if (nation.isAtWar) {
+            wars.push({
+                id: 'player',
+                name: '玩家', // Or get player nation name if available
+                isPlayer: true,
+                startDate: nation.warStartDay || 0,
+                score: nation.warScore || 0, // AI vs Player score usually from AI perspective
+            });
+        }
+
+        // 2. Wars with other AI nations
+        if (nation.foreignWars) {
+            Object.entries(nation.foreignWars).forEach(([enemyId, warData]) => {
+                if (warData && warData.isAtWar) {
+                    const enemy = gameState?.foreignNations?.find(n => n.id === enemyId);
+                    // Safety check: Don't show wars with nations that are annexed or invisible
+                    if (!enemy || enemy.isAnnexed || enemy.visible === false) return;
+                    if (enemy) {
+                        wars.push({
+                            id: enemy.id,
+                            name: enemy.name,
+                            isPlayer: false,
+                            startDate: warData.warStartDay || 0,
+                        });
+                    }
+                }
+            });
+        }
+
+        return wars;
+    }, [nation, gameState]);
+
+    if (activeWars.length === 0) return null;
+
+    return (
+        <Card className="p-4 bg-red-900/10 border-red-500/20">
+            <h3 className="text-xs font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2 opacity-90">
+                <Icon name="Swords" size={14} />
+                当前战争
+            </h3>
+            <div className="space-y-2">
+                {activeWars.map(war => {
+                    const duration = daysElapsed - war.startDate;
+                    return (
+                        <div key={war.id} className="flex justify-between items-center p-2.5 bg-black/30 rounded border border-red-900/30 hover:border-red-500/30 transition-colors">
+                            <div className="flex items-center gap-2">
+                                <Icon name="Skull" size={14} className="text-red-500" />
+                                <span className="text-sm text-ancient-parchment font-bold">
+                                    VS {war.name}
+                                </span>
+                                {war.isPlayer && (
+                                    <Badge variant="danger" className="text-[9px] scale-90">YOU</Badge>
+                                )}
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xs text-red-300 font-mono">
+                                    {(war.score > 0 ? '+' : '') + Math.round(war.score)} 分
+                                </div>
+                                <div className="text-[10px] text-ancient-stone/60">
+                                    持续 {duration} 天
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         </Card>
     );

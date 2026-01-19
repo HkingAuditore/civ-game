@@ -554,6 +554,12 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
         const myBloc = existingOrgs.find(org => org.type === 'economic_bloc' && org.members.includes(nation.id));
         if (myBloc) return;
 
+        // Check vassal diplomatic restrictions for Economic Bloc
+        const vassalBlocCheck = canVassalPerformDiplomacy(nation, 'alliance'); // Re-using alliance permission
+        if (!vassalBlocCheck.allowed && !requiresVassalDiplomacyApproval(nation)) {
+            return;
+        }
+
         const potentialPartners = visibleNations.filter(other => {
             if (other.id === nation.id) return false;
             // Wealth check for partner
@@ -610,7 +616,7 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
                 '大陆经济圈', '环海贸易区', '内陆通商联盟', '沿海商业同盟'
             ];
             const regionPrefixes = ['', '北方', '南方', '东方', '西方', '中央', '环', '泛', '大', '新', '联合'];
-            
+
             // Generate unique name
             let name = null;
             for (let attempt = 0; attempt < 50 && !name; attempt++) {
@@ -696,17 +702,12 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
         if (Math.random() > 0.02) return; // Slightly higher chance
 
         // Check vassal diplomatic restrictions
+        // Check vassal diplomatic restrictions
         const vassalAllianceCheck = canVassalPerformDiplomacy(nation, 'alliance');
-        if (!vassalAllianceCheck.allowed) {
-            if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
-                vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
-                    vassal: nation,
-                    target: null,
-                    actionType: 'alliance',
-                    payload: { mode: 'seek_partner' },
-                    tick,
-                }));
-            }
+
+        // If blocked and NOT guided (i.e. is a Puppet), stop immediately.
+        // If guided, we allow them to proceed to find a partner so we can generate a specific request with a target.
+        if (!vassalAllianceCheck.allowed && !requiresVassalDiplomacyApproval(nation)) {
             return;
         }
 
@@ -784,7 +785,7 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
                 '区域安全论坛', '联合防务机制', '军事协调理事会'
             ];
             const regionPrefixes = ['', '北方', '南方', '东方', '西方', '神圣', '大', '泛', '环', '中央', '新', '联合'];
-            
+
             // Generate unique name
             let orgName = null;
             for (let attempt = 0; attempt < 80 && !orgName; attempt++) {

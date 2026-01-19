@@ -41,10 +41,11 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 150,               // Long grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 0.5,    // 50% inventory target (easy to satisfy, stable economy)
+        aiDevelopmentMultiplier: 0.6,          // [NEW] 60% AI development speed
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 2.0,           // 200% tax tolerance (citizens tolerate higher taxes)
         resourceConsumptionMultiplier: 0.9,    // 80% consumption
-        buildingCostBaseMultiplier: 1.0,       // 80% building cost
+        buildingCostBaseMultiplier: 1.0,       // No base cost increase
         techCostMultiplier: 1.0,               // 80% tech cost
         populationGrowthMultiplier: 1.5,       // 150% growth rate
         buildingUpgradeCostMultiplier: 1.0,    // 80% upgrade cost
@@ -96,10 +97,11 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 100,               // Days of reduced threats at game start
         // Economic modifiers
         inventoryTargetDaysMultiplier: 0.7,    // 70% inventory target (slightly forgiving)
+        aiDevelopmentMultiplier: 0.8,          // [NEW] 80% AI development speed
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 1.5,           // 150% tax tolerance
         resourceConsumptionMultiplier: 1.0,    // 90% consumption
-        buildingCostBaseMultiplier: 1.2,       // 90% building cost
+        buildingCostBaseMultiplier: 1.0,       // No base cost increase
         techCostMultiplier: 1.2,               // 90% tech cost
         populationGrowthMultiplier: 1.2,       // 120% growth rate
         buildingUpgradeCostMultiplier: 1.2,    // 90% upgrade cost
@@ -146,10 +148,11 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 1.0,    // Standard inventory target
+        aiDevelopmentMultiplier: 1.0,          // [NEW] Standard AI development speed
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 1.0,           // Standard tax tolerance
         resourceConsumptionMultiplier: 1.2,    // Standard consumption
-        buildingCostBaseMultiplier: 1.5,       // Standard building cost
+        buildingCostBaseMultiplier: 1.0,       // No base cost increase
         techCostMultiplier: 1.5,               // Standard tech cost
         populationGrowthMultiplier: 1.0,       // Standard growth rate
         buildingUpgradeCostMultiplier: 1.5,    // Standard upgrade cost
@@ -195,10 +198,11 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 3.0,    // 300% inventory target (harder to maintain stable prices)
+        aiDevelopmentMultiplier: 3.0,          // [NEW] 300% AI development speed
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.7,           // 70% tax tolerance (citizens hate taxes more)
         resourceConsumptionMultiplier: 3.5,    // 300% consumption
-        buildingCostBaseMultiplier: 3.0,       // 300% building cost
+        buildingCostBaseMultiplier: 1.0,       // No base cost increase
         techCostMultiplier: 3.0,               // 300% tech cost
         startingSilverMultiplier: 4.0,         // [NEW] starting treasury boost to offset high early building costs
         populationGrowthMultiplier: 0.8,       // 80% growth rate
@@ -245,10 +249,11 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 8.0,    // 800% inventory target (requires heavy stockpiling)
+        aiDevelopmentMultiplier: 5.0,          // [NEW] 500% AI development speed
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.4,           // 40% tax tolerance
         resourceConsumptionMultiplier: 6.0,   // 500% consumption
-        buildingCostBaseMultiplier: 5.0,      // 500% building cost
+        buildingCostBaseMultiplier: 1.0,      // No base cost increase
         techCostMultiplier: 6.0,              // 600% tech cost
         startingSilverMultiplier: 6.0,        // [NEW] starting treasury boost to offset high early building costs
         populationGrowthMultiplier: 0.5,       // 50% growth rate
@@ -293,10 +298,11 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 20.0,   // 2000% inventory target (extreme stockpiling required)
+        aiDevelopmentMultiplier: 8.0,          // [NEW] 800% AI development speed
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.2,           // 20% tax tolerance
         resourceConsumptionMultiplier: 8.0,    // 800% consumption
-        buildingCostBaseMultiplier: 10.0,      // 1000% building cost
+        buildingCostBaseMultiplier: 1.0,       // No base cost increase
         techCostMultiplier: 10.0,              // 1000% tech cost
         startingSilverMultiplier: 10.0,        // [NEW] starting treasury boost to offset extreme early building costs
         populationGrowthMultiplier: 0.2,       // 20% growth rate
@@ -314,7 +320,7 @@ export const DIFFICULTY_CONFIG = {
         allyColdEventCooldown: 90,             // 3 months cooldown (increased to reduce spam)
         allyColdEventChance: 0.003,            // 0.3% daily chance (reduced to prevent constant events)
         // [NEW] Initial Buildings
-        initialBuildings: {loom_house: 1},
+        initialBuildings: { loom_house: 1 },
     },
 };
 
@@ -601,6 +607,17 @@ export function getStartingSilverMultiplier(difficultyLevel) {
 export function getTaxToleranceMultiplier(difficultyLevel) {
     const config = getDifficultyConfig(difficultyLevel);
     return config.taxToleranceMultiplier || 1.0;
+}
+
+/**
+ * Get AI development multiplier
+ * Higher values = faster AI growth (hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getAIDevelopmentMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.aiDevelopmentMultiplier || 1.0;
 }
 
 /**

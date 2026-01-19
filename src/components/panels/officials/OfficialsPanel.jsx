@@ -13,6 +13,18 @@ import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH, calculatePolicySlots, getCentri
 import { EPOCHS } from '../../../config/epochs';
 import { OfficialDetailModal } from '../../modals/OfficialDetailModal';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
+import {
+    MINISTER_LABELS,
+    MINISTER_ROLES,
+    ECONOMIC_MINISTER_ROLES,
+    buildMinisterRoster,
+    getMinisterStatValue,
+    getMinisterProductionBonus,
+    getMinisterTradeBonus,
+    getMinisterMilitaryBonus,
+    getMinisterTrainingSpeedBonus,
+    getMinisterDiplomaticBonus,
+} from '../../../logic/officials/ministers';
 
 export const OfficialsPanel = ({
     officials = [],
@@ -43,6 +55,10 @@ export const OfficialsPanel = ({
     onEnactDecree,
     onUpdateOfficialSalary,
     onUpdateOfficialName,
+    ministerAssignments = {},
+    lastMinisterExpansionDay = 0,
+    onAssignMinister,
+    onClearMinister,
 
     // [NEW] 额外上下文和详细容量
     jobCapacity = 0,
@@ -129,6 +145,18 @@ export const OfficialsPanel = ({
             lowLoyaltyCount: totals.lowLoyalty,
         };
     }, [officials]);
+
+    const ministerRoster = useMemo(() => buildMinisterRoster(officials), [officials]);
+    const assignedMinisterIds = useMemo(() => {
+        const ids = Object.values(ministerAssignments || {}).filter(Boolean);
+        return new Set(ids);
+    }, [ministerAssignments]);
+    const daysUntilMinisterExpansion = useMemo(() => {
+        if (!Number.isFinite(currentTick)) return null;
+        const lastDay = Number.isFinite(lastMinisterExpansionDay) ? lastMinisterExpansionDay : 0;
+        const delta = Math.max(0, 5 - (currentTick - lastDay));
+        return delta;
+    }, [currentTick, lastMinisterExpansionDay]);
 
     const filteredOfficials = useMemo(() => {
         const query = searchText.trim().toLowerCase();
@@ -322,6 +350,97 @@ export const OfficialsPanel = ({
                                 {formatNumberShortCN(totalDailySalary, { decimals: 1 })}
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {officials.length > 0 && (
+                <div className="bg-gray-900/40 rounded-xl p-3 border border-gray-700/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                            <Icon name="Briefcase" size={14} className="text-amber-400" />
+                            部长任命
+                        </div>
+                    
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {MINISTER_ROLES.map((role) => {
+                            const assignedId = ministerAssignments?.[role] || '';
+                            const assigned = assignedId ? ministerRoster.get(assignedId) : null;
+                            const assignedValue = assigned ? assignedId : '';
+                            const statValue = assigned ? getMinisterStatValue(assigned, role) : 0;
+                            const productionBonus = assigned ? getMinisterProductionBonus(role, statValue) : 0;
+                            const tradeBonus = role === 'commerce' && assigned ? getMinisterTradeBonus(statValue) : 0;
+                            const militaryBonus = role === 'military' && assigned ? getMinisterMilitaryBonus(statValue) : 0;
+                            const trainingBonus = role === 'military' && assigned ? getMinisterTrainingSpeedBonus(statValue) : 0;
+                            const diplomaticBonus = role === 'diplomacy' && assigned ? getMinisterDiplomaticBonus(statValue) : 0;
+                            const isEconomic = ECONOMIC_MINISTER_ROLES.includes(role);
+
+                            const formatPercent = (value) => `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
+                            const formatDaily = (value) => `${value > 0 ? '+' : ''}${value.toFixed(2)}/日`;
+
+                            const bonusLines = [];
+                            if (assigned) {
+                                if (isEconomic && productionBonus) {
+                                    bonusLines.push(`产出 ${formatPercent(productionBonus)}`);
+                                }
+                                if (role === 'commerce' && tradeBonus) {
+                                    bonusLines.push(`贸易收益 ${formatPercent(tradeBonus)}`);
+                                }
+                                if (role === 'military') {
+                                    if (militaryBonus) bonusLines.push(`战力 ${formatPercent(militaryBonus)}`);
+                                    if (trainingBonus) bonusLines.push(`训练速度 ${formatPercent(trainingBonus)}`);
+                                }
+                                if (role === 'diplomacy' && diplomaticBonus) {
+                                    bonusLines.push(`外交关系 ${formatDaily(diplomaticBonus)}`);
+                                }
+                            }
+
+                            return (
+                                <div key={role} className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="text-xs font-semibold text-gray-200">{MINISTER_LABELS[role] || role}</div>
+                                        {assigned && (
+                                            <button
+                                                onClick={() => onClearMinister && onClearMinister(role)}
+                                                className="text-[10px] text-gray-400 hover:text-gray-200"
+                                            >
+                                                撤换
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 mb-1">
+                                        {assigned ? `${assigned.name} · 属性 ${Math.round(statValue)}` : '未任命'}
+                                    </div>
+                                    <select
+                                        value={assignedValue}
+                                        onChange={(event) => {
+                                            const nextId = event.target.value;
+                                            if (!onAssignMinister) return;
+                                            if (!nextId) {
+                                                if (onClearMinister) onClearMinister(role);
+                                                return;
+                                            }
+                                            onAssignMinister(role, nextId);
+                                        }}
+                                        className="w-full bg-gray-900/70 border border-gray-700/60 rounded px-2 py-1 text-[11px] text-gray-200"
+                                    >
+                                        <option value="">未任命</option>
+                                        {officials.map((official) => {
+                                            const isAssignedElsewhere = assignedMinisterIds.has(official.id) && official.id !== assignedId;
+                                            return (
+                                                <option key={official.id} value={official.id} disabled={isAssignedElsewhere}>
+                                                    {official.name}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                    <div className="mt-1 min-h-[12px] text-[9px] text-emerald-300">
+                                        {bonusLines.length > 0 ? bonusLines.join(' · ') : (assigned ? '暂无加成' : '')}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}

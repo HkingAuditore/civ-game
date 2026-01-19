@@ -457,6 +457,8 @@ const buildMinimalAutoSavePayload = (payload) => ({
     officialCandidates: payload.officialCandidates,
     lastSelectionDay: payload.lastSelectionDay,
     officialCapacity: payload.officialCapacity,
+    ministerAssignments: payload.ministerAssignments,
+    lastMinisterExpansionDay: payload.lastMinisterExpansionDay,
     activeDecrees: payload.activeDecrees,
     decreeCooldowns: payload.decreeCooldowns,
     quotaTargets: payload.quotaTargets,
@@ -505,6 +507,15 @@ const buildInitialDiplomacyOrganizations = () => ({
 });
 
 const buildInitialOverseasBuildings = () => ([]);
+
+const buildInitialMinisterAssignments = () => ({
+    agriculture: null,
+    industry: null,
+    commerce: null,
+    civic: null,
+    military: null,
+    diplomacy: null,
+});
 
 const isTradable = (resourceKey) => {
     if (resourceKey === 'silver') return false;
@@ -712,6 +723,8 @@ export const useGameState = () => {
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
     const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
+    const [ministerAssignments, setMinisterAssignments] = useState(buildInitialMinisterAssignments());
+    const [lastMinisterExpansionDay, setLastMinisterExpansionDay] = useState(0);
     // ========== 内阁协同系统状态 ==========
     // Permanent policy decrees (legacy) - stored as array of { id, active, modifiers, ... }
     const [decrees, setDecrees] = useState([]);
@@ -1325,6 +1338,8 @@ export const useGameState = () => {
                 officialCandidates,
                 lastSelectionDay,
                 officialCapacity,
+                ministerAssignments,
+                lastMinisterExpansionDay,
                 decrees,
                 activeDecrees,
                 decreeCooldowns,
@@ -1460,6 +1475,11 @@ export const useGameState = () => {
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 2);
+        setMinisterAssignments({
+            ...buildInitialMinisterAssignments(),
+            ...(data.ministerAssignments || {}),
+        });
+        setLastMinisterExpansionDay(data.lastMinisterExpansionDay ?? 0);
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
         setDecrees(Array.isArray(data.decrees) ? data.decrees : []);
         setActiveDecrees(data.activeDecrees || {});
@@ -2205,6 +2225,10 @@ export const useGameState = () => {
         setLastSelectionDay,
         officialCapacity,
         setOfficialCapacity,
+        ministerAssignments,
+        setMinisterAssignments,
+        lastMinisterExpansionDay,
+        setLastMinisterExpansionDay,
         // 内阁协同系统
         decrees,
         setDecrees,

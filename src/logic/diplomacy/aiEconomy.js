@@ -8,6 +8,7 @@ import { RESOURCES, EPOCHS } from '../../config';
 import { clamp } from '../utils';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
+import { getAIDevelopmentMultiplier } from '../../config/difficulty.js';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -170,14 +171,16 @@ export const initializeAIDevelopmentBaseline = ({
 export const processAIIndependentGrowth = ({
     nation,
     tick,
+    difficulty,
 }) => {
     const next = nation;
 
     if (!next.economyTraits) return;
 
+    const multiplier = getAIDevelopmentMultiplier(difficulty);
     const ownBasePopulation = next.economyTraits.ownBasePopulation;
     const ownBaseWealth = next.economyTraits.ownBaseWealth;
-    const developmentRate = next.economyTraits.developmentRate || 1.0;
+    const developmentRate = (next.economyTraits.developmentRate || 1.0) * multiplier;
 
     const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
     if (ticksSinceLastGrowth >= 100) {
@@ -208,8 +211,10 @@ export const updateAIDevelopment = ({
     playerPopulationBaseline,
     playerWealthBaseline,
     tick,
+    difficulty,
 }) => {
     const next = nation;
+    const multiplier = getAIDevelopmentMultiplier(difficulty);
     const powerProfile = next.foreignPower || {};
 
     const volatility = clamp(powerProfile.volatility ?? next.marketVolatility ?? 0.3, 0.1, 0.9);
@@ -228,9 +233,9 @@ export const updateAIDevelopment = ({
     // Era growth factor
     const eraGrowthFactor = 1 + Math.max(0, epoch) * 0.15;
 
-    // Calculate AI own target values
-    const aiOwnTargetPopulation = (next.economyTraits?.ownBasePopulation || 16) * eraGrowthFactor * populationFactor;
-    const aiOwnTargetWealth = (next.economyTraits?.ownBaseWealth || 1000) * eraGrowthFactor * wealthFactor;
+    // Calculate AI own target values (Applied difficulty multiplier)
+    const aiOwnTargetPopulation = (next.economyTraits?.ownBasePopulation || 16) * eraGrowthFactor * populationFactor * multiplier;
+    const aiOwnTargetWealth = (next.economyTraits?.ownBaseWealth || 1000) * eraGrowthFactor * wealthFactor * multiplier;
 
     // Blend with player reference (Reduced to 5% for independence)
     const playerInfluenceFactor = 0.05;

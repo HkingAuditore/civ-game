@@ -710,9 +710,14 @@ export const checkMercyPeace = ({
     logs,
 }) => {
     const next = nation;
+    const warScore = next.warScore || 0;
 
     // Only check if at war and not already requesting peace
     if (!next.isAtWar || next.isPeaceRequesting) {
+        return;
+    }
+    // Only trigger when player is at a disadvantage (negative war score).
+    if (warScore >= 0) {
         return;
     }
 

@@ -1252,6 +1252,10 @@ function GameApp({ gameState }) {
                                                 onDispose={actions.disposeExistingOfficial}
                                                 onUpdateOfficialSalary={actions.updateOfficialSalary}
                                                 onUpdateOfficialName={actions.updateOfficialName}
+                                                ministerAssignments={gameState.ministerAssignments}
+                                                lastMinisterExpansionDay={gameState.lastMinisterExpansionDay}
+                                                onAssignMinister={actions.assignMinister}
+                                                onClearMinister={actions.clearMinisterRole}
                                                 resources={gameState.resources}
 
                                                 // [NEW] 传递政治立场检查所需的上下文

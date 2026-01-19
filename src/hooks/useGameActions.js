@@ -68,6 +68,7 @@ import {
     isSelectionAvailable,
     disposeOfficial,
 } from '../logic/officials/manager';
+import { MINISTER_ROLES, MINISTER_LABELS } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 
@@ -154,6 +155,7 @@ export const useGameActions = (gameState, addLog) => {
         lastSelectionDay,
         setLastSelectionDay,
         officialCapacity,
+        setMinisterAssignments,
         // 阶层影响力
         classInfluence,
         lastBattleTargetId,
@@ -957,7 +959,10 @@ export const useGameActions = (gameState, addLog) => {
         Object.entries(replenishCounts).forEach(([unitId, count]) => {
             const unit = UNIT_TYPES[unitId];
             if (!unit) return;
-            const trainTime = unit.trainingTime || unit.trainDays || 1;
+            const trainingSpeedBonus = modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
+            const trainingMultiplier = Math.max(0.5, 1 - trainingSpeedBonus);
+            const baseTrainTime = unit.trainingTime || unit.trainDays || 1;
+            const trainTime = Math.max(1, Math.ceil(baseTrainTime * trainingMultiplier));
             for (let i = 0; i < count; i++) {
                 replenishItems.push({
                     unitId,
@@ -1841,6 +1846,7 @@ export const useGameActions = (gameState, addLog) => {
         const official = officials.find(o => o.id === officialId);
         const newOfficials = fireOfficial(officialId, officials);
         setOfficials(newOfficials);
+        clearOfficialFromAssignments(officialId);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
             if (official.ownedProperties?.length) {
@@ -1876,6 +1882,7 @@ export const useGameActions = (gameState, addLog) => {
 
         // 更新官员列表
         setOfficials(result.newOfficials);
+        clearOfficialFromAssignments(officialId);
 
         // 获取没收的财产
         if (result.wealthGained > 0) {
@@ -1959,6 +1966,60 @@ export const useGameActions = (gameState, addLog) => {
         setOfficials(prev => prev.map(official => (
             official.id === officialId ? { ...official, name: trimmedName } : official
         )));
+    };
+
+    const buildEmptyMinisterAssignments = () => MINISTER_ROLES.reduce((acc, role) => {
+        acc[role] = null;
+        return acc;
+    }, {});
+
+    const clearOfficialFromAssignments = (officialId) => {
+        if (!officialId || typeof setMinisterAssignments !== 'function') return;
+        setMinisterAssignments(prev => {
+            const next = { ...buildEmptyMinisterAssignments(), ...(prev || {}) };
+            let changed = false;
+            MINISTER_ROLES.forEach((role) => {
+                if (next[role] === officialId) {
+                    next[role] = null;
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    };
+
+    const assignMinister = (role, officialId) => {
+        if (!MINISTER_ROLES.includes(role)) return;
+        const official = officials.find(o => o.id === officialId);
+        if (!official) return;
+        setMinisterAssignments(prev => {
+            const next = { ...buildEmptyMinisterAssignments(), ...(prev || {}) };
+            MINISTER_ROLES.forEach((otherRole) => {
+                if (otherRole !== role && next[otherRole] === officialId) {
+                    next[otherRole] = null;
+                }
+            });
+            next[role] = officialId;
+            return next;
+        });
+        const roleLabel = MINISTER_LABELS[role] || role;
+        addLog(`任命${official.name}为${roleLabel}。`);
+    };
+
+    const clearMinisterRole = (role) => {
+        if (!MINISTER_ROLES.includes(role)) return;
+        let removed = false;
+        setMinisterAssignments(prev => {
+            const next = { ...buildEmptyMinisterAssignments(), ...(prev || {}) };
+            if (next[role] === null) return prev;
+            next[role] = null;
+            removed = true;
+            return next;
+        });
+        if (removed) {
+            const roleLabel = MINISTER_LABELS[role] || role;
+            addLog(`撤换${roleLabel}。`);
+        }
     };
 
     // ========== 手动采集 ==========
@@ -2061,12 +2122,17 @@ export const useGameActions = (gameState, addLog) => {
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
         setResourcesWithReason(newRes, 'recruit_unit', { unitId, count: recruitCount });
 
+        const trainingSpeedBonus = modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
+        const trainingMultiplier = Math.max(0.5, 1 - trainingSpeedBonus);
+        const baseTrainingTime = unit.trainingTime || 1;
+        const effectiveTrainingTime = Math.max(1, Math.ceil(baseTrainingTime * trainingMultiplier));
+
         // 加入训练队列
         const newQueueItems = Array(recruitCount).fill(null).map(() => ({
             unitId,
             status: 'waiting',
-            remainingTime: unit.trainingTime,
-            totalTime: unit.trainingTime
+            remainingTime: effectiveTrainingTime,
+            totalTime: effectiveTrainingTime
         }));
 
         setMilitaryQueue(prev => [...prev, ...newQueueItems]);
@@ -5683,6 +5749,8 @@ export const useGameActions = (gameState, addLog) => {
         disposeExistingOfficial,
         updateOfficialSalary,
         updateOfficialName,
+        assignMinister,
+        clearMinisterRole,
         // 叛乱系统
         handleRebellionAction,
         handleRebellionWarEnd,

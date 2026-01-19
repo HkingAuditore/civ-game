@@ -3,10 +3,15 @@ import { Input, Badge } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
 
-const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation, relationInfo }) => {
+const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation, relationInfo, diplomacyRequests = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('all'); // all, allies, enemies
     const [sortBy] = useState('relation'); // relation, name
+
+    // Helper to check for pending requests
+    const getPendingRequestCount = (nationId) => {
+        return diplomacyRequests.filter(req => req.vassalId === nationId).length;
+    };
 
     const filteredNations = useMemo(() => {
         let result = visibleNations || nations || [];
@@ -26,6 +31,11 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
         }
 
         result = result.slice().sort((a, b) => {
+            // Prioritize nations with pending requests
+            const aCount = getPendingRequestCount(a.id);
+            const bCount = getPendingRequestCount(b.id);
+            if (aCount !== bCount) return bCount - aCount;
+
             if (sortBy === 'name') return a.name.localeCompare(b.name);
             const relA = relationInfo ? relationInfo(a)?.value || 0 : 0;
             const relB = relationInfo ? relationInfo(b)?.value || 0 : 0;
@@ -33,7 +43,7 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
         });
 
         return result;
-    }, [nations, visibleNations, searchTerm, filterType, sortBy, relationInfo]);
+    }, [nations, visibleNations, searchTerm, filterType, sortBy, relationInfo, diplomacyRequests]);
 
     return (
         <div className="flex flex-col h-full bg-theme-surface-trans border-r border-theme-border">
@@ -120,6 +130,9 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
                         const isSelected = selectedNationId === nation.id;
                         const relColor = rel.value >= 60 ? 'text-green-400' : rel.value <= 20 ? 'text-red-400' : 'text-ancient-stone';
                         const relIcon = rel.value >= 60 ? 'Smile' : rel.value <= 20 ? 'Frown' : 'Meh';
+                        const pendingCount = getPendingRequestCount(nation.id);
+                        const hasRequest = pendingCount > 0;
+                        const isVassal = nation.isVassal || nation.vassalOf === 'player';
 
                         return (
                             <div
@@ -130,21 +143,27 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
                                     ${isSelected
                                         ? 'bg-theme-accent/10 border-theme-accent shadow-gold-metal'
                                         : 'bg-theme-surface-trans border-theme-border hover:border-theme-accent hover:bg-theme-surface'}
+                                    ${hasRequest ? 'border-l-4 border-l-red-500 bg-red-900/10' : ''} 
                                 `}
                             >
                                 <div className="flex items-center justify-between mb-1.5">
                                     <div className="flex items-center gap-2.5">
                                         <div
                                             className={`
-                                                w-8 h-8 rounded bg-gray-800 flex items-center justify-center border text-sm shadow-inner
+                                                w-8 h-8 rounded bg-gray-800 flex items-center justify-center border text-sm shadow-inner relative
                                                 ${isSelected ? 'border-theme-accent text-theme-accent' : 'border-gray-700 text-theme-text opacity-70'}
                                             `}
                                         >
                                             {nation.name.charAt(0)}
+                                            {hasRequest && (
+                                                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full border border-gray-900 flex items-center justify-center shadow-glow-red animate-pulse z-10">
+                                                    <span className="text-[9px] font-bold text-white">{pendingCount}</span>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
                                             <span
-                                                className={`font-bold text-sm leading-tight ${isSelected
+                                                className={`font-bold text-sm leading-tight flex items-center gap-1 ${isSelected
                                                     ? 'text-theme-accent'
                                                     : 'text-theme-text group-hover:text-theme-accent transition-colors'}`}
                                             >
@@ -163,13 +182,19 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
                                     </div>
 
                                     <div className="flex flex-col items-end gap-1">
+                                        {hasRequest && (
+                                            <Badge variant="danger" className="text-[9px] px-1.5 py-0.5 shadow-depth-sm animate-pulse flex items-center gap-1">
+                                                <Icon name="AlertCircle" size={10} />
+                                                审批
+                                            </Badge>
+                                        )}
                                         {nation.isAtWar && (
                                             <Badge variant="danger" className="text-[9px] px-1 py-0 shadow-depth-sm animate-pulse">
                                                 交战中
                                             </Badge>
                                         )}
                                         <div className="flex gap-1">
-                                            {nation.isVassal && <Icon name="Anchor" size={12} className="text-blue-400" title="附庸国" />}
+                                            {isVassal && <Icon name="Anchor" size={12} className="text-blue-400" title="附庸国" />}
                                             {nation.isSuzerain && <Icon name="Crown" size={12} className="text-amber-400" title="宗主国" />}
                                         </div>
                                     </div>

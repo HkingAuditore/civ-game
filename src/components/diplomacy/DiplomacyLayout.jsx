@@ -3,6 +3,7 @@ import DiplomacyDashboard from './DiplomacyDashboard';
 import NationList from './NationList';
 import NationDetailView from './NationDetailView';
 import { VassalManagementSheet } from '../panels/VassalManagementSheet';
+import { INDEPENDENCE_CONFIG } from '../../config/diplomacy';
 import { VassalOverviewPanel } from '../panels/VassalOverviewPanel';
 // VassalDiplomacyPanel 已合并到 VassalManagementSheet 中
 import { Icon } from '../common/UIComponents';
@@ -115,6 +116,7 @@ const DiplomacyLayout = ({
                         setIsMobileDetailOpen(true);
                     }}
                     relationInfo={relationInfo}
+                    diplomacyRequests={vassalDiplomacyQueue} // [NEW] Pass queue for notifications
                 />
             </div>
 
@@ -213,7 +215,17 @@ const DiplomacyLayout = ({
                     // Calculate player military from army
                     const army = gameState?.army || {};
                     const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
-                    return Math.max(0.5, totalUnits / 100);
+                    const baseStrength = Math.max(0.5, totalUnits / 100);
+                    const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
+                    const garrisonCommitment = (nations || []).reduce((sum, nation) => {
+                        if (nation.vassalOf !== 'player') return sum;
+                        const garrison = nation.vassalPolicy?.controlMeasures?.garrison;
+                        const isActive = garrison === true || (garrison && garrison.active !== false);
+                        if (!isActive) return sum;
+                        const vassalStrength = nation.militaryStrength || 0.5;
+                        return sum + (vassalStrength * garrisonFactor);
+                    }, 0);
+                    return Math.max(0.1, baseStrength - garrisonCommitment);
                 })()}
                 epoch={epoch}
                 // 外交审批相关 props
