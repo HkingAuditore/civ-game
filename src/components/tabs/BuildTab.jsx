@@ -1,7 +1,7 @@
 // 建设标签页组件
 // 显示可建造的建筑列表
 
-import React, { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
@@ -351,6 +351,11 @@ const BuildTabComponent = ({
     difficulty,
     buildingCostMod = 0,
 }) => {
+    // 高频数据使用 deferred 版本，降低 UI 卡顿
+    const deferredResources = useDeferredValue(resources);
+    const deferredJobFill = useDeferredValue(jobFill);
+    const deferredMarket = useDeferredValue(market);
+    const deferredBuildingFinancialData = useDeferredValue(buildingFinancialData);
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     const [viewport, setViewport] = useState(() => {
         if (typeof window === 'undefined') return { scrollY: 0, height: 0, width: 0 };
@@ -432,7 +437,7 @@ const BuildTabComponent = ({
         const def = RESOURCES[key];
         if (!def) return 0;
         if (NON_TRADE_KEYS.has(key)) return 0;
-        return market?.prices?.[key] ?? def.basePrice ?? 0;
+        return deferredMarket?.prices?.[key] ?? def.basePrice ?? 0;
     };
 
     const getOwnerIncomePerBuilding = (building) => {
@@ -445,7 +450,7 @@ const BuildTabComponent = ({
             return sum + price * val;
         }, 0);
         const wageCost = Object.entries(building.jobs || {}).reduce((sum, [job, perBuilding]) => {
-            const wage = market?.wages?.[job] ?? 0;
+            const wage = deferredMarket?.wages?.[job] ?? 0;
             return sum + wage * perBuilding;
         }, 0);
         return outputValue - inputValue - wageCost;
@@ -456,7 +461,7 @@ const BuildTabComponent = ({
         if (count === 0) return 0;
 
         // Prefer real simulation stats when available
-        const finance = buildingFinancialData?.[building.id];
+        const finance = deferredBuildingFinancialData?.[building.id];
         if (finance) {
             const ownerSlots = building.jobs?.[building.owner] || 1;
             const profitPerBuilding =
@@ -469,14 +474,14 @@ const BuildTabComponent = ({
 
         // Fallback: heuristic estimate using working ratio + market wages
         const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
-        const totalAssigned = Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
+        const totalAssigned = Object.values(deferredJobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
         const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
 
         const actualOutputValue = Object.entries(building.output || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
         const actualInputValue = Object.entries(building.input || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
 
         const actualWageCost = Object.entries(jobFill?.[building.id] || {}).reduce((sum, [job, assignedCount]) => {
-            const wage = market?.wages?.[job] ?? 0;
+            const wage = deferredMarket?.wages?.[job] ?? 0;
             return sum + wage * (assignedCount / count);
         }, 0);
 
@@ -486,13 +491,13 @@ const BuildTabComponent = ({
     };
 
     const getJobIncomePerBuilding = (building, ownerIncome) => {
-        const finance = buildingFinancialData?.[building.id];
+        const finance = deferredBuildingFinancialData?.[building.id];
 
         const jobEntries = Object.keys(building.jobs || {}).map(job => {
             const realPerCapita = finance?.paidWagePerWorkerByRole?.[job];
             const wage = Number.isFinite(realPerCapita)
                 ? realPerCapita
-                : (market?.wages?.[job] ?? 0);
+                : (deferredMarket?.wages?.[job] ?? 0);
             return {
                 job,
                 perCapitaIncome: wage,
@@ -686,15 +691,15 @@ const BuildTabComponent = ({
             const totalRequired = requiredMap
                 ? Object.values(requiredMap).reduce((sum, per) => sum + (per || 0), 0)
                 : Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
-            const filledByRole = buildingFinancialData?.[building.id]?.filledByRole;
+            const filledByRole = deferredBuildingFinancialData?.[building.id]?.filledByRole;
             const totalAssigned = filledByRole
                 ? Object.values(filledByRole).reduce((sum, num) => sum + (num || 0), 0)
-                : Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + (num || 0), 0);
+                : Object.values(deferredJobFill?.[building.id] || {}).reduce((sum, num) => sum + (num || 0), 0);
             const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
             stats[building.id] = { totalRequired, totalAssigned, workingRatio };
         });
         return stats;
-    }, [buildingStatsById, buildingJobsRequired, buildingFinancialData, jobFill]);
+    }, [buildingStatsById, buildingJobsRequired, deferredBuildingFinancialData, deferredJobFill]);
 
     const categoryWorkersByKey = useMemo(() => {
         const workers = {};
@@ -709,7 +714,7 @@ const BuildTabComponent = ({
 
     const cardDataById = useMemo(() => {
         const data = {};
-        const silverResource = resources.silver || 0;
+        const silverResource = deferredResources.silver || 0;
         BUILDINGS.forEach((building) => {
             if (!isBuildingAvailable(building)) return;
 
@@ -719,7 +724,7 @@ const BuildTabComponent = ({
             const cost = stats.cost || calculateCost(building);
             const upgradeOptions = stats.upgradeOptions || [];
             const jobStats = buildingJobStatsById[building.id] || {};
-            const finance = buildingFinancialData?.[building.id];
+            const finance = deferredBuildingFinancialData?.[building.id];
             // 优化：减少 Object.entries 调用次数
             let canUpgradeAny = false;
             for (const upgradeCost of upgradeOptions) {
@@ -727,7 +732,7 @@ const BuildTabComponent = ({
                 if (silverResource < silverCost) continue;
                 let canAfford = true;
                 for (const [res, amount] of Object.entries(upgradeCost)) {
-                    if (res !== 'silver' && (resources[res] || 0) < amount) {
+                    if (res !== 'silver' && (deferredResources[res] || 0) < amount) {
                         canAfford = false;
                         break;
                     }
@@ -738,11 +743,11 @@ const BuildTabComponent = ({
                 }
             }
 
-            const silverCost = calculateSilverCost(cost, market);
+            const silverCost = calculateSilverCost(cost, deferredMarket);
             // 优化：减少 Object.entries 调用
             let hasMaterials = true;
             for (const [res, val] of Object.entries(cost)) {
-                if ((resources[res] || 0) < val) {
+                if ((deferredResources[res] || 0) < val) {
                     hasMaterials = false;
                     break;
                 }
@@ -771,7 +776,7 @@ const BuildTabComponent = ({
             };
         });
         return data;
-    }, [buildingStatsById, buildingJobStatsById, buildingFinancialData, epoch, techsUnlocked, market, resources, buildingCostMod]);
+    }, [buildingStatsById, buildingJobStatsById, deferredBuildingFinancialData, epoch, techsUnlocked, deferredMarket, deferredResources, buildingCostMod]);
 
     // 建筑链展开状态
     const [expandedChains, setExpandedChains] = useState(new Set());
@@ -866,8 +871,8 @@ const BuildTabComponent = ({
                 onMouseLeave={handleMouseLeave}
                 epoch={epoch}
                 techsUnlocked={techsUnlocked}
-                jobFill={jobFill}
-                resources={resources}
+                jobFill={deferredJobFill}
+                resources={deferredResources}
                 onShowDetails={onShowDetails}
                 hasUpgrades={canUpgradeAny}
                 ownerJobsRequired={ownerJobsRequired}
@@ -910,8 +915,8 @@ const BuildTabComponent = ({
                     onMouseLeave={handleMouseLeave}
                     epoch={epoch}
                     techsUnlocked={techsUnlocked}
-                    jobFill={jobFill}
-                    resources={resources}
+                    jobFill={deferredJobFill}
+                    resources={deferredResources}
                     onShowDetails={onShowDetails}
                     hasUpgrades={canUpgradeAny}
                     ownerJobsRequired={ownerJobsCorrections[topBuilding.id] ?? (topBuilding.jobs?.[topBuilding.owner] || 0) * count}
@@ -1181,9 +1186,9 @@ const BuildTabComponent = ({
                 count={hoveredBuilding.building ? (buildings[hoveredBuilding.building.id] || 0) : 0}
                 epoch={epoch}
                 techsUnlocked={techsUnlocked}
-                jobFill={jobFill}
+                jobFill={deferredJobFill}
                 cost={hoveredBuilding.cost}
-                resources={resources}
+                resources={deferredResources}
                 ownerJobsRequired={hoveredBuilding.building ? ownerJobsCorrections[hoveredBuilding.building.id] : undefined}
             />
         </div>

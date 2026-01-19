@@ -1,4 +1,5 @@
 const DEFAULT_DEBUG_FLAGS = {
+    console: false,
     event: false,
     gameLoop: false,
     mainThread: false,

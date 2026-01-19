@@ -3,6 +3,16 @@ import './index.css'
 import App from './App.jsx'
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { isDebugEnabled } from './utils/debugFlags';
+
+const muteConsoleNoise = () => {
+    if (isDebugEnabled('console')) return;
+    const noop = () => {};
+    console.log = noop;
+    console.warn = noop;
+};
+
+muteConsoleNoise();
 
 // 在原生平台上隐藏状态栏
 if (Capacitor.isNativePlatform()) {
