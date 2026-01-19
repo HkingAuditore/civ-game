@@ -157,7 +157,6 @@ export const TRADE_POLICY_DEFINITIONS = {
         description: '附庸可与任何国家贸易',
         playerPriceMod: 0,            // No price advantage
         tariffDiscount: 0,            // No tariff discount
-        tributeMod: 0.8,              // -20% tribute (as concession)
         independenceGrowthMod: 0.8,   // 20% slower independence growth
     },
     preferential: {
@@ -166,7 +165,6 @@ export const TRADE_POLICY_DEFINITIONS = {
         description: '玩家商人享有优先贸易权',
         playerPriceMod: -0.1,         // 10% cheaper for player
         tariffDiscount: 0.5,          // 50% tariff discount
-        tributeMod: 1.0,              // Normal tribute
         independenceGrowthMod: 1.0,   // Normal
     },
     exclusive: {
@@ -175,7 +173,6 @@ export const TRADE_POLICY_DEFINITIONS = {
         description: '附庸只能与玩家贸易',
         playerPriceMod: -0.25,        // 25% cheaper for player
         tariffDiscount: 1.0,          // No tariffs
-        tributeMod: 1.2,              // +20% tribute
         independenceGrowthMod: 1.3,   // 30% faster independence
     },
     dumping: {
@@ -184,7 +181,6 @@ export const TRADE_POLICY_DEFINITIONS = {
         description: '强制附庸购买玩家过剩商品',
         playerPriceMod: 0.2,          // +20% sell price (forced sales)
         tariffDiscount: 1.0,          // No tariffs
-        tributeMod: 1.0,              // Normal tribute
         independenceGrowthMod: 1.4,   // 40% faster independence
         forcedExports: true,          // Flag for forced export logic
     },
@@ -194,7 +190,6 @@ export const TRADE_POLICY_DEFINITIONS = {
         description: '以极低价格获取附庸资源',
         playerPriceMod: -0.4,         // 40% cheaper buying
         tariffDiscount: 1.0,          // No tariffs
-        tributeMod: 1.5,              // +50% tribute (in resources)
         independenceGrowthMod: 1.6,   // 60% faster independence
         forcedImports: true,          // Flag for forced import logic
         minEra: 3,                    // Unlocks at era 3

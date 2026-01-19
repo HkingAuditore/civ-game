@@ -205,6 +205,8 @@ const DiplomacyTabComponent = ({
             setNegotiationCounter(result.counterProposal);
             setNegotiationDraft((prev) => ({ ...prev, ...result.counterProposal }));
             setNegotiationRound((prev) => Math.min(NEGOTIATION_MAX_ROUNDS, prev + 1));
+            // Keep evaluation so DealStatus can reflect the latest AI stance
+            if (result.evaluation) setNegotiationEvaluation(result.evaluation);
             return;
         }
         if (result.status === 'accepted') {
@@ -219,7 +221,7 @@ const DiplomacyTabComponent = ({
             type: '缺少条约类型，无法发起谈判。',
             treaty_locked: '条约未解锁，无法谈判。',
             org_locked: '组织未解锁，无法谈判。',
-            war: '对方正处于战争中，无法谈判。',
+            war: '对方处于战争中，无法谈判。',
             peace_active: '和平/互不侵犯条约仍在生效，无法重复谈判。',
             market_active: '开放市场/贸易类条约仍在生效，无法重复谈判。',
             investment_active: '投资协议仍在生效，无法重复谈判。',
@@ -230,10 +232,31 @@ const DiplomacyTabComponent = ({
             demand_resource: '对方无法提供索赔资源。',
         };
         if (result.status === 'blocked') {
-            setNegotiationFeedback(reasonMap[result.reason] || '谈判被阻止，请检查条件。');
+            const minR = Number.isFinite(result.minRelation) ? result.minRelation : negotiationEvaluation?.minRelation;
+            const curR = Number.isFinite(result.currentRelation) ? result.currentRelation : selectedNation?.relation;
+            const reason = result.reason || result.blockedReason;
+            if ((reason === 'relation' || reason === 'relation_gate' || reason === 'relationGate') && Number.isFinite(minR) && Number.isFinite(curR)) {
+                setNegotiationFeedback(`关系不足：需要达到 ${Math.round(minR)}（当前 ${Math.round(curR)}）。`);
+                return;
+            }
+            setNegotiationFeedback(reasonMap[reason] || '谈判被阻止，请检查条件。');
             return;
         }
         if (result.status === 'rejected') {
+            // Prefer explicit relation gate message if available
+            const evalObj = result.evaluation || negotiationEvaluation;
+            if (evalObj?.relationGate && Number.isFinite(evalObj?.minRelation)) {
+                const req = evalObj.minRelation;
+                const cur = selectedNation?.relation ?? 0;
+                setNegotiationFeedback(`对方拒绝：关系未达硬门槛，需要 ${Math.round(req)}（当前 ${Math.round(cur)}）。`);
+                return;
+            }
+            // If we know the deal is insufficient, show the deficit
+            if (result.reason === 'deal_insufficient') {
+                const score = Number(result.dealScore || 0);
+                setNegotiationFeedback(`对方拒绝：认为筹码不足（差额 ${Math.round(Math.abs(score))}）。`);
+                return;
+            }
             setNegotiationFeedback('对方拒绝了提案。');
         }
     };
@@ -522,6 +545,7 @@ const DiplomacyTabComponent = ({
                 playerNationId="player"
                 empireName={gameState?.empireName || '我的帝国'}
                 silver={resources?.silver || 0}
+                daysElapsed={daysElapsed}
                 isDiplomacyUnlocked={(type, id) => isDiplomacyUnlocked(type, id, epoch)}
                 onLeave={(orgId) => {
                     if (onDiplomaticAction) {

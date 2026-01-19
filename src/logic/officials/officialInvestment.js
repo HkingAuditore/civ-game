@@ -247,6 +247,12 @@ export const processOfficialInvestment = (
             const currentCount = buildingCounts?.[b.id] || 0;
             if (currentCount <= 0) return false;
 
+            // [FIX] 必须有雇佣关系（非自雇型建筑）
+            // 排除 owner 和 worker 是同一个阶层的建筑（如农田、采石场）
+            // 官员/外资不应投资这种“自给自足”的单位
+            const hasEmployees = Object.keys(b.jobs || {}).some(jobStratum => jobStratum !== b.owner);
+            if (!hasEmployees) return false;
+
             return true;
         })
         .map(b => {

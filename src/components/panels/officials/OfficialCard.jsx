@@ -441,13 +441,29 @@ export const OfficialCard = memo(({
                         </div>
                         <div className={`text-[10px] ${stratumColor} opacity-80 flex items-center flex-wrap gap-1 mt-0.5`}>
                             {stance && (
-                                <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
-                                    <Icon name={stanceColors.icon} size={8} />
-                                    {stanceColors.label}
-                                </span>
+                                <>
+                                    <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
+                                        <Icon name={stanceColors.icon} size={8} />
+                                        {stanceColors.label}
+                                    
+                                    {stance?.name && (
+                                        <span className="text-[9px] text-gray-300 font-bold ml-1 truncate max-w-[80px] inline-flex items-center gap-0.5" title={stance.description}>
+                                            {stance.name}
+                                            {isStanceSatisfied !== null && !isCandidate && (
+                                                <Icon 
+                                                    name={isStanceSatisfied ? 'Check' : 'X'} 
+                                                    size={8} 
+                                                    className={isStanceSatisfied ? 'text-green-400' : 'text-red-400'}
+                                                    title={isStanceSatisfied ? '政治主张已满足' : '政治主张未满足'}
+                                                />
+                                            )}
+                                        </span>
+                                    )}
+                                    </span>
+                                </>
                             )}
-                        <span className="truncate">{stratumDef?.name || stratumKey} 出身</span>
-                        {prestigeInfo && <span className={`flex-shrink-0 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
+                            <span className="truncate">{stratumDef?.name || stratumKey} 出身</span>
+                            {prestigeInfo && <span className={`flex-shrink-0 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
                         </div>
                     </div>
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
@@ -626,12 +642,24 @@ export const OfficialCard = memo(({
                                 <Icon name={stanceColors.icon} size={8} />
                                 {stanceColors.label}
                             </span>
+                            {stance?.name && (
+                                <span className="text-[9px] text-gray-300 font-bold ml-1 truncate max-w-[80px] inline-flex items-center gap-0.5" title={stance.description}>
+                                    {stance.name}
+                                    {isStanceSatisfied !== null && !isCandidate && (
+                                        <Icon 
+                                            name={isStanceSatisfied ? 'Check' : 'X'} 
+                                            size={8} 
+                                            className={isStanceSatisfied ? 'text-green-400' : 'text-red-400'}
+                                            title={isStanceSatisfied ? '政治主张已满足' : '政治主张未满足'}
+                                        />
+                                    )}
+                                </span>
+                            )}
                             <span className="truncate">{stratumDef?.name || stratumKey} 出身</span>
                             {prestigeInfo && <span className={`flex-shrink-0 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
                         </div>
                     </div>
-                </div>
-                <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                     {/* 财务信息整合区 */}
                     <div className="bg-gray-900/40 px-2 py-1 rounded border border-gray-700/50">
                         <div className="flex items-center justify-end gap-2 text-xs font-mono">
@@ -776,23 +804,10 @@ export const OfficialCard = memo(({
                                     })}
                                 </div>
                             )}
-                            {/* 触发条件 - 使用动态生成的条件文本 + 满足状态指示 */}
-                            {/* 触发条件 - 优化排版：标签与状态在一行，详细文本在下方独立块显示 */}
+                            {/* 触发条件 - 简化显示 */}
                             <div className="mb-1">
-                                <div className="flex items-center justify-between mb-0.5">
-                                    <span className="text-[9px] text-gray-500">政治主张:</span>
-                                    {/* 显示是否满足政治主张 */}
-                                    {isStanceSatisfied !== null && !isCandidate && (
-                                        <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold ${isStanceSatisfied
-                                            ? 'bg-green-900/50 text-green-400 border border-green-700/50'
-                                            : 'bg-red-900/50 text-red-400 border border-red-700/50'
-                                            }`}>
-                                            <Icon name={isStanceSatisfied ? 'Check' : 'X'} size={8} />
-                                            {isStanceSatisfied ? '已满足' : '未满足'}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="text-[10px] text-gray-300 bg-gray-800/30 p-1.5 rounded border border-gray-700/30 leading-snug break-words">
+                                <span className="text-[9px] text-gray-500">政治主张:</span>
+                                <div className="text-[10px] text-gray-300 bg-gray-800/30 p-1.5 rounded border border-gray-700/30 leading-snug break-words mt-0.5">
                                     {official.stanceConditionText || '无'}
                                 </div>
                             </div>
@@ -920,5 +935,8 @@ export const OfficialCard = memo(({
                 )}
             </div>
         </div>
+        </div>
     );
 });
+
+export default OfficialCard;

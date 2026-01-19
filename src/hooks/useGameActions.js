@@ -3886,7 +3886,24 @@ export const useGameActions = (gameState, addLog) => {
                     targetWealth: targetNation?.wealth || 0,
                     playerProduction: productionPerDay?.goods || 0,
                     targetProduction: targetNation?.productionCapacity || targetNation?.economyScore || (targetNation?.wealth || 0) * 0.01,
+                    organization,
+                    organizationMode,
                 });
+
+                // Hard relation gate should block signing entirely (scheme B: show explicit reason)
+                if (evaluation?.relationGate) {
+                    addLog(`谈判被阻止：关系不足，需要达到 ${Math.round(evaluation.minRelation || 0)}（当前 ${Math.round(targetNation.relation || 0)}）。`);
+                    if (onResult) onResult({
+                        status: 'blocked',
+                        reason: evaluation.blockedReason || 'relation_gate',
+                        evaluation,
+                        minRelation: evaluation.minRelation,
+                        currentRelation: targetNation.relation || 0,
+                        acceptChance: evaluation.acceptChance,
+                    });
+                    return;
+                }
+
                 const accepted = forceAccept || (evaluation.dealScore || 0) >= 0;
                 const stanceDelta = stance === 'friendly' ? 2 : (stance === 'threat' ? -20 : 0);
                 // 计算签约成本
@@ -4006,54 +4023,73 @@ export const useGameActions = (gameState, addLog) => {
                     }));
                     if (isOrganizationType && organization && organizationMode) {
                         const orgConfig = ORGANIZATION_TYPE_CONFIGS[organization.type];
+                        const leaderId = organization.leaderId ?? organization.founderId;
+                        const playerOrgMemberId = 'player'; // Player's ID in organization membership
+
+                        // Authority rules:
+                        // - invite: only organization leader can invite others
+                        // - kick: only organization leader can kick others (and cannot kick founder)
+                        // - join: only allows the negotiating party to join the other side's organization
                         if (organizationMode === 'invite') {
-                            updateOrganizationState(prev => prev.map(o => {
-                                if (o.id !== organization.id) return o;
-                                const members = Array.isArray(o.members) ? o.members : [];
+                            const hasAuthority = String(leaderId) === String(playerOrgMemberId);
+                            if (!hasAuthority) {
+                                addLog(`🏛️ 操作无效：你不是组织「${organization.name}」的领导国，无法邀请其他国家加入。`);
+                            } else {
+                                updateOrganizationState(prev => prev.map(o => {
+                                    if (o.id !== organization.id) return o;
+                                    const members = Array.isArray(o.members) ? o.members : [];
 
-                                if (members.includes(nationId)) return o;
-                                if (orgConfig?.maxMembers && members.length >= orgConfig.maxMembers) return o;
-                                return { ...o, members: [...members, nationId] };
-                            }));
-                            setNations(prev => prev.map(n => {
-                                if (n.id !== nationId) return n;
-                                const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
-                                return {
-                                    ...n,
-                                    organizationMemberships: memberships.includes(organization.id)
+                                    if (members.includes(nationId)) return o;
+                                    if (orgConfig?.maxMembers && members.length >= orgConfig.maxMembers) return o;
+                                    return { ...o, members: [...members, nationId] };
+                                }));
+                                setNations(prev => prev.map(n => {
+                                    if (n.id !== nationId) return n;
+                                    const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+                                    return {
+                                        ...n,
+                                        organizationMemberships: memberships.includes(organization.id)
+                                            ? memberships
+                                            : [...memberships, organization.id],
 
-                                        ? memberships
-                                        : [...memberships, organization.id],
-
-                                };
-                            }));
+                                    };
+                                }));
+                            }
 
                         } else if (organizationMode === 'join') {
                             updateOrganizationState(prev => prev.map(o => {
                                 if (o.id !== organization.id) return o;
                                 const members = Array.isArray(o.members) ? o.members : [];
-                                if (members.includes('player')) return o;
+                                if (members.includes(playerOrgMemberId)) return o;
                                 if (orgConfig?.maxMembers && members.length >= orgConfig.maxMembers) return o;
-                                return { ...o, members: [...members, 'player'] };
+                                return { ...o, members: [...members, playerOrgMemberId] };
                             }));
+
                         } else if (organizationMode === 'kick') {
-                            updateOrganizationState(prev => prev.map(o => {
-                                if (o.id !== organization.id) return o;
-                                const members = Array.isArray(o.members) ? o.members : [];
+                            const hasAuthority = String(leaderId) === String(playerOrgMemberId);
+                            if (!hasAuthority) {
+                                addLog(`🏛️ 操作无效：你不是组织「${organization.name}」的领导国，无法将成员国移除。`);
+                            } else if (String(nationId) === String(organization.founderId)) {
+                                addLog(`🏛️ 操作无效：无法将组织创始国移除。`);
+                            } else {
+                                updateOrganizationState(prev => prev.map(o => {
+                                    if (o.id !== organization.id) return o;
+                                    const members = Array.isArray(o.members) ? o.members : [];
 
-                                return { ...o, members: members.filter(m => m !== nationId) };
-                            }));
-                            setNations(prev => prev.map(n => {
-                                if (n.id !== nationId) return n;
-                                const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
-                                const relationPenalty = orgConfig?.kickRelationPenalty || -20;
-                                return {
-                                    ...n,
-                                    relation: clampRelation((n.relation || 0) + relationPenalty),
-                                    organizationMemberships: memberships.filter(id => id !== organization.id),
+                                    return { ...o, members: members.filter(m => String(m) !== String(nationId)) };
+                                }));
+                                setNations(prev => prev.map(n => {
+                                    if (n.id !== nationId) return n;
+                                    const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+                                    const relationPenalty = orgConfig?.kickRelationPenalty || -20;
+                                    return {
+                                        ...n,
+                                        relation: clampRelation((n.relation || 0) + relationPenalty),
+                                        organizationMemberships: memberships.filter(id => id !== organization.id),
 
-                                };
-                            }));
+                                    };
+                                }));
+                            }
                         }
                     }
                     if (demandSilver > 0) {
@@ -4099,10 +4135,20 @@ export const useGameActions = (gameState, addLog) => {
                             }
                         }
 
-                        negotiateCostInfo += `，${demandParts.join('，')}`;
+                    negotiateCostInfo += `，${demandParts.join('，')}`;
                     }
                     addLog(`🤝 ${targetNation.name} 同意了谈判条约（${type}）${negotiateCostInfo}。`);
-                    if (onResult) onResult({ status: 'accepted', acceptChance: evaluation.acceptChance });
+                    
+                    // Trigger diplomatic event for accepted negotiation
+                    const acceptedEvent = createTreatyProposalResultEvent(
+                        targetNation, 
+                        { type, durationDays, maintenancePerDay: negotiateFinalMaintenancePerDay }, 
+                        true, 
+                        () => {}
+                    );
+                    triggerDiplomaticEvent(acceptedEvent);
+                    
+                    if (onResult) onResult({ status: 'accepted', acceptChance: evaluation.acceptChance, evaluation });
                     break;
                 }
                 const counterProposal = !forceAccept && round < maxRounds
@@ -4147,7 +4193,7 @@ export const useGameActions = (gameState, addLog) => {
                             : n
                     ));
                     addLog(`${targetNation.name} 提出了反提案。`);
-                    if (onResult) onResult({ status: 'counter', counterProposal, acceptChance: evaluation.acceptChance });
+                    if (onResult) onResult({ status: 'counter', counterProposal, acceptChance: evaluation.acceptChance, evaluation });
                     break;
                 }
                 setNations(prev => prev.map(n =>
@@ -4168,7 +4214,23 @@ export const useGameActions = (gameState, addLog) => {
                 } else {
                     addLog(`${targetNation.name} 拒绝了谈判，双方关系下降。`);
                 }
-                if (onResult) onResult({ status: 'rejected', acceptChance: evaluation.acceptChance });
+                
+                // Trigger diplomatic event for rejected negotiation
+                const rejectedEvent = createTreatyProposalResultEvent(
+                    targetNation, 
+                    { type, durationDays, maintenancePerDay: negotiateFinalMaintenancePerDay }, 
+                    false, 
+                    () => {}
+                );
+                triggerDiplomaticEvent(rejectedEvent);
+                
+                if (onResult) onResult({
+                    status: 'rejected',
+                    acceptChance: evaluation.acceptChance,
+                    evaluation,
+                    reason: (evaluation?.dealScore || 0) < 0 ? 'deal_insufficient' : 'refused',
+                    dealScore: evaluation?.dealScore || 0,
+                });
                 break;
             }
             case 'create_org': {
@@ -4221,7 +4283,7 @@ export const useGameActions = (gameState, addLog) => {
                 );
                 const initialMembers = isSolo ? ['player'] : ['player', nationId];
                 const org = {
-                    id: `org_${type}_${Date.now()}`,
+                    id: `org_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
 
                     type,
                     name: orgName,
@@ -4376,16 +4438,16 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 // If founder leaves and org disbands
                 if (willDisband) {
-                    // Get all members except the founder for relation penalty
-                    const otherMembers = (org.members || []).filter(m => m !== nationId);
-                    // Apply relation penalty to all members
-                    if (isPlayerLeaving && otherMembers.length > 0) {
+                    const memberIds = Array.isArray(org.members) ? org.members : [];
 
-
-
-
+                    // Apply relation penalty + remove memberships from all nations that are (or were) members
+                    // Also remove player's membership if player was in this org.
+                    if (memberIds.length > 0) {
+                        if (memberIds.includes('player')) {
+                            // Minimal bookkeeping: player doesn't have organizationMemberships array, but we should still log clearly.
+                        }
                         setNations(prev => prev.map(n => {
-                            if (!otherMembers.includes(n.id)) return n;
+                            if (!memberIds.includes(n.id)) return n;
                             const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
                             return {
                                 ...n,

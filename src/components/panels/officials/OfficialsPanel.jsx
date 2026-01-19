@@ -396,6 +396,16 @@ export const OfficialsPanel = ({
                                 }
                             }
 
+                            // 获取官员的完整属性
+                            let statsDisplay = '未任命';
+                            if (assigned) {
+                                const prestige = assigned.stats?.prestige ?? assigned.prestige ?? 50;
+                                const admin = assigned.stats?.administrative ?? assigned.administrative ?? 50;
+                                const military = assigned.stats?.military ?? assigned.military ?? 30;
+                                const diplomacy = assigned.stats?.diplomacy ?? assigned.diplomacy ?? 30;
+                                statsDisplay = `${assigned.name} (威${prestige}/政${admin}/军${military}/外${diplomacy})`;
+                            }
+
                             return (
                                 <div key={role} className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
                                     <div className="flex items-center justify-between mb-1">
@@ -410,7 +420,7 @@ export const OfficialsPanel = ({
                                         )}
                                     </div>
                                     <div className="text-[10px] text-gray-500 mb-1">
-                                        {assigned ? `${assigned.name} · 属性 ${Math.round(statValue)}` : '未任命'}
+                                        {statsDisplay}
                                     </div>
                                     <select
                                         value={assignedValue}
@@ -428,9 +438,13 @@ export const OfficialsPanel = ({
                                         <option value="">未任命</option>
                                         {officials.map((official) => {
                                             const isAssignedElsewhere = assignedMinisterIds.has(official.id) && official.id !== assignedId;
+                                            const prestige = official.stats?.prestige ?? official.prestige ?? 50;
+                                            const admin = official.stats?.administrative ?? official.administrative ?? 50;
+                                            const military = official.stats?.military ?? official.military ?? 30;
+                                            const diplomacy = official.stats?.diplomacy ?? official.diplomacy ?? 30;
                                             return (
                                                 <option key={official.id} value={official.id} disabled={isAssignedElsewhere}>
-                                                    {official.name}
+                                                    {official.name} (威{prestige}/政{admin}/军{military}/外{diplomacy})
                                                 </option>
                                             );
                                         })}

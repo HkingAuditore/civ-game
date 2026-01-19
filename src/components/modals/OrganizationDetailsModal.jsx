@@ -11,6 +11,7 @@ const OrganizationDetailsModal = ({
     playerNationId = 'player',
     empireName = '我的帝国', // 玩家帝国名称
     silver = 0, // Player's current silver for cost calculation
+    daysElapsed = 0, // Current game days for calculating organization age
     onLeave,
     onNegotiateWithFounder, // New: callback to open negotiation with founder
     isDiplomacyUnlocked
@@ -96,7 +97,7 @@ const OrganizationDetailsModal = ({
                             {memberList.find(m => m.isFounder)?.name || '未知'}
                         </div>
                         <div className="text-ancient-stone text-xs mt-2">
-                            成立已 {Math.floor(organization.createdDay || 0)} 天
+                            成立已 {Math.max(0, Math.floor(daysElapsed - (organization.createdDay || 0)))} 天
                         </div>
                     </div>
                 </div>
@@ -201,15 +202,27 @@ const OrganizationDetailsModal = ({
                             <Icon name="Info" size={16} />
                             如何加入
                         </h4>
-                        <p className="text-sm text-ancient-stone mb-3">
-                            加入国际组织需要通过外交谈判。请前往创始国的外交界面，选择"军事同盟"或"经济共同体"条约类型，然后选择"申请加入该组织"。
-                        </p>
-                        {founderNation && (
-                            <div className="flex items-center gap-2 text-xs text-ancient-parchment">
-                                <Icon name="Crown" size={14} className="text-amber-400" />
-                                <span>创始国：<strong>{founderNation.name}</strong></span>
+                        <div className="mt-4">
+                            <div className="text-ancient-stone font-bold mb-2">如何加入</div>
+                            <div className="text-xs text-ancient-stone space-y-2">
+                                <div>
+                                    加入国际组织需要通过外交谈判。请前往创始国的外交界面，选择"军事同盟"或"经济共同体"条约类型，然后选择"申请加入该组织"。
+                                </div>
+
+                                {organization?.type === 'economic_bloc' && (
+                                    <div className="rounded border border-amber-500/30 bg-black/30 p-2">
+                                        <div className="font-semibold text-amber-300 mb-1">经济共同体（方案B：高门槛但写清楚）</div>
+                                        <div>• 硬门槛：与创始国关系需达到 <span className="text-amber-200 font-mono">75</span>（未达标会直接被阻止，或通过率极低）</div>
+                                        <div>• 时代门槛：需要解锁经济共同体（Era 5+）</div>
+                                        <div>• 战争限制：对方处于战争中时无法谈判</div>
+                                        <div>• 附庸限制：若你是“傀儡附庸/外交受控”，则不能独立申请加入组织</div>
+                                        <div className="mt-1 text-[11px] text-ancient-stone">
+                                            提示：实际是否满足门槛，以谈判面板里显示的“关系需达到 75（当前 X）”为准。
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
                 )}
 

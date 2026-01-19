@@ -82,33 +82,50 @@ const TreatyTerms = ({
     empireName = '我的帝国', // 玩家帝国名称
     t = (k, v) => v
 }) => {
+    const playerNationId = useMemo(() => {
+        // Try to detect player's nation id from nations list (commonly 0).
+        // Fallback keeps backward compatibility with older saves that store 'player' as member id.
+        const playerNation = nations.find(n => n.id === 0 || n.id === 'player' || n.isPlayer);
+        return playerNation?.id ?? 'player';
+    }, [nations]);
+
+    const isOrgLeader = useCallback((org) => {
+        if (!org) return false;
+        const leaderId = org.leaderId ?? org.founderId;
+        return String(leaderId) === String(playerNationId);
+    }, [playerNationId]);
+
     // Check if selected treaty type is an organization type
     const isOrganizationType = draft.type === 'military_alliance' || draft.type === 'economic_bloc';
     
     // Get player's organizations of the selected type
     const playerOrganizations = useMemo(() => {
         if (!isOrganizationType) return [];
-        return getNationOrganizations('player', organizations)
-            .filter(org => org.type === draft.type);
-    }, [organizations, draft.type, isOrganizationType]);
+        // Only organization leader can invite others in negotiation UI (方案A)
+        return getNationOrganizations(playerNationId, organizations)
+            .filter(org => org.type === draft.type)
+            .filter(isOrgLeader);
+    }, [organizations, draft.type, isOrganizationType, playerNationId, isOrgLeader]);
     
     // Get target nation's organizations of the selected type that player can join
     const targetOrganizations = useMemo(() => {
         if (!isOrganizationType || !selectedNation?.id) return [];
         return getNationOrganizations(selectedNation.id, organizations)
-            .filter(org => org.type === draft.type && !org.members.includes('player'));
-    }, [organizations, selectedNation, draft.type, isOrganizationType]);
+            .filter(org => org.type === draft.type && !org.members.includes(playerNationId) && !org.members.includes('player'));
+    }, [organizations, selectedNation, draft.type, isOrganizationType, playerNationId]);
     
     // Get shared organizations where both player and target are members (for kick option)
     const sharedOrganizations = useMemo(() => {
         if (!isOrganizationType || !selectedNation?.id) return [];
+        // Only organization leader can kick members in negotiation UI (方案A)
         return organizations.filter(org => 
             org.type === draft.type &&
-            org.members?.includes('player') && 
+            (org.members?.includes(playerNationId) || org.members?.includes('player')) &&
             org.members?.includes(selectedNation.id) &&
-            org.founderId !== selectedNation.id // Cannot kick founder
+            org.founderId !== selectedNation.id && // Cannot kick founder
+            isOrgLeader(org)
         );
-    }, [organizations, selectedNation, draft.type, isOrganizationType]);
+    }, [organizations, selectedNation, draft.type, isOrganizationType, playerNationId, isOrgLeader]);
     
     // Get organization type config
     const orgConfig = isOrganizationType ? ORGANIZATION_TYPE_CONFIGS[draft.type] : null;

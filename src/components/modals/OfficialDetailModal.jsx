@@ -42,10 +42,12 @@ const EFFECT_NAMES = {
     diplomaticBonus: '外交关系',
     productionInputCost: '原料消耗',
     stratumInfluence: '阶层影响力',
+    wartimeProduction: '战时生产',
     warProductionBonus: '战时生产',
     factionConflict: '派系冲突',
     corruption: '腐败',
     corruptionMod: '腐败程度',
+    resourceWaste: '资源浪费',
     buildings: '建筑产出',
     categories: '类别产出',
     passive: '被动产出',
@@ -292,7 +294,7 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`${displayName} · 详细信息`} size="xl">
             <div className="space-y-4">
-                {/* 顶部信息栏 */} 
+                {/* 顶部信息栏 */}
                 <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-gray-700/50">
                     {/* 官员姓名 */}
                     <div className="flex items-center gap-2 min-w-[160px]">
@@ -602,6 +604,20 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                             )}
                             {/* 遍历效果对象 */}
                             {Object.entries(displayEffects).map(([type, valueOrObj]) => {
+                                // 定义负值为优（越小越好）的效果类型
+                                const negativeIsGoodTypes = [
+                                    'productionInputCost', 'buildingCostMod', 'resourceWaste',
+                                    'militaryUpkeep', 'diplomaticCooldown', 'stratumDemandMod',
+                                    'resourceDemandMod', 'organizationDecay', 'corruption',
+                                    'factionConflict', 'diplomaticIncident', 'wageModifier',
+                                    'corruptionMod'
+                                ];
+
+                                const getEffectStatus = (t, v) => {
+                                    if (negativeIsGoodTypes.includes(t)) return v < 0;
+                                    return v > 0;
+                                };
+
                                 if (typeof valueOrObj === 'object' && valueOrObj !== null) {
                                     return Object.entries(valueOrObj).map(([target, value]) => {
                                         const targetName = getTargetDisplayName(target);
@@ -609,7 +625,7 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                         const displayVal = isPercent
                                             ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
                                             : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
-                                        const isGood = ['productionInputCost', 'buildingCostMod', 'needsReduction'].includes(type) ? value < 0 : value > 0;
+                                        const isGood = getEffectStatus(type, value);
                                         return (
                                             <div key={`${type}-${target}`} className={`flex items-center gap-1 text-[11px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>
                                                 <Icon name={isGood ? "Plus" : "Minus"} size={12} className={isGood ? "text-green-500" : "text-red-500"} />
@@ -623,7 +639,7 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                     const displayVal = isPercent
                                         ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
                                         : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
-                                    const isGood = ['productionInputCost', 'buildingCostMod', 'needsReduction'].includes(type) ? value < 0 : value > 0;
+                                    const isGood = getEffectStatus(type, value);
                                     return (
                                         <div key={type} className={`flex items-center gap-1 text-[11px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>
                                             <Icon name={isGood ? "Plus" : "Minus"} size={12} className={isGood ? "text-green-500" : "text-red-500"} />

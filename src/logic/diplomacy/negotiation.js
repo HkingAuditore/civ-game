@@ -532,7 +532,7 @@ export const calculateNegotiationAcceptChance = ({
     // --- Accept Chance directly tied to deal score ---
     // If AI thinks it's gaining (positive score), high chance
     // If AI thinks it's losing (negative score), low chance
-    
+
     // Reference value for normalizing the score
     const referenceValue = Math.max(
         500,
@@ -542,13 +542,13 @@ export const calculateNegotiationAcceptChance = ({
     const baseLogit = Math.log(baseChance / (1 - baseChance));
     const scoreNorm = deal.score / referenceValue;
     let acceptChance = 1 / (1 + Math.exp(-(scoreNorm + baseLogit)));
-    
+
     // Relation modifier: good relations make deals easier
     const relationBoost = clampValue((relation - 50) / 200, -0.15, 0.15);
-    
+
     // Aggression penalty: aggressive nations are harder to negotiate with
     const aggressionPenalty = aggression * 0.12;
-    
+
     // Duration bonus: longer deals are slightly more attractive if beneficial
     const baseDuration = treatyConfig.baseDuration || 365;
     const durationBonus = deal.score > 0 && durationDays > baseDuration
@@ -568,7 +568,7 @@ export const calculateNegotiationAcceptChance = ({
         'military_alliance': 75,
         'economic_bloc': 70,
     };
-    
+
     const requiredRelation = typeRelationRequirements[type];
     if (requiredRelation && relation < requiredRelation) {
         const relationDeficit = requiredRelation - relation;
@@ -598,6 +598,8 @@ export const calculateNegotiationAcceptChance = ({
         acceptChance: Math.max(0.0, Math.min(1.0, acceptChance)),
         relationGate,
         minRelation,
+        // Stable reason code for UI: if relationGate is true, UI can show a precise message.
+        blockedReason: relationGate ? 'relation_gate' : null,
         dealScore: deal.score,
         dealBreakdown: deal.breakdown,
     };

@@ -278,16 +278,140 @@ export function hasActiveTreaty(nation, treatyType, daysElapsed = 0) {
  * @param {Array} organizations - Global list of organizations
  */
 export function isInSameBloc(nation, organizations = []) {
-    if (!organizations || !nation) return false;
+    // [DEBUG] Always log for troubleshooting
+    console.log('[isInSameBloc] Called with:', {
+        nationName: nation?.name,
+        nationId: nation?.id,
+        orgCount: organizations?.length || 0,
+        orgTypes: organizations?.map(o => o?.type) || [],
+    });
 
-    // Check if both nation and player are members of any 'economic_bloc' organization
-    return organizations.some(org =>
-        org.type === 'economic_bloc' &&
-        org.isActive &&
-        org.members &&
-        org.members.includes(nation.id) &&
-        org.members.includes('player')
-    );
+    if (!organizations || !nation) {
+        console.log('[isInSameBloc] Early return: no organizations or no nation');
+        return false;
+    }
+
+    const nationIdStr = String(nation.id);
+
+    // Check if both nation and player are members of any active 'economic_bloc' organization
+    for (const org of organizations) {
+        // Skip if not an active economic bloc
+        if (!org || org.type !== 'economic_bloc') {
+            continue;
+        }
+        
+        // [FIX] Handle organizations that may have isActive undefined (default to true for backwards compatibility)
+        const orgIsActive = org.isActive !== false;
+        if (!orgIsActive) {
+            console.log(`[isInSameBloc] Skipping inactive org: ${org.name}`);
+            continue;
+        }
+        
+        const members = Array.isArray(org.members) ? org.members : [];
+
+        // Player membership may be represented as:
+        // - literal 'player'
+        // - player nation id (number/string) in members (0, '0', or any other player nation id)
+        // - implicitly via founderId/leaderId
+        const hasPlayer =
+            members.some(m => String(m) === 'player' || String(m) === '0') ||
+            String(org.founderId) === 'player' || String(org.founderId) === '0' ||
+            String(org.leaderId) === 'player' || String(org.leaderId) === '0';
+        
+        const hasNation = members.some(m => String(m) === nationIdStr);
+
+        console.log(`[isInSameBloc] Checking org "${org.name}":`, {
+            orgId: org.id,
+            members: members,
+            nationIdStr,
+            hasPlayer,
+            hasNation,
+            founderId: org.founderId,
+            leaderId: org.leaderId,
+        });
+
+        if (hasPlayer && hasNation) {
+            console.log(`[isInSameBloc] MATCH FOUND: ${nation.name} is in same bloc as player (${org.name})`);
+            return true;
+        }
+    }
+
+    console.log(`[isInSameBloc] No matching bloc found for nation "${nation.name}" (id: ${nationIdStr})`);
+    return false;
+}
+
+/**
+ * Calculate the foreign investment profit tax rate for a given nation
+ * This function determines the tax rate that would apply when:
+ * - Player invests in target nation (direction = 'outbound')
+ * - Target nation invests in player country (direction = 'inbound')
+ * 
+ * @param {Object} params - Parameters object
+ * @param {Object} params.nation - The foreign nation
+ * @param {Array} params.organizations - Global list of organizations (for bloc membership check)
+ * @param {number} params.daysElapsed - Current game day
+ * @param {string} params.direction - 'outbound' (player -> nation) or 'inbound' (nation -> player)
+ * @returns {Object} - { rate: number, source: string, isVassal: boolean, inBloc: boolean, hasTreaty: boolean }
+ */
+export function getForeignInvestmentTaxRate({ nation, organizations = [], daysElapsed = 0, direction = 'outbound' }) {
+    if (!nation) {
+        return { rate: 0.60, source: 'DEFAULT', isVassal: false, inBloc: false, hasTreaty: false };
+    }
+
+    // For outbound: player is the investor, nation is the host (we check nation's status relative to player)
+    // For inbound: nation is the investor, player is the host (we check player's policies toward the nation)
+    
+    const isVassal = direction === 'outbound' 
+        ? nation.vassalOf === 'player'      // Nation is player's vassal
+        : nation.vassals?.includes('player'); // Player is nation's vassal (rare case)
+    
+    const hasTreaty = hasActiveTreaty(nation, 'investment_pact', daysElapsed);
+    const inBloc = isInSameBloc(nation, organizations);
+
+    const applicableRates = [];
+
+    if (isVassal) {
+        // Vassal tax rate depends on vassal type
+        const vassalConfig = VASSAL_TYPE_CONFIGS[nation.vassalType];
+        const exemption = vassalConfig?.economicPrivileges?.profitTaxExemption || 0;
+        const vassalRate = 0.25 * (1 - exemption);
+        applicableRates.push({ source: 'VASSAL', rate: vassalRate });
+    }
+
+    if (inBloc) {
+        // Economic bloc: 10% tax rate
+        applicableRates.push({ source: 'ECONOMIC_BLOC', rate: 0.10 });
+    }
+
+    if (hasTreaty) {
+        // Investment pact: 25% tax rate
+        applicableRates.push({ source: 'TREATY', rate: 0.25 });
+    }
+
+    // Select the lowest rate
+    if (applicableRates.length > 0) {
+        const bestRate = applicableRates.reduce((best, current) =>
+            current.rate < best.rate ? current : best
+        );
+        return {
+            rate: bestRate.rate,
+            source: bestRate.source,
+            isVassal,
+            inBloc,
+            hasTreaty,
+            allRates: applicableRates,
+        };
+    }
+
+    // No applicable rates: default punitive rate of 60%
+    return {
+        rate: 0.60,
+        source: 'DEFAULT',
+        isVassal,
+        inBloc,
+        hasTreaty,
+        allRates: [],
+    };
 }
 
 /**
@@ -751,6 +875,20 @@ export function processOverseasInvestments({
         const hasTreaty = hasActiveTreaty(targetNation, 'investment_pact', daysElapsed);
         const inBloc = isInSameBloc(targetNation, organizations);
 
+        // [DEBUG] Log tax rate determination factors
+        console.log(`[Tax Rate] Determining tax for investment in ${targetNation.name}:`, {
+            nationId: targetNation.id,
+            isVassal,
+            hasTreaty,
+            inBloc,
+            organizationsCount: organizations?.length || 0,
+        });
+
+        console.log(`[Tax Rate] BEFORE branch selection - isVassal: ${isVassal}, inBloc: ${inBloc}, hasTreaty: ${hasTreaty}`);
+        
+        // 使用最低税率原则：计算所有适用税率，取最优惠的
+        const applicableRates = [];
+        
         if (isVassal) {
             // 1. 附庸国 (Suzerain Privilege): Based on Vassal Type Exemption
             const vassalConfig = VASSAL_TYPE_CONFIGS[targetNation.vassalType];
@@ -758,17 +896,35 @@ export function processOverseasInvestments({
             // If exemption is 1.0 (Colony), tax is 0.
             // If exemption is 0.2 (Protectorate), tax is 25% * 0.8 = 20%.
             const exemption = vassalConfig?.economicPrivileges?.profitTaxExemption || 0;
-            targetTaxRate = 0.25 * (1 - exemption);
-        } else if (inBloc) {
+            const vassalRate = 0.25 * (1 - exemption);
+            applicableRates.push({ source: 'VASSAL', rate: vassalRate });
+        }
+        
+        if (inBloc) {
             // 2. 经济共同体 (Common Market): 10% 税率
-            targetTaxRate = 0.10;
-        } else if (hasTreaty) {
-            // 3. 投资协定 (Standard Pact): 固定 25% 税率 (硬性规定)
-            targetTaxRate = 0.25;
+            applicableRates.push({ source: 'ECONOMIC_BLOC', rate: 0.10 });
+        }
+        
+        if (hasTreaty) {
+            // 3. 投资协定 (Standard Pact): 固定 25% 税率
+            applicableRates.push({ source: 'TREATY', rate: 0.25 });
+        }
+        
+        // 选择最低税率
+        if (applicableRates.length > 0) {
+            const bestRate = applicableRates.reduce((best, current) => 
+                current.rate < best.rate ? current : best
+            );
+            targetTaxRate = bestRate.rate;
+            console.log(`[Tax Rate] Available rates: ${applicableRates.map(r => `${r.source}=${(r.rate*100).toFixed(1)}%`).join(', ')}`);
+            console.log(`[Tax Rate] SELECTED=${bestRate.source}, rate=${(targetTaxRate * 100).toFixed(1)}%`);
         } else {
             // 4. 无条约 (关系恶化导致协定终止): 惩罚性税率 60%
             targetTaxRate = 0.60;
+            console.log(`[Tax Rate] No applicable rates, using DEFAULT=60%`);
         }
+        
+        console.log(`[Tax Rate] FINAL for ${targetNation.name}: ${(targetTaxRate * 100).toFixed(1)}%`);
 
         // [FIX] Allow negative profits (losses) - no more Math.max(0, ...)
         // 只有正利润才需缴税；亏损时税额为0，全额亏损由投资者承担
@@ -833,6 +989,7 @@ export function processOverseasInvestments({
             ...profitResult,
             repatriatedProfit,
             retainedProfit,
+            effectiveTaxRate: targetTaxRate, // Store the actual tax rate used
             profitHistory,
             consecutiveLossDays, // Update counter
         };
@@ -1139,17 +1296,30 @@ export function processForeignInvestments({
         const hasTreaty = ownerNation ? hasActiveTreaty(ownerNation, 'investment_pact', daysElapsed) : false;
         const inBloc = isInSameBloc(ownerNation, organizations);
 
+        // [DEBUG] Log tax rate determination for foreign investment in player's nation
+        console.log(`[Foreign Tax] Determining tax for ${ownerNation?.name || 'unknown'}'s investment in player's nation:`, {
+            ownerId: ownerNation?.id,
+            isVassal,
+            hasTreaty,
+            inBloc,
+            organizationsCount: organizations?.length || 0,
+        });
+
         if (isVassal) {
             // 附庸国在宗主国投资：宗主国通常可以收税
             effectiveTaxRate = 0.25;
             if (inBloc) effectiveTaxRate = 0.10;
+            console.log(`[Foreign Tax] Using VASSAL rate: ${(effectiveTaxRate * 100).toFixed(1)}%`);
         } else if (inBloc) {
             effectiveTaxRate = 0.10;
+            console.log(`[Foreign Tax] Using ECONOMIC BLOC rate: 10%`);
         } else if (hasTreaty) {
             effectiveTaxRate = 0.25;
+            console.log(`[Foreign Tax] Using TREATY rate: 25%`);
         } else {
             // 无条约：惩罚性税率 60%
             effectiveTaxRate = 0.60;
+            console.log(`[Foreign Tax] Using DEFAULT rate: 60%`);
         }
 
         const taxAmount = dailyProfit > 0 ? dailyProfit * effectiveTaxRate : 0;

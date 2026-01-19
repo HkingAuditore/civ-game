@@ -1688,6 +1688,22 @@ export const simulateTick = ({
             ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
             : plannedPerCapitaTax;
         const due = count * effectivePerCapitaTax;
+        
+        // [DEBUG] 人头税征收调试日志
+        if (Math.abs(headRate) > 5) { // 只在税率异常高时输出
+            console.log(`[HEAD TAX DEBUG] ${key}:`, {
+                人口: count,
+                财富总额: available.toFixed(2),
+                人均财富: maxPerCapitaTax.toFixed(2),
+                税率倍数: headRate.toFixed(2),
+                计划人均税额: plannedPerCapitaTax.toFixed(2),
+                实际人均税额: effectivePerCapitaTax.toFixed(2),
+                应缴总额: due.toFixed(2),
+                实际支付: Math.min(available, due).toFixed(2),
+                是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '是' : '否'
+            });
+        }
+        
         if (due !== 0) {
             if (due > 0) {
                 const paid = Math.min(available, due);
@@ -2665,8 +2681,9 @@ export const simulateTick = ({
 
         // 营业税收取：每次建筑产出时收取固定银币值
         // businessTaxPerBuilding 已在上面声明，直接使用
+        // NOTE: 不随产出倍率（actualMultiplier）变化，只与建筑数量有关
         if (businessTaxPerBuilding !== 0 && count > 0) {
-            const totalBusinessTax = businessTaxPerBuilding * count * actualMultiplier;
+            const totalBusinessTax = businessTaxPerBuilding * count;
 
             if (totalBusinessTax > 0) {
                 // 正值：按 owner 比例收税
@@ -6458,38 +6475,31 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
-    // 应用官员税收效率加成 (同时减去腐败损失)
+    // 税收效率：在“入库口径”为实际支付的前提下，税收效率应在征收环节就影响“实际入库”。
+    // 目前 Ledger 的 taxBreakdown.xxx 代表真实转入国库的税额（实际支付），因此这里不再二次扣除“效率损失”。
+    // 依然保留税收效率用于 UI 展示与后续系统（如需要可在征收处注入效率）。
     const rawTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
     const effectiveTaxEfficiency = Math.max(0, Math.min(1, rawTaxEfficiency));
-    const collectedHeadTax = taxBreakdown.headTax * effectiveTaxEfficiency;
-    const collectedIndustryTax = taxBreakdown.industryTax * effectiveTaxEfficiency;
-    const collectedBusinessTax = taxBreakdown.businessTax * effectiveTaxEfficiency;
-    const collectedTariff = (taxBreakdown.tariff || 0) * effectiveTaxEfficiency; // 关税收入
+
+    // 由于 taxBreakdown 现在是“实际入库”，collectedXxx 直接等于 taxBreakdown.xxx。
+    const collectedHeadTax = taxBreakdown.headTax;
+    const collectedIndustryTax = taxBreakdown.industryTax;
+    const collectedBusinessTax = taxBreakdown.businessTax;
+    const collectedTariff = (taxBreakdown.tariff || 0); // 关税收入
+
     const taxBaseForCorruption = taxBreakdown.headTax + taxBreakdown.industryTax + taxBreakdown.businessTax + (taxBreakdown.tariff || 0);
     const efficiencyNoCorruption = Math.max(0, Math.min(1, efficiency * (1 + (bonuses.taxEfficiencyBonus || 0))));
 
-    // 计算效率损失（税收效率 < 1 导致的损失）
-    // Ledger 添加了 taxBreakdown.xxx（全额），但实际只有 collectedXxx（效率调整后）进入国库
-    // 差额 = 全额 - 收到的 = taxBreakdown.xxx * (1 - effectiveTaxEfficiency)
-    const efficiencyLoss = taxBaseForCorruption * (1 - effectiveTaxEfficiency);
-
-    console.log('[TAX DEBUG] Efficiency Calc:', {
+    console.log('[TAX DEBUG] Efficiency Calc (no post-deduction):', {
         efficiency,
         bonuses: bonuses.taxEfficiencyBonus,
         rawTaxEfficiency,
         effectiveTaxEfficiency,
         taxBase: taxBaseForCorruption,
-        efficiencyLoss,
         officialsCount: updatedOfficials.length
     });
 
-    // 先从国库扣除效率损失（无论有没有官员）
-    if (efficiencyLoss > 0) {
-        applySilverChange(-efficiencyLoss, 'tax_efficiency_loss');
-        console.log('[TAX DEBUG] Applied efficiency loss:', -efficiencyLoss);
-    }
-
-    // 然后计算腐败（官员从效率损失中获取的部分）
+    // 腐败分配逻辑：将部分税收收入视为被贪污挪走（真实从国库扣除），并按权重分配给官员财富。
     const corruptionLoss = Math.max(0, taxBaseForCorruption * (efficiencyNoCorruption - effectiveTaxEfficiency));
     if (corruptionLoss > 0 && updatedOfficials.length > 0) {
         const paidMultiplier = officialsPaid ? 1 : 0.5;
@@ -6501,30 +6511,54 @@ export const simulateTick = ({
         const totalWeight = weights.reduce((sum, val) => sum + val, 0);
         const fallbackShare = corruptionLoss / updatedOfficials.length;
         let distributed = 0;
+
         updatedOfficials.forEach((official, index) => {
             const share = totalWeight > 0 ? corruptionLoss * (weights[index] / totalWeight) : fallbackShare;
             if (share <= 0) return;
             official.wealth = Math.max(0, (official.wealth || 0) + share);
             distributed += share;
         });
+
         if (distributed > 0) {
+            // Corruption is treated as real embezzlement: money is taken from the treasury and ends up in officials' wealth.
+            // 1) Reduce treasury silver
+            applySilverChange(-distributed, 'corruption');
+
+            // 2) Increase officials wealth snapshot (used by UI)
             totalOfficialWealth += distributed;
             wealth.official = totalOfficialWealth;
             classWealthResult.official = Math.max(0, wealth.official);
             totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
             totalOfficialIncome += distributed;
-            // 腐败实际上是效率损失的一部分，已经被扣除了，这里只是给官员加财富
-            // 不再调用 ledger.transfer，因为银子已经从国库扣除了
-            ledger.transfer('void', 'official', distributed, TRANSACTION_CATEGORIES.INCOME.CORRUPTION, TRANSACTION_CATEGORIES.INCOME.CORRUPTION);
+
+            // 3) Record the flow in the ledger (state -> official)
+            ledger.transfer(
+                'state',
+                'official',
+                distributed,
+                TRANSACTION_CATEGORIES.INCOME.CORRUPTION,
+                TRANSACTION_CATEGORIES.INCOME.CORRUPTION
+            );
         }
     }
+
     const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
     const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
-    // 将税收与战争赔款一并视为财政收入
-    const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
     // NEW: Apply income percentage bonus (from tech/decree effects)
     const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
+
+    // [DEBUG] 税收汇总调试
+    console.log('[TAX SUMMARY DEBUG]', {
+        'taxBreakdown.headTax（实际入库）': taxBreakdown.headTax.toFixed(2),
+        '税收效率': effectiveTaxEfficiency.toFixed(3),
+        'collectedHeadTax（实际入库）': collectedHeadTax.toFixed(2),
+        '收入倍率': incomePercentMultiplier.toFixed(3),
+        'finalHeadTax（最终显示）': (collectedHeadTax * incomePercentMultiplier).toFixed(2)
+    });
+
+    // 将税收与战争赔款一并视为财政收入
+    const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
 
     // 税收处理
     // 注意：Ledger 已将税收 (taxBreakdown.xxx) 添加到国库并记录日志

@@ -2,7 +2,9 @@
 import { Button, Card, Tabs, Badge } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, DIPLOMACY_ERA_UNLOCK, BUILDINGS } from '../../config';
+import { ORGANIZATION_EFFECTS, TRADE_POLICY_DEFINITIONS, VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 import { getEstimatedMilitaryStrength } from '../../logic/diplomacy/militaryUtils';
+import { getForeignInvestmentTaxRate, hasActiveTreaty, isInSameBloc } from '../../logic/diplomacy/overseasInvestment';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
@@ -50,6 +52,7 @@ const NationDetailView = ({
     onMerchantStateChange,
     foreignInvestments = [],
     gameState,
+    taxPolicies,
 }) => {
     const [activeTab, setActiveTab] = useState('overview');
 
@@ -167,6 +170,13 @@ const NationDetailView = ({
                         )}
 
                         <StrategicStatus nation={nation} epoch={epoch} market={market} daysElapsed={daysElapsed} gameState={gameState} />
+
+                        <TaxRatesCard 
+                            nation={nation} 
+                            daysElapsed={daysElapsed} 
+                            diplomacyOrganizations={diplomacyOrganizations}
+                            taxPolicies={taxPolicies}
+                        />
 
                         <ActiveWars nation={nation} gameState={gameState} daysElapsed={daysElapsed} />
 
@@ -307,6 +317,224 @@ const NationDetailView = ({
 };
 
 // --- Sub-Components ---
+
+/**
+ * Component to display tariff and investment tax rates between player and this nation
+ */
+const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies }) => {
+    const organizations = diplomacyOrganizations?.organizations || [];
+    
+    // Calculate tax rates for both directions
+    const taxInfo = useMemo(() => {
+        if (!nation) return null;
+        
+        // Outbound: Player investing in this nation
+        const outboundTax = getForeignInvestmentTaxRate({
+            nation,
+            organizations,
+            daysElapsed,
+            direction: 'outbound'
+        });
+        
+        // Inbound: This nation investing in player country
+        // For inbound, we check if player is nation's vassal (rare) or treaty status
+        const inboundTax = getForeignInvestmentTaxRate({
+            nation,
+            organizations,
+            daysElapsed,
+            direction: 'inbound'
+        });
+        
+        // Calculate tariff rates
+        // Tariff discount for trading with this nation
+        let tariffDiscount = 0;
+        let tariffSource = 'DEFAULT';
+        
+        // Check for shared economic bloc
+        const sharedBloc = organizations.find(org => {
+            if (!org || org.type !== 'economic_bloc' || org.isActive === false) return false;
+            const members = Array.isArray(org.members) ? org.members : [];
+            const nationIdStr = String(nation.id);
+            const hasPlayer = members.some(m => String(m) === 'player' || String(m) === '0') ||
+                String(org.founderId) === 'player' || String(org.founderId) === '0';
+            const hasNation = members.some(m => String(m) === nationIdStr);
+            return hasPlayer && hasNation;
+        });
+        
+        if (sharedBloc) {
+            tariffDiscount = Math.max(tariffDiscount, ORGANIZATION_EFFECTS.economic_bloc?.tariffDiscount || 0);
+            tariffSource = 'ECONOMIC_BLOC';
+        }
+        
+        // Check vassal trade policy
+        if (nation.vassalOf === 'player') {
+            const policyId = nation.vassalPolicy?.tradePolicy || 'preferential';
+            const policyDiscount = TRADE_POLICY_DEFINITIONS[policyId]?.tariffDiscount || 0;
+            const typeDiscount = VASSAL_TYPE_CONFIGS[nation.vassalType]?.tariffDiscount || 0;
+            const vassalDiscount = Math.max(policyDiscount, typeDiscount);
+            if (vassalDiscount > tariffDiscount) {
+                tariffDiscount = vassalDiscount;
+                tariffSource = policyId === 'exclusive' || policyId === 'looting' || policyId === 'dumping' 
+                    ? 'VASSAL_EXCLUSIVE' 
+                    : 'VASSAL_PREFERENTIAL';
+            }
+        }
+        
+        // Player's base tariff rates (from tax policies)
+        // These are the rates player sets, which get reduced by discount
+        const avgImportTariff = taxPolicies?.importTariffMultipliers 
+            ? Object.values(taxPolicies.importTariffMultipliers).reduce((a, b) => a + b, 0) / 
+              Math.max(1, Object.keys(taxPolicies.importTariffMultipliers).length)
+            : 0;
+        const avgExportTariff = taxPolicies?.exportTariffMultipliers
+            ? Object.values(taxPolicies.exportTariffMultipliers).reduce((a, b) => a + b, 0) / 
+              Math.max(1, Object.keys(taxPolicies.exportTariffMultipliers).length)
+            : 0;
+        
+        return {
+            outboundTax,
+            inboundTax,
+            tariffDiscount,
+            tariffSource,
+            avgImportTariff: avgImportTariff * (1 - tariffDiscount),
+            avgExportTariff: avgExportTariff * (1 - tariffDiscount),
+            rawImportTariff: avgImportTariff,
+            rawExportTariff: avgExportTariff,
+        };
+    }, [nation, organizations, daysElapsed, taxPolicies]);
+    
+    if (!taxInfo) return null;
+    
+    const getSourceLabel = (source) => {
+        const labels = {
+            'VASSAL': '附庸特权',
+            'VASSAL_EXCLUSIVE': '垄断贸易',
+            'VASSAL_PREFERENTIAL': '优惠准入',
+            'ECONOMIC_BLOC': '经济共同体',
+            'TREATY': '投资协定',
+            'DEFAULT': '无协议',
+        };
+        return labels[source] || source;
+    };
+    
+    const getRateColor = (rate) => {
+        if (rate <= 0.1) return 'text-green-400';
+        if (rate <= 0.25) return 'text-blue-400';
+        if (rate <= 0.4) return 'text-yellow-400';
+        return 'text-red-400';
+    };
+    
+    return (
+        <Card className="p-4 bg-ancient-ink/20 border-ancient-gold/10">
+            <h3 className="text-xs font-bold text-ancient-gold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-80">
+                <Icon name="Receipt" size={14} />
+                双边税率
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Outbound: Player -> Nation */}
+                <div className="bg-black/20 rounded-lg p-3 border border-white/5">
+                    <div className="text-[10px] text-ancient-stone uppercase mb-2 flex items-center gap-1">
+                        <Icon name="ArrowUpRight" size={12} className="text-amber-400" />
+                        我方 → {nation.name}
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs text-ancient-stone">外资利润税</span>
+                            <div className="text-right">
+                                <span className={`text-sm font-mono font-bold ${getRateColor(taxInfo.outboundTax.rate)}`}>
+                                    {(taxInfo.outboundTax.rate * 100).toFixed(0)}%
+                                </span>
+                                <div className="text-[9px] text-ancient-stone/60">
+                                    {getSourceLabel(taxInfo.outboundTax.source)}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs text-ancient-stone">关税折扣</span>
+                            <div className="text-right">
+                                <span className={`text-sm font-mono font-bold ${taxInfo.tariffDiscount > 0 ? 'text-green-400' : 'text-ancient-stone'}`}>
+                                    {taxInfo.tariffDiscount > 0 ? `-${(taxInfo.tariffDiscount * 100).toFixed(0)}%` : '无'}
+                                </span>
+                                {taxInfo.tariffDiscount > 0 && (
+                                    <div className="text-[9px] text-ancient-stone/60">
+                                        {getSourceLabel(taxInfo.tariffSource)}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Inbound: Nation -> Player */}
+                <div className="bg-black/20 rounded-lg p-3 border border-white/5">
+                    <div className="text-[10px] text-ancient-stone uppercase mb-2 flex items-center gap-1">
+                        <Icon name="ArrowDownLeft" size={12} className="text-blue-400" />
+                        {nation.name} → 我方
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs text-ancient-stone">外资利润税</span>
+                            <div className="text-right">
+                                <span className={`text-sm font-mono font-bold ${getRateColor(taxInfo.inboundTax.rate)}`}>
+                                    {(taxInfo.inboundTax.rate * 100).toFixed(0)}%
+                                </span>
+                                <div className="text-[9px] text-ancient-stone/60">
+                                    {getSourceLabel(taxInfo.inboundTax.source)}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs text-ancient-stone">我方关税</span>
+                            <div className="text-right">
+                                <div className="flex gap-2 text-sm font-mono">
+                                    <span className="text-blue-300" title="进口关税">
+                                        进{taxInfo.rawImportTariff !== 0 ? (taxInfo.rawImportTariff * 100).toFixed(0) : 0}%
+                                    </span>
+                                    <span className="text-amber-300" title="出口关税">
+                                        出{taxInfo.rawExportTariff !== 0 ? (taxInfo.rawExportTariff * 100).toFixed(0) : 0}%
+                                    </span>
+                                </div>
+                                {taxInfo.tariffDiscount > 0 && (
+                                    <div className="text-[9px] text-green-400/60">
+                                        (享{(taxInfo.tariffDiscount * 100).toFixed(0)}%折扣)
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Status indicators */}
+            <div className="mt-3 flex flex-wrap gap-2">
+                {taxInfo.outboundTax.isVassal && (
+                    <Badge variant="neutral" className="text-[10px] bg-purple-900/30 border-purple-500/30 text-purple-300">
+                        <Icon name="Crown" size={10} className="mr-1" />
+                        附庸国
+                    </Badge>
+                )}
+                {taxInfo.outboundTax.inBloc && (
+                    <Badge variant="neutral" className="text-[10px] bg-amber-900/30 border-amber-500/30 text-amber-300">
+                        <Icon name="Users" size={10} className="mr-1" />
+                        经济共同体
+                    </Badge>
+                )}
+                {taxInfo.outboundTax.hasTreaty && (
+                    <Badge variant="neutral" className="text-[10px] bg-blue-900/30 border-blue-500/30 text-blue-300">
+                        <Icon name="ScrollText" size={10} className="mr-1" />
+                        投资协定
+                    </Badge>
+                )}
+                {!taxInfo.outboundTax.isVassal && !taxInfo.outboundTax.inBloc && !taxInfo.outboundTax.hasTreaty && (
+                    <Badge variant="neutral" className="text-[10px] bg-red-900/30 border-red-500/30 text-red-300">
+                        <Icon name="AlertTriangle" size={10} className="mr-1" />
+                        无投资保护
+                    </Badge>
+                )}
+            </div>
+        </Card>
+    );
+};
 
 /**
  * Component to display foreign investments from a specific nation in player's country
@@ -798,7 +1026,10 @@ const treatyTypeToLabel = (type) => {
         alliance: '军事同盟',
         peace_treaty: '和平条约',
         open_market: '开放市场',
-        free_trade: '自由贸易',
+        investment_pact: '投资协议',
+        free_trade: '自由贸易协定',
+        academic_exchange: '学术交流',
+        economic_bloc: '经济共同体',
     };
     return map[type] || type.replace('_', ' ');
 };
@@ -864,7 +1095,7 @@ const ActiveWars = ({ nation, gameState, daysElapsed }) => {
         if (nation.isAtWar) {
             wars.push({
                 id: 'player',
-                name: '玩家', // Or get player nation name if available
+                name: gameState?.empireName || '我方',
                 isPlayer: true,
                 startDate: nation.warStartDay || 0,
                 score: nation.warScore || 0, // AI vs Player score usually from AI perspective
@@ -912,7 +1143,7 @@ const ActiveWars = ({ nation, gameState, daysElapsed }) => {
                                     VS {war.name}
                                 </span>
                                 {war.isPlayer && (
-                                    <Badge variant="danger" className="text-[9px] scale-90">YOU</Badge>
+                                    <Badge variant="danger" className="text-[9px] scale-90">你</Badge>
                                 )}
                             </div>
                             <div className="text-right">

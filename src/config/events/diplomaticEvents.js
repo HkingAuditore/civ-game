@@ -800,11 +800,11 @@ export function createOrganizationInviteEvent(nation, organization, callback) {
     // 根据组织类型设置描述
     let benefits = '';
     if (orgType === 'military_alliance') {
-        benefits = '\\n\\n加入后的效益:\\n• 与成员国共同防御\\n• 成员间关系加成 +5\\n• 军事力量加成 +10%';
+        benefits = '\n\n加入后的效益:\n• 与成员国共同防御\n• 成员间关系加成 +5\n• 军事力量加成 +10%';
     } else if (orgType === 'economic_bloc') {
-        benefits = '\\n\\n加入后的效益:\\n• 成员间关税减免 30%\\n• 成员间关系加成 +5\\n• 贸易效率加成 +20%';
+        benefits = '\n\n加入后的效益:\n• 成员间关税减免 30%\n• 成员间关系加成 +5\n• 贸易效率加成 +20%';
     } else if (orgType === 'free_trade_zone') {
-        benefits = '\\n\\n加入后的效益:\\n• 成员间关税全免\\n• 贸易效率大幅提升';
+        benefits = '\n\n加入后的效益:\n• 成员间关税全免\n• 贸易效率大幅提升';
     }
 
     return {
@@ -812,7 +812,7 @@ export function createOrganizationInviteEvent(nation, organization, callback) {
         name: `${nation.name}的组织邀请`,
         icon: orgType === 'military_alliance' ? 'Shield' : orgType === 'economic_bloc' ? 'TrendingUp' : 'Users',
         image: null,
-        description: `${nation.name}派遣使节前来,邀请你加入"${orgName}"。\\n\\n该组织目前有${memberCount}个成员国。${benefits}\\n\\n接受邀请将与${nation.name}以及其他成员国建立更紧密的关系。`,
+        description: `${nation.name}派遣使节前来,邀请你加入"${orgName}"。\n\n该组织目前有${memberCount}个成员国。${benefits}\n\n接受邀请将与${nation.name}以及其他成员国建立更紧密的关系。`,
         isDiplomaticEvent: true,
         options: [
             {

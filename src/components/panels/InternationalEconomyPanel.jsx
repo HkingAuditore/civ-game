@@ -101,13 +101,28 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
             .map(inv => {
                 const nation = nations.find(n => n.id === inv.targetNationId);
                 const building = BUILDINGS.find(b => b.id === inv.buildingId);
+                const profit = inv.operatingData?.profit || 0;
+                // These are computed in processOverseasInvestments (overseasInvestment.js)
+                const repatriated = inv.operatingData?.repatriatedProfit;
+                const retained = inv.operatingData?.retainedProfit;
+                // Use the stored effectiveTaxRate directly from operatingData
+                const effectiveTaxRate = inv.operatingData?.effectiveTaxRate ?? (
+                    // Fallback: calculate from retained/profit if not stored
+                    profit > 0 && typeof retained === 'number'
+                        ? (retained / profit)
+                        : 0
+                );
+
                 return {
                     ...inv,
                     nationName: nation?.name || '未知国家',
                     nationColor: nation?.color,
                     building,
                     buildingName: building?.name || '未知建筑',
-                    profitPerDay: inv.operatingData?.profit || 0,
+                    profitPerDay: profit,
+                    repatriatedPerDay: typeof repatriated === 'number' ? repatriated : profit,
+                    taxPerDay: typeof retained === 'number' ? retained : 0,
+                    effectiveTaxRate,
                     decisions: inv.operatingData?.decisions
                 };
             })
@@ -166,11 +181,21 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className={`text-sm font-mono font-bold ${inv.profitPerDay >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        {inv.profitPerDay >= 0 ? '+' : ''}{inv.profitPerDay.toFixed(1)}/日
+                                    <div className={`text-sm font-mono font-bold ${inv.repatriatedPerDay >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {inv.repatriatedPerDay >= 0 ? '+' : ''}{inv.repatriatedPerDay.toFixed(1)}/日
                                     </div>
-                                    <div className="text-[9px] text-gray-500">净利润</div>
+                                    <div className="text-[9px] text-gray-500">净汇回</div>
                                 </div>
+                            </div>
+
+                            {/* Tax line */}
+                            <div className="flex justify-between items-center text-[10px] text-gray-500 mb-2">
+                                <span>外资利润税/汇回税</span>
+                                <span>
+                                    <span className="text-gray-400">税率</span> <span className="text-amber-300 font-mono">{(inv.effectiveTaxRate * 100).toFixed(1)}%</span>
+                                    <span className="mx-2 text-gray-600">|</span>
+                                    <span className="text-gray-400">日税额</span> <span className="text-red-300 font-mono">-{inv.taxPerDay.toFixed(1)}</span>
+                                </span>
                             </div>
 
                             {/* Visual Flow */}
@@ -228,6 +253,11 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                     <Icon name="AlertTriangle" size={12} />
                     <span>国有化所有外资</span>
                 </button>
+            </div>
+
+            {/* Note about tax source */}
+            <div className="text-[10px] text-gray-500 bg-gray-900/30 border border-gray-800/40 rounded-lg p-2">
+                外资利润税会在每日结算时自动扣除并计入国库（税率受条约/共同体等外交规则影响）。
             </div>
 
             {/* List */}

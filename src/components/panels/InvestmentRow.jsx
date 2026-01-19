@@ -183,6 +183,39 @@ export const InvestmentRow = memo(({ group, expandedCard, setExpandedCard, playe
                         </div>
                     </div>
 
+                    {/* 税收/汇回展示 */}
+                    {(() => {
+                        const profit = group.investments.reduce((s, i) => s + (i.operatingData?.profit || 0), 0);
+                        const tax = group.investments.reduce((s, i) => s + (i.operatingData?.retainedProfit || 0), 0);
+                        const repatriated = group.investments.reduce((s, i) => {
+                            const v = i.operatingData?.repatriatedProfit;
+                            return s + (typeof v === 'number' ? v : 0);
+                        }, 0);
+                        // Use stored effectiveTaxRate directly (prefer first investment's rate)
+                        const storedRate = group.investments[0]?.operatingData?.effectiveTaxRate;
+                        const rate = typeof storedRate === 'number' ? storedRate : (profit > 0 ? (tax / profit) : 0);
+
+                        // If repatriatedProfit/retainedProfit not present yet (older save / not processed this tick), hide.
+                        const hasTaxFields = group.investments.some(i => typeof i.operatingData?.retainedProfit === 'number' || typeof i.operatingData?.repatriatedProfit === 'number');
+                        if (!hasTaxFields) return null;
+
+                        return (
+                            <div className="flex justify-between items-center text-[10px] bg-gray-900/30 border border-gray-700/30 rounded p-2">
+                                <div className="text-gray-400">外资利润税 / 汇回税</div>
+                                <div className="text-right">
+                                    <div>
+                                        <span className="text-gray-500">税率</span>{' '}
+                                        <span className="text-amber-300 font-mono">{(rate * 100).toFixed(1)}%</span>{' '}
+                                        <span className="text-gray-600 mx-1">|</span>{' '}
+                                        <span className="text-gray-500">日税额</span>{' '}
+                                        <span className="text-red-300 font-mono">-{tax.toFixed(1)}</span>
+                                    </div>
+                                    <div className="text-[9px] text-gray-500 mt-0.5">净汇回: <span className="text-green-300 font-mono">{repatriated.toFixed(1)}/日</span></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
                     {/* 批量撤回 */}
                     <button
                         className="w-full px-3 py-1.5 rounded text-[11px] bg-red-900/20 text-red-400 hover:bg-red-900/40 border border-red-800/30 transition-colors"

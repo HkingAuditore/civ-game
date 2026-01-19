@@ -862,6 +862,7 @@ export const checkWarDeclaration = ({
     const canDeclareWar = !next.isAtWar &&
         !hasPeaceTreaty &&
         !isPlayerAlly &&
+        next.vassalOf !== 'player' && // [FIX] Vassals cannot declare normal hostility wars on overlord
         relation < 25 &&
         currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
         !recentWarDeclarations;
@@ -909,6 +910,7 @@ export const checkWarDeclaration = ({
     const aiMilitaryStrength = next.militaryStrength ?? 1.0;
 
     if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
+        next.vassalOf !== 'player' && // [FIX] Vassals cannot declare regular wealth wars on overlord
         epoch >= minWarEpoch &&
         playerWealth > aiWealth * 2 &&
         aiMilitaryStrength > 0.8 &&
@@ -979,6 +981,8 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs, dip
             if (n.id === warmonger.id) return false;
             if (n.foreignWars?.[warmonger.id]?.isAtWar) return false;
             if (areNationsAllied(n.id, warmonger.id, diplomacyOrganizations?.organizations)) return false;
+            // [FIX] Vassals cannot join coalition against overlord
+            if (n.vassalOf === warmonger.id || warmonger.vassalOf === n.id) return false;
             const relation = n.foreignRelations?.[warmonger.id] ?? 50;
             return relation < 40;
         });
@@ -1000,7 +1004,6 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs, dip
  * Process AI-AI war declarations
  * @param {Array} visibleNations - Array of visible nations
  * @param {Array} updatedNations - Full nations array
-
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
  * @param {Object} diplomacyOrganizations - Org state
@@ -1016,10 +1019,11 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
             if (tick < peaceUntil) return;
 
-
-
             const isAllied = areNationsAllied(nation.id, otherNation.id, diplomacyOrganizations?.organizations);
             if (isAllied) return;
+
+            // [FIX] Check for Vassal/Suzerain relationship - standard wars not allowed
+            if (nation.vassalOf === otherNation.id || otherNation.vassalOf === nation.id) return;
 
             const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
             const maxWarsAllowed = nation.aggression > 0.7 ? 2 : 1;
@@ -1091,6 +1095,12 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
 
                 if (Math.random() < warChance) {
                     if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                        // Check if vassal is allowed to declare war
+                        const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+                        if (diplomaticControl === 'puppet') {
+                            return; // Puppet vassals cannot initiate war independently
+                        }
+                        
                         vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                             vassal: nation,
                             target: otherNation,
@@ -1281,6 +1291,16 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                     if (needsApproval && Array.isArray(vassalDiplomacyRequests)) {
                         const requester = requiresVassalDiplomacyApproval(nation) ? nation : enemy;
                         const target = requester.id === nation.id ? enemy : nation;
+                        
+                        // Check if requester is allowed to propose peace
+                        const diplomaticControl = requester.vassalPolicy?.diplomaticControl || 'guided';
+                        if (diplomaticControl === 'puppet') {
+                            // Puppet vassals cannot propose peace independently
+                            // Peace will be handled automatically or by player order
+                            return;
+                        }
+                        
+                        // Only generate peace request if not already pending
                         if (!war.pendingPeaceApproval) {
                             vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                                 vassal: requester,

@@ -4,7 +4,7 @@
  * 包含概览和政策调整两个Tab
  */
 
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, memo, useEffect, useRef, useCallback } from 'react';
 import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
@@ -206,22 +206,22 @@ const TRADE_POLICY_OPTIONS = [
     {
         id: 'free',
         title: '自由贸易',
-        description: '附庸可与任何国家自由贸易',
-        effects: '贸易收益-20%，独立倾向-5/年',
+        description: '允许附庸与任何国家自由贸易，换取政治稳定',
+        effects: '无价格优势、无关税减免，独立倾向增速-20%',
         effectColor: 'text-green-400',
     },
     {
         id: 'preferential',
         title: '优惠准入',
-        description: '你的商人享有优先贸易权',
+        description: '你的商人享有优先贸易权，关税减免50%',
         effects: '维持现状（默认）',
         effectColor: 'text-gray-400',
     },
     {
         id: 'monopoly',
         title: '垄断贸易',
-        description: '强制所有贸易通过你的商人',
-        effects: '贸易收益+30%，独立倾向+10/年',
+        description: '强制附庸所有贸易通过你的商人，关税全免',
+        effects: '独立倾向增速+30%',
         effectColor: 'text-red-400',
     },
 ];
@@ -716,28 +716,67 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         return gdp * (tributeRate / 100);
     }, [nation?.gdp, tributeRate]);
 
-    // 应用政策
-    const handleApply = () => {
-        onApplyPolicy?.({
-            diplomaticControl,
-            tradePolicy,
-            labor: laborPolicy,  // NEW: Labor policy
-            investmentPolicy,    // NEW: Investment policy
-            military: militaryPolicy,  // NEW: Military policy
-            autonomy,
-            tributeRate: tributeRate / 100,
-            controlMeasures,
-            controlCostPerDay: totalControlCost,
-        });
-    };
+    const buildPolicyPayload = useCallback(() => ({
+        diplomaticControl,
+        tradePolicy,
+        labor: laborPolicy,
+        investmentPolicy,
+        military: militaryPolicy,
+        autonomy,
+        tributeRate: tributeRate / 100,
+        controlMeasures,
+        controlCostPerDay: totalControlCost,
+    }), [
+        diplomaticControl,
+        tradePolicy,
+        laborPolicy,
+        investmentPolicy,
+        militaryPolicy,
+        autonomy,
+        tributeRate,
+        controlMeasures,
+        totalControlCost,
+    ]);
 
-    // 重置为默认
+    // 自动应用（去掉“应用政策”按钮）：
+    // - 通过 debounce 避免拖动滑条时每一帧都触发 action/log
+    // - 首次渲染不触发，避免打开面板就刷一条“已调整政策”日志
+    const didInitRef = useRef(false);
+    const debounceTimerRef = useRef(null);
+    useEffect(() => {
+        if (!nation) return;
+
+        if (!didInitRef.current) {
+            didInitRef.current = true;
+            return;
+        }
+
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+        }
+
+        debounceTimerRef.current = setTimeout(() => {
+            onApplyPolicy?.(buildPolicyPayload());
+        }, 250);
+
+        return () => {
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+            }
+        };
+    }, [
+        nation,
+        buildPolicyPayload,
+        onApplyPolicy,
+    ]);
+
+    // 重置为默认（重置会自然触发自动应用）
     const handleReset = () => {
         setDiplomaticControl('guided');
         setTradePolicy('preferential');
-        setLaborPolicy('standard');  // NEW: Reset labor policy
-        setInvestmentPolicy('autonomous'); // NEW: Reset investment policy
-        setMilitaryPolicy('call_to_arms'); // NEW: Reset military policy
+        setLaborPolicy('standard');
+        setInvestmentPolicy('autonomous');
+        setMilitaryPolicy('call_to_arms');
         setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
         const resetMeasures = {};
@@ -1093,7 +1132,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                                             if (!selectedId) return '-- 选择官员 --';
                                                             const selected = officials.find(o => o.id === selectedId);
                                                             if (!selected) return '未知官员';
-                                                            return `${selected.name} (威${selected.stats?.prestige ?? selected.prestige ?? 50}/政${selected.stats?.administrative ?? selected.administrative ?? 50}/军${selected.stats?.military ?? selected.military ?? 30}/交${selected.stats?.diplomacy ?? selected.diplomacy ?? 30})`;
+                                                            return `${selected.name} (威${selected.stats?.prestige ?? selected.prestige ?? 50}/政${selected.stats?.administrative ?? selected.administrative ?? 50}/军${selected.stats?.military ?? selected.military ?? 30}/外${selected.stats?.diplomacy ?? selected.diplomacy ?? 30})`;
                                                         })()}
                                                     </span>
                                                     <Icon name={isGovernorSelectorOpen ? "ChevronUp" : "ChevronDown"} size={14} className="text-gray-400 ml-2 flex-shrink-0" />
@@ -1125,7 +1164,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                                                     }}
                                                                 >
                                                                     <span className="truncate mr-2">
-                                                                        {official.name} (威{official.stats?.prestige ?? official.prestige ?? 50}/政{official.stats?.administrative ?? official.administrative ?? 50}/军{official.stats?.military ?? official.military ?? 30}/交{official.stats?.diplomacy ?? official.diplomacy ?? 30})
+                                                                        {official.name} (威{official.stats?.prestige ?? official.prestige ?? 50}/政{official.stats?.administrative ?? official.administrative ?? 50}/军{official.stats?.military ?? official.military ?? 30}/外{official.stats?.diplomacy ?? official.diplomacy ?? 30})
                                                                     </span>
                                                                     {controlMeasures.governor?.officialId === official.id && (
                                                                         <Icon name="Check" size={12} className="text-blue-400 flex-shrink-0" />
@@ -1206,20 +1245,19 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 </div>
             </div>
 
-            {/* 底部操作按钮 */}
-            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
-                <button
-                    onClick={handleReset}
-                    className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                    重置为默认
-                </button>
-                <button
-                    onClick={handleApply}
-                    className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-                >
-                    应用政策
-                </button>
+            {/* 底部操作按钮（Sticky） */}
+            <div className="sticky bottom-0 -mx-1 px-1 pt-2 pb-1 border-t border-gray-700 bg-gradient-to-t from-gray-950/95 via-gray-950/80 to-transparent backdrop-blur">
+                <div className="flex items-center justify-between">
+                    <div className="text-[10px] text-gray-500">
+                        政策将自动生效
+                    </div>
+                    <button
+                        onClick={handleReset}
+                        className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+                    >
+                        重置为默认
+                    </button>
+                </div>
             </div>
         </div>
     );

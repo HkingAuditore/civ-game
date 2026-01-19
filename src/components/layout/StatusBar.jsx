@@ -118,6 +118,7 @@ export const StatusBar = ({
         trade_route_transaction: '贸易结算',
         overseas_investment_return: '海外投资收益',
         tax_efficiency_loss: '征税效率损失',
+        build_purchase: '购买建筑',
     };
 
     // Debug: Check activeEventEffects

@@ -232,7 +232,15 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
 
         const partner = tradeCandidates[Math.floor(Math.random() * tradeCandidates.length)];
         const tradeValue = Math.floor(20 + Math.random() * 60);
+        
+        // Check if vassal needs approval AND is allowed to perform this action
         if (requiresVassalDiplomacyApproval(nation)) {
+            // For puppet diplomacy, vassals should not generate trade requests at all
+            const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+            if (diplomaticControl === 'puppet') {
+                return; // Puppet vassals cannot initiate trade independently
+            }
+            
             if (Array.isArray(vassalDiplomacyRequests)) {
                 vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                     vassal: nation,
@@ -588,6 +596,12 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
 
             if (approval) {
                 if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    // Check if vassal is allowed to join organizations
+                    const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+                    if (diplomaticControl === 'puppet') {
+                        return; // Puppet vassals cannot join organizations independently
+                    }
+                    
                     vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                         vassal: nation,
                         target: partner,
@@ -662,6 +676,12 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
 
             if (createResult.success) {
                 if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    // Check if vassal is allowed to create organizations
+                    const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+                    if (diplomaticControl === 'puppet') {
+                        return; // Puppet vassals cannot create organizations independently
+                    }
+                    
                     vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                         vassal: nation,
                         target: partner,
@@ -756,6 +776,12 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
 
             if (approval) {
                 if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    // Check if vassal is allowed to join alliances
+                    const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+                    if (diplomaticControl === 'puppet') {
+                        return; // Puppet vassals cannot join alliances independently
+                    }
+                    
                     vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                         vassal: nation,
                         target: ally,
@@ -817,6 +843,12 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
 
             if (createResult.success) {
                 if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
+                    // Check if vassal is allowed to create alliances
+                    const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+                    if (diplomaticControl === 'puppet') {
+                        return; // Puppet vassals cannot create alliances independently
+                    }
+                    
                     vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                         vassal: nation,
                         target: ally,
@@ -918,6 +950,12 @@ export const processAIOrganizationRecruitment = (visibleNations, tick, logs, dip
         if (Math.random() > baseChance + relationBoost) return;
 
         if (requiresVassalDiplomacyApproval(pick.candidate) && Array.isArray(vassalDiplomacyRequests)) {
+            // Check if vassal is allowed to join organizations
+            const diplomaticControl = pick.candidate.vassalPolicy?.diplomaticControl || 'guided';
+            if (diplomaticControl === 'puppet') {
+                return; // Puppet vassals cannot join organizations independently
+            }
+            
             vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                 vassal: pick.candidate,
                 target: null,
@@ -979,6 +1017,12 @@ export const processAIOrganizationMaintenance = (visibleNations, tick, logs, dip
 
             if (avgRel < threshold && Math.random() < leaveChance) {
                 if (requiresVassalDiplomacyApproval(member) && Array.isArray(vassalDiplomacyRequests)) {
+                    // Check if vassal is allowed to leave organizations
+                    const diplomaticControl = member.vassalPolicy?.diplomaticControl || 'guided';
+                    if (diplomaticControl === 'puppet') {
+                        continue; // Puppet vassals cannot leave organizations independently
+                    }
+                    
                     vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                         vassal: member,
                         target: null,

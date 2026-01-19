@@ -52,7 +52,7 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         maxMembers: 10,
         createCost: 0.08,           // 创建成本：玩家财富 × 8%
         memberFee: 0.002,           // 成员费：每月国家财富 × 0.2%
-        minRelation: 45,
+        minRelation: 75,
         leaveCost: 0.05,            // 退出成本：财富 × 5%
         founderLeaveCost: 0.12,     // 创始人退出成本：财富 × 12%
         leaveRelationPenalty: -10,  // 退出后与所有成员关系 -10
@@ -64,7 +64,7 @@ export const ORGANIZATION_TYPE_CONFIGS = {
             relationBonus: 5,
             tradeEfficiency: 0.2,    // 贸易效率加成 20%
         },
-        description: '成员国共享经济利益，减免关税，促进贸易自由化',
+        description: '成员国共享经济利益，减免关税，促进贸易自由化（加入需通过外交谈判，且通常要求与创始国关系≥75）',
     },
 };
 
@@ -129,7 +129,7 @@ export function createOrganization({
         return { success: false, reason: `需要 ${DIPLOMACY_ERA_UNLOCK.organizations[type]?.name} 时代解锁` };
     }
 
-    const orgId = `org_${type}_${Date.now()}`;
+    const orgId = `org_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const orgName = name || `${founderName}主导的${config.name}`;
 
     return {
@@ -224,7 +224,17 @@ export function leaveOrganization(organization, nationId) {
         };
     }
 
-    // 如果创始国退出，转移所有权给最早加入的成员
+    // If founder leaves, optionally disband the organization (default true)
+    if (nationId === organization.founderId && config?.founderLeaveDisbands !== false) {
+        return {
+            ...organization,
+            members: newMembers,
+            isActive: false,
+            disbandReason: '创始国退出',
+        };
+    }
+
+    // Otherwise, transfer founder to the earliest remaining member (fallback)
     let newFounderId = organization.founderId;
     if (nationId === organization.founderId && newMembers.length > 0) {
         newFounderId = newMembers[0];
@@ -455,6 +465,16 @@ export function getOrganizationEffectDescriptions(orgType) {
     if (effects.mutualDefense) {
         descriptions.push('🛡️ 共同防御');
     }
+
+    // Economic bloc has additional implicit rules implemented elsewhere (overseasInvestment.js)
+    // so we explicitly describe them here to avoid missing core gameplay effects.
+    if (orgType === 'economic_bloc') {
+        descriptions.push('✅ 加入方式：需通过外交谈判向创始国申请加入（关系门槛以谈判界面显示为准）');
+        descriptions.push('📌 申请加入硬门槛：与创始国关系需达到 75（未达标将直接被阻止/极低通过率）');
+        descriptions.push('🏦 成员国互相开放海外投资（允许彼此建立海外资产/外资项目）');
+        descriptions.push('💸 海外投资利润汇回税率降至 10%（替代无条约时的惩罚性税率）');
+    }
+
     if (effects.tariffDiscount) {
         descriptions.push(`📉 成员间关税 -${Math.round(effects.tariffDiscount * 100)}%`);
     }
@@ -465,7 +485,8 @@ export function getOrganizationEffectDescriptions(orgType) {
         descriptions.push(`⚔️ 军事力量 +${Math.round(effects.militaryBonus * 100)}%`);
     }
     if (effects.tradeEfficiency) {
-        descriptions.push(`📈 贸易效率 +${Math.round(effects.tradeEfficiency * 100)}%`);
+        // Avoid misleading "profit from nothing" phrasing. This is a gameplay bonus applied to trade outcomes.
+        descriptions.push(`📈 贸易效率 +${Math.round(effects.tradeEfficiency * 100)}%（同等贸易量下结算收益更高）`);
     }
 
     return descriptions;

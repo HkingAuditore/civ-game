@@ -1078,6 +1078,24 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         }
     }
 
+    // ========== NEW: 调整军事政策 ==========
+    if (policyChanges.military) {
+        const validOptions = ['autonomous', 'call_to_arms', 'auto_join'];
+        if (validOptions.includes(policyChanges.military)) {
+            updated.vassalPolicy.military = policyChanges.military;
+
+            // 军事政策对独立倾向的一次性影响（切换时）
+            const independenceEffects = {
+                autonomous: -2,     // 更松的军事约束降低独立倾向（短期缓和）
+                call_to_arms: 0,
+                auto_join: 2,       // 更强约束增加独立倾向
+            };
+            updated.independencePressure = Math.min(100, Math.max(0,
+                (updated.independencePressure || 0) + (independenceEffects[policyChanges.military] || 0)
+            ));
+        }
+    }
+
     // ========== NEW: 调整投资政策 ==========
     if (policyChanges.investmentPolicy) {
         const validOptions = ['autonomous', 'guided', 'forced'];
