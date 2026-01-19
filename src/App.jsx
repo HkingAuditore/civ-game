@@ -765,10 +765,35 @@ function GameApp({ gameState }) {
         state => state.jobFill,
         UI_THROTTLE_PRESETS.normal
     );
+    const deferredBuildTabJobFill = useThrottledSelector(
+        gameState,
+        state => state.jobFill,
+        UI_THROTTLE_PRESETS.slow
+    );
     const deferredPopStructure = useThrottledSelector(
         gameState,
         state => state.popStructure,
         UI_THROTTLE_PRESETS.normal
+    );
+    const deferredBuildTabResources = useThrottledSelector(
+        gameState,
+        state => state.resources,
+        UI_THROTTLE_PRESETS.slow
+    );
+    const deferredBuildTabMarket = useThrottledSelector(
+        gameState,
+        state => state.market,
+        UI_THROTTLE_PRESETS.slow
+    );
+    const deferredBuildTabBuildingJobsRequired = useThrottledSelector(
+        gameState,
+        state => state.buildingJobsRequired,
+        UI_THROTTLE_PRESETS.slow
+    );
+    const deferredBuildTabBuildingFinancialData = useThrottledSelector(
+        gameState,
+        state => state.buildingFinancialData,
+        UI_THROTTLE_PRESETS.slow
     );
     const deferredLogs = useThrottledSelector(
         gameState,
@@ -1138,17 +1163,17 @@ function GameApp({ gameState }) {
                                         {gameState.activeTab === 'build' && (
                                             <BuildTab
                                                 buildings={deferredBuildings}
-                                                resources={deferredResources}
+                                                resources={deferredBuildTabResources}
                                                 epoch={gameState.epoch}
                                                 techsUnlocked={gameState.techsUnlocked}
                                                 popStructure={deferredPopStructure}
-                                                jobFill={deferredJobFill}
-                                                buildingJobsRequired={gameState.buildingJobsRequired}
+                                                jobFill={deferredBuildTabJobFill}
+                                                buildingJobsRequired={deferredBuildTabBuildingJobsRequired}
                                                 buildingUpgrades={deferredBuildingUpgrades}
                                                 onBuy={actions.buyBuilding}
                                                 onSell={actions.sellBuilding}
-                                                market={deferredMarket}
-                                                buildingFinancialData={gameState.buildingFinancialData}
+                                                market={deferredBuildTabMarket}
+                                                buildingFinancialData={deferredBuildTabBuildingFinancialData}
                                                 onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
                                                 difficulty={gameState.difficulty}
                                                 buildingCostMod={gameState.modifiers?.officialEffects?.buildingCostMod || 0}

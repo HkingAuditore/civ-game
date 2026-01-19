@@ -117,6 +117,7 @@ export const OfficialCard = memo(({
     compact = false,
 }) => {
     const [showDisposalMenu, setShowDisposalMenu] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     if (!official) return null;
 
@@ -126,9 +127,19 @@ export const OfficialCard = memo(({
     const stratumIcon = stratumDef?.icon || 'User';
     const salary = official.salary || 0;
 
-    // 政治立场
-    const stance = POLITICAL_STANCES[official.politicalStance];
+    // 政治立场（兼容字符串或对象）
+    const stanceId = typeof official.politicalStance === 'string'
+        ? official.politicalStance
+        : official.politicalStance?.stanceId;
+    const stance = stanceId ? POLITICAL_STANCES[stanceId] : null;
     const stanceSpectrum = stance?.spectrum || 'center';
+    const stanceConditionText = official.stanceConditionText || stance?.condition?.description || '无';
+    const stanceActiveEffects = (official.stanceActiveEffects && Object.keys(official.stanceActiveEffects).length > 0)
+        ? official.stanceActiveEffects
+        : stance?.activeEffects;
+    const stanceUnsatisfiedPenalty = (official.stanceUnsatisfiedPenalty && Object.keys(official.stanceUnsatisfiedPenalty).length > 0)
+        ? official.stanceUnsatisfiedPenalty
+        : stance?.failureEffects;
 
     // 政治光谱完整配置（颜色、图标、边框、标签）
     const spectrumConfig = {
@@ -319,26 +330,26 @@ export const OfficialCard = memo(({
     };
 
     // 渲染效果列表
+    const effectData = (() => {
+        if (official.effects && Object.keys(official.effects).length > 0) return official.effects;
+        if (Array.isArray(official.rawEffects) && official.rawEffects.length > 0) {
+            return official.rawEffects.reduce((acc, raw) => {
+                if (!raw?.type) return acc;
+                if (raw.target) {
+                    if (!acc[raw.type]) acc[raw.type] = {};
+                    acc[raw.type][raw.target] = raw.value;
+                } else {
+                    acc[raw.type] = raw.value;
+                }
+                return acc;
+            }, {});
+        }
+        return {};
+    })();
+
     const renderEffects = () => {
         const items = [];
-        const effects = (() => {
-            if (official.effects && Object.keys(official.effects).length > 0) return official.effects;
-            if (Array.isArray(official.rawEffects) && official.rawEffects.length > 0) {
-                return official.rawEffects.reduce((acc, raw) => {
-                    if (!raw?.type) return acc;
-                    if (raw.target) {
-                        if (!acc[raw.type]) acc[raw.type] = {};
-                        acc[raw.type][raw.target] = raw.value;
-                    } else {
-                        acc[raw.type] = raw.value;
-                    }
-                    return acc;
-                }, {});
-            }
-            return {};
-        })();
-
-        Object.entries(effects).forEach(([type, valueOrObj]) => {
+        Object.entries(effectData).forEach(([type, valueOrObj]) => {
             if (typeof valueOrObj === 'object' && valueOrObj !== null) {
                 Object.entries(valueOrObj).forEach(([target, value]) => {
                     const { description, isGood } = formatEffect(type, target, value);
@@ -362,28 +373,36 @@ export const OfficialCard = memo(({
         return items;
     };
 
+    const formatStanceValue = (type, value) => {
+        const isPercent = typeof value === 'number' && Math.abs(value) < 2;
+        if (isPercent) {
+            if (type === 'needsReduction') {
+                return value > 0 ? `-${(value * 100).toFixed(0)}%` : `+${(Math.abs(value) * 100).toFixed(0)}%`;
+            }
+            return `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
+        }
+        return `${value > 0 ? '+' : ''}${typeof value === 'number' ? value.toFixed(1) : value}`;
+    };
+
+    const buildStanceEffectLines = (effects) => {
+        if (!effects || Object.keys(effects).length === 0) return [];
+        const lines = [];
+        Object.entries(effects).forEach(([type, valueOrObj]) => {
+            if (typeof valueOrObj === 'object' && valueOrObj !== null) {
+                Object.entries(valueOrObj).forEach(([target, value]) => {
+                    const targetName = getTargetName(target);
+                    lines.push(`${EFFECT_NAMES[type] || type}: ${targetName} ${formatStanceValue(type, value)}`);
+                });
+                return;
+            }
+            lines.push(`${EFFECT_NAMES[type] || type}: ${formatStanceValue(type, valueOrObj)}`);
+        });
+        return lines;
+    };
+
     // 渲染立场效果（汉化版）
     const renderStanceEffects = (effects, isActive) => {
         if (!effects || Object.keys(effects).length === 0) return null;
-
-        // 格式化效果值显示
-        const formatStanceValue = (type, value) => {
-            // 某些效果的正负意义需要特殊处理
-            const invertedTypes = ['needsReduction', 'buildingCostMod', 'organizationDecay'];
-            const isInverted = invertedTypes.includes(type);
-
-            // 判断是否为百分比值（绝对值小于2的认为是百分比）
-            const isPercent = typeof value === 'number' && Math.abs(value) < 2;
-
-            if (isPercent) {
-                // needsReduction正值表示减少消耗，显示为负号更直观
-                if (type === 'needsReduction') {
-                    return value > 0 ? `-${(value * 100).toFixed(0)}%` : `+${(Math.abs(value) * 100).toFixed(0)}%`;
-                }
-                return `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
-            }
-            return `${value > 0 ? '+' : ''}${typeof value === 'number' ? value.toFixed(1) : value}`;
-        };
 
         return Object.entries(effects).map(([type, valueOrObj]) => {
             if (typeof valueOrObj === 'object' && valueOrObj !== null) {
@@ -415,7 +434,10 @@ export const OfficialCard = memo(({
         const prestigeValue = official.stats?.prestige ?? official.prestige ?? 50;
         const level = official.level || 1;
 
-        const effectPreview = effectItems.slice(0, 2);
+        const effectPreview = isExpanded ? effectItems : effectItems.slice(0, 4);
+        const effectOverflow = effectItems.length - effectPreview.length;
+        const activeEffectLines = buildStanceEffectLines(stanceActiveEffects);
+        const penaltyEffectLines = buildStanceEffectLines(stanceUnsatisfiedPenalty);
 
         return (
             <div
@@ -427,12 +449,12 @@ export const OfficialCard = memo(({
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-gray-100 truncate">{official.name}</span>
                             {level > 1 && (
                                 <span className="px-1 py-0.5 bg-purple-900/50 text-purple-300 rounded text-[9px]">
                                     Lv.{level}
                                 </span>
                             )}
+                            <span className="text-sm font-bold text-gray-100 truncate">{official.name}</span>
                             {official.ambition > 50 && (
                                 <span className="px-1 py-0.5 bg-orange-900/50 text-orange-300 rounded text-[9px]">
                                     <Icon name="Flame" size={8} className="inline" /> {official.ambition}
@@ -445,21 +467,20 @@ export const OfficialCard = memo(({
                                     <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
                                         <Icon name={stanceColors.icon} size={8} />
                                         {stanceColors.label}
-                                    
+                                    </span>
                                     {stance?.name && (
                                         <span className="text-[9px] text-gray-300 font-bold ml-1 truncate max-w-[80px] inline-flex items-center gap-0.5" title={stance.description}>
                                             {stance.name}
                                             {isStanceSatisfied !== null && !isCandidate && (
-                                                <Icon 
-                                                    name={isStanceSatisfied ? 'Check' : 'X'} 
-                                                    size={8} 
+                                                <Icon
+                                                    name={isStanceSatisfied ? 'Check' : 'X'}
+                                                    size={8}
                                                     className={isStanceSatisfied ? 'text-green-400' : 'text-red-400'}
                                                     title={isStanceSatisfied ? '政治主张已满足' : '政治主张未满足'}
                                                 />
                                             )}
                                         </span>
                                     )}
-                                    </span>
                                 </>
                             )}
                             <span className="truncate">{stratumDef?.name || stratumKey} 出身</span>
@@ -488,39 +509,87 @@ export const OfficialCard = memo(({
                     </div>
                 </div>
 
-                <div className="mt-2 grid grid-cols-4 gap-1">
-                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-blue-800/30">
-                        <Icon name="Briefcase" size={12} className="text-blue-400 mb-0.5" />
-                        <span className="text-[8px] text-gray-500">行政</span>
+                <div className="mt-2 flex items-center flex-wrap gap-1">
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-900/40 rounded border border-blue-800/30">
+                        <Icon name="Briefcase" size={12} className="text-blue-400" />
                         <span className="text-[10px] font-bold text-blue-300">{adminValue}</span>
                     </div>
-                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-red-800/30">
-                        <Icon name="Sword" size={12} className="text-red-400 mb-0.5" />
-                        <span className="text-[8px] text-gray-500">军事</span>
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-900/40 rounded border border-red-800/30">
+                        <Icon name="Sword" size={12} className="text-red-400" />
                         <span className="text-[10px] font-bold text-red-300">{militaryValue}</span>
                     </div>
-                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-green-800/30">
-                        <Icon name="Globe" size={12} className="text-green-400 mb-0.5" />
-                        <span className="text-[8px] text-gray-500">外交</span>
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-900/40 rounded border border-green-800/30">
+                        <Icon name="Globe" size={12} className="text-green-400" />
                         <span className="text-[10px] font-bold text-green-300">{diplomacyValue}</span>
                     </div>
-                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-purple-800/30">
-                        <Icon name="Award" size={12} className="text-purple-400 mb-0.5" />
-                        <span className="text-[8px] text-gray-500">威望</span>
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-900/40 rounded border border-purple-800/30">
+                        <Icon name="Award" size={12} className="text-purple-400" />
                         <span className="text-[10px] font-bold text-purple-300">{prestigeValue}</span>
                     </div>
+                    {level > 1 && (
+                        <span className="px-1.5 py-0.5 bg-purple-900/50 text-purple-300 rounded text-[9px]">
+                            Lv.{level}
+                        </span>
+                    )}
                 </div>
 
                 <div className="mt-2">
                     <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                         <Icon name="Zap" size={10} />
                         官员效果
+                        {effectOverflow > 0 && !isExpanded && (
+                            <span className="ml-auto text-[8px] text-gray-500">+{effectOverflow}</span>
+                        )}
                     </div>
-                    <div className="space-y-0.5">
+                    <div className={`grid ${isExpanded ? 'grid-cols-1' : 'grid-cols-2'} gap-0.5`}>
                         {effectPreview.length > 0 ? effectPreview : (
                             <div className="text-[10px] text-gray-500 italic">暂无效果</div>
                         )}
                     </div>
+                </div>
+
+                <div className="mt-2 pt-2 border-t border-gray-700/30">
+                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Icon name="Flag" size={10} />
+                        政治主张
+                        {isStanceSatisfied !== null && !isCandidate && (
+                            <Icon
+                                name={isStanceSatisfied ? 'Check' : 'X'}
+                                size={10}
+                                className={isStanceSatisfied ? 'text-green-400' : 'text-red-400'}
+                                title={isStanceSatisfied ? '政治主张已满足' : '政治主张未满足'}
+                            />
+                        )}
+                    </div>
+                    {stance ? (
+                        <>
+                            <div className="text-[10px] text-gray-300 font-semibold">{stance.name}</div>
+                            <div className="text-[9px] text-gray-500 mt-0.5 truncate" title={stanceConditionText}>
+                                触发: {stanceConditionText}
+                            </div>
+                            {isExpanded && (
+                                <div className="mt-1 max-h-28 overflow-y-auto pr-1 space-y-1">
+                                    {stanceConditionText && (
+                                        <div className="text-[9px] text-gray-500">触发条件: {stanceConditionText}</div>
+                                    )}
+                                    {stanceActiveEffects && Object.keys(stanceActiveEffects).length > 0 && (
+                                        <div>
+                                            <div className="text-[8px] text-green-500 uppercase">满足时</div>
+                                            <div className="space-y-0.5">{renderStanceEffects(stanceActiveEffects, true)}</div>
+                                        </div>
+                                    )}
+                                    {stanceUnsatisfiedPenalty && Object.keys(stanceUnsatisfiedPenalty).length > 0 && (
+                                        <div>
+                                            <div className="text-[8px] text-red-500 uppercase">未满足</div>
+                                            <div className="space-y-0.5">{renderStanceEffects(stanceUnsatisfiedPenalty, false)}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="text-[10px] text-gray-500 italic">无政治立场</div>
+                    )}
                 </div>
 
                 <div className="mt-2 flex items-center justify-between">
@@ -536,13 +605,21 @@ export const OfficialCard = memo(({
                             </div>
                         )}
                     </div>
-                    {!isCandidate && onViewDetail && (
-                        <div className="text-[9px] text-gray-500 flex items-center gap-1">
-                            <Icon name="Eye" size={10} />
-                            详情
-                        </div>
-                    )}
                 </div>
+
+                {(effectItems.length > 2 || activeEffectLines.length > 0 || penaltyEffectLines.length > 0) && (
+                    <div className="mt-1 flex justify-end">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsExpanded(!isExpanded);
+                            }}
+                            className="text-[9px] text-gray-400 hover:text-gray-200"
+                        >
+                            {isExpanded ? '收起' : '展开'}
+                        </button>
+                    </div>
+                )}
 
                 <div className="mt-2 pt-2 border-t border-gray-700/30">
                     {isCandidate ? (
@@ -660,52 +737,53 @@ export const OfficialCard = memo(({
                         </div>
                     </div>
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                    {/* 财务信息整合区 */}
-                    <div className="bg-gray-900/40 px-2 py-1 rounded border border-gray-700/50">
-                        <div className="flex items-center justify-end gap-2 text-xs font-mono">
-                            {/* 存款 */}
-                            {typeof official.wealth === 'number' && (
-                                <div className="flex items-center gap-1" title="个人存款">
-                                    <span className="text-emerald-400 font-bold">{formatNumberShortCN(official.wealth, { decimals: 1 })}</span>
-                                    <Icon name="Wallet" size={12} className="text-emerald-500/70" />
+                        {/* 财务信息整合区 */}
+                        <div className="bg-gray-900/40 px-2 py-1 rounded border border-gray-700/50">
+                            <div className="flex items-center justify-end gap-2 text-xs font-mono">
+                                {/* 存款 */}
+                                {typeof official.wealth === 'number' && (
+                                    <div className="flex items-center gap-1" title="个人存款">
+                                        <span className="text-emerald-400 font-bold">{formatNumberShortCN(official.wealth, { decimals: 1 })}</span>
+                                        <Icon name="Wallet" size={12} className="text-emerald-500/70" />
+                                    </div>
+                                )}
+                                <span className="text-gray-600">|</span>
+                                {/* 薪俸 */}
+                                <div className="flex items-center gap-1" title="每日薪俸">
+                                    <span className="text-yellow-500">{salary}</span>
+                                    <Icon name="Coins" size={12} className="text-yellow-500/70" />
                                 </div>
-                            )}
-                            <span className="text-gray-600">|</span>
-                            {/* 薪俸 */}
-                            <div className="flex items-center gap-1" title="每日薪俸">
-                                <span className="text-yellow-500">{salary}</span>
-                                <Icon name="Coins" size={12} className="text-yellow-500/70" />
                             </div>
                         </div>
+
+                        {/* 财务状态标签 */}
+                        {financialLabel && (
+                            <div className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold ${financialStyle}`}>
+                                {financialLabel}
+                            </div>
+                        )}
+
+                        {/* 忠诚度显示 - 仅在任官员显示 */}
+                        {!isCandidate && (
+                            <div className="mt-1 w-full flex flex-col items-end">
+                                <div className="flex items-center gap-1 mb-0.5">
+                                    <span className={`text-[9px] font-mono ${loyaltyTextColor}`}>{Math.round(loyalty)}</span>
+                                    <Icon name="Heart" size={10} className={loyaltyTextColor} />
+                                </div>
+                                <div className={`h-1 w-16 bg-gray-700 rounded-full overflow-hidden border ${loyaltyBorderColor}`}>
+                                    <div
+                                        className={`h-full ${loyaltyColor} transition-all duration-300`}
+                                        style={{ width: `${loyalty}%` }}
+                                    />
+                                </div>
+                                {lowLoyaltyDays > 0 && loyalty < 25 && (
+                                    <div className="text-[8px] text-red-400 mt-0.5">
+                                        ⚠️ 不忠 {lowLoyaltyDays}天
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-
-                    {/* 财务状态标签 */}
-                    {financialLabel && (
-                        <div className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold ${financialStyle}`}>
-                            {financialLabel}
-                        </div>
-                    )}
-
-                    {/* 忠诚度显示 - 仅在任官员显示 */}
-                    {!isCandidate && (
-                        <div className="mt-1 w-full flex flex-col items-end">
-                            <div className="flex items-center gap-1 mb-0.5">
-                                <span className={`text-[9px] font-mono ${loyaltyTextColor}`}>{Math.round(loyalty)}</span>
-                                <Icon name="Heart" size={10} className={loyaltyTextColor} />
-                            </div>
-                            <div className={`h-1 w-16 bg-gray-700 rounded-full overflow-hidden border ${loyaltyBorderColor}`}>
-                                <div
-                                    className={`h-full ${loyaltyColor} transition-all duration-300`}
-                                    style={{ width: `${loyalty}%` }}
-                                />
-                            </div>
-                            {lowLoyaltyDays > 0 && loyalty < 25 && (
-                                <div className="text-[8px] text-red-400 mt-0.5">
-                                    ⚠️ 不忠 {lowLoyaltyDays}天
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -934,7 +1012,6 @@ export const OfficialCard = memo(({
                     </div>
                 )}
             </div>
-        </div>
         </div>
     );
 });

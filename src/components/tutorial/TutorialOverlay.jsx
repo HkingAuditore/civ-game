@@ -62,63 +62,119 @@ export const TutorialOverlay = ({
                 const spaceLeft = targetRect.left - padding;
                 const spaceRight = viewportWidth - targetRect.left - targetRect.width - padding;
                 
-                // 自动选择最佳位置
-                let actualPosition = position;
-                if (position === 'auto') {
+                const clampToViewport = (rawTop, rawLeft) => {
+                    let clampedTop = rawTop;
+                    let clampedLeft = rawLeft;
+
+                    if (clampedLeft < padding) clampedLeft = padding;
+                    if (clampedLeft + tooltipWidth > viewportWidth - padding) {
+                        clampedLeft = viewportWidth - tooltipWidth - padding;
+                    }
+                    if (clampedTop < padding) {
+                        clampedTop = padding;
+                    }
+                    if (clampedTop + tooltipHeight > viewportHeight - padding) {
+                        clampedTop = viewportHeight - tooltipHeight - padding;
+                    }
+
+                    return { top: clampedTop, left: clampedLeft };
+                };
+
+                const getPosition = (pos) => {
+                    switch (pos) {
+                        case 'top':
+                            return {
+                                top: targetRect.top - tooltipHeight - padding,
+                                left: targetRect.left + (targetRect.width - tooltipWidth) / 2,
+                            };
+                        case 'bottom':
+                            return {
+                                top: targetRect.top + targetRect.height + padding,
+                                left: targetRect.left + (targetRect.width - tooltipWidth) / 2,
+                            };
+                        case 'left':
+                            return {
+                                top: targetRect.top + (targetRect.height - tooltipHeight) / 2,
+                                left: targetRect.left - tooltipWidth - padding,
+                            };
+                        case 'right':
+                            return {
+                                top: targetRect.top + (targetRect.height - tooltipHeight) / 2,
+                                left: targetRect.left + targetRect.width + padding,
+                            };
+                        default:
+                            return {
+                                top: targetRect.top + targetRect.height + padding,
+                                left: targetRect.left + (targetRect.width - tooltipWidth) / 2,
+                            };
+                    }
+                };
+
+                const hasSpaceForPosition = (pos) => {
+                    switch (pos) {
+                        case 'top':
+                            return spaceTop >= tooltipHeight + padding;
+                        case 'bottom':
+                            return spaceBottom >= tooltipHeight + padding;
+                        case 'left':
+                            return spaceLeft >= tooltipWidth + padding;
+                        case 'right':
+                            return spaceRight >= tooltipWidth + padding;
+                        default:
+                            return false;
+                    }
+                };
+
+                const pickAutoPosition = () => {
                     // 优先级：下方 > 上方 > 右侧 > 左侧
-                    if (spaceBottom >= tooltipHeight + padding) {
-                        actualPosition = 'bottom';
-                    } else if (spaceTop >= tooltipHeight + padding) {
-                        actualPosition = 'top';
-                    } else if (spaceRight >= tooltipWidth + padding) {
-                        actualPosition = 'right';
-                    } else if (spaceLeft >= tooltipWidth + padding) {
-                        actualPosition = 'left';
-                    } else {
-                        // 都放不下时，选择空间最大的方向
-                        const maxSpace = Math.max(spaceTop, spaceBottom, spaceLeft, spaceRight);
-                        if (maxSpace === spaceBottom) actualPosition = 'bottom';
-                        else if (maxSpace === spaceTop) actualPosition = 'top';
-                        else if (maxSpace === spaceRight) actualPosition = 'right';
-                        else actualPosition = 'left';
+                    if (spaceBottom >= tooltipHeight + padding) return 'bottom';
+                    if (spaceTop >= tooltipHeight + padding) return 'top';
+                    if (spaceRight >= tooltipWidth + padding) return 'right';
+                    if (spaceLeft >= tooltipWidth + padding) return 'left';
+                    // 都放不下时，选择空间最大的方向
+                    const maxSpace = Math.max(spaceTop, spaceBottom, spaceLeft, spaceRight);
+                    if (maxSpace === spaceBottom) return 'bottom';
+                    if (maxSpace === spaceTop) return 'top';
+                    if (maxSpace === spaceRight) return 'right';
+                    return 'left';
+                };
+
+                // 若指定方向空间不足，则自动挑一个合适位置
+                let actualPosition = position === 'auto' ? pickAutoPosition() : position;
+                if (position !== 'auto' && !hasSpaceForPosition(position)) {
+                    actualPosition = pickAutoPosition();
+                }
+
+                const isOverlappingTarget = (candidateTop, candidateLeft) => {
+                    const candidateRight = candidateLeft + tooltipWidth;
+                    const candidateBottom = candidateTop + tooltipHeight;
+                    return !(
+                        candidateRight <= targetRect.left ||
+                        candidateLeft >= targetRect.left + targetRect.width ||
+                        candidateBottom <= targetRect.top ||
+                        candidateTop >= targetRect.top + targetRect.height
+                    );
+                };
+
+                const placeCandidate = (pos) => {
+                    const raw = getPosition(pos);
+                    return clampToViewport(raw.top, raw.left);
+                };
+
+                let placed = placeCandidate(actualPosition);
+                if (isOverlappingTarget(placed.top, placed.left)) {
+                    const candidates = ['bottom', 'top', 'right', 'left'];
+                    for (const candidate of candidates) {
+                        const next = placeCandidate(candidate);
+                        if (!isOverlappingTarget(next.top, next.left)) {
+                            placed = next;
+                            break;
+                        }
                     }
                 }
 
-                switch (actualPosition) {
-                    case 'top':
-                        top = targetRect.top - tooltipHeight - padding;
-                        left = targetRect.left + (targetRect.width - tooltipWidth) / 2;
-                        break;
-                    case 'bottom':
-                        top = targetRect.top + targetRect.height + padding;
-                        left = targetRect.left + (targetRect.width - tooltipWidth) / 2;
-                        break;
-                    case 'left':
-                        top = targetRect.top + (targetRect.height - tooltipHeight) / 2;
-                        left = targetRect.left - tooltipWidth - padding;
-                        break;
-                    case 'right':
-                        top = targetRect.top + (targetRect.height - tooltipHeight) / 2;
-                        left = targetRect.left + targetRect.width + padding;
-                        break;
-                    default:
-                        top = targetRect.top + targetRect.height + padding;
-                        left = targetRect.left + (targetRect.width - tooltipWidth) / 2;
-                }
-
-                // 确保提示框在视口内 - 水平方向调整
-                if (left < padding) left = padding;
-                if (left + tooltipWidth > viewportWidth - padding) {
-                    left = viewportWidth - tooltipWidth - padding;
-                }
-                
-                // 确保提示框在视口内 - 垂直方向调整
-                if (top < padding) {
-                    top = padding;
-                }
-                if (top + tooltipHeight > viewportHeight - padding) {
-                    top = viewportHeight - tooltipHeight - padding;
-                }
+                top = placed.top;
+                left = placed.left;
             } else {
                 // 无高亮目标时，居中显示
                 top = (viewportHeight - tooltipHeight) / 2;

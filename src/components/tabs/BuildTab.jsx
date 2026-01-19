@@ -350,6 +350,7 @@ const BuildTabComponent = ({
     difficulty,
     buildingCostMod = 0,
 }) => {
+    const renderStart = import.meta.env.DEV ? performance.now() : 0;
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
@@ -366,6 +367,12 @@ const BuildTabComponent = ({
     const handleMouseLeave = useCallback(() => {
         if (canHover) setHoveredBuilding({ building: null, element: null });
     }, [canHover]);
+
+    useEffect(() => {
+        if (!import.meta.env.DEV) return;
+        const renderTime = performance.now() - renderStart;
+        console.log(`[BuildTab] render: ${renderTime.toFixed(2)} ms`);
+    }, [renderStart]);
 
     // [优化] 使用模拟端预计算的 buildingJobsRequired 数据
     // 直接从模拟端获取业主岗位数，避免在UI层重复计算
@@ -532,6 +539,7 @@ const BuildTabComponent = ({
     };
 
     const buildingStatsById = useMemo(() => {
+        if (import.meta.env.DEV) console.time('[BuildTab] buildingStatsById');
         const stats = {};
         // 获取当前难度的增长系数
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
@@ -613,6 +621,7 @@ const BuildTabComponent = ({
             };
         });
 
+        if (import.meta.env.DEV) console.timeEnd('[BuildTab] buildingStatsById');
         return stats;
     }, [buildings, buildingUpgrades, difficulty]);
 
@@ -628,6 +637,7 @@ const BuildTabComponent = ({
     }, [epoch, techsUnlocked]);
 
     const buildingJobStatsById = useMemo(() => {
+        if (import.meta.env.DEV) console.time('[BuildTab] buildingJobStatsById');
         const stats = {};
         BUILDINGS.forEach((building) => {
             const count = buildingStatsById[building.id]?.count ?? 0;
@@ -646,6 +656,7 @@ const BuildTabComponent = ({
             const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
             stats[building.id] = { totalRequired, totalAssigned, workingRatio };
         });
+        if (import.meta.env.DEV) console.timeEnd('[BuildTab] buildingJobStatsById');
         return stats;
     }, [buildingStatsById, buildingJobsRequired, buildingFinancialData, jobFill]);
 
@@ -661,6 +672,7 @@ const BuildTabComponent = ({
     }, [availableBuildingsByCategory, buildingJobStatsById]);
 
     const cardDataById = useMemo(() => {
+        if (import.meta.env.DEV) console.time('[BuildTab] cardDataById');
         const data = {};
         const silverResource = resources.silver || 0;
         BUILDINGS.forEach((building) => {
@@ -723,6 +735,7 @@ const BuildTabComponent = ({
                 // 移除 actualIncome 计算，因为 CompactBuildingCard 不再使用它
             };
         });
+        if (import.meta.env.DEV) console.timeEnd('[BuildTab] cardDataById');
         return data;
     }, [buildingStatsById, buildingJobStatsById, buildingFinancialData, epoch, techsUnlocked, market, resources, buildingCostMod]);
 

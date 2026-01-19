@@ -198,6 +198,12 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
     const stance = POLITICAL_STANCES[stanceData.stanceId || stanceData];
     const stanceSpectrum = stance?.spectrum || 'center';
     const spectrumStyle = SPECTRUM_CONFIG[stanceSpectrum] || SPECTRUM_CONFIG.center;
+    const stanceActiveEffects = (official?.stanceActiveEffects && Object.keys(official.stanceActiveEffects).length > 0)
+        ? official.stanceActiveEffects
+        : stance?.activeEffects;
+    const stanceFailureEffects = (official?.stanceUnsatisfiedPenalty && Object.keys(official.stanceUnsatisfiedPenalty).length > 0)
+        ? official.stanceUnsatisfiedPenalty
+        : stance?.failureEffects;
 
     // 出身阶层
     const stratumKey = official?.sourceStratum || official?.stratum;
@@ -505,11 +511,11 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                             </div>
                         )}
                         {/* 满足时效果 */}
-                        {stance.activeEffects && Object.keys(stance.activeEffects).length > 0 && (
+                        {stanceActiveEffects && Object.keys(stanceActiveEffects).length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700/50">
                                 <div className="text-[10px] text-green-400/80 mb-1">满足时效果：</div>
                                 <div className="flex flex-wrap gap-1">
-                                    {Object.entries(stance.activeEffects).flatMap(([key, val]) => {
+                                    {Object.entries(stanceActiveEffects).flatMap(([key, val]) => {
                                         const effectName = EFFECT_NAMES[key] || key;
                                         // 处理嵌套对象（如 approval: { worker: 5 }）
                                         if (typeof val === 'object' && val !== null) {
@@ -545,11 +551,11 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                             </div>
                         )}
                         {/* 未满足时效果 */}
-                        {stance.failureEffects && Object.keys(stance.failureEffects).length > 0 && (
+                        {stanceFailureEffects && Object.keys(stanceFailureEffects).length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700/50">
                                 <div className="text-[10px] text-red-400/80 mb-1">未满足时惩罚：</div>
                                 <div className="flex flex-wrap gap-1">
-                                    {Object.entries(stance.failureEffects).flatMap(([key, val]) => {
+                                    {Object.entries(stanceFailureEffects).flatMap(([key, val]) => {
                                         const effectName = EFFECT_NAMES[key] || key;
                                         // 处理嵌套对象（如 approval: { worker: -5 }）
                                         if (typeof val === 'object' && val !== null) {
