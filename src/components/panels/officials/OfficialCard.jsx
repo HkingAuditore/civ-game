@@ -114,6 +114,7 @@ export const OfficialCard = memo(({
     currentDay = 0,
     isStanceSatisfied = null, // 新增：政治主张是否满足 (null=不检查, true=满足, false=不满足)
     onViewDetail,
+    compact = false,
 }) => {
     const [showDisposalMenu, setShowDisposalMenu] = useState(false);
 
@@ -212,8 +213,15 @@ export const OfficialCard = memo(({
         const absValue = Math.abs(value);
         let isGood = isPositive;
         let description = '';
+        const formatScalar = (v) => {
+            if (!Number.isFinite(v)) return v;
+            const abs = Math.abs(v);
+            if (abs >= 10) return v.toFixed(0);
+            if (abs >= 1) return v.toFixed(1);
+            return v.toFixed(2);
+        };
         const pct = (v) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
-        const num = (v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
+        const num = (v) => `${v > 0 ? '+' : ''}${formatScalar(v)}`;
 
         switch (type) {
             // 建筑/类别产出
@@ -253,8 +261,8 @@ export const OfficialCard = memo(({
             case 'cultureBonus': description = `文化产出 ${pct(value)}`; break;
 
             // 满意度/稳定度
-            case 'approval': description = `${targetName || '全体'}满意度 ${isPositive ? '+' : ''}${value}`; break;
-            case 'coalitionApproval': description = `联盟满意度 ${isPositive ? '+' : ''}${value}`; break;
+            case 'approval': description = `${targetName || '全体'}满意度 ${isPositive ? '+' : ''}${formatScalar(value)}`; break;
+            case 'coalitionApproval': description = `联盟满意度 ${isPositive ? '+' : ''}${formatScalar(value)}`; break;
             case 'legitimacyBonus': description = `合法性 ${pct(value)}`; break;
             case 'stability': description = `稳定度 ${pct(value)}`; break;
 
@@ -267,7 +275,7 @@ export const OfficialCard = memo(({
             case 'organizationDecay': isGood = value < 0; description = `组织度增速 ${pct(value)}`; break;
 
             // 外交
-            case 'diplomaticBonus': description = `外交关系 ${isPositive ? '+' : ''}${value}/日`; break;
+            case 'diplomaticBonus': description = `外交关系 ${isPositive ? '+' : ''}${formatScalar(value)}/日`; break;
 
             // 资源浪费
             case 'resourceWaste': isGood = value < 0; description = `${targetName || '资源'}浪费 ${pct(value)}`; break;
@@ -313,7 +321,22 @@ export const OfficialCard = memo(({
     // 渲染效果列表
     const renderEffects = () => {
         const items = [];
-        const effects = official.effects || {};
+        const effects = (() => {
+            if (official.effects && Object.keys(official.effects).length > 0) return official.effects;
+            if (Array.isArray(official.rawEffects) && official.rawEffects.length > 0) {
+                return official.rawEffects.reduce((acc, raw) => {
+                    if (!raw?.type) return acc;
+                    if (raw.target) {
+                        if (!acc[raw.type]) acc[raw.type] = {};
+                        acc[raw.type][raw.target] = raw.value;
+                    } else {
+                        acc[raw.type] = raw.value;
+                    }
+                    return acc;
+                }, {});
+            }
+            return {};
+        })();
 
         Object.entries(effects).forEach(([type, valueOrObj]) => {
             if (typeof valueOrObj === 'object' && valueOrObj !== null) {
@@ -384,6 +407,195 @@ export const OfficialCard = memo(({
     };
 
     const effectItems = renderEffects();
+
+    if (compact) {
+        const adminValue = official.stats?.administrative ?? official.administrative ?? 50;
+        const militaryValue = official.stats?.military ?? official.military ?? 30;
+        const diplomacyValue = official.stats?.diplomacy ?? official.diplomacy ?? 30;
+        const prestigeValue = official.stats?.prestige ?? official.prestige ?? 50;
+        const level = official.level || 1;
+
+        const effectPreview = effectItems.slice(0, 2);
+
+        return (
+            <div
+                className={`relative bg-gray-800/60 border ${stanceColors.border} rounded-lg p-3 transition-all overflow-hidden shadow ${stanceColors.glow} ${onViewDetail ? 'cursor-pointer hover:border-opacity-100 hover:shadow-emerald-500/10 hover:-translate-y-0.5 hover:ring-1 hover:ring-emerald-400/30' : ''}`}
+                onClick={() => {
+                    if (onViewDetail) onViewDetail(official);
+                }}
+            >
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-gray-100 truncate">{official.name}</span>
+                            {level > 1 && (
+                                <span className="px-1 py-0.5 bg-purple-900/50 text-purple-300 rounded text-[9px]">
+                                    Lv.{level}
+                                </span>
+                            )}
+                            {official.ambition > 50 && (
+                                <span className="px-1 py-0.5 bg-orange-900/50 text-orange-300 rounded text-[9px]">
+                                    <Icon name="Flame" size={8} className="inline" /> {official.ambition}
+                                </span>
+                            )}
+                        </div>
+                        <div className={`text-[10px] ${stratumColor} opacity-80 flex items-center flex-wrap gap-1 mt-0.5`}>
+                            {stance && (
+                                <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
+                                    <Icon name={stanceColors.icon} size={8} />
+                                    {stanceColors.label}
+                                </span>
+                            )}
+                        <span className="truncate">{stratumDef?.name || stratumKey} 出身</span>
+                        {prestigeInfo && <span className={`flex-shrink-0 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
+                        </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1 text-xs font-mono text-yellow-400">
+                            <Icon name="Coins" size={12} className="text-yellow-500/70" />
+                            {salary}
+                        </div>
+                        {!isCandidate && (
+                            <div className="mt-1 w-full flex flex-col items-end">
+                                <div className="flex items-center gap-1 mb-0.5">
+                                    <span className={`text-[9px] font-mono ${loyaltyTextColor}`}>{Math.round(loyalty)}</span>
+                                    <Icon name="Heart" size={10} className={loyaltyTextColor} />
+                                </div>
+                                <div className={`h-1 w-16 bg-gray-700 rounded-full overflow-hidden border ${loyaltyBorderColor}`}>
+                                    <div
+                                        className={`h-full ${loyaltyColor} transition-all duration-300`}
+                                        style={{ width: `${loyalty}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-2 grid grid-cols-4 gap-1">
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-blue-800/30">
+                        <Icon name="Briefcase" size={12} className="text-blue-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">行政</span>
+                        <span className="text-[10px] font-bold text-blue-300">{adminValue}</span>
+                    </div>
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-red-800/30">
+                        <Icon name="Sword" size={12} className="text-red-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">军事</span>
+                        <span className="text-[10px] font-bold text-red-300">{militaryValue}</span>
+                    </div>
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-green-800/30">
+                        <Icon name="Globe" size={12} className="text-green-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">外交</span>
+                        <span className="text-[10px] font-bold text-green-300">{diplomacyValue}</span>
+                    </div>
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-purple-800/30">
+                        <Icon name="Award" size={12} className="text-purple-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">威望</span>
+                        <span className="text-[10px] font-bold text-purple-300">{prestigeValue}</span>
+                    </div>
+                </div>
+
+                <div className="mt-2">
+                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Icon name="Zap" size={10} />
+                        官员效果
+                    </div>
+                    <div className="space-y-0.5">
+                        {effectPreview.length > 0 ? effectPreview : (
+                            <div className="text-[10px] text-gray-500 italic">暂无效果</div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                        {financialLabel && (
+                            <div className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold ${financialStyle}`}>
+                                {financialLabel}
+                            </div>
+                        )}
+                        {!isCandidate && loyalty < 50 && (
+                            <div className="px-1.5 py-0.5 rounded border text-[9px] font-semibold text-red-300 bg-red-900/40 border-red-700/50">
+                                忠诚偏低
+                            </div>
+                        )}
+                    </div>
+                    {!isCandidate && onViewDetail && (
+                        <div className="text-[9px] text-gray-500 flex items-center gap-1">
+                            <Icon name="Eye" size={10} />
+                            详情
+                        </div>
+                    )}
+                </div>
+
+                <div className="mt-2 pt-2 border-t border-gray-700/30">
+                    {isCandidate ? (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onAction(official.id);
+                            }}
+                            disabled={actionDisabled || !canAfford}
+                            className={`w-full py-1 px-2 rounded text-xs font-bold flex items-center justify-center gap-1 transition-colors
+                                ${canAfford && !actionDisabled
+                                    ? 'bg-green-700 hover:bg-green-600 text-white'
+                                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
+                        >
+                            <Icon name="UserPlus" size={12} />
+                            雇佣
+                        </button>
+                    ) : (
+                        <div className="relative">
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAction(official.id);
+                                    }}
+                                    disabled={actionDisabled}
+                                    className="flex-1 py-1 px-2 rounded text-xs font-bold flex items-center justify-center gap-1 transition-colors bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 border border-gray-600/50"
+                                >
+                                    <Icon name="UserMinus" size={12} />
+                                    解雇
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDisposalMenu(!showDisposalMenu);
+                                    }}
+                                    className="py-1 px-2 rounded text-xs font-bold flex items-center justify-center transition-colors bg-red-900/30 hover:bg-red-800/50 text-red-400 border border-red-900/50"
+                                    title="更多处置选项"
+                                >
+                                    <Icon name="ChevronDown" size={12} />
+                                </button>
+                            </div>
+
+                            {showDisposalMenu && (
+                                <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-900 border border-gray-700 rounded-lg shadow-lg overflow-hidden z-10">
+                                    {Object.values(DISPOSAL_TYPES).filter(t => t.id !== 'fire').map(type => (
+                                        <button
+                                            key={type.id}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDispose(type.id);
+                                            }}
+                                            className={`w-full py-2 px-3 text-xs flex items-center gap-2 hover:bg-gray-800 transition-colors ${type.color}`}
+                                        >
+                                            <Icon name={type.icon} size={14} />
+                                            <span className="font-medium">{type.name}</span>
+                                            {type.wealthSeized > 0 && (
+                                                <span className="opacity-70 ml-auto">没收{(type.wealthSeized * 100).toFixed(0)}%财产</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div

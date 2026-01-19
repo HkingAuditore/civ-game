@@ -14,6 +14,14 @@ const formatCost = (value) => {
     return value.toFixed(2);
 };
 
+const formatEffectNumber = (value) => {
+    if (!Number.isFinite(value)) return value;
+    const abs = Math.abs(value);
+    if (abs >= 10) return value.toFixed(0);
+    if (abs >= 1) return value.toFixed(1);
+    return value.toFixed(2);
+};
+
 // 效果名称映射
 const EFFECT_NAMES = {
     stability: '稳定度',
@@ -194,13 +202,33 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
     const stratumDef = STRATA[stratumKey];
 
     // 官员效果
-    const effects = official?.effects || [];
+    const displayEffects = useMemo(() => {
+        if (official?.effects && Object.keys(official.effects).length > 0) return official.effects;
+        if (Array.isArray(official?.rawEffects) && official.rawEffects.length > 0) {
+            return official.rawEffects.reduce((acc, raw) => {
+                if (!raw?.type) return acc;
+                if (raw.target) {
+                    if (!acc[raw.type]) acc[raw.type] = {};
+                    acc[raw.type][raw.target] = raw.value;
+                } else {
+                    acc[raw.type] = raw.value;
+                }
+                return acc;
+            }, {});
+        }
+        return {};
+    }, [official]);
 
     const canEditSalary = typeof onUpdateSalary === 'function' && official?.id;
     const canEditName = typeof onUpdateName === 'function' && official?.id;
     const parsedSalaryDraft = Number.parseInt(salaryDraft, 10);
     const displayName = official?.name || '官员';
     const trimmedNameDraft = nameDraft.trim();
+
+    const adminValue = official?.stats?.administrative ?? official?.administrative ?? 50;
+    const militaryValue = official?.stats?.military ?? official?.military ?? 30;
+    const diplomacyValue = official?.stats?.diplomacy ?? official?.diplomacy ?? 30;
+    const prestigeValue = official?.stats?.prestige ?? official?.prestige ?? 50;
 
     const handleNameSave = () => {
         if (!canEditName) return;
@@ -389,6 +417,32 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                     </div>
                 </div>
 
+                {/* 官员属性 */}
+                <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 mb-2">
+                        <Icon name="BarChart2" size={14} />
+                        官员属性
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="rounded-md border border-blue-700/40 bg-blue-900/20 p-2 text-center">
+                            <div className="text-[10px] text-blue-300">行政</div>
+                            <div className="text-sm font-mono text-blue-200">{adminValue}</div>
+                        </div>
+                        <div className="rounded-md border border-red-700/40 bg-red-900/20 p-2 text-center">
+                            <div className="text-[10px] text-red-300">军事</div>
+                            <div className="text-sm font-mono text-red-200">{militaryValue}</div>
+                        </div>
+                        <div className="rounded-md border border-green-700/40 bg-green-900/20 p-2 text-center">
+                            <div className="text-[10px] text-green-300">外交</div>
+                            <div className="text-sm font-mono text-green-200">{diplomacyValue}</div>
+                        </div>
+                        <div className="rounded-md border border-purple-700/40 bg-purple-900/20 p-2 text-center">
+                            <div className="text-[10px] text-purple-300">威望</div>
+                            <div className="text-sm font-mono text-purple-200">{prestigeValue}</div>
+                        </div>
+                    </div>
+                </div>
+
                 {/* 忠诚度变化原因 */}
                 {loyaltyReasons.length > 0 && (
                     <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
@@ -532,7 +586,7 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                 )}
 
                 {/* 官员效果 */}
-                {official?.effects && Object.keys(official.effects).length > 0 && (
+                {displayEffects && Object.keys(displayEffects).length > 0 && (
                     <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
                         <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 mb-2">
                             <Icon name="Zap" size={14} />
@@ -547,12 +601,14 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                 </div>
                             )}
                             {/* 遍历效果对象 */}
-                            {Object.entries(official.effects).map(([type, valueOrObj]) => {
+                            {Object.entries(displayEffects).map(([type, valueOrObj]) => {
                                 if (typeof valueOrObj === 'object' && valueOrObj !== null) {
                                     return Object.entries(valueOrObj).map(([target, value]) => {
                                         const targetName = getTargetDisplayName(target);
                                         const isPercent = Math.abs(value) < 2;
-                                        const displayVal = isPercent ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%` : `${value > 0 ? '+' : ''}${value}`;
+                                        const displayVal = isPercent
+                                            ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
+                                            : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
                                         const isGood = ['productionInputCost', 'buildingCostMod', 'needsReduction'].includes(type) ? value < 0 : value > 0;
                                         return (
                                             <div key={`${type}-${target}`} className={`flex items-center gap-1 text-[11px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>
@@ -564,7 +620,9 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                 } else {
                                     const value = valueOrObj;
                                     const isPercent = Math.abs(value) < 2;
-                                    const displayVal = isPercent ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%` : `${value > 0 ? '+' : ''}${value}`;
+                                    const displayVal = isPercent
+                                        ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
+                                        : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
                                     const isGood = ['productionInputCost', 'buildingCostMod', 'needsReduction'].includes(type) ? value < 0 : value > 0;
                                     return (
                                         <div key={type} className={`flex items-center gap-1 text-[11px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>

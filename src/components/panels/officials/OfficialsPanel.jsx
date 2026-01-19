@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { OfficialCard } from './OfficialCard';
 import { Icon } from '../../common/UIComponents';
 import { calculateTotalDailySalary, getCabinetStatus } from '../../../logic/officials/manager';
-import { isStanceSatisfied } from '../../../config/politicalStances';
+import { STRATA } from '../../../config';
+import { isStanceSatisfied, POLITICAL_STANCES } from '../../../config/politicalStances';
 import { CabinetSynergyDisplay } from './CabinetSynergyDisplay';
 import { PlannedEconomyPanel } from './PlannedEconomyPanel';
 import { FreeMarketPanel } from './FreeMarketPanel';
@@ -65,6 +66,15 @@ export const OfficialsPanel = ({
     // 派系面板弹窗状态
     const [showDominancePanel, setShowDominancePanel] = useState(false);
     const [selectedOfficial, setSelectedOfficial] = useState(null);
+    const [searchText, setSearchText] = useState('');
+    const [stanceFilter, setStanceFilter] = useState('all');
+    const [stratumFilter, setStratumFilter] = useState('all');
+    const [loyaltyFilter, setLoyaltyFilter] = useState('all');
+    const [sortKey, setSortKey] = useState('loyalty');
+    const [sortDir, setSortDir] = useState('desc');
+    const [pageSize, setPageSize] = useState(12);
+    const [page, setPage] = useState(1);
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
     useEffect(() => {
         if (!selectedOfficial?.id) return;
         const latest = officials.find(official => official.id === selectedOfficial.id);
@@ -82,6 +92,114 @@ export const OfficialsPanel = ({
 
     const totalDailySalary = useMemo(() => calculateTotalDailySalary(officials), [officials]);
     const canAffordSalaries = (resources?.silver || 0) >= totalDailySalary;
+
+    const overviewStats = useMemo(() => {
+        if (!officials.length) {
+            return {
+                avgLoyalty: 0,
+                avgAdmin: 0,
+                avgMilitary: 0,
+                avgDiplomacy: 0,
+                avgPrestige: 0,
+                lowLoyaltyCount: 0,
+            };
+        }
+        const totals = officials.reduce((acc, official) => {
+            acc.loyalty += official?.loyalty ?? 75;
+            acc.admin += official?.stats?.administrative ?? official?.administrative ?? 50;
+            acc.military += official?.stats?.military ?? official?.military ?? 30;
+            acc.diplomacy += official?.stats?.diplomacy ?? official?.diplomacy ?? 30;
+            acc.prestige += official?.stats?.prestige ?? official?.prestige ?? 50;
+            if ((official?.loyalty ?? 75) < 50) acc.lowLoyalty += 1;
+            return acc;
+        }, {
+            loyalty: 0,
+            admin: 0,
+            military: 0,
+            diplomacy: 0,
+            prestige: 0,
+            lowLoyalty: 0,
+        });
+        return {
+            avgLoyalty: totals.loyalty / officials.length,
+            avgAdmin: totals.admin / officials.length,
+            avgMilitary: totals.military / officials.length,
+            avgDiplomacy: totals.diplomacy / officials.length,
+            avgPrestige: totals.prestige / officials.length,
+            lowLoyaltyCount: totals.lowLoyalty,
+        };
+    }, [officials]);
+
+    const filteredOfficials = useMemo(() => {
+        const query = searchText.trim().toLowerCase();
+        const filtered = officials.filter((official) => {
+            if (!official) return false;
+            if (query && !official.name?.toLowerCase().includes(query)) return false;
+
+            const officialStratum = official.sourceStratum || official.stratum;
+            if (stratumFilter !== 'all' && officialStratum !== stratumFilter) return false;
+
+            if (stanceFilter !== 'all') {
+                const spectrum = POLITICAL_STANCES[official.politicalStance]?.spectrum || 'none';
+                if (spectrum !== stanceFilter) return false;
+            }
+
+            const loyaltyValue = official?.loyalty ?? 75;
+            if (loyaltyFilter === 'low' && loyaltyValue >= 50) return false;
+            if (loyaltyFilter === 'risk' && loyaltyValue >= 25) return false;
+            if (loyaltyFilter === 'high' && loyaltyValue < 75) return false;
+
+            return true;
+        });
+
+        const sorted = [...filtered].sort((a, b) => {
+            const getValue = (target) => {
+                switch (sortKey) {
+                    case 'name':
+                        return target?.name || '';
+                    case 'salary':
+                        return target?.salary ?? 0;
+                    case 'prestige':
+                        return target?.stats?.prestige ?? target?.prestige ?? 50;
+                    case 'admin':
+                        return target?.stats?.administrative ?? target?.administrative ?? 50;
+                    case 'military':
+                        return target?.stats?.military ?? target?.military ?? 30;
+                    case 'diplomacy':
+                        return target?.stats?.diplomacy ?? target?.diplomacy ?? 30;
+                    case 'loyalty':
+                    default:
+                        return target?.loyalty ?? 75;
+                }
+            };
+
+            const aValue = getValue(a);
+            const bValue = getValue(b);
+
+            if (typeof aValue === 'string' || typeof bValue === 'string') {
+                return String(aValue).localeCompare(String(bValue), 'zh-Hans-CN', { numeric: true }) * (sortDir === 'asc' ? 1 : -1);
+            }
+            return (aValue - bValue) * (sortDir === 'asc' ? 1 : -1);
+        });
+
+        return sorted;
+    }, [officials, searchText, stanceFilter, stratumFilter, loyaltyFilter, sortKey, sortDir]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredOfficials.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+
+    const pagedOfficials = useMemo(() => {
+        const start = (safePage - 1) * pageSize;
+        return filteredOfficials.slice(start, start + pageSize);
+    }, [filteredOfficials, safePage, pageSize]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [searchText, stanceFilter, stratumFilter, loyaltyFilter, sortKey, sortDir, pageSize]);
+
+    useEffect(() => {
+        if (page !== safePage) setPage(safePage);
+    }, [page, safePage]);
 
     // 计算内阁状态（传递 capacity 和 epoch 用于主导判定）
     const cabinetStatus = useMemo(() =>
@@ -164,6 +282,50 @@ export const OfficialsPanel = ({
             </div>
 
             {/* 2. 内阁协同度显示 */}
+            {officials.length > 0 && (
+                <div className="bg-gray-900/40 rounded-xl p-3 border border-gray-700/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                            <Icon name="BarChart" size={14} className="text-emerald-400" />
+                            官员数据概览
+                        </div>
+                        {overviewStats.lowLoyaltyCount > 0 && (
+                            <div className="text-[10px] px-2 py-1 rounded bg-red-900/40 border border-red-700/40 text-red-300">
+                                忠诚低人数: {overviewStats.lowLoyaltyCount}
+                            </div>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center">
+                        <div className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
+                            <div className="text-[9px] text-gray-500">平均忠诚</div>
+                            <div className="text-sm font-mono text-emerald-300">{overviewStats.avgLoyalty.toFixed(0)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
+                            <div className="text-[9px] text-gray-500">平均行政</div>
+                            <div className="text-sm font-mono text-blue-300">{overviewStats.avgAdmin.toFixed(0)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
+                            <div className="text-[9px] text-gray-500">平均军事</div>
+                            <div className="text-sm font-mono text-red-300">{overviewStats.avgMilitary.toFixed(0)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
+                            <div className="text-[9px] text-gray-500">平均外交</div>
+                            <div className="text-sm font-mono text-green-300">{overviewStats.avgDiplomacy.toFixed(0)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
+                            <div className="text-[9px] text-gray-500">平均威望</div>
+                            <div className="text-sm font-mono text-purple-300">{overviewStats.avgPrestige.toFixed(0)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 border border-gray-700/40 rounded p-2">
+                            <div className="text-[9px] text-gray-500">总薪俸/日</div>
+                            <div className="text-sm font-mono text-yellow-300">
+                                {formatNumberShortCN(totalDailySalary, { decimals: 1 })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {officials.length > 0 && (
                 <CabinetSynergyDisplay
                     officials={officials}
@@ -305,6 +467,8 @@ export const OfficialsPanel = ({
                                 onAction={onHire}
                                 canAfford={(resources?.silver || 0) >= candidate.salary}
                                 actionDisabled={isAtCapacity}
+                                compact={true}
+                                onViewDetail={setSelectedOfficial}
                             />
                         ))}
                     </div>
@@ -317,28 +481,142 @@ export const OfficialsPanel = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 display-inline-block"></span>
                     在任官员
                 </h4>
+                <div className="bg-gray-800/30 p-3 rounded-lg border border-gray-700/30 mb-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex-1 min-w-[160px]">
+                            <input
+                                value={searchText}
+                                onChange={(event) => setSearchText(event.target.value)}
+                                placeholder="搜索官员"
+                                className="w-full bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-emerald-400/40"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <select
+                                value={sortKey}
+                                onChange={(event) => setSortKey(event.target.value)}
+                                className="bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200"
+                            >
+                                <option value="loyalty">忠诚</option>
+                                <option value="prestige">威望</option>
+                                <option value="salary">薪俸</option>
+                                <option value="admin">行政</option>
+                                <option value="military">军事</option>
+                                <option value="diplomacy">外交</option>
+                                <option value="name">姓名</option>
+                            </select>
+                            <button
+                                onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
+                                className="px-2 py-1 text-xs rounded bg-gray-900/60 border border-gray-700/60 text-gray-300 hover:text-white"
+                            >
+                                {sortDir === 'asc' ? '↑' : '↓'}
+                            </button>
+                        </div>
+                        <select
+                            value={pageSize}
+                            onChange={(event) => setPageSize(Number(event.target.value))}
+                            className="bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200"
+                        >
+                            <option value={8}>8</option>
+                            <option value={12}>12</option>
+                            <option value={16}>16</option>
+                            <option value={24}>24</option>
+                        </select>
+                        <button
+                            onClick={() => setShowFilterPanel(prev => !prev)}
+                            className="px-2 py-1 text-xs rounded bg-gray-900/60 border border-gray-700/60 text-gray-300 hover:text-white"
+                        >
+                            {showFilterPanel ? '收起筛选' : '筛选'}
+                        </button>
+                        <div className="ml-auto text-[10px] text-gray-500">
+                            {filteredOfficials.length} / {officials.length}
+                        </div>
+                    </div>
+                    {showFilterPanel && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                value={stanceFilter}
+                                onChange={(event) => setStanceFilter(event.target.value)}
+                                className="bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200"
+                            >
+                                <option value="all">全部派系</option>
+                                <option value="left">左派</option>
+                                <option value="center">建制派</option>
+                                <option value="right">右派</option>
+                                <option value="none">无立场</option>
+                            </select>
+                            <select
+                                value={stratumFilter}
+                                onChange={(event) => setStratumFilter(event.target.value)}
+                                className="bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200"
+                            >
+                                <option value="all">全部出身</option>
+                                {Object.entries(STRATA).map(([key, value]) => (
+                                    <option key={key} value={key}>{value?.name || key}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={loyaltyFilter}
+                                onChange={(event) => setLoyaltyFilter(event.target.value)}
+                                className="bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200"
+                            >
+                                <option value="all">全部忠诚</option>
+                                <option value="high">高于 75</option>
+                                <option value="low">低于 50</option>
+                                <option value="risk">低于 25</option>
+                            </select>
+                        </div>
+                    )}
+                </div>
                 {officials.length === 0 ? (
                     <div className="text-center py-10 bg-gray-800/20 rounded-lg border border-dashed border-gray-700 text-gray-500">
                         <Icon name="UserX" size={32} className="mx-auto mb-2 opacity-50" />
                         <p className="text-sm">当前没有在任官员。</p>
                         <p className="text-xs opacity-70">雇佣候选人以获得加成。</p>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                        {officials.map(official => (
-                            <OfficialCard
-                                key={official.id}
-                                official={official}
-                                isCandidate={false}
-                                onAction={onFire}
-                                onDispose={onDispose}
-                                onViewDetail={setSelectedOfficial}
-
-                                currentDay={currentTick}
-                                isStanceSatisfied={official.politicalStance ? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams) : null}
-                            />
-                        ))}
+                ) : filteredOfficials.length === 0 ? (
+                    <div className="text-center py-10 bg-gray-800/20 rounded-lg border border-dashed border-gray-700 text-gray-500">
+                        <Icon name="Search" size={32} className="mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">没有符合条件的官员</p>
+                        <p className="text-xs opacity-70">请调整搜索或筛选条件。</p>
                     </div>
+                ) : (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            {pagedOfficials.map(official => (
+                                <OfficialCard
+                                    key={official.id}
+                                    official={official}
+                                    isCandidate={false}
+                                    onAction={onFire}
+                                    onDispose={onDispose}
+                                    onViewDetail={setSelectedOfficial}
+                                    compact={true}
+                                    currentDay={currentTick}
+                                    isStanceSatisfied={official.politicalStance ? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams) : null}
+                                />
+                            ))}
+                        </div>
+                        <div className="mt-3 flex items-center justify-between">
+                            <button
+                                onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                                disabled={safePage <= 1}
+                                className="px-3 py-1 text-xs rounded border border-gray-700/60 bg-gray-800/60 text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                上一页
+                            </button>
+                            <div className="text-[10px] text-gray-500">
+                                第 {safePage} / {totalPages} 页
+                            </div>
+                            <button
+                                onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={safePage >= totalPages}
+                                className="px-3 py-1 text-xs rounded border border-gray-700/60 bg-gray-800/60 text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                下一页
+                            </button>
+                        </div>
+                    </>
                 )}
             </div>
 
