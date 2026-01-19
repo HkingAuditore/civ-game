@@ -247,11 +247,11 @@ export const CHAIN_CLASS_INTERACTION = {
   },
 
   military_chain: {
-    primary_classes: ['soldier', 'knight', 'engineer'],
+    primary_classes: ['soldier', 'engineer'],
     development_effects: {
       level_1: { classApproval: { soldier: 5 }, militaryPower: 0.1 },
-      level_2: { classApproval: { soldier: 10, knight: 5 }, militaryPower: 0.2 },
-      level_3: { classApproval: { soldier: 15, knight: 10 }, militaryPower: 0.3, stability: 5 },
+      level_2: { classApproval: { soldier: 10 }, militaryPower: 0.2 },
+      level_3: { classApproval: { soldier: 15 }, militaryPower: 0.3, stability: 5 },
     },
   },
 };
@@ -286,7 +286,7 @@ export const DECREE_COMBINATIONS = {
       decrees: ['land_reform', 'equality_decree', 'welfare_system'],
       name: "社会革命",
       bonus: { classApproval: { peasant: 40, worker: 35 }, stability: 20, populationGrowth: 0.3 },
-      penalty: { classApproval: { knight: -50, landowner: -50 }, passive: { silver: -8 } },
+      penalty: { classApproval: { landowner: -50 }, passive: { silver: -8 } },
       desc: "彻底的社会改革重塑阶级结构",
     },
     {
@@ -353,7 +353,7 @@ export const EPOCH_SYSTEM_EFFECTS = {
   
   3: { // 封建时代
     available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'military_chain', 'textile_chain'],
-    class_structure: { serf: 0.3, peasant: 0.2, artisan: 0.15, knight: 0.05, landowner: 0.1, soldier: 0.1, cleric: 0.1 },
+    class_structure: { serf: 0.3, peasant: 0.2, artisan: 0.15, landowner: 0.1, soldier: 0.15, cleric: 0.1 },
     decree_efficiency: 1.0,
     new_mechanics: ['feudal_system', 'religious_influence'],
   },

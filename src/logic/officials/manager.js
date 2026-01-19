@@ -442,7 +442,6 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
         // 上层与新兴精英
         capitalist: 260,
         landowner: 240,
-        knight: 220,
         official: 200,
         engineer: 180,
         merchant: 170,
@@ -747,7 +746,7 @@ export const calculatePrestige = (official, currentDay = 0) => {
 
     // 4. 阶层修正
     const stratumModifiers = {
-        landowner: 1.10, knight: 1.10, official: 1.05,
+        landowner: 1.10, official: 1.05,
         merchant: 1.0, capitalist: 1.0, navigator: 1.0,
         scribe: 1.0, cleric: 1.0, engineer: 1.0, artisan: 1.0,
         peasant: 0.95, worker: 0.95, serf: 0.90, miner: 0.95,

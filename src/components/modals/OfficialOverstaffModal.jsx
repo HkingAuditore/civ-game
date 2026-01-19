@@ -26,7 +26,7 @@ const EFFECT_LABELS = {
     passivePercent: '被动收益',
     needsReduction: '全民消耗',
     maxPop: '人口上限',
-    incomePercent: '财政收入',
+    incomePercent: '财政收入加成',
     stability: '稳定度',
     militaryBonus: '军队战力',
     approval: '满意度',

@@ -15,7 +15,7 @@ const EFFECT_TYPE_NAMES = {
     passivePercent: '被动收益',
     needsReduction: '需求减少',
     maxPop: '人口上限',
-    incomePercent: '财政收入',
+    incomePercent: '财政收入加成',
     stability: '稳定度',
     militaryBonus: '军事力量',
     approval: '满意度',
@@ -89,7 +89,7 @@ const EFFECT_NAMES = {
     taxEfficiency: '税收效率',
     industryBonus: '工业产出',
     gatherBonus: '采集产出',
-    incomePercentBonus: '税收收入',
+    incomePercentBonus: '财政收入加成',
     researchSpeed: '科研产出',
     populationGrowth: '人口增长',
     needsReduction: '全民消耗', // 正值表示减少消耗
@@ -242,7 +242,7 @@ export const OfficialCard = memo(({
             // 贸易/税收
             case 'tradeBonus': description = `贸易利润 ${pct(value)}`; break;
             case 'taxEfficiency': description = `税收效率 ${pct(value)}`; break;
-            case 'incomePercent': description = `税收收入 ${pct(value)}`; break;
+            case 'incomePercent': description = `财政收入加成 ${pct(value)}`; break;
 
             // 建筑成本
             case 'buildingCostMod': isGood = value < 0; description = `建筑成本 ${pct(value)}`; break;

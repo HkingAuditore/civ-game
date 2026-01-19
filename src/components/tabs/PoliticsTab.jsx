@@ -18,7 +18,7 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 const STRATA_GROUPS = {
     upper: {
         name: '上流阶级',
-        keys: ['merchant', 'official', 'landowner', 'capitalist', 'knight', 'engineer'],
+        keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer'],
     },
     middle: {
         name: '中产阶级',

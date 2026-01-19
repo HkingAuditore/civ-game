@@ -17,7 +17,7 @@ export const OWNER_TYPES = {
  * 业主类型显示名称
  */
 export const OWNER_TYPE_LABELS = {
-    [OWNER_TYPES.STRATUM]: '本国商人',
+    [OWNER_TYPES.STRATUM]: '本国人民',
     [OWNER_TYPES.OFFICIAL]: '官员私产',
     [OWNER_TYPES.FOREIGN]: '外国资本',
     [OWNER_TYPES.STATE]: '国有企业',

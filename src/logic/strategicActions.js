@@ -18,7 +18,7 @@ export const STRATEGIC_ACTIONS = {
         icon: 'Shield',
         description: '动用武力镇压叛乱组织',
         // 详细描述：用于UI展示完整说明
-        detailedDescription: '派遣军队强行镇压该阶层的叛乱组织。短期内可有效降低组织度，但会激化矛盾——军人和骑士阶层会因执行镇压任务而心生不满，持续的镇压还会导致军队陷入疲惫状态。注意：不能用于镇压军人或骑士阶层。',
+        detailedDescription: '派遣军队强行镇压该阶层的叛乱组织。短期内可有效降低组织度，但会激化矛盾——军人阶层会因执行镇压任务而心生不满，持续的镇压还会导致军队陷入疲惫状态。注意：不能用于镇压军人阶层。',
         // 效果预览：用于UI展示预期效果
         effectPreview: {
             organization: { value: -30, unit: '%', label: '组织度', type: 'immediate' },
@@ -28,24 +28,24 @@ export const STRATEGIC_ACTIONS = {
         },
         // 副作用列表：用于UI展示负面影响警告
         sideEffects: [
-            { text: '军人、骑士满意度 -15', severity: 'warning', icon: 'Users' },
+            { text: '军人满意度 -15', severity: 'warning', icon: 'Users' },
             { text: '其他阶层满意度 -5', severity: 'warning', icon: 'Users' },
             { text: '获得「镇压疲惫」：军事力量 -20%，持续30天', severity: 'danger', icon: 'AlertTriangle' },
             { text: '获得「恐怖氛围」：生产效率 -15%，持续20天', severity: 'danger', icon: 'AlertOctagon' },
             { text: '该阶层人口损失约5%', severity: 'danger', icon: 'Skull' },
         ],
         // 使用建议
-        usageHint: '当组织度接近爆发(90%+)时的紧急措施，用时间换空间。不能用于军人/骑士。不宜频繁使用。',
+        usageHint: '当组织度接近爆发(90%+)时的紧急措施，用时间换空间。不能用于军人。不宜频繁使用。',
         // 适用阶段的中文名称
         applicableStagesNames: ['动员中', '激进化', '起义'],
         // 禁止镇压的阶层（军事阶层不能被镇压）
-        forbiddenStrata: ['soldier', 'knight'],
+        forbiddenStrata: ['soldier'],
         // 原有配置
         cost: {
             silver: 300,
         },
         militaryCost: {
-            approvalPenalty: { soldier: -15, knight: -15 },
+            approvalPenalty: { soldier: -15 },
         },
         // 镇压还会导致其他阶层不满
         otherStrataApprovalPenalty: -5,
@@ -103,7 +103,7 @@ export const STRATEGIC_ACTIONS = {
         rivalPairsHint: {
             peasant: '地主', serf: '地主', worker: '资本家', miner: '资本家',
             lumberjack: '地主', merchant: '官员', artisan: '商人', soldier: '官员',
-            knight: '官员', landowner: '农民', capitalist: '工人',
+            landowner: '农民', capitalist: '工人',
         },
         cost: {
             culture: 200,

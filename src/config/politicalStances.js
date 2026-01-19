@@ -34,7 +34,7 @@ export const POLITICAL_ISSUES = {
     stability: { name: '稳定', icon: 'Anchor', description: '社会安定' },
 };
 
-// ========== 有效阶层列表（排除骑士） ==========
+// ========== 有效阶层列表 ==========
 const VALID_STRATA = [
     'peasant', 'worker', 'artisan', 'merchant', 'landowner',
     'cleric', 'scribe', 'soldier', 'official', 'capitalist',
@@ -976,8 +976,6 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
     available.forEach(stance => {
         // 基于出身阶层的权重
         let stratumWeight = stance.stratumWeights?.[sourceStratum] || 0.5;
-        // 骑士阶层降权
-        if (sourceStratum === 'knight') stratumWeight = 0.3;
         // 确保权重不为0
         stratumWeight = Math.max(0.1, stratumWeight);
         weights[stance.id] = stratumWeight;

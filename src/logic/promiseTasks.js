@@ -101,7 +101,7 @@ export function selectPromiseType(stratumKey, context) {
     const { nations, taxPolicies, market, classWealth, needsReport, tradeRoutes } = context || {};
 
     // 1. 军事阶层：检查战争需求
-    if (['soldier', 'knight'].includes(stratumKey)) {
+    if (['soldier'].includes(stratumKey)) {
         const rivals = (nations || []).filter(n => (n.relation || 50) < 30 && !n.isAtWar);
         if (rivals.length > 0) {
             candidates.push({

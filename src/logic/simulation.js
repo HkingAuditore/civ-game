@@ -3110,8 +3110,8 @@ export const simulateTick = ({
                 requirement *= (1 + totalStratumDemandMod);
             }
 
-            // 3. Wartime military class demand multiplier (3x for soldier and knight during war)
-            if (isPlayerAtWar && (key === 'soldier' || key === 'knight')) {
+            // 3. Wartime military class demand multiplier (3x for soldier during war)
+            if (isPlayerAtWar && key === 'soldier') {
                 requirement *= WAR_MILITARY_MULTIPLIER;
             }
 

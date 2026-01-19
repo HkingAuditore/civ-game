@@ -46,12 +46,11 @@ export const STAGE_THRESHOLDS = {
 };
 
 // 阶层影响力倍增器 - 权贵阶层组织能力更强
-// 与 strata.js 中的17个阶级保持一致
+// 与 strata.js 中的阶层保持一致
 export const STRATUM_ORGANIZATION_MULTIPLIER = {
     // 上层阶级
     capitalist: 2.4,    // 资本家 (原2.0)
     landowner: 1.8,     // 地主 (原1.5)
-    knight: 1.6,        // 骑士 (原1.3)
     official: 1.5,      // 官员 (原1.2)
     engineer: 1.4,      // 工程师 (原1.0)
     // 中层阶级
@@ -81,7 +80,6 @@ export const RIVAL_PAIRS = {
     artisan: 'merchant',
     cleric: 'scribe',
     soldier: 'official',
-    knight: 'official',
     engineer: 'capitalist',
     navigator: 'merchant',
     scribe: 'cleric',

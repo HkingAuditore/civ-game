@@ -198,6 +198,7 @@ const CompactBuildingCard = ({
         <div
             className="group relative flex flex-col h-full glass-ancient border border-ancient-gold/20 rounded-lg p-1.5 text-center transition-all hover:border-ancient-gold/40 hover:shadow-glow-gold"
             data-building-id={building.id}
+            data-build-card="1"
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
         >
@@ -350,14 +351,24 @@ const BuildTabComponent = ({
     difficulty,
     buildingCostMod = 0,
 }) => {
-    const renderStart = import.meta.env.DEV ? performance.now() : 0;
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
+    const [viewport, setViewport] = useState(() => {
+        if (typeof window === 'undefined') return { scrollY: 0, height: 0, width: 0 };
+        return {
+            scrollY: window.scrollY || window.pageYOffset || 0,
+            height: window.innerHeight,
+            width: window.innerWidth,
+        };
+    });
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
     const canHover = useMemo(() => {
         if (typeof window === 'undefined' || !window.matchMedia) return false;
         return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     }, []);
+    const gridRefs = useRef({});
+    const rowHeightsRef = useRef({});
+    const [virtualRangeByCategory, setVirtualRangeByCategory] = useState({});
 
     // 优化：使用useCallback稳定化handleMouseEnter，减少子组件重渲染
     const handleMouseEnter = useCallback((e, building, cost) => {
@@ -369,10 +380,29 @@ const BuildTabComponent = ({
     }, [canHover]);
 
     useEffect(() => {
-        if (!import.meta.env.DEV) return;
-        const renderTime = performance.now() - renderStart;
-        console.log(`[BuildTab] render: ${renderTime.toFixed(2)} ms`);
-    }, [renderStart]);
+        if (typeof window === 'undefined') return;
+        let rafId = 0;
+        const update = () => {
+            rafId = 0;
+            setViewport({
+                scrollY: window.scrollY || window.pageYOffset || 0,
+                height: window.innerHeight,
+                width: window.innerWidth,
+            });
+        };
+        const onScroll = () => {
+            if (rafId) return;
+            rafId = window.requestAnimationFrame(update);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        update();
+        return () => {
+            window.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', onScroll);
+            if (rafId) window.cancelAnimationFrame(rafId);
+        };
+    }, []);
 
     // [优化] 使用模拟端预计算的 buildingJobsRequired 数据
     // 直接从模拟端获取业主岗位数，避免在UI层重复计算
@@ -539,7 +569,6 @@ const BuildTabComponent = ({
     };
 
     const buildingStatsById = useMemo(() => {
-        if (import.meta.env.DEV) console.time('[BuildTab] buildingStatsById');
         const stats = {};
         // 获取当前难度的增长系数
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
@@ -621,7 +650,6 @@ const BuildTabComponent = ({
             };
         });
 
-        if (import.meta.env.DEV) console.timeEnd('[BuildTab] buildingStatsById');
         return stats;
     }, [buildings, buildingUpgrades, difficulty]);
 
@@ -636,8 +664,17 @@ const BuildTabComponent = ({
         return grouped;
     }, [epoch, techsUnlocked]);
 
+    const gridColumns = useMemo(() => {
+        const width = viewport.width || (typeof window !== 'undefined' ? window.innerWidth : 0);
+        if (width >= 1536) return 11;
+        if (width >= 1280) return 9;
+        if (width >= 1024) return 7;
+        if (width >= 768) return 6;
+        if (width >= 640) return 5;
+        return 4;
+    }, [viewport.width]);
+
     const buildingJobStatsById = useMemo(() => {
-        if (import.meta.env.DEV) console.time('[BuildTab] buildingJobStatsById');
         const stats = {};
         BUILDINGS.forEach((building) => {
             const count = buildingStatsById[building.id]?.count ?? 0;
@@ -656,7 +693,6 @@ const BuildTabComponent = ({
             const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
             stats[building.id] = { totalRequired, totalAssigned, workingRatio };
         });
-        if (import.meta.env.DEV) console.timeEnd('[BuildTab] buildingJobStatsById');
         return stats;
     }, [buildingStatsById, buildingJobsRequired, buildingFinancialData, jobFill]);
 
@@ -672,7 +708,6 @@ const BuildTabComponent = ({
     }, [availableBuildingsByCategory, buildingJobStatsById]);
 
     const cardDataById = useMemo(() => {
-        if (import.meta.env.DEV) console.time('[BuildTab] cardDataById');
         const data = {};
         const silverResource = resources.silver || 0;
         BUILDINGS.forEach((building) => {
@@ -735,7 +770,6 @@ const BuildTabComponent = ({
                 // 移除 actualIncome 计算，因为 CompactBuildingCard 不再使用它
             };
         });
-        if (import.meta.env.DEV) console.timeEnd('[BuildTab] cardDataById');
         return data;
     }, [buildingStatsById, buildingJobStatsById, buildingFinancialData, epoch, techsUnlocked, market, resources, buildingCostMod]);
 
@@ -843,22 +877,13 @@ const BuildTabComponent = ({
         );
     }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
 
-    // 渲染链内容：顶级建筑(带角标) + (展开时)其他建筑
-    // 返回数组，直接插入到网格中
-    const renderChainElements = useCallback((chainId, chainBuildings) => {
-        if (chainBuildings.length === 0) return [];
+    const renderChainTopCard = useCallback((chainId, topBuilding, otherBuildings) => {
+        const topCardData = cardDataById[topBuilding.id];
+        if (!topCardData) return null;
 
         const chain = BUILDING_CHAINS[chainId];
-        const topBuilding = chainBuildings[chainBuildings.length - 1]; // 最高级（最后解锁）
         const isExpanded = expandedChains.has(chainId);
-        const otherBuildings = chainBuildings.slice(0, -1); // 除顶级外的其他建筑
         const hasOthers = otherBuildings.length > 0;
-
-        const elements = [];
-
-        // 获取顶级建筑的卡片数据
-        const topCardData = cardDataById[topBuilding.id];
-        if (!topCardData) return elements;
 
         const {
             building: averageBuilding,
@@ -871,9 +896,8 @@ const BuildTabComponent = ({
             actualOutputByRes,
         } = topCardData;
 
-        // 1. 顶级建筑卡片（带链角标）
-        elements.push(
-            <div key={topBuilding.id} className="relative">
+        return (
+            <div key={topBuilding.id} className="relative" data-build-card="1">
                 <MemoCompactBuildingCard
                     building={averageBuilding}
                     count={count}
@@ -914,16 +938,50 @@ const BuildTabComponent = ({
                 )}
             </div>
         );
+    }, [cardDataById, expandedChains, ownerJobsCorrections, toggleChainExpand, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
 
-        // 2. 展开时，插入其他建筑（按时代从低到高）
-        if (isExpanded && hasOthers) {
-            otherBuildings.forEach(b => {
-                elements.push(renderBuildingCard(b));
+    const flatItemsByCategory = useMemo(() => {
+        const result = {};
+        Object.entries(availableBuildingsByCategory).forEach(([catKey, categoryBuildings]) => {
+            const grouped = groupedBuildingsByCategory[catKey];
+            if (!grouped) {
+                result[catKey] = [];
+                return;
+            }
+
+            const { chainGroups } = grouped;
+            const renderedChainIds = new Set();
+            const items = [];
+
+            categoryBuildings.forEach(building => {
+                const chainId = BUILDING_TO_CHAIN[building.id];
+                if (chainId && chainGroups[chainId]) {
+                    if (!renderedChainIds.has(chainId)) {
+                        renderedChainIds.add(chainId);
+                        const chainBuildings = chainGroups[chainId];
+                        const topBuilding = chainBuildings[chainBuildings.length - 1];
+                        const otherBuildings = chainBuildings.slice(0, -1);
+                        items.push({
+                            type: 'chain-top',
+                            chainId,
+                            building: topBuilding,
+                            otherBuildings,
+                        });
+                        if (expandedChains.has(chainId)) {
+                            otherBuildings.forEach(other => {
+                                items.push({ type: 'building', building: other });
+                            });
+                        }
+                    }
+                } else {
+                    items.push({ type: 'building', building });
+                }
             });
-        }
 
-        return elements;
-    }, [expandedChains, cardDataById, ownerJobsCorrections, toggleChainExpand, renderBuildingCard, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
+            result[catKey] = items;
+        });
+        return result;
+    }, [availableBuildingsByCategory, groupedBuildingsByCategory, expandedChains]);
 
     // 按类别分组建筑
     const categories = {
@@ -944,6 +1002,96 @@ const BuildTabComponent = ({
         activeCategory === 'all'
             ? Object.entries(categories)
             : Object.entries(categories).filter(([key]) => key === activeCategory);
+
+    useEffect(() => {
+        const DEFAULT_ROW_HEIGHT = 140;
+        const OVERSCAN_ROWS = 4;
+        const nextRanges = {};
+
+        categoriesToRender.forEach(([catKey]) => {
+            const items = flatItemsByCategory[catKey] || [];
+            const totalItems = items.length;
+            if (totalItems === 0) return;
+
+            const gridEl = gridRefs.current[catKey];
+            if (!gridEl) {
+                nextRanges[catKey] = {
+                    startIndex: 0,
+                    endIndex: totalItems,
+                    topSpacerHeight: 0,
+                    bottomSpacerHeight: 0,
+                    enabled: false,
+                };
+                return;
+            }
+
+            const cardEl = gridEl.querySelector('[data-build-card="1"]');
+            if (cardEl) {
+                const gridStyle = window.getComputedStyle(gridEl);
+                const gap = parseFloat(gridStyle.rowGap || gridStyle.gap || 0) || 0;
+                rowHeightsRef.current[catKey] = cardEl.getBoundingClientRect().height + gap;
+            }
+
+            const rowHeight = rowHeightsRef.current[catKey] || DEFAULT_ROW_HEIGHT;
+            const totalRows = Math.ceil(totalItems / gridColumns);
+            if (totalRows <= 0) return;
+
+            if (totalItems < gridColumns * 4) {
+                nextRanges[catKey] = {
+                    startIndex: 0,
+                    endIndex: totalItems,
+                    topSpacerHeight: 0,
+                    bottomSpacerHeight: 0,
+                    enabled: false,
+                };
+                return;
+            }
+
+            const gridRect = gridEl.getBoundingClientRect();
+            const gridTop = gridRect.top + window.scrollY;
+            const viewTop = viewport.scrollY;
+            const viewBottom = viewport.scrollY + viewport.height;
+
+            const startRowRaw = Math.floor((viewTop - gridTop) / rowHeight) - OVERSCAN_ROWS;
+            const endRowRaw = Math.ceil((viewBottom - gridTop) / rowHeight) + OVERSCAN_ROWS;
+            const startRow = Math.max(0, Math.min(totalRows - 1, startRowRaw));
+            const endRow = Math.max(startRow, Math.min(totalRows - 1, endRowRaw));
+
+            const startIndex = startRow * gridColumns;
+            const endIndex = Math.min(totalItems, (endRow + 1) * gridColumns);
+            const topSpacerHeight = startRow * rowHeight;
+            const bottomSpacerHeight = (totalRows - endRow - 1) * rowHeight;
+
+            nextRanges[catKey] = {
+                startIndex,
+                endIndex,
+                topSpacerHeight,
+                bottomSpacerHeight,
+                enabled: true,
+            };
+        });
+
+        setVirtualRangeByCategory(prev => {
+            const prevKeys = Object.keys(prev);
+            const nextKeys = Object.keys(nextRanges);
+            if (prevKeys.length !== nextKeys.length) return nextRanges;
+            for (const key of nextKeys) {
+                const next = nextRanges[key];
+                const current = prev[key];
+                if (!current) return nextRanges;
+                if (
+                    current.enabled !== next.enabled ||
+                    current.startIndex !== next.startIndex ||
+                    current.endIndex !== next.endIndex ||
+                    current.topSpacerHeight !== next.topSpacerHeight ||
+                    current.bottomSpacerHeight !== next.bottomSpacerHeight
+                ) {
+                    return nextRanges;
+                }
+            }
+            return prev;
+        });
+    }, [categoriesToRender, flatItemsByCategory, gridColumns, viewport.scrollY, viewport.height]);
 
     return (
         <div className="space-y-4 build-tab">
@@ -967,7 +1115,6 @@ const BuildTabComponent = ({
             </div>
 
             {categoriesToRender.map(([catKey, catInfo]) => {
-                const categoryBuildings = availableBuildingsByCategory[catKey] || [];
                 const categoryWorkers = categoryWorkersByKey[catKey] || 0;
 
                 return (
@@ -983,36 +1130,44 @@ const BuildTabComponent = ({
                         </h3>
 
                         {/* 建筑列表 - 使用链分组 */}
-                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11 gap-1">
+                        <div
+                            ref={(el) => { gridRefs.current[catKey] = el; }}
+                            className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11 gap-1"
+                        >
                             {(() => {
-                                const grouped = groupedBuildingsByCategory[catKey];
-                                if (!grouped) return null;
+                                const items = flatItemsByCategory[catKey] || [];
+                                const range = virtualRangeByCategory[catKey];
+                                const useVirtual = range?.enabled;
+                                const startIndex = useVirtual ? range.startIndex : 0;
+                                const endIndex = useVirtual ? range.endIndex : items.length;
+                                const visibleItems = items.slice(startIndex, endIndex);
 
-                                const { chainGroups, standalone } = grouped;
-                                const renderedChainIds = new Set();
-
-                                // 收集所有要渲染的元素
-                                const elements = [];
-
-                                // 遍历分类中的建筑，按原顺序渲染（链或独立）
-                                categoryBuildings.forEach(building => {
-                                    const chainId = BUILDING_TO_CHAIN[building.id];
-
-                                    if (chainId && chainGroups[chainId]) {
-                                        // 属于某个链
-                                        if (!renderedChainIds.has(chainId)) {
-                                            // 第一次遇到该链，渲染所有链元素（数组）
-                                            renderedChainIds.add(chainId);
-                                            elements.push(...renderChainElements(chainId, chainGroups[chainId]));
-                                        }
-                                        // 后续遇到同链建筑时跳过（已在链元素中处理）
-                                    } else {
-                                        // 独立建筑
-                                        elements.push(renderBuildingCard(building));
+                                const renderedItems = visibleItems.map((item) => {
+                                    if (item.type === 'chain-top') {
+                                        return renderChainTopCard(item.chainId, item.building, item.otherBuildings);
                                     }
+                                    return renderBuildingCard(item.building);
                                 });
 
-                                return elements;
+                                return (
+                                    <>
+                                        {useVirtual && range.topSpacerHeight > 0 && (
+                                            <div
+                                                key={`${catKey}-spacer-top`}
+                                                className="col-span-full"
+                                                style={{ height: `${range.topSpacerHeight}px` }}
+                                            />
+                                        )}
+                                        {renderedItems}
+                                        {useVirtual && range.bottomSpacerHeight > 0 && (
+                                            <div
+                                                key={`${catKey}-spacer-bottom`}
+                                                className="col-span-full"
+                                                style={{ height: `${range.bottomSpacerHeight}px` }}
+                                            />
+                                        )}
+                                    </>
+                                );
                             })()}
                         </div>
                     </div>

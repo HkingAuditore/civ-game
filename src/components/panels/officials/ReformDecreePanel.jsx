@@ -49,7 +49,7 @@ const formatDecreeEffect = (key, value) => {
         maxPop: '人口上限',
         gatherBonus: '采集产出',
         populationGrowth: '人口增长', // 新增
-        incomePercent: '财政收入',
+        incomePercent: '财政收入加成',
         buildCostReduction: '建筑成本',
         needsReduction: '居民需求',
     };

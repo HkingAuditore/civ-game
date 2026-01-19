@@ -82,7 +82,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'consumption',
         name: "上层享用",
-        consumers: ['merchant', 'official', 'landowner', 'capitalist', 'knight'],
+        consumers: ['merchant', 'official', 'landowner', 'capitalist'],
         input: 'delicacies',
         bonus: { approval: 0.1, stability: 0.05 },
       }
@@ -155,7 +155,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'consumption',
         name: "上层居住",
-        consumers: ['merchant', 'official', 'landowner', 'capitalist', 'knight'],
+        consumers: ['merchant', 'official', 'landowner', 'capitalist'],
         input: 'furniture',
         bonus: { approval: 0.08, culture: 0.05 },
       }
@@ -223,7 +223,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'consumption',
         name: "奢侈服饰消费",
-        consumers: ['merchant', 'landowner', 'official', 'capitalist', 'knight'],
+        consumers: ['merchant', 'landowner', 'official', 'capitalist'],
         input: 'fine_clothes',
         bonus: { approval: 0.1, culture: 0.05 },
       }

@@ -4,6 +4,7 @@
  */
 
 import { RESOURCES, BUILDINGS } from '../config';
+import { STRATA } from '../config/strata';
 
 /**
  * 检查阶层是否可用（有已解锁的建筑提供该阶层的工作岗位）
@@ -15,6 +16,7 @@ import { RESOURCES, BUILDINGS } from '../config';
 export const isStratumAvailable = (stratumKey, epoch, techsUnlocked = []) => {
     // 特殊处理：unemployed（失业者）始终可用
     if (stratumKey === 'unemployed') return true;
+    if (!STRATA[stratumKey]) return false;
     
     // 检查是否有任何已解锁的建筑提供该阶层的工作岗位
     return BUILDINGS.some(building => {

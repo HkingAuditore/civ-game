@@ -155,21 +155,6 @@ export const ORGANIZATION_PENALTIES = {
         },
     },
 
-    knight: {
-        30: {
-            description: '懈怠',
-            effects: {
-                militaryPower: -0.10,
-            },
-        },
-        60: {
-            description: '骑士叛离',
-            effects: {
-                militaryPower: -0.40,
-            },
-        },
-    },
-
     cleric: {
         30: {
             description: '传播受阻',

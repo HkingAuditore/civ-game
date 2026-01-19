@@ -31,7 +31,7 @@ const EFFECT_NAMES = {
     taxEfficiency: '税收效率',
     industryBonus: '工业产出',
     gatherBonus: '采集产出',
-    incomePercentBonus: '税收收入',
+    incomePercentBonus: '财政收入加成',
     researchSpeed: '科研产出',
     populationGrowth: '人口增长',
     needsReduction: '全民消耗',

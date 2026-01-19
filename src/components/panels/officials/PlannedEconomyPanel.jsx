@@ -9,7 +9,7 @@ import { STRATA } from '../../../config/strata';
 import { RESOURCES } from '../../../config/gameConstants';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
 
-// 可调整的阶层（排除骑士和官员）
+// 可调整的阶层（排除官员）
 const ADJUSTABLE_STRATA = [
     'peasant', 'worker', 'artisan', 'merchant', 'landowner',
     'cleric', 'scribe', 'miner', 'engineer', 'capitalist', 'serf'

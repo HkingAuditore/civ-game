@@ -767,7 +767,7 @@ export const STRATUM_EFFECT_PREFERENCES = {
     soldier: {
         preferredEffects: ['military_bonus', 'military_upkeep', 'wartime_production', 'stability_bonus'],
         preferredDrawbacks: ['diplomatic_incident', 'faction_conflict'],
-        preferredTargets: ['barracks', 'training_ground', 'fortress', 'military', 'soldier', 'knight'],
+        preferredTargets: ['barracks', 'training_ground', 'fortress', 'military', 'soldier'],
     },
     // 航海家：贸易、外交、探索
     navigator: {
@@ -1468,7 +1468,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 军事能力 (Military): 20-60基础，根据阶层调整
     let military = 15 + Math.floor(Math.random() * 30); // 15-45 基础
-    const militaryStrata = { soldier: 30, knight: 25, landowner: 10, navigator: 8 };
+    const militaryStrata = { soldier: 30, landowner: 10, navigator: 8 };
     military += militaryStrata[sourceStratum] || 0;
     military = Math.min(100, Math.max(5, military));
 
@@ -1588,7 +1588,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 阶层修正
     const highGreedStrata = ['merchant', 'capitalist', 'landowner'];
-    const mediumGreedStrata = ['official', 'noble', 'knight'];
+    const mediumGreedStrata = ['official', 'noble'];
     if (highGreedStrata.includes(sourceStratum)) {
         greed += 0.2 + Math.random() * 0.2; // +0.2~0.4
     } else if (mediumGreedStrata.includes(sourceStratum)) {

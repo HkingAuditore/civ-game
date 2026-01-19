@@ -124,7 +124,7 @@ export function hasAvailableMilitary(army, popStructure, rebellingStratum) {
     if (totalUnits === 0) return false;
 
     // 如果叛乱的是军事阶层，则军队不可用
-    if (rebellingStratum === 'soldier' || rebellingStratum === 'knight') {
+    if (rebellingStratum === 'soldier') {
         return false;
     }
 
@@ -138,11 +138,9 @@ export function hasAvailableMilitary(army, popStructure, rebellingStratum) {
  */
 export function isMilitaryRebelling(rebellionStates) {
     const soldierState = rebellionStates.soldier;
-    const knightState = rebellionStates.knight;
 
     return (
-        (soldierState && soldierState.phase === REBELLION_PHASE.ACTIVE) ||
-        (knightState && knightState.phase === REBELLION_PHASE.ACTIVE)
+        (soldierState && soldierState.phase === REBELLION_PHASE.ACTIVE)
     );
 }
 

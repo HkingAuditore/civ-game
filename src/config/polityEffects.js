@@ -61,19 +61,6 @@ export const POLITY_DEFINITIONS = [
         }
     },
     {
-        name: '军事贵族专政',
-        priority: 1000,
-        description: '骑士阶层掌控一切',
-        icon: 'Shield',
-        color: 'text-red-500',
-        conditions: { exactCoalition: ['knight'] },
-        effects: {
-            militaryBonus: 0.25,
-            buildingProductionMod: { barracks: 0.2, training_ground: 0.2 },
-            stability: 0.05,
-        }
-    },
-    {
         name: '官僚集权',
         priority: 1000,
         description: '官僚阶层垄断政权',
@@ -302,7 +289,7 @@ export const POLITY_DEFINITIONS = [
         color: 'text-blue-400',
         conditions: {
             minCategoryShare: { bourgeoisie: 0.6 },
-            excludes: ['landowner', 'knight'],
+            excludes: ['landowner'],
             includesAny: ['worker', 'artisan']
         },
         effects: {
@@ -320,7 +307,7 @@ export const POLITY_DEFINITIONS = [
         color: 'text-blue-500',
         conditions: {
             minCategoryShare: { bourgeoisie: 0.6 },
-            excludes: ['landowner', 'knight']
+            excludes: ['landowner']
         },
         effects: {
             industry: 0.18,

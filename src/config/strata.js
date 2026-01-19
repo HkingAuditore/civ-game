@@ -472,38 +472,6 @@ export const STRATA = {
         }
     },
 
-    knight: {
-        name: "骑士",
-        icon: 'Shield',
-        weight: 8,
-        tax: 2,
-        headTaxBase: 0.09,
-        desc: "军事贵族，强大的战斗力。",
-        wealthWeight: 8,
-        influenceBase: 4,
-        startingWealth: 600,
-        defaultResource: 'tools',
-        wealthElasticity: 1.0, // 骑士：消费增长正常
-        maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
-        needs: { food: 0.90, cloth: 0.14 },
-        luxuryNeeds: {
-            1.0: { delicacies: 0.90, coffee: 0.10, furniture: 0.15, ale: 0.15, culture: 0.15 },
-            1.3: { delicacies: 0.40, fine_clothes: 0.10 },  // 珍馐，华服
-            1.5: { culture: 0.20 },  // 大量荣耀文化
-            1.8: { spice: 0.12, steel: 0.04 },  // 香料，钢
-            2.5: { coffee: 0.08, brick: 0.06, stone: 0.04, culture: 0.30 }, // 咖啡，砖块，巨量文化
-            4.0: { tools: 0.06, copper: 0.04, plank: 0.06 },  // 工具，铜器，板材
-            6.0: { steel: 0.06, tools: 0.04, culture: 0.25, delicacies: 0.25 }, // 军备维护+宴饮
-            10.0: { delicacies: 0.55, fine_clothes: 0.14, culture: 0.45 }, // 更奢华的贵族生活
-            15.0: { steel: 0.10, copper: 0.06, culture: 0.60 }, // 昂贵军备与排场
-            22.0: { delicacies: 0.85, spice: 0.22, fine_clothes: 0.18, culture: 0.80 } // 极端挥霍
-        },
-        buffs: {
-            satisfied: { desc: "骑士忠诚", militaryPower: 0.25, stability: 0.1 },
-            dissatisfied: { desc: "骑士不满", militaryPower: -0.2, stability: -0.15 }
-        }
-    },
-
     engineer: {
         name: "工程师",
         icon: 'Cog',

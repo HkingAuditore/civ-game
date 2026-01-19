@@ -42,10 +42,10 @@ function getStratumName(stratumKey) {
 }
 
 /**
- * 检查某个阶层是否有军队（军人、骑士等）
+ * 检查某个阶层是否有军队（军人等）
  */
 function isStratumMilitary(stratumKey) {
-    return ['soldier', 'knight'].includes(stratumKey);
+    return ['soldier'].includes(stratumKey);
 }
 
 /**

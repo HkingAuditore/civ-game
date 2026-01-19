@@ -305,13 +305,13 @@ export function getLegitimacyOrganizationModifier(legitimacy, isCoalitionMember)
 // 阶层分类定义（用于政体判断）
 export const STRATA_CATEGORIES = {
     // 传统贵族/精英阶层
-    aristocracy: ['landowner', 'knight', 'official'],
+    aristocracy: ['landowner', 'official'],
     // 资产阶级
     bourgeoisie: ['capitalist', 'merchant', 'engineer'],
     // 工农阶级
     proletariat: ['worker', 'miner', 'peasant', 'serf', 'lumberjack'],
     // 军事阶层
-    military: ['soldier', 'knight'],
+    military: ['soldier'],
     // 宗教阶层
     clerical: ['cleric'],
     // 知识阶层
@@ -328,7 +328,7 @@ export const STRATA_CATEGORIES = {
 export const STRATA_GROUPS = {
     upper: {
         name: '上流阶级',
-        keys: ['merchant', 'official', 'landowner', 'capitalist', 'knight', 'engineer'],
+        keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer'],
     },
     middle: {
         name: '中产阶级',
