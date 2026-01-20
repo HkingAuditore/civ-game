@@ -1,0 +1,17 @@
+# civ-game
+
+> 项目描述
+
+## Overview
+
+This project uses AI-assisted development with structured collaboration protocols.
+
+## Quick Start
+
+See [AI Collaboration Guidelines](CONTRIBUTING_AI.md) for how to work with AI assistants on this project.
+
+## AI Collaboration
+
+- [AI Collaboration Guidelines](CONTRIBUTING_AI.md): 
+  Collaboration protocol, decision levels, task units, and workflow rules for AI-assisted development.
+  This document defines how AI assistants should work with developers on this project.
