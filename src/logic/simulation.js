@@ -4734,8 +4734,13 @@ export const simulateTick = ({
             return next;
         }
 
-        // [FIX] Skip all AI logic for annexed nations - they should not take any actions
-        if (next.isAnnexed) {
+        // ========================================================================
+        // [PERFORMANCE OPTIMIZATION] Skip all AI logic for destroyed nations
+        // Annexed nations or nations with zero population should not execute any simulation
+        // This prevents "unknown nations" in alliances and reduces CPU usage
+        // ========================================================================
+        const isDestroyedNation = next.isAnnexed || (next.population || 0) <= 0;
+        if (isDestroyedNation) {
             // Clear any ongoing wars or diplomatic actions
             if (next.isAtWar) {
                 next.isAtWar = false;
@@ -4746,11 +4751,21 @@ export const simulateTick = ({
                 next.warTarget = null;
                 next.isPeaceRequesting = false;
                 next.peaceTribute = null;
+                next.warTotalExpense = 0;
             }
             // Clear foreign wars
             if (next.foreignWars) {
                 next.foreignWars = {};
             }
+            // Clear installment payments
+            if (next.installmentPayment) {
+                next.installmentPayment = null;
+            }
+            // Clear any diplomatic actions
+            next.relation = 0;
+            next.alliedWithPlayer = false;
+            
+            // Skip all AI simulation for this nation
             return next;
         }
 
@@ -5036,6 +5051,29 @@ export const simulateTick = ({
     }
 
     // ========================================================================
+    // [PERFORMANCE OPTIMIZATION] Periodic cleanup of destroyed nations
+    // Remove annexed nations with zero population every 100 days to reduce memory usage
+    // ========================================================================
+    const isCleanupTick = tick % 100 === 0;
+    if (isCleanupTick) {
+        const beforeCount = updatedNations.length;
+        updatedNations = updatedNations.filter(n => {
+            // Always keep player
+            if (n.id === 'player') return true;
+            // Remove annexed nations with zero or negative population
+            if (n.isAnnexed && (n.population || 0) <= 0) {
+                logs.push(`🗑️ 国家 "${n.name}" 已被完全清除（已吞并且人口为0）。`);
+                return false;
+            }
+            return true;
+        });
+        const removedCount = beforeCount - updatedNations.length;
+        if (removedCount > 0) {
+            logs.push(`♻️ 系统清理：移除了 ${removedCount} 个已消失的国家，优化性能。`);
+        }
+    }
+
+    // ========================================================================
     // INTERNATIONAL ORGANIZATION MONTHLY UPDATE (Phase 2 Integration)
     // Process organization membership fees and effects
     // ========================================================================
@@ -5294,6 +5332,32 @@ export const simulateTick = ({
                 }
             });
         }
+
+        // [FIX] Clean up annexed/destroyed nations from organization memberships
+        // This prevents "unknown nations" from appearing in alliance/trade bloc lists
+        const validNationIds = new Set(updatedNations
+            .filter(n => !n.isAnnexed && n.population > 0)
+            .map(n => n.id)
+        );
+        validNationIds.add('player'); // Player is always valid
+
+        updatedOrganizations = updatedOrganizations.map(org => {
+            const originalMemberCount = org.members?.length || 0;
+            const cleanedMembers = (org.members || []).filter(memberId => validNationIds.has(memberId));
+            
+            if (cleanedMembers.length < originalMemberCount) {
+                organizationUpdatesOccurred = true;
+                const removedCount = originalMemberCount - cleanedMembers.length;
+                if (removedCount > 0) {
+                    logs.push(`🏛️ "${org.name}" 清理了 ${removedCount} 个已消失的成员国。`);
+                }
+            }
+            
+            return {
+                ...org,
+                members: cleanedMembers,
+            };
+        });
 
         const filteredOrgs = [];
         updatedOrganizations.forEach(org => {

@@ -165,8 +165,6 @@ export function createOverseasInvestment({
         buildingId,
         targetNationId,
         ownerStratum,
-        targetNationId,
-        ownerStratum,
         strategy: 'PROFIT_MAX', // Default strategy
         investmentAmount,
         createdDay: 0,  // 将在实际创建时设置
@@ -1070,7 +1068,6 @@ export function establishOverseasInvestment({
     const investment = createOverseasInvestment({
         buildingId,
         targetNationId: targetNation.id,
-        ownerStratum,
         ownerStratum,
         strategy,
         investmentAmount: investmentCost,

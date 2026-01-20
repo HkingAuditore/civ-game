@@ -17,14 +17,14 @@ export const RATE_LIMIT_CONFIG = {
     // Price calculations: every N ticks
     priceUpdateFrequency: 3,
     
-    // AI decision making: every N ticks
-    aiDecisionFrequency: 5,
+    // AI decision making: every N ticks (OPTIMIZED: 5 -> 7 for better performance)
+    aiDecisionFrequency: 7,
     
     // Trade calculations: every N ticks
     tradeUpdateFrequency: 3,
     
-    // Diplomatic relation updates: every N ticks
-    diplomacyUpdateFrequency: 5,
+    // Diplomatic relation updates: every N ticks (OPTIMIZED: 5 -> 10 for better performance)
+    diplomacyUpdateFrequency: 10,
     
     // Building upgrade distribution cache validation: every N ticks
     buildingCacheValidation: 10,

@@ -321,6 +321,11 @@ export const processAIMilitaryAction = ({
     const next = nation;
     const res = resources;
 
+    // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot take military actions
+    if (next.isAnnexed || (next.population || 0) <= 0) {
+        return { raidPopulationLoss };
+    }
+
     // Only process in epoch 1+
     if (epoch < 1) return { raidPopulationLoss };
 
@@ -612,6 +617,12 @@ export const checkAIPeaceRequest = ({
     logs,
 }) => {
     const next = nation;
+    
+    // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot request peace
+    if (next.isAnnexed || (next.population || 0) <= 0) {
+        return false;
+    }
+    
     const lastPeaceRequestDay = Number.isFinite(next.lastPeaceRequestDay)
         ? next.lastPeaceRequestDay
         : -Infinity;
@@ -659,6 +670,12 @@ export const checkAISurrenderDemand = ({
     logs,
 }) => {
     const next = nation;
+    
+    // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot demand surrender
+    if (next.isAnnexed || (next.population || 0) <= 0) {
+        return;
+    }
+    
     const aiWarScore = -(next.warScore || 0);
 
     if (aiWarScore > 25 && (next.warDuration || 0) > 30) {
@@ -817,8 +834,9 @@ export const checkWarDeclaration = ({
     const relation = next.relation ?? 50;
     const aggression = next.aggression ?? 0.2;
 
-    // [FIX] Annexed nations cannot declare war
-    if (next.isAnnexed) {
+    // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot declare war
+    // Skip annexed nations or nations with zero population
+    if (next.isAnnexed || (next.population || 0) <= 0) {
         return;
     }
 

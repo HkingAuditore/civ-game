@@ -1366,6 +1366,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 popStructure={popStructure}
                                 classFinancialData={classFinancialData}
                                 buildingFinancialData={gameState?.buildingFinancialData}
+                                gameState={gameState}
                                 onUpgrade={(fromLevel) => onUpgrade?.(building.id, fromLevel)}
                                 onDowngrade={(fromLevel) => onDowngrade?.(building.id, fromLevel)}
                                 onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}
