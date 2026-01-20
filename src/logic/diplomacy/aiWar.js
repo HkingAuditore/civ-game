@@ -1017,13 +1017,13 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
     visibleNations.forEach(nation => {
         // [FIX] Skip annexed nations
         if (nation.isAnnexed) return;
-        
+
         if (!nation.foreignWars) nation.foreignWars = {};
 
         visibleNations.forEach(otherNation => {
             // [FIX] Skip annexed nations as targets
             if (otherNation.isAnnexed) return;
-            
+
             if (otherNation.id === nation.id) return;
             if (nation.foreignWars[otherNation.id]?.isAtWar) return;
 
@@ -1034,7 +1034,10 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             if (isAllied) return;
 
             // [FIX] Check for Vassal/Suzerain relationship - standard wars not allowed
+            // This includes both AI-AI vassal relationships AND player vassal relationships
             if (nation.vassalOf === otherNation.id || otherNation.vassalOf === nation.id) return;
+            // [FIX] Check if either nation is player's vassal or player is their vassal
+            if (nation.vassalOf === 'player' || otherNation.vassalOf === 'player') return;
 
             const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
             const maxWarsAllowed = nation.aggression > 0.7 ? 2 : 1;
@@ -1111,7 +1114,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         if (diplomaticControl === 'puppet') {
                             return; // Puppet vassals cannot initiate war independently
                         }
-                        
+
                         vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
                             vassal: nation,
                             target: otherNation,
@@ -1143,39 +1146,59 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         }
                     }
 
-                    // Alliance chain reaction
-                    const isOtherNationPlayerAlly = otherNation.alliedWithPlayer === true;
-                    const isNationPlayerAlly = nation.alliedWithPlayer === true;
+
+                    // ✅ Alliance aid request - check if player's military allies are involved
+                    const allianceOrgs = diplomacyOrganizations?.organizations || [];
+                    const isOtherNationPlayerAlly = areNationsAllied('player', otherNation.id, allianceOrgs);
+                    const isNationPlayerAlly = areNationsAllied('player', nation.id, allianceOrgs);
                     const playerAlliesInConflict = isOtherNationPlayerAlly && isNationPlayerAlly;
                     const currentPlayerWars = visibleNations.filter(n => n.isAtWar === true && !n.isRebelNation).length;
+
+                    // Cooldown for ally aid requests (prevent spam) - tracked per ally
+                    const ALLY_REQUEST_COOLDOWN = 30; // 30 days
 
                     if (playerAlliesInConflict) {
                         logs.push(`⚖️ 你的盟友 ${nation.name} 与 ${otherNation.name} 发生冲突，你选择保持中立。`);
                     } else {
+                        // Case 1: Defender (otherNation) is player's ally -被攻击
                         if (isOtherNationPlayerAlly && !nation.isAtWar) {
-                            logs.push(`ALLY_ATTACKED_EVENT:${JSON.stringify({
-                                allyId: otherNation.id,
-                                allyName: otherNation.name,
-                                attackerId: nation.id,
-                                attackerName: nation.name,
-                                currentPlayerWars
-                            })}`);
+                            const lastRequestDay = otherNation.lastAllyRequestDay || 0;
+                            if (tick - lastRequestDay >= ALLY_REQUEST_COOLDOWN) {
+                                otherNation.lastAllyRequestDay = tick;
+                                logs.push(`ALLY_ATTACKED_EVENT:${JSON.stringify({
+                                    allyId: otherNation.id,
+                                    allyName: otherNation.name,
+                                    attackerId: nation.id,
+                                    attackerName: nation.name,
+                                    currentPlayerWars
+                                })}`);
+                            }
                         }
+                        // Case 2: Attacker (nation) is player's ally - 主动宣战
                         if (isNationPlayerAlly && !otherNation.isAtWar) {
-                            if (currentPlayerWars >= MAX_CONCURRENT_WARS) {
-                                logs.push(`⚖️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！但你已陷入多场战争，选择不介入。`);
-                            } else {
-                                otherNation.isAtWar = true;
-                                otherNation.warStartDay = tick;
-                                otherNation.warDuration = 0;
-                                otherNation.relation = Math.max(0, (otherNation.relation || 50) - 40);
-                                logs.push(`⚔️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！作为同盟，你被迫与 ${otherNation.name} 进入战争状态！`);
+                            const lastRequestDay = nation.lastAllyRequestDay || 0;
+                            if (tick - lastRequestDay >= ALLY_REQUEST_COOLDOWN) {
+                                nation.lastAllyRequestDay = tick;
+                                // Only auto-join if player isn't in too many wars
+                                if (currentPlayerWars >= MAX_CONCURRENT_WARS) {
+                                    logs.push(`⚖️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！但你已陷入多场战争，选择不介入。`);
+                                } else {
+                                    logs.push(`ALLY_ATTACKED_EVENT:${JSON.stringify({
+                                        allyId: nation.id,
+                                        allyName: nation.name,
+                                        attackerId: otherNation.id,
+                                        attackerName: otherNation.name,
+                                        isOffensiveWar: true, // 标记为进攻性战争
+                                        currentPlayerWars
+                                    })}`);
+                                }
                             }
                         }
                     }
 
+
                     // AI alliance chain (organization-based)
-                    const allianceOrgs = diplomacyOrganizations?.organizations || [];
+                    // ✅ Reuse allianceOrgs from above
                     const attackerAllies = getAllianceMembers(nation.id, allianceOrgs);
                     const defenderAllies = getAllianceMembers(otherNation.id, allianceOrgs);
                     const sharedAllies = new Set(attackerAllies.filter(id => defenderAllies.includes(id)));
@@ -1302,7 +1325,7 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                     if (needsApproval && Array.isArray(vassalDiplomacyRequests)) {
                         const requester = requiresVassalDiplomacyApproval(nation) ? nation : enemy;
                         const target = requester.id === nation.id ? enemy : nation;
-                        
+
                         // Check if requester is allowed to propose peace
                         const diplomaticControl = requester.vassalPolicy?.diplomaticControl || 'guided';
                         if (diplomaticControl === 'puppet') {
@@ -1310,7 +1333,7 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                             // Peace will be handled automatically or by player order
                             return;
                         }
-                        
+
                         // Only generate peace request if not already pending
                         if (!war.pendingPeaceApproval) {
                             vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({

@@ -73,12 +73,12 @@ const calculateTreatyBenefitForNation = ({
     let benefit = 0;
     let risk = 0;
     let strategicValue = 0;
-    
+
     const wealthRatio = otherWealth > 0 ? nationWealth / otherWealth : 1;
     const powerRatio = otherPower > 0 ? nationPower / otherPower : 1;
     const productionRatio = otherProduction > 0 ? nationProduction / otherProduction : 1;
     const durationFactor = Math.min(3, durationDays / 365); // Scale benefits by duration
-    
+
     switch (type) {
         case 'trade_agreement':
             // Trade agreement benefits both, but more for the one with higher production
@@ -95,7 +95,7 @@ const calculateTreatyBenefitForNation = ({
                 risk = 200 * durationFactor;
             }
             break;
-            
+
         case 'free_trade':
             // Free trade: Zero tariffs + 50% more merchant slots + relation decay reduction
             // Benefits both sides through tariff elimination
@@ -113,7 +113,7 @@ const calculateTreatyBenefitForNation = ({
             // Less risk than before since no price convergence or unlimited slots
             strategicValue = 35;
             break;
-            
+
         case 'investment_pact':
             // Investment benefits the one receiving investment (weaker economy)
             if (wealthRatio < 1) {
@@ -125,7 +125,7 @@ const calculateTreatyBenefitForNation = ({
             }
             strategicValue = 25;
             break;
-            
+
         case 'open_market':
             // Open market is VERY one-sided - allows bypass relation limits, unlimited merchants, force trade
             // This is essentially economic colonization - the weaker party takes huge risk
@@ -151,14 +151,14 @@ const calculateTreatyBenefitForNation = ({
                 risk += 800 * (1 / productionRatio) * durationFactor;
             }
             break;
-            
+
         case 'academic_exchange':
             // Academic exchange is usually mutually beneficial with low risk
             benefit = 300 * durationFactor;
             risk = 50; // Minimal risk
             strategicValue = 40; // High strategic/soft power value
             break;
-            
+
         case 'defensive_pact':
             // Defensive pact benefits the weaker party more
             if (powerRatio < 1) {
@@ -170,13 +170,13 @@ const calculateTreatyBenefitForNation = ({
                 strategicValue = 30;
             }
             break;
-            
+
         case 'military_alliance':
             // Military alliance - calculate based on organization strength
             if (organization && organizationMode) {
                 const orgMembers = organization.members?.length || 1;
                 const orgTotalPower = organization.totalMilitaryPower || nationPower;
-                
+
                 if (organizationMode === 'invite') {
                     // Inviting someone to your alliance
                     // Value depends on what the other party brings
@@ -201,13 +201,13 @@ const calculateTreatyBenefitForNation = ({
                 }
             }
             break;
-            
+
         case 'economic_bloc':
             // Economic bloc - major economic integration
             if (organization && organizationMode) {
                 const orgMembers = organization.members?.length || 1;
                 const orgTotalWealth = organization.totalEconomicPower || nationWealth;
-                
+
                 if (organizationMode === 'invite') {
                     // Inviting to your bloc - you gain market access
                     benefit = 300 + (otherWealth * 0.002);
@@ -240,7 +240,7 @@ const calculateTreatyBenefitForNation = ({
                 }
             }
             break;
-            
+
         case 'peace_treaty':
             // Peace is always valuable, more so if you're weaker
             benefit = 500;
@@ -249,7 +249,7 @@ const calculateTreatyBenefitForNation = ({
             }
             strategicValue = 20;
             break;
-            
+
         case 'non_aggression':
             // Non-aggression benefits weaker party more
             benefit = 300;
@@ -258,16 +258,16 @@ const calculateTreatyBenefitForNation = ({
             }
             strategicValue = 15;
             break;
-            
+
         default:
             benefit = 300;
             strategicValue = 10;
     }
-    
+
     // Relation modifier: Better relations reduce perceived risk
     const relationModifier = Math.max(0.5, Math.min(1.5, relation / 50));
     risk = risk / relationModifier;
-    
+
     return {
         benefit: Math.round(benefit),
         risk: Math.round(risk),
@@ -292,7 +292,7 @@ export const calculateDealScore = ({
     const type = proposal.type;
     const relation = nation.relation || 0;
     const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
-    
+
     // Support both old single resource format and new multi-resource format
     const offerResources = Array.isArray(proposal.resources) ? proposal.resources : [];
     const resourceKey = proposal.resourceKey || '';
@@ -318,7 +318,7 @@ export const calculateDealScore = ({
         organizationMode: organizationMode === 'invite' ? 'join' : (organizationMode === 'join' ? 'invite' : organizationMode),
         durationDays,
     });
-    
+
     // --- Dynamic Treaty Value for Player (for UI display) ---
     const playerBenefit = calculateTreatyBenefitForNation({
         type,
@@ -345,7 +345,7 @@ export const calculateDealScore = ({
             offerResourceValue += getResourceDealValue(res.key, res.amount, nation, daysElapsed);
         }
     }
-    
+
     let demandResourceValue = getResourceDealValue(demandResourceKey, demandResourceAmount, nation, daysElapsed);
     for (const res of demandResources) {
         if (res.key && res.amount > 0) {
@@ -359,7 +359,7 @@ export const calculateDealScore = ({
     // Raw absolute values
     const offerValueRaw = signingGift + offerResourceValue + maintenanceValue;
     const demandValueRaw = demandSilver + demandResourceValue;
-    
+
     // --- Scale offer/demand relative to target's wealth ---
     // A nation with 500 million wealth won't care about 10,000 silver
     // We normalize the value to a "perceived importance" score
@@ -367,7 +367,7 @@ export const calculateDealScore = ({
     // baseScale chosen so that offering 1% of their wealth = ~1000 score points
     const targetWealthSafe = Math.max(10000, targetWealth || 10000);
     const valueScaleFactor = VALUE_SCALE_FACTOR; // Offering 1% of their wealth = 1000 score
-    
+
     // Perceived value = how significant this amount is to the target
     // If AI has 500M wealth, 10000 silver = 10000/500000000 * 100000 = 2 points (negligible)
     // If AI has 100K wealth, 10000 silver = 10000/100000 * 100000 = 10000 points (significant!)
@@ -405,13 +405,13 @@ export const calculateDealScore = ({
     // Score = (What AI gets) - (What AI gives up)
     // What AI GETS: treaty benefit + silver/resources PLAYER OFFERS + stance bonus (from player's friendly stance)
     // What AI GIVES: treaty risk + silver/resources PLAYER DEMANDS + relation penalty (if bad relations)
-    
+
     // offerValue = what player is GIVING (signingGift + resources) = what AI RECEIVES
     // demandValue = what player DEMANDS = what AI has to PAY
-    
+
     // --- Political Risk (Dynamic based on treaty type and power dynamics) ---
     let politicalCost = stancePoliticalCost;
-    
+
     // Add treaty-specific political risk for the player
     if (type === 'free_trade' || type === 'economic_bloc') {
         const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
@@ -456,8 +456,9 @@ export const calculateDealScore = ({
     const strategicValue = playerBenefit.strategicValue;
 
     // --- Economic Net Value (for display) ---
-    // This shows the direct monetary exchange in absolute terms (for UI display)
-    const economicNetValue = offerValueRaw - demandValueRaw;
+    // This shows the perceived value exchange after wealth scaling (for UI display)
+    // Using scaled values ensures UI display matches AI's actual evaluation
+    const economicNetValue = offerValue - demandValue;
 
     return {
         score,

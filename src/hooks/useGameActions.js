@@ -231,10 +231,10 @@ export const useGameActions = (gameState, addLog) => {
         const vassal = nations.find(n => n.id === request.vassalId);
         const target = request.targetId ? nations.find(n => n.id === request.targetId) : null;
         if (!vassal) return { success: false, message: '附庸不存在' };
-        
+
         // [FIX] Annexed vassals cannot perform diplomatic actions
         if (vassal.isAnnexed) return { success: false, message: '附庸已被吞并，无法执行外交行动' };
-        
+
         // [FIX] Cannot target annexed nations
         if (target && target.isAnnexed) return { success: false, message: '目标国家已被吞并' };
 
@@ -397,13 +397,13 @@ export const useGameActions = (gameState, addLog) => {
             addLog('无法下达指令：附庸不存在');
             return;
         }
-        
+
         // [FIX] Cannot issue orders to annexed vassals
         if (vassal.isAnnexed) {
             addLog('无法下达指令：附庸已被吞并');
             return;
         }
-        
+
         const control = vassal.vassalPolicy?.diplomaticControl || 'guided';
         if (control === 'autonomous') {
             addLog(`${vassal.name} 处于自主外交，无法直接下达指令。`);
@@ -2882,12 +2882,16 @@ export const useGameActions = (gameState, addLog) => {
                 // warScore 正数 = 玩家优势（玩家胜利时 +分）
                 const playerAdvantage = targetNation.warScore || 0;
 
+
                 const event = createPlayerPeaceProposalEvent(
                     targetNation,
                     playerAdvantage,
                     targetNation.warDuration || 0,
                     targetNation.enemyLosses || 0,
-                    { population: typeof getTotalPopulation === 'function' ? getTotalPopulation() : 1000 },
+                    { 
+                        population: typeof getTotalPopulation === 'function' ? getTotalPopulation() : 1000,
+                        epoch: epoch || 0
+                    },
                     (choice, value) => {
                         handleDiplomaticAction(nationId, 'finalize_peace', { type: choice, value });
                     }
@@ -2898,6 +2902,11 @@ export const useGameActions = (gameState, addLog) => {
             case 'finalize_peace': {
                 const { type, value } = payload;
                 if (!type) return;
+                // 如果是取消操作，直接返回，不做任何处理
+                if (type === 'cancel') {
+                    addLog(`取消了与 ${targetNation.name} 的和谈提议。`);
+                    return;
+                }
                 // 如果是叛乱政府，使用专门的叛乱结束处理
                 if (targetNation.isRebelNation) {
                     // 判断是玩家胜利还是失败
@@ -3199,12 +3208,7 @@ export const useGameActions = (gameState, addLog) => {
                 // 检查和平协议是否仍然有效
                 const isPeaceActive = targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil;
                 const breachPenalty = isPeaceActive ? getTreatyBreachPenalty(epoch) : null;
-                // 检查是否为正式同盟关系
-                if (targetNation.alliedWithPlayer === true) {
-                    addLog(`无法宣战：${targetNation.name} 是你的正式盟友。必须先解除同盟才能宣战！`);
 
-                    return;
-                }
                 // 找出目标国家的正式盟友，这些盟友也会被卷入战争
                 // 但如果某个盟友同时也是玩家的正式盟友，则该盟友保持中立
                 const orgs = diplomacyOrganizations?.organizations || [];
@@ -3224,11 +3228,43 @@ export const useGameActions = (gameState, addLog) => {
                 };
                 const targetAllianceIds = getAllianceMemberIds(targetNation.id);
                 const playerAllianceIds = getAllianceMemberIds('player');
+
+                // ✅ 检查是否在同一个军事组织中
+                const sharedAlliance = orgs.find(org =>
+                    org?.type === 'military_alliance' &&
+                    Array.isArray(org.members) &&
+                    org.members.includes('player') &&
+                    org.members.includes(targetNation.id)
+                );
+
+                if (sharedAlliance) {
+                    addLog(`无法宣战：${targetNation.name} 与你同属军事组织 ${sharedAlliance.name}。必须先退出组织才能宣战！`);
+                    return;
+                }
+
                 const sharedAllianceIds = new Set(targetAllianceIds.filter(id => playerAllianceIds.includes(id)));
+
+                // ✅ 获取所有会被号召的盟友ID（用于交叉检查）
+                const potentialTargetAllies = targetAllianceIds.filter(id => !sharedAllianceIds.has(id));
+                const potentialPlayerAllies = playerAllianceIds.filter(id => !sharedAllianceIds.has(id));
+
+                // ✅ 检查盟友之间是否在同一军事组织（防止盟友互相交战）
+                const checkAllianceConflict = (allyId, opposingAllyIds) => {
+                    return orgs.some(org => {
+                        if (org?.type !== 'military_alliance') return false;
+                        if (!Array.isArray(org.members)) return false;
+                        // 检查这个盟友是否与对方的任何盟友在同一组织中
+                        return org.members.includes(allyId) &&
+                            opposingAllyIds.some(oppId => org.members.includes(oppId));
+                    });
+                };
+
                 const targetAllies = nations.filter(n => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
                     if (!targetAllianceIds.includes(n.id)) return false;
                     if (sharedAllianceIds.has(n.id)) return false;
+                    // ✅ 底线检查：如果这个盟友与玩家的盟友在同一组织，不能号召
+                    if (checkAllianceConflict(n.id, potentialPlayerAllies)) return false;
                     return true;
                 });
                 const playerAllies = nations.filter(n => {
@@ -3236,6 +3272,8 @@ export const useGameActions = (gameState, addLog) => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
                     if (!playerAllianceIds.includes(n.id)) return false;
                     if (sharedAllianceIds.has(n.id)) return false;
+                    // ✅ 底线检查：如果这个盟友与目标的盟友在同一组织，不能号召
+                    if (checkAllianceConflict(n.id, potentialTargetAllies)) return false;
 
                     return true;
                 });
@@ -3485,6 +3523,7 @@ export const useGameActions = (gameState, addLog) => {
                     {
                         population,
                         wealth: resources?.silver || 0,
+                        epoch: epoch || 0,
                     },
                     (proposalType, amount) => {
                         handlePlayerPeaceProposal(nationId, proposalType, amount);
@@ -3790,7 +3829,7 @@ export const useGameActions = (gameState, addLog) => {
                 const maintenancePerDay = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
                 const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
                 // Support both old single resource format and new multi-resource format
-                const offerResources = Array.isArray(proposal.resources) 
+                const offerResources = Array.isArray(proposal.resources)
                     ? proposal.resources.filter(r => r.key && r.amount > 0).map(r => ({ key: r.key, amount: Math.max(0, Math.floor(Number(r.amount) || 0)) }))
                     : (proposal.resourceKey && proposal.resourceAmount > 0 ? [{ key: proposal.resourceKey, amount: Math.max(0, Math.floor(Number(proposal.resourceAmount) || 0)) }] : []);
                 const demandSilver = Math.max(0, Math.floor(Number(proposal.demandSilver) || 0));
@@ -4148,19 +4187,19 @@ export const useGameActions = (gameState, addLog) => {
                             }
                         }
 
-                    negotiateCostInfo += `，${demandParts.join('，')}`;
+                        negotiateCostInfo += `，${demandParts.join('，')}`;
                     }
                     addLog(`🤝 ${targetNation.name} 同意了谈判条约（${type}）${negotiateCostInfo}。`);
-                    
+
                     // Trigger diplomatic event for accepted negotiation
                     const acceptedEvent = createTreatyProposalResultEvent(
-                        targetNation, 
-                        { type, durationDays, maintenancePerDay: negotiateFinalMaintenancePerDay }, 
-                        true, 
-                        () => {}
+                        targetNation,
+                        { type, durationDays, maintenancePerDay: negotiateFinalMaintenancePerDay },
+                        true,
+                        () => { }
                     );
                     triggerDiplomaticEvent(acceptedEvent);
-                    
+
                     if (onResult) onResult({ status: 'accepted', acceptChance: evaluation.acceptChance, evaluation });
                     break;
                 }
@@ -4227,16 +4266,16 @@ export const useGameActions = (gameState, addLog) => {
                 } else {
                     addLog(`${targetNation.name} 拒绝了谈判，双方关系下降。`);
                 }
-                
+
                 // Trigger diplomatic event for rejected negotiation
                 const rejectedEvent = createTreatyProposalResultEvent(
-                    targetNation, 
-                    { type, durationDays, maintenancePerDay: negotiateFinalMaintenancePerDay }, 
-                    false, 
-                    () => {}
+                    targetNation,
+                    { type, durationDays, maintenancePerDay: negotiateFinalMaintenancePerDay },
+                    false,
+                    () => { }
                 );
                 triggerDiplomaticEvent(rejectedEvent);
-                
+
                 if (onResult) onResult({
                     status: 'rejected',
                     acceptChance: evaluation.acceptChance,

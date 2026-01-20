@@ -13,10 +13,7 @@ const pseudoNoise = (seed) => {
 
 /**
  * 计算外国资源价格（库存驱动定价模型）
- * @param {string} resourceKey - 资源ID
- * @param {Object} nation - 国家对象
- * @param {number} tick - 当前tick/天数（保留参数以兼容旧代码，但不再使用）
- * @returns {number}
+ * ... (existing code)
  */
 export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
     if (!nation) return getResourceBasePrice(resourceKey);
@@ -79,10 +76,7 @@ const getResourceKeyOffset = (resourceKey = '') => {
 
 /**
  * 计算动态贸易状态（缺口/盈余）及目标库存
- * @param {string} resourceKey
- * @param {Object} nation
- * @param {number} daysElapsed
- * @returns {{isShortage: boolean, isSurplus: boolean, shortageAmount: number, surplusAmount: number, target: number}}
+ * ... (existing code)
  */
 export const calculateTradeStatus = (resourceKey, nation = {}, daysElapsed = 0) => {
     // 获取资源偏差（特产资源 > 1，稀缺资源 < 1）
@@ -129,4 +123,39 @@ export const calculateTradeStatus = (resourceKey, nation = {}, daysElapsed = 0) 
         surplusAmount,
         target: dynamicTarget,
     };
+};
+
+/**
+ * Calculate the maximum number of trade routes (merchant assignments) allowed for a specific nation.
+ * 
+ * @param {number} relation - The relationship value with the nation (0-100).
+ * @param {boolean} isAllied - Whether the nation is an ally.
+ * @param {number} mCount - Total number of merchants in the player's nation.
+ * @returns {number} The maximum number of allowed trade routes.
+ */
+export const calculateMaxTradeRoutes = (relation = 0, isAllied = false, mCount = 0) => {
+    // 1. Base Capacity (from Merchant Population)
+    // Every 5 merchants = +1 capacity. Base 2.
+    // e.g. 0-39 => 2, 40-79 => 3 ... 400 => 12
+    const baseCapacity = 2 + Math.floor((mCount || 0) / 5);
+
+    // 2. Relationship Multiplier (The Amplifier)
+    let multiplier = 0;
+    if (isAllied) {
+        multiplier = 2.0; // Ally: 200%
+    } else if (relation >= 80) {
+        multiplier = 1.5; // Very Friendly: 150%
+    } else if (relation >= 20) {
+        multiplier = 1.0; // Neutral/Good: 100%
+    } else if (relation >= 0) {
+        multiplier = 0.5; // Cold: 50%
+    } else {
+        multiplier = 0.0; // Hostile: 0%
+    }
+
+    // 3. Final Calculation
+    const capacity = Math.floor(baseCapacity * multiplier);
+
+    // 4. Hard Cap (Safety)
+    return Math.min(200, capacity);
 };

@@ -7,7 +7,8 @@ import { getEstimatedMilitaryStrength } from '../../logic/diplomacy/militaryUtil
 import { getForeignInvestmentTaxRate, hasActiveTreaty, isInSameBloc } from '../../logic/diplomacy/overseasInvestment';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
-import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } from '../../utils/foreignTrade';
+import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 
 const formatStat = (val) => {
     const numberValue = Number(val || 0);
@@ -53,6 +54,7 @@ const NationDetailView = ({
     foreignInvestments = [],
     gameState,
     taxPolicies,
+    popStructure,
 }) => {
     const [activeTab, setActiveTab] = useState('overview');
 
@@ -171,9 +173,9 @@ const NationDetailView = ({
 
                         <StrategicStatus nation={nation} epoch={epoch} market={market} daysElapsed={daysElapsed} gameState={gameState} />
 
-                        <TaxRatesCard 
-                            nation={nation} 
-                            daysElapsed={daysElapsed} 
+                        <TaxRatesCard
+                            nation={nation}
+                            daysElapsed={daysElapsed}
                             diplomacyOrganizations={diplomacyOrganizations}
                             taxPolicies={taxPolicies}
                         />
@@ -290,6 +292,8 @@ const NationDetailView = ({
                                 nation={nation}
                                 merchantState={merchantState}
                                 onMerchantStateChange={onMerchantStateChange}
+                                merchantCountTotal={popStructure?.merchant || gameState?.popStructure?.merchant || 0}
+                                tick={daysElapsed}
                             />
 
                             <DetailedMarketTable
@@ -323,11 +327,11 @@ const NationDetailView = ({
  */
 const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies }) => {
     const organizations = diplomacyOrganizations?.organizations || [];
-    
+
     // Calculate tax rates for both directions
     const taxInfo = useMemo(() => {
         if (!nation) return null;
-        
+
         // Outbound: Player investing in this nation
         const outboundTax = getForeignInvestmentTaxRate({
             nation,
@@ -335,7 +339,7 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
             daysElapsed,
             direction: 'outbound'
         });
-        
+
         // Inbound: This nation investing in player country
         // For inbound, we check if player is nation's vassal (rare) or treaty status
         const inboundTax = getForeignInvestmentTaxRate({
@@ -344,12 +348,12 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
             daysElapsed,
             direction: 'inbound'
         });
-        
+
         // Calculate tariff rates
         // Tariff discount for trading with this nation
         let tariffDiscount = 0;
         let tariffSource = 'DEFAULT';
-        
+
         // Check for shared economic bloc
         const sharedBloc = organizations.find(org => {
             if (!org || org.type !== 'economic_bloc' || org.isActive === false) return false;
@@ -360,12 +364,12 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
             const hasNation = members.some(m => String(m) === nationIdStr);
             return hasPlayer && hasNation;
         });
-        
+
         if (sharedBloc) {
             tariffDiscount = Math.max(tariffDiscount, ORGANIZATION_EFFECTS.economic_bloc?.tariffDiscount || 0);
             tariffSource = 'ECONOMIC_BLOC';
         }
-        
+
         // Check vassal trade policy
         if (nation.vassalOf === 'player') {
             const policyId = nation.vassalPolicy?.tradePolicy || 'preferential';
@@ -374,23 +378,23 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
             const vassalDiscount = Math.max(policyDiscount, typeDiscount);
             if (vassalDiscount > tariffDiscount) {
                 tariffDiscount = vassalDiscount;
-                tariffSource = policyId === 'exclusive' || policyId === 'looting' || policyId === 'dumping' 
-                    ? 'VASSAL_EXCLUSIVE' 
+                tariffSource = policyId === 'exclusive' || policyId === 'looting' || policyId === 'dumping'
+                    ? 'VASSAL_EXCLUSIVE'
                     : 'VASSAL_PREFERENTIAL';
             }
         }
-        
+
         // Player's base tariff rates (from tax policies)
         // These are the rates player sets, which get reduced by discount
-        const avgImportTariff = taxPolicies?.importTariffMultipliers 
-            ? Object.values(taxPolicies.importTariffMultipliers).reduce((a, b) => a + b, 0) / 
-              Math.max(1, Object.keys(taxPolicies.importTariffMultipliers).length)
+        const avgImportTariff = taxPolicies?.importTariffMultipliers
+            ? Object.values(taxPolicies.importTariffMultipliers).reduce((a, b) => a + b, 0) /
+            Math.max(1, Object.keys(taxPolicies.importTariffMultipliers).length)
             : 0;
         const avgExportTariff = taxPolicies?.exportTariffMultipliers
-            ? Object.values(taxPolicies.exportTariffMultipliers).reduce((a, b) => a + b, 0) / 
-              Math.max(1, Object.keys(taxPolicies.exportTariffMultipliers).length)
+            ? Object.values(taxPolicies.exportTariffMultipliers).reduce((a, b) => a + b, 0) /
+            Math.max(1, Object.keys(taxPolicies.exportTariffMultipliers).length)
             : 0;
-        
+
         return {
             outboundTax,
             inboundTax,
@@ -402,9 +406,9 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
             rawExportTariff: avgExportTariff,
         };
     }, [nation, organizations, daysElapsed, taxPolicies]);
-    
+
     if (!taxInfo) return null;
-    
+
     const getSourceLabel = (source) => {
         const labels = {
             'VASSAL': '附庸特权',
@@ -416,14 +420,14 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
         };
         return labels[source] || source;
     };
-    
+
     const getRateColor = (rate) => {
         if (rate <= 0.1) return 'text-green-400';
         if (rate <= 0.25) return 'text-blue-400';
         if (rate <= 0.4) return 'text-yellow-400';
         return 'text-red-400';
     };
-    
+
     return (
         <Card className="p-4 bg-ancient-ink/20 border-ancient-gold/10">
             <h3 className="text-xs font-bold text-ancient-gold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-80">
@@ -464,7 +468,7 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Inbound: Nation -> Player */}
                 <div className="bg-black/20 rounded-lg p-3 border border-white/5">
                     <div className="text-[10px] text-ancient-stone uppercase mb-2 flex items-center gap-1">
@@ -504,7 +508,7 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
                     </div>
                 </div>
             </div>
-            
+
             {/* Status indicators */}
             <div className="mt-3 flex flex-wrap gap-2">
                 {taxInfo.outboundTax.isVassal && (
@@ -1034,11 +1038,30 @@ const treatyTypeToLabel = (type) => {
     return map[type] || type.replace('_', ' ');
 };
 
-const MerchantManager = ({ nation, merchantState, onMerchantStateChange }) => {
+const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchantCountTotal = 0, tick = 0 }) => {
     const merchantCount = merchantState?.merchantAssignments?.[nation.id] || 0;
 
+    // Calculate limit
+    const relation = nation.relation || 0;
+    const isAllied = nation.alliedWithPlayer === true;
+
+    const treatyEffects = getTreatyEffects(nation, tick);
+    const isWarForcedOpenMarket = Boolean(nation.openMarketUntil && tick < nation.openMarketUntil);
+    const isTreatyOpenMarket = treatyEffects.bypassRelationCap || treatyEffects.extraMerchantSlots === Infinity;
+    const isOpenMarket = isWarForcedOpenMarket || isTreatyOpenMarket;
+
+    const baseMax = calculateMaxTradeRoutes(relation, isAllied, merchantCountTotal);
+    const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
+    const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
+    const totalBonus = percentBonus + fixedBonus;
+
+    // Explicit cap logic similar to TradeRoutesModal
+    const cap = isOpenMarket ? 999999 : (baseMax + totalBonus);
+
     const handleAdd = () => {
-        onMerchantStateChange?.(nation.id, merchantCount + 1);
+        if (merchantCount < cap) {
+            onMerchantStateChange?.(nation.id, merchantCount + 1);
+        }
     };
 
     const handleRemove = () => {
@@ -1076,11 +1099,15 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange }) => {
                     size="md"
                     variant="primary"
                     onClick={handleAdd}
-                    className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center p-0 rounded-lg shadow-lg hover:bg-blue-600 transition-colors"
+                    disabled={merchantCount >= cap}
+                    className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center p-0 rounded-lg shadow-lg transition-colors ${merchantCount >= cap ? 'bg-gray-600 cursor-not-allowed' : 'hover:bg-blue-600'}`}
                     title="增加商人"
                 >
                     <Icon name="Plus" size={20} className="text-white" />
                 </Button>
+            </div>
+            <div className="text-xs text-center sm:text-right text-ancient-stone mt-2 sm:mt-0 w-full sm:w-auto">
+                上限: {isOpenMarket ? '无限制' : cap}
             </div>
         </Card>
     );

@@ -62,6 +62,7 @@ export const StatusBar = ({
         installment_payment_income: '战争赔款收入',
         vassal_tribute_income: '附庸朝贡',
         vassal_tribute_cash: '附庸朝贡',
+        vassal_control_cost: '藩属控制',
         war_reparation_receive: '战争赔款收入',
         war_reparation_payment: '战争赔款支出',
         war_reparation_pay: '战争赔款支出',
@@ -119,6 +120,7 @@ export const StatusBar = ({
         overseas_investment_return: '海外投资收益',
         tax_efficiency_loss: '征税效率损失',
         build_purchase: '购买建筑',
+        corruption: '腐败',
     };
 
     // Debug: Check activeEventEffects

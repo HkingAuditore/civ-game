@@ -959,27 +959,6 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 </div>
             </div>
 
-            {/* 自主度调整 */}
-            <div>
-                <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
-                    <Icon name="Sliders" size={14} className="text-cyan-400" />
-                    自主度调整
-                </h3>
-                <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
-                    <SliderControl
-                        label="自主度"
-                        value={autonomy}
-                        onChange={setAutonomy}
-                        min={Math.floor(baseAutonomy * 0.5)}
-                        max={Math.min(100, Math.floor(baseAutonomy * 1.2))}
-                        format={(v) => `${Math.round(v)}%`}
-                        description={`基准值：${baseAutonomy}%`}
-                        warningThreshold={baseAutonomy * 0.7}
-                        warningText="过低的自主度会增加独立倾向"
-                    />
-                    <AutonomyEffectsDisplay autonomy={autonomy} />
-                </div>
-            </div>
 
             {/* 朝贡率调整 */}
             <div>
@@ -1305,6 +1284,7 @@ const DiplomacyTab = memo(({
     onApprove,
     onReject,
     onIssueOrder,
+    epoch, // [NEW] Receive epoch
 }) => {
     const [selectedAction, setSelectedAction] = useState('declare_war');
     const [selectedTargetId, setSelectedTargetId] = useState('');
@@ -1325,15 +1305,18 @@ const DiplomacyTab = memo(({
         [vassalDiplomacyHistory, nation?.id]
     );
 
-    // 可选的目标国家（只显示可见且未被吞并的国家）
+    // 可选的目标国家（只显示可见且未被吞并的国家，且符合当前时代）
     const availableTargets = useMemo(() => {
         if (!nation) return [];
         return nations.filter(n =>
             n.id !== nation.id &&
             !n.isAnnexed &&
-            n.visible !== false
+            (n.visible !== false) &&
+            // [FIX] Ensure nation is active in current epoch
+            (epoch >= (n.appearEpoch ?? 0)) &&
+            (n.expireEpoch == null || epoch <= n.expireEpoch)
         );
-    }, [nations, nation]);
+    }, [nations, nation, epoch]);
 
     // 媾和目标（只能选择正在交战的国家）
     const warTargets = useMemo(() => {
@@ -1714,12 +1697,16 @@ export const VassalManagementSheet = memo(({
                         onApprove={onApproveVassalDiplomacy}
                         onReject={onRejectVassalDiplomacy}
                         onIssueOrder={onIssueVassalOrder}
+                        epoch={epoch} // [FIX] Pass epoch for nation filtering
                     />
                 )}
             </div>
         </BottomSheet>
     );
 });
+
+
+
 
 VassalManagementSheet.displayName = 'VassalManagementSheet';
 

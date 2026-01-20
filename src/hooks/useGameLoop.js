@@ -1676,7 +1676,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                     result.officials = progressionResult.updatedOfficials;
                     progressionChanges = progressionResult.allChanges || [];
-                    
+
                     // Log level ups
                     progressionChanges.filter(c => c.type === 'level_up').forEach(change => {
                         const statDetails = Object.entries(change.statChanges || {})
@@ -3114,7 +3114,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     } else {
                                                         currentActions.handleEnemyPeaceReject(nation.id);
                                                     }
-                                                }
+                                                },
+                                                current.epoch || 0
                                             );
                                             debugLog('event', '[EVENT DEBUG] Event created:', event);
                                             debugLog('event', '[EVENT DEBUG] Calling triggerDiplomaticEvent...');
@@ -3885,22 +3886,39 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     }));
                                                     addLog(`⚔️ 你决定援助盟友 ${ally.name}，对 ${attacker.name} 宣战！`);
                                                 } else {
-                                                    // 玩家拒绝援助：关系大幅下降、联盟终止、背叛者声誉
+                                                    // ✅ 玩家拒绝援助：关系大幅下降、退出军事组织、背叛者声誉
                                                     setNations(prev => prev.map(n => {
                                                         if (n.id === ally.id) {
                                                             return {
                                                                 ...n,
-                                                                relation: Math.max(0, (n.relation || 50) - 30),
-                                                                alliedWithPlayer: false
+                                                                relation: Math.max(0, (n.relation || 50) - 40),
                                                             };
                                                         }
-                                                        // 其他国家也对玩家印象变差
+                                                        // 其他国家也对玩家印象变差（背叛者声誉）
                                                         return {
                                                             ...n,
-                                                            relation: Math.max(0, (n.relation || 50) - 5)
+                                                            relation: Math.max(0, (n.relation || 50) - 10)
                                                         };
                                                     }));
-                                                    addLog(`💔 你拒绝援助盟友 ${ally.name}，${ally.name} 解除与你的联盟！你获得了"背叛者"的声誉。`);
+
+                                                    // ✅ 从军事组织中退出
+                                                    setDiplomacyOrganizations(prev => {
+                                                        if (!prev?.organizations) return prev;
+                                                        return {
+                                                            ...prev,
+                                                            organizations: prev.organizations.map(org => {
+                                                                if (org.type !== 'military_alliance') return org;
+                                                                if (!org.members?.includes('player') || !org.members?.includes(ally.id)) return org;
+                                                                // 玩家退出此组织
+                                                                return {
+                                                                    ...org,
+                                                                    members: org.members.filter(id => id !== 'player')
+                                                                };
+                                                            })
+                                                        };
+                                                    });
+
+                                                    addLog(`💔 你拒绝援助盟友 ${ally.name}，你退出了与其共同的军事组织！你获得了"背叛者"的声誉。`);
                                                 }
                                             }
                                         );

@@ -84,9 +84,13 @@ const NegotiationDialog = ({
 
     // Footer Rendering
     const renderFooter = () => {
-        // military_alliance and economic_bloc are organizations, not treaties
-        const isOrganizationType = negotiationDraft.type === 'military_alliance' || negotiationDraft.type === 'economic_bloc';
-        const category = isOrganizationType ? 'organizations' : 'treaties';
+        // Determine category for unlock check
+        let category = 'treaties';
+        if (negotiationDraft.type === 'military_alliance' || negotiationDraft.type === 'economic_bloc') {
+            category = 'organizations';
+        } else if (negotiationDraft.type === 'vassal') {
+            category = 'sovereignty';
+        }
         const treatyUnlocked = isDiplomacyUnlocked(category, negotiationDraft.type, epoch);
 
         // For organization types, must select an organization or choose to create new

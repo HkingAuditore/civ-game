@@ -209,7 +209,7 @@ export function createGiftEvent(nation, giftAmount, onAccept) {
  * @param {Function} callback - 回调函数,接收accepted参数
  * @returns {Object} - 外交事件对象
  */
-export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback) {
+export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback, epoch = 0) {
     const options = [];
     const wealthBaseline = getPeaceWealthBaseline(nation);
     const enemyLosses = nation.enemyLosses || 0;
@@ -218,6 +218,8 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const paymentSet = calculatePeacePayment(Math.max(0, warScore), enemyLosses, warDuration, wealthBaseline, 'demanding');
     const baseTribute = tribute && tribute > 0 ? tribute : paymentSet.standard;
     const estimatedPopulation = nation.population || nation.basePopulation || 1000;
+    // 检查是否解锁附庸系统（封建时代 epoch >= 3）
+    const vassalUnlocked = epoch >= 3;
 
     // 根据战争分数提供不同选项
     if (warScore > 300) {
@@ -234,13 +236,16 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
             effects: {},
             callback: () => callback(true, 'annex', annexPopulation),
         });
+        if (vassalUnlocked) {
+            options.push({
+                id: 'demand_vassal',
+                text: '要求成为附庸国',
+                description: `要求${nation.name}成为附庸国，定期朝贡并服从宗主国的外交政策。`,
+                effects: {},
+                callback: () => callback(true, 'vassal', 0),
+            });
+        }
         options.push({
-            id: 'demand_vassal',
-            text: '要求成为附庸国',
-            description: `要求${nation.name}成为附庸国，定期朝贡并服从宗主国的外交政策。`,
-            effects: {},
-            callback: () => callback(true, 'vassal', 0),
-        });        options.push({
             id: 'demand_more',
             text: '索要巨额赔款',
             description: `一次性支付${formatNumber(highTribute)}银币，赔款额翻倍。`,
@@ -282,13 +287,15 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         const installmentAmount = installmentPlan.dailyAmount;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor(estimatedPopulation * 0.12)));
 
-        options.push({
-            id: 'demand_vassal',
-            text: '要求成为附庸国',
-            description: `要求${nation.name}成为附庸国，定期朝贡并服从宗主国的外交政策。`,
-            effects: {},
-            callback: () => callback(true, 'vassal', 0),
-        });
+        if (vassalUnlocked) {
+            options.push({
+                id: 'demand_vassal',
+                text: '要求成为附庸国',
+                description: `要求${nation.name}成为附庸国，定期朝贡并服从宗主国的外交政策。`,
+                effects: {},
+                callback: () => callback(true, 'vassal', 0),
+            });
+        }
         options.push({
             id: 'demand_more',
             text: '索要高额赔款',
@@ -426,6 +433,9 @@ export function createPlayerPeaceProposalEvent(
     const effectiveDuration = warDuration || nation.warDuration || 0;
     const demandingPayments = calculatePeacePayment(Math.max(warScore, 0), effectiveLosses, effectiveDuration, wealthBaseline, 'demanding');
     const offeringPayments = calculatePeacePayment(Math.abs(Math.min(warScore, 0)), effectiveLosses, effectiveDuration, wealthBaseline, 'offering');
+    // 检查是否解锁附庸系统（封建时代 epoch >= 3）
+    const epoch = playerState.epoch || 0;
+    const vassalUnlocked = epoch >= 3;
 
     const calculateTerritoryOffer = (maxPercent, severityDivisor) => {
         const warPressure = Math.abs(Math.min(warScore, 0)) / severityDivisor;
@@ -469,8 +479,8 @@ export function createPlayerPeaceProposalEvent(
             effects: {},
             callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
         });
-        // 附庸选项（需要更高战争分数）
-        if (warScore > 300) {
+        // 附庸选项（需要更高战争分数且已解锁附庸系统）
+        if (warScore > 300 && vassalUnlocked) {
             options.push({
                 id: 'demand_vassal',
                 text: '🏴 要求成为附庸国',
@@ -519,14 +529,16 @@ export function createPlayerPeaceProposalEvent(
             effects: {},
             callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
         });
-        // 附庸选项
-        options.push({
-            id: 'demand_vassal',
-            text: '🏴 要求成为附庸国',
-            description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
-            effects: {},
-            callback: () => callback('demand_vassal', 'vassal'),
-        });
+        // 附庸选项（需要已解锁附庸系统）
+        if (vassalUnlocked) {
+            options.push({
+                id: 'demand_vassal',
+                text: '🏴 要求成为附庸国',
+                description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
+                effects: {},
+                callback: () => callback('demand_vassal', 'vassal'),
+            });
+        }
     } else if (warScore > 50) {
         const standardTribute = Math.max(demandingPayments.standard, demandingPayments.low);
         const installmentPlan = calculateInstallmentPlan(standardTribute);
@@ -553,14 +565,16 @@ export function createPlayerPeaceProposalEvent(
             effects: {},
             callback: () => callback('demand_population', populationDemand),
         });
-        // 附庸选项
-        options.push({
-            id: 'demand_vassal',
-            text: '🏴 要求成为附庸国',
-            description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
-            effects: {},
-            callback: () => callback('demand_vassal', 'vassal'),
-        });
+        // 附庸选项（需要已解锁附庸系统）
+        if (vassalUnlocked) {
+            options.push({
+                id: 'demand_vassal',
+                text: '🏴 要求成为附庸国',
+                description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
+                effects: {},
+                callback: () => callback('demand_vassal', 'vassal'),
+            });
+        }
     } else if (warScore < -200) {
         const payment = Math.max(offeringPayments.high, offeringPayments.standard);
         const installmentPlan = calculateInstallmentPlan(payment);
