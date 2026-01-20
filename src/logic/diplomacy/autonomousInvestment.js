@@ -179,13 +179,9 @@ export function processClassAutonomousInvestment({
                             // This function will be called by the game loop handler to generate the actual data
                             return createOverseasInvestment({
                                 buildingId: building.id,
-                                targetNation, // Pass full nation object as required by createOverseasInvestment
-                                targetNationId: targetNation.id, // Fallback
+                                targetNationId: targetNation.id,
                                 ownerStratum: stratum,
                                 strategy: 'PROFIT_MAX',
-                                existingInvestments: overseasInvestments,
-                                classWealth,
-                                daysElapsed,
                                 investmentAmount: cost  // [FIX] 传递投资成本，之前缺失导致显示为0
                             });
                         }

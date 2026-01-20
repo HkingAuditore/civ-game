@@ -1095,6 +1095,11 @@ export const processAIOrganizationInvitesToPlayer = (visibleNations, tick, logs,
  * @returns {Object|null} - Returns leave request if action taken
  */
 export const checkAIBreakAlliance = (nation, logs, diplomacyOrganizations) => {
+    // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot break alliances
+    if (nation.isAnnexed || (nation.population || 0) <= 0) {
+        return null;
+    }
+    
     // Find alliances with player
     if (!diplomacyOrganizations) return null;
 
