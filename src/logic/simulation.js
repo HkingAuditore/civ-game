@@ -4827,17 +4827,42 @@ export const simulateTick = ({
         if (!foreignPowerProfile.initializedAtTick) {
             const eraGap = Math.max(0, visibleEpoch - (foreignPowerProfile.appearEpoch ?? 0));
             const eraBonus = 1 + eraGap * 0.08;
-            const randomVariance = 0.9 + Math.random() * 0.25;
+            
+            // [MODIFIED] Generate dynamic strength relative to player
+            // Some nations will be weaker (0.3-0.9x), some similar (0.9-1.5x), some stronger (1.5-10x)
+            const strengthRoll = Math.random();
+            let strengthMultiplier;
+            
+            if (strengthRoll < 0.3) {
+                // 30% chance: Weak nation (0.3-0.9x player strength)
+                strengthMultiplier = 0.3 + Math.random() * 0.6;
+            } else if (strengthRoll < 0.6) {
+                // 30% chance: Similar strength (0.9-1.5x player strength)
+                strengthMultiplier = 0.9 + Math.random() * 0.6;
+            } else if (strengthRoll < 0.85) {
+                // 25% chance: Strong nation (1.5-3x player strength)
+                strengthMultiplier = 1.5 + Math.random() * 1.5;
+            } else {
+                // 15% chance: Very strong nation (3-10x player strength)
+                strengthMultiplier = 3 + Math.random() * 7;
+            }
+            
+            // Apply nation's base characteristics and era bonus
+            const basePopFactor = foreignPowerProfile.populationFactor * eraBonus;
+            const baseWealthFactor = foreignPowerProfile.wealthFactor * eraBonus;
+            
+            // Combine with strength multiplier
             const popFactor = clamp(
-                foreignPowerProfile.populationFactor * eraBonus * randomVariance,
-                0.6,
-                2.5
+                basePopFactor * strengthMultiplier,
+                0.3,  // Allow weaker nations
+                10.0  // Allow much stronger nations
             );
             const wealthFactor = clamp(
-                foreignPowerProfile.wealthFactor * eraBonus * randomVariance,
-                0.5,
-                3.5
+                baseWealthFactor * strengthMultiplier,
+                0.3,  // Allow weaker nations
+                10.0  // Allow much stronger nations
             );
+            
             const basePopInit = Math.max(3, Math.round(playerPopulationBaseline * popFactor));
             const baseWealthInit = Math.max(100, Math.round(playerWealthBaseline * wealthFactor));
             next.population = basePopInit;

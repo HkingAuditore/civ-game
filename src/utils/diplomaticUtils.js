@@ -18,7 +18,7 @@ const PEACE_PAYMENT_COEFFICIENTS = {
 };
 
 /** 赔款硬上限 */
-const PEACE_PAYMENT_HARD_CAP = 2000000;
+const PEACE_PAYMENT_HARD_CAP = 200000000;
 
 // ==================== 送礼计算 ====================
 
@@ -122,9 +122,9 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
     const wealthFloorStandard = Math.floor(wealth * 0.12);  // 标准档至少12%财富
     const wealthFloorLow = Math.floor(wealth * 0.06);       // 低档至少6%财富
 
-    // 应用上限 - 严格限制赔款不超过敌国财富的100%
+    // 应用上限 - 严格限制赔款不超过敌国财富的50%
     // 修正：防止从2M财富敌国榨出10M赔款的超模情况
-    const strictWealthCap = wealth * 1.0;  // 单次赔款上限为敌国财富100%
+    const strictWealthCap = wealth * 0.5;  // 单次赔款上限为敌国财富50%
     const wealthHeadroom = Math.max(50000, strictWealthCap);
 
     // 军费上限：最多索取战争期间总军费的 (1 + warScore/100)
