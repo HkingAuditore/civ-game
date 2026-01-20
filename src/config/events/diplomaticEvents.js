@@ -219,8 +219,9 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const baseTribute = tribute && tribute > 0 ? tribute : paymentSet.standard;
     const estimatedPopulation = nation.population || nation.basePopulation || 1000;
 
-    if (warScore > 450) {
-        const highTribute = Math.max(baseTribute * 2, Math.ceil(paymentSet.high * 1.5));
+    // 根据战争分数提供不同选项
+    if (warScore > 300) {
+        const highTribute = Math.max(baseTribute * 2, paymentSet.high);
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(20, Math.floor(estimatedPopulation * 0.20)));
@@ -234,6 +235,12 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
             callback: () => callback(true, 'annex', annexPopulation),
         });
         options.push({
+            id: 'demand_vassal',
+            text: '要求成为附庸国',
+            description: `要求${nation.name}成为附庸国，定期朝贡并服从宗主国的外交政策。`,
+            effects: {},
+            callback: () => callback(true, 'vassal', 0),
+        });        options.push({
             id: 'demand_more',
             text: '索要巨额赔款',
             description: `一次性支付${formatNumber(highTribute)}银币，赔款额翻倍。`,
@@ -269,12 +276,19 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
             },
             callback: () => callback(true, 'standard', baseTribute),
         });
-    } else if (warScore > 200) {
+    } else if (warScore > 150) {
         const highTribute = Math.max(baseTribute * 1.5, paymentSet.high);
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor(estimatedPopulation * 0.12)));
 
+        options.push({
+            id: 'demand_vassal',
+            text: '要求成为附庸国',
+            description: `要求${nation.name}成为附庸国，定期朝贡并服从宗主国的外交政策。`,
+            effects: {},
+            callback: () => callback(true, 'vassal', 0),
+        });
         options.push({
             id: 'demand_more',
             text: '索要高额赔款',

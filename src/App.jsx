@@ -1151,6 +1151,27 @@ function GameApp({ gameState }) {
 
                             {/* 标签页内容 */}
                             <div className="p-3 sm:p-4 relative">
+                                {/* 建设标签页 - 始终挂载以预热缓存，避免首次切换卡顿 */}
+                                <div style={{ display: gameState.activeTab === 'build' ? 'block' : 'none' }}>
+                                    <BuildTab
+                                        buildings={deferredBuildings}
+                                        resources={deferredBuildTabResources}
+                                        epoch={gameState.epoch}
+                                        techsUnlocked={gameState.techsUnlocked}
+                                        popStructure={deferredPopStructure}
+                                        jobFill={deferredBuildTabJobFill}
+                                        buildingJobsRequired={deferredBuildTabBuildingJobsRequired}
+                                        buildingUpgrades={deferredBuildingUpgrades}
+                                        onBuy={actions.buyBuilding}
+                                        onSell={actions.sellBuilding}
+                                        market={deferredBuildTabMarket}
+                                        buildingFinancialData={deferredBuildTabBuildingFinancialData}
+                                        onShowDetails={handleShowBuildingDetails}
+                                        difficulty={gameState.difficulty}
+                                        buildingCostMod={gameState.modifiers?.officialEffects?.buildingCostMod || 0}
+                                    />
+                                </div>
+
                                 <AnimatePresence mode="wait">
                                     <motion.div
                                         key={gameState.activeTab}
@@ -1159,27 +1180,6 @@ function GameApp({ gameState }) {
                                         exit={{ opacity: 0, y: -10 }}
                                         transition={{ duration: 0.2 }}
                                     >
-                                        {/* 建设标签页 */}
-                                        {gameState.activeTab === 'build' && (
-                                            <BuildTab
-                                                buildings={deferredBuildings}
-                                                resources={deferredBuildTabResources}
-                                                epoch={gameState.epoch}
-                                                techsUnlocked={gameState.techsUnlocked}
-                                                popStructure={deferredPopStructure}
-                                                jobFill={deferredBuildTabJobFill}
-                                                buildingJobsRequired={deferredBuildTabBuildingJobsRequired}
-                                                buildingUpgrades={deferredBuildingUpgrades}
-                                                onBuy={actions.buyBuilding}
-                                                onSell={actions.sellBuilding}
-                                                market={deferredBuildTabMarket}
-                                                buildingFinancialData={deferredBuildTabBuildingFinancialData}
-                                                onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
-                                                difficulty={gameState.difficulty}
-                                                buildingCostMod={gameState.modifiers?.officialEffects?.buildingCostMod || 0}
-                                            />
-                                        )}
-
                                         {/* 军事标签页 */}
                                         {gameState.activeTab === 'military' && (
                                             <MilitaryTab
