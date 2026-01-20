@@ -4,7 +4,7 @@
  */
 
 import { STRATA, RESOURCES } from '../../config';
-import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
 import { debugLog } from '../../utils/debugFlags';
 import { getTreatyEffects } from '../diplomacy/treatyEffects';
@@ -71,15 +71,41 @@ const isTradeBlockedWithPartner = ({ partner }) => {
     return partner?.isAtWar === true;
 };
 
-const normalizeMerchantAssignments = ({ merchantAssignments, nations }) => {
+const normalizeMerchantAssignments = ({ merchantAssignments, nations, merchantCount = 0, tick = 0 }) => {
     if (!merchantAssignments || typeof merchantAssignments !== 'object') return null;
     const normalized = {};
     Object.entries(merchantAssignments).forEach(([nationId, value]) => {
-        const count = Math.max(0, Math.floor(Number(value) || 0));
+        let count = Math.max(0, Math.floor(Number(value) || 0));
         if (count <= 0) return;
-        const exists = Array.isArray(nations) ? nations.some(n => n?.id === nationId) : true;
-        if (!exists) return;
-        normalized[nationId] = count;
+
+        const nation = Array.isArray(nations) ? nations.find(n => n?.id === nationId) : null;
+        if (!nation) return;
+
+        // Backend Validation: Enforce Limit
+        // This ensures that even if UI controls are bypassed, the logic enforces the cap.
+        const relation = getNationRelationToPlayer(nation);
+        const isAllied = nation.alliedWithPlayer === true;
+
+        const treatyEffects = getTreatyEffects(nation, tick);
+        const isWarForcedOpenMarket = Boolean(nation.openMarketUntil && tick < nation.openMarketUntil);
+        const isTreatyOpenMarket = treatyEffects.bypassRelationCap || treatyEffects.extraMerchantSlots === Infinity;
+        const isOpenMarket = isWarForcedOpenMarket || isTreatyOpenMarket;
+
+        if (!isOpenMarket) {
+            const baseMax = calculateMaxTradeRoutes(relation, isAllied, merchantCount);
+            const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
+            const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
+            const cap = baseMax + percentBonus + fixedBonus;
+
+            // Clamp the count
+            if (count > cap) {
+                count = cap;
+            }
+        }
+
+        if (count > 0) {
+            normalized[nationId] = count;
+        }
     });
     return Object.keys(normalized).length > 0 ? normalized : null;
 };
@@ -461,7 +487,7 @@ export const simulateMerchantTrade = ({
         .filter(key => !potentialResources || potentialResources.has(key));
 
     // --- Trade 2.0: determine which partners are actively assigned this tick
-    const normalizedAssignments = normalizeMerchantAssignments({ merchantAssignments, nations });
+    const normalizedAssignments = normalizeMerchantAssignments({ merchantAssignments, nations, merchantCount, tick });
     const hasAssignments = tradeConfig.enableMerchantAssignments && !!normalizedAssignments;
 
     const assignments = hasAssignments

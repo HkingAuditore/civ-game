@@ -598,6 +598,16 @@ export const simulateTick = ({
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
 
+    // [DEBUG] Track incomePercentBonus accumulation
+    const bonusDebug = {
+        afterInit: bonuses.incomePercentBonus || 0,
+        afterOfficials: 0,
+        afterStance: 0,
+        afterTechs: 0,
+        afterDecrees: 0,
+        afterFestivals: 0,
+    };
+
     // === Execute Investment Logic (Now that Wealth/Ledger is ready) ===
 
     // 1. Overseas Investments (Player -> AI)
@@ -724,7 +734,7 @@ export const simulateTick = ({
         applyEffects(cabinetStatus.decreeEffects, bonuses);
     }
 
-    // 应用官员效果（含薪水不足减益）
+    // === 应用官员效果（含薪水不足减益） ===
     const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
     const officialEffectsForBonuses = {
         ...activeOfficialEffects,
@@ -736,7 +746,9 @@ export const simulateTick = ({
         incomePercent: activeOfficialEffects.incomePercentBonus,
     };
     applyEffects(officialEffectsForBonuses, bonuses);
-
+    
+    // [DEBUG] Track after officials
+    bonusDebug.afterOfficials = bonuses.incomePercentBonus || 0;
     // === 应用官员专属效果到 bonuses ===
     // 科研速度 → scienceBonus
     if (activeOfficialEffects.researchSpeed) {
@@ -824,6 +836,10 @@ export const simulateTick = ({
     if (stanceEffects.incomePercentBonus) {
         bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + stanceEffects.incomePercentBonus;
     }
+    
+    // [DEBUG] Track after stance
+    bonusDebug.afterStance = bonuses.incomePercentBonus || 0;
+    
     if (stanceEffects.buildingCostMod) {
         bonuses.buildingCostMod = (bonuses.buildingCostMod || 0) + stanceEffects.buildingCostMod;
     }
@@ -945,6 +961,7 @@ export const simulateTick = ({
     // Apply effects using imported module functions
     // Apply tech effects using module function
     applyTechEffects(techsUnlocked, bonuses);
+    bonusDebug.afterTechs = bonuses.incomePercentBonus || 0;
 
     // Apply decree effects using module function
     // Timed reform decrees are sourced from `activeDecrees`.
@@ -961,9 +978,11 @@ export const simulateTick = ({
     const permanentDecrees = Array.isArray(decrees) ? decrees.filter(d => d && d.active) : [];
 
     applyDecreeEffects([...decreesFromActive, ...permanentDecrees], bonuses);
+    bonusDebug.afterDecrees = bonuses.incomePercentBonus || 0;
 
     // Apply festival effects using module function
     applyFestivalEffects(activeFestivalEffects, bonuses);
+    bonusDebug.afterFestivals = bonuses.incomePercentBonus || 0;
 
     // Apply active buffs (Strata bonuses)
     if (Array.isArray(productionBuffs)) {
@@ -1012,6 +1031,19 @@ export const simulateTick = ({
     taxBonus = bonuses.taxBonus;
     needsReduction = bonuses.needsReduction;
     const incomePercentBonus = bonuses.incomePercentBonus || 0; // NEW: income percentage bonus
+    
+    // [DEBUG] Log incomePercentBonus accumulation if abnormal
+    if (Math.abs(incomePercentBonus) > 0.5) {
+        console.warn('[INCOME BONUS ACCUMULATION]', {
+            tick,
+            final: incomePercentBonus.toFixed(4),
+            breakdown: bonusDebug,
+            officialsCount: officials.length,
+            activeDecreesCount: activeDecrees ? Object.keys(activeDecrees).length : 0,
+            techsCount: techsUnlocked.length,
+            festivalsCount: activeFestivalEffects.length,
+        });
+    }
 
     // computePriceMultiplier is imported from ./utils/helpers
 
@@ -1462,7 +1494,7 @@ export const simulateTick = ({
     // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正中
     // bonuses.taxBonus 是来自 effects.taxIncome 的累加值（如庆典效果、政令效果等）
     const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
-
+    
     // [FIX] 提前定义空岗位收入预估函数，用于 fillVacancies 时的智能工资判断
     // 逻辑与 simulation 尾部的 estimateVacantRoleIncome 类似，但只能使用上一 tick 的数据 (market.wages)
     const estimatePotentialIncomeForVacancy = (role) => {
@@ -2133,8 +2165,8 @@ export const simulateTick = ({
 
         if (producesTradableOutput) {
 
-            // 将营业税计入总成本（只考虑正税，补贴不计入成本）
-            const estimatedCost = estimatedInputCost + actualPayableWageCost + Math.max(0, estimatedBusinessTax);
+            // 将营业税计入总成本（正税增加成本，负税（补贴）减少成本）
+            const estimatedCost = estimatedInputCost + actualPayableWageCost + estimatedBusinessTax;
             if (estimatedCost > 0 && estimatedRevenue <= 0) {
                 actualMultiplier = 0;
                 debugMarginRatio = 0;
@@ -2681,9 +2713,11 @@ export const simulateTick = ({
 
         // 营业税收取：每次建筑产出时收取固定银币值
         // businessTaxPerBuilding 已在上面声明，直接使用
-        // NOTE: 不随产出倍率（actualMultiplier）变化，只与建筑数量有关
+        // [FIX] 营业税应该根据实际到岗率征收，空置建筑不应产生营业税
+        // 使用 staffingRatio 确保只对有工人的建筑征税
         if (businessTaxPerBuilding !== 0 && count > 0) {
-            const totalBusinessTax = businessTaxPerBuilding * count;
+            const effectiveStaffingRatio = staffingRatio || 0;
+            const totalBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
 
             if (totalBusinessTax > 0) {
                 // 正值：按 owner 比例收税
@@ -6574,9 +6608,26 @@ export const simulateTick = ({
     const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
     // NEW: Apply income percentage bonus (from tech/decree effects)
-    const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
+    // [FIX] Add safety check to prevent abnormal tax multiplication
+    const rawIncomePercentBonus = incomePercentBonus || 0;
+    const MAX_INCOME_BONUS = 2.0; // Maximum 200% bonus (3x multiplier)
+    const clampedIncomePercentBonus = Math.max(-0.5, Math.min(MAX_INCOME_BONUS, rawIncomePercentBonus));
+    const incomePercentMultiplier = Math.max(0, 1 + clampedIncomePercentBonus);
 
-    // [DEBUG] 税收汇总调试
+    // [DEBUG] 税收汇总调试 - 增强版
+    if (Math.abs(rawIncomePercentBonus) > 0.01 || incomePercentMultiplier > 1.5) {
+        console.log('[TAX INCOME BONUS DEBUG]', {
+            'tick': tick,
+            'rawIncomePercentBonus': rawIncomePercentBonus.toFixed(4),
+            'clampedIncomePercentBonus': clampedIncomePercentBonus.toFixed(4),
+            'incomePercentMultiplier': incomePercentMultiplier.toFixed(4),
+            'bonuses.incomePercentBonus': (bonuses.incomePercentBonus || 0).toFixed(4),
+            'taxBreakdown.headTax': taxBreakdown.headTax.toFixed(2),
+            'taxBreakdown.industryTax': taxBreakdown.industryTax.toFixed(2),
+            'taxBreakdown.businessTax': taxBreakdown.businessTax.toFixed(2),
+        });
+    }
+    
     console.log('[TAX SUMMARY DEBUG]', {
         'taxBreakdown.headTax（实际入库）': taxBreakdown.headTax.toFixed(2),
         '税收效率': effectiveTaxEfficiency.toFixed(3),

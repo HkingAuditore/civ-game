@@ -465,15 +465,15 @@ export const processVassalUpdates = ({
 
         // 如果当前政策允许恢复（不是直接统治），且低于目标值，则缓慢恢复
         if (governancePolicy !== 'direct_rule' && (updated.autonomy || 0) < targetAutonomy) {
-             let recoveryRate = 0.1;
+            let recoveryRate = 0.1;
 
-             // [NEW] Governor 'develop' mandate boosts autonomy recovery
-             const governor = updated.vassalPolicy?.controlMeasures?.governor;
-             if (governor && governor.active !== false && governor.mandate === 'develop') {
-                 recoveryRate += 0.1; // Double recovery speed
-             }
+            // [NEW] Governor 'develop' mandate boosts autonomy recovery
+            const governor = updated.vassalPolicy?.controlMeasures?.governor;
+            if (governor && governor.active !== false && governor.mandate === 'develop') {
+                recoveryRate += 0.1; // Double recovery speed
+            }
 
-             updated.autonomy = Math.min(targetAutonomy, (updated.autonomy || 0) + recoveryRate);
+            updated.autonomy = Math.min(targetAutonomy, (updated.autonomy || 0) + recoveryRate);
         }
 
         return updated;
@@ -689,16 +689,16 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     if (nation?.socialStructure) {
         const avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
         const satisfactionMod = Math.max(0.5, 2.5 - (avgSatisfaction / 50));
-        
+
         const satisfactionEffect = satisfactionMod > 1.0 ? 'negative' : 'positive';
         breakdown.factors.push({
             name: '阶层满意度',
             value: satisfactionMod,
             rawValue: avgSatisfaction,
             description: avgSatisfaction < 30 ? `平均满意度仅${Math.round(avgSatisfaction)}%（极低）` :
-                         avgSatisfaction < 50 ? `平均满意度${Math.round(avgSatisfaction)}%（较低）` :
-                         avgSatisfaction < 70 ? `平均满意度${Math.round(avgSatisfaction)}%（正常）` :
-                         `平均满意度${Math.round(avgSatisfaction)}%（良好）`,
+                avgSatisfaction < 50 ? `平均满意度${Math.round(avgSatisfaction)}%（较低）` :
+                    avgSatisfaction < 70 ? `平均满意度${Math.round(avgSatisfaction)}%（正常）` :
+                        `平均满意度${Math.round(avgSatisfaction)}%（良好）`,
             type: 'multiplier',
             effect: satisfactionEffect,
         });
@@ -818,7 +818,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     if (governorData && (governorData === true || governorData.active)) {
         const officialId = governorData.officialId;
         const official = officials.find(o => o.id === officialId);
-        
+
         if (official) {
             // 使用完整的总督效果计算
             const govEffects = calculateGovernorFullEffects(official, nation);
@@ -1433,19 +1433,32 @@ export const requestExpeditionaryForce = (vassal) => {
 };
 
 /**
- * 请求附庸国参战 (Call to Arms)
- * 适用于 protectorate (保护国) - 需付费
- * @param {Object} vassal - 附庸国
- * @param {Object} targetEnemy - 目标敌国 (AI Nation)
+ * 请求附庸国参战 (Call to Arms)/**
+ * Request vassal to participate in player's war
+ * @param {Object} vassal - Vassal nation object
+ * @param {Object} targetEnemy - Target enemy (optional, currently unused)
  * @param {number} playerWealth - 玩家当前资金
  * @returns {Object} - { success, cost, message }
  */
 export const requestWarParticipation = (vassal, targetEnemy, playerWealth) => {
-    const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
-    const obligation = config?.militaryObligation;
+    // ✅ 从附庸政策中读取军事政策
+    const militaryPolicyId = vassal.vassalPolicy?.military || 'call_to_arms';
+    const militaryConfig = MILITARY_POLICY_DEFINITIONS[militaryPolicyId];
 
-    if (obligation === 'auto_join') {
-        return { success: false, message: '该附庸国会自动参战，无需请求' };
+    // ✅ 检查是否允许征召
+    if (!militaryConfig?.canCallToArms) {
+        return {
+            success: false,
+            message: `当前军事政策(${militaryConfig?.name || militaryPolicyId})不允许战争征召`
+        };
+    }
+
+    // ✅ 如果是自动参战，提醒玩家
+    if (militaryConfig.autoJoinWar) {
+        return {
+            success: false,
+            message: '该附庸国会自动参战，无需手动征召'
+        };
     }
 
     // Calculate cost

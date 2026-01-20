@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom';
 import { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, COUNTRIES } from '../../config';
-import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { calculateMaxTradeRoutes, calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 
@@ -84,20 +84,16 @@ const TradeRoutesModal = ({
         const nation = nations.find(n => n.id === nationId);
         const relation = nation?.relation || 0;
         const isAllied = nation?.alliedWithPlayer === true;
-        
+
         // Check both war-forced open market AND treaty-based open market
         const isWarForcedOpenMarket = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
         const treatyEffects = getTreatyEffects(nation, daysElapsed);
         const isTreatyOpenMarket = treatyEffects.bypassRelationCap || treatyEffects.extraMerchantSlots === Infinity;
         const isOpenMarket = isWarForcedOpenMarket || isTreatyOpenMarket;
 
-        // Use the shared calculation function
-        const getMaxTradeRoutesForRelation = (rel = 0, allied = false) => {
-            return calculateMaxTradeRoutes(rel, allied, merchantCount);
-        };
 
         // Calculate bonus: fixed + percentage
-        const baseMax = getMaxTradeRoutesForRelation(relation, isAllied);
+        const baseMax = calculateMaxTradeRoutes(relation, isAllied, merchantCount);
         const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
         const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
         const totalBonus = percentBonus + fixedBonus;
@@ -361,33 +357,6 @@ const TradeRoutesModal = ({
         { id: 'priceCompare', label: '物价对比', shortLabel: '物价', count: tradableResources.length, icon: 'BarChart2' },
     ];
 
-    const calculateMaxTradeRoutes = (relation = 0, isAllied = false, mCount = 0) => {
-        // 1. Base Capacity (from Merchant Population)
-        // Every 5 merchants = +1 capacity. Base 2.
-        // e.g. 0-39 => 2, 40-79 => 3 ... 400 => 12
-        const baseCapacity = 2 + Math.floor((mCount || 0) / 5);
-
-        // 2. Relationship Multiplier (The Amplifier)
-        let multiplier = 0;
-        if (isAllied) {
-            multiplier = 2.0; // Ally: 200%
-        } else if (relation >= 80) {
-            multiplier = 1.5; // Very Friendly: 150%
-        } else if (relation >= 20) {
-            multiplier = 1.0; // Neutral/Good: 100%
-        } else if (relation >= 0) {
-            multiplier = 0.5; // Cold: 50%
-        } else {
-            multiplier = 0.0; // Hostile: 0%
-        }
-
-        // 3. Final Calculation
-        const capacity = Math.floor(baseCapacity * multiplier);
-
-        // 4. Hard Cap (Safety)
-        return Math.min(200, capacity);
-    };
-
     const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
         return calculateMaxTradeRoutes(relation, isAllied, merchantCount);
     };
@@ -396,7 +365,7 @@ const TradeRoutesModal = ({
         // Check both war-forced open market AND treaty-based open market
         const isWarForced = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
         if (isWarForced) return true;
-        
+
         const treatyEffects = getTreatyEffects(nation, daysElapsed);
         return treatyEffects.bypassRelationCap || treatyEffects.extraMerchantSlots === Infinity;
     };
@@ -409,12 +378,12 @@ const TradeRoutesModal = ({
         const treatyEffects = getTreatyEffects(nation, daysElapsed);
         const baseMax = getMaxTradeRoutesForRelation(nation.relation || 0, nation.alliedWithPlayer === true);
         const isFullyOpen = isOpenMarketActiveWithNation(nation);
-        
+
         // Calculate bonus: fixed + percentage
         const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
         const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
         const totalBonus = percentBonus + fixedBonus;
-        
+
         const maxWithNation = isFullyOpen
             ? 999
             : Math.min(999, baseMax + totalBonus);
@@ -495,7 +464,7 @@ const TradeRoutesModal = ({
                                 const pastedText = e.clipboardData.getData('text');
                                 const num = parseInt(pastedText, 10);
                                 if (!isNaN(num)) {
-                                    setAssignment(nation.id, num, true); // Force assignment
+                                    setAssignment(nation.id, num, false); // FORCE FALSE: Respect Caps!
                                 }
                             }}
                             onFocus={(e) => e.target.select()}

@@ -147,7 +147,7 @@ export const EPOCHS = [
             cultureBonus: 1.50,
             scienceBonus: 3.00,
             industryBonus: 3.00,
-            incomePercent: 1.00
+            incomePercent: 0.40  // [FIX] 从1.00降低到0.40，防止税收异常翻倍（原值导致2倍税收）
         }
     }
 ];

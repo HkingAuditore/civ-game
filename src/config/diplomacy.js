@@ -13,7 +13,7 @@ export const DIPLOMACY_ERA_UNLOCK = {
         defensive_pact: { minEra: 3, name: '共同防御' },
     },
     sovereignty: {
-        vassal: { minEra: 2, name: '附庸国' },
+        vassal: { minEra: 3, name: '附庸国' },
     },
     organizations: {
         military_alliance: { minEra: 3, name: '军事联盟' },
@@ -357,7 +357,7 @@ export const isDiplomacyUnlocked = (category, mechanismId, currentEra) => {
 export const VASSAL_TYPE_CONFIGS = {
     vassal: {
         name: '附庸国',
-        minEra: 2,
+        minEra: 3,
         minRelation: 50,
         autonomy: 80,
         tributeRate: 0.10,
@@ -377,10 +377,10 @@ export const VASSAL_TYPE_CONFIGS = {
         }
     },
     // Backwards compatibility keys mapped to same config
-    protectorate: { name: '附庸国', minEra: 2, autonomy: 80, minRelation: 50 },
-    tributary: { name: '附庸国', minEra: 2, autonomy: 60, minRelation: 50 },
-    puppet: { name: '附庸国', minEra: 2, autonomy: 40, minRelation: 50 },
-    colony: { name: '附庸国', minEra: 2, autonomy: 20, minRelation: 50 },
+    protectorate: { name: '附庸国', minEra: 3, autonomy: 80, minRelation: 50 },
+    tributary: { name: '附庸国', minEra: 3, autonomy: 60, minRelation: 50 },
+    puppet: { name: '附庸国', minEra: 3, autonomy: 40, minRelation: 50 },
+    colony: { name: '附庸国', minEra: 3, autonomy: 20, minRelation: 50 },
 };
 
 export const VASSAL_TYPE_LABELS = {
