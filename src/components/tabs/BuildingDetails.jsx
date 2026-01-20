@@ -591,7 +591,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const filled = jobFill?.[building.id]?.[role] ?? 0;
         return sum + Math.min(required, filled);
     }, 0);
-    const jobFillRate = totalJobSlots > 0 ? (totalJobsFilled / totalJobSlots) * 100 : 0;
+    // 没有岗位需求的建筑（如房子）显示100%，有岗位需求的建筑按实际到岗率计算
+    const jobFillRate = totalJobSlots > 0 ? (totalJobsFilled / totalJobSlots) * 100 : 100;
 
     // 获取实际产出/投入数据（包含科技和事件加成）
     const supplyBreakdown = market?.supplyBreakdown || {};
@@ -690,9 +691,18 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     // [CRITICAL FIX] 当没有实际产出时（supplyBreakdown 无数据或为0），不应回退到理论值
     // 这样到岗率为0%的建筑才会正确显示无产出
     // [改进] 当建筑有产出定义但实际产出为0时，也要显示（方便用户知道是减产了）
+    // [FIX] maxPop 和 militaryCapacity 不在 supplyBreakdown 中，直接使用理论值（已应用加成）
     const totalOutputs = Object.entries(effectiveTotalStats.output || {}).map(([resKey, baseAmount]) => {
         // 理论满员产量 = 配置产出 × 科技加成乘数（用于tooltip比较）
         const theoreticalFullOutput = baseAmount * buildingModifiers.totalMultiplier;
+        
+        // 特殊处理：maxPop 和 militaryCapacity 不在 supplyBreakdown 中，直接使用理论值
+        if (resKey === 'maxPop' || resKey === 'militaryCapacity') {
+            const actualAmount = theoreticalFullOutput;
+            const hasBonus = buildingModifiers.hasBonus;
+            return [resKey, actualAmount, theoreticalFullOutput, hasBonus, false];
+        }
+        
         // 实际产出：直接从 supplyBreakdown 获取，没有则为0
         const rawValue = supplyBreakdown[resKey]?.buildings?.[building.id];
         const actualAmount = rawValue !== undefined ? rawValue : 0;
