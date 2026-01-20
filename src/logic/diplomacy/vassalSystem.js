@@ -1323,6 +1323,8 @@ export const canVassalPerformDiplomacy = (nation, actionType) => {
  */
 export const requiresVassalDiplomacyApproval = (nation) => {
     if (!nation || nation.vassalOf !== 'player') return false;
+    // [FIX] Annexed vassals don't need approval - they shouldn't act at all
+    if (nation.isAnnexed) return false;
     const control = nation.vassalPolicy?.diplomaticControl || 'guided';
     return control === 'guided' || control === 'puppet';
 };

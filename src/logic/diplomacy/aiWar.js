@@ -817,6 +817,11 @@ export const checkWarDeclaration = ({
     const relation = next.relation ?? 50;
     const aggression = next.aggression ?? 0.2;
 
+    // [FIX] Annexed nations cannot declare war
+    if (next.isAnnexed) {
+        return;
+    }
+
     // Get minimum epoch for war declaration based on difficulty
     const minWarEpoch = getMinWarEpoch(difficultyLevel);
 
@@ -1010,9 +1015,15 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs, dip
  */
 export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs, diplomacyOrganizations, vassalDiplomacyRequests = null) => {
     visibleNations.forEach(nation => {
+        // [FIX] Skip annexed nations
+        if (nation.isAnnexed) return;
+        
         if (!nation.foreignWars) nation.foreignWars = {};
 
         visibleNations.forEach(otherNation => {
+            // [FIX] Skip annexed nations as targets
+            if (otherNation.isAnnexed) return;
+            
             if (otherNation.id === nation.id) return;
             if (nation.foreignWars[otherNation.id]?.isAtWar) return;
 

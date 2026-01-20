@@ -231,6 +231,12 @@ export const useGameActions = (gameState, addLog) => {
         const vassal = nations.find(n => n.id === request.vassalId);
         const target = request.targetId ? nations.find(n => n.id === request.targetId) : null;
         if (!vassal) return { success: false, message: '附庸不存在' };
+        
+        // [FIX] Annexed vassals cannot perform diplomatic actions
+        if (vassal.isAnnexed) return { success: false, message: '附庸已被吞并，无法执行外交行动' };
+        
+        // [FIX] Cannot target annexed nations
+        if (target && target.isAnnexed) return { success: false, message: '目标国家已被吞并' };
 
         switch (request.actionType) {
             case 'trade': {
@@ -391,6 +397,13 @@ export const useGameActions = (gameState, addLog) => {
             addLog('无法下达指令：附庸不存在');
             return;
         }
+        
+        // [FIX] Cannot issue orders to annexed vassals
+        if (vassal.isAnnexed) {
+            addLog('无法下达指令：附庸已被吞并');
+            return;
+        }
+        
         const control = vassal.vassalPolicy?.diplomaticControl || 'guided';
         if (control === 'autonomous') {
             addLog(`${vassal.name} 处于自主外交，无法直接下达指令。`);

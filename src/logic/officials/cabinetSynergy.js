@@ -4,6 +4,7 @@
  */
 
 import { POLITICAL_STANCES } from '../../config/politicalStances';
+import { RESOURCES } from '../../config';
 
 // Legacy decree pool (curated) for the Centrist cabinet.
 import { DECREES as LEGACY_DECREES, CENTRIST_CABINET_DECREES } from '../../config/decrees_deprecated';
@@ -748,7 +749,9 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {})
 
     const getPrice = (key) => {
         if (!key || key === 'silver') return 1;
-        return prices[key] ?? 1;
+        // [FIX] Use resource base price as fallback instead of 1
+        // This ensures profit calculation is accurate even when market data is incomplete
+        return prices[key] ?? RESOURCES[key]?.basePrice ?? 1;
     };
 
     // 产出价值

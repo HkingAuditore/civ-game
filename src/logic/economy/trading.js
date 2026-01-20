@@ -348,6 +348,10 @@ export const simulateMerchantTrade = ({
 
     // Treasury change callback for resource tracking
     onTreasuryChange = null,
+
+    // NEW: Supply/demand breakdown tracking for UI
+    supplyBreakdown = null,
+    demandBreakdown = null,
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
@@ -391,6 +395,14 @@ export const simulateMerchantTrade = ({
             if (trade.type === 'import') {
                 res[trade.resource] = (res[trade.resource] || 0) + trade.amount;
                 supply[trade.resource] = (supply[trade.resource] || 0) + trade.amount;
+
+                // NEW: Track import to supplyBreakdown for UI display
+                if (supplyBreakdown) {
+                    if (!supplyBreakdown[trade.resource]) {
+                        supplyBreakdown[trade.resource] = { buildings: {}, imports: 0 };
+                    }
+                    supplyBreakdown[trade.resource].imports = (supplyBreakdown[trade.resource].imports || 0) + trade.amount;
+                }
 
                 // Point-to-point: decrement partner inventory when import completes.
                 if (trade.partnerId && Array.isArray(nations)) {
@@ -667,6 +679,7 @@ export const simulateMerchantTrade = ({
                     taxPolicies,
                     tick,
                     logs,
+                    demandBreakdown, // NEW: For tracking exports in UI
                 });
 
                 if (result.success) {
@@ -751,6 +764,7 @@ const executeExportTradeV2 = ({
     taxPolicies,
     roleExpense,
     logs,
+    demandBreakdown = null, // NEW: For tracking exports in UI
 }) => {
     const localPrice = getLocalPrice(resourceKey);
     const foreignPrice = foreignUnitPrice;
@@ -878,6 +892,14 @@ const executeExportTradeV2 = ({
 
     res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - totalAmount);
     supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - totalAmount);
+
+    // NEW: Track export to demandBreakdown for UI display
+    if (demandBreakdown) {
+        if (!demandBreakdown[resourceKey]) {
+            demandBreakdown[resourceKey] = { buildings: {}, pop: 0, exports: 0 };
+        }
+        demandBreakdown[resourceKey].exports = (demandBreakdown[resourceKey].exports || 0) + totalAmount;
+    }
 
     return {
         success: true,

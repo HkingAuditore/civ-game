@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
+import { HISTORY_STORAGE_LIMIT, LOG_STORAGE_LIMIT } from '../config/gameConstants';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
@@ -262,20 +263,22 @@ const buildInitialMerchantState = () => ({
     merchantTradePreferences: { import: {}, export: {} },
 });
 
+// Use constants from gameConstants.js for consistent limits
 const AUTO_SAVE_LIMITS = {
-    history: 30,
-    classHistory: 30,
-    eventHistory: 30,
-    classSeries: 30,
-    marketHistory: 30,
+    history: HISTORY_STORAGE_LIMIT,
+    classHistory: HISTORY_STORAGE_LIMIT,
+    eventHistory: HISTORY_STORAGE_LIMIT,
+    classSeries: HISTORY_STORAGE_LIMIT,
+    marketHistory: HISTORY_STORAGE_LIMIT,
 };
 
+// Aggressive limits are half of normal limits, minimum 5
 const AUTO_SAVE_AGGRESSIVE_LIMITS = {
-    history: 10,
-    classHistory: 10,
-    eventHistory: 10,
-    classSeries: 10,
-    marketHistory: 10,
+    history: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
+    classHistory: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
+    eventHistory: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
+    classSeries: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
+    marketHistory: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
 };
 
 const trimArray = (value, limit) => (Array.isArray(value) ? value.slice(-limit) : value);
@@ -1633,8 +1636,8 @@ export const useGameState = () => {
         }
         const timestamp = Date.now();
         const { payload } = buildSavePayload({ source, timestamp });
-        const shouldCompact = source === 'auto';
-        const payloadToSave = shouldCompact ? compactSavePayload(payload) : payload;
+        // Always compact saves to reduce storage usage (both manual and auto)
+        const payloadToSave = compactSavePayload(payload);
         let targetKey;
         let friendlyName;
         try {
@@ -1747,14 +1750,16 @@ export const useGameState = () => {
         try {
             const timestamp = Date.now();
             const { payload } = buildSavePayload({ source: 'binary-export', timestamp });
-            let fileJson = JSON.stringify(payload);
+            // Compact the payload before export to reduce file size
+            const compactedPayload = compactSavePayload(payload);
+            let fileJson = JSON.stringify(compactedPayload);
             let note = '📤 存档导出成功，可复制到其他设备。';
             if (canObfuscate) {
                 fileJson = JSON.stringify({
                     format: SAVE_FORMAT_VERSION,
                     obfuscated: true,
-                    data: encodeSavePayload(payload),
-                    updatedAt: payload.updatedAt,
+                    data: encodeSavePayload(compactedPayload),
+                    updatedAt: compactedPayload.updatedAt,
                 });
                 note = '📤 已导出混淆存档，可复制到其他设备。';
             }
@@ -2006,7 +2011,53 @@ export const useGameState = () => {
                 updatedAt: processed.updatedAt || parsed.updatedAt || Date.now(),
                 lastAutoSaveTime: processed.lastAutoSaveTime || lastAutoSaveTime || Date.now(),
             };
-            localStorage.setItem(`${SAVE_SLOT_PREFIX}0`, JSON.stringify(normalized));
+            
+            // Helper function to check quota error
+            const isQuotaExceeded = (err) => err?.name === 'QuotaExceededError'
+                || `${err?.message || ''}`.toLowerCase().includes('quota');
+            
+            // Try to save, with fallback compression for quota issues
+            const targetKey = `${SAVE_SLOT_PREFIX}0`;
+            try {
+                localStorage.setItem(targetKey, JSON.stringify(normalized));
+            } catch (saveError) {
+                if (isQuotaExceeded(saveError)) {
+                    // First fallback: aggressive compact
+                    console.warn('[Import] Quota exceeded, trying aggressive compact...');
+                    try {
+                        const compactedPayload = compactSavePayload(normalized, { aggressive: true });
+                        localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
+                        addLogEntry('⚠️ 存档空间不足，已使用精简导入。');
+                    } catch (compactError) {
+                        if (isQuotaExceeded(compactError)) {
+                            // Second fallback: minimal payload
+                            console.warn('[Import] Compact failed, trying minimal payload...');
+                            try {
+                                const minimalPayload = buildMinimalAutoSavePayload(normalized);
+                                localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                addLogEntry('⚠️ 存档空间严重不足，已使用最小导入（部分历史数据丢失）。');
+                            } catch (minimalError) {
+                                // Final fallback: clear old saves and retry
+                                console.warn('[Import] Minimal failed, clearing old saves...');
+                                // Try clearing autosave first
+                                try {
+                                    localStorage.removeItem(AUTOSAVE_KEY);
+                                    const minimalPayload = buildMinimalAutoSavePayload(normalized);
+                                    localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                    addLogEntry('⚠️ 已清理自动存档以腾出空间，导入成功。');
+                                } catch (finalError) {
+                                    throw new Error('存储空间已满，无法导入存档。请在浏览器设置中清理网站数据或删除现有存档后重试。');
+                                }
+                            }
+                        } else {
+                            throw compactError;
+                        }
+                    }
+                } else {
+                    throw saveError;
+                }
+            }
+            
             applyLoadedGameState(normalized);
             addLogEntry('📥 已从备份文件导入存档！');
             return true;
@@ -2067,7 +2118,51 @@ export const useGameState = () => {
                 lastAutoSaveTime: processed.lastAutoSaveTime || lastAutoSaveTime || Date.now(),
             };
 
-            localStorage.setItem(`${SAVE_SLOT_PREFIX}0`, JSON.stringify(normalized));
+            // Helper function to check quota error
+            const isQuotaExceeded = (err) => err?.name === 'QuotaExceededError'
+                || `${err?.message || ''}`.toLowerCase().includes('quota');
+            
+            // Try to save, with fallback compression for quota issues
+            const targetKey = `${SAVE_SLOT_PREFIX}0`;
+            try {
+                localStorage.setItem(targetKey, JSON.stringify(normalized));
+            } catch (saveError) {
+                if (isQuotaExceeded(saveError)) {
+                    // First fallback: aggressive compact
+                    console.warn('[Import] Quota exceeded, trying aggressive compact...');
+                    try {
+                        const compactedPayload = compactSavePayload(normalized, { aggressive: true });
+                        localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
+                        addLogEntry('⚠️ 存档空间不足，已使用精简导入。');
+                    } catch (compactError) {
+                        if (isQuotaExceeded(compactError)) {
+                            // Second fallback: minimal payload
+                            console.warn('[Import] Compact failed, trying minimal payload...');
+                            try {
+                                const minimalPayload = buildMinimalAutoSavePayload(normalized);
+                                localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                addLogEntry('⚠️ 存档空间严重不足，已使用最小导入（部分历史数据丢失）。');
+                            } catch (minimalError) {
+                                // Final fallback: clear old saves and retry
+                                console.warn('[Import] Minimal failed, clearing old saves...');
+                                try {
+                                    localStorage.removeItem(AUTOSAVE_KEY);
+                                    const minimalPayload = buildMinimalAutoSavePayload(normalized);
+                                    localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                    addLogEntry('⚠️ 已清理自动存档以腾出空间，导入成功。');
+                                } catch (finalError) {
+                                    throw new Error('存储空间已满，无法导入存档。请在浏览器设置中清理网站数据或删除现有存档后重试。');
+                                }
+                            }
+                        } else {
+                            throw compactError;
+                        }
+                    }
+                } else {
+                    throw saveError;
+                }
+            }
+
             applyLoadedGameState(normalized);
             addLogEntry('📥 已从剪贴板导入存档！');
             return true;

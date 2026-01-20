@@ -104,7 +104,7 @@ const EFFECT_NAMES = {
 /**
  * 单个官员卡片组件 - 左右两栏布局
  */
-export const OfficialCard = memo(({
+const OfficialCardInner = ({
     official,
     isCandidate = false,
     onAction,
@@ -1014,6 +1014,74 @@ export const OfficialCard = memo(({
             </div>
         </div>
     );
-});
+};
+
+// Custom comparison function to prevent unnecessary re-renders
+const officialCardPropsAreEqual = (prevProps, nextProps) => {
+    // Compare primitive props first (fast)
+    if (
+        prevProps.isCandidate !== nextProps.isCandidate ||
+        prevProps.canAfford !== nextProps.canAfford ||
+        prevProps.actionDisabled !== nextProps.actionDisabled ||
+        prevProps.currentDay !== nextProps.currentDay ||
+        prevProps.isStanceSatisfied !== nextProps.isStanceSatisfied ||
+        prevProps.compact !== nextProps.compact
+    ) {
+        return false;
+    }
+
+    // Compare official object by key properties that affect rendering
+    const prevOfficial = prevProps.official;
+    const nextOfficial = nextProps.official;
+
+    if (!prevOfficial && !nextOfficial) return true;
+    if (!prevOfficial || !nextOfficial) return false;
+
+    // Compare key official properties
+    if (
+        prevOfficial.id !== nextOfficial.id ||
+        prevOfficial.name !== nextOfficial.name ||
+        prevOfficial.salary !== nextOfficial.salary ||
+        prevOfficial.loyalty !== nextOfficial.loyalty ||
+        prevOfficial.wealth !== nextOfficial.wealth ||
+        prevOfficial.level !== nextOfficial.level ||
+        prevOfficial.ambition !== nextOfficial.ambition ||
+        prevOfficial.stratum !== nextOfficial.stratum ||
+        prevOfficial.sourceStratum !== nextOfficial.sourceStratum ||
+        prevOfficial.financialSatisfaction !== nextOfficial.financialSatisfaction ||
+        prevOfficial.lowLoyaltyDays !== nextOfficial.lowLoyaltyDays ||
+        prevOfficial.politicalStance !== nextOfficial.politicalStance ||
+        prevOfficial.lastDayPropertyIncome !== nextOfficial.lastDayPropertyIncome
+    ) {
+        return false;
+    }
+
+    // Compare stats object
+    const prevStats = prevOfficial.stats;
+    const nextStats = nextOfficial.stats;
+    if (prevStats !== nextStats) {
+        if (!prevStats || !nextStats) return false;
+        if (
+            prevStats.administrative !== nextStats.administrative ||
+            prevStats.military !== nextStats.military ||
+            prevStats.diplomacy !== nextStats.diplomacy ||
+            prevStats.prestige !== nextStats.prestige
+        ) {
+            return false;
+        }
+    }
+
+    // Compare ownedProperties array length (shallow check)
+    const prevProps_count = Array.isArray(prevOfficial.ownedProperties) ? prevOfficial.ownedProperties.length : 0;
+    const nextProps_count = Array.isArray(nextOfficial.ownedProperties) ? nextOfficial.ownedProperties.length : 0;
+    if (prevProps_count !== nextProps_count) {
+        return false;
+    }
+
+    return true;
+};
+
+// Export memoized component with custom comparison
+export const OfficialCard = memo(OfficialCardInner, officialCardPropsAreEqual);
 
 export default OfficialCard;

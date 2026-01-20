@@ -2792,6 +2792,10 @@ export const simulateTick = ({
                                     surplus.stock = Math.max(0, surplus.stock - exportAmount);
                                     remainingValue = Math.max(0, remainingValue - exportValue);
 
+                                    // NEW: Track export demand (resource consumed by trade)
+                                    if (!demandBreakdown[sourceResource]) demandBreakdown[sourceResource] = { buildings: {}, pop: 0, exports: 0 };
+                                    demandBreakdown[sourceResource].exports = (demandBreakdown[sourceResource].exports || 0) + exportAmount;
+
                                     if (target.importPrice <= 0) continue;
                                     let importAmount = exportValue / target.importPrice;
                                     if (!Number.isFinite(importAmount) || importAmount <= 0) continue;
@@ -4696,6 +4700,26 @@ export const simulateTick = ({
             return next;
         }
 
+        // [FIX] Skip all AI logic for annexed nations - they should not take any actions
+        if (next.isAnnexed) {
+            // Clear any ongoing wars or diplomatic actions
+            if (next.isAtWar) {
+                next.isAtWar = false;
+                next.warScore = 0;
+                next.warDuration = 0;
+                next.warStartDay = null;
+                next.enemyLosses = 0;
+                next.warTarget = null;
+                next.isPeaceRequesting = false;
+                next.peaceTribute = null;
+            }
+            // Clear foreign wars
+            if (next.foreignWars) {
+                next.foreignWars = {};
+            }
+            return next;
+        }
+
         // Initialize nation epoch if not present (Independent AI Era System)
         if (next.epoch === undefined) {
             // If already initialized (legacy save), sync to global epoch once to maintain status quo
@@ -5884,6 +5908,10 @@ export const simulateTick = ({
 
         // Treasury change callback for resource tracking
         onTreasuryChange: applySilverChange,
+
+        // NEW: Pass breakdown objects for tracking imports/exports in UI
+        supplyBreakdown,
+        demandBreakdown,
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
     updatedMerchantState.lockedCapital = merchantLockedCapital;

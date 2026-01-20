@@ -167,16 +167,16 @@ export const ResourcePanel = ({
                             <div className="grid grid-cols-[20px_1fr_auto_auto_auto] items-center gap-x-2 text-[10px] text-ancient-stone px-1 pb-0.5 opacity-70">
                                 <span></span>
                                 <span>资源</span>
-                                <span className="text-right w-12">库存</span>
+                                <span className="text-right w-16">库存</span>
                                 <span className="text-right w-12">价格</span>
-                                <span className="text-right w-12">变化</span>
+                                <span className="text-right w-16">变化</span>
                             </div>
 
                             {visibleResources.map(([key, info]) => {
                                 const amount = resources[key] || 0;
                                 const rate = rates[key] || 0;
                                 const price = getPrice(key);
-                                const rateDisplay = rate !== 0 ? `${rate > 0 ? '+' : ''}${rate.toFixed(1)}` : '--';
+                                const rateDisplay = rate !== 0 ? `${rate > 0 ? '+' : ''}${formatCompactNumber(rate)}` : '--';
                                 const rateColorClass =
                                     rate > 0
                                         ? 'text-green-400'
@@ -196,7 +196,7 @@ export const ResourcePanel = ({
                                             {info.name}
                                         </span>
 
-                                        <span className="font-mono font-bold text-ancient-parchment text-right text-[11px] w-12">
+                                        <span className="font-mono font-bold text-ancient-parchment text-right text-[11px] w-16">
                                             {formatCompactNumber(amount)}
                                         </span>
 
@@ -204,7 +204,7 @@ export const ResourcePanel = ({
                                             {price.toFixed(1)}
                                         </span>
 
-                                        <span className={`font-mono text-right text-[11px] w-12 ${rateColorClass}`}>
+                                        <span className={`font-mono text-right text-[11px] w-16 ${rateColorClass}`}>
                                             {rateDisplay}
                                         </span>
                                     </button>
@@ -225,7 +225,7 @@ export const ResourcePanel = ({
                                 const amount = resources[key] || 0;
                                 const rate = rates[key] || 0;
                                 const price = getPrice(key);
-                                const rateDisplay = rate !== 0 ? `${rate > 0 ? '+' : ''}${rate.toFixed(1)}` : '--';
+                                const rateDisplay = rate !== 0 ? `${rate > 0 ? '+' : ''}${formatCompactNumber(rate)}` : '--';
                                 const rateColorClass =
                                     rate > 0
                                         ? 'text-green-400 group-hover:text-green-300'

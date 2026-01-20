@@ -120,8 +120,9 @@ LogItem.displayName = 'LogItem';
  * 日志面板组件
  * @param {Array} logs - 日志数组
  * @param {boolean} hideContainer - 是否隐藏外层容器和标题
+ * @param {number} maxHeight - 当hideContainer为true时的最大高度
  */
-export const LogPanel = ({ logs, hideContainer = false }) => {
+export const LogPanel = ({ logs, hideContainer = false, maxHeight = 300 }) => {
     const MAX_LOGS = 500;
     const parentRef = useRef(null);
 
@@ -180,8 +181,9 @@ export const LogPanel = ({ logs, hideContainer = false }) => {
             ref={parentRef}
             className="overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ancient-gold/40"
             style={{
-                height: hideContainer ? 300 : 192,
+                height: hideContainer ? maxHeight : 192,
                 overflowY: 'auto',
+                padding: hideContainer ? '6px' : '0',
             }}
         >
             <div
@@ -212,7 +214,7 @@ export const LogPanel = ({ logs, hideContainer = false }) => {
     );
 
     if (hideContainer) {
-        return <div className="space-y-1.5">{virtualContent}</div>;
+        return virtualContent;
     }
 
     return (

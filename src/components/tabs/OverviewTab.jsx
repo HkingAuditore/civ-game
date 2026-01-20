@@ -115,9 +115,7 @@ export const OverviewTab = ({
                     </div>
                     <span className="text-[9px] text-ancient-stone">{logs.length} 条</span>
                 </div>
-                <div className="max-h-[160px] overflow-y-auto p-1.5">
-                    <LogPanel logs={logs} hideContainer={true} />
-                </div>
+                <LogPanel logs={logs} hideContainer={true} maxHeight={160} />
             </section>
         </div>
     );

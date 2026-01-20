@@ -704,6 +704,7 @@ const ResourceDetailContent = ({
         stratumDemand,
         buildingDemand,
         armyDemand,
+        tradeDemand,
         buildingSupply,
         totalBaseDemand,
         totalBaseSupply,
@@ -716,6 +717,7 @@ const ResourceDetailContent = ({
                 stratumDemand: [],
                 buildingDemand: [],
                 armyDemand: [],
+                tradeDemand: [],
                 buildingSupply: [],
                 totalBaseDemand: 0,
                 totalBaseSupply: 0,
@@ -987,6 +989,21 @@ const ResourceDetailContent = ({
             actualSupplyTotal += importAmount;
         }
 
+        // NEW: Add Export as a demand source
+        const tradeDemandList = [];
+        const exportAmount = demandBreakdown[resourceKey]?.exports || 0;
+        if (exportAmount > 0) {
+            tradeDemandList.push({
+                id: 'export',
+                name: '国际贸易',
+                baseAmount: 0,
+                amount: exportAmount,
+                formula: '商人出口',
+                hasBonus: false,
+            });
+            actualDemandTotal += exportAmount;
+        }
+
 
         const armyDemandList = Object.entries(UNIT_TYPES).reduce((acc, [id, unit]) => {
             const perUnit = unit.maintenanceCost?.[resourceKey] || 0;
@@ -1014,6 +1031,7 @@ const ResourceDetailContent = ({
             stratumDemand: stratumDemandList,
             buildingDemand: buildingDemandList,
             armyDemand: armyDemandList,
+            tradeDemand: tradeDemandList,
             buildingSupply: buildingSupplyList,
             totalBaseDemand: baseDemandTotal,
             totalBaseSupply: baseSupplyTotal,
@@ -1458,7 +1476,8 @@ const ResourceDetailContent = ({
                                             const actualDemandTotal =
                                                 stratumDemand.reduce((sum, item) => sum + item.amount, 0) +
                                                 buildingDemand.reduce((sum, item) => sum + item.amount, 0) +
-                                                armyDemand.reduce((sum, item) => sum + item.amount, 0);
+                                                armyDemand.reduce((sum, item) => sum + item.amount, 0) +
+                                                tradeDemand.reduce((sum, item) => sum + item.amount, 0);
                                             const actualSupplyTotal = buildingSupply.reduce((sum, item) => sum + item.amount, 0);
 
                                             // 只有当市场有数据且与实际成交差异超过5%时才显示
@@ -1504,7 +1523,7 @@ const ResourceDetailContent = ({
                                                     <p className="text-base lg:text-xl font-semibold text-white">
                                                         {activeTab === 'analysis' ? (
                                                             <>
-                                                                实际消费 {formatAmount(stratumDemand.reduce((sum, item) => sum + item.amount, 0) + buildingDemand.reduce((sum, item) => sum + item.amount, 0) + armyDemand.reduce((sum, item) => sum + item.amount, 0))}
+                                                实际消费 {formatAmount(stratumDemand.reduce((sum, item) => sum + item.amount, 0) + buildingDemand.reduce((sum, item) => sum + item.amount, 0) + armyDemand.reduce((sum, item) => sum + item.amount, 0) + tradeDemand.reduce((sum, item) => sum + item.amount, 0))}
                                                                 {/* <span className="text-xs text-gray-500 ml-2 font-normal">
                                                                     (理论需求: {formatAmount(totalActualDemand)})
                                                                 </span> */}
@@ -1657,6 +1676,27 @@ const ResourceDetailContent = ({
                                                         )}
                                                     </div>
                                                 </div>
+                                                {tradeDemand.length > 0 && (
+                                                    <div>
+                                                        <p className="text-xs lg:text-sm font-semibold text-gray-300">国际贸易</p>
+                                                        <div className="mt-1.5 lg:mt-2 space-y-1.5 lg:space-y-2">
+                                                            {tradeDemand.map(item => (
+                                                                <div
+                                                                    key={item.id}
+                                                                    className="flex items-center justify-between rounded-lg lg:rounded-xl border border-blue-500/30 bg-blue-950/20 p-2 lg:p-3"
+                                                                >
+                                                                    <div>
+                                                                        <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                                                        <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-sm lg:text-base font-bold text-blue-200">{formatAmount(item.amount)}</p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 

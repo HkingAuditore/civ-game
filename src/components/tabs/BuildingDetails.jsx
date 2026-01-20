@@ -530,10 +530,10 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
     const compactSilverCost = formatCompactCost(nextSilverCost);
 
-    // 计算最大可买数量 (限制为100以防卡顿)
+    // 计算最大可买数量 (限制为1000以防卡顿)
     // [性能优化] 使用 useMemo 缓存最大可购买数量，避免每次渲染重新计算
     const maxBuyCount = useMemo(() => {
-        const MAX_SEARCH = 100;
+        const MAX_SEARCH = 1000;
         const currentCount = buildings[building.id] || 0;
         const difficulty = gameState.difficulty;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
@@ -1269,9 +1269,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                     <div className="grid grid-cols-2 gap-4 pt-2">
                         {/* 建造区域 */}
                         <div className="flex flex-col gap-2">
-                            {/* 建造数量选择器 */}
-                            <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
-                                {[1, 5, 10].map(n => (
+                        {/* 建造数量选择器 */}
+                        <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
+                            {[1, 10, 100, 1000].map(n => (
                                     <button
                                         key={`buy-${n}`}
                                         onClick={() => setBuyCount(n)}
@@ -1283,16 +1283,6 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         x{n}
                                     </button>
                                 ))}
-                                <button
-                                    onClick={() => setBuyCount(maxBuyCount)}
-                                    className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === maxBuyCount && ![1, 5, 10].includes(buyCount)
-                                        ? 'bg-green-600 text-white shadow'
-                                        : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                                        }`}
-                                    title="购买最大可负担数量 (上限100)"
-                                >
-                                    Max
-                                </button>
                             </div>
                             <button
                                 onClick={() => onBuy && onBuy(building.id, buyCount)}
@@ -1319,9 +1309,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         {/* 拆除区域 */}
                         {count > 0 ? (
                             <div className="flex flex-col gap-2">
-                                {/* 拆除数量选择器 */}
-                                <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
-                                    {[1, 5, 10].filter(n => n <= count).map(n => (
+                            {/* 拆除数量选择器 */}
+                            <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
+                                {[1, 10, 100, 1000].filter(n => n <= count).map(n => (
                                         <button
                                             key={`sell-${n}`}
                                             onClick={() => setSellCount(n)}
@@ -1333,18 +1323,6 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                             x{n}
                                         </button>
                                     ))}
-                                    {count > 10 && (
-                                        <button
-                                            onClick={() => setSellCount(count)}
-                                            className={`flex-1 py-1 rounded text-xs font-bold transition-all ${sellCount === count
-                                                ? 'bg-red-600 text-white shadow'
-                                                : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                                                }`}
-                                            title={`拆除全部 (${count}座)`}
-                                        >
-                                            全部
-                                        </button>
-                                    )}
                                 </div>
                                 <button
                                     onClick={() => onSell && onSell(building.id, sellCount)}

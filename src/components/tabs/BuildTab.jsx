@@ -309,18 +309,45 @@ const CompactBuildingCard = ({
     );
 };
 
+// Helper function for shallow comparison of objects
+const shallowEqual = (obj1, obj2) => {
+    if (obj1 === obj2) return true;
+    if (!obj1 || !obj2) return obj1 === obj2;
+    const keys1 = Object.keys(obj1);
+    const keys2 = Object.keys(obj2);
+    if (keys1.length !== keys2.length) return false;
+    for (const key of keys1) {
+        if (obj1[key] !== obj2[key]) return false;
+    }
+    return true;
+};
+
 // 使用 memo 并添加自定义比较函数，避免不必要的重渲染
 const MemoCompactBuildingCard = memo(CompactBuildingCard, (prevProps, nextProps) => {
     // 只比较关键属性，避免深度比较大数组
-    return (
-        prevProps.building.id === nextProps.building.id &&
-        prevProps.count === nextProps.count &&
-        prevProps.affordable === nextProps.affordable &&
-        prevProps.silverCost === nextProps.silverCost &&
-        prevProps.hasUpgrades === nextProps.hasUpgrades &&
-        prevProps.ownerJobsRequired === nextProps.ownerJobsRequired &&
-        prevProps.epoch === nextProps.epoch
-    );
+    if (
+        prevProps.building.id !== nextProps.building.id ||
+        prevProps.count !== nextProps.count ||
+        prevProps.affordable !== nextProps.affordable ||
+        prevProps.silverCost !== nextProps.silverCost ||
+        prevProps.hasUpgrades !== nextProps.hasUpgrades ||
+        prevProps.ownerJobsRequired !== nextProps.ownerJobsRequired ||
+        prevProps.epoch !== nextProps.epoch
+    ) {
+        return false;
+    }
+    
+    // Shallow compare actualOutputByRes (frequently changing object)
+    if (!shallowEqual(prevProps.actualOutputByRes, nextProps.actualOutputByRes)) {
+        return false;
+    }
+    
+    // Shallow compare unlockedOutput
+    if (!shallowEqual(prevProps.unlockedOutput, nextProps.unlockedOutput)) {
+        return false;
+    }
+    
+    return true;
 });
 
 
@@ -880,7 +907,7 @@ const BuildTabComponent = ({
                 actualOutputByRes={actualOutputByRes}
             />
         );
-    }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
+    }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredJobFill, deferredResources, onShowDetails]);
 
     const renderChainTopCard = useCallback((chainId, topBuilding, otherBuildings) => {
         const topCardData = cardDataById[topBuilding.id];
@@ -943,7 +970,7 @@ const BuildTabComponent = ({
                 )}
             </div>
         );
-    }, [cardDataById, expandedChains, ownerJobsCorrections, toggleChainExpand, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
+    }, [cardDataById, expandedChains, ownerJobsCorrections, toggleChainExpand, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredJobFill, deferredResources, onShowDetails]);
 
     const flatItemsByCategory = useMemo(() => {
         const result = {};

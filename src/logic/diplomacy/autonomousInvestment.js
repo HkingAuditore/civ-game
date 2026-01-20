@@ -312,9 +312,14 @@ export function processAIInvestment({
             const buildingStaffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
             if (buildingStaffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) continue;
 
+            // [FIX] Use target nation's market prices instead of base prices
+            // This ensures AI investors respond to price spikes (high demand = high profit opportunity)
             const investorMarketPrices = {};
             Object.keys(RESOURCES).forEach(key => {
-                investorMarketPrices[key] = RESOURCES[key].basePrice || 1;
+                // For player target, use player market prices; otherwise use base prices
+                investorMarketPrices[key] = (target.id === 'player' && market?.prices?.[key]) 
+                    ? market.prices[key] 
+                    : (RESOURCES[key].basePrice || 1);
             });
 
             const profitResult = calculateOverseasProfit(
@@ -494,9 +499,14 @@ export function selectBestInvestmentBuilding({
 
         let wageCost = 0;
         const jobs = building.jobs || {};
+        // [FIX] Use actual market wages instead of fixed estimate
+        // This ensures wage changes affect investment decisions
+        const wages = market?.wages || {};
         Object.entries(jobs).forEach(([stratum, count]) => {
             if (building.owner && stratum === building.owner) return;
-            wageCost += count * 10; // Estimate 10 silver per worker per day
+            // Use market wage if available, otherwise fallback to reasonable estimate
+            const wage = wages[stratum] ?? 0.1; // 0.1 silver per worker per day as fallback
+            wageCost += count * wage;
         });
 
         const dailyProfit = outputValue - inputCost - wageCost;

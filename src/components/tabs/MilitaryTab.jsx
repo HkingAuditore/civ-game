@@ -213,6 +213,76 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
 };
 
 /**
+ * Memoized training queue item component to prevent unnecessary re-renders
+ * when other queue items change
+ */
+const TrainingQueueItem = memo(({ item, index, onCancelTraining }) => {
+    const unit = UNIT_TYPES[item.unitId];
+    const isWaiting = item.status === 'waiting';
+    const progress = isWaiting ? 0 : ((item.totalTime - item.remainingTime) / item.totalTime) * 100;
+
+    return (
+        <div
+            className={`flex items-center justify-between p-2 rounded ${isWaiting ? 'bg-gray-700/30 border border-dashed border-gray-600' : 'bg-gray-700/50'
+                }`}
+        >
+            <div className="flex items-center gap-2">
+                <Icon
+                    name={isWaiting ? "UserPlus" : "User"}
+                    size={14}
+                    className={isWaiting ? "text-gray-400" : "text-blue-400"}
+                />
+                <span className={`text-sm ${isWaiting ? 'text-gray-400' : 'text-white'}`}>
+                    {unit?.name || item.unitId}
+                </span>
+                {isWaiting && (
+                    <span className="text-xs text-yellow-400">等待人员...</span>
+                )}
+            </div>
+            <div className="flex items-center gap-2">
+                {!isWaiting && (
+                    <>
+                        <div className="w-32 bg-gray-600 rounded-full h-2">
+                            <div
+                                className="bg-yellow-500 h-2 rounded-full transition-all"
+                                style={{ width: `${progress}%` }}
+                            />
+                        </div>
+                        <span className="text-xs text-gray-400 w-12 text-right">
+                            {item.remainingTime}天
+                        </span>
+                    </>
+                )}
+                {isWaiting && (
+                    <span className="text-xs text-gray-500 w-44 text-right">
+                        需要人员填补军人岗位
+                    </span>
+                )}
+                {/* 取消按钮 */}
+                <button
+                    onClick={() => onCancelTraining && onCancelTraining(index)}
+                    className="ml-2 p-1 rounded hover:bg-red-900/30 text-red-400 hover:text-red-300 transition-colors"
+                    title="取消训练（返还50%资源）"
+                >
+                    <Icon name="X" size={14} />
+                </button>
+            </div>
+        </div>
+    );
+}, (prevProps, nextProps) => {
+    // Custom comparison - only re-render if relevant props changed
+    const prevItem = prevProps.item;
+    const nextItem = nextProps.item;
+    return (
+        prevItem.unitId === nextItem.unitId &&
+        prevItem.status === nextItem.status &&
+        prevItem.remainingTime === nextItem.remainingTime &&
+        prevItem.totalTime === nextItem.totalTime &&
+        prevProps.index === nextProps.index
+    );
+});
+
+/**
  * 军事标签页组件
  * 显示军事系统的所有功能
  * @param {Object} army - 当前军队对象
@@ -264,14 +334,19 @@ const MilitaryTabComponent = ({
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
     const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 5, 10
+    const [disbandCount, setDisbandCount] = useState(1); // 批量解散数量：1, 10, 100, 1000
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    const queueCounts = (militaryQueue || []).reduce((acc, item) => {
-        if (!item?.unitId) return acc;
-        acc[item.unitId] = (acc[item.unitId] || 0) + 1;
-        return acc;
-    }, {});
+    
+    // Memoize queue counts to prevent recalculation on every render
+    const queueCounts = useMemo(() => {
+        return (militaryQueue || []).reduce((acc, item) => {
+            if (!item?.unitId) return acc;
+            acc[item.unitId] = (acc[item.unitId] || 0) + 1;
+            return acc;
+        }, {});
+    }, [militaryQueue]);
 
     const targetEntries = Object.entries(targetArmyComposition || {}).filter(([, value]) => (value ?? 0) > 0);
     targetEntries.sort(([a], [b]) => (UNIT_TYPES[a]?.epoch || 0) - (UNIT_TYPES[b]?.epoch || 0));
@@ -345,7 +420,12 @@ const MilitaryTabComponent = ({
         const { triggered } = longPressRef.current;
         clearLongPress();
         if (!triggered) {
-            onDisband(unitId);
+            // 批量解散指定数量
+            const currentCount = army[unitId] || 0;
+            const actualDisbandCount = Math.min(disbandCount, currentCount);
+            for (let i = 0; i < actualDisbandCount; i++) {
+                onDisband(unitId);
+            }
         }
     };
 
@@ -363,19 +443,28 @@ const MilitaryTabComponent = ({
         if (canHover) setHoveredUnit({ unit, element: e.currentTarget });
     };
 
-    // 计算军队统计信息
-    const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
-    const waitingCount = (militaryQueue || []).filter(item => item.status === 'waiting').length;
-    const trainingCount = (militaryQueue || []).filter(item => item.status === 'training').length;
+    // 计算军队统计信息 - memoized to prevent recalculation
+    const totalUnits = useMemo(() => Object.values(army).reduce((sum, count) => sum + count, 0), [army]);
+    
+    // Memoize queue statistics
+    const { waitingCount, trainingCount, queuePopulation } = useMemo(() => {
+        const queue = militaryQueue || [];
+        let waiting = 0;
+        let training = 0;
+        let queuePop = 0;
+        for (const item of queue) {
+            if (item.status === 'waiting') waiting++;
+            else if (item.status === 'training') training++;
+            const unit = UNIT_TYPES[item.unitId];
+            queuePop += unit?.populationCost || 1;
+        }
+        return { waitingCount: waiting, trainingCount: training, queuePopulation: queuePop };
+    }, [militaryQueue]);
+    
     const totalArmyCount = totalUnits + waitingCount + trainingCount;
 
     // 计算军队总人口占用
-    const totalArmyPopulation = calculateArmyPopulation(army);
-    // 计算训练队列中的人口占用
-    const queuePopulation = (militaryQueue || []).reduce((sum, item) => {
-        const unit = UNIT_TYPES[item.unitId];
-        return sum + (unit?.populationCost || 1);
-    }, 0);
+    const totalArmyPopulation = useMemo(() => calculateArmyPopulation(army), [army]);
     const totalPopulationCost = totalArmyPopulation + queuePopulation;
 
     // 计算军事容量
@@ -741,37 +830,59 @@ const MilitaryTabComponent = ({
                             招募单位
                         </h3>
 
-                        {/* Quantity Selector */}
-                        <div className="flex bg-gray-800 rounded-lg p-1 gap-1 mb-3 w-fit">
-                            {[1, 5, 10].map(n => (
-                                <button
-                                    key={n}
-                                    onClick={() => setRecruitCount(n)}
-                                    className={`px-3 py-1 rounded text-xs font-bold transition-all ${recruitCount === n
-                                        ? 'bg-blue-600 text-white shadow'
-                                        : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                                        }`}
-                                >
-                                    x{n}
-                                </button>
-                            ))}
-                            {/* Max button logic for recruitment is tricky due to capacity/resources. 
-                                    Let's keep it simple for now or implement if needed. 
-                                    Given capacity constraints, Max is very useful. */}
-                            <button
-                                onClick={() => {
-                                    const remainingCap = Math.max(0, militaryCapacity - totalArmyCount);
-                                    const safeMax = Math.min(50, remainingCap > 0 ? remainingCap : 1);
-                                    setRecruitCount(safeMax);
-                                }}
-                                className={`px-3 py-1 rounded text-xs font-bold transition-all ${recruitCount > 10
-                                    ? 'bg-blue-600 text-white shadow'
-                                    : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                                    }`}
-                                title="设置数量为剩余容量 (Max 50)"
-                            >
-                                x{Math.min(50, Math.max(0, militaryCapacity - totalArmyCount) > 0 ? Math.max(0, militaryCapacity - totalArmyCount) : 1)}
-                            </button>
+                        {/* 数量倍率（紧凑版） */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-gray-500">招募</span>
+                                <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
+                                    {[1, 5, 10].map((n) => (
+                                        <button
+                                            key={n}
+                                            onClick={() => setRecruitCount(n)}
+                                            className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${recruitCount === n
+                                                ? 'bg-blue-600 text-white shadow'
+                                                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                                                }`}
+                                            title={`招募倍率 x${n}`}
+                                        >
+                                            x{n}
+                                        </button>
+                                    ))}
+                                    <button
+                                        onClick={() => {
+                                            const remainingCap = Math.max(0, militaryCapacity - totalArmyCount);
+                                            const safeMax = Math.min(50, remainingCap > 0 ? remainingCap : 1);
+                                            setRecruitCount(safeMax);
+                                        }}
+                                        className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${recruitCount > 10
+                                            ? 'bg-blue-600 text-white shadow'
+                                            : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                                            }`}
+                                        title="设置为剩余容量（Max 50）"
+                                    >
+                                        Max
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-gray-500">解散</span>
+                                <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
+                                    {[1, 10, 100, 1000].map((n) => (
+                                        <button
+                                            key={n}
+                                            onClick={() => setDisbandCount(n)}
+                                            className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${disbandCount === n
+                                                ? 'bg-red-600 text-white shadow'
+                                                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                                                }`}
+                                            title={`解散倍率 x${n}`}
+                                        >
+                                            x{n}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
@@ -868,9 +979,9 @@ const MilitaryTabComponent = ({
                                                             handlePressEnd(unitId);
                                                         }}
                                                         className="relative px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] transition-colors select-none overflow-hidden"
-                                                        title="点击解散1个，长按解散全部"
+                                                        title={`点击解散${disbandCount}个，长按解散全部`}
                                                     >
-                                                        <span className="relative z-10">解散</span>
+                                                        <span className="relative z-10">解散{disbandCount > 1 ? `x${disbandCount}` : ''}</span>
                                                         {longPressState.unitId === unitId && longPressState.progress > 0 && (
                                                             <div className="absolute inset-0 bg-red-900/40 z-0">
                                                                 <div
@@ -914,61 +1025,14 @@ const MilitaryTabComponent = ({
                                     e.stopPropagation();
                                 }}
                             >
-                                {militaryQueue.map((item, idx) => {
-                                    const unit = UNIT_TYPES[item.unitId];
-                                    const isWaiting = item.status === 'waiting';
-                                    const progress = isWaiting ? 0 : ((item.totalTime - item.remainingTime) / item.totalTime) * 100;
-
-                                    return (
-                                        <div
-                                            key={idx}
-                                            className={`flex items-center justify-between p-2 rounded ${isWaiting ? 'bg-gray-700/30 border border-dashed border-gray-600' : 'bg-gray-700/50'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Icon
-                                                    name={isWaiting ? "UserPlus" : "User"}
-                                                    size={14}
-                                                    className={isWaiting ? "text-gray-400" : "text-blue-400"}
-                                                />
-                                                <span className={`text-sm ${isWaiting ? 'text-gray-400' : 'text-white'}`}>
-                                                    {unit.name}
-                                                </span>
-                                                {isWaiting && (
-                                                    <span className="text-xs text-yellow-400">等待人员...</span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {!isWaiting && (
-                                                    <>
-                                                        <div className="w-32 bg-gray-600 rounded-full h-2">
-                                                            <div
-                                                                className="bg-yellow-500 h-2 rounded-full transition-all"
-                                                                style={{ width: `${progress}%` }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-xs text-gray-400 w-12 text-right">
-                                                            {item.remainingTime}天
-                                                        </span>
-                                                    </>
-                                                )}
-                                                {isWaiting && (
-                                                    <span className="text-xs text-gray-500 w-44 text-right">
-                                                        需要人员填补军人岗位
-                                                    </span>
-                                                )}
-                                                {/* 取消按钮 */}
-                                                <button
-                                                    onClick={() => onCancelTraining && onCancelTraining(idx)}
-                                                    className="ml-2 p-1 rounded hover:bg-red-900/30 text-red-400 hover:text-red-300 transition-colors"
-                                                    title="取消训练（返还50%资源）"
-                                                >
-                                                    <Icon name="X" size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                {militaryQueue.map((item, idx) => (
+                                    <TrainingQueueItem
+                                        key={`${item.unitId}-${idx}-${item.status}`}
+                                        item={item}
+                                        index={idx}
+                                        onCancelTraining={onCancelTraining}
+                                    />
+                                ))}
                             </div>
                         </div>
                     )}
