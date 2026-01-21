@@ -1,0 +1,555 @@
+project:
+  name: civ-game
+  version: v1.0
+  domain: game
+  description: 项目描述
+philosophy:
+  vibe_development:
+    enabled: true
+    principles:
+    - AI 不是执行者，而是协作伙伴
+    - 不急于产出代码，先对齐理解
+    - 每个决策都是共同思考的结果
+    - 对话本身就是设计过程的一部分
+  decision_quality:
+    target_rate: 0.9
+    critical_tolerance: 0
+  long_term_dialogue: true
+roles:
+- code: ARCH
+  name: 架构
+  focus:
+  - 底层结构
+  - 性能
+  - 可扩展性
+  triggers:
+  - 架构
+  - 底层
+  - 重构
+  is_gatekeeper: false
+- code: DEV
+  name: 开发
+  focus:
+  - 具体实现
+  - Bug修复
+  triggers:
+  - 开发
+  - 实现
+  - 代码
+  is_gatekeeper: false
+- code: PM
+  name: 项目管理
+  focus:
+  - 里程碑
+  - 优先级
+  - 进度
+  triggers:
+  - 规划
+  - 排期
+  - 优先级
+  is_gatekeeper: false
+- code: QA
+  name: 产品质量保证
+  focus:
+  - 验收测试
+  - 用户体验验证
+  - 边界情况
+  triggers:
+  - 验收
+  - 体验测试
+  - 功能验证
+  is_gatekeeper: true
+- code: TEST
+  name: 单元测试
+  focus:
+  - 代码测试
+  - 覆盖率
+  - 自动化测试
+  triggers:
+  - 单元测试
+  - 测试用例
+  - coverage
+  is_gatekeeper: false
+- code: DESIGN
+  name: 游戏策划
+  focus:
+  - 玩法
+  - 体验
+  - 平衡
+  - 叙事
+  triggers:
+  - 策划
+  - 设计
+  - 玩法
+- code: ART
+  name: 美术指导
+  focus:
+  - 风格
+  - 资产规范
+  - 视觉反馈
+  triggers:
+  - 美术
+  - 视觉
+  - 风格
+decision_levels:
+- level: S
+  name: 战略决策
+  scope: 整体方向、核心功能
+  review:
+    required: true
+    mode: sync
+    human_confirm: true
+- level: A
+  name: 架构决策
+  scope: 系统设计、数据结构
+  review:
+    required: true
+    mode: async
+    human_confirm: true
+- level: B
+  name: 实现决策
+  scope: 具体方案选择
+  review:
+    required: false
+    mode: auto
+    human_confirm: false
+- level: C
+  name: 细节决策
+  scope: 参数、命名、格式
+  review:
+    required: false
+    mode: none
+    human_confirm: false
+task_unit:
+  id_pattern: TASK-{role}-{seq}
+  statuses:
+  - TODO
+  - IN_PROGRESS
+  - REVIEW
+  - DONE
+  required_fields:
+  - id
+  - role
+  - feature
+  - dependencies
+  - output
+  - status
+  - dialogue_rounds
+dialogue_protocol:
+  on_start:
+    read_files:
+    - docs/CONTEXT.md
+    - llm.txt
+    actions:
+    - 了解当前进度
+    - 确认用户本次对话目标
+  on_end:
+    update_files:
+    - docs/CONTEXT.md
+    - docs/CHANGELOG.md
+    git_commit: true
+  standard_flow:
+  - step: 1
+    actor: human
+    action: 提出需求/问题
+  - step: 2
+    actor: ai
+    action: 识别角色，分析问题
+  - step: 3
+    actor: ai
+    action: S/A级决策请求确认，B/C级自主执行
+    condition: decision_level in [S, A]
+  - step: 4
+    actor: ai
+    action: 执行任务，输出结果
+  - step: 5
+    actor: ai
+    action: 更新测试用例（如为功能开发）
+    condition: task_type == feature
+  - step: 6
+    actor: ai
+    action: 总结进展，提示下一步
+  - step: 7
+    actor: human
+    action: 确认/修正/继续
+  - step: 8
+    actor: ai
+    action: Git 提交记录
+requirement_clarification:
+  enabled: true
+  trigger_conditions:
+  - 描述模糊或不完整
+  - 缺少具体验收标准
+  - 可能有多种理解方式
+  - 涉及 S/A 级决策
+  clarification_questions:
+  - 你希望达到什么效果？
+  - 有没有参考案例？
+  - 这个功能谁会用？在什么场景下用？
+  - 如何验证这个功能是否完成？
+  - 有时间或资源约束吗？
+git_workflow:
+  branches:
+    main: main
+    dev: dev
+    feature_prefix: feature/
+    fix_prefix: fix/
+    design_prefix: design/
+    refactor_prefix: refactor/
+  commit_prefixes:
+  - prefix: '[DESIGN]'
+    description: 设计文档变更
+    roles:
+    - DESIGN
+  - prefix: '[ARCH]'
+    description: 架构调整
+    roles:
+    - ARCH
+  - prefix: '[FEAT]'
+    description: 新功能
+    roles:
+    - DEV
+  - prefix: '[FIX]'
+    description: Bug修复
+    roles:
+    - DEV
+    - QA
+  - prefix: '[CONFIG]'
+    description: 配置调整（不改逻辑）
+    roles:
+    - DEV
+  - prefix: '[REFACTOR]'
+    description: 重构
+    roles:
+    - ARCH
+    - DEV
+  - prefix: '[DOC]'
+    description: 文档更新
+    roles:
+    - PM
+    - DESIGN
+  - prefix: '[TEST]'
+    description: 测试相关
+    roles:
+    - TEST
+    - QA
+  - prefix: '[VIBE]'
+    description: 协作流程更新
+    roles:
+    - PM
+  commit_required: true
+testing:
+  unit_test:
+    enabled: true
+    framework: jest
+    coverage_target: 0.8
+    patterns:
+    - '**/*.test.ts'
+    - '**/*.spec.ts'
+    run_on:
+    - pre-commit
+    - ci
+    required_for_merge: true
+  product_qa:
+    enabled: true
+    test_case_file: docs/QA_TEST_CASES.md
+    case_id_pattern: TC-{module}-{seq}
+    required_fields:
+    - id
+    - feature
+    - precondition
+    - steps
+    - expected
+    - status
+    statuses:
+    - symbol: 🟢
+      meaning: PASS
+    - symbol: 🟡
+      meaning: PARTIAL
+    - symbol: 🔴
+      meaning: FAIL
+    - symbol: ⚪
+      meaning: SKIP
+milestone:
+  lifecycle:
+  - phase: feature_dev
+    description: 特性开发期
+    exit_criteria:
+    - 所有计划特性完成
+    - 快速验收通过
+  - phase: feature_freeze
+    description: 特性冻结
+    exit_criteria:
+    - 不再添加新功能
+    - 构建成功
+  - phase: bug_fix
+    description: Bug 修复期
+    exit_criteria:
+    - P0/P1 问题清零
+    - 测试通过率达标
+  - phase: acceptance
+    description: 里程碑验收
+    exit_criteria:
+    - QA 全量测试通过
+    - 单元测试覆盖率达标
+    - 已知问题清零或标记延后
+  - phase: retrospective
+    description: 版本回顾
+    exit_criteria:
+    - 回顾测试表现
+    - 收集用户反馈
+    - 补充新需求到下一阶段
+  tag_pattern: v{major}.{minor}.{patch}
+  roadmap_file: docs/ROADMAP.md
+  bug_priority:
+  - level: P0
+    description: 崩溃/阻断
+  - level: P1
+    description: 功能异常
+  - level: P2
+    description: 体验问题
+  - level: P3
+    description: 优化建议
+iteration:
+  suggestion_pool:
+    file: docs/ROADMAP.md
+    section: 迭代建议池
+    categories:
+    - symbol: ✅
+      meaning: 纳入当前里程碑
+    - symbol: ⏳
+      meaning: 延后到下个里程碑
+    - symbol: ❌
+      meaning: 拒绝（不符合方向）
+    - symbol: 🔄
+      meaning: 合并其他迭代
+  config_level_iteration:
+    enabled: true
+    commit_prefix: '[CONFIG]'
+    skip_pm_review: true
+    examples:
+    - 数值参数调整
+    - 配置文件修改
+    - 样式/主题变更
+    - 文案/文本修改
+  review_dimensions:
+  - 与当前任务的依赖/冲突关系
+  - 对用户体验的影响程度
+  - 开发成本和技术复杂度
+  - 里程碑剩余时间约束
+version_review:
+  enabled: true
+  timing: 里程碑验收完成后
+  review_items:
+  - 测试表现（通过率、问题分布）
+  - 用户体验反馈
+  - 技术债务
+  - 迭代建议池
+build:
+  enabled: true
+  command: npm run build
+  dist_entry: dist/index.html
+  timing:
+  - 里程碑全量验收前
+  - Bug修复期集中测试
+  - 准备分发/演示版本
+quick_acceptance:
+  enabled: true
+  start_command: npm run dev
+  reply_formats:
+    pass: ✅
+    issue: '⚠️ 问题:'
+    skip: 跳过
+prompt_engineering:
+  enabled: true
+  role_templates:
+    DESIGN: '[DESIGN] 我想讨论{系统名称}的设计
+
+      当前想法是: {描述}
+
+      主要顾虑: {顾虑}
+
+      请从用户体验角度分析
+
+      '
+    ARCH: '[ARCH] 我需要设计{模块名}的架构
+
+      需求: {功能需求}
+
+      约束: {性能/兼容性约束}
+
+      请给出2-3个方案对比
+
+      '
+    DEV: '[DEV] 请实现{功能}
+
+      输入: {输入描述}
+
+      输出: {期望输出}
+
+      相关文件: {文件路径}
+
+      '
+confirmed_decisions: []
+llm_txt_changelog: []
+documentation:
+  key_files:
+  - path: llm.txt
+    purpose: AI 协作规则，顶层指导
+    update_trigger: 协作方式演进时
+  - path: docs/CONTEXT.md
+    purpose: 当前开发上下文
+    update_trigger: 每次对话结束时
+  - path: docs/DECISIONS.md
+    purpose: 重要决策记录
+    update_trigger: 每次 S/A 级决策后
+  - path: docs/CHANGELOG.md
+    purpose: 版本变更日志
+    update_trigger: 每次有效对话后
+  - path: docs/QA_TEST_CASES.md
+    purpose: 产品QA测试用例
+    update_trigger: 每个功能完成时
+  - path: docs/ROADMAP.md
+    purpose: 路线图+迭代建议
+    update_trigger: 里程碑规划/反馈时
+  context_file: docs/CONTEXT.md
+  changelog_file: docs/CHANGELOG.md
+  decisions_file: docs/DECISIONS.md
+symbology:
+  decision_status:
+  - symbol: PENDING
+    meaning: 待确认
+  - symbol: CONFIRMED
+    meaning: 已确认
+  - symbol: REVISED
+    meaning: 已修订
+  task_status:
+  - symbol: TODO
+    meaning: 待开始
+  - symbol: IN_PROGRESS
+    meaning: 进行中
+  - symbol: REVIEW
+    meaning: 待审核
+  - symbol: DONE
+    meaning: 已完成
+  test_status:
+  - symbol: 🟢
+    meaning: 通过
+  - symbol: 🟡
+    meaning: 部分通过
+  - symbol: 🔴
+    meaning: 未通过
+  - symbol: ⚪
+    meaning: 跳过
+  priority:
+  - symbol: P0
+    meaning: 最高优先级/阻断
+  - symbol: P1
+    meaning: 高优先级
+  - symbol: P2
+    meaning: 中优先级
+  - symbol: P3
+    meaning: 低优先级
+domain_extensions:
+  game:
+    hooks:
+    - trigger: qa.list_test_cases
+      action: inject_context
+      context_id: gm_commands
+      condition: files.exists('docs/GM_COMMANDS.md')
+    - trigger: dev.feature_complete
+      action: inject_context
+      context_id: gm_test_guide
+      condition: project.has_feature('gm_console')
+    - trigger: build.pre
+      action: append_checklist
+      context_id: build_checklist
+    - trigger: dialogue.start
+      action: require_file_read
+      context_id: gdd_files
+      condition: topic.relates_to('design')
+    contexts:
+      gm_commands:
+        type: reference
+        source: docs/GM_COMMANDS.md
+        inline_if_short: true
+        description: GM 控制台命令，用于快速测试
+      gm_test_guide:
+        type: template
+        content: "## \U0001F3AE GM 快速测试\n\n**测试目标**: {feature_name}\n\n**可用 GM 命令**:\
+          \ \n见 `docs/GM_COMMANDS.md` 或按 `{gm_trigger_key}` 打开控制台\n\n**推荐测试步骤**:\n\
+          1. 使用 GM 跳过非目标流程\n2. 快速到达测试场景\n3. 验证功能表现\n4. 关闭 GM 验证正常流程\n"
+      build_checklist:
+        type: template
+        content: '## 构建前检查
+
+          - [ ] `{build_command}`
+
+          - [ ] 双击 `{dist_entry}` 测试
+
+          - [ ] 确认游戏正常运行
+
+          - [ ] 更新操作说明（如有新功能）
+
+          '
+      gdd_files:
+        type: file_list
+        pattern: docs/GDD_*.md
+        description: 游戏设计文档
+    additional_files:
+    - path: docs/GM_COMMANDS.md
+      purpose: GM 控制台命令文档
+      template: '# GM 控制台命令
+
+
+        按 `/` 打开控制台。
+
+
+        ## 通用命令
+
+
+        | 命令 | 参数 | 说明 |
+
+        |------|------|------|
+
+        | `god` | - | 切换无敌模式 |
+
+        | `tp` | x y z | 传送到指定位置 |
+
+        | `give` | item_id [amount] | 给予物品 |
+
+        | `clear` | - | 清空背包 |
+
+        | `refill` | - | 补满资源 |
+
+
+        ## 项目特定命令
+
+
+        (根据项目添加)
+
+        '
+    - path: docs/BALANCE.md
+      purpose: 数值平衡表
+      template: '# 数值平衡表
+
+
+        ## 角色属性
+
+
+        | 属性 | 初始值 | 说明 |
+
+        |------|--------|------|
+
+
+        ## 物品数值
+
+
+        (待填写)
+
+        '
+    config:
+      gm_trigger_key: /
+      build_command: npm run build
+      dev_command: npm run dev
+      dist_entry: dist/index.html
