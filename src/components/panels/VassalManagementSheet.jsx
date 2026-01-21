@@ -497,6 +497,70 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
             </div>
         </div>
 
+        {/* 阶层满意度 */}
+        <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-700/40">
+            <div className="flex items-center gap-2 mb-3">
+                <Icon name="Users" size={16} className="text-cyan-400" />
+                <span className="text-sm font-semibold text-gray-200">阶层满意度</span>
+                <span className="ml-auto text-xs text-gray-400">
+                    平均: {Math.round(
+                        nation.socialStructure 
+                            ? ((nation.socialStructure.elites?.satisfaction || 50) + 
+                               (nation.socialStructure.commoners?.satisfaction || 50) + 
+                               (nation.socialStructure.underclass?.satisfaction || 50)) / 3
+                            : 50
+                    )}%
+                </span>
+            </div>
+            <div className="space-y-2">
+                {/* 精英阶层 */}
+                <div>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-gray-400">精英阶层</span>
+                        <span className="text-xs font-mono text-white">
+                            {Math.round(nation.socialStructure?.elites?.satisfaction || 50)}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-purple-500 transition-all duration-300"
+                            style={{ width: `${nation.socialStructure?.elites?.satisfaction || 50}%` }}
+                        />
+                    </div>
+                </div>
+                {/* 平民阶层 */}
+                <div>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-gray-400">平民阶层</span>
+                        <span className="text-xs font-mono text-white">
+                            {Math.round(nation.socialStructure?.commoners?.satisfaction || 50)}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-blue-500 transition-all duration-300"
+                            style={{ width: `${nation.socialStructure?.commoners?.satisfaction || 50}%` }}
+                        />
+                    </div>
+                </div>
+                {/* 下层阶层 */}
+                <div>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-gray-400">下层阶层</span>
+                        <span className="text-xs font-mono text-white">
+                            {Math.round(nation.socialStructure?.underclass?.satisfaction || 50)}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-green-500 transition-all duration-300"
+                            style={{ width: `${nation.socialStructure?.underclass?.satisfaction || 50}%` }}
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {/* 详细信息 */}
         <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-700/40">
             <div className="text-xs text-gray-400 uppercase tracking-wider mb-3">附庸详情</div>

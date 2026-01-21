@@ -24,6 +24,24 @@ const LEGACY_SAVE_KEY = 'civ_game_save_data_v1';
 const ACHIEVEMENT_STORAGE_KEY = 'civ_game_achievements_v1';
 const ACHIEVEMENT_PROGRESS_KEY = 'civ_game_achievement_progress_v1';
 
+// Helper function to calculate save size
+const calculateSaveSize = (data) => {
+    try {
+        const jsonString = JSON.stringify(data);
+        const sizeInBytes = new Blob([jsonString]).size;
+        const sizeInKB = (sizeInBytes / 1024).toFixed(1);
+        const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2);
+        return {
+            bytes: sizeInBytes,
+            kb: sizeInKB,
+            mb: sizeInMB,
+            display: sizeInBytes > 1024 * 1024 ? `${sizeInMB}MB` : `${sizeInKB}KB`
+        };
+    } catch (e) {
+        return { bytes: 0, kb: '0', mb: '0', display: '0KB' };
+    }
+};
+
 const loadAchievementsFromStorage = () => {
     if (typeof window === 'undefined') return [];
     try {
@@ -396,6 +414,57 @@ const trimMarketSnapshot = (market, limit) => {
 
 const compactSavePayload = (payload, { aggressive = false } = {}) => {
     const limits = aggressive ? AUTO_SAVE_AGGRESSIVE_LIMITS : AUTO_SAVE_LIMITS;
+    
+    // Compact nations array (remove history and unnecessary data from vassals)
+    const compactNations = (nations) => {
+        if (!Array.isArray(nations)) return nations;
+        return nations.map(nation => {
+            // Keep player nation fully intact
+            if (nation.isPlayer) return nation;
+            
+            // For vassals and other nations, remove heavy data
+            const compacted = { ...nation };
+            
+            // Remove or trim history data
+            if (aggressive) {
+                delete compacted.history;
+                delete compacted.classWealthHistory;
+                delete compacted.classNeedsHistory;
+                delete compacted.eventHistory;
+                delete compacted.logs;
+            } else {
+                // Keep minimal history
+                if (compacted.history) {
+                    compacted.history = trimHistorySnapshot(compacted.history, Math.floor(limits.history / 2));
+                }
+                if (compacted.classWealthHistory) {
+                    compacted.classWealthHistory = trimClassSeriesMap(compacted.classWealthHistory, Math.floor(limits.classSeries / 2));
+                }
+                if (compacted.classNeedsHistory) {
+                    compacted.classNeedsHistory = trimClassSeriesMap(compacted.classNeedsHistory, Math.floor(limits.classSeries / 2));
+                }
+                if (compacted.eventHistory) {
+                    compacted.eventHistory = trimArray(compacted.eventHistory, Math.floor(limits.eventHistory / 2));
+                }
+                if (compacted.logs) {
+                    compacted.logs = trimArray(compacted.logs, 10);
+                }
+            }
+            
+            // Remove market history for non-player nations
+            if (compacted.market) {
+                compacted.market = {
+                    ...compacted.market,
+                    priceHistory: {},
+                    supplyHistory: {},
+                    demandHistory: {},
+                };
+            }
+            
+            return compacted;
+        });
+    };
+    
     const compacted = {
         ...payload,
         history: trimHistorySnapshot(payload.history, limits.history),
@@ -403,107 +472,152 @@ const compactSavePayload = (payload, { aggressive = false } = {}) => {
         classNeedsHistory: trimClassSeriesMap(payload.classNeedsHistory, limits.classSeries),
         market: trimMarketSnapshot(payload.market, limits.marketHistory),
         eventHistory: trimArray(payload.eventHistory, limits.eventHistory),
+        nations: compactNations(payload.nations),
         clicks: [],
     };
     if (aggressive) {
         compacted.history = buildInitialHistory();
         compacted.classWealthHistory = buildInitialWealthHistory();
         compacted.classNeedsHistory = buildInitialNeedsHistory();
-        compacted.eventHistory = [];
-        compacted.logs = [];
     }
     return compacted;
 };
 
-const buildMinimalAutoSavePayload = (payload) => ({
-    saveFormatVersion: payload.saveFormatVersion,
-    resources: payload.resources,
-    population: payload.population,
-    popStructure: payload.popStructure,
-    maxPop: payload.maxPop,
-    maxPopBonus: payload.maxPopBonus,
-    birthAccumulator: payload.birthAccumulator,
-    buildings: payload.buildings,
-    buildingUpgrades: payload.buildingUpgrades,
-    techsUnlocked: payload.techsUnlocked,
-    epoch: payload.epoch,
-    activeTab: payload.activeTab,
-    gameSpeed: payload.gameSpeed,
-    isPaused: payload.isPaused,
-    nations: payload.nations,
-    classApproval: payload.classApproval,
-    classInfluence: payload.classInfluence,
-    classWealth: payload.classWealth,
-    classWealthDelta: payload.classWealthDelta,
-    classIncome: payload.classIncome,
-    classExpense: payload.classExpense,
-    classFinancialData: payload.classFinancialData,
-    totalInfluence: payload.totalInfluence,
-    totalWealth: payload.totalWealth,
-    activeBuffs: payload.activeBuffs,
-    activeDebuffs: payload.activeDebuffs,
-    classInfluenceShift: payload.classInfluenceShift,
-    stability: payload.stability,
-    classShortages: payload.classShortages,
-    classLivingStandard: payload.classLivingStandard,
-    livingStandardStreaks: payload.livingStandardStreaks,
-    migrationCooldowns: payload.migrationCooldowns,
-    daysElapsed: payload.daysElapsed,
-    army: payload.army,
-    militaryQueue: payload.militaryQueue,
-    selectedTarget: payload.selectedTarget,
-    battleResult: payload.battleResult,
-    playerInstallmentPayment: payload.playerInstallmentPayment,
-    autoRecruitEnabled: payload.autoRecruitEnabled,
-    targetArmyComposition: payload.targetArmyComposition,
-    militaryWageRatio: payload.militaryWageRatio,
-    lastBattleTargetId: payload.lastBattleTargetId,
-    lastBattleDay: payload.lastBattleDay,
-    activeFestivalEffects: payload.activeFestivalEffects,
-    lastFestivalYear: payload.lastFestivalYear,
-    showTutorial: payload.showTutorial,
-    currentEvent: payload.currentEvent,
-    taxes: payload.taxes,
-    taxPolicies: payload.taxPolicies,
-    jobFill: payload.jobFill,
-    market: payload.market,
-    merchantState: payload.merchantState,
-    tradeRoutes: payload.tradeRoutes,
-    tradeStats: payload.tradeStats,
-    diplomacyOrganizations: payload.diplomacyOrganizations,
-    vassalDiplomacyQueue: payload.vassalDiplomacyQueue,
-    vassalDiplomacyHistory: payload.vassalDiplomacyHistory,
-    overseasBuildings: payload.overseasBuildings,
-    foreignInvestmentPolicy: payload.foreignInvestmentPolicy,
-    eventEffectSettings: payload.eventEffectSettings,
-    activeEventEffects: payload.activeEventEffects,
-    rebellionStates: payload.rebellionStates,
-    rulingCoalition: payload.rulingCoalition,
-    legitimacy: payload.legitimacy,
-    actionCooldowns: payload.actionCooldowns,
-    actionUsage: payload.actionUsage,
-    promiseTasks: payload.promiseTasks,
-    autoSaveInterval: payload.autoSaveInterval,
-    isAutoSaveEnabled: payload.isAutoSaveEnabled,
-    lastAutoSaveTime: payload.lastAutoSaveTime,
-    difficulty: payload.difficulty,
-    updatedAt: payload.updatedAt,
-    saveSource: payload.saveSource,
-    officials: payload.officials,
-    officialCandidates: payload.officialCandidates,
-    lastSelectionDay: payload.lastSelectionDay,
-    officialCapacity: payload.officialCapacity,
-    ministerAssignments: payload.ministerAssignments,
-    lastMinisterExpansionDay: payload.lastMinisterExpansionDay,
-    activeDecrees: payload.activeDecrees,
-    decreeCooldowns: payload.decreeCooldowns,
-    quotaTargets: payload.quotaTargets,
-    expansionSettings: payload.expansionSettings,
-    priceControls: payload.priceControls,  // [NEW] 价格管制状态
-    taxShock: payload.taxShock,  // [NEW] 累积税收冲击状态
-    eventConfirmationEnabled: payload.eventConfirmationEnabled,
-    dailyMilitaryExpense: payload.dailyMilitaryExpense, // [FIX] 每日军费数据
-});
+const buildMinimalAutoSavePayload = (payload) => {
+    // Ultra-minimal nations (only essential data)
+    const minimalNations = Array.isArray(payload.nations) ? payload.nations.map(nation => {
+        if (nation.isPlayer) {
+            // Keep player nation but remove history
+            return {
+                ...nation,
+                history: undefined,
+                classWealthHistory: undefined,
+                classNeedsHistory: undefined,
+                eventHistory: [],
+                logs: [],
+                market: nation.market ? {
+                    prices: nation.market.prices,
+                    priceHistory: {},
+                    supplyHistory: {},
+                    demandHistory: {},
+                } : undefined,
+            };
+        }
+        // For vassals, keep only critical data
+        return {
+            id: nation.id,
+            name: nation.name,
+            isPlayer: nation.isPlayer,
+            resources: nation.resources,
+            population: nation.population,
+            buildings: nation.buildings,
+            vassalType: nation.vassalType,
+            overlordId: nation.overlordId,
+            vassalPolicy: nation.vassalPolicy,
+            autonomy: nation.autonomy,
+            independenceTendency: nation.independenceTendency,
+            socialStructure: nation.socialStructure,
+        };
+    }) : [];
+
+    return {
+        saveFormatVersion: payload.saveFormatVersion,
+        resources: payload.resources,
+        population: payload.population,
+        popStructure: payload.popStructure,
+        maxPop: payload.maxPop,
+        buildings: payload.buildings,
+        buildingUpgrades: payload.buildingUpgrades,
+        techsUnlocked: payload.techsUnlocked,
+        epoch: payload.epoch,
+        gameSpeed: payload.gameSpeed,
+        isPaused: payload.isPaused,
+        nations: minimalNations,
+        classApproval: payload.classApproval,
+        classInfluence: payload.classInfluence,
+        classWealth: payload.classWealth,
+        stability: payload.stability,
+        daysElapsed: payload.daysElapsed,
+        army: payload.army,
+        taxes: payload.taxes,
+        taxPolicies: payload.taxPolicies,
+        jobFill: payload.jobFill,
+        market: payload.market ? {
+            prices: payload.market.prices,
+            priceHistory: {},
+            supplyHistory: {},
+            demandHistory: {},
+        } : undefined,
+        tradeRoutes: payload.tradeRoutes,
+        overseasBuildings: payload.overseasBuildings || [],
+        rebellionStates: payload.rebellionStates,
+        rulingCoalition: payload.rulingCoalition,
+        legitimacy: payload.legitimacy,
+        officials: payload.officials,
+        ministerAssignments: payload.ministerAssignments,
+        activeDecrees: payload.activeDecrees || [],
+        autoSaveInterval: payload.autoSaveInterval,
+        isAutoSaveEnabled: payload.isAutoSaveEnabled,
+        difficulty: payload.difficulty,
+        updatedAt: payload.updatedAt,
+        saveSource: 'auto-minimal',
+        // Remove ALL heavy data
+        history: undefined,
+        classWealthHistory: undefined,
+        classNeedsHistory: undefined,
+        eventHistory: [],
+        logs: [],
+        clicks: [],
+        // Remove non-essential fields
+        maxPopBonus: undefined,
+        birthAccumulator: undefined,
+        activeTab: undefined,
+        classWealthDelta: undefined,
+        classIncome: undefined,
+        classExpense: undefined,
+        classFinancialData: undefined,
+        totalInfluence: undefined,
+        totalWealth: undefined,
+        activeBuffs: undefined,
+        activeDebuffs: undefined,
+        classInfluenceShift: undefined,
+        classShortages: undefined,
+        classLivingStandard: undefined,
+        livingStandardStreaks: undefined,
+        migrationCooldowns: undefined,
+        militaryQueue: undefined,
+        selectedTarget: undefined,
+        battleResult: undefined,
+        playerInstallmentPayment: undefined,
+        autoRecruitEnabled: undefined,
+        targetArmyComposition: undefined,
+        militaryWageRatio: undefined,
+        lastBattleTargetId: undefined,
+        lastBattleDay: undefined,
+        activeFestivalEffects: undefined,
+        lastFestivalYear: undefined,
+        showTutorial: undefined,
+        currentEvent: undefined,
+        merchantState: undefined,
+        tradeStats: undefined,
+        diplomacyOrganizations: undefined,
+        vassalDiplomacyQueue: undefined,
+        vassalDiplomacyHistory: [],
+        foreignInvestmentPolicy: undefined,
+        eventEffectSettings: undefined,
+        activeEventEffects: undefined,
+        actionCooldowns: undefined,
+        actionUsage: undefined,
+        promiseTasks: undefined,
+        lastAutoSaveTime: undefined,
+        officialCandidates: undefined,
+        lastSelectionDay: undefined,
+        officialCapacity: undefined,
+        lastMinisterExpansionDay: undefined,
+        decreeCooldowns: undefined,
+        quotaTargets: undefined,
+    };
+};
 
 const DEFAULT_EVENT_EFFECT_SETTINGS = {
     approval: { duration: 30, decayRate: 0.04 },
@@ -1673,6 +1787,41 @@ export const useGameState = () => {
         const payloadToSave = compactSavePayload(payload);
         let targetKey;
         let friendlyName;
+        
+        // Helper function to clean up old saves
+        const cleanupOldSaves = () => {
+            try {
+                // Find and remove oldest manual save slots (keep only the most recent 3)
+                const saveSlots = [];
+                for (let i = 0; i < SAVE_SLOT_COUNT; i++) {
+                    const key = `${SAVE_SLOT_PREFIX}${i}`;
+                    const data = localStorage.getItem(key);
+                    if (data) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            saveSlots.push({ key, timestamp: parsed.updatedAt || 0, size: data.length });
+                        } catch (e) {
+                            // Invalid save, remove it
+                            localStorage.removeItem(key);
+                        }
+                    }
+                }
+                
+                // Sort by timestamp (oldest first) and remove oldest saves
+                saveSlots.sort((a, b) => a.timestamp - b.timestamp);
+                const toRemove = saveSlots.slice(0, Math.max(0, saveSlots.length - 3));
+                toRemove.forEach(slot => {
+                    localStorage.removeItem(slot.key);
+                    console.log(`Cleaned up old save: ${slot.key} (${(slot.size / 1024).toFixed(1)}KB)`);
+                });
+                
+                return toRemove.length > 0;
+            } catch (e) {
+                console.error('Failed to cleanup old saves:', e);
+                return false;
+            }
+        };
+        
         try {
 
             // 确定存储 key
@@ -1686,57 +1835,97 @@ export const useGameState = () => {
                 friendlyName = `存档 ${safeIndex + 1}`;
             }
 
+            // Calculate and log save size
+            const saveSize = calculateSaveSize(payloadToSave);
+            console.log(`Attempting to save (${friendlyName}): ${saveSize.display}`);
+
             localStorage.setItem(targetKey, JSON.stringify(payloadToSave));
             triggerSavingIndicator();
 
             if (source === 'auto') {
                 setLastAutoSaveTime(timestamp);
             } else {
-                addLogEntry(`💾 游戏已保存到${friendlyName}！`);
+                addLogEntry(`💾 游戏已保存到${friendlyName}！(${saveSize.display})`);
             }
         } catch (error) {
             const isQuotaExceeded = error?.name === 'QuotaExceededError'
                 || `${error?.message || ''}`.toLowerCase().includes('quota');
             if (isQuotaExceeded) {
+                // Try aggressive compaction first
                 try {
                     const compactedPayload = compactSavePayload(payload, { aggressive: true });
+                    const compactSize = calculateSaveSize(compactedPayload);
+                    console.log(`Trying compact save: ${compactSize.display}`);
+                    
                     localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
                     triggerSavingIndicator();
                     if (source === 'auto') {
                         setLastAutoSaveTime(timestamp);
                     }
-                    addLogEntry('⚠️ 存档空间不足，已使用精简存档。');
+                    addLogEntry(`⚠️ 存档空间不足，已使用精简存档 (${compactSize.display})。`);
                     return;
                 } catch (fallbackError) {
                     console.error('Compact save failed:', fallbackError);
                 }
+                
+                // Try minimal save for auto-save
                 if (source === 'auto') {
                     try {
                         const minimalPayload = buildMinimalAutoSavePayload(payload);
+                        const minimalSize = calculateSaveSize(minimalPayload);
+                        console.log(`Trying minimal save: ${minimalSize.display}`);
+                        
                         localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
                         triggerSavingIndicator();
                         setLastAutoSaveTime(timestamp);
-                        addLogEntry('⚠️ 自动存档已切换为最小存档。');
+                        addLogEntry(`⚠️ 自动存档已切换为最小存档 (${minimalSize.display})。`);
                         return;
                     } catch (minimalError) {
                         console.error('Minimal auto save failed:', minimalError);
                     }
                 }
+                
+                // Try cleaning up old saves and retry
+                const cleaned = cleanupOldSaves();
+                if (cleaned) {
+                    try {
+                        const minimalPayload = source === 'auto' 
+                            ? buildMinimalAutoSavePayload(payload)
+                            : compactSavePayload(payload, { aggressive: true });
+                        const retrySize = calculateSaveSize(minimalPayload);
+                        console.log(`Retrying after cleanup: ${retrySize.display}`);
+                        
+                        localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                        triggerSavingIndicator();
+                        if (source === 'auto') {
+                            setLastAutoSaveTime(timestamp);
+                        }
+                        addLogEntry(`⚠️ 已清理旧存档并保存 (${retrySize.display})。建议定期导出存档。`);
+                        return;
+                    } catch (retryError) {
+                        console.error('Save failed after cleanup:', retryError);
+                    }
+                }
+                
+                // All attempts failed
                 if (source === 'auto') {
                     setIsAutoSaveEnabled(false);
                     setAutoSaveBlocked(true);
                     if (!autoSaveQuotaNotifiedRef.current) {
                         autoSaveQuotaNotifiedRef.current = true;
-                        addLogEntry('❌ 自动存档空间不足，已自动关闭。请清理旧存档或导出存档。');
+                        addLogEntry('❌ 自动存档空间不足，已自动关闭。请导出存档或清理浏览器缓存。');
                     }
                     return;
+                } else {
+                    addLogEntry('❌ 存档失败：存储空间不足。请导出当前存档或清理浏览器缓存。');
                 }
-            }
-            console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
-            if (source === 'auto') {
-                addLogEntry(`❌ 自动存档失败：${error.message}`);
             } else {
-                addLogEntry(`❌ 存档失败：${error.message}`);
+                console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
+                if (source === 'auto') {
+                    addLogEntry(`❌ 自动存档失败：${error.message}`);
+                } else {
+                    addLogEntry(`❌ 存档失败：${error.message}`);
+                }
             }
             setIsSaving(false);
         }

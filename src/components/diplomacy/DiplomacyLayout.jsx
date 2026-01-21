@@ -64,14 +64,19 @@ const DiplomacyLayout = ({
 
     // 附庸管理面板状态
     const [vassalSheetOpen, setVassalSheetOpen] = useState(false);
-    const [vassalSheetNation, setVassalSheetNation] = useState(null);
+    const [vassalSheetNationId, setVassalSheetNationId] = useState(null);
+
+    // 实时获取最新的附庸国数据
+    const vassalSheetNation = vassalSheetNationId 
+        ? nations.find(n => n.id === vassalSheetNationId) 
+        : null;
 
     // 附庸概览面板状态
     const [vassalOverviewOpen, setVassalOverviewOpen] = useState(false);
 
     // 打开附庸管理面板
     const handleOpenVassalSheet = (nation) => {
-        setVassalSheetNation(nation);
+        setVassalSheetNationId(nation?.id);
         setVassalSheetOpen(true);
     };
 
@@ -83,7 +88,7 @@ const DiplomacyLayout = ({
     // 从附庸概览选择某个附庸后，打开详细管理
     const handleSelectVassal = (nation) => {
         setVassalOverviewOpen(false);
-        setVassalSheetNation(nation);
+        setVassalSheetNationId(nation?.id);
         setVassalSheetOpen(true);
     };
 

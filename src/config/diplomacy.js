@@ -682,6 +682,7 @@ export const INDEPENDENCE_CONFIG = {
             baseCost: 60,       // Base daily cost (reduced from 100)
             wealthScalingFactor: 0.002,  // 0.2% of vassal wealth
             independenceCapReduction: 0.05,  // Daily reduction of independence cap
+            independenceReduction: 0.15,     // [NEW] Daily reduction of current independence (direct effect)
             minIndependenceCap: 30,          // Minimum independence cap
             satisfactionPenalty: -1,         // All classes satisfaction penalty
         },

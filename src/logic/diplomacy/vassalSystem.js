@@ -153,6 +153,7 @@ export const processVassalUpdates = ({
 
         // ========== 1. Process Control Measures Costs and Effects ==========
         let controlMeasureIndependenceReduction = 0;
+        let controlMeasureAutonomyReduction = 0;  // NEW: Track autonomy reduction from control measures
         let vassalWealthChange = 0;
 
         if (updated.vassalPolicy?.controlMeasures) {
@@ -194,6 +195,9 @@ export const processVassalUpdates = ({
 
                         // Apply independence reduction from governor
                         controlMeasureIndependenceReduction += govEffects.independenceReduction;
+                        
+                        // NEW: Governor also reduces autonomy
+                        controlMeasureAutonomyReduction += 0.2;  // -0.2% autonomy per day
 
                         // Apply elite satisfaction bonus
                         if (govEffects.eliteSatisfactionBonus > 0 && updated.socialStructure?.elites) {
@@ -283,6 +287,9 @@ export const processVassalUpdates = ({
                             controlMeasureIndependenceReduction += measureConfig.independenceReduction * 0.2; // 20% effectiveness without proper military
                         } else {
                             controlMeasureIndependenceReduction += measureConfig.independenceReduction;
+                            
+                            // NEW: Garrison significantly reduces autonomy
+                            controlMeasureAutonomyReduction += 0.5;  // -0.5% autonomy per day
                         }
 
                         // Apply commoner satisfaction penalty
@@ -302,13 +309,18 @@ export const processVassalUpdates = ({
                     }
 
                     case 'assimilation': {
-                        // Cultural assimilation reduces independence cap over time
+                        // [ENHANCED] 文化同化：同时降低独立上限和当前独立值
                         const currentCap = updated.independenceCap || 100;
+                        const capReduction = measureConfig.independenceCapReduction || 0.05;
                         const newCap = Math.max(
                             measureConfig.minIndependenceCap || 30,
-                            currentCap - measureConfig.independenceCapReduction
+                            currentCap - capReduction
                         );
                         updated.independenceCap = newCap;
+
+                        // [NEW] 同时主动降低当前独立值（每天-0.15%）
+                        const directReduction = 0.15;
+                        controlMeasureIndependenceReduction += directReduction;
 
                         // Small satisfaction penalty across all classes
                         if (measureConfig.satisfactionPenalty && updated.socialStructure) {
@@ -419,13 +431,27 @@ export const processVassalUpdates = ({
         const independenceCap = updated.independenceCap || 100;
         const currentIndependence = updated.independencePressure || 0;
 
-        if (currentIndependence >= independenceCap) {
-            effectiveGrowth = 0; // Cap reached
+        // [NEW] 如果当前独立值超过上限，缓慢回落（每天-0.5%）
+        if (currentIndependence > independenceCap) {
+            const overshoot = currentIndependence - independenceCap;
+            const decayRate = Math.max(0.5, overshoot * 0.02); // 超出越多，回落越快
+            effectiveGrowth -= decayRate;
         }
 
-        updated.independencePressure = Math.min(independenceCap, Math.max(0,
-            currentIndependence + Math.max(0, effectiveGrowth)
-        ));
+        // [NEW] 如果控制措施足够强，允许独立值主动下降（突破上限限制）
+        if (effectiveGrowth < 0) {
+            // 负增长时不受上限限制，可以继续下降
+            updated.independencePressure = Math.max(0, currentIndependence + effectiveGrowth);
+        } else if (currentIndependence >= independenceCap) {
+            // 达到上限且增长为正时，停止增长
+            effectiveGrowth = 0;
+            updated.independencePressure = independenceCap;
+        } else {
+            // 正常增长，但不超过上限
+            updated.independencePressure = Math.min(independenceCap, Math.max(0,
+                currentIndependence + effectiveGrowth
+            ));
+        }
 
         // ========== 4. 检查独立战争触发 ==========
         const independenceDesire = calculateIndependenceDesire(updated, playerMilitary);
@@ -454,14 +480,18 @@ export const processVassalUpdates = ({
             }
         }
 
-        // ========== 5. 自主度缓慢恢复 (基于治理政策) ==========
+        // ========== 5. 自主度变化 (基于治理政策和控制措施) ==========
         // 不再基于vassalType硬编码，而是基于治理政策设定的最小自主度
         const governancePolicy = updated.vassalPolicy?.governance || 'autonomous';
         const governanceConfig = GOVERNANCE_POLICY_DEFINITIONS[governancePolicy];
 
         // 目标自主度：取配置的初始自主度与政策限制的较小值
-        // 但通常我们希望自主度能恢复到"正常水平"
         const targetAutonomy = vassalConfig.autonomy;
+        
+        // NEW: 先应用控制措施的自主度降低
+        if (controlMeasureAutonomyReduction > 0) {
+            updated.autonomy = Math.max(0, (updated.autonomy || 0) - controlMeasureAutonomyReduction);
+        }
 
         // 如果当前政策允许恢复（不是直接统治），且低于目标值，则缓慢恢复
         if (governancePolicy !== 'direct_rule' && (updated.autonomy || 0) < targetAutonomy) {
@@ -871,17 +901,26 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
         }
     }
 
-    // 6.4 文化同化（降低上限而非直接减少，但也记录）
+    // 6.4 文化同化（同时降低上限和当前独立值）
     const assimilationData = controlMeasures.assimilation;
     if (assimilationData && (assimilationData === true || assimilationData.active)) {
         const capReduction = config.controlMeasures?.assimilation?.independenceCapReduction || 0.05;
+        const directReduction = config.controlMeasures?.assimilation?.independenceReduction || 0.15;
+        
         breakdown.reductions.push({
             name: '文化同化',
+            value: directReduction,
+            description: `每日降低${directReduction.toFixed(2)}%独立值`,
+            type: 'reduction',
+        });
+        totalReduction += directReduction;
+        
+        breakdown.reductions.push({
+            name: '文化同化(上限)',
             value: capReduction,
-            description: '降低独立上限',
+            description: `每日降低${capReduction.toFixed(2)}%独立上限`,
             type: 'cap_reduction',
         });
-        // 文化同化不直接减少独立度，而是降低上限
     }
 
     // === 7. 计算最终结果 ===
@@ -961,6 +1000,9 @@ export const establishVassalRelation = (nation, vassalType, epoch) => {
         independencePressure: 0,
         independenceCap: 100,
 
+        // 初始化社会结构（如果不存在）
+        socialStructure: nation.socialStructure || getSocialStructureTemplate(nation.governmentType || 'monarchy'),
+
         // 初始化详细政策 (基于预设)
         vassalPolicy: {
             labor: preset?.labor || 'standard',
@@ -1027,11 +1069,11 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         if (validOptions.includes(policyChanges.diplomaticControl)) {
             updated.vassalPolicy.diplomaticControl = policyChanges.diplomaticControl;
 
-            // 外交控制对独立倾向的影响
+            // [MODIFIED] 外交控制对独立倾向的影响改为温和的一次性调整
             const independenceEffects = {
-                autonomous: -2,  // 自主外交降低独立倾向
+                autonomous: -1,  // 自主外交小幅降低独立倾向
                 guided: 0,       // 引导外交无影响
-                puppet: 3,       // 傀儡外交增加独立倾向
+                puppet: 1,       // 傀儡外交小幅增加独立倾向
             };
             updated.independencePressure = Math.min(100, Math.max(0,
                 (updated.independencePressure || 0) + independenceEffects[policyChanges.diplomaticControl]
@@ -1045,14 +1087,14 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         if (validOptions.includes(policyChanges.tradePolicy)) {
             updated.vassalPolicy.tradePolicy = policyChanges.tradePolicy;
 
-            // 贸易政策对独立倾向的一次性影响（切换时）
+            // [MODIFIED] 贸易政策对独立倾向的一次性影响减半
             const independenceEffects = {
-                free: -2,        // 自由贸易降低独立倾向
+                free: -1,        // 自由贸易小幅降低独立倾向
                 preferential: 0, // 优惠准入无影响
-                exclusive: 3,    // 排他贸易增加
-                monopoly: 5,     // 垄断贸易大幅增加独立倾向
-                dumping: 4,      // 倾销增加
-                looting: 6,      // 资源掠夺大幅增加
+                exclusive: 1.5,  // 排他贸易小幅增加
+                monopoly: 2.5,   // 垄断贸易中等增加独立倾向
+                dumping: 2,      // 倾销小幅增加
+                looting: 3,      // 资源掠夺中等增加
             };
             updated.independencePressure = Math.min(100, Math.max(0,
                 (updated.independencePressure || 0) + (independenceEffects[policyChanges.tradePolicy] || 0)
@@ -1066,11 +1108,11 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         if (validOptions.includes(policyChanges.labor)) {
             updated.vassalPolicy.labor = policyChanges.labor;
 
-            // 劳工政策对独立倾向的一次性影响（切换时）
+            // [MODIFIED] 劳工政策对独立倾向的一次性影响减半
             const independenceEffects = {
                 standard: 0,
-                exploitation: 3,   // 压榨剥削增加独立倾向
-                slavery: 8,        // 强制劳动大幅增加独立倾向
+                exploitation: 1.5,   // 压榨剥削小幅增加独立倾向
+                slavery: 4,          // 强制劳动中等增加独立倾向
             };
             updated.independencePressure = Math.min(100, Math.max(0,
                 (updated.independencePressure || 0) + (independenceEffects[policyChanges.labor] || 0)
@@ -1084,11 +1126,11 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         if (validOptions.includes(policyChanges.military)) {
             updated.vassalPolicy.military = policyChanges.military;
 
-            // 军事政策对独立倾向的一次性影响（切换时）
+            // [MODIFIED] 军事政策对独立倾向的一次性影响减半
             const independenceEffects = {
-                autonomous: -2,     // 更松的军事约束降低独立倾向（短期缓和）
+                autonomous: -1,     // 更松的军事约束小幅降低独立倾向
                 call_to_arms: 0,
-                auto_join: 2,       // 更强约束增加独立倾向
+                auto_join: 1,       // 更强约束小幅增加独立倾向
             };
             updated.independencePressure = Math.min(100, Math.max(0,
                 (updated.independencePressure || 0) + (independenceEffects[policyChanges.military] || 0)
@@ -1102,11 +1144,11 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         if (validOptions.includes(policyChanges.investmentPolicy)) {
             updated.vassalPolicy.investmentPolicy = policyChanges.investmentPolicy;
 
-            // 投资政策对独立倾向的一次性影响（切换时）
+            // [MODIFIED] 投资政策对独立倾向的一次性影响减半
             const independenceEffects = {
                 autonomous: 0,
-                guided: 2,     // 引导投资增加独立倾向
-                forced: 5,     // 强制投资大幅增加独立倾向
+                guided: 1,     // 引导投资小幅增加独立倾向
+                forced: 2.5,   // 强制投资中等增加独立倾向
             };
             updated.independencePressure = Math.min(100, Math.max(0,
                 (updated.independencePressure || 0) + (independenceEffects[policyChanges.investmentPolicy] || 0)
@@ -1121,9 +1163,9 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         updated.tributeRate = Math.min(baseTributeRate * 1.5,
             Math.max(baseTributeRate * 0.5, policyChanges.tributeRate));
 
-        // 提高朝贡率会增加独立倾向
+        // [MODIFIED] 提高朝贡率的一次性惩罚减半
         if (policyChanges.tributeRate > baseTributeRate) {
-            const increase = Math.ceil((policyChanges.tributeRate - baseTributeRate) / baseTributeRate * 10);
+            const increase = Math.ceil((policyChanges.tributeRate - baseTributeRate) / baseTributeRate * 5);
             updated.independencePressure = Math.min(100,
                 (updated.independencePressure || 0) + increase);
         }
@@ -1136,9 +1178,9 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         updated.autonomy = Math.min(Math.min(100, baseAutonomy * 1.2),
             Math.max(baseAutonomy * 0.5, policyChanges.autonomy));
 
-        // 降低自主度会增加独立倾向
+        // [MODIFIED] 降低自主度的一次性惩罚减半
         if (policyChanges.autonomy < baseAutonomy) {
-            const increase = Math.ceil((baseAutonomy - policyChanges.autonomy) / baseAutonomy * 10);
+            const increase = Math.ceil((baseAutonomy - policyChanges.autonomy) / baseAutonomy * 5);
             updated.independencePressure = Math.min(100,
                 (updated.independencePressure || 0) + increase);
         }
