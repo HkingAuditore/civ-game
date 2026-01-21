@@ -426,6 +426,91 @@ export const RESOURCES = {
         }
     },
 
+    // ========== 军事资源 ==========
+    // 硝石 - 火药的关键原料 (Epoch 4)
+    saltpeter: {
+        name: "硝石",
+        icon: 'Sparkle',
+        color: "text-yellow-300",
+        basePrice: 12,
+        minPrice: 1.2,
+        maxPrice: 360,  // Raw material: 30x cap
+        defaultOwner: 'miner',
+        unlockEpoch: 4,
+        unlockTech: 'saltpeter_extraction',
+        tags: ['raw_material', 'military'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 300.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,          // 军事必需，弹性较低
+            outputVariation: 0.2
+        }
+    },
+
+    // 兵器 - 古典时代军用武器 (Epoch 2-4)
+    weapons: {
+        name: "兵器",
+        icon: 'Swords',
+        color: "text-red-500",
+        basePrice: 25,
+        minPrice: 2.5,
+        maxPrice: 500,  // Military: 20x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 2,
+        unlockTech: 'ironworking',
+        tags: ['military', 'manufactured'],
+        marketConfig: {
+            supplyDemandWeight: 1.2,
+            inventoryTargetDays: 365.0,     // 军事储备需要较高库存
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,          // 军事必需品，弹性较低
+            outputVariation: 0.15
+        }
+    },
+
+    // 火药 - 枪炮的原料 (Epoch 4+)
+    gunpowder: {
+        name: "火药",
+        icon: 'Sparkles',
+        color: "text-orange-400",
+        basePrice: 35,
+        minPrice: 3.5,
+        maxPrice: 700,  // Military: 20x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 4,
+        unlockTech: 'gunpowder_formula',
+        tags: ['military', 'manufactured'],
+        marketConfig: {
+            supplyDemandWeight: 1.3,
+            inventoryTargetDays: 300.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+
+    // 枪炮 - 工业时代军用武器 (Epoch 5+)
+    firearms: {
+        name: "枪炮",
+        icon: 'Crosshair',
+        color: "text-slate-400",
+        basePrice: 60,
+        minPrice: 6,
+        maxPrice: 1200,  // Military: 20x cap
+        defaultOwner: 'engineer',
+        unlockEpoch: 5,
+        unlockTech: 'firearms_manufacturing',
+        tags: ['military', 'manufactured'],
+        marketConfig: {
+            supplyDemandWeight: 1.4,
+            inventoryTargetDays: 400.0,     // 高价值军事资源需要更多储备
+            inventoryPriceImpact: 0.4,
+            demandElasticity: 0.45,
+            outputVariation: 0.15
+        }
+    },
+
     // 特殊资源
     silver: {
         name: "银币",

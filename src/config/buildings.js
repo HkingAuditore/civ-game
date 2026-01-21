@@ -1194,6 +1194,82 @@ export const BUILDINGS = [
         visual: { icon: 'Music', color: 'bg-rose-800', text: 'text-rose-100' }
     },
 
+    // ========== 军事产业链建筑 ==========
+    {
+        id: 'weapon_workshop',
+        name: "兵器铺",
+        desc: "锻造军用兵器，是古典时代军队的后勤保障。",
+        baseCost: { wood: 150, stone: 100, iron: 50 },
+        input: { iron: 0.4, copper: 0.2, wood: 0.2, tools: 0.1 },
+        output: { weapons: 1.2 },
+        jobs: { artisan: 3, worker: 2 },
+        owner: 'artisan',
+        epoch: 2,
+        cat: 'military',
+        requiresTech: 'ironworking',
+        visual: { icon: 'Swords', color: 'bg-red-900', text: 'text-red-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.25, taxCostWeight: 0.30 },
+            wage: { livingCostWeight: 0.15, taxCostWeight: 0.15 }
+        }
+    },
+
+    {
+        id: 'saltpeter_mine',
+        name: "硝石矿",
+        desc: "开采硝石，制造火药的关键原料。",
+        baseCost: { plank: 200, tools: 80, stone: 150 },
+        input: { tools: 0.15 },
+        output: { saltpeter: 1.2 },
+        jobs: { miner: 4, worker: 2 },
+        owner: 'miner',
+        epoch: 4,
+        cat: 'gather',
+        requiresTech: 'saltpeter_extraction',
+        visual: { icon: 'Mountain', color: 'bg-yellow-900', text: 'text-yellow-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.20, taxCostWeight: 0.25 },
+            wage: { livingCostWeight: 0.10, taxCostWeight: 0.10 }
+        }
+    },
+
+    {
+        id: 'powder_mill',
+        name: "火药坊",
+        desc: "将硝石、硫磺和炭混合制成火药，开启火器时代。",
+        baseCost: { brick: 150, plank: 100, tools: 60 },
+        input: { saltpeter: 0.5, coal: 0.3, tools: 0.1 },
+        output: { gunpowder: 0.8 },
+        jobs: { artisan: 3, worker: 3 },
+        owner: 'artisan',
+        epoch: 4,
+        cat: 'military',
+        requiresTech: 'gunpowder_formula',
+        visual: { icon: 'Sparkles', color: 'bg-orange-900', text: 'text-orange-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.30, taxCostWeight: 0.35 },
+            wage: { livingCostWeight: 0.20, taxCostWeight: 0.20 }
+        }
+    },
+
+    {
+        id: 'arsenal',
+        name: "军械厂",
+        desc: "生产现代枪炮，工业时代的军事核心。",
+        baseCost: { brick: 300, steel: 200, tools: 150 },
+        input: { steel: 0.8, gunpowder: 0.5, coal: 0.4, tools: 0.2 },
+        output: { firearms: 1.5 },
+        jobs: { engineer: 2, artisan: 4, worker: 4 },
+        owner: 'capitalist',
+        epoch: 5,
+        cat: 'military',
+        requiresTech: 'firearms_manufacturing',
+        visual: { icon: 'Factory', color: 'bg-slate-800', text: 'text-slate-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.35, taxCostWeight: 0.40 },
+            wage: { livingCostWeight: 0.20, taxCostWeight: 0.20 }
+        }
+    },
     {
         id: 'stock_exchange',
         name: "证券交易所",

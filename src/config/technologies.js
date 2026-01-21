@@ -585,6 +585,38 @@ export const TECHS = [
         epoch: 4,
         effects: { categories: { military: 0.18 }, maxPop: 0.05 },
     },
+    {
+        id: 'saltpeter_extraction',
+        name: "硝石开采",
+        desc: "发现如何从土壤中提取硝石，火药革命的前奏。解锁硝石矿。",
+        cost: { science: 6800 },
+        epoch: 4,
+        effects: {},
+    },
+    {
+        id: 'gunpowder_formula',
+        name: "火药配方",
+        desc: "掌握硝石、硫磺、木炭的完美配比，解锁火药坊。火绳枪手和射石炮可以招募。",
+        cost: { science: 8500 },
+        epoch: 4,
+        effects: { categories: { military: 0.10 } },
+    },
+    {
+        id: 'firearms_manufacturing',
+        name: "枪炮制造",
+        desc: "标准化生产火枪和火炮，解锁军械厂。军事建筑效率 +15%。",
+        cost: { science: 14000 },
+        epoch: 5,
+        effects: { categories: { military: 0.15 } },
+    },
+    {
+        id: 'ballistics',
+        name: "弹道学",
+        desc: "研究炮弹飞行轨迹，军械厂效率 +20%，火炮单位战力 +10%。",
+        cost: { science: 18000 },
+        epoch: 5,
+        effects: { buildings: { arsenal: 0.20 } },
+    },
 
     // ========== 高级工业科技 ==========
 
