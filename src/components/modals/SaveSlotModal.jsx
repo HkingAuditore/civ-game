@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
-import { getAllSaveSlots } from '../../hooks/useGameState';
+import { getAllSaveSlots, deleteSaveSlot } from '../../hooks/useGameState';
 import { EPOCHS } from '../../config/epochs';
 
 /**
@@ -54,12 +54,15 @@ const formatGameTime = (daysElapsed) => {
 export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => {
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [slotToDelete, setSlotToDelete] = useState(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // 获取存档槽位信息
     const slots = useMemo(() => {
         if (!isOpen) return [];
         return getAllSaveSlots();
-    }, [isOpen]);
+    }, [isOpen, refreshKey]);
 
     // 分离手动存档和自动存档
     const manualSlots = slots.filter(s => !s.isAutoSave);
@@ -99,6 +102,29 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
     const handleCancelOverwrite = () => {
         setShowConfirm(false);
         setSelectedSlot(null);
+    };
+
+    const handleDeleteClick = (slot, e) => {
+        e.stopPropagation(); // 阻止触发槽位点击事件
+        setSlotToDelete(slot);
+        setShowDeleteConfirm(true);
+    };
+
+    const handleConfirmDelete = () => {
+        if (slotToDelete) {
+            const success = deleteSaveSlot(slotToDelete.slotIndex);
+            if (success) {
+                // 刷新存档列表
+                setRefreshKey(prev => prev + 1);
+            }
+        }
+        setShowDeleteConfirm(false);
+        setSlotToDelete(null);
+    };
+
+    const handleCancelDelete = () => {
+        setShowDeleteConfirm(false);
+        setSlotToDelete(null);
     };
 
     const renderSlotCard = (slot, isAuto = false) => {
@@ -141,13 +167,28 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                             </span>
                         )}
                     </div>
-                    {!isEmpty && (
-                        <Icon
-                            name={isSaveMode ? 'Edit3' : 'ArrowRight'}
-                            size={12}
-                            className="text-gray-400"
-                        />
-                    )}
+                    <div className="flex items-center gap-1">
+                        {!isEmpty && (
+                            <>
+                                <button
+                                    onClick={(e) => handleDeleteClick(slot, e)}
+                                    className="p-1 rounded hover:bg-red-500/20 transition-colors group"
+                                    title="删除存档"
+                                >
+                                    <Icon
+                                        name="Trash2"
+                                        size={12}
+                                        className="text-gray-500 group-hover:text-red-400"
+                                    />
+                                </button>
+                                <Icon
+                                    name={isSaveMode ? 'Edit3' : 'ArrowRight'}
+                                    size={12}
+                                    className="text-gray-400"
+                                />
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {isEmpty ? (
@@ -306,6 +347,60 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                                             className="flex-1 px-3 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-500 text-white transition-colors"
                                         >
                                             确认覆盖
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 删除确认对话框 */}
+                    <AnimatePresence>
+                        {showDeleteConfirm && (
+                            <motion.div
+                                className="absolute inset-0 z-10 flex items-center justify-center"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                            >
+                                <div className="absolute inset-0 bg-black/60" onClick={handleCancelDelete} />
+                                <motion.div
+                                    className="relative bg-gray-800 border border-red-500/50 rounded-xl p-4 max-w-sm mx-4 shadow-2xl"
+                                    initial={{ scale: 0.9, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.9, opacity: 0 }}
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Icon name="Trash2" size={20} className="text-red-400" />
+                                        <h3 className="text-base font-bold text-red-300">删除存档</h3>
+                                    </div>
+                                    <p className="text-sm text-gray-300 mb-4">
+                                        确定要删除 <span className="font-bold text-white">{slotToDelete?.name}</span> 吗？
+                                        <br />
+                                        <span className="text-xs text-red-400">
+                                            此操作无法撤销！
+                                        </span>
+                                        {slotToDelete && !slotToDelete.isEmpty && (
+                                            <>
+                                                <br />
+                                                <span className="text-xs text-gray-400">
+                                                    存档信息：{formatGameTime(slotToDelete?.daysElapsed)}，{slotToDelete?.difficultyIcon} {slotToDelete?.difficultyName}
+                                                </span>
+                                            </>
+                                        )}
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleCancelDelete}
+                                            className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                                        >
+                                            取消
+                                        </button>
+                                        <button
+                                            onClick={handleConfirmDelete}
+                                            className="flex-1 px-3 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-500 text-white transition-colors"
+                                        >
+                                            确认删除
                                         </button>
                                     </div>
                                 </motion.div>

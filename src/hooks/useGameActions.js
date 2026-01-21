@@ -5548,6 +5548,21 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${targetNation.name} opened its market.`);
             return;
         }
+        if (proposalType === 'vassal') {
+            // 建立附庸关系
+            const vassalType = 'vassal';
+            const vassalConfig = VASSAL_TYPE_CONFIGS[vassalType] || VASSAL_TYPE_CONFIGS.vassal;
+            endWarWithNation(nationId, {
+                vassalOf: 'player',
+                vassalType: vassalType,
+                autonomy: vassalConfig.autonomy || 80,
+                tributeRate: vassalConfig.tributeRate || 0.10,
+                independencePressure: 0,
+                lastTributeDay: daysElapsed,
+            });
+            addLog(`${targetNation.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}！`);
+            return;
+        }
         if (paymentAmount > 0) {
             setResourcesWithReason(
                 prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }),
@@ -5715,6 +5730,22 @@ export const useGameActions = (gameState, addLog) => {
                 treaties: nextTreaties,
             });
             addLog(`${targetNation.name} opened its market.`);
+            return;
+        }
+
+        if (proposalType === 'demand_vassal') {
+            // 建立附庸关系
+            const vassalType = amount || 'vassal'; // amount参数传递附庸类型
+            const vassalConfig = VASSAL_TYPE_CONFIGS[vassalType] || VASSAL_TYPE_CONFIGS.vassal;
+            endWarWithNation(nationId, {
+                vassalOf: 'player',
+                vassalType: vassalType,
+                autonomy: vassalConfig.autonomy || 80,
+                tributeRate: vassalConfig.tributeRate || 0.10,
+                independencePressure: 0,
+                lastTributeDay: daysElapsed,
+            });
+            addLog(`${targetNation.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}！`);
             return;
         }
 

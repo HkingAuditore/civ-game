@@ -114,6 +114,39 @@ export const getAllSaveSlots = () => {
     return slots;
 };
 
+/**
+ * 删除指定的存档槽位（独立函数，可在组件外调用）
+ * @param {number} slotIndex - 存档槽位索引（0-2为手动存档，-1为自动存档）
+ * @returns {boolean} 是否删除成功
+ */
+export const deleteSaveSlot = (slotIndex) => {
+    if (typeof window === 'undefined') return false;
+
+    try {
+        let targetKey;
+
+        if (slotIndex === -1) {
+            // 删除自动存档
+            targetKey = AUTOSAVE_KEY;
+        } else {
+            // 删除手动存档槽位
+            const safeIndex = Math.max(0, Math.min(SAVE_SLOT_COUNT - 1, slotIndex));
+            targetKey = `${SAVE_SLOT_PREFIX}${safeIndex}`;
+        }
+
+        const rawData = localStorage.getItem(targetKey);
+        if (!rawData) {
+            return false;
+        }
+
+        localStorage.removeItem(targetKey);
+        return true;
+    } catch (error) {
+        console.error('Delete save slot failed:', error);
+        return false;
+    }
+};
+
 const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 const textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
 
@@ -1743,6 +1776,43 @@ export const useGameState = () => {
         }
     };
 
+    /**
+     * 删除指定的存档
+     * @param {number} slotIndex - 存档槽位索引（0-2为手动存档，-1为自动存档）
+     * @returns {boolean} 是否删除成功
+     */
+    const deleteSave = ({ slotIndex = 0 } = {}) => {
+        try {
+            let targetKey;
+            let friendlyName;
+
+            if (slotIndex === -1) {
+                // 删除自动存档
+                targetKey = AUTOSAVE_KEY;
+                friendlyName = '自动存档';
+            } else {
+                // 删除手动存档槽位
+                const safeIndex = Math.max(0, Math.min(SAVE_SLOT_COUNT - 1, slotIndex));
+                targetKey = `${SAVE_SLOT_PREFIX}${safeIndex}`;
+                friendlyName = `存档 ${safeIndex + 1}`;
+            }
+
+            const rawData = localStorage.getItem(targetKey);
+            if (!rawData) {
+                addLogEntry(`⚠️ ${friendlyName}不存在，无需删除。`);
+                return false;
+            }
+
+            localStorage.removeItem(targetKey);
+            addLogEntry(`🗑️ ${friendlyName}已删除。`);
+            return true;
+        } catch (error) {
+            console.error('Delete save failed:', error);
+            addLogEntry(`❌ 删除存档失败：${error.message}`);
+            return false;
+        }
+    };
+
     const exportSaveToBinary = async () => {
         if (typeof window === 'undefined' || typeof Blob === 'undefined') {
             throw new Error('导出仅支持浏览器环境');
@@ -2516,6 +2586,7 @@ export const useGameState = () => {
         setBuildingJobsRequired,
         saveGame,
         loadGame,
+        deleteSave,
         exportSaveToBinary,
         exportSaveToClipboard,
         importSaveFromBinary,
