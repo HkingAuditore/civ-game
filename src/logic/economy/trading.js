@@ -41,7 +41,7 @@ export const DEFAULT_TRADE_CONFIG = {
     // Trade 2.0 knobs
     enableMerchantAssignments: true,
     idleTradeEfficiency: 0.15, // fallback when no assignments exist (keeps old saves alive)
-    maxPartnersPerTick: 4,
+    maxPartnersPerTick: 20,
     maxResourcesScoredPerPartner: 10,
     shortageWeight: 2.2,
     surplusWeight: 1.3,
@@ -81,6 +81,9 @@ const normalizeMerchantAssignments = ({ merchantAssignments, nations, merchantCo
         const nation = Array.isArray(nations) ? nations.find(n => n?.id === nationId) : null;
         if (!nation) return;
 
+        // [FIX] Filter out destroyed/annexed nations - merchants should be recalled automatically
+        if (nation.isAnnexed || (nation.population || 0) <= 0) return;
+
         // Backend Validation: Enforce Limit
         // This ensures that even if UI controls are bypassed, the logic enforces the cap.
         const relation = getNationRelationToPlayer(nation);
@@ -111,7 +114,10 @@ const normalizeMerchantAssignments = ({ merchantAssignments, nations, merchantCo
 };
 
 const buildDefaultAssignments = ({ nations, maxPartners }) => {
-    const visible = Array.isArray(nations) ? nations.filter(n => n && !n.isRebelNation) : [];
+    // [FIX] Filter out destroyed/annexed nations and rebels
+    const visible = Array.isArray(nations) 
+        ? nations.filter(n => n && !n.isRebelNation && !n.isAnnexed && (n.population || 0) > 0) 
+        : [];
     const sorted = visible
         .map(n => ({ nationId: n.id, relation: getNationRelationToPlayer(n) }))
         .sort((a, b) => b.relation - a.relation)
@@ -504,24 +510,35 @@ export const simulateMerchantTrade = ({
     const assignmentEfficiency = hasAssignments ? 1 : tradeConfig.idleTradeEfficiency;
 
     // Build a pool of "merchant batches" based on assigned counts.
-    // Keep existing batching behavior for high merchant counts.
-    const simCount = merchantCount > 100 ? 100 : merchantCount;
-    const globalBatchMultiplier = merchantCount > 100 ? merchantCount / 100 : 1;
-
-    // Distribute simulated batches across assigned partners proportionally.
+    // Each merchant can handle one trade route, so batches = merchant count.
     const totalAssigned = partnerList.reduce((sum, p) => sum + p.count, 0) || 1;
 
     const partnerBatches = partnerList.map(p => {
-        const ratio = p.count / totalAssigned;
-        const batches = Math.max(1, Math.round(simCount * ratio));
+        // Each partner gets trade routes proportional to assigned merchants
+        const batches = Math.max(1, p.count);
         return { ...p, batches };
     });
+
+    // [DEBUG] Log merchant assignment details
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[商人派驻] 总商人数: ${merchantCount}, 派驻总数: ${totalAssigned}`, {
+            partnerBatches: partnerBatches.map(pb => ({
+                nationId: pb.nationId,
+                assignedMerchants: pb.count,
+                batches: pb.batches
+            }))
+        });
+    }
 
     // Iterate partners and execute best-scored trades.
     for (let pIndex = 0; pIndex < partnerBatches.length; pIndex++) {
         const partnerBatch = partnerBatches[pIndex];
         const partner = Array.isArray(nations) ? nations.find(n => n?.id === partnerBatch.nationId) : null;
         if (!partner) continue;
+        
+        // [FIX] Skip destroyed/annexed nations - prevent trade with non-existent nations
+        if (partner.isAnnexed || (partner.population || 0) <= 0) continue;
+        
         if (isTradeBlockedWithPartner({ partner })) continue;
 
         // 获取与该贸易伙伴的条约效果，应用关税减免
@@ -669,7 +686,18 @@ export const simulateMerchantTrade = ({
         if (candidates.length === 0) continue;
         candidates.sort((a, b) => b.score - a.score);
 
-        const maxNewTradesForPartner = Math.min(12, partnerBatch.batches);
+        const maxNewTradesForPartner = partnerBatch.batches;
+
+        // [DEBUG] Log trade generation for this partner
+        if (tradeConfig.enableDebugLog) {
+            debugLog('trade', `[贸易生成] 国家: ${partner.name}, 批次数: ${partnerBatch.batches}, 最大贸易数: ${maxNewTradesForPartner}`, {
+                partnerId: partner.id,
+                assignedMerchants: partnerBatch.count,
+                candidatesFound: candidates.length
+            });
+        }
+
+        let tradesCreatedForPartner = 0;
 
         for (let i = 0; i < maxNewTradesForPartner; i++) {
             const currentTotalWealth = wealth.merchant || 0;
@@ -680,7 +708,7 @@ export const simulateMerchantTrade = ({
             if (!candidate) break;
 
             // Allocate wealth proportional to this partner's assignment.
-            const wealthForThisBatch = (currentTotalWealth / (simCount + 1)) * assignmentEfficiency;
+            const wealthForThisBatch = (currentTotalWealth / (partnerBatch.batches + 1)) * assignmentEfficiency;
 
             if (candidate.type === 'export') {
                 const result = executeExportTradeV2({
@@ -690,7 +718,7 @@ export const simulateMerchantTrade = ({
                     partnerId: partner.id,
                     resourceKey: candidate.resourceKey,
                     wealthForThisBatch,
-                    batchMultiplier: globalBatchMultiplier,
+                    batchMultiplier: 1,
                     wealth,
                     res,
                     supply,
@@ -712,6 +740,7 @@ export const simulateMerchantTrade = ({
                     capitalInvestedThisTick += result.outlay;
                     updatedPendingTrades.push(result.trade);
                     lastTradeTime = tick;
+                    tradesCreatedForPartner++; // [DEBUG] Count trades created
                     // 添加新交易发起日志
                     const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
                     const partnerName = partner?.name || partner?.id || '未知国家';
@@ -727,7 +756,7 @@ export const simulateMerchantTrade = ({
                     partnerId: partner.id,
                     resourceKey: candidate.resourceKey,
                     wealthForThisBatch,
-                    batchMultiplier: globalBatchMultiplier,
+                    batchMultiplier: 1,
                     wealth,
                     res,
                     taxBreakdown,
@@ -746,6 +775,7 @@ export const simulateMerchantTrade = ({
                     capitalInvestedThisTick += result.cost;
                     updatedPendingTrades.push(result.trade);
                     lastTradeTime = tick;
+                    tradesCreatedForPartner++; // [DEBUG] Count trades created
                     // 添加新交易发起日志
                     const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
                     const partnerName = partner?.name || partner?.id || '未知国家';
@@ -754,6 +784,13 @@ export const simulateMerchantTrade = ({
                     }
                 }
             }
+        }
+
+        // [DEBUG] Log trades created for this partner
+        if (tradeConfig.enableDebugLog && tradesCreatedForPartner > 0) {
+            debugLog('trade', `[贸易统计] 国家: ${partner.name}, 实际创建贸易数: ${tradesCreatedForPartner}/${maxNewTradesForPartner}`, {
+                partnerId: partner.id
+            });
         }
     }
 

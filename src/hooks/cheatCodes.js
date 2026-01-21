@@ -94,7 +94,9 @@ const findNationByIdOrName = (identifier, nations = []) => {
  * @param {Object} gameState - The game state object
  * @param {Function} addLog - Function to add log messages
  */
-export const initCheatCodes = (gameState, addLog) => {
+export const initCheatCodes = (gameState, addLog, setters = {}) => {
+    const { setMerchantState, setTradeRoutes } = setters;
+    
     // Create cheat object on window
     window.cheat = {
         /**
@@ -162,6 +164,7 @@ export const initCheatCodes = (gameState, addLog) => {
             console.log('');
             console.log('%cUtility:', 'color: #00ffff; font-weight: bold;');
             console.log('  cheat.getState()            - View current game state');
+            console.log('  cheat.cleanMerchants()      - 🧹 Clean invalid merchant assignments & trades');
             console.log('');
             console.log('%cGame Control:', 'color: #00ffff; font-weight: bold;');
             console.log('  cheat.pause()               - Pause the game loop');
@@ -201,6 +204,9 @@ export const initCheatCodes = (gameState, addLog) => {
             console.log('  cheat.clearCandidates()              - 清空候选人列表');
             console.log('  cheat.superOfficials()               - 生成5个超级官员');
             console.log('  cheat.help()                - Show this help');
+            console.log('');
+            console.log('%c💡 Quick Fix:', 'color: #ff6600; font-size: 14px; font-weight: bold;');
+            console.log('%c  If you see trades with destroyed nations, run: cheat.cleanMerchants()', 'color: #ff9900;');
         },
 
         // ========== Officials Cheat Commands ==========
@@ -824,6 +830,94 @@ export const initCheatCodes = (gameState, addLog) => {
             console.log('Class Approval:', gameState.classApproval);
             console.log('Days Elapsed:', gameState.daysElapsed);
             return gameState;
+        },
+
+        /**
+         * 🧹 Clean invalid merchant assignments and trade routes
+         * Removes all merchants assigned to destroyed/annexed nations
+         */
+        cleanMerchants: () => {
+            if (!setMerchantState || !setTradeRoutes) {
+                console.error('❌ Merchant cleaning not available - setters not provided');
+                return;
+            }
+
+            const nations = gameState.nations || [];
+            const validNationIds = new Set(
+                nations
+                    .filter(n => n && !n.isRebelNation && !n.isAnnexed && (n.population || 0) > 0)
+                    .map(n => n.id)
+            );
+
+            console.log('%c🧹 Cleaning Merchant System...', 'color: #ffff00; font-size: 14px; font-weight: bold;');
+            console.log(`Valid nations: ${validNationIds.size}`);
+
+            // Clean merchant assignments
+            const currentAssignments = gameState.merchantState?.merchantAssignments || {};
+            const validAssignments = {};
+            let removedAssignments = 0;
+            let freedMerchants = 0;
+
+            Object.entries(currentAssignments).forEach(([nationId, count]) => {
+                if (validNationIds.has(nationId)) {
+                    validAssignments[nationId] = count;
+                } else {
+                    removedAssignments++;
+                    freedMerchants += count || 0;
+                    const nation = nations.find(n => n.id === nationId);
+                    console.log(`  ❌ Removed ${count} merchants from: ${nation?.name || nationId} (destroyed)`);
+                }
+            });
+
+            // Clean trade routes
+            const currentRoutes = gameState.tradeRoutes || [];
+            const validRoutes = currentRoutes.filter(route => {
+                if (!route.partnerId || validNationIds.has(route.partnerId)) {
+                    return true;
+                }
+                const partner = nations.find(n => n.id === route.partnerId);
+                console.log(`  ❌ Cancelled trade with: ${partner?.name || route.partnerId} (destroyed)`);
+                return false;
+            });
+
+            // Clean pending trades
+            const currentPending = gameState.merchantState?.pendingTrades || [];
+            const validPending = currentPending.filter(trade => {
+                if (!trade.partnerId || validNationIds.has(trade.partnerId)) {
+                    return true;
+                }
+                return false;
+            });
+
+            // Apply changes
+            setMerchantState(prev => ({
+                ...prev,
+                merchantAssignments: validAssignments,
+                pendingTrades: validPending
+            }));
+
+            setTradeRoutes(validRoutes);
+
+            // Summary
+            console.log('%c✅ Cleanup Complete!', 'color: #00ff00; font-size: 14px; font-weight: bold;');
+            console.log(`  📦 Removed ${removedAssignments} invalid assignments`);
+            console.log(`  👥 Freed ${freedMerchants} merchants`);
+            console.log(`  🚫 Cancelled ${currentRoutes.length - validRoutes.length} trade routes`);
+            console.log(`  🚫 Cancelled ${currentPending.length - validPending.length} pending trades`);
+            console.log(`  ✓ Valid assignments: ${Object.keys(validAssignments).length}`);
+            console.log(`  ✓ Valid routes: ${validRoutes.length}`);
+            console.log(`  ✓ Valid pending: ${validPending.length}`);
+
+            if (addLog) {
+                addLog(`🧹 商人系统清理完成：释放 ${freedMerchants} 个商人，取消 ${currentRoutes.length - validRoutes.length} 条贸易路线`);
+            }
+
+            return {
+                removedAssignments,
+                freedMerchants,
+                cancelledRoutes: currentRoutes.length - validRoutes.length,
+                cancelledPending: currentPending.length - validPending.length
+            };
         },
 
         // ========== Game Control Commands ==========
