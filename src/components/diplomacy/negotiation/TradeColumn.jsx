@@ -42,7 +42,11 @@ const InlineSelect = ({ value, onChange, options, placeholder, themeColor = 'amb
             if (dropdownRef.current?.contains(e.target)) return;
             setIsOpen(false);
         };
-        const handleScroll = () => setIsOpen(false);
+        const handleScroll = (e) => {
+            // Don't close if scrolling inside the dropdown itself
+            if (dropdownRef.current?.contains(e.target)) return;
+            setIsOpen(false);
+        };
         
         document.addEventListener('mousedown', handleClick);
         window.addEventListener('scroll', handleScroll, true);

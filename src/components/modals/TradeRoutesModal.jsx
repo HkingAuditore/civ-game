@@ -5,6 +5,7 @@ import { RESOURCES, COUNTRIES } from '../../config';
 import { calculateMaxTradeRoutes, calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
+import { useLongPress } from '../../hooks/useLongPress';
 
 const TradeRoutesModal = ({
     nations,
@@ -393,6 +394,33 @@ const TradeRoutesModal = ({
 
         const mode = getNationRouteMode(nation.id);
 
+        // Long press handlers for increment button
+        const handleIncrement = () => setAssignment(nation.id, value + 1);
+        const handleIncrementLongPress = () => {
+            // Set to maximum: min of (remaining merchants + current value, nation cap)
+            const maxPossible = Math.min(remainingMerchants + value, maxWithNation);
+            setAssignment(nation.id, maxPossible);
+        };
+
+        // Long press handlers for decrement button
+        const handleDecrement = () => setAssignment(nation.id, value - 1);
+        const handleDecrementLongPress = () => {
+            // Set to zero
+            setAssignment(nation.id, 0);
+        };
+
+        const longPressIncrement = useLongPress(
+            handleIncrementLongPress,
+            handleIncrement,
+            { delay: 500 }
+        );
+
+        const longPressDecrement = useLongPress(
+            handleDecrementLongPress,
+            handleDecrement,
+            { delay: 500 }
+        );
+
         return (
             <div
                 key={nation.id}
@@ -448,9 +476,9 @@ const TradeRoutesModal = ({
                     <div className="flex items-center justify-end gap-2">
                         <button
                             className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                            onClick={() => setAssignment(nation.id, value - 1)}
+                            {...(!disabledDec ? longPressDecrement : {})}
                             disabled={disabledDec}
-                            title="减少 1"
+                            title="点击减少 1，长按归零"
                         >
                             <Icon name="Minus" size={14} />
                         </button>
@@ -474,9 +502,9 @@ const TradeRoutesModal = ({
 
                         <button
                             className="w-8 h-8 rounded bg-amber-600/70 hover:bg-amber-600 text-white border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
-                            onClick={() => setAssignment(nation.id, value + 1)}
+                            {...(!disabledInc ? longPressIncrement : {})}
                             disabled={disabledInc}
-                            title={nation.isAtWar ? '战争中不可派驻' : (maxWithNation === 0 ? '关系敌对不可派驻' : (value >= maxWithNation ? '已达该国派驻上限' : (remainingMerchants <= 0 ? '没有可用商人' : '增加 1')))}
+                            title={nation.isAtWar ? '战争中不可派驻' : (maxWithNation === 0 ? '关系敌对不可派驻' : (value >= maxWithNation ? '已达该国派驻上限' : (remainingMerchants <= 0 ? '没有可用商人' : '点击增加 1，长按派驻到最大值')))}
                         >
                             <Icon name="Plus" size={14} />
                         </button>

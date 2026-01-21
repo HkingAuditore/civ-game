@@ -262,6 +262,29 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
 
     // 忠诚度变化原因分析
     const loyaltyReasons = useMemo(() => {
+        // 优先使用模拟端计算好的数据
+        if (official?.loyaltyChangeFactors && Array.isArray(official.loyaltyChangeFactors)) {
+            const factorTextMap = {
+                'stanceSatisfied': '政治诉求满足',
+                'stanceUnsatisfied': '政治诉求未满足',
+                'financialSatisfied': '财务状况良好',
+                'financialUncomfortable': '生活拮据',
+                'financialStruggling': '入不敷出',
+                'financialDesperate': '濒临破产',
+                'stabilityHigh': '国家稳定',
+                'stabilityLow': '国家动荡',
+                'salaryPaid': '薪资按时发放',
+                'salaryUnpaid': '薪资未发放',
+            };
+
+            return official.loyaltyChangeFactors.map(factor => ({
+                text: factorTextMap[factor.factor] || factor.factor,
+                value: factor.value,
+                positive: factor.value > 0,
+            }));
+        }
+
+        // 降级方案：如果没有loyaltyChangeFactors（旧存档兼容），使用原来的计算逻辑
         const reasons = [];
         const { DAILY_CHANGES } = LOYALTY_CONFIG;
 

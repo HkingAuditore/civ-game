@@ -3965,24 +3965,61 @@ export const simulateTick = ({
         // 应用忠诚度变化
         const { DAILY_CHANGES, COUP_THRESHOLD, MAX, MIN } = LOYALTY_CONFIG;
 
+        // 记录各个因素的贡献值
+        const loyaltyChangeFactors = [];
+        let totalLoyaltyChange = 0;
+
         // 政治诉求
-        newLoyalty += isStanceMet ? DAILY_CHANGES.stanceSatisfied : DAILY_CHANGES.stanceUnsatisfied;
+        const stanceChange = isStanceMet ? DAILY_CHANGES.stanceSatisfied : DAILY_CHANGES.stanceUnsatisfied;
+        newLoyalty += stanceChange;
+        totalLoyaltyChange += stanceChange;
+        loyaltyChangeFactors.push({
+            factor: isStanceMet ? 'stanceSatisfied' : 'stanceUnsatisfied',
+            value: stanceChange,
+        });
 
         // 财务状况
-        if (combinedSatisfaction === 'satisfied') newLoyalty += DAILY_CHANGES.financialSatisfied;
-        else if (combinedSatisfaction === 'uncomfortable') newLoyalty += DAILY_CHANGES.financialUncomfortable;
-        else if (combinedSatisfaction === 'struggling') newLoyalty += DAILY_CHANGES.financialStruggling;
-        else if (combinedSatisfaction === 'desperate') newLoyalty += DAILY_CHANGES.financialDesperate;
+        let financialChange = 0;
+        if (combinedSatisfaction === 'satisfied') {
+            financialChange = DAILY_CHANGES.financialSatisfied;
+            loyaltyChangeFactors.push({ factor: 'financialSatisfied', value: financialChange });
+        } else if (combinedSatisfaction === 'uncomfortable') {
+            financialChange = DAILY_CHANGES.financialUncomfortable;
+            loyaltyChangeFactors.push({ factor: 'financialUncomfortable', value: financialChange });
+        } else if (combinedSatisfaction === 'struggling') {
+            financialChange = DAILY_CHANGES.financialStruggling;
+            loyaltyChangeFactors.push({ factor: 'financialStruggling', value: financialChange });
+        } else if (combinedSatisfaction === 'desperate') {
+            financialChange = DAILY_CHANGES.financialDesperate;
+            loyaltyChangeFactors.push({ factor: 'financialDesperate', value: financialChange });
+        }
+        newLoyalty += financialChange;
+        totalLoyaltyChange += financialChange;
 
         // 国家稳定度
         const stabilityValue = (currentStability ?? 50) / 100; // currentStability是0-100，转为0-1
-        if (stabilityValue > 0.7) newLoyalty += DAILY_CHANGES.stabilityHigh;
-        else if (stabilityValue < 0.3) newLoyalty += DAILY_CHANGES.stabilityLow;
+        let stabilityChange = 0;
+        if (stabilityValue > 0.7) {
+            stabilityChange = DAILY_CHANGES.stabilityHigh;
+            loyaltyChangeFactors.push({ factor: 'stabilityHigh', value: stabilityChange });
+        } else if (stabilityValue < 0.3) {
+            stabilityChange = DAILY_CHANGES.stabilityLow;
+            loyaltyChangeFactors.push({ factor: 'stabilityLow', value: stabilityChange });
+        }
+        newLoyalty += stabilityChange;
+        totalLoyaltyChange += stabilityChange;
 
         // 薪资发放
-        newLoyalty += officialsPaid ? DAILY_CHANGES.salaryPaid : DAILY_CHANGES.salaryUnpaid;
+        const salaryChange = officialsPaid ? DAILY_CHANGES.salaryPaid : DAILY_CHANGES.salaryUnpaid;
+        newLoyalty += salaryChange;
+        totalLoyaltyChange += salaryChange;
+        loyaltyChangeFactors.push({
+            factor: officialsPaid ? 'salaryPaid' : 'salaryUnpaid',
+            value: salaryChange,
+        });
 
         // 限制范围
+        const oldLoyalty = normalizedOfficial.loyalty ?? 75;
         newLoyalty = Math.max(MIN, Math.min(MAX, newLoyalty));
 
         // 追踪低忠诚度持续天数
@@ -4008,6 +4045,10 @@ export const simulateTick = ({
             loyalty: newLoyalty,
             lowLoyaltyDays: newLowLoyaltyDays,
             isStanceSatisfied: isStanceMet,
+            // 忠诚度变化详情
+            loyaltyChange: newLoyalty - oldLoyalty, // 实际变化量（考虑了上下限）
+            loyaltyChangeFactors: loyaltyChangeFactors, // 各因素的贡献
+            loyaltyChangeTotal: totalLoyaltyChange, // 理论变化量（未考虑上下限）
             // [DEBUG] 调试字段
             _debug: {
                 initialWealth: debugInitialWealth,

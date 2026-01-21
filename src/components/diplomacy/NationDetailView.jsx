@@ -9,6 +9,7 @@ import { getRelationLabel } from '../../utils/diplomacyUtils';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } from '../../utils/foreignTrade';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
+import { useLongPress } from '../../hooks/useLongPress';
 
 const formatStat = (val) => {
     const numberValue = Number(val || 0);
@@ -1058,10 +1059,20 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
     // Explicit cap logic similar to TradeRoutesModal
     const cap = isOpenMarket ? 999999 : (baseMax + totalBonus);
 
+    // Calculate remaining merchants
+    const assignedTotal = Object.values(merchantState?.merchantAssignments || {}).reduce((sum, v) => sum + Math.max(0, Math.floor(Number(v) || 0)), 0);
+    const remainingMerchants = merchantCountTotal - assignedTotal;
+
     const handleAdd = () => {
         if (merchantCount < cap) {
             onMerchantStateChange?.(nation.id, merchantCount + 1);
         }
+    };
+
+    const handleAddLongPress = () => {
+        // Set to maximum: min of (remaining merchants + current value, nation cap)
+        const maxPossible = Math.min(remainingMerchants + merchantCount, cap);
+        onMerchantStateChange?.(nation.id, maxPossible);
     };
 
     const handleRemove = () => {
@@ -1069,6 +1080,23 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
             onMerchantStateChange?.(nation.id, merchantCount - 1);
         }
     };
+
+    const handleRemoveLongPress = () => {
+        // Set to zero
+        onMerchantStateChange?.(nation.id, 0);
+    };
+
+    const longPressAdd = useLongPress(
+        handleAddLongPress,
+        handleAdd,
+        { delay: 500 }
+    );
+
+    const longPressRemove = useLongPress(
+        handleRemoveLongPress,
+        handleRemove,
+        { delay: 500 }
+    );
 
     return (
         <Card className="p-4 bg-blue-900/10 border-blue-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
@@ -1085,10 +1113,10 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
                 <Button
                     size="md"
                     variant="danger"
-                    onClick={handleRemove}
+                    {...(merchantCount > 0 ? longPressRemove : {})}
                     disabled={merchantCount <= 0}
                     className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center p-0 rounded-lg shadow-lg hover:bg-red-600 transition-colors"
-                    title="减少商人"
+                    title="点击减少商人，长按归零"
                 >
                     <Icon name="Minus" size={20} className="text-white" />
                 </Button>
@@ -1098,10 +1126,10 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
                 <Button
                     size="md"
                     variant="primary"
-                    onClick={handleAdd}
+                    {...(merchantCount < cap ? longPressAdd : {})}
                     disabled={merchantCount >= cap}
                     className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center p-0 rounded-lg shadow-lg transition-colors ${merchantCount >= cap ? 'bg-gray-600 cursor-not-allowed' : 'hover:bg-blue-600'}`}
-                    title="增加商人"
+                    title="点击增加商人，长按派驻到最大值"
                 >
                     <Icon name="Plus" size={20} className="text-white" />
                 </Button>
