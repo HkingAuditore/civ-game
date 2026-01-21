@@ -7,6 +7,160 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 import { useLongPress } from '../../hooks/useLongPress';
 
+// Separate component for assignment row to properly use hooks
+const AssignmentRow = ({ 
+    nation, 
+    merchantAssignments, 
+    remainingMerchants, 
+    daysElapsed,
+    merchantCount,
+    getNationRouteMode,
+    toggleNationRouteMode,
+    setAssignment,
+    getMaxTradeRoutesForRelation,
+    isOpenMarketActiveWithNation
+}) => {
+    const valueRaw = merchantAssignments?.[nation.id] ?? 0;
+    const value = Math.max(0, Math.floor(Number(valueRaw) || 0));
+
+    // 计算条约加成的商人槽位
+    const treatyEffects = getTreatyEffects(nation, daysElapsed);
+    const baseMax = getMaxTradeRoutesForRelation(nation.relation || 0, nation.alliedWithPlayer === true);
+    const isFullyOpen = isOpenMarketActiveWithNation(nation);
+
+    // Calculate bonus: fixed + percentage
+    const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
+    const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
+    const totalBonus = percentBonus + fixedBonus;
+
+    const maxWithNation = isFullyOpen
+        ? 999
+        : Math.min(999, baseMax + totalBonus);
+
+    const disabledInc = remainingMerchants <= 0 || nation.isAtWar || value >= maxWithNation;
+    const disabledDec = value <= 0;
+
+    const mode = getNationRouteMode(nation.id);
+
+    // Long press handlers for increment button
+    const handleIncrement = () => setAssignment(nation.id, value + 1);
+    const handleIncrementLongPress = () => {
+        // Set to maximum: min of (remaining merchants + current value, nation cap)
+        const maxPossible = Math.min(remainingMerchants + value, maxWithNation);
+        setAssignment(nation.id, maxPossible);
+    };
+
+    // Long press handlers for decrement button
+    const handleDecrement = () => setAssignment(nation.id, value - 1);
+    const handleDecrementLongPress = () => {
+        // Set to zero
+        setAssignment(nation.id, 0);
+    };
+
+    const longPressIncrement = useLongPress(
+        handleIncrementLongPress,
+        handleIncrement,
+        { delay: 500 }
+    );
+
+    const longPressDecrement = useLongPress(
+        handleDecrementLongPress,
+        handleDecrement,
+        { delay: 500 }
+    );
+
+    return (
+        <div
+            className="grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
+        >
+            {/* 1. Nation Info (Cols 1-4) - reduced */}
+            <div className="col-span-4 flex items-center gap-2 min-w-0">
+                <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
+                <div className="min-w-0">
+                    <div className="font-medium text-gray-200 truncate" title={nation.name}>{nation.name}</div>
+                    <div className="text-[10px] text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
+                </div>
+            </div>
+
+            {/* 2. Trade Policy Toggles (Cols 5-7) - New */}
+            <div className="col-span-3 flex items-center justify-center gap-1">
+                <button
+                    onClick={() => toggleNationRouteMode(nation.id, 'dumping')}
+                    className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.dumping
+                        ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                        : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
+                        }`}
+                    title={mode.dumping ? "倾销已开启：出口时无视对方需求，可能损害关系" : "点击开启倾销"}
+                >
+                    倾销
+                </button>
+                <button
+                    onClick={() => toggleNationRouteMode(nation.id, 'forceBuy')}
+                    className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.forceBuy
+                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                        : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
+                        }`}
+                    title={mode.forceBuy ? "强买已开启：进口时无视对方保留库存" : "点击开启强买"}
+                >
+                    强买
+                </button>
+            </div>
+
+            {/* 3+4. Limit + Assignment Controls */}
+            <div className="col-span-5 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-1 sm:gap-2">
+                {/* Limit */}
+                <div className="sm:w-24 text-right text-xs text-gray-400 flex-shrink-0">
+                    {nation.isAtWar ? (
+                        <span className="text-red-400 text-[10px]">交战中</span>
+                    ) : (
+                        <span className={maxWithNation >= 999 ? 'text-green-400 text-[10px]' : 'text-gray-500 text-[10px]'}>
+                            {maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`}
+                        </span>
+                    )}
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center justify-end gap-2">
+                    <button
+                        className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                        {...(!disabledDec ? longPressDecrement : {})}
+                        disabled={disabledDec}
+                        title="点击减少 1，长按归零"
+                    >
+                        <Icon name="Minus" size={14} />
+                    </button>
+
+                    <input
+                        className="w-16 h-8 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-center font-mono"
+                        value={value}
+                        onChange={(e) => setAssignment(nation.id, e.target.value)}
+                        onPaste={(e) => {
+                            e.preventDefault();
+                            const pastedText = e.clipboardData.getData('text');
+                            const num = parseInt(pastedText, 10);
+                            if (!isNaN(num)) {
+                                setAssignment(nation.id, num, false); // FORCE FALSE: Respect Caps!
+                            }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        inputMode="numeric"
+                        disabled={nation.isAtWar}
+                    />
+
+                    <button
+                        className="w-8 h-8 rounded bg-amber-600/70 hover:bg-amber-600 text-white border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                        {...(!disabledInc ? longPressIncrement : {})}
+                        disabled={disabledInc}
+                        title={nation.isAtWar ? '战争中不可派驻' : (maxWithNation === 0 ? '关系敌对不可派驻' : (value >= maxWithNation ? '已达该国派驻上限' : (remainingMerchants <= 0 ? '没有可用商人' : '点击增加 1，长按派驻到最大值')))}
+                    >
+                        <Icon name="Plus" size={14} />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const TradeRoutesModal = ({
     nations,
     resources,
@@ -22,9 +176,21 @@ const TradeRoutesModal = ({
     onUpdateMerchantTradePreferences,
     onClose,
 }) => {
+    // ===== All useState hooks MUST be at the top =====
     // Tab state: 'assignments', 'priceCompare'
     const [activeTab, setActiveTab] = useState('assignments');
+    
+    // 价格对比分栏的资源筛选状态
+    const [selectedResource, setSelectedResource] = useState(null);
+    
+    // Price scanner tab state (resource filtering)
+    const [resourceSearch, setResourceSearch] = useState('');
+    
+    // Price scanner sorting state
+    const [priceSortField, setPriceSortField] = useState('diff'); // 'foreignPrice' | 'diff' | 'diffPct'
+    const [priceSortDir, setPriceSortDir] = useState('desc'); // 'asc' | 'desc'
 
+    // ===== Helper functions =====
     // New: trade route mode selector (per nation)
     // normal: regular trade
     // force_sell: 倾销（强卖）
@@ -69,9 +235,8 @@ const TradeRoutesModal = ({
             coercionByNation: nextMap,
         });
     };
-    // 价格对比分栏的资源筛选状态
-    const [selectedResource, setSelectedResource] = useState(null);
 
+    // ===== useMemo hooks =====
     const assignedTotal = useMemo(() => {
         if (!merchantAssignments || typeof merchantAssignments !== 'object') return 0;
         return Object.values(merchantAssignments).reduce((sum, v) => sum + Math.max(0, Math.floor(Number(v) || 0)), 0);
@@ -291,9 +456,6 @@ const TradeRoutesModal = ({
         }).sort((a, b) => b.priceDiff - a.priceDiff); // 按价差降序排列
     }, [selectedResource, visibleNations, market, daysElapsed]);
 
-    // New: Price scanner tab state (resource filtering)
-    const [resourceSearch, setResourceSearch] = useState('');
-
     const filteredTradableResources = useMemo(() => {
         const q = (resourceSearch || '').trim().toLowerCase();
         if (!q) return tradableResources;
@@ -312,9 +474,6 @@ const TradeRoutesModal = ({
         if (!selectedResource) return null;
         return market?.prices?.[selectedResource] ?? (RESOURCES[selectedResource]?.basePrice || 1);
     }, [selectedResource, market]);
-
-    const [priceSortField, setPriceSortField] = useState('diff'); // 'foreignPrice' | 'diff' | 'diffPct'
-    const [priceSortDir, setPriceSortDir] = useState('desc'); // 'asc' | 'desc'
 
     const priceScannerRows = useMemo(() => {
         if (!selectedResource) return [];
@@ -369,149 +528,6 @@ const TradeRoutesModal = ({
 
         const treatyEffects = getTreatyEffects(nation, daysElapsed);
         return treatyEffects.bypassRelationCap || treatyEffects.extraMerchantSlots === Infinity;
-    };
-
-    const renderAssignmentRow = (nation) => {
-        const valueRaw = merchantAssignments?.[nation.id] ?? 0;
-        const value = Math.max(0, Math.floor(Number(valueRaw) || 0));
-
-        // 计算条约加成的商人槽位
-        const treatyEffects = getTreatyEffects(nation, daysElapsed);
-        const baseMax = getMaxTradeRoutesForRelation(nation.relation || 0, nation.alliedWithPlayer === true);
-        const isFullyOpen = isOpenMarketActiveWithNation(nation);
-
-        // Calculate bonus: fixed + percentage
-        const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
-        const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
-        const totalBonus = percentBonus + fixedBonus;
-
-        const maxWithNation = isFullyOpen
-            ? 999
-            : Math.min(999, baseMax + totalBonus);
-
-        const disabledInc = remainingMerchants <= 0 || nation.isAtWar || value >= maxWithNation;
-        const disabledDec = value <= 0;
-
-        const mode = getNationRouteMode(nation.id);
-
-        // Long press handlers for increment button
-        const handleIncrement = () => setAssignment(nation.id, value + 1);
-        const handleIncrementLongPress = () => {
-            // Set to maximum: min of (remaining merchants + current value, nation cap)
-            const maxPossible = Math.min(remainingMerchants + value, maxWithNation);
-            setAssignment(nation.id, maxPossible);
-        };
-
-        // Long press handlers for decrement button
-        const handleDecrement = () => setAssignment(nation.id, value - 1);
-        const handleDecrementLongPress = () => {
-            // Set to zero
-            setAssignment(nation.id, 0);
-        };
-
-        const longPressIncrement = useLongPress(
-            handleIncrementLongPress,
-            handleIncrement,
-            { delay: 500 }
-        );
-
-        const longPressDecrement = useLongPress(
-            handleDecrementLongPress,
-            handleDecrement,
-            { delay: 500 }
-        );
-
-        return (
-            <div
-                key={nation.id}
-                className="grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
-            >
-                {/* 1. Nation Info (Cols 1-4) - reduced */}
-                <div className="col-span-4 flex items-center gap-2 min-w-0">
-                    <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
-                    <div className="min-w-0">
-                        <div className="font-medium text-gray-200 truncate" title={nation.name}>{nation.name}</div>
-                        <div className="text-[10px] text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
-                    </div>
-                </div>
-
-                {/* 2. Trade Policy Toggles (Cols 5-7) - New */}
-                <div className="col-span-3 flex items-center justify-center gap-1">
-                    <button
-                        onClick={() => toggleNationRouteMode(nation.id, 'dumping')}
-                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.dumping
-                            ? 'bg-red-500/20 text-red-300 border-red-500/30'
-                            : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
-                            }`}
-                        title={mode.dumping ? "倾销已开启：出口时无视对方需求，可能损害关系" : "点击开启倾销"}
-                    >
-                        倾销
-                    </button>
-                    <button
-                        onClick={() => toggleNationRouteMode(nation.id, 'forceBuy')}
-                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.forceBuy
-                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                            : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
-                            }`}
-                        title={mode.forceBuy ? "强买已开启：进口时无视对方保留库存" : "点击开启强买"}
-                    >
-                        强买
-                    </button>
-                </div>
-
-                {/* 3+4. Limit + Assignment Controls */}
-                <div className="col-span-5 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-1 sm:gap-2">
-                    {/* Limit */}
-                    <div className="sm:w-24 text-right text-xs text-gray-400 flex-shrink-0">
-                        {nation.isAtWar ? (
-                            <span className="text-red-400 text-[10px]">交战中</span>
-                        ) : (
-                            <span className={maxWithNation >= 999 ? 'text-green-400 text-[10px]' : 'text-gray-500 text-[10px]'}>
-                                {maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Controls */}
-                    <div className="flex items-center justify-end gap-2">
-                        <button
-                            className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                            {...(!disabledDec ? longPressDecrement : {})}
-                            disabled={disabledDec}
-                            title="点击减少 1，长按归零"
-                        >
-                            <Icon name="Minus" size={14} />
-                        </button>
-
-                        <input
-                            className="w-16 h-8 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-center font-mono"
-                            value={value}
-                            onChange={(e) => setAssignment(nation.id, e.target.value)}
-                            onPaste={(e) => {
-                                e.preventDefault();
-                                const pastedText = e.clipboardData.getData('text');
-                                const num = parseInt(pastedText, 10);
-                                if (!isNaN(num)) {
-                                    setAssignment(nation.id, num, false); // FORCE FALSE: Respect Caps!
-                                }
-                            }}
-                            onFocus={(e) => e.target.select()}
-                            inputMode="numeric"
-                            disabled={nation.isAtWar}
-                        />
-
-                        <button
-                            className="w-8 h-8 rounded bg-amber-600/70 hover:bg-amber-600 text-white border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
-                            {...(!disabledInc ? longPressIncrement : {})}
-                            disabled={disabledInc}
-                            title={nation.isAtWar ? '战争中不可派驻' : (maxWithNation === 0 ? '关系敌对不可派驻' : (value >= maxWithNation ? '已达该国派驻上限' : (remainingMerchants <= 0 ? '没有可用商人' : '点击增加 1，长按派驻到最大值')))}
-                        >
-                            <Icon name="Plus" size={14} />
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
     };
 
     const renderOpportunityRow = (opp, index, showRank = false) => {
@@ -819,7 +835,21 @@ const TradeRoutesModal = ({
                                 visibleNations
                                     .slice()
                                     .sort((a, b) => (b.relation || 0) - (a.relation || 0))
-                                    .map(renderAssignmentRow)
+                                    .map(nation => (
+                                        <AssignmentRow
+                                            key={nation.id}
+                                            nation={nation}
+                                            merchantAssignments={merchantAssignments}
+                                            remainingMerchants={remainingMerchants}
+                                            daysElapsed={daysElapsed}
+                                            merchantCount={merchantCount}
+                                            getNationRouteMode={getNationRouteMode}
+                                            toggleNationRouteMode={toggleNationRouteMode}
+                                            setAssignment={setAssignment}
+                                            getMaxTradeRoutesForRelation={getMaxTradeRoutesForRelation}
+                                            isOpenMarketActiveWithNation={isOpenMarketActiveWithNation}
+                                        />
+                                    ))
                             )}
                         </div>
                     )}

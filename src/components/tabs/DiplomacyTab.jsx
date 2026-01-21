@@ -205,8 +205,6 @@ const DiplomacyTabComponent = ({
             setNegotiationCounter(result.counterProposal);
             setNegotiationDraft((prev) => ({ ...prev, ...result.counterProposal }));
             setNegotiationRound((prev) => Math.min(NEGOTIATION_MAX_ROUNDS, prev + 1));
-            // Keep evaluation so DealStatus can reflect the latest AI stance
-            if (result.evaluation) setNegotiationEvaluation(result.evaluation);
             return;
         }
         if (result.status === 'accepted') {

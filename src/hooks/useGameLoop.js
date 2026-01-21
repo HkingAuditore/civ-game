@@ -765,27 +765,108 @@ export const useGameLoop = (gameState, addLog, actions) => {
         };
     }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, lastMinisterExpansionDay, priceControls, foreignInvestments]);
 
-    // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
+    // 监听国家列表变化，自动清理无效的贸易路线和商人派驻（修复暂停状态下无法清理的问题）
+    const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
+    
     useEffect(() => {
-        if (!tradeRoutes?.routes?.length) return;
         if (!nations) return;
 
-        const validNationIds = new Set(nations.map(n => n.id));
-        const validRoutes = tradeRoutes.routes.filter(r => validNationIds.has(r.nationId));
+        // Filter valid nations (exclude annexed and zero-population nations)
+        const validNationIds = new Set(
+            nations
+                .filter(n => !n.isAnnexed && (n.population || 0) > 0)
+                .map(n => n.id)
+        );
 
-        if (validRoutes.length !== tradeRoutes.routes.length) {
-            setTradeRoutes(prev => ({
-                ...prev,
-                routes: validRoutes
-            }));
+        let needsUpdate = false;
+
+        // Clean up trade routes
+        if (tradeRoutes?.routes?.length) {
+            const currentLength = tradeRoutes.routes.length;
+            if (currentLength !== lastCleanupRef.current.tradeRoutesLength) {
+                const validRoutes = tradeRoutes.routes.filter(r => validNationIds.has(r.nationId));
+                if (validRoutes.length !== currentLength) {
+                    setTradeRoutes(prev => ({
+                        ...prev,
+                        routes: validRoutes
+                    }));
+                    lastCleanupRef.current.tradeRoutesLength = validRoutes.length;
+                    needsUpdate = true;
+                } else {
+                    lastCleanupRef.current.tradeRoutesLength = currentLength;
+                }
+            }
         }
-    }, [nations, tradeRoutes, setTradeRoutes]);
+
+        // Clean up merchant assignments
+        if (merchantState?.merchantAssignments && typeof merchantState.merchantAssignments === 'object') {
+            const assignments = merchantState.merchantAssignments;
+            const currentKeys = Object.keys(assignments).sort().join(',');
+            
+            if (currentKeys !== lastCleanupRef.current.merchantAssignmentsKeys) {
+                const validAssignments = {};
+                let hasInvalidAssignments = false;
+
+                Object.entries(assignments).forEach(([nationId, count]) => {
+                    if (validNationIds.has(nationId)) {
+                        validAssignments[nationId] = count;
+                    } else {
+                        hasInvalidAssignments = true;
+                    }
+                });
+
+                if (hasInvalidAssignments) {
+                    // [FIX] If all assignments are invalid, clear merchantAssignments completely
+                    // This allows the system to rebuild assignments from scratch
+                    const finalAssignments = Object.keys(validAssignments).length > 0 
+                        ? validAssignments 
+                        : {};
+                    
+                    setMerchantState(prev => ({
+                        ...prev,
+                        merchantAssignments: finalAssignments
+                    }));
+                    lastCleanupRef.current.merchantAssignmentsKeys = Object.keys(finalAssignments).sort().join(',');
+                    needsUpdate = true;
+                    
+                    // Log cleanup action
+                    if (Object.keys(validAssignments).length === 0) {
+                        console.log('[商人系统] 已清空所有无效的商人派驻，系统将重新分配商人');
+                    }
+                } else {
+                    lastCleanupRef.current.merchantAssignmentsKeys = currentKeys;
+                }
+            }
+        }
+
+        // Clean up pending trades with destroyed nations
+        if (merchantState?.pendingTrades && Array.isArray(merchantState.pendingTrades)) {
+            const currentLength = merchantState.pendingTrades.length;
+            
+            if (currentLength !== lastCleanupRef.current.pendingTradesLength) {
+                const validPendingTrades = merchantState.pendingTrades.filter(trade => 
+                    !trade.partnerId || validNationIds.has(trade.partnerId)
+                );
+
+                if (validPendingTrades.length !== currentLength) {
+                    setMerchantState(prev => ({
+                        ...prev,
+                        pendingTrades: validPendingTrades
+                    }));
+                    lastCleanupRef.current.pendingTradesLength = validPendingTrades.length;
+                    needsUpdate = true;
+                } else {
+                    lastCleanupRef.current.pendingTradesLength = currentLength;
+                }
+            }
+        }
+    }, [nations, tradeRoutes, merchantState, setTradeRoutes, setMerchantState]);
 
     // 游戏核心循环
     useEffect(() => {
         // 初始化作弊码系统
         if (process.env.NODE_ENV !== 'production') {
-            initCheatCodes(gameState, addLog);
+            initCheatCodes(gameState, addLog, { setMerchantState, setTradeRoutes });
         }
 
         // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独处理
