@@ -717,13 +717,28 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                             value={salaryDraft}
                             onChange={(e) => setSalaryDraft(e.target.value)}
                             onFocus={() => setIsEditingSalary(true)}
-                            onBlur={() => setIsEditingSalary(false)}
+                            onBlur={() => {
+                                // Delay blur to allow button click to process first
+                                setTimeout(() => setIsEditingSalary(false), 100);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && canEditSalary && Number.isFinite(parsedSalaryDraft)) {
+                                    const nextSalary = Math.floor(parsedSalaryDraft);
+                                    pendingSalaryRef.current = nextSalary;
+                                    onUpdateSalary(official.id, nextSalary);
+                                    setSalaryDraft(String(nextSalary));
+                                    setIsEditingSalary(false);
+                                    e.target.blur();
+                                }
+                            }}
                             className="w-28 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-amber-400 focus:border-amber-400 text-center"
                         />
                         <button
                             className={`px-3 py-1 rounded text-xs font-semibold ${canEditSalary ? 'bg-amber-600/80 hover:bg-amber-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
                             disabled={!canEditSalary}
-                            onClick={() => {
+                            onMouseDown={(e) => {
+                                // Use onMouseDown instead of onClick to execute before onBlur
+                                e.preventDefault(); // Prevent input from losing focus
                                 if (!canEditSalary || !Number.isFinite(parsedSalaryDraft)) return;
                                 const nextSalary = Math.floor(parsedSalaryDraft);
                                 pendingSalaryRef.current = nextSalary; // Mark as pending to prevent reset

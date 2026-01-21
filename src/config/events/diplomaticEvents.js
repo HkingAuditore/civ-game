@@ -244,6 +244,15 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
                 effects: {},
                 callback: () => callback(true, 'vassal', 0),
             });
+        } else {
+            options.push({
+                id: 'demand_vassal_locked',
+                text: '🔒 要求成为附庸国',
+                description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
+                effects: {},
+                disabled: true,
+                callback: () => {},
+            });
         }
         options.push({
             id: 'demand_more',
@@ -294,6 +303,15 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
                 description: `要求${nation.name}成为附庸国，定期朝贡并服从宗主国的外交政策。`,
                 effects: {},
                 callback: () => callback(true, 'vassal', 0),
+            });
+        } else {
+            options.push({
+                id: 'demand_vassal_locked',
+                text: '🔒 要求成为附庸国',
+                description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
+                effects: {},
+                disabled: true,
+                callback: () => {},
             });
         }
         options.push({
@@ -488,6 +506,15 @@ export function createPlayerPeaceProposalEvent(
                 effects: {},
                 callback: () => callback('demand_vassal', 'vassal'),
             });
+        } else if (warScore > 300 && !vassalUnlocked) {
+            options.push({
+                id: 'demand_vassal_locked',
+                text: '🔒 要求成为附庸国',
+                description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
+                effects: {},
+                disabled: true,
+                callback: () => {},
+            });
         }
         options.push({
             id: 'peace_only',
@@ -538,6 +565,15 @@ export function createPlayerPeaceProposalEvent(
                 effects: {},
                 callback: () => callback('demand_vassal', 'vassal'),
             });
+        } else {
+            options.push({
+                id: 'demand_vassal_locked',
+                text: '🔒 要求成为附庸国',
+                description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
+                effects: {},
+                disabled: true,
+                callback: () => {},
+            });
         }
     } else if (warScore > 50) {
         const standardTribute = Math.max(demandingPayments.standard, demandingPayments.low);
@@ -574,9 +610,17 @@ export function createPlayerPeaceProposalEvent(
                 effects: {},
                 callback: () => callback('demand_vassal', 'vassal'),
             });
+        } else {
+            options.push({
+                id: 'demand_vassal_locked',
+                text: '🔒 要求成为附庸国',
+                description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
+                effects: {},
+                disabled: true,
+                callback: () => {},
+            });
         }
-    } else if (warScore < -200) {
-        const payment = Math.max(offeringPayments.high, offeringPayments.standard);
+    } else if (warScore > -50) {        const payment = Math.max(offeringPayments.high, offeringPayments.standard);
         const installmentPlan = calculateInstallmentPlan(payment);
         const populationOffer = calculateTerritoryOffer(0.15, 200);
 

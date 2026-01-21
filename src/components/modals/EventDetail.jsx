@@ -357,28 +357,36 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                 </h3>
                 {filteredOptions.map((option) => {
                     const isSelected = selectedOption?.id === option.id;
+                    const isDisabled = option.disabled === true;
                     return (
                         <button
                             key={option.id}
-                            onClick={() => handleOptionClick(option)}
+                            onClick={() => !isDisabled && handleOptionClick(option)}
+                            disabled={isDisabled}
                             className="w-full text-left rounded-xl p-3 transition-all group font-sans"
                             style={{
-                                background: isSelected
-                                    ? optionThemeStyles.selectedBackground
-                                    : optionThemeStyles.baseBackground,
+                                background: isDisabled
+                                    ? 'rgba(60, 60, 60, 0.3)'
+                                    : isSelected
+                                        ? optionThemeStyles.selectedBackground
+                                        : optionThemeStyles.baseBackground,
                                 // 使用 box-shadow 实现稳定的边框效果，避免 border 在移动端的渲染问题
-                                boxShadow: isSelected
-                                    ? optionThemeStyles.selectedShadow
-                                    : optionThemeStyles.baseShadow,
+                                boxShadow: isDisabled
+                                    ? 'inset 0 0 0 1px rgba(100, 100, 100, 0.3), 0 2px 8px rgba(0, 0, 0, 0.35)'
+                                    : isSelected
+                                        ? optionThemeStyles.selectedShadow
+                                        : optionThemeStyles.baseShadow,
+                                opacity: isDisabled ? 0.5 : 1,
+                                cursor: isDisabled ? 'not-allowed' : 'pointer',
                             }}
                             onMouseEnter={(e) => {
-                                if (!isSelected) {
+                                if (!isSelected && !isDisabled) {
                                     e.currentTarget.style.boxShadow = optionThemeStyles.hoverShadow;
                                     e.currentTarget.style.background = optionThemeStyles.hoverBackground;
                                 }
                             }}
                             onMouseLeave={(e) => {
-                                if (!isSelected) {
+                                if (!isSelected && !isDisabled) {
                                     e.currentTarget.style.boxShadow = optionThemeStyles.baseShadow;
                                     e.currentTarget.style.background = optionThemeStyles.baseBackground;
                                 }
