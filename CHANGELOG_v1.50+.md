@@ -1,12 +1,13 @@
 # 更新日志 - v1.50+ 版本
 
-> 当前版本：v1.52.8  
-> 更新时间：2026年1月20日
+> 当前版本：v1.52.9  
+> 更新时间：2026年1月21日
 
 ---
 
 ## 📋 目录
 
+- [战线系统UI集成](#战线系统ui集成)
 - [外交系统重构](#外交系统重构)
 - [附庸系统全面改革](#附庸系统全面改革)
 - [国际经济系统](#国际经济系统)
@@ -14,6 +15,58 @@
 - [官员与内阁系统](#官员与内阁系统)
 - [游戏系统增强](#游戏系统增强)
 - [UI/UX改进](#uiux改进)
+
+---
+
+## ⚔️ 战线系统UI集成
+
+### 战线系统完全取代旧战斗系统 (v1.52.9)
+## v1.52.9 - 战线系统UI集成 (2026-01-21)
+
+#### 核心改进
+- **军事标签页重构**
+  - 将"战斗"标签改为"战线"标签
+  - 完全集成战线系统UI组件
+  - 移除旧的战斗系统UI代码
+  
+- **禁用旧的突袭系统**
+  - 禁用叛军突袭逻辑（`processRebelWarActions`）
+  - 禁用AI突袭逻辑（`processAIMilitaryAction`）
+  - 战线系统完全接管所有战斗
+  
+- **集成战线系统到游戏循环**
+  - 在 `simulation.js` 中导入战线系统模块
+  - 在AI军事行动处理中调用 `processPlayerWarDaily`
+  - 传递正确的 `buildings` 数据给战线地图生成器
+  - 同步战争分数到nation对象
+  - 记录战线事件日志
+  
+- **战线系统UI组件**
+  - `FrontlineBattleSection`: 战线战斗主面板
+  - `FrontlineMapPanel`: 战线地图可视化
+  - `CorpsManagementPanel`: 兵团管理面板  
+- **功能特性**
+  - 动态战线地图显示（地形、建筑、兵团）
+  - 兵团创建和管理
+  - 战争状态实时显示
+  - 战争分数和区域控制可视化
+  - 武器供应状态监控
+
+#### 影响文件
+- `src/components/tabs/MilitaryTab.jsx` - 集成战线系统
+- `src/components/tabs/FrontlineBattleSection.jsx` - 新增
+- `src/components/panels/FrontlineMapPanel.jsx` - 新增
+- `src/components/panels/CorpsManagementPanel.jsx` - 新增
+- `src/logic/diplomacy/aiWar.js` - 禁用旧突袭系统
+- `src/logic/diplomacy/nations.js` - 添加buildings参数
+- `src/logic/simulation.js` - 集成战线系统到游戏循环
+- `docs/CONTEXT.md` - 更新开发进度
+
+#### 技术细节
+- 清理了旧战斗系统的所有UI代码
+- 移除了 WAR_SCORE_GUIDE 和战争分数模态框
+- 简化了军事标签页的状态管理
+- 保持了与现有游戏循环的兼容性
 
 ---
 

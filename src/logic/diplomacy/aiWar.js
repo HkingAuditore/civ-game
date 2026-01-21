@@ -116,6 +116,12 @@ export const processRebelWarActions = ({
 
     next.warDuration = (next.warDuration || 0) + 1;
 
+    // [DISABLED] Old raid system - replaced by frontline system
+    // The frontline system now handles all combat through strategic map battles
+    // Rebel raids are disabled to prevent conflicts with the new system
+    const ENABLE_OLD_RAID_SYSTEM = false;
+
+    if (ENABLE_OLD_RAID_SYSTEM) {
     // Rebel raid logic - higher raid chance (25% base + aggression bonus)
     const rebelAggression = next.aggression ?? 0.7;
     const raidChance = Math.min(0.35, 0.25 + rebelAggression * 0.1);
@@ -206,6 +212,7 @@ export const processRebelWarActions = ({
         };
         logs.push(`❗RAID_EVENT❗${JSON.stringify(raidData)}`);
     }
+    } // End of ENABLE_OLD_RAID_SYSTEM block
 
     // Rebel surrender demand - when rebels are winning
     const rebelWarAdvantage = -(next.warScore || 0);
@@ -320,6 +327,15 @@ export const processAIMilitaryAction = ({
     let raidPopulationLoss = 0;
     const next = nation;
     const res = resources;
+
+    // [DISABLED] Old AI raid system - replaced by frontline system
+    // The frontline system now handles all combat through strategic map battles
+    // AI raids are disabled to prevent conflicts with the new system
+    const ENABLE_OLD_AI_RAID_SYSTEM = false;
+    
+    if (!ENABLE_OLD_AI_RAID_SYSTEM) {
+        return { raidPopulationLoss: 0 };
+    }
 
     // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot take military actions
     if (next.isAnnexed || (next.population || 0) <= 0) {

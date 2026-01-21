@@ -267,6 +267,11 @@ import {
 } from './diplomacy';
 import { calculateOverseasInvestmentSummary, processOverseasInvestments, processForeignInvestments, processOverseasInvestmentUpgrades, processForeignInvestmentUpgrades } from './diplomacy/overseasInvestment';
 import { processManualTradeRoutes } from './economy/manualTrade';
+// Frontline system imports
+import {
+    processPlayerWarDaily,
+    processAIAIWarsDaily,
+} from './diplomacy/frontlineIntegration';
 
 export const simulateTick = ({
     resources,
@@ -4954,19 +4959,47 @@ export const simulateTick = ({
             next.warTotalExpense = (next.warTotalExpense || 0) + dailyExpenseShare;
 
             if (visibleEpoch >= 1 && shouldUpdateAI) {
-                // REFACTORED: Using module function for AI military action
-                const militaryResult = processAIMilitaryAction({
-                    nation: next,
-                    tick,
-                    epoch,
-                    resources: res,
-                    army,
-                    logs,
-                    difficultyLevel: difficulty,
-                    onTreasuryChange: trackSilverChange,
-                    onResourceChange: onResourceChangeCallback,
-                });
-                raidPopulationLoss += militaryResult.raidPopulationLoss;
+                // [DISABLED] Old AI raid system - replaced by frontline system
+                // The frontline system now handles all combat through strategic map battles
+                // const militaryResult = processAIMilitaryAction({
+                //     nation: next,
+                //     tick,
+                //     epoch,
+                //     resources: res,
+                //     army,
+                //     logs,
+                //     difficultyLevel: difficulty,
+                //     onTreasuryChange: trackSilverChange,
+                //     onResourceChange: onResourceChangeCallback,
+                //});
+                // raidPopulationLoss += militaryResult.raidPopulationLoss;
+
+                // [NEW] Frontline system - process player vs AI wars
+                try {
+                    const warResult = processPlayerWarDaily({
+                        playerId: 'player',
+                        playerState: { buildings, resources: res, army },
+                        enemyNation: next,
+                        gameState: { epoch, tick },
+                        tick,
+                        logs: [],
+                    });
+
+                    // Sync war score to nation object
+                    if (warResult.warScore !== undefined) {
+                        next.warScore = warResult.warScore;
+                    }
+
+                    // Log frontline events
+                    if (warResult.logs && warResult.logs.length > 0) {
+                        warResult.logs.forEach(log => {
+                            logs.push(`FRONTLINE_EVENT:${JSON.stringify(log)}`);
+                        });
+                    }
+                } catch (e) {
+                    // Frontline system is optional, fail silently
+                    console.warn('Frontline processing error:', e);
+                }
             }
             // REFACTORED: Using module function for AI peace request check
             // Pass global cooldown to prevent multiple nations from requesting peace simultaneously
