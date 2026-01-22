@@ -1211,6 +1211,10 @@ function GameApp({ gameState }) {
                                                 militaryBonus={gameState.modifiers?.militaryBonus}
                                                 // [FIX] Pass unified expense data (simulation preferred for consistency with StatusBar)
                                                 armyExpenseData={simulationMilitaryExpense || armyExpenseData}
+                                                // 战线兵团操作回调
+                                                onCreateCorps={actions.createCorps}
+                                                onDisbandCorps={actions.disbandCorps}
+                                                onIssueCorpsCommand={actions.issueCorpsCommand}
                                             />
                                         )}
 
@@ -1305,7 +1309,7 @@ function GameApp({ gameState }) {
 
                                                 // 内阁协同系统 props
                                                 classWealth={gameState.classWealth}
-activeDecrees={gameState.activeDecrees}
+                                                activeDecrees={gameState.activeDecrees}
                                                 decreeCooldowns={gameState.decreeCooldowns}
                                                 quotaTargets={gameState.quotaTargets}
                                                 expansionSettings={gameState.expansionSettings}

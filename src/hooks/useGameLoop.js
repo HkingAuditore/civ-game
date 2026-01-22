@@ -78,6 +78,7 @@ import {
 import { getTreatyDailyMaintenance, INDEPENDENCE_CONFIG } from '../config/diplomacy';
 import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
 import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
+import { deserializeFrontlineData } from '../logic/diplomacy/frontlineIntegration';
 import { LOYALTY_CONFIG } from '../config/officials';
 import { updateAllOfficialsDaily } from '../logic/officials/progression';
 
@@ -769,7 +770,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
     // 监听国家列表变化，自动清理无效的贸易路线和商人派驻（修复暂停状态下无法清理的问题）
     const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
-    
+
     useEffect(() => {
         if (!nations) return;
 
@@ -804,7 +805,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         if (merchantState?.merchantAssignments && typeof merchantState.merchantAssignments === 'object') {
             const assignments = merchantState.merchantAssignments;
             const currentKeys = Object.keys(assignments).sort().join(',');
-            
+
             if (currentKeys !== lastCleanupRef.current.merchantAssignmentsKeys) {
                 const validAssignments = {};
                 let hasInvalidAssignments = false;
@@ -820,17 +821,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (hasInvalidAssignments) {
                     // [FIX] If all assignments are invalid, clear merchantAssignments completely
                     // This allows the system to rebuild assignments from scratch
-                    const finalAssignments = Object.keys(validAssignments).length > 0 
-                        ? validAssignments 
+                    const finalAssignments = Object.keys(validAssignments).length > 0
+                        ? validAssignments
                         : {};
-                    
+
                     setMerchantState(prev => ({
                         ...prev,
                         merchantAssignments: finalAssignments
                     }));
                     lastCleanupRef.current.merchantAssignmentsKeys = Object.keys(finalAssignments).sort().join(',');
                     needsUpdate = true;
-                    
+
                     // Log cleanup action
                     if (Object.keys(validAssignments).length === 0) {
                         console.log('[商人系统] 已清空所有无效的商人派驻，系统将重新分配商人');
@@ -844,9 +845,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         // Clean up pending trades with destroyed nations
         if (merchantState?.pendingTrades && Array.isArray(merchantState.pendingTrades)) {
             const currentLength = merchantState.pendingTrades.length;
-            
+
             if (currentLength !== lastCleanupRef.current.pendingTradesLength) {
-                const validPendingTrades = merchantState.pendingTrades.filter(trade => 
+                const validPendingTrades = merchantState.pendingTrades.filter(trade =>
                     !trade.partnerId || validNationIds.has(trade.partnerId)
                 );
 
@@ -1144,6 +1145,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
 
                 // 以下是处理模拟结果的代码，包装在 then 回调中
+
+                // [NEW] 同步战线数据从 Worker 到主线程
+                if (result.frontlineData) {
+                    deserializeFrontlineData(result.frontlineData);
+                }
 
                 // 更新 Modifiers 状态供 UI 显示
                 setModifiers(result.modifiers || {});

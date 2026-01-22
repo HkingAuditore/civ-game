@@ -40,12 +40,14 @@ export const FrontlineBattleSection = ({
     );
 
     // 获取战争状态摘要
+    // 添加 nations 依赖以便 nations 更新时重新计算
     const warStatus = useMemo(() =>
         getWarStatusSummary(playerId),
-        [playerId]
+        [playerId, nations]
     );
 
     // 获取当前选中的战线
+    // 注意：添加 nations 作为依赖，当 simulation 更新 nations 时触发重新获取战线数据
     const currentFrontline = useMemo(() => {
         if (selectedWarId) {
             return frontlineManager.activeFrontlines.get(selectedWarId);
@@ -56,7 +58,7 @@ export const FrontlineBattleSection = ({
             return activeFrontlines[0];
         }
         return null;
-    }, [selectedWarId]);
+    }, [selectedWarId, nations]);
 
     // 计算总兵力
     const totalUnits = useMemo(() =>
@@ -172,10 +174,10 @@ export const FrontlineBattleSection = ({
                                 </span>
                             </div>
                             <span className={`text-sm font-bold ${(warringNations[0].warScore || 0) > 20
-                                    ? 'text-green-400'
-                                    : (warringNations[0].warScore || 0) < -20
-                                        ? 'text-red-400'
-                                        : 'text-gray-300'
+                                ? 'text-green-400'
+                                : (warringNations[0].warScore || 0) < -20
+                                    ? 'text-red-400'
+                                    : 'text-gray-300'
                                 }`}>
                                 战争分数: {warringNations[0].warScore || 0}
                             </span>
@@ -208,8 +210,8 @@ export const FrontlineBattleSection = ({
                 <button
                     onClick={() => setViewMode('map')}
                     className={`flex-1 py-2 rounded-lg border transition-all flex items-center justify-center gap-1.5 ${viewMode === 'map'
-                            ? 'bg-red-900/40 border-red-700/50 text-red-200'
-                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:text-gray-200'
+                        ? 'bg-red-900/40 border-red-700/50 text-red-200'
+                        : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:text-gray-200'
                         }`}
                 >
                     <Icon name="Map" size={14} />
@@ -218,8 +220,8 @@ export const FrontlineBattleSection = ({
                 <button
                     onClick={() => setViewMode('corps')}
                     className={`flex-1 py-2 rounded-lg border transition-all flex items-center justify-center gap-1.5 ${viewMode === 'corps'
-                            ? 'bg-blue-900/40 border-blue-700/50 text-blue-200'
-                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:text-gray-200'
+                        ? 'bg-blue-900/40 border-blue-700/50 text-blue-200'
+                        : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:text-gray-200'
                         }`}
                 >
                     <Icon name="Users" size={14} />

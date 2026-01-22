@@ -72,6 +72,13 @@ import { MINISTER_ROLES, MINISTER_LABELS } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
+import { frontlineManager } from '../logic/diplomacy/frontlineIntegration';
+import {
+    createCorpsFromArmy,
+    disbandCorps as disbandCorpsFromSystem,
+    issueDefendCommand,
+    issueRetreatCommand,
+} from '../logic/corpsSystem';
 
 
 /**
@@ -2892,7 +2899,7 @@ export const useGameActions = (gameState, addLog) => {
                     playerAdvantage,
                     targetNation.warDuration || 0,
                     targetNation.enemyLosses || 0,
-                    { 
+                    {
                         population: typeof getTotalPopulation === 'function' ? getTotalPopulation() : 1000,
                         epoch: epoch || 0
                     },
@@ -3411,7 +3418,7 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
 
                     addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
-                    
+
                     // Actually reduce diplomatic reputation
                     if (setDiplomaticReputation) {
                         const { newReputation } = calculateReputationChange(
@@ -3423,7 +3430,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                 }
                 addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
-                
+
                 // 主动宣战减少声誉（非违约宣战也会有轻微声誉损失）
                 if (!breachPenalty && setDiplomaticReputation) {
                     const { newReputation } = calculateReputationChange(
@@ -3433,7 +3440,7 @@ export const useGameActions = (gameState, addLog) => {
                     );
                     setDiplomaticReputation(newReputation);
                 }
-                
+
                 // 通知盟友参战
                 if (targetAllies.length > 0) {
                     const allyNames = targetAllies.map(a => a.name).join('、');
@@ -4781,34 +4788,34 @@ export const useGameActions = (gameState, addLog) => {
                         n.vassalOf !== 'player' &&     // Not player's vassal
                         n.id !== nationId              // Not the vassal we're calling to arms
                     );
-                    
+
                     if (playerEnemies.length === 0) {
                         alert(`当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
                         addLog(`⚠️ 当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
                         break;
                     }
-                    
+
                     // Check if vassal is already at war with all player's enemies (prevent duplicate call)
                     const vassalForeignWars = targetNation.foreignWars || {};
                     const newEnemiesToFight = playerEnemies.filter(enemy => !vassalForeignWars[enemy.id]?.isAtWar);
-                    
+
                     if (newEnemiesToFight.length === 0) {
                         alert(`${targetNation.name} 已经在与你的所有敌人交战中，无需重复征召！`);
                         addLog(`⚠️ ${targetNation.name} 已经在与你的所有敌人交战中。`);
                         break;
                     }
-                    
+
                     // Deduct cost only when there's actually something to do
                     setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
-                    
+
                     setNations(prev => prev.map(n => {
                         if (n.id === nationId) {
                             // Set Vassal to War against player's enemies
                             const newForeignWars = { ...(n.foreignWars || {}) };
                             newEnemiesToFight.forEach(enemy => {
-                                newForeignWars[enemy.id] = { 
-                                    isAtWar: true, 
-                                    warStartDay: daysElapsed, 
+                                newForeignWars[enemy.id] = {
+                                    isAtWar: true,
+                                    warStartDay: daysElapsed,
                                     warScore: 0,
                                     followingSuzerain: true,  // Mark as following suzerain's war
                                     suzerainTarget: 'player'
@@ -4830,7 +4837,7 @@ export const useGameActions = (gameState, addLog) => {
                         }
                         return n;
                     }));
-                    
+
                     const enemyNames = newEnemiesToFight.map(e => e.name).join('、');
                     alert(`征召成功！${targetNation.name} 将与 ${enemyNames} 交战，花费 ${result.cost} 银币。`);
                     addLog(`⚔️ ${targetNation.name} 同意参战，将与 ${enemyNames} 交战！花费 ${result.cost} 银币。`);
@@ -5883,8 +5890,125 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`Peace signed with ${targetNation.name}.`);
         }
     };
+
+    // ==================== 战线兵团操作 ====================
+
+    /**
+     * 创建兵团
+     * @param {string} warId - 战争ID
+     * @param {string} name - 兵团名称
+     * @param {Object} units - 分配给兵团的单位 { unitType: count }
+     * @param {Object} position - 起始位置 { x, y }
+     */
+    const createCorps = (warId, name, units, position) => {
+        const frontline = frontlineManager.activeFrontlines.get(warId);
+        if (!frontline) {
+            addLog('❌ 无法找到对应的战线地图');
+            return { success: false, error: '战线地图不存在' };
+        }
+
+        const result = createCorpsFromArmy(frontline, army, name, units, 'player');
+
+        if (result.success) {
+            // 从玩家军队中扣除分配的单位
+            setArmy(prev => {
+                const newArmy = { ...prev };
+                Object.entries(units).forEach(([unitType, count]) => {
+                    newArmy[unitType] = Math.max(0, (newArmy[unitType] || 0) - count);
+                    if (newArmy[unitType] <= 0) {
+                        delete newArmy[unitType];
+                    }
+                });
+                return newArmy;
+            });
+
+            // 设置兵团位置
+            if (result.corps && position) {
+                result.corps.position = position;
+            }
+
+            addLog(`⚔️ 兵团「${name}」已部署到战线`);
+        } else {
+            addLog(`❌ 兵团创建失败: ${result.error}`);
+        }
+
+        return result;
+    };
+
+    /**
+     * 解散兵团
+     * @param {string} corpsId - 兵团ID
+     */
+    const disbandCorps = (corpsId) => {
+        // 查找包含该兵团的战线
+        for (const [warId, frontline] of frontlineManager.activeFrontlines) {
+            const corps = frontline.corps.find(c => c.id === corpsId);
+            if (corps) {
+                const returnedUnits = disbandCorpsFromSystem(frontline, corpsId);
+
+                // 将单位返回到玩家军队
+                setArmy(prev => {
+                    const newArmy = { ...prev };
+                    Object.entries(returnedUnits).forEach(([unitType, count]) => {
+                        newArmy[unitType] = (newArmy[unitType] || 0) + count;
+                    });
+                    return newArmy;
+                });
+
+                addLog(`🏠 兵团「${corps.name}」已解散，${Object.values(returnedUnits).reduce((a, b) => a + b, 0)} 单位返回后备军`);
+                return { success: true, returnedUnits };
+            }
+        }
+
+        addLog('❌ 未找到指定兵团');
+        return { success: false, error: '兵团不存在' };
+    };
+
+    /**
+     * 向兵团下达命令
+     * @param {string} warId - 战争ID
+     * @param {string} corpsId - 兵团ID
+     * @param {string} command - 命令类型 ('defend' | 'retreat')
+     * @param {Object} target - 命令目标（可选）
+     */
+    const issueCorpsCommand = (warId, corpsId, command, target = null) => {
+        const frontline = frontlineManager.activeFrontlines.get(warId);
+        if (!frontline) {
+            addLog('❌ 无法找到对应的战线地图');
+            return { success: false, error: '战线地图不存在' };
+        }
+
+        const corps = frontline.corps.find(c => c.id === corpsId);
+        if (!corps) {
+            addLog('❌ 未找到指定兵团');
+            return { success: false, error: '兵团不存在' };
+        }
+
+        let result;
+        switch (command) {
+            case 'defend':
+                result = issueDefendCommand(corps);
+                if (result.success) {
+                    addLog(`🛡️ 兵团「${corps.name}」进入防守状态`);
+                }
+                break;
+            case 'retreat':
+                result = issueRetreatCommand(corps, frontline);
+                if (result.success) {
+                    addLog(`🏃 兵团「${corps.name}」开始撤退`);
+                }
+                break;
+            default:
+                result = { success: false, error: `未知命令: ${command}` };
+                addLog(`❌ 未知命令: ${command}`);
+        }
+
+        return result;
+    };
+
     // 返回所有操作函数
     return {
+
 
         // 时代
         canUpgradeEpoch,
@@ -5912,6 +6036,10 @@ export const useGameActions = (gameState, addLog) => {
         cancelTraining,
         cancelAllTraining,
         launchBattle,
+        // 战线兵团操作
+        createCorps,
+        disbandCorps,
+        issueCorpsCommand,
         // 外交
         handleDiplomaticAction,
         handleEnemyPeaceAccept,
