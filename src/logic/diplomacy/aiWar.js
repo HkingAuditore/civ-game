@@ -1169,7 +1169,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                     const allianceOrgs = diplomacyOrganizations?.organizations || [];
                     const isOtherNationPlayerAlly = areNationsAllied('player', otherNation.id, allianceOrgs);
                     const isNationPlayerAlly = areNationsAllied('player', nation.id, allianceOrgs);
-                    const playerAlliesInConflict = isOtherNationPlayerAlly && isNationPlayerAlly;
+                    // ✅ FIX: Check if both nations are player's allies OR if they are allies with each other
+                    const areTheyAllies = areNationsAllied(nation.id, otherNation.id, allianceOrgs);
+                    const playerAlliesInConflict = (isOtherNationPlayerAlly && isNationPlayerAlly) || areTheyAllies;
                     const currentPlayerWars = visibleNations.filter(n => n.isAtWar === true && !n.isRebelNation).length;
 
                     // Cooldown for ally aid requests (prevent spam) - tracked per ally
