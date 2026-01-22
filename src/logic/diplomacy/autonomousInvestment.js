@@ -307,7 +307,7 @@ export function processAIInvestment({
             let totalSlots = 0;
             let filledSlots = 0;
             Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
-                const totalRoleSlots = slotsPerBuilding * buildingCount;
+                const totalRoleSlots = slotsPerBuilding * playerBuildingCount;
                 totalSlots += totalRoleSlots;
                 filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
             });
