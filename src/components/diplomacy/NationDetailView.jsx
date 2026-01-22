@@ -10,6 +10,7 @@ import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/dipl
 import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } from '../../utils/foreignTrade';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 import { useLongPress } from '../../hooks/useLongPress';
+import { getNationOrganizations, ORGANIZATION_TYPE_CONFIGS } from '../../logic/diplomacy/organizationDiplomacy';
 
 const formatStat = (val) => {
     const numberValue = Number(val || 0);
@@ -56,6 +57,7 @@ const NationDetailView = ({
     gameState,
     taxPolicies,
     popStructure,
+    nations = [],  // For AI-AI war lookup
 }) => {
     const [activeTab, setActiveTab] = useState('overview');
 
@@ -181,7 +183,13 @@ const NationDetailView = ({
                             taxPolicies={taxPolicies}
                         />
 
-                        <ActiveWars nation={nation} gameState={gameState} daysElapsed={daysElapsed} />
+                        <ActiveWars nation={nation} gameState={gameState} daysElapsed={daysElapsed} nations={nations} />
+
+                        <InternationalOrganizations 
+                            nation={nation} 
+                            diplomacyOrganizations={diplomacyOrganizations}
+                            gameState={gameState}
+                        />
 
                         <ActiveTreaties nation={nation} daysElapsed={daysElapsed} />
                     </div>
@@ -862,19 +870,7 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
                     <Icon name="Crown" size={24} />
                     附庸国管理
                 </h3>
-                <div className="grid grid-cols-2 gap-8 mb-6">
-                    <div className="relative">
-                        <div className="text-xs text-purple-400/60 uppercase tracking-wider mb-1">自治度</div>
-                        <div className="text-3xl font-mono text-purple-100 font-bold">
-                            {Math.round(nation.autonomy || 0)}%
-                        </div>
-                        <div className="absolute bottom-0 left-0 w-full h-1 bg-purple-900/50 rounded-full mt-2 overflow-hidden">
-                            <div
-                                className="h-full bg-purple-500"
-                                style={{ width: `${nation.autonomy || 0}%` }}
-                            />
-                        </div>
-                    </div>
+                <div className="grid grid-cols-1 gap-8 mb-6">
                     <div className="relative">
                         <div className="text-xs text-purple-400/60 uppercase tracking-wider mb-1">独立倾向</div>
                         <div
@@ -1022,6 +1018,109 @@ const ActiveTreaties = ({ nation, daysElapsed }) => {
     );
 };
 
+/**
+ * Component to display international organizations that this nation belongs to
+ */
+const InternationalOrganizations = ({ nation, diplomacyOrganizations, gameState }) => {
+    const organizations = diplomacyOrganizations?.organizations || [];
+    
+    // Get organizations this nation is a member of
+    const nationOrgs = useMemo(() => {
+        if (!nation?.id) return [];
+        return getNationOrganizations(nation.id, organizations);
+    }, [nation?.id, organizations]);
+
+    // Get player's nation ID
+    const playerNationId = useMemo(() => {
+        return 'player'; // Player is always 'player' or 0
+    }, []);
+
+    // Get organizations player is a member of
+    const playerOrgs = useMemo(() => {
+        return getNationOrganizations(playerNationId, organizations);
+    }, [playerNationId, organizations]);
+
+    // Check which organizations both player and this nation are in
+    const sharedOrgs = useMemo(() => {
+        return nationOrgs.filter(org => 
+            playerOrgs.some(playerOrg => playerOrg.id === org.id)
+        );
+    }, [nationOrgs, playerOrgs]);
+
+    if (nationOrgs.length === 0) return null;
+
+    const getOrgTypeIcon = (type) => {
+        const icons = {
+            'military_alliance': 'Shield',
+            'economic_bloc': 'Landmark',
+            'trade_zone': 'Ship',
+        };
+        return icons[type] || 'Users';
+    };
+
+    const getOrgTypeColor = (type) => {
+        const colors = {
+            'military_alliance': 'text-red-400 border-red-800 bg-red-900/20',
+            'economic_bloc': 'text-amber-400 border-amber-800 bg-amber-900/20',
+            'trade_zone': 'text-blue-400 border-blue-800 bg-blue-900/20',
+        };
+        return colors[type] || 'text-gray-400 border-gray-800 bg-gray-900/20';
+    };
+
+    const getOrgTypeName = (type) => {
+        const config = ORGANIZATION_TYPE_CONFIGS[type];
+        return config?.name || type;
+    };
+
+    return (
+        <Card className="p-4 bg-ancient-ink/30 border-ancient-gold/10">
+            <h3 className="text-xs font-bold text-ancient-gold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-80">
+                <Icon name="Landmark" size={14} />
+                国际组织
+            </h3>
+            <div className="space-y-2">
+                {nationOrgs.map((org) => {
+                    const isShared = sharedOrgs.some(sharedOrg => sharedOrg.id === org.id);
+                    const orgColor = getOrgTypeColor(org.type);
+                    
+                    return (
+                        <div
+                            key={org.id}
+                            className={`flex justify-between items-center p-2.5 rounded border transition-colors ${
+                                isShared 
+                                    ? 'bg-green-900/20 border-green-700/40 hover:border-green-500/50' 
+                                    : 'bg-black/20 border-white/5 hover:border-ancient-gold/20'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 flex-1">
+                                <div className={`p-1.5 rounded ${orgColor}`}>
+                                    <Icon name={getOrgTypeIcon(org.type)} size={14} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-sm text-ancient-parchment font-medium">
+                                        {org.name}
+                                    </div>
+                                    <div className="text-[10px] text-ancient-stone/70 flex items-center gap-2">
+                                        <span>{getOrgTypeName(org.type)}</span>
+                                        <span>•</span>
+                                        <span>{org.members?.length || 0} 成员</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {isShared && (
+                                <Badge variant="success" className="text-[9px] scale-90 flex items-center gap-1">
+                                    <Icon name="Check" size={10} />
+                                    我方也在
+                                </Badge>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </Card>
+    );
+};
+
 const treatyTypeToLabel = (type) => {
     const map = {
         non_aggression: '互不侵犯条约',
@@ -1141,7 +1240,7 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
     );
 };
 
-const ActiveWars = ({ nation, gameState, daysElapsed }) => {
+const ActiveWars = ({ nation, gameState, daysElapsed, nations = [] }) => {
     // Collect all active wars
     const activeWars = useMemo(() => {
         const wars = [];
@@ -1157,11 +1256,12 @@ const ActiveWars = ({ nation, gameState, daysElapsed }) => {
             });
         }
 
-        // 2. Wars with other AI nations
+        // 2. Wars with other AI nations (use nations array instead of gameState.foreignNations)
         if (nation.foreignWars) {
             Object.entries(nation.foreignWars).forEach(([enemyId, warData]) => {
                 if (warData && warData.isAtWar) {
-                    const enemy = gameState?.foreignNations?.find(n => n.id === enemyId);
+                    // Look up enemy in nations array
+                    const enemy = nations.find(n => n.id === enemyId);
                     // Safety check: Don't show wars with nations that are annexed or invisible
                     if (!enemy || enemy.isAnnexed || enemy.visible === false) return;
                     if (enemy) {
@@ -1170,6 +1270,7 @@ const ActiveWars = ({ nation, gameState, daysElapsed }) => {
                             name: enemy.name,
                             isPlayer: false,
                             startDate: warData.warStartDay || 0,
+                            score: warData.warScore || 0,
                         });
                     }
                 }
@@ -1177,7 +1278,7 @@ const ActiveWars = ({ nation, gameState, daysElapsed }) => {
         }
 
         return wars;
-    }, [nation, gameState]);
+    }, [nation, gameState, nations]);
 
     if (activeWars.length === 0) return null;
 

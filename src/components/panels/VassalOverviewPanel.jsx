@@ -83,8 +83,8 @@ export const VassalOverviewPanel = memo(({
                         <div className="text-lg font-bold text-purple-200">{summary.count}</div>
                     </div>
                     <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-700/40">
-                        <div className="text-[10px] text-amber-400 mb-1">月朝贡</div>
-                        <div className="text-lg font-bold text-amber-200">{formatNumberShortCN(summary.totalTribute)}</div>
+                        <div className="text-[10px] text-amber-400 mb-1">日朝贡</div>
+                        <div className="text-lg font-bold text-amber-200">{formatNumberShortCN(summary.totalTribute / 30)}</div>
                     </div>
                     <div className={`rounded-lg p-3 border ${summary.atRiskCount > 0 ? 'bg-red-900/30 border-red-700/40' : 'bg-gray-800/50 border-gray-700/40'}`}>
                         <div className="text-[10px] text-gray-400 mb-1">独立风险</div>
@@ -150,11 +150,7 @@ export const VassalOverviewPanel = memo(({
                                             </div>
 
                                             {/* 详细指标 */}
-                                            <div className="grid grid-cols-3 gap-2 text-[11px]">
-                                                <div>
-                                                    <span className="text-gray-400">自主度:</span>
-                                                    <span className="text-white ml-1">{Math.round(vassal.autonomy || 0)}%</span>
-                                                </div>
+                                            <div className="grid grid-cols-2 gap-2 text-[11px]">
                                                 <div>
                                                     <span className="text-gray-400">朝贡率:</span>
                                                     <span className="text-white ml-1">{Math.round((vassal.tributeRate || 0) * 100)}%</span>

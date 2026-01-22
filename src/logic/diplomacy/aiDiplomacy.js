@@ -1188,11 +1188,8 @@ export const makeAIInvestmentDecision = ({
 
     // 获取该国已有的投资数量
     const existingInvestments = overseasInvestments.filter(inv => inv.targetNationId === nation.id);
-    const vassalConfig = nation.vassalConfig || {};
-    const autonomy = vassalConfig.autonomy || 50;
-
-    // 高自主度的附庸不太愿意接受更多投资
-    const maxInvestments = autonomy >= 70 ? 2 : autonomy >= 50 ? 3 : 5;
+    const governancePolicy = nation.vassalPolicy?.governance || 'autonomous';
+    const maxInvestments = governancePolicy === 'direct_rule' ? 5 : governancePolicy === 'puppet_govt' ? 3 : 2;
     if (existingInvestments.length >= maxInvestments) return null;
 
     // 评估投资价值的因素
@@ -1255,7 +1252,7 @@ export const makeAIInvestmentDecision = ({
     }
 
     // 计算投资评分
-    investmentScore.value = bestStratum.wealth * 0.1 + (100 - autonomy) * 0.5;
+    investmentScore.value = bestStratum.wealth * 0.1;
     investmentScore.stratum = bestStratum.stratum;
     investmentScore.buildingId = selectedBuilding;
     investmentScore.mode = operatingMode;

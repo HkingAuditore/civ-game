@@ -536,10 +536,11 @@ export const getOfficialInfluencePoints = (officials, isPaid = true, context = {
 
         if (points <= 0) return;
         
-        // 1. 加给出身阶层（娘家）
+        // 官员影响力加成：
+        // 1. 给出身阶层加 100% 的影响力点数
         pointsMap[stratum] = (pointsMap[stratum] || 0) + points;
 
-        // 2. [NEW] 同时也加给官员阶层（代表官僚集团整体力量）
+        // 2. 同时给官员阶层加 25% 的影响力点数（基于官员自身的影响力）
         // 如果出身本身就是 official，则不重复加（上面已经加过了）
         if (stratum !== 'official') {
             pointsMap['official'] = (pointsMap['official'] || 0) + points * 0.25;

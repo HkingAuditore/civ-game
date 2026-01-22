@@ -4,6 +4,7 @@ import { Card, Button } from '../common/UnifiedUI';
 import { RESOURCES } from '../../config';
 import { isDiplomacyUnlocked } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { getReputationTierInfo } from '../../config/reputationSystem';
 import { CreateOrganizationModal } from '../modals/CreateOrganizationModal';
 import { BottomSheet } from '../tabs/BottomSheet';
 
@@ -121,11 +122,13 @@ const DiplomacyDashboard = ({
                 />
                 <DashboardCard
                     title="外交声誉"
-                    value={Math.round(gameState?.diplomaticReputation || 50)}
+                    value={Math.round(gameState?.diplomaticReputation ?? 50)}
+                    subValue={getReputationTierInfo(gameState?.diplomaticReputation ?? 50).label}
                     icon="Award"
-                    color="text-blue-400"
+                    color={getReputationTierInfo(gameState?.diplomaticReputation ?? 50).color}
                     borderColor="border-blue-500/30"
                     bg="bg-blue-900/10"
+                    tooltip="声誉影响附庸国满意度上限、外交关系和贸易条件"
                 />
                 <DashboardCard
                     title="海外收益"

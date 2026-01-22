@@ -22,6 +22,7 @@ import {
     getGovernmentType, // Determine current polity
 } from './rulingCoalition';
 import { getPolityEffects } from '../config/polityEffects';
+import { calculateNaturalRecovery } from '../config/reputationSystem';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
@@ -243,6 +244,9 @@ import {
     processAIOrganizationInvitesToPlayer,
     checkAIBreakAlliance,
     processNationRelationDecay,
+    processVassalUpdates,
+    initializeNationEconomyData,
+    updateNationEconomyData,
     // AI Economy functions
     updateAINationInventory,
     initializeAIDevelopmentBaseline,
@@ -331,6 +335,7 @@ export const simulateTick = ({
     tradeRoutes = {}, // [NEW] Trade routes for manual trade processing
     foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
+    diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -661,6 +666,17 @@ export const simulateTick = ({
                     Object.entries(changes).forEach(([resKey, amount]) => {
                         nation.inventory[resKey] = Math.max(0, (nation.inventory[resKey] || 0) + amount);
                     });
+                }
+            });
+        }
+
+        // [NEW] 将投资效果传递到附庸国对象，用于动态阶层经济计算
+        if (oiResult.nationInvestmentEffects) {
+            Object.entries(oiResult.nationInvestmentEffects).forEach(([nationId, effects]) => {
+                const nation = nations.find(n => n.id === nationId);
+                if (nation) {
+                    // 存储投资效果供 updateSocialClasses 使用
+                    nation._investmentEffects = effects;
                 }
             });
         }
@@ -1727,19 +1743,19 @@ export const simulateTick = ({
         const due = count * effectivePerCapitaTax;
         
         // [DEBUG] 人头税征收调试日志
-        if (Math.abs(headRate) > 5) { // 只在税率异常高时输出
-            console.log(`[HEAD TAX DEBUG] ${key}:`, {
-                人口: count,
-                财富总额: available.toFixed(2),
-                人均财富: maxPerCapitaTax.toFixed(2),
-                税率倍数: headRate.toFixed(2),
-                计划人均税额: plannedPerCapitaTax.toFixed(2),
-                实际人均税额: effectivePerCapitaTax.toFixed(2),
-                应缴总额: due.toFixed(2),
-                实际支付: Math.min(available, due).toFixed(2),
-                是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '是' : '否'
-            });
-        }
+        // if (Math.abs(headRate) > 5) { // 只在税率异常高时输出
+        //     console.log(`[HEAD TAX DEBUG] ${key}:`, {
+        //         人口: count,
+        //         财富总额: available.toFixed(2),
+        //         人均财富: maxPerCapitaTax.toFixed(2),
+        //         税率倍数: headRate.toFixed(2),
+        //         计划人均税额: plannedPerCapitaTax.toFixed(2),
+        //         实际人均税额: effectivePerCapitaTax.toFixed(2),
+        //         应缴总额: due.toFixed(2),
+        //         实际支付: Math.min(available, due).toFixed(2),
+        //         是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '是' : '否'
+        //     });
+        // }
         
         if (due !== 0) {
             if (due > 0) {
@@ -2984,7 +3000,7 @@ export const simulateTick = ({
 
     if (totalArmyCost > 0) {
         // [DEBUG] Military Log Trace
-        console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
+        // console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
         const available = res.silver || 0;
         if (available >= totalArmyCost) {
             // [FIX] Use Ledger for correct wealth transfer (State -> Soldier)
@@ -3512,24 +3528,24 @@ export const simulateTick = ({
     };
 
     // [NEW DEBUG] 详细输出传入的参数
-    console.log('[FREE MARKET SIMULATION DEBUG]', {
-        dominanceCheck: {
-            hasDominance: !!cabinetStatus?.dominance,
-            faction: cabinetStatus?.dominance?.faction,
-            isRightWing: cabinetStatus?.dominance?.faction === 'right',
-        },
-        expansionCheck: {
-            hasSettings: !!expansionSettings,
-            settingsCount: expansionSettings ? Object.keys(expansionSettings).length : 0,
-            allowedBuildings: expansionSettings
-                ? Object.entries(expansionSettings).filter(([k, v]) => v?.allowed).map(([k]) => k)
-                : [],
-        },
-        willCallProcessExpansions:
-            !!cabinetStatus?.dominance &&
-            cabinetStatus.dominance.faction === 'right' &&
-            !!expansionSettings,
-    });
+    // console.log('[FREE MARKET SIMULATION DEBUG]', {
+    //     dominanceCheck: {
+    //         hasDominance: !!cabinetStatus?.dominance,
+    //         faction: cabinetStatus?.dominance?.faction,
+    //         isRightWing: cabinetStatus?.dominance?.faction === 'right',
+    //     },
+    //     expansionCheck: {
+    //         hasSettings: !!expansionSettings,
+    //         settingsCount: expansionSettings ? Object.keys(expansionSettings).length : 0,
+    //         allowedBuildings: expansionSettings
+    //             ? Object.entries(expansionSettings).filter(([k, v]) => v?.allowed).map(([k]) => k)
+    //             : [],
+    //     },
+    //     willCallProcessExpansions:
+    //         !!cabinetStatus?.dominance &&
+    //         cabinetStatus.dominance.faction === 'right' &&
+    //         !!expansionSettings,
+    // });
 
     if (cabinetStatus.dominance?.faction === 'right' && expansionSettings) {
         // 构造 market 对象，包含 prices 和 wages 用于利润计算
@@ -3607,13 +3623,13 @@ export const simulateTick = ({
             currentWealth += normalizedOfficial.salary;
             totalOfficialIncome += normalizedOfficial.salary;
             totalOfficialLaborIncome += normalizedOfficial.salary; // Add to labor income
-            console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
+            // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
             // 记录俸禄到财务数据
             if (classFinancialData.official) {
                 classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + normalizedOfficial.salary;
             }
         } else {
-            console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: NO SALARY! officialsPaid=${officialsPaid}, salary=${normalizedOfficial.salary}, wealth=${currentWealth}`);
+            // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: NO SALARY! officialsPaid=${officialsPaid}, salary=${normalizedOfficial.salary}, wealth=${currentWealth}`);
         }
 
         // 支出：官员独立购买商品，更新市场供需与税收
@@ -5258,6 +5274,67 @@ export const simulateTick = ({
         }
     }
 
+    // ========================================================================
+    // VASSAL SYSTEM DAILY UPDATE
+    // Ensure vassal social structure updates and apply independence/tribute logic
+    // ========================================================================
+    const vassalMarketPrices = market?.prices || {};
+    const playerAtWar = updatedNations.some(n => n.isAtWar && n.warTarget === 'player');
+    const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
+    
+    // 构建满意度上限计算所需的上下文
+    const satisfactionContext = {
+        suzereainWealth: res.silver || 10000,
+        suzereainPopulation: population || 1000000,
+        suzereainMilitary: playerMilitary,
+        suzereainAtWar: playerAtWar,
+        suzereainReputation: diplomaticReputation ?? 50, // Use actual reputation value
+        hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势力
+    };
+    
+    updatedNations = updatedNations.map(nation => {
+        if (nation.vassalOf !== 'player') return nation;
+        const initialized = initializeNationEconomyData({ ...nation }, vassalMarketPrices);
+        return updateNationEconomyData(initialized, vassalMarketPrices, satisfactionContext);
+    });
+
+    const vassalResult = processVassalUpdates({
+        nations: updatedNations,
+        daysElapsed: tick,
+        epoch,
+        playerMilitary: Math.max(0.5, playerMilitary),
+        playerStability: stabilityValue,
+        playerAtWar,
+        playerWealth: res.silver || 0,
+        playerPopulation: population || 1000000,
+        officials,
+        difficultyLevel: difficulty,
+        logs,
+    });
+    updatedNations = vassalResult.nations;
+
+    if (vassalResult.tributeIncome > 0) {
+        applySilverChange(vassalResult.tributeIncome, 'vassal_tribute_income');
+    }
+    if (vassalResult.resourceTribute && Object.keys(vassalResult.resourceTribute).length > 0) {
+        Object.entries(vassalResult.resourceTribute).forEach(([resourceKey, amount]) => {
+            if (amount > 0) {
+                applyResourceChange(resourceKey, amount, 'vassal_tribute_cash');
+            }
+        });
+    }
+    if (vassalResult.totalControlCost > 0) {
+        applySilverChange(-vassalResult.totalControlCost, 'vassal_control_cost');
+    }
+
+    if (vassalResult.vassalEvents && vassalResult.vassalEvents.length > 0) {
+        vassalResult.vassalEvents.forEach(event => {
+            if (event.type === 'independence_war') {
+                logs.push(`VASSAL_INDEPENDENCE_WAR:${JSON.stringify(event)}`);
+            }
+        });
+    }
+
     // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
         epoch >= (n.appearEpoch ?? 0)
@@ -6715,14 +6792,14 @@ export const simulateTick = ({
     const taxBaseForCorruption = taxBreakdown.headTax + taxBreakdown.industryTax + taxBreakdown.businessTax + (taxBreakdown.tariff || 0);
     const efficiencyNoCorruption = Math.max(0, Math.min(1, efficiency * (1 + (bonuses.taxEfficiencyBonus || 0))));
 
-    console.log('[TAX DEBUG] Efficiency Calc (no post-deduction):', {
-        efficiency,
-        bonuses: bonuses.taxEfficiencyBonus,
-        rawTaxEfficiency,
-        effectiveTaxEfficiency,
-        taxBase: taxBaseForCorruption,
-        officialsCount: updatedOfficials.length
-    });
+    // console.log('[TAX DEBUG] Efficiency Calc (no post-deduction):', {
+    //     efficiency,
+    //     bonuses: bonuses.taxEfficiencyBonus,
+    //     rawTaxEfficiency,
+    //     effectiveTaxEfficiency,
+    //     taxBase: taxBaseForCorruption,
+    //     officialsCount: updatedOfficials.length
+    // });
 
     // 腐败分配逻辑：将部分税收收入视为被贪污挪走（真实从国库扣除），并按权重分配给官员财富。
     const corruptionLoss = Math.max(0, taxBaseForCorruption * (efficiencyNoCorruption - effectiveTaxEfficiency));
@@ -6778,26 +6855,26 @@ export const simulateTick = ({
     const incomePercentMultiplier = Math.max(0, 1 + clampedIncomePercentBonus);
 
     // [DEBUG] 税收汇总调试 - 增强版
-    if (Math.abs(rawIncomePercentBonus) > 0.01 || incomePercentMultiplier > 1.5) {
-        console.log('[TAX INCOME BONUS DEBUG]', {
-            'tick': tick,
-            'rawIncomePercentBonus': rawIncomePercentBonus.toFixed(4),
-            'clampedIncomePercentBonus': clampedIncomePercentBonus.toFixed(4),
-            'incomePercentMultiplier': incomePercentMultiplier.toFixed(4),
-            'bonuses.incomePercentBonus': (bonuses.incomePercentBonus || 0).toFixed(4),
-            'taxBreakdown.headTax': taxBreakdown.headTax.toFixed(2),
-            'taxBreakdown.industryTax': taxBreakdown.industryTax.toFixed(2),
-            'taxBreakdown.businessTax': taxBreakdown.businessTax.toFixed(2),
-        });
-    }
+    // if (Math.abs(rawIncomePercentBonus) > 0.01 || incomePercentMultiplier > 1.5) {
+    //     console.log('[TAX INCOME BONUS DEBUG]', {
+    //         'tick': tick,
+    //         'rawIncomePercentBonus': rawIncomePercentBonus.toFixed(4),
+    //         'clampedIncomePercentBonus': clampedIncomePercentBonus.toFixed(4),
+    //         'incomePercentMultiplier': incomePercentMultiplier.toFixed(4),
+    //         'bonuses.incomePercentBonus': (bonuses.incomePercentBonus || 0).toFixed(4),
+    //         'taxBreakdown.headTax': taxBreakdown.headTax.toFixed(2),
+    //         'taxBreakdown.industryTax': taxBreakdown.industryTax.toFixed(2),
+    //         'taxBreakdown.businessTax': taxBreakdown.businessTax.toFixed(2),
+    //     });
+    // }
     
-    console.log('[TAX SUMMARY DEBUG]', {
-        'taxBreakdown.headTax（实际入库）': taxBreakdown.headTax.toFixed(2),
-        '税收效率': effectiveTaxEfficiency.toFixed(3),
-        'collectedHeadTax（实际入库）': collectedHeadTax.toFixed(2),
-        '收入倍率': incomePercentMultiplier.toFixed(3),
-        'finalHeadTax（最终显示）': (collectedHeadTax * incomePercentMultiplier).toFixed(2)
-    });
+    // console.log('[TAX SUMMARY DEBUG]', {
+    //     'taxBreakdown.headTax（实际入库）': taxBreakdown.headTax.toFixed(2),
+    //     '税收效率': effectiveTaxEfficiency.toFixed(3),
+    //     'collectedHeadTax（实际入库）': collectedHeadTax.toFixed(2),
+    //     '收入倍率': incomePercentMultiplier.toFixed(3),
+    //     'finalHeadTax（最终显示）': (collectedHeadTax * incomePercentMultiplier).toFixed(2)
+    // });
 
     // 将税收与战争赔款一并视为财政收入
     const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
@@ -7032,6 +7109,9 @@ export const simulateTick = ({
         });
     }
 
+    // Calculate diplomatic reputation natural recovery (daily)
+    const updatedDiplomaticReputation = calculateNaturalRecovery(diplomaticReputation);
+
     return {
         tradeOpportunities,
         tradeRoutes: tradeRoutes ? { ...tradeRoutes, routes: tradeRoutes.routes.filter(r => !tradeRouteSummary?.routesToRemove?.includes(r)) } : undefined,
@@ -7169,6 +7249,7 @@ export const simulateTick = ({
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
+        diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
         // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
         _debug: {
             freeMarket: _freeMarketDebug,

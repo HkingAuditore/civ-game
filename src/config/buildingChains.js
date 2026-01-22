@@ -72,7 +72,7 @@ export const BUILDING_CHAINS = {
         buildings: ['sawmill', 'lumber_mill'],
     },
 
-    // 砖块生产链：砖窯 → 建材厂 → 预制构件厂
+    // 砖块生产链：砖窑 → 建材厂 → 预制构件厂
     brick_production: {
         name: '砖块生产',
         icon: 'Building2',

@@ -18,11 +18,101 @@ const AUTOSAVE_KEY = 'civ_game_autosave_v1';
 const SAVE_FORMAT_VERSION = 1;
 const SAVE_FILE_EXTENSION = 'cgsave';
 const SAVE_OBFUSCATION_KEY = 'civ_game_simple_mask_v1';
+// Lower soft limit to prefer IndexedDB earlier (localStorage quota issues)
+const LOCAL_STORAGE_SOFT_LIMIT = 1 * 1024 * 1024;
+const EXTERNAL_SAVE_FLAG = '__externalSave';
+const EXTERNAL_SAVE_STORAGE = 'indexeddb';
+const SAVE_IDB_NAME = 'civ_game_save_db_v1';
+const SAVE_IDB_STORE = 'saves';
 
 // 兼容旧存档的 key（用于迁移）
 const LEGACY_SAVE_KEY = 'civ_game_save_data_v1';
 const ACHIEVEMENT_STORAGE_KEY = 'civ_game_achievements_v1';
 const ACHIEVEMENT_PROGRESS_KEY = 'civ_game_achievement_progress_v1';
+
+const hasIndexedDb = () => typeof indexedDB !== 'undefined';
+
+const openSaveDb = () => new Promise((resolve, reject) => {
+    if (!hasIndexedDb()) {
+        reject(new Error('IndexedDB not available'));
+        return;
+    }
+    const request = indexedDB.open(SAVE_IDB_NAME, 1);
+    request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(SAVE_IDB_STORE)) {
+            db.createObjectStore(SAVE_IDB_STORE);
+        }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('Failed to open IndexedDB'));
+});
+
+const readSaveFromIndexedDb = async (key) => {
+    const db = await openSaveDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(SAVE_IDB_STORE, 'readonly');
+        const store = tx.objectStore(SAVE_IDB_STORE);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error || new Error('Failed to read save'));
+    });
+};
+
+const writeSaveToIndexedDb = async (key, value) => {
+    const db = await openSaveDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(SAVE_IDB_STORE, 'readwrite');
+        const store = tx.objectStore(SAVE_IDB_STORE);
+        const request = store.put(value, key);
+        request.onsuccess = () => resolve(true);
+        request.onerror = () => reject(request.error || new Error('Failed to write save'));
+    });
+};
+
+const removeSaveFromIndexedDb = async (key) => {
+    const db = await openSaveDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(SAVE_IDB_STORE, 'readwrite');
+        const store = tx.objectStore(SAVE_IDB_STORE);
+        const request = store.delete(key);
+        request.onsuccess = () => resolve(true);
+        request.onerror = () => reject(request.error || new Error('Failed to delete save'));
+    });
+};
+
+const buildExternalSaveStub = (payload, { storage = EXTERNAL_SAVE_STORAGE, sizeBytes = 0 } = {}) => ({
+    [EXTERNAL_SAVE_FLAG]: true,
+    storage,
+    sizeBytes,
+    updatedAt: payload.updatedAt,
+    saveSource: payload.saveSource,
+    difficulty: payload.difficulty,
+    empireName: payload.empireName,
+    daysElapsed: payload.daysElapsed,
+    epoch: payload.epoch,
+    population: payload.population,
+});
+
+const isExternalSaveStub = (data) => !!(data && data[EXTERNAL_SAVE_FLAG]);
+
+// Helper function to calculate save size
+const calculateSaveSize = (data) => {
+    try {
+        const jsonString = JSON.stringify(data);
+        const sizeInBytes = new Blob([jsonString]).size;
+        const sizeInKB = (sizeInBytes / 1024).toFixed(1);
+        const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2);
+        return {
+            bytes: sizeInBytes,
+            kb: sizeInKB,
+            mb: sizeInMB,
+            display: sizeInBytes > 1024 * 1024 ? `${sizeInMB}MB` : `${sizeInKB}KB`
+        };
+    } catch (e) {
+        return { bytes: 0, kb: '0', mb: '0', display: '0KB' };
+    }
+};
 
 const loadAchievementsFromStorage = () => {
     if (typeof window === 'undefined') return [];
@@ -112,6 +202,48 @@ export const getAllSaveSlots = () => {
     }
 
     return slots;
+};
+
+/**
+ * 删除指定的存档槽位（独立函数，可在组件外调用）
+ * @param {number} slotIndex - 存档槽位索引（0-2为手动存档，-1为自动存档）
+ * @returns {boolean} 是否删除成功
+ */
+export const deleteSaveSlot = (slotIndex) => {
+    if (typeof window === 'undefined') return false;
+
+    try {
+        let targetKey;
+
+        if (slotIndex === -1) {
+            // 删除自动存档
+            targetKey = AUTOSAVE_KEY;
+        } else {
+            // 删除手动存档槽位
+            const safeIndex = Math.max(0, Math.min(SAVE_SLOT_COUNT - 1, slotIndex));
+            targetKey = `${SAVE_SLOT_PREFIX}${safeIndex}`;
+        }
+
+        const rawData = localStorage.getItem(targetKey);
+        if (!rawData) {
+            return false;
+        }
+
+        try {
+            const parsed = JSON.parse(rawData);
+            if (isExternalSaveStub(parsed)) {
+                void removeSaveFromIndexedDb(targetKey);
+            }
+        } catch (parseError) {
+            // Ignore malformed save metadata
+        }
+
+        localStorage.removeItem(targetKey);
+        return true;
+    } catch (error) {
+        console.error('Delete save slot failed:', error);
+        return false;
+    }
 };
 
 const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
@@ -270,6 +402,7 @@ const AUTO_SAVE_LIMITS = {
     eventHistory: HISTORY_STORAGE_LIMIT,
     classSeries: HISTORY_STORAGE_LIMIT,
     marketHistory: HISTORY_STORAGE_LIMIT,
+    logs: LOG_STORAGE_LIMIT,
 };
 
 // Aggressive limits are half of normal limits, minimum 5
@@ -279,9 +412,11 @@ const AUTO_SAVE_AGGRESSIVE_LIMITS = {
     eventHistory: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
     classSeries: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
     marketHistory: Math.max(5, Math.floor(HISTORY_STORAGE_LIMIT / 3)),
+    logs: Math.max(10, Math.floor(LOG_STORAGE_LIMIT / 2)),
 };
 
 const trimArray = (value, limit) => (Array.isArray(value) ? value.slice(-limit) : value);
+const trimRecentLogs = (logs, limit) => (Array.isArray(logs) ? logs.slice(0, limit) : logs);
 
 const trimClassSeriesMap = (seriesMap, limit) => {
     if (!seriesMap || typeof seriesMap !== 'object') {
@@ -363,6 +498,58 @@ const trimMarketSnapshot = (market, limit) => {
 
 const compactSavePayload = (payload, { aggressive = false } = {}) => {
     const limits = aggressive ? AUTO_SAVE_AGGRESSIVE_LIMITS : AUTO_SAVE_LIMITS;
+    
+    // Compact nations array (remove history and unnecessary data from vassals)
+    const compactNations = (nations) => {
+        if (!Array.isArray(nations)) return nations;
+        return nations.map(nation => {
+            const compacted = { ...nation };
+            const historyLimit = nation.isPlayer ? limits.history : Math.floor(limits.history / 2);
+            const classSeriesLimit = nation.isPlayer ? limits.classSeries : Math.floor(limits.classSeries / 2);
+            const eventLimit = nation.isPlayer ? limits.eventHistory : Math.floor(limits.eventHistory / 2);
+            const logLimit = nation.isPlayer ? Math.min(limits.logs, 20) : Math.min(limits.logs, 10);
+
+            if (aggressive) {
+                delete compacted.history;
+                delete compacted.classWealthHistory;
+                delete compacted.classNeedsHistory;
+                compacted.eventHistory = [];
+                compacted.logs = [];
+            } else {
+                if (compacted.history) {
+                    compacted.history = trimHistorySnapshot(compacted.history, historyLimit);
+                }
+                if (compacted.classWealthHistory) {
+                    compacted.classWealthHistory = trimClassSeriesMap(compacted.classWealthHistory, classSeriesLimit);
+                }
+                if (compacted.classNeedsHistory) {
+                    compacted.classNeedsHistory = trimClassSeriesMap(compacted.classNeedsHistory, classSeriesLimit);
+                }
+                if (compacted.eventHistory) {
+                    compacted.eventHistory = trimArray(compacted.eventHistory, eventLimit);
+                }
+                if (compacted.logs) {
+                    compacted.logs = trimRecentLogs(compacted.logs, logLimit);
+                }
+            }
+
+            if (compacted.market) {
+                if (aggressive || !nation.isPlayer) {
+                    compacted.market = {
+                        ...compacted.market,
+                        priceHistory: {},
+                        supplyHistory: {},
+                        demandHistory: {},
+                    };
+                } else {
+                    compacted.market = trimMarketSnapshot(compacted.market, Math.floor(limits.marketHistory / 2));
+                }
+            }
+
+            return compacted;
+        });
+    };
+    
     const compacted = {
         ...payload,
         history: trimHistorySnapshot(payload.history, limits.history),
@@ -370,107 +557,156 @@ const compactSavePayload = (payload, { aggressive = false } = {}) => {
         classNeedsHistory: trimClassSeriesMap(payload.classNeedsHistory, limits.classSeries),
         market: trimMarketSnapshot(payload.market, limits.marketHistory),
         eventHistory: trimArray(payload.eventHistory, limits.eventHistory),
+        logs: trimRecentLogs(payload.logs, limits.logs),
+        vassalDiplomacyHistory: trimArray(payload.vassalDiplomacyHistory, limits.eventHistory),
+        nations: compactNations(payload.nations),
         clicks: [],
     };
     if (aggressive) {
         compacted.history = buildInitialHistory();
         compacted.classWealthHistory = buildInitialWealthHistory();
         compacted.classNeedsHistory = buildInitialNeedsHistory();
-        compacted.eventHistory = [];
-        compacted.logs = [];
+        compacted.eventHistory = trimArray(payload.eventHistory, Math.min(5, limits.eventHistory));
+        compacted.logs = trimRecentLogs(payload.logs, Math.min(5, limits.logs));
     }
     return compacted;
 };
 
-const buildMinimalAutoSavePayload = (payload) => ({
-    saveFormatVersion: payload.saveFormatVersion,
-    resources: payload.resources,
-    population: payload.population,
-    popStructure: payload.popStructure,
-    maxPop: payload.maxPop,
-    maxPopBonus: payload.maxPopBonus,
-    birthAccumulator: payload.birthAccumulator,
-    buildings: payload.buildings,
-    buildingUpgrades: payload.buildingUpgrades,
-    techsUnlocked: payload.techsUnlocked,
-    epoch: payload.epoch,
-    activeTab: payload.activeTab,
-    gameSpeed: payload.gameSpeed,
-    isPaused: payload.isPaused,
-    nations: payload.nations,
-    classApproval: payload.classApproval,
-    classInfluence: payload.classInfluence,
-    classWealth: payload.classWealth,
-    classWealthDelta: payload.classWealthDelta,
-    classIncome: payload.classIncome,
-    classExpense: payload.classExpense,
-    classFinancialData: payload.classFinancialData,
-    totalInfluence: payload.totalInfluence,
-    totalWealth: payload.totalWealth,
-    activeBuffs: payload.activeBuffs,
-    activeDebuffs: payload.activeDebuffs,
-    classInfluenceShift: payload.classInfluenceShift,
-    stability: payload.stability,
-    classShortages: payload.classShortages,
-    classLivingStandard: payload.classLivingStandard,
-    livingStandardStreaks: payload.livingStandardStreaks,
-    migrationCooldowns: payload.migrationCooldowns,
-    daysElapsed: payload.daysElapsed,
-    army: payload.army,
-    militaryQueue: payload.militaryQueue,
-    selectedTarget: payload.selectedTarget,
-    battleResult: payload.battleResult,
-    playerInstallmentPayment: payload.playerInstallmentPayment,
-    autoRecruitEnabled: payload.autoRecruitEnabled,
-    targetArmyComposition: payload.targetArmyComposition,
-    militaryWageRatio: payload.militaryWageRatio,
-    lastBattleTargetId: payload.lastBattleTargetId,
-    lastBattleDay: payload.lastBattleDay,
-    activeFestivalEffects: payload.activeFestivalEffects,
-    lastFestivalYear: payload.lastFestivalYear,
-    showTutorial: payload.showTutorial,
-    currentEvent: payload.currentEvent,
-    taxes: payload.taxes,
-    taxPolicies: payload.taxPolicies,
-    jobFill: payload.jobFill,
-    market: payload.market,
-    merchantState: payload.merchantState,
-    tradeRoutes: payload.tradeRoutes,
-    tradeStats: payload.tradeStats,
-    diplomacyOrganizations: payload.diplomacyOrganizations,
-    vassalDiplomacyQueue: payload.vassalDiplomacyQueue,
-    vassalDiplomacyHistory: payload.vassalDiplomacyHistory,
-    overseasBuildings: payload.overseasBuildings,
-    foreignInvestmentPolicy: payload.foreignInvestmentPolicy,
-    eventEffectSettings: payload.eventEffectSettings,
-    activeEventEffects: payload.activeEventEffects,
-    rebellionStates: payload.rebellionStates,
-    rulingCoalition: payload.rulingCoalition,
-    legitimacy: payload.legitimacy,
-    actionCooldowns: payload.actionCooldowns,
-    actionUsage: payload.actionUsage,
-    promiseTasks: payload.promiseTasks,
-    autoSaveInterval: payload.autoSaveInterval,
-    isAutoSaveEnabled: payload.isAutoSaveEnabled,
-    lastAutoSaveTime: payload.lastAutoSaveTime,
-    difficulty: payload.difficulty,
-    updatedAt: payload.updatedAt,
-    saveSource: payload.saveSource,
-    officials: payload.officials,
-    officialCandidates: payload.officialCandidates,
-    lastSelectionDay: payload.lastSelectionDay,
-    officialCapacity: payload.officialCapacity,
-    ministerAssignments: payload.ministerAssignments,
-    lastMinisterExpansionDay: payload.lastMinisterExpansionDay,
-    activeDecrees: payload.activeDecrees,
-    decreeCooldowns: payload.decreeCooldowns,
-    quotaTargets: payload.quotaTargets,
-    expansionSettings: payload.expansionSettings,
-    priceControls: payload.priceControls,  // [NEW] 价格管制状态
-    taxShock: payload.taxShock,  // [NEW] 累积税收冲击状态
-    eventConfirmationEnabled: payload.eventConfirmationEnabled,
-    dailyMilitaryExpense: payload.dailyMilitaryExpense, // [FIX] 每日军费数据
-});
+const buildMinimalAutoSavePayload = (payload) => {
+    // Ultra-minimal nations (only essential data)
+    const minimalNations = Array.isArray(payload.nations) ? payload.nations.map(nation => {
+        if (nation.isPlayer) {
+            // Keep player nation but remove history
+            return {
+                ...nation,
+                history: undefined,
+                classWealthHistory: undefined,
+                classNeedsHistory: undefined,
+                eventHistory: [],
+                logs: [],
+                market: nation.market ? {
+                    prices: nation.market.prices,
+                    priceHistory: {},
+                    supplyHistory: {},
+                    demandHistory: {},
+                } : undefined,
+            };
+        }
+        // For vassals, keep only critical data
+        return {
+            id: nation.id,
+            name: nation.name,
+            isPlayer: nation.isPlayer,
+            resources: nation.resources,
+            population: nation.population,
+            buildings: nation.buildings,
+            vassalType: nation.vassalType,
+            overlordId: nation.overlordId,
+            vassalPolicy: nation.vassalPolicy,
+            independenceTendency: nation.independenceTendency,
+            socialStructure: nation.socialStructure,
+        };
+    }) : [];
+
+    return {
+        saveFormatVersion: payload.saveFormatVersion,
+        resources: payload.resources,
+        population: payload.population,
+        popStructure: payload.popStructure,
+        maxPop: payload.maxPop,
+        buildings: payload.buildings,
+        buildingUpgrades: payload.buildingUpgrades,
+        techsUnlocked: payload.techsUnlocked,
+        epoch: payload.epoch,
+        gameSpeed: payload.gameSpeed,
+        isPaused: payload.isPaused,
+        nations: minimalNations,
+        classApproval: payload.classApproval,
+        classInfluence: payload.classInfluence,
+        classWealth: payload.classWealth,
+        stability: payload.stability,
+        daysElapsed: payload.daysElapsed,
+        army: payload.army,
+        taxes: payload.taxes,
+        taxPolicies: payload.taxPolicies,
+        jobFill: payload.jobFill,
+        market: payload.market ? {
+            prices: payload.market.prices,
+            priceHistory: {},
+            supplyHistory: {},
+            demandHistory: {},
+        } : undefined,
+        tradeRoutes: payload.tradeRoutes,
+        overseasBuildings: payload.overseasBuildings || [],
+        rebellionStates: payload.rebellionStates,
+        rulingCoalition: payload.rulingCoalition,
+        legitimacy: payload.legitimacy,
+        officials: payload.officials,
+        ministerAssignments: payload.ministerAssignments,
+        activeDecrees: payload.activeDecrees || [],
+        autoSaveInterval: payload.autoSaveInterval,
+        isAutoSaveEnabled: payload.isAutoSaveEnabled,
+        difficulty: payload.difficulty,
+        empireName: payload.empireName,
+        updatedAt: payload.updatedAt,
+        saveSource: 'auto-minimal',
+        // Remove ALL heavy data
+        history: undefined,
+        classWealthHistory: undefined,
+        classNeedsHistory: undefined,
+        eventHistory: [],
+        logs: [],
+        clicks: [],
+        // Remove non-essential fields
+        maxPopBonus: undefined,
+        birthAccumulator: undefined,
+        activeTab: undefined,
+        classWealthDelta: undefined,
+        classIncome: undefined,
+        classExpense: undefined,
+        classFinancialData: undefined,
+        totalInfluence: undefined,
+        totalWealth: undefined,
+        activeBuffs: undefined,
+        activeDebuffs: undefined,
+        classInfluenceShift: undefined,
+        classShortages: undefined,
+        classLivingStandard: undefined,
+        livingStandardStreaks: undefined,
+        migrationCooldowns: undefined,
+        militaryQueue: undefined,
+        selectedTarget: undefined,
+        battleResult: undefined,
+        playerInstallmentPayment: undefined,
+        autoRecruitEnabled: undefined,
+        targetArmyComposition: undefined,
+        militaryWageRatio: undefined,
+        lastBattleTargetId: undefined,
+        lastBattleDay: undefined,
+        activeFestivalEffects: undefined,
+        lastFestivalYear: undefined,
+        showTutorial: undefined,
+        currentEvent: undefined,
+        merchantState: undefined,
+        tradeStats: undefined,
+        diplomacyOrganizations: undefined,
+        vassalDiplomacyQueue: undefined,
+        vassalDiplomacyHistory: [],
+        foreignInvestmentPolicy: undefined,
+        eventEffectSettings: undefined,
+        activeEventEffects: undefined,
+        actionCooldowns: undefined,
+        actionUsage: undefined,
+        promiseTasks: undefined,
+        lastAutoSaveTime: undefined,
+        officialCandidates: undefined,
+        lastSelectionDay: undefined,
+        officialCapacity: undefined,
+        lastMinisterExpansionDay: undefined,
+        decreeCooldowns: undefined,
+        quotaTargets: undefined,
+    };
+};
 
 const DEFAULT_EVENT_EFFECT_SETTINGS = {
     approval: { duration: 30, decayRate: 0.04 },
@@ -617,9 +853,6 @@ const buildInitialNations = () => {
             vassalType: Object.prototype.hasOwnProperty.call(nation, 'vassalType')
                 ? nation.vassalType
                 : DEFAULT_VASSAL_STATUS.vassalType,
-            autonomy: Number.isFinite(nation.autonomy)
-                ? nation.autonomy
-                : DEFAULT_VASSAL_STATUS.autonomy,
             tributeRate: Number.isFinite(nation.tributeRate)
                 ? nation.tributeRate
                 : DEFAULT_VASSAL_STATUS.tributeRate,
@@ -715,6 +948,7 @@ export const useGameState = () => {
 
     // ========== 政令与外交状态 ==========
     const [nations, setNations] = useState(buildInitialNations());
+    const [diplomaticReputation, setDiplomaticReputation] = useState(50); // 国际声誉 (0-100)
 
     // ========== 海外投资系统状态 ==========
     const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投资
@@ -1337,6 +1571,7 @@ export const useGameState = () => {
                 gameSpeed,
                 isPaused,
                 nations,
+                diplomaticReputation,
                 officials,
                 officialCandidates,
                 lastSelectionDay,
@@ -1461,6 +1696,7 @@ export const useGameState = () => {
         setActiveTab(data.activeTab || 'build');
         setGameSpeed(data.gameSpeed ?? 1);
         setIsPaused(data.isPaused ?? false);
+        setDiplomaticReputation(data.diplomaticReputation ?? 50);
         setNations((data.nations || buildInitialNations()).map(n => ({
             ...n,
             treaties: Array.isArray(n.treaties) ? n.treaties : [],
@@ -1468,7 +1704,6 @@ export const useGameState = () => {
             peaceTreatyUntil: Object.prototype.hasOwnProperty.call(n, 'peaceTreatyUntil') ? n.peaceTreatyUntil : null,
             vassalOf: Object.prototype.hasOwnProperty.call(n, 'vassalOf') ? n.vassalOf : DEFAULT_VASSAL_STATUS.vassalOf,
             vassalType: Object.prototype.hasOwnProperty.call(n, 'vassalType') ? n.vassalType : DEFAULT_VASSAL_STATUS.vassalType,
-            autonomy: Number.isFinite(n.autonomy) ? n.autonomy : DEFAULT_VASSAL_STATUS.autonomy,
             tributeRate: Number.isFinite(n.tributeRate) ? n.tributeRate : DEFAULT_VASSAL_STATUS.tributeRate,
             independencePressure: Number.isFinite(n.independencePressure) ? n.independencePressure : DEFAULT_VASSAL_STATUS.independencePressure,
             organizationMemberships: Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [],
@@ -1630,7 +1865,7 @@ export const useGameState = () => {
         setEventConfirmationEnabled(data.eventConfirmationEnabled || false);
     };
 
-    const saveGame = ({ source = 'manual', slotIndex = 0 } = {}) => {
+    const saveGame = async ({ source = 'manual', slotIndex = 0 } = {}) => {
         if (source === 'auto' && (autoSaveBlocked || !isAutoSaveEnabled)) {
             return;
         }
@@ -1640,6 +1875,98 @@ export const useGameState = () => {
         const payloadToSave = compactSavePayload(payload);
         let targetKey;
         let friendlyName;
+        
+        // Helper function to clean up old saves
+        const cleanupOldSaves = ({ includeAutoSave = false } = {}) => {
+            try {
+                // Find and remove oldest manual save slots (keep only the most recent 3)
+                const saveSlots = [];
+                for (let i = 0; i < SAVE_SLOT_COUNT; i++) {
+                    const key = `${SAVE_SLOT_PREFIX}${i}`;
+                    const data = localStorage.getItem(key);
+                    if (data) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            saveSlots.push({ key, timestamp: parsed.updatedAt || 0, size: data.length });
+                        } catch (e) {
+                            // Invalid save, remove it
+                            localStorage.removeItem(key);
+                        }
+                    }
+                }
+                
+                // Sort by timestamp (oldest first) and remove oldest saves
+                saveSlots.sort((a, b) => a.timestamp - b.timestamp);
+                const toRemove = saveSlots.slice(0, Math.max(0, saveSlots.length - 3));
+                toRemove.forEach(slot => {
+                    localStorage.removeItem(slot.key);
+                    void removeSaveFromIndexedDb(slot.key);
+                    console.log(`Cleaned up old save: ${slot.key} (${(slot.size / 1024).toFixed(1)}KB)`);
+                });
+
+                let removedAuto = false;
+                if (includeAutoSave && localStorage.getItem(AUTOSAVE_KEY)) {
+                    localStorage.removeItem(AUTOSAVE_KEY);
+                    void removeSaveFromIndexedDb(AUTOSAVE_KEY);
+                    removedAuto = true;
+                    console.log('Cleaned up autosave to free space.');
+                }
+
+                if (localStorage.getItem(LEGACY_SAVE_KEY)) {
+                    localStorage.removeItem(LEGACY_SAVE_KEY);
+                }
+                
+                return toRemove.length > 0 || removedAuto;
+            } catch (e) {
+                console.error('Failed to cleanup old saves:', e);
+                return false;
+            }
+        };
+
+        const shouldUseExternalStorage = (bytes) => hasIndexedDb() && bytes >= LOCAL_STORAGE_SOFT_LIMIT;
+
+        const persistExternalSave = async (payloadToStore, saveSize) => {
+            if (!hasIndexedDb()) {
+                return false;
+            }
+            try {
+                await writeSaveToIndexedDb(targetKey, JSON.stringify(payloadToStore));
+            } catch (error) {
+                console.error('External save failed:', error);
+                return false;
+            }
+
+            const stub = buildExternalSaveStub(payloadToStore, { sizeBytes: saveSize.bytes });
+            let stubStored = false;
+            try {
+                localStorage.setItem(targetKey, JSON.stringify(stub));
+                stubStored = true;
+            } catch (stubError) {
+                const cleaned = cleanupOldSaves({ includeAutoSave: source !== 'auto' });
+                if (cleaned) {
+                    try {
+                        localStorage.setItem(targetKey, JSON.stringify(stub));
+                        stubStored = true;
+                    } catch (retryError) {
+                        console.warn('Failed to store external save stub:', retryError);
+                    }
+                }
+            }
+
+            if (!stubStored) {
+                void removeSaveFromIndexedDb(targetKey);
+                return false;
+            }
+
+            triggerSavingIndicator();
+            if (source === 'auto') {
+                setLastAutoSaveTime(timestamp);
+            } else {
+                addLogEntry(`💾 游戏已保存到${friendlyName}！(${saveSize.display})`);
+            }
+            return true;
+        };
+        
         try {
 
             // 确定存储 key
@@ -1653,63 +1980,173 @@ export const useGameState = () => {
                 friendlyName = `存档 ${safeIndex + 1}`;
             }
 
+            // Calculate and log save size
+            const saveSize = calculateSaveSize(payloadToSave);
+            console.log(`Attempting to save (${friendlyName}): ${saveSize.display}`);
+
+            if (shouldUseExternalStorage(saveSize.bytes)) {
+                const stored = await persistExternalSave(payloadToSave, saveSize);
+                if (stored) {
+                    return;
+                }
+            }
+
             localStorage.setItem(targetKey, JSON.stringify(payloadToSave));
             triggerSavingIndicator();
 
             if (source === 'auto') {
                 setLastAutoSaveTime(timestamp);
             } else {
-                addLogEntry(`💾 游戏已保存到${friendlyName}！`);
+                addLogEntry(`💾 游戏已保存到${friendlyName}！(${saveSize.display})`);
             }
         } catch (error) {
             const isQuotaExceeded = error?.name === 'QuotaExceededError'
                 || `${error?.message || ''}`.toLowerCase().includes('quota');
             if (isQuotaExceeded) {
+                // On quota exceeded, try IndexedDB first (don't rely on size threshold)
+                if (hasIndexedDb()) {
+                    console.log('Quota exceeded - trying IndexedDB directly...');
+                    const compactedPayload = compactSavePayload(payload, { aggressive: true });
+                    const compactSize = calculateSaveSize(compactedPayload);
+                    const stored = await persistExternalSave(compactedPayload, compactSize);
+                    if (stored) {
+                        addLogEntry(`⚠️ 存档空间不足，已保存到浏览器数据库 (${compactSize.display})。`);
+                        return;
+                    }
+                }
+
+                // Fallback: Try aggressive compaction to localStorage
                 try {
                     const compactedPayload = compactSavePayload(payload, { aggressive: true });
+                    const compactSize = calculateSaveSize(compactedPayload);
+                    console.log(`Trying compact save: ${compactSize.display}`);
+
                     localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
                     triggerSavingIndicator();
                     if (source === 'auto') {
                         setLastAutoSaveTime(timestamp);
                     }
-                    addLogEntry('⚠️ 存档空间不足，已使用精简存档。');
+                    addLogEntry(`⚠️ 存档空间不足，已使用精简存档 (${compactSize.display})。`);
                     return;
                 } catch (fallbackError) {
                     console.error('Compact save failed:', fallbackError);
                 }
+
+                // Try minimal save for manual save as last resort
+                if (source !== 'auto') {
+                    try {
+                        const minimalPayload = {
+                            ...buildMinimalAutoSavePayload(payload),
+                            saveSource: 'manual-minimal',
+                        };
+                        const minimalSize = calculateSaveSize(minimalPayload);
+                        console.log(`Trying minimal manual save: ${minimalSize.display}`);
+                        
+                        // Try IndexedDB first for minimal save too
+                        if (hasIndexedDb()) {
+                            const stored = await persistExternalSave(minimalPayload, minimalSize);
+                            if (stored) {
+                                addLogEntry(`⚠️ 存档已保存到浏览器数据库 (${minimalSize.display})。`);
+                                return;
+                            }
+                        }
+
+                        localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                        triggerSavingIndicator();
+                        addLogEntry(`⚠️ 存档空间不足，已切换为最小存档 (${minimalSize.display})。`);
+                        return;
+                    } catch (minimalManualError) {
+                        console.error('Minimal manual save failed:', minimalManualError);
+                    }
+                }
+                
+                // Try minimal save for auto-save
                 if (source === 'auto') {
                     try {
                         const minimalPayload = buildMinimalAutoSavePayload(payload);
+                        const minimalSize = calculateSaveSize(minimalPayload);
+                        console.log(`Trying minimal save: ${minimalSize.display}`);
+
+                        // Try IndexedDB first for minimal save too
+                        if (hasIndexedDb()) {
+                            const stored = await persistExternalSave(minimalPayload, minimalSize);
+                            if (stored) {
+                                setLastAutoSaveTime(timestamp);
+                                return;
+                            }
+                        }
+
                         localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
                         triggerSavingIndicator();
                         setLastAutoSaveTime(timestamp);
-                        addLogEntry('⚠️ 自动存档已切换为最小存档。');
+                        addLogEntry(`⚠️ 自动存档已切换为最小存档 (${minimalSize.display})。`);
                         return;
                     } catch (minimalError) {
                         console.error('Minimal auto save failed:', minimalError);
                     }
                 }
+                
+                // Try cleaning up old saves and retry
+                const cleaned = cleanupOldSaves({ includeAutoSave: source !== 'auto' });
+                if (cleaned) {
+                    try {
+                        const minimalPayload = source === 'auto' 
+                            ? buildMinimalAutoSavePayload(payload)
+                            : compactSavePayload(payload, { aggressive: true });
+                        const retrySize = calculateSaveSize(minimalPayload);
+                        console.log(`Retrying after cleanup: ${retrySize.display}`);
+
+                        // Try IndexedDB first after cleanup
+                        if (hasIndexedDb()) {
+                            const stored = await persistExternalSave(minimalPayload, retrySize);
+                            if (stored) {
+                                if (source === 'auto') {
+                                    setLastAutoSaveTime(timestamp);
+                                }
+                                addLogEntry(`⚠️ 已清理旧存档并保存 (${retrySize.display})。`);
+                                return;
+                            }
+                        }
+
+                        localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                        triggerSavingIndicator();
+                        if (source === 'auto') {
+                            setLastAutoSaveTime(timestamp);
+                        }
+                        addLogEntry(`⚠️ 已清理旧存档并保存 (${retrySize.display})。建议定期导出存档。`);
+                        return;
+                    } catch (retryError) {
+                        console.error('Save failed after cleanup:', retryError);
+                    }
+                }
+
+                // Remove redundant final IndexedDB attempt since we already tried it first
+                
+                // All attempts failed
                 if (source === 'auto') {
                     setIsAutoSaveEnabled(false);
                     setAutoSaveBlocked(true);
                     if (!autoSaveQuotaNotifiedRef.current) {
                         autoSaveQuotaNotifiedRef.current = true;
-                        addLogEntry('❌ 自动存档空间不足，已自动关闭。请清理旧存档或导出存档。');
+                        addLogEntry('❌ 自动存档空间不足，已自动关闭。请导出存档或清理浏览器缓存。');
                     }
                     return;
+                } else {
+                    addLogEntry('❌ 存档失败：存储空间不足。请导出当前存档或清理浏览器缓存。');
                 }
-            }
-            console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
-            if (source === 'auto') {
-                addLogEntry(`❌ 自动存档失败：${error.message}`);
             } else {
-                addLogEntry(`❌ 存档失败：${error.message}`);
+                console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
+                if (source === 'auto') {
+                    addLogEntry(`❌ 自动存档失败：${error.message}`);
+                } else {
+                    addLogEntry(`❌ 存档失败：${error.message}`);
+                }
             }
             setIsSaving(false);
         }
     };
 
-    const loadGame = ({ source = 'manual', slotIndex = 0 } = {}) => {
+    const loadGame = async ({ source = 'manual', slotIndex = 0 } = {}) => {
         try {
             // 确定存储 key
             let targetKey;
@@ -1733,12 +2170,75 @@ export const useGameState = () => {
             }
 
             const data = JSON.parse(rawData);
+            if (isExternalSaveStub(data)) {
+                if (!hasIndexedDb()) {
+                    addLogEntry(`❌ ${friendlyName}读取失败：浏览器不支持扩展存储。`);
+                    return false;
+                }
+                const externalRaw = await readSaveFromIndexedDb(targetKey);
+                if (!externalRaw) {
+                    addLogEntry(`❌ ${friendlyName}读取失败：外部存档数据缺失。`);
+                    return false;
+                }
+                const externalData = typeof externalRaw === 'string'
+                    ? JSON.parse(externalRaw)
+                    : externalRaw;
+                applyLoadedGameState(externalData);
+                addLogEntry(`📂 ${friendlyName}读取成功！`);
+                return true;
+            }
             applyLoadedGameState(data);
             addLogEntry(`📂 ${friendlyName}读取成功！`);
             return true;
         } catch (error) {
             console.error('Load game failed:', error);
             addLogEntry(`❌ 读取存档失败：${error.message}`);
+            return false;
+        }
+    };
+
+    /**
+     * 删除指定的存档
+     * @param {number} slotIndex - 存档槽位索引（0-2为手动存档，-1为自动存档）
+     * @returns {boolean} 是否删除成功
+     */
+    const deleteSave = ({ slotIndex = 0 } = {}) => {
+        try {
+            let targetKey;
+            let friendlyName;
+
+            if (slotIndex === -1) {
+                // 删除自动存档
+                targetKey = AUTOSAVE_KEY;
+                friendlyName = '自动存档';
+            } else {
+                // 删除手动存档槽位
+                const safeIndex = Math.max(0, Math.min(SAVE_SLOT_COUNT - 1, slotIndex));
+                targetKey = `${SAVE_SLOT_PREFIX}${safeIndex}`;
+                friendlyName = `存档 ${safeIndex + 1}`;
+            }
+
+            const rawData = localStorage.getItem(targetKey);
+            if (!rawData) {
+                addLogEntry(`⚠️ ${friendlyName}不存在，无需删除。`);
+                return false;
+            }
+
+            try {
+                const parsed = JSON.parse(rawData);
+                if (isExternalSaveStub(parsed)) {
+                    void removeSaveFromIndexedDb(targetKey);
+                }
+            } catch (parseError) {
+                // Ignore malformed save metadata
+            }
+
+            localStorage.removeItem(targetKey);
+            addLogEntry(`🗑️ ${friendlyName}已删除。`);
+            return true;
+        } catch (error) {
+            console.error('Delete save failed:', error);
+            addLogEntry(`❌ 删除存档失败：${error.message}`);
             return false;
         }
     };
@@ -1981,6 +2481,47 @@ export const useGameState = () => {
         }
     };
 
+    const persistImportedSave = async (payload, targetKey) => {
+        const size = calculateSaveSize(payload);
+        const storeStub = (stub) => {
+            try {
+                localStorage.setItem(targetKey, JSON.stringify(stub));
+                return true;
+            } catch (error) {
+                return false;
+            }
+        };
+
+        const saveToIndexedDb = async () => {
+            await writeSaveToIndexedDb(targetKey, JSON.stringify(payload));
+            const stub = buildExternalSaveStub(payload, { sizeBytes: size.bytes });
+            const stubStored = storeStub(stub);
+            if (!stubStored) {
+                await removeSaveFromIndexedDb(targetKey);
+                throw new Error('External stub storage failed');
+            }
+            return { stored: true, external: true, size };
+        };
+
+        if (hasIndexedDb() && size.bytes >= LOCAL_STORAGE_SOFT_LIMIT) {
+            try {
+                return await saveToIndexedDb();
+            } catch (error) {
+                console.warn('[Import] External storage failed:', error);
+            }
+        }
+
+        try {
+            localStorage.setItem(targetKey, JSON.stringify(payload));
+            return { stored: true, external: false, size };
+        } catch (error) {
+            if (hasIndexedDb()) {
+                return await saveToIndexedDb();
+            }
+            throw error;
+        }
+    };
+
     const importSaveFromBinary = async (fileOrBuffer) => {
         try {
             if (!fileOrBuffer) {
@@ -2019,14 +2560,14 @@ export const useGameState = () => {
             // Try to save, with fallback compression for quota issues
             const targetKey = `${SAVE_SLOT_PREFIX}0`;
             try {
-                localStorage.setItem(targetKey, JSON.stringify(normalized));
+                await persistImportedSave(normalized, targetKey);
             } catch (saveError) {
                 if (isQuotaExceeded(saveError)) {
                     // First fallback: aggressive compact
                     console.warn('[Import] Quota exceeded, trying aggressive compact...');
                     try {
                         const compactedPayload = compactSavePayload(normalized, { aggressive: true });
-                        localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
+                        await persistImportedSave(compactedPayload, targetKey);
                         addLogEntry('⚠️ 存档空间不足，已使用精简导入。');
                     } catch (compactError) {
                         if (isQuotaExceeded(compactError)) {
@@ -2034,16 +2575,15 @@ export const useGameState = () => {
                             console.warn('[Import] Compact failed, trying minimal payload...');
                             try {
                                 const minimalPayload = buildMinimalAutoSavePayload(normalized);
-                                localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                await persistImportedSave(minimalPayload, targetKey);
                                 addLogEntry('⚠️ 存档空间严重不足，已使用最小导入（部分历史数据丢失）。');
                             } catch (minimalError) {
                                 // Final fallback: clear old saves and retry
                                 console.warn('[Import] Minimal failed, clearing old saves...');
-                                // Try clearing autosave first
                                 try {
                                     localStorage.removeItem(AUTOSAVE_KEY);
                                     const minimalPayload = buildMinimalAutoSavePayload(normalized);
-                                    localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                    await persistImportedSave(minimalPayload, targetKey);
                                     addLogEntry('⚠️ 已清理自动存档以腾出空间，导入成功。');
                                 } catch (finalError) {
                                     throw new Error('存储空间已满，无法导入存档。请在浏览器设置中清理网站数据或删除现有存档后重试。');
@@ -2125,14 +2665,14 @@ export const useGameState = () => {
             // Try to save, with fallback compression for quota issues
             const targetKey = `${SAVE_SLOT_PREFIX}0`;
             try {
-                localStorage.setItem(targetKey, JSON.stringify(normalized));
+                await persistImportedSave(normalized, targetKey);
             } catch (saveError) {
                 if (isQuotaExceeded(saveError)) {
                     // First fallback: aggressive compact
                     console.warn('[Import] Quota exceeded, trying aggressive compact...');
                     try {
                         const compactedPayload = compactSavePayload(normalized, { aggressive: true });
-                        localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
+                        await persistImportedSave(compactedPayload, targetKey);
                         addLogEntry('⚠️ 存档空间不足，已使用精简导入。');
                     } catch (compactError) {
                         if (isQuotaExceeded(compactError)) {
@@ -2140,7 +2680,7 @@ export const useGameState = () => {
                             console.warn('[Import] Compact failed, trying minimal payload...');
                             try {
                                 const minimalPayload = buildMinimalAutoSavePayload(normalized);
-                                localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                await persistImportedSave(minimalPayload, targetKey);
                                 addLogEntry('⚠️ 存档空间严重不足，已使用最小导入（部分历史数据丢失）。');
                             } catch (minimalError) {
                                 // Final fallback: clear old saves and retry
@@ -2148,7 +2688,7 @@ export const useGameState = () => {
                                 try {
                                     localStorage.removeItem(AUTOSAVE_KEY);
                                     const minimalPayload = buildMinimalAutoSavePayload(normalized);
-                                    localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                                    await persistImportedSave(minimalPayload, targetKey);
                                     addLogEntry('⚠️ 已清理自动存档以腾出空间，导入成功。');
                                 } catch (finalError) {
                                     throw new Error('存储空间已满，无法导入存档。请在浏览器设置中清理网站数据或删除现有存档后重试。');
@@ -2308,6 +2848,8 @@ export const useGameState = () => {
         // 政令与外交
         nations,
         setNations,
+        diplomaticReputation,
+        setDiplomaticReputation,
         selectedTarget,
         setSelectedTarget,
 
@@ -2516,6 +3058,7 @@ export const useGameState = () => {
         setBuildingJobsRequired,
         saveGame,
         loadGame,
+        deleteSave,
         exportSaveToBinary,
         exportSaveToClipboard,
         importSaveFromBinary,

@@ -34,7 +34,7 @@ const STRATA_GROUPS = {
     },
     lower: {
         name: '下层阶级',
-        keys: ['peasant', 'serf', 'lumberjack', 'worker', 'miner'],
+        keys: ['peasant', 'serf', 'lumberjack', 'worker', 'miner', 'unemployed'],
     },
 };
 
@@ -163,7 +163,9 @@ export const CoalitionPanel = ({
         const influence = classInfluence[stratumKey] || 0;
         const influenceShare = totalInfluence > 0 ? (influence / totalInfluence * 100).toFixed(1) : '0.0';
         const population = popStructure[stratumKey] || 0;
-        const isDisabled = !isEditMode;
+        const isEligible = eligibleStrata.includes(stratumKey);
+        const isDisabled = !isEditMode || !isEligible;
+        const disabledReason = !isEligible ? '不可参政' : '';
 
         return (
             <button
@@ -186,6 +188,13 @@ export const CoalitionPanel = ({
                         <Icon name="Check" size={12} className="text-amber-400" />
                     </div>
                 )}
+                {disabledReason && (
+                    <div className="absolute top-1 right-1">
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-gray-800/80 text-gray-400">
+                            {disabledReason}
+                        </span>
+                    </div>
+                )}
                 <div className="flex items-center gap-2 mb-1">
                     <Icon name={stratum.icon || 'User'} size={16} className={isSelected ? 'text-amber-400' : 'text-gray-400'} />
                     <span className={`text-xs font-semibold ${isSelected ? 'text-amber-300' : 'text-gray-300'}`}>
@@ -201,7 +210,7 @@ export const CoalitionPanel = ({
     };
 
     const renderStrataGroup = (groupKey, group) => {
-        const groupStrata = group.keys.filter(k => eligibleStrata.includes(k));
+        const groupStrata = group.keys.filter(k => (popStructure[k] || 0) > 0);
         if (groupStrata.length === 0) return null;
 
         return (

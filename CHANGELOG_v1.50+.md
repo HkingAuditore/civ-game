@@ -1,72 +1,222 @@
 # 更新日志 - v1.50+ 版本
 
-> 当前版本：v1.52.9  
+> 当前版本：v1.52.11  
 > 更新时间：2026年1月21日
 
 ---
 
 ## 📋 目录
 
-- [战线系统UI集成](#战线系统ui集成)
+- [Bug修复](#bug修复)
+- [UI/UX改进](#uiux改进)
 - [外交系统重构](#外交系统重构)
 - [附庸系统全面改革](#附庸系统全面改革)
 - [国际经济系统](#国际经济系统)
 - [性能优化](#性能优化)
 - [官员与内阁系统](#官员与内阁系统)
 - [游戏系统增强](#游戏系统增强)
-- [UI/UX改进](#uiux改进)
 
 ---
 
-## ⚔️ 战线系统UI集成
+## 🎮 游戏系统增强
 
-### 战线系统完全取代旧战斗系统 (v1.52.9)
-## v1.52.9 - 战线系统UI集成 (2026-01-21)
+### 新增删除存档功能 (v1.52.11)
+**日期**: 2026-01-21
 
-#### 核心改进
-- **军事标签页重构**
-  - 将"战斗"标签改为"战线"标签
-  - 完全集成战线系统UI组件
-  - 移除旧的战斗系统UI代码
-  
-- **禁用旧的突袭系统**
-  - 禁用叛军突袭逻辑（`processRebelWarActions`）
-  - 禁用AI突袭逻辑（`processAIMilitaryAction`）
-  - 战线系统完全接管所有战斗
-  
-- **集成战线系统到游戏循环**
-  - 在 `simulation.js` 中导入战线系统模块
-  - 在AI军事行动处理中调用 `processPlayerWarDaily`
-  - 传递正确的 `buildings` 数据给战线地图生成器
-  - 同步战争分数到nation对象
-  - 记录战线事件日志
-  
-- **战线系统UI组件**
-  - `FrontlineBattleSection`: 战线战斗主面板
-  - `FrontlineMapPanel`: 战线地图可视化
-  - `CorpsManagementPanel`: 兵团管理面板  
-- **功能特性**
-  - 动态战线地图显示（地形、建筑、兵团）
-  - 兵团创建和管理
-  - 战争状态实时显示
-  - 战争分数和区域控制可视化
-  - 武器供应状态监控
+#### 功能描述
+在存档管理界面中新增了删除存档的功能，玩家现在可以方便地删除不需要的存档，释放存储空间。
 
-#### 影响文件
-- `src/components/tabs/MilitaryTab.jsx` - 集成战线系统
-- `src/components/tabs/FrontlineBattleSection.jsx` - 新增
-- `src/components/panels/FrontlineMapPanel.jsx` - 新增
-- `src/components/panels/CorpsManagementPanel.jsx` - 新增
-- `src/logic/diplomacy/aiWar.js` - 禁用旧突袭系统
-- `src/logic/diplomacy/nations.js` - 添加buildings参数
-- `src/logic/simulation.js` - 集成战线系统到游戏循环
-- `docs/CONTEXT.md` - 更新开发进度
+#### 实现内容
+
+**1. 新增 `deleteSaveSlot` 函数**
+- 位置：`src/hooks/useGameState.js`
+- 功能：删除指定槽位的存档（支持手动存档和自动存档）
+- 导出为独立函数，可在组件外调用
+
+**2. 新增 `deleteSave` 方法**
+- 位置：`useGameState` hook 返回对象
+- 功能：在游戏状态中提供删除存档的方法
+- 包含日志记录和错误处理
+
+**3. 存档槽位界面改进**
+- 位置：`src/components/modals/SaveSlotModal.jsx`
+- 每个非空存档卡片右上角添加删除按钮（垃圾桶图标）
+- 删除按钮悬停时显示红色高亮效果
+- 点击删除按钮会弹出确认对话框
+
+**4. 删除确认对话框**
+- 显示要删除的存档名称和详细信息
+- 包含"此操作无法撤销"的警告提示
+- 提供"取消"和"确认删除"两个选项
+- 确认删除后自动刷新存档列表
 
 #### 技术细节
-- 清理了旧战斗系统的所有UI代码
-- 移除了 WAR_SCORE_GUIDE 和战争分数模态框
-- 简化了军事标签页的状态管理
-- 保持了与现有游戏循环的兼容性
+
+**状态管理**
+```javascript
+const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+const [slotToDelete, setSlotToDelete] = useState(null);
+const [refreshKey, setRefreshKey] = useState(0);
+```
+
+**删除流程**
+1. 用户点击删除按钮 → 阻止事件冒泡，避免触发槽位选择
+2. 显示删除确认对话框 → 展示存档详细信息
+3. 用户确认删除 → 调用 `deleteSaveSlot` 函数
+4. 删除成功 → 刷新存档列表（通过 `refreshKey` 触发 `useMemo` 重新计算）
+
+**安全性**
+- 删除操作需要二次确认
+- 明确提示"此操作无法撤销"
+- 删除按钮使用红色警告色系
+
+#### 用户体验改进
+- ✅ 直观的删除按钮，位于存档卡片右上角
+- ✅ 悬停时显示"删除存档"提示
+- ✅ 删除前显示详细的确认对话框
+- ✅ 删除后立即刷新列表，无需手动刷新
+- ✅ 支持删除手动存档和自动存档
+
+---
+
+## 🐛 Bug修复
+
+### 修复官员薪水设置后自动重置的问题 (v1.52.10)
+**日期**: 2026-01-21
+
+#### 问题描述
+用户在官员详情弹窗中设置官员薪水后，薪水值会自动变回原来的数值。特别是在游戏暂停时，更是无法成功设置官员薪水。
+
+#### 根本原因
+在 `OfficialDetailModal.jsx` 中，薪水输入框的事件处理存在竞态条件：
+1. 用户在输入框中修改薪水值
+2. 点击"保存薪俸"按钮时，输入框先触发 `onBlur` 事件
+3. `onBlur` 立即将 `isEditingSalary` 设置为 `false`
+4. `useEffect` 检测到 `isEditingSalary` 变化，在 `onClick` 执行前就重置了 `salaryDraft` 的值
+5. 导致保存按钮保存的是重置后的旧值
+
+#### 修复内容
+
+**1. 改进输入框的 `onBlur` 处理**
+```javascript
+onBlur={() => {
+    // Delay blur to allow button click to process first
+    setTimeout(() => setIsEditingSalary(false), 100);
+}}
+```
+添加 100ms 延迟，确保按钮点击事件能在状态重置前执行。
+
+**2. 将按钮的 `onClick` 改为 `onMouseDown`**
+```javascript
+onMouseDown={(e) => {
+    // Use onMouseDown instead of onClick to execute before onBlur
+    e.preventDefault(); // Prevent input from losing focus
+    // ... 保存逻辑
+}}
+```
+`onMouseDown` 在 `onBlur` 之前触发，并使用 `preventDefault()` 阻止输入框失焦。
+
+**3. 添加回车键快捷保存**
+```javascript
+onKeyDown={(e) => {
+    if (e.key === 'Enter' && canEditSalary && Number.isFinite(parsedSalaryDraft)) {
+        const nextSalary = Math.floor(parsedSalaryDraft);
+        pendingSalaryRef.current = nextSalary;
+        onUpdateSalary(official.id, nextSalary);
+        setSalaryDraft(String(nextSalary));
+        setIsEditingSalary(false);
+        e.target.blur();
+    }
+}}
+```
+用户可以按回车键直接保存薪水。
+
+#### 技术细节
+- **事件执行顺序**: `onMouseDown` → `onBlur` → `onClick`
+- **延迟处理**: 使用 `setTimeout` 确保状态更新的时序正确
+- **焦点管理**: 使用 `preventDefault()` 精确控制输入框的焦点状态
+
+#### 影响范围
+- ✅ 修复了游戏运行时设置薪水后自动重置的问题
+- ✅ 修复了游戏暂停时无法设置薪水的问题
+- ✅ 改善了用户体验，支持回车键快捷保存
+
+---
+
+### 修复附庸系统无法建立附庸关系的严重问题 (v1.52.9)
+**日期**: 2026-01-21
+
+#### 问题描述
+在封建时代（epoch >= 3）点击"要求成为附庸国"选项后，附庸关系并没有真正建立，附庸概览界面显示"附庸数：0"。
+
+#### 根本原因
+在 `useGameActions.js` 中的两个和平处理函数中缺少处理附庸关系建立的代码：
+- `handleEnemyPeaceAccept`: 处理敌国求和时的选项
+- `handlePlayerPeaceProposal`: 处理玩家主动求和时的选项
+
+虽然外交事件配置文件中定义了"要求成为附庸国"选项，但回调函数没有实际执行建立附庸关系的逻辑。
+
+#### 修复内容
+在两个函数中添加了处理 `vassal` 和 `demand_vassal` 类型的代码块：
+
+```javascript
+if (proposalType === 'vassal') {
+    // 建立附庸关系
+    const vassalType = 'vassal';
+    const vassalConfig = VASSAL_TYPE_CONFIGS[vassalType] || VASSAL_TYPE_CONFIGS.vassal;
+    endWarWithNation(nationId, {
+        vassalOf: 'player',
+        vassalType: vassalType,
+        autonomy: vassalConfig.autonomy || 80,
+        tributeRate: vassalConfig.tributeRate || 0.10,
+        independencePressure: 0,
+        lastTributeDay: daysElapsed,
+    });
+    addLog(`${targetNation.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}！`);
+    return;
+}
+```
+
+#### 影响文件
+- `src/hooks/useGameActions.js`
+
+#### 测试建议
+1. 进入封建时代（epoch >= 3）
+2. 与敌国开战并获得足够的战争分数（>= 150）
+3. 等待敌国求和或主动提出和谈
+4. 选择"要求成为附庸国"选项
+5. 验证附庸关系是否成功建立（附庸概览界面应显示附庸数 > 0）
+
+---
+
+## 🎨 UI/UX改进
+
+### 添加附庸选项时代限制的明确提示 (v1.52.9)
+**日期**: 2026-01-21
+
+#### 改进内容
+在和平谈判界面中，当玩家尚未进入封建时代（epoch < 3）时，"要求成为附庸国"选项现在会显示为禁用状态，并明确说明需要封建时代才能解锁。
+
+#### 具体变化
+1. **外交事件配置** (`diplomaticEvents.js`)：
+   - 在 `createEnemyPeaceRequestEvent` 函数中，当 `vassalUnlocked = false` 时，添加禁用的附庸选项
+   - 在 `createPlayerPeaceProposalEvent` 函数中，同样添加禁用选项的显示
+   - 禁用选项显示为 "🔒 要求成为附庸国"，并说明"附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。"
+
+2. **事件详情组件** (`EventDetail.jsx`)：
+   - 添加对 `option.disabled` 属性的支持
+   - 禁用选项显示为灰色半透明状态
+   - 禁用选项不可点击（cursor: not-allowed）
+   - 禁用选项不响应鼠标悬停效果
+
+#### 用户体验提升
+- 玩家不再困惑为什么看不到附庸选项
+- 明确告知玩家需要达到什么条件才能使用附庸功能
+- 提供清晰的游戏进度指引
+
+#### 影响文件
+- `src/config/events/diplomaticEvents.js`
+- `src/components/modals/EventDetail.jsx`
 
 ---
 

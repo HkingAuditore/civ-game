@@ -30,7 +30,6 @@ export {
     // 附庸系统配置
     VASSAL_TYPE_CONFIGS,
     VASSAL_TYPE_LABELS,
-    getAutonomyEffects,
     calculateIndependenceDesire,
     // calculateTribute 已废弃，请使用 vassalSystem.js 中的 calculateEnhancedTribute
     VASSAL_TRANSITION_REQUIREMENTS,
