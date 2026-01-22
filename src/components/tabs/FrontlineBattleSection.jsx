@@ -84,9 +84,9 @@ export const FrontlineBattleSection = ({
     }, [currentFrontline, onCreateCorps]);
 
     // 处理命令下达
-    const handleIssueCommand = useCallback((corps, command) => {
+    const handleIssueCommand = useCallback((corps, command, target) => {
         if (!currentFrontline || !onIssueCommand) return;
-        onIssueCommand(currentFrontline.warId, corps.id, command);
+        onIssueCommand(currentFrontline.warId, corps.id, command, target);
     }, [currentFrontline, onIssueCommand]);
 
     // 没有战争时的显示
@@ -236,6 +236,7 @@ export const FrontlineBattleSection = ({
                     playerId={playerId}
                     onSelectCell={setSelectedCell}
                     onSelectCorps={setSelectedCorps}
+                    onIssueCommand={handleIssueCommand}
                     selectedCorps={selectedCorps}
                     selectedCell={selectedCell}
                 />

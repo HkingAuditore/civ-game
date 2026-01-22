@@ -5,7 +5,6 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
-import { formatNumberShortCN } from '../../utils/numberFormat';
 import {
     TERRAIN_TYPES,
     FRONTLINE_BUILDING_TYPES,
@@ -98,6 +97,56 @@ export const FrontlineMapPanel = ({
         return map;
     }, [corps]);
 
+    const hexSize = 18;
+    const hexWidth = hexSize * 2;
+    const hexHeight = Math.sqrt(3) * hexSize;
+    const hexXSpacing = hexSize * 1.5;
+    const hexYSpacing = hexHeight;
+
+    const mapPixelSize = useMemo(() => {
+        const pixelWidth = hexWidth + (width - 1) * hexXSpacing;
+        const pixelHeight = hexHeight * (height + (width - 1) / 2);
+        return { width: pixelWidth, height: pixelHeight };
+    }, [width, height, hexWidth, hexXSpacing, hexHeight]);
+
+    const getHexPosition = useCallback((x, y) => {
+        const left = x * hexXSpacing;
+        const top = hexHeight * (y + x / 2);
+        return { left, top };
+    }, [hexXSpacing, hexHeight]);
+
+    const handleCellClick = useCallback((x, y) => {
+        const cellKey = `${x},${y}`;
+        const cellCorps = corpsByPosition[cellKey] || [];
+        const building = buildingsByPosition[cellKey];
+        const playerCorpsHere = cellCorps.filter(c => c.owner === playerId);
+        const enemyCorpsHere = cellCorps.filter(c => c.owner !== playerId);
+
+        onSelectCell?.({ x, y });
+
+        if (playerCorpsHere.length > 0) {
+            if (!selectedCorps || selectedCorps.id !== playerCorpsHere[0].id) {
+                onSelectCorps?.(playerCorpsHere[0]);
+                return;
+            }
+        }
+
+        if (!selectedCorps || selectedCorps.owner !== playerId) return;
+        if (selectedCorps.position.x === x && selectedCorps.position.y === y) return;
+
+        if (enemyCorpsHere.length > 0) {
+            onIssueCommand?.(selectedCorps, 'attack', enemyCorpsHere[0]);
+            return;
+        }
+
+        if (building && building.owner !== playerId) {
+            onIssueCommand?.(selectedCorps, 'siege', building);
+            return;
+        }
+
+        onIssueCommand?.(selectedCorps, 'move', { position: { x, y } });
+    }, [corpsByPosition, buildingsByPosition, selectedCorps, playerId, onSelectCell, onSelectCorps, onIssueCommand]);
+
     // 渲染单个格子
     const renderCell = useCallback((x, y) => {
         const terrainType = terrain[y]?.[x] || 'plain';
@@ -108,18 +157,28 @@ export const FrontlineMapPanel = ({
         const isSelected = selectedCell?.x === x && selectedCell?.y === y;
         const hasPlayerCorps = cellCorps.some(c => c.owner === playerId);
         const hasEnemyCorps = cellCorps.some(c => c.owner !== playerId);
+        const isSelectableCorps = cellCorps.some(c => c.owner === playerId);
+        const { left, top } = getHexPosition(x, y);
 
         return (
             <button
                 key={`${x},${y}`}
-                onClick={() => onSelectCell?.({ x, y })}
+                onClick={() => handleCellClick(x, y)}
                 className={`
-                    relative w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center
+                    absolute flex items-center justify-center
                     border border-gray-700/50 transition-all
                     ${terrainConfig.bg}
                     ${isSelected ? 'ring-2 ring-amber-400 z-10' : ''}
+                    ${isSelectableCorps ? 'cursor-pointer' : ''}
                     hover:brightness-125 hover:z-10
                 `}
+                style={{
+                    width: `${hexWidth}px`,
+                    height: `${hexHeight}px`,
+                    left: `${left}px`,
+                    top: `${top}px`,
+                    clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
+                }}
             >
                 {/* 地形图标 */}
                 {showGrid && !building && cellCorps.length === 0 && (
@@ -171,7 +230,7 @@ export const FrontlineMapPanel = ({
                 )}
             </button>
         );
-    }, [terrain, buildingsByPosition, corpsByPosition, selectedCell, playerId, showGrid, onSelectCell]);
+    }, [terrain, buildingsByPosition, corpsByPosition, selectedCell, playerId, showGrid, getHexPosition, hexWidth, hexHeight, handleCellClick]);
 
     // 渲染战争状态栏
     const renderWarStatus = () => {
@@ -393,18 +452,24 @@ export const FrontlineMapPanel = ({
 
             {/* 战争状态 */}
             {renderWarStatus()}
+            <div className="text-[10px] text-gray-500 mb-2">
+                选中己方兵团后点击六边形：空地移动 / 敌军攻击 / 敌方建筑围攻
+            </div>
 
             {/* 地图网格 */}
             <div className="overflow-x-auto pb-2">
-                <div
-                    className="inline-grid gap-0 border border-gray-600 rounded"
-                    style={{
-                        gridTemplateColumns: `repeat(${width}, minmax(32px, 40px))`,
-                    }}
-                >
-                    {Array.from({ length: height }).map((_, y) =>
-                        Array.from({ length: width }).map((_, x) => renderCell(x, y))
-                    )}
+                <div className="inline-block border border-gray-600 rounded">
+                    <div
+                        className="relative"
+                        style={{
+                            width: `${mapPixelSize.width}px`,
+                            height: `${mapPixelSize.height}px`,
+                        }}
+                    >
+                        {Array.from({ length: height }).map((_, y) =>
+                            Array.from({ length: width }).map((_, x) => renderCell(x, y))
+                        )}
+                    </div>
                 </div>
             </div>
 
