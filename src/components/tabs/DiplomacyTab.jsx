@@ -288,16 +288,49 @@ const DiplomacyTabComponent = ({
 
     const targetNationAllies = useMemo(() => {
         if (!selectedNation) return [];
+        
+        // 获取目标国家所在的军事组织成员
+        const orgs = diplomacyOrganizations?.organizations || [];
+        const targetMilitaryOrgMembers = new Set();
+        
+        orgs.forEach(org => {
+            if (org?.type !== 'military_alliance') return;
+            if (!Array.isArray(org.members) || !org.members.includes(selectedNation.id)) return;
+            
+            org.members.forEach(memberId => {
+                if (memberId && memberId !== selectedNation.id && memberId !== 'player') {
+                    targetMilitaryOrgMembers.add(memberId);
+                }
+            });
+        });
+        
+        // 过滤出会被连带开战的盟友（排除玩家的附庸和玩家所在军事组织的成员）
+        const playerMilitaryOrgMembers = new Set();
+        orgs.forEach(org => {
+            if (org?.type !== 'military_alliance') return;
+            if (!Array.isArray(org.members) || !org.members.includes('player')) return;
+            
+            org.members.forEach(memberId => {
+                if (memberId && memberId !== 'player') {
+                    playerMilitaryOrgMembers.add(memberId);
+                }
+            });
+        });
+        
         return visibleNations.filter(n => {
             if (n.id === selectedNation.id) return false;
-            const isAllied = (selectedNation.allies || []).includes(n.id) ||
-                (n.allies || []).includes(selectedNation.id);
-            return isAllied;
+            // 必须是目标国家的军事组织成员
+            if (!targetMilitaryOrgMembers.has(n.id)) return false;
+            // 排除玩家的附庸
+            if (n.isVassal === true) return false;
+            // 排除与玩家在同一军事组织的成员（他们会保持中立）
+            if (playerMilitaryOrgMembers.has(n.id)) return false;
+            return true;
         }).map(ally => ({
             ...ally,
-            foreignRelation: selectedNation.foreignRelations?.[ally.id] ?? 50,
+            foreignRelation: selectedNation.foreignRelations?.[ally.id] ?? 80,
         }));
-    }, [visibleNations, selectedNation]);
+    }, [visibleNations, selectedNation, diplomacyOrganizations]);
 
     // Simple Actions
     const handleSimpleAction = (nationId, action, payload) => {

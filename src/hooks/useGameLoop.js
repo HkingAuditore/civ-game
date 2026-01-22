@@ -3052,18 +3052,46 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         const aggressorIdx = nextNations.findIndex(n => n.id === aggressorId);
                                         if (aggressorIdx === -1) return nextNations;
 
-                                        // 1. 识别各方盟友
-                                        // 侵略者的盟友: 与侵略者关系 >= 80
+                                        // 1. 识别各方盟友（使用军事国际组织）
+                                        const orgs = diplomacyOrganizations?.organizations || [];
+                                        
+                                        // 获取某个国家所在的军事组织成员
+                                        const getMilitaryOrgMembers = (nationKey) => {
+                                            const members = new Set();
+                                            orgs.forEach(org => {
+                                                if (org?.type !== 'military_alliance') return;
+                                                if (!Array.isArray(org.members) || !org.members.includes(nationKey)) return;
+                                                org.members.forEach(id => {
+                                                    if (id && id !== nationKey) members.add(id);
+                                                });
+                                            });
+                                            return Array.from(members);
+                                        };
+                                        
+                                        const aggressorAllianceIds = getMilitaryOrgMembers(aggressorId);
+                                        const playerAllianceIds = getMilitaryOrgMembers('player');
+                                        const sharedAllianceIds = new Set(aggressorAllianceIds.filter(id => playerAllianceIds.includes(id)));
+                                        
+                                        // 侵略者的盟友（排除共同盟友和附庸）
                                         const aggressorAllies = nextNations.filter(n => {
                                             if (n.id === aggressorId) return false;
-                                            const r = nextNations[aggressorIdx].foreignRelations?.[n.id] ?? 50;
-                                            return r >= 80 && !n.isAtWar;
+                                            if (!aggressorAllianceIds.includes(n.id)) return false;
+                                            if (sharedAllianceIds.has(n.id)) return false;
+                                            if (n.isAtWar) return false;
+                                            // 排除玩家的附庸
+                                            if (n.isVassal === true) return false;
+                                            return true;
                                         });
 
-                                        // 玩家(目标)的正式盟友: alliedWithPlayer === true
+                                        // 玩家的盟友（排除共同盟友和附庸）
                                         const playerAllies = nextNations.filter(n => {
                                             if (n.id === aggressorId) return false;
-                                            return n.alliedWithPlayer === true && !n.isAtWar;
+                                            if (!playerAllianceIds.includes(n.id)) return false;
+                                            if (sharedAllianceIds.has(n.id)) return false;
+                                            if (n.isAtWar) return false;
+                                            // 排除玩家的附庸
+                                            if (n.isVassal === true) return false;
+                                            return true;
                                         });
 
                                         // ========== 战争上限检查 ==========
@@ -3075,12 +3103,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                         // 2. 处理侵略者的盟友加入战争
                                         aggressorAllies.forEach(ally => {
-                                            // 检查中立原则：如果该盟友同时也与玩家正式结盟，则保持中立
-                                            if (ally.alliedWithPlayer === true) {
-                                                addLog(`⚖️ ${ally.name} 既是你的盟友又是 ${aggressorName} 的盟友，决定保持中立。`);
-                                                return;
-                                            }
-
                                             // 检查战争上限：如果已达上限，盟友保持中立
                                             if (currentWarsWithPlayer >= MAX_CONCURRENT_WARS) {
                                                 addLog(`⚖️ ${ally.name} 虽是 ${aggressorName} 的盟友，但考虑到局势复杂，决定暂时观望。`);
@@ -3104,23 +3126,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                         // 3. 处理玩家的盟友加入战争
                                         playerAllies.forEach(ally => {
-                                            // 检查中立原则：如果该盟友同时也与侵略者正式结盟，则保持中立
-                                            const aggressorNation = nextNations[aggressorIdx];
-                                            const isAlsoAggressorAlly = (aggressorNation.allies || []).includes(ally.id) ||
-                                                (ally.allies || []).includes(aggressorId);
-                                            if (isAlsoAggressorAlly) {
-                                                // 日志已在上一步处理（双向的，只需触发一次提示即可，或者重复提示也没关系）
-                                                // addLog(`⚖️ 你的盟友 ${ally.name} 与 ${aggressorName} 关系密切，决定保持中立。`); 
-                                                // 上面的逻辑已经涵盖了这种情况（因为是遍历两组盟友，同一个国家可能出现在两组中）
-                                                // 但为了清晰，这里只提示一次 "保持中立" 比较好。
-                                                // 实际上 ally 在这里肯定出现在 playerAllies 列表中。
-                                                // 如果它也在 aggressorAllies 列表中，它会在上面的循环被处理吗？
-                                                // 上面的循环遍历 aggressorAllies，如果它与玩家关系好，会中立。
-                                                // 这里的循环遍历 playerAllies，如果它与侵略者关系好，也会中立。
-                                                // 结果是一致的：只要既是A盟友又是C盟友，就不参战。
-                                                return;
-                                            }
-
                                             // 否则，该盟友对侵略者及其盟友宣战 (设置 foreignWars)
                                             const allyIdx = nextNations.findIndex(n => n.id === ally.id);
                                             if (allyIdx !== -1) {
@@ -3148,6 +3153,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 addLog(`🛡️ 你的盟友 ${ally.name} 响应号召，对 ${aggressorName} 宣战！`);
                                             }
                                         });
+                                        
+                                        // 通知共同盟友保持中立
+                                        if (sharedAllianceIds.size > 0) {
+                                            const neutralAllies = nextNations.filter(n => sharedAllianceIds.has(n.id));
+                                            neutralAllies.forEach(ally => {
+                                                addLog(`⚖️ ${ally.name} 同时是你和 ${aggressorName} 的盟友，决定保持中立。`);
+                                            });
+                                        }
 
                                         return nextNations;
                                     });

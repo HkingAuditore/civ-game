@@ -71,10 +71,10 @@ export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel
                             <div className="p-3 bg-orange-900/30 rounded-lg border border-orange-500/40">
                                 <div className="flex items-center gap-2 mb-2">
                                     <Icon name="AlertTriangle" size={16} className="text-orange-400" />
-                                    <span className="text-sm font-bold text-orange-200">同盟警告</span>
+                                    <span className="text-sm font-bold text-orange-200">军事组织警告</span>
                                 </div>
                                 <p className="text-[11px] text-orange-100 mb-3 leading-relaxed">
-                                    {targetNation.name} 拥有 <span className="font-bold text-orange-300">{allies.length}</span> 个同盟国家。
+                                    {targetNation.name} 拥有 <span className="font-bold text-orange-300">{allies.length}</span> 个军事组织盟友。
                                     向其宣战将同时与这些国家进入战争状态！
                                 </p>
                                 <div className="space-y-1.5">
@@ -88,7 +88,7 @@ export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel
                                                 <span className="text-xs text-orange-100">{ally.name}</span>
                                             </div>
                                             <span className="text-[10px] text-orange-300">
-                                                盟友关系: {Math.round(ally.foreignRelation) || 80}+
+                                                军事组织成员
                                             </span>
                                         </div>
                                     ))}
@@ -102,7 +102,7 @@ export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel
                                 <div className="flex items-center gap-2">
                                     <Icon name="Info" size={14} className="text-blue-400" />
                                     <span className="text-xs text-gray-300">
-                                        {targetNation.name} 当前没有同盟国家，只需对抗一个敌人。
+                                        {targetNation.name} 当前没有军事组织盟友，只需对抗一个敌人。
                                     </span>
                                 </div>
                             </div>
