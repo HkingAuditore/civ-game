@@ -22,6 +22,7 @@ import {
     getGovernmentType, // Determine current polity
 } from './rulingCoalition';
 import { getPolityEffects } from '../config/polityEffects';
+import { calculateNaturalRecovery } from '../config/reputationSystem';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
@@ -329,6 +330,7 @@ export const simulateTick = ({
     tradeRoutes = {}, // [NEW] Trade routes for manual trade processing
     foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
+    diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -659,6 +661,17 @@ export const simulateTick = ({
                     Object.entries(changes).forEach(([resKey, amount]) => {
                         nation.inventory[resKey] = Math.max(0, (nation.inventory[resKey] || 0) + amount);
                     });
+                }
+            });
+        }
+
+        // [NEW] 将投资效果传递到附庸国对象，用于动态阶层经济计算
+        if (oiResult.nationInvestmentEffects) {
+            Object.entries(oiResult.nationInvestmentEffects).forEach(([nationId, effects]) => {
+                const nation = nations.find(n => n.id === nationId);
+                if (nation) {
+                    // 存储投资效果供 updateSocialClasses 使用
+                    nation._investmentEffects = effects;
                 }
             });
         }
@@ -5233,14 +5246,25 @@ export const simulateTick = ({
     // Ensure vassal social structure updates and apply independence/tribute logic
     // ========================================================================
     const vassalMarketPrices = market?.prices || {};
+    const playerAtWar = updatedNations.some(n => n.isAtWar && n.warTarget === 'player');
+    const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
+    
+    // 构建满意度上限计算所需的上下文
+    const satisfactionContext = {
+        suzereainWealth: res.silver || 10000,
+        suzereainPopulation: population || 1000000,
+        suzereainMilitary: playerMilitary,
+        suzereainAtWar: playerAtWar,
+        suzereainReputation: diplomaticReputation ?? 50, // Use actual reputation value
+        hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势力
+    };
+    
     updatedNations = updatedNations.map(nation => {
         if (nation.vassalOf !== 'player') return nation;
         const initialized = initializeNationEconomyData({ ...nation }, vassalMarketPrices);
-        return updateNationEconomyData(initialized, vassalMarketPrices);
+        return updateNationEconomyData(initialized, vassalMarketPrices, satisfactionContext);
     });
 
-    const playerAtWar = updatedNations.some(n => n.isAtWar && n.warTarget === 'player');
-    const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
     const vassalResult = processVassalUpdates({
         nations: updatedNations,
         daysElapsed: tick,
@@ -5249,6 +5273,7 @@ export const simulateTick = ({
         playerStability: stabilityValue,
         playerAtWar,
         playerWealth: res.silver || 0,
+        playerPopulation: population || 1000000,
         officials,
         logs,
     });
@@ -7050,6 +7075,9 @@ export const simulateTick = ({
         });
     }
 
+    // Calculate diplomatic reputation natural recovery (daily)
+    const updatedDiplomaticReputation = calculateNaturalRecovery(diplomaticReputation);
+
     return {
         tradeOpportunities,
         tradeRoutes: tradeRoutes ? { ...tradeRoutes, routes: tradeRoutes.routes.filter(r => !tradeRouteSummary?.routesToRemove?.includes(r)) } : undefined,
@@ -7187,6 +7215,7 @@ export const simulateTick = ({
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
+        diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
         // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
         _debug: {
             freeMarket: _freeMarketDebug,

@@ -18,7 +18,7 @@ import {
     GLOBAL_WAR_COOLDOWN
 } from '../utils/index.js';
 import { getRelationMonthlyDriftRate } from '../../config/difficulty.js';
-import { processVassalUpdates } from './vassalSystem.js';
+import { processVassalUpdates, calculateDynamicSatisfactionCap, SATISFACTION_CAP_CONFIG } from './vassalSystem.js';
 import {
     AI_ECONOMY_CONFIG,
     getSocialStructureTemplate,
@@ -57,13 +57,133 @@ const applyResourceChange = (resources, resourceType, delta, reason, onResourceC
 // ========== AI国家经济数据初始化与更新 ==========
 
 /**
- * 财富分配系数（假设）
- * 用于将国家总财富分配给各阶层
+ * 基础财富分配系数（未受政策影响时的默认分布）
+ * 这只是初始化时的基准，实际分配会根据政策动态调整
  */
-const WEALTH_DISTRIBUTION = {
-    elites: 0.60,      // 精英阶层掌握60%财富
-    commoners: 0.35,   // 平民阶层掌握35%财富
-    underclass: 0.05,  // 底层阶层掌握5%财富
+const BASE_WEALTH_DISTRIBUTION = {
+    elites: 0.55,      // 精英阶层基础占比55%
+    commoners: 0.35,   // 平民阶层基础占比35%
+    underclass: 0.10,  // 底层阶层基础占比10%
+};
+
+/**
+ * 基础人口比例（未受政策影响时的默认分布）
+ */
+const BASE_POPULATION_RATIO = {
+    elites: 0.08,      // 精英阶层基础占比8%
+    commoners: 0.62,   // 平民阶层基础占比62%
+    underclass: 0.30,  // 底层阶层基础占比30%
+};
+
+/**
+ * 政策对阶层财富分配的影响
+ * 返回每个阶层的财富份额修正值
+ */
+const getPolicyWealthEffects = (vassalPolicy = {}) => {
+    const laborPolicy = vassalPolicy.labor || 'standard';
+    const tradePolicy = vassalPolicy.tradePolicy || 'preferential';
+    const governancePolicy = vassalPolicy.governance || 'autonomous';
+    const investmentPolicy = vassalPolicy.investmentPolicy || 'autonomous';
+
+    // 劳工政策对财富分配的影响
+    // 剥削性政策将财富从底层转移到精英
+    const laborEffects = {
+        standard:     { elites: 0,     commoners: 0,     underclass: 0 },
+        corvee:       { elites: 0.03,  commoners: 0,     underclass: -0.03 },  // 徭役：底层→精英
+        debt_bondage: { elites: 0.05,  commoners: -0.02, underclass: -0.03 },  // 债务奴役：底层+平民→精英
+        serfdom:      { elites: 0.08,  commoners: -0.03, underclass: -0.05 },  // 农奴制
+        slavery:      { elites: 0.12,  commoners: -0.04, underclass: -0.08 },  // 奴隶制：极端剥削
+    };
+
+    // 贸易政策对财富分配的影响
+    // 掠夺性政策减少商人/平民阶层的财富
+    const tradeEffects = {
+        free_trade:   { elites: -0.02, commoners: 0.02,  underclass: 0 },      // 自由贸易：利于平民
+        preferential: { elites: 0,     commoners: 0,     underclass: 0 },
+        monopoly:     { elites: 0.04,  commoners: -0.03, underclass: -0.01 },  // 垄断：利于精英
+        plunder:      { elites: 0.08,  commoners: -0.05, underclass: -0.03 },  // 掠夺：财富集中到精英
+    };
+
+    // 治理政策对财富分配的影响
+    // 直接统治削弱本地精英
+    const governanceEffects = {
+        autonomous:   { elites: 0.02,  commoners: 0,     underclass: -0.02 },  // 自治：本地精英受益
+        puppet_govt:  { elites: 0,     commoners: 0,     underclass: 0 },
+        direct_rule:  { elites: -0.05, commoners: 0,     underclass: 0.05 },   // 直接统治：削弱本地精英
+    };
+
+    // 投资政策对财富分配的影响
+    // 强制投资可能扭曲本地经济结构
+    const investmentEffects = {
+        autonomous:   { elites: 0,     commoners: 0,     underclass: 0 },
+        guided:       { elites: 0.02,  commoners: 0.01,  underclass: -0.03 },  // 引导投资：部分利于上层
+        forced:       { elites: 0.05,  commoners: -0.02, underclass: -0.03 },  // 强制投资：扭曲经济
+    };
+
+    const labor = laborEffects[laborPolicy] || laborEffects.standard;
+    const trade = tradeEffects[tradePolicy] || tradeEffects.preferential;
+    const governance = governanceEffects[governancePolicy] || governanceEffects.puppet_govt;
+    const investment = investmentEffects[investmentPolicy] || investmentEffects.autonomous;
+
+    return {
+        elites: labor.elites + trade.elites + governance.elites + investment.elites,
+        commoners: labor.commoners + trade.commoners + governance.commoners + investment.commoners,
+        underclass: labor.underclass + trade.underclass + governance.underclass + investment.underclass,
+    };
+};
+
+/**
+ * 政策对人口比例的影响
+ * 严苛政策会导致人口流动（底层人口减少/逃亡、精英外流等）
+ */
+const getPolicyPopulationEffects = (vassalPolicy = {}) => {
+    const laborPolicy = vassalPolicy.labor || 'standard';
+    const governancePolicy = vassalPolicy.governance || 'autonomous';
+
+    // 劳工政策对人口比例的影响
+    // 剥削性政策导致底层人口减少（死亡、逃亡、起义被镇压）
+    const laborEffects = {
+        standard:     { elites: 0,      commoners: 0,      underclass: 0 },
+        corvee:       { elites: 0,      commoners: 0.01,   underclass: -0.01 },  // 底层略减
+        debt_bondage: { elites: 0,      commoners: 0.02,   underclass: -0.02 },
+        serfdom:      { elites: 0,      commoners: 0.03,   underclass: -0.03 },  // 人口向上流动受阻
+        slavery:      { elites: 0.01,   commoners: 0.04,   underclass: -0.05 },  // 底层大量减少
+    };
+
+    // 治理政策对人口比例的影响
+    // 直接统治导致本地精英流失
+    const governanceEffects = {
+        autonomous:   { elites: 0.01,   commoners: 0,      underclass: -0.01 },  // 精英增加
+        puppet_govt:  { elites: 0,      commoners: 0,      underclass: 0 },
+        direct_rule:  { elites: -0.02,  commoners: 0.01,   underclass: 0.01 },   // 精英流失
+    };
+
+    const labor = laborEffects[laborPolicy] || laborEffects.standard;
+    const governance = governanceEffects[governancePolicy] || governanceEffects.puppet_govt;
+
+    return {
+        elites: labor.elites + governance.elites,
+        commoners: labor.commoners + governance.commoners,
+        underclass: labor.underclass + governance.underclass,
+    };
+};
+
+/**
+ * 计算朝贡对各阶层财富的抽取
+ * 朝贡按阶层财富比例抽取，但精英有更多手段规避
+ * @param {number} tributeRate - 朝贡率（0-1）
+ * @returns {Object} 各阶层的财富抽取比例
+ */
+const getTributeExtractionRates = (tributeRate = 0) => {
+    // 精英有能力规避部分朝贡负担（转嫁给下层）
+    // 朝贡率越高，转嫁效应越明显
+    const evasionFactor = Math.min(0.5, tributeRate * 0.8);  // 精英最多规避50%
+    
+    return {
+        elites: tributeRate * (1 - evasionFactor),      // 精英实际承担较少
+        commoners: tributeRate * (1 + evasionFactor * 0.3),  // 平民承担略多
+        underclass: tributeRate * (1 + evasionFactor * 0.5), // 底层承担最多
+    };
 };
 
 /**
@@ -180,69 +300,240 @@ export const initializeNationEconomyData = (nation, marketPrices = {}) => {
 };
 
 /**
- * 更新阶层数据（人口、财富、生活水平）
+ * 计算玩家在附庸国的投资对阶层经济的影响
+ * @param {Object} nation - 国家对象
+ * @param {Array} overseasInvestments - 海外投资列表（可选，从nation._investmentEffects获取）
+ * @returns {Object} 投资对各阶层的影响 { wealthFlow, jobCreation }
+ */
+const calculateInvestmentImpact = (nation) => {
+    // 从nation对象中获取缓存的投资影响数据
+    // 这些数据由overseasInvestment.js在处理投资收益时更新
+    const investmentEffects = nation._investmentEffects || {};
+    
+    // 投资带来的财富流动：
+    // - 工资流入底层和平民（创造就业）
+    // - 利润流入精英和外资方（资本回报）
+    // - 租金流入地主阶层（如果有土地使用）
+    const wagesPaid = investmentEffects.totalWages || 0;          // 支付给本地工人的工资
+    const profitsExtracted = investmentEffects.profitsExtracted || 0; // 被外资抽走的利润
+    const localReinvestment = investmentEffects.localReinvestment || 0; // 在当地再投资
+    
+    // 工资分配：70%流入底层，30%流入平民（技术工人）
+    const wealthFlow = {
+        elites: localReinvestment * 0.4,           // 部分再投资惠及本地精英
+        commoners: wagesPaid * 0.3 + localReinvestment * 0.3,
+        underclass: wagesPaid * 0.7 + localReinvestment * 0.3,
+    };
+    
+    // 就业创造对人口比例的影响（小幅度）
+    // 投资越多，底层人口越能维持生存（减少死亡/外流）
+    const investmentIntensity = Math.min(1, wagesPaid / Math.max(100, nation.wealth || 1000));
+    const jobCreation = {
+        elites: 0,
+        commoners: investmentIntensity * 0.005,
+        underclass: investmentIntensity * 0.01,  // 投资保护底层人口
+    };
+    
+    // 负面效果：利润被抽走减少总财富
+    const wealthDrain = profitsExtracted;
+    
+    return { wealthFlow, jobCreation, wealthDrain };
+};
+
+/**
+ * 更新阶层数据（人口、财富、生活水平）- 动态模型
+ * 
+ * 核心设计：
+ * 1. 阶层财富不再是简单的按固定比例分配
+ * 2. 政策、朝贡、投资都会影响财富在阶层间的流动
+ * 3. 人口比例会根据政策和经济状况缓慢变化
+ * 4. 所有变化都是渐进式的，不会瞬间跳变
+ * 
  * @param {Object} nation - 国家对象
  * @returns {Object} 更新后的国家对象
  */
-const updateSocialClasses = (nation) => {
+/**
+ * 国库占国家总财富的比例
+ * 国库用于军事、基建、行政开支等，不属于民众可分配财富
+ */
+const TREASURY_RATIO = 0.45;  // 45%的国家财富是国库，55%是民众财富
+
+/**
+ * 阶层生活水平期望值（基于生存成本的倍数）
+ * 这些值决定了什么样的生活水平能达到基准满意度（70%）
+ */
+const SOL_EXPECTATIONS = {
+    elites: 25.0,      // 精英期望很高的生活水平
+    commoners: 8.0,    // 平民期望中等生活水平
+    underclass: 3.0,   // 底层期望较低，但仍需超过最低生存线
+};
+
+/**
+ * 更新阶层数据（人口、财富、生活水平）- 动态模型
+ * @param {Object} nation - 国家对象
+ * @param {Object} context - 上下文信息（用于计算动态满意度上限）
+ * @returns {Object} 更新后的国家对象
+ */
+const updateSocialClasses = (nation, context = {}) => {
     if (!nation || !nation.socialStructure) return nation;
 
     const updated = { ...nation };
     const structure = { ...updated.socialStructure };
     const totalPop = updated.population || 1000;
-    const totalWealth = updated.wealth || 1000;
+    const totalNationWealth = updated.wealth || 1000;
+    
+    // 区分国库和民众可分配财富
+    // 国库用于军事、基建、行政等，不分配给民众
+    const treasuryWealth = totalNationWealth * TREASURY_RATIO;
+    const distributedWealth = totalNationWealth - treasuryWealth;  // 民众可分配财富
+    
     const subsistenceCost = calculateSubsistenceCost(updated.nationPrices);
+    const vassalPolicy = updated.vassalPolicy || {};
+    const tributeRate = updated.tributeRate || 0;
 
-    // 通用影响因素
+    // ========== 1. 计算政策影响 ==========
+    const policyWealthEffects = getPolicyWealthEffects(vassalPolicy);
+    const policyPopulationEffects = getPolicyPopulationEffects(vassalPolicy);
+    
+    // ========== 2. 计算朝贡抽取 ==========
+    const tributeExtraction = getTributeExtractionRates(tributeRate);
+    
+    // ========== 3. 计算投资影响 ==========
+    const investmentImpact = calculateInvestmentImpact(updated);
+    
+    // ========== 4. 通用影响因素 ==========
     let generalSatisfactionMod = 0;
     if (updated.isAtWar) generalSatisfactionMod -= 5;
 
+    // ========== 4.5 计算动态满意度上限 ==========
+    // 满意度上限受统治政策、经济对比、国际局势、军事实力等多因素影响
+    const dynamicCaps = calculateDynamicSatisfactionCap(updated, context);
+
+    // ========== 5. 计算各阶层的目标财富份额和人口比例 ==========
+    const targetWealthShares = {};
+    const targetPopulationRatios = {};
+    let totalWealthShare = 0;
+    let totalPopRatio = 0;
+
     ['elites', 'commoners', 'underclass'].forEach(stratum => {
-        if (!structure[stratum]) return;
+        // 基础份额 + 政策修正
+        let wealthShare = BASE_WEALTH_DISTRIBUTION[stratum] + policyWealthEffects[stratum];
+        let popRatio = BASE_POPULATION_RATIO[stratum] + policyPopulationEffects[stratum];
+        
+        // 投资创造就业对人口比例的影响
+        popRatio += investmentImpact.jobCreation[stratum];
+        
+        // 朝贡减少该阶层的有效财富份额
+        // （这里通过减少份额来模拟朝贡对该阶层的影响）
+        wealthShare *= (1 - tributeExtraction[stratum] * 0.3);  // 朝贡不会完全抹除份额
+        
+        // 确保不为负
+        wealthShare = Math.max(0.01, wealthShare);
+        popRatio = Math.max(0.02, popRatio);
+        
+        targetWealthShares[stratum] = wealthShare;
+        targetPopulationRatios[stratum] = popRatio;
+        totalWealthShare += wealthShare;
+        totalPopRatio += popRatio;
+    });
+
+    // 归一化（确保总和为1）
+    ['elites', 'commoners', 'underclass'].forEach(stratum => {
+        targetWealthShares[stratum] /= totalWealthShare;
+        targetPopulationRatios[stratum] /= totalPopRatio;
+    });
+
+    // ========== 6. 更新各阶层数据 ==========
+    ['elites', 'commoners', 'underclass'].forEach(stratum => {
+        if (!structure[stratum]) {
+            structure[stratum] = {
+                ratio: BASE_POPULATION_RATIO[stratum],
+                wealthShare: BASE_WEALTH_DISTRIBUTION[stratum],
+                population: 0,
+                wealth: 0,
+                satisfaction: 50,
+                sol: 1.0,
+            };
+        }
 
         const data = { ...structure[stratum] };
 
-        // 1. 更新人口
-        const ratio = data.ratio || 0.33;
-        data.population = Math.floor(totalPop * ratio);
+        // 6.1 缓慢趋近目标人口比例（每tick变化2%）
+        const currentRatio = data.ratio || BASE_POPULATION_RATIO[stratum];
+        const targetRatio = targetPopulationRatios[stratum];
+        data.ratio = currentRatio * 0.98 + targetRatio * 0.02;
+        data.population = Math.floor(totalPop * data.ratio);
 
-        // 2. 更新财富
-        // 使用预设的财富分配比例，加一点随机波动模拟流动
-        const wealthShare = WEALTH_DISTRIBUTION[stratum] || 0.33;
-        data.wealth = Math.floor(totalWealth * wealthShare);
+        // 6.2 缓慢趋近目标财富份额（每tick变化3%）
+        const currentWealthShare = data.wealthShare || BASE_WEALTH_DISTRIBUTION[stratum];
+        const targetWealthShare = targetWealthShares[stratum];
+        data.wealthShare = currentWealthShare * 0.97 + targetWealthShare * 0.03;
+        
+        // 计算实际财富（基于份额，从民众可分配财富中分配）+ 投资流入
+        // 注意：这里用 distributedWealth 而不是 totalNationWealth
+        const baseWealth = distributedWealth * data.wealthShare;
+        const investmentBonus = investmentImpact.wealthFlow[stratum] || 0;
+        data.wealth = Math.floor(baseWealth + investmentBonus);
 
-        // 3. 计算人均财富与生活水平 (SoL)
-        // 人均财富 = 阶层总财富 / 阶层人口
+        // 6.3 计算人均财富与生活水平 (SoL)
         const perCapitaWealth = data.population > 0 ? data.wealth / data.population : 0;
-
-        // 生活水平 = 人均财富 / 生存成本
-        // 阈值：底层需维持 1.0，平民 2.0，精英 10.0
         const solRatio = subsistenceCost > 0 ? perCapitaWealth / subsistenceCost : 1;
-
         data.sol = solRatio;
 
-        // 4. 更新满意度
-        // 基于SoL和基准期望的对比
-        const expectations = {
-            elites: 15.0,
-            commoners: 6.0,
-            underclass: 4.0,
-        };
-        const expectedSol = expectations[stratum] || 1.0;
-
-        // 满意度趋向目标值：SoL / 期望SoL，采用平方根减缓高财富的拉满效应
+        // 6.4 更新满意度
+        // 使用更合理的期望值
+        const expectedSol = SOL_EXPECTATIONS[stratum] || 5.0;
         const solRatioNormalized = expectedSol > 0 ? solRatio / expectedSol : 0;
-        let targetSatisfaction = Math.min(100, Math.sqrt(Math.max(0, solRatioNormalized)) * 50);
-        const policySatisfactionMod = getPolicySatisfactionModifier(updated.vassalPolicy, stratum);
-        targetSatisfaction = Math.max(0, targetSatisfaction + generalSatisfactionMod + policySatisfactionMod);
+        
+        // 获取该阶层的动态满意度上限
+        const dynamicCap = dynamicCaps[stratum] || SATISFACTION_CAP_CONFIG.baseCap;
+        
+        // 基础满意度计算（改进版）
+        // - 低于期望：线性增长到70%
+        // - 超出期望：缓慢对数增长，但受动态上限限制
+        let baseSatisfaction = 0;
+        if (solRatioNormalized < 1.0) {
+            // 低于期望值：线性增长
+            baseSatisfaction = 70 * solRatioNormalized;
+        } else {
+            // 超出期望值：对数增长，但受动态上限限制
+            // log10(2) ≈ 0.3, log10(10) ≈ 1.0
+            // 生活水平翻倍只增加约3%满意度
+            baseSatisfaction = Math.min(dynamicCap, 70 + Math.log10(solRatioNormalized + 1) * 10);
+        }
+        
+        const policySatisfactionMod = getPolicySatisfactionModifier(vassalPolicy, stratum);
+        
+        // 最终上限：综合考虑动态上限和政策惩罚
+        // 政策惩罚会进一步降低上限
+        const finalCap = policySatisfactionMod < 0 
+            ? Math.max(SATISFACTION_CAP_CONFIG.absoluteMin, dynamicCap + policySatisfactionMod * 1.5) 
+            : dynamicCap;
+        
+        let targetSatisfaction = baseSatisfaction + generalSatisfactionMod + policySatisfactionMod;
+        targetSatisfaction = Math.max(0, Math.min(finalCap, targetSatisfaction));
 
         // 缓慢趋近
         const currentSat = data.satisfaction || 50;
         data.satisfaction = currentSat * 0.95 + targetSatisfaction * 0.05;
 
+        // 6.5 记录影响因素用于UI显示
+        data._factors = {
+            policyWealthEffect: policyWealthEffects[stratum],
+            policyPopulationEffect: policyPopulationEffects[stratum],
+            tributeExtraction: tributeExtraction[stratum],
+            investmentWealthFlow: investmentImpact.wealthFlow[stratum],
+            investmentJobCreation: investmentImpact.jobCreation[stratum],
+            // 新增：满意度上限相关
+            satisfactionCap: finalCap,
+            satisfactionCapFactors: dynamicCaps.factors?.[stratum] || [],
+        };
+
         structure[stratum] = data;
     });
 
+    // 记录投资带来的财富流失（用于UI显示）
+    updated._investmentWealthDrain = investmentImpact.wealthDrain;
     updated.socialStructure = structure;
     return updated;
 };
@@ -251,9 +542,10 @@ const updateSocialClasses = (nation) => {
  * 更新AI国家的每日经济数据
  * @param {Object} nation - 国家对象
  * @param {Object} marketPrices - 玩家市场价格
+ * @param {Object} context - 上下文信息（用于计算动态满意度上限）
  * @returns {Object} 更新后的国家对象
  */
-export const updateNationEconomyData = (nation, marketPrices = {}) => {
+export const updateNationEconomyData = (nation, marketPrices = {}, context = {}) => {
     if (!nation || !nation.nationPrices) return nation;
     
     let updated = { ...nation };
@@ -308,7 +600,7 @@ export const updateNationEconomyData = (nation, marketPrices = {}) => {
     });
     
     // 3. 全面更新阶层数据（代替旧的简单满意度更新）
-    updated = updateSocialClasses(updated);
+    updated = updateSocialClasses(updated, context);
     
     return updated;
 };
@@ -328,6 +620,7 @@ export const updateNations = ({
     stabilityValue,
     logs,
     marketPrices = {},  // 新增：玩家市场价格，用于AI经济数据初始化和更新
+    diplomaticReputation = 50, // Player's diplomatic reputation (0-100)
     onTreasuryChange,
     onResourceChange,
 }) => {
@@ -442,7 +735,16 @@ export const updateNations = ({
         });
 
         // 更新AI国家经济数据（新增：价格、库存、阶层满意度）
-        const economyUpdated = updateNationEconomyData(next, marketPrices);
+        // 构建满意度上限计算所需的上下文
+        const satisfactionContext = {
+            suzereainWealth: playerWealthBaseline,
+            suzereainPopulation: playerPopulationBaseline,
+            suzereainMilitary: Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100,
+            suzereainAtWar: updatedNations.some(n => n.isAtWar && !n.vassalOf),
+            suzereainReputation: diplomaticReputation ?? 50, // Use actual reputation value
+            hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势力
+        };
+        const economyUpdated = updateNationEconomyData(next, marketPrices, satisfactionContext);
         Object.assign(next, economyUpdated);
 
         return next;
@@ -466,6 +768,8 @@ export const updateNations = ({
         playerMilitary: Math.max(0.5, playerMilitary),
         playerStability: stabilityValue,
         playerAtWar,
+        playerWealth: res.silver || 0,
+        playerPopulation: population || 1000000,
         logs,
     });
     updatedNations = vassalResult.nations;
@@ -1028,4 +1332,107 @@ const processMonthlyRelationDecay = (nations, difficultyLevel = 'normal') => {
 
         return { ...nation, relation: newRelation };
     });
+};
+
+// ========== 阶层经济分析工具函数（供UI使用）==========
+
+/**
+ * 获取附庸国阶层经济的详细分析
+ * 用于UI显示各因素对阶层财富和人口的影响
+ * @param {Object} nation - 附庸国对象
+ * @returns {Object} 详细的阶层经济分析
+ */
+export const getVassalEconomyAnalysis = (nation) => {
+    if (!nation || !nation.socialStructure) {
+        return null;
+    }
+
+    const vassalPolicy = nation.vassalPolicy || {};
+    const tributeRate = nation.tributeRate || 0;
+
+    // 获取各项政策效果
+    const policyWealthEffects = getPolicyWealthEffects(vassalPolicy);
+    const policyPopulationEffects = getPolicyPopulationEffects(vassalPolicy);
+    const tributeExtraction = getTributeExtractionRates(tributeRate);
+
+    // 投资效果
+    const investmentEffects = nation._investmentEffects || {
+        totalWages: 0,
+        profitsExtracted: 0,
+        localReinvestment: 0,
+        taxRetained: 0,
+    };
+
+    // 计算净财富流动
+    const netWealthFlow = investmentEffects.totalWages + 
+                          investmentEffects.localReinvestment + 
+                          investmentEffects.taxRetained - 
+                          investmentEffects.profitsExtracted;
+
+    // 各阶层分析
+    const stratumAnalysis = {};
+    ['elites', 'commoners', 'underclass'].forEach(stratum => {
+        const data = nation.socialStructure[stratum] || {};
+        const factors = data._factors || {};
+
+        stratumAnalysis[stratum] = {
+            // 当前状态
+            population: data.population || 0,
+            wealth: data.wealth || 0,
+            wealthShare: data.wealthShare || BASE_WEALTH_DISTRIBUTION[stratum],
+            populationRatio: data.ratio || BASE_POPULATION_RATIO[stratum],
+            sol: data.sol || 1.0,
+            satisfaction: data.satisfaction || 50,
+
+            // 影响因素
+            factors: {
+                // 政策对财富份额的影响
+                policyWealthEffect: policyWealthEffects[stratum],
+                // 政策对人口比例的影响
+                policyPopulationEffect: policyPopulationEffects[stratum],
+                // 朝贡抽取比例
+                tributeExtraction: tributeExtraction[stratum],
+                // 投资带来的财富流入
+                investmentWealthFlow: factors.investmentWealthFlow || 0,
+                // 投资带来的就业机会
+                investmentJobCreation: factors.investmentJobCreation || 0,
+            },
+
+            // 趋势
+            trends: {
+                wealthTrend: (policyWealthEffects[stratum] || 0) - (tributeExtraction[stratum] * 0.3),
+                populationTrend: policyPopulationEffects[stratum] || 0,
+            },
+        };
+    });
+
+    return {
+        // 总体状态
+        totalWealth: nation.wealth || 0,
+        totalPopulation: nation.population || 0,
+        tributeRate,
+
+        // 政策配置
+        policies: {
+            labor: vassalPolicy.labor || 'standard',
+            trade: vassalPolicy.tradePolicy || 'preferential',
+            governance: vassalPolicy.governance || 'puppet_govt',
+            investment: vassalPolicy.investmentPolicy || 'autonomous',
+        },
+
+        // 投资影响
+        investment: {
+            wagesFlowingIn: investmentEffects.totalWages,
+            profitsFlowingOut: investmentEffects.profitsExtracted,
+            localReinvestment: investmentEffects.localReinvestment,
+            taxRetained: investmentEffects.taxRetained,
+            netFlow: netWealthFlow,
+        },
+
+        // 各阶层详细分析
+        strata: stratumAnalysis,
+
+        // 财富流失（投资抽走的利润）
+        wealthDrain: nation._investmentWealthDrain || 0,
+    };
 };

@@ -646,7 +646,7 @@ export const TECHS = [
     {
         id: 'industrial_ceramics',
         name: "工业陶瓷",
-        desc: "解锁砖窯升级，环形窑与传送带实现连续烧制。砖窯效率 +25%。",
+        desc: "解锁砖窑升级，环形窑与传送带实现连续烧制。砖窑效率 +25%。",
         cost: { science: 11700 },
         epoch: 5,
         effects: { buildings: { brickworks: 0.18 } },

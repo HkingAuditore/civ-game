@@ -71,6 +71,7 @@ import {
 import { MINISTER_ROLES, MINISTER_LABELS } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
+import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
 
 
 /**
@@ -166,6 +167,9 @@ export const useGameActions = (gameState, addLog) => {
         // Ruling coalition for political demands
         rulingCoalition,
         setRulingCoalition,
+        // Diplomatic reputation
+        diplomaticReputation,
+        setDiplomaticReputation,
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
@@ -3407,8 +3411,29 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
 
                     addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
+                    
+                    // Actually reduce diplomatic reputation
+                    if (setDiplomaticReputation) {
+                        const { newReputation } = calculateReputationChange(
+                            diplomaticReputation ?? 50,
+                            'breakPeaceTreaty',
+                            false  // negative event
+                        );
+                        setDiplomaticReputation(newReputation);
+                    }
                 }
                 addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
+                
+                // 主动宣战减少声誉（非违约宣战也会有轻微声誉损失）
+                if (!breachPenalty && setDiplomaticReputation) {
+                    const { newReputation } = calculateReputationChange(
+                        diplomaticReputation ?? 50,
+                        'declareWar',
+                        false  // negative event
+                    );
+                    setDiplomaticReputation(newReputation);
+                }
+                
                 // 通知盟友参战
                 if (targetAllies.length > 0) {
                     const allyNames = targetAllies.map(a => a.name).join('、');

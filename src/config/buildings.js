@@ -632,7 +632,7 @@ export const BUILDINGS = [
 
     {
         id: 'brickworks',
-        name: "砖窯",
+        name: "砖窑",
         desc: "烧制砖块，供城墙与民宅所用。",
         baseCost: { wood: 140, stone: 90 },
         input: { stone: 1.5, wood: 0.45 },

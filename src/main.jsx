@@ -14,6 +14,24 @@ const muteConsoleNoise = () => {
 
 muteConsoleNoise();
 
+// 禁用 Performance.measure 以避免大对象克隆导致的内存溢出
+// React DevTools 在开发模式下会尝试使用 performance.measure 记录组件渲染
+// 当游戏状态过大时会导致 DataCloneError
+if (typeof Performance !== 'undefined' && Performance.prototype.measure) {
+    const originalMeasure = Performance.prototype.measure;
+    Performance.prototype.measure = function(...args) {
+        try {
+            return originalMeasure.apply(this, args);
+        } catch (error) {
+            // 静默忽略 DataCloneError，避免影响游戏运行
+            if (error.name === 'DataCloneError') {
+                return undefined;
+            }
+            throw error;
+        }
+    };
+}
+
 // 在原生平台上隐藏状态栏
 if (Capacitor.isNativePlatform()) {
     StatusBar.hide().catch(err => console.log('StatusBar hide error:', err));

@@ -141,24 +141,23 @@ const DIPLOMATIC_CONTROL_OPTIONS = [
         id: 'autonomous',
         title: '自主外交',
         description: '允许附庸自主进行外交活动',
-        effects: '独立倾向-5/年',
-        effectColor: 'text-green-400',
+        effects: '附庸可自由签约',
+        effectColor: 'text-gray-400',
     },
     {
         id: 'guided',
         title: '引导外交',
         description: '附庸外交需经过你的审批',
-        effects: '维持现状（默认）',
-        effectColor: 'text-gray-400',
+        effects: '需审批（默认）',
+        effectColor: 'text-blue-400',
     },
     {
         id: 'puppet',
-        title: '僀儡外交',
+        title: '傀儡外交',
         description: '完全控制附庸的外交行为',
-        effects: '独立倾向+3/年',
+        effects: '禁止自主签约',
         effectColor: 'text-red-400',
-    },
-];
+    },];
 
 // 劳工政策选项 (NEW - 控制工资成本和动荡)
 const LABOR_POLICY_OPTIONS = [
@@ -232,6 +231,31 @@ const INVESTMENT_POLICY_OPTIONS = [
         title: '强制投资',
         description: '附庸被迫进行投资，无论盈亏 (ROI > -10%)',
         effects: '严重不满，亏损时不满加剧',
+        effectColor: 'text-red-400',
+    },
+];
+
+// 治理政策选项 (NEW)
+const GOVERNANCE_POLICY_OPTIONS = [
+    {
+        id: 'autonomous',
+        title: '自治',
+        description: '附庸完全自我管理，朝贡减半',
+        effects: '朝贡-50%，独立倾向-40%',
+        effectColor: 'text-green-400',
+    },
+    {
+        id: 'puppet_govt',
+        title: '傀儡政府',
+        description: '扶植亲玩家的本地政府',
+        effects: '维持现状（默认）',
+        effectColor: 'text-gray-400',
+    },
+    {
+        id: 'direct_rule',
+        title: '直接统治',
+        description: '中央政府直接管理附庸内政',
+        effects: '朝贡+30%，控制成本+50%，独立倾向-20%',
         effectColor: 'text-red-400',
     },
 ];
@@ -358,11 +382,19 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 <div className="text-[10px] text-gray-500 mt-1">
                     {independence > 80 ? '即将独立!' : independence > 60 ? '有独立意向' : independence > 30 ? '轻微不满' : '忠诚'}
                 </div>
-                {/* 每日变化预估 */}
-                {independenceBreakdown && (
-                    <div className={`text-[10px] mt-1 font-mono ${independenceBreakdown.netChange > 0 ? 'text-red-400' : 'text-green-400'
-                        }`}>
-                        每日: {independenceBreakdown.netChange > 0 ? '+' : ''}{independenceBreakdown.netChange.toFixed(2)}%
+                {/* 每日变化显示（移除目标值概念） */}
+                {independenceBreakdown && independenceBreakdown.dailyChange !== undefined && (
+                    <div className="text-[10px] mt-1 space-y-0.5">
+                        <div className={`font-mono ${independenceBreakdown.dailyChange > 0 ? 'text-red-400' : independenceBreakdown.dailyChange < 0 ? 'text-green-400' : 'text-gray-400'}`}>
+                            每日: {independenceBreakdown.dailyChange > 0 ? '+' : ''}{(independenceBreakdown.dailyChange || 0).toFixed(2)}%
+                        </div>
+                        <div className="text-gray-400 font-mono">
+                            {independenceBreakdown.dailyChange > 0.01 && independenceBreakdown.daysToMax
+                                ? `约${independenceBreakdown.daysToMax}天达上限`
+                                : independenceBreakdown.dailyChange < -0.01 && independenceBreakdown.daysToZero
+                                    ? `约${independenceBreakdown.daysToZero}天归零`
+                                    : '当前稳定'}
+                        </div>
                     </div>
                 )}
             </div>
@@ -374,20 +406,29 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 <div className="flex items-center gap-2 mb-3">
                     <Icon name="TrendingUp" size={16} className="text-orange-400" />
                     <span className="text-sm font-semibold text-gray-200">独立倾向变化原因</span>
-                    <span className={`ml-auto text-sm font-mono ${independenceBreakdown.netChange > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                        {independenceBreakdown.netChange > 0 ? '+' : ''}{independenceBreakdown.netChange.toFixed(2)}%/天
-                    </span>
+                    <div className="ml-auto text-right">
+                        <div className={`text-sm font-mono ${(independenceBreakdown.dailyChange || 0) > 0 ? 'text-red-400' : (independenceBreakdown.dailyChange || 0) < 0 ? 'text-green-400' : 'text-gray-400'}`}>
+                            每日: {(independenceBreakdown.dailyChange || 0) > 0 ? '+' : ''}{(independenceBreakdown.dailyChange || 0).toFixed(2)}%
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-mono">
+                            {(independenceBreakdown.dailyChange || 0) > 0.01 && independenceBreakdown.daysToMax
+                                ? `约${independenceBreakdown.daysToMax}天达上限`
+                                : (independenceBreakdown.dailyChange || 0) < -0.01 && independenceBreakdown.daysToZero
+                                    ? `约${independenceBreakdown.daysToZero}天归零`
+                                    : '当前稳定'}
+                        </div>
+                    </div>
                 </div>
 
                 {/* 增长因素 */}
-                {independenceBreakdown.factors.length > 0 && (
+                {independenceBreakdown.increaseFactors && independenceBreakdown.increaseFactors.length > 0 && (
                     <div className="mb-3">
                         <div className="text-[10px] text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                             <Icon name="ArrowUp" size={10} />
-                            增长因素 (+{independenceBreakdown.growthRate.toFixed(2)}%/天)
+                            增长因素 (+{(independenceBreakdown.totalIncrease || 0).toFixed(3)}%/天)
                         </div>
                         <div className="space-y-1">
-                            {independenceBreakdown.factors.map((factor, idx) => (
+                            {independenceBreakdown.increaseFactors.map((factor, idx) => (
                                 <div key={idx} className="flex items-center justify-between text-[10px]">
                                     <span className="text-gray-400">
                                         {factor.name}
@@ -395,12 +436,8 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                                             <span className="text-gray-500 ml-1">({factor.description})</span>
                                         )}
                                     </span>
-                                    <span className={`font-mono ${factor.effect === 'negative' ? 'text-red-400' :
-                                        factor.effect === 'positive' ? 'text-green-400' : 'text-gray-300'
-                                        }`}>
-                                        {factor.type === 'multiplier'
-                                            ? `×${factor.value.toFixed(2)}`
-                                            : `${factor.value >= 0 ? '+' : ''}${factor.value.toFixed(2)}`}
+                                    <span className="text-red-400 font-mono">
+                                        +{factor.value.toFixed(3)}
                                     </span>
                                 </div>
                             ))}
@@ -409,14 +446,14 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 )}
 
                 {/* 减少因素 */}
-                {independenceBreakdown.reductions.length > 0 && (
+                {independenceBreakdown.decreaseFactors && independenceBreakdown.decreaseFactors.length > 0 && (
                     <div>
                         <div className="text-[10px] text-green-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                             <Icon name="ArrowDown" size={10} />
-                            抑制因素 (-{independenceBreakdown.totalReduction.toFixed(2)}%/天)
+                            抑制因素 (-{(independenceBreakdown.totalDecrease || 0).toFixed(3)}%/天)
                         </div>
                         <div className="space-y-1">
-                            {independenceBreakdown.reductions.map((reduction, idx) => (
+                            {independenceBreakdown.decreaseFactors.map((reduction, idx) => (
                                 <div key={idx} className="flex items-center justify-between text-[10px]">
                                     <span className="text-gray-400">
                                         {reduction.name}
@@ -425,7 +462,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                                         )}
                                     </span>
                                     <span className="text-green-400 font-mono">
-                                        -{reduction.value.toFixed(2)}
+                                        -{reduction.value.toFixed(3)}
                                     </span>
                                 </div>
                             ))}
@@ -434,10 +471,10 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 )}
 
                 {/* 无减少因素时的提示 */}
-                {independenceBreakdown.reductions.length === 0 && independenceBreakdown.netChange > 0 && (
+                {(!independenceBreakdown.decreaseFactors || independenceBreakdown.decreaseFactors.length === 0) && (independenceBreakdown.dailyChange || 0) > 0 && (
                     <div className="text-[10px] text-yellow-400/70 flex items-center gap-1">
                         <Icon name="AlertTriangle" size={10} />
-                        未启用任何控制措施，独立倾向将持续上升
+                        未启用任何控制措施，独立倾向持续上升中！
                     </div>
                 )}
             </div>
@@ -636,6 +673,9 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const [laborPolicy, setLaborPolicy] = useState(
         nation?.vassalPolicy?.labor || 'standard'
     );
+    const [governancePolicy, setGovernancePolicy] = useState(
+        nation?.vassalPolicy?.governance || 'puppet_govt'
+    );
     const [investmentPolicy, setInvestmentPolicy] = useState(
         nation?.vassalPolicy?.investmentPolicy || 'autonomous'
     );
@@ -750,6 +790,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         diplomaticControl,
         tradePolicy,
         labor: laborPolicy,
+        governance: governancePolicy,
         investmentPolicy,
         military: militaryPolicy,
         tributeRate: tributeRate / 100,
@@ -759,6 +800,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         diplomaticControl,
         tradePolicy,
         laborPolicy,
+        governancePolicy,
         investmentPolicy,
         militaryPolicy,
         tributeRate,
@@ -816,6 +858,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         setDiplomaticControl('guided');
         setTradePolicy('preferential');
         setLaborPolicy('standard');
+        setGovernancePolicy('puppet_govt');
         setInvestmentPolicy('autonomous');
         setMilitaryPolicy('call_to_arms');
         setTributeRate(baseTributeRate * 100);
@@ -952,6 +995,30 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             effectColor={option.effectColor}
                             extraEffects={getSatisfactionEffectsText('investmentPolicy', option.id)}
                             onClick={() => setInvestmentPolicy(option.id)}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* 治理政策 (NEW) */}
+            <div>
+                <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
+                    <Icon name="Building" size={14} className="text-purple-400" />
+                    治理政策
+                    <span className="text-[10px] text-gray-500 ml-1">（影响附庸的行政管理方式）</span>
+                </h3>
+                <div className="space-y-2">
+                    {GOVERNANCE_POLICY_OPTIONS.map(option => (
+                        <PolicyOptionCard
+                            key={option.id}
+                            selected={governancePolicy === option.id}
+                            title={option.title}
+                            description={option.description}
+                            effects={option.effects}
+                            effectColor={option.effectColor}
+                            extraEffects={getSatisfactionEffectsText('governance', option.id)}
+                            onClick={() => setGovernancePolicy(option.id)}
+                            disabled={option.requiresGovernor && !controlMeasures.governor?.active}
                         />
                     ))}
                 </div>
@@ -1603,6 +1670,8 @@ export const VassalManagementSheet = memo(({
     onClose,
     nation,
     playerResources = {},
+    playerWealth = 10000,        // NEW: 宗主国财富
+    playerPopulation = 1000000,  // NEW: 宗主国人口
     onApplyVassalPolicy,
     onDiplomaticAction,
     officials = [],       // NEW: Officials list for governor selection
@@ -1630,8 +1699,8 @@ export const VassalManagementSheet = memo(({
     // 计算独立度变化原因分解
     const independenceBreakdown = useMemo(() => {
         if (!nation) return null;
-        return getIndependenceChangeBreakdown(nation, epoch, officials);
-    }, [nation, epoch, officials]);
+        return getIndependenceChangeBreakdown(nation, epoch, officials, playerWealth, playerPopulation);
+    }, [nation, epoch, officials, playerWealth, playerPopulation]);
 
     // 计算该附庸的待审批请求数（必须在条件返回之前调用）
     const pendingCount = useMemo(() => {

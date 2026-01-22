@@ -823,6 +823,10 @@ export function processOverseasInvestments({
     // 资源变更汇总
     const marketChanges = {}; // { nationId: { resourceKey: delta } }
     const playerInventoryChanges = {}; // { resourceKey: delta }
+    
+    // 新增：投资对各国阶层经济的影响
+    // 结构：{ nationId: { totalWages, profitsExtracted, localReinvestment } }
+    const nationInvestmentEffects = {};
 
     overseasInvestments.forEach(investment => {
         if (investment.status !== 'operating') {
@@ -997,6 +1001,39 @@ export function processOverseasInvestments({
         profitByStratum[investment.ownerStratum] =
             (profitByStratum[investment.ownerStratum] || 0) + repatriatedProfit;
 
+        // 新增：累计投资对附庸国阶层经济的影响
+        // 投资创造工资（流入当地底层和平民）和抽取利润（流出当地）
+        const nationId = investment.targetNationId;
+        if (!nationInvestmentEffects[nationId]) {
+            nationInvestmentEffects[nationId] = {
+                totalWages: 0,        // 支付给当地工人的工资
+                profitsExtracted: 0,  // 被抽走的利润
+                localReinvestment: 0, // 在当地再投资的金额
+                taxRetained: 0,       // 被当地政府收取的税款
+            };
+        }
+        
+        // 估算支付给当地的工资（基于投资规模和利润）
+        // 假设投资的20%用于支付当地工资（劳动密集型产业）
+        const investmentAmount = investment.investmentAmount || 0;
+        const estimatedWages = Math.max(0, profitResult.profit * 0.3 + investmentAmount * 0.001);
+        nationInvestmentEffects[nationId].totalWages += estimatedWages;
+        
+        // 抽走的利润（汇回给投资者的部分）
+        if (repatriatedProfit > 0) {
+            nationInvestmentEffects[nationId].profitsExtracted += repatriatedProfit;
+        }
+        
+        // 税款留在当地
+        nationInvestmentEffects[nationId].taxRetained += retainedProfit;
+        
+        // 部分再投资（如果投资在增长）
+        const previousValue = investment.investmentAmount || 0;
+        const currentValue = investmentAmount;
+        if (currentValue > previousValue) {
+            nationInvestmentEffects[nationId].localReinvestment += (currentValue - previousValue);
+        }
+
         updatedInvestments.push(updated);
     });
 
@@ -1016,7 +1053,8 @@ export function processOverseasInvestments({
         profitByStratum,
         logs,
         marketChanges,
-        playerInventoryChanges
+        playerInventoryChanges,
+        nationInvestmentEffects,  // 新增：投资对各国阶层的影响
     };
 }
 

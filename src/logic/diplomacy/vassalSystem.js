@@ -10,7 +10,6 @@ import {
     INDEPENDENCE_WAR_CONDITIONS,
     TRIBUTE_CONFIG,
     INDEPENDENCE_CONFIG,
-    INDEPENDENCE_MODEL_CONFIG,
     calculateAverageSatisfaction,
     LABOR_POLICY_DEFINITIONS,
     TRADE_POLICY_DEFINITIONS,
@@ -19,6 +18,421 @@ import {
     VASSAL_POLICY_PRESETS,
 } from '../../config/diplomacy.js';
 import { calculateGovernorFullEffects } from './vassalGovernors.js';
+import { 
+    getVassalReputationCategory, 
+    getReputationEffect,
+    REPUTATION_EFFECTS,
+} from '../../config/reputationSystem.js';
+
+// ========== 独立倾向计算共享配置 ==========
+// 所有涉及独立倾向每日变化的数值都在此处统一配置
+export const INDEPENDENCE_CHANGE_CONFIG = {
+    // 基础自然增长（民族意识觉醒）
+    baseGrowthRate: 0.02,           // 基础增长率：0.02%/天
+    eraMultiplierStep: 0.1,         // 每时代增加的倍率：+10%
+    
+    // 政策影响数值（每日变化，单位：%/天）
+    policies: {
+        // 劳工政策
+        labor: {
+            standard:     { effect: 0,      name: '正常雇佣' },
+            exploitation: { effect: 0.05,   name: '压榨剥削' },
+            slavery:      { effect: 0.1,    name: '强制劳动' },
+        },
+        // 贸易政策
+        trade: {
+            free:         { effect: -0.01,  name: '自由贸易' },
+            preferential: { effect: 0,      name: '优惠准入' },
+            exclusive:    { effect: 0.04,   name: '排他贸易' },
+            dumping:      { effect: 0.08,   name: '倾销市场' },
+            looting:      { effect: 0.1,    name: '资源掠夺' },
+        },
+        // 治理政策
+        governance: {
+            autonomous:   { effect: -0.03,  name: '自治' },
+            puppet_govt:  { effect: 0,      name: '傀儡政府' },
+            direct_rule:  { effect: 0.1,   name: '直接统治' },
+        },
+        // 军事政策
+        military: {
+            autonomous:   { effect: -0.01,  name: '自主参战' },
+            call_to_arms: { effect: 0.05,      name: '战争征召' },
+            auto_join:    { effect: 0.1,   name: '自动参战' },
+        },
+        // 投资政策
+        investment: {
+            autonomous:   { effect: 0,      name: '自主投资' },
+            guided:       { effect: 0.04,   name: '引导投资' },
+            forced:       { effect: 0.1,   name: '强制投资' },
+        },
+    },
+    
+    // 阶层满意度影响参数
+    satisfaction: {
+        baseLine: 50,               // 满意度基准线
+        divisor: 1000,              // 除数（(50-sat)/1000）
+    },
+    
+    // 经济繁荣度影响参数（基于财富比值）
+    economy: {
+        totalWealthFactor: 0.015,   // 总财富比值系数
+        perCapitaFactor: 0.015,     // 人均财富比值系数
+    },
+    
+    // 朝贡负担影响
+    tribute: {
+        multiplier: 0.5,            // 每1%朝贡率 → +0.005%/天（即tributeRate * 0.5）
+    },
+};
+
+// ========== 阶层满意度上限共享配置 ==========
+// 满意度上限受多种因素动态影响，不再写死
+export const SATISFACTION_CAP_CONFIG = {
+    // 基础满意度上限（理想状态下的最高值）
+    baseCap: 95,
+    
+    // 统治政策对满意度上限的影响
+    policies: {
+        // 劳工政策
+        labor: {
+            standard:     { elites: 0,  commoners: 0,  underclass: 0 },
+            exploitation: { elites: 2,  commoners: -8, underclass: -15 },
+            slavery:      { elites: 5,  commoners: -15, underclass: -30 },
+        },
+        // 贸易政策
+        trade: {
+            free:         { elites: -3, commoners: 3,  underclass: 2 },
+            preferential: { elites: 0,  commoners: 0,  underclass: 0 },
+            exclusive:    { elites: 3,  commoners: -5, underclass: -3 },
+            dumping:      { elites: 5,  commoners: -10, underclass: -8 },
+            looting:      { elites: 8,  commoners: -15, underclass: -12 },
+        },
+        // 治理政策
+        governance: {
+            autonomous:   { elites: 5,  commoners: 3,  underclass: 2 },
+            puppet_govt:  { elites: 0,  commoners: -3, underclass: -3 },
+            direct_rule:  { elites: -10, commoners: -8, underclass: -5 },
+        },
+        // 军事政策
+        military: {
+            autonomous:   { elites: 2,  commoners: 2,  underclass: 2 },
+            call_to_arms: { elites: 0,  commoners: -3, underclass: -5 },
+            auto_join:    { elites: -3, commoners: -8, underclass: -10 },
+        },
+        // 投资政策
+        investment: {
+            autonomous:   { elites: 0,  commoners: 0,  underclass: 0 },
+            guided:       { elites: 2,  commoners: -2, underclass: -3 },
+            forced:       { elites: 5,  commoners: -8, underclass: -10 },
+        },
+    },
+    
+    // 经济实力对比对满意度上限的影响
+    // 附庸国经济越强，人民越不满足于被统治
+    economy: {
+        // 人均财富比值的影响（附庸/宗主）
+        perCapitaRatioEffect: {
+            // 比值 > 1: 附庸国民众生活水平更高，不满被统治
+            above1Penalty: -5,        // 每超出1倍，上限-5%
+            // 比值 < 1: 附庸国民众生活水平更低，接受统治
+            below1Bonus: 3,           // 每低于1倍，上限+3%
+            maxPenalty: -20,          // 最大惩罚
+            maxBonus: 10,             // 最大奖励
+        },
+        // 总财富比值的影响（附庸/宗主）
+        wealthRatioEffect: {
+            above1Penalty: -3,        // 附庸国更富：每超出1倍，上限-3%
+            below1Bonus: 2,           // 宗主国更富：每低于1倍，上限+2%
+            maxPenalty: -15,
+            maxBonus: 8,
+        },
+    },
+    
+    // 国际局势对满意度上限的影响
+    international: {
+        // 宗主国处于战争状态
+        atWar: -5,                    // 战争中民众不满加剧
+        // 附庸国有盟友支持独立
+        hasIndependenceSupport: -10,  // 有外部势力支持独立
+        // 宗主国国际声誉
+        reputationEffect: {
+            good: 5,                  // 好名声 → +5%
+            neutral: 0,
+            bad: -10,                 // 坏名声 → -10%
+        },
+    },
+    
+    // 军事实力对比
+    military: {
+        // 宗主国军事优势
+        strongSuzerain: 5,            // 宗主国军力远超附庸 → +5%
+        weakSuzerain: -10,            // 宗主国军力弱于附庸 → -10%
+    },
+    
+    // 朝贡负担对上限的影响
+    tribute: {
+        perPercentPenalty: -0.3,      // 每1%朝贡率 → 上限-0.3%
+        maxPenalty: -15,              // 最大惩罚-15%
+    },
+    
+    // 最终上限的硬性边界
+    absoluteMin: 20,                  // 最低不能低于20%
+    absoluteMax: 98,                  // 最高不能超过98%
+};
+
+/**
+ * 计算附庸国各阶层的动态满意度上限
+ * 满意度上限受统治政策、经济对比、国际局势、军事实力等多因素影响
+ * 
+ * @param {Object} nation - 附庸国对象
+ * @param {Object} context - 上下文信息
+ * @param {number} context.suzereainWealth - 宗主国财富
+ * @param {number} context.suzereainPopulation - 宗主国人口
+ * @param {number} context.suzereainMilitary - 宗主国军事力量
+ * @param {boolean} context.suzereainAtWar - 宗主国是否处于战争状态
+ * @param {string} context.suzereainReputation - 宗主国国际声誉 ('good'|'neutral'|'bad')
+ * @param {boolean} context.hasIndependenceSupport - 是否有外部势力支持独立
+ * @returns {Object} 各阶层的满意度上限 { elites, commoners, underclass, factors }
+ */
+export const calculateDynamicSatisfactionCap = (nation, context = {}) => {
+    const cfg = SATISFACTION_CAP_CONFIG;
+    const vassalPolicy = nation?.vassalPolicy || {};
+    
+    // 默认上下文值
+    const {
+        suzereainWealth = 10000,
+        suzereainPopulation = 1000000,
+        suzereainMilitary = 1.0,
+        suzereainAtWar = false,
+        suzereainReputation = 'neutral',
+        hasIndependenceSupport = false,
+    } = context;
+    
+    // 初始化各阶层的上限和影响因素记录
+    const caps = {
+        elites: cfg.baseCap,
+        commoners: cfg.baseCap,
+        underclass: cfg.baseCap,
+    };
+    const factors = {
+        elites: [],
+        commoners: [],
+        underclass: [],
+    };
+    
+    const strata = ['elites', 'commoners', 'underclass'];
+    
+    // ========== 1. 统治政策影响 ==========
+    // 1.1 劳工政策
+    const laborPolicy = vassalPolicy.labor || 'standard';
+    const laborEffects = cfg.policies.labor[laborPolicy];
+    if (laborEffects) {
+        strata.forEach(s => {
+            if (laborEffects[s] !== 0) {
+                caps[s] += laborEffects[s];
+                factors[s].push({ name: '劳工政策', value: laborEffects[s], desc: laborPolicy });
+            }
+        });
+    }
+    
+    // 1.2 贸易政策
+    const tradePolicy = vassalPolicy.tradePolicy || 'preferential';
+    const tradeEffects = cfg.policies.trade[tradePolicy];
+    if (tradeEffects) {
+        strata.forEach(s => {
+            if (tradeEffects[s] !== 0) {
+                caps[s] += tradeEffects[s];
+                factors[s].push({ name: '贸易政策', value: tradeEffects[s], desc: tradePolicy });
+            }
+        });
+    }
+    
+    // 1.3 治理政策
+    const governancePolicy = vassalPolicy.governance || 'autonomous';
+    const governanceEffects = cfg.policies.governance[governancePolicy];
+    if (governanceEffects) {
+        strata.forEach(s => {
+            if (governanceEffects[s] !== 0) {
+                caps[s] += governanceEffects[s];
+                factors[s].push({ name: '治理政策', value: governanceEffects[s], desc: governancePolicy });
+            }
+        });
+    }
+    
+    // 1.4 军事政策
+    const militaryPolicy = vassalPolicy.military || 'call_to_arms';
+    const militaryEffects = cfg.policies.military[militaryPolicy];
+    if (militaryEffects) {
+        strata.forEach(s => {
+            if (militaryEffects[s] !== 0) {
+                caps[s] += militaryEffects[s];
+                factors[s].push({ name: '军事政策', value: militaryEffects[s], desc: militaryPolicy });
+            }
+        });
+    }
+    
+    // 1.5 投资政策
+    const investmentPolicy = vassalPolicy.investmentPolicy || 'autonomous';
+    const investmentEffects = cfg.policies.investment[investmentPolicy];
+    if (investmentEffects) {
+        strata.forEach(s => {
+            if (investmentEffects[s] !== 0) {
+                caps[s] += investmentEffects[s];
+                factors[s].push({ name: '投资政策', value: investmentEffects[s], desc: investmentPolicy });
+            }
+        });
+    }
+    
+    // ========== 2. 经济实力对比影响 ==========
+    const vassalWealth = nation?.wealth || 500;
+    const vassalPopulation = nation?.population || 10000;
+    
+    // 2.1 人均财富比值
+    const vassalPerCapita = vassalWealth / Math.max(1, vassalPopulation);
+    const suzereainPerCapita = suzereainWealth / Math.max(1, suzereainPopulation);
+    const perCapitaRatio = vassalPerCapita / Math.max(0.0001, suzereainPerCapita);
+    
+    let perCapitaEffect = 0;
+    if (perCapitaRatio > 1) {
+        // 附庸国人均更富，不满被统治
+        perCapitaEffect = Math.max(
+            cfg.economy.perCapitaRatioEffect.maxPenalty,
+            (perCapitaRatio - 1) * cfg.economy.perCapitaRatioEffect.above1Penalty
+        );
+    } else {
+        // 宗主国人均更富，愿意接受统治
+        perCapitaEffect = Math.min(
+            cfg.economy.perCapitaRatioEffect.maxBonus,
+            (1 - perCapitaRatio) * cfg.economy.perCapitaRatioEffect.below1Bonus
+        );
+    }
+    
+    if (perCapitaEffect !== 0) {
+        strata.forEach(s => {
+            caps[s] += perCapitaEffect;
+            factors[s].push({ 
+                name: '人均财富对比', 
+                value: perCapitaEffect, 
+                desc: `比值${perCapitaRatio.toFixed(2)}` 
+            });
+        });
+    }
+    
+    // 2.2 总财富比值
+    const wealthRatio = vassalWealth / Math.max(1, suzereainWealth);
+    let wealthEffect = 0;
+    if (wealthRatio > 1) {
+        wealthEffect = Math.max(
+            cfg.economy.wealthRatioEffect.maxPenalty,
+            (wealthRatio - 1) * cfg.economy.wealthRatioEffect.above1Penalty
+        );
+    } else {
+        wealthEffect = Math.min(
+            cfg.economy.wealthRatioEffect.maxBonus,
+            (1 - wealthRatio) * cfg.economy.wealthRatioEffect.below1Bonus
+        );
+    }
+    
+    if (wealthEffect !== 0) {
+        strata.forEach(s => {
+            caps[s] += wealthEffect;
+            factors[s].push({ 
+                name: '总财富对比', 
+                value: wealthEffect, 
+                desc: `比值${wealthRatio.toFixed(2)}` 
+            });
+        });
+    }
+    
+    // ========== 3. 国际局势影响 ==========
+    // 3.1 宗主国战争状态
+    if (suzereainAtWar) {
+        const warEffect = cfg.international.atWar;
+        strata.forEach(s => {
+            caps[s] += warEffect;
+            factors[s].push({ name: '宗主国战争', value: warEffect, desc: '战时动荡' });
+        });
+    }
+    
+    // 3.2 外部独立支持
+    if (hasIndependenceSupport) {
+        const supportEffect = cfg.international.hasIndependenceSupport;
+        strata.forEach(s => {
+            caps[s] += supportEffect;
+            factors[s].push({ name: '外部独立支持', value: supportEffect, desc: '有势力支持独立' });
+        });
+    }
+    
+    // 3.3 宗主国声誉
+    // 支持传入数值声誉(0-100)或字符串('good'|'neutral'|'bad')
+    let reputationCategory = suzereainReputation;
+    if (typeof suzereainReputation === 'number') {
+        reputationCategory = getVassalReputationCategory(suzereainReputation);
+    }
+    const reputationEffect = cfg.international.reputationEffect[reputationCategory] || 0;
+    if (reputationEffect !== 0) {
+        const reputationLabel = reputationCategory === 'good' ? '良好' 
+            : reputationCategory === 'bad' ? '恶劣' : '普通';
+        strata.forEach(s => {
+            caps[s] += reputationEffect;
+            factors[s].push({ name: '国际声誉', value: reputationEffect, desc: reputationLabel });
+        });
+    }
+    
+    // ========== 4. 军事实力对比 ==========
+    const vassalMilitary = nation?.militaryStrength || 0.1;
+    const militaryRatio = vassalMilitary / Math.max(0.01, suzereainMilitary);
+    
+    let milEffect = 0;
+    if (militaryRatio < 0.3) {
+        // 宗主国军力远超附庸
+        milEffect = cfg.military.strongSuzerain;
+    } else if (militaryRatio > 0.8) {
+        // 附庸国军力接近或超过宗主国
+        milEffect = cfg.military.weakSuzerain;
+    }
+    
+    if (milEffect !== 0) {
+        strata.forEach(s => {
+            caps[s] += milEffect;
+            factors[s].push({ 
+                name: '军事力量对比', 
+                value: milEffect, 
+                desc: `军力比${militaryRatio.toFixed(2)}` 
+            });
+        });
+    }
+    
+    // ========== 5. 朝贡负担影响 ==========
+    const tributeRate = nation?.tributeRate || 0;
+    if (tributeRate > 0) {
+        const tributePenalty = Math.max(
+            cfg.tribute.maxPenalty,
+            tributeRate * 100 * cfg.tribute.perPercentPenalty
+        );
+        strata.forEach(s => {
+            caps[s] += tributePenalty;
+            factors[s].push({ 
+                name: '朝贡负担', 
+                value: tributePenalty, 
+                desc: `${Math.round(tributeRate * 100)}%朝贡率` 
+            });
+        });
+    }
+    
+    // ========== 6. 应用硬性边界 ==========
+    strata.forEach(s => {
+        caps[s] = Math.max(cfg.absoluteMin, Math.min(cfg.absoluteMax, caps[s]));
+    });
+    
+    return {
+        elites: caps.elites,
+        commoners: caps.commoners,
+        underclass: caps.underclass,
+        factors: factors,
+        baseCap: cfg.baseCap,
+    };
+};
 
 /**
  * Calculate dynamic control cost based on vassal wealth
@@ -131,6 +545,7 @@ export const processVassalUpdates = ({
     playerStability = 50,
     playerAtWar = false,
     playerWealth = 10000,
+    playerPopulation = 1000000, // Player's total population for per capita calculations
     officials = [],       // NEW: Player's officials list
     logs = [],
 }) => {
@@ -414,66 +829,48 @@ export const processVassalUpdates = ({
             }
         }
 
-        // ========== 3. 更新独立倾向（使用新的计算方式） ==========
-        const independenceGrowth = getEnhancedIndependenceGrowthRate(
-            updated,  // Now passing full nation object for policy access
-            epoch
+        // ========== 3. 更新独立倾向（纯每日加减模型） ==========
+        // 计算每日独立倾向变化量（基于政策和经济状况）
+        const dailyChange = calculateDailyIndependenceChange(
+            updated,
+            epoch,
+            controlMeasureIndependenceReduction,
+            playerWealth,
+            playerPopulation
         );
-
-        // Apply control measures reduction
-        let effectiveGrowth = independenceGrowth - controlMeasureIndependenceReduction;
-
-        // Apply independence cap if exists
+        
+        // 应用独立倾向上限
         const independenceCap = updated.independenceCap || 100;
         const currentIndependence = updated.independencePressure || 0;
-
-        // [NEW] 如果当前独立值超过上限，缓慢回落（每天-0.5%）
-        if (currentIndependence > independenceCap) {
-            const overshoot = currentIndependence - independenceCap;
-            const decayRate = Math.max(0.5, overshoot * 0.02); // 超出越多，回落越快
-            effectiveGrowth -= decayRate;
-        }
-
-        // [NEW] 如果控制措施足够强，允许独立值主动下降（突破上限限制）
-        if (effectiveGrowth < 0) {
-            // 负增长时不受上限限制，可以继续下降
-            updated.independencePressure = Math.max(0, currentIndependence + effectiveGrowth);
-        } else if (currentIndependence >= independenceCap) {
-            // 达到上限且增长为正时，停止增长
-            effectiveGrowth = 0;
-            updated.independencePressure = independenceCap;
-        } else {
-            // 正常增长，但不超过上限
-            updated.independencePressure = Math.min(independenceCap, Math.max(0,
-                currentIndependence + effectiveGrowth
-            ));
-        }
+        
+        // 纯粹的每日累加，不引入目标值机制
+        // 独立倾向是一个百分比（0-100%），限制在 0 到 independenceCap 之间
+        const newIndependence = Math.max(0, Math.min(independenceCap, currentIndependence + dailyChange));
+        updated.independencePressure = newIndependence;
+        
+        // 存储每日变化量用于UI显示
+        updated._lastIndependenceChange = dailyChange;
 
         // ========== 4. 检查独立战争触发 ==========
-        const independenceDesire = calculateIndependenceDesire(updated, playerMilitary);
-        if (independenceDesire >= INDEPENDENCE_WAR_CONDITIONS.minIndependenceDesire) {
-            const warTriggered = checkIndependenceWarTrigger({
-                vassalNation: updated,
-                playerAtWar,
-                playerStability,
-                nations,
+        // 只有当独立倾向达到上限时才触发独立战争
+        // 移除了之前的概率触发机制（宗主战争、稳定度低、外国支持等）
+        
+        // 跳过已经在独立战争中的附庸，避免重复触发
+        if (currentIndependence >= independenceCap && !updated.independenceWar) {
+            updated.isAtWar = true;
+            updated.warTarget = 'player';
+            updated.independenceWar = true;
+            // 立即解除附庸关系，进入独立战争状态
+            updated.vassalOf = null;
+            updated.vassalType = null;
+
+            vassalEvents.push({
+                type: 'independence_war',
+                nationId: updated.id,
+                nationName: updated.name,
             });
 
-            if (warTriggered) {
-                updated.isAtWar = true;
-                updated.warTarget = 'player';
-                updated.independenceWar = true;
-                updated.vassalOf = null;
-                updated.vassalType = null;
-
-                vassalEvents.push({
-                    type: 'independence_war',
-                    nationId: updated.id,
-                    nationName: updated.name,
-                });
-
-                logs.push(`⚠️ ${updated.name} 发动独立战争！`);
-            }
+            logs.push(`⚠️ ${updated.name} 发动独立战争！`);
         }
 
         return updated;
@@ -569,251 +966,356 @@ export const calculateEnhancedTribute = (vassalNation) => {
 };
 
 /**
- * 获取独立倾向增长率（每天）- 单轨制
- * 以阶层满意度为主驱动，政策作缓慢调制
+ * 计算每日独立倾向变化量（纯加减模型）
+ * 
+ * 设计理念：
+ * - 独立倾向是一个百分比（0-100%），表示附庸国独立的意愿/可能性
+ * - 所有政策调整只影响每日变化率，不会导致瞬间变化
+ * - 变化来源分为两大类：
+ *   1. 政策压力（控制政策带来的正/负压力）
+ *   2. 经济民生（各阶层生活水平和满意度）
+ * 
  * @param {Object} nation - 附庸国家对象
  * @param {number} epoch - 当前时代
- * @returns {number} 每日增长率（含固定日衰减）
+ * @param {number} controlReduction - 控制措施带来的每日减少量
+ * @param {number} suzereainWealth - 宗主国财富（用于计算经济比值影响）
+ * @param {number} suzereainPopulation - 宗主国人口（用于计算人均财富比值影响）
+ * @returns {number} 每日独立倾向变化量（百分点/天）
  */
-const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
-    const model = INDEPENDENCE_MODEL_CONFIG;
+const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, suzereainWealth = 10000, suzereainPopulation = 1000000) => {
+    const cfg = INDEPENDENCE_CHANGE_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
-
-    const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * model.eraGrowthPerEra;
-    let rate = model.baseRate * eraMultiplier;
-
-    // 阶层满意度驱动
+    
+    // ========== 1. 基础自然增长（模拟民族意识觉醒） ==========
+    const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * cfg.eraMultiplierStep;
+    let dailyChange = cfg.baseGrowthRate * eraMultiplier;
+    
+    // ========== 2. 控制政策影响（每日变化） ==========
+    // 2.1 劳工政策
+    const laborPolicy = vassalPolicy.labor || 'standard';
+    dailyChange += cfg.policies.labor[laborPolicy]?.effect || 0;
+    
+    // 2.2 贸易政策
+    const tradePolicy = vassalPolicy.tradePolicy || 'preferential';
+    dailyChange += cfg.policies.trade[tradePolicy]?.effect || 0;
+    
+    // 2.3 治理政策
+    const governancePolicy = vassalPolicy.governance || 'autonomous';
+    dailyChange += cfg.policies.governance[governancePolicy]?.effect || 0;
+    
+    // 2.4 军事政策
+    const militaryPolicy = vassalPolicy.military || 'call_to_arms';
+    dailyChange += cfg.policies.military[militaryPolicy]?.effect || 0;
+    
+    // 2.5 投资政策
+    const investmentPolicy = vassalPolicy.investmentPolicy || 'autonomous';
+    dailyChange += cfg.policies.investment[investmentPolicy]?.effect || 0;
+    
+    // ========== 3. 经济状况和阶层满意度影响 ==========
     if (nation?.socialStructure) {
         const { elites, commoners, underclass } = nation.socialStructure;
-        const totalInfluence = (elites?.influence || 0) + (commoners?.influence || 0) + (underclass?.influence || 0);
-        const weight = totalInfluence > 0 ? totalInfluence : 1;
-        const eliteDelta = ((50 - (elites?.satisfaction || 50)) / 50) * (elites?.influence || 0);
-        const commonerDelta = ((50 - (commoners?.satisfaction || 50)) / 50) * (commoners?.influence || 0);
-        const underclassDelta = ((50 - (underclass?.satisfaction || 50)) / 50) * (underclass?.influence || 0);
-        const classScore = (eliteDelta + commonerDelta + underclassDelta) / weight;
-        rate += classScore * model.classWeight;
+        
+        const eliteSat = elites?.satisfaction ?? cfg.satisfaction.baseLine;
+        const commonerSat = commoners?.satisfaction ?? cfg.satisfaction.baseLine;
+        const underclassSat = underclass?.satisfaction ?? cfg.satisfaction.baseLine;
+        
+        const eliteInfluence = elites?.influence ?? 0.4;
+        const commonerInfluence = commoners?.influence ?? 0.35;
+        const underclassInfluence = underclass?.influence ?? 0.25;
+        const totalInfluence = eliteInfluence + commonerInfluence + underclassInfluence;
+        
+        if (totalInfluence > 0) {
+            const eliteEffect = ((cfg.satisfaction.baseLine - eliteSat) / cfg.satisfaction.divisor) * (eliteInfluence / totalInfluence);
+            const commonerEffect = ((cfg.satisfaction.baseLine - commonerSat) / cfg.satisfaction.divisor) * (commonerInfluence / totalInfluence);
+            const underclassEffect = ((cfg.satisfaction.baseLine - underclassSat) / cfg.satisfaction.divisor) * (underclassInfluence / totalInfluence);
+            
+            dailyChange += (eliteEffect + commonerEffect + underclassEffect);
+        }
     }
-
-    // 执政方针压力（小幅）
-    const policyPressure = model.policyPressure;
-    rate += policyPressure.labor?.[vassalPolicy.labor || 'standard'] || 0;
-    rate += policyPressure.tradePolicy?.[vassalPolicy.tradePolicy || 'preferential'] || 0;
-    rate += policyPressure.governance?.[vassalPolicy.governance || 'autonomous'] || 0;
-    rate += policyPressure.military?.[vassalPolicy.military || 'call_to_arms'] || 0;
-    rate += policyPressure.investmentPolicy?.[vassalPolicy.investmentPolicy || 'autonomous'] || 0;
-
-    // 固定日衰减（稳定项）
-    rate -= model.dailyDecay;
-
-    return rate;
+    
+    // ========== 4. 经济繁荣度影响（基于财富比值和人均财富比值） ==========
+    const vassalWealth = nation?.wealth || 500;
+    const vassalPopulation = nation?.population || 10000;
+    const effectiveSuzereainWealth = Math.max(1000, suzereainWealth || 10000);
+    const effectiveSuzereainPopulation = Math.max(10000, suzereainPopulation || 1000000);
+    
+    // 4.1 总财富比值（国力对比）
+    const wealthRatio = vassalWealth / effectiveSuzereainWealth;
+    const totalWealthEffect = Math.log(Math.max(0.01, wealthRatio)) * cfg.economy.totalWealthFactor;
+    
+    // 4.2 人均财富比值（民众生活水平对比）
+    const vassalPerCapita = vassalWealth / Math.max(1, vassalPopulation);
+    const suzereainPerCapita = effectiveSuzereainWealth / Math.max(1, effectiveSuzereainPopulation);
+    const perCapitaRatio = vassalPerCapita / Math.max(0.0001, suzereainPerCapita);
+    const perCapitaEffect = Math.log(Math.max(0.01, perCapitaRatio)) * cfg.economy.perCapitaFactor;
+    
+    // 4.3 综合经济繁荣度影响
+    dailyChange += totalWealthEffect + perCapitaEffect;
+    
+    // ========== 5. 朝贡负担影响 ==========
+    const tributeRate = nation?.tributeRate || 0;
+    dailyChange += tributeRate * cfg.tribute.multiplier;
+    
+    // ========== 6. 扣除控制措施效果 ==========
+    dailyChange -= controlReduction;
+    
+    return dailyChange;
 };
 
 /**
- * 计算独立度变化的详细分解
- * 用于在UI中显示独立度变化的各个原因
+ * 兼容旧接口：获取独立倾向增长率
+ * @deprecated 请使用 calculateDailyIndependenceChange
+ */
+const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
+    return calculateDailyIndependenceChange(nation, epoch, 0);
+};
+
+/**
+ * 获取独立度变化的详细分解（用于UI显示）
+ * 纯每日加减模型，显示当前值和所有影响因素
  * @param {Object} nation - 附庸国对象
  * @param {number} epoch - 当前时代
  * @param {Array} officials - 官员列表（用于计算总督效果）
  * @returns {Object} 独立度变化的详细分解
  */
-export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []) => {
+export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = [], suzereainWealth = 10000, suzereainPopulation = 1000000) => {
     const config = INDEPENDENCE_CONFIG;
-    const model = INDEPENDENCE_MODEL_CONFIG;
+    const cfg = INDEPENDENCE_CHANGE_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
-
-    const breakdown = {
-        baseRate: model.baseRate,
-        factors: [],
-        reductions: [],
-        finalDailyChange: 0,
-        netChange: 0,
+    
+    const increaseFactors = [];  // 增加独立倾向的因素
+    const decreaseFactors = [];  // 降低独立倾向的因素
+    
+    // ========== 辅助函数：添加政策影响因素 ==========
+    const addPolicyFactor = (policyType, policyKey, defaultPolicy, categoryName) => {
+        const policy = vassalPolicy[policyKey] || defaultPolicy;
+        const policyConfig = cfg.policies[policyType][policy];
+        if (!policyConfig) return;
+        
+        const effect = policyConfig.effect;
+        if (effect > 0) {
+            increaseFactors.push({
+                name: categoryName,
+                value: effect,
+                description: policyConfig.name,
+                effect: 'increase',
+            });
+        } else if (effect < 0) {
+            decreaseFactors.push({
+                name: categoryName,
+                value: Math.abs(effect),
+                description: policyConfig.name,
+                effect: 'decrease',
+            });
+        }
     };
-
-    // === 1. 基础增速（时代） ===
-    const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * model.eraGrowthPerEra;
-    const baseGrowth = model.baseRate * eraMultiplier;
-    breakdown.factors.push({
-        name: '基础增速',
+    
+    // ========== 1. 基础自然增长 ==========
+    const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * cfg.eraMultiplierStep;
+    const baseGrowth = cfg.baseGrowthRate * eraMultiplier;
+    increaseFactors.push({
+        name: '民族意识觉醒',
         value: baseGrowth,
-        description: `时代${epoch}`,
-        type: 'additive',
-        effect: baseGrowth > 0 ? 'negative' : 'positive',
+        description: `基础+时代${epoch}加成`,
+        effect: 'increase',
     });
-    let growthRate = baseGrowth;
-
-    // === 2. 阶层满意度 ===
+    
+    // ========== 2. 控制政策影响（使用共享配置） ==========
+    addPolicyFactor('labor', 'labor', 'standard', '劳工政策');
+    addPolicyFactor('trade', 'tradePolicy', 'preferential', '贸易政策');
+    addPolicyFactor('governance', 'governance', 'autonomous', '治理政策');
+    addPolicyFactor('military', 'military', 'call_to_arms', '军事政策');
+    addPolicyFactor('investment', 'investmentPolicy', 'autonomous', '投资政策');
+    
+    // ========== 3. 阶层满意度影响 ==========
+    let satisfactionEffect = 0;
+    let avgSatisfaction = cfg.satisfaction.baseLine;
     if (nation?.socialStructure) {
-        const avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
         const { elites, commoners, underclass } = nation.socialStructure;
-        const totalInfluence = (elites?.influence || 0) + (commoners?.influence || 0) + (underclass?.influence || 0);
-        const weight = totalInfluence > 0 ? totalInfluence : 1;
-        const eliteDelta = ((50 - (elites?.satisfaction || 50)) / 50) * (elites?.influence || 0);
-        const commonerDelta = ((50 - (commoners?.satisfaction || 50)) / 50) * (commoners?.influence || 0);
-        const underclassDelta = ((50 - (underclass?.satisfaction || 50)) / 50) * (underclass?.influence || 0);
-        const classScore = (eliteDelta + commonerDelta + underclassDelta) / weight;
-        const classTerm = classScore * model.classWeight;
-
-        breakdown.factors.push({
-            name: '阶层满意度',
-            value: classTerm,
-            rawValue: avgSatisfaction,
-            description: `平均${Math.round(avgSatisfaction)}%`,
-            type: 'additive',
-            effect: classTerm > 0 ? 'negative' : 'positive',
-        });
-        growthRate += classTerm;
+        const eliteSat = elites?.satisfaction ?? cfg.satisfaction.baseLine;
+        const commonerSat = commoners?.satisfaction ?? cfg.satisfaction.baseLine;
+        const underclassSat = underclass?.satisfaction ?? cfg.satisfaction.baseLine;
+        
+        avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
+        
+        const eliteInfluence = elites?.influence ?? 0.4;
+        const commonerInfluence = commoners?.influence ?? 0.35;
+        const underclassInfluence = underclass?.influence ?? 0.25;
+        const totalInfluence = eliteInfluence + commonerInfluence + underclassInfluence;
+        
+        if (totalInfluence > 0) {
+            const eliteEffect = ((cfg.satisfaction.baseLine - eliteSat) / cfg.satisfaction.divisor) * (eliteInfluence / totalInfluence);
+            const commonerEffect = ((cfg.satisfaction.baseLine - commonerSat) / cfg.satisfaction.divisor) * (commonerInfluence / totalInfluence);
+            const underclassEffect = ((cfg.satisfaction.baseLine - underclassSat) / cfg.satisfaction.divisor) * (underclassInfluence / totalInfluence);
+            satisfactionEffect = eliteEffect + commonerEffect + underclassEffect;
+        }
     }
-
-    // === 3. 执政方针压力 ===
-    const laborPolicyId = vassalPolicy.labor || 'standard';
-    const tradePolicyId = vassalPolicy.tradePolicy || 'preferential';
-    const governancePolicyId = vassalPolicy.governance || 'autonomous';
-    const militaryPolicyId = vassalPolicy.military || 'call_to_arms';
-    const investmentPolicyId = vassalPolicy.investmentPolicy || 'autonomous';
-
-    const policyPressure = model.policyPressure;
-    const policyEntries = [
-        {
-            name: '劳工政策',
-            value: policyPressure.labor?.[laborPolicyId] || 0,
-            description: LABOR_POLICY_DEFINITIONS[laborPolicyId]?.name || laborPolicyId,
-        },
-        {
-            name: '贸易政策',
-            value: policyPressure.tradePolicy?.[tradePolicyId] || 0,
-            description: TRADE_POLICY_DEFINITIONS[tradePolicyId]?.name || tradePolicyId,
-        },
-        {
-            name: '治理政策',
-            value: policyPressure.governance?.[governancePolicyId] || 0,
-            description: GOVERNANCE_POLICY_DEFINITIONS[governancePolicyId]?.name || governancePolicyId,
-        },
-        {
-            name: '军事政策',
-            value: policyPressure.military?.[militaryPolicyId] || 0,
-            description: MILITARY_POLICY_DEFINITIONS[militaryPolicyId]?.name || militaryPolicyId,
-        },
-        {
-            name: '投资政策',
-            value: policyPressure.investmentPolicy?.[investmentPolicyId] || 0,
-            description: investmentPolicyId === 'autonomous' ? '自主投资' :
-                investmentPolicyId === 'guided' ? '引导投资' : '强制投资',
-        },
-    ];
-
-    policyEntries.forEach(entry => {
-        if (entry.value === 0) return;
-        breakdown.factors.push({
-            name: entry.name,
-            value: entry.value,
-            description: entry.description,
-            type: 'additive',
-            effect: entry.value > 0 ? 'negative' : 'positive',
+    
+    if (satisfactionEffect > 0) {
+        increaseFactors.push({
+            name: '民众不满',
+            value: satisfactionEffect,
+            description: `平均满意度${Math.round(avgSatisfaction)}%`,
+            effect: 'increase',
         });
-        growthRate += entry.value;
-    });
-
-    breakdown.growthRate = growthRate;
-
-    // === 5. 控制措施减少 ===
-    let totalReduction = 0;
+    } else if (satisfactionEffect < 0) {
+        decreaseFactors.push({
+            name: '民众满意',
+            value: Math.abs(satisfactionEffect),
+            description: `平均满意度${Math.round(avgSatisfaction)}%`,
+            effect: 'decrease',
+        });
+    }
+    
+    // ========== 4. 经济繁荣度影响（基于财富比值和人均财富比值） ==========
+    const vassalWealth = nation?.wealth || 500;
+    const vassalPopulation = nation?.population || 10000;
+    const effectiveSuzereainWealth = Math.max(1000, suzereainWealth || 10000);
+    const effectiveSuzereainPopulation = Math.max(10000, suzereainPopulation || 1000000);
+    
+    // 4.1 总财富比值（国力对比）
+    const wealthRatio = vassalWealth / effectiveSuzereainWealth;
+    const totalWealthEffect = Math.log(Math.max(0.01, wealthRatio)) * cfg.economy.totalWealthFactor;
+    
+    // 4.2 人均财富比值（民众生活水平对比）
+    const vassalPerCapita = vassalWealth / Math.max(1, vassalPopulation);
+    const suzereainPerCapita = effectiveSuzereainWealth / Math.max(1, effectiveSuzereainPopulation);
+    const perCapitaRatio = vassalPerCapita / Math.max(0.0001, suzereainPerCapita);
+    const perCapitaEffect = Math.log(Math.max(0.01, perCapitaRatio)) * cfg.economy.perCapitaFactor;
+    
+    // 综合经济繁荣度影响
+    const economicProsperityEffect = totalWealthEffect + perCapitaEffect;
+    if (economicProsperityEffect > 0) {
+        increaseFactors.push({
+            name: '经济繁荣',
+            value: economicProsperityEffect,
+            description: `财富比${wealthRatio.toFixed(2)}，人均比${perCapitaRatio.toFixed(2)}`,
+            effect: 'increase',
+        });
+    } else if (economicProsperityEffect < 0) {
+        decreaseFactors.push({
+            name: '经济落后',
+            value: Math.abs(economicProsperityEffect),
+            description: `财富比${wealthRatio.toFixed(2)}，人均比${perCapitaRatio.toFixed(2)}`,
+            effect: 'decrease',
+        });
+    }
+    
+    // ========== 5. 朝贡负担影响 ==========
+    const tributeRate = nation?.tributeRate || 0;
+    const tributeEffect = tributeRate * cfg.tribute.multiplier;
+    if (tributeEffect > 0) {
+        increaseFactors.push({
+            name: '朝贡负担',
+            value: tributeEffect,
+            description: `朝贡率${Math.round(tributeRate * 100)}%`,
+            effect: 'increase',
+        });
+    }
+    
+    // ========== 6. 控制措施减少 ==========
     const controlMeasures = vassalPolicy.controlMeasures || {};
-
-    // 5.1 派遣总督
+    
+    // 6.1 派遣总督
     const governorData = controlMeasures.governor;
     if (governorData && (governorData === true || governorData.active)) {
         const officialId = governorData.officialId;
         const official = officials.find(o => o.id === officialId);
-
+        
         if (official) {
             const govEffects = calculateGovernorFullEffects(official, nation);
-            const reduction = govEffects.independenceReduction || 0.2;
-            breakdown.reductions.push({
+            const reduction = govEffects.independenceReduction || 0.02;
+            decreaseFactors.push({
                 name: '派遣总督',
                 value: reduction,
                 description: `${official.name}（威望${official.prestige || 50}）`,
-                type: 'reduction',
+                effect: 'decrease',
             });
-            totalReduction += reduction;
         } else {
-            const baseReduction = config.controlMeasures?.governor?.independenceReduction || 0.2;
-            breakdown.reductions.push({
+            const baseReduction = config.controlMeasures?.governor?.independenceReduction || 0.02;
+            decreaseFactors.push({
                 name: '派遣总督',
                 value: baseReduction,
-                description: '基础效果',
-                type: 'reduction',
+                description: '基础效果（需指派官员）',
+                effect: 'decrease',
             });
-            totalReduction += baseReduction;
         }
     }
-
-    // 5.2 驻军占领
+    
+    // 6.2 驻军占领
     const garrisonData = controlMeasures.garrison;
     if (garrisonData && (garrisonData === true || garrisonData.active)) {
-        const garrisonReduction = config.controlMeasures?.garrison?.independenceReduction || 0.5;
-        breakdown.reductions.push({
+        const garrisonReduction = config.controlMeasures?.garrison?.independenceReduction || 0.05;
+        decreaseFactors.push({
             name: '驻军占领',
             value: garrisonReduction,
             description: '军事镇压',
-            type: 'reduction',
+            effect: 'decrease',
         });
-        totalReduction += garrisonReduction;
     }
-
-    // 5.3 经济扶持
+    
+    // 6.3 经济扶持
     const economicAidData = controlMeasures.economicAid;
     if (economicAidData && (economicAidData === true || economicAidData.active)) {
-        const aidReduction = config.controlMeasures?.economicAid?.independenceReduction || 0;
+        const aidReduction = config.controlMeasures?.economicAid?.independenceReduction || 0.01;
         if (aidReduction > 0) {
-            breakdown.reductions.push({
+            decreaseFactors.push({
                 name: '经济扶持',
                 value: aidReduction,
                 description: '改善民生',
-                type: 'reduction',
+                effect: 'decrease',
             });
-            totalReduction += aidReduction;
         }
     }
-
-    // 5.4 文化同化（同时降低上限和当前独立值）
+    
+    // 6.4 文化同化
     const assimilationData = controlMeasures.assimilation;
     if (assimilationData && (assimilationData === true || assimilationData.active)) {
-        const capReduction = config.controlMeasures?.assimilation?.independenceCapReduction || 0.05;
-        const directReduction = config.controlMeasures?.assimilation?.independenceReduction || 0.15;
-
-        breakdown.reductions.push({
+        const directReduction = config.controlMeasures?.assimilation?.independenceReduction || 0.015;
+        decreaseFactors.push({
             name: '文化同化',
             value: directReduction,
-            description: `每日降低${directReduction.toFixed(2)}%独立值`,
-            type: 'reduction',
-        });
-        totalReduction += directReduction;
-
-        breakdown.reductions.push({
-            name: '文化同化(上限)',
-            value: capReduction,
-            description: `每日降低${capReduction.toFixed(2)}%独立上限`,
-            type: 'cap_reduction',
+            description: '降低独立意识',
+            effect: 'decrease',
         });
     }
-
-    // 5.5 固定日衰减
-    breakdown.reductions.push({
-        name: '每日衰减',
-        value: model.dailyDecay,
-        description: '稳定项',
-        type: 'reduction',
-    });
-    totalReduction += model.dailyDecay;
-
-    // === 6. 计算最终结果 ===
-    breakdown.totalReduction = totalReduction;
-    breakdown.finalDailyChange = growthRate;
-    breakdown.netChange = growthRate - totalReduction;
-
-    return breakdown;
+    
+    // ========== 计算最终每日变化 ==========
+    const totalIncrease = increaseFactors.reduce((sum, f) => sum + f.value, 0);
+    const totalDecrease = decreaseFactors.reduce((sum, f) => sum + f.value, 0);
+    const dailyChange = totalIncrease - totalDecrease;
+    
+    const currentIndependence = nation?.independencePressure || 0;
+    const independenceCap = nation?.independenceCap || 100;
+    
+    return {
+        // 当前状态（独立倾向是百分比）
+        current: currentIndependence,
+        cap: independenceCap,
+        
+        // 每日变化（百分点/天）
+        dailyChange: dailyChange,
+        
+        // 增减因素分解
+        totalIncrease: totalIncrease,
+        totalDecrease: totalDecrease,
+        increaseFactors: increaseFactors,
+        decreaseFactors: decreaseFactors,
+        
+        // 预测（按当前趋势）
+        daysToMax: dailyChange > 0 ? Math.ceil((independenceCap - currentIndependence) / dailyChange) : null,
+        daysToZero: dailyChange < 0 ? Math.ceil(currentIndependence / Math.abs(dailyChange)) : null,
+        
+        // 兼容旧UI
+        growthFactors: increaseFactors,
+        reductionFactors: decreaseFactors,
+        netChange: dailyChange,
+        growthRate: totalIncrease,
+        totalReduction: totalDecrease,
+        factors: increaseFactors,
+        reductions: decreaseFactors,
+    };
 };
-
 /**
  * 检查是否触发独立战争
  * @param {Object} params - 检查参数
@@ -934,10 +1436,9 @@ export const releaseVassal = (nation, reason = 'released') => {
  * @returns {Object} 更新后的国家对象
  */
 export const adjustVassalPolicy = (nation, policyChanges) => {
-    if (nation.vassalOf !== 'player') {
-        throw new Error('只能调整玩家的附庸国');
-    }
-
+    // [FIX] 移除 vassalOf 检查，因为调用方（useGameActions）已经做了检查
+    // 避免因状态更新时序问题导致的错误
+    
     const updated = { ...nation };
     const config = VASSAL_TYPE_CONFIGS[updated.vassalType];
 
@@ -955,16 +1456,7 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         const validOptions = ['autonomous', 'guided', 'puppet'];
         if (validOptions.includes(policyChanges.diplomaticControl)) {
             updated.vassalPolicy.diplomaticControl = policyChanges.diplomaticControl;
-
-            // [MODIFIED] 外交控制对独立倾向的影响改为温和的一次性调整
-            const independenceEffects = {
-                autonomous: -1,  // 自主外交小幅降低独立倾向
-                guided: 0,       // 引导外交无影响
-                puppet: 1,       // 傀儡外交小幅增加独立倾向
-            };
-            updated.independencePressure = Math.min(100, Math.max(0,
-                (updated.independencePressure || 0) + independenceEffects[policyChanges.diplomaticControl]
-            ));
+            // 外交控制政策不再立即影响独立倾向，而是通过每日增长率影响
         }
     }
 
@@ -973,19 +1465,7 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         const validOptions = ['free', 'preferential', 'monopoly', 'exclusive', 'dumping', 'looting'];
         if (validOptions.includes(policyChanges.tradePolicy)) {
             updated.vassalPolicy.tradePolicy = policyChanges.tradePolicy;
-
-            // [MODIFIED] 贸易政策对独立倾向的一次性影响减半
-            const independenceEffects = {
-                free: -1,        // 自由贸易小幅降低独立倾向
-                preferential: 0, // 优惠准入无影响
-                exclusive: 1.5,  // 排他贸易小幅增加
-                monopoly: 2.5,   // 垄断贸易中等增加独立倾向
-                dumping: 2,      // 倾销小幅增加
-                looting: 3,      // 资源掠夺中等增加
-            };
-            updated.independencePressure = Math.min(100, Math.max(0,
-                (updated.independencePressure || 0) + (independenceEffects[policyChanges.tradePolicy] || 0)
-            ));
+            // 贸易政策不再立即影响独立倾向，而是通过每日增长率影响
         }
     }
 
@@ -994,16 +1474,16 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         const validOptions = ['standard', 'exploitation', 'slavery'];
         if (validOptions.includes(policyChanges.labor)) {
             updated.vassalPolicy.labor = policyChanges.labor;
+            // 劳工政策不再立即影响独立倾向，而是通过每日增长率影响
+        }
+    }
 
-            // [MODIFIED] 劳工政策对独立倾向的一次性影响减半
-            const independenceEffects = {
-                standard: 0,
-                exploitation: 1.5,   // 压榨剥削小幅增加独立倾向
-                slavery: 4,          // 强制劳动中等增加独立倾向
-            };
-            updated.independencePressure = Math.min(100, Math.max(0,
-                (updated.independencePressure || 0) + (independenceEffects[policyChanges.labor] || 0)
-            ));
+    // ========== NEW: 调整治理政策 ==========
+    if (policyChanges.governance) {
+        const validOptions = ['autonomous', 'puppet_govt', 'direct_rule'];
+        if (validOptions.includes(policyChanges.governance)) {
+            updated.vassalPolicy.governance = policyChanges.governance;
+            // 治理政策不再立即影响独立倾向，而是通过每日增长率影响
         }
     }
 
@@ -1012,16 +1492,7 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         const validOptions = ['autonomous', 'call_to_arms', 'auto_join'];
         if (validOptions.includes(policyChanges.military)) {
             updated.vassalPolicy.military = policyChanges.military;
-
-            // [MODIFIED] 军事政策对独立倾向的一次性影响减半
-            const independenceEffects = {
-                autonomous: -1,     // 更松的军事约束小幅降低独立倾向
-                call_to_arms: 0,
-                auto_join: 1,       // 更强约束小幅增加独立倾向
-            };
-            updated.independencePressure = Math.min(100, Math.max(0,
-                (updated.independencePressure || 0) + (independenceEffects[policyChanges.military] || 0)
-            ));
+            // 军事政策不再立即影响独立倾向，而是通过每日增长率影响
         }
     }
 
@@ -1030,16 +1501,7 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         const validOptions = ['autonomous', 'guided', 'forced'];
         if (validOptions.includes(policyChanges.investmentPolicy)) {
             updated.vassalPolicy.investmentPolicy = policyChanges.investmentPolicy;
-
-            // [MODIFIED] 投资政策对独立倾向的一次性影响减半
-            const independenceEffects = {
-                autonomous: 0,
-                guided: 1,     // 引导投资小幅增加独立倾向
-                forced: 2.5,   // 强制投资中等增加独立倾向
-            };
-            updated.independencePressure = Math.min(100, Math.max(0,
-                (updated.independencePressure || 0) + (independenceEffects[policyChanges.investmentPolicy] || 0)
-            ));
+            // 投资政策不再立即影响独立倾向，而是通过每日增长率影响
         }
     }
 
@@ -1049,13 +1511,7 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         // 允许在基础值的50%-150%范围内调整
         updated.tributeRate = Math.min(baseTributeRate * 1.5,
             Math.max(baseTributeRate * 0.5, policyChanges.tributeRate));
-
-        // [MODIFIED] 提高朝贡率的一次性惩罚减半
-        if (policyChanges.tributeRate > baseTributeRate) {
-            const increase = Math.ceil((policyChanges.tributeRate - baseTributeRate) / baseTributeRate * 5);
-            updated.independencePressure = Math.min(100,
-                (updated.independencePressure || 0) + increase);
-        }
+        // 朝贡率不再立即影响独立倾向，而是通过阶层满意度间接影响
     }
 
     // NEW: Update control measures with new object format

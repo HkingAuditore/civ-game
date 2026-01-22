@@ -18,7 +18,8 @@ const AUTOSAVE_KEY = 'civ_game_autosave_v1';
 const SAVE_FORMAT_VERSION = 1;
 const SAVE_FILE_EXTENSION = 'cgsave';
 const SAVE_OBFUSCATION_KEY = 'civ_game_simple_mask_v1';
-const LOCAL_STORAGE_SOFT_LIMIT = 2 * 1024 * 1024;
+// Lower soft limit to prefer IndexedDB earlier (localStorage quota issues)
+const LOCAL_STORAGE_SOFT_LIMIT = 1 * 1024 * 1024;
 const EXTERNAL_SAVE_FLAG = '__externalSave';
 const EXTERNAL_SAVE_STORAGE = 'indexeddb';
 const SAVE_IDB_NAME = 'civ_game_save_db_v1';
@@ -947,6 +948,7 @@ export const useGameState = () => {
 
     // ========== 政令与外交状态 ==========
     const [nations, setNations] = useState(buildInitialNations());
+    const [diplomaticReputation, setDiplomaticReputation] = useState(50); // 国际声誉 (0-100)
 
     // ========== 海外投资系统状态 ==========
     const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投资
@@ -1569,6 +1571,7 @@ export const useGameState = () => {
                 gameSpeed,
                 isPaused,
                 nations,
+                diplomaticReputation,
                 officials,
                 officialCandidates,
                 lastSelectionDay,
@@ -1693,6 +1696,7 @@ export const useGameState = () => {
         setActiveTab(data.activeTab || 'build');
         setGameSpeed(data.gameSpeed ?? 1);
         setIsPaused(data.isPaused ?? false);
+        setDiplomaticReputation(data.diplomaticReputation ?? 50);
         setNations((data.nations || buildInitialNations()).map(n => ({
             ...n,
             treaties: Array.isArray(n.treaties) ? n.treaties : [],
@@ -1999,18 +2003,23 @@ export const useGameState = () => {
             const isQuotaExceeded = error?.name === 'QuotaExceededError'
                 || `${error?.message || ''}`.toLowerCase().includes('quota');
             if (isQuotaExceeded) {
-                // Try aggressive compaction first
+                // On quota exceeded, try IndexedDB first (don't rely on size threshold)
+                if (hasIndexedDb()) {
+                    console.log('Quota exceeded - trying IndexedDB directly...');
+                    const compactedPayload = compactSavePayload(payload, { aggressive: true });
+                    const compactSize = calculateSaveSize(compactedPayload);
+                    const stored = await persistExternalSave(compactedPayload, compactSize);
+                    if (stored) {
+                        addLogEntry(`⚠️ 存档空间不足，已保存到浏览器数据库 (${compactSize.display})。`);
+                        return;
+                    }
+                }
+
+                // Fallback: Try aggressive compaction to localStorage
                 try {
                     const compactedPayload = compactSavePayload(payload, { aggressive: true });
                     const compactSize = calculateSaveSize(compactedPayload);
                     console.log(`Trying compact save: ${compactSize.display}`);
-
-                    if (shouldUseExternalStorage(compactSize.bytes)) {
-                        const stored = await persistExternalSave(compactedPayload, compactSize);
-                        if (stored) {
-                            return;
-                        }
-                    }
 
                     localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
                     triggerSavingIndicator();
@@ -2032,9 +2041,12 @@ export const useGameState = () => {
                         };
                         const minimalSize = calculateSaveSize(minimalPayload);
                         console.log(`Trying minimal manual save: ${minimalSize.display}`);
-                        if (shouldUseExternalStorage(minimalSize.bytes)) {
+                        
+                        // Try IndexedDB first for minimal save too
+                        if (hasIndexedDb()) {
                             const stored = await persistExternalSave(minimalPayload, minimalSize);
                             if (stored) {
+                                addLogEntry(`⚠️ 存档已保存到浏览器数据库 (${minimalSize.display})。`);
                                 return;
                             }
                         }
@@ -2055,9 +2067,11 @@ export const useGameState = () => {
                         const minimalSize = calculateSaveSize(minimalPayload);
                         console.log(`Trying minimal save: ${minimalSize.display}`);
 
-                        if (shouldUseExternalStorage(minimalSize.bytes)) {
+                        // Try IndexedDB first for minimal save too
+                        if (hasIndexedDb()) {
                             const stored = await persistExternalSave(minimalPayload, minimalSize);
                             if (stored) {
+                                setLastAutoSaveTime(timestamp);
                                 return;
                             }
                         }
@@ -2082,9 +2096,14 @@ export const useGameState = () => {
                         const retrySize = calculateSaveSize(minimalPayload);
                         console.log(`Retrying after cleanup: ${retrySize.display}`);
 
-                        if (shouldUseExternalStorage(retrySize.bytes)) {
+                        // Try IndexedDB first after cleanup
+                        if (hasIndexedDb()) {
                             const stored = await persistExternalSave(minimalPayload, retrySize);
                             if (stored) {
+                                if (source === 'auto') {
+                                    setLastAutoSaveTime(timestamp);
+                                }
+                                addLogEntry(`⚠️ 已清理旧存档并保存 (${retrySize.display})。`);
                                 return;
                             }
                         }
@@ -2101,19 +2120,7 @@ export const useGameState = () => {
                     }
                 }
 
-                if (hasIndexedDb()) {
-                    const fallbackPayload = source === 'auto'
-                        ? buildMinimalAutoSavePayload(payload)
-                        : compactSavePayload(payload, { aggressive: true });
-                    const fallbackSize = calculateSaveSize(fallbackPayload);
-                    const stored = await persistExternalSave(fallbackPayload, fallbackSize);
-                    if (stored) {
-                        if (source !== 'auto') {
-                            addLogEntry('⚠️ 存档已保存到浏览器数据库（localStorage 空间不足）。');
-                        }
-                        return;
-                    }
-                }
+                // Remove redundant final IndexedDB attempt since we already tried it first
                 
                 // All attempts failed
                 if (source === 'auto') {
@@ -2841,6 +2848,8 @@ export const useGameState = () => {
         // 政令与外交
         nations,
         setNations,
+        diplomaticReputation,
+        setDiplomaticReputation,
         selectedTarget,
         setSelectedTarget,
 

@@ -18,7 +18,7 @@ export const GOVERNOR_MANDATES = {
         name: '安抚',
         desc: '专注降低动荡和独立倾向，但会减少朝贡',
         statFocus: 'military', // 军事属性收益翻倍
-        independenceMod: 2.0,  // 独立压制效果 +100%
+        independenceMod: 1.5,  // 独立压制效果 +50%（原+100%，降低）
         tributeMod: 0.8,       // 朝贡 -20%
     },
     exploit: {
@@ -58,8 +58,8 @@ export const GOVERNOR_EFFECTS_CONFIG = {
 
     // 威望加成
     prestige: {
-        independencePerPoint: 0.02, // [Boosted] 每点威望 -2% 独立倾向增长 (was 0.5%)
-        eliteSatisfactionPerPoint: 0.1, // [Boosted] 每点威望 +10% 精英满意度 (was 2%)
+        independencePerPoint: 0.005, // 每点威望 -0.5% 独立倾向增长（大幅降低，更合理）
+        eliteSatisfactionPerPoint: 0.03, // 每点威望 +3% 精英满意度（降低）
     },
 
     // 行政能力加成

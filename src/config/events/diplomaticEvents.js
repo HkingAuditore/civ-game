@@ -1467,13 +1467,13 @@ export function createIndependenceWarEvent(nation, vassalInfo, callback) {
                 },
                 callback: () => callback('crush'),
             },
-            {
-                id: 'negotiate',
-                text: '谈判解决',
-                description: `尝试通过降低朝贡来平息叛乱（独立战争可能取消，但附庸条件将大幅放宽）`,
-                effects: {},
-                callback: () => callback('negotiate'),
-            },
+            // {
+            //     id: 'negotiate',
+            //     text: '谈判解决',
+            //     description: '通过外交谈判平息叛乱（取消战争，朝贡率减半，独立倾向-10）',
+            //     effects: {},
+            //     callback: () => callback('negotiate'),
+            // },
             {
                 id: 'release',
                 text: '承认独立',

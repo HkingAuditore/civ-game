@@ -212,6 +212,8 @@ const DiplomacyLayout = ({
                 onClose={() => setVassalSheetOpen(false)}
                 nation={vassalSheetNation}
                 playerResources={resources}
+                playerWealth={resources?.silver || gameState?.silver || 10000}
+                playerPopulation={gameState?.population || 1000000}
                 onApplyVassalPolicy={(nationId, policy) => {
                     onDiplomaticAction?.(nationId, 'adjust_vassal_policy', { policy });
                 }}

@@ -218,8 +218,8 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
     },
     direct_rule: {
         id: 'direct_rule',
-        name: '总督直辖',
-        description: '派遣总督直接管理（需消耗官员）',
+        name: '直接统治',
+        description: '中央政府直接管理附庸内政',
         tributeMod: 1.3,              // +30% tribute
         controlCostMod: 1.5,          // 150% control cost (expensive)
         independenceGrowthMod: 0.8,   // 20% slower (active suppression)
@@ -261,33 +261,49 @@ export const MILITARY_POLICY_DEFINITIONS = {
 /**
  * 附庸政策对阶层满意度的影响（目标满意度修正）
  */
+/**
+ * 附庸国政策对各阶层满意度的直接影响
+ * 这些惩罚会：
+ * 1. 直接减少目标满意度
+ * 2. 触发满意度硬上限（惩罚越大，上限越低）
+ * 
+ * 设计原则：
+ * - 压榨性政策对底层影响最大
+ * - 精英阶层通常是政策的受益者，受负面影响较小
+ * - 多项恶劣政策叠加会产生严重的满意度问题
+ */
 export const VASSAL_POLICY_SATISFACTION_EFFECTS = {
     labor: {
         standard: { elites: 0, commoners: 0, underclass: 0 },
-        exploitation: { elites: -1, commoners: -6, underclass: -10 },
-        slavery: { elites: -3, commoners: -12, underclass: -18 },
+        // 压榨剥削：底层被迫过度劳动，平民生活质量下降
+        exploitation: { elites: -2, commoners: -10, underclass: -18 },
+        // 奴隶制：极端剥削，所有非精英阶层都受严重影响
+        slavery: { elites: -5, commoners: -20, underclass: -30 },
     },
     tradePolicy: {
         free: { elites: 0, commoners: 0, underclass: 0 },
-        preferential: { elites: -0.5, commoners: -2, underclass: -2 },
-        exclusive: { elites: -1, commoners: -4, underclass: -4 },
-        dumping: { elites: -2, commoners: -6, underclass: -6 },
-        looting: { elites: -3, commoners: -8, underclass: -8 },
+        preferential: { elites: -1, commoners: -3, underclass: -3 },
+        exclusive: { elites: -2, commoners: -6, underclass: -6 },
+        dumping: { elites: -3, commoners: -10, underclass: -10 },
+        looting: { elites: -5, commoners: -15, underclass: -15 },
     },
     governance: {
-        autonomous: { elites: 2, commoners: 2, underclass: 2 },
+        autonomous: { elites: 3, commoners: 3, underclass: 3 },
         puppet_govt: { elites: 0, commoners: 0, underclass: 0 },
-        direct_rule: { elites: -3, commoners: -5, underclass: -5 },
+        // 直接统治：削弱本地精英权力，民众感受到外来压迫
+        direct_rule: { elites: -8, commoners: -10, underclass: -10 },
     },
     military: {
-        autonomous: { elites: 2, commoners: 2, underclass: 1 },
+        autonomous: { elites: 3, commoners: 3, underclass: 2 },
         call_to_arms: { elites: 0, commoners: 0, underclass: 0 },
-        auto_join: { elites: -2, commoners: -3, underclass: -3 },
+        // 自动参战：民众被迫为宗主国流血
+        auto_join: { elites: -3, commoners: -6, underclass: -6 },
     },
     investmentPolicy: {
         autonomous: { elites: 0, commoners: 0, underclass: 0 },
-        guided: { elites: -2, commoners: -2, underclass: -2 },
-        forced: { elites: -4, commoners: -6, underclass: -6 },
+        guided: { elites: -3, commoners: -4, underclass: -4 },
+        // 强制投资：扭曲本地经济结构
+        forced: { elites: -6, commoners: -10, underclass: -10 },
     },
 };
 
@@ -710,40 +726,56 @@ export const INDEPENDENCE_CONFIG = {
 };
 
 /**
- * 独立倾向模型参数（单轨制）
+ * 独立倾向模型参数
+ * @deprecated 已废弃 - 新的纯每日加减模型直接在 vassalSystem.js 的 calculateDailyIndependenceChange 函数中定义
+ * 
+ * 新模型设计理念：
+ * - 独立倾向是一个百分比（0-100%），表示附庸国独立的意愿/可能性
+ * - 所有政策调整只影响每日变化率，不会导致瞬间变化
+ * - 变化来源：
+ *   1. 基础自然增长：0.02%/天（模拟民族意识觉醒），随时代增加
+ *   2. 控制政策压力：劳工、贸易、治理、军事、投资政策各有每日影响
+ *   3. 阶层满意度：低于50%增加独立倾向，高于50%降低
+ *   4. 经济状况：富裕增加独立野心，贫穷依赖宗主
+ *   5. 朝贡负担：高朝贡率增加独立倾向
+ *   6. 控制措施：总督、驻军、经济援助、文化同化可降低独立倾向
+ * 
+ * 保留此配置仅为向后兼容
  */
 export const INDEPENDENCE_MODEL_CONFIG = {
-    baseRate: 0.005,        // 时代基准增速
-    dailyDecay: 0.005,      // 固定日衰减
-    eraGrowthPerEra: 0.12,  // 每时代增速系数
-    classWeight: 0.12,      // 阶层满意度影响权重
+    // 以下参数已废弃，新模型使用 vassalSystem.js 中的硬编码值
+    baseRate: 0.02,        // 基础每日增长率（百分点/天）
+    dailyDecay: 0,         // 不再使用固定日衰减
+    eraGrowthPerEra: 0.10, // 每时代增速系数（+10%）
+    classWeight: 0.001,    // 阶层满意度影响权重
+    // 政策压力配置（已废弃，新值见 calculateDailyIndependenceChange）
     policyPressure: {
         labor: {
             standard: 0,
-            exploitation: 0.02,
-            slavery: 0.04,
+            exploitation: 0.03,
+            slavery: 0.08,
         },
         tradePolicy: {
-            free: 0,
-            preferential: 0.01,
+            free: -0.01,
+            preferential: 0,
             exclusive: 0.02,
-            dumping: 0.03,
-            looting: 0.04,
+            dumping: 0.04,
+            looting: 0.06,
         },
         governance: {
-            autonomous: -0.01,
+            autonomous: -0.02,
             puppet_govt: 0,
-            direct_rule: 0.02,
+            direct_rule: 0.03,
         },
         military: {
             autonomous: -0.01,
             call_to_arms: 0,
-            auto_join: 0.02,
+            auto_join: 0.03,
         },
         investmentPolicy: {
             autonomous: 0,
             guided: 0.01,
-            forced: 0.03,
+            forced: 0.04,
         },
     },
 };
