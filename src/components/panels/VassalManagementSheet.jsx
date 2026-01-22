@@ -698,6 +698,22 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     // UI State
     const [isGovernorSelectorOpen, setIsGovernorSelectorOpen] = useState(false);
 
+    // [PERFORMANCE FIX] 缓存满意度效果文本计算，避免移动端卡死
+    const satisfactionEffectsCache = useMemo(() => {
+        const cache = {};
+        const categories = ['labor', 'tradePolicy', 'governance', 'military', 'investmentPolicy'];
+        categories.forEach(category => {
+            cache[category] = {};
+            const categoryEffects = VASSAL_POLICY_SATISFACTION_EFFECTS?.[category];
+            if (categoryEffects) {
+                Object.keys(categoryEffects).forEach(policyId => {
+                    cache[category][policyId] = getSatisfactionEffectsText(category, policyId);
+                });
+            }
+        });
+        return cache;
+    }, []); // 只在组件挂载时计算一次
+
 
     // 控制手段状态 (NEW: Object format with officialId support)
     const [controlMeasures, setControlMeasures] = useState(() => {
@@ -979,7 +995,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
-                            extraEffects={getSatisfactionEffectsText('labor', option.id)}
+                            extraEffects={satisfactionEffectsCache.labor?.[option.id]}
                             onClick={() => setLaborPolicy(option.id)}
                         />
                     ))}
@@ -1002,7 +1018,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
-                            extraEffects={getSatisfactionEffectsText('investmentPolicy', option.id)}
+                            extraEffects={satisfactionEffectsCache.investmentPolicy?.[option.id]}
                             onClick={() => setInvestmentPolicy(option.id)}
                         />
                     ))}
@@ -1025,7 +1041,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
-                            extraEffects={getSatisfactionEffectsText('governance', option.id)}
+                            extraEffects={satisfactionEffectsCache.governance?.[option.id]}
                             onClick={() => setGovernancePolicy(option.id)}
                             disabled={option.requiresGovernor && !controlMeasures.governor?.active}
                         />
@@ -1049,7 +1065,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
-                            extraEffects={getSatisfactionEffectsText('military', option.id)}
+                            extraEffects={satisfactionEffectsCache.military?.[option.id]}
                             onClick={() => setMilitaryPolicy(option.id)}
                         />
                     ))}
@@ -1072,7 +1088,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
-                            extraEffects={getSatisfactionEffectsText('tradePolicy', option.id)}
+                            extraEffects={satisfactionEffectsCache.tradePolicy?.[option.id]}
                             onClick={() => setTradePolicy(option.id)}
                         />
                     ))}
