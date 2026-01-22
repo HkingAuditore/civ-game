@@ -5275,6 +5275,7 @@ export const simulateTick = ({
         playerWealth: res.silver || 0,
         playerPopulation: population || 1000000,
         officials,
+        difficultyLevel: difficulty,
         logs,
     });
     updatedNations = vassalResult.nations;

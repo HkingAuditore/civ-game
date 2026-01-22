@@ -23,13 +23,17 @@ import {
     getReputationEffect,
     REPUTATION_EFFECTS,
 } from '../../config/reputationSystem.js';
+import {
+    getVassalIndependenceMultiplier,
+    getVassalIndependenceWarChance,
+} from '../../config/difficulty.js';
 
 // ========== 独立倾向计算共享配置 ==========
 // 所有涉及独立倾向每日变化的数值都在此处统一配置
 export const INDEPENDENCE_CHANGE_CONFIG = {
     // 基础自然增长（民族意识觉醒）
     baseGrowthRate: 0.02,           // 基础增长率：0.02%/天
-    eraMultiplierStep: 0.1,         // 每时代增加的倍率：+10%
+    eraMultiplierStep: 0.3,         // 每时代增加的倍率：+30%
     
     // 政策影响数值（每日变化，单位：%/天）
     policies: {
@@ -547,6 +551,7 @@ export const processVassalUpdates = ({
     playerWealth = 10000,
     playerPopulation = 1000000, // Player's total population for per capita calculations
     officials = [],       // NEW: Player's officials list
+    difficultyLevel = 'normal', // Game difficulty level
     logs = [],
 }) => {
     let tributeIncome = 0;
@@ -836,7 +841,8 @@ export const processVassalUpdates = ({
             epoch,
             controlMeasureIndependenceReduction,
             playerWealth,
-            playerPopulation
+            playerPopulation,
+            difficultyLevel
         );
         
         // 应用独立倾向上限
@@ -980,11 +986,15 @@ export const calculateEnhancedTribute = (vassalNation) => {
  * @param {number} controlReduction - 控制措施带来的每日减少量
  * @param {number} suzereainWealth - 宗主国财富（用于计算经济比值影响）
  * @param {number} suzereainPopulation - 宗主国人口（用于计算人均财富比值影响）
+ * @param {string} difficultyLevel - 游戏难度级别
  * @returns {number} 每日独立倾向变化量（百分点/天）
  */
-const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, suzereainWealth = 10000, suzereainPopulation = 1000000) => {
+const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, suzereainWealth = 10000, suzereainPopulation = 1000000, difficultyLevel = 'normal') => {
     const cfg = INDEPENDENCE_CHANGE_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
+    
+    // 获取难度系数
+    const difficultyMultiplier = getVassalIndependenceMultiplier(difficultyLevel);
     
     // ========== 1. 基础自然增长（模拟民族意识觉醒） ==========
     const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * cfg.eraMultiplierStep;
@@ -1058,6 +1068,13 @@ const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, s
     
     // ========== 6. 扣除控制措施效果 ==========
     dailyChange -= controlReduction;
+    
+    // ========== 7. 应用难度系数 ==========
+    // 只对正向增长应用难度系数，负向（控制措施效果）不受难度影响
+    // 这样在高难度下附庸更难控制，但控制手段的效果不会被削弱
+    if (dailyChange > 0) {
+        dailyChange *= difficultyMultiplier;
+    }
     
     return dailyChange;
 };
