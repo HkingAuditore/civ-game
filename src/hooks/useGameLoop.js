@@ -1700,6 +1700,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         playerWealth: adjustedResources.silver || 0,
                         playerPopulation: current.population || 1000000,
                         officials: result.officials || [],  // Pass officials for governor system
+                        difficultyLevel: current.difficulty, // 游戏难度
                         logs: vassalLogs
                     });
 

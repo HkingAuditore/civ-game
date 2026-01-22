@@ -58,8 +58,8 @@ export const GOVERNOR_EFFECTS_CONFIG = {
 
     // 威望加成
     prestige: {
-        independencePerPoint: 0.005, // 每点威望 -0.5% 独立倾向增长（大幅降低，更合理）
-        eliteSatisfactionPerPoint: 0.03, // 每点威望 +3% 精英满意度（降低）
+        independencePerPoint: 0.002, // 每点威望 -0.1% 独立倾向增长（大幅降低，更合理）
+        eliteSatisfactionPerPoint: 0.005, // 每点威望 +0.5% 精英满意度（降低）
     },
 
     // 行政能力加成

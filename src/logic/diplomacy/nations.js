@@ -606,7 +606,7 @@ export const updateNationEconomyData = (nation, marketPrices = {}, context = {})
 };
 
 /**
- * Update all AI nations for one tick
+ * Updates all nations each tick
  * @param {Object} params - Update parameters
  * @returns {Object} Updated nations and related data
  */
@@ -621,10 +621,10 @@ export const updateNations = ({
     logs,
     marketPrices = {},  // 新增：玩家市场价格，用于AI经济数据初始化和更新
     diplomaticReputation = 50, // Player's diplomatic reputation (0-100)
+    difficultyLevel = 'normal', // Game difficulty level
     onTreasuryChange,
     onResourceChange,
-}) => {
-    const res = { ...resources };
+}) => {    const res = { ...resources };
     let warIndemnityIncome = 0;
     let raidPopulationLoss = 0;
     let vassalTributeIncome = 0;
@@ -770,6 +770,7 @@ export const updateNations = ({
         playerAtWar,
         playerWealth: res.silver || 0,
         playerPopulation: population || 1000000,
+        difficultyLevel,
         logs,
     });
     updatedNations = vassalResult.nations;
