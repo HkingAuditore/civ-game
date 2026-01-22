@@ -8,14 +8,15 @@ import { Icon } from '../common/UIComponents';
 /**
  * 宣战确认模态框
  * @param {Object} targetNation - 目标国家
- * @param {Array} allies - 目标国家的盟友列表
+ * @param {Array} militaryOrgs - 目标国家的军事组织列表，每个组织包含name和members数组
  * @param {Function} onConfirm - 确认宣战回调
  * @param {Function} onCancel - 取消回调
  */
-export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel }) => {
+export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, onCancel }) => {
     if (!targetNation) return null;
 
-    const hasAllies = allies.length > 0;
+    const hasAllies = militaryOrgs.length > 0;
+    const totalAlliesCount = militaryOrgs.reduce((sum, org) => sum + (org.members?.length || 0), 0);
 
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -66,7 +67,7 @@ export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel
                             )}
                         </div>
 
-                        {/* 同盟警告 */}
+                        {/* 军事组织警告 */}
                         {hasAllies && (
                             <div className="p-3 bg-orange-900/30 rounded-lg border border-orange-500/40">
                                 <div className="flex items-center gap-2 mb-2">
@@ -74,22 +75,37 @@ export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel
                                     <span className="text-sm font-bold text-orange-200">军事组织警告</span>
                                 </div>
                                 <p className="text-[11px] text-orange-100 mb-3 leading-relaxed">
-                                    {targetNation.name} 拥有 <span className="font-bold text-orange-300">{allies.length}</span> 个军事组织盟友。
+                                    {targetNation.name} 拥有 <span className="font-bold text-orange-300">{militaryOrgs.length}</span> 个军事组织盟友。
                                     向其宣战将同时与这些国家进入战争状态！
                                 </p>
-                                <div className="space-y-1.5">
-                                    {allies.map(ally => (
-                                        <div
-                                            key={ally.id}
-                                            className="flex items-center justify-between p-2 bg-orange-900/40 rounded border border-orange-600/30"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Icon name="Flag" size={12} className={ally.color || 'text-orange-300'} />
-                                                <span className="text-xs text-orange-100">{ally.name}</span>
+                                <div className="space-y-2">
+                                    {militaryOrgs.map(org => (
+                                        <div key={org.id} className="space-y-1">
+                                            {/* 军事组织名称 */}
+                                            <div className="flex items-center gap-2 px-2 py-1.5 bg-orange-900/50 rounded border border-orange-600/40">
+                                                <Icon name="Flag" size={12} className="text-orange-300" />
+                                                <span className="text-xs font-bold text-orange-200">{org.name}</span>
+                                                <span className="ml-auto text-[10px] text-orange-300">
+                                                    成员: {org.members?.length || 0}
+                                                </span>
                                             </div>
-                                            <span className="text-[10px] text-orange-300">
-                                                军事组织成员
-                                            </span>
+                                            {/* 组织成员列表 */}
+                                            <div className="ml-4 space-y-1">
+                                                {org.members?.map(member => (
+                                                    <div
+                                                        key={member.id}
+                                                        className="flex items-center justify-between p-1.5 bg-orange-900/30 rounded border border-orange-600/20"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <Icon name="Flag" size={10} className={member.color || 'text-orange-300'} />
+                                                            <span className="text-[11px] text-orange-100">{member.name}</span>
+                                                        </div>
+                                                        <span className="text-[9px] text-orange-300">
+                                                            军事组织成员
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -129,7 +145,7 @@ export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel
                             className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2"
                         >
                             <Icon name="Swords" size={14} />
-                            {hasAllies ? `宣战 (${allies.length + 1}国)` : '确认宣战'}
+                            {hasAllies ? `宣战 (${totalAlliesCount + 1}国)` : '确认宣战'}
                         </button>
                     </div>
                 </div>

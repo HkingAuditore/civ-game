@@ -289,47 +289,55 @@ const DiplomacyTabComponent = ({
     const targetNationAllies = useMemo(() => {
         if (!selectedNation) return [];
         
-        // 获取目标国家所在的军事组织成员
         const orgs = diplomacyOrganizations?.organizations || [];
-        const targetMilitaryOrgMembers = new Set();
+        
+        // 按军事组织分组返回盟友
+        const militaryOrgs = [];
         
         orgs.forEach(org => {
             if (org?.type !== 'military_alliance') return;
             if (!Array.isArray(org.members) || !org.members.includes(selectedNation.id)) return;
             
-            org.members.forEach(memberId => {
-                if (memberId && memberId !== selectedNation.id && memberId !== 'player') {
-                    targetMilitaryOrgMembers.add(memberId);
-                }
-            });
-        });
-        
-        // 过滤出会被连带开战的盟友（排除玩家的附庸和玩家所在军事组织的成员）
-        const playerMilitaryOrgMembers = new Set();
-        orgs.forEach(org => {
-            if (org?.type !== 'military_alliance') return;
-            if (!Array.isArray(org.members) || !org.members.includes('player')) return;
+            // 检查玩家是否也在这个组织中（如果是，则该组织成员不会参战）
+            const playerInThisOrg = org.members.includes('player');
+            if (playerInThisOrg) {
+                // 玩家和目标国家在同一个军事组织，该组织成员保持中立
+                return;
+            }
             
-            org.members.forEach(memberId => {
-                if (memberId && memberId !== 'player') {
-                    playerMilitaryOrgMembers.add(memberId);
-                }
-            });
+            // 获取该组织中会参战的成员（排除目标国家本身、玩家、玩家附庸）
+            const members = org.members
+                .filter(memberId => {
+                    if (!memberId || memberId === selectedNation.id || memberId === 'player') return false;
+                    
+                    const nation = visibleNations.find(n => n.id === memberId);
+                    if (!nation) return false;
+                    
+                    // 排除玩家的附庸
+                    if (nation.isVassal === true) return false;
+                    
+                    return true;
+                })
+                .map(memberId => {
+                    const nation = visibleNations.find(n => n.id === memberId);
+                    return {
+                        ...nation,
+                        foreignRelation: selectedNation.foreignRelations?.[memberId] ?? 80,
+                    };
+                })
+                .filter(Boolean);
+            
+            // 只添加有成员的组织
+            if (members.length > 0) {
+                militaryOrgs.push({
+                    id: org.id,
+                    name: org.name,
+                    members: members,
+                });
+            }
         });
         
-        return visibleNations.filter(n => {
-            if (n.id === selectedNation.id) return false;
-            // 必须是目标国家的军事组织成员
-            if (!targetMilitaryOrgMembers.has(n.id)) return false;
-            // 排除玩家的附庸
-            if (n.isVassal === true) return false;
-            // 排除与玩家在同一军事组织的成员（他们会保持中立）
-            if (playerMilitaryOrgMembers.has(n.id)) return false;
-            return true;
-        }).map(ally => ({
-            ...ally,
-            foreignRelation: selectedNation.foreignRelations?.[ally.id] ?? 80,
-        }));
+        return militaryOrgs;
     }, [visibleNations, selectedNation, diplomacyOrganizations]);
 
     // Simple Actions
@@ -436,7 +444,7 @@ const DiplomacyTabComponent = ({
             {showDeclareWarModal && selectedNation && (
                 <DeclareWarModal
                     targetNation={selectedNation}
-                    allies={targetNationAllies}
+                    militaryOrgs={targetNationAllies}
                     onConfirm={() => {
                         handleSimpleAction(selectedNation.id, 'declare_war');
                         setShowDeclareWarModal(false);
