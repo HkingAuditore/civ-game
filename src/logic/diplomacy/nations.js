@@ -24,6 +24,7 @@ import {
     getSocialStructureTemplate,
     TREATY_CONFIGS,
     TREATY_TYPE_LABELS,
+    VASSAL_POLICY_SATISFACTION_EFFECTS,
 } from '../../config/diplomacy.js';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
@@ -63,6 +64,29 @@ const WEALTH_DISTRIBUTION = {
     elites: 0.60,      // 精英阶层掌握60%财富
     commoners: 0.35,   // 平民阶层掌握35%财富
     underclass: 0.05,  // 底层阶层掌握5%财富
+};
+
+/**
+ * 根据附庸政策计算阶层满意度修正
+ * @param {Object} vassalPolicy - 附庸政策
+ * @param {string} stratum - 阶层
+ * @returns {number} 目标满意度修正值
+ */
+const getPolicySatisfactionModifier = (vassalPolicy = {}, stratum) => {
+    const laborPolicy = vassalPolicy.labor || 'standard';
+    const tradePolicy = vassalPolicy.tradePolicy || 'preferential';
+    const governancePolicy = vassalPolicy.governance || 'autonomous';
+    const militaryPolicy = vassalPolicy.military || 'call_to_arms';
+    const investmentPolicy = vassalPolicy.investmentPolicy || 'autonomous';
+
+    const effects = VASSAL_POLICY_SATISFACTION_EFFECTS;
+    const labor = effects.labor?.[laborPolicy]?.[stratum] || 0;
+    const trade = effects.tradePolicy?.[tradePolicy]?.[stratum] || 0;
+    const governance = effects.governance?.[governancePolicy]?.[stratum] || 0;
+    const military = effects.military?.[militaryPolicy]?.[stratum] || 0;
+    const investment = effects.investmentPolicy?.[investmentPolicy]?.[stratum] || 0;
+
+    return labor + trade + governance + military + investment;
 };
 
 /**
@@ -172,10 +196,6 @@ const updateSocialClasses = (nation) => {
     // 通用影响因素
     let generalSatisfactionMod = 0;
     if (updated.isAtWar) generalSatisfactionMod -= 5;
-    if (updated.vassalOf === 'player') {
-        const autonomy = updated.autonomy || 50;
-        generalSatisfactionMod -= (100 - autonomy) * 0.05;
-    }
 
     ['elites', 'commoners', 'underclass'].forEach(stratum => {
         if (!structure[stratum]) return;
@@ -205,15 +225,16 @@ const updateSocialClasses = (nation) => {
         // 基于SoL和基准期望的对比
         const expectations = {
             elites: 15.0,
-            commoners: 3.0,
-            underclass: 1.0
+            commoners: 6.0,
+            underclass: 4.0,
         };
         const expectedSol = expectations[stratum] || 1.0;
 
-        // 满意度趋向目标值：(实际SoL / 期望SoL) * 50
-        // 如果实际 >= 期望，满意度 > 50
-        let targetSatisfaction = Math.min(100, (solRatio / expectedSol) * 50);
-        targetSatisfaction = Math.max(0, targetSatisfaction + generalSatisfactionMod);
+        // 满意度趋向目标值：SoL / 期望SoL，采用平方根减缓高财富的拉满效应
+        const solRatioNormalized = expectedSol > 0 ? solRatio / expectedSol : 0;
+        let targetSatisfaction = Math.min(100, Math.sqrt(Math.max(0, solRatioNormalized)) * 50);
+        const policySatisfactionMod = getPolicySatisfactionModifier(updated.vassalPolicy, stratum);
+        targetSatisfaction = Math.max(0, targetSatisfaction + generalSatisfactionMod + policySatisfactionMod);
 
         // 缓慢趋近
         const currentSat = data.satisfaction || 50;

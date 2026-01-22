@@ -9,7 +9,7 @@ import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, getAutonomyEffects, INDEPENDENCE_CONFIG } from '../../config/diplomacy';
+import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS } from '../../config/diplomacy';
 import {
     calculateEnhancedTribute,
     calculateControlMeasureCost,
@@ -30,6 +30,8 @@ const PolicyOptionCard = memo(({
     description,
     effects,
     effectColor = 'text-gray-400',
+    extraEffects,
+    extraEffectColor = 'text-cyan-300',
     onClick,
     disabled = false,
 }) => (
@@ -58,8 +60,22 @@ const PolicyOptionCard = memo(({
         {effects && (
             <p className={`text-xs ml-5 mt-0.5 ${effectColor}`}>{effects}</p>
         )}
+        {extraEffects && (
+            <p className={`text-xs ml-5 mt-0.5 ${extraEffectColor}`}>{extraEffects}</p>
+        )}
     </button>
 ));
+
+const formatSatisfactionDelta = (value) => {
+    if (!Number.isFinite(value) || value === 0) return '0';
+    return value > 0 ? `+${value}` : `${value}`;
+};
+
+const getSatisfactionEffectsText = (category, policyId) => {
+    const effects = VASSAL_POLICY_SATISFACTION_EFFECTS?.[category]?.[policyId];
+    if (!effects) return null;
+    return `满意度: 精英${formatSatisfactionDelta(effects.elites)} / 平民${formatSatisfactionDelta(effects.commoners)} / 下层${formatSatisfactionDelta(effects.underclass)}`;
+};
 
 /**
  * 滑动条控制
@@ -119,44 +135,13 @@ const SliderControl = memo(({
     );
 });
 
-/**
- * 自主度效果展示
- */
-const AutonomyEffectsDisplay = memo(({ autonomy }) => {
-    const effects = getAutonomyEffects(autonomy);
-
-    return (
-        <div className="bg-gray-800/50 rounded-lg p-2 mt-2">
-            <div className="text-xs text-gray-400 mb-1">当前自主度权限：</div>
-            <div className="grid grid-cols-2 gap-1 text-xs">
-                <div className={`flex items-center gap-1 ${effects.canDeclareWar ? 'text-green-400' : 'text-red-400'}`}>
-                    <Icon name={effects.canDeclareWar ? 'Check' : 'X'} size={12} />
-                    <span>自主宣战</span>
-                </div>
-                <div className={`flex items-center gap-1 ${effects.canSignTreaties ? 'text-green-400' : 'text-red-400'}`}>
-                    <Icon name={effects.canSignTreaties ? 'Check' : 'X'} size={12} />
-                    <span>签署条约</span>
-                </div>
-                <div className={`flex items-center gap-1 ${effects.canSetTariffs ? 'text-green-400' : 'text-red-400'}`}>
-                    <Icon name={effects.canSetTariffs ? 'Check' : 'X'} size={12} />
-                    <span>设置关税</span>
-                </div>
-                <div className="flex items-center gap-1 text-gray-300">
-                    <Icon name="Percent" size={12} />
-                    <span>朝贡减免 {((1 - effects.tributeReduction) * 100).toFixed(0)}%</span>
-                </div>
-            </div>
-        </div>
-    );
-});
-
 // 外交控制政策选项
 const DIPLOMATIC_CONTROL_OPTIONS = [
     {
         id: 'autonomous',
         title: '自主外交',
         description: '允许附庸自主进行外交活动',
-        effects: '自主度+10/年，独立倾向-5/年',
+        effects: '独立倾向-5/年',
         effectColor: 'text-green-400',
     },
     {
@@ -170,7 +155,7 @@ const DIPLOMATIC_CONTROL_OPTIONS = [
         id: 'puppet',
         title: '僀儡外交',
         description: '完全控制附庸的外交行为',
-        effects: '自主度-5/年，独立倾向+3/年',
+        effects: '独立倾向+3/年',
         effectColor: 'text-red-400',
     },
 ];
@@ -337,7 +322,7 @@ const CONTROL_MEASURES = [
 /**
  * 概览 Tab 内容
  */
-const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, autonomy, independence, onDiplomaticAction, onClose, independenceBreakdown }) => (
+const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, independence, onDiplomaticAction, onClose, independenceBreakdown }) => (
     <div className="space-y-4">
         {/* 附庸类型标识 */}
         <div className="flex items-center justify-between p-3 bg-purple-900/30 rounded-lg border border-purple-700/40">
@@ -355,26 +340,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
         </div>
 
         {/* 主要指标 */}
-        <div className="grid grid-cols-2 gap-3">
-            {/* 自治度 */}
-            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/40">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider">自治度</span>
-                    <span className="text-xl font-bold text-purple-300 font-mono">
-                        {Math.round(autonomy)}%
-                    </span>
-                </div>
-                <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-purple-500 transition-all duration-300"
-                        style={{ width: `${autonomy}%` }}
-                    />
-                </div>
-                <div className="text-[10px] text-gray-500 mt-1">
-                    {autonomy > 70 ? '高度自治' : autonomy > 40 ? '中等控制' : '严密控制'}
-                </div>
-            </div>
-
+        <div className="grid grid-cols-1 gap-3">
             {/* 独立倾向 */}
             <div className={`p-4 rounded-lg border ${isAtRisk ? 'bg-red-900/30 border-red-700/40' : 'bg-gray-800/50 border-gray-700/40'}`}>
                 <div className="flex items-center justify-between mb-2">
@@ -432,7 +398,9 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                                     <span className={`font-mono ${factor.effect === 'negative' ? 'text-red-400' :
                                         factor.effect === 'positive' ? 'text-green-400' : 'text-gray-300'
                                         }`}>
-                                        {factor.type === 'multiplier' ? `×${factor.value.toFixed(2)}` : `+${factor.value.toFixed(2)}`}
+                                        {factor.type === 'multiplier'
+                                            ? `×${factor.value.toFixed(2)}`
+                                            : `${factor.value >= 0 ? '+' : ''}${factor.value.toFixed(2)}`}
                                     </span>
                                 </div>
                             ))}
@@ -483,9 +451,9 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <div className="text-xs text-gray-400">月朝贡</div>
+                    <div className="text-xs text-gray-400">日朝贡</div>
                     <div className="text-lg font-bold text-amber-300">
-                        +{formatNumberShortCN(tribute.silver || 0)} 银
+                        +{formatNumberShortCN((tribute.silver || 0) / 30)} 银
                     </div>
                 </div>
                 <div>
@@ -634,7 +602,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                     ⚠️ 该附庸国独立倾向过高，可能随时发动独立战争！
                 </div>
                 <div className="text-[10px] text-red-400/70 mt-1">
-                    建议：降低朝贡率、提高自治度或军事镇压
+                    建议：降低朝贡率或加强控制手段
                 </div>
             </div>
         )}
@@ -648,7 +616,6 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     // 获取附庸配置
     const vassalConfig = VASSAL_TYPE_CONFIGS[nation?.vassalType] || {};
     const vassalType = nation?.vassalType || 'protectorate';
-    const baseAutonomy = vassalConfig.autonomy || 50;
     const baseTributeRate = vassalConfig.tributeRate || 0.1;
     const vassalWealth = nation?.wealth || 500;
     const vassalMilitary = nation?.militaryStrength || 0.5;
@@ -675,7 +642,6 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const [militaryPolicy, setMilitaryPolicy] = useState(
         nation?.vassalPolicy?.military || 'call_to_arms'
     );
-    const [autonomy, setAutonomy] = useState(nation?.autonomy || baseAutonomy);
     const [tributeRate, setTributeRate] = useState(
         nation?.tributeRate !== undefined ? nation.tributeRate * 100 : baseTributeRate * 100
     );
@@ -786,7 +752,6 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         labor: laborPolicy,
         investmentPolicy,
         military: militaryPolicy,
-        autonomy,
         tributeRate: tributeRate / 100,
         controlMeasures,
         controlCostPerDay: totalControlCost,
@@ -796,7 +761,6 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         laborPolicy,
         investmentPolicy,
         militaryPolicy,
-        autonomy,
         tributeRate,
         controlMeasures,
         totalControlCost,
@@ -807,8 +771,11 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     // - 首次渲染不触发，避免打开面板就刷一条“已调整政策”日志
     const didInitRef = useRef(false);
     const debounceTimerRef = useRef(null);
+    const pendingPolicyRef = useRef(null);
     useEffect(() => {
         if (!nation) return;
+
+        pendingPolicyRef.current = buildPolicyPayload();
 
         if (!didInitRef.current) {
             didInitRef.current = true;
@@ -820,7 +787,9 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         }
 
         debounceTimerRef.current = setTimeout(() => {
-            onApplyPolicy?.(buildPolicyPayload());
+            if (pendingPolicyRef.current) {
+                onApplyPolicy?.(pendingPolicyRef.current);
+            }
         }, 250);
 
         return () => {
@@ -834,6 +803,14 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         onApplyPolicy,
     ]);
 
+    useEffect(() => {
+        return () => {
+            if (didInitRef.current && pendingPolicyRef.current) {
+                onApplyPolicy?.(pendingPolicyRef.current);
+            }
+        };
+    }, [onApplyPolicy]);
+
     // 重置为默认（重置会自然触发自动应用）
     const handleReset = () => {
         setDiplomaticControl('guided');
@@ -841,7 +818,6 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         setLaborPolicy('standard');
         setInvestmentPolicy('autonomous');
         setMilitaryPolicy('call_to_arms');
-        setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
         const resetMeasures = {};
         CONTROL_MEASURES.forEach(m => {
@@ -951,6 +927,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
+                            extraEffects={getSatisfactionEffectsText('labor', option.id)}
                             onClick={() => setLaborPolicy(option.id)}
                         />
                     ))}
@@ -973,6 +950,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
+                            extraEffects={getSatisfactionEffectsText('investmentPolicy', option.id)}
                             onClick={() => setInvestmentPolicy(option.id)}
                         />
                     ))}
@@ -995,6 +973,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
+                            extraEffects={getSatisfactionEffectsText('military', option.id)}
                             onClick={() => setMilitaryPolicy(option.id)}
                         />
                     ))}
@@ -1017,6 +996,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             description={option.description}
                             effects={option.effects}
                             effectColor={option.effectColor}
+                            extraEffects={getSatisfactionEffectsText('tradePolicy', option.id)}
                             onClick={() => setTradePolicy(option.id)}
                         />
                     ))}
@@ -1663,7 +1643,6 @@ export const VassalManagementSheet = memo(({
 
     // 预先计算所有派生值
     const independence = nation?.independencePressure || 0;
-    const autonomy = nation?.autonomy || 0;
     const isAtRisk = independence > 60;
     const vassalType = nation?.vassalType || 'protectorate';
     const typeConfig = VASSAL_TYPE_CONFIGS?.[vassalType] || {};
@@ -1731,7 +1710,6 @@ export const VassalManagementSheet = memo(({
                         typeConfig={typeConfig}
                         isAtRisk={isAtRisk}
                         vassalType={vassalType}
-                        autonomy={autonomy}
                         independence={independence}
                         onDiplomaticAction={onDiplomaticAction}
                         onClose={onClose}

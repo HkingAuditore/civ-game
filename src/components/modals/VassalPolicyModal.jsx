@@ -1,10 +1,10 @@
 /**
  * 附庸政策调整模态框
- * 允许玩家调整附庸国的外交控制、贸易政策、自主度和朝贡率
+ * 允许玩家调整附庸国的外交控制、贸易政策和朝贡率
  */
 import React, { useState, useMemo, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { VASSAL_TYPE_CONFIGS, VASSAL_TYPE_LABELS, getAutonomyEffects, INDEPENDENCE_CONFIG } from '../../config/diplomacy';
+import { VASSAL_TYPE_CONFIGS, VASSAL_TYPE_LABELS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS } from '../../config/diplomacy';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { calculateControlMeasureCost, checkGarrisonEffectiveness, calculateGovernorEffectiveness } from '../../logic/diplomacy/vassalSystem';
 
@@ -17,6 +17,8 @@ const PolicyOptionCard = memo(({
     description,
     effects,
     effectColor = 'text-gray-400',
+    extraEffects,
+    extraEffectColor = 'text-cyan-300',
     onClick,
     disabled = false,
 }) => (
@@ -45,8 +47,22 @@ const PolicyOptionCard = memo(({
         {effects && (
             <p className={`text-xs ml-5 mt-0.5 font-body ${effectColor}`}>{effects}</p>
         )}
+        {extraEffects && (
+            <p className={`text-xs ml-5 mt-0.5 font-body ${extraEffectColor}`}>{extraEffects}</p>
+        )}
     </button>
 ));
+
+const formatSatisfactionDelta = (value) => {
+    if (!Number.isFinite(value) || value === 0) return '0';
+    return value > 0 ? `+${value}` : `${value}`;
+};
+
+const getSatisfactionEffectsText = (category, policyId) => {
+    const effects = VASSAL_POLICY_SATISFACTION_EFFECTS?.[category]?.[policyId];
+    if (!effects) return null;
+    return `满意度: 精英${formatSatisfactionDelta(effects.elites)} / 平民${formatSatisfactionDelta(effects.commoners)} / 下层${formatSatisfactionDelta(effects.underclass)}`;
+};
 
 /**
  * 滑动条控制
@@ -108,37 +124,6 @@ const SliderControl = memo(({
 });
 
 /**
- * 自主度效果展示
- */
-const AutonomyEffectsDisplay = memo(({ autonomy }) => {
-    const effects = getAutonomyEffects(autonomy);
-
-    return (
-        <div className="bg-gray-800/50 rounded-lg p-2 mt-2">
-            <div className="text-xs text-gray-400 mb-1 font-body">当前自主度权限：</div>
-            <div className="grid grid-cols-2 gap-1 text-xs">
-                <div className={`flex items-center gap-1 ${effects.canDeclareWar ? 'text-green-400' : 'text-red-400'}`}>
-                    <Icon name={effects.canDeclareWar ? 'Check' : 'X'} size={12} />
-                    <span className="font-body">自主宣战</span>
-                </div>
-                <div className={`flex items-center gap-1 ${effects.canSignTreaties ? 'text-green-400' : 'text-red-400'}`}>
-                    <Icon name={effects.canSignTreaties ? 'Check' : 'X'} size={12} />
-                    <span className="font-body">签署条约</span>
-                </div>
-                <div className={`flex items-center gap-1 ${effects.canSetTariffs ? 'text-green-400' : 'text-red-400'}`}>
-                    <Icon name={effects.canSetTariffs ? 'Check' : 'X'} size={12} />
-                    <span className="font-body">设置关税</span>
-                </div>
-                <div className="flex items-center gap-1 text-gray-300">
-                    <Icon name="Percent" size={12} />
-                    <span className="font-body">朝贡减免 {((1 - effects.tributeReduction) * 100).toFixed(0)}%</span>
-                </div>
-            </div>
-        </div>
-    );
-});
-
-/**
  * 外交控制政策选项
  */
 const DIPLOMATIC_CONTROL_OPTIONS = [
@@ -146,9 +131,8 @@ const DIPLOMATIC_CONTROL_OPTIONS = [
         id: 'autonomous',
         title: '自主外交',
         description: '允许附庸自主进行外交活动',
-        effects: '自主度+10/年，独立倾向-5/年',
+        effects: '独立倾向-5/年',
         effectColor: 'text-green-400',
-        autonomyChange: 10,
         independenceChange: -5,
     },
     {
@@ -157,16 +141,14 @@ const DIPLOMATIC_CONTROL_OPTIONS = [
         description: '附庸外交需经过你的审批',
         effects: '维持现状（默认）',
         effectColor: 'text-gray-400',
-        autonomyChange: 0,
         independenceChange: 0,
     },
     {
         id: 'puppet',
         title: '傀儡外交',
         description: '完全控制附庸的外交行为',
-        effects: '自主度-5/年，独立倾向+3/年',
+        effects: '独立倾向+3/年',
         effectColor: 'text-red-400',
-        autonomyChange: -5,
         independenceChange: 3,
     },
 ];
@@ -359,7 +341,6 @@ const VassalPolicyModalComponent = ({
 }) => {
     // 获取附庸配置
     const vassalConfig = VASSAL_TYPE_CONFIGS[nation?.vassalType] || {};
-    const baseAutonomy = vassalConfig.autonomy || 50;
     const baseTributeRate = vassalConfig.tributeRate || 0.1;
     const vassalWealth = nation?.wealth || 500;
     const vassalMilitary = nation?.militaryStrength || 0.5;
@@ -371,7 +352,6 @@ const VassalPolicyModalComponent = ({
     const [tradePolicy, setTradePolicy] = useState(
         nation?.vassalPolicy?.tradePolicy || 'preferential'
     );
-    const [autonomy, setAutonomy] = useState(nation?.autonomy || baseAutonomy);
     const [tributeRate, setTributeRate] = useState(
         (nation?.tributeRate || baseTributeRate) * 100
     );
@@ -480,15 +460,11 @@ const VassalPolicyModalComponent = ({
         const tributeChange = (tributeRate / 100) - baseTributeRate;
         if (tributeChange > 0) change += tributeChange * 50;
 
-        // 自主度变化影响
-        const autonomyChange = autonomy - baseAutonomy;
-        if (autonomyChange < 0) change += Math.abs(autonomyChange) * 0.3;
-
         // 控制手段影响
         change += controlMeasuresIndependenceChange;
 
         return change;
-    }, [diplomaticControl, tradePolicy, autonomy, tributeRate, baseAutonomy, baseTributeRate, controlMeasuresIndependenceChange]);
+    }, [diplomaticControl, tradePolicy, tributeRate, baseTributeRate, controlMeasuresIndependenceChange]);
 
     // 计算预估朝贡收入
     const estimatedTribute = useMemo(() => {
@@ -501,7 +477,6 @@ const VassalPolicyModalComponent = ({
         onApply?.({
             diplomaticControl,
             tradePolicy,
-            autonomy,
             tributeRate: tributeRate / 100,
             controlMeasures,  // NEW: Pass full object with officialId
             controlCostPerDay: totalControlCost,
@@ -513,7 +488,6 @@ const VassalPolicyModalComponent = ({
     const handleReset = () => {
         setDiplomaticControl('guided');
         setTradePolicy('preferential');
-        setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
         const resetMeasures = {};
         CONTROL_MEASURES.forEach(m => {
@@ -595,31 +569,10 @@ const VassalPolicyModalComponent = ({
                                     description={option.description}
                                     effects={option.effects}
                                     effectColor={option.effectColor}
+                                    extraEffects={getSatisfactionEffectsText('tradePolicy', option.id)}
                                     onClick={() => setTradePolicy(option.id)}
                                 />
                             ))}
-                        </div>
-                    </div>
-
-                    {/* 自主度调整 */}
-                    <div>
-                        <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
-                            <Icon name="Sliders" size={14} className="text-cyan-400" />
-                            自主度调整
-                        </h3>
-                        <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
-                            <SliderControl
-                                label="自主度"
-                                value={autonomy}
-                                onChange={setAutonomy}
-                                min={Math.floor(baseAutonomy * 0.5)}
-                                max={Math.min(100, Math.floor(baseAutonomy * 1.2))}
-                                format={(v) => `${Math.round(v)}%`}
-                                description={`基准值：${baseAutonomy}%，可调范围：${Math.floor(baseAutonomy * 0.5)}%-${Math.min(100, Math.floor(baseAutonomy * 1.2))}%`}
-                                warningThreshold={baseAutonomy * 0.7}
-                                warningText="过低的自主度会增加独立倾向"
-                            />
-                            <AutonomyEffectsDisplay autonomy={autonomy} />
                         </div>
                     </div>
 
@@ -746,9 +699,9 @@ const VassalPolicyModalComponent = ({
                                 </span>
                             </div>
                             <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5">
-                                <span className="text-gray-400 font-body">预计月朝贡</span>
+                                <span className="text-gray-400 font-body">预计日朝贡</span>
                                 <span className="text-amber-400 font-mono font-epic">
-                                    {formatNumberShortCN(estimatedTribute)}
+                                    {formatNumberShortCN(estimatedTribute / 30)}
                                 </span>
                             </div>
                             {totalControlCost > 0 && (

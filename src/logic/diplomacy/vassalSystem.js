@@ -10,10 +10,12 @@ import {
     INDEPENDENCE_WAR_CONDITIONS,
     TRIBUTE_CONFIG,
     INDEPENDENCE_CONFIG,
+    INDEPENDENCE_MODEL_CONFIG,
     calculateAverageSatisfaction,
     LABOR_POLICY_DEFINITIONS,
     TRADE_POLICY_DEFINITIONS,
     GOVERNANCE_POLICY_DEFINITIONS,
+    MILITARY_POLICY_DEFINITIONS,
     VASSAL_POLICY_PRESETS,
 } from '../../config/diplomacy.js';
 import { calculateGovernorFullEffects } from './vassalGovernors.js';
@@ -153,7 +155,6 @@ export const processVassalUpdates = ({
 
         // ========== 1. Process Control Measures Costs and Effects ==========
         let controlMeasureIndependenceReduction = 0;
-        let controlMeasureAutonomyReduction = 0;  // NEW: Track autonomy reduction from control measures
         let vassalWealthChange = 0;
 
         if (updated.vassalPolicy?.controlMeasures) {
@@ -196,9 +197,6 @@ export const processVassalUpdates = ({
                         // Apply independence reduction from governor
                         controlMeasureIndependenceReduction += govEffects.independenceReduction;
                         
-                        // NEW: Governor also reduces autonomy
-                        controlMeasureAutonomyReduction += 0.2;  // -0.2% autonomy per day
-
                         // Apply elite satisfaction bonus
                         if (govEffects.eliteSatisfactionBonus > 0 && updated.socialStructure?.elites) {
                             updated.socialStructure = {
@@ -287,9 +285,6 @@ export const processVassalUpdates = ({
                             controlMeasureIndependenceReduction += measureConfig.independenceReduction * 0.2; // 20% effectiveness without proper military
                         } else {
                             controlMeasureIndependenceReduction += measureConfig.independenceReduction;
-                            
-                            // NEW: Garrison significantly reduces autonomy
-                            controlMeasureAutonomyReduction += 0.5;  // -0.5% autonomy per day
                         }
 
                         // Apply commoner satisfaction penalty
@@ -387,27 +382,24 @@ export const processVassalUpdates = ({
             updated.wealth = (updated.wealth || 0) + vassalWealthChange;
         }
 
-        // ========== 2. 每30天结算朝贡（使用新的计算方式） ==========
+        // ========== 2. 每日结算朝贡（按月值/30拆分） ==========
+        const tribute = calculateEnhancedTribute(updated);
+        const dailySilver = (tribute.silver || 0) / 30;
+        if (dailySilver > 0) {
+            tributeIncome += dailySilver;
+            updated.wealth = Math.max(0, (updated.wealth || 0) - dailySilver);
+        }
+
+        // 资源朝贡仍按月结算，避免每日小额损耗
         if (daysElapsed > 0 && daysElapsed % 30 === 0) {
-            const tribute = calculateEnhancedTribute(updated);
-
-            if (tribute.silver > 0) {
-                tributeIncome += tribute.silver;
-                updated.wealth = Math.max(0, (updated.wealth || 0) - tribute.silver);
-                logs.push(`📜 ${updated.name}（${vassalConfig.name}）缴纳朝贡 ${tribute.silver} 银币`);
-            }
-
-            // 处理资源朝贡
             if (Object.keys(tribute.resources).length > 0) {
                 Object.entries(tribute.resources).forEach(([resourceKey, amount]) => {
-                    // 从附庸库存扣除
                     if (updated.nationInventories && updated.nationInventories[resourceKey]) {
                         updated.nationInventories[resourceKey] = Math.max(
                             0,
                             updated.nationInventories[resourceKey] - amount
                         );
                     }
-                    // 汇总资源朝贡
                     resourceTribute[resourceKey] = (resourceTribute[resourceKey] || 0) + amount;
                 });
 
@@ -415,6 +407,10 @@ export const processVassalUpdates = ({
                     .map(([k, v]) => `${k}:${v}`)
                     .join(', ');
                 logs.push(`📦 ${updated.name} 朝贡资源: ${resourceList}`);
+            }
+
+            if (tribute.silver > 0) {
+                logs.push(`📜 ${updated.name}（${vassalConfig.name}）本月朝贡 ${tribute.silver} 银币`);
             }
         }
 
@@ -480,32 +476,6 @@ export const processVassalUpdates = ({
             }
         }
 
-        // ========== 5. 自主度变化 (基于治理政策和控制措施) ==========
-        // 不再基于vassalType硬编码，而是基于治理政策设定的最小自主度
-        const governancePolicy = updated.vassalPolicy?.governance || 'autonomous';
-        const governanceConfig = GOVERNANCE_POLICY_DEFINITIONS[governancePolicy];
-
-        // 目标自主度：取配置的初始自主度与政策限制的较小值
-        const targetAutonomy = vassalConfig.autonomy;
-        
-        // NEW: 先应用控制措施的自主度降低
-        if (controlMeasureAutonomyReduction > 0) {
-            updated.autonomy = Math.max(0, (updated.autonomy || 0) - controlMeasureAutonomyReduction);
-        }
-
-        // 如果当前政策允许恢复（不是直接统治），且低于目标值，则缓慢恢复
-        if (governancePolicy !== 'direct_rule' && (updated.autonomy || 0) < targetAutonomy) {
-            let recoveryRate = 0.1;
-
-            // [NEW] Governor 'develop' mandate boosts autonomy recovery
-            const governor = updated.vassalPolicy?.controlMeasures?.governor;
-            if (governor && governor.active !== false && governor.mandate === 'develop') {
-                recoveryRate += 0.1; // Double recovery speed
-            }
-
-            updated.autonomy = Math.min(targetAutonomy, (updated.autonomy || 0) + recoveryRate);
-        }
-
         return updated;
     });
 
@@ -537,7 +507,6 @@ export const calculateEnhancedTribute = (vassalNation) => {
 
     const config = TRIBUTE_CONFIG;
     const tributeRate = vassalNation.tributeRate || 0;
-    const autonomy = vassalNation.autonomy || 100;
     const vassalWealth = vassalNation.wealth || 500;
 
     // 计算基础朝贡金额
@@ -558,10 +527,6 @@ export const calculateEnhancedTribute = (vassalNation) => {
         sizeMultiplier = config.sizeMultipliers.medium;
     }
     baseTribute *= sizeMultiplier;
-
-    // 自主度降低实际朝贡
-    const autonomyFactor = 1 - (autonomy / 200);
-    baseTribute *= autonomyFactor;
 
     // 独立倾向降低实际朝贡
     const independenceDesire = vassalNation.independencePressure || 0;
@@ -588,7 +553,7 @@ export const calculateEnhancedTribute = (vassalNation) => {
                     Math.min(
                         inventory * 0.1,  // 最多朝贡10%库存
                         config.resourceTribute.baseAmount * tributeRate * sizeMultiplier
-                    ) * autonomyFactor * resistanceFactor
+                    ) * resistanceFactor
                 );
                 if (resourceAmount > 0) {
                     resources[resourceKey] = resourceAmount;
@@ -604,72 +569,41 @@ export const calculateEnhancedTribute = (vassalNation) => {
 };
 
 /**
- * 获取独立倾向增长率（每天）- 完全统一版
- * 不再依赖 vassalType，完全基于具体政策参数
+ * 获取独立倾向增长率（每天）- 单轨制
+ * 以阶层满意度为主驱动，政策作缓慢调制
  * @param {Object} nation - 附庸国家对象
  * @param {number} epoch - 当前时代
- * @returns {number} 每日增长率
+ * @returns {number} 每日增长率（含固定日衰减）
  */
 const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
-    const config = INDEPENDENCE_CONFIG;
-    // 移除对 vassalType 的依赖，使用统一的基础增长率
-    const UNIFIED_BASE_RATE = 0.10;
-
-    // 时代系数（后期民族主义更强）
-    const eraMultiplier = config.eraMultiplier.base +
-        Math.max(0, epoch - 3) * config.eraMultiplier.perEra;
-
-    let rate = UNIFIED_BASE_RATE * eraMultiplier;
-
-    // 阶层满意度影响 (SoL Driven)
-    // 如果有新的阶层数据，使用新的 satisfaction
-    if (nation?.socialStructure) {
-        const avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
-
-        // 满意度越低，增长越快。满意度50是基准。
-        // 满意度 0 -> 2.5x 增长
-        // 满意度 100 -> 0.5x 增长
-        const satisfactionMod = 2.5 - (avgSatisfaction / 50);
-        rate *= Math.max(0.5, satisfactionMod);
-    }
-
-    // ========== 政策影响 (Policy Driven) ==========
+    const model = INDEPENDENCE_MODEL_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
 
-    // 1. 劳工政策 (Labor)
-    const laborPolicyId = vassalPolicy.labor || 'standard';
-    const laborConfig = LABOR_POLICY_DEFINITIONS[laborPolicyId];
-    if (laborConfig) {
-        rate *= (laborConfig.independenceGrowthMod || 1.0);
+    const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * model.eraGrowthPerEra;
+    let rate = model.baseRate * eraMultiplier;
+
+    // 阶层满意度驱动
+    if (nation?.socialStructure) {
+        const { elites, commoners, underclass } = nation.socialStructure;
+        const totalInfluence = (elites?.influence || 0) + (commoners?.influence || 0) + (underclass?.influence || 0);
+        const weight = totalInfluence > 0 ? totalInfluence : 1;
+        const eliteDelta = ((50 - (elites?.satisfaction || 50)) / 50) * (elites?.influence || 0);
+        const commonerDelta = ((50 - (commoners?.satisfaction || 50)) / 50) * (commoners?.influence || 0);
+        const underclassDelta = ((50 - (underclass?.satisfaction || 50)) / 50) * (underclass?.influence || 0);
+        const classScore = (eliteDelta + commonerDelta + underclassDelta) / weight;
+        rate += classScore * model.classWeight;
     }
 
-    // 2. 贸易政策 (Trade)
-    // Note: stored as 'tradePolicy' in some places, check consistency
-    const tradePolicyId = vassalPolicy.tradePolicy || 'preferential';
-    const tradeConfig = TRADE_POLICY_DEFINITIONS[tradePolicyId];
-    if (tradeConfig) {
-        rate *= (tradeConfig.independenceGrowthMod || 1.0);
-    }
+    // 执政方针压力（小幅）
+    const policyPressure = model.policyPressure;
+    rate += policyPressure.labor?.[vassalPolicy.labor || 'standard'] || 0;
+    rate += policyPressure.tradePolicy?.[vassalPolicy.tradePolicy || 'preferential'] || 0;
+    rate += policyPressure.governance?.[vassalPolicy.governance || 'autonomous'] || 0;
+    rate += policyPressure.military?.[vassalPolicy.military || 'call_to_arms'] || 0;
+    rate += policyPressure.investmentPolicy?.[vassalPolicy.investmentPolicy || 'autonomous'] || 0;
 
-    // 3. 治理政策 (Governance)
-    const governancePolicyId = vassalPolicy.governance || 'autonomous';
-    const governanceConfig = GOVERNANCE_POLICY_DEFINITIONS[governancePolicyId];
-    if (governanceConfig) {
-        rate *= (governanceConfig.independenceGrowthMod || 1.0);
-    }
-
-    // 4. [NEW] 投资政策 (Investment)
-    const investmentPolicyId = vassalPolicy.investmentPolicy || 'autonomous';
-    if (investmentPolicyId === 'guided') {
-        rate *= 1.2; // 引导投资增加20%独立倾向增长
-    } else if (investmentPolicyId === 'forced') {
-        rate *= 1.5; // 强制投资增加50%独立倾向增长
-    }
-
-    // 5. 朝贡率影响
-    const tributeRate = nation.tributeRate || 0;
-    // 每 10% 朝贡增加 50% 独立倾向增长
-    rate *= (1 + tributeRate * 5);
+    // 固定日衰减（稳定项）
+    rate -= model.dailyDecay;
 
     return rate;
 };
@@ -684,173 +618,114 @@ const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
  */
 export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []) => {
     const config = INDEPENDENCE_CONFIG;
-    const breakdown = {
-        baseRate: 0.10,           // 基础增长率
-        factors: [],              // 影响因素列表
-        reductions: [],           // 减少因素列表
-        finalDailyChange: 0,      // 最终每日变化
-        netChange: 0,             // 净变化（增长-减少）
-    };
-
-    // === 1. 基础增长率 ===
-    breakdown.factors.push({
-        name: '基础增长',
-        value: 0.10,
-        description: '每日基础独立倾向增长',
-        type: 'base',
-    });
-
-    let rate = 0.10;
-
-    // === 2. 时代系数 ===
-    const eraMultiplier = config.eraMultiplier.base +
-        Math.max(0, epoch - 3) * config.eraMultiplier.perEra;
-    if (eraMultiplier !== 1.0) {
-        breakdown.factors.push({
-            name: '时代系数',
-            value: eraMultiplier,
-            description: epoch > 3 ? `时代${epoch}：民族主义增强` : '早期时代',
-            type: 'multiplier',
-        });
-        rate *= eraMultiplier;
-    }
-
-    // === 3. 阶层满意度影响 ===
-    if (nation?.socialStructure) {
-        const avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
-        const satisfactionMod = Math.max(0.5, 2.5 - (avgSatisfaction / 50));
-
-        const satisfactionEffect = satisfactionMod > 1.0 ? 'negative' : 'positive';
-        breakdown.factors.push({
-            name: '阶层满意度',
-            value: satisfactionMod,
-            rawValue: avgSatisfaction,
-            description: avgSatisfaction < 30 ? `平均满意度仅${Math.round(avgSatisfaction)}%（极低）` :
-                avgSatisfaction < 50 ? `平均满意度${Math.round(avgSatisfaction)}%（较低）` :
-                    avgSatisfaction < 70 ? `平均满意度${Math.round(avgSatisfaction)}%（正常）` :
-                        `平均满意度${Math.round(avgSatisfaction)}%（良好）`,
-            type: 'multiplier',
-            effect: satisfactionEffect,
-        });
-        rate *= satisfactionMod;
-    }
-
-    // === 4. 政策影响 ===
+    const model = INDEPENDENCE_MODEL_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
 
-    // 4.1 劳工政策
-    const laborPolicyId = vassalPolicy.labor || 'standard';
-    const laborConfig = LABOR_POLICY_DEFINITIONS[laborPolicyId];
-    if (laborConfig && laborConfig.independenceGrowthMod !== 1.0) {
-        breakdown.factors.push({
-            name: '劳工政策',
-            value: laborConfig.independenceGrowthMod,
-            description: `${laborConfig.name}`,
-            type: 'multiplier',
-            effect: laborConfig.independenceGrowthMod > 1.0 ? 'negative' : 'positive',
-        });
-        rate *= laborConfig.independenceGrowthMod;
-    }
-
-    // 4.2 贸易政策
-    const tradePolicyId = vassalPolicy.tradePolicy || 'preferential';
-    const tradeConfig = TRADE_POLICY_DEFINITIONS[tradePolicyId];
-    if (tradeConfig && tradeConfig.independenceGrowthMod !== 1.0) {
-        breakdown.factors.push({
-            name: '贸易政策',
-            value: tradeConfig.independenceGrowthMod,
-            description: `${tradeConfig.name}`,
-            type: 'multiplier',
-            effect: tradeConfig.independenceGrowthMod > 1.0 ? 'negative' : 'positive',
-        });
-        rate *= tradeConfig.independenceGrowthMod;
-    }
-
-    // 4.3 治理政策
-    const governancePolicyId = vassalPolicy.governance || 'autonomous';
-    const governanceConfig = GOVERNANCE_POLICY_DEFINITIONS[governancePolicyId];
-    if (governanceConfig && governanceConfig.independenceGrowthMod !== 1.0) {
-        breakdown.factors.push({
-            name: '治理政策',
-            value: governanceConfig.independenceGrowthMod,
-            description: `${governanceConfig.name}`,
-            type: 'multiplier',
-            effect: governanceConfig.independenceGrowthMod > 1.0 ? 'negative' : 'positive',
-        });
-        rate *= governanceConfig.independenceGrowthMod;
-    }
-
-    // 4.4 投资政策
-    const investmentPolicyId = vassalPolicy.investmentPolicy || 'autonomous';
-    if (investmentPolicyId === 'guided') {
-        breakdown.factors.push({
-            name: '投资政策',
-            value: 1.2,
-            description: '引导投资',
-            type: 'multiplier',
-            effect: 'negative',
-        });
-        rate *= 1.2;
-    } else if (investmentPolicyId === 'forced') {
-        breakdown.factors.push({
-            name: '投资政策',
-            value: 1.5,
-            description: '强制投资',
-            type: 'multiplier',
-            effect: 'negative',
-        });
-        rate *= 1.5;
-    }
-
-    // 4.5 军事政策
-    const militaryPolicyId = vassalPolicy.military || 'call_to_arms';
-    const militaryConfig = {
-        autonomous: { name: '自主参战', mod: 0.8 },
-        call_to_arms: { name: '战争征召', mod: 1.0 },
-        auto_join: { name: '自动参战', mod: 1.3 },
+    const breakdown = {
+        baseRate: model.baseRate,
+        factors: [],
+        reductions: [],
+        finalDailyChange: 0,
+        netChange: 0,
     };
-    const militaryMod = militaryConfig[militaryPolicyId]?.mod || 1.0;
-    if (militaryMod !== 1.0) {
+
+    // === 1. 基础增速（时代） ===
+    const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * model.eraGrowthPerEra;
+    const baseGrowth = model.baseRate * eraMultiplier;
+    breakdown.factors.push({
+        name: '基础增速',
+        value: baseGrowth,
+        description: `时代${epoch}`,
+        type: 'additive',
+        effect: baseGrowth > 0 ? 'negative' : 'positive',
+    });
+    let growthRate = baseGrowth;
+
+    // === 2. 阶层满意度 ===
+    if (nation?.socialStructure) {
+        const avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
+        const { elites, commoners, underclass } = nation.socialStructure;
+        const totalInfluence = (elites?.influence || 0) + (commoners?.influence || 0) + (underclass?.influence || 0);
+        const weight = totalInfluence > 0 ? totalInfluence : 1;
+        const eliteDelta = ((50 - (elites?.satisfaction || 50)) / 50) * (elites?.influence || 0);
+        const commonerDelta = ((50 - (commoners?.satisfaction || 50)) / 50) * (commoners?.influence || 0);
+        const underclassDelta = ((50 - (underclass?.satisfaction || 50)) / 50) * (underclass?.influence || 0);
+        const classScore = (eliteDelta + commonerDelta + underclassDelta) / weight;
+        const classTerm = classScore * model.classWeight;
+
         breakdown.factors.push({
+            name: '阶层满意度',
+            value: classTerm,
+            rawValue: avgSatisfaction,
+            description: `平均${Math.round(avgSatisfaction)}%`,
+            type: 'additive',
+            effect: classTerm > 0 ? 'negative' : 'positive',
+        });
+        growthRate += classTerm;
+    }
+
+    // === 3. 执政方针压力 ===
+    const laborPolicyId = vassalPolicy.labor || 'standard';
+    const tradePolicyId = vassalPolicy.tradePolicy || 'preferential';
+    const governancePolicyId = vassalPolicy.governance || 'autonomous';
+    const militaryPolicyId = vassalPolicy.military || 'call_to_arms';
+    const investmentPolicyId = vassalPolicy.investmentPolicy || 'autonomous';
+
+    const policyPressure = model.policyPressure;
+    const policyEntries = [
+        {
+            name: '劳工政策',
+            value: policyPressure.labor?.[laborPolicyId] || 0,
+            description: LABOR_POLICY_DEFINITIONS[laborPolicyId]?.name || laborPolicyId,
+        },
+        {
+            name: '贸易政策',
+            value: policyPressure.tradePolicy?.[tradePolicyId] || 0,
+            description: TRADE_POLICY_DEFINITIONS[tradePolicyId]?.name || tradePolicyId,
+        },
+        {
+            name: '治理政策',
+            value: policyPressure.governance?.[governancePolicyId] || 0,
+            description: GOVERNANCE_POLICY_DEFINITIONS[governancePolicyId]?.name || governancePolicyId,
+        },
+        {
             name: '军事政策',
-            value: militaryMod,
-            description: militaryConfig[militaryPolicyId]?.name || militaryPolicyId,
-            type: 'multiplier',
-            effect: militaryMod > 1.0 ? 'negative' : 'positive',
-        });
-        rate *= militaryMod;
-    }
+            value: policyPressure.military?.[militaryPolicyId] || 0,
+            description: MILITARY_POLICY_DEFINITIONS[militaryPolicyId]?.name || militaryPolicyId,
+        },
+        {
+            name: '投资政策',
+            value: policyPressure.investmentPolicy?.[investmentPolicyId] || 0,
+            description: investmentPolicyId === 'autonomous' ? '自主投资' :
+                investmentPolicyId === 'guided' ? '引导投资' : '强制投资',
+        },
+    ];
 
-    // === 5. 朝贡率影响 ===
-    const tributeRate = nation.tributeRate || 0;
-    if (tributeRate > 0) {
-        const tributeMod = 1 + tributeRate * 5;
+    policyEntries.forEach(entry => {
+        if (entry.value === 0) return;
         breakdown.factors.push({
-            name: '朝贡率',
-            value: tributeMod,
-            rawValue: tributeRate * 100,
-            description: `${Math.round(tributeRate * 100)}%朝贡`,
-            type: 'multiplier',
-            effect: 'negative',
+            name: entry.name,
+            value: entry.value,
+            description: entry.description,
+            type: 'additive',
+            effect: entry.value > 0 ? 'negative' : 'positive',
         });
-        rate *= tributeMod;
-    }
+        growthRate += entry.value;
+    });
 
-    // 记录增长率
-    breakdown.growthRate = rate;
+    breakdown.growthRate = growthRate;
 
-    // === 6. 控制措施减少 ===
+    // === 5. 控制措施减少 ===
     let totalReduction = 0;
     const controlMeasures = vassalPolicy.controlMeasures || {};
 
-    // 6.1 派遣总督
+    // 5.1 派遣总督
     const governorData = controlMeasures.governor;
     if (governorData && (governorData === true || governorData.active)) {
         const officialId = governorData.officialId;
         const official = officials.find(o => o.id === officialId);
 
         if (official) {
-            // 使用完整的总督效果计算
             const govEffects = calculateGovernorFullEffects(official, nation);
             const reduction = govEffects.independenceReduction || 0.2;
             breakdown.reductions.push({
@@ -861,7 +736,6 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
             });
             totalReduction += reduction;
         } else {
-            // 没有指定官员时，使用基础效果
             const baseReduction = config.controlMeasures?.governor?.independenceReduction || 0.2;
             breakdown.reductions.push({
                 name: '派遣总督',
@@ -873,7 +747,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
         }
     }
 
-    // 6.2 驻军占领
+    // 5.2 驻军占领
     const garrisonData = controlMeasures.garrison;
     if (garrisonData && (garrisonData === true || garrisonData.active)) {
         const garrisonReduction = config.controlMeasures?.garrison?.independenceReduction || 0.5;
@@ -886,7 +760,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
         totalReduction += garrisonReduction;
     }
 
-    // 6.3 经济扶持
+    // 5.3 经济扶持
     const economicAidData = controlMeasures.economicAid;
     if (economicAidData && (economicAidData === true || economicAidData.active)) {
         const aidReduction = config.controlMeasures?.economicAid?.independenceReduction || 0;
@@ -901,12 +775,12 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
         }
     }
 
-    // 6.4 文化同化（同时降低上限和当前独立值）
+    // 5.4 文化同化（同时降低上限和当前独立值）
     const assimilationData = controlMeasures.assimilation;
     if (assimilationData && (assimilationData === true || assimilationData.active)) {
         const capReduction = config.controlMeasures?.assimilation?.independenceCapReduction || 0.05;
         const directReduction = config.controlMeasures?.assimilation?.independenceReduction || 0.15;
-        
+
         breakdown.reductions.push({
             name: '文化同化',
             value: directReduction,
@@ -914,7 +788,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
             type: 'reduction',
         });
         totalReduction += directReduction;
-        
+
         breakdown.reductions.push({
             name: '文化同化(上限)',
             value: capReduction,
@@ -923,10 +797,19 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
         });
     }
 
-    // === 7. 计算最终结果 ===
+    // 5.5 固定日衰减
+    breakdown.reductions.push({
+        name: '每日衰减',
+        value: model.dailyDecay,
+        description: '稳定项',
+        type: 'reduction',
+    });
+    totalReduction += model.dailyDecay;
+
+    // === 6. 计算最终结果 ===
     breakdown.totalReduction = totalReduction;
-    breakdown.finalDailyChange = rate;  // 每日增长
-    breakdown.netChange = rate - totalReduction;  // 净变化
+    breakdown.finalDailyChange = growthRate;
+    breakdown.netChange = growthRate - totalReduction;
 
     return breakdown;
 };
@@ -943,6 +826,12 @@ const checkIndependenceWarTrigger = ({
     nations,
 }) => {
     const triggers = INDEPENDENCE_WAR_CONDITIONS.triggers;
+    const independenceCap = vassalNation.independenceCap || 100;
+
+    // 独立倾向达到上限时必定触发
+    if ((vassalNation.independencePressure || 0) >= independenceCap) {
+        return true;
+    }
 
     // 宗主处于战争状态
     if (playerAtWar && Math.random() < triggers.overlordAtWar.probability) {
@@ -995,7 +884,6 @@ export const establishVassalRelation = (nation, vassalType, epoch) => {
         vassalType,
 
         // 核心参数初始化
-        autonomy: config.autonomy,
         tributeRate: config.tributeRate,
         independencePressure: 0,
         independenceCap: 100,
@@ -1032,7 +920,6 @@ export const releaseVassal = (nation, reason = 'released') => {
         ...nation,
         vassalOf: null,
         vassalType: null,
-        autonomy: 100,
         tributeRate: 0,
         independencePressure: 0,
         independenceCap: 100,  // Reset independence cap
@@ -1166,21 +1053,6 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         // [MODIFIED] 提高朝贡率的一次性惩罚减半
         if (policyChanges.tributeRate > baseTributeRate) {
             const increase = Math.ceil((policyChanges.tributeRate - baseTributeRate) / baseTributeRate * 5);
-            updated.independencePressure = Math.min(100,
-                (updated.independencePressure || 0) + increase);
-        }
-    }
-
-    // 调整自主度
-    if (typeof policyChanges.autonomy === 'number') {
-        const baseAutonomy = config?.autonomy || 50;
-        // 允许在基础值的50%-120%范围内调整
-        updated.autonomy = Math.min(Math.min(100, baseAutonomy * 1.2),
-            Math.max(baseAutonomy * 0.5, policyChanges.autonomy));
-
-        // [MODIFIED] 降低自主度的一次性惩罚减半
-        if (policyChanges.autonomy < baseAutonomy) {
-            const increase = Math.ceil((baseAutonomy - policyChanges.autonomy) / baseAutonomy * 5);
             updated.independencePressure = Math.min(100,
                 (updated.independencePressure || 0) + increase);
         }

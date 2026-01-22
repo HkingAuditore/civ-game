@@ -277,15 +277,15 @@ export function hasActiveTreaty(nation, treatyType, daysElapsed = 0) {
  */
 export function isInSameBloc(nation, organizations = []) {
     // [DEBUG] Always log for troubleshooting
-    console.log('[isInSameBloc] Called with:', {
-        nationName: nation?.name,
-        nationId: nation?.id,
-        orgCount: organizations?.length || 0,
-        orgTypes: organizations?.map(o => o?.type) || [],
-    });
+    // console.log('[isInSameBloc] Called with:', {
+    //     nationName: nation?.name,
+    //     nationId: nation?.id,
+    //     orgCount: organizations?.length || 0,
+    //     orgTypes: organizations?.map(o => o?.type) || [],
+    // });
 
     if (!organizations || !nation) {
-        console.log('[isInSameBloc] Early return: no organizations or no nation');
+        // console.log('[isInSameBloc] Early return: no organizations or no nation');
         return false;
     }
 
@@ -301,7 +301,7 @@ export function isInSameBloc(nation, organizations = []) {
         // [FIX] Handle organizations that may have isActive undefined (default to true for backwards compatibility)
         const orgIsActive = org.isActive !== false;
         if (!orgIsActive) {
-            console.log(`[isInSameBloc] Skipping inactive org: ${org.name}`);
+            // console.log(`[isInSameBloc] Skipping inactive org: ${org.name}`);
             continue;
         }
         
@@ -318,23 +318,23 @@ export function isInSameBloc(nation, organizations = []) {
         
         const hasNation = members.some(m => String(m) === nationIdStr);
 
-        console.log(`[isInSameBloc] Checking org "${org.name}":`, {
-            orgId: org.id,
-            members: members,
-            nationIdStr,
-            hasPlayer,
-            hasNation,
-            founderId: org.founderId,
-            leaderId: org.leaderId,
-        });
+        // console.log(`[isInSameBloc] Checking org "${org.name}":`, {
+        //     orgId: org.id,
+        //     members: members,
+        //     nationIdStr,
+        //     hasPlayer,
+        //     hasNation,
+        //     founderId: org.founderId,
+        //     leaderId: org.leaderId,
+        // });
 
         if (hasPlayer && hasNation) {
-            console.log(`[isInSameBloc] MATCH FOUND: ${nation.name} is in same bloc as player (${org.name})`);
+            // console.log(`[isInSameBloc] MATCH FOUND: ${nation.name} is in same bloc as player (${org.name})`);
             return true;
         }
     }
 
-    console.log(`[isInSameBloc] No matching bloc found for nation "${nation.name}" (id: ${nationIdStr})`);
+    // console.log(`[isInSameBloc] No matching bloc found for nation "${nation.name}" (id: ${nationIdStr})`);
     return false;
 }
 
@@ -874,15 +874,15 @@ export function processOverseasInvestments({
         const inBloc = isInSameBloc(targetNation, organizations);
 
         // [DEBUG] Log tax rate determination factors
-        console.log(`[Tax Rate] Determining tax for investment in ${targetNation.name}:`, {
-            nationId: targetNation.id,
-            isVassal,
-            hasTreaty,
-            inBloc,
-            organizationsCount: organizations?.length || 0,
-        });
+        // console.log(`[Tax Rate] Determining tax for investment in ${targetNation.name}:`, {
+        //     nationId: targetNation.id,
+        //     isVassal,
+        //     hasTreaty,
+        //     inBloc,
+        //     organizationsCount: organizations?.length || 0,
+        // });
 
-        console.log(`[Tax Rate] BEFORE branch selection - isVassal: ${isVassal}, inBloc: ${inBloc}, hasTreaty: ${hasTreaty}`);
+        // console.log(`[Tax Rate] BEFORE branch selection - isVassal: ${isVassal}, inBloc: ${inBloc}, hasTreaty: ${hasTreaty}`);
         
         // 使用最低税率原则：计算所有适用税率，取最优惠的
         const applicableRates = [];
@@ -914,15 +914,15 @@ export function processOverseasInvestments({
                 current.rate < best.rate ? current : best
             );
             targetTaxRate = bestRate.rate;
-            console.log(`[Tax Rate] Available rates: ${applicableRates.map(r => `${r.source}=${(r.rate*100).toFixed(1)}%`).join(', ')}`);
-            console.log(`[Tax Rate] SELECTED=${bestRate.source}, rate=${(targetTaxRate * 100).toFixed(1)}%`);
+            // console.log(`[Tax Rate] Available rates: ${applicableRates.map(r => `${r.source}=${(r.rate*100).toFixed(1)}%`).join(', ')}`);
+            // console.log(`[Tax Rate] SELECTED=${bestRate.source}, rate=${(targetTaxRate * 100).toFixed(1)}%`);
         } else {
             // 4. 无条约 (关系恶化导致协定终止): 惩罚性税率 60%
             targetTaxRate = 0.60;
-            console.log(`[Tax Rate] No applicable rates, using DEFAULT=60%`);
+            // console.log(`[Tax Rate] No applicable rates, using DEFAULT=60%`);
         }
         
-        console.log(`[Tax Rate] FINAL for ${targetNation.name}: ${(targetTaxRate * 100).toFixed(1)}%`);
+        // console.log(`[Tax Rate] FINAL for ${targetNation.name}: ${(targetTaxRate * 100).toFixed(1)}%`);
 
         // [FIX] Allow negative profits (losses) - no more Math.max(0, ...)
         // 只有正利润才需缴税；亏损时税额为0，全额亏损由投资者承担

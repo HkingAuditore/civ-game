@@ -2968,7 +2968,6 @@ export const useGameActions = (gameState, addLog) => {
                             vassalUpdates = {
                                 vassalOf: 'player',
                                 vassalType: vassalType,
-                                autonomy: VASSAL_TYPE_CONFIGS[vassalType]?.autonomy || 50,
                                 tributeRate: VASSAL_TYPE_CONFIGS[vassalType]?.tributeRate || 0.1,
                             };
                             addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}`);
@@ -5555,7 +5554,6 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 vassalOf: 'player',
                 vassalType: vassalType,
-                autonomy: vassalConfig.autonomy || 80,
                 tributeRate: vassalConfig.tributeRate || 0.10,
                 independencePressure: 0,
                 lastTributeDay: daysElapsed,
@@ -5740,7 +5738,6 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 vassalOf: 'player',
                 vassalType: vassalType,
-                autonomy: vassalConfig.autonomy || 80,
                 tributeRate: vassalConfig.tributeRate || 0.10,
                 independencePressure: 0,
                 lastTributeDay: daysElapsed,

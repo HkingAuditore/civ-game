@@ -31,7 +31,7 @@ export const GOVERNOR_MANDATES = {
     },
     develop: {
         name: '开发',
-        desc: '促进附庸经济增长和自主度恢复',
+        desc: '促进附庸经济增长与社会稳定',
         statFocus: 'administrative',
         tributeMod: 0.5,       // 朝贡减半（用于再投资）
         vassalGrowth: 1.5,     // 附庸经济增长 +50%

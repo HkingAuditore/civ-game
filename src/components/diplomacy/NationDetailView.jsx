@@ -862,19 +862,7 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
                     <Icon name="Crown" size={24} />
                     附庸国管理
                 </h3>
-                <div className="grid grid-cols-2 gap-8 mb-6">
-                    <div className="relative">
-                        <div className="text-xs text-purple-400/60 uppercase tracking-wider mb-1">自治度</div>
-                        <div className="text-3xl font-mono text-purple-100 font-bold">
-                            {Math.round(nation.autonomy || 0)}%
-                        </div>
-                        <div className="absolute bottom-0 left-0 w-full h-1 bg-purple-900/50 rounded-full mt-2 overflow-hidden">
-                            <div
-                                className="h-full bg-purple-500"
-                                style={{ width: `${nation.autonomy || 0}%` }}
-                            />
-                        </div>
-                    </div>
+                <div className="grid grid-cols-1 gap-8 mb-6">
                     <div className="relative">
                         <div className="text-xs text-purple-400/60 uppercase tracking-wider mb-1">独立倾向</div>
                         <div

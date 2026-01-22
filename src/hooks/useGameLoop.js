@@ -3649,7 +3649,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
                                         const event = createIndependenceWarEvent(nation, {
                                             vassalType: nation.vassalType,
-                                            autonomy: nation.autonomy,
                                             independencePressure: nation.independencePressure,
                                             tributeRate: nation.tributeRate,
                                         }, (action) => {
@@ -3658,7 +3657,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 setStability(prev => Math.max(0, prev - 10));
                                                 addLog(`⚔️ 你决定出兵镇压 ${nation.name} 的叛乱！`);
                                             } else if (action === 'negotiate') {
-                                                // 谈判：尝试取消战争，大幅提高自主度和降低朝贡率
+                                                // 谈判：尝试取消战争，降低朝贡率
                                                 setNations(prev => prev.map(n => {
                                                     if (n.id !== nation.id) return n;
                                                     return {
@@ -3667,12 +3666,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         warTarget: null,
                                                         independenceWar: false,
                                                         vassalOf: 'player',
-                                                        autonomy: Math.min(100, (n.autonomy || 50) + 25),
                                                         tributeRate: Math.max(0.02, (n.tributeRate || 0.1) * 0.5),
                                                         independencePressure: Math.max(0, (n.independencePressure || 0) - 30),
                                                     };
                                                 }));
-                                                addLog(`📜 你与 ${nation.name} 达成协议，提高其自主度并降低朝贡，叛乱平息。`);
+                                                addLog(`📜 你与 ${nation.name} 达成协议，降低朝贡并平息叛乱。`);
                                             } else if (action === 'release') {
                                                 // 释放：承认独立，关系提升
                                                 setNations(prev => prev.map(n => {
@@ -3684,7 +3682,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         independenceWar: false,
                                                         vassalOf: null,
                                                         vassalType: null,
-                                                        autonomy: 100,
                                                         tributeRate: 0,
                                                         independencePressure: 0,
                                                         relation: Math.min(100, (n.relation || 50) + 30),

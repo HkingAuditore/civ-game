@@ -1421,7 +1421,7 @@ export function createAIDemandSurrenderEvent(nation, warScore, demands, playerSt
 /**
  * 创建外交事件 - 附庸国发动独立战争
  * @param {Object} nation - 发动独立战争的附庸国
- * @param {Object} vassalInfo - 附庸信息 { vassalType, autonomy, independencePressure, tributeRate }
+ * @param {Object} vassalInfo - 附庸信息 { vassalType, independencePressure, tributeRate }
  * @param {Function} callback - 回调 (action: 'negotiate' | 'crush' | 'release') => void
  * @returns {Object} - 外交事件对象
  */
@@ -1447,7 +1447,6 @@ export function createIndependenceWarEvent(nation, vassalInfo, callback) {
 
     description += `当前形势：\n`;
     description += `• 独立倾向：${Math.round(independencePressure)}%\n`;
-    description += `• 自主度：${Math.round(vassalInfo?.autonomy || 0)}%\n`;
     description += `• 朝贡率：${Math.round((vassalInfo?.tributeRate || 0) * 100)}%\n\n`;
     description += `你必须做出决定：是动用武力镇压叛乱，还是寻求和平解决？`;
 
@@ -1471,7 +1470,7 @@ export function createIndependenceWarEvent(nation, vassalInfo, callback) {
             {
                 id: 'negotiate',
                 text: '谈判解决',
-                description: `尝试通过降低朝贡、提高自主度来平息叛乱（独立战争可能取消，但附庸条件将大幅放宽）`,
+                description: `尝试通过降低朝贡来平息叛乱（独立战争可能取消，但附庸条件将大幅放宽）`,
                 effects: {},
                 callback: () => callback('negotiate'),
             },
@@ -1486,57 +1485,6 @@ export function createIndependenceWarEvent(nation, vassalInfo, callback) {
     };
 }
 
-/**
- * 创建外交事件 - 附庸请求提高自主度
- * @param {Object} nation - 请求的附庸国
- * @param {Object} vassalInfo - 当前附庸信息
- * @param {Function} callback - 回调 (action: 'accept' | 'partial' | 'reject') => void
- * @returns {Object} - 外交事件对象
- */
-export function createVassalAutonomyRequestEvent(nation, vassalInfo, callback) {
-    const currentAutonomy = vassalInfo?.autonomy || 50;
-    const requestedAutonomy = Math.min(100, currentAutonomy + 15);
-    const currentTributeRate = (vassalInfo?.tributeRate || 0.1) * 100;
-    const requestedTributeRate = Math.max(5, currentTributeRate - 5);
-
-    return {
-        id: `vassal_autonomy_request_${nation.id}_${Date.now()}`,
-        name: `${nation.name}请求放宽管制`,
-        icon: 'MessageCircle',
-        image: null,
-        description: `你的附庸国${nation.name}派遣使节前来，请求提高自主度并降低朝贡负担。
-
-他们的要求：
-• 自主度：${Math.round(currentAutonomy)}% → ${Math.round(requestedAutonomy)}%
-• 朝贡率：${Math.round(currentTributeRate)}% → ${Math.round(requestedTributeRate)}%
-
-如果拒绝，他们的独立倾向将会上升。`,
-        isDiplomaticEvent: true,
-        options: [
-            {
-                id: 'accept',
-                text: '同意全部要求',
-                description: `提高自主度至${Math.round(requestedAutonomy)}%，降低朝贡率至${Math.round(requestedTributeRate)}%（独立倾向-15）`,
-                effects: {},
-                callback: () => callback('accept', { autonomy: requestedAutonomy, tributeRate: requestedTributeRate / 100 }),
-            },
-            {
-                id: 'partial',
-                text: '部分同意',
-                description: `只同意降低朝贡率，不提高自主度（独立倾向-5）`,
-                effects: {},
-                callback: () => callback('partial', { tributeRate: requestedTributeRate / 100 }),
-            },
-            {
-                id: 'reject',
-                text: '拒绝要求',
-                description: `维持现状（独立倾向+10）`,
-                effects: {},
-                callback: () => callback('reject'),
-            },
-        ],
-    };
-}
 
 /**
  * 创建外交事件 - AI国家请求成为附庸（在战败或关系良好时）
