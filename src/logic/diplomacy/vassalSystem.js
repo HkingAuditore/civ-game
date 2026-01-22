@@ -1093,12 +1093,18 @@ const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
  * @param {Object} nation - 附庸国对象
  * @param {number} epoch - 当前时代
  * @param {Array} officials - 官员列表（用于计算总督效果）
+ * @param {number} suzereainWealth - 宗主国财富
+ * @param {number} suzereainPopulation - 宗主国人口
+ * @param {string} difficultyLevel - 游戏难度等级
  * @returns {Object} 独立度变化的详细分解
  */
-export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = [], suzereainWealth = 10000, suzereainPopulation = 1000000) => {
+export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = [], suzereainWealth = 10000, suzereainPopulation = 1000000, difficultyLevel = 'normal') => {
     const config = INDEPENDENCE_CONFIG;
     const cfg = INDEPENDENCE_CHANGE_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
+    
+    // 获取难度系数
+    const difficultyMultiplier = getVassalIndependenceMultiplier(difficultyLevel);
     
     const increaseFactors = [];  // 增加独立倾向的因素
     const decreaseFactors = [];  // 降低独立倾向的因素
@@ -1300,7 +1306,11 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     // ========== 计算最终每日变化 ==========
     const totalIncrease = increaseFactors.reduce((sum, f) => sum + f.value, 0);
     const totalDecrease = decreaseFactors.reduce((sum, f) => sum + f.value, 0);
-    const dailyChange = totalIncrease - totalDecrease;
+    
+    // 应用难度系数（只对增长因素应用，与实际游戏逻辑保持一致）
+    // 在高难度下，独立倾向增长更快，但控制措施效果不变
+    const adjustedIncrease = totalIncrease * difficultyMultiplier;
+    const dailyChange = adjustedIncrease - totalDecrease;
     
     const currentIndependence = nation?.independencePressure || 0;
     const independenceCap = nation?.independenceCap || 100;
@@ -1310,12 +1320,18 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
         current: currentIndependence,
         cap: independenceCap,
         
-        // 每日变化（百分点/天）
+        // 每日变化（百分点/天）- 已应用难度系数
         dailyChange: dailyChange,
         
-        // 增减因素分解
+        // 难度信息
+        difficultyMultiplier: difficultyMultiplier,
+        difficultyLevel: difficultyLevel,
+        
+        // 增减因素分解（原始值，未应用难度系数）
         totalIncrease: totalIncrease,
         totalDecrease: totalDecrease,
+        // 调整后的增长（应用难度系数后）
+        adjustedIncrease: adjustedIncrease,
         increaseFactors: increaseFactors,
         decreaseFactors: decreaseFactors,
         

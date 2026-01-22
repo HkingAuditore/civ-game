@@ -288,16 +288,57 @@ const DiplomacyTabComponent = ({
 
     const targetNationAllies = useMemo(() => {
         if (!selectedNation) return [];
-        return visibleNations.filter(n => {
-            if (n.id === selectedNation.id) return false;
-            const isAllied = (selectedNation.allies || []).includes(n.id) ||
-                (n.allies || []).includes(selectedNation.id);
-            return isAllied;
-        }).map(ally => ({
-            ...ally,
-            foreignRelation: selectedNation.foreignRelations?.[ally.id] ?? 50,
-        }));
-    }, [visibleNations, selectedNation]);
+        
+        const orgs = diplomacyOrganizations?.organizations || [];
+        
+        // 按军事组织分组返回盟友
+        const militaryOrgs = [];
+        
+        orgs.forEach(org => {
+            if (org?.type !== 'military_alliance') return;
+            if (!Array.isArray(org.members) || !org.members.includes(selectedNation.id)) return;
+            
+            // 检查玩家是否也在这个组织中（如果是，则该组织成员不会参战）
+            const playerInThisOrg = org.members.includes('player');
+            if (playerInThisOrg) {
+                // 玩家和目标国家在同一个军事组织，该组织成员保持中立
+                return;
+            }
+            
+            // 获取该组织中会参战的成员（排除目标国家本身、玩家、玩家附庸）
+            const members = org.members
+                .filter(memberId => {
+                    if (!memberId || memberId === selectedNation.id || memberId === 'player') return false;
+                    
+                    const nation = visibleNations.find(n => n.id === memberId);
+                    if (!nation) return false;
+                    
+                    // 排除玩家的附庸
+                    if (nation.isVassal === true) return false;
+                    
+                    return true;
+                })
+                .map(memberId => {
+                    const nation = visibleNations.find(n => n.id === memberId);
+                    return {
+                        ...nation,
+                        foreignRelation: selectedNation.foreignRelations?.[memberId] ?? 80,
+                    };
+                })
+                .filter(Boolean);
+            
+            // 只添加有成员的组织
+            if (members.length > 0) {
+                militaryOrgs.push({
+                    id: org.id,
+                    name: org.name,
+                    members: members,
+                });
+            }
+        });
+        
+        return militaryOrgs;
+    }, [visibleNations, selectedNation, diplomacyOrganizations]);
 
     // Simple Actions
     const handleSimpleAction = (nationId, action, payload) => {
@@ -403,7 +444,7 @@ const DiplomacyTabComponent = ({
             {showDeclareWarModal && selectedNation && (
                 <DeclareWarModal
                     targetNation={selectedNation}
-                    allies={targetNationAllies}
+                    militaryOrgs={targetNationAllies}
                     onConfirm={() => {
                         handleSimpleAction(selectedNation.id, 'declare_war');
                         setShowDeclareWarModal(false);
