@@ -164,6 +164,7 @@ const DiplomacyLayout = ({
                     <NationDetailView
                         nation={selectedNation}
                         gameState={gameState}
+                        nations={nations}  // Pass nations array for AI-AI war lookup
                         epoch={epoch}
                         market={market}
                         resources={resources}
