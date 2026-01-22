@@ -9,7 +9,7 @@ import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS } from '../../config/diplomacy';
+import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS, MILITARY_POLICY_DEFINITIONS } from '../../config/diplomacy';
 import {
     calculateEnhancedTribute,
     calculateControlMeasureCost,
@@ -608,15 +608,24 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                     请求远征军
                 </Button>
             )}
-            {typeConfig.militaryObligation === 'pay_to_call' && (
-                <Button
-                    onClick={() => onDiplomaticAction?.(nation.id, 'call_to_arms')}
-                    className="w-full bg-blue-700 hover:bg-blue-600"
-                >
-                    <Icon name="Flag" size={14} className="mr-1" />
-                    战争征召
-                </Button>
-            )}
+            {/* Only show call_to_arms button if current military policy allows it */}
+            {(() => {
+                const militaryPolicyId = nation.vassalPolicy?.military || 'call_to_arms';
+                const militaryConfig = MILITARY_POLICY_DEFINITIONS[militaryPolicyId];
+                // Show button only if policy allows call to arms AND it's not auto-join
+                if (militaryConfig?.canCallToArms && !militaryConfig?.autoJoinWar) {
+                    return (
+                        <Button
+                            onClick={() => onDiplomaticAction?.(nation.id, 'call_to_arms')}
+                            className="w-full bg-blue-700 hover:bg-blue-600"
+                        >
+                            <Icon name="Flag" size={14} className="mr-1" />
+                            战争征召
+                        </Button>
+                    );
+                }
+                return null;
+            })()}
 
             {/* 释放附庸按钮 */}
             <Button

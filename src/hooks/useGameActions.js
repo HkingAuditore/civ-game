@@ -4774,27 +4774,68 @@ export const useGameActions = (gameState, addLog) => {
             case 'call_to_arms': {
                 const result = requestWarParticipation(targetNation, null, resources.silver || 0);
                 if (result.success) {
-                    setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
-                    // Trigger war status for vassal against player's enemies
+                    // Identify player's enemies
                     const playerEnemies = nations.filter(n =>
-                        (n.isAtWar && n.warTarget === 'player') || // Enemy attacking Player
-                        (n.foreignWars?.player?.isAtWar) // Player attacking Enemy (AI-AI style record)
+                        n.isAtWar === true &&           // Nation is at war with player
+                        !n.isRebelNation &&            // Not a rebel
+                        n.vassalOf !== 'player' &&     // Not player's vassal
+                        n.id !== nationId              // Not the vassal we're calling to arms
                     );
+                    
+                    if (playerEnemies.length === 0) {
+                        alert(`当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
+                        addLog(`⚠️ 当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
+                        break;
+                    }
+                    
+                    // Check if vassal is already at war with all player's enemies (prevent duplicate call)
+                    const vassalForeignWars = targetNation.foreignWars || {};
+                    const newEnemiesToFight = playerEnemies.filter(enemy => !vassalForeignWars[enemy.id]?.isAtWar);
+                    
+                    if (newEnemiesToFight.length === 0) {
+                        alert(`${targetNation.name} 已经在与你的所有敌人交战中，无需重复征召！`);
+                        addLog(`⚠️ ${targetNation.name} 已经在与你的所有敌人交战中。`);
+                        break;
+                    }
+                    
+                    // Deduct cost only when there's actually something to do
+                    setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
+                    
                     setNations(prev => prev.map(n => {
                         if (n.id === nationId) {
-                            // Set Vassal to War
+                            // Set Vassal to War against player's enemies
                             const newForeignWars = { ...(n.foreignWars || {}) };
-                            playerEnemies.forEach(enemy => {
-                                if (!newForeignWars[enemy.id]?.isAtWar) {
-                                    newForeignWars[enemy.id] = { isAtWar: true, warStartDay: daysElapsed, warScore: 0 };
-                                }
+                            newEnemiesToFight.forEach(enemy => {
+                                newForeignWars[enemy.id] = { 
+                                    isAtWar: true, 
+                                    warStartDay: daysElapsed, 
+                                    warScore: 0,
+                                    followingSuzerain: true,  // Mark as following suzerain's war
+                                    suzerainTarget: 'player'
+                                };
                             });
-                            return { ...n, foreignWars: newForeignWars, isAtWar: playerEnemies.length > 0 }; // Simplified
+                            return { ...n, foreignWars: newForeignWars };
+                        }
+                        // Also set the enemy's foreignWars to include this vassal
+                        if (newEnemiesToFight.some(e => e.id === n.id)) {
+                            const newForeignWars = { ...(n.foreignWars || {}) };
+                            if (!newForeignWars[nationId]?.isAtWar) {
+                                newForeignWars[nationId] = {
+                                    isAtWar: true,
+                                    warStartDay: daysElapsed,
+                                    warScore: 0
+                                };
+                            }
+                            return { ...n, foreignWars: newForeignWars };
                         }
                         return n;
                     }));
-                    addLog(result.message);
+                    
+                    const enemyNames = newEnemiesToFight.map(e => e.name).join('、');
+                    alert(`征召成功！${targetNation.name} 将与 ${enemyNames} 交战，花费 ${result.cost} 银币。`);
+                    addLog(`⚔️ ${targetNation.name} 同意参战，将与 ${enemyNames} 交战！花费 ${result.cost} 银币。`);
                 } else {
+                    alert(`征召失败：${result.message}`);
                     addLog(result.message);
                 }
                 break;
