@@ -425,22 +425,27 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                     <div className="mb-3">
                         <div className="text-[10px] text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                             <Icon name="ArrowUp" size={10} />
-                            增长因素 (+{(independenceBreakdown.totalIncrease || 0).toFixed(3)}%/天)
+                            增长因素 (+{((independenceBreakdown.adjustedIncrease || independenceBreakdown.totalIncrease) || 0).toFixed(3)}%/天)
                         </div>
                         <div className="space-y-1">
-                            {independenceBreakdown.increaseFactors.map((factor, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-[10px]">
-                                    <span className="text-gray-400">
-                                        {factor.name}
-                                        {factor.description && (
-                                            <span className="text-gray-500 ml-1">({factor.description})</span>
-                                        )}
-                                    </span>
-                                    <span className="text-red-400 font-mono">
-                                        +{factor.value.toFixed(3)}
-                                    </span>
-                                </div>
-                            ))}
+                            {independenceBreakdown.increaseFactors.map((factor, idx) => {
+                                // 对每个增长因素应用难度系数
+                                const multiplier = independenceBreakdown.difficultyMultiplier || 1;
+                                const adjustedValue = factor.value * multiplier;
+                                return (
+                                    <div key={idx} className="flex items-center justify-between text-[10px]">
+                                        <span className="text-gray-400">
+                                            {factor.name}
+                                            {factor.description && (
+                                                <span className="text-gray-500 ml-1">({factor.description})</span>
+                                            )}
+                                        </span>
+                                        <span className="text-red-400 font-mono">
+                                            +{adjustedValue.toFixed(3)}
+                                        </span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -1702,6 +1707,7 @@ export const VassalManagementSheet = memo(({
     officials = [],       // NEW: Officials list for governor selection
     playerMilitary = 1.0, // NEW: Player military strength
     epoch = 1,            // 当前时代，用于计算独立度变化
+    difficultyLevel = 'normal', // NEW: 游戏难度等级
     // 外交审批相关 props
     nations = [],
     diplomacyOrganizations = { organizations: [] },
@@ -1724,8 +1730,8 @@ export const VassalManagementSheet = memo(({
     // 计算独立度变化原因分解
     const independenceBreakdown = useMemo(() => {
         if (!nation) return null;
-        return getIndependenceChangeBreakdown(nation, epoch, officials, playerWealth, playerPopulation);
-    }, [nation, epoch, officials, playerWealth, playerPopulation]);
+        return getIndependenceChangeBreakdown(nation, epoch, officials, playerWealth, playerPopulation, difficultyLevel);
+    }, [nation, epoch, officials, playerWealth, playerPopulation, difficultyLevel]);
 
     // 计算该附庸的待审批请求数（必须在条件返回之前调用）
     const pendingCount = useMemo(() => {
