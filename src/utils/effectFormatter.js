@@ -21,9 +21,9 @@ const RELATION_DESCRIPTIONS = {
 
 // 附庸类型描述映射
 const VASSAL_TYPE_DESCRIPTIONS = {
-  protectorate: { label: '保护国', description: '高自主度，低朝贡', color: 'text-cyan-400' },
-  tributary: { label: '朝贡国', description: '中等自主度，定期朝贡', color: 'text-yellow-400' },
-  puppet: { label: '傀儡国', description: '低自主度，高度控制', color: 'text-orange-400' },
+  protectorate: { label: '保护国', description: '宽松政策，低朝贡', color: 'text-cyan-400' },
+  tributary: { label: '朝贡国', description: '常规控制，定期朝贡', color: 'text-yellow-400' },
+  puppet: { label: '傀儡国', description: '严密控制，高度干预', color: 'text-orange-400' },
   colony: { label: '殖民地', description: '完全控制，最大收益', color: 'text-red-400' },
 };
 

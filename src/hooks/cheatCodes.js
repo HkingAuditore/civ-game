@@ -1388,10 +1388,10 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
                 colony: '殖民地',
             };
             const typeConfigs = {
-                protectorate: { autonomy: 80, tributeRate: 0.08 },
-                tributary: { autonomy: 50, tributeRate: 0.15 },
-                puppet: { autonomy: 20, tributeRate: 0.25 },
-                colony: { autonomy: 5, tributeRate: 0.35 },
+                protectorate: { tributeRate: 0.08 },
+                tributary: { tributeRate: 0.15 },
+                puppet: { tributeRate: 0.25 },
+                colony: { tributeRate: 0.35 },
             };
 
             if (!validTypes.includes(vassalType)) {
@@ -1413,7 +1413,6 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
                     ...n,
                     vassalOf: 'player',
                     vassalType: vassalType,
-                    autonomy: config.autonomy,
                     tributeRate: config.tributeRate,
                     independencePressure: 0,
                     isAtWar: false,
@@ -1448,7 +1447,6 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
                     ...n,
                     vassalOf: null,
                     vassalType: null,
-                    autonomy: 100,
                     tributeRate: 0,
                     independencePressure: 0,
                     relation: Math.min(100, (n.relation || 50) + 20),
@@ -1478,7 +1476,7 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
             vassals.forEach(v => {
                 const typeName = typeLabels[v.vassalType] || '附庸';
                 console.log(`  • ${v.name} (${v.id})`);
-                console.log(`    Type: ${typeName} | Autonomy: ${v.autonomy || 0}% | Tribute: ${Math.round((v.tributeRate || 0) * 100)}% | Independence: ${v.independencePressure || 0}%`);
+                console.log(`    Type: ${typeName} | Tribute: ${Math.round((v.tributeRate || 0) * 100)}% | Independence: ${v.independencePressure || 0}%`);
             });
         },
 

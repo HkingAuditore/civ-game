@@ -464,6 +464,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setIsPaused,
         nations,
         setNations,
+        diplomaticReputation,
+        setDiplomaticReputation,
         setPopStructure,
         setMaxPop,
         maxPopBonus,
@@ -1127,6 +1129,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
                 overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
                 foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal', // [NEW] Pass policy
+                diplomaticReputation: current.diplomaticReputation ?? 50, // [NEW] Pass diplomatic reputation
             };
 
             // Execute simulation
@@ -1695,7 +1698,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         playerStability: result.stability || 50,
                         playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
                         playerWealth: adjustedResources.silver || 0,
+                        playerPopulation: current.population || 1000000,
                         officials: result.officials || [],  // Pass officials for governor system
+                        difficultyLevel: current.difficulty, // 游戏难度
                         logs: vassalLogs
                     });
 
@@ -2115,6 +2120,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     if (nextNations) {
                         setNations(nextNations);
+                    }
+                    // [NEW] Update diplomatic reputation (natural recovery)
+                    if (result.diplomaticReputation !== undefined && typeof setDiplomaticReputation === 'function') {
+                        setDiplomaticReputation(result.diplomaticReputation);
                     }
                     if (result.diplomacyOrganizations) {
                         setDiplomacyOrganizations(prev => ({
@@ -3649,7 +3658,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
                                         const event = createIndependenceWarEvent(nation, {
                                             vassalType: nation.vassalType,
-                                            autonomy: nation.autonomy,
                                             independencePressure: nation.independencePressure,
                                             tributeRate: nation.tributeRate,
                                         }, (action) => {
@@ -3658,21 +3666,21 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 setStability(prev => Math.max(0, prev - 10));
                                                 addLog(`⚔️ 你决定出兵镇压 ${nation.name} 的叛乱！`);
                                             } else if (action === 'negotiate') {
-                                                // 谈判：尝试取消战争，大幅提高自主度和降低朝贡率
+                                                // 谈判：尝试取消战争，降低朝贡率
                                                 setNations(prev => prev.map(n => {
                                                     if (n.id !== nation.id) return n;
                                                     return {
                                                         ...n,
                                                         isAtWar: false,
-                                                        warTarget: null,
                                                         independenceWar: false,
                                                         vassalOf: 'player',
-                                                        autonomy: Math.min(100, (n.autonomy || 50) + 25),
                                                         tributeRate: Math.max(0.02, (n.tributeRate || 0.1) * 0.5),
-                                                        independencePressure: Math.max(0, (n.independencePressure || 0) - 30),
+                                                        // 谈判解决：立即降低独立倾向10点（模拟谈判的即时缓和效果）
+                                                        // 之后会根据政策和控制措施自然趋向目标值
+                                                        independencePressure: Math.max(0, (n.independencePressure || 0) - 10),
                                                     };
                                                 }));
-                                                addLog(`📜 你与 ${nation.name} 达成协议，提高其自主度并降低朝贡，叛乱平息。`);
+                                                addLog(`📜 你与 ${nation.name} 达成协议，降低朝贡并平息叛乱。`);
                                             } else if (action === 'release') {
                                                 // 释放：承认独立，关系提升
                                                 setNations(prev => prev.map(n => {
@@ -3684,7 +3692,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         independenceWar: false,
                                                         vassalOf: null,
                                                         vassalType: null,
-                                                        autonomy: 100,
                                                         tributeRate: 0,
                                                         independencePressure: 0,
                                                         relation: Math.min(100, (n.relation || 50) + 30),

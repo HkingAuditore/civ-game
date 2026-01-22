@@ -104,7 +104,6 @@ export const OVERSEAS_BUILDING_MODES = ['local', 'dumping', 'buyback'];
 export const DEFAULT_VASSAL_STATUS = {
     vassalOf: null,
     vassalType: null,
-    autonomy: 1.0,
     tributeRate: 0.0,
     independencePressure: 0.0,
 };
@@ -208,7 +207,6 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
         tributeMod: 0.5,              // -50% tribute (as concession)
         controlCostMod: 0,            // No control cost
         independenceGrowthMod: 0.6,   // 40% slower independence
-        autonomyMin: 70,              // Minimum autonomy enforced
     },
     puppet_govt: {
         id: 'puppet_govt',
@@ -217,16 +215,14 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
         tributeMod: 1.0,              // Normal tribute
         controlCostMod: 0.5,          // 50% control cost (cheaper)
         independenceGrowthMod: 1.0,   // Normal
-        autonomyMin: 20,              // Can be low
     },
     direct_rule: {
         id: 'direct_rule',
-        name: '总督直辖',
-        description: '派遣总督直接管理（需消耗官员）',
+        name: '直接统治',
+        description: '中央政府直接管理附庸内政',
         tributeMod: 1.3,              // +30% tribute
         controlCostMod: 1.5,          // 150% control cost (expensive)
         independenceGrowthMod: 0.8,   // 20% slower (active suppression)
-        autonomyMin: 0,               // Can be minimal
         requiresGovernor: true,       // Must assign an official
     },
 };
@@ -242,7 +238,7 @@ export const MILITARY_POLICY_DEFINITIONS = {
         description: '附庸自行决定是否参战',
         autoJoinWar: false,           // 不自动跟随宗主国参战
         canCallToArms: false,         // 不能征召
-        independenceGrowthMod: 0.8,   // 20% slower independence (reward for autonomy)
+        independenceGrowthMod: 0.8,   // 20% slower independence
     },
     call_to_arms: {
         id: 'call_to_arms',
@@ -259,6 +255,55 @@ export const MILITARY_POLICY_DEFINITIONS = {
         autoJoinWar: true,            // 自动跟随宗主国参战
         canCallToArms: true,          // 也可以手动征召
         independenceGrowthMod: 1.3,   // 30% faster independence (resentment)
+    },
+};
+
+/**
+ * 附庸政策对阶层满意度的影响（目标满意度修正）
+ */
+/**
+ * 附庸国政策对各阶层满意度的直接影响
+ * 这些惩罚会：
+ * 1. 直接减少目标满意度
+ * 2. 触发满意度硬上限（惩罚越大，上限越低）
+ * 
+ * 设计原则：
+ * - 压榨性政策对底层影响最大
+ * - 精英阶层通常是政策的受益者，受负面影响较小
+ * - 多项恶劣政策叠加会产生严重的满意度问题
+ */
+export const VASSAL_POLICY_SATISFACTION_EFFECTS = {
+    labor: {
+        standard: { elites: 0, commoners: 0, underclass: 0 },
+        // 压榨剥削：底层被迫过度劳动，平民生活质量下降
+        exploitation: { elites: -2, commoners: -10, underclass: -18 },
+        // 奴隶制：极端剥削，所有非精英阶层都受严重影响
+        slavery: { elites: -5, commoners: -20, underclass: -30 },
+    },
+    tradePolicy: {
+        free: { elites: 0, commoners: 0, underclass: 0 },
+        preferential: { elites: -1, commoners: -3, underclass: -3 },
+        exclusive: { elites: -2, commoners: -6, underclass: -6 },
+        dumping: { elites: -3, commoners: -10, underclass: -10 },
+        looting: { elites: -5, commoners: -15, underclass: -15 },
+    },
+    governance: {
+        autonomous: { elites: 3, commoners: 3, underclass: 3 },
+        puppet_govt: { elites: 0, commoners: 0, underclass: 0 },
+        // 直接统治：削弱本地精英权力，民众感受到外来压迫
+        direct_rule: { elites: -8, commoners: -10, underclass: -10 },
+    },
+    military: {
+        autonomous: { elites: 3, commoners: 3, underclass: 2 },
+        call_to_arms: { elites: 0, commoners: 0, underclass: 0 },
+        // 自动参战：民众被迫为宗主国流血
+        auto_join: { elites: -3, commoners: -6, underclass: -6 },
+    },
+    investmentPolicy: {
+        autonomous: { elites: 0, commoners: 0, underclass: 0 },
+        guided: { elites: -3, commoners: -4, underclass: -4 },
+        // 强制投资：扭曲本地经济结构
+        forced: { elites: -6, commoners: -10, underclass: -10 },
     },
 };
 
@@ -347,7 +392,6 @@ export const isDiplomacyUnlocked = (category, mechanismId, currentEra) => {
 /**
  * 附庸类型配置
  * - minRelation: 建立该关系所需的最低关系值
- * - autonomy: 初始自主度 (0-100)
  * - tributeRate: 朝贡比例（基于GDP增量）
  * - exploitationFactor: 工资剥削系数（1.0为市场价）
  * - canFormAlliance: 是否可以独立结盟
@@ -359,12 +403,11 @@ export const VASSAL_TYPE_CONFIGS = {
         name: '附庸国',
         minEra: 3,
         minRelation: 50,
-        autonomy: 80,
         tributeRate: 0.10,
         exploitationFactor: 1.0,
         tariffDiscount: 0.5,
         description: '接受宗主国保护与指导的国家。具体权利义务由政策决定。',
-        // Default capabilities (modified by autonomy)
+        // Default capabilities
         canFormAlliance: true,
         canSignTreaties: true,
         canTrade: true,
@@ -377,10 +420,10 @@ export const VASSAL_TYPE_CONFIGS = {
         }
     },
     // Backwards compatibility keys mapped to same config
-    protectorate: { name: '附庸国', minEra: 3, autonomy: 80, minRelation: 50 },
-    tributary: { name: '附庸国', minEra: 3, autonomy: 60, minRelation: 50 },
-    puppet: { name: '附庸国', minEra: 3, autonomy: 40, minRelation: 50 },
-    colony: { name: '附庸国', minEra: 3, autonomy: 20, minRelation: 50 },
+    protectorate: { name: '附庸国', minEra: 3, minRelation: 50 },
+    tributary: { name: '附庸国', minEra: 3, minRelation: 50 },
+    puppet: { name: '附庸国', minEra: 3, minRelation: 50 },
+    colony: { name: '附庸国', minEra: 3, minRelation: 50 },
 };
 
 export const VASSAL_TYPE_LABELS = {
@@ -391,19 +434,6 @@ export const VASSAL_TYPE_LABELS = {
     puppet: '附庸国',
     colony: '附庸国',
 };
-
-/**
- * 自主度对附庸能力的影响
- * @param {number} autonomy - 自主度 (0-100)
- * @returns {Object} 自主度效果
- */
-export const getAutonomyEffects = (autonomy) => ({
-    canDeclareWar: autonomy > 70,
-    canSignTreaties: autonomy > 50,
-    canSetTariffs: autonomy > 40,
-    tributeReduction: 1 - (autonomy / 200),
-    investmentShield: autonomy / 100,
-});
 
 /**
  * 计算附庸的独立倾向
@@ -418,9 +448,6 @@ export const calculateIndependenceDesire = (vassalNation, overlordMilitary = 1.0
 
     // 朝贡负担
     desire += (vassalNation.tributeRate || 0) * 100;
-
-    // 自主度压力
-    desire += (100 - (vassalNation.autonomy || 100)) * 0.3;
 
     // 社会满意度影响（如果有阶层数据）
     if (vassalNation.socialStructure) {
@@ -447,20 +474,16 @@ export const calculateTribute = (vassalNation) => {
     if (!vassalNation || vassalNation.vassalOf === null) return 0;
 
     const tributeRate = vassalNation.tributeRate || 0;
-    const autonomy = vassalNation.autonomy || 100;
 
     // 基于国家财富估算GDP增量
     const gdpEstimate = (vassalNation.wealth || 500) * 0.05;
     const tributeBase = gdpEstimate * tributeRate;
 
-    // 自主度降低实际朝贡
-    const autonomyFactor = 1 - (autonomy / 200);
-
     // 独立倾向降低实际朝贡
     const independenceDesire = vassalNation.independencePressure || 0;
     const resistanceFactor = 1 - (independenceDesire / 200);
 
-    return Math.floor(tributeBase * autonomyFactor * resistanceFactor);
+    return Math.floor(tributeBase * resistanceFactor);
 };
 
 /**
@@ -682,6 +705,7 @@ export const INDEPENDENCE_CONFIG = {
             baseCost: 60,       // Base daily cost (reduced from 100)
             wealthScalingFactor: 0.002,  // 0.2% of vassal wealth
             independenceCapReduction: 0.05,  // Daily reduction of independence cap
+            independenceReduction: 0.15,     // [NEW] Daily reduction of current independence (direct effect)
             minIndependenceCap: 30,          // Minimum independence cap
             satisfactionPenalty: -1,         // All classes satisfaction penalty
         },
@@ -699,6 +723,61 @@ export const INDEPENDENCE_CONFIG = {
 
     // Garrison military requirement
     garrisonMilitaryThreshold: 0.5, // Player must have 50% of vassal's military
+};
+
+/**
+ * 独立倾向模型参数
+ * @deprecated 已废弃 - 新的纯每日加减模型直接在 vassalSystem.js 的 calculateDailyIndependenceChange 函数中定义
+ * 
+ * 新模型设计理念：
+ * - 独立倾向是一个百分比（0-100%），表示附庸国独立的意愿/可能性
+ * - 所有政策调整只影响每日变化率，不会导致瞬间变化
+ * - 变化来源：
+ *   1. 基础自然增长：0.02%/天（模拟民族意识觉醒），随时代增加
+ *   2. 控制政策压力：劳工、贸易、治理、军事、投资政策各有每日影响
+ *   3. 阶层满意度：低于50%增加独立倾向，高于50%降低
+ *   4. 经济状况：富裕增加独立野心，贫穷依赖宗主
+ *   5. 朝贡负担：高朝贡率增加独立倾向
+ *   6. 控制措施：总督、驻军、经济援助、文化同化可降低独立倾向
+ * 
+ * 保留此配置仅为向后兼容
+ */
+export const INDEPENDENCE_MODEL_CONFIG = {
+    // 以下参数已废弃，新模型使用 vassalSystem.js 中的硬编码值
+    baseRate: 0.02,        // 基础每日增长率（百分点/天）
+    dailyDecay: 0,         // 不再使用固定日衰减
+    eraGrowthPerEra: 0.10, // 每时代增速系数（+10%）
+    classWeight: 0.001,    // 阶层满意度影响权重
+    // 政策压力配置（已废弃，新值见 calculateDailyIndependenceChange）
+    policyPressure: {
+        labor: {
+            standard: 0,
+            exploitation: 0.03,
+            slavery: 0.08,
+        },
+        tradePolicy: {
+            free: -0.01,
+            preferential: 0,
+            exclusive: 0.02,
+            dumping: 0.04,
+            looting: 0.06,
+        },
+        governance: {
+            autonomous: -0.02,
+            puppet_govt: 0,
+            direct_rule: 0.03,
+        },
+        military: {
+            autonomous: -0.01,
+            call_to_arms: 0,
+            auto_join: 0.03,
+        },
+        investmentPolicy: {
+            autonomous: 0,
+            guided: 0.01,
+            forced: 0.04,
+        },
+    },
 };
 
 /**

@@ -71,6 +71,7 @@ import {
 import { MINISTER_ROLES, MINISTER_LABELS } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
+import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
 
 
 /**
@@ -166,6 +167,9 @@ export const useGameActions = (gameState, addLog) => {
         // Ruling coalition for political demands
         rulingCoalition,
         setRulingCoalition,
+        // Diplomatic reputation
+        diplomaticReputation,
+        setDiplomaticReputation,
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
@@ -2968,7 +2972,6 @@ export const useGameActions = (gameState, addLog) => {
                             vassalUpdates = {
                                 vassalOf: 'player',
                                 vassalType: vassalType,
-                                autonomy: VASSAL_TYPE_CONFIGS[vassalType]?.autonomy || 50,
                                 tributeRate: VASSAL_TYPE_CONFIGS[vassalType]?.tributeRate || 0.1,
                             };
                             addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}`);
@@ -3408,8 +3411,29 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
 
                     addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
+                    
+                    // Actually reduce diplomatic reputation
+                    if (setDiplomaticReputation) {
+                        const { newReputation } = calculateReputationChange(
+                            diplomaticReputation ?? 50,
+                            'breakPeaceTreaty',
+                            false  // negative event
+                        );
+                        setDiplomaticReputation(newReputation);
+                    }
                 }
                 addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
+                
+                // 主动宣战减少声誉（非违约宣战也会有轻微声誉损失）
+                if (!breachPenalty && setDiplomaticReputation) {
+                    const { newReputation } = calculateReputationChange(
+                        diplomaticReputation ?? 50,
+                        'declareWar',
+                        false  // negative event
+                    );
+                    setDiplomaticReputation(newReputation);
+                }
+                
                 // 通知盟友参战
                 if (targetAllies.length > 0) {
                     const allyNames = targetAllies.map(a => a.name).join('、');
@@ -4750,27 +4774,68 @@ export const useGameActions = (gameState, addLog) => {
             case 'call_to_arms': {
                 const result = requestWarParticipation(targetNation, null, resources.silver || 0);
                 if (result.success) {
-                    setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
-                    // Trigger war status for vassal against player's enemies
+                    // Identify player's enemies
                     const playerEnemies = nations.filter(n =>
-                        (n.isAtWar && n.warTarget === 'player') || // Enemy attacking Player
-                        (n.foreignWars?.player?.isAtWar) // Player attacking Enemy (AI-AI style record)
+                        n.isAtWar === true &&           // Nation is at war with player
+                        !n.isRebelNation &&            // Not a rebel
+                        n.vassalOf !== 'player' &&     // Not player's vassal
+                        n.id !== nationId              // Not the vassal we're calling to arms
                     );
+                    
+                    if (playerEnemies.length === 0) {
+                        alert(`当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
+                        addLog(`⚠️ 当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
+                        break;
+                    }
+                    
+                    // Check if vassal is already at war with all player's enemies (prevent duplicate call)
+                    const vassalForeignWars = targetNation.foreignWars || {};
+                    const newEnemiesToFight = playerEnemies.filter(enemy => !vassalForeignWars[enemy.id]?.isAtWar);
+                    
+                    if (newEnemiesToFight.length === 0) {
+                        alert(`${targetNation.name} 已经在与你的所有敌人交战中，无需重复征召！`);
+                        addLog(`⚠️ ${targetNation.name} 已经在与你的所有敌人交战中。`);
+                        break;
+                    }
+                    
+                    // Deduct cost only when there's actually something to do
+                    setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
+                    
                     setNations(prev => prev.map(n => {
                         if (n.id === nationId) {
-                            // Set Vassal to War
+                            // Set Vassal to War against player's enemies
                             const newForeignWars = { ...(n.foreignWars || {}) };
-                            playerEnemies.forEach(enemy => {
-                                if (!newForeignWars[enemy.id]?.isAtWar) {
-                                    newForeignWars[enemy.id] = { isAtWar: true, warStartDay: daysElapsed, warScore: 0 };
-                                }
+                            newEnemiesToFight.forEach(enemy => {
+                                newForeignWars[enemy.id] = { 
+                                    isAtWar: true, 
+                                    warStartDay: daysElapsed, 
+                                    warScore: 0,
+                                    followingSuzerain: true,  // Mark as following suzerain's war
+                                    suzerainTarget: 'player'
+                                };
                             });
-                            return { ...n, foreignWars: newForeignWars, isAtWar: playerEnemies.length > 0 }; // Simplified
+                            return { ...n, foreignWars: newForeignWars };
+                        }
+                        // Also set the enemy's foreignWars to include this vassal
+                        if (newEnemiesToFight.some(e => e.id === n.id)) {
+                            const newForeignWars = { ...(n.foreignWars || {}) };
+                            if (!newForeignWars[nationId]?.isAtWar) {
+                                newForeignWars[nationId] = {
+                                    isAtWar: true,
+                                    warStartDay: daysElapsed,
+                                    warScore: 0
+                                };
+                            }
+                            return { ...n, foreignWars: newForeignWars };
                         }
                         return n;
                     }));
-                    addLog(result.message);
+                    
+                    const enemyNames = newEnemiesToFight.map(e => e.name).join('、');
+                    alert(`征召成功！${targetNation.name} 将与 ${enemyNames} 交战，花费 ${result.cost} 银币。`);
+                    addLog(`⚔️ ${targetNation.name} 同意参战，将与 ${enemyNames} 交战！花费 ${result.cost} 银币。`);
                 } else {
+                    alert(`征召失败：${result.message}`);
                     addLog(result.message);
                 }
                 break;
@@ -5548,6 +5613,20 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${targetNation.name} opened its market.`);
             return;
         }
+        if (proposalType === 'vassal') {
+            // 建立附庸关系
+            const vassalType = 'vassal';
+            const vassalConfig = VASSAL_TYPE_CONFIGS[vassalType] || VASSAL_TYPE_CONFIGS.vassal;
+            endWarWithNation(nationId, {
+                vassalOf: 'player',
+                vassalType: vassalType,
+                tributeRate: vassalConfig.tributeRate || 0.10,
+                independencePressure: 0,
+                lastTributeDay: daysElapsed,
+            });
+            addLog(`${targetNation.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}！`);
+            return;
+        }
         if (paymentAmount > 0) {
             setResourcesWithReason(
                 prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }),
@@ -5715,6 +5794,21 @@ export const useGameActions = (gameState, addLog) => {
                 treaties: nextTreaties,
             });
             addLog(`${targetNation.name} opened its market.`);
+            return;
+        }
+
+        if (proposalType === 'demand_vassal') {
+            // 建立附庸关系
+            const vassalType = amount || 'vassal'; // amount参数传递附庸类型
+            const vassalConfig = VASSAL_TYPE_CONFIGS[vassalType] || VASSAL_TYPE_CONFIGS.vassal;
+            endWarWithNation(nationId, {
+                vassalOf: 'player',
+                vassalType: vassalType,
+                tributeRate: vassalConfig.tributeRate || 0.10,
+                independencePressure: 0,
+                lastTributeDay: daysElapsed,
+            });
+            addLog(`${targetNation.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}！`);
             return;
         }
 

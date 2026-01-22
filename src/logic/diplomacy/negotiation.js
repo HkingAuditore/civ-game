@@ -187,7 +187,7 @@ const calculateTreatyBenefitForNation = ({
                     // Value depends on alliance strength
                     benefit = 500 + (orgTotalPower * 0.005);
                     strategicValue = 40 + Math.min(60, orgTotalPower / 1000);
-                    risk = 300; // Risk of losing autonomy
+                    risk = 300; // Risk of worsening terms
                 }
             } else {
                 // Standalone military alliance consideration

@@ -21,306 +21,316 @@ export const DIFFICULTY_CONFIG = {
     [DIFFICULTY_LEVELS.VERY_EASY]: {
         id: DIFFICULTY_LEVELS.VERY_EASY,
         name: '和平',
-        description: '极其轻松，专注于建设，几乎没有战争威胁',
+        description: '轻松模式，专注于建设，战争威胁较低',
         icon: '🕊️',
         // Organization/Rebellion modifiers
-        organizationGrowthMultiplier: 0.2,     // 20% organization growth rate
-        organizationDecayMultiplier: 2.0,      // 200% decay rate (very fast calming)
-        satisfactionThreshold: 25,             // Very lower threshold
-        buildingCostGrowthFactor: 1.05,        // Very cheap scaling (8%)
+        organizationGrowthMultiplier: 0.4,     // 40% organization growth rate (was 0.2)
+        organizationDecayMultiplier: 1.5,      // 150% decay rate (was 2.0)
+        satisfactionThreshold: 30,             // Slightly higher threshold (was 25)
+        buildingCostGrowthFactor: 1.08,        // Slightly higher scaling (was 1.05)
         // AI War modifiers
-        aiWarDeclarationChance: 0.1,           // 10% of normal war declaration chance
-        aiMilitaryActionChance: 0.2,           // 20% of normal military action chance
-        aiMilitaryCooldownBonus: 30,           // Huge extra days added to AI cooldown
-        aiMinWarEpoch: 4,                      // AI can only declare war from Renaissance (epoch 4)
+        aiWarDeclarationChance: 0.25,          // 25% of normal war declaration chance (was 0.1)
+        aiMilitaryActionChance: 0.35,          // 35% of normal military action chance (was 0.2)
+        aiMilitaryCooldownBonus: 20,           // Reduced cooldown bonus (was 30)
+        aiMinWarEpoch: 3,                      // AI can declare war from Medieval era (was 4)
         // Raid modifiers
-        raidDamageMultiplier: 0.3,             // 30% raid damage
-        raidPopulationLossMultiplier: 0.2,     // 20% population loss from raids
+        raidDamageMultiplier: 0.5,             // 50% raid damage (was 0.3)
+        raidPopulationLossMultiplier: 0.4,     // 40% population loss from raids (was 0.2)
         // Peace/Stability bonuses
-        stabilityDampeningBonus: 0.25,         // Massive stability dampening effect
-        newGameGracePeriod: 150,               // Long grace period
+        stabilityDampeningBonus: 0.18,         // Reduced stability dampening (was 0.25)
+        newGameGracePeriod: 100,               // Shorter grace period (was 150)
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 0.5,    // 50% inventory target (easy to satisfy, stable economy)
-        aiDevelopmentMultiplier: 0.6,          // [NEW] 60% AI development speed
+        inventoryTargetDaysMultiplier: 0.7,    // 70% inventory target (was 0.5)
+        aiDevelopmentMultiplier: 0.8,          // 80% AI development speed (was 0.6)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 2.0,           // 200% tax tolerance (citizens tolerate higher taxes)
-        resourceConsumptionMultiplier: 0.9,    // 80% consumption
+        taxToleranceMultiplier: 1.6,           // 160% tax tolerance (was 2.0)
+        resourceConsumptionMultiplier: 1.0,    // 100% consumption (was 0.9)
         buildingCostBaseMultiplier: 1.0,       // No base cost increase
-        techCostMultiplier: 1.0,               // 80% tech cost
-        populationGrowthMultiplier: 1.5,       // 150% growth rate
-        buildingUpgradeCostMultiplier: 1.0,    // 80% upgrade cost
-        armyMaintenanceMultiplier: 0.5,        // 50% army maintenance
-        maxConsumptionMultiplierBonus: 1,     // -1 to max consumption multiplier (easier economy)
+        techCostMultiplier: 1.1,               // 110% tech cost (was 1.0)
+        populationGrowthMultiplier: 1.3,       // 130% growth rate (was 1.5)
+        buildingUpgradeCostMultiplier: 1.1,    // 110% upgrade cost (was 1.0)
+        armyMaintenanceMultiplier: 0.65,       // 65% army maintenance (was 0.5)
+        maxConsumptionMultiplierBonus: 2,      // +2 to max consumption (was 1)
 
         // Diplomacy/Relations modifiers
-        // goodChangeMultiplier: relation improvements become easier on lower difficulties
-        // badChangeMultiplier: relation deterioration becomes easier on higher difficulties
-        goodRelationChangeMultiplier: 1.25,
-        badRelationChangeMultiplier: 0.75,
+        goodRelationChangeMultiplier: 1.15,    // (was 1.25)
+        badRelationChangeMultiplier: 0.85,     // (was 0.75)
         // Base daily drift back to 50
-        relationDailyDriftRate: 0.015,
+        relationDailyDriftRate: 0.018,         // (was 0.015)
         // Base monthly drift back to 50 (ally/non-ally)
-        relationMonthlyDriftRateAlly: 0.04,
-        relationMonthlyDriftRateNonAlly: 0.12,
+        relationMonthlyDriftRateAlly: 0.05,    // (was 0.04)
+        relationMonthlyDriftRateNonAlly: 0.15, // (was 0.12)
         // Ally cold event settings (when ally relation < 70)
-        allyColdEventCooldown: 120,            // 4 months cooldown
-        allyColdEventChance: 0.002,            // 0.2% daily chance
+        allyColdEventCooldown: 100,            // 100 days cooldown (was 120)
+        allyColdEventChance: 0.003,            // 0.3% daily chance (was 0.002)
+        // Vassal independence modifiers
+        vassalIndependenceMultiplier: 0.5,     // 50% independence growth (was 0.3)
+        vassalIndependenceWarChance: 0.4,      // 40% independence war trigger chance (was 0.2)
         // [NEW] Initial Buildings
         initialBuildings: {
-            farm: 3,
-            lumber_camp: 3,
-            quarry: 2,
-            loom_house: 2,
+            farm: 2,
+            lumber_camp: 2,
+            quarry: 1,
+            loom_house: 1,
             market: 1
         },
     },
     [DIFFICULTY_LEVELS.EASY]: {
         id: DIFFICULTY_LEVELS.EASY,
         name: '简单',
-        description: '适合新手，叛乱增长减半，敌人攻击概率降低',
+        description: '适合新手，叛乱增长较慢，敌人攻击概率降低',
         icon: '🌱',
         // Organization/Rebellion modifiers
-        organizationGrowthMultiplier: 0.5,    // 50% organization growth rate
-        organizationDecayMultiplier: 1.5,      // 150% decay rate (faster calming)
-        satisfactionThreshold: 35,             // Lower threshold before unrest starts (was 45)
-        buildingCostGrowthFactor: 1.10,        // Slightly cheaper scaling (12%)
+        organizationGrowthMultiplier: 0.7,     // 70% organization growth rate (was 0.5)
+        organizationDecayMultiplier: 1.2,      // 120% decay rate (was 1.5)
+        satisfactionThreshold: 40,             // Higher threshold (was 35)
+        buildingCostGrowthFactor: 1.12,        // Slightly higher scaling (was 1.10)
         // AI War modifiers
-        aiWarDeclarationChance: 0.5,           // 50% of normal war declaration chance
-        aiMilitaryActionChance: 0.5,           // 50% of normal military action chance
-        aiMilitaryCooldownBonus: 15,           // Extra days added to AI cooldown
-        aiMinWarEpoch: 3,                      // AI can only declare war from Medieval era (epoch 3)
+        aiWarDeclarationChance: 0.7,           // 70% of normal war declaration chance (was 0.5)
+        aiMilitaryActionChance: 0.7,           // 70% of normal military action chance (was 0.5)
+        aiMilitaryCooldownBonus: 10,           // Reduced cooldown bonus (was 15)
+        aiMinWarEpoch: 2,                      // AI can declare war from Iron Age (was 3)
         // Raid modifiers
-        raidDamageMultiplier: 0.6,             // 60% raid damage
-        raidPopulationLossMultiplier: 0.5,     // 50% population loss from raids
+        raidDamageMultiplier: 0.8,             // 80% raid damage (was 0.6)
+        raidPopulationLossMultiplier: 0.7,     // 70% population loss (was 0.5)
         // Peace/Stability bonuses
-        stabilityDampeningBonus: 0.15,         // Extra stability dampening effect
-        newGameGracePeriod: 100,               // Days of reduced threats at game start
+        stabilityDampeningBonus: 0.10,         // Reduced stability dampening (was 0.15)
+        newGameGracePeriod: 60,                // Shorter grace period (was 100)
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 0.7,    // 70% inventory target (slightly forgiving)
-        aiDevelopmentMultiplier: 0.8,          // [NEW] 80% AI development speed
+        inventoryTargetDaysMultiplier: 0.85,   // 85% inventory target (was 0.7)
+        aiDevelopmentMultiplier: 1.0,          // 100% AI development speed (was 0.8)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 1.5,           // 150% tax tolerance
-        resourceConsumptionMultiplier: 1.0,    // 90% consumption
+        taxToleranceMultiplier: 1.3,           // 130% tax tolerance (was 1.5)
+        resourceConsumptionMultiplier: 1.1,    // 110% consumption (was 1.0)
         buildingCostBaseMultiplier: 1.0,       // No base cost increase
-        techCostMultiplier: 1.2,               // 90% tech cost
-        populationGrowthMultiplier: 1.2,       // 120% growth rate
-        buildingUpgradeCostMultiplier: 1.2,    // 90% upgrade cost
-        armyMaintenanceMultiplier: 0.75,       // 75% army maintenance
-        maxConsumptionMultiplierBonus: 3,      // No change to max consumption multiplier
+        techCostMultiplier: 1.4,               // 140% tech cost (was 1.2)
+        populationGrowthMultiplier: 1.1,       // 110% growth rate (was 1.2)
+        buildingUpgradeCostMultiplier: 1.4,    // 140% upgrade cost (was 1.2)
+        armyMaintenanceMultiplier: 0.85,       // 85% army maintenance (was 0.75)
+        maxConsumptionMultiplierBonus: 4,      // +4 to max consumption (was 3)
 
         // Diplomacy/Relations modifiers
-        goodRelationChangeMultiplier: 1.1,
-        badRelationChangeMultiplier: 0.9,
-        relationDailyDriftRate: 0.018,
-        relationMonthlyDriftRateAlly: 0.045,
-        relationMonthlyDriftRateNonAlly: 0.16,
+        goodRelationChangeMultiplier: 1.05,    // (was 1.1)
+        badRelationChangeMultiplier: 0.95,     // (was 0.9)
+        relationDailyDriftRate: 0.02,          // (was 0.018)
+        relationMonthlyDriftRateAlly: 0.05,    // (was 0.045)
+        relationMonthlyDriftRateNonAlly: 0.18, // (was 0.16)
         // Ally cold event settings
-        allyColdEventCooldown: 90,             // 3 months cooldown
-        allyColdEventChance: 0.003,            // 0.3% daily chance
+        allyColdEventCooldown: 75,             // 75 days cooldown (was 90)
+        allyColdEventChance: 0.004,            // 0.4% daily chance (was 0.003)
+        // Vassal independence modifiers
+        vassalIndependenceMultiplier: 0.8,     // 80% independence growth (was 0.6)
+        vassalIndependenceWarChance: 0.7,      // 70% independence war trigger chance (was 0.5)
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 2,
             lumber_camp: 2,
-            quarry: 1,
             loom_house: 1
         },
     },
-    [DIFFICULTY_LEVELS.NORMAL]: {
+[DIFFICULTY_LEVELS.NORMAL]: {
         id: DIFFICULTY_LEVELS.NORMAL,
         name: '普通',
-        description: '标准游戏体验',
+        description: '标准游戏体验，有一定挑战性',
         icon: '⚖️',
         // Organization/Rebellion modifiers
-        organizationGrowthMultiplier: 1.0,     // 100% organization growth rate
-        organizationDecayMultiplier: 1.0,      // 100% decay rate
-        satisfactionThreshold: 45,             // Standard threshold
-        buildingCostGrowthFactor: 1.15,        // Standard scaling (15%)
+        organizationGrowthMultiplier: 1.2,     // 120% organization growth rate (was 1.0)
+        organizationDecayMultiplier: 0.9,      // 90% decay rate (was 1.0)
+        satisfactionThreshold: 50,             // Higher threshold (was 45)
+        buildingCostGrowthFactor: 1.18,        // Higher scaling (was 1.15)
         // AI War modifiers
-        aiWarDeclarationChance: 1.0,           // 100% normal war declaration chance
-        aiMilitaryActionChance: 1.0,           // 100% normal military action chance
-        aiMilitaryCooldownBonus: 0,            // No bonus
-        aiMinWarEpoch: 2,                      // AI can declare war from Iron Age (epoch 2)
+        aiWarDeclarationChance: 1.3,           // 130% normal war declaration chance (was 1.0)
+        aiMilitaryActionChance: 1.2,           // 120% normal military action chance (was 1.0)
+        aiMilitaryCooldownBonus: -3,           // Slight cooldown reduction (was 0)
+        aiMinWarEpoch: 1,                      // AI can declare war from Bronze Age (was 2)
         // Raid modifiers
-        raidDamageMultiplier: 1.0,             // 100% raid damage
-        raidPopulationLossMultiplier: 1.0,     // 100% population loss
+        raidDamageMultiplier: 1.2,             // 120% raid damage (was 1.0)
+        raidPopulationLossMultiplier: 1.2,     // 120% population loss (was 1.0)
         // Peace/Stability bonuses
-        stabilityDampeningBonus: 0,            // No bonus
+        stabilityDampeningBonus: -0.05,        // Slight negative effect (was 0)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 1.0,    // Standard inventory target
-        aiDevelopmentMultiplier: 1.0,          // [NEW] Standard AI development speed
+        inventoryTargetDaysMultiplier: 1.5,    // 150% inventory target (was 1.0)
+        aiDevelopmentMultiplier: 1.5,          // 150% AI development speed (was 1.0)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 1.0,           // Standard tax tolerance
-        resourceConsumptionMultiplier: 1.2,    // Standard consumption
+        taxToleranceMultiplier: 0.9,           // 90% tax tolerance (was 1.0)
+        resourceConsumptionMultiplier: 1.5,    // 150% consumption (was 1.2)
         buildingCostBaseMultiplier: 1.0,       // No base cost increase
-        techCostMultiplier: 1.5,               // Standard tech cost
-        populationGrowthMultiplier: 1.0,       // Standard growth rate
-        buildingUpgradeCostMultiplier: 1.5,    // Standard upgrade cost
-        armyMaintenanceMultiplier: 1.0,        // Standard army maintenance
-        maxConsumptionMultiplierBonus: 6,      // No change to max consumption multiplier
+        techCostMultiplier: 2.0,               // 200% tech cost (was 1.5)
+        populationGrowthMultiplier: 0.9,       // 90% growth rate (was 1.0)
+        buildingUpgradeCostMultiplier: 2.0,    // 200% upgrade cost (was 1.5)
+        armyMaintenanceMultiplier: 1.2,        // 120% army maintenance (was 1.0)
+        maxConsumptionMultiplierBonus: 7,      // +7 to max consumption (was 6)
 
         // Diplomacy/Relations modifiers
-        goodRelationChangeMultiplier: 1.0,
-        badRelationChangeMultiplier: 1.0,
-        relationDailyDriftRate: 0.02,
-        relationMonthlyDriftRateAlly: 0.05,
-        relationMonthlyDriftRateNonAlly: 0.2,
+        goodRelationChangeMultiplier: 0.9,     // (was 1.0)
+        badRelationChangeMultiplier: 1.1,      // (was 1.0)
+        relationDailyDriftRate: 0.025,         // (was 0.02)
+        relationMonthlyDriftRateAlly: 0.06,    // (was 0.05)
+        relationMonthlyDriftRateNonAlly: 0.25, // (was 0.2)
         // Ally cold event settings
-        allyColdEventCooldown: 60,             // 2 months cooldown
-        allyColdEventChance: 0.004,            // 0.4% daily chance
-        // [NEW] Initial Buildings
-        initialBuildings: {
-            farm: 1,
-            lumber_camp: 1,
-            loom_house: 1
-        },
-    },
-    [DIFFICULTY_LEVELS.HARD]: {
-        id: DIFFICULTY_LEVELS.HARD,
-        name: '困难',
-        description: '高难度挑战，叛乱更频繁，敌人更具侵略性',
-        icon: '🔥',
-        // Organization/Rebellion modifiers
-        organizationGrowthMultiplier: 1.5,     // 150% organization growth rate
-        organizationDecayMultiplier: 0.5,      // 50% decay rate (slower calming)
-        satisfactionThreshold: 60,             // Higher threshold - unrest starts earlier
-        buildingCostGrowthFactor: 1.25,        // Steeper scaling (25%)
-        // AI War modifiers
-        aiWarDeclarationChance: 2.0,           // 200% war declaration chance
-        aiMilitaryActionChance: 1.5,           // 150% military action chance
-        aiMilitaryCooldownBonus: -5,           // Reduced cooldown (more frequent attacks)
-        aiMinWarEpoch: 1,                      // AI can declare war from Bronze Age (epoch 1)
-        // Raid modifiers
-        raidDamageMultiplier: 1.5,             // 150% raid damage
-        raidPopulationLossMultiplier: 1.5,     // 150% population loss
-        // Peace/Stability bonuses
-        stabilityDampeningBonus: -0.1,         // Reduced stability effect
-        newGameGracePeriod: 0,                 // No grace period
-        // Economic modifiers
-        inventoryTargetDaysMultiplier: 3.0,    // 300% inventory target (harder to maintain stable prices)
-        aiDevelopmentMultiplier: 3.0,          // [NEW] 300% AI development speed
-        // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 0.7,           // 70% tax tolerance (citizens hate taxes more)
-        resourceConsumptionMultiplier: 3.5,    // 300% consumption
-        buildingCostBaseMultiplier: 1.0,       // No base cost increase
-        techCostMultiplier: 3.0,               // 300% tech cost
-        startingSilverMultiplier: 4.0,         // [NEW] starting treasury boost to offset high early building costs
-        populationGrowthMultiplier: 0.8,       // 80% growth rate
-        buildingUpgradeCostMultiplier: 3.0,    // 300% upgrade cost
-        armyMaintenanceMultiplier: 1.5,       // 150% army maintenance
-        maxConsumptionMultiplierBonus: 8,      // +2 to max consumption multiplier (more consumption)
-
-        // Diplomacy/Relations modifiers
-        // On hard: improving relations is harder, worsening is easier
-        goodRelationChangeMultiplier: 0.75,
-        badRelationChangeMultiplier: 1.25,
-        relationDailyDriftRate: 0.03,
-        relationMonthlyDriftRateAlly: 0.08,
-        relationMonthlyDriftRateNonAlly: 0.35,
-        // Ally cold event settings
-        allyColdEventCooldown: 45,             // 1.5 months cooldown
-        allyColdEventChance: 0.005,            // 0.5% daily chance
+        allyColdEventCooldown: 50,             // 50 days cooldown (was 60)
+        allyColdEventChance: 0.005,            // 0.5% daily chance (was 0.004)
+        // Vassal independence modifiers
+        vassalIndependenceMultiplier: 1.3,     // 130% independence growth (was 1.0)
+        vassalIndependenceWarChance: 1.3,      // 130% independence war trigger chance (was 1.0)
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1,
             lumber_camp: 1
         },
     },
-    [DIFFICULTY_LEVELS.VERY_HARD]: {
-        id: DIFFICULTY_LEVELS.VERY_HARD,
-        name: '灾厄',
-        description: '极高难度，内忧外患接踵而至，生存即是胜利',
-        icon: '☠️',
+[DIFFICULTY_LEVELS.HARD]: {
+        id: DIFFICULTY_LEVELS.HARD,
+        name: '困难',
+        description: '高难度挑战，内忧外患不断，需要精心策划',
+        icon: '🔥',
         // Organization/Rebellion modifiers
-        organizationGrowthMultiplier: 2.0,     // 200% organization growth rate
-        organizationDecayMultiplier: 0.2,      // 20% decay rate
-        satisfactionThreshold: 75,             // Very high threshold
-        buildingCostGrowthFactor: 1.30,        // Very steep scaling (30%)
+        organizationGrowthMultiplier: 2.0,     // 200% organization growth rate (was 1.5)
+        organizationDecayMultiplier: 0.4,      // 40% decay rate (was 0.5)
+        satisfactionThreshold: 65,             // Higher threshold (was 60)
+        buildingCostGrowthFactor: 1.30,        // Steeper scaling (was 1.25)
         // AI War modifiers
-        aiWarDeclarationChance: 3.5,           // 350% war declaration chance
-        aiMilitaryActionChance: 2.5,           // 250% military action chance
-        aiMilitaryCooldownBonus: -10,          // Very reduced cooldown
-        aiMinWarEpoch: 0,                      // AI can declare war from start
+        aiWarDeclarationChance: 2.5,           // 250% war declaration chance (was 2.0)
+        aiMilitaryActionChance: 2.0,           // 200% military action chance (was 1.5)
+        aiMilitaryCooldownBonus: -8,           // More reduced cooldown (was -5)
+        aiMinWarEpoch: 0,                      // AI can declare war from start (was 1)
         // Raid modifiers
-        raidDamageMultiplier: 2.5,             // 250% raid damage
-        raidPopulationLossMultiplier: 2.5,     // 250% population loss
+        raidDamageMultiplier: 2.0,             // 200% raid damage (was 1.5)
+        raidPopulationLossMultiplier: 2.0,     // 200% population loss (was 1.5)
         // Peace/Stability bonuses
-        stabilityDampeningBonus: -0.2,         // Negative stability effect
+        stabilityDampeningBonus: -0.15,        // More negative effect (was -0.1)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 8.0,    // 800% inventory target (requires heavy stockpiling)
-        aiDevelopmentMultiplier: 5.0,          // [NEW] 500% AI development speed
+        inventoryTargetDaysMultiplier: 5.0,    // 500% inventory target (was 3.0)
+        aiDevelopmentMultiplier: 4.0,          // 400% AI development speed (was 3.0)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 0.4,           // 40% tax tolerance
-        resourceConsumptionMultiplier: 6.0,   // 500% consumption
-        buildingCostBaseMultiplier: 1.0,      // No base cost increase
-        techCostMultiplier: 6.0,              // 600% tech cost
-        startingSilverMultiplier: 6.0,        // [NEW] starting treasury boost to offset high early building costs
-        populationGrowthMultiplier: 0.5,       // 50% growth rate
-        buildingUpgradeCostMultiplier: 5.0,   // 500% upgrade cost
-        armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
-        maxConsumptionMultiplierBonus: 10,      // +4 to max consumption multiplier (much more consumption)
+        taxToleranceMultiplier: 0.6,           // 60% tax tolerance (was 0.7)
+        resourceConsumptionMultiplier: 4.5,    // 450% consumption (was 3.5)
+        buildingCostBaseMultiplier: 1.0,       // No base cost increase
+        techCostMultiplier: 4.0,               // 400% tech cost (was 3.0)
+        startingSilverMultiplier: 5.0,         // Increased starting silver (was 4.0)
+        populationGrowthMultiplier: 0.7,       // 70% growth rate (was 0.8)
+        buildingUpgradeCostMultiplier: 4.0,    // 400% upgrade cost (was 3.0)
+        armyMaintenanceMultiplier: 1.8,        // 180% army maintenance (was 1.5)
+        maxConsumptionMultiplierBonus: 9,      // +9 to max consumption (was 8)
 
         // Diplomacy/Relations modifiers
-        goodRelationChangeMultiplier: 0.6,
-        badRelationChangeMultiplier: 1.6,
-        relationDailyDriftRate: 0.04,
-        relationMonthlyDriftRateAlly: 0.1,
-        relationMonthlyDriftRateNonAlly: 0.5,
+        goodRelationChangeMultiplier: 0.65,    // (was 0.75)
+        badRelationChangeMultiplier: 1.4,      // (was 1.25)
+        relationDailyDriftRate: 0.035,         // (was 0.03)
+        relationMonthlyDriftRateAlly: 0.1,     // (was 0.08)
+        relationMonthlyDriftRateNonAlly: 0.45, // (was 0.35)
         // Ally cold event settings
-        allyColdEventCooldown: 60,             // 2 months cooldown (same as normal to avoid spam)
-        allyColdEventChance: 0.004,            // 0.4% daily chance (reduced from higher)
+        allyColdEventCooldown: 40,             // 40 days cooldown (was 45)
+        allyColdEventChance: 0.006,            // 0.6% daily chance (was 0.005)
+        // Vassal independence modifiers
+        vassalIndependenceMultiplier: 2.0,     // 200% independence growth (was 1.5)
+        vassalIndependenceWarChance: 2.0,      // 200% independence war trigger chance (was 1.5)
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1
         },
     },
-    [DIFFICULTY_LEVELS.EXTREME]: {
-        id: DIFFICULTY_LEVELS.EXTREME,
-        name: '地狱',
-        description: '绝望的深渊，只有最完美的策略才能存活',
-        icon: '👿',
+[DIFFICULTY_LEVELS.VERY_HARD]: {
+        id: DIFFICULTY_LEVELS.VERY_HARD,
+        name: '灾厄',
+        description: '极高难度，四面楚歌，只有最精妙的策略才能存活',
+        icon: '☠️',
         // Organization/Rebellion modifiers
-        organizationGrowthMultiplier: 3.0,     // 300% organization growth rate
-        organizationDecayMultiplier: 0.05,     // 5% decay rate
-        satisfactionThreshold: 80,             // Extreme threshold
-        buildingCostGrowthFactor: 1.40,        // Extreme scaling (40%)
+        organizationGrowthMultiplier: 2.5,     // 250% organization growth rate (was 2.0)
+        organizationDecayMultiplier: 0.15,     // 15% decay rate (was 0.2)
+        satisfactionThreshold: 80,             // Very high threshold (was 75)
+        buildingCostGrowthFactor: 1.35,        // Very steep scaling (was 1.30)
         // AI War modifiers
-        aiWarDeclarationChance: 5.0,           // 500% war declaration chance
-        aiMilitaryActionChance: 5.0,           // 500% military action chance
-        aiMilitaryCooldownBonus: -20,          // Very fast cooldown
+        aiWarDeclarationChance: 4.5,           // 450% war declaration chance (was 3.5)
+        aiMilitaryActionChance: 3.5,           // 350% military action chance (was 2.5)
+        aiMilitaryCooldownBonus: -15,          // More reduced cooldown (was -10)
         aiMinWarEpoch: 0,                      // AI can declare war from start
         // Raid modifiers
-        raidDamageMultiplier: 5.0,             // 500% raid damage
-        raidPopulationLossMultiplier: 5.0,     // 500% population loss
+        raidDamageMultiplier: 3.5,             // 350% raid damage (was 2.5)
+        raidPopulationLossMultiplier: 3.5,     // 350% population loss (was 2.5)
         // Peace/Stability bonuses
-        stabilityDampeningBonus: -0.5,         // Severe negative stability effect
+        stabilityDampeningBonus: -0.3,         // More negative stability effect (was -0.2)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 20.0,   // 2000% inventory target (extreme stockpiling required)
-        aiDevelopmentMultiplier: 8.0,          // [NEW] 800% AI development speed
+        inventoryTargetDaysMultiplier: 12.0,   // 1200% inventory target (was 8.0)
+        aiDevelopmentMultiplier: 6.0,          // 600% AI development speed (was 5.0)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 0.2,           // 20% tax tolerance
-        resourceConsumptionMultiplier: 8.0,    // 800% consumption
+        taxToleranceMultiplier: 0.3,           // 30% tax tolerance (was 0.4)
+        resourceConsumptionMultiplier: 7.5,    // 750% consumption (was 6.0)
         buildingCostBaseMultiplier: 1.0,       // No base cost increase
-        techCostMultiplier: 10.0,              // 1000% tech cost
-        startingSilverMultiplier: 10.0,        // [NEW] starting treasury boost to offset extreme early building costs
-        populationGrowthMultiplier: 0.2,       // 20% growth rate
-        buildingUpgradeCostMultiplier: 10.0,   // 1000% upgrade cost
-        armyMaintenanceMultiplier: 3.0,        // 300% army maintenance
-        maxConsumptionMultiplierBonus: 12,      // +8 to max consumption multiplier (extreme consumption)
+        techCostMultiplier: 8.0,               // 800% tech cost (was 6.0)
+        startingSilverMultiplier: 8.0,         // Increased starting silver (was 6.0)
+        populationGrowthMultiplier: 0.4,       // 40% growth rate (was 0.5)
+        buildingUpgradeCostMultiplier: 6.5,    // 650% upgrade cost (was 5.0)
+        armyMaintenanceMultiplier: 2.5,        // 250% army maintenance (was 2.0)
+        maxConsumptionMultiplierBonus: 11,     // +11 to max consumption (was 10)
 
         // Diplomacy/Relations modifiers
-        goodRelationChangeMultiplier: 0.45,
-        badRelationChangeMultiplier: 2.0,
-        relationDailyDriftRate: 0.05,
-        relationMonthlyDriftRateAlly: 0.12,
-        relationMonthlyDriftRateNonAlly: 0.7,
-        // Ally cold event settings (longer cooldown to prevent spam in extreme)
-        allyColdEventCooldown: 90,             // 3 months cooldown (increased to reduce spam)
-        allyColdEventChance: 0.003,            // 0.3% daily chance (reduced to prevent constant events)
+        goodRelationChangeMultiplier: 0.5,     // (was 0.6)
+        badRelationChangeMultiplier: 1.8,      // (was 1.6)
+        relationDailyDriftRate: 0.05,          // (was 0.04)
+        relationMonthlyDriftRateAlly: 0.12,    // (was 0.1)
+        relationMonthlyDriftRateNonAlly: 0.6,  // (was 0.5)
+        // Ally cold event settings
+        allyColdEventCooldown: 50,             // 50 days cooldown (was 60)
+        allyColdEventChance: 0.005,            // 0.5% daily chance (was 0.004)
+        // Vassal independence modifiers
+        vassalIndependenceMultiplier: 2.8,     // 280% independence growth (was 2.0)
+        vassalIndependenceWarChance: 2.8,      // 280% independence war trigger chance (was 2.0)
         // [NEW] Initial Buildings
-        initialBuildings: { loom_house: 1 },
+        initialBuildings: {},                  // No starting buildings (was farm: 1)
+    },
+[DIFFICULTY_LEVELS.EXTREME]: {
+        id: DIFFICULTY_LEVELS.EXTREME,
+        name: '地狱',
+        description: '绝望的深渊，每一步都是生死抉择，几乎无法通关',
+        icon: '👿',
+        // Organization/Rebellion modifiers
+        organizationGrowthMultiplier: 4.0,     // 400% organization growth rate (was 3.0)
+        organizationDecayMultiplier: 0.03,     // 3% decay rate (was 0.05)
+        satisfactionThreshold: 85,             // Extreme threshold (was 80)
+        buildingCostGrowthFactor: 1.50,        // Extreme scaling (was 1.40)
+        // AI War modifiers
+        aiWarDeclarationChance: 7.0,           // 700% war declaration chance (was 5.0)
+        aiMilitaryActionChance: 7.0,           // 700% military action chance (was 5.0)
+        aiMilitaryCooldownBonus: -25,          // Very fast cooldown (was -20)
+        aiMinWarEpoch: 0,                      // AI can declare war from start
+        // Raid modifiers
+        raidDamageMultiplier: 6.0,             // 600% raid damage (was 5.0)
+        raidPopulationLossMultiplier: 6.0,     // 600% population loss (was 5.0)
+        // Peace/Stability bonuses
+        stabilityDampeningBonus: -0.6,         // Severe negative stability effect (was -0.5)
+        newGameGracePeriod: 0,                 // No grace period
+        // Economic modifiers
+        inventoryTargetDaysMultiplier: 25.0,   // 2500% inventory target (was 20.0)
+        aiDevelopmentMultiplier: 10.0,         // 1000% AI development speed (was 8.0)
+        // [NEW] Configurable Parameters
+        taxToleranceMultiplier: 0.15,          // 15% tax tolerance (was 0.2)
+        resourceConsumptionMultiplier: 10.0,   // 1000% consumption (was 8.0)
+        buildingCostBaseMultiplier: 1.0,       // No base cost increase
+        techCostMultiplier: 12.0,              // 1200% tech cost (was 10.0)
+        startingSilverMultiplier: 12.0,        // Increased starting silver (was 10.0)
+        populationGrowthMultiplier: 0.15,      // 15% growth rate (was 0.2)
+        buildingUpgradeCostMultiplier: 12.0,   // 1200% upgrade cost (was 10.0)
+        armyMaintenanceMultiplier: 4.0,        // 400% army maintenance (was 3.0)
+        maxConsumptionMultiplierBonus: 15,     // +15 to max consumption (was 12)
+
+        // Diplomacy/Relations modifiers
+        goodRelationChangeMultiplier: 0.35,    // (was 0.45)
+        badRelationChangeMultiplier: 2.5,      // (was 2.0)
+        relationDailyDriftRate: 0.06,          // (was 0.05)
+        relationMonthlyDriftRateAlly: 0.15,    // (was 0.12)
+        relationMonthlyDriftRateNonAlly: 0.8,  // (was 0.7)
+        // Ally cold event settings (longer cooldown to prevent spam in extreme)
+        allyColdEventCooldown: 80,             // 80 days cooldown (was 90)
+        allyColdEventChance: 0.004,            // 0.4% daily chance (was 0.003)
+        // Vassal independence modifiers
+        vassalIndependenceMultiplier: 4.0,     // 400% independence growth (was 3.0)
+        vassalIndependenceWarChance: 4.0,      // 400% independence war trigger chance (was 3.0)
+        // [NEW] Initial Buildings
+        initialBuildings: {},                  // No starting buildings (was loom_house: 1)
     },
 };
 
@@ -551,6 +561,9 @@ export default {
     // Ally cold event settings
     getAllyColdEventCooldown,
     getAllyColdEventChance,
+    // Vassal independence settings
+    getVassalIndependenceMultiplier,
+    getVassalIndependenceWarChance,
 };
 
 /**
@@ -696,4 +709,28 @@ export function getArmyMaintenanceMultiplier(difficultyLevel) {
 export function getMaxConsumptionMultiplierBonus(difficultyLevel) {
     const config = getDifficultyConfig(difficultyLevel);
     return config.maxConsumptionMultiplierBonus || 0;
+}
+
+/**
+ * Get vassal independence growth multiplier
+ * Higher values = faster independence growth (harder difficulties make vassals more rebellious)
+ * Lower values = slower independence growth (easier difficulties make vassals more loyal)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getVassalIndependenceMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.vassalIndependenceMultiplier || 1.0;
+}
+
+/**
+ * Get vassal independence war trigger chance multiplier
+ * Higher values = more likely to trigger independence wars (harder)
+ * Lower values = less likely to trigger independence wars (easier)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getVassalIndependenceWarChance(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.vassalIndependenceWarChance || 1.0;
 }
