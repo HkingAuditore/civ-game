@@ -619,6 +619,7 @@ export const updateNations = ({
     population,
     stabilityValue,
     logs,
+    buildings = [],  // 新增：玩家建筑数据，用于战线系统    
     marketPrices = {},  // 新增：玩家市场价格，用于AI经济数据初始化和更新
     diplomaticReputation = 50, // Player's diplomatic reputation (0-100)
     difficultyLevel = 'normal', // Game difficulty level

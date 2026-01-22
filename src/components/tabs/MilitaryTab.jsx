@@ -271,6 +271,10 @@ const MilitaryTabComponent = ({
     militaryBonus = 0,
     // [FIX] Receive unified expense data from parent
     armyExpenseData: propArmyExpenseData,
+    // 战线兵团操作回调
+    onCreateCorps,
+    onDisbandCorps,
+    onIssueCorpsCommand,
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
@@ -281,7 +285,7 @@ const MilitaryTabComponent = ({
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    
+
     // Memoize queue counts to prevent recalculation on every render
     const queueCounts = useMemo(() => {
         return (militaryQueue || []).reduce((acc, item) => {
@@ -388,7 +392,7 @@ const MilitaryTabComponent = ({
 
     // 计算军队统计信息 - memoized to prevent recalculation
     const totalUnits = useMemo(() => Object.values(army).reduce((sum, count) => sum + count, 0), [army]);
-    
+
     // Memoize queue statistics
     const { waitingCount, trainingCount, queuePopulation } = useMemo(() => {
         const queue = militaryQueue || [];
@@ -403,7 +407,7 @@ const MilitaryTabComponent = ({
         }
         return { waitingCount: waiting, trainingCount: training, queuePopulation: queuePop };
     }, [militaryQueue]);
-    
+
     const totalArmyCount = totalUnits + waitingCount + trainingCount;
 
     // 计算军队总人口占用
@@ -971,18 +975,9 @@ const MilitaryTabComponent = ({
                     epoch={epoch}
                     playerId="player"
                     militaryBonus={militaryBonus}
-                    onCreateCorps={(warId, name, units, position) => {
-                        // TODO: 实现兵团创建逻辑
-                        console.log('Create corps:', { warId, name, units, position });
-                    }}
-                    onDisbandCorps={(corpsId) => {
-                        // TODO: 实现兵团解散逻辑
-                        console.log('Disband corps:', corpsId);
-                    }}
-                    onIssueCommand={(warId, corpsId, command) => {
-                        // TODO: 实现命令下达逻辑
-                        console.log('Issue command:', { warId, corpsId, command });
-                    }}
+                    onCreateCorps={onCreateCorps}
+                    onDisbandCorps={onDisbandCorps}
+                    onIssueCommand={onIssueCorpsCommand}
                 />
             )}
 

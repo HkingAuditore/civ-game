@@ -275,6 +275,7 @@ import { processManualTradeRoutes } from './economy/manualTrade';
 import {
     processPlayerWarDaily,
     processAIAIWarsDaily,
+    serializeFrontlineData,
 } from './diplomacy/frontlineIntegration';
 
 export const simulateTick = ({
@@ -767,7 +768,7 @@ export const simulateTick = ({
         incomePercent: activeOfficialEffects.incomePercentBonus,
     };
     applyEffects(officialEffectsForBonuses, bonuses);
-    
+
     // [DEBUG] Track after officials
     bonusDebug.afterOfficials = bonuses.incomePercentBonus || 0;
     // === 应用官员专属效果到 bonuses ===
@@ -857,10 +858,10 @@ export const simulateTick = ({
     if (stanceEffects.incomePercentBonus) {
         bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + stanceEffects.incomePercentBonus;
     }
-    
+
     // [DEBUG] Track after stance
     bonusDebug.afterStance = bonuses.incomePercentBonus || 0;
-    
+
     if (stanceEffects.buildingCostMod) {
         bonuses.buildingCostMod = (bonuses.buildingCostMod || 0) + stanceEffects.buildingCostMod;
     }
@@ -1052,7 +1053,7 @@ export const simulateTick = ({
     taxBonus = bonuses.taxBonus;
     needsReduction = bonuses.needsReduction;
     const incomePercentBonus = bonuses.incomePercentBonus || 0; // NEW: income percentage bonus
-    
+
     // [DEBUG] Log incomePercentBonus accumulation if abnormal
     if (Math.abs(incomePercentBonus) > 0.5) {
         console.warn('[INCOME BONUS ACCUMULATION]', {
@@ -1515,7 +1516,7 @@ export const simulateTick = ({
     // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正中
     // bonuses.taxBonus 是来自 effects.taxIncome 的累加值（如庆典效果、政令效果等）
     const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
-    
+
     // [FIX] 提前定义空岗位收入预估函数，用于 fillVacancies 时的智能工资判断
     // 逻辑与 simulation 尾部的 estimateVacantRoleIncome 类似，但只能使用上一 tick 的数据 (market.wages)
     const estimatePotentialIncomeForVacancy = (role) => {
@@ -1741,7 +1742,7 @@ export const simulateTick = ({
             ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
             : plannedPerCapitaTax;
         const due = count * effectivePerCapitaTax;
-        
+
         // [DEBUG] 人头税征收调试日志
         // if (Math.abs(headRate) > 5) { // 只在税率异常高时输出
         //     console.log(`[HEAD TAX DEBUG] ${key}:`, {
@@ -1756,7 +1757,7 @@ export const simulateTick = ({
         //         是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '是' : '否'
         //     });
         // }
-        
+
         if (due !== 0) {
             if (due > 0) {
                 const paid = Math.min(available, due);
@@ -4826,7 +4827,7 @@ export const simulateTick = ({
             // Clear any diplomatic actions
             next.relation = 0;
             next.alliedWithPlayer = false;
-            
+
             // Skip all AI simulation for this nation
             return next;
         }
@@ -4904,12 +4905,12 @@ export const simulateTick = ({
         if (!foreignPowerProfile.initializedAtTick) {
             const eraGap = Math.max(0, visibleEpoch - (foreignPowerProfile.appearEpoch ?? 0));
             const eraBonus = 1 + eraGap * 0.08;
-            
+
             // [MODIFIED] Generate dynamic strength relative to player
             // Some nations will be weaker (0.3-0.9x), some similar (0.9-1.5x), some stronger (1.5-10x)
             const strengthRoll = Math.random();
             let strengthMultiplier;
-            
+
             if (strengthRoll < 0.3) {
                 // 30% chance: Weak nation (0.3-0.9x player strength)
                 strengthMultiplier = 0.3 + Math.random() * 0.6;
@@ -4923,11 +4924,11 @@ export const simulateTick = ({
                 // 15% chance: Very strong nation (3-10x player strength)
                 strengthMultiplier = 3 + Math.random() * 7;
             }
-            
+
             // Apply nation's base characteristics and era bonus
             const basePopFactor = foreignPowerProfile.populationFactor * eraBonus;
             const baseWealthFactor = foreignPowerProfile.wealthFactor * eraBonus;
-            
+
             // Combine with strength multiplier
             const popFactor = clamp(
                 basePopFactor * strengthMultiplier,
@@ -4939,7 +4940,7 @@ export const simulateTick = ({
                 0.3,  // Allow weaker nations
                 10.0  // Allow much stronger nations
             );
-            
+
             const basePopInit = Math.max(3, Math.round(playerPopulationBaseline * popFactor));
             const baseWealthInit = Math.max(100, Math.round(playerWealthBaseline * wealthFactor));
             next.population = basePopInit;
@@ -4989,8 +4990,11 @@ export const simulateTick = ({
                 //     onResourceChange: onResourceChangeCallback,
                 //});
                 // raidPopulationLoss += militaryResult.raidPopulationLoss;
+            }
 
-                // [NEW] Frontline system - process player vs AI wars
+            // [NEW] Frontline system - process player vs AI wars
+            // Moved out of shouldUpdateAI to ensure daily updates for player wars
+            if (next.warTarget === 'player' || (next.isAtWar && !next.warTarget)) { // Fallback if warTarget missing but isAtWar
                 try {
                     const warResult = processPlayerWarDaily({
                         playerId: 'player',
@@ -5281,7 +5285,7 @@ export const simulateTick = ({
     const vassalMarketPrices = market?.prices || {};
     const playerAtWar = updatedNations.some(n => n.isAtWar && n.warTarget === 'player');
     const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
-    
+
     // 构建满意度上限计算所需的上下文
     const satisfactionContext = {
         suzereainWealth: res.silver || 10000,
@@ -5291,7 +5295,7 @@ export const simulateTick = ({
         suzereainReputation: diplomaticReputation ?? 50, // Use actual reputation value
         hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势力
     };
-    
+
     updatedNations = updatedNations.map(nation => {
         if (nation.vassalOf !== 'player') return nation;
         const initialized = initializeNationEconomyData({ ...nation }, vassalMarketPrices);
@@ -5495,7 +5499,7 @@ export const simulateTick = ({
         updatedOrganizations = updatedOrganizations.map(org => {
             const originalMemberCount = org.members?.length || 0;
             const cleanedMembers = (org.members || []).filter(memberId => validNationIds.has(memberId));
-            
+
             if (cleanedMembers.length < originalMemberCount) {
                 organizationUpdatesOccurred = true;
                 const removedCount = originalMemberCount - cleanedMembers.length;
@@ -5503,7 +5507,7 @@ export const simulateTick = ({
                     logs.push(`🏛️ "${org.name}" 清理了 ${removedCount} 个已消失的成员国。`);
                 }
             }
-            
+
             return {
                 ...org,
                 members: cleanedMembers,
@@ -6867,7 +6871,7 @@ export const simulateTick = ({
     //         'taxBreakdown.businessTax': taxBreakdown.businessTax.toFixed(2),
     //     });
     // }
-    
+
     // console.log('[TAX SUMMARY DEBUG]', {
     //     'taxBreakdown.headTax（实际入库）': taxBreakdown.headTax.toFixed(2),
     //     '税收效率': effectiveTaxEfficiency.toFixed(3),
@@ -7250,6 +7254,8 @@ export const simulateTick = ({
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
+        // [NEW] Frontline data for main thread synchronization
+        frontlineData: serializeFrontlineData(),
         // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
         _debug: {
             freeMarket: _freeMarketDebug,
