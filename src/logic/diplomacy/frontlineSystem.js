@@ -15,6 +15,7 @@ import {
     PLAYER_BUILDING_TO_FRONTLINE,
 } from '../../config/frontlineConfig.js';
 import { BUILDINGS } from '../../config/buildings.js';
+import { getBuildingLevelDistribution } from '../../utils/buildingUpgradeUtils.js';
 
 /**
  * 生成战线地图
@@ -34,6 +35,7 @@ export function generateFrontlineMap(playerId, playerState, enemyNation, current
     // 3. 选择并放置玩家建筑
     const playerBuildings = selectPlayerBuildingsForFrontline(
         playerState.buildings || [],
+        playerState.buildingUpgrades || {},
         scaleConfig.playerBuildings
     );
 
@@ -94,9 +96,10 @@ export function generateFrontlineMap(playerId, playerState, enemyNation, current
 /**
  * 根据玩家实际建筑情况选择战线上的建筑
  */
-function selectPlayerBuildingsForFrontline(playerBuildings, targetCount) {
+function selectPlayerBuildingsForFrontline(playerBuildings, buildingUpgrades, targetCount) {
     const selected = [];
-    const available = [...playerBuildings].filter(b => b.level > 0);
+    const available = normalizePlayerBuildingsForFrontline(playerBuildings, buildingUpgrades, targetCount)
+        .filter(b => (b.level ?? 0) >= 0);
 
     // 按优先级选择
     for (const buildingId of BUILDING_SELECTION_PRIORITY) {
@@ -142,6 +145,70 @@ function selectPlayerBuildingsForFrontline(playerBuildings, targetCount) {
     }
 
     return selected;
+}
+
+/**
+ * 统一玩家建筑数据结构，支持 {buildingId: count} 和数组格式
+ */
+function normalizePlayerBuildingsForFrontline(playerBuildings, buildingUpgrades, targetCount) {
+    if (!playerBuildings) return [];
+
+    // Already in array form
+    if (Array.isArray(playerBuildings)) {
+        const normalized = [];
+        playerBuildings.forEach((entry) => {
+            if (!entry) return;
+            if (entry.id && Number.isFinite(entry.level)) {
+                normalized.push({ id: entry.id, level: entry.level });
+                return;
+            }
+            if (entry.id && Number.isFinite(entry.count)) {
+                const count = Math.max(0, entry.count);
+                for (let i = 0; i < count; i++) {
+                    normalized.push({ id: entry.id, level: entry.level ?? 0 });
+                }
+            }
+        });
+        return normalized;
+    }
+
+    // Object map: { buildingId: count }
+    if (typeof playerBuildings === 'object') {
+        const normalized = [];
+        const cap = Number.isFinite(targetCount) && targetCount > 0 ? targetCount : null;
+
+        Object.entries(playerBuildings).forEach(([buildingId, countValue]) => {
+            const count = Math.max(0, Number(countValue) || 0);
+            if (count <= 0) return;
+
+            const levelCounts = buildingUpgrades?.[buildingId] || {};
+            const distribution = getBuildingLevelDistribution(buildingId, count, levelCounts);
+            const sortedLevels = Object.keys(distribution)
+                .map(level => parseInt(level, 10))
+                .filter(level => Number.isFinite(level))
+                .sort((a, b) => b - a);
+
+            let remaining = cap ? Math.min(count, cap) : count;
+            for (const level of sortedLevels) {
+                if (remaining <= 0) break;
+                const levelCount = distribution[level] || 0;
+                const toAdd = Math.min(levelCount, remaining);
+                for (let i = 0; i < toAdd; i++) {
+                    normalized.push({ id: buildingId, level });
+                }
+                remaining -= toAdd;
+            }
+
+            // Fill any remainder with level 0
+            for (let i = 0; i < remaining; i++) {
+                normalized.push({ id: buildingId, level: 0 });
+            }
+        });
+
+        return normalized;
+    }
+
+    return [];
 }
 
 /**

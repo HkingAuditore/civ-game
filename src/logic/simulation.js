@@ -4998,7 +4998,7 @@ export const simulateTick = ({
                 try {
                     const warResult = processPlayerWarDaily({
                         playerId: 'player',
-                        playerState: { buildings, resources: res, army },
+                        playerState: { buildings, buildingUpgrades, resources: res, army },
                         enemyNation: next,
                         gameState: { epoch, tick },
                         tick,
