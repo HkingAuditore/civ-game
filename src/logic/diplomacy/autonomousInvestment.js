@@ -53,15 +53,16 @@ export function processClassAutonomousInvestment({
         // 3. Check for economic_pact (also allows investment)
         const hasEconomicPact = hasActiveTreaty(targetNation, 'economic_pact', daysElapsed);
 
-        // 4. Check for investment_pact in diplomacy organizations (multilateral)
-        const hasOrgInvestmentPact = diplomacyOrganizations?.organizations?.some(org =>
-            org.type === 'investment_pact' &&
+        // 4. Check for economic_bloc in diplomacy organizations (multilateral)
+        // Economic bloc members can invest in each other
+        const hasOrgEconomicBloc = diplomacyOrganizations?.organizations?.some(org =>
+            org.type === 'economic_bloc' && // [FIX] Correct type: economic_bloc
             org.members?.includes('player') &&
             org.members?.includes(targetNation.id)
         ) || false;
 
-        const canInvest = isVassal || hasInvestmentPact || hasEconomicPact || hasOrgInvestmentPact;
-        console.log(`🤖 [AUTO-INVEST] 检查目标 ${targetNation.name}: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgPact=${hasOrgInvestmentPact} => ${canInvest}`);
+        const canInvest = isVassal || hasInvestmentPact || hasEconomicPact || hasOrgEconomicBloc;
+        console.log(`🤖 [AUTO-INVEST] 检查目标 ${targetNation.name}: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgEconomicBloc=${hasOrgEconomicBloc} => ${canInvest}`);
         return canInvest;
     };
     const isEconomicAidActive = (targetNation) => {
@@ -218,17 +219,23 @@ export function processAIInvestment({
         const isVassal = investorNation.vassalOf === targetId && investorNation.vassalType !== 'colony';
         const isSuzerain = target.vassalOf === investorNation.id;
 
-        // Treaty check (Investment Pact) using diplomacyOrganizations
-        const hasInvestmentTreaty = diplomacyOrganizations?.organizations?.some(org =>
-            org.type === 'economic_pact' && // Economic pacts allow investment
+        // Treaty check using diplomacyOrganizations
+        // Check if both nations are in the same economic_bloc (economic organization allows investment)
+        const hasEconomicOrg = diplomacyOrganizations?.organizations?.some(org =>
+            org.type === 'economic_bloc' && // [FIX] Correct type: economic_bloc not economic_pact
             org.members.includes(investorNation.id) &&
             org.members.includes(targetId)
         );
 
-        // Direct Treaty check
-        const hasDirectPact = hasActiveTreaty(investorNation, 'investment_pact', daysElapsed);
+        // Direct Treaty check - Check if investor nation has investment_pact or economic_pact with player
+        const hasInvestmentPact = hasActiveTreaty(investorNation, 'investment_pact', daysElapsed);
+        const hasEconomicPact = hasActiveTreaty(investorNation, 'economic_pact', daysElapsed);
 
-        return isVassal || isSuzerain || hasInvestmentTreaty || hasDirectPact;
+        const canInvest = isVassal || isSuzerain || hasEconomicOrg || hasInvestmentPact || hasEconomicPact;
+        
+        console.log(`[AI投资检查] ${investorNation.name} -> ${targetId}: isVassal=${isVassal}, isSuzerain=${isSuzerain}, hasEconomicOrg=${hasEconomicOrg}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact} => ${canInvest}`);
+        
+        return canInvest;
     };
     // 1. Check AI capability
     // Must be Civilized or Industrial era (Epoch 2+) to invest
@@ -300,7 +307,7 @@ export function processAIInvestment({
             let totalSlots = 0;
             let filledSlots = 0;
             Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
-                const totalRoleSlots = slotsPerBuilding * buildingCount;
+                const totalRoleSlots = slotsPerBuilding * playerBuildingCount;
                 totalSlots += totalRoleSlots;
                 filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
             });

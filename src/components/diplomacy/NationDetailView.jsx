@@ -101,6 +101,25 @@ const NationDetailView = ({
         { id: 'vassal', label: '附庸管理' },
     ];
 
+    const sharedMilitaryAlliance = useMemo(() => {
+        const orgs = diplomacyOrganizations?.organizations || [];
+        return orgs.find(org =>
+            org?.type === 'military_alliance' &&
+            Array.isArray(org.members) &&
+            org.members.includes('player') &&
+            org.members.includes(nation.id)
+        );
+    }, [diplomacyOrganizations, nation.id]);
+
+    const isPlayerVassalTarget = nation.vassalOf === 'player';
+
+    const declareWarDisabled = Boolean(sharedMilitaryAlliance) || isPlayerVassalTarget;
+    const declareWarDesc = sharedMilitaryAlliance
+        ? `无法宣战：同属军事组织 ${sharedMilitaryAlliance.name}，需先退出。`
+        : isPlayerVassalTarget
+            ? '无法宣战：该国为你的附庸。'
+            : '开启战争！这将导致声誉受损和贸易中断。';
+
     return (
         <div className="flex flex-col h-full bg-theme-surface-trans">
             <div
@@ -255,10 +274,11 @@ const NationDetailView = ({
                             <ActionCard
                                 icon="Swords"
                                 title="宣战"
-                                desc="开启战争！这将导致声誉受损和贸易中断。"
+                                desc={declareWarDesc}
                                 cost="声誉/关系"
                                 onClick={() => onDeclareWar?.()}
                                 color="red"
+                                disabled={declareWarDisabled}
                             />
                         )}
                     </div>

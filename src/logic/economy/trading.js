@@ -59,6 +59,38 @@ const pickTopN = (items = [], n = 10) => {
     return sorted.slice(0, Math.max(0, n));
 };
 
+/**
+ * Merge a new trade into existing pending trades if possible
+ * Merges trades with same: partnerId, resource, type, daysRemaining
+ * @returns {boolean} true if merged, false if should add as new trade
+ */
+const tryMergeTrade = (pendingTrades, newTrade) => {
+    if (!newTrade || !Array.isArray(pendingTrades)) return false;
+    
+    // Find existing trade that matches all merge criteria
+    const existingTrade = pendingTrades.find(t => 
+        t.partnerId === newTrade.partnerId &&
+        t.resource === newTrade.resource &&
+        t.type === newTrade.type &&
+        t.daysRemaining === newTrade.daysRemaining
+    );
+    
+    if (existingTrade) {
+        // Merge the trades by accumulating values
+        existingTrade.amount += newTrade.amount;
+        existingTrade.revenue += newTrade.revenue;
+        existingTrade.profit += newTrade.profit;
+        existingTrade.capitalLocked += newTrade.capitalLocked;
+        
+        // Track merge count for debugging/display purposes (matches frontend field name)
+        existingTrade.count = (existingTrade.count || 1) + 1;
+        
+        return true; // Successfully merged
+    }
+    
+    return false; // No matching trade found, should add as new
+};
+
 const getNationRelationToPlayer = (nation) => {
     // Player-to-AI relation is stored on AI nation as `relation`
     return safeNumber(nation?.relation, 50);
@@ -738,7 +770,13 @@ export const simulateMerchantTrade = ({
 
                 if (result.success) {
                     capitalInvestedThisTick += result.outlay;
-                    updatedPendingTrades.push(result.trade);
+                    
+                    // Try to merge with existing trade, otherwise add as new
+                    const merged = tryMergeTrade(updatedPendingTrades, result.trade);
+                    if (!merged) {
+                        updatedPendingTrades.push(result.trade);
+                    }
+                    
                     lastTradeTime = tick;
                     tradesCreatedForPartner++; // [DEBUG] Count trades created
                     // 添加新交易发起日志
@@ -773,7 +811,13 @@ export const simulateMerchantTrade = ({
 
                 if (result.success) {
                     capitalInvestedThisTick += result.cost;
-                    updatedPendingTrades.push(result.trade);
+                    
+                    // Try to merge with existing trade, otherwise add as new
+                    const merged = tryMergeTrade(updatedPendingTrades, result.trade);
+                    if (!merged) {
+                        updatedPendingTrades.push(result.trade);
+                    }
+                    
                     lastTradeTime = tick;
                     tradesCreatedForPartner++; // [DEBUG] Count trades created
                     // 添加新交易发起日志
@@ -975,7 +1019,8 @@ const executeExportTradeV2 = ({
             revenue: revenue * batchMultiplier,
             profit: effectiveProfit * batchMultiplier,
             daysRemaining: tradeConfig.tradeDuration,
-            capitalLocked: totalOutlay
+            capitalLocked: totalOutlay,
+            count: 1 // Initialize count for merge tracking
         }
     };
 };
@@ -1129,7 +1174,8 @@ const executeImportTradeV2 = ({
             revenue: grossRevenue * batchMultiplier,
             profit: effectiveProfit * batchMultiplier,
             daysRemaining: tradeConfig.tradeDuration,
-            capitalLocked: totalCost
+            capitalLocked: totalCost,
+            count: 1 // Initialize count for merge tracking
         }
     };
 };

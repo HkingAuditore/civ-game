@@ -511,6 +511,31 @@ const TradeRoutesModal = ({
         });
     }, [selectedResource, visibleNations, daysElapsed, localSelectedPrice, priceSortField, priceSortDir]);
 
+    // Merge pending trades by partner, resource, type, and daysRemaining
+    const mergedPendingTrades = useMemo(() => {
+        const tradeMap = new Map();
+        
+        pendingTrades.forEach(trade => {
+            // Create a unique key for grouping: partnerId-resource-type-daysRemaining
+            const key = `${trade.partnerId}-${trade.resource}-${trade.type}-${trade.daysRemaining || 0}`;
+            
+            if (tradeMap.has(key)) {
+                // Merge with existing trade
+                const existing = tradeMap.get(key);
+                existing.amount += (trade.amount || 0);
+                existing.count += 1; // Track how many trades were merged
+            } else {
+                // Add new trade entry
+                tradeMap.set(key, {
+                    ...trade,
+                    count: 1 // Initialize count
+                });
+            }
+        });
+        
+        return Array.from(tradeMap.values());
+    }, [pendingTrades]);
+
     const tabs = [
         { id: 'assignments', label: '派驻商人', shortLabel: '派驻', count: assignedTotal, icon: 'Users' },
         { id: 'activeTrades', label: '进行中贸易', shortLabel: '进行中', count: pendingTrades.length, icon: 'Loader' },
@@ -899,6 +924,15 @@ const TradeRoutesModal = ({
                                 </div>
                             ) : (
                                 <div className="space-y-2">
+                                    {/* Summary info */}
+                                    <div className="p-2 rounded-lg bg-gray-800/30 border border-white/5 text-[10px] text-gray-400">
+                                        原始交易记录: <span className="text-amber-300">{pendingTrades.length}</span> 笔
+                                        <span className="text-gray-600 mx-1">·</span>
+                                        合并后显示: <span className="text-green-300">{mergedPendingTrades.length}</span> 条
+                                        <span className="text-gray-600 mx-1">·</span>
+                                        <span className="text-gray-500">已自动合并相同国家、商品、类型的贸易</span>
+                                    </div>
+
                                     {/* Header */}
                                     <div className="grid grid-cols-12 gap-1 sm:gap-2 px-1 sm:px-2 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
                                         <div className="col-span-2">类型</div>
@@ -908,8 +942,8 @@ const TradeRoutesModal = ({
                                         <div className="col-span-2 text-right">剩余</div>
                                     </div>
 
-                                    {/* Trades list */}
-                                    {pendingTrades.map((trade, idx) => {
+                                    {/* Trades list - using merged trades */}
+                                    {mergedPendingTrades.map((trade, idx) => {
                                         const resourceDef = RESOURCES[trade.resource];
                                         const resourceName = resourceDef?.name || trade.resource;
                                         const resourceIcon = resourceDef?.icon || 'Box';
@@ -919,6 +953,7 @@ const TradeRoutesModal = ({
                                         const staticNationDef = !partnerNation ? COUNTRIES.find(c => c.id === trade.partnerId) : null;
                                         const partnerName = partnerNation?.name || staticNationDef?.name || trade.partnerId || '未知';
                                         const isExport = trade.type === 'export';
+                                        const isMerged = trade.count > 1;
 
                                         return (
                                             <div
@@ -936,6 +971,11 @@ const TradeRoutesModal = ({
                                                         }`}>
                                                         {isExport ? '出口' : '进口'}
                                                     </span>
+                                                    {isMerged && (
+                                                        <div className="text-[9px] text-amber-300 mt-0.5">
+                                                            ×{trade.count}
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Resource */}

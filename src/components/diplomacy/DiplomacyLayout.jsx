@@ -237,6 +237,7 @@ const DiplomacyLayout = ({
                     return Math.max(0.1, baseStrength - garrisonCommitment);
                 })()}
                 epoch={epoch}
+                difficultyLevel={gameState?.difficulty || 'normal'}
                 // 外交审批相关 props
                 nations={nations}
                 diplomacyOrganizations={diplomacyOrganizations}
