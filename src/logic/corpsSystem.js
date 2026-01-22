@@ -148,15 +148,20 @@ export function issueAttackCommand(corps, target, frontlineMap) {
     const isBuilding = target.type && !target.units;
     const commandType = isBuilding ? CORPS_COMMANDS.ATTACK_BUILDING : CORPS_COMMANDS.ATTACK_CORPS;
 
-    // 如果不相邻，先移动
+    // 如果是建筑，移动到相邻格；如果是敌方兵团，移动到其位置触发遭遇战
     const distance = calculateDistance(corps.position, target.position);
-    if (distance > 1.5) {
-        // 移动到目标相邻位置
-        const adjacentPos = findAdjacentPosition(target.position, frontlineMap, corps.position);
-        corps.targetPosition = adjacentPos;
-        corps.state = 'moving';
+    if (isBuilding) {
+        if (distance > 1) {
+            const adjacentPos = findAdjacentPosition(target.position, frontlineMap, corps.position);
+            corps.targetPosition = adjacentPos;
+            corps.state = 'moving';
+        } else {
+            corps.state = 'attacking';
+            corps.targetPosition = null;
+        }
     } else {
-        corps.state = 'attacking';
+        corps.targetPosition = { ...target.position };
+        corps.state = 'moving';
     }
 
     corps.pendingCommand = {
@@ -267,9 +272,10 @@ function isValidPosition(position, frontlineMap) {
  * 计算两点间距离
  */
 function calculateDistance(pos1, pos2) {
-    const dx = pos2.x - pos1.x;
-    const dy = pos2.y - pos1.y;
-    return Math.sqrt(dx * dx + dy * dy);
+    const dx = pos1.x - pos2.x;
+    const dz = pos1.y - pos2.y;
+    const dy = (-pos1.x - pos1.y) - (-pos2.x - pos2.y);
+    return (Math.abs(dx) + Math.abs(dy) + Math.abs(dz)) / 2;
 }
 
 /**
@@ -277,14 +283,12 @@ function calculateDistance(pos1, pos2) {
  */
 function findAdjacentPosition(targetPos, frontlineMap, currentPos) {
     const directions = [
-        { dx: -1, dy: 0 },
         { dx: 1, dy: 0 },
-        { dx: 0, dy: -1 },
-        { dx: 0, dy: 1 },
-        { dx: -1, dy: -1 },
         { dx: 1, dy: -1 },
+        { dx: 0, dy: -1 },
+        { dx: -1, dy: 0 },
         { dx: -1, dy: 1 },
-        { dx: 1, dy: 1 },
+        { dx: 0, dy: 1 },
     ];
 
     let bestPos = null;

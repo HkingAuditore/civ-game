@@ -461,7 +461,7 @@ export function calculateCorpsStrength(corps) {
  */
 export function calculateCorpsSpeed(corps, terrain, position) {
     // 获取单位最低速度（以最慢单位为准）
-    let minSpeed = 5;  // 默认速度
+    let minSpeed = 1;  // 默认速度（每日一格）
 
     // 地形修正
     const terrainCell = terrain[position.y]?.[position.x] || 'plain';
@@ -474,7 +474,7 @@ export function calculateCorpsSpeed(corps, terrain, position) {
     // 士气修正
     const moraleModifier = corps.morale > 50 ? 1.0 : 0.7;
 
-    return Math.max(1, Math.floor(minSpeed * terrainModifier * supplyModifier * moraleModifier));
+    return Math.max(1, Math.round(minSpeed * terrainModifier * supplyModifier * moraleModifier));
 }
 
 // ==================== 每日处理 ====================
@@ -541,32 +541,91 @@ function processCorpsMovement(corps, frontlineMap) {
     if (!corps.targetPosition) return null;
 
     const speed = calculateCorpsSpeed(corps, frontlineMap.terrain, corps.position);
-    const dx = corps.targetPosition.x - corps.position.x;
-    const dy = corps.targetPosition.y - corps.position.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    const steps = Math.max(1, speed);
+    let arrived = false;
 
-    if (distance <= speed) {
-        // 到达目标
+    for (let i = 0; i < steps; i++) {
+        const distance = getHexDistance(corps.position, corps.targetPosition);
+        if (distance <= 0) {
+            arrived = true;
+            break;
+        }
+        const nextPos = stepTowardTarget(corps.position, corps.targetPosition, frontlineMap);
+        if (!nextPos) break;
+        corps.position = nextPos;
+    }
+
+    if (getHexDistance(corps.position, corps.targetPosition) <= 0) {
         corps.position = { ...corps.targetPosition };
         corps.targetPosition = null;
-        corps.state = 'idle';
+        if (corps.pendingCommand?.type === 'siege' || corps.pendingCommand?.type === 'attack') {
+            corps.state = 'attacking';
+        } else if (corps.pendingCommand?.type === 'retreat') {
+            corps.state = 'idle';
+        } else {
+            corps.state = 'idle';
+        }
+        arrived = true;
+    }
 
+    if (arrived) {
         return {
             type: 'corps_arrived',
             corpsId: corps.id,
             corpsName: corps.name,
             position: corps.position,
         };
-    } else {
-        // 继续移动
-        const ratio = speed / distance;
-        corps.position = {
-            x: Math.round(corps.position.x + dx * ratio),
-            y: Math.round(corps.position.y + dy * ratio),
-        };
-
-        return null;
     }
+
+    return null;
+}
+
+function getHexDistance(pos1, pos2) {
+    const dx = pos1.x - pos2.x;
+    const dz = pos1.y - pos2.y;
+    const dy = (-pos1.x - pos1.y) - (-pos2.x - pos2.y);
+    return (Math.abs(dx) + Math.abs(dy) + Math.abs(dz)) / 2;
+}
+
+function getHexNeighbors(position) {
+    const directions = [
+        { dx: 1, dy: 0 },
+        { dx: 1, dy: -1 },
+        { dx: 0, dy: -1 },
+        { dx: -1, dy: 0 },
+        { dx: -1, dy: 1 },
+        { dx: 0, dy: 1 },
+    ];
+    return directions.map(dir => ({
+        x: position.x + dir.dx,
+        y: position.y + dir.dy,
+    }));
+}
+
+function stepTowardTarget(currentPos, targetPos, frontlineMap) {
+    let bestPos = null;
+    let bestDistance = Infinity;
+    const candidates = getHexNeighbors(currentPos);
+
+    for (const candidate of candidates) {
+        if (!isValidPosition(candidate, frontlineMap)) continue;
+        const distance = getHexDistance(candidate, targetPos);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestPos = candidate;
+        }
+    }
+
+    return bestPos;
+}
+
+function isValidPosition(position, frontlineMap) {
+    return (
+        position.x >= 0 &&
+        position.x < frontlineMap.width &&
+        position.y >= 0 &&
+        position.y < frontlineMap.height
+    );
 }
 
 /**
@@ -719,8 +778,7 @@ function processBuildingAttack(corps, frontlineMap) {
     // 查找相邻的敌方建筑
     const targetBuilding = frontlineMap.buildings.find(b =>
         b.owner !== corps.owner &&
-        Math.abs(b.position.x - corps.position.x) <= 1 &&
-        Math.abs(b.position.y - corps.position.y) <= 1
+        getHexDistance(b.position, corps.position) <= 1
     );
 
     if (!targetBuilding) {

@@ -76,6 +76,8 @@ import { frontlineManager } from '../logic/diplomacy/frontlineIntegration';
 import {
     createCorpsFromArmy,
     disbandCorps as disbandCorpsFromSystem,
+    issueMovementCommand,
+    issueAttackCommand,
     issueDefendCommand,
     issueRetreatCommand,
 } from '../logic/corpsSystem';
@@ -5970,7 +5972,7 @@ export const useGameActions = (gameState, addLog) => {
      * 向兵团下达命令
      * @param {string} warId - 战争ID
      * @param {string} corpsId - 兵团ID
-     * @param {string} command - 命令类型 ('defend' | 'retreat')
+     * @param {string} command - 命令类型 ('move' | 'attack' | 'siege' | 'defend' | 'retreat')
      * @param {Object} target - 命令目标（可选）
      */
     const issueCorpsCommand = (warId, corpsId, command, target = null) => {
@@ -5988,6 +5990,32 @@ export const useGameActions = (gameState, addLog) => {
 
         let result;
         switch (command) {
+            case 'move': {
+                const targetPosition = target?.position || target;
+                if (!targetPosition) {
+                    result = { success: false, error: '移动目标无效' };
+                    addLog('❌ 移动目标无效');
+                    break;
+                }
+                result = issueMovementCommand(corps, targetPosition, frontline);
+                if (result.success) {
+                    addLog(`➡️ 兵团「${corps.name}」开始移动`);
+                }
+                break;
+            }
+            case 'attack':
+            case 'siege': {
+                if (!target || !target.position) {
+                    result = { success: false, error: '攻击目标无效' };
+                    addLog('❌ 攻击目标无效');
+                    break;
+                }
+                result = issueAttackCommand(corps, target, frontline);
+                if (result.success) {
+                    addLog(`⚔️ 兵团「${corps.name}」发起进攻`);
+                }
+                break;
+            }
             case 'defend':
                 result = issueDefendCommand(corps);
                 if (result.success) {
