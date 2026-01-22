@@ -8,7 +8,7 @@ export default defineConfig({
     base: './',
     define: {
         // 禁用 React DevTools Profiler，避免大状态对象克隆导致内存溢出
-        '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })',
+        '__REACT_DEVTOOLS_GLOBAL_HOOK__': JSON.stringify({ isDisabled: true }),
     },
     build: {
         // 目标 ES2018，兼容 Android 8.0+ (Chrome 62+) 的 WebView
