@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DiplomacyDashboard from './DiplomacyDashboard';
 import NationList from './NationList';
 import NationDetailView from './NationDetailView';
@@ -91,6 +91,10 @@ const DiplomacyLayout = ({
         setVassalSheetNationId(nation?.id);
         setVassalSheetOpen(true);
     };
+
+    const handleApplyVassalPolicy = useCallback((nationId, policy) => {
+        onDiplomaticAction?.(nationId, 'adjust_vassal_policy', { policy });
+    }, [onDiplomaticAction]);
 
     // 当选中国家时，移动端自动打开详情页
     useEffect(() => {
@@ -215,9 +219,7 @@ const DiplomacyLayout = ({
                 playerResources={resources}
                 playerWealth={resources?.silver || gameState?.silver || 10000}
                 playerPopulation={gameState?.population || 1000000}
-                onApplyVassalPolicy={(nationId, policy) => {
-                    onDiplomaticAction?.(nationId, 'adjust_vassal_policy', { policy });
-                }}
+                onApplyVassalPolicy={handleApplyVassalPolicy}
                 onDiplomaticAction={onDiplomaticAction}
                 officials={gameState?.officials || []}
                 playerMilitary={(() => {

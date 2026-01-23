@@ -844,13 +844,26 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const didInitRef = useRef(false);
     const debounceTimerRef = useRef(null);
     const pendingPolicyRef = useRef(null);
+    const lastAppliedRef = useRef({ nationId: null, payloadKey: null });
+    const policyPayload = useMemo(() => buildPolicyPayload(), [buildPolicyPayload]);
+    const policyPayloadKey = useMemo(() => JSON.stringify(policyPayload), [policyPayload]);
     useEffect(() => {
         if (!nation) return;
 
-        pendingPolicyRef.current = buildPolicyPayload();
+        pendingPolicyRef.current = policyPayload;
+
+        if (lastAppliedRef.current.nationId !== nation.id) {
+            lastAppliedRef.current = { nationId: nation.id, payloadKey: policyPayloadKey };
+            didInitRef.current = true;
+            return;
+        }
 
         if (!didInitRef.current) {
             didInitRef.current = true;
+            return;
+        }
+
+        if (lastAppliedRef.current.payloadKey === policyPayloadKey) {
             return;
         }
 
@@ -860,6 +873,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
 
         debounceTimerRef.current = setTimeout(() => {
             if (pendingPolicyRef.current) {
+                lastAppliedRef.current = { nationId: nation.id, payloadKey: policyPayloadKey };
                 onApplyPolicy?.(pendingPolicyRef.current);
             }
         }, 250);
@@ -869,11 +883,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 clearTimeout(debounceTimerRef.current);
             }
         };
-    }, [
-        nation,
-        buildPolicyPayload,
-        onApplyPolicy,
-    ]);
+    }, [nation?.id, policyPayload, policyPayloadKey, onApplyPolicy]);
 
     useEffect(() => {
         return () => {
