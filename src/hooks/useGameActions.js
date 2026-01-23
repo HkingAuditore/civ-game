@@ -1861,8 +1861,8 @@ export const useGameActions = (gameState, addLog) => {
      */
     const fireExistingOfficial = (officialId) => {
         const official = officials.find(o => o.id === officialId);
-        const newOfficials = fireOfficial(officialId, officials);
-        setOfficials(newOfficials);
+        // Use functional update to avoid stale state when firing multiple officials in sequence.
+        setOfficials(prev => fireOfficial(officialId, prev));
         clearOfficialFromAssignments(officialId);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
@@ -1888,17 +1888,20 @@ export const useGameActions = (gameState, addLog) => {
      * @param {string} disposalType - 处置类型 ('exile' | 'execute')
      */
     const disposeExistingOfficial = (officialId, disposalType) => {
-        const result = disposeOfficial(officialId, disposalType, officials, daysElapsed);
+        let removedOfficial = null;
+        let result = null;
+        setOfficials(prev => {
+            removedOfficial = prev.find(o => o.id === officialId) || null;
+            result = disposeOfficial(officialId, disposalType, prev, daysElapsed);
+            return result.success ? result.newOfficials : prev;
+        });
 
-        if (!result.success) {
-            addLog(`处置失败：${result.error}`);
+        if (!result || !result.success) {
+            addLog(`处置失败：${result?.error || '未找到该官员'}`);
             return;
         }
 
-        const official = officials.find(o => o.id === officialId);
-
-        // 更新官员列表
-        setOfficials(result.newOfficials);
+        const official = removedOfficial;
         clearOfficialFromAssignments(officialId);
 
         // 获取没收的财产
