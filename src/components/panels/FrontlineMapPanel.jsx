@@ -101,17 +101,18 @@ export const FrontlineMapPanel = ({
     // ============================================
     // 文明6风格六边形布局 - 尖顶六边形 (Pointy-Top Hex)
     // ============================================
-    // 
+    //
     // 尖顶六边形数学:
     //   设六边形边长 = s
     //   宽度 W = s × √3 ≈ s × 1.732
     //   高度 H = s × 2
     //
     // 紧密排列（边贴边，无间隙）:
-    //   列间距 (水平) = W × 1.0       (六边形宽度)
-    //   行间距 (垂直) = H × 0.75      (高度的3/4，因为上下交错重叠1/4)
-    //   奇数列偏移    = H × 0.5       (向下偏移半个高度)
+    //   列间距 (水平) = W × 1.0
+    //   行间距 (垂直) = s × 1.5       (高度的3/4)
+    //   奇数列偏移    = s × 0.75      (行间距的一半)
     //
+    // 采用 odd-q（列偏移）布局：奇数列整体向下偏移
     // ============================================
     
     const HEX_SIDE = 28; // 六边形边长（基础值）
@@ -119,33 +120,24 @@ export const FrontlineMapPanel = ({
     
     // 六边形精确尺寸
     const hexWidth = side * Math.sqrt(3);  // W = s × √3
-    const hexHeight = side * 2;             // H = s × 2
+    const hexHeight = side * 2;            // H = s × 2
     
     // 紧密排列间距（关键！）
-    const colSpacing = hexWidth;            // 列间距 = 宽度
-    const rowSpacing = hexHeight * 0.75;    // 行间距 = 高度 × 0.75
-    const oddColOffset = hexHeight * 0.5;   // 奇数列向下偏移 = 高度 × 0.5
+    const colSpacing = hexWidth;           // 列间距 = 宽度
+    const rowSpacing = side * 1.5;         // 行间距 = s × 1.5
+    const oddColOffset = side * 0.75;      // 奇数列向下偏移 = s × 0.75
 
     // 计算地图总像素尺寸
     const mapPixelSize = useMemo(() => {
-        // 宽度 = (列数-1) × 列间距 + 一个六边形宽度
         const pixelWidth = (width - 1) * colSpacing + hexWidth;
-        // 高度 = (行数-1) × 行间距 + 一个六边形高度 + 可能的奇数列偏移
         const pixelHeight = (height - 1) * rowSpacing + hexHeight + (width > 1 ? oddColOffset : 0);
         return { width: pixelWidth + 20, height: pixelHeight + 20 };
     }, [width, height, hexWidth, hexHeight, colSpacing, rowSpacing, oddColOffset]);
 
     // 获取六边形中心位置
     const getHexPosition = useCallback((col, row) => {
-        // 六边形左上角位置（不是中心）
         const left = col * colSpacing;
-        let top = row * rowSpacing;
-        
-        // 奇数列向下偏移半个高度
-        if (col % 2 === 1) {
-            top += oddColOffset;
-        }
-        
+        const top = row * rowSpacing + (col % 2 === 1 ? oddColOffset : 0);
         return { left, top };
     }, [colSpacing, rowSpacing, oddColOffset]);
 
@@ -181,7 +173,7 @@ export const FrontlineMapPanel = ({
         onIssueCommand?.(selectedCorps, 'move', { position: { x, y } });
     }, [corpsByPosition, buildingsByPosition, selectedCorps, playerId, onSelectCell, onSelectCorps, onIssueCommand]);
 
-    // 渲染单个格子 - 使用平顶六边形
+    // 渲染单个格子 - 尖顶六边形
     const renderCell = useCallback((x, y) => {
         const terrainType = terrain[y]?.[x] || 'plain';
         const terrainConfig = TERRAIN_ICONS[terrainType] || TERRAIN_ICONS.plain;
