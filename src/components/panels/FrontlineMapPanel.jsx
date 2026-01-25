@@ -3,7 +3,7 @@
  * 显示战线地图、兵团位置、建筑状态和战争信息
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Icon } from '../common/UIComponents';
 import {
     TERRAIN_TYPES,
@@ -48,6 +48,7 @@ export const FrontlineMapPanel = ({
     const [viewMode, setViewMode] = useState('terrain'); // terrain, control, threat
     const [showGrid, setShowGrid] = useState(true);
     const [mapScale, setMapScale] = useState(1); // 地图缩放比例
+    const mapViewportRef = useRef(null);
 
     if (!frontlineMap || !frontlineMap.active) {
         return (
@@ -172,6 +173,22 @@ export const FrontlineMapPanel = ({
 
         onIssueCommand?.(selectedCorps, 'move', { position: { x, y } });
     }, [corpsByPosition, buildingsByPosition, selectedCorps, playerId, onSelectCell, onSelectCorps, onIssueCommand]);
+
+    // 将视图定位到选中兵团
+    const focusOnCorps = useCallback((corps) => {
+        if (!corps || !mapViewportRef.current) return;
+        const { left, top } = getHexPosition(corps.position.x, corps.position.y);
+        const viewport = mapViewportRef.current;
+        const targetLeft = Math.max(0, left - viewport.clientWidth / 2 + hexWidth / 2);
+        const targetTop = Math.max(0, top - viewport.clientHeight / 2 + hexHeight / 2);
+        viewport.scrollTo({ left: targetLeft, top: targetTop, behavior: 'smooth' });
+    }, [getHexPosition, hexWidth, hexHeight]);
+
+    useEffect(() => {
+        if (!selectedCorps) return;
+        const raf = requestAnimationFrame(() => focusOnCorps(selectedCorps));
+        return () => cancelAnimationFrame(raf);
+    }, [selectedCorps, focusOnCorps]);
 
     // 渲染单个格子 - 尖顶六边形
     const renderCell = useCallback((x, y) => {
@@ -491,6 +508,14 @@ export const FrontlineMapPanel = ({
                     战线地图
                 </h3>
                 <div className="flex items-center gap-2">
+                    {selectedCorps && (
+                        <button
+                            onClick={() => focusOnCorps(selectedCorps)}
+                            className="px-2 py-1 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                        >
+                            定位兵团
+                        </button>
+                    )}
                     <button
                         onClick={() => setShowGrid(!showGrid)}
                         className={`p-1.5 rounded ${showGrid ? 'bg-gray-700' : 'bg-gray-800'} hover:bg-gray-600 transition-all`}
@@ -529,6 +554,7 @@ export const FrontlineMapPanel = ({
 
             {/* 地图网格 - 六边形交错排列 */}
             <div 
+                ref={mapViewportRef}
                 className="overflow-auto scrollbar-hide pb-2 border border-gray-600 rounded bg-gray-900/50"
                 style={{ maxHeight: '450px' }}
             >
