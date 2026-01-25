@@ -133,6 +133,10 @@ export function useSimulationWorker() {
      * @returns {Promise<Object>} The simulation result
      */
     const runSimulation = useCallback((gameState) => {
+        const disableWorker = typeof window !== 'undefined' && window.__SIM_DISABLE_WORKER === true;
+        if (disableWorker) {
+            return Promise.resolve(simulateTick(gameState));
+        }
         // If worker is available and no pending operation
         if (workerRef.current && isUsingWorker && !pendingResolveRef.current) {
             return new Promise((resolve, reject) => {

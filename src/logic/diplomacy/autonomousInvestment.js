@@ -11,6 +11,270 @@ import { debugLog } from '../../utils/debugFlags';
 
 // [NEW] 外资投资的最低到岗率要求 (95%)
 const MIN_FOREIGN_INVESTMENT_STAFFING_RATIO = 0.95;
+const MAX_SAMPLE_NATIONS = 5;
+const MAX_TOP_INVESTMENTS = 5;
+const MAX_BUILDING_SAMPLES = 5;
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+const weightedSampleWithoutReplacement = (items, getWeight, sampleSize) => {
+    if (items.length <= sampleSize) return items;
+    const scored = items.map(item => {
+        const weight = Math.max(0.0001, getWeight(item));
+        const key = Math.pow(Math.random(), 1 / weight);
+        return { item, key };
+    });
+    scored.sort((a, b) => b.key - a.key);
+    return scored.slice(0, sampleSize).map(entry => entry.item);
+};
+
+const pickRandomSubset = (items, sampleSize) => {
+    if (items.length <= sampleSize) return items;
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, sampleSize);
+};
+
+const getRelationWeight = (relation = 0) => clamp((relation + 100) / 200, 0.05, 1);
+
+const getWealthSignal = (nation) => {
+    const value = nation?.gdp || nation?.wealth || 0;
+    return clamp(Math.log10(value + 1) / 6, 0.05, 1);
+};
+
+const getCooldownWeight = (daysElapsed, lastDay, cooldownDays = 30) => {
+    if (!Number.isFinite(lastDay)) return 1;
+    const delta = daysElapsed - lastDay;
+    if (delta >= cooldownDays) return 1;
+    return clamp(delta / cooldownDays, 0.2, 0.8);
+};
+
+const canPlayerInvestInNation = (targetNation, diplomacyOrganizations, daysElapsed) => {
+    if (!targetNation || targetNation.id === 'player') return false;
+
+    const isVassal = targetNation.suzerainId === 'player' || targetNation.vassalOf === 'player';
+    const hasInvestmentPact = hasActiveTreaty(targetNation, 'investment_pact', daysElapsed);
+    const hasEconomicPact = hasActiveTreaty(targetNation, 'economic_pact', daysElapsed);
+    const hasOrgEconomicBloc = diplomacyOrganizations?.organizations?.some(org =>
+        org.type === 'economic_bloc' &&
+        org.members?.includes('player') &&
+        org.members?.includes(targetNation.id)
+    ) || false;
+
+    return isVassal || hasInvestmentPact || hasEconomicPact || hasOrgEconomicBloc;
+};
+
+const canForeignInvestInPlayer = (investorNation, playerState, diplomacyOrganizations, daysElapsed) => {
+    if (!investorNation || !playerState) return false;
+
+    const targetId = playerState.id || 'player';
+    const isVassal = investorNation.vassalOf === targetId && investorNation.vassalType !== 'colony';
+    const isSuzerain = playerState.vassalOf === investorNation.id;
+    const hasEconomicOrg = diplomacyOrganizations?.organizations?.some(org =>
+        org.type === 'economic_bloc' &&
+        org.members?.includes(investorNation.id) &&
+        org.members?.includes(targetId)
+    );
+    const hasInvestmentPact = hasActiveTreaty(investorNation, 'investment_pact', daysElapsed);
+    const hasEconomicPact = hasActiveTreaty(investorNation, 'economic_pact', daysElapsed);
+
+    return isVassal || isSuzerain || hasEconomicOrg || hasInvestmentPact || hasEconomicPact;
+};
+
+const getInvestmentPolicyThreshold = (policy = 'autonomous') => {
+    if (policy === 'guided') return 0.05;
+    if (policy === 'forced') return -0.10;
+    return 0.10;
+};
+
+const buildInvestableCache = (epoch, accessType, strata) => {
+    const cache = {};
+    strata.forEach(stratum => {
+        cache[stratum] = getInvestableBuildings(accessType, stratum, epoch);
+    });
+    return cache;
+};
+
+const getBuildingSilverCost = (building) => {
+    const costConfig = building?.baseCost || building?.cost || {};
+    return Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+};
+
+const estimateROIForBuilding = (building, targetNation, market) => {
+    const cost = getBuildingSilverCost(building);
+    if (cost <= 0) return { roi: -Infinity, dailyProfit: 0 };
+
+    const mockInvestment = {
+        id: 'temp_calc',
+        buildingId: building.id,
+        level: 1,
+        strategy: 'PROFIT_MAX',
+        operatingMode: 'local',
+    };
+
+    const calcResult = calculateOverseasProfit(
+        mockInvestment,
+        targetNation,
+        {},
+        market?.prices || {}
+    );
+
+    const dailyProfit = calcResult.profit || 0;
+    const roi = (dailyProfit * 360) / cost;
+
+    return { roi, dailyProfit };
+};
+
+export function selectOutboundInvestmentsBatch({
+    nations,
+    playerNation,
+    diplomacyOrganizations,
+    overseasInvestments,
+    classWealth,
+    market,
+    epoch,
+    daysElapsed,
+    maxNations = MAX_SAMPLE_NATIONS,
+    maxInvestments = MAX_TOP_INVESTMENTS,
+}) {
+    if (!playerNation) return [];
+
+    const candidateNations = (nations || []).filter(n => canPlayerInvestInNation(n, diplomacyOrganizations, daysElapsed));
+    if (candidateNations.length === 0) return [];
+
+    const nationWeights = (nation) => {
+        const relationWeight = getRelationWeight(nation.relation || 0);
+        const profitSignal = getWealthSignal(nation);
+        const cooldownWeight = getCooldownWeight(daysElapsed, nation.lastOutboundSampleDay, 30);
+        return relationWeight * profitSignal * cooldownWeight;
+    };
+
+    const sampledNations = weightedSampleWithoutReplacement(candidateNations, nationWeights, Math.min(maxNations, candidateNations.length));
+
+    const strata = Object.keys(classWealth || {}).filter(stratum => (classWealth[stratum] || 0) >= 1000);
+    if (strata.length === 0) return [];
+
+    const investments = [];
+
+    sampledNations.forEach(targetNation => {
+        const accessType = targetNation.vassalOf === 'player' ? 'vassal' : 'treaty';
+        const investableCache = buildInvestableCache(epoch, accessType, strata);
+
+        let bestOption = null;
+
+        strata.forEach(stratum => {
+            const wealth = classWealth[stratum] || 0;
+                const buildingPool = investableCache[stratum] || [];
+                const sampledBuildings = pickRandomSubset(buildingPool, MAX_BUILDING_SAMPLES);
+
+                sampledBuildings.forEach(building => {
+                const cost = getBuildingSilverCost(building);
+                if (cost <= 0 || cost > wealth) return;
+
+                const { roi, dailyProfit } = estimateROIForBuilding(building, targetNation, market);
+                if (!Number.isFinite(roi)) return;
+
+                if (!bestOption || roi > bestOption.roi) {
+                    bestOption = {
+                        stratum,
+                        targetNation,
+                        building,
+                        cost,
+                        roi,
+                        dailyProfit,
+                    };
+                }
+            });
+        });
+
+        if (bestOption) {
+            investments.push(bestOption);
+        }
+    });
+
+    if (investments.length === 0) return [];
+
+    investments.sort((a, b) => b.roi - a.roi);
+    return investments.slice(0, Math.min(maxInvestments, investments.length)).map(option => ({
+        ...option,
+        investment: createOverseasInvestment({
+            buildingId: option.building.id,
+            targetNationId: option.targetNation.id,
+            ownerStratum: option.stratum,
+            strategy: 'PROFIT_MAX',
+            investmentAmount: option.cost,
+        }),
+    }));
+}
+
+export function selectInboundInvestmentsBatch({
+    investorNations,
+    playerState,
+    diplomacyOrganizations,
+    market,
+    epoch,
+    daysElapsed,
+    foreignInvestments = [],
+    maxNations = MAX_SAMPLE_NATIONS,
+    maxInvestments = MAX_TOP_INVESTMENTS,
+}) {
+    const eligibleInvestors = (investorNations || []).filter(n => {
+        if (!n || n.id === 'player') return false;
+        if ((n.wealth || 0) < 5000) return false;
+        if (!canForeignInvestInPlayer(n, playerState, diplomacyOrganizations, daysElapsed)) return false;
+        const lastDay = n.lastForeignInvestmentDay ?? -Infinity;
+        return (daysElapsed - lastDay) >= 60;
+    });
+
+    if (eligibleInvestors.length === 0) return [];
+
+    const investorWeights = (nation) => {
+        const relationWeight = getRelationWeight(nation.relation || 0);
+        const wealthSignal = getWealthSignal(nation);
+        const cooldownWeight = getCooldownWeight(daysElapsed, nation.lastForeignSampleDay, 30);
+        return relationWeight * wealthSignal * cooldownWeight;
+    };
+
+    const sampledInvestors = weightedSampleWithoutReplacement(
+        eligibleInvestors,
+        investorWeights,
+        Math.min(maxNations, eligibleInvestors.length)
+    );
+
+    const decisions = [];
+
+    sampledInvestors.forEach(investorNation => {
+        const investmentPolicy = investorNation.vassalPolicy?.investmentPolicy || 'autonomous';
+        const roiThreshold = getInvestmentPolicyThreshold(investmentPolicy);
+
+        const bestBuilding = selectBestInvestmentBuilding({
+            targetBuildings: playerState?.buildings || {},
+            targetJobFill: playerState?.jobFill || {},
+            epoch,
+            market,
+            investorWealth: investorNation.wealth || 0,
+            foreignInvestments,
+        });
+
+        if (!bestBuilding || bestBuilding.roi <= roiThreshold) return;
+
+        decisions.push({
+            investorNation,
+            building: bestBuilding.building,
+            cost: bestBuilding.cost,
+            roi: bestBuilding.roi,
+            investmentPolicy,
+        });
+    });
+
+    if (decisions.length === 0) return [];
+
+    decisions.sort((a, b) => b.roi - a.roi);
+    return decisions.slice(0, Math.min(maxInvestments, decisions.length));
+}
 
 /**
  * Process autonomous overseas for specific classes (Capitalist, Merchant)
@@ -296,7 +560,7 @@ export function processAIInvestment({
 
             const existingForeignCount = (foreignInvestments || []).filter(
                 inv => inv.buildingId === building.id && inv.status === 'operating'
-            ).length;
+            ).reduce((sum, inv) => sum + (inv.count || 1), 0);
             if (existingForeignCount >= playerBuildingCount) continue;
 
             // Check staffing ratio
@@ -424,7 +688,7 @@ export function selectBestInvestmentBuilding({
         // Foreign investment cannot exceed the number of buildings owned by the target
         const existingForeignCount = (foreignInvestments || []).filter(
             inv => inv.buildingId === b.id && inv.status === 'operating'
-        ).length;
+        ).reduce((sum, inv) => sum + (inv.count || 1), 0);
         if (existingForeignCount >= buildingCount) {
             console.log(`[投资筛选] 排除 ${b.name}: 外资数量已达上限 (${existingForeignCount}/${buildingCount})`);
             return false;

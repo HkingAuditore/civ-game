@@ -115,12 +115,14 @@ export const OverseasInvestmentPanel = memo(({
                     investments: [],
                     totalInvestment: 0,
                     totalProfit: 0,
+                    totalCount: 0,
                 };
             }
             const g = groups[inv.buildingId];
             g.investments.push(inv);
             g.totalInvestment += (inv.investmentAmount || 0);
             g.totalProfit += (inv.operatingData?.profit || 0);
+            g.totalCount += (inv.count || 1);
         });
 
         return Object.values(groups);

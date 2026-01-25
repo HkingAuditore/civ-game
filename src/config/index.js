@@ -128,6 +128,7 @@ export { FESTIVAL_EFFECTS } from './festivalEffects.js';
 export {
     OFFICIAL_EFFECT_TYPES,
     OFFICIAL_DRAWBACK_TYPES,
+    OFFICIAL_SIM_CONFIG,
     generateName,
     generateRandomOfficial,
     calculateOfficialSalary

@@ -1244,11 +1244,19 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         if (allyId === nation.id || allyId === otherNation.id) return;
                         const ally = visibleNations.find(n => n.id === allyId);
                         if (!ally) return;
+                        
+                        // 【修复】检查防御方盟友是否与攻击者在同一个军事联盟中
+                        // 同一军事联盟的成员绝对不能相互开战
+                        if (areNationsAllied(ally.id, nation.id, allianceOrgs)) {
+                            logs.push(`⚖️ ${ally.name} 与 ${nation.name} 同属一个军事联盟，拒绝参战。`);
+                            return;
+                        }
+                        
                         if (!ally.foreignWars) ally.foreignWars = {};
                         ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
                         if (!nation.foreignWars) nation.foreignWars = {};
                         nation.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                        logs.push(`?? ${ally.name} ?? ${otherNation.name} ????????? ${nation.name} ????`);
+                        logs.push(`⚔️ ${ally.name} 响应 ${otherNation.name} 的军事同盟，对 ${nation.name} 宣战！`);
                     });
 
                     if (sharedAllies.size > 0) {

@@ -15,7 +15,7 @@ export const InvestmentRow = memo(({ group, expandedCard, setExpandedCard, playe
     const building = BUILDINGS.find(b => b.id === group.buildingId);
     const isExpanded = expandedCard === group.buildingId;
     const dailyProfit = group.totalProfit;
-    const count = group.investments.length;
+    const count = group.totalCount || group.investments.reduce((sum, inv) => sum + (inv.count || 1), 0);
 
     // Labor Cost Analysis
     const laborAnalysis = useMemo(() => {
