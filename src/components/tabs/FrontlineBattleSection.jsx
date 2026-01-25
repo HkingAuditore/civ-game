@@ -32,6 +32,17 @@ export const FrontlineBattleSection = ({
     const [selectedCorps, setSelectedCorps] = useState(null);
     const [selectedCell, setSelectedCell] = useState(null);
     const [viewMode, setViewMode] = useState('map'); // map, corps
+    
+    // 当切换到地图视图时，如果有兵团则自动选中第一个
+    const handleViewModeChange = useCallback((mode) => {
+        setViewMode(mode);
+        if (mode === 'map' && currentFrontline) {
+            const playerCorps = currentFrontline.corps.filter(c => c.owner === playerId);
+            if (playerCorps.length > 0 && !selectedCorps) {
+                setSelectedCorps(playerCorps[0]);
+            }
+        }
+    }, [currentFrontline, playerId, selectedCorps]);
 
     // 获取所有战争中的国家
     const warringNations = useMemo(() =>
@@ -208,7 +219,7 @@ export const FrontlineBattleSection = ({
             {/* 视图切换 */}
             <div className="flex items-center gap-2 text-sm">
                 <button
-                    onClick={() => setViewMode('map')}
+                    onClick={() => handleViewModeChange('map')}
                     className={`flex-1 py-2 rounded-lg border transition-all flex items-center justify-center gap-1.5 ${viewMode === 'map'
                         ? 'bg-red-900/40 border-red-700/50 text-red-200'
                         : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:text-gray-200'
@@ -218,7 +229,7 @@ export const FrontlineBattleSection = ({
                     战线地图
                 </button>
                 <button
-                    onClick={() => setViewMode('corps')}
+                    onClick={() => handleViewModeChange('corps')}
                     className={`flex-1 py-2 rounded-lg border transition-all flex items-center justify-center gap-1.5 ${viewMode === 'corps'
                         ? 'bg-blue-900/40 border-blue-700/50 text-blue-200'
                         : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:text-gray-200'
@@ -228,6 +239,37 @@ export const FrontlineBattleSection = ({
                     兵团管理
                 </button>
             </div>
+
+            {/* 操作引导提示 */}
+            {currentFrontline && (
+                <div className="p-2 bg-amber-900/20 rounded-lg border border-amber-700/30 text-xs text-amber-300">
+                    <div className="flex items-start gap-2">
+                        <Icon name="Lightbulb" size={14} className="mt-0.5" />
+                        <div>
+                            {viewMode === 'corps' ? (
+                                <>
+                                    <strong>兵团管理说明:</strong>
+                                    <ul className="mt-1 text-amber-400 space-y-0.5">
+                                        <li>• 点击「创建兵团」按钮新建兵团</li>
+                                        <li>• 分配部队后确认创建</li>
+                                        <li>• 创建完成后切换到「战线地图」进行指挥</li>
+                                    </ul>
+                                </>
+                            ) : (
+                                <>
+                                    <strong>地图操作说明:</strong>
+                                    <ul className="mt-1 text-amber-400 space-y-0.5">
+                                        <li>• 点击己方兵团(蓝色)选中</li>
+                                        <li>• 点击空地 = 移动</li>
+                                        <li>• 点击敌军(红色) = 攻击</li>
+                                        <li>• 点击敌方建筑 = 围攻</li>
+                                    </ul>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* 战线地图 */}
             {viewMode === 'map' && currentFrontline && (

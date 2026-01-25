@@ -100,6 +100,14 @@ export const CorpsManagementPanel = ({
         });
     }, [availableUnits]);
 
+    // 快速全选单位
+    const allocateAll = useCallback((unitType) => {
+        const available = availableUnits[unitType] || 0;
+        if (available > 0) {
+            setUnitAllocation(prev => ({ ...prev, [unitType]: (prev[unitType] || 0) + available }));
+        }
+    }, [availableUnits]);
+
     // 确认创建兵团
     const confirmCreate = useCallback(() => {
         if (!newCorpsName.trim() || Object.keys(unitAllocation).length === 0) return;
@@ -162,6 +170,14 @@ export const CorpsManagementPanel = ({
                                     className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                 >
                                     <span className="text-xs text-gray-300">+</span>
+                                </button>
+                                <button
+                                    onClick={() => allocateAll(unitType)}
+                                    disabled={available <= 0}
+                                    className="ml-1 px-1.5 h-6 rounded bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] text-white"
+                                    title="全部分配"
+                                >
+                                    全部
                                 </button>
                             </div>
                         </div>
@@ -458,10 +474,27 @@ export const CorpsManagementPanel = ({
 
             {/* 空状态 */}
             {!isCreating && playerCorps.length === 0 && (
-                <div className="text-center py-4 text-xs text-gray-500">
-                    尚未部署任何兵团
+                <div className="text-center py-4">
+                    <Icon name="Users" size={24} className="text-gray-600 mx-auto mb-2" />
+                    <p className="text-xs text-gray-500 mb-2">尚未部署任何兵团</p>
+                    <p className="text-[10px] text-gray-600">点击上方按钮创建兵团</p>
                 </div>
             )}
+
+            {/* 使用说明 */}
+            <div className="mt-4 p-2 bg-gray-900/30 rounded-lg border border-gray-700/30">
+                <h4 className="text-[10px] font-semibold text-gray-400 mb-2 flex items-center gap-1">
+                    <Icon name="HelpCircle" size={10} />
+                    操作说明
+                </h4>
+                <ul className="text-[10px] text-gray-500 space-y-1">
+                    <li>1. 点击「创建兵团」按钮创建新兵团</li>
+                    <li>2. 分配部队后点击「确认创建」</li>
+                    <li>3. 切换到「战线地图」视图</li>
+                    <li>4. 点击己方兵团（蓝色）选中</li>
+                    <li>5. 点击目标格子：移动/攻击/围攻</li>
+                </ul>
+            </div>
         </div>
     );
 };

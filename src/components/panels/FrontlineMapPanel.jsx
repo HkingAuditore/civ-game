@@ -47,6 +47,7 @@ export const FrontlineMapPanel = ({
 }) => {
     const [viewMode, setViewMode] = useState('terrain'); // terrain, control, threat
     const [showGrid, setShowGrid] = useState(true);
+    const [mapScale, setMapScale] = useState(1); // 地图缩放比例
 
     if (!frontlineMap || !frontlineMap.active) {
         return (
@@ -97,7 +98,9 @@ export const FrontlineMapPanel = ({
         return map;
     }, [corps]);
 
-    const hexSize = 18;
+    // 动态调整六边形大小，使地图更好地填充容器
+    const baseHexSize = 24; // 增大基础尺寸
+    const hexSize = baseHexSize * mapScale;
     const hexWidth = hexSize * 2;
     const hexHeight = Math.sqrt(3) * hexSize;
     const hexXSpacing = hexSize * 1.5;
@@ -456,20 +459,37 @@ export const FrontlineMapPanel = ({
                 选中己方兵团后点击六边形：空地移动 / 敌军攻击 / 敌方建筑围攻
             </div>
 
+            {/* 缩放控制 */}
+            <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] text-gray-500">缩放:</span>
+                <button
+                    onClick={() => setMapScale(s => Math.max(0.5, s - 0.1))}
+                    className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs flex items-center justify-center"
+                >-</button>
+                <span className="text-xs text-gray-400 w-12 text-center">{(mapScale * 100).toFixed(0)}%</span>
+                <button
+                    onClick={() => setMapScale(s => Math.min(1.5, s + 0.1))}
+                    className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs flex items-center justify-center"
+                >+</button>
+                <button
+                    onClick={() => setMapScale(1)}
+                    className="px-2 h-6 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px]"
+                >重置</button>
+            </div>
+
             {/* 地图网格 */}
-            <div className="overflow-x-auto pb-2">
-                <div className="inline-block border border-gray-600 rounded">
-                    <div
-                        className="relative"
-                        style={{
-                            width: `${mapPixelSize.width}px`,
-                            height: `${mapPixelSize.height}px`,
-                        }}
-                    >
-                        {Array.from({ length: height }).map((_, y) =>
-                            Array.from({ length: width }).map((_, x) => renderCell(x, y))
-                        )}
-                    </div>
+            <div className="overflow-auto pb-2 max-h-[500px] border border-gray-600 rounded bg-gray-900/50">
+                <div
+                    className="relative"
+                    style={{
+                        width: `${mapPixelSize.width + 20}px`,
+                        height: `${mapPixelSize.height + 20}px`,
+                        minWidth: '100%',
+                    }}
+                >
+                    {Array.from({ length: height }).map((_, y) =>
+                        Array.from({ length: width }).map((_, x) => renderCell(x, y))
+                    )}
                 </div>
             </div>
 
@@ -492,6 +512,25 @@ export const FrontlineMapPanel = ({
                     <span>敌方建筑</span>
                 </div>
             </div>
+
+            {/* 操作提示 */}
+            {selectedCorps && (
+                <div className="mt-3 p-2 bg-blue-900/30 rounded-lg border border-blue-700/50">
+                    <div className="flex items-center gap-2 text-xs text-blue-300">
+                        <Icon name="Info" size={12} />
+                        <span>已选中: <strong>{selectedCorps.name}</strong></span>
+                    </div>
+                    <div className="text-[10px] text-blue-400 mt-1">
+                        点击空地移动 | 点击敌军攻击 | 点击敌方建筑围攻
+                    </div>
+                    <button
+                        onClick={() => onSelectCorps?.(null)}
+                        className="mt-2 px-2 py-1 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                    >
+                        取消选中
+                    </button>
+                </div>
+            )}
 
             {/* 兵团列表 */}
             {renderCorpsList()}
