@@ -489,6 +489,56 @@ export const SettingsPanel = ({
             {/* 性能模式设置 */}
             <PerformanceModeSection />
 
+            {/* Debug选项 */}
+            <div className="border-t border-gray-700 pt-4 space-y-3">
+                <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+                    <Icon name="Code" size={16} /> Debug选项
+                </h4>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                    开发者调试选项，用于显示性能监控信息。
+                </p>
+
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-gray-300">
+                        <span>显示性能监控(PERF)</span>
+                        <span className={
+                            (typeof window !== 'undefined' && localStorage.getItem('debugPerfOverlay') === 'true')
+                                ? 'text-emerald-300'
+                                : 'text-gray-500'
+                        }>
+                            {(typeof window !== 'undefined' && localStorage.getItem('debugPerfOverlay') === 'true')
+                                ? '已启用'
+                                : '已关闭'}
+                        </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={typeof window !== 'undefined' && localStorage.getItem('debugPerfOverlay') === 'true'}
+                            onChange={(e) => {
+                                if (typeof window !== 'undefined') {
+                                    localStorage.setItem('debugPerfOverlay', e.target.checked ? 'true' : 'false');
+                                    // 触发自定义事件通知其他组件
+                                    window.dispatchEvent(new Event('debugSettingsChanged'));
+                                    // 强制重新渲染
+                                    window.location.reload();
+                                }
+                            }}
+                        />
+                        <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+                        <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${
+                            (typeof window !== 'undefined' && localStorage.getItem('debugPerfOverlay') === 'true')
+                                ? 'translate-x-5'
+                                : ''
+                        }`} />
+                    </label>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                        开启后，右上角将显示游戏性能监控面板，包括帧时间、模拟时间等信息。
+                    </p>
+                </div>
+            </div>
+
             {/* 音效设置 */}
             <div className="border-t border-gray-700 pt-4 space-y-4">
                 <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">

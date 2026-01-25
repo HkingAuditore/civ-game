@@ -327,10 +327,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const summary = { count: 0, owners: {} };
         (foreignInvestments || []).forEach(inv => {
             if (inv.buildingId !== building.id || inv.status !== 'operating') return;
-            summary.count += 1;
+            const invCount = inv.count || 1;
+            summary.count += invCount;
             const ownerNation = nations?.find(n => n.id === inv.ownerNationId);
             const ownerName = ownerNation?.name || inv.ownerNationId || '外国资本';
-            summary.owners[ownerName] = (summary.owners[ownerName] || 0) + 1;
+            summary.owners[ownerName] = (summary.owners[ownerName] || 0) + invCount;
         });
         return summary;
     }, [foreignInvestments, nations, building.id]);

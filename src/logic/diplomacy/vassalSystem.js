@@ -543,6 +543,7 @@ export const checkGarrisonEffectiveness = (playerMilitary, vassalMilitary) => {
  */
 export const processVassalUpdates = ({
     nations,
+    updateIds = null,
     daysElapsed,
     epoch,
     playerMilitary = 1.0,
@@ -554,6 +555,9 @@ export const processVassalUpdates = ({
     difficultyLevel = 'normal', // Game difficulty level
     logs = [],
 }) => {
+    const updateSet = Array.isArray(updateIds) && updateIds.length > 0
+        ? new Set(updateIds)
+        : null;
     let tributeIncome = 0;
     let resourceTribute = {};
     let totalControlCost = 0;  // NEW: Track total control costs
@@ -563,6 +567,9 @@ export const processVassalUpdates = ({
     const updatedNations = (nations || []).map(nation => {
         // 跳过非附庸国
         if (nation.vassalOf !== 'player') {
+            return nation;
+        }
+        if (updateSet && !updateSet.has(nation.id)) {
             return nation;
         }
 

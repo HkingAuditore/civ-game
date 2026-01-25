@@ -65,9 +65,11 @@ const DiplomacyDashboard = ({
         Array.isArray(org?.members) && org.members.includes('player')
     );
 
-    const totalInvestments = overseasInvestments ? overseasInvestments.length : 0;
+    const totalInvestments = overseasInvestments
+        ? overseasInvestments.reduce((sum, inv) => sum + (inv.count || 1), 0)
+        : 0;
     const totalInvestmentIncome = overseasInvestments
-        ? overseasInvestments.reduce((sum, inv) => sum + (inv.dailyProfit || 0), 0)
+        ? overseasInvestments.reduce((sum, inv) => sum + (inv.dailyProfit || inv.operatingData?.profit || 0), 0)
         : 0;
 
     const marketSignals = useMemo(() => {

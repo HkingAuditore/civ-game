@@ -410,6 +410,9 @@ export const simulateMerchantTrade = ({
     // Control whether to log merchant trade initiation messages
     shouldLogMerchantTrades = true,
 
+    // Allow creating new trades this tick (pending trades always progress)
+    allowNewTrades = true,
+
     // Treasury change callback for resource tracking
     onTreasuryChange = null,
 
@@ -512,6 +515,18 @@ export const simulateMerchantTrade = ({
             updatedPendingTrades.push(trade);
         }
     });
+
+    // If we are throttling new trades, skip expensive opportunity search
+    if (!allowNewTrades) {
+        const lockedCapital = updatedPendingTrades.reduce((sum, trade) => sum + Math.max(0, trade?.capitalLocked || 0), 0);
+        return {
+            pendingTrades: updatedPendingTrades,
+            lastTradeTime,
+            lockedCapital,
+            capitalInvestedThisTick: 0,
+            completedTrades,
+        };
+    }
 
     // Check trade cooldown
     const ticksSinceLastTrade = tick - lastTradeTime;

@@ -590,11 +590,13 @@ const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
     // Calculate totals
     const totals = useMemo(() => {
         return investmentsFromNation.reduce((acc, inv) => {
+            const invCount = inv.count || 1;
             acc.totalProfit += (inv.dailyProfit || 0);
             acc.totalTax += (inv.operatingData?.taxPaid || 0);
             acc.totalJobs += (inv.jobsProvided || 0);
+            acc.totalCount += invCount;
             return acc;
-        }, { totalProfit: 0, totalTax: 0, totalJobs: 0 });
+        }, { totalProfit: 0, totalTax: 0, totalJobs: 0, totalCount: 0 });
     }, [investmentsFromNation]);
 
     if (investmentsFromNation.length === 0) {
@@ -618,7 +620,7 @@ const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
                     <Icon name="Landmark" size={20} className="text-amber-400" />
                     <span className="font-bold text-ancient-parchment">该国在我国的投资</span>
                     <Badge variant="neutral" className="text-[10px]">
-                        {investmentsFromNation.length} 处
+                        {totals.totalCount} 处
                     </Badge>
                 </div>
                 <div className="text-right text-xs text-ancient-stone">
@@ -646,6 +648,9 @@ const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
                                     </div>
                                     <div className="text-[10px] text-ancient-stone flex items-center gap-2">
                                         <span className="bg-gray-900/50 px-1.5 rounded">岗位: {inv.jobsProvided || 0}</span>
+                                        {(inv.count || 1) > 1 && (
+                                            <span className="bg-gray-900/50 px-1.5 rounded">×{inv.count}</span>
+                                        )}
                                         <span>日利润: <span className="text-amber-300 font-mono">{(inv.dailyProfit || 0).toFixed(1)}</span></span>
                                     </div>
                                 </div>

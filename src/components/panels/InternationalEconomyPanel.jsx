@@ -11,6 +11,7 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
 import {
     calculateOverseasInvestmentSummary,
     FOREIGN_INVESTMENT_POLICIES,
+    getOverseasInvestmentGroupKey,
 } from '../../logic/diplomacy/overseasInvestment';
 
 // --- Configuration ---
@@ -96,22 +97,43 @@ const FlowVisualizer = ({ building, decisions }) => {
  */
 const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
     const activeInvestments = useMemo(() => {
-        return overseasInvestments
+        const grouped = new Map();
+        overseasInvestments
             .filter(inv => inv.status === 'operating')
+            .forEach(inv => {
+                const key = getOverseasInvestmentGroupKey(inv);
+                if (!grouped.has(key)) {
+                    grouped.set(key, {
+                        ...inv,
+                        count: 0,
+                        profitPerDay: 0,
+                        repatriatedPerDay: 0,
+                        taxPerDay: 0,
+                        investmentAmount: 0,
+                        decisions: inv.operatingData?.decisions,
+                    });
+                }
+                const entry = grouped.get(key);
+                entry.count += inv.count || 1;
+                entry.investmentAmount += inv.investmentAmount || 0;
+                const profit = inv.operatingData?.profit || 0;
+                const repatriated = inv.operatingData?.repatriatedProfit;
+                const retained = inv.operatingData?.retainedProfit;
+                entry.profitPerDay += profit;
+                entry.repatriatedPerDay += typeof repatriated === 'number' ? repatriated : profit;
+                entry.taxPerDay += typeof retained === 'number' ? retained : 0;
+                if (!entry.decisions && inv.operatingData?.decisions) {
+                    entry.decisions = inv.operatingData.decisions;
+                }
+            });
+
+        return Array.from(grouped.values())
             .map(inv => {
                 const nation = nations.find(n => n.id === inv.targetNationId);
                 const building = BUILDINGS.find(b => b.id === inv.buildingId);
-                const profit = inv.operatingData?.profit || 0;
-                // These are computed in processOverseasInvestments (overseasInvestment.js)
-                const repatriated = inv.operatingData?.repatriatedProfit;
-                const retained = inv.operatingData?.retainedProfit;
-                // Use the stored effectiveTaxRate directly from operatingData
-                const effectiveTaxRate = inv.operatingData?.effectiveTaxRate ?? (
-                    // Fallback: calculate from retained/profit if not stored
-                    profit > 0 && typeof retained === 'number'
-                        ? (retained / profit)
-                        : 0
-                );
+                const effectiveTaxRate = inv.profitPerDay > 0
+                    ? (inv.taxPerDay / inv.profitPerDay)
+                    : 0;
 
                 return {
                     ...inv,
@@ -119,11 +141,7 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
                     nationColor: nation?.color,
                     building,
                     buildingName: building?.name || '未知建筑',
-                    profitPerDay: profit,
-                    repatriatedPerDay: typeof repatriated === 'number' ? repatriated : profit,
-                    taxPerDay: typeof retained === 'number' ? retained : 0,
                     effectiveTaxRate,
-                    decisions: inv.operatingData?.decisions
                 };
             })
             .sort((a, b) => b.investmentAmount - a.investmentAmount);
@@ -173,6 +191,11 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
                                             <Badge variant="neutral" className="text-[9px] scale-90">
                                                 {STRATUM_CONFIG[inv.ownerStratum]?.name || inv.ownerStratum}
                                             </Badge>
+                                            {inv.count > 1 && (
+                                                <Badge variant="secondary" className="text-[9px] scale-90">
+                                                    ×{inv.count}
+                                                </Badge>
+                                            )}
                                         </div>
                                         <div className="text-[10px] text-gray-400 flex items-center gap-1">
                                             <Icon name="MapPin" size={10}/>
@@ -231,13 +254,15 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                     investments: [],
                     totalProfit: 0,
                     totalTax: 0,
-                    totalJobs: 0
+                    totalJobs: 0,
+                    totalCount: 0
                 };
             }
             groups[nationId].investments.push(inv);
             groups[nationId].totalProfit += (inv.dailyProfit || 0);
             groups[nationId].totalTax += (inv.operatingData?.taxPaid || 0);
             groups[nationId].totalJobs += (inv.jobsProvided || 0);
+            groups[nationId].totalCount += (inv.count || 1);
         });
         return Object.values(groups).sort((a,b) => b.totalProfit - a.totalProfit);
     }, [foreignInvestments, nations]);
@@ -270,7 +295,7 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                                 <Icon name="Flag" size={18} className={group.nationColor} />
                                 <span className="text-sm font-bold text-gray-200">{group.nationName}</span>
                                 <Badge variant="neutral" className="text-[10px]">
-                                    {group.investments.length} 处资产
+                                    {group.totalCount} 处资产
                                 </Badge>
                              </div>
                              <div className="text-right text-[10px] text-gray-400">
@@ -295,9 +320,14 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                                         <div className="flex justify-between mb-2">
                                             <div className="text-xs font-bold text-gray-300 flex items-center gap-2">
                                                 {building?.name || inv.buildingId}
-                                                <span className="text-[10px] font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
-                                                    提供岗位: {inv.jobsProvided}
-                                                </span>
+                                        <span className="text-[10px] font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
+                                            提供岗位: {inv.jobsProvided}
+                                        </span>
+                                        {(inv.count || 1) > 1 && (
+                                            <span className="text-[10px] font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
+                                                ×{inv.count}
+                                            </span>
+                                        )}
                                             </div>
                                             <div className="text-xs font-mono text-amber-400">
                                                 利润: {formatNumberShortCN(inv.dailyProfit)}
@@ -344,7 +374,9 @@ export const InternationalEconomyPanel = memo(({
 
     // Calculate Summary for Incoming
     // (Simplified, mostly needed for badge counts if desired)
-    const incomingCount = foreignInvestments.filter(i => i.status === 'operating').length;
+    const incomingCount = foreignInvestments
+        .filter(i => i.status === 'operating')
+        .reduce((sum, inv) => sum + (inv.count || 1), 0);
 
     return (
         <BottomSheet

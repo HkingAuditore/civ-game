@@ -458,20 +458,86 @@ const trimHistorySnapshot = (history, limit) => {
 // [NEW] 迁移旧版海外投资数据（从 input/output 到 strategy）
 const migrateOverseasInvestments = (investments) => {
     if (!Array.isArray(investments)) return [];
-    return investments.map(inv => {
-        // 如果已有 strategy 且有效，则跳过
-        if (inv.strategy) return inv;
 
-        const newInv = { ...inv };
-        if (inv.outputDest === 'home') {
-            newInv.strategy = 'RESOURCE_EXTRACTION';
-        } else if (inv.inputSource === 'home') {
-            newInv.strategy = 'MARKET_DUMPING';
-        } else {
-            newInv.strategy = 'PROFIT_MAX';
+    const normalize = (inv) => {
+        const baseInv = inv.strategy ? { ...inv } : { ...inv };
+        if (!baseInv.strategy) {
+            if (inv.outputDest === 'home') {
+                baseInv.strategy = 'RESOURCE_EXTRACTION';
+            } else if (inv.inputSource === 'home') {
+                baseInv.strategy = 'MARKET_DUMPING';
+            } else {
+                baseInv.strategy = 'PROFIT_MAX';
+            }
         }
-        return newInv;
+        if (!Number.isFinite(baseInv.count)) {
+            baseInv.count = 1;
+        }
+        return baseInv;
+    };
+
+    const getGroupKey = (inv) => {
+        const strategy = inv.strategy || 'PROFIT_MAX';
+        return `${inv.targetNationId}::${inv.buildingId}::${inv.ownerStratum || 'capitalist'}::${strategy}`;
+    };
+
+    const merged = new Map();
+    investments.forEach((raw) => {
+        const inv = normalize(raw);
+        const key = getGroupKey(inv);
+        if (!merged.has(key)) {
+            merged.set(key, inv);
+            return;
+        }
+        const existing = merged.get(key);
+        merged.set(key, {
+            ...existing,
+            count: (existing.count || 1) + (inv.count || 1),
+            investmentAmount: (existing.investmentAmount || 0) + (inv.investmentAmount || 0),
+            createdDay: Math.min(existing.createdDay || inv.createdDay || 0, inv.createdDay || 0),
+        });
     });
+
+    return Array.from(merged.values());
+};
+
+const migrateForeignInvestments = (investments) => {
+    if (!Array.isArray(investments)) return [];
+
+    const normalize = (inv) => {
+        const baseInv = { ...inv };
+        if (!baseInv.strategy) {
+            baseInv.strategy = 'PROFIT_MAX';
+        }
+        if (!Number.isFinite(baseInv.count)) {
+            baseInv.count = 1;
+        }
+        return baseInv;
+    };
+
+    const getGroupKey = (inv) => {
+        const strategy = inv.strategy || 'PROFIT_MAX';
+        return `${inv.ownerNationId}::${inv.buildingId}::${inv.investorStratum || 'capitalist'}::${strategy}`;
+    };
+
+    const merged = new Map();
+    investments.forEach((raw) => {
+        const inv = normalize(raw);
+        const key = getGroupKey(inv);
+        if (!merged.has(key)) {
+            merged.set(key, inv);
+            return;
+        }
+        const existing = merged.get(key);
+        merged.set(key, {
+            ...existing,
+            count: (existing.count || 1) + (inv.count || 1),
+            investmentAmount: (existing.investmentAmount || 0) + (inv.investmentAmount || 0),
+            createdDay: Math.min(existing.createdDay || inv.createdDay || 0, inv.createdDay || 0),
+        });
+    });
+
+    return Array.from(merged.values());
 };
 
 const trimMarketSnapshot = (market, limit) => {
@@ -957,6 +1023,7 @@ export const useGameState = () => {
 
     // ========== 官员系统状态 ==========
     const [officials, setOfficials] = useState([]);           // 当前雇佣的官员
+    const [officialsSimCursor, setOfficialsSimCursor] = useState(0); // 官员分片模拟游标
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
     const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
@@ -1573,6 +1640,7 @@ export const useGameState = () => {
                 nations,
                 diplomaticReputation,
                 officials,
+                officialsSimCursor,
                 officialCandidates,
                 lastSelectionDay,
                 officialCapacity,
@@ -1710,6 +1778,7 @@ export const useGameState = () => {
             overseasAssets: Array.isArray(n.overseasAssets) ? n.overseasAssets : [],
         })));
         setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0));
+        setOfficialsSimCursor(data.officialsSimCursor ?? 0);
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 2);
@@ -1830,7 +1899,7 @@ export const useGameState = () => {
         setVassalDiplomacyHistory(Array.isArray(data.vassalDiplomacyHistory) ? data.vassalDiplomacyHistory : []);
         setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
         setOverseasInvestments(migrateOverseasInvestments(data.overseasInvestments || []));
-        setForeignInvestments(data.foreignInvestments || []);
+        setForeignInvestments(migrateForeignInvestments(data.foreignInvestments || []));
         setForeignInvestmentPolicy(data.foreignInvestmentPolicy || 'normal');
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
@@ -2856,6 +2925,8 @@ export const useGameState = () => {
         // 官员系统 (新增)
         officials,
         setOfficials,
+        officialsSimCursor,
+        setOfficialsSimCursor,
         officialCandidates,
         setOfficialCandidates,
         lastSelectionDay,
