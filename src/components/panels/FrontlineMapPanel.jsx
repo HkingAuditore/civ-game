@@ -122,24 +122,24 @@ export const FrontlineMapPanel = ({
     const hexWidth = side * Math.sqrt(3);  // W = s × √3
     const hexHeight = side * 2;            // H = s × 2
     
-    // 紧密排列间距（pointy-top odd-q）
+    // 紧密排列间距（pointy-top odd-r）
     const colSpacing = hexWidth;           // 列间距 = 宽度
     const rowSpacing = side * 1.5;         // 行间距 = s × 1.5
-    const oddColOffset = hexHeight * 0.5;  // 奇数列向下偏移 = 高度一半（= s）
+    const oddRowOffset = hexWidth * 0.5;   // 奇数行向右偏移 = 宽度一半
 
     // 计算地图总像素尺寸
     const mapPixelSize = useMemo(() => {
-        const pixelWidth = (width - 1) * colSpacing + hexWidth;
-        const pixelHeight = (height - 1) * rowSpacing + hexHeight + (width > 1 ? oddColOffset : 0);
+        const pixelWidth = (width - 1) * colSpacing + hexWidth + (height > 1 ? oddRowOffset : 0);
+        const pixelHeight = (height - 1) * rowSpacing + hexHeight;
         return { width: pixelWidth + 20, height: pixelHeight + 20 };
-    }, [width, height, hexWidth, hexHeight, colSpacing, rowSpacing, oddColOffset]);
+    }, [width, height, hexWidth, hexHeight, colSpacing, rowSpacing, oddRowOffset]);
 
-    // 获取六边形左上角位置（odd-q 列偏移）
+    // 获取六边形左上角位置（odd-r 行偏移）
     const getHexPosition = useCallback((col, row) => {
-        const left = col * colSpacing;
-        const top = row * rowSpacing + (col % 2 === 1 ? oddColOffset : 0);
+        const left = col * colSpacing + (row % 2 === 1 ? oddRowOffset : 0);
+        const top = row * rowSpacing;
         return { left, top };
-    }, [colSpacing, rowSpacing, oddColOffset]);
+    }, [colSpacing, rowSpacing, oddRowOffset]);
 
     const handleCellClick = useCallback((x, y) => {
         const cellKey = `${x},${y}`;
