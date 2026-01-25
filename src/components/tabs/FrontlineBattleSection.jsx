@@ -91,7 +91,7 @@ export const FrontlineBattleSection = ({
         const startX = 1;
         const startY = Math.floor(currentFrontline.height / 2);
 
-        onCreateCorps(currentFrontline.warId, name, units, { x: startX, y: startY });
+        return onCreateCorps(currentFrontline.warId, name, units, { x: startX, y: startY });
     }, [currentFrontline, onCreateCorps]);
 
     // 处理命令下达
