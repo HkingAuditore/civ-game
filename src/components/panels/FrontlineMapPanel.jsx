@@ -122,51 +122,24 @@ export const FrontlineMapPanel = ({
     const hexWidth = side * Math.sqrt(3);  // W = s × √3
     const hexHeight = side * 2;            // H = s × 2
     
-    const sqrt3 = Math.sqrt(3);
+    // 紧密排列间距（pointy-top odd-q）
+    const colSpacing = hexWidth;           // 列间距 = 宽度
+    const rowSpacing = side * 1.5;         // 行间距 = s × 1.5
+    const oddColOffset = hexHeight * 0.5;  // 奇数列向下偏移 = 高度一半（= s）
 
-    // odd-q 偏移坐标 -> 轴向坐标 -> 像素坐标
-    const layout = useMemo(() => {
-        const padding = 10;
-        let minLeft = Infinity;
-        let minTop = Infinity;
-        let maxRight = -Infinity;
-        let maxBottom = -Infinity;
+    // 计算地图总像素尺寸
+    const mapPixelSize = useMemo(() => {
+        const pixelWidth = (width - 1) * colSpacing + hexWidth;
+        const pixelHeight = (height - 1) * rowSpacing + hexHeight + (width > 1 ? oddColOffset : 0);
+        return { width: pixelWidth + 20, height: pixelHeight + 20 };
+    }, [width, height, hexWidth, hexHeight, colSpacing, rowSpacing, oddColOffset]);
 
-        for (let col = 0; col < width; col += 1) {
-            for (let row = 0; row < height; row += 1) {
-                const q = col;
-                const r = row - Math.floor((col - (col & 1)) / 2);
-                const centerX = side * sqrt3 * (q + r / 2);
-                const centerY = side * 1.5 * r;
-                const left = centerX - hexWidth / 2;
-                const top = centerY - hexHeight / 2;
-                minLeft = Math.min(minLeft, left);
-                minTop = Math.min(minTop, top);
-                maxRight = Math.max(maxRight, left + hexWidth);
-                maxBottom = Math.max(maxBottom, top + hexHeight);
-            }
-        }
-
-        const originX = padding - minLeft;
-        const originY = padding - minTop;
-        return {
-            width: maxRight - minLeft + padding * 2,
-            height: maxBottom - minTop + padding * 2,
-            originX,
-            originY,
-        };
-    }, [width, height, side, sqrt3, hexWidth, hexHeight]);
-
-    // 获取六边形左上角位置
+    // 获取六边形左上角位置（odd-q 列偏移）
     const getHexPosition = useCallback((col, row) => {
-        const q = col;
-        const r = row - Math.floor((col - (col & 1)) / 2);
-        const centerX = side * sqrt3 * (q + r / 2);
-        const centerY = side * 1.5 * r;
-        const left = centerX - hexWidth / 2 + layout.originX;
-        const top = centerY - hexHeight / 2 + layout.originY;
+        const left = col * colSpacing;
+        const top = row * rowSpacing + (col % 2 === 1 ? oddColOffset : 0);
         return { left, top };
-    }, [side, sqrt3, hexWidth, hexHeight, layout.originX, layout.originY]);
+    }, [colSpacing, rowSpacing, oddColOffset]);
 
     const handleCellClick = useCallback((x, y) => {
         const cellKey = `${x},${y}`;
@@ -562,8 +535,8 @@ export const FrontlineMapPanel = ({
                 <div
                     className="relative"
                     style={{
-                        width: `${layout.width}px`,
-                        height: `${layout.height}px`,
+                        width: `${mapPixelSize.width}px`,
+                        height: `${mapPixelSize.height}px`,
                         minWidth: '100%',
                     }}
                 >
