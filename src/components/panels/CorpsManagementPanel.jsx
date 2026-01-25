@@ -32,6 +32,7 @@ export const CorpsManagementPanel = ({
     const [newCorpsName, setNewCorpsName] = useState('');
     const [unitAllocation, setUnitAllocation] = useState({});
     const [selectedCommand, setSelectedCommand] = useState(null);
+    const [createFeedback, setCreateFeedback] = useState(null);
 
     if (!frontlineMap || !frontlineMap.active) {
         return null;
@@ -76,6 +77,7 @@ export const CorpsManagementPanel = ({
         setIsCreating(true);
         setNewCorpsName(`第${playerCorps.length + 1}军团`);
         setUnitAllocation({});
+        setCreateFeedback(null);
     }, [playerCorps.length]);
 
     // 取消创建
@@ -112,9 +114,21 @@ export const CorpsManagementPanel = ({
     const confirmCreate = useCallback(() => {
         if (!newCorpsName.trim() || Object.keys(unitAllocation).length === 0) return;
 
-        onCreateCorps?.(newCorpsName.trim(), unitAllocation);
+        const result = onCreateCorps?.(newCorpsName.trim(), unitAllocation);
+        if (result?.success) {
+            cancelCreating();
+            setCreateFeedback({ type: 'success', message: `兵团「${newCorpsName.trim()}」已创建` });
+            onSelectCorps?.(result.corps || null);
+            return;
+        }
+
+        if (result?.error) {
+            setCreateFeedback({ type: 'error', message: result.error });
+            return;
+        }
+
         cancelCreating();
-    }, [newCorpsName, unitAllocation, onCreateCorps, cancelCreating]);
+    }, [newCorpsName, unitAllocation, onCreateCorps, cancelCreating, onSelectCorps]);
 
     // 渲染单位选择器
     const renderUnitSelector = () => {
@@ -441,6 +455,18 @@ export const CorpsManagementPanel = ({
 
             {/* 创建面板 */}
             {renderCreatePanel()}
+
+            {createFeedback && (
+                <div
+                    className={`mb-3 p-2 rounded-lg border text-xs ${
+                        createFeedback.type === 'success'
+                            ? 'bg-green-900/20 border-green-700/30 text-green-300'
+                            : 'bg-red-900/20 border-red-700/30 text-red-300'
+                    }`}
+                >
+                    {createFeedback.message}
+                </div>
+            )}
 
             {/* 兵团详情 */}
             {renderCorpsDetail()}
