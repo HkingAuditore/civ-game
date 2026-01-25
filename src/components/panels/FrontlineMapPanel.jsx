@@ -556,7 +556,7 @@ export const FrontlineMapPanel = ({
 
             {/* 地图网格 - 六边形交错排列 */}
             <div 
-                className="overflow-auto pb-2 border border-gray-600 rounded bg-gray-900/50"
+                className="overflow-auto scrollbar-hide pb-2 border border-gray-600 rounded bg-gray-900/50"
                 style={{ maxHeight: '450px' }}
             >
                 <div
