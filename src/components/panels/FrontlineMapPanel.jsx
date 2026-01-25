@@ -49,6 +49,7 @@ export const FrontlineMapPanel = ({
     const [showGrid, setShowGrid] = useState(true);
     const [mapScale, setMapScale] = useState(1); // 地图缩放比例
     const mapViewportRef = useRef(null);
+    const [commandFeedback, setCommandFeedback] = useState(null);
 
     if (!frontlineMap || !frontlineMap.active) {
         return (
@@ -162,16 +163,34 @@ export const FrontlineMapPanel = ({
         if (selectedCorps.position.x === x && selectedCorps.position.y === y) return;
 
         if (enemyCorpsHere.length > 0) {
-            onIssueCommand?.(selectedCorps, 'attack', enemyCorpsHere[0]);
+            const result = onIssueCommand?.(selectedCorps, 'attack', enemyCorpsHere[0]);
+            if (result?.success !== undefined) {
+                setCommandFeedback({
+                    type: result.success ? 'success' : 'error',
+                    message: result.message || result.error || '命令已下达',
+                });
+            }
             return;
         }
 
         if (building && building.owner !== playerId) {
-            onIssueCommand?.(selectedCorps, 'siege', building);
+            const result = onIssueCommand?.(selectedCorps, 'siege', building);
+            if (result?.success !== undefined) {
+                setCommandFeedback({
+                    type: result.success ? 'success' : 'error',
+                    message: result.message || result.error || '命令已下达',
+                });
+            }
             return;
         }
 
-        onIssueCommand?.(selectedCorps, 'move', { position: { x, y } });
+        const result = onIssueCommand?.(selectedCorps, 'move', { position: { x, y } });
+        if (result?.success !== undefined) {
+            setCommandFeedback({
+                type: result.success ? 'success' : 'error',
+                message: result.message || result.error || '命令已下达',
+            });
+        }
     }, [corpsByPosition, buildingsByPosition, selectedCorps, playerId, onSelectCell, onSelectCorps, onIssueCommand]);
 
     // 将视图定位到选中兵团
@@ -189,6 +208,12 @@ export const FrontlineMapPanel = ({
         const raf = requestAnimationFrame(() => focusOnCorps(selectedCorps));
         return () => cancelAnimationFrame(raf);
     }, [selectedCorps, focusOnCorps]);
+
+    useEffect(() => {
+        if (!commandFeedback) return;
+        const timer = setTimeout(() => setCommandFeedback(null), 3000);
+        return () => clearTimeout(timer);
+    }, [commandFeedback]);
 
     // 渲染单个格子 - 尖顶六边形
     const renderCell = useCallback((x, y) => {
@@ -614,8 +639,20 @@ export const FrontlineMapPanel = ({
                         </button>
                     </div>
                     <div className="text-[10px] text-blue-400 mt-1">
-                        点击空地移动 | 点击敌军攻击 | 点击敌方建筑围攻
+                        点击空地移动 | 点击敌军攻击 | 点击敌方建筑围攻（命令将在每日结算生效）
                     </div>
+                </div>
+            )}
+
+            {commandFeedback && (
+                <div
+                    className={`mt-2 p-2 rounded-lg border text-xs ${
+                        commandFeedback.type === 'success'
+                            ? 'bg-green-900/20 border-green-700/30 text-green-300'
+                            : 'bg-red-900/20 border-red-700/30 text-red-300'
+                    }`}
+                >
+                    {commandFeedback.message}
                 </div>
             )}
 
