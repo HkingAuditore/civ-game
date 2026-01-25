@@ -98,25 +98,56 @@ export const FrontlineMapPanel = ({
         return map;
     }, [corps]);
 
-    // 动态调整六边形大小，使地图更好地填充容器
-    const baseHexSize = 24; // 增大基础尺寸
-    const hexSize = baseHexSize * mapScale;
-    const hexWidth = hexSize * 2;
-    const hexHeight = Math.sqrt(3) * hexSize;
-    const hexXSpacing = hexSize * 1.5;
-    const hexYSpacing = hexHeight;
+    // ============================================
+    // 文明6风格六边形布局 - 尖顶六边形 (Pointy-Top Hex)
+    // ============================================
+    // 
+    // 尖顶六边形数学:
+    //   设六边形边长 = s
+    //   宽度 W = s × √3 ≈ s × 1.732
+    //   高度 H = s × 2
+    //
+    // 紧密排列（边贴边，无间隙）:
+    //   列间距 (水平) = W × 1.0       (六边形宽度)
+    //   行间距 (垂直) = H × 0.75      (高度的3/4，因为上下交错重叠1/4)
+    //   奇数列偏移    = H × 0.5       (向下偏移半个高度)
+    //
+    // ============================================
+    
+    const HEX_SIDE = 28; // 六边形边长（基础值）
+    const side = HEX_SIDE * mapScale;
+    
+    // 六边形精确尺寸
+    const hexWidth = side * Math.sqrt(3);  // W = s × √3
+    const hexHeight = side * 2;             // H = s × 2
+    
+    // 紧密排列间距（关键！）
+    const colSpacing = hexWidth;            // 列间距 = 宽度
+    const rowSpacing = hexHeight * 0.75;    // 行间距 = 高度 × 0.75
+    const oddColOffset = hexHeight * 0.5;   // 奇数列向下偏移 = 高度 × 0.5
 
+    // 计算地图总像素尺寸
     const mapPixelSize = useMemo(() => {
-        const pixelWidth = hexWidth + (width - 1) * hexXSpacing;
-        const pixelHeight = hexHeight * (height + (width - 1) / 2);
-        return { width: pixelWidth, height: pixelHeight };
-    }, [width, height, hexWidth, hexXSpacing, hexHeight]);
+        // 宽度 = (列数-1) × 列间距 + 一个六边形宽度
+        const pixelWidth = (width - 1) * colSpacing + hexWidth;
+        // 高度 = (行数-1) × 行间距 + 一个六边形高度 + 可能的奇数列偏移
+        const pixelHeight = (height - 1) * rowSpacing + hexHeight + (width > 1 ? oddColOffset : 0);
+        return { width: pixelWidth + 20, height: pixelHeight + 20 };
+    }, [width, height, hexWidth, hexHeight, colSpacing, rowSpacing, oddColOffset]);
 
-    const getHexPosition = useCallback((x, y) => {
-        const left = x * hexXSpacing;
-        const top = hexHeight * (y + x / 2);
+    // 获取六边形中心位置
+    const getHexPosition = useCallback((col, row) => {
+        // 六边形左上角位置（不是中心）
+        const left = col * colSpacing;
+        let top = row * rowSpacing;
+        
+        // 奇数列向下偏移半个高度
+        if (col % 2 === 1) {
+            top += oddColOffset;
+        }
+        
         return { left, top };
-    }, [hexXSpacing, hexHeight]);
+    }, [colSpacing, rowSpacing, oddColOffset]);
 
     const handleCellClick = useCallback((x, y) => {
         const cellKey = `${x},${y}`;
@@ -150,7 +181,7 @@ export const FrontlineMapPanel = ({
         onIssueCommand?.(selectedCorps, 'move', { position: { x, y } });
     }, [corpsByPosition, buildingsByPosition, selectedCorps, playerId, onSelectCell, onSelectCorps, onIssueCommand]);
 
-    // 渲染单个格子
+    // 渲染单个格子 - 使用平顶六边形
     const renderCell = useCallback((x, y) => {
         const terrainType = terrain[y]?.[x] || 'plain';
         const terrainConfig = TERRAIN_ICONS[terrainType] || TERRAIN_ICONS.plain;
@@ -163,15 +194,19 @@ export const FrontlineMapPanel = ({
         const isSelectableCorps = cellCorps.some(c => c.owner === playerId);
         const { left, top } = getHexPosition(x, y);
 
+        // 尖顶六边形的 clip-path (pointy-top)
+        // 顶点从上方尖角开始顺时针: 上(50%, 0%), 右上(100%, 25%), 右下(100%, 75%), 下(50%, 100%), 左下(0%, 75%), 左上(0%, 25%)
+        const pointyTopHexClipPath = 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)';
+
         return (
             <button
                 key={`${x},${y}`}
                 onClick={() => handleCellClick(x, y)}
                 className={`
                     absolute flex items-center justify-center
-                    border border-gray-700/50 transition-all
+                    border-0 transition-all
                     ${terrainConfig.bg}
-                    ${isSelected ? 'ring-2 ring-amber-400 z-10' : ''}
+                    ${isSelected ? 'ring-2 ring-amber-400 z-20' : ''}
                     ${isSelectableCorps ? 'cursor-pointer' : ''}
                     hover:brightness-125 hover:z-10
                 `}
@@ -180,34 +215,36 @@ export const FrontlineMapPanel = ({
                     height: `${hexHeight}px`,
                     left: `${left}px`,
                     top: `${top}px`,
-                    clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
+                    clipPath: pointyTopHexClipPath,
+                    // 添加内边框效果
+                    boxShadow: 'inset 0 0 0 1px rgba(100, 100, 100, 0.4)',
                 }}
             >
                 {/* 地形图标 */}
                 {showGrid && !building && cellCorps.length === 0 && (
                     <Icon
                         name={terrainConfig.icon}
-                        size={12}
-                        className={`${terrainConfig.color} opacity-30`}
+                        size={14}
+                        className={`${terrainConfig.color} opacity-40`}
                     />
                 )}
 
                 {/* 建筑 */}
                 {building && (
                     <div className={`
-                        absolute inset-0.5 rounded-sm flex items-center justify-center
+                        w-3/4 h-3/4 rounded-sm flex items-center justify-center relative
                         ${building.owner === playerId
-                            ? 'bg-blue-900/60 border border-blue-500/50'
-                            : 'bg-red-900/60 border border-red-500/50'
+                            ? 'bg-blue-900/70 border border-blue-500/50'
+                            : 'bg-red-900/70 border border-red-500/50'
                         }
                     `}>
                         <Icon
                             name={BUILDING_ICONS[building.type]?.icon || 'Building'}
-                            size={14}
+                            size={16}
                             className={BUILDING_ICONS[building.type]?.color || 'text-gray-400'}
                         />
                         {/* 血量条 */}
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-900">
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4/5 h-1 bg-gray-900 rounded-full overflow-hidden">
                             <div
                                 className={`h-full ${building.owner === playerId ? 'bg-green-500' : 'bg-red-500'}`}
                                 style={{ width: `${(building.health / building.maxHealth) * 100}%` }}
@@ -216,24 +253,39 @@ export const FrontlineMapPanel = ({
                     </div>
                 )}
 
-                {/* 兵团 */}
+                {/* 兵团标识 - 显示在六边形中央 */}
                 {cellCorps.length > 0 && (
-                    <div className="absolute -top-1 -right-1 flex gap-0.5">
-                        {hasPlayerCorps && (
-                            <div className="w-3 h-3 rounded-full bg-blue-500 border border-blue-300 flex items-center justify-center">
-                                <Icon name="Users" size={8} className="text-white" />
-                            </div>
-                        )}
-                        {hasEnemyCorps && (
-                            <div className="w-3 h-3 rounded-full bg-red-500 border border-red-300 flex items-center justify-center">
-                                <Icon name="Users" size={8} className="text-white" />
-                            </div>
-                        )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="flex gap-1">
+                            {hasPlayerCorps && (
+                                <div className={`
+                                    w-6 h-6 rounded-full flex items-center justify-center
+                                    ${selectedCorps && cellCorps.some(c => c.id === selectedCorps.id)
+                                        ? 'bg-blue-500 border-2 border-blue-200 ring-2 ring-blue-400 animate-pulse'
+                                        : 'bg-blue-600 border-2 border-blue-300'
+                                    }
+                                `}>
+                                    <Icon name="Users" size={12} className="text-white" />
+                                </div>
+                            )}
+                            {hasEnemyCorps && (
+                                <div className="w-6 h-6 rounded-full bg-red-600 border-2 border-red-300 flex items-center justify-center">
+                                    <Icon name="Swords" size={12} className="text-white" />
+                                </div>
+                            )}
+                        </div>
                     </div>
+                )}
+
+                {/* 坐标标签 (调试用，可选) */}
+                {showGrid && (
+                    <span className="absolute bottom-0 right-1 text-[8px] text-gray-600 opacity-50">
+                        {x},{y}
+                    </span>
                 )}
             </button>
         );
-    }, [terrain, buildingsByPosition, corpsByPosition, selectedCell, playerId, showGrid, getHexPosition, hexWidth, hexHeight, handleCellClick]);
+    }, [terrain, buildingsByPosition, corpsByPosition, selectedCell, selectedCorps, playerId, showGrid, getHexPosition, hexWidth, hexHeight, handleCellClick]);
 
     // 渲染战争状态栏
     const renderWarStatus = () => {
@@ -304,7 +356,7 @@ export const FrontlineMapPanel = ({
 
                 {playerCorps.length === 0 ? (
                     <div className="text-xs text-gray-500 text-center py-2">
-                        尚未部署兵团
+                        尚未部署兵团，请先在「兵团管理」中创建
                     </div>
                 ) : (
                     <div className="space-y-1.5">
@@ -315,7 +367,7 @@ export const FrontlineMapPanel = ({
                                 className={`
                                     w-full p-2 rounded-lg border transition-all text-left
                                     ${selectedCorps?.id === c.id
-                                        ? 'bg-blue-900/40 border-blue-500/50'
+                                        ? 'bg-blue-900/40 border-blue-500/50 ring-1 ring-blue-400'
                                         : 'bg-gray-900/30 border-gray-700/50 hover:border-gray-600'
                                     }
                                 `}
@@ -332,9 +384,9 @@ export const FrontlineMapPanel = ({
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                                    <span>位置: ({c.position.x}, {c.position.y})</span>
                                     <span>兵力: {Object.values(c.units).reduce((a, b) => a + b, 0)}</span>
                                     <span>士气: {c.morale}%</span>
-                                    <span>补给: {c.supplies}%</span>
                                 </div>
                             </button>
                         ))}
@@ -447,6 +499,7 @@ export const FrontlineMapPanel = ({
                     <button
                         onClick={() => setShowGrid(!showGrid)}
                         className={`p-1.5 rounded ${showGrid ? 'bg-gray-700' : 'bg-gray-800'} hover:bg-gray-600 transition-all`}
+                        title="显示/隐藏网格"
                     >
                         <Icon name="Grid3x3" size={14} className="text-gray-400" />
                     </button>
@@ -455,8 +508,10 @@ export const FrontlineMapPanel = ({
 
             {/* 战争状态 */}
             {renderWarStatus()}
-            <div className="text-[10px] text-gray-500 mb-2">
-                选中己方兵团后点击六边形：空地移动 / 敌军攻击 / 敌方建筑围攻
+
+            {/* 操作提示 */}
+            <div className="text-[10px] text-amber-400 bg-amber-900/20 p-2 rounded mb-2 border border-amber-700/30">
+                💡 选中己方兵团(蓝色圆圈)后，点击目标格子：空地=移动 | 敌军=攻击 | 敌方建筑=围攻
             </div>
 
             {/* 缩放控制 */}
@@ -477,58 +532,69 @@ export const FrontlineMapPanel = ({
                 >重置</button>
             </div>
 
-            {/* 地图网格 */}
-            <div className="overflow-auto pb-2 max-h-[500px] border border-gray-600 rounded bg-gray-900/50">
+            {/* 地图网格 - 六边形交错排列 */}
+            <div 
+                className="overflow-auto pb-2 border border-gray-600 rounded bg-gray-900/50"
+                style={{ maxHeight: '450px' }}
+            >
                 <div
                     className="relative"
                     style={{
-                        width: `${mapPixelSize.width + 20}px`,
-                        height: `${mapPixelSize.height + 20}px`,
+                        width: `${mapPixelSize.width}px`,
+                        height: `${mapPixelSize.height}px`,
                         minWidth: '100%',
                     }}
                 >
-                    {Array.from({ length: height }).map((_, y) =>
-                        Array.from({ length: width }).map((_, x) => renderCell(x, y))
+                    {/* 按行渲染，确保交错效果正确 */}
+                    {Array.from({ length: height }).map((_, row) =>
+                        Array.from({ length: width }).map((_, col) => renderCell(col, row))
                     )}
                 </div>
             </div>
 
             {/* 图例 */}
-            <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-gray-500">
-                <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+            <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-gray-500">
+                <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded-full bg-blue-600 border-2 border-blue-300 flex items-center justify-center">
+                        <Icon name="Users" size={8} className="text-white" />
+                    </div>
                     <span>己方兵团</span>
                 </div>
-                <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded-full bg-red-600 border-2 border-red-300 flex items-center justify-center">
+                        <Icon name="Swords" size={8} className="text-white" />
+                    </div>
                     <span>敌方兵团</span>
                 </div>
-                <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded bg-blue-900/60 border border-blue-500/50" />
+                <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded bg-blue-900/70 border border-blue-500/50" />
                     <span>己方建筑</span>
                 </div>
-                <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded bg-red-900/60 border border-red-500/50" />
+                <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded bg-red-900/70 border border-red-500/50" />
                     <span>敌方建筑</span>
                 </div>
             </div>
 
-            {/* 操作提示 */}
+            {/* 选中兵团提示 */}
             {selectedCorps && (
                 <div className="mt-3 p-2 bg-blue-900/30 rounded-lg border border-blue-700/50">
-                    <div className="flex items-center gap-2 text-xs text-blue-300">
-                        <Icon name="Info" size={12} />
-                        <span>已选中: <strong>{selectedCorps.name}</strong></span>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs text-blue-300">
+                            <Icon name="Target" size={12} />
+                            <span>已选中: <strong>{selectedCorps.name}</strong></span>
+                            <span className="text-blue-400">({selectedCorps.position.x}, {selectedCorps.position.y})</span>
+                        </div>
+                        <button
+                            onClick={() => onSelectCorps?.(null)}
+                            className="px-2 py-1 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                        >
+                            取消选中
+                        </button>
                     </div>
                     <div className="text-[10px] text-blue-400 mt-1">
                         点击空地移动 | 点击敌军攻击 | 点击敌方建筑围攻
                     </div>
-                    <button
-                        onClick={() => onSelectCorps?.(null)}
-                        className="mt-2 px-2 py-1 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
-                    >
-                        取消选中
-                    </button>
                 </div>
             )}
 
