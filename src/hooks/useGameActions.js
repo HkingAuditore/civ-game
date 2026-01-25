@@ -2212,7 +2212,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                     newRes.silver = (newRes.silver || 0) + refundSilver;
                     return newRes;
-                }, 'cancel_training_refund', { unitId, queueIndex });
+                }, 'cancel_training_refund', { unitId: item.unitId, queueIndex });
 
                 addLog(`取消训练 ${unit.name}，返还50%资源`);
             }
@@ -5010,19 +5010,26 @@ export const useGameActions = (gameState, addLog) => {
                 const buildingCostMod = gameState?.modifiers?.officialEffects?.buildingCostMod || 0;
                 const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
                 const constructionCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
-                // [FIX] 计算总建造银币成本（包括直接银币成本 + 进口成本）
-                // 投资款应该用于覆盖这些成本，而不是作为玩家收入
+                // [FIX] 计算总建造银币成本（仅直接银币成本）
+                // 投资款只能覆盖银币成本，资源不足则直接失败
                 let totalSilverCostEstimate = constructionCost.silver || 0;
-                // 预估进口成本
+                // 校验资源是否足够（不允许紧急进口）
+                const insufficientResources = [];
                 Object.entries(constructionCost).forEach(([res, amount]) => {
                     if (res === 'silver') return;
                     const available = resources[res] || 0;
                     if (available < amount) {
-                        const needed = amount - available;
-                        const price = market?.prices?.[res] || RESOURCES[res]?.basePrice || 1;
-                        totalSilverCostEstimate += needed * price * 1.2; // 紧急进口溢价
+                        insufficientResources.push(res);
                     }
                 });
+                if (insufficientResources.length > 0) {
+                    addLog(`外资建设失败：资源不足（${insufficientResources.join('、')}）。`);
+                    break;
+                }
+                if (fundingReceived < totalSilverCostEstimate) {
+                    addLog('外资建设失败：投资预算不足。');
+                    break;
+                }
                 // [FIX] 计算承建利润（如果投资款 > 实际成本）
                 // 这笔利润归国内工人阶层（建筑工人）
                 const constructionProfit = Math.max(0, fundingReceived - totalSilverCostEstimate);
@@ -5030,47 +5037,18 @@ export const useGameActions = (gameState, addLog) => {
                 // 执行资源扣除 - 投资款用于抵消成本，不作为收入
                 setResourcesWithReason(prev => {
                     const nextRes = { ...prev };
-                    // [FIX] 不再将投资款加入银币
-                    // 投资款直接用于覆盖建造成本
-                    // 如果投资款够用，玩家不需要消耗任何银币
-                    // 如果不够，玩家需要自掏腰包补差额
+                    // [FIX] 投资款仅用于覆盖银币成本，玩家不再补差额
                     let remainingBudget = fundingReceived; // AI 提供的建设预算
 
                     Object.entries(constructionCost).forEach(([res, amount]) => {
                         if (res === 'silver') {
                             // 银币成本从预算中扣除
                             if (remainingBudget >= amount) {
-
                                 remainingBudget -= amount;
-                                // 不消耗玩家银币
-                            } else {
-                                // 预算不够，玩家需要补差额
-                                const playerPays = amount - remainingBudget;
-
-                                remainingBudget = 0;
-                                nextRes.silver = Math.max(0, (nextRes.silver || 0) - playerPays);
                             }
                         } else {
-                            // 非银币资源：优先使用玩家库存，不足则从预算购买
-                            if ((nextRes[res] || 0) >= amount) {
-                                nextRes[res] -= amount;
-                            } else {
-                                // 资源不足，从预算购买进口
-                                const needed = amount - (nextRes[res] || 0);
-                                nextRes[res] = 0; // 用光库存
-                                const price = market?.prices?.[res] || RESOURCES[res]?.basePrice || 1;
-                                const importCost = needed * price * 1.2; // 紧急进口溢价
-
-                                if (remainingBudget >= importCost) {
-                                    remainingBudget -= importCost;
-                                } else {
-                                    // 预算不够，玩家需要补差额
-                                    const playerPays = importCost - remainingBudget;
-                                    remainingBudget = 0;
-
-                                    nextRes.silver = Math.max(0, (nextRes.silver || 0) - playerPays);
-                                }
-                            }
+                            // 非银币资源：直接消耗玩家库存（资源不足已提前拦截）
+                            nextRes[res] = Math.max(0, (nextRes[res] || 0) - amount);
                         }
                     });
                     // [FIX] 剩余预算（如有）不进入国库

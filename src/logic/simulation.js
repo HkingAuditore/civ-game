@@ -171,7 +171,8 @@ import {
 } from './officials/manager';
 import {
     calculateQuotaEffects,
-    processOwnerExpansions
+    processOwnerExpansions,
+    calculateBuildingProfit
 } from './officials/cabinetSynergy'; // [FIX] Import directly from source
 import {
     ECONOMIC_MINISTER_ROLES,
@@ -6645,6 +6646,10 @@ export const simulateTick = ({
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
         const buildingCostMod = bonuses.buildingCostMod || 0;
+        const marketForMinister = {
+            prices: priceMap,
+            wages: market?.wages || {},
+        };
         let bestCandidate = null;
 
         ECONOMIC_MINISTER_ROLES.forEach((role) => {
@@ -6670,13 +6675,23 @@ export const simulateTick = ({
                 if (!Number.isFinite(silverCost) || silverCost <= 0) return;
                 if ((res.silver || 0) < silverCost) return;
 
+                const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
+                const profit = profitResult?.profit ?? 0;
+                if (profit <= 0) return;
+                const roi = silverCost > 0 ? profit / silverCost : 0;
+                if (roi <= 0) return;
+
                 if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
-                    (shortageScore === bestCandidate.shortageScore && silverCost < bestCandidate.silverCost)) {
+                    (shortageScore === bestCandidate.shortageScore && roi > bestCandidate.roi) ||
+                    (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit > bestCandidate.profit) ||
+                    (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit === bestCandidate.profit && silverCost < bestCandidate.silverCost)) {
                     bestCandidate = {
                         role,
                         building,
                         shortageScore,
                         silverCost,
+                        profit,
+                        roi,
                     };
                 }
             });
