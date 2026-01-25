@@ -4877,7 +4877,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                     // Create the foreign investment
 
-                    import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
+                    import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment, mergeForeignInvestments }) => {
                         const investment = createForeignInvestment({
                             buildingId,
                             ownerNationId: targetNation.id,
@@ -4893,7 +4893,7 @@ export const useGameActions = (gameState, addLog) => {
                             createdDay: daysElapsed,
                             status: 'operating'
                         };
-                        setForeignInvestments(prev => [...prev, inv]);
+                        setForeignInvestments(prev => mergeForeignInvestments(prev, inv));
                         // Deduct wealth from vassal
                         setNations(prev => prev.map(n => n.id === nationId ? { ...n, wealth: Math.max(0, (n.wealth || 0) - investmentCost) } : n));
                         addLog(`成功迫使 ${targetNation.name} 投资 ${building.name}`);
@@ -4926,7 +4926,7 @@ export const useGameActions = (gameState, addLog) => {
                     break;
 
                 }
-                import('../logic/diplomacy/overseasInvestment').then(({ establishOverseasInvestment }) => {
+                import('../logic/diplomacy/overseasInvestment').then(({ establishOverseasInvestment, mergeOverseasInvestments }) => {
                     console.log('🔴🔴🔴 [INVEST-DEBUG] 调用 establishOverseasInvestment:', {
                         targetNation: { id: targetNation.id, name: targetNation.name, vassalOf: targetNation.vassalOf },
                         buildingId,
@@ -4952,9 +4952,8 @@ export const useGameActions = (gameState, addLog) => {
                         console.log('🔴🔴🔴 [INVEST-DEBUG] 准备调用 setOverseasInvestments, investment:', result.investment);
                         console.log('🔴🔴🔴 [INVEST-DEBUG] setOverseasInvestments 函数存在?', typeof setOverseasInvestments);
                         setOverseasInvestments(prev => {
-
                             console.log('🔴🔴🔴 [INVEST-DEBUG] setOverseasInvestments 被调用! prev:', prev, 'adding:', result.investment);
-                            const newList = [...prev, result.investment];
+                            const newList = mergeOverseasInvestments(prev, result.investment);
                             console.log('🔴🔴🔴 [INVEST-DEBUG] 新列表:', newList);
                             return newList;
                         });
@@ -5087,7 +5086,7 @@ export const useGameActions = (gameState, addLog) => {
                         worker: (prev.worker || 0) + constructionProfit,
                     }), 'foreign_investment_construction_profit', { nationId, buildingId, profit: constructionProfit });
                 }
-                import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
+                import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment, mergeForeignInvestments }) => {
 
                     const newInvestment = createForeignInvestment({
                         buildingId,
@@ -5100,7 +5099,7 @@ export const useGameActions = (gameState, addLog) => {
 
                         newInvestment.investmentAmount = investmentAmount || 0;
                         newInvestment.createdDay = daysElapsed;
-                        setForeignInvestments(prev => [...prev, newInvestment]);
+                        setForeignInvestments(prev => mergeForeignInvestments(prev, newInvestment));
                         // 增加建筑数量
                         setBuildings(prev => ({
                             ...prev,

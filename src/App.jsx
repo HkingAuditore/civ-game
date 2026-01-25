@@ -59,6 +59,68 @@ import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActi
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 
+const PerfOverlay = () => {
+    const [stats, setStats] = useState(null);
+    const [isVisible, setIsVisible] = useState(true);
+
+    useEffect(() => {
+        const enabled = typeof window !== 'undefined'
+            ? (window.__PERF_OVERLAY ?? process.env.NODE_ENV !== 'production')
+            : process.env.NODE_ENV !== 'production';
+        if (!enabled) return;
+
+        const timer = setInterval(() => {
+            if (typeof window === 'undefined') return;
+            const next = window.__PERF_STATS;
+            if (next) {
+                setStats(next);
+            }
+        }, 500);
+
+        return () => clearInterval(timer);
+    }, []);
+
+    const enabled = typeof window !== 'undefined'
+        ? (window.__PERF_OVERLAY ?? process.env.NODE_ENV !== 'production')
+        : process.env.NODE_ENV !== 'production';
+    if (!enabled || !isVisible) return null;
+
+    const sectionEntries = stats?.sections
+        ? Object.entries(stats.sections)
+            .filter(([, value]) => Number.isFinite(value) && value > 0)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 4)
+        : [];
+
+    return (
+        <div className="fixed right-2 top-16 z-[9999] bg-black/70 text-green-300 border border-green-600/40 rounded px-2 py-1 text-[10px] font-mono pointer-events-auto">
+            <div className="flex items-center justify-between gap-2">
+                <span>PERF</span>
+                <button
+                    type="button"
+                    className="text-green-300 hover:text-white"
+                    onClick={() => setIsVisible(false)}
+                >
+                    ✕
+                </button>
+            </div>
+            <div>day: {stats?.day ?? '-'}</div>
+            <div>total: {stats?.totalMs ? stats.totalMs.toFixed(1) : '-'} ms</div>
+            <div>sim: {stats?.simMs ? stats.simMs.toFixed(1) : '-'} ms</div>
+            <div>apply: {stats?.applyMs ? stats.applyMs.toFixed(1) : '-'} ms</div>
+            <div>nations: {stats?.nations ?? '-'}</div>
+            <div>overseas: {stats?.overseas ?? '-'}</div>
+            <div>foreign: {stats?.foreign ?? '-'}</div>
+            <div>other: {stats?.otherMs ? stats.otherMs.toFixed(1) : '-'} ms</div>
+            {sectionEntries.map(([label, value]) => (
+                <div key={label}>
+                    {label}: {value.toFixed(1)} ms
+                </div>
+            ))}
+        </div>
+    );
+};
+
 /**
  * 文明崛起主应用组件
  * 整合所有游戏系统和UI组件
@@ -910,6 +972,7 @@ function GameApp({ gameState }) {
             {/* Dynamic Era Background */}
             <EraBackground epoch={gameState.epoch} opacity={0.08} />
             <MusicPlayer />
+            <PerfOverlay />
             {/* 浮动文本 */}
             {gameState.clicks.map(c => (
                 <FloatingText

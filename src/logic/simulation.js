@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { buildOwnershipListFromLegacy, providesOwnerJobs, OWNER_TYPES } from '../config/ownerTypes';
@@ -26,6 +26,9 @@ import { calculateNaturalRecovery } from '../config/reputationSystem';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
+
+let cachedPotentialResourcesKey = null;
+let cachedPotentialResourcesSet = null;
 
 const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange }) => {
     const treaties = Array.isArray(nation.treaties) ? nation.treaties : [];
@@ -315,6 +318,7 @@ export const simulateTick = ({
 
     difficulty, // 游戏难度设置
     officials = [], // 官员列表
+    officialsSimCursor = 0, // 官员分片模拟游标
     activeDecrees, // [NEW] Reform decrees
     officialsPaid = true, // 是否足额支付薪水
     ministerAssignments = {}, // [NEW] Minister role assignments
@@ -333,15 +337,61 @@ export const simulateTick = ({
     diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
+    const perfSections = {};
+    const perfTime = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+    const perfUserTimingEnabled = typeof performance !== 'undefined'
+        && typeof performance.mark === 'function'
+        && typeof performance.measure === 'function'
+        && (typeof window !== 'undefined' && window.__PERF_USER_TIMING === true);
+    const perfMarkStart = (label) => {
+        if (!perfUserTimingEnabled) return;
+        const startMark = `sim:${label}:start`;
+        const endMark = `sim:${label}:end`;
+        const measureName = `sim:${label}`;
+        performance.clearMarks(startMark);
+        performance.clearMarks(endMark);
+        performance.clearMeasures(measureName);
+        performance.mark(startMark);
+    };
+    const perfMarkEnd = (label) => {
+        if (!perfUserTimingEnabled) return;
+        const startMark = `sim:${label}:start`;
+        const endMark = `sim:${label}:end`;
+        const measureName = `sim:${label}`;
+        performance.mark(endMark);
+        performance.measure(measureName, startMark, endMark);
+    };
+    const perfStartAll = perfTime();
+    const perfStart = (label) => {
+        perfSections[label] = (perfSections[label] || 0) - perfTime();
+        perfMarkStart(label);
+    };
+    const perfEnd = (label) => {
+        perfSections[label] = (perfSections[label] || 0) + perfTime();
+        perfMarkEnd(label);
+    };
+    perfMarkStart('simulateTick');
+
     const res = { ...resources };
+    const getSlice = (list, slices) => {
+        if (!Array.isArray(list) || list.length === 0) return [];
+        if (!slices || slices <= 1 || list.length <= slices) return list;
+        const size = Math.ceil(list.length / slices);
+        const start = (tick % slices) * size;
+        return list.slice(start, start + size);
+    };
     const priceMap = { ...(market?.prices || {}) };
     let calculatedTradeRouteTax = 0;
 
     // === Process Manual Trade Routes (Worker Side) ===
     let tradeRouteSummary = null;
-    if (tradeRoutes && tradeRoutes.routes && tradeRoutes.routes.length > 0) {
+    const shouldUpdateManualTrade = shouldRunThisTick(tick, 'manualTrade');
+    if (shouldUpdateManualTrade && tradeRoutes && tradeRoutes.routes && tradeRoutes.routes.length > 0) {
+        perfStart('manualTrade');
+        const manualTradeSlices = Math.max(1, RATE_LIMIT_CONFIG.manualTradeSlices || 1);
+        const slicedRoutes = getSlice(tradeRoutes.routes, manualTradeSlices);
         tradeRouteSummary = processManualTradeRoutes({
-            tradeRoutes,
+            tradeRoutes: { ...tradeRoutes, routes: slicedRoutes },
             nations,
             resources: res, // Pass current resources snapshot
             daysElapsed: tick,
@@ -350,6 +400,7 @@ export const simulateTick = ({
             taxPolicies,
             diplomacyOrganizations
         });
+        perfEnd('manualTrade');
 
         if (tradeRouteSummary) {
             calculatedTradeRouteTax = tradeRouteSummary.tradeTax || 0;
@@ -617,6 +668,7 @@ export const simulateTick = ({
 
     // 1. Overseas Investments (Player -> AI)
     if (overseasInvestments.length > 0) {
+        perfStart('overseasInvestments');
         const oiResult = processOverseasInvestments({
             overseasInvestments, // Use original input
             nations,
@@ -675,8 +727,10 @@ export const simulateTick = ({
                 }
             });
         }
+        perfEnd('overseasInvestments');
 
         // Process Upgrades
+        perfStart('overseasUpgrades');
         const upgradeResult = processOverseasInvestmentUpgrades({
             overseasInvestments: updatedOverseasInvestments,
             nations,
@@ -696,8 +750,10 @@ export const simulateTick = ({
                 });
             }
         }
+        perfEnd('overseasUpgrades');
     }
 
+    perfStart('bonusesApply');
     // 2.1 Calculate Cabinet Effects
     // [NEW] Calculate cabinet status to get synergy, dominance, and reform decree effects
     // const capacity = calculateOfficialCapacity(buildings);
@@ -1036,6 +1092,7 @@ export const simulateTick = ({
     if (EPOCHS && EPOCHS[epoch] && EPOCHS[epoch].bonuses) {
         applyEffects(EPOCHS[epoch].bonuses, bonuses);
     }
+    perfEnd('bonusesApply');
 
     // Sync mutable values back from bonuses object after module function calls
     decreeSilverIncome = bonuses.decreeSilverIncome;
@@ -1120,6 +1177,7 @@ export const simulateTick = ({
         }
     };
 
+    perfStart('preProduction');
     const rates = {};
     const builds = buildings;
     const producedResources = new Set();
@@ -1184,30 +1242,12 @@ export const simulateTick = ({
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count > 0) {
-            // buildingUpgrades[b.id] 格式为 { 等级: 数量 }，例如 { "1": 2, "2": 1 }
-            // 表示 2个1级建筑，1个2级建筑
-            const levelCounts = buildingUpgrades[b.id] || {};
-
-            // 计算已升级的建筑数量
-            let upgradedCount = 0;
-            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
-                const lvl = parseInt(lvlStr);
-                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                    upgradedCount += lvlCount;
-                }
-            });
-
-            // 0级（未升级）的数量 = 总数 - 已升级数量
-            const level0Count = Math.max(0, count - upgradedCount);
-
-            // 构建完整的等级分布，用于后续遍历
-            const fullLevelCounts = { 0: level0Count };
-            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
-                const lvl = parseInt(lvlStr);
-                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                    fullLevelCounts[lvl] = lvlCount;
-                }
-            });
+            const { fullLevelCounts } = getBuildingLevelDistribution(
+                tick,
+                b.id,
+                buildingUpgrades,
+                count
+            );
 
             // 遍历每个等级，累加其效果
             Object.entries(fullLevelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -1258,28 +1298,19 @@ export const simulateTick = ({
     // 核心逻辑：只有阶层业主(STRATUM)才提供业主岗位，其他类型(官员/外资/国企)不提供
 
     // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
+    perfStart('ownerJobsAdjust');
     const buildingJobsRequired = {};
 
     BUILDINGS.forEach(building => {
         const buildingCount = buildings[building.id] || 0;
         if (buildingCount <= 0) return;
 
-        const storedLevelCounts = buildingUpgrades[building.id] || {};
-        let upgradedCount = 0;
-        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-            const lvl = parseInt(lvlStr);
-            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                upgradedCount += lvlCount;
-            }
-        });
-        const level0Count = Math.max(0, buildingCount - upgradedCount);
-        const levelCounts = { 0: level0Count };
-        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-            const lvl = parseInt(lvlStr);
-            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                levelCounts[lvl] = lvlCount;
-            }
-        });
+        const { fullLevelCounts: levelCounts } = getBuildingLevelDistribution(
+            tick,
+            building.id,
+            buildingUpgrades,
+            buildingCount
+        );
 
         const totalJobsByRole = {};
         let ownerSlotsTotal = 0;
@@ -1330,23 +1361,36 @@ export const simulateTick = ({
             );
         }
     });
+    perfEnd('ownerJobsAdjust');
 
     // Calculate potential resources: resources from buildings that are unlocked (can be built)
-    const potentialResources = new Set();
-    BUILDINGS.forEach(b => {
-        // Check if building is unlocked: epoch requirement met AND tech requirement met (if any)
-        const epochUnlocked = (b.epoch ?? 0) <= epoch;
-        const techUnlocked = !b.requiresTech || techsUnlocked.includes(b.requiresTech);
-
-        if (epochUnlocked && techUnlocked && b.output) {
-            Object.entries(b.output).forEach(([resKey, amount]) => {
-                if (!RESOURCES[resKey]) return;
-                if ((amount || 0) > 0) {
-                    potentialResources.add(resKey);
-                }
-            });
+    perfStart('potentialResources');
+    const potentialResources = (() => {
+        const techKey = Array.isArray(techsUnlocked) ? techsUnlocked.join('|') : '';
+        const cacheKey = `${epoch}|${techKey}`;
+        if (cachedPotentialResourcesKey === cacheKey && cachedPotentialResourcesSet) {
+            return cachedPotentialResourcesSet;
         }
-    });
+        const set = new Set();
+        BUILDINGS.forEach(b => {
+            // Check if building is unlocked: epoch requirement met AND tech requirement met (if any)
+            const epochUnlocked = (b.epoch ?? 0) <= epoch;
+            const techUnlocked = !b.requiresTech || techsUnlocked.includes(b.requiresTech);
+
+            if (epochUnlocked && techUnlocked && b.output) {
+                Object.entries(b.output).forEach(([resKey, amount]) => {
+                    if (!RESOURCES[resKey]) return;
+                    if ((amount || 0) > 0) {
+                        set.add(resKey);
+                    }
+                });
+            }
+        });
+        cachedPotentialResourcesKey = cacheKey;
+        cachedPotentialResourcesSet = set;
+        return set;
+    })();
+    perfEnd('potentialResources');
 
     if (maxPopPercent !== 0) {
         const multiplier = Math.max(0, 1 + maxPopPercent);
@@ -1382,6 +1426,7 @@ export const simulateTick = ({
     }
     // console.log('[TICK] Soldier jobs added. jobsAvailable.soldier:', jobsAvailable.soldier); // Commented for performance
 
+    perfStart('populationJobs');
     // 职业持久化：基于上一帧状态进行增减，而非每帧重置
     // console.log('[TICK] Starting population allocation...'); // Commented for performance
     const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
@@ -1620,6 +1665,7 @@ export const simulateTick = ({
         getHeadTaxRate,
         effectiveTaxModifier
     });
+    perfEnd('populationJobs');
 
     // 重新赋值更新后的人口结构和财富
     // 注意：fillVacancies 会直接修改传入的对象引用，但在 React/Redux 模式下通常建议返回新对象
@@ -1644,6 +1690,7 @@ export const simulateTick = ({
         aggregatedLogs.set(message, count + 1);
     };
 
+    perfStart('passiveGains');
     Object.entries(passiveGains).forEach(([resKey, amountPerDay]) => {
         if (!amountPerDay) return;
         const gain = amountPerDay;
@@ -1719,6 +1766,7 @@ export const simulateTick = ({
         preTaxWealth[key] = wealth[key] || 0;
     });
 
+    perfStart('headTax');
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') return;
         const count = popStructure[key] || 0;
@@ -1777,40 +1825,23 @@ export const simulateTick = ({
         }
     });
 
+    perfEnd('preProduction');
     const forcedLabor = !!(activeDecrees && activeDecrees.forced_labor);
 
     // console.log('[TICK] Starting production loop...'); // Commented for performance
+    perfStart('productionLoop');
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count === 0) return;
 
         // --- 计算升级加成后的基础数值 ---
-        // buildingUpgrades[b.id] 格式为 { 等级: 数量 }，例如 { "1": 2, "2": 1 }
-        const storedLevelCounts = buildingUpgrades[b.id] || {};
+        const { fullLevelCounts: levelCounts, level0Count, hasUpgrades } = getBuildingLevelDistribution(
+            tick,
+            b.id,
+            buildingUpgrades,
+            count
+        );
         const effectiveOps = { input: {}, output: {}, jobs: {} };
-
-        // 计算已升级的建筑数量
-        let upgradedCount = 0;
-        let hasUpgrades = false;
-        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-            const lvl = parseInt(lvlStr);
-            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                upgradedCount += lvlCount;
-                hasUpgrades = true;
-            }
-        });
-
-        // 0级（未升级）的数量 = 总数 - 已升级数量
-        const level0Count = Math.max(0, count - upgradedCount);
-
-        // 构建完整的等级分布
-        const levelCounts = { 0: level0Count };
-        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-            const lvl = parseInt(lvlStr);
-            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                levelCounts[lvl] = lvlCount;
-            }
-        });
 
         // === 构建 owner 分组映射 ===
         // 每个 owner 可能拥有不同等级的建筑，记录 { ownerKey: { levels: { lvl: count }, totalCount: N } }
@@ -2897,103 +2928,127 @@ export const simulateTick = ({
             });
         }
     });
+    perfEnd('headTax');
+    perfEnd('passiveGains');
+    perfEnd('productionLoop');
 
     // === 新军费计算系统 ===
-    // 1. 获取军队资源维护需求
-    const armyMaintenanceMultiplier = getArmyMaintenanceMultiplier(difficulty);
-    const baseArmyMaintenance = calculateArmyMaintenance(army);
-    // Apply difficulty multiplier
-    Object.keys(baseArmyMaintenance).forEach(key => {
-        baseArmyMaintenance[key] = Math.ceil((baseArmyMaintenance[key] || 0) * armyMaintenanceMultiplier);
-    });
-
-    // Apply wartime multiplier: 3x army maintenance during war
-    const armyMaintenance = {};
-    Object.entries(baseArmyMaintenance).forEach(([resource, amount]) => {
-        armyMaintenance[resource] = isPlayerAtWar ? amount * WAR_MILITARY_MULTIPLIER : amount;
-    });
-
-    // 2. 从市场购买维护资源（消耗资源、增加需求）
-    let totalResourceCost = 0;
-    const armyResourceConsumption = {};
-
-    Object.entries(armyMaintenance).forEach(([resource, needed]) => {
-        if (needed <= 0) return;
-        if (resource === 'silver') {
-            // 银币直接计入成本
-            totalResourceCost += needed;
-            return;
-        }
-
-        // 从市场购买：消耗库存资源
-        const available = res[resource] || 0;
-        const consumed = Math.min(available, needed);
-
-        if (consumed > 0) {
-            res[resource] = available - consumed;
-            rates[resource] = (rates[resource] || 0) - consumed;
-            armyResourceConsumption[resource] = consumed;
-
-            // 增加市场需求（影响价格）
-            demand[resource] = (demand[resource] || 0) + needed;
-        }
-
-        // Use price controls (planned economy) for maintenance resource pricing as well.
-        // This prevents the player from paying market-price upkeep while also enforcing guided prices elsewhere.
-        // NOTE: For upkeep we treat it as a "government purchase" (the army consumes goods),
-        // so we apply the BUY-side price control (government sell price to the buyer).
-        const marketPrice = getPrice(resource);
-        let effectivePrice = marketPrice;
-        if (priceControls?.enabled) {
-            const pcResult = applyBuyPriceControl({
-                resourceKey: resource,
-                amount: needed,
-                marketPrice,
-                priceControls,
-                taxBreakdown,
-                resources: res,
-                onTreasuryChange: trackSilverChange,
-            });
-            effectivePrice = pcResult.effectivePrice;
-        }
-        totalResourceCost += needed * effectivePrice;
-
-        // 如果资源不足，记录日志
-        if (consumed < needed && tick % 30 === 0) {
-            const shortage = needed - consumed;
-            recordAggregatedLog(`?? 军队维护资源不足：缺少 ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
-        }
-    });
-
-    // 3. 计算时代加成和规模惩罚
+    const hasArmyUnits = army && Object.values(army).some(count => count > 0);
+    const hasArmyQueue = Array.isArray(militaryQueue) && militaryQueue.some(item => item.status === 'waiting' || item.status === 'training');
     const epochMultiplier = 1 + epoch * 0.1;
-    const armyPopulation = calculateArmyPopulation(army);
-    const scalePenalty = calculateArmyScalePenalty(armyPopulation, population);
     const effectiveWageMultiplier = Math.max(0.5, militaryWageRatio ?? 1);
-
-    // 4. 总军费 = 资源成本 × 时代加成 × 规模惩罚 × 军饷倍率
-    const totalArmyCost = totalResourceCost * epochMultiplier * scalePenalty * effectiveWageMultiplier;
-
-    // 记录军费数据（用于战争赔款计算）
-    const armyExpenseResult = {
-        dailyExpense: totalArmyCost,
-        resourceCost: totalResourceCost,
+    let armyExpenseResult = {
+        dailyExpense: 0,
+        resourceCost: 0,
         epochMultiplier,
-        scalePenalty,
+        scalePenalty: 1,
         wageMultiplier: effectiveWageMultiplier,
-        resourceConsumption: armyResourceConsumption
+        resourceConsumption: {},
     };
 
-    // [DEBUG] Military Logic Inspection
     let militaryDebug = {
-        totalArmyCost,
+        totalArmyCost: 0,
         availableSilver: res.silver,
         applied: false,
         reason: null,
         logSizeBefore: silverChangeLog.length
     };
 
-    if (totalArmyCost > 0) {
+    if (hasArmyUnits || hasArmyQueue) {
+        // 1. 获取军队资源维护需求
+        const armyMaintenanceMultiplier = getArmyMaintenanceMultiplier(difficulty);
+        const baseArmyMaintenance = calculateArmyMaintenance(army);
+        // Apply difficulty multiplier
+        Object.keys(baseArmyMaintenance).forEach(key => {
+            baseArmyMaintenance[key] = Math.ceil((baseArmyMaintenance[key] || 0) * armyMaintenanceMultiplier);
+        });
+
+        // Apply wartime multiplier: 3x army maintenance during war
+        const armyMaintenance = {};
+        Object.entries(baseArmyMaintenance).forEach(([resource, amount]) => {
+            armyMaintenance[resource] = isPlayerAtWar ? amount * WAR_MILITARY_MULTIPLIER : amount;
+        });
+
+        // 2. 从市场购买维护资源（消耗资源、增加需求）
+        let totalResourceCost = 0;
+        const armyResourceConsumption = {};
+
+        Object.entries(armyMaintenance).forEach(([resource, needed]) => {
+            if (needed <= 0) return;
+            if (resource === 'silver') {
+                // 银币直接计入成本
+                totalResourceCost += needed;
+                return;
+            }
+
+            // 从市场购买：消耗库存资源
+            const available = res[resource] || 0;
+            const consumed = Math.min(available, needed);
+
+            if (consumed > 0) {
+                res[resource] = available - consumed;
+                rates[resource] = (rates[resource] || 0) - consumed;
+                armyResourceConsumption[resource] = consumed;
+
+                // 增加市场需求（影响价格）
+                demand[resource] = (demand[resource] || 0) + needed;
+            }
+
+            // Use price controls (planned economy) for maintenance resource pricing as well.
+            // This prevents the player from paying market-price upkeep while also enforcing guided prices elsewhere.
+            // NOTE: For upkeep we treat it as a "government purchase" (the army consumes goods),
+            // so we apply the BUY-side price control (government sell price to the buyer).
+            const marketPrice = getPrice(resource);
+            let effectivePrice = marketPrice;
+            if (priceControls?.enabled) {
+                const pcResult = applyBuyPriceControl({
+                    resourceKey: resource,
+                    amount: needed,
+                    marketPrice,
+                    priceControls,
+                    taxBreakdown,
+                    resources: res,
+                    onTreasuryChange: trackSilverChange,
+                });
+                effectivePrice = pcResult.effectivePrice;
+            }
+            totalResourceCost += needed * effectivePrice;
+
+            // 如果资源不足，记录日志
+            if (consumed < needed && tick % 30 === 0) {
+                const shortage = needed - consumed;
+                recordAggregatedLog(`?? 军队维护资源不足：缺少 ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
+            }
+        });
+
+        perfStart('armyMaintenance');
+        // 3. 计算时代加成和规模惩罚
+        const armyPopulation = calculateArmyPopulation(army);
+        const scalePenalty = calculateArmyScalePenalty(armyPopulation, population);
+
+        // 4. 总军费 = 资源成本 × 时代加成 × 规模惩罚 × 军饷倍率
+        const totalArmyCost = totalResourceCost * epochMultiplier * scalePenalty * effectiveWageMultiplier;
+
+        // 记录军费数据（用于战争赔款计算）
+        armyExpenseResult = {
+            dailyExpense: totalArmyCost,
+            resourceCost: totalResourceCost,
+            epochMultiplier,
+            scalePenalty,
+            wageMultiplier: effectiveWageMultiplier,
+            resourceConsumption: armyResourceConsumption
+        };
+
+        // [DEBUG] Military Logic Inspection
+        militaryDebug = {
+            totalArmyCost,
+            availableSilver: res.silver,
+            applied: false,
+            reason: null,
+            logSizeBefore: silverChangeLog.length
+        };
+
+        if (totalArmyCost > 0) {
         // [DEBUG] Military Log Trace
         // console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
         const available = res.silver || 0;
@@ -3032,6 +3087,8 @@ export const simulateTick = ({
             }
             logs.push(`?? 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
         }
+        }
+        perfEnd('armyMaintenance');
     }
 
     // console.log('[TICK] Production loop completed.'); // Commented for performance
@@ -3040,6 +3097,8 @@ export const simulateTick = ({
     // applyRoleIncomeToWealth(); // Removed to prevent double counting (called again at end of tick)
 
     // console.log('[TICK] Starting needs calculation...'); // Commented for performance
+    perfStart('needsConsumption');
+    perfStart('socialEconomy');
     const needsReport = {};
     const classShortages = {};
     // 收集各阶层的财富乘数（用于UI显示"谁吃到了buff"）
@@ -3406,6 +3465,7 @@ export const simulateTick = ({
         });
         // logs.push('劳动力因需求未满足而效率下降。');
     }
+    perfEnd('needsConsumption');
 
     // Decree approval modifiers now come from `activeDecrees` (timed system)
     const decreesFromActiveForApproval = activeDecrees
@@ -3438,6 +3498,7 @@ export const simulateTick = ({
     // 5. Advanced Cabinet Mechanics (Left/Right Dominance Active Effects)
     // ====================================================================================================
 
+    perfStart('cabinetMechanics');
     // --- Left Dominance: Planned Economy (Quota System) ---
     // User sets target population ratios. We adjust actual population towards targets.
     const quotaControls = quotaTargets && typeof quotaTargets === 'object' && Object.prototype.hasOwnProperty.call(quotaTargets, 'targets')
@@ -3579,12 +3640,14 @@ export const simulateTick = ({
             Object.assign(builds, newBuildingsCount);
         }
     }
+    perfEnd('cabinetMechanics');
 
     // ====================================================================================================
     // 6. Return Simulation Result
     // ====================================================================================================
     // Move official processing here so their wealth is aggregated into `wealth` BEFORE
     // calculateLivingStandards runs. This ensures StrataPanel shows correct data.
+    perfStart('officialsSim');
 
     let totalOfficialWealth = 0;
     let totalOfficialExpense = 0;
@@ -3596,7 +3659,16 @@ export const simulateTick = ({
         wages: market?.wages || {},
     };
 
-    const updatedOfficials = (officials || []).map(official => {
+    const officialList = Array.isArray(officials) ? officials : [];
+    const officialCount = officialList.length;
+    const configuredBatch = Math.max(1, Math.floor(OFFICIAL_SIM_CONFIG?.batchSize ?? 2));
+    const batchSize = officialCount <= 1 ? officialCount : Math.min(officialCount, configuredBatch);
+    const cursor = officialCount > 0 ? (officialsSimCursor % officialCount) : 0;
+    const officialsToProcess = new Set();
+    for (let i = 0; i < batchSize; i += 1) {
+        officialsToProcess.add((cursor + i) % officialCount);
+    }
+    const updatedOfficials = officialCount === 0 ? [] : officialList.map((official, index) => {
         if (!official) return official;
         const normalizedOfficial = migrateOfficialForInvestment(official, tick);
 
@@ -3609,6 +3681,16 @@ export const simulateTick = ({
             rawWealth = 400;
         }
         let currentWealth = Math.min(rawWealth, MAX_WEALTH);
+
+        if (!officialsToProcess.has(index)) {
+            totalOfficialWealth += currentWealth;
+            totalOfficialExpense += normalizedOfficial.lastDayExpense || 0;
+            const cachedPropertyIncome = normalizedOfficial.lastDayPropertyIncome || 0;
+            const cachedSalary = officialsPaid ? (normalizedOfficial.salary || 0) : 0;
+            totalOfficialIncome += cachedSalary + cachedPropertyIncome;
+            totalOfficialLaborIncome += cachedSalary;
+            return normalizedOfficial;
+        }
 
         // [DEBUG] 追踪官员财富变化
         const debugInitialWealth = currentWealth;
@@ -4092,8 +4174,9 @@ export const simulateTick = ({
     // [FIX] Update official labor stats
     roleLivingExpense.official = roleExpense.official; // Capture all official living expenses (Head Tax + Consumption)
     roleLaborIncome.official = totalOfficialLaborIncome;
+    perfEnd('officialsSim');
 
-
+    perfStart('livingStandards');
     const livingStandardsResult = calculateLivingStandards({
         popStructure: { ...popStructure, official: 0 }, // Exclude official to prevent double count/deduction
         wealth,
@@ -4107,9 +4190,9 @@ export const simulateTick = ({
     });
 
     // Manually inject official stats (derived from independent simulation)
-    const officialCount = updatedOfficials.length;
-    if (officialCount > 0) {
-        const avgWealth = totalOfficialWealth / officialCount;
+    const updatedOfficialCount = updatedOfficials.length;
+    if (updatedOfficialCount > 0) {
+        const avgWealth = totalOfficialWealth / updatedOfficialCount;
         let pLevel = '赤贫';
         let pCap = 30;
 
@@ -4157,9 +4240,11 @@ export const simulateTick = ({
 
     const classLivingStandard = livingStandardsResult.classLivingStandard;
     const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
+    perfEnd('livingStandards');
 
     // [NEW] 累积税收冲击值：用于防止"快速抬税后降税"的漏洞
     // 当税率降低后，累积冲击会缓慢衰减，而非立即消失
+    perfStart('approvalCalc');
     const updatedTaxShock = {};
 
     Object.keys(STRATA).forEach(key => {
@@ -4486,6 +4571,8 @@ export const simulateTick = ({
     if ((popStructure.unemployed || 0) === 0 && previousApproval.unemployed !== undefined) {
         classApproval.unemployed = Math.min(100, previousApproval.unemployed + 5);
     }
+    perfEnd('socialEconomy');
+    perfEnd('approvalCalc');
 
 
     let nextPopulation = population;
@@ -4495,6 +4582,7 @@ export const simulateTick = ({
     // Prevents infinite accumulation by "burning" a small percentage of wealth daily
     // representing maintenance, services, and non-goods consumption.
     // NEW: Decay is based on per-capita wealth percentage, not total wealth
+    perfStart('wealthDecay');
     Object.keys(STRATA).forEach(key => {
         const currentWealth = wealth[key] || 0;
         const population = popStructure[key] || 0;
@@ -4555,6 +4643,7 @@ export const simulateTick = ({
         }
     });
 
+    perfStart('influenceCalc');
     // [FIX] Apply safe wealth limit to ALL strata wealth values before returning
     // This is the final safety net to prevent any overflow that might have slipped through
     Object.keys(STRATA).forEach(key => {
@@ -4597,6 +4686,7 @@ export const simulateTick = ({
     }
     legitimacyTaxModifier = getLegitimacyTaxModifier(coalitionLegitimacy);
     const legitimacyApprovalModifier = getLegitimacyApprovalModifier(coalitionLegitimacy);
+    perfEnd('influenceCalc');
 
     // [FIX BUG] 非法政府满意度惩罚的应用方式已改变：
     // 之前的 BUG: 每个 tick 都直接从当前好感度扣除 -15，导致无限下降
@@ -4604,6 +4694,7 @@ export const simulateTick = ({
     // 保留此处代码注释以说明设计意图
     // NOTE: legitimacyApprovalModifier 现在应该在 approvalBreakdown 中体现（需要在上方循环添加）
 
+    perfStart('exodusAndPenalties');
     let exodusPopulationLoss = 0;
     let extraStabilityPenalty = 0;
     if (bonuses.factionConflict) {
@@ -4680,7 +4771,9 @@ export const simulateTick = ({
             logs.push(`${className} 阶层的愤怒正在削弱社会稳定${shortageMsg}。`);
         }
     });
+    perfEnd('exodusAndPenalties');
 
+    perfStart('buffsDebuffs');
     const newActiveBuffs = [];
     const newActiveDebuffs = [];
 
@@ -4711,6 +4804,7 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for stability calculation
     // This ensures consistency and proper application of all bonuses (including festivals)
+    perfStart('stabilityCalc');
     const {
         stabilityValue,
         targetStability,
@@ -4728,6 +4822,9 @@ export const simulateTick = ({
         currentStability,
         stabilityBonus: bonuses.stabilityBonus || 0
     });
+    perfEnd('buffsDebuffs');
+    perfEnd('wealthDecay');
+    perfEnd('stabilityCalc');
 
     const visibleEpoch = epoch;
     // 记录本回合来自战争赔款（含分期）的财政收入
@@ -4742,6 +4839,7 @@ export const simulateTick = ({
     const shouldUpdateTrade = shouldRunThisTick(tick, 'tradeUpdate');
     const shouldUpdateDiplomacy = shouldRunThisTick(tick, 'diplomacyUpdate');
     const shouldUpdateAI = shouldRunThisTick(tick, 'aiDecision');
+    const shouldUpdateMerchantTrade = shouldRunThisTick(tick, 'merchantTrade');
     (nations || []).forEach(n => {
         if (n.lastPeaceRequestDay && n.lastPeaceRequestDay > lastGlobalPeaceRequest) {
             lastGlobalPeaceRequest = n.lastPeaceRequestDay;
@@ -4751,8 +4849,14 @@ export const simulateTick = ({
     let updatedOrganizations = diplomacyOrganizations?.organizations ? [...diplomacyOrganizations.organizations] : [];
     let organizationUpdatesOccurred = false;
 
+    perfStart('aiNationUpdate');
+    const aiSliceCount = Math.max(1, RATE_LIMIT_CONFIG.aiNationUpdateSlices || 1);
+    const aiTargets = getSlice(nations || [], aiSliceCount);
+    const aiTargetIds = new Set(aiTargets.map(n => n?.id));
+
     let updatedNations = (nations || []).map(nation => {
         const next = { ...nation };
+        const shouldProcessAIForNation = next.id === 'player' || aiTargetIds.has(next.id);
 
         // [UI COMPATIBILITY] Derive alliedWithPlayer from organization membership
         next.alliedWithPlayer = updatedOrganizations.some(org =>
@@ -4957,6 +5061,10 @@ export const simulateTick = ({
             }
         }
 
+        if (!shouldProcessAIForNation) {
+            return next;
+        }
+
         // REFACTORED: Using module function for foreign economy simulation
         if (shouldUpdateTrade) {
             updateAINationInventory({ nation: next, tick, gameSpeed });
@@ -5095,6 +5203,7 @@ export const simulateTick = ({
 
         return next;
     });
+    perfEnd('aiNationUpdate');
 
 
     // REFACTORED: Using module function for foreign relations initialization
@@ -5104,7 +5213,9 @@ export const simulateTick = ({
     // REFACTORED: Using module function for monthly relation decay
     const isMonthTick = tick % 30 === 0;
     if (isMonthTick && shouldUpdateDiplomacy) {
+        perfStart('monthlyRelationDecay');
         updatedNations = processMonthlyRelationDecay(updatedNations, difficulty);
+        perfEnd('monthlyRelationDecay');
     }
 
     // ========================================================================
@@ -5136,6 +5247,7 @@ export const simulateTick = ({
     // ========================================================================
     let organizationUpdateResult = null;
     if (isMonthTick && shouldUpdateDiplomacy && diplomacyOrganizations?.organizations?.length > 0) {
+        perfStart('orgMonthly');
         organizationUpdateResult = processOrganizationMonthlyUpdate({
             organizations: diplomacyOrganizations.organizations,
             nations: updatedNations,
@@ -5163,6 +5275,7 @@ export const simulateTick = ({
 
         // 添加日志
         organizationUpdateResult.logs.forEach(log => logs.push(log));
+        perfEnd('orgMonthly');
     }
 
     // ========================================================================
@@ -5171,6 +5284,7 @@ export const simulateTick = ({
     // ========================================================================
     let populationMigrationResult = null;
     if (isMonthTick && shouldUpdateDiplomacy) {
+        perfStart('migrationMonthly');
         populationMigrationResult = processMonthlyMigration({
             nations: updatedNations,
             epoch,
@@ -5199,6 +5313,7 @@ export const simulateTick = ({
             const migrationLogs = generateMigrationLogs(populationMigrationResult.events);
             migrationLogs.forEach(log => logs.push(log));
         }
+        perfEnd('migrationMonthly');
     }
 
     // ========================================================================
@@ -5207,6 +5322,7 @@ export const simulateTick = ({
     // ========================================================================
     let rebellionSystemResult = null;
     if (shouldUpdateDiplomacy) {
+        perfStart('rebellionDaily');
         rebellionSystemResult = processRebellionSystemDaily(updatedNations, {
             daysElapsed: tick,
             epoch,
@@ -5239,12 +5355,14 @@ export const simulateTick = ({
                 }
             }
         }
+        perfEnd('rebellionDaily');
     }
 
     // ========================================================================
     // VASSAL SYSTEM DAILY UPDATE
     // Ensure vassal social structure updates and apply independence/tribute logic
     // ========================================================================
+    perfStart('vassalUpdates');
     const vassalMarketPrices = market?.prices || {};
     const playerAtWar = updatedNations.some(n => n.isAtWar && n.warTarget === 'player');
     const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
@@ -5265,8 +5383,14 @@ export const simulateTick = ({
         return updateNationEconomyData(initialized, vassalMarketPrices, satisfactionContext);
     });
 
+    const vassalSliceCount = Math.max(1, RATE_LIMIT_CONFIG.vassalUpdateSlices || 1);
+    const vassalNations = updatedNations.filter(n => n.vassalOf === 'player');
+    const vassalTargets = getSlice(vassalNations, vassalSliceCount);
+    const vassalTargetIds = vassalTargets.map(v => v.id);
+
     const vassalResult = processVassalUpdates({
         nations: updatedNations,
+        updateIds: vassalTargetIds,
         daysElapsed: tick,
         epoch,
         playerMilitary: Math.max(0.5, playerMilitary),
@@ -5301,6 +5425,7 @@ export const simulateTick = ({
             }
         });
     }
+    perfEnd('vassalUpdates');
 
     // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
@@ -5309,6 +5434,8 @@ export const simulateTick = ({
         && !n.isRebelNation
         && !n.isAnnexed // 排除已被吞并的国家
     );
+    const diplomacySliceCount = Math.max(1, RATE_LIMIT_CONFIG.diplomacyUpdateSlices || 1);
+    const diplomacyTargets = getSlice(visibleNations, diplomacySliceCount);
 
     // ========================================================================
     // PRICE CONVERGENCE DAILY UPDATE (Phase 4.2 Integration)
@@ -5316,6 +5443,7 @@ export const simulateTick = ({
     // ========================================================================
     let priceConvergenceResult = null;
     if (shouldUpdateDiplomacy && market?.prices) {
+        perfStart('priceConvergence');
         priceConvergenceResult = processPriceConvergence(market.prices, updatedNations, tick);
 
         // 更新市场价格
@@ -5343,47 +5471,49 @@ export const simulateTick = ({
         if (priceConvergenceResult.logs) {
             priceConvergenceResult.logs.forEach(log => logs.push(log));
         }
+        perfEnd('priceConvergence');
     }
 
+    perfStart('diplomacyAI');
     // REFACTORED: Using module function for ally cold events
     // Note: Must use visibleNations to avoid triggering events for destroyed/expired nations
     if (shouldUpdateDiplomacy) {
-        processAllyColdEvents(visibleNations, tick, logs, difficulty);
+        processAllyColdEvents(diplomacyTargets, tick, logs, difficulty);
     }
 
     // REFACTORED: Using module function for AI gift diplomacy
     if (shouldUpdateDiplomacy) {
-        processAIGiftDiplomacy(visibleNations, logs);
+        processAIGiftDiplomacy(diplomacyTargets, logs);
     }
 
 
     // REFACTORED: Using module function for AI-AI trade
     if (shouldUpdateTrade) {
-        processAITrade(visibleNations, logs, diplomacyOrganizations, vassalDiplomacyRequests, tick);
+        processAITrade(diplomacyTargets, logs, diplomacyOrganizations, vassalDiplomacyRequests, tick);
     }
 
 
     // REFACTORED: Using module function for AI-Player trade
     if (shouldUpdateTrade) {
-        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies, diplomacyOrganizations, trackSilverChange);
+        processAIPlayerTrade(diplomacyTargets, tick, res, market, logs, policies, diplomacyOrganizations, trackSilverChange);
     }
 
 
     // REFACTORED: Using module function for AI-Player interaction
     if (shouldUpdateDiplomacy) {
-        processAIPlayerInteraction(visibleNations, tick, epoch, logs);
+        processAIPlayerInteraction(diplomacyTargets, tick, epoch, logs);
     }
 
     // REFACTORED: AI invites player to join organizations
     if (shouldUpdateDiplomacy) {
-        processAIOrganizationInvitesToPlayer(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+        processAIOrganizationInvitesToPlayer(diplomacyTargets, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
     }
 
 
     // REFACTORED: Using module function for AI-AI alliance formation
     if (shouldUpdateDiplomacy) {
         const allianceResult = processAIAllianceFormation(
-            visibleNations,
+            diplomacyTargets,
             tick,
             logs,
             { organizations: updatedOrganizations },
@@ -5391,7 +5521,7 @@ export const simulateTick = ({
             vassalDiplomacyRequests,
         );
         const recruitResult = processAIOrganizationRecruitment(
-            visibleNations,
+            diplomacyTargets,
             tick,
             logs,
             { organizations: updatedOrganizations },
@@ -5428,7 +5558,7 @@ export const simulateTick = ({
         }
 
         const maintenanceResult = processAIOrganizationMaintenance(
-            visibleNations,
+            diplomacyTargets,
             tick,
             logs,
             { organizations: updatedOrganizations },
@@ -5493,17 +5623,18 @@ export const simulateTick = ({
 
     // REFACTORED: Using module functions for AI-AI war system
     if (shouldUpdateAI) {
-        processCollectiveAttackWarmonger(visibleNations, tick, logs, { organizations: updatedOrganizations });
+        processCollectiveAttackWarmonger(diplomacyTargets, tick, logs, { organizations: updatedOrganizations });
         processAIAIWarDeclaration(
-            visibleNations,
+            diplomacyTargets,
             updatedNations,
             tick,
             logs,
             { organizations: updatedOrganizations },
             vassalDiplomacyRequests,
         );
-        processAIAIWarProgression(visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests);
+        processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests);
     }
+    perfEnd('diplomacyAI');
 
     // Population fertility calculations (uses constants from ./utils/constants)
     let fertilityBirths = 0;
@@ -5672,11 +5803,13 @@ export const simulateTick = ({
     });
 
     // console.log('[TICK] Starting price and wage updates...'); // Commented for performance
+    perfStart('marketEconomy');
     let updatedPrices = { ...priceMap };
     let updatedWages = { ...(market?.wages || {}) };
     const wageSmoothing = 0.35;
 
     if (shouldUpdatePrices) {
+        perfStart('marketUpdate');
         updatedWages = {};
         Object.entries(roleWageStats).forEach(([role, data]) => {
 
@@ -5832,27 +5965,13 @@ export const simulateTick = ({
                 const buildingCount = builds[building.id] || 0;
                 if (buildingCount <= 0) return;
 
-                // 获取该建筑的升级等级分布
-                // buildingUpgrades[building.id] 格式为 { 等级: 数量 }
-                const storedLevelCounts = buildingUpgrades[building.id] || {};
-
-                // 计算已升级的建筑数量
-                let upgradedCount = 0;
-                Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-                    const lvl = parseInt(lvlStr);
-                    if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                        upgradedCount += lvlCount;
-                    }
-                });
-
-                // 构建完整的等级分布（包括0级）
-                const levelCounts = { 0: Math.max(0, buildingCount - upgradedCount) };
-                Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-                    const lvl = parseInt(lvlStr);
-                    if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                        levelCounts[lvl] = lvlCount;
-                    }
-                });
+                // 获取该建筑的升级等级分布（缓存）
+                const { fullLevelCounts: levelCounts } = getBuildingLevelDistribution(
+                    tick,
+                    building.id,
+                    buildingUpgrades,
+                    buildingCount
+                );
 
                 // 按等级分组计算
                 Object.entries(levelCounts).forEach(([levelStr, count]) => {
@@ -6054,7 +6173,9 @@ export const simulateTick = ({
 
             updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
         });
+        perfEnd('marketUpdate');
     }
+    perfEnd('marketEconomy');
 
     const getLastTickNetIncomePerCapita = (role) => {
         const history = (classWealthHistory || {})[role];
@@ -6144,6 +6265,8 @@ export const simulateTick = ({
 
         // Control whether to log merchant trade initiation messages
         shouldLogMerchantTrades: eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? true,
+        // Throttle new trades to reduce workload
+        allowNewTrades: shouldUpdateMerchantTrade,
         // [NEW] Control official logs
         shouldLogOfficialEvents: eventEffectSettings?.logVisibility?.showOfficialLogs ?? true,
 
@@ -6973,6 +7096,7 @@ export const simulateTick = ({
 
     // 2. Foreign Investments (AI -> Player) - Executed AFTER jobFill is populated
     if (foreignInvestments.length > 0) {
+        perfStart('foreignInvestments');
         const fiResult = processForeignInvestments({
             foreignInvestments: updatedForeignInvestments,
             nations: updatedNations, // Use updated nations
@@ -7011,6 +7135,8 @@ export const simulateTick = ({
         }
 
         // Foreign Upgrades
+        perfEnd('foreignInvestments');
+        perfStart('foreignUpgrades');
         const upgradeResult = processForeignInvestmentUpgrades({
             foreignInvestments: updatedForeignInvestments,
             nations: updatedNations,
@@ -7035,6 +7161,7 @@ export const simulateTick = ({
                 }
             });
         }
+        perfEnd('foreignUpgrades');
     }
 
     // Merge investment logs
@@ -7079,7 +7206,18 @@ export const simulateTick = ({
     // Calculate diplomatic reputation natural recovery (daily)
     const updatedDiplomaticReputation = calculateNaturalRecovery(diplomaticReputation);
 
+    const perfTotalMs = perfTime() - perfStartAll;
+    const nextOfficialsSimCursor = officialCount > 0
+        ? (cursor + officialsToProcess.size) % officialCount
+        : 0;
+    perfMarkEnd('simulateTick');
+
     return {
+        officialsSimCursor: nextOfficialsSimCursor,
+        _perf: {
+            totalMs: perfTotalMs,
+            sections: perfSections,
+        },
         tradeOpportunities,
         tradeRoutes: tradeRoutes ? { ...tradeRoutes, routes: tradeRoutes.routes.filter(r => !tradeRouteSummary?.routesToRemove?.includes(r)) } : undefined,
         overseasInvestments: updatedOverseasInvestments,

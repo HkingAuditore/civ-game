@@ -308,6 +308,12 @@ export const OFFICIAL_EFFECT_TYPES = {
     },
 };
 
+// 官员模拟节流配置
+export const OFFICIAL_SIM_CONFIG = {
+    // 每 tick 处理的官员数量（建议 1~2）
+    batchSize: 2,
+};
+
 // ========== 负面效果定义 ==========
 export const OFFICIAL_DRAWBACK_TYPES = {
     // 产出惩罚

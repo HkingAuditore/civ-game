@@ -564,6 +564,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         difficulty, // 游戏难度
         officials, // 官员系统
         setOfficials, // 官员状态更新函数
+        officialsSimCursor,
+        setOfficialsSimCursor,
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
         ministerAssignments,
@@ -649,6 +651,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const capacityTrimLogRef = useRef({ day: null });
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
+    const perfLogRef = useRef({ lastLogDay: null, didLogOnce: false });
+    const PERF_SLOW_THRESHOLD_MS = 50;
+    const PERF_LOG_INTERVAL_DAYS = 10;
 
     // [FIX] Overseas Investment Ref to track latest state updates
     const overseasInvestmentsRef = useRef(overseasInvestments);
@@ -755,6 +760,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             legitimacy, // 当前合法性值
             difficulty, // 游戏难度
             officials,
+            officialsSimCursor,
             // [FIX] 添加内阁机制所需的状态
             activeDecrees, // 当前生效的改革法令
             expansionSettings, // 自由市场扩张设置
@@ -765,7 +771,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             priceControls, // [NEW] 计划经济价格管制设置
             foreignInvestments, // [NEW] 海外投资
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, lastMinisterExpansionDay, priceControls, foreignInvestments]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, lastMinisterExpansionDay, priceControls, foreignInvestments]);
 
     // 监听国家列表变化，自动清理无效的贸易路线和商人派驻（修复暂停状态下无法清理的问题）
     const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
@@ -1123,6 +1129,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // 官员系统
                 officials: current.officials || [],
+                officialsSimCursor: current.officialsSimCursor || 0,
                 officialsPaid: canAffordOfficials,
                 ministerAssignments: current.ministerAssignments || {},
                 lastMinisterExpansionDay: current.lastMinisterExpansionDay ?? 0,
@@ -1132,11 +1139,53 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 diplomaticReputation: current.diplomaticReputation ?? 50, // [NEW] Pass diplomatic reputation
             };
 
+            const perfEnabled = typeof window !== 'undefined'
+                ? (window.__PERF_LOG ?? process.env.NODE_ENV !== 'production')
+                : process.env.NODE_ENV !== 'production';
+
+            if (perfEnabled) {
+                console.warn(`[PerfTick] start day=${current.daysElapsed || 0}`);
+            }
+
+            if (typeof window !== 'undefined') {
+                window.__PERF_STATS = {
+                    day: current.daysElapsed || 0,
+                    totalMs: 0,
+                    simMs: 0,
+                    applyMs: 0,
+                    nations: current.nations?.length || 0,
+                    overseas: overseasInvestmentsRef.current?.length || 0,
+                    foreign: current.foreignInvestments?.length || 0,
+                    status: 'running',
+                    sections: null,
+                };
+            }
+
             // Execute simulation
             // Phase 2: Use async Worker execution for better performance on low-end devices
             // The runSimulation function handles Worker availability check and fallback
+            const perfTickStart = (typeof performance !== 'undefined' && performance.now)
+                ? performance.now()
+                : Date.now();
+            const perfDay = current.daysElapsed || 0;
             runSimulation(simulationParams).then(result => {
+                const perfSimMs = ((typeof performance !== 'undefined' && performance.now)
+                    ? performance.now()
+                    : Date.now()) - perfTickStart;
                 if (!result || result.__skipped) {
+                    if (typeof window !== 'undefined') {
+                        window.__PERF_STATS = {
+                            day: perfDay,
+                            totalMs: perfSimMs,
+                            simMs: perfSimMs,
+                            applyMs: 0,
+                            nations: current.nations?.length || 0,
+                            overseas: overseasInvestmentsRef.current?.length || 0,
+                            foreign: current.foreignInvestments?.length || 0,
+                            status: result ? 'skipped' : 'null',
+                            sections: result?._perf?.sections || null,
+                        };
+                    }
                     if (!result) {
                         console.error('[GameLoop] Simulation returned null result');
                     }
@@ -1588,83 +1637,96 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 });
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
 
-                // 3. 自主投资逻辑 (5% probability daily)
-                // Note: Autonomous investment creation is still done on main thread for now,
-                // but processed via logic imports. Could be moved to worker in future.
-                if (Math.random() < 0.05) {
-                    import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
-                        const result = processClassAutonomousInvestment({
+                // 3. 国内 -> 国外投资（每10天触发一次）
+                if (current.daysElapsed % 10 === 0) {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ selectOutboundInvestmentsBatch }) => {
+                        const playerNation = (current.nations || []).find(n => n.id === 'player');
+                        if (!playerNation) return;
+
+                        const investments = selectOutboundInvestmentsBatch({
                             nations: current.nations || [],
-                            playerNation: current.nations.find(n => n.id === 'player'),
+                            playerNation,
                             diplomacyOrganizations: current.diplomacyOrganizations,
                             overseasInvestments: overseasInvestmentsRef.current || [],
                             classWealth: adjustedClassWealth,
                             market: adjustedMarket,
                             epoch: current.epoch,
-                            daysElapsed: current.daysElapsed
+                            daysElapsed: current.daysElapsed,
                         });
 
-                        if (result && result.success) {
-                            const { stratum, targetNation, building, cost, dailyProfit, action } = result;
-                            const newInvestment = action();
-                            if (newInvestment) {
-                                setClassWealth(prev => ({ ...prev, [stratum]: Math.max(0, (prev[stratum] || 0) - cost) }), { reason: 'autonomous_investment_cost', meta: { stratum } });
-                                setOverseasInvestments(prev => [...prev, newInvestment]);
-                                const stratumName = STRATA[stratum]?.name || stratum;
-                                addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
-                            }
-                        }
+                        if (investments.length === 0) return;
+
+                        import('../logic/diplomacy/overseasInvestment').then(({ mergeOverseasInvestments }) => {
+                            investments.forEach(option => {
+                            const { stratum, targetNation, building, cost, dailyProfit, investment } = option;
+                            if (!investment) return;
+                            setClassWealth(prev => ({
+                                ...prev,
+                                [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
+                            }), { reason: 'autonomous_investment_cost', meta: { stratum } });
+                                setOverseasInvestments(prev => mergeOverseasInvestments(prev, investment));
+                            const stratumName = STRATA[stratum]?.name || stratum;
+                            addLog(`💰 ${stratumName}在 ${targetNation.name} 投资 ${building.name}（预计日利 ${dailyProfit.toFixed(1)}），注资 ${formatNumberShortCN(cost)}。`);
+                            });
+                        }).catch(err => console.warn('Autonomous investment merge error:', err));
+
+                        setNations(prev => prev.map(n => {
+                            if (!investments.some(option => option.targetNation.id === n.id)) return n;
+                            return { ...n, lastOutboundSampleDay: current.daysElapsed };
+                        }));
                     }).catch(err => console.warn('Autonomous investment error:', err));
                 }
 
-                // 4. AI Autonomous Investment (30% chance to check daily - increased for better gameplay)
-                if (Math.random() < 0.3) {
-                    import('../logic/diplomacy/autonomousInvestment').then(({ processAIInvestment }) => {
-                        if (!processAIInvestment) return;
+                // 4. 国外 -> 国内投资（每10天触发一次，错开5天）
+                if (current.daysElapsed % 10 === 5) {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ selectInboundInvestmentsBatch }) => {
+                        const playerNation = (current.nations || []).find(n => n.id === 'player');
+                        const playerState = {
+                            population: current.population,
+                            wealth: current.resources?.silver || 0,
+                            resources: current.resources,
+                            buildings: current.buildings || {},
+                            jobFill: current.jobFill,
+                            id: 'player',
+                            treaties: playerNation?.treaties || [],
+                            vassalOf: playerNation?.vassalOf || null,
+                        };
 
-                        const potentialInvestors = (current.nations || []).filter(n => n.id !== 'player' && (n.wealth || 0) > 5000);
+                        const decisions = selectInboundInvestmentsBatch({
+                            investorNations: current.nations || [],
+                            playerState,
+                            diplomacyOrganizations: current.diplomacyOrganizations,
+                            market: adjustedMarket,
+                            epoch: current.epoch,
+                            daysElapsed: current.daysElapsed,
+                            foreignInvestments: current.foreignInvestments || [],
+                        });
 
-                        // [DEBUG] Log buildings state for debugging
-                        const playerBuildings = current.buildings || {};
-                        console.log(`[AI投资] 玩家建筑状态:`, Object.keys(playerBuildings).filter(k => playerBuildings[k] > 0).map(k => `${k}:${playerBuildings[k]}`).join(', ') || '无');
+                        if (decisions.length === 0) return;
 
-                        potentialInvestors.forEach(investor => {
-                            const decision = processAIInvestment({
-                                investorNation: investor,
-                                nations: current.nations || [],
-                                diplomacyOrganizations: current.diplomacyOrganizations, // [NEW] Pass organizations for treaty checks
-                                playerState: {
-                                    population: current.population,
-                                    wealth: current.resources?.silver || 0,
-                                    resources: current.resources,
-                                    buildings: current.buildings || {}, // [FIX] Ensure buildings is always an object
-                                    jobFill: current.jobFill, // [NEW] Pass jobFill for staffing ratio calculation
-                                    id: 'player'
-                                },
-                                market: adjustedMarket,
-                                epoch: current.epoch,
-                                daysElapsed: current.daysElapsed,
-                                foreignInvestments: current.foreignInvestments || [] // [NEW] Pass existing foreign investments to check limit
-                            });
+                        decisions.forEach(decision => {
+                            const { investorNation, building, cost, investmentPolicy } = decision;
+                            const actionsRef = current.actions;
+                            if (actionsRef && actionsRef.handleDiplomaticAction) {
+                                actionsRef.handleDiplomaticAction(investorNation.id, 'accept_foreign_investment', {
+                                    buildingId: building.id,
+                                    ownerStratum: 'capitalist',
+                                    operatingMode: 'local',
+                                    investmentAmount: cost,
+                                    investmentPolicy
+                                });
 
-                            if (decision && decision.type === 'request_investment' && decision.targetId === 'player') {
-                                // 外资：直接投资，不需要玩家批准
-                                const actionsRef = current.actions;
+                                setNations(prev => prev.map(n => (
+                                    n.id === investorNation.id
+                                        ? {
+                                            ...n,
+                                            lastForeignInvestmentDay: current.daysElapsed,
+                                            lastForeignSampleDay: current.daysElapsed
+                                        }
+                                        : n
+                                )));
 
-                                if (actionsRef && actionsRef.handleDiplomaticAction) {
-                                    // 直接创建外资投资
-                                    actionsRef.handleDiplomaticAction(investor.id, 'accept_foreign_investment', {
-                                        buildingId: decision.building.id,
-                                        ownerStratum: 'capitalist',
-                                        operatingMode: 'local', // 默认当地运营模式
-                                        investmentAmount: decision.cost
-                                    });
-
-                                    console.log(`[外资] ${investor.name} 在本地投资了 ${decision.building.name}，投资额: ${decision.cost}`);
-                                    addLog(`🏦 ${investor.name} 在本地投资建造了 ${decision.building.name}。`);
-                                } else {
-                                    console.warn('[外资] handleDiplomaticAction 不可用');
-                                }
+                                addLog(`🏦 ${investorNation.name} 在本地投资建造了 ${building.name}。`);
                             }
                         });
                     }).catch(err => console.warn('AI investment error:', err));
@@ -2080,6 +2142,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // 更新官员状态（含独立财务数据）
                     if (nextOfficials) {
                         setOfficials(nextOfficials);
+                    }
+                    if (typeof result.officialsSimCursor === 'number' && typeof setOfficialsSimCursor === 'function') {
+                        setOfficialsSimCursor(result.officialsSimCursor);
                     }
                     // 更新官员容量（基于时代、政体、科技动态计算）
                     if (typeof result.effectiveOfficialCapacity === 'number' && typeof setOfficialCapacity === 'function') {
@@ -4594,6 +4659,56 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         return true;
                     });
                 });
+
+                const perfNow = (typeof performance !== 'undefined' && performance.now)
+                    ? performance.now()
+                    : Date.now();
+                const perfTotalMs = perfNow - perfTickStart;
+                const perfApplyMs = Math.max(0, perfTotalMs - perfSimMs);
+                const forceLog = typeof window !== 'undefined' && window.__PERF_LOG === true;
+                const sectionEntries = result?._perf?.sections
+                    ? Object.entries(result._perf.sections)
+                        .filter(([, value]) => Number.isFinite(value) && value > 0)
+                    : [];
+                const sectionSum = sectionEntries.reduce((sum, [, value]) => sum + value, 0);
+                const otherMs = Math.max(0, perfSimMs - sectionSum);
+                if (typeof window !== 'undefined') {
+                    window.__PERF_STATS = {
+                        day: perfDay,
+                        totalMs: perfTotalMs,
+                        simMs: perfSimMs,
+                        applyMs: perfApplyMs,
+                        nations: current.nations?.length || 0,
+                        overseas: overseasInvestmentsRef.current?.length || 0,
+                        foreign: current.foreignInvestments?.length || 0,
+                        sections: result?._perf?.sections || null,
+                        otherMs,
+                    };
+                }
+                const topSections = sectionEntries
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
+                    .map(([label, value]) => `${label}=${value.toFixed(1)}ms`)
+                    .join(' ');
+                const shouldLog =
+                    forceLog ||
+                    !perfLogRef.current.didLogOnce ||
+                    perfTotalMs >= PERF_SLOW_THRESHOLD_MS ||
+                    (perfDay % PERF_LOG_INTERVAL_DAYS === 0 && perfLogRef.current.lastLogDay !== perfDay);
+                if (shouldLog) {
+                    perfLogRef.current.lastLogDay = perfDay;
+                    perfLogRef.current.didLogOnce = true;
+                    console.log(
+                        `[Perf] day=${perfDay} total=${perfTotalMs.toFixed(1)}ms sim=${perfSimMs.toFixed(1)}ms apply=${perfApplyMs.toFixed(1)}ms ` +
+                        `nations=${current.nations?.length || 0} overseas=${overseasInvestmentsRef.current?.length || 0} foreign=${current.foreignInvestments?.length || 0}` +
+                        (topSections ? ` sections=${topSections}` : '') +
+                        (otherMs > 0 ? ` other=${otherMs.toFixed(1)}ms` : '')
+                    );
+                    if (forceLog && sectionEntries.length > 0) {
+                        const sorted = [...sectionEntries].sort((a, b) => b[1] - a[1]);
+                        console.table(Object.fromEntries(sorted.map(([k, v]) => [k, Number(v.toFixed(2))])));
+                    }
+                }
             }).catch(error => {
                 console.error('[GameLoop] Simulation error:', error);
             });

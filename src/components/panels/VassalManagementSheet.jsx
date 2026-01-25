@@ -91,6 +91,8 @@ const SliderControl = memo(({
     description,
     warningThreshold,
     warningText,
+    onInteractionStart,
+    onInteractionEnd,
 }) => {
     const percentage = ((value - min) / (max - min)) * 100;
     const showWarning = warningThreshold && value >= warningThreshold;
@@ -110,6 +112,12 @@ const SliderControl = memo(({
                 step={step}
                 value={value}
                 onChange={(e) => onChange(parseFloat(e.target.value))}
+                onPointerDown={onInteractionStart}
+                onPointerUp={onInteractionEnd}
+                onPointerCancel={onInteractionEnd}
+                onPointerLeave={onInteractionEnd}
+                onBlur={onInteractionEnd}
+                onKeyUp={onInteractionEnd}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
                     [&::-webkit-slider-thumb]:appearance-none
                     [&::-webkit-slider-thumb]:w-4
@@ -702,6 +710,11 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
 
     // UI State
     const [isGovernorSelectorOpen, setIsGovernorSelectorOpen] = useState(false);
+    const [isAdjusting, setIsAdjusting] = useState(false);
+
+    const officialsById = useMemo(() => {
+        return new Map((officials || []).map((official) => [official.id, official]));
+    }, [officials]);
 
     // [PERFORMANCE FIX] 缓存满意度效果文本计算，避免移动端卡死
     const satisfactionEffectsCache = useMemo(() => {
@@ -787,7 +800,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         CONTROL_MEASURES.forEach(m => {
             if (m.id === 'governor') {
                 const officialId = controlMeasures.governor?.officialId;
-                const official = officials.find(o => o.id === officialId);
+                const official = officialsById.get(officialId);
                 if (official) {
                     const baseCost = GOVERNOR_EFFECTS_CONFIG.dailyCost.base;
                     const prestigeCost = (official.prestige || 50) * GOVERNOR_EFFECTS_CONFIG.dailyCost.perPrestige;
@@ -801,7 +814,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
             }
         });
         return costs;
-    }, [vassalWealth, controlMeasures.governor?.officialId, officials]);
+    }, [vassalWealth, controlMeasures.governor?.officialId, officialsById]);
 
     // 计算控制手段总成本 (NEW: Dynamic cost calculation)
     const totalControlCost = useMemo(() => {
@@ -867,6 +880,14 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
             return;
         }
 
+        if (isAdjusting) {
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+                debounceTimerRef.current = null;
+            }
+            return;
+        }
+
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
         }
@@ -876,14 +897,14 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 lastAppliedRef.current = { nationId: nation.id, payloadKey: policyPayloadKey };
                 onApplyPolicy?.(pendingPolicyRef.current);
             }
-        }, 250);
+        }, 400);
 
         return () => {
             if (debounceTimerRef.current) {
                 clearTimeout(debounceTimerRef.current);
             }
         };
-    }, [nation?.id, policyPayload, policyPayloadKey, onApplyPolicy]);
+    }, [nation?.id, policyPayload, policyPayloadKey, onApplyPolicy, isAdjusting]);
 
     useEffect(() => {
         return () => {
@@ -920,7 +941,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const governorEffectiveness = useMemo(() => {
         const officialId = controlMeasures.governor?.officialId;
         if (!officialId) return null;
-        const official = officials.find(o => o.id === officialId);
+        const official = officialsById.get(officialId);
         if (!official) return null;
 
         // Mock vassal object with selected mandate to preview effects
@@ -966,7 +987,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
             // Adjust to match display expectation
             corruptionRisk: effects.corruptionRate * 100,
         };
-    }, [controlMeasures.governor, officials, nation]);
+    }, [controlMeasures.governor, officialsById, nation]);
 
     return (
         <div className="space-y-4">
@@ -1129,6 +1150,8 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                         description={`预计月收入：${formatNumberShortCN(estimatedTribute)}`}
                         warningThreshold={baseTributeRate * 120}
                         warningText="过高的朝贡率会增加独立倾向"
+                        onInteractionStart={() => setIsAdjusting(true)}
+                        onInteractionEnd={() => setIsAdjusting(false)}
                     />
                 </div>
             </div>
@@ -1260,7 +1283,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                                         {(() => {
                                                             const selectedId = controlMeasures.governor?.officialId;
                                                             if (!selectedId) return '-- 选择官员 --';
-                                                            const selected = officials.find(o => o.id === selectedId);
+                                                            const selected = officialsById.get(selectedId);
                                                             if (!selected) return '未知官员';
                                                             return `${selected.name} (威${selected.stats?.prestige ?? selected.prestige ?? 50}/政${selected.stats?.administrative ?? selected.administrative ?? 50}/军${selected.stats?.military ?? selected.military ?? 30}/外${selected.stats?.diplomacy ?? selected.diplomacy ?? 30})`;
                                                         })()}
@@ -1733,15 +1756,15 @@ export const VassalManagementSheet = memo(({
 
     // 计算朝贡信息（即使 nation 无效也要调用，确保 hooks 顺序一致）
     const tribute = useMemo(() => {
-        if (!nation) return { silver: 0 };
+        if (!nation || activeTab !== 'overview') return { silver: 0 };
         return calculateEnhancedTribute(nation, playerResources.silver || 10000);
-    }, [nation, playerResources]);
+    }, [nation, playerResources, activeTab]);
 
     // 计算独立度变化原因分解
     const independenceBreakdown = useMemo(() => {
-        if (!nation) return null;
+        if (!nation || activeTab !== 'overview') return null;
         return getIndependenceChangeBreakdown(nation, epoch, officials, playerWealth, playerPopulation, difficultyLevel);
-    }, [nation, epoch, officials, playerWealth, playerPopulation, difficultyLevel]);
+    }, [nation, epoch, officials, playerWealth, playerPopulation, difficultyLevel, activeTab]);
 
     // 计算该附庸的待审批请求数（必须在条件返回之前调用）
     const pendingCount = useMemo(() => {

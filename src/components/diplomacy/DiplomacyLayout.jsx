@@ -67,9 +67,78 @@ const DiplomacyLayout = ({
     const [vassalSheetNationId, setVassalSheetNationId] = useState(null);
 
     // 实时获取最新的附庸国数据
-    const vassalSheetNation = vassalSheetNationId 
-        ? nations.find(n => n.id === vassalSheetNationId) 
+    const vassalSheetNation = vassalSheetNationId
+        ? nations.find(n => n.id === vassalSheetNationId)
         : null;
+
+    // [PERF] 附庸管理面板使用快照，避免每帧随主循环重渲染
+    const [vassalSheetSnapshot, setVassalSheetSnapshot] = useState(null);
+
+    const buildVassalSnapshot = useCallback((nationId) => {
+        if (!nationId) return null;
+        const nation = nations.find(n => n.id === nationId) || null;
+        const playerResources = resources || {};
+        const playerWealth = playerResources.silver || gameState?.silver || 10000;
+        const playerPopulation = gameState?.population || 1000000;
+        const officials = gameState?.officials || [];
+        const army = gameState?.army || {};
+        const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
+        const baseStrength = Math.max(0.5, totalUnits / 100);
+        const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
+        const garrisonCommitment = (nations || []).reduce((sum, n) => {
+            if (n.vassalOf !== 'player') return sum;
+            const garrison = n.vassalPolicy?.controlMeasures?.garrison;
+            const isActive = garrison === true || (garrison && garrison.active !== false);
+            if (!isActive) return sum;
+            const vassalStrength = n.militaryStrength || 0.5;
+            return sum + (vassalStrength * garrisonFactor);
+        }, 0);
+        const playerMilitary = Math.max(0.1, baseStrength - garrisonCommitment);
+
+        return {
+            nation,
+            playerResources,
+            playerWealth,
+            playerPopulation,
+            officials,
+            playerMilitary,
+            difficultyLevel: gameState?.difficulty || 'normal',
+            nations,
+            diplomacyOrganizations,
+            vassalDiplomacyQueue,
+            vassalDiplomacyHistory,
+            currentDay: daysElapsed,
+            epoch,
+        };
+    }, [
+        nations,
+        resources,
+        gameState?.silver,
+        gameState?.population,
+        gameState?.officials,
+        gameState?.army,
+        gameState?.difficulty,
+        diplomacyOrganizations,
+        vassalDiplomacyQueue,
+        vassalDiplomacyHistory,
+        daysElapsed,
+        epoch,
+    ]);
+
+    useEffect(() => {
+        if (!vassalSheetOpen || !vassalSheetNationId) {
+            setVassalSheetSnapshot(null);
+            return;
+        }
+
+        setVassalSheetSnapshot(buildVassalSnapshot(vassalSheetNationId));
+
+        const interval = setInterval(() => {
+            setVassalSheetSnapshot(buildVassalSnapshot(vassalSheetNationId));
+        }, 800);
+
+        return () => clearInterval(interval);
+    }, [vassalSheetOpen, vassalSheetNationId, buildVassalSnapshot]);
 
     // 附庸概览面板状态
     const [vassalOverviewOpen, setVassalOverviewOpen] = useState(false);
@@ -215,37 +284,22 @@ const DiplomacyLayout = ({
             <VassalManagementSheet
                 isOpen={vassalSheetOpen}
                 onClose={() => setVassalSheetOpen(false)}
-                nation={vassalSheetNation}
-                playerResources={resources}
-                playerWealth={resources?.silver || gameState?.silver || 10000}
-                playerPopulation={gameState?.population || 1000000}
+                nation={vassalSheetSnapshot?.nation || vassalSheetNation}
+                playerResources={vassalSheetSnapshot?.playerResources || resources}
+                playerWealth={vassalSheetSnapshot?.playerWealth || (resources?.silver || gameState?.silver || 10000)}
+                playerPopulation={vassalSheetSnapshot?.playerPopulation || (gameState?.population || 1000000)}
                 onApplyVassalPolicy={handleApplyVassalPolicy}
                 onDiplomaticAction={onDiplomaticAction}
-                officials={gameState?.officials || []}
-                playerMilitary={(() => {
-                    // Calculate player military from army
-                    const army = gameState?.army || {};
-                    const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
-                    const baseStrength = Math.max(0.5, totalUnits / 100);
-                    const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
-                    const garrisonCommitment = (nations || []).reduce((sum, nation) => {
-                        if (nation.vassalOf !== 'player') return sum;
-                        const garrison = nation.vassalPolicy?.controlMeasures?.garrison;
-                        const isActive = garrison === true || (garrison && garrison.active !== false);
-                        if (!isActive) return sum;
-                        const vassalStrength = nation.militaryStrength || 0.5;
-                        return sum + (vassalStrength * garrisonFactor);
-                    }, 0);
-                    return Math.max(0.1, baseStrength - garrisonCommitment);
-                })()}
-                epoch={epoch}
-                difficultyLevel={gameState?.difficulty || 'normal'}
+                officials={vassalSheetSnapshot?.officials || gameState?.officials || []}
+                playerMilitary={vassalSheetSnapshot?.playerMilitary ?? 1.0}
+                epoch={vassalSheetSnapshot?.epoch ?? epoch}
+                difficultyLevel={vassalSheetSnapshot?.difficultyLevel || (gameState?.difficulty || 'normal')}
                 // 外交审批相关 props
-                nations={nations}
-                diplomacyOrganizations={diplomacyOrganizations}
-                vassalDiplomacyQueue={vassalDiplomacyQueue}
-                vassalDiplomacyHistory={vassalDiplomacyHistory}
-                currentDay={daysElapsed}
+                nations={vassalSheetSnapshot?.nations || nations}
+                diplomacyOrganizations={vassalSheetSnapshot?.diplomacyOrganizations || diplomacyOrganizations}
+                vassalDiplomacyQueue={vassalSheetSnapshot?.vassalDiplomacyQueue || vassalDiplomacyQueue}
+                vassalDiplomacyHistory={vassalSheetSnapshot?.vassalDiplomacyHistory || vassalDiplomacyHistory}
+                currentDay={vassalSheetSnapshot?.currentDay ?? daysElapsed}
                 onApproveVassalDiplomacy={onApproveVassalDiplomacy}
                 onRejectVassalDiplomacy={onRejectVassalDiplomacy}
                 onIssueVassalOrder={onIssueVassalOrder}

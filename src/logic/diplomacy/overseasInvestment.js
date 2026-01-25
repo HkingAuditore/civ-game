@@ -153,6 +153,7 @@ export function createOverseasInvestment({
     inputSource = 'local',
     outputDest = 'local',
     investmentAmount = 0,
+    strategy = 'PROFIT_MAX',
 }) {
     const building = BUILDINGS.find(b => b.id === buildingId);
     if (!building) {
@@ -165,8 +166,9 @@ export function createOverseasInvestment({
         buildingId,
         targetNationId,
         ownerStratum,
-        strategy: 'PROFIT_MAX', // Default strategy
+        strategy,
         investmentAmount,
+        count: 1,
         createdDay: 0,  // 将在实际创建时设置
 
         // 运营数据
@@ -185,6 +187,76 @@ export function createOverseasInvestment({
     };
 }
 
+export const getOverseasInvestmentGroupKey = (investment) => {
+    if (!investment) return '';
+    const strategy = investment.strategy || 'PROFIT_MAX';
+    return `${investment.targetNationId}::${investment.buildingId}::${investment.ownerStratum || 'capitalist'}::${strategy}`;
+};
+
+export const mergeOverseasInvestments = (existingInvestments = [], incomingInvestment) => {
+    if (!incomingInvestment) return existingInvestments;
+
+    const incomingKey = getOverseasInvestmentGroupKey(incomingInvestment);
+    const incomingCount = incomingInvestment.count || 1;
+    const incomingAmount = incomingInvestment.investmentAmount || 0;
+
+    const next = [...existingInvestments];
+    const index = next.findIndex(inv =>
+        inv?.status === 'operating' &&
+        getOverseasInvestmentGroupKey(inv) === incomingKey
+    );
+
+    if (index === -1) {
+        next.push(incomingInvestment);
+        return next;
+    }
+
+    const existing = next[index];
+    next[index] = {
+        ...existing,
+        count: (existing.count || 1) + incomingCount,
+        investmentAmount: (existing.investmentAmount || 0) + incomingAmount,
+        createdDay: Math.min(existing.createdDay || incomingInvestment.createdDay || 0, incomingInvestment.createdDay || 0),
+    };
+
+    return next;
+};
+
+export const getForeignInvestmentGroupKey = (investment) => {
+    if (!investment) return '';
+    const strategy = investment.strategy || 'PROFIT_MAX';
+    return `${investment.ownerNationId}::${investment.buildingId}::${investment.investorStratum || 'capitalist'}::${strategy}`;
+};
+
+export const mergeForeignInvestments = (existingInvestments = [], incomingInvestment) => {
+    if (!incomingInvestment) return existingInvestments;
+
+    const incomingKey = getForeignInvestmentGroupKey(incomingInvestment);
+    const incomingCount = incomingInvestment.count || 1;
+    const incomingAmount = incomingInvestment.investmentAmount || 0;
+
+    const next = [...existingInvestments];
+    const index = next.findIndex(inv =>
+        inv?.status === 'operating' &&
+        getForeignInvestmentGroupKey(inv) === incomingKey
+    );
+
+    if (index === -1) {
+        next.push(incomingInvestment);
+        return next;
+    }
+
+    const existing = next[index];
+    next[index] = {
+        ...existing,
+        count: (existing.count || 1) + incomingCount,
+        investmentAmount: (existing.investmentAmount || 0) + incomingAmount,
+        createdDay: Math.min(existing.createdDay || incomingInvestment.createdDay || 0, incomingInvestment.createdDay || 0),
+    };
+
+    return next;
+};
+
 /**
  * 创建外资建筑记录（外国在玩家国投资）
  * @param {Object} params - 投资参数
@@ -194,6 +266,7 @@ export function createForeignInvestment({
     buildingId,
     ownerNationId,
     investorStratum = 'capitalist',
+    strategy = 'PROFIT_MAX',
 }) {
     const building = BUILDINGS.find(b => b.id === buildingId);
     if (!building) {
@@ -221,6 +294,8 @@ export function createForeignInvestment({
         buildingId,
         ownerNationId,
         investorStratum,
+        strategy,
+        count: 1,
 
         // 添加显示用的字段
         dailyProfit: estimatedDailyProfit,
@@ -834,6 +909,8 @@ export function processOverseasInvestments({
             return;
         }
 
+        const multiplier = investment.count || 1;
+
         const targetNation = nations.find(n => n.id === investment.targetNationId);
         if (!targetNation) {
             updatedInvestments.push({ ...investment, status: 'suspended' });
@@ -853,6 +930,12 @@ export function processOverseasInvestments({
         // 根据运营模式计算利润
         // 根据配置计算利润
         const profitResult = calculateOverseasProfit(investment, targetNation, resources, marketPrices);
+        const scaledProfit = (profitResult.profit || 0) * multiplier;
+        const scaledOutput = (profitResult.outputValue || 0) * multiplier;
+        const scaledInput = (profitResult.inputCost || 0) * multiplier;
+        const scaledWage = (profitResult.wageCost || 0) * multiplier;
+        const scaledBusinessTax = (profitResult.businessTaxCost || 0) * multiplier;
+        const scaledTransport = (profitResult.transportCost || 0) * multiplier;
 
         // 汇总资源变更
         if (profitResult.localResourceChanges) {
@@ -860,13 +943,13 @@ export function processOverseasInvestments({
                 marketChanges[investment.targetNationId] = {};
             }
             Object.entries(profitResult.localResourceChanges).forEach(([res, delta]) => {
-                marketChanges[investment.targetNationId][res] = (marketChanges[investment.targetNationId][res] || 0) + delta;
+                marketChanges[investment.targetNationId][res] = (marketChanges[investment.targetNationId][res] || 0) + delta * multiplier;
             });
         }
 
         if (profitResult.playerResourceChanges) {
             Object.entries(profitResult.playerResourceChanges).forEach(([res, delta]) => {
-                playerInventoryChanges[res] = (playerInventoryChanges[res] || 0) + delta;
+                playerInventoryChanges[res] = (playerInventoryChanges[res] || 0) + delta * multiplier;
             });
         }
 
@@ -930,8 +1013,8 @@ export function processOverseasInvestments({
 
         // [FIX] Allow negative profits (losses) - no more Math.max(0, ...)
         // 只有正利润才需缴税；亏损时税额为0，全额亏损由投资者承担
-        const taxPaid = profitResult.profit > 0 ? profitResult.profit * targetTaxRate : 0;
-        const repatriatedProfit = profitResult.profit - taxPaid; // Allow negative
+        const taxPaid = scaledProfit > 0 ? scaledProfit * targetTaxRate : 0;
+        const repatriatedProfit = scaledProfit - taxPaid; // Allow negative
         const retainedProfit = taxPaid;
 
         // 更新投资记录
@@ -941,7 +1024,7 @@ export function processOverseasInvestments({
         const profitHistory = [...(investment.operatingData?.profitHistory || [])];
         profitHistory.push({
             day: daysElapsed,
-            profit: profitResult.profit,
+            profit: scaledProfit,
             repatriated: repatriatedProfit,
         });
         // 只保留最近30条记录
@@ -966,8 +1049,8 @@ export function processOverseasInvestments({
             // profitResult.profit 是日利润。如果为负，则为亏损。
             // 注意：repatriatedProfit 在亏损时为0 (Math.max(0, ...))，所以不能用它判断亏损深度。
             // 我们应该用 profitResult.profit (原始利润)
-            if (profitResult.profit < 0) {
-                const lossRatio = Math.abs(profitResult.profit) / (updated.investmentAmount || 1000);
+            if (scaledProfit < 0) {
+                const lossRatio = Math.abs(scaledProfit) / (updated.investmentAmount || 1000);
                 // 假设日亏损 1% 投资额增加 1% 概率 (1:1 Ratio)
                 divestProbability += lossRatio;
             }
@@ -988,10 +1071,16 @@ export function processOverseasInvestments({
 
         updated.operatingData = {
             ...updated.operatingData,
-            ...profitResult,
+            outputValue: scaledOutput,
+            inputCost: scaledInput,
+            wageCost: scaledWage,
+            businessTaxCost: scaledBusinessTax,
+            transportCost: scaledTransport,
+            profit: scaledProfit,
             repatriatedProfit,
             retainedProfit,
             effectiveTaxRate: targetTaxRate, // Store the actual tax rate used
+            decisions: profitResult.decisions,
             profitHistory,
             consecutiveLossDays, // Update counter
         };
@@ -1016,7 +1105,7 @@ export function processOverseasInvestments({
         // 估算支付给当地的工资（基于投资规模和利润）
         // 假设投资的20%用于支付当地工资（劳动密集型产业）
         const investmentAmount = investment.investmentAmount || 0;
-        const estimatedWages = Math.max(0, profitResult.profit * 0.3 + investmentAmount * 0.001);
+        const estimatedWages = Math.max(0, scaledProfit * 0.3 + investmentAmount * 0.001);
         nationInvestmentEffects[nationId].totalWages += estimatedWages;
         
         // 抽走的利润（汇回给投资者的部分）
@@ -1180,7 +1269,8 @@ export function calculateOverseasInvestmentSummary(overseasInvestments, targetNa
 
         if (inv.status !== 'operating') return;
 
-        summary.count++;
+        const invCount = inv.count || 1;
+        summary.count += invCount;
         summary.totalValue += inv.investmentAmount || 0;
 
         const dailyProfit = inv.operatingData?.profit || 0;
@@ -1193,7 +1283,7 @@ export function calculateOverseasInvestmentSummary(overseasInvestments, targetNa
         if (!summary.byNation[inv.targetNationId]) {
             summary.byNation[inv.targetNationId] = { count: 0, value: 0, profit: 0, dailyProfit: 0 };
         }
-        summary.byNation[inv.targetNationId].count++;
+        summary.byNation[inv.targetNationId].count += invCount;
         summary.byNation[inv.targetNationId].value += inv.investmentAmount || 0;
         summary.byNation[inv.targetNationId].profit += monthlyProfit;
         summary.byNation[inv.targetNationId].dailyProfit += dailyProfit;
@@ -1202,7 +1292,7 @@ export function calculateOverseasInvestmentSummary(overseasInvestments, targetNa
         if (!summary.byStratum[inv.ownerStratum]) {
             summary.byStratum[inv.ownerStratum] = { count: 0, value: 0, profit: 0, dailyProfit: 0 };
         }
-        summary.byStratum[inv.ownerStratum].count++;
+        summary.byStratum[inv.ownerStratum].count += invCount;
         summary.byStratum[inv.ownerStratum].value += inv.investmentAmount || 0;
         summary.byStratum[inv.ownerStratum].profit += monthlyProfit;
         summary.byStratum[inv.ownerStratum].dailyProfit += dailyProfit;
@@ -1258,6 +1348,8 @@ export function processForeignInvestments({
             updatedInvestments.push(investment);
             return;
         }
+
+        const multiplier = investment.count || 1;
 
         // 1. 准备上下文
         // 投资国 (Owner) -> 相当于 "Home"
@@ -1322,7 +1414,7 @@ export function processForeignInvestments({
 
         // 5. 处理结果 - 利润乘以到岗率
         // 理论利润 * 到岗率 = 实际利润
-        const theoreticalProfit = profitResult.profit || 0;
+        const theoreticalProfit = (profitResult.profit || 0) * multiplier;
         const dailyProfit = theoreticalProfit * staffingRatio;
 
         // 计算税收 (Strict Rules Logic for Foreign Investment)
@@ -1332,29 +1424,29 @@ export function processForeignInvestments({
         const inBloc = isInSameBloc(ownerNation, organizations);
 
         // [DEBUG] Log tax rate determination for foreign investment in player's nation
-        console.log(`[Foreign Tax] Determining tax for ${ownerNation?.name || 'unknown'}'s investment in player's nation:`, {
-            ownerId: ownerNation?.id,
-            isVassal,
-            hasTreaty,
-            inBloc,
-            organizationsCount: organizations?.length || 0,
-        });
+        // console.log(`[Foreign Tax] Determining tax for ${ownerNation?.name || 'unknown'}'s investment in player's nation:`, {
+        //     ownerId: ownerNation?.id,
+        //     isVassal,
+        //     hasTreaty,
+        //     inBloc,
+        //     organizationsCount: organizations?.length || 0,
+        // });
 
         if (isVassal) {
             // 附庸国在宗主国投资：宗主国通常可以收税
             effectiveTaxRate = 0.25;
             if (inBloc) effectiveTaxRate = 0.10;
-            console.log(`[Foreign Tax] Using VASSAL rate: ${(effectiveTaxRate * 100).toFixed(1)}%`);
+            // console.log(`[Foreign Tax] Using VASSAL rate: ${(effectiveTaxRate * 100).toFixed(1)}%`);
         } else if (inBloc) {
             effectiveTaxRate = 0.10;
-            console.log(`[Foreign Tax] Using ECONOMIC BLOC rate: 10%`);
+            // console.log(`[Foreign Tax] Using ECONOMIC BLOC rate: 10%`);
         } else if (hasTreaty) {
             effectiveTaxRate = 0.25;
-            console.log(`[Foreign Tax] Using TREATY rate: 25%`);
+            // console.log(`[Foreign Tax] Using TREATY rate: 25%`);
         } else {
             // 无条约：惩罚性税率 60%
             effectiveTaxRate = 0.60;
-            console.log(`[Foreign Tax] Using DEFAULT rate: 60%`);
+            // console.log(`[Foreign Tax] Using DEFAULT rate: 60%`);
         }
 
         const taxAmount = dailyProfit > 0 ? dailyProfit * effectiveTaxRate : 0;
@@ -1366,9 +1458,12 @@ export function processForeignInvestments({
         // 记录市场变化
         if (profitResult.localResourceChanges) {
             Object.entries(profitResult.localResourceChanges).forEach(([res, delta]) => {
-                marketChanges[res] = (marketChanges[res] || 0) + delta;
+                marketChanges[res] = (marketChanges[res] || 0) + delta * multiplier;
             });
         }
+
+        // 计算岗位数
+        const jobsProvided = building.jobs ? Object.values(building.jobs).reduce((a, b) => a + b, 0) * multiplier : 0;
 
         // 自动撤资逻辑 (Autonomous Divestment for Foreign Investors - Probabilistic)
         const isUnprofitable = profitAfterTax <= 0;
@@ -1389,14 +1484,38 @@ export function processForeignInvestments({
             divestProbability = Math.min(0.5, divestProbability);
 
             if (Math.random() < divestProbability) {
-                logs.push(`📉 ${ownerNation?.name || '外资'} 因长期亏损（${consecutiveLossDays}天），撤出了在我国的 ${building.name} 投资。`);
-                // Investment removed
+                const unitCount = investment.count || 1;
+                if (unitCount > 1) {
+                    const perUnitAmount = (investment.investmentAmount || 0) / unitCount;
+                    const remainingCount = unitCount - 1;
+                    logs.push(`📉 ${ownerNation?.name || '外资'} 因长期亏损（${consecutiveLossDays}天），减少了在我国的 ${building.name} 投资（剩余${remainingCount}处）。`);
+                    updatedInvestments.push({
+                        ...invWithStrategy,
+                        count: remainingCount,
+                        investmentAmount: Math.max(0, (investment.investmentAmount || 0) - perUnitAmount),
+                        dailyProfit: dailyProfit * (remainingCount / unitCount),
+                        jobsProvided: jobsProvided * (remainingCount / unitCount),
+                        operatingData: {
+                            ...profitResult,
+                            outputValue: (profitResult.outputValue || 0) * remainingCount,
+                            inputCost: (profitResult.inputCost || 0) * remainingCount,
+                            wageCost: (profitResult.wageCost || 0) * remainingCount,
+                            businessTaxCost: (profitResult.businessTaxCost || 0) * remainingCount,
+                            transportCost: (profitResult.transportCost || 0) * remainingCount,
+                            taxPaid: taxAmount * (remainingCount / unitCount),
+                            profitRepatriated: profitAfterTax * (remainingCount / unitCount),
+                            consecutiveLossDays,
+                            staffingRatio,
+                            theoreticalProfit: theoreticalProfit * (remainingCount / unitCount),
+                            profit: dailyProfit * (remainingCount / unitCount),
+                        },
+                    });
+                } else {
+                    logs.push(`📉 ${ownerNation?.name || '外资'} 因长期亏损（${consecutiveLossDays}天），撤出了在我国的 ${building.name} 投资。`);
+                }
                 return;
             }
         }
-
-        // 计算岗位数
-        const jobsProvided = building.jobs ? Object.values(building.jobs).reduce((a, b) => a + b, 0) : 0;
 
         // 更新投资记录
         updatedInvestments.push({
@@ -1405,6 +1524,11 @@ export function processForeignInvestments({
             jobsProvided: jobsProvided,
             operatingData: {
                 ...profitResult, // 包含 decisions, inputCost, outputValue 等
+                outputValue: (profitResult.outputValue || 0) * multiplier,
+                inputCost: (profitResult.inputCost || 0) * multiplier,
+                wageCost: (profitResult.wageCost || 0) * multiplier,
+                businessTaxCost: (profitResult.businessTaxCost || 0) * multiplier,
+                transportCost: (profitResult.transportCost || 0) * multiplier,
                 taxPaid: taxAmount,
                 profitRepatriated: profitAfterTax,
                 consecutiveLossDays, // Update counter
@@ -1492,6 +1616,8 @@ export function processForeignInvestmentUpgrades({
         const upgradeCost = getUpgradeCost(building.id, nextLevel, 0); // existingUpgradeCount=0 for base cost
         if (!upgradeCost) return;
 
+        const unitCount = investment.count || 1;
+
         // Calculate cost in silver (using investor's home market prices)
         let totalCost = 0;
         for (const [resource, amount] of Object.entries(upgradeCost)) {
@@ -1502,6 +1628,7 @@ export function processForeignInvestmentUpgrades({
                 totalCost += amount * price;
             }
         }
+        totalCost *= unitCount;
 
         // Check if nation can afford (use 30% of wealth as max budget)
         const maxBudget = nationWealth * 0.3;
@@ -1515,7 +1642,7 @@ export function processForeignInvestmentUpgrades({
         // Calculate current profit
         const currentProfit = calculateSimpleBuildingProfit(building, currentConfig, playerMarket);
         const nextProfit = calculateSimpleBuildingProfit(building, nextConfig, playerMarket);
-        const profitGain = nextProfit - currentProfit;
+        const profitGain = (nextProfit - currentProfit) * unitCount;
 
         if (profitGain <= 0) return; // No profit improvement
 
@@ -1547,7 +1674,7 @@ export function processForeignInvestmentUpgrades({
             upgradeLevel: nextLevel,
             lastUpgradeDay: daysElapsed,
             // Update daily profit estimate based on new level
-            dailyProfit: nextProfit,
+            dailyProfit: nextProfit * unitCount,
         };
 
         // Log
@@ -1749,6 +1876,8 @@ export function processOverseasInvestmentUpgrades({
         const upgradeCost = getUpgradeCost(building.id, nextLevel, 0);
         if (!upgradeCost) return;
 
+        const unitCount = investment.count || 1;
+
         // Calculate cost in silver (using player's home market prices)
         let totalCost = 0;
         for (const [resource, amount] of Object.entries(upgradeCost)) {
@@ -1760,6 +1889,7 @@ export function processOverseasInvestmentUpgrades({
                 totalCost += amount * price;
             }
         }
+        totalCost *= unitCount;
 
         // Check if stratum can afford (use 20% of wealth as max budget per upgrade)
         const maxBudget = stratumWealth * 0.2;
@@ -1772,7 +1902,7 @@ export function processOverseasInvestmentUpgrades({
         // Calculate profit using target nation's market prices
         const currentProfit = calculateSimpleBuildingProfit(building, currentConfig, { prices: targetPrices });
         const nextProfit = calculateSimpleBuildingProfit(building, nextConfig, { prices: targetPrices });
-        const profitGain = nextProfit - currentProfit;
+        const profitGain = (nextProfit - currentProfit) * unitCount;
 
         if (profitGain <= 0) return; // No profit improvement
 
@@ -1805,7 +1935,7 @@ export function processOverseasInvestmentUpgrades({
             ...investment,
             upgradeLevel: nextLevel,
             lastUpgradeDay: daysElapsed,
-            dailyProfit: nextProfit,
+            dailyProfit: nextProfit * unitCount,
         };
 
         // Deduct cost from owner stratum wealth

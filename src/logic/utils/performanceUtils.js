@@ -22,9 +22,21 @@ export const RATE_LIMIT_CONFIG = {
     
     // Trade calculations: every N ticks
     tradeUpdateFrequency: 3,
+
+    // Merchant trade generation: every N ticks (separate from AI trade)
+    merchantTradeFrequency: 5,
+
+    // Manual trade routes: every N ticks
+    manualTradeFrequency: 3,
     
     // Diplomatic relation updates: every N ticks (OPTIMIZED: 5 -> 10 for better performance)
     diplomacyUpdateFrequency: 10,
+
+    // Slice counts to ensure full updates within N ticks
+    aiNationUpdateSlices: 3,
+    vassalUpdateSlices: 3,
+    diplomacyUpdateSlices: 3,
+    manualTradeSlices: 3,
     
     // Building upgrade distribution cache validation: every N ticks
     buildingCacheValidation: 10,
