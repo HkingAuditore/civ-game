@@ -62,12 +62,33 @@ import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
     const [isVisible, setIsVisible] = useState(true);
+    // 从localStorage读取debug设置
+    const [debugEnabled, setDebugEnabled] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        const stored = localStorage.getItem('debugPerfOverlay');
+        return stored === 'true';
+    });
 
     useEffect(() => {
-        const enabled = typeof window !== 'undefined'
-            ? (window.__PERF_OVERLAY ?? process.env.NODE_ENV !== 'production')
-            : process.env.NODE_ENV !== 'production';
-        if (!enabled) return;
+        // 监听localStorage变化
+        const handleStorageChange = () => {
+            if (typeof window === 'undefined') return;
+            const stored = localStorage.getItem('debugPerfOverlay');
+            setDebugEnabled(stored === 'true');
+        };
+        
+        window.addEventListener('storage', handleStorageChange);
+        // 也监听自定义事件，用于同一页面内的更新
+        window.addEventListener('debugSettingsChanged', handleStorageChange);
+        
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('debugSettingsChanged', handleStorageChange);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!debugEnabled) return;
 
         const timer = setInterval(() => {
             if (typeof window === 'undefined') return;
@@ -78,12 +99,9 @@ const PerfOverlay = () => {
         }, 500);
 
         return () => clearInterval(timer);
-    }, []);
+    }, [debugEnabled]);
 
-    const enabled = typeof window !== 'undefined'
-        ? (window.__PERF_OVERLAY ?? process.env.NODE_ENV !== 'production')
-        : process.env.NODE_ENV !== 'production';
-    if (!enabled || !isVisible) return null;
+    if (!debugEnabled || !isVisible) return null;
 
     const sectionEntries = stats?.sections
         ? Object.entries(stats.sections)
