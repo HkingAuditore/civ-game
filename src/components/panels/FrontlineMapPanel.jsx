@@ -250,13 +250,16 @@ export const FrontlineMapPanel = ({
 
                 {/* 建筑 */}
                 {building && (
-                    <div className={`
-                        w-3/4 h-3/4 rounded-sm flex items-center justify-center relative
-                        ${building.owner === playerId
-                            ? 'bg-blue-900/70 border border-blue-500/50'
-                            : 'bg-red-900/70 border border-red-500/50'
-                        }
-                    `}>
+                    <div
+                        className={`
+                            w-3/4 h-3/4 flex items-center justify-center relative
+                            ${building.owner === playerId
+                                ? 'bg-blue-900/70 border border-blue-500/50'
+                                : 'bg-red-900/70 border border-red-500/50'
+                            }
+                        `}
+                        style={{ clipPath: pointyTopHexClipPath }}
+                    >
                         <Icon
                             name={BUILDING_ICONS[building.type]?.icon || 'Building'}
                             size={16}
@@ -297,7 +300,7 @@ export const FrontlineMapPanel = ({
                 )}
 
                 {/* 坐标标签 (调试用，可选) */}
-                {showGrid && (
+                {false && showGrid && (
                     <span className="absolute bottom-0 right-1 text-[8px] text-gray-600 opacity-50">
                         {x},{y}
                     </span>
