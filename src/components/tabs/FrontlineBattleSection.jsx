@@ -32,17 +32,6 @@ export const FrontlineBattleSection = ({
     const [selectedCorps, setSelectedCorps] = useState(null);
     const [selectedCell, setSelectedCell] = useState(null);
     const [viewMode, setViewMode] = useState('map'); // map, corps
-    
-    // 当切换到地图视图时，如果有兵团则自动选中第一个
-    const handleViewModeChange = useCallback((mode) => {
-        setViewMode(mode);
-        if (mode === 'map' && currentFrontline) {
-            const playerCorps = currentFrontline.corps.filter(c => c.owner === playerId);
-            if (playerCorps.length > 0 && !selectedCorps) {
-                setSelectedCorps(playerCorps[0]);
-            }
-        }
-    }, [currentFrontline, playerId, selectedCorps]);
 
     // 获取所有战争中的国家
     const warringNations = useMemo(() =>
@@ -70,6 +59,17 @@ export const FrontlineBattleSection = ({
         }
         return null;
     }, [selectedWarId, nations]);
+    
+    // 当切换到地图视图时，如果有兵团则自动选中第一个
+    const handleViewModeChange = useCallback((mode) => {
+        setViewMode(mode);
+        if (mode === 'map' && currentFrontline) {
+            const playerCorps = currentFrontline.corps.filter(c => c.owner === playerId);
+            if (playerCorps.length > 0 && !selectedCorps) {
+                setSelectedCorps(playerCorps[0]);
+            }
+        }
+    }, [currentFrontline, playerId, selectedCorps]);
 
     // 计算总兵力
     const totalUnits = useMemo(() =>
