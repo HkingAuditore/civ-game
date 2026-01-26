@@ -141,7 +141,7 @@ export const RollingNumber = ({
     useEffect(() => {
         spring.set(value);
         prevValueRef.current = value;
-    }, [value, spring]);
+    }, [value]);
 
     return (
         <>

@@ -4715,5 +4715,5 @@ export const useGameLoop = (gameState, addLog, actions) => {
         }, tickInterval); // 根据游戏速度动态调整执行频率
 
         return () => clearInterval(timer);
-    }, [gameSpeed, isPaused, army, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 依赖游戏速度、暂停状态、军队状态和庆典相关状态
+    }, [gameSpeed, isPaused, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 依赖游戏速度、暂停状态和庆典相关状态
 };

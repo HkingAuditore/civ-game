@@ -851,16 +851,22 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         totalControlCost,
     ]);
 
-    // 自动应用（去掉“应用政策”按钮）：
+    // 自动应用（去掉"应用政策"按钮）：
     // - 通过 debounce 避免拖动滑条时每一帧都触发 action/log
-    // - 首次渲染不触发，避免打开面板就刷一条“已调整政策”日志
+    // - 首次渲染不触发，避免打开面板就刷一条"已调整政策"日志
     const didInitRef = useRef(false);
     const debounceTimerRef = useRef(null);
     const pendingPolicyRef = useRef(null);
     const lastAppliedRef = useRef({ nationId: null, payloadKey: null });
-    const policyPayload = useMemo(() => buildPolicyPayload(), [buildPolicyPayload]);
-    const policyPayloadKey = useMemo(() => JSON.stringify(policyPayload), [policyPayload]);
+    const onApplyPolicyRef = useRef(onApplyPolicy);
+    
+    // Keep onApplyPolicyRef up to date
     useEffect(() => {
+        onApplyPolicyRef.current = onApplyPolicy;
+    }, [onApplyPolicy]);
+    
+    const policyPayload = useMemo(() => buildPolicyPayload(), [buildPolicyPayload]);
+    const policyPayloadKey = useMemo(() => JSON.stringify(policyPayload), [policyPayload]);    useEffect(() => {
         if (!nation) return;
 
         pendingPolicyRef.current = policyPayload;
@@ -895,7 +901,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         debounceTimerRef.current = setTimeout(() => {
             if (pendingPolicyRef.current) {
                 lastAppliedRef.current = { nationId: nation.id, payloadKey: policyPayloadKey };
-                onApplyPolicy?.(pendingPolicyRef.current);
+                onApplyPolicyRef.current?.(pendingPolicyRef.current);
             }
         }, 400);
 
@@ -904,15 +910,15 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 clearTimeout(debounceTimerRef.current);
             }
         };
-    }, [nation?.id, policyPayload, policyPayloadKey, onApplyPolicy, isAdjusting]);
+    }, [nation?.id, policyPayload, policyPayloadKey, isAdjusting]);
 
     useEffect(() => {
         return () => {
             if (didInitRef.current && pendingPolicyRef.current) {
-                onApplyPolicy?.(pendingPolicyRef.current);
+                onApplyPolicyRef.current?.(pendingPolicyRef.current);
             }
         };
-    }, [onApplyPolicy]);
+    }, []);
 
     // 重置为默认（重置会自然触发自动应用）
     const handleReset = () => {
@@ -1754,6 +1760,13 @@ export const VassalManagementSheet = memo(({
     // 所有 hooks 必须在条件返回之前调用
     const [activeTab, setActiveTab] = useState('overview');
 
+    // Stabilize onApplyPolicy callback to prevent infinite loops
+    const handleApplyPolicy = useCallback((policy) => {
+        if (nation?.id) {
+            onApplyVassalPolicy?.(nation.id, policy);
+        }
+    }, [nation?.id, onApplyVassalPolicy]);
+
     // 计算朝贡信息（即使 nation 无效也要调用，确保 hooks 顺序一致）
     const tribute = useMemo(() => {
         if (!nation || activeTab !== 'overview') return { silver: 0 };
@@ -1853,9 +1866,7 @@ export const VassalManagementSheet = memo(({
                 {activeTab === 'policy' && (
                     <PolicyTab
                         nation={nation}
-                        onApplyPolicy={(policy) => {
-                            onApplyVassalPolicy?.(nation.id, policy);
-                        }}
+                        onApplyPolicy={handleApplyPolicy}
                         officials={officials}
                         playerMilitary={playerMilitary}
                     />

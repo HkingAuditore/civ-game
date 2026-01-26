@@ -1035,6 +1035,10 @@ const BuildTabComponent = ({
             ? Object.entries(categories)
             : Object.entries(categories).filter(([key]) => key === activeCategory);
 
+    // Memoize viewport values to prevent infinite loop
+    const viewportScrollY = useMemo(() => viewport.scrollY, [viewport.scrollY]);
+    const viewportHeight = useMemo(() => viewport.height, [viewport.height]);
+
     useEffect(() => {
         const DEFAULT_ROW_HEIGHT = 140;
         const OVERSCAN_ROWS = 4;
@@ -1081,8 +1085,8 @@ const BuildTabComponent = ({
 
             const gridRect = gridEl.getBoundingClientRect();
             const gridTop = gridRect.top + window.scrollY;
-            const viewTop = viewport.scrollY;
-            const viewBottom = viewport.scrollY + viewport.height;
+            const viewTop = viewportScrollY;
+            const viewBottom = viewportScrollY + viewportHeight;
 
             const startRowRaw = Math.floor((viewTop - gridTop) / rowHeight) - OVERSCAN_ROWS;
             const endRowRaw = Math.ceil((viewBottom - gridTop) / rowHeight) + OVERSCAN_ROWS;
@@ -1123,7 +1127,7 @@ const BuildTabComponent = ({
             }
             return prev;
         });
-    }, [categoriesToRender, flatItemsByCategory, gridColumns, viewport.scrollY, viewport.height]);
+    }, [categoriesToRender, flatItemsByCategory, gridColumns, viewportScrollY, viewportHeight]);
 
     return (
         <div className="space-y-4 build-tab">
