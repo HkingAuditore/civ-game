@@ -1137,6 +1137,8 @@ export const useGameState = () => {
             const next = typeof updater === 'function' ? updater(prev) : updater;
             if (!next || typeof next !== 'object') return prev;
             const after = Number(next?.silver || 0);
+            const logDay = Number.isFinite(meta?.day) ? meta.day : daysElapsed;
+            const metaSource = meta && typeof meta === 'object' ? meta.source : undefined;
             if (audit) {
                 const resourceEntries = [];
                 const allKeys = new Set([
@@ -1151,7 +1153,7 @@ export const useGameState = () => {
                     if (beforeValue === afterValue) return;
                     resourceEntries.push({
                         timestamp,
-                        day: daysElapsed,
+                        day: logDay,
                         resource: key,
                         amount: afterValue - beforeValue,
                         before: beforeValue,
@@ -1175,7 +1177,7 @@ export const useGameState = () => {
                         const entryAfter = entryBefore + amount;
                         appendTreasuryChangeLog({
                             timestamp: Date.now(),
-                            day: daysElapsed,
+                            day: logDay,
                             amount,
                             before: entryBefore,
                             after: entryAfter,
@@ -1189,18 +1191,18 @@ export const useGameState = () => {
                     if (Number.isFinite(residual) && Math.abs(residual) > 0.01) {
                         appendTreasuryChangeLog({
                             timestamp: Date.now(),
-                            day: daysElapsed,
+                            day: logDay,
                             amount: residual,
                             before: running,
                             after: running + residual,
                             reason: 'untracked_delta',
-                            meta: { reason, meta },
+                            meta: metaSource ? { reason, meta, source: metaSource } : { reason, meta },
                         });
                     }
                 } else if (Number.isFinite(after) && after !== before) {
                     appendTreasuryChangeLog({
                         timestamp: Date.now(),
-                        day: daysElapsed,
+                        day: logDay,
                         amount: after - before,
                         before,
                         after,

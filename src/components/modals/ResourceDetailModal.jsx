@@ -1056,26 +1056,39 @@ const ResourceDetailContent = ({
     const latestTax = taxHistory.length ? taxHistory[taxHistory.length - 1] : 0;
     const treasuryEntries = Array.isArray(treasuryChangeLog) ? treasuryChangeLog : [];
     const fiscalDay = useMemo(() => {
-        if (!treasuryEntries.length) return Number.isFinite(daysElapsed) ? daysElapsed : 0;
-        let latest = null;
+        if (!treasuryEntries.length) return null;
+        const currentDay = Number.isFinite(daysElapsed) ? daysElapsed : 0;
+        const tickDays = new Set();
         treasuryEntries.forEach((entry) => {
             if (!Number.isFinite(entry?.day)) return;
-            if (latest === null || entry.day > latest) latest = entry.day;
+            const source = entry?.meta?.source;
+            if (source && source !== 'action') {
+                tickDays.add(entry.day);
+            }
+            if (!source && entry?.reason === 'tick_update') {
+                tickDays.add(entry.day);
+            }
         });
-        return latest ?? (Number.isFinite(daysElapsed) ? daysElapsed : 0);
+        if (tickDays.has(currentDay)) return currentDay;
+        if (tickDays.has(currentDay - 1)) return currentDay - 1;
+        return null;
     }, [treasuryEntries, daysElapsed]);
     const fiscalTreasuryEntries = useMemo(
-        () => treasuryEntries.filter(entry => entry?.day === fiscalDay),
+        () => (fiscalDay === null ? [] : treasuryEntries.filter(entry => entry?.day === fiscalDay)),
         [treasuryEntries, fiscalDay]
     );
+    const actualTreasuryEntries = useMemo(
+        () => fiscalTreasuryEntries.filter(entry => entry?.meta?.source !== 'action'),
+        [fiscalTreasuryEntries]
+    );
     const actualTreasuryIncome = useMemo(() => {
-        return fiscalTreasuryEntries.reduce((sum, entry) => {
+        return actualTreasuryEntries.reduce((sum, entry) => {
             const amount = Number(entry?.amount || 0);
             if (!Number.isFinite(amount) || amount <= 0) return sum;
             return sum + amount;
         }, 0);
-    }, [fiscalTreasuryEntries]);
-    const hasActualTreasury = fiscalTreasuryEntries.length > 0;
+    }, [actualTreasuryEntries]);
+    const hasActualTreasury = actualTreasuryEntries.length > 0;
     const displayedTreasuryIncome = hasActualTreasury ? actualTreasuryIncome : latestTax;
     const treasuryIncomeLabel = hasActualTreasury ? '国库收入统计' : '国库收入估算';
 

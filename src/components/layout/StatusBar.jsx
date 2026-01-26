@@ -207,25 +207,35 @@ export const StatusBar = ({
 
     const currentDay = gameState.daysElapsed || 0;
     const treasuryEntries = Array.isArray(gameState?.treasuryChangeLog) ? gameState.treasuryChangeLog : [];
-    const latestTreasuryDay = useMemo(() => {
-        let latest = null;
+    const fiscalDay = useMemo(() => {
+        if (!treasuryEntries.length) return null;
+        const tickDays = new Set();
         treasuryEntries.forEach((entry) => {
             if (!Number.isFinite(entry?.day)) return;
-            if (latest === null || entry.day > latest) latest = entry.day;
+            const source = entry?.meta?.source;
+            if (source && source !== 'action') {
+                tickDays.add(entry.day);
+            }
+            if (!source && entry?.reason === 'tick_update') {
+                tickDays.add(entry.day);
+            }
         });
-        return latest;
-    }, [treasuryEntries]);
-    const fiscalDay = (latestTreasuryDay !== null && latestTreasuryDay !== undefined)
-        ? latestTreasuryDay
-        : currentDay;
+        if (tickDays.has(currentDay)) return currentDay;
+        if (tickDays.has(currentDay - 1)) return currentDay - 1;
+        return null;
+    }, [treasuryEntries, currentDay]);
     const fiscalTreasuryEntries = useMemo(
-        () => treasuryEntries.filter(entry => entry?.day === fiscalDay),
+        () => (fiscalDay === null ? [] : treasuryEntries.filter(entry => entry?.day === fiscalDay)),
         [treasuryEntries, fiscalDay]
+    );
+    const actualFiscalEntries = useMemo(
+        () => fiscalTreasuryEntries.filter(entry => entry?.meta?.source !== 'action'),
+        [fiscalTreasuryEntries]
     );
     const actualFiscalSummary = useMemo(() => {
         const totals = new Map();
         let net = 0;
-        fiscalTreasuryEntries.forEach(entry => {
+        actualFiscalEntries.forEach(entry => {
             const amount = Number(entry?.amount || 0);
             if (!Number.isFinite(amount) || Math.abs(amount) < 0.01) return;
             const rawReason = typeof entry?.reason === 'string' ? entry.reason.trim() : entry?.reason;
@@ -251,8 +261,8 @@ export const StatusBar = ({
             incomeItems: buildItems(true),
             expenseItems: buildItems(false),
         };
-    }, [fiscalTreasuryEntries]);
-    const hasActualFiscal = fiscalTreasuryEntries.length > 0;
+    }, [actualFiscalEntries]);
+    const hasActualFiscal = actualFiscalEntries.length > 0;
     const isCurrentDayFiscal = fiscalDay === currentDay;
     const fiscalTitle = hasActualFiscal
         ? `财政收支 (${isCurrentDayFiscal ? '本日·实际' : '上日·实际'})`

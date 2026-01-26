@@ -173,7 +173,17 @@ export const useGameActions = (gameState, addLog) => {
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
-        setResources(updater, { reason, meta });
+        let nextMeta = meta;
+        if (nextMeta && typeof nextMeta === 'object') {
+            nextMeta = {
+                ...nextMeta,
+                day: Number.isFinite(nextMeta.day) ? nextMeta.day : (gameState.daysElapsed || 0),
+                source: nextMeta.source || 'action',
+            };
+        } else if (nextMeta == null) {
+            nextMeta = { day: gameState.daysElapsed || 0, source: 'action' };
+        }
+        setResources(updater, { reason, meta: nextMeta });
     };
 
     const setClassWealthWithReason = (updater, reason, meta = null) => {
