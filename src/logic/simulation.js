@@ -6641,7 +6641,7 @@ export const simulateTick = ({
     let nextLastMinisterExpansionDay = Number.isFinite(lastMinisterExpansionDay) ? lastMinisterExpansionDay : 0;
     const shouldAttemptMinisterExpansion = ECONOMIC_MINISTER_ROLES.some((role) => ministerAssignments?.[role]);
 
-    if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 5)) {
+    if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 30)) {
         const difficultyLevel = difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
@@ -6677,9 +6677,25 @@ export const simulateTick = ({
 
                 const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
                 const profit = profitResult?.profit ?? 0;
-                if (profit <= 0) return;
-                const roi = silverCost > 0 ? profit / silverCost : 0;
-                if (roi <= 0) return;
+                const operatingCost = (profitResult?.inputValue ?? 0) + (profitResult?.wageCost ?? 0) + (profitResult?.businessTax ?? 0);
+                
+                // [FIX] ROI should be calculated based on operating costs, not construction costs
+                // ROI = profit / operating_cost (per turn profitability)
+                const roi = operatingCost > 0 ? profit / operatingCost : 0;
+                
+                // [FIX] Consider market saturation: if too many buildings exist, skip
+                // Estimate: if current supply already meets 80%+ of demand, don't build more
+                const outputRes = Object.keys(building.output || {})[0];
+                if (outputRes) {
+                    const supplyRatio = supplyDemandRatio[outputRes];
+                    if (supplyRatio && supplyRatio > 0.8) {
+                        // Market is already well-supplied, building more will crash prices
+                        return;
+                    }
+                }
+                
+                // Require ROI at least 0.3 (30% margin over costs) to ensure profitability
+                if (roi <= 0.3) return;
 
                 if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
                     (shortageScore === bestCandidate.shortageScore && roi > bestCandidate.roi) ||

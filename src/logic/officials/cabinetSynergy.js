@@ -747,21 +747,27 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {})
     const prices = market?.prices || {};
     const wages = market?.wages || {};
 
-    const getPrice = (key) => {
+    const getPrice = (key, isInput = false) => {
         if (!key || key === 'silver') return 1;
-        // [FIX] Use resource base price as fallback instead of 1
-        // This ensures profit calculation is accurate even when market data is incomplete
-        return prices[key] ?? RESOURCES[key]?.basePrice ?? 1;
+        // Use actual market price if available
+        if (prices[key] !== undefined) {
+            return prices[key];
+        }
+        // When market price is missing, use conservative estimates:
+        // - For outputs: assume 50% of basePrice (market may be oversupplied)
+        // - For inputs: assume 150% of basePrice (costs may be higher)
+        const basePrice = RESOURCES[key]?.basePrice ?? 1;
+        return isInput ? basePrice * 1.5 : basePrice * 0.5;
     };
 
-    // 产出价值
+    // 产出价值 (conservative estimate for missing prices)
     const outputValue = Object.entries(building.output || {}).reduce(
-        (sum, [res, val]) => sum + getPrice(res) * val, 0
+        (sum, [res, val]) => sum + getPrice(res, false) * val, 0
     );
 
-    // 投入成本
+    // 投入成本 (pessimistic estimate for missing prices)
     const inputValue = Object.entries(building.input || {}).reduce(
-        (sum, [res, val]) => sum + getPrice(res) * val, 0
+        (sum, [res, val]) => sum + getPrice(res, true) * val, 0
     );
 
     // 营业税
