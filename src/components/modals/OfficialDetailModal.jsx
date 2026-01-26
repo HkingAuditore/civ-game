@@ -90,7 +90,19 @@ const SPECTRUM_CONFIG = {
     right: { bg: 'bg-amber-900/40', border: 'border-amber-500/60', text: 'text-amber-300', label: '右派', icon: 'TrendingUp' },
 };
 
-export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary, onUpdateName, currentDay = 0, isStanceSatisfied = null, stability = 50, officialsPaid = true }) => {
+export const OfficialDetailModal = ({
+    isOpen,
+    onClose,
+    official,
+    onUpdateSalary,
+    onUpdateName,
+    currentDay = 0,
+    isStanceSatisfied = null,
+    stability = 50,
+    officialsPaid = true,
+    buildingCounts = {},
+    buildingFinancialData = {},
+}) => {
     const [salaryDraft, setSalaryDraft] = useState('');
     const [isEditingSalary, setIsEditingSalary] = useState(false);
     const [nameDraft, setNameDraft] = useState('');
@@ -161,6 +173,39 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
             .sort((a, b) => b.count - a.count);
     }, [propertySummary]);
 
+    const propertyProfitRows = useMemo(() => {
+        const rows = {};
+        (official?.ownedProperties || []).forEach(prop => {
+            if (!prop?.buildingId) return;
+            if (!rows[prop.buildingId]) {
+                const finance = buildingFinancialData?.[prop.buildingId];
+                const ownerRevenue = finance?.ownerRevenue || 0;
+                const productionCosts = finance?.productionCosts || 0;
+                const businessTaxPaid = finance?.businessTaxPaid || 0;
+                const totalWagesPaid = Object.values(finance?.wagesByRole || {})
+                    .reduce((sum, val) => sum + (Number.isFinite(val) ? val : 0), 0);
+                const totalProfit = ownerRevenue - productionCosts - businessTaxPaid - totalWagesPaid;
+                const totalCount = buildingCounts?.[prop.buildingId] || 0;
+                const perBuildingProfit = totalCount > 0 ? totalProfit / totalCount : 0;
+                const building = BUILDINGS.find(b => b.id === prop.buildingId);
+                rows[prop.buildingId] = {
+                    buildingId: prop.buildingId,
+                    buildingName: building?.name || prop.buildingId,
+                    count: 0,
+                    perBuildingProfit,
+                    profit: 0,
+                    hasActual: !!finance,
+                };
+            }
+            rows[prop.buildingId].count += 1;
+        });
+        Object.values(rows).forEach(row => {
+            row.profit = row.perBuildingProfit * row.count;
+        });
+        return Object.values(rows)
+            .sort((a, b) => b.profit - a.profit);
+    }, [official, buildingFinancialData, buildingCounts]);
+
     // 开销明细
     const expenseRows = useMemo(() => {
         const breakdown = official?.lastDayExpenseBreakdown || {};
@@ -182,6 +227,13 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
     const totalIncome = salary + propertyIncome;
     const totalExpense = typeof official?.lastDayExpense === 'number' ? official.lastDayExpense : 0;
     const luxuryExpense = typeof official?.lastDayLuxuryExpense === 'number' ? official.lastDayLuxuryExpense : 0;
+    const headTaxPaid = typeof official?.lastDayHeadTaxPaid === 'number' ? official.lastDayHeadTaxPaid : 0;
+    const investmentCost = typeof official?.lastDayInvestmentCost === 'number' ? official.lastDayInvestmentCost : 0;
+    const upgradeCost = typeof official?.lastDayUpgradeCost === 'number' ? official.lastDayUpgradeCost : 0;
+    const corruptionIncome = typeof official?.lastDayCorruptionIncome === 'number' ? official.lastDayCorruptionIncome : 0;
+    const netChange = typeof official?.lastDayNetChange === 'number'
+        ? official.lastDayNetChange
+        : (totalIncome - totalExpense - headTaxPaid - investmentCost - upgradeCost + corruptionIncome);
 
     // 忠诚度
     const loyalty = official?.loyalty ?? 75;
@@ -447,6 +499,20 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                         )}
                     </div>
                 </div>
+                <div className="mt-2 rounded-lg border border-gray-700/40 bg-gray-900/40 p-2 text-[10px] text-gray-400">
+                    <div className="flex items-center justify-between">
+                        <span>每日净变化</span>
+                        <span className={`font-mono ${netChange >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                            {netChange >= 0 ? '+' : ''}{formatCost(netChange)}
+                        </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-[9px] text-gray-500">
+                        <span>税 {formatCost(headTaxPaid)}</span>
+                        <span>投资 {formatCost(investmentCost)}</span>
+                        <span>升级 {formatCost(upgradeCost)}</span>
+                        {corruptionIncome > 0 && <span className="text-emerald-400">腐败 +{formatCost(corruptionIncome)}</span>}
+                    </div>
+                </div>
 
                 {/* 官员属性 */}
                 <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
@@ -701,6 +767,42 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                         </div>
                     ) : (
                         <div className="text-[11px] text-gray-500">暂无产业持有</div>
+                    )}
+                </div>
+
+                {/* 私产利润明细 */}
+                <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
+                    <div className="flex items-center justify-between text-xs font-semibold text-gray-300 mb-2">
+                        <div className="flex items-center gap-2">
+                            <Icon name="LineChart" size={14} />
+                            私产利润明细
+                        </div>
+                        <span className="text-[9px] text-gray-500">按本tick实际结算</span>
+                    </div>
+                    {propertyProfitRows.length > 0 ? (
+                        <div className="space-y-1">
+                            {propertyProfitRows.map(row => {
+                                const avg = row.perBuildingProfit;
+                                const profitColor = row.profit >= 0 ? 'text-emerald-300' : 'text-red-300';
+                                return (
+                                    <div key={`profit-${row.buildingId}`} className="flex items-center justify-between text-[11px] text-gray-300 px-2 py-1 bg-gray-800/40 rounded">
+                                        <span>{row.buildingName} ×{row.count}</span>
+                                        {row.hasActual ? (
+                                            <span className={`font-mono ${profitColor}`}>
+                                                {row.profit >= 0 ? '+' : ''}{formatCost(row.profit)} /日
+                                                <span className="text-[9px] text-gray-500 ml-2">
+                                                    均 {avg >= 0 ? '+' : ''}{formatCost(avg)}
+                                                </span>
+                                            </span>
+                                        ) : (
+                                            <span className="text-[9px] text-gray-500">无实际数据</span>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-[11px] text-gray-500">暂无利润明细</div>
                     )}
                 </div>
 

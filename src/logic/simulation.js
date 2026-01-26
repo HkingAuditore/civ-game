@@ -3705,7 +3705,14 @@ export const simulateTick = ({
         let dailyExpense = 0;
         let luxuryExpense = 0;
         let essentialExpense = 0;
+        let headTaxPaid = 0;
+        let investmentCost = 0;
+        let upgradeCost = 0;
         const expenseBreakdown = {};
+        // Soft cap: limit luxury spending per tick to reduce extreme wealth swings.
+        const LUXURY_SPEND_CAP_RATIO = 0.05;
+        const luxuryBudgetBase = (normalizedOfficial.salary || 0) * 6;
+        let luxuryBudgetRemaining = Math.max(luxuryBudgetBase, currentWealth * LUXURY_SPEND_CAP_RATIO);
 
         const consumeOfficialResource = (resource, amountPerCapita, isLuxury = false) => {
             if (!resource || amountPerCapita <= 0) return;
@@ -3741,8 +3748,11 @@ export const simulateTick = ({
                 const price = getPrice(resource);
                 const taxRate = getResourceTaxRate(resource);
                 const priceWithTax = price * (1 + taxRate);
+                const luxuryBudgetAffordable = isLuxury && priceWithTax > 0
+                    ? luxuryBudgetRemaining / priceWithTax
+                    : Infinity;
                 const affordable = priceWithTax > 0
-                    ? Math.min(requirement, currentWealth / priceWithTax)
+                    ? Math.min(requirement, currentWealth / priceWithTax, luxuryBudgetAffordable)
                     : requirement;
                 const amount = Math.min(requirement, available, affordable);
                 if (amount <= 0) return;
@@ -3774,6 +3784,7 @@ export const simulateTick = ({
                 dailyExpense += totalCost;
                 if (isLuxury) {
                     luxuryExpense += totalCost;
+                    luxuryBudgetRemaining = Math.max(0, luxuryBudgetRemaining - totalCost);
                 } else {
                     essentialExpense += totalCost;
                 }
@@ -3844,11 +3855,10 @@ export const simulateTick = ({
         const headRate = getHeadTaxRate('official');
         const headBase = STRATA.official?.headTaxBase ?? 0.01;
         const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
-        let debugHeadTaxPaid = 0;
         if (plannedPerCapitaTax !== 0) {
             if (plannedPerCapitaTax > 0) {
                 const taxPaid = Math.min(currentWealth, plannedPerCapitaTax);
-                debugHeadTaxPaid = taxPaid;
+                headTaxPaid = taxPaid;
                 currentWealth = Math.max(0, currentWealth - taxPaid);
                 ledger.transfer('official', 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
 
@@ -3876,26 +3886,72 @@ export const simulateTick = ({
 
         // 官员产业收益结算（独立核算）
         let totalPropertyIncome = 0;
-        if (normalizedOfficial.ownedProperties?.length) {
-            normalizedOfficial.ownedProperties.forEach(prop => {
-                const actualProfit = calculateOfficialPropertyProfit(
-                    prop,
+        const actualProfitCache = {};
+        const getActualProfitPerBuilding = (buildingId) => {
+            if (actualProfitCache[buildingId] !== undefined) return actualProfitCache[buildingId];
+            const finance = buildingFinancialData?.[buildingId];
+            const totalCount = builds?.[buildingId] || 0;
+            if (!finance || totalCount <= 0) {
+                actualProfitCache[buildingId] = null;
+                return null;
+            }
+            const ownerRevenue = finance.ownerRevenue || 0;
+            const productionCosts = finance.productionCosts || 0;
+            const businessTaxPaid = finance.businessTaxPaid || 0;
+            const totalWagesPaid = Object.values(finance.wagesByRole || {})
+                .reduce((sum, val) => sum + (Number.isFinite(val) ? val : 0), 0);
+            const totalProfit = ownerRevenue - productionCosts - businessTaxPaid - totalWagesPaid;
+            const perBuildingProfit = totalCount > 0 ? totalProfit / totalCount : 0;
+            actualProfitCache[buildingId] = Number.isFinite(perBuildingProfit) ? perBuildingProfit : 0;
+            return actualProfitCache[buildingId];
+        };
+
+        const ownedPropertiesList = Array.isArray(normalizedOfficial.ownedProperties)
+            ? normalizedOfficial.ownedProperties
+            : [];
+        let propertySummary = normalizedOfficial._propertySummary;
+        const expectedSummaryCount = ownedPropertiesList.length;
+        if (!propertySummary || propertySummary.totalCount !== expectedSummaryCount) {
+            const summary = { byBuilding: {}, byBuildingLevel: {}, totalCount: expectedSummaryCount };
+            ownedPropertiesList.forEach((prop) => {
+                if (!prop?.buildingId) return;
+                summary.byBuilding[prop.buildingId] = (summary.byBuilding[prop.buildingId] || 0) + 1;
+                if (!summary.byBuildingLevel[prop.buildingId]) {
+                    summary.byBuildingLevel[prop.buildingId] = {};
+                }
+                const lvl = prop.level || 0;
+                summary.byBuildingLevel[prop.buildingId][lvl] = (summary.byBuildingLevel[prop.buildingId][lvl] || 0) + 1;
+            });
+            propertySummary = summary;
+        }
+
+        Object.entries(propertySummary?.byBuilding || {}).forEach(([buildingId, count]) => {
+            if (!count) return;
+            const perBuildingProfit = getActualProfitPerBuilding(buildingId);
+            if (perBuildingProfit === null) {
+                // Fallback to estimated profit if actual data is missing
+                const estimatedProfit = calculateOfficialPropertyProfit(
+                    { buildingId },
                     officialMarketSnapshot,
                     taxPolicies,
                     buildingStaffingRatios,
                     builds
                 );
-                if (actualProfit > 0) {
-                    totalPropertyIncome += actualProfit;
-                } else if (actualProfit < 0) {
-                    currentWealth = Math.max(0, currentWealth + actualProfit);
+                if (estimatedProfit !== 0) {
+                    totalPropertyIncome += estimatedProfit * count;
                 }
-            });
-        }
-        if (totalPropertyIncome > 0) {
-            currentWealth += totalPropertyIncome;
+                return;
+            }
+            if (perBuildingProfit !== 0) {
+                totalPropertyIncome += perBuildingProfit * count;
+            }
+        });
+        if (totalPropertyIncome !== 0) {
+            currentWealth = Math.max(0, currentWealth + totalPropertyIncome);
             totalOfficialIncome += totalPropertyIncome;
-            ledger.transfer('void', 'official', totalPropertyIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
+            if (totalPropertyIncome > 0) {
+                ledger.transfer('void', 'official', totalPropertyIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
+            }
         }
 
         // [DEBUG] 追踪财富变化 - 产业收益后
@@ -3951,10 +4007,18 @@ export const simulateTick = ({
         const ownedProperties = Array.isArray(normalizedOfficial.ownedProperties)
             ? [...normalizedOfficial.ownedProperties]
             : [];
+        let nextPropertySummary = propertySummary ? {
+            byBuilding: { ...(propertySummary.byBuilding || {}) },
+            byBuildingLevel: { ...(propertySummary.byBuildingLevel || {}) },
+            totalCount: propertySummary.totalCount ?? ownedProperties.length,
+        } : null;
         const investmentProfile = { ...normalizedOfficial.investmentProfile };
 
-        if (investmentDecision && currentWealth >= investmentDecision.cost) {
+        const MAX_INVEST_SPEND_RATIO = 0.25;
+        const investBudget = currentWealth * MAX_INVEST_SPEND_RATIO;
+        if (investmentDecision && investmentDecision.cost <= investBudget && currentWealth >= investmentDecision.cost) {
             currentWealth = Math.max(0, currentWealth - investmentDecision.cost);
+            investmentCost = investmentDecision.cost;
             const instanceId = `${investmentDecision.buildingId}_off_${normalizedOfficial.id}_${tick}_${Math.floor(Math.random() * 1000)}`;
             ownedProperties.push({
                 buildingId: investmentDecision.buildingId,
@@ -3963,6 +4027,17 @@ export const simulateTick = ({
                 purchaseCost: investmentDecision.cost,
                 level: 0,
             });
+            if (!nextPropertySummary) {
+                nextPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: ownedProperties.length };
+            }
+            nextPropertySummary.byBuilding[investmentDecision.buildingId] =
+                (nextPropertySummary.byBuilding[investmentDecision.buildingId] || 0) + 1;
+            if (!nextPropertySummary.byBuildingLevel[investmentDecision.buildingId]) {
+                nextPropertySummary.byBuildingLevel[investmentDecision.buildingId] = {};
+            }
+            nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] =
+                (nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] || 0) + 1;
+            nextPropertySummary.totalCount = ownedProperties.length;
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
             if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
@@ -3983,10 +4058,14 @@ export const simulateTick = ({
             difficulty
         );
 
-        if (upgradeDecision && currentWealth >= upgradeDecision.cost) {
+        const MAX_UPGRADE_SPEND_RATIO = 0.2;
+        const upgradeBudget = currentWealth * MAX_UPGRADE_SPEND_RATIO;
+        if (upgradeDecision && upgradeDecision.cost <= upgradeBudget && currentWealth >= upgradeDecision.cost) {
             currentWealth = Math.max(0, currentWealth - upgradeDecision.cost);
+            upgradeCost = upgradeDecision.cost;
             const targetProp = ownedProperties[upgradeDecision.propertyIndex];
             if (targetProp) {
+                const fromLevel = targetProp.level || 0;
                 targetProp.level = upgradeDecision.toLevel;
                 investmentProfile.lastUpgradeDay = tick;
                 pendingOfficialUpgrades.push({
@@ -3996,6 +4075,16 @@ export const simulateTick = ({
                     officialName: normalizedOfficial.name,
                     cost: upgradeDecision.cost,
                 });
+                if (nextPropertySummary?.byBuildingLevel?.[upgradeDecision.buildingId]) {
+                    const levelMap = nextPropertySummary.byBuildingLevel[upgradeDecision.buildingId];
+                    if (levelMap[fromLevel]) {
+                        levelMap[fromLevel] = Math.max(0, levelMap[fromLevel] - 1);
+                        if (levelMap[fromLevel] <= 0) {
+                            delete levelMap[fromLevel];
+                        }
+                    }
+                    levelMap[upgradeDecision.toLevel] = (levelMap[upgradeDecision.toLevel] || 0) + 1;
+                }
             }
         }
 
@@ -4122,6 +4211,7 @@ export const simulateTick = ({
             // [FIX] 确保返回的财富值在安全范围内
             wealth: Math.min(MAX_WEALTH, Number.isFinite(currentWealth) ? Math.max(0, currentWealth) : 400),
             lastDayExpense: dailyExpense,
+            lastDayHeadTaxPaid: headTaxPaid,
             financialSatisfaction: combinedSatisfaction,
             ownedProperties,
             investmentProfile,
@@ -4129,6 +4219,16 @@ export const simulateTick = ({
             lastDayExpenseBreakdown: expenseBreakdown,
             lastDayLuxuryExpense: luxuryExpense,
             lastDayEssentialExpense: essentialExpense,
+            lastDayInvestmentCost: investmentCost,
+            lastDayUpgradeCost: upgradeCost,
+            lastDayNetChange: currentWealth - debugInitialWealth,
+            lastDayCorruptionIncome: 0,
+            _propertySummary: nextPropertySummary ? {
+                ...nextPropertySummary,
+                byBuilding: { ...(nextPropertySummary.byBuilding || {}) },
+                byBuildingLevel: { ...(nextPropertySummary.byBuildingLevel || {}) },
+                totalCount: nextPropertySummary.totalCount ?? ownedProperties.length,
+            } : propertySummary,
             // 忠诚度系统
             loyalty: newLoyalty,
             lowLoyaltyDays: newLowLoyaltyDays,
@@ -4146,12 +4246,12 @@ export const simulateTick = ({
                 dailyExpense: dailyExpense,
                 wealthAfterGoods: debugAfterGoodsConsumption,
                 headTaxPlanned: debugPlannedHeadTax,
-                headTaxPaid: debugHeadTaxPaid,
+                headTaxPaid: headTaxPaid,
                 wealthAfterTax: debugAfterConsumption,
                 propertyIncome: totalPropertyIncome,
                 wealthAfterProperty: debugAfterProperty,
-                investmentCost: debugInvestmentCost,
-                upgradeCost: debugUpgradeCost,
+                investmentCost: investmentCost || debugInvestmentCost,
+                upgradeCost: upgradeCost || debugUpgradeCost,
                 wealthAfterInvestment: debugAfterInvestment,
                 wealthFinal: currentWealth,
             },
@@ -6932,6 +7032,11 @@ export const simulateTick = ({
             const share = totalWeight > 0 ? corruptionLoss * (weights[index] / totalWeight) : fallbackShare;
             if (share <= 0) return;
             official.wealth = Math.max(0, (official.wealth || 0) + share);
+            official.lastDayCorruptionIncome = (official.lastDayCorruptionIncome || 0) + share;
+            official.lastDayNetChange = (official.lastDayNetChange || 0) + share;
+            if (official._debug) {
+                official._debug.corruptionIncome = (official._debug.corruptionIncome || 0) + share;
+            }
             distributed += share;
         });
 

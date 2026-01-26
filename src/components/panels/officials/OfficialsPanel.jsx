@@ -69,6 +69,7 @@ export const OfficialsPanel = ({
     prices = {},  // [NEW] 市场价格用于自由市场面板
     market = {}, // [NEW] 完整市场数据（含 wages）
     taxPolicies = {}, // [NEW] 税收政策用于盈利计算
+    buildingFinancialData = {}, // [NEW] 每建筑实际财务数据
 
     // [NEW] 价格管制相关
     priceControls = { enabled: false, governmentBuyPrices: {}, governmentSellPrices: {} },
@@ -873,6 +874,10 @@ export const OfficialsPanel = ({
                 isStanceSatisfied={selectedOfficial?.politicalStance ? isStanceSatisfied(selectedOfficial.politicalStance, stanceContext, selectedOfficial.stanceConditionParams) : null}
                 stability={stability}
                 officialsPaid={officialsPaid}
+                market={market}
+                taxPolicies={taxPolicies}
+                buildingCounts={buildingCounts}
+                buildingFinancialData={buildingFinancialData}
             />
 
         </div>

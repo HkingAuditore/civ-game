@@ -1324,6 +1324,7 @@ function GameApp({ gameState }) {
                                                 onShowDecreeDetails={handleShowDecreeDetails}
                                                 jobFill={gameState.jobFill}
                                                 jobsAvailable={gameState.jobsAvailable}
+                                                buildingFinancialData={gameState.buildingFinancialData}
                                                 // 执政联盟 props
                                                 rulingCoalition={gameState.rulingCoalition}
                                                 onUpdateCoalition={gameState.setRulingCoalition}
@@ -1388,7 +1389,7 @@ function GameApp({ gameState }) {
 
                                                 // 内阁协同系统 props
                                                 classWealth={gameState.classWealth}
-activeDecrees={gameState.activeDecrees}
+                                                activeDecrees={gameState.activeDecrees}
                                                 decreeCooldowns={gameState.decreeCooldowns}
                                                 quotaTargets={gameState.quotaTargets}
                                                 expansionSettings={gameState.expansionSettings}

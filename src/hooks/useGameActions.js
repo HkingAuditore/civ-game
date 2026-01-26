@@ -157,6 +157,7 @@ export const useGameActions = (gameState, addLog) => {
         setLastSelectionDay,
         officialCapacity,
         setMinisterAssignments,
+        setMinisterAutoExpansion,
         // 阶层影响力
         classInfluence,
         lastBattleTargetId,
