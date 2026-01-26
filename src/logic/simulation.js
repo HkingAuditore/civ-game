@@ -3663,13 +3663,11 @@ export const simulateTick = ({
 
     const officialList = Array.isArray(officials) ? officials : [];
     const officialCount = officialList.length;
-    const configuredBatch = Math.max(1, Math.floor(OFFICIAL_SIM_CONFIG?.batchSize ?? 2));
-    const batchSize = officialCount <= 1 ? officialCount : Math.min(officialCount, configuredBatch);
-    const cursor = officialCount > 0 ? (officialsSimCursor % officialCount) : 0;
-    const officialsToProcess = new Set();
-    for (let i = 0; i < batchSize; i += 1) {
-        officialsToProcess.add((cursor + i) % officialCount);
-    }
+    // [OPTIMIZATION REMOVED] 移除批处理机制，所有官员每个Tick都进行完整计算
+    // 原因：
+    // 1. 建筑生产、工资发放、盈利都是每个Tick更新的
+    // 2. 官员的收入（薪水、产业收益）和支出（消费、税收）应该实时计算
+    // 3. 投资决策已有内置冷却时间（INVESTMENT_COOLDOWN=90, UPGRADE_COOLDOWN=60），不会造成性能问题
     const updatedOfficials = officialCount === 0 ? [] : officialList.map((official, index) => {
         if (!official) return official;
         const normalizedOfficial = migrateOfficialForInvestment(official, tick);
@@ -3683,16 +3681,6 @@ export const simulateTick = ({
             rawWealth = 400;
         }
         let currentWealth = Math.min(rawWealth, MAX_WEALTH);
-
-        if (!officialsToProcess.has(index)) {
-            totalOfficialWealth += currentWealth;
-            totalOfficialExpense += normalizedOfficial.lastDayExpense || 0;
-            const cachedPropertyIncome = normalizedOfficial.lastDayPropertyIncome || 0;
-            const cachedSalary = officialsPaid ? (normalizedOfficial.salary || 0) : 0;
-            totalOfficialIncome += cachedSalary + cachedPropertyIncome;
-            totalOfficialLaborIncome += cachedSalary;
-            return normalizedOfficial;
-        }
 
         // [DEBUG] 追踪官员财富变化
         const debugInitialWealth = currentWealth;
@@ -7243,13 +7231,11 @@ export const simulateTick = ({
     const updatedDiplomaticReputation = calculateNaturalRecovery(diplomaticReputation);
 
     const perfTotalMs = perfTime() - perfStartAll;
-    const nextOfficialsSimCursor = officialCount > 0
-        ? (cursor + officialsToProcess.size) % officialCount
-        : 0;
+    // [OPTIMIZATION REMOVED] 移除游标递增逻辑，不再需要批处理
     perfMarkEnd('simulateTick');
 
     return {
-        officialsSimCursor: nextOfficialsSimCursor,
+        officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
         _perf: {
             totalMs: perfTotalMs,
             sections: perfSections,

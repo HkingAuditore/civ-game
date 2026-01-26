@@ -309,9 +309,14 @@ export const OFFICIAL_EFFECT_TYPES = {
 };
 
 // 官员模拟节流配置
+// [DEPRECATED] 此配置已废弃，不再使用批处理机制
+// 原因：
+// 1. 建筑生产、工资发放、盈利都是每个Tick更新的
+// 2. 官员的收入（薪水、产业收益）和支出（消费、税收）应该实时计算
+// 3. 投资决策已有内置冷却时间（INVESTMENT_COOLDOWN=90, UPGRADE_COOLDOWN=60），不会造成性能问题
+// 现在所有官员每个Tick都进行完整计算，确保数据实时性
 export const OFFICIAL_SIM_CONFIG = {
-    // 每 tick 处理的官员数量（建议 1~2）
-    batchSize: 2,
+    batchSize: 5, // 已废弃，保留仅为兼容性
 };
 
 // ========== 负面效果定义 ==========
