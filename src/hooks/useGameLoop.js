@@ -654,6 +654,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const perfLogRef = useRef({ lastLogDay: null, didLogOnce: false });
     const PERF_SLOW_THRESHOLD_MS = 50;
     const PERF_LOG_INTERVAL_DAYS = 10;
+    const simInFlightRef = useRef(false);
 
     // [FIX] Overseas Investment Ref to track latest state updates
     const overseasInvestmentsRef = useRef(overseasInvestments);
@@ -1163,6 +1164,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 };
             }
 
+            // Skip if a simulation is still running to avoid flooding the worker
+            if (simInFlightRef.current) {
+                if (perfEnabled) {
+                    console.warn(`[PerfTick] skip day=${current.daysElapsed || 0} (simulation busy)`);
+                }
+                return;
+            }
+
             // Execute simulation
             // Phase 2: Use async Worker execution for better performance on low-end devices
             // The runSimulation function handles Worker availability check and fallback
@@ -1170,10 +1179,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 ? performance.now()
                 : Date.now();
             const perfDay = current.daysElapsed || 0;
+            simInFlightRef.current = true;
             runSimulation(simulationParams).then(result => {
                 const perfSimMs = ((typeof performance !== 'undefined' && performance.now)
                     ? performance.now()
                     : Date.now()) - perfTickStart;
+                simInFlightRef.current = false;
                 if (!result || result.__skipped) {
                     if (typeof window !== 'undefined') {
                         window.__PERF_STATS = {
@@ -1687,7 +1698,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     : treasuryAtTickStart;
                 setResources(adjustedResources, {
                     reason: 'tick_update',
-                    meta: { day: current.daysElapsed || 0 },
+                    meta: { day: current.daysElapsed || 0, source: 'game_loop' },
                     auditEntries,
                     auditStartingSilver,
                 });
@@ -4723,6 +4734,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
             }).catch(error => {
                 console.error('[GameLoop] Simulation error:', error);
+            }).catch((error) => {
+                simInFlightRef.current = false;
+                console.error('[GameLoop] Simulation failed:', error);
             });
         }, tickInterval); // 根据游戏速度动态调整执行频率
 
