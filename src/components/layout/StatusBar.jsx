@@ -194,14 +194,13 @@ export const StatusBar = ({
     const tariffFromBreakdown = taxes.breakdown?.tariff || 0;
     const tradeRouteTax = taxes.breakdown?.tradeRouteTax ?? tradeStats?.tradeRouteTax ?? 0;
     const tariffFromTradeStats = tradeStats?.tradeTax || 0;
-    const incomePercentMultiplier = Number.isFinite(taxes.breakdown?.incomePercentMultiplier)
-        ? Number(taxes.breakdown.incomePercentMultiplier)
-        : 1;
-    const adjustedHeadTax = (taxes.breakdown?.headTax || 0) * incomePercentMultiplier;
-    const adjustedIndustryTax = (taxes.breakdown?.industryTax || 0) * incomePercentMultiplier;
-    const adjustedBusinessTax = (taxes.breakdown?.businessTax || 0) * incomePercentMultiplier;
-    const adjustedTariff = tariffFromBreakdown * incomePercentMultiplier;
-    const adjustedWarIndemnity = (taxes.breakdown?.warIndemnity || 0) * incomePercentMultiplier;
+    // [FIX] taxes.breakdown already contains values multiplied by incomePercentMultiplier in simulation.js
+    // So we should NOT multiply again here to avoid double multiplication
+    const adjustedHeadTax = taxes.breakdown?.headTax || 0;
+    const adjustedIndustryTax = taxes.breakdown?.industryTax || 0;
+    const adjustedBusinessTax = taxes.breakdown?.businessTax || 0;
+    const adjustedTariff = tariffFromBreakdown;
+    const adjustedWarIndemnity = taxes.breakdown?.warIndemnity || 0;
     const tradeTax = adjustedTariff + tradeRouteTax + tariffFromTradeStats;
     const policyIncome = taxes.breakdown?.policyIncome || 0;
     const policyExpense = taxes.breakdown?.policyExpense || 0;
