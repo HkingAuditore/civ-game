@@ -203,7 +203,7 @@ export const CoalitionPanel = ({
                 </div>
                 <div className="flex justify-between text-[10px] text-gray-500">
                     <span>影响力 {influenceShare}%</span>
-                    <span>{formatNumberShortCN(population, { decimals: 1 })}人</span>
+                    <span>{formatNumberShortCN(Math.round(population), { decimals: 0 })}人</span>
                 </div>
             </button>
         );

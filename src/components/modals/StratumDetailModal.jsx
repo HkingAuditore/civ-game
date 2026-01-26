@@ -327,7 +327,7 @@ export const StratumDetailModal = ({
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div className="bg-gray-700/50 p-3 rounded">
                     <p className="text-xs text-gray-400 mb-1">人口数量</p>
-                    <p className="text-lg font-bold text-white">{formatNumberShortCN(population, { decimals: 1 })}</p>
+                    <p className="text-lg font-bold text-white">{formatNumberShortCN(Math.round(population), { decimals: 0 })}</p>
                     <p className="text-xs text-blue-400 mt-1">{popPercent.toFixed(1)}%</p>
                   </div>
                   <div className="bg-gray-700/50 p-3 rounded">

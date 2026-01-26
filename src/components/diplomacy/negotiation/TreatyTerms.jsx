@@ -1,43 +1,70 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Card, Input, Icon, Tooltip } from '../../common/UnifiedUI';
-import { NEGOTIABLE_TREATY_TYPES } from '../../../config/diplomacy';
+import { NEGOTIABLE_TREATY_TYPES, getTreatyDailyMaintenance, calculateTreatySigningCost } from '../../../config/diplomacy';
 import { getTreatyLabel, getTreatyUnlockEraName, getTreatyDuration } from '../../../utils/diplomacyUtils';
 import { getTreatyEffectDescriptionsByType } from '../../../logic/diplomacy/treatyEffects';
 import { getNationOrganizations, ORGANIZATION_TYPE_CONFIGS } from '../../../logic/diplomacy/organizationDiplomacy';
+import { formatNumberShortCN } from '../../../utils/numberFormat';
 
 // Floating tooltip component using portal
 const FloatingTooltip = ({ children, content, disabled }) => {
     const [show, setShow] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const triggerRef = useRef(null);
+    const tooltipRef = useRef(null);
 
     const updatePosition = useCallback(() => {
-        if (!triggerRef.current) return;
+        if (!triggerRef.current || !tooltipRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
-        const tooltipWidth = 200;
-        const tooltipHeight = 150;
+        const tooltipRect = tooltipRef.current.getBoundingClientRect();
+        const tooltipWidth = tooltipRect.width || 280;
+        const tooltipHeight = tooltipRect.height || 200;
         
-        // Prefer below, but show above if not enough space
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const showAbove = spaceBelow < tooltipHeight && rect.top > tooltipHeight;
+        const padding = 12;
+        const spaceBelow = window.innerHeight - rect.bottom - padding;
+        const spaceAbove = rect.top - padding;
+        const spaceLeft = rect.left - padding;
+        const spaceRight = window.innerWidth - rect.right - padding;
         
-        // Calculate left position, keep within viewport
+        // Determine vertical position (prefer below, then above)
+        let top;
+        if (spaceBelow >= tooltipHeight || spaceBelow >= spaceAbove) {
+            // Show below
+            top = rect.bottom + padding;
+        } else {
+            // Show above
+            top = rect.top - tooltipHeight - padding;
+        }
+        
+        // Determine horizontal position (center, but keep within viewport)
         let left = rect.left + rect.width / 2 - tooltipWidth / 2;
-        if (left < 8) left = 8;
-        if (left + tooltipWidth > window.innerWidth - 8) left = window.innerWidth - tooltipWidth - 8;
         
-        setPosition({
-            top: showAbove ? rect.top - tooltipHeight - 8 : rect.bottom + 8,
-            left,
-        });
+        // Clamp to viewport
+        if (left < padding) left = padding;
+        if (left + tooltipWidth > window.innerWidth - padding) {
+            left = window.innerWidth - tooltipWidth - padding;
+        }
+        if (top < padding) top = padding;
+        if (top + tooltipHeight > window.innerHeight - padding) {
+            top = window.innerHeight - tooltipHeight - padding;
+        }
+        
+        setPosition({ top, left });
     }, []);
 
     useEffect(() => {
         if (show) {
-            updatePosition();
+            // Delay position update to ensure tooltip is rendered
+            requestAnimationFrame(() => {
+                updatePosition();
+            });
             window.addEventListener('scroll', updatePosition, true);
-            return () => window.removeEventListener('scroll', updatePosition, true);
+            window.addEventListener('resize', updatePosition);
+            return () => {
+                window.removeEventListener('scroll', updatePosition, true);
+                window.removeEventListener('resize', updatePosition);
+            };
         }
     }, [show, updatePosition]);
 
@@ -54,12 +81,14 @@ const FloatingTooltip = ({ children, content, disabled }) => {
             </div>
             {show && createPortal(
                 <div
+                    ref={tooltipRef}
                     style={{
                         position: 'fixed',
                         top: position.top,
                         left: position.left,
                         zIndex: 99999,
-                        width: 200,
+                        maxWidth: '320px',
+                        minWidth: '240px',
                     }}
                     className="p-2 bg-[#0a0a14] border border-ancient-gold/40 rounded shadow-2xl text-[10px] text-ancient-stone pointer-events-none"
                 >
@@ -80,8 +109,19 @@ const TreatyTerms = ({
     nations = [],
     selectedNation,
     empireName = '我的帝国', // 玩家帝国名称
+    playerWealth = 0, // 玩家财富
+    disabled = false,
     t = (k, v) => v
 }) => {
+    // Calculate signing cost
+    const signingCost = useMemo(() => {
+        const targetWealth = selectedNation?.wealth || 1000;
+        return calculateTreatySigningCost(draft.type, playerWealth, targetWealth, epoch);
+    }, [draft.type, playerWealth, selectedNation?.wealth, epoch]);
+
+    // Check if player can afford signing cost
+    const canAffordSigningCost = playerWealth >= signingCost;
+
     const playerNationId = useMemo(() => {
         // Try to detect player's nation id from nations list (commonly 0).
         // Fallback keeps backward compatibility with older saves that store 'player' as member id.
@@ -175,16 +215,19 @@ const TreatyTerms = ({
                         );
 
                         return (
-                            <FloatingTooltip key={type} content={tooltipContent} disabled={locked}>
+                            <FloatingTooltip key={type} content={tooltipContent} disabled={locked || disabled}>
                                 <button
                                     type="button"
-                                    disabled={locked}
+                                    disabled={locked || disabled}
                                     onClick={() => {
-                                        if (locked) return;
+                                        if (locked || disabled) return;
+                                        const targetWealth = selectedNation?.wealth || 1000;
+                                        const maintenancePerDay = getTreatyDailyMaintenance(type, playerWealth, targetWealth);
                                         setDraft(prev => ({
                                             ...prev,
                                             type,
                                             durationDays: getTreatyDuration(type, epoch),
+                                            maintenancePerDay,
                                             // Reset organization selection when changing type
                                             targetOrganizationId: null,
                                             organizationMode: null,
@@ -434,14 +477,27 @@ const TreatyTerms = ({
             {/* Terms Details */}
             <Card className="p-2 lg:p-3 bg-ancient-ink/20 border-ancient-gold/10 space-y-2 lg:space-y-3">
                 <div className="flex justify-between items-center text-[10px] lg:text-xs border-b border-ancient-gold/10 pb-1 lg:pb-2">
+                    <span className="text-ancient-stone">{t('negotiation.signingCost', '签约成本')}</span>
+                    <div className="flex items-center gap-1">
+                        <span className={`font-mono text-[10px] lg:text-xs font-bold ${
+                            canAffordSigningCost ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                            {formatNumberShortCN(signingCost)}
+                        </span>
+                        <Icon name="Coins" size={10} className="text-amber-500" />
+                    </div>
+                </div>
+
+                <div className="flex justify-between items-center text-[10px] lg:text-xs border-b border-ancient-gold/10 pb-1 lg:pb-2">
                     <span className="text-ancient-stone">{t('negotiation.duration', '持续时间')}</span>
                     <div className="flex items-center gap-1">
                         <Input
                             type="number"
                             min="30"
                             value={draft.durationDays}
-                            onChange={(e) => setDraft(prev => ({ ...prev, durationDays: Number(e.target.value) }))}
-                            className="w-12 lg:w-16 h-5 lg:h-6 text-right font-mono text-[10px] lg:text-xs py-0"
+                            onChange={(e) => !disabled && setDraft(prev => ({ ...prev, durationDays: Number(e.target.value) }))}
+                            disabled={disabled}
+                            className={`w-12 lg:w-16 h-5 lg:h-6 text-right font-mono text-[10px] lg:text-xs py-0 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                         />
                         <span className="text-ancient-stone text-[9px] lg:text-[10px]">{t('common.days', '天')}</span>
                     </div>
@@ -450,14 +506,9 @@ const TreatyTerms = ({
                 <div className="flex justify-between items-center text-[10px] lg:text-xs">
                     <span className="text-ancient-stone">{t('negotiation.maintenance', '每日维护')}</span>
                     <div className="flex items-center gap-1">
-                        <Input
-                            type="number"
-                            min="0"
-                            value={draft.maintenancePerDay}
-                            onChange={(e) => setDraft(prev => ({ ...prev, maintenancePerDay: Number(e.target.value) }))}
-                            className="w-12 lg:w-16 h-5 lg:h-6 text-right font-mono text-[10px] lg:text-xs py-0 text-amber-400"
-                        />
+                        <span className="font-mono text-[10px] lg:text-xs text-amber-400">{formatNumberShortCN(draft.maintenancePerDay)}</span>
                         <Icon name="Coins" size={10} className="text-amber-500" />
+                        <span className="text-ancient-stone text-[9px] lg:text-[10px]">{t('common.perDay', '/日')}</span>
                     </div>
                 </div>
             </Card>
@@ -469,26 +520,104 @@ const TreatyTerms = ({
                 </label>
                 <div className="flex gap-1 bg-black/30 p-1 rounded-lg">
                     {[
-                        { key: 'friendly', label: t('stance.friendly', '友好'), icon: 'Smile' },
-                        { key: 'normal', label: t('stance.normal', '中立'), icon: 'User' },
-                        { key: 'threat', label: t('stance.threat', '强硬'), icon: 'Frown' }
-                    ].map(({ key, label, icon }) => (
-                        <button
+                        { 
+                            key: 'friendly', 
+                            label: t('stance.friendly', '友善'), 
+                            icon: 'Smile',
+                            desc: t('stance.friendly.desc', '展现善意，需要良好关系才能提升成功率，但对方会提高要价'),
+                            cost: '无成本',
+                            guaranteed: '✓ 关系 +2, 声望 +1',
+                            risk: '⚠️ 对方会要求更多补偿 (+30%)',
+                            color: 'text-green-400',
+                            bgColor: 'bg-green-500/10'
+                        },
+                        { 
+                            key: 'normal', 
+                            label: t('stance.normal', '中立'), 
+                            icon: 'Info',
+                            desc: t('stance.normal.desc', '标准谈判，无额外效果'),
+                            cost: '无成本',
+                            guaranteed: null,
+                            risk: null,
+                            color: 'text-ancient-stone',
+                            bgColor: 'bg-white/5'
+                        },
+                        { 
+                            key: 'aggressive', 
+                            label: t('stance.aggressive', '施压'), 
+                            icon: 'AlertCircle',
+                            desc: t('stance.aggressive.desc', '利用实力或财力优势施压，提高成功率但降低关系和声誉'),
+                            cost: '无成本',
+                            guaranteed: '✗ 关系 -5, 声望 -2',
+                            risk: '⚠️ 需要实力或财力优势，否则反效果',
+                            color: 'text-orange-400',
+                            bgColor: 'bg-orange-500/10'
+                        }
+                    ].map(({ key, label, icon, desc, cost, guaranteed, risk, color, bgColor }) => (
+                        <FloatingTooltip 
                             key={key}
-                            type="button"
-                            onClick={() => setDraft(prev => ({ ...prev, stance: key }))}
-                            className={`
-                                flex-1 py-1 lg:py-1.5 px-1 lg:px-2 rounded flex flex-col items-center gap-0.5 transition-all
-                                ${draft.stance === key
-                                    ? 'bg-ancient-gold/20 text-ancient-gold shadow-inner border border-ancient-gold/30'
-                                    : 'text-ancient-stone hover:bg-white/5 hover:text-ancient-parchment'
-                                }
-                            `}
-                        >
-                            <Icon name={icon} size={14} className="lg:hidden" />
-                            <Icon name={icon} size={14} className="hidden lg:block" />
-                            <span className="text-[9px] lg:text-[10px] font-bold">{label}</span>
-                        </button>
+                            content={
+                                <div className="space-y-2.5 min-w-[240px]">
+                                    <div className={`font-bold text-sm ${color} pb-1 border-b border-ancient-stone/30`}>{label}</div>
+                                    <div className="text-[11px] text-ancient-parchment leading-relaxed">{desc}</div>
+                                    <div className="pt-2 border-t border-ancient-stone/20 space-y-2">
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-[11px]">💰</span>
+                                            <div className="flex-1">
+                                                <div className="text-[9px] text-ancient-stone/80 mb-0.5">预先成本:</div>
+                                                <div className={`text-[10px] font-semibold ${cost === '无成本' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                                    {cost}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {guaranteed && (
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-[11px]">📋</span>
+                                                <div className="flex-1">
+                                                    <div className="text-[9px] text-ancient-stone/80 mb-0.5">确定后果:</div>
+                                                    <div className="text-[10px] text-blue-400 font-semibold leading-relaxed">
+                                                        {guaranteed}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {risk && (
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-[11px]">⚡</span>
+                                                <div className="flex-1">
+                                                    <div className="text-[9px] text-ancient-stone/80 mb-0.5">危险后果:</div>
+                                                    <div className="text-[10px] text-red-400 font-semibold leading-relaxed">
+                                                        {risk}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            }
+                        >                            <button
+                                type="button"
+                                onClick={() => !disabled && setDraft(prev => ({ ...prev, stance: key }))}
+                                disabled={disabled}
+                                className={`
+                                    flex-1 py-1.5 lg:py-2 px-1 lg:px-2 rounded-lg flex flex-col items-center gap-1 transition-all relative
+                                    ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                                    ${draft.stance === key
+                                        ? `${bgColor} ${color} shadow-lg border-2 border-current ring-2 ring-current/20`
+                                        : 'text-ancient-stone/70 hover:bg-white/10 hover:text-ancient-parchment border-2 border-transparent'
+                                    }
+                                `}
+                            >
+                                <Icon name={icon} size={16} className="lg:hidden" />
+                                <Icon name={icon} size={18} className="hidden lg:block" />
+                                <span className="text-[9px] lg:text-[10px] font-bold whitespace-nowrap">{label}</span>
+                                {cost !== '无成本' && (
+                                    <span className={`text-[7px] lg:text-[8px] font-semibold ${draft.stance === key ? 'text-yellow-300' : 'text-yellow-500/60'}`}>
+                                        {cost}
+                                    </span>
+                                )}
+                            </button>
+                        </FloatingTooltip>
                     ))}
                 </div>
             </div>

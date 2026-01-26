@@ -585,7 +585,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
             <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex justify-between">
                     <span className="text-gray-400">人口:</span>
-                    <span className="text-white">{formatNumberShortCN(nation.population || 0)}</span>
+                    <span className="text-white">{formatNumberShortCN(Math.round(nation.population || 0), { decimals: 0 })}</span>
                 </div>
                 <div className="flex justify-between">
                     <span className="text-gray-400">财富:</span>

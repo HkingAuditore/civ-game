@@ -53,8 +53,8 @@ export const TreatyNegotiationModal = memo(({
         const config = TREATY_CONFIGS[treatyType];
         const unlockEra = DIPLOMACY_ERA_UNLOCK.treaties[treatyType]?.minEra || 0;
         const duration = getTreatyDuration(treatyType, epoch);
-        const signingCost = calculateTreatySigningCost(treatyType, playerWealth, targetNation.wealth || 1000);
-        const dailyMaintenance = getTreatyDailyMaintenance(treatyType);
+        const signingCost = calculateTreatySigningCost(treatyType, playerWealth, targetNation.wealth || 1000, epoch);
+        const dailyMaintenance = getTreatyDailyMaintenance(treatyType, playerWealth, targetNation.wealth || 1000);
         const visual = TREATY_VISUALS[treatyType] || TREATY_VISUALS.peace_treaty;
         const effects = getTreatyEffectDescriptionsByType(treatyType);
 

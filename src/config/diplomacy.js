@@ -594,14 +594,14 @@ export const AI_ECONOMY_CONFIG = {
  * 条约签约成本与维护费配置
  */
 export const TREATY_COSTS = {
-    peace_treaty: { signingCostRate: 0.005, dailyMaintenance: 0 },
-    non_aggression: { signingCostRate: 0.01, dailyMaintenance: 2 },
-    trade_agreement: { signingCostRate: 0.035, dailyMaintenance: 6 },
-    free_trade: { signingCostRate: 0.05, dailyMaintenance: 12 },
-    investment_pact: { signingCostRate: 0.04, dailyMaintenance: 9 },
-    open_market: { signingCostRate: 0.04, dailyMaintenance: 6 },
-    academic_exchange: { signingCostRate: 0.015, dailyMaintenance: 3 },
-    defensive_pact: { signingCostRate: 0.05, dailyMaintenance: 15 },
+    peace_treaty: { signingCostRate: 0.02, dailyMaintenance: 0 },
+    non_aggression: { signingCostRate: 0.03, dailyMaintenance: 0.0001 }, // 0.01% 每日
+    trade_agreement: { signingCostRate: 0.08, dailyMaintenance: 0.0002 }, // 0.02% 每日
+    free_trade: { signingCostRate: 0.15, dailyMaintenance: 0.0005 }, // 0.05% 每日
+    investment_pact: { signingCostRate: 0.12, dailyMaintenance: 0.0003 }, // 0.03% 每日
+    open_market: { signingCostRate: 0.10, dailyMaintenance: 0.0002 }, // 0.02% 每日
+    academic_exchange: { signingCostRate: 0.05, dailyMaintenance: 0.00015 }, // 0.015% 每日
+    defensive_pact: { signingCostRate: 0.18, dailyMaintenance: 0.0006 }, // 0.06% 每日
 };
 
 /**
@@ -609,9 +609,10 @@ export const TREATY_COSTS = {
  * @param {string} treatyType - 条约类型
  * @param {number} playerWealth - 玩家财富
  * @param {number} targetWealth - 目标国家财富
+ * @param {number} epoch - 当前时代（可选，用于动态最低成本）
  * @returns {number} 签约成本
  */
-export const calculateTreatySigningCost = (treatyType, playerWealth, targetWealth) => {
+export const calculateTreatySigningCost = (treatyType, playerWealth, targetWealth, epoch = 1) => {
     const config = TREATY_COSTS[treatyType];
     if (!config) return 0;
 
@@ -619,17 +620,34 @@ export const calculateTreatySigningCost = (treatyType, playerWealth, targetWealt
     const target = Math.max(0, targetWealth || 0);
     const weightedBase = player * 0.6 + target * 0.4;
     const scaled = Math.floor(weightedBase * config.signingCostRate);
-    return Math.max(200, scaled);
+    
+    // 动态最低成本：随时代增长
+    const minCost = 500 * Math.pow(2, epoch - 1); // 时代1: 500, 时代2: 1000, 时代3: 2000...
+    return Math.max(minCost, scaled);
 };
 
 /**
  * 获取条约每日维护费
  * @param {string} treatyType - 条约类型
+ * @param {number} playerWealth - 玩家财富（可选，用于动态计算）
+ * @param {number} targetWealth - 目标国家财富（可选，用于动态计算）
  * @returns {number} 每日维护费
  */
-export const getTreatyDailyMaintenance = (treatyType) => {
+export const getTreatyDailyMaintenance = (treatyType, playerWealth = 0, targetWealth = 0) => {
     const config = TREATY_COSTS[treatyType];
-    return config?.dailyMaintenance || 0;
+    if (!config) return 0;
+    
+    // 如果提供了财富数据，使用动态计算
+    if (playerWealth > 0 || targetWealth > 0) {
+        const player = Math.max(0, playerWealth || 0);
+        const target = Math.max(0, targetWealth || 0);
+        const weightedBase = player * 0.6 + target * 0.4;
+        const dynamicMaintenance = Math.floor(weightedBase * config.dailyMaintenance);
+        return Math.max(10, dynamicMaintenance); // 最低10银/天
+    }
+    
+    // 兼容旧代码：如果没有提供财富，返回固定值（假设为百万级财富）
+    return Math.floor(1000000 * config.dailyMaintenance);
 };
 
 /**

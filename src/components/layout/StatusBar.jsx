@@ -228,7 +228,7 @@ export const StatusBar = ({
         let net = 0;
         fiscalTreasuryEntries.forEach(entry => {
             const amount = Number(entry?.amount || 0);
-            if (!Number.isFinite(amount) || amount === 0) return;
+            if (!Number.isFinite(amount) || Math.abs(amount) < 0.01) return;
             const rawReason = typeof entry?.reason === 'string' ? entry.reason.trim() : entry?.reason;
             const lowerReason = typeof rawReason === 'string' ? rawReason.toLowerCase() : rawReason;
             const label = REASON_LABELS[rawReason] || REASON_LABELS[lowerReason] || rawReason || '未知';

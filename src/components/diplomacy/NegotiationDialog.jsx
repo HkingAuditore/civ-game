@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal, Button, Icon, Card } from '../common/UnifiedUI';
 import TradeColumn from './negotiation/TradeColumn';
 import TreatyTerms from './negotiation/TreatyTerms';
 import DealStatus from './negotiation/DealStatus';
 import { RESOURCES } from '../../config/gameConstants';
-import { DIPLOMACY_ERA_UNLOCK, TREATY_CONFIGS } from '../../config/diplomacy';
+import { DIPLOMACY_ERA_UNLOCK, TREATY_CONFIGS, calculateTreatySigningCost } from '../../config/diplomacy';
 import { ORGANIZATION_TYPE_CONFIGS } from '../../logic/diplomacy/organizationDiplomacy';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const NegotiationDialog = ({
     isOpen,
@@ -16,19 +17,36 @@ const NegotiationDialog = ({
     negotiationRound,
     negotiationEvaluation,
     negotiationCounter,
+    setNegotiationCounter,
     negotiationFeedback,
     daysElapsed,
     submitNegotiation,
     isDiplomacyUnlocked,
-    epoch,
+    epoch = 1, // 当前时代
     tradableResources,
     organizations = [],
     nations = [],
     empireName = '我的帝国', // 玩家帝国名称
+    playerWealth = 0, // 玩家财富
     t = (k, v) => v // Default translation function
 }) => {
     // State to toggle Counter Offer view
     const [showCounterOverlay, setShowCounterOverlay] = useState(false);
+
+    // Calculate signing cost for counter proposal
+    const counterSigningCost = useMemo(() => {
+        if (!negotiationCounter || !selectedNation) return 0;
+        const targetWealth = selectedNation?.wealth || 1000;
+        return calculateTreatySigningCost(
+            negotiationCounter.type || negotiationDraft.type,
+            playerWealth,
+            targetWealth,
+            epoch
+        );
+    }, [negotiationCounter, selectedNation, playerWealth, epoch, negotiationDraft.type]);
+
+    // Check if player can afford counter signing cost
+    const canAffordCounterSigningCost = playerWealth >= counterSigningCost;
 
     // Apply Counter Offer to Draft
     const handleAcceptCounter = () => {
@@ -61,25 +79,36 @@ const NegotiationDialog = ({
 
     const handleApplyCounterToDraft = () => {
         if (!negotiationCounter) return;
-        // Convert counter's demands to our offer, and counter's offer to our demand
-        const counterDemandResources = negotiationCounter.demandResources ||
-            convertToResourcesArray(negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount);
+        // ✅ 正确的逻辑：
+        // AI的反提案中，AI愿意支付的 → 应该放到"我方索求"（因为我要从AI那里拿）
+        // AI的反提案中，AI索要的 → 应该放到"我方赠送"（因为我要给AI）
         const counterOfferResources = negotiationCounter.resources ||
             convertToResourcesArray(negotiationCounter.resourceKey, negotiationCounter.resourceAmount);
+        const counterDemandResources = negotiationCounter.demandResources ||
+            convertToResourcesArray(negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount);
 
         setNegotiationDraft({
             type: negotiationDraft.type,
             durationDays: negotiationCounter.durationDays,
             maintenancePerDay: negotiationCounter.maintenancePerDay,
-            signingGift: negotiationCounter.demandSilver || 0,
-            resources: counterDemandResources,
+            // AI愿意支付的 → 我方索求
             demandSilver: negotiationCounter.signingGift || 0,
             demandResources: counterOfferResources,
+            // AI索要的 → 我方赠送
+            signingGift: negotiationCounter.demandSilver || 0,
+            resources: counterDemandResources,
             stance: negotiationDraft.stance,
             targetOrganizationId: negotiationCounter.targetOrganizationId ?? negotiationDraft.targetOrganizationId ?? null,
             organizationMode: negotiationCounter.organizationMode ?? negotiationDraft.organizationMode ?? null,
         });
-        setShowCounterOverlay(false);
+        // ✅ 延迟清除counter，让React先完成negotiationDraft的更新
+        // 这样可以避免TradeColumn在更新前显示空白
+        setTimeout(() => {
+            if (setNegotiationCounter) {
+                setNegotiationCounter(null);
+            }
+            setShowCounterOverlay(false);
+        }, 0);
     };
 
     // Footer Rendering
@@ -227,12 +256,21 @@ const NegotiationDialog = ({
                         draft={negotiationDraft}
                         setDraft={setNegotiationDraft}
                         tradableResources={tradableResources}
+                        disabled={!!negotiationCounter}
                         t={t}
                     />
                 </div>
 
                 {/* --- CENTER: TERMS & STATUS --- */}
                 <div className="flex flex-col gap-2 lg:order-2 overflow-y-auto custom-scrollbar">
+                    {/* Counter Offer Warning */}
+                    {negotiationCounter && (
+                        <div className="bg-amber-900/30 border border-amber-500/50 rounded-lg px-3 py-2 text-xs text-amber-200 flex items-center gap-2">
+                            <Icon name="Lock" size={14} className="text-amber-400 flex-shrink-0" />
+                            <span>{t('negotiation.counterLockHint', '对方已反提案，请选择：接受、修改为该方案后编辑、或放弃谈判')}</span>
+                        </div>
+                    )}
+
                     {/* Status Section */}
                     <Card className="p-2 bg-black/40 border-ancient-gold/20 flex-shrink-0">
                         <DealStatus
@@ -255,6 +293,8 @@ const NegotiationDialog = ({
                             nations={nations}
                             selectedNation={selectedNation}
                             empireName={empireName}
+                            playerWealth={playerWealth}
+                            disabled={!!negotiationCounter}
                             t={t}
                         />
                     </div>
@@ -267,6 +307,7 @@ const NegotiationDialog = ({
                         draft={negotiationDraft}
                         setDraft={setNegotiationDraft}
                         tradableResources={tradableResources}
+                        disabled={!!negotiationCounter}
                         t={t}
                     />
                 </div>
@@ -307,12 +348,12 @@ const NegotiationDialog = ({
                                     <h4 className="font-bold text-ancient-stone uppercase text-xs">{t('negotiation.theyPay', '对方愿意支付')}</h4>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.silver', '银币')}:</span>
-                                        <span className="font-mono text-amber-400">{negotiationCounter.demandSilver || 0}</span>
+                                        <span className="font-mono text-green-400">{formatNumberShortCN(negotiationCounter.signingGift || 0)}</span>
                                     </div>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.resource', '资源')}:</span>
                                         <span className="font-mono text-cyan-400">
-                                            {formatResourcesDisplay(negotiationCounter.demandResources, negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount) || t('common.none', '无')}
+                                            {formatResourcesDisplay(negotiationCounter.resources, negotiationCounter.resourceKey, negotiationCounter.resourceAmount) || t('common.none', '无')}
                                         </span>
                                     </div>
                                 </div>
@@ -320,20 +361,41 @@ const NegotiationDialog = ({
                                 <div className="space-y-3">
                                     <h4 className="font-bold text-ancient-stone uppercase text-xs">{t('negotiation.theyDemand', '对方索要')}</h4>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
-                                        <span>{t('negotiation.signingGift', '签约金')}:</span>
-                                        <span className="font-mono text-red-400">{negotiationCounter.signingGift || 0}</span>
+                                        <span>{t('negotiation.silver', '银币')}:</span>
+                                        <span className="font-mono text-red-400">{formatNumberShortCN(negotiationCounter.demandSilver || 0)}</span>
                                     </div>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.resource', '资源')}:</span>
                                         <span className="font-mono text-red-400">
-                                            {formatResourcesDisplay(negotiationCounter.resources, negotiationCounter.resourceKey, negotiationCounter.resourceAmount) || t('common.none', '无')}
+                                            {formatResourcesDisplay(negotiationCounter.demandResources, negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount) || t('common.none', '无')}
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="col-span-2 mt-2 pt-2 border-t border-white/10 flex justify-between text-xs text-ancient-stone">
-                                    <span>{t('negotiation.duration', '期限')}: <span className="text-white">{negotiationCounter.durationDays} {t('common.days', '天')}</span></span>
-                                    <span>{t('negotiation.maintenance', '维护费')}: <span className="text-white">{negotiationCounter.maintenancePerDay} {t('common.perDay', '/日')}</span></span>
+                                <div className="col-span-2 mt-2 pt-2 border-t border-white/10 space-y-2">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-ancient-stone">{t('negotiation.signingCost', '签约成本')}:</span>
+                                        <div className="flex items-center gap-1">
+                                            <span className={`font-mono font-bold ${
+                                                canAffordCounterSigningCost ? 'text-green-400' : 'text-red-400'
+                                            }`}>
+                                                {formatNumberShortCN(counterSigningCost)}
+                                            </span>
+                                            <Icon name="Coins" size={12} className="text-amber-500" />
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-ancient-stone">{t('negotiation.duration', '期限')}:</span>
+                                        <span className="text-white">{negotiationCounter.durationDays} {t('common.days', '天')}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-ancient-stone">{t('negotiation.maintenance', '维护费')}:</span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-amber-400 font-mono">{formatNumberShortCN(negotiationCounter.maintenancePerDay || 0)}</span>
+                                            <Icon name="Coins" size={12} className="text-amber-500" />
+                                            <span className="text-ancient-stone text-[10px]">{t('common.perDay', '/日')}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

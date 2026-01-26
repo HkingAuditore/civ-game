@@ -210,7 +210,12 @@ const NationDetailView = ({
                             gameState={gameState}
                         />
 
-                        <ActiveTreaties nation={nation} daysElapsed={daysElapsed} />
+                        <ActiveTreaties 
+                            nation={nation} 
+                            daysElapsed={daysElapsed} 
+                            onDiplomaticAction={onDiplomaticAction}
+                            epoch={epoch}
+                        />
                     </div>
                 )}
 
@@ -1005,39 +1010,97 @@ const ActionCard = ({ icon, title, desc, cost, disabled, onClick, color }) => {
     );
 };
 
-const ActiveTreaties = ({ nation, daysElapsed }) => {
+const ActiveTreaties = ({ nation, daysElapsed, onDiplomaticAction, epoch }) => {
+    const [confirmBreak, setConfirmBreak] = useState(null); // { treatyType, treatyLabel }
+    
     if (!nation.treaties || nation.treaties.length === 0) return null;
+    
+    // 检查是否在毁约冷却期
+    const lastBreachDay = nation.lastTreatyBreachDay || -Infinity;
+    const breachPenalty = epoch >= 6 ? { cooldownDays: 365 } : (epoch >= 4 ? { cooldownDays: 180 } : { cooldownDays: 90 });
+    const canBreachTreaty = (daysElapsed - lastBreachDay) >= breachPenalty.cooldownDays;
+    const cooldownRemaining = canBreachTreaty ? 0 : breachPenalty.cooldownDays - (daysElapsed - lastBreachDay);
+    
+    const handleBreakTreaty = (treatyType) => {
+        if (!canBreachTreaty) return;
+        if (onDiplomaticAction) {
+            onDiplomaticAction(nation.id, 'break_treaty', { treatyType });
+        }
+        setConfirmBreak(null);
+    };
+    
     return (
         <Card className="p-4 bg-ancient-ink/30 border-ancient-gold/10">
             <h3 className="text-xs font-bold text-ancient-gold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-80">
                 <Icon name="ScrollText" size={14} />
                 生效中的条约
             </h3>
+            {!canBreachTreaty && (
+                <div className="mb-3 p-2 bg-red-900/20 border border-red-500/30 rounded text-xs text-red-300">
+                    ⏳ 毁约冷却中，剩余 {cooldownRemaining} 天
+                </div>
+            )}
             <div className="space-y-2">
-                {nation.treaties.map((treaty, i) => (
-                    <div
-                        key={i}
-                        className="flex justify-between items-center p-2.5 bg-black/20 rounded border border-white/5 hover:border-ancient-gold/20 transition-colors"
-                    >
-                        <span className="text-sm text-ancient-parchment font-medium capitalize">
-                            {treatyTypeToLabel(treaty.type)}
-                        </span>
-                        <span className="text-xs text-ancient-stone/70 font-mono">
-                            {(() => {
-                                const endDay = Number.isFinite(treaty.endDay)
-                                    ? treaty.endDay
-                                    : (Number.isFinite(treaty.startDay) && Number.isFinite(treaty.duration)
-                                        ? treaty.startDay + treaty.duration
-                                        : (Number.isFinite(treaty.signedDay) && Number.isFinite(treaty.duration)
-                                            ? treaty.signedDay + treaty.duration
-                                            : null));
-                                return endDay != null
-                                    ? `剩余 ${Math.max(0, endDay - daysElapsed)} 天`
-                                    : '永久';
-                            })()}
-                        </span>
-                    </div>
-                ))}
+                {nation.treaties.map((treaty, i) => {
+                    const treatyLabel = treatyTypeToLabel(treaty.type);
+                    const isConfirming = confirmBreak?.treatyType === treaty.type;
+                    
+                    return (
+                        <div
+                            key={i}
+                            className="flex justify-between items-center p-2.5 bg-black/20 rounded border border-white/5 hover:border-ancient-gold/20 transition-colors"
+                        >
+                            <div className="flex-1">
+                                <span className="text-sm text-ancient-parchment font-medium capitalize">
+                                    {treatyLabel}
+                                </span>
+                                <span className="ml-3 text-xs text-ancient-stone/70 font-mono">
+                                    {(() => {
+                                        const endDay = Number.isFinite(treaty.endDay)
+                                            ? treaty.endDay
+                                            : (Number.isFinite(treaty.startDay) && Number.isFinite(treaty.duration)
+                                                ? treaty.startDay + treaty.duration
+                                                : (Number.isFinite(treaty.signedDay) && Number.isFinite(treaty.duration)
+                                                    ? treaty.signedDay + treaty.duration
+                                                    : null));
+                                        return endDay != null
+                                            ? `剩余 ${Math.max(0, endDay - daysElapsed)} 天`
+                                            : '永久';
+                                    })()}
+                                </span>
+                            </div>
+                            {isConfirming ? (
+                                <div className="flex gap-1">
+                                    <Button
+                                        size="xs"
+                                        variant="danger"
+                                        onClick={() => handleBreakTreaty(treaty.type)}
+                                    >
+                                        确认毁约
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        onClick={() => setConfirmBreak(null)}
+                                    >
+                                        取消
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    onClick={() => setConfirmBreak({ treatyType: treaty.type, treatyLabel })}
+                                    disabled={!canBreachTreaty}
+                                    title={canBreachTreaty ? '撕毁条约（将受到严重惩罚）' : `毁约冷却中，剩余 ${cooldownRemaining} 天`}
+                                    className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                                >
+                                    <Icon name="X" size={14} />
+                                </Button>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </Card>
     );

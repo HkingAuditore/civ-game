@@ -770,8 +770,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             lastMinisterExpansionDay,
             priceControls, // [NEW] 计划经济价格管制设置
             foreignInvestments, // [NEW] 海外投资
+            diplomaticReputation, // [FIX] 外交声誉
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, lastMinisterExpansionDay, priceControls, foreignInvestments]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation]);
 
     // 监听国家列表变化，自动清理无效的贸易路线和商人派驻（修复暂停状态下无法清理的问题）
     const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
@@ -1132,6 +1133,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 officialsSimCursor: current.officialsSimCursor || 0,
                 officialsPaid: canAffordOfficials,
                 ministerAssignments: current.ministerAssignments || {},
+                ministerAutoExpansion: current.ministerAutoExpansion || {},
                 lastMinisterExpansionDay: current.lastMinisterExpansionDay ?? 0,
                 foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
                 overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
@@ -1582,6 +1584,86 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         meta: { source: 'game_loop' },
                     });
                 }
+
+                // ========== 附庸每日更新（朝贡与独立倾向） - 移到主setResources之前 ==========
+                // [FIX] 将附庸朝贡收入和控制成本整合到 adjustedResources 和 auditEntries 中
+                // 避免产生巨大的"对账差额"
+                let vassalNationsUpdated = null;
+                const vassalLogs = [];
+                if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
+                    // Calculate player military strength from army
+                    const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
+                    const baseMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
+                    const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
+                    const garrisonCommitment = (current.nations || []).reduce((sum, nation) => {
+                        if (nation.vassalOf !== 'player') return sum;
+                        const garrison = nation.vassalPolicy?.controlMeasures?.garrison;
+                        const isActive = garrison === true || (garrison && garrison.active !== false);
+                        if (!isActive) return sum;
+                        const vassalStrength = nation.militaryStrength || 0.5;
+                        return sum + (vassalStrength * garrisonFactor);
+                    }, 0);
+                    const playerMilitaryStrength = Math.max(0.1, baseMilitaryStrength - garrisonCommitment);
+
+                    const vassalUpdateResult = processVassalUpdates({
+                        nations: current.nations,
+                        daysElapsed: current.daysElapsed || 0,
+                        epoch: current.epoch || 0,
+                        playerMilitary: playerMilitaryStrength,
+                        playerStability: result.stability || 50,
+                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
+                        playerWealth: adjustedResources.silver || 0,
+                        playerPopulation: current.population || 1000000,
+                        officials: result.officials || [],
+                        difficultyLevel: current.difficulty,
+                        logs: vassalLogs
+                    });
+
+                    // [NEW] Check for vassal autonomous requests (Lower Tribute, Aid, Investment)
+                    checkVassalRequests(
+                        current.nations.filter(n => n.vassalOf === 'player'),
+                        current.daysElapsed || 0,
+                        vassalLogs
+                    );
+
+                    if (vassalUpdateResult) {
+                        // 保存更新后的国家列表，稍后应用
+                        if (vassalUpdateResult.nations) {
+                            vassalNationsUpdated = vassalUpdateResult.nations;
+                        }
+
+                        // [FIX] 将附庸朝贡收入直接添加到 adjustedResources 和 auditEntries
+                        if (vassalUpdateResult.tributeIncome > 0) {
+                            adjustedResources.silver = (adjustedResources.silver || 0) + vassalUpdateResult.tributeIncome;
+                            auditEntries.push({
+                                amount: vassalUpdateResult.tributeIncome,
+                                reason: 'vassal_tribute_cash',
+                                meta: { source: 'vassal_system' },
+                            });
+                        }
+
+                        // [FIX] 将资源朝贡直接添加到 adjustedResources
+                        if (vassalUpdateResult.resourceTribute && Object.keys(vassalUpdateResult.resourceTribute).length > 0) {
+                            Object.entries(vassalUpdateResult.resourceTribute).forEach(([res, amount]) => {
+                                adjustedResources[res] = (adjustedResources[res] || 0) + amount;
+                            });
+                        }
+
+                        // [FIX] 将附庸控制成本直接从 adjustedResources 扣除并添加到 auditEntries
+                        if (vassalUpdateResult.totalControlCost > 0) {
+                            adjustedResources.silver = Math.max(0, (adjustedResources.silver || 0) - vassalUpdateResult.totalControlCost);
+                            auditEntries.push({
+                                amount: -vassalUpdateResult.totalControlCost,
+                                reason: 'vassal_control_cost',
+                                meta: { source: 'vassal_system' },
+                            });
+                            if (isDebugEnabled('diplomacy')) {
+                                console.log(`[Vassal] Deducted ${vassalUpdateResult.totalControlCost} silver for control measures.`);
+                            }
+                        }
+                    }
+                }
+
                 const treasuryIncome = auditEntries.reduce((sum, entry) => {
                     const amount = Number(entry?.amount || 0);
                     if (!Number.isFinite(amount) || amount <= 0) return sum;
@@ -1609,6 +1691,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     auditEntries,
                     auditStartingSilver,
                 });
+
+                // 应用附庸系统更新的国家列表
+                if (vassalNationsUpdated) {
+                    setNations(vassalNationsUpdated);
+                }
+
+                // 显示附庸系统日志
+                if (vassalLogs.length > 0) {
+                    vassalLogs.forEach(log => addLog(log));
+                }
 
                 // 处理强制补贴效果的每日更新
                 // 注意：这里只处理 forcedSubsidy 的递减和过期，不处理其他效果的更新
@@ -1734,87 +1826,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // 条约维护费已在 simulation 内统一扣除并记账，避免主线程重复扣减。
 
-                // ========== 附庸每日更新（朝贡与独立倾向） ==========
-                if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
-                    const vassalLogs = [];
-
-                    // Calculate player military strength from army
-                    const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
-                    const baseMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
-                    const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
-                    const garrisonCommitment = (current.nations || []).reduce((sum, nation) => {
-                        if (nation.vassalOf !== 'player') return sum;
-                        const garrison = nation.vassalPolicy?.controlMeasures?.garrison;
-                        const isActive = garrison === true || (garrison && garrison.active !== false);
-                        if (!isActive) return sum;
-                        const vassalStrength = nation.militaryStrength || 0.5;
-                        return sum + (vassalStrength * garrisonFactor);
-                    }, 0);
-                    const playerMilitaryStrength = Math.max(0.1, baseMilitaryStrength - garrisonCommitment);
-
-                    const vassalUpdateResult = processVassalUpdates({
-                        nations: current.nations,
-                        daysElapsed: current.daysElapsed || 0,
-                        epoch: current.epoch || 0,
-                        playerMilitary: playerMilitaryStrength,
-                        playerStability: result.stability || 50,
-                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
-                        playerWealth: adjustedResources.silver || 0,
-                        playerPopulation: current.population || 1000000,
-                        officials: result.officials || [],  // Pass officials for governor system
-                        difficultyLevel: current.difficulty, // 游戏难度
-                        logs: vassalLogs
-                    });
-
-                    // [NEW] Check for vassal autonomous requests (Lower Tribute, Aid, Investment)
-                    checkVassalRequests(
-                        current.nations.filter(n => n.vassalOf === 'player'),
-                        current.daysElapsed || 0,
-                        vassalLogs
-                    );
-
-                    if (vassalUpdateResult) {
-                        // 更新国家列表（包含附庸状态变化）
-                        if (vassalUpdateResult.nations) {
-                            setNations(vassalUpdateResult.nations);
-                        }
-
-                        // 结算现金朝贡
-                        if (vassalUpdateResult.tributeIncome > 0) {
-                            setResources(prev => ({
-                                ...prev,
-                                silver: (prev.silver || 0) + vassalUpdateResult.tributeIncome
-                            }), { reason: 'vassal_tribute_cash' });
-                        }
-
-                        // 结算资源朝贡
-                        if (vassalUpdateResult.resourceTribute && Object.keys(vassalUpdateResult.resourceTribute).length > 0) {
-                            setResources(prev => {
-                                const nextRes = { ...prev };
-                                Object.entries(vassalUpdateResult.resourceTribute).forEach(([res, amount]) => {
-                                    nextRes[res] = (nextRes[res] || 0) + amount;
-                                });
-                                return nextRes;
-                            }, { reason: 'vassal_tribute_resource' });
-                        }
-
-                        // NEW: Deduct control costs from treasury
-                        if (vassalUpdateResult.totalControlCost > 0) {
-                            setResources(prev => ({
-                                ...prev,
-                                silver: Math.max(0, (prev.silver || 0) - vassalUpdateResult.totalControlCost)
-                            }), { reason: 'vassal_control_cost' });
-                            if (isDebugEnabled('diplomacy')) {
-                                console.log(`[Vassal] Deducted ${vassalUpdateResult.totalControlCost} silver for control measures.`);
-                            }
-                        }
-
-                        // 显示日志
-                        if (vassalLogs.length > 0) {
-                            vassalLogs.forEach(log => addLog(log));
-                        }
-                    }
-                }
+                // [MOVED] 附庸每日更新已移至主 setResources 调用之前，避免产生对账差额
 
                 // ========== 官员成长系统（每日经验与升级） ==========
                 let progressionChanges = [];

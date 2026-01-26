@@ -199,6 +199,9 @@ import {
   Flower,
   Flower2,
   Crosshair,
+  Smile,
+  Frown,
+  Meh,
 } from 'lucide-react';
 
 export const iconMap = {
@@ -406,6 +409,9 @@ export const iconMap = {
   Flower,
   Flower2,
   CloudLightning,
+  Smile,
+  Frown,
+  Meh,
 };
 
 export const getIcon = (name) => iconMap[name];

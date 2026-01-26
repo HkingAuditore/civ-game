@@ -822,6 +822,13 @@ const buildInitialMinisterAssignments = () => ({
     diplomacy: null,
 });
 
+const buildInitialMinisterAutoExpansion = () => ({
+    agriculture: true,
+    industry: true,
+    commerce: true,
+    civic: true,
+});
+
 const isTradable = (resourceKey) => {
     if (resourceKey === 'silver') return false;
     const def = RESOURCES[resourceKey];
@@ -1028,6 +1035,7 @@ export const useGameState = () => {
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
     const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
     const [ministerAssignments, setMinisterAssignments] = useState(buildInitialMinisterAssignments());
+    const [ministerAutoExpansion, setMinisterAutoExpansion] = useState(buildInitialMinisterAutoExpansion());
     const [lastMinisterExpansionDay, setLastMinisterExpansionDay] = useState(0);
     // ========== 内阁协同系统状态 ==========
     // Permanent policy decrees (legacy) - stored as array of { id, active, modifiers, ... }
@@ -1162,7 +1170,7 @@ export const useGameState = () => {
                     let entryTotal = 0;
                     entries.forEach((entry) => {
                         const amount = Number(entry?.amount || 0);
-                        if (!Number.isFinite(amount) || amount === 0) return;
+                        if (!Number.isFinite(amount) || Math.abs(amount) < 0.01) return;
                         const entryBefore = running;
                         const entryAfter = entryBefore + amount;
                         appendTreasuryChangeLog({
@@ -1645,6 +1653,7 @@ export const useGameState = () => {
                 lastSelectionDay,
                 officialCapacity,
                 ministerAssignments,
+                ministerAutoExpansion,
                 lastMinisterExpansionDay,
                 decrees,
                 activeDecrees,
@@ -1785,6 +1794,10 @@ export const useGameState = () => {
         setMinisterAssignments({
             ...buildInitialMinisterAssignments(),
             ...(data.ministerAssignments || {}),
+        });
+        setMinisterAutoExpansion({
+            ...buildInitialMinisterAutoExpansion(),
+            ...(data.ministerAutoExpansion || {}),
         });
         setLastMinisterExpansionDay(data.lastMinisterExpansionDay ?? 0);
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
@@ -2935,6 +2948,8 @@ export const useGameState = () => {
         setOfficialCapacity,
         ministerAssignments,
         setMinisterAssignments,
+        ministerAutoExpansion,
+        setMinisterAutoExpansion,
         lastMinisterExpansionDay,
         setLastMinisterExpansionDay,
         // 内阁协同系统

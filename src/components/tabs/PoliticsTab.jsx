@@ -334,9 +334,11 @@ const PoliticsTabComponent = ({
     onUpdateOfficialSalary,
     onUpdateOfficialName,
     ministerAssignments = {},
+    ministerAutoExpansion = {},
     lastMinisterExpansionDay = 0,
     onAssignMinister,
     onClearMinister,
+    onToggleMinisterAutoExpansion,
 
     // Cabinet Synergy Props
     classWealth = {},
@@ -552,7 +554,7 @@ const PoliticsTabComponent = ({
                 <div className="flex items-center gap-1">
                     <Icon name={stratumInfo.icon || 'User'} size={14} className="text-gray-400" />
                     <span className="font-semibold text-gray-300 flex-grow">{stratumInfo.name || key}</span>
-                    <span className="text-gray-500 text-[10px] font-mono">{formatNumberShortCN(population, { decimals: 1 })} 人</span>
+                    <span className="text-gray-500 text-[10px] font-mono">{formatNumberShortCN(Math.round(population), { decimals: 0 })} 人</span>
                 </div>
                 <div className="flex items-center justify-center gap-0.5">
                     {isSubsidy ? (
@@ -791,9 +793,11 @@ const PoliticsTabComponent = ({
                         onUpdateOfficialSalary={onUpdateOfficialSalary}
                         onUpdateOfficialName={onUpdateOfficialName}
                         ministerAssignments={ministerAssignments}
+                        ministerAutoExpansion={ministerAutoExpansion}
                         lastMinisterExpansionDay={lastMinisterExpansionDay}
                         onAssignMinister={onAssignMinister}
                         onClearMinister={onClearMinister}
+                        onToggleMinisterAutoExpansion={onToggleMinisterAutoExpansion}
                         // Cabinet Synergy Props
                         epoch={epoch}
                         popStructure={popStructure}
