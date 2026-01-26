@@ -100,11 +100,11 @@ const InlineSelect = ({ value, onChange, options, placeholder, themeColor = 'amb
 };
 
 // Single compact resource row: [Select ▼] [Amount] [×]
-const ResourceRow = ({ resource, index, onUpdate, onRemove, availableResources, themeColor, t }) => (
-    <div className="flex items-center gap-1">
+const ResourceRow = ({ resource, index, onUpdate, onRemove, availableResources, themeColor, disabled = false, t }) => (
+    <div className={`flex items-center gap-1 ${disabled ? 'opacity-50' : ''}`}>
         <InlineSelect
             value={resource.key}
-            onChange={(val) => onUpdate(index, 'key', val)}
+            onChange={(val) => !disabled && onUpdate(index, 'key', val)}
             placeholder={t('negotiation.selectResource', '选择...')}
             themeColor={themeColor}
             options={[
@@ -117,15 +117,21 @@ const ResourceRow = ({ resource, index, onUpdate, onRemove, availableResources, 
                 type="number"
                 min="0"
                 value={resource.amount || ''}
-                onChange={(e) => onUpdate(index, 'amount', Number(e.target.value) || 0)}
+                onChange={(e) => !disabled && onUpdate(index, 'amount', Number(e.target.value) || 0)}
                 placeholder="0"
-                className="w-14 bg-black/30 text-[11px] px-1.5 py-1 rounded border border-ancient-gold/20 hover:border-ancient-gold/40 text-center font-mono text-cyan-300 outline-none"
+                disabled={disabled}
+                className={`w-14 bg-black/30 text-[11px] px-1.5 py-1 rounded border border-ancient-gold/20 text-center font-mono text-cyan-300 outline-none ${
+                    disabled ? 'cursor-not-allowed' : 'hover:border-ancient-gold/40'
+                }`}
             />
         )}
         <button
             type="button"
-            onClick={() => onRemove(index)}
-            className="p-0.5 rounded bg-red-900/20 hover:bg-red-900/40 text-red-400/60 hover:text-red-300 transition-colors"
+            onClick={() => !disabled && onRemove(index)}
+            disabled={disabled}
+            className={`p-0.5 rounded bg-red-900/20 text-red-400/60 transition-colors ${
+                disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-red-900/40 hover:text-red-300'
+            }`}
         >
             <Icon name="X" size={10} />
         </button>
@@ -138,6 +144,7 @@ const TradeColumn = ({
     setDraft,
     tradableResources,
     className,
+    disabled = false,
     t = (k, v) => v
 }) => {
     const isOffer = type === 'offer';
@@ -197,14 +204,17 @@ const TradeColumn = ({
                 <span className="text-[10px] text-ancient-stone flex items-center gap-0.5 whitespace-nowrap">
                     <Icon name="Coins" size={10} className={silverColor} />银币
                 </span>
-                <div className="flex-1 flex items-center rounded overflow-hidden border border-ancient-gold/20 hover:border-ancient-gold/40 bg-black/20">
+                <div className={`flex-1 flex items-center rounded overflow-hidden border border-ancient-gold/20 bg-black/20 ${
+                    disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-ancient-gold/40'
+                }`}>
                     <input
                         type="number"
                         min="0"
                         value={draft[silverKey] || ''}
-                        onChange={(e) => setDraft(prev => ({ ...prev, [silverKey]: Number(e.target.value) || 0 }))}
+                        onChange={(e) => !disabled && setDraft(prev => ({ ...prev, [silverKey]: Number(e.target.value) || 0 }))}
                         placeholder="0"
-                        className={`flex-1 bg-transparent py-0.5 px-1.5 text-right font-mono text-[11px] font-bold outline-none ${silverColor}`}
+                        disabled={disabled}
+                        className={`flex-1 bg-transparent py-0.5 px-1.5 text-right font-mono text-[11px] font-bold outline-none ${silverColor} ${disabled ? 'cursor-not-allowed' : ''}`}
                     />
                     <span className="px-1 text-[9px] text-ancient-stone/50 bg-black/20 border-l border-white/5">Silver</span>
                 </div>
@@ -217,7 +227,7 @@ const TradeColumn = ({
                         <Icon name="Package" size={10} className="text-cyan-400" />资源
                         {currentResources.length > 0 && <span className="text-ancient-gold/40">({currentResources.length})</span>}
                     </span>
-                    {canAddMore && (
+                    {canAddMore && !disabled && (
                         <button
                             type="button"
                             onClick={handleAddResource}
@@ -237,6 +247,7 @@ const TradeColumn = ({
                         onRemove={handleRemoveResource}
                         availableResources={getAvailableResources(resource.key)}
                         themeColor={themeColor}
+                        disabled={disabled}
                         t={t}
                     />
                 ))}

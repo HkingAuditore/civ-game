@@ -1136,8 +1136,8 @@ export function createNationAnnexedEvent(nation, populationGained, maxPopGained,
         description = `经过艰苦的战争,${nation.name}终于臣服于你的统治!他们的领土、人民和资源现在都归你所有。
 
 🎉 吞并成果:
-• 获得人口:${formatNumberShortCN(populationGained, { decimals: 1 })}人
-• 获得人口上限:+${formatNumberShortCN(maxPopGained, { decimals: 1 })}
+• 获得人口:${formatNumberShortCN(Math.round(populationGained), { decimals: 0 })}人
+• 获得人口上限:+${formatNumberShortCN(Math.round(maxPopGained), { decimals: 0 })}
 
 ${nation.name}的旗帜已经降下,取而代之的是你的王旗。这是一次伟大的征服!`;
     } else {
@@ -1145,10 +1145,10 @@ ${nation.name}的旗帜已经降下,取而代之的是你的王旗。这是一�
         title = `💀 ${nation.name}已经灭亡`;
         description = `${nation.name}在连年战争中损失惨重,人口凋零,国力衰竭。最终,这个曾经的国家彻底消亡了。
 
-残存的人民(${formatNumberShortCN(populationGained, { decimals: 1 })}人)逃入你的领土,成为你的臣民。
+残存的人民(${formatNumberShortCN(Math.round(populationGained), { decimals: 0 })}人)逃入你的领土,成为你的臣民。
 
-• 获得人口:${formatNumberShortCN(populationGained, { decimals: 1 })}人
-• 获得人口上限:+${formatNumberShortCN(maxPopGained, { decimals: 1 })}
+• 获得人口:${formatNumberShortCN(Math.round(populationGained), { decimals: 0 })}人
+• 获得人口上限:+${formatNumberShortCN(Math.round(maxPopGained), { decimals: 0 })}
 
 历史将记住这个国家,但它的辉煌已成过去。`;
     }

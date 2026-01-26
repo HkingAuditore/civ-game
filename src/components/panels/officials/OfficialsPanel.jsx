@@ -56,9 +56,11 @@ export const OfficialsPanel = ({
     onUpdateOfficialSalary,
     onUpdateOfficialName,
     ministerAssignments = {},
+    ministerAutoExpansion = {},
     lastMinisterExpansionDay = 0,
     onAssignMinister,
     onClearMinister,
+    onToggleMinisterAutoExpansion,
 
     // [NEW] 额外上下文和详细容量
     jobCapacity = 0,
@@ -452,6 +454,25 @@ export const OfficialsPanel = ({
                                     <div className="mt-1 min-h-[12px] text-[9px] text-emerald-300">
                                         {bonusLines.length > 0 ? bonusLines.join(' · ') : (assigned ? '暂无加成' : '')}
                                     </div>
+                                    {isEconomic && assigned && (
+                                        <div className="mt-2 pt-2 border-t border-gray-700/40">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={ministerAutoExpansion?.[role] ?? true}
+                                                    onChange={(e) => {
+                                                        if (onToggleMinisterAutoExpansion) {
+                                                            onToggleMinisterAutoExpansion(role, e.target.checked);
+                                                        }
+                                                    }}
+                                                    className="w-3 h-3 rounded border-gray-600 bg-gray-800 text-emerald-500 focus:ring-emerald-500/50"
+                                                />
+                                                <span className="text-[10px] text-gray-400">
+                                                    允许自动扩建
+                                                </span>
+                                            </label>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

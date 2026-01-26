@@ -91,31 +91,55 @@ const DealStatus = ({
                 </div>
             </div>
 
-            {/* The Deal Scale Slider */}
-            <div className="mt-2 bg-black/40 rounded-xl p-2 lg:p-3 border border-ancient-gold/20 shadow-inner relative overflow-hidden">
-                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-ancient-gold/30 z-10" />
-                <div className="flex justify-between text-[8px] lg:text-[10px] text-ancient-stone mb-0.5 lg:mb-1 font-bold">
-                    <span className="text-red-400">{t('negotiation.loss', 'AI亏损')}</span>
-                    <span className="text-green-400">{t('negotiation.gain', 'AI获利')}</span>
+            {/* Success Rate Explanation */}
+            <div className="bg-ancient-gold/5 rounded-lg p-2 border border-ancient-gold/20">
+                <div className="flex items-start gap-2">
+                    <Icon name="Info" size={12} className="text-ancient-gold mt-0.5 flex-shrink-0" />
+                    <div className="text-[8px] lg:text-[9px] text-ancient-stone/80 leading-relaxed">
+                        <span className="font-bold text-ancient-gold">{t('negotiation.successFactors', '成功率受多重因素影响：')}</span>
+                        <span className="text-ancient-parchment/70">
+                            {t('negotiation.successFactors.desc', '交易评分、双方关系、实力对比、谈判姿态、AI性格等。评分高只是基础，还需综合考虑其他因素。')}
+                        </span>
+                    </div>
                 </div>
-                <div className="h-2 lg:h-3 w-full bg-gray-800/50 rounded-full relative">
-                    <div
-                        className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 lg:w-4 lg:h-4 rounded-full border-2 border-white shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-all duration-500 z-20
-                            ${dealScore >= 0 ? 'bg-green-500' : 'bg-red-500'}
-                        `}
-                        style={{ left: `calc(${progressPercent}% - 6px)` }}
-                    />
-                    <div
-                        className={`absolute top-0 bottom-0 transition-all duration-500 opacity-30
-                            ${dealScore >= 0 ? 'bg-green-500 left-1/2' : 'bg-red-500 right-1/2'}
-                        `}
-                        style={{ width: `${Math.abs(progressPercent - 50)}%` }}
-                    />
-                </div>
-                <div className="flex justify-center mt-1 lg:mt-2">
+            </div>
+
+            {/* The Deal Score Display */}
+            <div className="mt-2 bg-black/40 rounded-xl p-2 lg:p-3 border border-ancient-gold/20 shadow-inner">
+                <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-1.5">
+                        <Icon name="Scale" size={12} className="text-ancient-gold" />
+                        <span className="text-[9px] lg:text-[10px] text-ancient-stone uppercase tracking-wider font-bold">
+                            {t('negotiation.dealScore', '交易评分')}
+                        </span>
+                    </div>
                     <Badge variant={dealScore >= 0 ? 'success' : 'danger'} className="font-mono text-[10px] lg:text-xs">
                         {dealScore > 0 ? '+' : ''}{dealScore}
                     </Badge>
+                </div>
+                
+                <div className="text-[8px] lg:text-[9px] text-ancient-stone/70 leading-relaxed">
+                    {dealScore > 1000 ? (
+                        <span className="text-green-400">
+                            ✓ {t('negotiation.dealScore.veryGood', 'AI认为这笔交易对他们非常有利')}
+                        </span>
+                    ) : dealScore > 0 ? (
+                        <span className="text-green-300">
+                            ✓ {t('negotiation.dealScore.good', 'AI认为这笔交易对他们有利')}
+                        </span>
+                    ) : dealScore > -500 ? (
+                        <span className="text-amber-400">
+                            ⚠ {t('negotiation.dealScore.neutral', 'AI认为这笔交易勉强可以接受')}
+                        </span>
+                    ) : (
+                        <span className="text-red-400">
+                            ✗ {t('negotiation.dealScore.bad', 'AI认为这笔交易对他们不利')}
+                        </span>
+                    )}
+                </div>
+                
+                <div className="mt-2 pt-2 border-t border-ancient-gold/10 text-[7px] lg:text-[8px] text-ancient-stone/50 italic">
+                    {t('negotiation.dealScore.note', '注意：交易评分高不代表一定会成功，还需考虑关系、实力对比等因素')}
                 </div>
             </div>
 

@@ -323,6 +323,7 @@ export const simulateTick = ({
     activeDecrees, // [NEW] Reform decrees
     officialsPaid = true, // 是否足额支付薪水
     ministerAssignments = {}, // [NEW] Minister role assignments
+    ministerAutoExpansion = {}, // [NEW] Minister auto-expansion toggle for each role
     lastMinisterExpansionDay = 0,
     quotaTargets = {}, // [NEW] Quota system targets for Left Dominance
     expansionSettings = {}, // [NEW] Expansion settings for Right Dominance
@@ -6641,7 +6642,7 @@ export const simulateTick = ({
     let nextLastMinisterExpansionDay = Number.isFinite(lastMinisterExpansionDay) ? lastMinisterExpansionDay : 0;
     const shouldAttemptMinisterExpansion = ECONOMIC_MINISTER_ROLES.some((role) => ministerAssignments?.[role]);
 
-    if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 30)) {
+    if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 10)) {
         const difficultyLevel = difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
@@ -6656,6 +6657,10 @@ export const simulateTick = ({
             const officialId = ministerAssignments?.[role];
             const official = officialId ? ministerRoster.get(officialId) : null;
             if (!official) return;
+            
+            // [NEW] Check if auto-expansion is enabled for this minister
+            const autoExpansionEnabled = ministerAutoExpansion?.[role] ?? true;
+            if (!autoExpansionEnabled) return;
 
             BUILDINGS.forEach((building) => {
                 if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;

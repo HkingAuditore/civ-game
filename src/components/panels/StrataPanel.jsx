@@ -259,7 +259,7 @@ const StrataPanelComponent = ({
                                         <div className="flex items-center gap-1 mb-0.5">
                                             <Icon name={strata.info.icon} size={12} className="text-ancient-gold flex-shrink-0" />
                                             <span className="text-[10px] font-bold text-ancient-parchment truncate leading-none">{strata.info.name}</span>
-                                            <span className="text-[8px] text-ancient-stone font-mono">{formatNumberShortCN(strata.count, { decimals: 1 })}</span>
+                                            <span className="text-[8px] text-ancient-stone font-mono">{formatNumberShortCN(Math.round(strata.count), { decimals: 0 })}</span>
                                             <div className="flex-1" />
                                             <span className={`text-[9px] font-bold font-mono ${strata.displayApproval >= 70 ? 'text-green-400' : strata.displayApproval >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
                                                 {strata.displayApproval.toFixed(0)}%
@@ -366,7 +366,7 @@ const StrataPanelComponent = ({
                                         <div className="flex items-center gap-1">
                                             <Icon name={info.icon} size={10} className="text-ancient-gold" />
                                             <span className="text-[11px] font-semibold text-ancient-parchment">{info.name}</span>
-                                            <span className="text-[9px] text-ancient-stone">{formatNumberShortCN(count, { decimals: 1 })}人</span>
+                                            <span className="text-[9px] text-ancient-stone">{formatNumberShortCN(Math.round(count), { decimals: 0 })}人</span>
                                             <Icon
                                                 name={livingStandardIcon}
                                                 size={10}

@@ -12,6 +12,7 @@ import {
     NEGOTIABLE_TREATY_TYPES,
     RESOURCES,
     getTreatyDuration,
+    getTreatyDailyMaintenance,
     isDiplomacyUnlocked,
 } from '../../config';
 import { calculateNegotiationAcceptChance } from '../../logic/diplomacy/negotiation';
@@ -138,18 +139,24 @@ const DiplomacyTabComponent = ({
         return unlockedType || 'peace_treaty';
     };
 
-    const buildNegotiationDraft = (type) => ({
-        type,
-        durationDays: getTreatyDuration(type, epoch),
-        maintenancePerDay: 0,
-        signingGift: 0,
-        resourceKey: '',
-        resourceAmount: 0,
-        demandSilver: 0,
-        demandResourceKey: '',
-        demandResourceAmount: 0,
-        stance: 'normal',
-    });
+    const buildNegotiationDraft = (type) => {
+        const playerWealth = resources.silver || 0;
+        const targetWealth = selectedNation?.wealth || 1000;
+        const maintenancePerDay = getTreatyDailyMaintenance(type, playerWealth, targetWealth);
+        
+        return {
+            type,
+            durationDays: getTreatyDuration(type, epoch),
+            maintenancePerDay,
+            signingGift: 0,
+            resourceKey: '',
+            resourceAmount: 0,
+            demandSilver: 0,
+            demandResourceKey: '',
+            demandResourceAmount: 0,
+            stance: 'normal',
+        };
+    };
 
     const openNegotiationModal = () => {
         const type = getDefaultNegotiationType();
@@ -161,6 +168,7 @@ const DiplomacyTabComponent = ({
     };
 
     const negotiationEvaluation = useMemo(() => {
+        console.log('🔄 Recalculating negotiationEvaluation, stance:', negotiationDraft.stance);
         if (!selectedNation) return { acceptChance: 0, relationGate: false };
         
         // Get organization info if relevant
@@ -202,8 +210,37 @@ const DiplomacyTabComponent = ({
     const handleNegotiationResult = (result) => {
         if (!result) return;
         if (result.status === 'counter' && result.counterProposal) {
-            setNegotiationCounter(result.counterProposal);
-            setNegotiationDraft((prev) => ({ ...prev, ...result.counterProposal }));
+            const counter = result.counterProposal;
+            setNegotiationCounter(counter);
+            
+            // ✅ 自动加载反提案到negotiationDraft，让用户立即看到AI的条件
+            // AI的反提案中，AI愿意支付的 → 应该放到"我方索求"（因为我要从AI那里拿）
+            // AI的反提案中，AI索要的 → 应该放到"我方赠送"（因为我要给AI）
+            const convertToResourcesArray = (key, amount) => {
+                if (!key || !amount) return [];
+                return [{ key, amount }];
+            };
+            
+            const counterOfferResources = counter.resources ||
+                convertToResourcesArray(counter.resourceKey, counter.resourceAmount);
+            const counterDemandResources = counter.demandResources ||
+                convertToResourcesArray(counter.demandResourceKey, counter.demandResourceAmount);
+            
+            setNegotiationDraft((prev) => ({
+                type: prev.type,
+                durationDays: counter.durationDays,
+                maintenancePerDay: counter.maintenancePerDay,
+                // AI愿意支付的 → 我方索求
+                demandSilver: counter.signingGift || 0,
+                demandResources: counterOfferResources,
+                // AI索要的 → 我方赠送
+                signingGift: counter.demandSilver || 0,
+                resources: counterDemandResources,
+                stance: prev.stance,
+                targetOrganizationId: counter.targetOrganizationId ?? prev.targetOrganizationId ?? null,
+                organizationMode: counter.organizationMode ?? prev.organizationMode ?? null,
+            }));
+            
             setNegotiationRound((prev) => Math.min(NEGOTIATION_MAX_ROUNDS, prev + 1));
             return;
         }
@@ -421,6 +458,7 @@ const DiplomacyTabComponent = ({
                 negotiationRound={negotiationRound}
                 negotiationEvaluation={negotiationEvaluation}
                 negotiationCounter={negotiationCounter}
+                setNegotiationCounter={setNegotiationCounter}
                 negotiationFeedback={negotiationFeedback}
                 daysElapsed={daysElapsed}
                 submitNegotiation={submitNegotiation}
@@ -430,6 +468,7 @@ const DiplomacyTabComponent = ({
                 organizations={diplomacyOrganizations?.organizations || []}
                 nations={visibleNations}
                 empireName={gameState?.empireName || '我的帝国'}
+                playerWealth={resources.silver || 0}
             />
 
             <ProvokeDialog

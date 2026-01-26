@@ -47,7 +47,7 @@ import { getEnemyUnitsForEpoch, calculateProportionalLoot } from '../config/mili
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost, INSTALLMENT_CONFIG } from '../utils/diplomaticUtils';
 import { filterEventEffects } from '../utils/eventEffectFilter';
-import { calculateNegotiationAcceptChance, generateCounterProposal } from '../logic/diplomacy/negotiation';
+import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
 // 外交叛乱干预系统
 import { executeIntervention, INTERVENTION_OPTIONS } from '../logic/diplomacy/rebellionSystem';
 // 内部叛乱系统
@@ -68,7 +68,7 @@ import {
     isSelectionAvailable,
     disposeOfficial,
 } from '../logic/officials/manager';
-import { MINISTER_ROLES, MINISTER_LABELS } from '../logic/officials/ministers';
+import { MINISTER_ROLES, MINISTER_LABELS, ECONOMIC_MINISTER_ROLES } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
@@ -2038,10 +2038,19 @@ export const useGameActions = (gameState, addLog) => {
         });
         if (removed) {
             const roleLabel = MINISTER_LABELS[role] || role;
-            addLog(`撤换${roleLabel}。`);
+            addLog(`撤换了${roleLabel}。`);
         }
     };
 
+    const toggleMinisterAutoExpansion = (role, enabled) => {
+        if (!ECONOMIC_MINISTER_ROLES.includes(role)) return;
+        setMinisterAutoExpansion(prev => ({
+            ...prev,
+            [role]: enabled,
+        }));
+        const roleLabel = MINISTER_LABELS[role] || role;
+        addLog(`${enabled ? '启用' : '禁用'}了${roleLabel}的自动扩建功能。`);
+    };
     // ========== 手动采集 ==========
 
     /**
@@ -3691,47 +3700,77 @@ export const useGameActions = (gameState, addLog) => {
                     return;
                 }
 
-                // Simple acceptance scoring (MVP)
+                // Enhanced acceptance scoring with more realistic evaluation
                 const relation = targetNation.relation || 0;
-
                 const aggression = targetNation.aggression ?? 0.3;
                 const treatyConfig = TREATY_CONFIGS[type] || {};
+                
                 if (Number.isFinite(treatyConfig.minRelation) && relation < treatyConfig.minRelation) {
                     addLog(`${targetNation.name} 当前关系不足，难以接受该条约。`);
                     return;
                 }
-                // Base by type
+                
+                // Lower base acceptance rates - AI should be more selective
                 const baseChanceByType = {
-                    peace_treaty: 0.45,
-                    non_aggression: 0.35,
-                    trade_agreement: 0.32,
-                    free_trade: 0.26,
-                    investment_pact: 0.22,
-                    open_market: 0.30,
-                    academic_exchange: 0.25,
-                    defensive_pact: 0.18,
+                    peace_treaty: 0.30,      // 45% -> 30%
+                    non_aggression: 0.22,    // 35% -> 22%
+                    trade_agreement: 0.20,   // 32% -> 20%
+                    free_trade: 0.15,        // 26% -> 15%
+                    investment_pact: 0.12,   // 22% -> 12%
+                    open_market: 0.18,       // 30% -> 18%
+                    academic_exchange: 0.16, // 25% -> 16%
+                    defensive_pact: 0.10,    // 18% -> 10%
                 };
-                const base = baseChanceByType[type] ?? 0.25;
-                // Relation boosts, aggression reduces
-                const relationBoost = Math.max(0, (relation - 40) / 100); // 40=>0, 100=>0.6
-                const aggressionPenalty = aggression * 0.25;
-
-                // Maintenance reduces acceptance
-                const maintenancePenalty = Math.min(0.25, maintenancePerDay / 500000);
-
-                let acceptChance = base + relationBoost - aggressionPenalty - maintenancePenalty;
-                // Type gating
-                if (type === 'open_market' && relation < 55) acceptChance *= 0.4;
-                if (type === 'trade_agreement' && relation < 50) acceptChance *= 0.5;
-                if (type === 'free_trade' && relation < 65) acceptChance *= 0.3;
-                if (type === 'investment_pact' && relation < 60) acceptChance *= 0.4;
-                if (type === 'academic_exchange' && relation < 65) acceptChance *= 0.2;
-                if (type === 'defensive_pact' && relation < 70) acceptChance *= 0.2;
-                acceptChance = Math.max(0.02, Math.min(0.92, acceptChance));
+                const base = baseChanceByType[type] ?? 0.15;
+                
+                // Reduced relation boost - good relations help but not too much
+                const relationBoost = Math.max(0, (relation - 50) / 250); // 50=>0, 100=>0.2 (was 0.6)
+                const aggressionPenalty = aggression * 0.35; // Increased from 0.25
+                
+                // Wealth/Power imbalance penalty - AI is suspicious of much stronger players
+                const playerWealth = resources.silver || 0;
+                const targetWealth = targetNation.wealth || 1000;
+                const playerPower = militaryPower || 0;
+                const targetPower = targetNation.militaryPower || 100;
+                
+                const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
+                const powerRatio = targetPower > 0 ? playerPower / targetPower : 1;
+                
+                // Penalty for being much stronger (AI fears exploitation)
+                let dominancePenalty = 0;
+                if (['open_market', 'free_trade', 'investment_pact', 'trade_agreement'].includes(type)) {
+                    if (wealthRatio > 1.5) {
+                        dominancePenalty += (wealthRatio - 1.5) * 0.15; // Significant penalty
+                    }
+                    if (powerRatio > 1.5) {
+                        dominancePenalty += (powerRatio - 1.5) * 0.08;
+                    }
+                }
+                
+                // Maintenance penalty - scaled to target's wealth
+                const maintenanceRatio = targetWealth > 0 ? maintenancePerDay / (targetWealth * 0.001) : 0;
+                const maintenancePenalty = Math.min(0.30, maintenanceRatio * 0.5);
+                
+                let acceptChance = base + relationBoost - aggressionPenalty - maintenancePenalty - dominancePenalty;
+                
+                // Stricter type gating with harsher penalties
+                if (type === 'open_market' && relation < 55) acceptChance *= 0.25; // was 0.4
+                if (type === 'trade_agreement' && relation < 50) acceptChance *= 0.35; // was 0.5
+                if (type === 'free_trade' && relation < 65) acceptChance *= 0.20; // was 0.3
+                if (type === 'investment_pact' && relation < 60) acceptChance *= 0.25; // was 0.4
+                if (type === 'academic_exchange' && relation < 65) acceptChance *= 0.15; // was 0.2
+                if (type === 'defensive_pact' && relation < 70) acceptChance *= 0.12; // was 0.2
+                
+                // Additional penalty for low relations
+                if (relation < 40) {
+                    acceptChance *= 0.5; // 50% penalty for poor relations
+                }
+                
+                acceptChance = Math.max(0.01, Math.min(0.85, acceptChance)); // Lower max from 0.92 to 0.85
                 const accepted = Math.random() < acceptChance;
                 // 计算签约成本
-                const signingCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0);
-                const autoMaintenancePerDay = getTreatyDailyMaintenance(type);
+                const signingCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0, epoch);
+                const autoMaintenancePerDay = getTreatyDailyMaintenance(type, resources.silver || 0, targetNation.wealth || 0);
                 const finalMaintenancePerDay = maintenancePerDay > 0 ? maintenancePerDay : autoMaintenancePerDay;
                 // 如果接受，检查并扣除签约成本
                 if (accepted && signingCost > 0) {
@@ -3985,13 +4024,57 @@ export const useGameActions = (gameState, addLog) => {
                     return;
                 }
 
+                // ✅ Check and deduct stance upfront cost BEFORE negotiation
+                const stanceCheck = canAffordStance(stance, resources);
+                
+                if (!stanceCheck.canAfford) {
+                    const missingResources = Object.entries(stanceCheck.missing)
+                        .map(([res, amount]) => `${res}: ${Math.floor(amount)}`)
+                        .join(', ');
+                    addLog(`❌ 无法使用${NEGOTIATION_STANCES[stance]?.name || stance}姿态：资源不足 (${missingResources})`);
+                    if (onResult) onResult({ 
+                        status: 'blocked', 
+                        reason: 'stance_cost',
+                        missing: stanceCheck.missing,
+                    });
+                    return;
+                }
+
+                // Deduct stance upfront cost
+                for (const [resource, cost] of Object.entries(stanceCheck.cost)) {
+                    if (cost > 0) {
+                        setResourcesWithReason(
+                            prev => ({ ...prev, [resource]: Math.max(0, (prev[resource] || 0) - cost) }),
+                            'treaty_negotiate_stance_cost',
+                            { nationId, treatyType: type, stance, resource, cost }
+                        );
+                    }
+                }
+
+                // ✅ Apply guaranteed stance effects (relation/reputation changes)
+                const stanceConfig = NEGOTIATION_STANCES[stance];
+                let guaranteedRelationChange = stanceConfig?.guaranteedEffects?.relationChange || 0;
+                let guaranteedReputationChange = stanceConfig?.guaranteedEffects?.reputationChange || 0;
+
                 const accepted = forceAccept || (evaluation.dealScore || 0) >= 0;
-                const stanceDelta = stance === 'friendly' ? 2 : (stance === 'threat' ? -20 : 0);
+                
+                const stanceDelta = guaranteedRelationChange;
+                
+                // Deduct political cost for aggressive/threat stance (regardless of outcome)
+                const politicalCost = evaluation?.breakdown?.politicalCost || 0;
+                if (politicalCost > 0) {
+                    setResourcesWithReason(
+                        prev => ({ ...prev, political_power: Math.max(0, (prev.political_power || 0) - politicalCost) }),
+                        'treaty_negotiate_political_cost',
+                        { nationId, treatyType: type, stance, cost: politicalCost }
+                    );
+                }
+                
                 // 计算签约成本
 
-                const negotiateSigningCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0);
+                const negotiateSigningCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0, epoch);
 
-                const negotiateAutoMaintenancePerDay = getTreatyDailyMaintenance(type);
+                const negotiateAutoMaintenancePerDay = getTreatyDailyMaintenance(type, resources.silver || 0, targetNation.wealth || 0);
                 const negotiateFinalMaintenancePerDay = maintenancePerDay > 0 ? maintenancePerDay : negotiateAutoMaintenancePerDay;
                 if (accepted) {
                     // 检查并扣除签约成本
@@ -4204,6 +4287,10 @@ export const useGameActions = (gameState, addLog) => {
                     if (negotiateFinalMaintenancePerDay > 0) {
                         negotiateCostInfo += `，每日维护费 ${negotiateFinalMaintenancePerDay} 银币`;
                     }
+                    
+                    if (politicalCost > 0) {
+                        negotiateCostInfo += `，政治成本 ${politicalCost}`;
+                    }
 
                     if (demandSilver > 0 || demandResources.length > 0) {
                         const demandParts = [];
@@ -4267,13 +4354,16 @@ export const useGameActions = (gameState, addLog) => {
 
                     : null;
                 if (counterProposal) {
-                    const counterDelta = stance === 'threat' ? -6 : (stance === 'friendly' ? 0 : -1);
+                    // Apply guaranteed stance effects on counter-proposal
+                    const counterDelta = guaranteedRelationChange;
                     setNations(prev => prev.map(n =>
                         n.id === nationId
                             ? { ...n, relation: clampRelation((n.relation || 0) + counterDelta) }
                             : n
                     ));
-                    addLog(`${targetNation.name} 提出了反提案。`);
+                    const costMsg = politicalCost > 0 ? `（政治成本 ${politicalCost}）` : '';
+                    const stanceMsg = stanceConfig?.name ? `（${stanceConfig.name}姿态）` : '';
+                    addLog(`${targetNation.name} 提出了反提案${stanceMsg}${costMsg}。`);
                     if (onResult) onResult({ status: 'counter', counterProposal, acceptChance: evaluation.acceptChance, evaluation });
                     break;
                 }
@@ -4291,9 +4381,11 @@ export const useGameActions = (gameState, addLog) => {
                         : n
                 ));
                 if ((evaluation.dealScore || 0) < 0) {
-                    addLog(`${targetNation.name} 认为筹码不足，谈判失败（差额 ${Math.round(Math.abs(evaluation.dealScore || 0))}）。`);
+                    const costMsg = politicalCost > 0 ? `（政治成本 ${politicalCost}）` : '';
+                    addLog(`${targetNation.name} 认为筹码不足，谈判失败（差额 ${Math.round(Math.abs(evaluation.dealScore || 0))}）${costMsg}。`);
                 } else {
-                    addLog(`${targetNation.name} 拒绝了谈判，双方关系下降。`);
+                    const costMsg = politicalCost > 0 ? `（政治成本 ${politicalCost}）` : '';
+                    addLog(`${targetNation.name} 拒绝了谈判，双方关系下降${costMsg}。`);
                 }
 
                 // Trigger diplomatic event for rejected negotiation
@@ -4312,6 +4404,79 @@ export const useGameActions = (gameState, addLog) => {
                     reason: (evaluation?.dealScore || 0) < 0 ? 'deal_insufficient' : 'refused',
                     dealScore: evaluation?.dealScore || 0,
                 });
+                break;
+            }
+            case 'break_treaty': {
+                // 玩家主动毁约
+                const treatyType = payload?.treatyType;
+                if (!treatyType) {
+                    addLog('毁约失败：缺少条约类型。');
+                    return;
+                }
+
+                // 检查是否存在该条约
+                const existingTreaty = targetNation.treaties?.find(t => t.type === treatyType);
+                if (!existingTreaty) {
+                    addLog(`你与 ${targetNation.name} 没有 ${treatyType} 条约。`);
+                    return;
+                }
+
+                // 计算毁约惩罚
+                const breachPenalty = getTreatyBreachPenalty(epoch);
+                const breachConsequences = {
+                    reputationPenalty: Math.floor(breachPenalty.relationPenalty * 0.5), // 声誉损失
+                    tradeBlockadeDays: breachPenalty.cooldownDays, // 贸易中断天数
+                };
+
+                // 移除条约
+                setNations(prev => prev.map(n => {
+                    if (n.id === nationId) {
+                        return {
+                            ...n,
+                            relation: Math.max(0, (n.relation || 50) - breachPenalty.relationPenalty),
+                            treaties: (n.treaties || []).filter(t => t.type !== treatyType),
+                            lastTreatyBreachDay: daysElapsed,
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                break_treaty: daysElapsed,
+                            },
+                        };
+                    }
+                    return n;
+                }));
+
+                // 冻结海外投资
+                if (setOverseasInvestments) {
+                    setOverseasInvestments(prev =>
+                        (prev || []).map(inv => {
+                            if (inv.nationId === nationId) {
+                                return {
+                                    ...inv,
+                                    frozen: true,
+                                    frozenReason: 'treaty_breach',
+                                    frozenUntil: daysElapsed + breachConsequences.tradeBlockadeDays,
+                                };
+                            }
+                            return inv;
+                        })
+                    );
+                }
+
+                // 降低外交声誉
+                if (setDiplomaticReputation) {
+                    const { newReputation } = calculateReputationChange(
+                        diplomaticReputation ?? 50,
+                        'breakPeaceTreaty', // 复用和平条约违约的声誉惩罚
+                        false
+                    );
+                    setDiplomaticReputation(newReputation);
+                }
+
+                addLog(`⚠️ 你撕毁了与 ${targetNation.name} 的 ${treatyType} 条约！`);
+                addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
+                addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
+                addLog(`  ⏳ ${breachPenalty.cooldownDays} 天内无法再次毁约`);
+
                 break;
             }
             case 'create_org': {
@@ -5941,6 +6106,7 @@ export const useGameActions = (gameState, addLog) => {
         updateOfficialName,
         assignMinister,
         clearMinisterRole,
+        toggleMinisterAutoExpansion,
         // 叛乱系统
         handleRebellionAction,
         handleRebellionWarEnd,
