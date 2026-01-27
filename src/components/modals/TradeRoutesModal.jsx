@@ -8,10 +8,10 @@ import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 import { useLongPress } from '../../hooks/useLongPress';
 
 // Separate component for assignment row to properly use hooks
-const AssignmentRow = ({ 
-    nation, 
-    merchantAssignments, 
-    remainingMerchants, 
+const AssignmentRow = ({
+    nation,
+    merchantAssignments,
+    remainingMerchants,
     daysElapsed,
     merchantCount,
     getNationRouteMode,
@@ -179,13 +179,13 @@ const TradeRoutesModal = ({
     // ===== All useState hooks MUST be at the top =====
     // Tab state: 'assignments', 'priceCompare'
     const [activeTab, setActiveTab] = useState('assignments');
-    
+
     // 价格对比分栏的资源筛选状态
     const [selectedResource, setSelectedResource] = useState(null);
-    
+
     // Price scanner tab state (resource filtering)
     const [resourceSearch, setResourceSearch] = useState('');
-    
+
     // Price scanner sorting state
     const [priceSortField, setPriceSortField] = useState('diff'); // 'foreignPrice' | 'diff' | 'diffPct'
     const [priceSortDir, setPriceSortDir] = useState('desc'); // 'asc' | 'desc'
@@ -515,7 +515,7 @@ const TradeRoutesModal = ({
     // Merge pending trades by partner, resource, type, and daysRemaining
     const mergedPendingTrades = useMemo(() => {
         const tradeMap = new Map();
-        
+
         pendingTrades.forEach(trade => {
             // [FIX] Filter out trades with undiscovered nations
             if (trade.partnerId) {
@@ -525,10 +525,10 @@ const TradeRoutesModal = ({
                     return;
                 }
             }
-            
+
             // Create a unique key for grouping: partnerId-resource-type-daysRemaining
             const key = `${trade.partnerId}-${trade.resource}-${trade.type}-${trade.daysRemaining || 0}`;
-            
+
             if (tradeMap.has(key)) {
                 // Merge with existing trade
                 const existing = tradeMap.get(key);
@@ -542,7 +542,7 @@ const TradeRoutesModal = ({
                 });
             }
         });
-        
+
         return Array.from(tradeMap.values());
     }, [pendingTrades, nations]);
 
@@ -935,13 +935,13 @@ const TradeRoutesModal = ({
                             ) : (
                                 <div className="space-y-2">
                                     {/* Summary info */}
-                                    <div className="p-2 rounded-lg bg-gray-800/30 border border-white/5 text-[10px] text-gray-400">
+                                    {/* <div className="p-2 rounded-lg bg-gray-800/30 border border-white/5 text-[10px] text-gray-400">
                                         原始交易记录: <span className="text-amber-300">{pendingTrades.length}</span> 笔
                                         <span className="text-gray-600 mx-1">·</span>
                                         合并后显示: <span className="text-green-300">{mergedPendingTrades.length}</span> 条
                                         <span className="text-gray-600 mx-1">·</span>
                                         <span className="text-gray-500">已自动合并相同国家、商品、类型的贸易</span>
-                                    </div>
+                                    </div> */}
 
                                     {/* Header */}
                                     <div className="grid grid-cols-12 gap-1 sm:gap-2 px-1 sm:px-2 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
