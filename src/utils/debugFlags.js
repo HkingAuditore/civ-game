@@ -1,6 +1,8 @@
+// PERFORMANCE: 'event' debug logs cause severe performance issues (3000+ logs per second)
+// Keep this disabled to prevent game slowdown
 const DEFAULT_DEBUG_FLAGS = {
     console: false,
-    event: false,
+    event: false, // DO NOT ENABLE - causes lag
     gameLoop: false,
     mainThread: false,
     simulation: false,

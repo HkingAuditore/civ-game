@@ -96,7 +96,7 @@ const findNationByIdOrName = (identifier, nations = []) => {
  */
 export const initCheatCodes = (gameState, addLog, setters = {}) => {
     const { setMerchantState, setTradeRoutes } = setters;
-    
+
     // Create cheat object on window
     window.cheat = {
         /**
@@ -1559,10 +1559,10 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
         },
     };
 
-    // Display welcome message
-    console.log('%c🎮 Cheat Codes Enabled!', 'color: #00ff00; font-size: 18px; font-weight: bold;');
-    console.log('%cType window.cheat.help() or cheat.help() to see all available commands', 'color: #ffff00; font-size: 14px;');
-    console.log('%cOr type cheats directly in game: addall, unlockalltech, godmode, etc.', 'color: #00ffff; font-size: 12px;');
+    // Display welcome message (commented out to reduce console spam)
+    // console.log('%c🎮 Cheat Codes Enabled!', 'color: #00ff00; font-size: 18px; font-weight: bold;');
+    // console.log('%cType window.cheat.help() or cheat.help() to see all available commands', 'color: #ffff00; font-size: 14px;');
+    // console.log('%cOr type cheats directly in game: addall, unlockalltech, godmode, etc.', 'color: #00ffff; font-size: 12px;');
 
     // ========== Keyboard Cheat Code Detection ==========
     // Allows typing cheat codes directly in the game without opening the console

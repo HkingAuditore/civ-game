@@ -76,11 +76,11 @@ const PerfOverlay = () => {
             const stored = localStorage.getItem('debugPerfOverlay');
             setDebugEnabled(stored === 'true');
         };
-        
+
         window.addEventListener('storage', handleStorageChange);
         // 也监听自定义事件，用于同一页面内的更新
         window.addEventListener('debugSettingsChanged', handleStorageChange);
-        
+
         return () => {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('debugSettingsChanged', handleStorageChange);
@@ -772,11 +772,11 @@ function GameApp({ gameState }) {
     // 因为React state更新延迟，gameState.dailyMilitaryExpense总是undefined
     const simulationMilitaryExpense = gameState.dailyMilitaryExpense || window.__GAME_MILITARY_EXPENSE__;
     const militaryUpkeepMod = gameState.modifiers?.officialEffects?.militaryUpkeepMod || 0;
-    console.log('[App.jsx] Military expense final:', {
-        simulationData: simulationMilitaryExpense,
-        localCalc: armyExpenseData.dailyExpense,
-        using: simulationMilitaryExpense?.dailyExpense || armyExpenseData.dailyExpense
-    });
+    // console.log('[App.jsx] Military expense final:', {
+    //     simulationData: simulationMilitaryExpense,
+    //     localCalc: armyExpenseData.dailyExpense,
+    //     using: simulationMilitaryExpense?.dailyExpense || armyExpenseData.dailyExpense
+    // });
     // 优先使用simulation数据，fallback到本地计算
     const silverUpkeepPerDay = simulationMilitaryExpense?.dailyExpense || armyExpenseData.dailyExpense;
     const tradeStats = gameState.tradeStats || { tradeTax: 0, tradeRouteTax: 0 };

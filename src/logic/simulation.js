@@ -3750,21 +3750,7 @@ export const simulateTick = ({
         // [DEBUG] 追踪官员财富变化
         const debugInitialWealth = currentWealth;
 
-        // 收入：如果足额支付薪水，获得薪水
-        if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
-            currentWealth += normalizedOfficial.salary;
-            totalOfficialIncome += normalizedOfficial.salary;
-            totalOfficialLaborIncome += normalizedOfficial.salary; // Add to labor income
-            // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
-            // 记录俸禄到财务数据
-            if (classFinancialData.official) {
-                classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + normalizedOfficial.salary;
-            }
-        } else {
-            // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: NO SALARY! officialsPaid=${officialsPaid}, salary=${normalizedOfficial.salary}, wealth=${currentWealth}`);
-        }
-
-        // 支出：官员独立购买商品，更新市场供需与税收
+        // 初始化支出相关变量（需要在使用前声明）
         const officialNeeds = STRATA.official?.needs || { food: 1.2, cloth: 0.2 };
         const officialLuxuryNeeds = STRATA.official?.luxuryNeeds || {};
         let dailyExpense = 0;
@@ -3773,6 +3759,40 @@ export const simulateTick = ({
         let headTaxPaid = 0;
         let investmentCost = 0;
         let upgradeCost = 0;
+
+        // 收入：如果足额支付薪水，获得薪水
+        // 负薪酬：官员需要向国库缴纳费用
+        if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
+            if (normalizedOfficial.salary > 0) {
+                // 正常薪酬：国库支付给官员
+                currentWealth += normalizedOfficial.salary;
+                totalOfficialIncome += normalizedOfficial.salary;
+                totalOfficialLaborIncome += normalizedOfficial.salary; // Add to labor income
+                // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
+                // 记录俸禄到财务数据
+                if (classFinancialData.official) {
+                    classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + normalizedOfficial.salary;
+                }
+            } else if (normalizedOfficial.salary < 0) {
+                // 负薪酬：官员向国库缴纳费用（最多扣到官员财富为0）
+                const requiredPayment = Math.abs(normalizedOfficial.salary);
+                const actualPayment = Math.min(requiredPayment, currentWealth);
+                currentWealth = Math.max(0, currentWealth - actualPayment);
+                
+                // 记录负薪酬收入到国库（通过ledger系统）
+                if (actualPayment > 0) {
+                    ledger.transfer('official', 'state', actualPayment, 'NEGATIVE_SALARY', 'NEGATIVE_SALARY');
+                    // 记录到官员支出
+                    headTaxPaid += actualPayment; // 暂时归入headTaxPaid统计（或可以新增字段）
+                }
+                
+                // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Negative salary! Required: ${requiredPayment}, Paid: ${actualPayment}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
+            }
+        } else {
+            // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: NO SALARY! officialsPaid=${officialsPaid}, salary=${normalizedOfficial.salary}, wealth=${currentWealth}`);
+        }
+
+        // 支出：官员独立购买商品，更新市场供需与税收
         const expenseBreakdown = {};
         // Soft cap: limit luxury spending per tick to reduce extreme wealth swings.
         const LUXURY_SPEND_CAP_RATIO = 0.05;
@@ -7067,7 +7087,7 @@ export const simulateTick = ({
             // 4. Log the upgrade
             const ownerName = STRATA[ownerKey]?.name || ownerKey;
             const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
-            logs.push(`??? ${ownerName}自发投资了自己的产业 ${b.name} → ${upgradeName}（花费 ${Math.ceil(totalSilverCost)} 银币）`);
+            // logs.push(`??? ${ownerName}自发投资了自己的产业 ${b.name} → ${upgradeName}（花费 ${Math.ceil(totalSilverCost)} 银币）`);
 
             // Only upgrade one building per type per tick to avoid rapid changes
             break;
@@ -7097,7 +7117,7 @@ export const simulateTick = ({
                 delete updatedBuildingUpgrades[buildingId];
             }
 
-            logs.push(`??? 官员${officialName}升级了 ${buildingId}（花费 ${Math.ceil(cost)} 银）`);
+            // logs.push(`??? 官员${officialName}升级了 ${buildingId}（花费 ${Math.ceil(cost)} 银）`);
         });
     }
 

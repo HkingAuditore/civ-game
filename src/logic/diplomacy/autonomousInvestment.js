@@ -11,7 +11,6 @@ import { debugLog } from '../../utils/debugFlags';
 
 // [NEW] 外资投资的最低到岗率要求 (95%)
 const MIN_FOREIGN_INVESTMENT_STAFFING_RATIO = 0.95;
-const MAX_SAMPLE_NATIONS = 5;
 const MAX_TOP_INVESTMENTS = 5;
 const MAX_BUILDING_SAMPLES = 5;
 
@@ -71,9 +70,9 @@ const canPlayerInvestInNation = (targetNation, diplomacyOrganizations, daysElaps
     const canInvest = isVassal || hasInvestmentPact || hasEconomicPact || hasOrgEconomicBloc;
     
     // Debug log to help diagnose investment eligibility
-    if (!canInvest) {
-        console.log(`🤖 [INVEST-CHECK] ${targetNation.name} 不可投资: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgEconomicBloc=${hasOrgEconomicBloc}, treaties=${JSON.stringify(targetNation.treaties?.slice(0, 2))}`);
-    }
+    // if (!canInvest) {
+    //     console.log(`🤖 [INVEST-CHECK] ${targetNation.name} 不可投资: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgEconomicBloc=${hasOrgEconomicBloc}, treaties=${JSON.stringify(targetNation.treaties?.slice(0, 2))}`);
+    // }
     
     return canInvest;
 };
@@ -153,25 +152,30 @@ export function selectOutboundInvestmentsBatch({
     market,
     epoch,
     daysElapsed,
-    maxNations = MAX_SAMPLE_NATIONS,
     maxInvestments = MAX_TOP_INVESTMENTS,
+    batchSize = 2, // [NEW] 每次处理的国家数量
+    batchOffset = 0, // [NEW] 当前批次的起始位置
 }) {
-    if (!playerNation) return [];
+    if (!playerNation) return { investments: [], hasMore: false, nextOffset: 0 };
 
     const candidateNations = (nations || []).filter(n => canPlayerInvestInNation(n, diplomacyOrganizations, daysElapsed));
-    if (candidateNations.length === 0) return [];
+    if (candidateNations.length === 0) return { investments: [], hasMore: false, nextOffset: 0 };
 
-    const nationWeights = (nation) => {
-        const relationWeight = getRelationWeight(nation.relation || 0);
-        const profitSignal = getWealthSignal(nation);
-        const cooldownWeight = getCooldownWeight(daysElapsed, nation.lastOutboundSampleDay, 30);
-        return relationWeight * profitSignal * cooldownWeight;
-    };
+    // [MODIFIED] 不再采样，直接对所有候选国家进行分批处理
+    // 按关系、财富信号等排序，优先处理更有潜力的国家
+    const sortedCandidates = candidateNations.sort((a, b) => {
+        const weightA = getRelationWeight(a.relation || 0) * getWealthSignal(a);
+        const weightB = getRelationWeight(b.relation || 0) * getWealthSignal(b);
+        return weightB - weightA;
+    });
 
-    const sampledNations = weightedSampleWithoutReplacement(candidateNations, nationWeights, Math.min(maxNations, candidateNations.length));
+    // 分批处理：每次处理 batchSize 个国家
+    const sampledNations = sortedCandidates.slice(batchOffset, batchOffset + batchSize);
+    const hasMore = (batchOffset + batchSize) < sortedCandidates.length;
+    const nextOffset = hasMore ? (batchOffset + batchSize) : 0;
 
     const strata = Object.keys(classWealth || {}).filter(stratum => (classWealth[stratum] || 0) >= 1000);
-    if (strata.length === 0) return [];
+    if (strata.length === 0) return { investments: [], hasMore, nextOffset };
 
     const investments = [];
 
@@ -213,7 +217,7 @@ export function selectOutboundInvestmentsBatch({
         }
     });
 
-    if (investments.length === 0) return [];
+    if (investments.length === 0) return { investments: [], hasMore, nextOffset };
 
     investments.sort((a, b) => b.roi - a.roi);
     const finalInvestments = investments.slice(0, Math.min(maxInvestments, investments.length)).map(option => ({
@@ -226,7 +230,7 @@ export function selectOutboundInvestmentsBatch({
             investmentAmount: option.cost,
             }),
     }));
-    return finalInvestments;
+    return { investments: finalInvestments, hasMore, nextOffset };
 }
 
 export function selectInboundInvestmentsBatch({
@@ -237,37 +241,69 @@ export function selectInboundInvestmentsBatch({
     epoch,
     daysElapsed,
     foreignInvestments = [],
-    maxNations = MAX_SAMPLE_NATIONS,
     maxInvestments = MAX_TOP_INVESTMENTS,
+    batchSize = 2, // [NEW] 每次处理的投资国数量
+    batchOffset = 0, // [NEW] 当前批次的起始位置
 }) {
+    console.log('🔍 [INBOUND-DEBUG] 开始筛选投资国...');
+    console.log('🔍 [INBOUND-DEBUG] investorNations 数量:', investorNations?.length || 0);
+    console.log('🔍 [INBOUND-DEBUG] playerState:', playerState?.id);
+    console.log('🔍 [INBOUND-DEBUG] daysElapsed:', daysElapsed);
+
     const eligibleInvestors = (investorNations || []).filter(n => {
-        if (!n || n.id === 'player') return false;
-        if ((n.wealth || 0) < 5000) return false;
-        if (!canForeignInvestInPlayer(n, playerState, diplomacyOrganizations, daysElapsed)) return false;
+        if (!n || n.id === 'player') {
+            console.log('🔍 [INBOUND-DEBUG] 跳过:', n?.name || 'null', '- 原因: 玩家或null');
+            return false;
+        }
+        if ((n.wealth || 0) < 5000) {
+            console.log('🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 财富不足', n.wealth);
+            return false;
+        }
+        if (!canForeignInvestInPlayer(n, playerState, diplomacyOrganizations, daysElapsed)) {
+            console.log('🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 无投资权限');
+            return false;
+        }
         const lastDay = n.lastForeignInvestmentDay ?? -Infinity;
-        return (daysElapsed - lastDay) >= 60;
+        const cooldown = daysElapsed - lastDay;
+        if (cooldown < 60) {
+            console.log('🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 冷却中', cooldown, '天');
+            return false;
+        }
+        console.log('✅ [INBOUND-DEBUG] 符合条件:', n.name, '- 财富:', n.wealth, '关系:', n.relation);
+        return true;
     });
 
-    if (eligibleInvestors.length === 0) return [];
+    console.log('🔍 [INBOUND-DEBUG] eligibleInvestors 数量:', eligibleInvestors.length);
 
-    const investorWeights = (nation) => {
-        const relationWeight = getRelationWeight(nation.relation || 0);
-        const wealthSignal = getWealthSignal(nation);
-        const cooldownWeight = getCooldownWeight(daysElapsed, nation.lastForeignSampleDay, 30);
-        return relationWeight * wealthSignal * cooldownWeight;
-    };
+    if (eligibleInvestors.length === 0) {
+        console.log('❌ [INBOUND-DEBUG] 没有符合条件的投资国');
+        return { investments: [], hasMore: false, nextOffset: 0 };
+    }
 
-    const sampledInvestors = weightedSampleWithoutReplacement(
-        eligibleInvestors,
-        investorWeights,
-        Math.min(maxNations, eligibleInvestors.length)
-    );
+    // [MODIFIED] 不再采样，直接对所有符合条件的投资国按优先级排序
+    const sortedInvestors = eligibleInvestors.sort((a, b) => {
+        const weightA = getRelationWeight(a.relation || 0) * getWealthSignal(a);
+        const weightB = getRelationWeight(b.relation || 0) * getWealthSignal(b);
+        return weightB - weightA;
+    });
+
+    console.log('🔍 [INBOUND-DEBUG] 排序后的投资国:', sortedInvestors.map(n => n.name));
+
+    // 分批处理：每次处理 batchSize 个投资国
+    const batchInvestors = sortedInvestors.slice(batchOffset, batchOffset + batchSize);
+    const hasMore = (batchOffset + batchSize) < sortedInvestors.length;
+    const nextOffset = hasMore ? (batchOffset + batchSize) : 0;
+
+    console.log('🔍 [INBOUND-DEBUG] 本批次处理:', batchInvestors.map(n => n.name));
+    console.log('🔍 [INBOUND-DEBUG] batchOffset:', batchOffset, 'hasMore:', hasMore, 'nextOffset:', nextOffset);
 
     const decisions = [];
 
-    sampledInvestors.forEach(investorNation => {
+    batchInvestors.forEach(investorNation => {
         const investmentPolicy = investorNation.vassalPolicy?.investmentPolicy || 'autonomous';
         const roiThreshold = getInvestmentPolicyThreshold(investmentPolicy);
+
+        console.log('🔍 [INBOUND-DEBUG] 评估', investorNation.name, '- policy:', investmentPolicy, 'threshold:', roiThreshold);
 
         const bestBuilding = selectBestInvestmentBuilding({
             targetBuildings: playerState?.buildings || {},
@@ -278,7 +314,14 @@ export function selectInboundInvestmentsBatch({
             foreignInvestments,
         });
 
-        if (!bestBuilding || bestBuilding.roi <= roiThreshold) return;
+        console.log('🔍 [INBOUND-DEBUG]', investorNation.name, '最佳建筑:', bestBuilding?.building?.name, 'ROI:', bestBuilding?.roi);
+
+        if (!bestBuilding || bestBuilding.roi <= roiThreshold) {
+            console.log('❌ [INBOUND-DEBUG]', investorNation.name, '跳过 - ROI不足或无建筑');
+            return;
+        }
+
+        console.log('✅ [INBOUND-DEBUG]', investorNation.name, '决定投资:', bestBuilding.building.name);
 
         decisions.push({
             investorNation,
@@ -289,10 +332,23 @@ export function selectInboundInvestmentsBatch({
         });
     });
 
-    if (decisions.length === 0) return [];
+    console.log('🔍 [INBOUND-DEBUG] 本批次投资决策数量:', decisions.length);
+
+    if (decisions.length === 0) {
+        console.log('❌ [INBOUND-DEBUG] 本批次没有投资决策');
+        return { investments: [], hasMore, nextOffset };
+    }
 
     decisions.sort((a, b) => b.roi - a.roi);
-    return decisions.slice(0, Math.min(maxInvestments, decisions.length));
+    const topDecisions = decisions.slice(0, Math.min(maxInvestments, decisions.length));
+    
+    console.log('✅ [INBOUND-DEBUG] 返回投资决策:', topDecisions.map(d => `${d.investorNation.name} -> ${d.building.name}`));
+
+    return {
+        investments: topDecisions,
+        hasMore,
+        nextOffset,
+    };
 }
 
 /**

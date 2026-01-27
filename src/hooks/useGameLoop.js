@@ -662,6 +662,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
         overseasInvestmentsRef.current = overseasInvestments;
     }, [overseasInvestments]);
 
+    // [NEW] 海外投资分批处理状态追踪
+    const outboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null });
+    const inboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null }); // [NEW] 外国对我国投资
+
     // ========== 历史数据 Ref 管理 ==========
     // 使用 Ref 存储高频更新的历史数据，避免每帧触发 React 重渲染
     // 仅在节流间隔到达时同步到 State 供 UI 显示
@@ -1293,11 +1297,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 let forcedSubsidyUnpaid = 0;
 
                 // 扣除官员薪水（实付：最多扣到0）
+                // 如果薪水为负数，则从官员那里收取费用（需要在simulation中处理官员财富扣除）
                 if (officialDailySalary > 0) {
                     const before = Number(adjustedResources.silver || 0);
                     const pay = Math.min(officialDailySalary, before);
                     adjustedResources.silver = before - pay;
                     officialSalaryPaid = pay;
+                } else if (officialDailySalary < 0) {
+                    // 负薪酬：从官员那里收钱到国库
+                    // 实际收到的金额会在simulation中根据官员财富计算
+                    // 这里先记录预期收入（负数），实际收入会在simulation中更新
+                    officialSalaryPaid = officialDailySalary; // 负数表示预期收入
                 }
 
                 // 处理强制补贴效果（每日从国库支付给指定阶层）
@@ -1347,22 +1357,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const treasuryAfterDeductions = Number(adjustedResources.silver || 0);
                 const netTreasuryChange = treasuryAfterDeductions - treasuryAtTickStart;
 
-                console.group('💰 [财政详情] Tick ' + (current.daysElapsed || 0));
-                console.log('🏦 国库起始余额:', treasuryAtTickStart.toFixed(2), '银币');
+                // console.group('💰 [财政详情] Tick ' + (current.daysElapsed || 0));
+                // console.log('🏦 国库起始余额:', treasuryAtTickStart.toFixed(2), '银币');
 
                 // 从simulation返回的税收数据
                 const taxes = result.taxes || {};
                 const breakdown = taxes.breakdown || {};
 
-                console.group('📈 收入项');
-                console.log('  人头税:', (breakdown.headTax || 0).toFixed(2));
-                console.log('  交易税:', (breakdown.industryTax || 0).toFixed(2));
-                console.log('  营业税:', (breakdown.businessTax || 0).toFixed(2));
-                console.log('  关税:', (breakdown.tariff || 0).toFixed(2));
-                if (breakdown.warIndemnity) console.log('  战争赔款收入:', breakdown.warIndemnity.toFixed(2));
-                if (breakdown.tradeRouteTax) console.log('  贸易路线税收:', breakdown.tradeRouteTax.toFixed(2));
-                if (breakdown.policyIncome) console.log('  政令收益:', breakdown.policyIncome.toFixed(2));
-                if (breakdown.priceControlIncome) console.log('  价格管制收入:', breakdown.priceControlIncome.toFixed(2));
+                // console.group('📈 收入项');
+                // console.log('  人头税:', (breakdown.headTax || 0).toFixed(2));
+                // console.log('  交易税:', (breakdown.industryTax || 0).toFixed(2));
+                // console.log('  营业税:', (breakdown.businessTax || 0).toFixed(2));
+                // console.log('  关税:', (breakdown.tariff || 0).toFixed(2));
+                // if (breakdown.warIndemnity) console.log('  战争赔款收入:', breakdown.warIndemnity.toFixed(2));
+                // if (breakdown.tradeRouteTax) console.log('  贸易路线税收:', breakdown.tradeRouteTax.toFixed(2));
+                // if (breakdown.policyIncome) console.log('  政令收益:', breakdown.policyIncome.toFixed(2));
+                // if (breakdown.priceControlIncome) console.log('  价格管制收入:', breakdown.priceControlIncome.toFixed(2));
                 const effectiveFiscalIncome = typeof breakdown.totalFiscalIncome === 'number'
                     ? breakdown.totalFiscalIncome
                     : (breakdown.headTax || 0) + (breakdown.industryTax || 0) +
@@ -1370,40 +1380,40 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     (breakdown.warIndemnity || 0);
                 const totalIncome = effectiveFiscalIncome + (breakdown.priceControlIncome || 0) +
                     (breakdown.tradeRouteTax || 0);
-                console.log('  ✅ 总收入:', totalIncome.toFixed(2));
-                if (typeof breakdown.incomePercentMultiplier === 'number') {
-                    console.log('  📌 收入加成倍率:', `×${breakdown.incomePercentMultiplier.toFixed(2)}`);
-                }
-                if (taxes.efficiency && taxes.efficiency < 1) {
-                    console.log('  📊 税收效率:', (taxes.efficiency * 100).toFixed(1) + '%',
-                        `(损失: ${(totalIncome * (1 - taxes.efficiency)).toFixed(2)} 银币)`);
-                }
-                console.groupEnd();
+                // console.log('  ✅ 总收入:', totalIncome.toFixed(2));
+                // if (typeof breakdown.incomePercentMultiplier === 'number') {
+                //     console.log('  📌 收入加成倍率:', `×${breakdown.incomePercentMultiplier.toFixed(2)}`);
+                // }
+                // if (taxes.efficiency && taxes.efficiency < 1) {
+                //     console.log('  📊 税收效率:', (taxes.efficiency * 100).toFixed(1) + '%',
+                //         `(损失: ${(totalIncome * (1 - taxes.efficiency)).toFixed(2)} 银币)`);
+                // }
+                // console.groupEnd();
 
-                console.group('📉 支出项');
+                // console.group('📉 支出项');
 
                 // === 军队支出（使用simulation返回的真实数据）===
                 // 注意：simulation.js中已经处理了资源购买、时代加成、规模惩罚、军饷倍率
                 const simulationArmyCost = result.dailyMilitaryExpense?.dailyExpense || 0;
 
                 if (simulationArmyCost > 0) {
-                    console.group('  军队维护（simulation计算）');
+                    // console.group('  军队维护（simulation计算）');
                     if (result.dailyMilitaryExpense) {
                         const armyData = result.dailyMilitaryExpense;
-                        console.log(`    基础资源成本: ${(armyData.resourceCost || 0).toFixed(2)} 银币`);
-                        console.log(`    时代系数: ×${(armyData.epochMultiplier || 1).toFixed(2)}`);
-                        console.log(`    规模惩罚: ×${(armyData.scalePenalty || 1).toFixed(2)}`);
-                        console.log(`    军饷倍率: ×${(armyData.wageMultiplier || 1).toFixed(2)}`);
-                        console.log(`    💰 实际支出: ${simulationArmyCost.toFixed(2)} 银币`);
+                        // console.log(`    基础资源成本: ${(armyData.resourceCost || 0).toFixed(2)} 银币`);
+                        // console.log(`    时代系数: ×${(armyData.epochMultiplier || 1).toFixed(2)}`);
+                        // console.log(`    规模惩罚: ×${(armyData.scalePenalty || 1).toFixed(2)}`);
+                        // console.log(`    军饷倍率: ×${(armyData.wageMultiplier || 1).toFixed(2)}`);
+                        // console.log(`    💰 实际支出: ${simulationArmyCost.toFixed(2)} 银币`);
 
                         // 显示资源消耗明细
                         if (armyData.resourceConsumption && Object.keys(armyData.resourceConsumption).length > 0) {
-                            console.log(`    消耗资源:`, armyData.resourceConsumption);
+                            // console.log(`    消耗资源:`, armyData.resourceConsumption);
                         }
                     } else {
-                        console.log(`    💰 总支出: ${simulationArmyCost.toFixed(2)} 银币`);
+                        // console.log(`    💰 总支出: ${simulationArmyCost.toFixed(2)} 银币`);
                     }
-                    console.groupEnd();
+                    // console.groupEnd();
                 }
 
                 // 保留useGameLoop中的军队维护计算（仅用于对比，标记为"本地计算"）
@@ -1743,9 +1753,28 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 });
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
 
-                // 3. 国内 -> 国外投资（每10天触发一次）
+                // 3. 国内 -> 国外投资（每10天触发一次，分批处理所有候选国家）
+                // [NEW] 不再采样，而是按优先级排序后，每个 tick 处理 2 个国家
+                // 这样可以在多个 tick 中覆盖所有符合条件的国家
                 const effectiveDaysElapsed = current.daysElapsed || 0;
-                if (effectiveDaysElapsed > 0 && effectiveDaysElapsed % 10 === 0) {
+                
+                // [NEW] 检查是否应该开始新的投资周期（每10天）
+                // [FIX] 改为基于上次处理时间的相对触发，避免在游戏中途加载时无法触发
+                const lastOutboundDay = outboundInvestmentBatchRef.current.lastProcessDay;
+                const shouldStartNewCycle = lastOutboundDay === null
+                    ? (effectiveDaysElapsed > 0) // 首次触发：立即触发（避免在游戏中途加载时等待特定余数）
+                    : (effectiveDaysElapsed - lastOutboundDay >= 10); // 后续触发：距离上次处理 >= 10 天
+                const isInActiveCycle = lastOutboundDay !== null && 
+                                       effectiveDaysElapsed - lastOutboundDay < 10 &&
+                                       effectiveDaysElapsed > lastOutboundDay;
+                
+                if (shouldStartNewCycle || isInActiveCycle) {
+                    // 如果是新周期的开始，重置 offset
+                    if (shouldStartNewCycle && outboundInvestmentBatchRef.current.lastProcessDay !== effectiveDaysElapsed) {
+                        outboundInvestmentBatchRef.current.offset = 0;
+                        outboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
+                    }
+
                     import('../logic/diplomacy/autonomousInvestment').then(({ selectOutboundInvestmentsBatch }) => {
                         // [FIX] 玩家数据不在 nations 数组中，需要构建虚拟玩家国家对象
                         const playerNation = {
@@ -1757,7 +1786,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             market: adjustedMarket,
                         };
 
-                        const investments = selectOutboundInvestmentsBatch({
+                        const result = selectOutboundInvestmentsBatch({
                             nations: current.nations || [],
                             playerNation,
                             diplomacyOrganizations: current.diplomacyOrganizations,
@@ -1766,7 +1795,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             market: adjustedMarket,
                             epoch: current.epoch,
                             daysElapsed: effectiveDaysElapsed,
+                            batchSize: 2, // 每个 tick 处理 2 个国家
+                            batchOffset: outboundInvestmentBatchRef.current.offset,
                         });
+
+                        const { investments, hasMore, nextOffset } = result;
+
+                        // [NEW] 更新批次状态
+                        outboundInvestmentBatchRef.current.offset = nextOffset;
+                        
+                        // 如果没有更多批次了，标记周期结束
+                        if (!hasMore) {
+                            outboundInvestmentBatchRef.current.lastProcessDay = null;
+                        }
 
                         if (investments.length === 0) return;
 
@@ -1791,9 +1832,33 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }).catch(err => console.warn('Autonomous investment error:', err));
                 }
 
-                // 4. 国外 -> 国内投资（每10天触发一次，错开5天）
-                if (effectiveDaysElapsed % 10 === 5) {
+                // 4. 国外 -> 国内投资（每10天触发一次，错开5天，分批处理所有符合条件的投资国）
+                // [NEW] 不再采样，而是按优先级排序后，每个 tick 处理 2 个投资国
+                // [FIX] 改为基于上次处理时间的相对触发，避免在游戏中途加载时无法触发
+                const lastInboundDay = inboundInvestmentBatchRef.current.lastProcessDay;
+                const shouldStartInboundCycle = lastInboundDay === null 
+                    ? (effectiveDaysElapsed > 0) // 首次触发：立即触发（避免在游戏中途加载时等待特定余数）
+                    : (effectiveDaysElapsed - lastInboundDay >= 10); // 后续触发：距离上次处理 >= 10 天
+                const isInInboundCycle = lastInboundDay !== null && 
+                                        effectiveDaysElapsed - lastInboundDay < 10 &&
+                                        effectiveDaysElapsed > lastInboundDay;
+
+                console.log('🔍 [INBOUND-CYCLE] Day', effectiveDaysElapsed, 
+                    '- shouldStart:', shouldStartInboundCycle, 
+                    '- isInCycle:', isInInboundCycle,
+                    '- lastProcessDay:', lastInboundDay,
+                    '- offset:', inboundInvestmentBatchRef.current.offset);
+
+                if (shouldStartInboundCycle || isInInboundCycle) {
+                    console.log('✅ [INBOUND-CYCLE] 触发 inbound investment 检查');
                     import('../logic/diplomacy/autonomousInvestment').then(({ selectInboundInvestmentsBatch }) => {
+                        // 开始新周期时重置 offset
+                        if (shouldStartInboundCycle && !isInInboundCycle) {
+                            console.log('🔄 [INBOUND-CYCLE] 开始新周期，重置 offset');
+                            inboundInvestmentBatchRef.current.offset = 0;
+                            inboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
+                        }
+
                         // [FIX] 玩家数据不在 nations 数组中，直接从 current 获取
                         const playerState = {
                             population: current.population,
@@ -1806,7 +1871,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             vassalOf: null, // 玩家不会是附庸
                         };
 
-                        const decisions = selectInboundInvestmentsBatch({
+                        console.log('🔍 [INBOUND-CYCLE] 调用 selectInboundInvestmentsBatch - offset:', inboundInvestmentBatchRef.current.offset);
+
+                        const result = selectInboundInvestmentsBatch({
                             investorNations: current.nations || [],
                             playerState,
                             diplomacyOrganizations: current.diplomacyOrganizations,
@@ -1814,11 +1881,30 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             epoch: current.epoch,
                             daysElapsed: effectiveDaysElapsed,
                             foreignInvestments: current.foreignInvestments || [],
+                            batchSize: 2,
+                            batchOffset: inboundInvestmentBatchRef.current.offset,
                         });
 
-                        if (decisions.length === 0) return;
+                        const { investments, hasMore, nextOffset } = result;
 
-                        decisions.forEach(decision => {
+                        console.log('🔍 [INBOUND-CYCLE] 返回结果 - investments:', investments.length, 'hasMore:', hasMore, 'nextOffset:', nextOffset);
+
+                        // 更新批次状态
+                        inboundInvestmentBatchRef.current.offset = nextOffset;
+                        if (!hasMore) {
+                            // 本周期处理完毕，清空 lastProcessDay
+                            console.log('✅ [INBOUND-CYCLE] 本周期处理完毕');
+                            inboundInvestmentBatchRef.current.lastProcessDay = null;
+                        }
+
+                        if (investments.length === 0) {
+                            console.log('❌ [INBOUND-CYCLE] 没有投资决策');
+                            return;
+                        }
+
+                        console.log('💰 [INBOUND-CYCLE] 执行', investments.length, '个投资');
+
+                        investments.forEach(decision => {
                             const { investorNation, building, cost, investmentPolicy } = decision;
                             const actionsRef = current.actions;
                             if (actionsRef && actionsRef.handleDiplomaticAction) {
@@ -2240,7 +2326,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setBuildingJobsRequired(result.buildingJobsRequired);
                     }
                     // [FIX] Save military expense data from simulation
-                    console.log('[useGameLoop] Saving dailyMilitaryExpense:', result.dailyMilitaryExpense);
+                    // console.log('[useGameLoop] Saving dailyMilitaryExpense:', result.dailyMilitaryExpense);
                     if (result.dailyMilitaryExpense) {
                         // [CRITICAL FIX] 使用window对象临时存储，绕过React state延迟
                         // 这是一个临时解决方案，直到重构state管理
@@ -2259,7 +2345,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
                     // [DEBUG] 临时日志 - 追踪自由市场机制问题
                     if (result._debug) {
-                        console.log('[FREE MARKET DEBUG]', result._debug.freeMarket);
+                        // console.log('[FREE MARKET DEBUG]', result._debug.freeMarket);
                     }
                     // Update building upgrades from owner auto-upgrade
                     if (nextBuildingUpgrades) {

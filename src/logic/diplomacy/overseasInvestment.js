@@ -1687,8 +1687,8 @@ export function processForeignInvestmentUpgrades({
         };
 
         // Log
-        const nationName = investorNation?.name || '外国';
-        logs.push(`🏭 ${nationName}升级了在本国的 ${building.name}（Lv${currentLevel} → Lv${nextLevel}，花费 ${Math.ceil(totalCost)} 银）`);
+        // const nationName = investorNation?.name || '外国';
+        // logs.push(`🏭 ${nationName}升级了在本国的 ${building.name}（Lv${currentLevel} → Lv${nextLevel}，花费 ${Math.ceil(totalCost)} 银）`);
     });
 
     return {
@@ -1951,8 +1951,8 @@ export function processOverseasInvestmentUpgrades({
         wealthChanges[ownerStratum] = (wealthChanges[ownerStratum] || 0) - totalCost;
 
         // Log
-        const stratumName = STRATA[ownerStratum]?.name || ownerStratum;
-        logs.push(`🏭 ${stratumName}升级了在 ${targetName} 的 ${building.name}（Lv${currentLevel} → Lv${nextLevel}，花费 ${Math.ceil(totalCost)} 银）`);
+        // const stratumName = STRATA[ownerStratum]?.name || ownerStratum;
+        // logs.push(`🏭 ${stratumName}升级了在 ${targetName} 的 ${building.name}（Lv${currentLevel} → Lv${nextLevel}，花费 ${Math.ceil(totalCost)} 银）`);
     });
 
     return {

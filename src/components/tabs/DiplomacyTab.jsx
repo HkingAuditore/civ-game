@@ -168,7 +168,7 @@ const DiplomacyTabComponent = ({
     };
 
     const negotiationEvaluation = useMemo(() => {
-        console.log('🔄 Recalculating negotiationEvaluation, stance:', negotiationDraft.stance);
+        // console.log('🔄 Recalculating negotiationEvaluation, stance:', negotiationDraft.stance);
         if (!selectedNation) return { acceptChance: 0, relationGate: false };
 
         // Get organization info if relevant

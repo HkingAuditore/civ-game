@@ -469,7 +469,9 @@ export const OfficialDetailModal = ({
                         <div className={`mt-1 text-lg font-mono font-bold ${totalIncome >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                             {totalIncome >= 0 ? '+' : ''}{formatCost(totalIncome)}
                         </div>
-                        <div className="text-[9px] text-gray-500">薪俸{salary} + 产业{propertyIncome >= 0 ? '+' : ''}{formatCost(propertyIncome)}</div>
+                        <div className="text-[9px] text-gray-500">
+                            薪俸{salary >= 0 ? salary : `(缴纳${Math.abs(salary)})`} + 产业{propertyIncome >= 0 ? '+' : ''}{formatCost(propertyIncome)}
+                        </div>
                     </div>
                     {/* 日支出 */}
                     <div className="rounded-lg border border-orange-700/40 bg-gradient-to-br from-orange-900/30 to-gray-900/50 p-3">
@@ -771,7 +773,7 @@ export const OfficialDetailModal = ({
                 </div>
 
                 {/* 私产利润明细 */}
-                <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
+                {/* <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
                     <div className="flex items-center justify-between text-xs font-semibold text-gray-300 mb-2">
                         <div className="flex items-center gap-2">
                             <Icon name="LineChart" size={14} />
@@ -805,12 +807,17 @@ export const OfficialDetailModal = ({
                         <div className="text-[11px] text-gray-500">暂无利润明细</div>
                     )}
                 </div>
-
+ */}
                 {/* 薪俸设置 */}
                 <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-3">
                     <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 mb-2">
                         <Icon name="Coins" size={14} />
                         薪俸设置
+                        {salary < 0 && (
+                            <span className="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-700/50">
+                                💰 负薪酬：官员每日向国库缴纳 {Math.abs(salary)} 银
+                            </span>
+                        )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <input
@@ -821,7 +828,11 @@ export const OfficialDetailModal = ({
                             onFocus={() => setIsEditingSalary(true)}
                             onBlur={() => {
                                 // Delay blur to allow button click to process first
-                                setTimeout(() => setIsEditingSalary(false), 100);
+                                setTimeout(() => {
+                                    if (!pendingSalaryRef.current) {
+                                        setIsEditingSalary(false);
+                                    }
+                                }, 150);
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && canEditSalary && Number.isFinite(parsedSalaryDraft)) {
@@ -833,14 +844,15 @@ export const OfficialDetailModal = ({
                                     e.target.blur();
                                 }
                             }}
+                            placeholder="可输入负数"
                             className="w-28 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-amber-400 focus:border-amber-400 text-center"
                         />
                         <button
-                            className={`px-3 py-1 rounded text-xs font-semibold ${canEditSalary ? 'bg-amber-600/80 hover:bg-amber-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
-                            disabled={!canEditSalary}
-                            onMouseDown={(e) => {
-                                // Use onMouseDown instead of onClick to execute before onBlur
-                                e.preventDefault(); // Prevent input from losing focus
+                            type="button"
+                            className={`px-3 py-1 rounded text-xs font-semibold ${canEditSalary && Number.isFinite(parsedSalaryDraft) ? 'bg-amber-600/80 hover:bg-amber-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
+                            disabled={!canEditSalary || !Number.isFinite(parsedSalaryDraft)}
+                            onClick={(e) => {
+                                e.preventDefault();
                                 if (!canEditSalary || !Number.isFinite(parsedSalaryDraft)) return;
                                 const nextSalary = Math.floor(parsedSalaryDraft);
                                 pendingSalaryRef.current = nextSalary; // Mark as pending to prevent reset

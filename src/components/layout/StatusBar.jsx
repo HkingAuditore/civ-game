@@ -98,6 +98,7 @@ export const StatusBar = ({
         traderoutetax: '贸易路线税收',
         foreigninvestmenttax: '外资税收',
         salary: '官员薪俸',
+        NEGATIVE_SALARY: '议罪银',
         militaryPay: '军饷维护',
         maintenance: '维护费',
         untracked_delta: '对账差额',

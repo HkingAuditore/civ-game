@@ -952,24 +952,32 @@ export const calculateEnhancedTribute = (vassalNation) => {
     const corruptionLoss = baseTribute * governorCorruptionRate;
     baseTribute -= corruptionLoss;
 
-    // 计算资源朝贡
+    // 计算资源朝贡 - 智能选择库存最多的资源
     const resources = {};
     if (config.resourceTribute.enabled && vassalNation.nationInventories) {
-        config.resourceTribute.resources.forEach(resourceKey => {
-            const inventory = vassalNation.nationInventories[resourceKey] || 0;
-            if (inventory > 10) {
-                // 基于库存和朝贡率计算资源朝贡
-                const resourceAmount = Math.floor(
-                    Math.min(
-                        inventory * 0.1,  // 最多朝贡10%库存
-                        config.resourceTribute.baseAmount * tributeRate * sizeMultiplier
-                    ) * resistanceFactor
-                );
-                if (resourceAmount > 0) {
-                    resources[resourceKey] = resourceAmount;
-                }
+        // 获取所有资源的库存情况，按库存量排序
+        const inventoryEntries = Object.entries(vassalNation.nationInventories)
+            .filter(([key, value]) => value > 10) // 只考虑库存 > 10 的资源
+            .sort((a, b) => b[1] - a[1]); // 按库存量降序排序
+
+        // 朝贡库存最多的前3-5种资源
+        const maxTributeTypes = Math.min(5, inventoryEntries.length);
+        
+        for (let i = 0; i < maxTributeTypes; i++) {
+            const [resourceKey, inventory] = inventoryEntries[i];
+            
+            // 基于库存和朝贡率计算资源朝贡
+            const resourceAmount = Math.floor(
+                Math.min(
+                    inventory * 0.15,  // 最多朝贡15%库存（提高到15%）
+                    config.resourceTribute.baseAmount * tributeRate * sizeMultiplier * 3 // 提高基础数量3倍
+                ) * resistanceFactor
+            );
+            
+            if (resourceAmount > 0) {
+                resources[resourceKey] = resourceAmount;
             }
-        });
+        }
     }
 
     return {
