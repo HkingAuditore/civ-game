@@ -491,7 +491,7 @@ export const RESOURCES = {
  * 税收上限限制
  */
 export const TAX_LIMITS = {
-    MAX_HEAD_TAX: 10000,      // 人头税系数上限
+    MAX_HEAD_TAX: 1000000,      // 人头税系数上限
     MAX_RESOURCE_TAX: 5.0,    // 交易税率上限 (500%)
     MAX_BUSINESS_TAX: 10000,  // 营业税系数上限
 };
