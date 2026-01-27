@@ -40,11 +40,16 @@ export const DEFAULT_TRADE_CONFIG = {
 
     // Trade 2.0 knobs
     enableMerchantAssignments: true,
-    idleTradeEfficiency: 0.15, // fallback when no assignments exist (keeps old saves alive)
+    idleTradeEfficiency: 1.0, // fallback when no assignments exist (keeps old saves alive)
     maxPartnersPerTick: 20,
     maxResourcesScoredPerPartner: 10,
     shortageWeight: 2.2,
     surplusWeight: 1.3,
+    
+    // Trade 3.0: Opportunity-first approach (select trades first, then assign merchants)
+    maxTradeOpportunitiesPerPartner: 3, // [DEPRECATED] No longer used - kept for compatibility
+    maxGlobalTradeOpportunities: 15, // [NEW] Top N most profitable trade opportunities globally (across all nations)
+    merchantBatchesPerCycle: 3, // Split merchants into N batches (N = tradeDuration for even distribution)
 };
 
 // --- Trade 2.0 helpers -------------------------------------------------
@@ -115,6 +120,9 @@ const normalizeMerchantAssignments = ({ merchantAssignments, nations, merchantCo
 
         // [FIX] Filter out destroyed/annexed nations - merchants should be recalled automatically
         if (nation.isAnnexed || (nation.population || 0) <= 0) return;
+        
+        // [FIX] Filter out undiscovered nations - cannot trade with nations we haven't discovered
+        if (nation.relation === null || nation.relation === undefined) return;
 
         // Backend Validation: Enforce Limit
         // This ensures that even if UI controls are bypassed, the logic enforces the cap.
@@ -146,9 +154,14 @@ const normalizeMerchantAssignments = ({ merchantAssignments, nations, merchantCo
 };
 
 const buildDefaultAssignments = ({ nations, maxPartners }) => {
-    // [FIX] Filter out destroyed/annexed nations and rebels
+    // [FIX] Filter out destroyed/annexed nations, rebels, and undiscovered nations
     const visible = Array.isArray(nations) 
-        ? nations.filter(n => n && !n.isRebelNation && !n.isAnnexed && (n.population || 0) > 0) 
+        ? nations.filter(n => {
+            if (!n || n.isRebelNation || n.isAnnexed || (n.population || 0) <= 0) return false;
+            // Only trade with discovered nations (relation is not null/undefined)
+            if (n.relation === null || n.relation === undefined) return false;
+            return true;
+        }) 
         : [];
     const sorted = visible
         .map(n => ({ nationId: n.id, relation: getNationRelationToPlayer(n) }))
@@ -159,6 +172,109 @@ const buildDefaultAssignments = ({ nations, maxPartners }) => {
     sorted.forEach(entry => {
         next[entry.nationId] = 1;
     });
+    return next;
+};
+
+/**
+ * Build profit-based assignments for idle merchants
+ * Finds the most profitable trade opportunities across all nations
+ */
+const buildProfitBasedAssignments = ({ 
+    nations, 
+    maxPartners, 
+    res, 
+    supply, 
+    demand, 
+    market, 
+    tick, 
+    tradeConfig,
+    getImportTaxRate,
+    taxPolicies
+}) => {
+    // Filter visible and tradable nations
+    const visible = Array.isArray(nations) 
+        ? nations.filter(n => {
+            if (!n || n.isRebelNation || n.isAnnexed || (n.population || 0) <= 0) return false;
+            // Only trade with discovered nations
+            if (n.relation === null || n.relation === undefined) return false;
+            return true;
+        }) 
+        : [];
+
+    if (visible.length === 0) return {};
+
+    // Helper to get local price
+    const getLocalPrice = (resourceKey) => {
+        return market?.prices?.[resourceKey] ?? (RESOURCES[resourceKey]?.basePrice || 1);
+    };
+
+    // Score each nation by their best trade opportunity
+    const nationScores = visible.map(nation => {
+        let bestScore = 0;
+        let bestOpportunities = [];
+
+        // Check all tradable resources
+        Object.keys(RESOURCES).forEach(resourceKey => {
+            if (!isTradableResource(resourceKey)) return;
+
+            // Score import opportunity
+            const importScore = scoreImportCandidate({
+                resourceKey,
+                partner: nation,
+                tick,
+                getLocalPrice,
+                res,
+                demand,
+                tradeConfig,
+                merchantTradePreferences: null,
+                getImportTaxRate,
+                tradeEfficiencyMultiplier: 1,
+                taxPolicies
+            });
+
+            if (importScore && importScore.score > 0) {
+                bestOpportunities.push({ ...importScore, nation: nation.id });
+                bestScore = Math.max(bestScore, importScore.score);
+            }
+
+            // Score export opportunity
+            const exportScore = scoreExportCandidate({
+                resourceKey,
+                partner: nation,
+                tick,
+                getLocalPrice,
+                res,
+                supply,
+                tradeConfig,
+                merchantTradePreferences: null,
+                tradeEfficiencyMultiplier: 1,
+                taxPolicies
+            });
+
+            if (exportScore && exportScore.score > 0) {
+                bestOpportunities.push({ ...exportScore, nation: nation.id });
+                bestScore = Math.max(bestScore, exportScore.score);
+            }
+        });
+
+        return {
+            nationId: nation.id,
+            score: bestScore,
+            opportunities: bestOpportunities
+        };
+    });
+
+    // Sort by best trade opportunity score
+    const sorted = nationScores
+        .filter(n => n.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, Math.max(1, maxPartners));
+
+    const next = {};
+    sorted.forEach(entry => {
+        next[entry.nationId] = 1;
+    });
+
     return next;
 };
 
@@ -213,19 +329,23 @@ const normalizePreferenceMultiplier = (v) => {
     return Math.max(0.1, Math.min(5, n));
 };
 
-const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, demand, tradeConfig, merchantTradePreferences, getImportTaxRate, tradeEfficiencyMultiplier = 1 }) => {
+const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, demand, tradeConfig, merchantTradePreferences, getImportTaxRate, tradeEfficiencyMultiplier = 1, taxPolicies }) => {
     const localPrice = getLocalPrice(resourceKey);
     const foreignPrice = getForeignUnitPrice({ resourceKey, partner, tick });
     if (localPrice == null || foreignPrice == null) return null;
 
-    // Calculate effective cost with tariff/subsidy
-    // Note: getImportTaxRate needs to be passed in or available. 
-    // We added it to the params.
-    const tariffRate = getImportTaxRate ? getImportTaxRate(resourceKey) : 0;
-    const effectiveCost = foreignPrice * (1 + tariffRate);
-
-    // Import if profitable (Local > EffectiveCost)
-    const profitMargin = ((localPrice - effectiveCost) / Math.max(0.1, effectiveCost)) * tradeEfficiencyMultiplier;
+    // [FIX] Calculate effective cost correctly:
+    // - Tariff applies to foreign price (import cost)
+    // - Trade tax does NOT apply to import cost (it's for local production)
+    // Only use tariff rate, not the combined tax+tariff rate
+    const tariffRate = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+    const importCost = foreignPrice * (1 + tariffRate);
+    
+    // Gross revenue from selling locally
+    const grossRevenue = localPrice;
+    
+    // Net profit per unit (simplified - ignores trade tax which is negligible for scoring)
+    const profitMargin = ((grossRevenue - importCost) / Math.max(0.1, importCost)) * tradeEfficiencyMultiplier;
 
     // If trade loses money (margin <= 0), we usually shouldn't do it unless desperate for shortage?
     // But merchants are profit driven.
@@ -261,17 +381,26 @@ const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, 
     };
 };
 
-const scoreExportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, supply, tradeConfig, merchantTradePreferences, tradeEfficiencyMultiplier = 1 }) => {
+const scoreExportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, supply, tradeConfig, merchantTradePreferences, tradeEfficiencyMultiplier = 1, taxPolicies }) => {
     const localPrice = getLocalPrice(resourceKey);
     const foreignPrice = getForeignUnitPrice({ resourceKey, partner, tick });
     if (localPrice == null || foreignPrice == null) return null;
 
-    // Export if partner pays more.
-    const priceAdv = ((foreignPrice - localPrice) / Math.max(0.0001, localPrice)) * tradeEfficiencyMultiplier;
-    if (priceAdv <= 0) return null;
-
     const availableStock = safeNumber(res?.[resourceKey], 0);
     if (availableStock <= 0) return null;
+
+    // [FIX] Calculate export profitability correctly:
+    // - Export tax/tariff applies to local price (cost to acquire goods)
+    // - Revenue is foreign price
+    const exportTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+    const exportTariffRate = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+    const totalExportTax = exportTaxRate + exportTariffRate;
+    
+    const exportCost = localPrice * (1 + totalExportTax);
+    const profitMargin = ((foreignPrice - exportCost) / Math.max(0.0001, exportCost)) * tradeEfficiencyMultiplier;
+    
+    // Only export if profitable after taxes
+    if (profitMargin <= -0.1) return null;
 
     const surplus = computeResourceSurplusFactor({ resourceKey, res, supply, marketPrice: localPrice });
 
@@ -281,7 +410,7 @@ const scoreExportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, 
 
     const baseScore =
         tradeConfig.surplusWeight * surplus +
-        1.0 * priceAdv +
+        2.0 * Math.max(0, profitMargin) + // Weight profit heavily
         0.6 * partnerShortage;
 
     const prefMultiplier = normalizePreferenceMultiplier(merchantTradePreferences?.export?.[resourceKey] ?? 1);
@@ -348,6 +477,7 @@ export const analyzeTradeOpportunities = ({
                 supply,
                 tradeConfig,
                 merchantTradePreferences,
+                taxPolicies,
             });
             if (exp && exp.score > 0) allExports.push(exp);
 
@@ -362,6 +492,7 @@ export const analyzeTradeOpportunities = ({
                 tradeConfig,
                 merchantTradePreferences,
                 getImportTaxRate,
+                taxPolicies,
             });
             if (imp && imp.score > 0) allImports.push(imp);
         });
@@ -419,10 +550,23 @@ export const simulateMerchantTrade = ({
     // NEW: Supply/demand breakdown tracking for UI
     supplyBreakdown = null,
     demandBreakdown = null,
+
+    // Market data for price information
+    market = null,
+    
+    // Trade 2.0 Rotation: Track which partners/trades were processed last tick
+    tradeRotationState = null, // { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
-        return { pendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0, completedTrades: [] };
+        return { 
+            pendingTrades, 
+            lastTradeTime, 
+            lockedCapital: 0, 
+            capitalInvestedThisTick: 0, 
+            completedTrades: [],
+            tradeRotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
+        };
     }
     let capitalInvestedThisTick = 0;
     const completedTrades = [];
@@ -447,8 +591,21 @@ export const simulateMerchantTrade = ({
     const tradeConfig = { ...DEFAULT_TRADE_CONFIG, ...(STRATA.merchant?.tradeConfig || {}) };
 
     // Process pending trades (point-to-point: apply on completion)
+    // [FIX] Filter out trades with undiscovered nations (旧存档清理)
     const updatedPendingTrades = [];
     pendingTrades.forEach(trade => {
+        // Skip trades with undiscovered nations
+        if (trade.partnerId) {
+            const partner = Array.isArray(nations) ? nations.find(n => n?.id === trade.partnerId) : null;
+            if (!partner || partner.relation === null || partner.relation === undefined) {
+                // Skip this trade - nation is not discovered
+                if (tradeConfig.enableDebugLog) {
+                    debugLog('trade', `[贸易清理] 跳过未发现国家的贸易: ${trade.partnerId}`, trade);
+                }
+                return; // Skip this trade
+            }
+        }
+        
         trade.daysRemaining -= 1;
 
         if (trade.daysRemaining <= 0) {
@@ -525,6 +682,7 @@ export const simulateMerchantTrade = ({
             lockedCapital,
             capitalInvestedThisTick: 0,
             completedTrades,
+            tradeRotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
         };
     }
 
@@ -532,7 +690,14 @@ export const simulateMerchantTrade = ({
     const ticksSinceLastTrade = tick - lastTradeTime;
     const canTradeNow = ticksSinceLastTrade >= tradeConfig.tradeCooldown;
     if (!canTradeNow) {
-        return { pendingTrades: updatedPendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0, completedTrades };
+        return { 
+            pendingTrades: updatedPendingTrades, 
+            lastTradeTime, 
+            lockedCapital: 0, 
+            capitalInvestedThisTick: 0, 
+            completedTrades,
+            tradeRotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
+        };
     }
 
     const tradableKeys = Object.keys(RESOURCES)
@@ -541,52 +706,145 @@ export const simulateMerchantTrade = ({
 
     // --- Trade 2.0: determine which partners are actively assigned this tick
     const normalizedAssignments = normalizeMerchantAssignments({ merchantAssignments, nations, merchantCount, tick });
-    const hasAssignments = tradeConfig.enableMerchantAssignments && !!normalizedAssignments;
+    const hasExplicitAssignments = tradeConfig.enableMerchantAssignments && !!normalizedAssignments;
 
-    const assignments = hasAssignments
-        ? normalizedAssignments
-        : buildDefaultAssignments({ nations, maxPartners: tradeConfig.maxPartnersPerTick });
+    // Calculate how many merchants are explicitly assigned
+    const explicitlyAssignedCount = hasExplicitAssignments
+        ? Object.values(normalizedAssignments).reduce((sum, count) => sum + count, 0)
+        : 0;
 
-    // Convert assignments to concrete partner list, and cap partners per tick for performance.
-    const partnerList = Object.entries(assignments)
-        .map(([nationId, count]) => ({ nationId, count }))
-        .filter(e => e.count > 0)
-        .slice(0, Math.max(1, tradeConfig.maxPartnersPerTick));
+    // Calculate idle merchants (not explicitly assigned)
+    const idleMerchantCount = Math.max(0, merchantCount - explicitlyAssignedCount);
 
-    // If using fallback (no explicit assignments), reduce efficiency.
-    const assignmentEfficiency = hasAssignments ? 1 : tradeConfig.idleTradeEfficiency;
+    // Build assignments: combine explicit assignments with auto-assignments for idle merchants
+    let assignments = hasExplicitAssignments ? { ...normalizedAssignments } : {};
 
-    // Build a pool of "merchant batches" based on assigned counts.
-    // Each merchant can handle one trade route, so batches = merchant count.
-    const totalAssigned = partnerList.reduce((sum, p) => sum + p.count, 0) || 1;
+    // If there are idle merchants, auto-assign them to best partners based on profit
+    if (idleMerchantCount > 0) {
+        const autoAssignments = buildProfitBasedAssignments({ 
+            nations, 
+            maxPartners: tradeConfig.maxPartnersPerTick,
+            res,
+            supply,
+            demand,
+            market,
+            tick,
+            tradeConfig,
+            getImportTaxRate,
+            taxPolicies
+        });
+        
+        // Distribute idle merchants among auto-assigned partners
+        const autoPartners = Object.keys(autoAssignments);
+        if (autoPartners.length > 0) {
+            const merchantsPerPartner = Math.floor(idleMerchantCount / autoPartners.length);
+            const remainder = idleMerchantCount % autoPartners.length;
+            
+            autoPartners.forEach((nationId, index) => {
+                const count = merchantsPerPartner + (index < remainder ? 1 : 0);
+                if (count > 0) {
+                    // Add to existing assignment or create new one
+                    assignments[nationId] = (assignments[nationId] || 0) + count;
+                }
+            });
+        }
+    }
 
-    const partnerBatches = partnerList.map(p => {
-        // Each partner gets trade routes proportional to assigned merchants
-        const batches = Math.max(1, p.count);
-        return { ...p, batches };
-    });
-
-    // [DEBUG] Log merchant assignment details
-    if (tradeConfig.enableDebugLog) {
-        debugLog('trade', `[商人派驻] 总商人数: ${merchantCount}, 派驻总数: ${totalAssigned}`, {
-            partnerBatches: partnerBatches.map(pb => ({
-                nationId: pb.nationId,
-                assignedMerchants: pb.count,
-                batches: pb.batches
-            }))
+    // If no assignments at all, use profit-based default
+    if (Object.keys(assignments).length === 0) {
+        assignments = buildProfitBasedAssignments({ 
+            nations, 
+            maxPartners: tradeConfig.maxPartnersPerTick,
+            res,
+            supply,
+            demand,
+            market,
+            tick,
+            tradeConfig,
+            getImportTaxRate,
+            taxPolicies
         });
     }
 
-    // Iterate partners and execute best-scored trades.
-    for (let pIndex = 0; pIndex < partnerBatches.length; pIndex++) {
-        const partnerBatch = partnerBatches[pIndex];
+    // Convert assignments to concrete partner list, and cap partners per tick for performance.
+    // [FIX] Ensure all partners are evaluated over time by rotating through them
+    const allPartnerList = Object.entries(assignments)
+        .map(([nationId, count]) => ({ nationId, count }))
+        .filter(e => e.count > 0);
+    
+    // Build a pool of "merchant batches" based on assigned counts.
+    // Each merchant can handle one trade route, so batches = merchant count.
+    const totalAssigned = allPartnerList.reduce((sum, p) => sum + p.count, 0) || 1;
+
+    const partnerBatches = allPartnerList.map(p => {
+        // Each partner gets trade routes proportional to assigned merchants
+        const batches = Math.max(1, p.count);
+        // Track whether this partner has explicitly assigned merchants or auto-assigned idle merchants
+        const explicitCount = hasExplicitAssignments ? (normalizedAssignments[p.nationId] || 0) : 0;
+        const idleCount = p.count - explicitCount;
+        return { 
+            ...p, 
+            batches,
+            explicitCount,  // Merchants explicitly assigned by player
+            idleCount       // Idle merchants auto-assigned
+        };
+    });
+
+    // [ROTATION] Initialize or restore rotation state
+    let rotationState = tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] };
+    
+    // If partner list changed (new assignments), reset rotation
+    const currentPartnerIds = partnerBatches.map(p => p.nationId).sort().join(',');
+    const savedPartnerIds = (rotationState.partnerList || []).sort().join(',');
+    if (currentPartnerIds !== savedPartnerIds) {
+        rotationState = { 
+            partnerIndex: 0, 
+            tradeIndex: 0, 
+            partnerList: partnerBatches.map(p => p.nationId) 
+        };
+    }
+
+    // [DEBUG] Log merchant assignment details
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[商人派驻] 总商人数: ${merchantCount}, 派驻商人: ${explicitlyAssignedCount}, 闲置商人: ${idleMerchantCount}`, {
+            partnerBatches: partnerBatches.map(pb => ({
+                nationId: pb.nationId,
+                totalMerchants: pb.count,
+                explicitMerchants: pb.explicitCount,
+                idleMerchants: pb.idleCount,
+                batches: pb.batches
+            })),
+            rotationState
+        });
+    }
+
+    // [ROTATION] Limit new trades per tick to spread load across multiple ticks
+    const maxNewTradesThisTick = tradeConfig.maxNewTradesPerTick || 10;
+    let tradesCreatedThisTick = 0;
+
+    // ============================================================
+    // TRADE 3.0: Opportunity-First Approach
+    // 1. Collect all profitable trade opportunities (no merchant iteration)
+    // 2. Distribute merchants across opportunities in batches
+    // 3. Create trades for current batch only
+    // ============================================================
+    
+    // STEP 1: Collect all trade opportunities from all partners
+    const allTradeOpportunities = [];
+    
+    for (const partnerBatch of partnerBatches) {
         const partner = Array.isArray(nations) ? nations.find(n => n?.id === partnerBatch.nationId) : null;
-        if (!partner) continue;
         
-        // [FIX] Skip destroyed/annexed nations - prevent trade with non-existent nations
-        if (partner.isAnnexed || (partner.population || 0) <= 0) continue;
         
-        if (isTradeBlockedWithPartner({ partner })) continue;
+        // Skip invalid/blocked partners
+        if (!partner || 
+            partner.relation === null || 
+            partner.relation === undefined ||
+            partner.isAnnexed || 
+            (partner.population || 0) <= 0 ||
+            isTradeBlockedWithPartner({ partner })) {
+            continue;
+        }
 
         // 获取与该贸易伙伴的条约效果，应用关税减免
         const treatyEffects = getTreatyEffects(partner, tick);
@@ -631,21 +889,20 @@ export const simulateMerchantTrade = ({
             let exportProfitScore = 0;
 
             if (foreignPrice != null) {
-                // Import Profitability: LocalPrice - (ForeignPrice * (1 + ImportTariff * treatyMult))
-                const importTariff = getPartnerImportTaxRate(resourceKey);
-                // Note: Tariff logic in execution was: foreignPrice * (1 + tariffRate) (conceptually cost)
-                // Actually execution logic: Cost = Foreign + Foreign*Tariff.
-                // If Tariff is -0.5 (-50%), Cost = Foreign * 0.5.
-                const importCost = foreignPrice * (1 + importTariff);
+                // [FIX] Import Profitability: LocalPrice - (ForeignPrice * (1 + ImportTariff))
+                // Only tariff applies to foreign price, not trade tax
+                const importTariffRate = importTariffMultipliers[resourceKey] ?? 0;
+                const importCost = foreignPrice * (1 + importTariffRate);
                 if (localPrice > importCost) {
                     // Normalize score: % profit margin
                     importProfitScore = (localPrice - importCost) / Math.max(0.1, importCost);
                 }
 
-                // Export Profitability: ForeignPrice - (LocalPrice * (1 + ExportTax * treatyMult))
-                const exportTax = getPartnerExportTaxRate(resourceKey);
-                // Export tax is on Local Price.
-                const exportCost = localPrice * (1 + exportTax);
+                // [FIX] Export Profitability: ForeignPrice - (LocalPrice * (1 + ExportTax + ExportTariff))
+                // Both tax and tariff apply to local price
+                const exportTaxRate = resourceTaxRates[resourceKey] || 0;
+                const exportTariffRate = exportTariffMultipliers[resourceKey] ?? 0;
+                const exportCost = localPrice * (1 + exportTaxRate + exportTariffRate);
                 if (foreignPrice > exportCost) {
                     exportProfitScore = (foreignPrice - exportCost) / Math.max(0.1, exportCost);
                 }
@@ -711,6 +968,7 @@ export const simulateMerchantTrade = ({
                 tradeConfig,
                 merchantTradePreferences,
                 getImportTaxRate, // Passthrough tax function
+                taxPolicies,
             });
             if (c) candidates.push(c);
         });
@@ -726,131 +984,264 @@ export const simulateMerchantTrade = ({
                 supply,
                 tradeConfig,
                 merchantTradePreferences,
+                taxPolicies,
             });
             if (c) candidates.push(c);
         });
 
         if (candidates.length === 0) continue;
-        candidates.sort((a, b) => b.score - a.score);
-
-        const maxNewTradesForPartner = partnerBatch.batches;
-
-        // [DEBUG] Log trade generation for this partner
-        if (tradeConfig.enableDebugLog) {
-            debugLog('trade', `[贸易生成] 国家: ${partner.name}, 批次数: ${partnerBatch.batches}, 最大贸易数: ${maxNewTradesForPartner}`, {
-                partnerId: partner.id,
-                assignedMerchants: partnerBatch.count,
-                candidatesFound: candidates.length
+        
+        // [NEW] Don't filter per-partner - collect ALL candidates for global ranking
+        // Add all candidates to global opportunity pool with partner context
+        candidates.forEach(candidate => {
+            allTradeOpportunities.push({
+                partner,
+                partnerBatch,
+                candidate,
+                getPartnerImportTaxRate,
+                getPartnerExportTaxRate,
+                tradeEfficiencyMultiplier,
             });
-        }
+        });
+    }
+    
+    // Early exit if no opportunities found
+    if (allTradeOpportunities.length === 0) {
+        return {
+            pendingTrades: updatedPendingTrades,
+            lastTradeTime,
+            lockedCapital: 0,
+            capitalInvestedThisTick,
+            completedTrades,
+            tradeRotationState: rotationState,
+        };
+    }
+    
+    // [DEBUG] Log collected opportunities
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[贸易机会] 收集到 ${allTradeOpportunities.length} 个贸易机会`, {
+            opportunities: allTradeOpportunities.map(o => ({
+                partner: o.partner.name,
+                resource: o.candidate.resourceKey,
+                type: o.candidate.type,
+                score: o.candidate.score.toFixed(2),
+            }))
+        });
+    }
+    
+    // ============================================================
+    // [NEW] GLOBAL RANKING: Sort all opportunities by profitability
+    // and select top Q most profitable trades across all nations
+    // ============================================================
+    allTradeOpportunities.sort((a, b) => b.candidate.score - a.candidate.score);
+    
+    // Limit to top Q most profitable opportunities globally
+    const maxGlobalOpportunities = tradeConfig.maxGlobalTradeOpportunities || 15;
+    const topGlobalOpportunities = allTradeOpportunities.slice(0, maxGlobalOpportunities);
+    
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[全局排序] 选择最赚钱的前 ${topGlobalOpportunities.length} 个贸易机会`, {
+            top5: topGlobalOpportunities.slice(0, 5).map(o => ({
+                partner: o.partner.name,
+                resource: o.candidate.resourceKey,
+                type: o.candidate.type,
+                score: o.candidate.score.toFixed(2),
+            }))
+        });
+    }
+    
+    // ============================================================
+    // STEP 2: Rotate through opportunities to spread trades across ticks
+    // ============================================================
+    const tradeDuration = tradeConfig.tradeDuration || 3;
+    
+    // Calculate how many opportunities to process this tick
+    // Goal: Process all opportunities over N ticks (N = tradeDuration)
+    const opportunitiesPerTick = Math.ceil(topGlobalOpportunities.length / tradeDuration);
+    const startIndex = (tick % tradeDuration) * opportunitiesPerTick;
+    const endIndex = Math.min(startIndex + opportunitiesPerTick, topGlobalOpportunities.length);
+    
+    // Select opportunities for this tick
+    const opportunitiesThisTick = topGlobalOpportunities.slice(startIndex, endIndex);
+    
+    if (opportunitiesThisTick.length === 0) {
+        return {
+            pendingTrades: updatedPendingTrades,
+            lastTradeTime,
+            lockedCapital: updatedPendingTrades.reduce((sum, t) => sum + (t.capitalLocked || 0), 0),
+            capitalInvestedThisTick,
+            completedTrades,
+            tradeRotationState: rotationState,
+        };
+    }
+    
+    // Calculate total merchants to process this tick
+    const totalMerchants = partnerBatches.reduce((sum, pb) => sum + pb.count, 0);
+    
+    // [DEBUG] Log batch processing
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[商人轮询] Tick ${tick}, 处理机会 ${startIndex}-${endIndex}/${allTradeOpportunities.length}`, {
+            tick,
+            tradeDuration,
+            opportunitiesThisTick: opportunitiesThisTick.length,
+            totalOpportunities: allTradeOpportunities.length,
+            totalMerchants
+        });
+    }
+    
+    // ============================================================
+    // STEP 3: Assign merchants to opportunities based on profitability
+    // More profitable trades get more merchants
+    // ============================================================
+    
+    // Calculate total score of opportunities this tick
+    const totalScore = opportunitiesThisTick.reduce((sum, o) => sum + o.candidate.score, 0);
+    
+    if (totalScore <= 0) {
+        return {
+            pendingTrades: updatedPendingTrades,
+            lastTradeTime,
+            lockedCapital: updatedPendingTrades.reduce((sum, t) => sum + (t.capitalLocked || 0), 0),
+            capitalInvestedThisTick,
+            completedTrades,
+            tradeRotationState: rotationState,
+        };
+    }
+    
+    // Distribute merchants proportionally based on profitability score
+    const merchantAllocations = opportunitiesThisTick.map(o => {
+        const scoreRatio = o.candidate.score / totalScore;
+        const allocation = Math.max(1, Math.round(totalMerchants * scoreRatio)); // At least 1 merchant per opportunity
+        return { ...o, merchantCount: allocation };
+    });
+    
+    // Normalize allocations to match total merchants exactly
+    const allocatedTotal = merchantAllocations.reduce((sum, a) => sum + a.merchantCount, 0);
+    const scaleFactor = totalMerchants / allocatedTotal;
+    merchantAllocations.forEach(a => {
+        a.merchantCount = Math.max(1, Math.round(a.merchantCount * scaleFactor));
+    });
+    
+    // [DEBUG] Log merchant allocation
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[商人分配] 按利润比例分配 ${totalMerchants} 个商人`, {
+            allocations: merchantAllocations.map(a => ({
+                partner: a.partner.name,
+                resource: a.candidate.resourceKey,
+                type: a.candidate.type,
+                score: a.candidate.score.toFixed(2),
+                merchants: a.merchantCount,
+                percentage: ((a.merchantCount / totalMerchants) * 100).toFixed(1) + '%'
+            }))
+        });
+    }
+    
+    let merchantsProcessed = 0;
+    
+    for (let i = 0; i < merchantAllocations.length; i++) {
+        const allocation = merchantAllocations[i];
+        const { partner, partnerBatch, candidate, getPartnerImportTaxRate, getPartnerExportTaxRate, tradeEfficiencyMultiplier, merchantCount } = allocation;
+        
+        
+        if (merchantCount === 0) continue;
+        
+        const currentTotalWealth = wealth.merchant || 0;
+        if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
+        
+        // Calculate efficiency based on merchant composition
+        const explicitEfficiency = 1;
+        const idleEfficiency = tradeConfig.idleTradeEfficiency;
+        const totalMerchantsForPartner = partnerBatch.explicitCount + partnerBatch.idleCount;
+        const averageEfficiency = totalMerchantsForPartner > 0
+            ? (partnerBatch.explicitCount * explicitEfficiency + partnerBatch.idleCount * idleEfficiency) / totalMerchantsForPartner
+            : idleEfficiency;
+        
+        // Allocate wealth proportional to merchants assigned to this opportunity
+        const wealthShare = merchantCount / totalMerchants;
+        const wealthForThisOpportunity = currentTotalWealth * wealthShare * averageEfficiency;
 
-        let tradesCreatedForPartner = 0;
+        if (candidate.type === 'export') {
+            const result = executeExportTradeV2({
+                tradeEfficiencyMultiplier,
+                ledger,
+                partner,
+                partnerId: partner.id,
+                resourceKey: candidate.resourceKey,
+                wealthForThisBatch: wealthForThisOpportunity,
+                batchMultiplier: merchantCount,
+                wealth,
+                res,
+                supply,
+                taxBreakdown,
+                tradeConfig,
+                getLocalPrice,
+                foreignUnitPrice: candidate.foreignPrice,
+                getResourceTaxRate: getExportTaxRate,
+                roleWagePayout,
+                roleExpense,
+                classFinancialData,
+                taxPolicies,
+                tick,
+                logs,
+                demandBreakdown,
+            });
 
-        for (let i = 0; i < maxNewTradesForPartner; i++) {
-            const currentTotalWealth = wealth.merchant || 0;
-            if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
-
-            // Pick best remaining candidate; allow repeated same candidate but re-check feasibility.
-            const candidate = candidates[i % candidates.length];
-            if (!candidate) break;
-
-            // Allocate wealth proportional to this partner's assignment.
-            const wealthForThisBatch = (currentTotalWealth / (partnerBatch.batches + 1)) * assignmentEfficiency;
-
-            if (candidate.type === 'export') {
-                const result = executeExportTradeV2({
-                    tradeEfficiencyMultiplier,
-                    ledger, // [REFACTORED]
-                    partner,
-                    partnerId: partner.id,
-                    resourceKey: candidate.resourceKey,
-                    wealthForThisBatch,
-                    batchMultiplier: 1,
-                    wealth,
-                    res,
-                    supply,
-                    taxBreakdown,
-                    tradeConfig,
-                    getLocalPrice,
-                    foreignUnitPrice: candidate.foreignPrice,
-                    getResourceTaxRate: getExportTaxRate,
-                    roleWagePayout,
-                    roleExpense,
-                    classFinancialData,
-                    taxPolicies,
-                    tick,
-                    logs,
-                    demandBreakdown, // NEW: For tracking exports in UI
-                });
-
-                if (result.success) {
-                    capitalInvestedThisTick += result.outlay;
-                    
-                    // Try to merge with existing trade, otherwise add as new
-                    const merged = tryMergeTrade(updatedPendingTrades, result.trade);
-                    if (!merged) {
-                        updatedPendingTrades.push(result.trade);
-                    }
-                    
-                    lastTradeTime = tick;
-                    tradesCreatedForPartner++; // [DEBUG] Count trades created
-                    // 添加新交易发起日志
-                    const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
-                    const partnerName = partner?.name || partner?.id || '未知国家';
-                    // if (logs && shouldLogMerchantTrades && result.trade.amount >= 0.5) {
-                    //     logs.push(`📦 商人发起贸易: 向${partnerName}出口 ${resName} x${result.trade.amount.toFixed(1)}`);
-                    // }
+            if (result.success) {
+                capitalInvestedThisTick += result.outlay;
+                
+                const merged = tryMergeTrade(updatedPendingTrades, result.trade);
+                if (!merged) {
+                    updatedPendingTrades.push(result.trade);
                 }
-            } else {
-                const result = executeImportTradeV2({
-                    tradeEfficiencyMultiplier,
-                    ledger, // [REFACTORED]
-                    partner,
-                    partnerId: partner.id,
-                    resourceKey: candidate.resourceKey,
-                    wealthForThisBatch,
-                    batchMultiplier: 1,
-                    wealth,
-                    res,
-                    taxBreakdown,
-                    tradeConfig,
-                    getLocalPrice,
-                    foreignUnitPrice: candidate.foreignPrice,
-                    getResourceTaxRate: getImportTaxRate,
-                    roleWagePayout,
-                    roleExpense,
-                    classFinancialData,
-                    taxPolicies,
-                    logs,
-                });
+                
+                lastTradeTime = tick;
+                merchantsProcessed += merchantCount;
+            }
+        } else {
+            const result = executeImportTradeV2({
+                tradeEfficiencyMultiplier,
+                ledger,
+                partner,
+                partnerId: partner.id,
+                resourceKey: candidate.resourceKey,
+                wealthForThisBatch: wealthForThisOpportunity,
+                batchMultiplier: merchantCount,
+                wealth,
+                res,
+                taxBreakdown,
+                tradeConfig,
+                getLocalPrice,
+                foreignUnitPrice: candidate.foreignPrice,
+                getResourceTaxRate: getImportTaxRate,
+                roleWagePayout,
+                roleExpense,
+                classFinancialData,
+                taxPolicies,
+                logs,
+            });
 
-                if (result.success) {
-                    capitalInvestedThisTick += result.cost;
-                    
-                    // Try to merge with existing trade, otherwise add as new
-                    const merged = tryMergeTrade(updatedPendingTrades, result.trade);
-                    if (!merged) {
-                        updatedPendingTrades.push(result.trade);
-                    }
-                    
-                    lastTradeTime = tick;
-                    tradesCreatedForPartner++; // [DEBUG] Count trades created
-                    // 添加新交易发起日志
-                    const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
-                    const partnerName = partner?.name || partner?.id || '未知国家';
-                    // if (logs && shouldLogMerchantTrades && result.trade.amount >= 0.5) {
-                    //     logs.push(`📦 商人发起贸易: 从${partnerName}进口 ${resName} x${result.trade.amount.toFixed(1)}`);
-                    // }
+            if (result.success) {
+                capitalInvestedThisTick += result.cost;
+                
+                const merged = tryMergeTrade(updatedPendingTrades, result.trade);
+                if (!merged) {
+                    updatedPendingTrades.push(result.trade);
                 }
+                
+                lastTradeTime = tick;
+                merchantsProcessed += merchantCount;
             }
         }
-
-        // [DEBUG] Log trades created for this partner
-        if (tradeConfig.enableDebugLog && tradesCreatedForPartner > 0) {
-            debugLog('trade', `[贸易统计] 国家: ${partner.name}, 实际创建贸易数: ${tradesCreatedForPartner}/${maxNewTradesForPartner}`, {
-                partnerId: partner.id
-            });
-        }
+    }
+    
+    // [DEBUG] Log final statistics
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[贸易统计] 本tick处理商人: ${merchantsProcessed}/${totalMerchants}, 创建贸易: ${updatedPendingTrades.length}笔`, {
+            merchantsProcessed,
+            totalMerchants,
+            tradesCreated: updatedPendingTrades.length,
+            opportunitiesProcessed: opportunitiesThisTick.length
+        });
     }
 
     const lockedCapital = updatedPendingTrades.reduce((sum, trade) => sum + Math.max(0, trade?.capitalLocked || 0), 0);
@@ -860,7 +1251,8 @@ export const simulateMerchantTrade = ({
         lastTradeTime,
         lockedCapital,
         capitalInvestedThisTick,
-        completedTrades
+        completedTrades,
+        tradeRotationState: rotationState, // No longer needed but kept for compatibility
     };
 };
 
