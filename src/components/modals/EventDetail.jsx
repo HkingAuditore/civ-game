@@ -174,8 +174,8 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
 
     const formatSignedShortNumber = (value, { decimals = 1 } = {}) => {
         if (typeof value !== 'number' || Number.isNaN(value)) return String(value ?? 0);
-        const sign = value > 0 ? '+' : '';
-        return `${sign}${formatNumberShortCN(Math.abs(value), { decimals })}`;
+        // Use formatNumberShortCN's built-in sign parameter to handle both positive and negative numbers
+        return formatNumberShortCN(value, { decimals, sign: true });
     };
 
     const nationSelectorLabels = {
