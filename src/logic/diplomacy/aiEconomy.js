@@ -185,11 +185,11 @@ export const processAIIndependentGrowth = ({
     const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
     if (ticksSinceLastGrowth >= 100) {
         const popScale = Math.max(1, (ownBasePopulation || 10) / 200);
-        const growthDampening = clamp(1 / (1 + popScale * 0.6), 0.2, 1);
-        const growthChance = 0.3 * developmentRate * growthDampening;
+        const growthDampening = clamp(1 / (1 + popScale * 0.3), 0.4, 1);  // 减轻衰减：0.6->0.3, 最低0.2->0.4
+        const growthChance = 0.6 * developmentRate * growthDampening;  // 提高概率：0.3->0.6
         if (Math.random() < growthChance && !next.isAtWar) {
-            const popGrowthRate = (1.03 + Math.random() * 0.05) * growthDampening;
-            const wealthGrowthRate = (1.04 + Math.random() * 0.08) * Math.max(0.4, growthDampening);
+            const popGrowthRate = (1.05 + Math.random() * 0.08) * growthDampening;  // 提高增长率：3-8% -> 5-13%
+            const wealthGrowthRate = (1.06 + Math.random() * 0.12) * Math.max(0.5, growthDampening);  // 提高增长率：4-12% -> 6-18%
             next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * popGrowthRate);
             next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * wealthGrowthRate);
         }
@@ -266,13 +266,13 @@ export const updateAIDevelopment = ({
     const foodFactor = clamp(foodPressure * foodSurplusBoost, 0.5, 1.15);
     const desiredPopulationRaw = Math.max(3, blendedTargetPopulation * templatePopulationBoost * foodFactor);
     const populationSoftCap = Math.max(
-        200,
-        playerPopulationBaseline * 1.5,
-        (next.economyTraits?.ownBasePopulation || 16) * 25
+        10000,  // 大幅提高基础软上限：2000->10000（保证AI后期基础实力）
+        playerPopulationBaseline * 1.2,  // 改为玩家的120%（AI可以超过玩家，形成真正威胁）
+        (next.economyTraits?.ownBasePopulation || 16) * 300  // 大幅提高自身基准倍数：150->300（鼓励自主发展）
     );
     const populationOverage = Math.max(0, desiredPopulationRaw - populationSoftCap);
     const desiredPopulation = populationOverage > 0
-        ? populationSoftCap + (populationOverage / (1 + (populationOverage / populationSoftCap)))
+        ? populationSoftCap + (populationOverage / (1 + (populationOverage / populationSoftCap) * 0.15))  // 大幅减轻超限惩罚：0.3->0.15
         : desiredPopulationRaw;
     const desiredWealth = Math.max(100, blendedTargetWealth * templateWealthBoost);
 
@@ -284,17 +284,17 @@ export const updateAIDevelopment = ({
 
     // Apply drift towards target
     const currentPopulation = next.population ?? desiredPopulation;
-    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 1.8);
+    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);  // 提高上限：1.8->2.2
     const populationDampening = clamp(
-        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.3)),
-        0.25,
+        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.1)),  // 减轻衰减：1.3->1.1
+        0.35,  // 提高最低值：0.25->0.35
         1
     );
-    const populationDriftRate = (next.isAtWar ? 0.032 : 0.12) * driftMultiplier * populationDampening;
+    const populationDriftRate = (next.isAtWar ? 0.06 : 0.18) * driftMultiplier * populationDampening;  // 提高漂移率：3.2%/12% -> 6%/18%
     const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04 * populationDampening;
     let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (next.isAtWar) {
-        adjustedPopulation -= currentPopulation * 0.012;
+        adjustedPopulation -= currentPopulation * 0.006;  // 减轻战争惩罚：1.2% -> 0.6%
     }
     next.population = Math.max(3, Math.round(adjustedPopulation));
     if (foodStatus.isShortage) {
@@ -304,11 +304,11 @@ export const updateAIDevelopment = ({
     }
 
     const currentWealth = next.wealth ?? desiredWealth;
-    const wealthDriftRate = (next.isAtWar ? 0.03 : 0.11) * driftMultiplier;
+    const wealthDriftRate = (next.isAtWar ? 0.06 : 0.16) * driftMultiplier;  // 提高漂移率：3%/11% -> 6%/16%
     const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
     let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
     if (next.isAtWar) {
-        adjustedWealth -= currentWealth * 0.015;
+        adjustedWealth -= currentWealth * 0.008;  // 减轻战争惩罚：1.5% -> 0.8%
     }
     next.wealth = Math.max(100, Math.round(adjustedWealth));
 
