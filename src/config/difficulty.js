@@ -305,7 +305,7 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 35.0,   // 3500% inventory target (was 25.0)
-        aiDevelopmentMultiplier: 12.0,         // 1200% AI development speed (was 10.0)
+        aiDevelopmentMultiplier: 11.0,         // 1100% AI development speed (was 10.0)
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.1,           // 10% tax tolerance (was 0.15)
         resourceConsumptionMultiplier: 15.0,   // 1500% consumption (was 10.0)
