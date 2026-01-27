@@ -777,7 +777,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
     // 监听国家列表变化，自动清理无效的贸易路线和商人派驻（修复暂停状态下无法清理的问题）
     const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
-    
+
     useEffect(() => {
         if (!nations) return;
 
@@ -812,7 +812,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         if (merchantState?.merchantAssignments && typeof merchantState.merchantAssignments === 'object') {
             const assignments = merchantState.merchantAssignments;
             const currentKeys = Object.keys(assignments).sort().join(',');
-            
+
             if (currentKeys !== lastCleanupRef.current.merchantAssignmentsKeys) {
                 const validAssignments = {};
                 let hasInvalidAssignments = false;
@@ -828,17 +828,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (hasInvalidAssignments) {
                     // [FIX] If all assignments are invalid, clear merchantAssignments completely
                     // This allows the system to rebuild assignments from scratch
-                    const finalAssignments = Object.keys(validAssignments).length > 0 
-                        ? validAssignments 
+                    const finalAssignments = Object.keys(validAssignments).length > 0
+                        ? validAssignments
                         : {};
-                    
+
                     setMerchantState(prev => ({
                         ...prev,
                         merchantAssignments: finalAssignments
                     }));
                     lastCleanupRef.current.merchantAssignmentsKeys = Object.keys(finalAssignments).sort().join(',');
                     needsUpdate = true;
-                    
+
                     // Log cleanup action
                     if (Object.keys(validAssignments).length === 0) {
                         console.log('[商人系统] 已清空所有无效的商人派驻，系统将重新分配商人');
@@ -852,9 +852,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         // Clean up pending trades with destroyed nations
         if (merchantState?.pendingTrades && Array.isArray(merchantState.pendingTrades)) {
             const currentLength = merchantState.pendingTrades.length;
-            
+
             if (currentLength !== lastCleanupRef.current.pendingTradesLength) {
-                const validPendingTrades = merchantState.pendingTrades.filter(trade => 
+                const validPendingTrades = merchantState.pendingTrades.filter(trade =>
                     !trade.partnerId || validNationIds.has(trade.partnerId)
                 );
 
@@ -1181,11 +1181,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
             const perfDay = current.daysElapsed || 0;
             simInFlightRef.current = true;
             runSimulation(simulationParams).then(result => {
+                // console.log('🔵🔵🔵 [GAME-LOOP] runSimulation 完成! result:', result ? 'OK' : 'NULL', 'skipped:', result?.__skipped);
                 const perfSimMs = ((typeof performance !== 'undefined' && performance.now)
                     ? performance.now()
                     : Date.now()) - perfTickStart;
                 simInFlightRef.current = false;
                 if (!result || result.__skipped) {
+                    // console.log('🔵🔵🔵 [GAME-LOOP] 跳过处理: result =', result, 'skipped =', result?.__skipped);
                     if (typeof window !== 'undefined') {
                         window.__PERF_STATS = {
                             day: perfDay,
@@ -1692,6 +1694,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 console.groupEnd();
                 // === 财政日志结束 ===
+                console.log('🔴🔴🔴 [DEBUG-CHECKPOINT] 财政日志结束，继续执行...');
 
                 const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
                     ? result._debug.startingSilver
@@ -1741,10 +1744,18 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
 
                 // 3. 国内 -> 国外投资（每10天触发一次）
-                if (current.daysElapsed % 10 === 0) {
+                const effectiveDaysElapsed = current.daysElapsed || 0;
+                if (effectiveDaysElapsed > 0 && effectiveDaysElapsed % 10 === 0) {
                     import('../logic/diplomacy/autonomousInvestment').then(({ selectOutboundInvestmentsBatch }) => {
-                        const playerNation = (current.nations || []).find(n => n.id === 'player');
-                        if (!playerNation) return;
+                        // [FIX] 玩家数据不在 nations 数组中，需要构建虚拟玩家国家对象
+                        const playerNation = {
+                            id: 'player',
+                            name: 'Player',
+                            isPlayer: true,
+                            classWealth: adjustedClassWealth,
+                            resources: adjustedResources,
+                            market: adjustedMarket,
+                        };
 
                         const investments = selectOutboundInvestmentsBatch({
                             nations: current.nations || [],
@@ -1754,36 +1765,36 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             classWealth: adjustedClassWealth,
                             market: adjustedMarket,
                             epoch: current.epoch,
-                            daysElapsed: current.daysElapsed,
+                            daysElapsed: effectiveDaysElapsed,
                         });
 
                         if (investments.length === 0) return;
 
                         import('../logic/diplomacy/overseasInvestment').then(({ mergeOverseasInvestments }) => {
                             investments.forEach(option => {
-                            const { stratum, targetNation, building, cost, dailyProfit, investment } = option;
-                            if (!investment) return;
-                            setClassWealth(prev => ({
-                                ...prev,
-                                [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
-                            }), { reason: 'autonomous_investment_cost', meta: { stratum } });
+                                const { stratum, targetNation, building, cost, dailyProfit, investment } = option;
+                                if (!investment) return;
+                                setClassWealth(prev => ({
+                                    ...prev,
+                                    [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
+                                }), { reason: 'autonomous_investment_cost', meta: { stratum } });
                                 setOverseasInvestments(prev => mergeOverseasInvestments(prev, investment));
-                            const stratumName = STRATA[stratum]?.name || stratum;
-                            addLog(`💰 ${stratumName}在 ${targetNation.name} 投资 ${building.name}（预计日利 ${dailyProfit.toFixed(1)}），注资 ${formatNumberShortCN(cost)}。`);
+                                const stratumName = STRATA[stratum]?.name || stratum;
+                                addLog(`💰 ${stratumName}在 ${targetNation.name} 投资 ${building.name}（预计日利 ${dailyProfit.toFixed(1)}），注资 ${formatNumberShortCN(cost)}。`);
                             });
                         }).catch(err => console.warn('Autonomous investment merge error:', err));
 
                         setNations(prev => prev.map(n => {
                             if (!investments.some(option => option.targetNation.id === n.id)) return n;
-                            return { ...n, lastOutboundSampleDay: current.daysElapsed };
+                            return { ...n, lastOutboundSampleDay: effectiveDaysElapsed };
                         }));
                     }).catch(err => console.warn('Autonomous investment error:', err));
                 }
 
                 // 4. 国外 -> 国内投资（每10天触发一次，错开5天）
-                if (current.daysElapsed % 10 === 5) {
+                if (effectiveDaysElapsed % 10 === 5) {
                     import('../logic/diplomacy/autonomousInvestment').then(({ selectInboundInvestmentsBatch }) => {
-                        const playerNation = (current.nations || []).find(n => n.id === 'player');
+                        // [FIX] 玩家数据不在 nations 数组中，直接从 current 获取
                         const playerState = {
                             population: current.population,
                             wealth: current.resources?.silver || 0,
@@ -1791,8 +1802,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             buildings: current.buildings || {},
                             jobFill: current.jobFill,
                             id: 'player',
-                            treaties: playerNation?.treaties || [],
-                            vassalOf: playerNation?.vassalOf || null,
+                            treaties: [], // 玩家的条约存储在 nations 数组中的对方国家身上
+                            vassalOf: null, // 玩家不会是附庸
                         };
 
                         const decisions = selectInboundInvestmentsBatch({
@@ -1801,7 +1812,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             diplomacyOrganizations: current.diplomacyOrganizations,
                             market: adjustedMarket,
                             epoch: current.epoch,
-                            daysElapsed: current.daysElapsed,
+                            daysElapsed: effectiveDaysElapsed,
                             foreignInvestments: current.foreignInvestments || [],
                         });
 
@@ -1823,8 +1834,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     n.id === investorNation.id
                                         ? {
                                             ...n,
-                                            lastForeignInvestmentDay: current.daysElapsed,
-                                            lastForeignSampleDay: current.daysElapsed
+                                            lastForeignInvestmentDay: effectiveDaysElapsed,
+                                            lastForeignSampleDay: effectiveDaysElapsed
                                         }
                                         : n
                                 )));
@@ -3142,7 +3153,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                         // 1. 识别各方盟友（使用军事国际组织）
                                         const orgs = diplomacyOrganizations?.organizations || [];
-                                        
+
                                         // 获取某个国家所在的军事组织成员
                                         const getMilitaryOrgMembers = (nationKey) => {
                                             const members = new Set();
@@ -3155,11 +3166,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             });
                                             return Array.from(members);
                                         };
-                                        
+
                                         const aggressorAllianceIds = getMilitaryOrgMembers(aggressorId);
                                         const playerAllianceIds = getMilitaryOrgMembers('player');
                                         const sharedAllianceIds = new Set(aggressorAllianceIds.filter(id => playerAllianceIds.includes(id)));
-                                        
+
                                         // 侵略者的盟友（排除共同盟友和附庸）
                                         const aggressorAllies = nextNations.filter(n => {
                                             if (n.id === aggressorId) return false;
@@ -3241,7 +3252,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 addLog(`🛡️ 你的盟友 ${ally.name} 响应号召，对 ${aggressorName} 宣战！`);
                                             }
                                         });
-                                        
+
                                         // 通知共同盟友保持中立
                                         if (sharedAllianceIds.size > 0) {
                                             const neutralAllies = nextNations.filter(n => sharedAllianceIds.has(n.id));
@@ -3863,7 +3874,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                     // 生成详细的贸易日志（玩家政府只收关税）
                                     // 这些属于“贸易路线/市场贸易”类日志，受 showTradeRouteLogs 控制
-                                    if (shouldLogTradeRoutes) {
+                                    if (isDebugEnabled('trade')) {
                                         if (eventData.tradeType === 'export') {
                                             // 玩家出口：资源减少，只收关税
                                             if (eventData.tariff > 0) {

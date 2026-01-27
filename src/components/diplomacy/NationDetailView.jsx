@@ -53,6 +53,7 @@ const NationDetailView = ({
     tradeRoutes,
     merchantState,
     onMerchantStateChange,
+    overseasInvestments = [],
     foreignInvestments = [],
     gameState,
     taxPolicies,
@@ -291,19 +292,12 @@ const NationDetailView = ({
 
                 {activeTab === 'trade' && (
                     <div className="space-y-6">
-                        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-black/20 rounded-lg">
-                            <div className="text-sm text-ancient-stone">
-                                管理在该国的投资与资产
-                            </div>
-                            <Button
-                                onClick={() => onOverseasInvestment?.(nation)}
-                                variant="secondary"
-                                icon={<Icon name="Factory" size={16} />}
-                                className="w-full sm:w-auto"
-                            >
-                                海外投资管理
-                            </Button>
-                        </div>
+                        {/* Player's Investments in this nation */}
+                        <PlayerInvestmentInNation
+                            nation={nation}
+                            overseasInvestments={overseasInvestments}
+                            onOverseasInvestment={onOverseasInvestment}
+                        />
 
                         {/* Foreign Investments from this nation in player's country */}
                         <ForeignInvestmentFromNation
@@ -570,6 +564,104 @@ const TaxRatesCard = ({ nation, daysElapsed, diplomacyOrganizations, taxPolicies
                     </Badge>
                 )}
             </div>
+        </Card>
+    );
+};
+
+/**
+ * Component to display player's investments in a specific nation
+ */
+const PlayerInvestmentInNation = ({ nation, overseasInvestments = [], onOverseasInvestment }) => {
+    // Filter investments in this nation
+    const investmentsInNation = useMemo(() => {
+        return overseasInvestments.filter(inv =>
+            inv.targetNationId === nation?.id && inv.status === 'operating'
+        ).map(inv => {
+            const building = BUILDINGS.find(b => b.id === inv.buildingId);
+            return {
+                ...inv,
+                building,
+                buildingName: building?.name || '未知建筑',
+            };
+        });
+    }, [overseasInvestments, nation?.id]);
+
+    // Calculate totals
+    const totals = useMemo(() => {
+        return investmentsInNation.reduce((acc, inv) => {
+            const invCount = inv.count || 1;
+            acc.totalProfit += (inv.dailyProfit || 0);
+            acc.totalCount += invCount;
+            return acc;
+        }, { totalProfit: 0, totalCount: 0 });
+    }, [investmentsInNation]);
+
+    return (
+        <Card className="p-0 overflow-hidden border-blue-700/30 bg-blue-900/10">
+            <div className="p-4 border-b border-blue-700/20 bg-black/20 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Icon name="Factory" size={20} className="text-blue-400" />
+                    <span className="font-bold text-ancient-parchment">我国在该国的投资</span>
+                    {totals.totalCount > 0 && (
+                        <Badge variant="neutral" className="text-[10px]">
+                            {totals.totalCount} 处
+                        </Badge>
+                    )}
+                </div>
+                <div className="flex items-center gap-3">
+                    {totals.totalCount > 0 && (
+                        <div className="text-right text-xs text-ancient-stone">
+                            <span>日利润: <span className="text-green-400 font-mono">+{totals.totalProfit.toFixed(1)}</span></span>
+                        </div>
+                    )}
+                    <Button
+                        onClick={() => onOverseasInvestment?.(nation)}
+                        variant="secondary"
+                        size="sm"
+                        icon={<Icon name="Settings" size={14} />}
+                    >
+                        管理投资
+                    </Button>
+                </div>
+            </div>
+
+            {investmentsInNation.length > 0 ? (
+                <div className="divide-y divide-blue-700/20 max-h-[250px] overflow-y-auto">
+                    {investmentsInNation.map(inv => (
+                        <div key={inv.id} className="p-3 hover:bg-white/5 transition-colors">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded bg-blue-900/30 flex items-center justify-center">
+                                        <Icon name={inv.building?.visual?.icon || "Building"} size={16} className="text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-bold text-ancient-parchment">
+                                            {inv.buildingName}
+                                        </div>
+                                        <div className="text-[10px] text-ancient-stone flex items-center gap-2">
+                                            {(inv.count || 1) > 1 && (
+                                                <span className="bg-gray-900/50 px-1.5 rounded">×{inv.count}</span>
+                                            )}
+                                            <span>策略: {inv.strategy === 'PROFIT_MAX' ? '利润最大化' : inv.strategy === 'DUMPING' ? '倾销' : '回购'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs">
+                                        <span className="text-green-400 font-mono">
+                                            +{(inv.dailyProfit || 0).toFixed(1)}/日
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="p-4 text-center text-ancient-stone/60 text-sm italic">
+                    暂无在 {nation?.name || '该国'} 的投资
+                </div>
+            )}
         </Card>
     );
 };

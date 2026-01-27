@@ -326,14 +326,22 @@ export function hasActiveTreaty(nation, treatyType, daysElapsed = 0) {
 
     // Array form
     if (Array.isArray(treaties)) {
-        return treaties.some(t => {
+        const activeTreaty = treaties.find(t => {
             if (!t || t.type !== treatyType) return false;
             if (t.withPlayer === false) return false;
+            
+            // Check expiry: treaty is active if:
+            // 1. status is 'active', OR
+            // 2. status is undefined AND (endDay is undefined OR endDay > current day)
             if (t.status === 'active') return true;
-            // Treat missing status but valid endDay as active (legacy saves)
-            if (!t.status && (t.endDay == null || t.endDay > daysElapsed)) return true;
-            return false;
+            if (t.status === 'expired' || t.status === 'terminated') return false;
+            
+            // Legacy saves: missing status, check endDay
+            if (t.endDay != null && t.endDay <= daysElapsed) return false; // Expired
+            return true; // Active (no endDay or endDay in future)
         });
+        
+        return !!activeTreaty;
     }
 
     // Map form
@@ -341,8 +349,9 @@ export function hasActiveTreaty(nation, treatyType, daysElapsed = 0) {
     if (!entry) return false;
     if (entry.withPlayer === false) return false;
     if (entry.status === 'active') return true;
-    if (!entry.status && (entry.endDay == null || entry.endDay > daysElapsed)) return true;
-    return false;
+    if (entry.status === 'expired' || entry.status === 'terminated') return false;
+    if (entry.endDay != null && entry.endDay <= daysElapsed) return false;
+    return true;
 }
 
 /**

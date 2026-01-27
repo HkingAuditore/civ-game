@@ -257,6 +257,7 @@ const DiplomacyLayout = ({
                         merchantState={merchantState}
                         onMerchantStateChange={onMerchantStateChange}
                         popStructure={gameState?.popStructure} // Ensure popStructure is passed
+                        overseasInvestments={overseasInvestments}
                         foreignInvestments={foreignInvestments}
                         taxPolicies={gameState?.taxPolicies}
                     />

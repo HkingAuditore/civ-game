@@ -58,13 +58,24 @@ const canPlayerInvestInNation = (targetNation, diplomacyOrganizations, daysElaps
     const isVassal = targetNation.suzerainId === 'player' || targetNation.vassalOf === 'player';
     const hasInvestmentPact = hasActiveTreaty(targetNation, 'investment_pact', daysElapsed);
     const hasEconomicPact = hasActiveTreaty(targetNation, 'economic_pact', daysElapsed);
+    
+    // [FIX] Convert targetNation.id to string for comparison, since org.members may contain string IDs
+    const targetIdStr = String(targetNation.id);
     const hasOrgEconomicBloc = diplomacyOrganizations?.organizations?.some(org =>
         org.type === 'economic_bloc' &&
-        org.members?.includes('player') &&
-        org.members?.includes(targetNation.id)
+        org.isActive !== false && // [FIX] Check if org is active
+        org.members?.some(m => String(m) === 'player' || String(m) === '0') && // Player membership
+        org.members?.some(m => String(m) === targetIdStr) // Target nation membership
     ) || false;
 
-    return isVassal || hasInvestmentPact || hasEconomicPact || hasOrgEconomicBloc;
+    const canInvest = isVassal || hasInvestmentPact || hasEconomicPact || hasOrgEconomicBloc;
+    
+    // Debug log to help diagnose investment eligibility
+    if (!canInvest) {
+        console.log(`🤖 [INVEST-CHECK] ${targetNation.name} 不可投资: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgEconomicBloc=${hasOrgEconomicBloc}, treaties=${JSON.stringify(targetNation.treaties?.slice(0, 2))}`);
+    }
+    
+    return canInvest;
 };
 
 const canForeignInvestInPlayer = (investorNation, playerState, diplomacyOrganizations, daysElapsed) => {
@@ -99,8 +110,13 @@ const buildInvestableCache = (epoch, accessType, strata) => {
 };
 
 const getBuildingSilverCost = (building) => {
-    const costConfig = building?.baseCost || building?.cost || {};
-    return Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+    // Match the logic in establishOverseasInvestment
+    const costConfig = building?.cost || building?.baseCost || {};
+    const baseCost = Object.values(costConfig).reduce((sum, v) => sum + v, 0);
+    
+    // 投资成本 = 建筑基础成本 × 1.5（海外溢价）
+    // Note: Vassal discount is not applied here since we're just estimating
+    return baseCost * 1.5;
 };
 
 const estimateROIForBuilding = (building, targetNation, market) => {
@@ -175,7 +191,9 @@ export function selectOutboundInvestmentsBatch({
                 if (cost <= 0 || cost > wealth) return;
 
                 const { roi, dailyProfit } = estimateROIForBuilding(building, targetNation, market);
-                if (!Number.isFinite(roi)) return;
+                
+                // Only consider investments with positive ROI (profitable)
+                if (!Number.isFinite(roi) || roi <= 0) return;
 
                 if (!bestOption || roi > bestOption.roi) {
                     bestOption = {
@@ -198,16 +216,17 @@ export function selectOutboundInvestmentsBatch({
     if (investments.length === 0) return [];
 
     investments.sort((a, b) => b.roi - a.roi);
-    return investments.slice(0, Math.min(maxInvestments, investments.length)).map(option => ({
-        ...option,
-        investment: createOverseasInvestment({
-            buildingId: option.building.id,
-            targetNationId: option.targetNation.id,
-            ownerStratum: option.stratum,
-            strategy: 'PROFIT_MAX',
+    const finalInvestments = investments.slice(0, Math.min(maxInvestments, investments.length)).map(option => ({
+            ...option,
+            investment: createOverseasInvestment({
+                buildingId: option.building.id,
+                targetNationId: option.targetNation.id,
+                ownerStratum: option.stratum,
+                strategy: 'PROFIT_MAX',
             investmentAmount: option.cost,
-        }),
+            }),
     }));
+    return finalInvestments;
 }
 
 export function selectInboundInvestmentsBatch({
@@ -382,10 +401,12 @@ export function processClassAutonomousInvestment({
             const shuffledBuildings = candidateBuildings.sort(() => Math.random() - 0.5);
 
             for (const building of shuffledBuildings) {
-                const cost = building.cost?.silver || 0;
+                // [FIX] Use getBuildingSilverCost instead of building.cost?.silver
+                // Building cost is the sum of all material costs * 1.5 overseas markup
+                const cost = getBuildingSilverCost(building);
                 console.log(`🤖 [AUTO-INVEST] ${stratum} 检查 ${building.name}: cost=${cost}, wealth=${wealth.toFixed(0)}, canAfford=${wealth >= cost}`);
-                if (wealth < cost) {
-                    console.log(`🤖 [AUTO-INVEST] ${stratum} 跳过 ${building.name}: 财富不足`);
+                if (cost <= 0 || wealth < cost) {
+                    console.log(`🤖 [AUTO-INVEST] ${stratum} 跳过 ${building.name}: 成本=${cost}, 财富不足`);
                     continue;
                 }
 

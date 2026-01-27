@@ -216,18 +216,10 @@ export const InvestmentRow = memo(({ group, expandedCard, setExpandedCard, playe
                         );
                     })()}
 
-                    {/* 批量撤回 */}
-                    <button
-                        className="w-full px-3 py-1.5 rounded text-[11px] bg-red-900/20 text-red-400 hover:bg-red-900/40 border border-red-800/30 transition-colors"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (onWithdraw) {
-                                group.investments.forEach(inv => onWithdraw(inv.id));
-                            }
-                        }}
-                    >
-                        撤回全部{count}个投资（-20% 违约金）
-                    </button>
+                    {/* 批量撤回 - 已禁用，投资由阶层自主决策 */}
+                    <div className="w-full px-3 py-2 rounded text-[10px] bg-gray-800/30 text-gray-500 border border-gray-700/30 text-center italic">
+                        投资撤回由阶层根据盈利情况自动决策
+                    </div>
                 </div>
             )}
         </div>

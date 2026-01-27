@@ -412,14 +412,22 @@ export function processOrganizationMonthlyUpdate({
 /**
  * 检查组织是否应该解散
  * @param {Object} organization - 组织对象
+ * @param {Set<string>} validNationIds - （可选）有效国家ID集合，用于检查创始国是否存在
  * @returns {boolean} - 是否应解散
  */
-export function shouldDisbandOrganization(organization) {
+export function shouldDisbandOrganization(organization, validNationIds = null) {
     const config = ORGANIZATION_TYPE_CONFIGS[organization.type];
     if (!config) return true;
 
     // 成员不足
     if (organization.members.length < config.minMembers) return true;
+
+    // [NEW] 创始国已消亡（被吞并或人口为0）
+    if (validNationIds && organization.founderId) {
+        if (!validNationIds.has(organization.founderId)) {
+            return true;
+        }
+    }
 
     // 所有成员互相交战（简化判断）
     // 实际实现需要更复杂的逻辑

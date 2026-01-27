@@ -143,7 +143,7 @@ const DiplomacyTabComponent = ({
         const playerWealth = resources.silver || 0;
         const targetWealth = selectedNation?.wealth || 1000;
         const maintenancePerDay = getTreatyDailyMaintenance(type, playerWealth, targetWealth);
-        
+
         return {
             type,
             durationDays: getTreatyDuration(type, epoch),
@@ -170,26 +170,26 @@ const DiplomacyTabComponent = ({
     const negotiationEvaluation = useMemo(() => {
         console.log('🔄 Recalculating negotiationEvaluation, stance:', negotiationDraft.stance);
         if (!selectedNation) return { acceptChance: 0, relationGate: false };
-        
+
         // Get organization info if relevant
         let organization = null;
         let organizationMode = null;
-        const orgType = negotiationDraft.type === 'military_alliance' ? 'military_alliance' : 
-                       (negotiationDraft.type === 'economic_bloc' ? 'economic_bloc' : null);
-        
+        const orgType = negotiationDraft.type === 'military_alliance' ? 'military_alliance' :
+            (negotiationDraft.type === 'economic_bloc' ? 'economic_bloc' : null);
+
         if (orgType && negotiationDraft.targetOrganizationId && negotiationDraft.organizationMode) {
             const orgs = diplomacyOrganizations?.organizations || [];
             organization = orgs.find(o => o.id === negotiationDraft.targetOrganizationId);
             organizationMode = negotiationDraft.organizationMode;
         }
-        
+
         // Get player production (use total goods production as proxy)
-        const playerProduction = gameState?.totalGoodsProduction || 
-                                (gameState?.productionPerDay?.goods || 0);
-        const targetProduction = selectedNation?.productionCapacity || 
-                                selectedNation?.economyScore || 
-                                (selectedNation?.wealth || 0) * 0.01;
-        
+        const playerProduction = gameState?.totalGoodsProduction ||
+            (gameState?.productionPerDay?.goods || 0);
+        const targetProduction = selectedNation?.productionCapacity ||
+            selectedNation?.economyScore ||
+            (selectedNation?.wealth || 0) * 0.01;
+
         return calculateNegotiationAcceptChance({
             proposal: negotiationDraft,
             nation: selectedNation,
@@ -212,7 +212,7 @@ const DiplomacyTabComponent = ({
         if (result.status === 'counter' && result.counterProposal) {
             const counter = result.counterProposal;
             setNegotiationCounter(counter);
-            
+
             // ✅ 自动加载反提案到negotiationDraft，让用户立即看到AI的条件
             // AI的反提案中，AI愿意支付的 → 应该放到"我方索求"（因为我要从AI那里拿）
             // AI的反提案中，AI索要的 → 应该放到"我方赠送"（因为我要给AI）
@@ -220,12 +220,12 @@ const DiplomacyTabComponent = ({
                 if (!key || !amount) return [];
                 return [{ key, amount }];
             };
-            
+
             const counterOfferResources = counter.resources ||
                 convertToResourcesArray(counter.resourceKey, counter.resourceAmount);
             const counterDemandResources = counter.demandResources ||
                 convertToResourcesArray(counter.demandResourceKey, counter.demandResourceAmount);
-            
+
             setNegotiationDraft((prev) => ({
                 type: prev.type,
                 durationDays: counter.durationDays,
@@ -240,7 +240,7 @@ const DiplomacyTabComponent = ({
                 targetOrganizationId: counter.targetOrganizationId ?? prev.targetOrganizationId ?? null,
                 organizationMode: counter.organizationMode ?? prev.organizationMode ?? null,
             }));
-            
+
             setNegotiationRound((prev) => Math.min(NEGOTIATION_MAX_ROUNDS, prev + 1));
             return;
         }
@@ -325,34 +325,34 @@ const DiplomacyTabComponent = ({
 
     const targetNationAllies = useMemo(() => {
         if (!selectedNation) return [];
-        
+
         const orgs = diplomacyOrganizations?.organizations || [];
-        
+
         // 按军事组织分组返回盟友
         const militaryOrgs = [];
-        
+
         orgs.forEach(org => {
             if (org?.type !== 'military_alliance') return;
             if (!Array.isArray(org.members) || !org.members.includes(selectedNation.id)) return;
-            
+
             // 检查玩家是否也在这个组织中（如果是，则该组织成员不会参战）
             const playerInThisOrg = org.members.includes('player');
             if (playerInThisOrg) {
                 // 玩家和目标国家在同一个军事组织，该组织成员保持中立
                 return;
             }
-            
+
             // 获取该组织中会参战的成员（排除目标国家本身、玩家、玩家附庸）
             const members = org.members
                 .filter(memberId => {
                     if (!memberId || memberId === selectedNation.id || memberId === 'player') return false;
-                    
+
                     const nation = visibleNations.find(n => n.id === memberId);
                     if (!nation) return false;
-                    
+
                     // 排除玩家的附庸
                     if (nation.isVassal === true) return false;
-                    
+
                     return true;
                 })
                 .map(memberId => {
@@ -363,7 +363,7 @@ const DiplomacyTabComponent = ({
                     };
                 })
                 .filter(Boolean);
-            
+
             // 只添加有成员的组织
             if (members.length > 0) {
                 militaryOrgs.push({
@@ -373,7 +373,7 @@ const DiplomacyTabComponent = ({
                 });
             }
         });
-        
+
         return militaryOrgs;
     }, [visibleNations, selectedNation, diplomacyOrganizations]);
 
@@ -603,7 +603,7 @@ const DiplomacyTabComponent = ({
                         // but the general button iterated all.
                         // InternationalEconomyPanel implementation calls onNationalize without args for the policy button.
                         // So we implement general nationalization here for safety.
-                         foreignInvestments.forEach((investment) => {
+                        foreignInvestments.forEach((investment) => {
                             onDiplomaticAction('player', 'nationalize_foreign_investment', {
                                 investmentId: investment.id,
                             });
@@ -635,8 +635,8 @@ const DiplomacyTabComponent = ({
                     setShowOrganizationModal(false);
                     setSelectedOrganization(null);
                     // Select the founder nation to open diplomacy view
-                    if (founderNation && onSelectNation) {
-                        onSelectNation(founderNation.id);
+                    if (founderNation) {
+                        setSelectedNationId(founderNation.id);
                     }
                 }}
             />

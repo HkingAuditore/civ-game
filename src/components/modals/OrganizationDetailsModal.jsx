@@ -34,6 +34,20 @@ const OrganizationDetailsModal = ({
         return nations.find(n => n.id === organization.founderId);
     }, [organization.founderId, nations]);
 
+    // Get founder name (even if they left the organization)
+    const founderName = useMemo(() => {
+        if (!organization.founderId) {
+            // Fallback: try to find founder from members list
+            const founderMember = organization.members?.[0];
+            if (founderMember === playerNationId) return empireName;
+            const nation = nations.find(n => n.id === founderMember);
+            return nation?.name || '未知国家（已消亡）';
+        }
+        if (organization.founderId === playerNationId) return empireName;
+        const founder = nations.find(n => n.id === organization.founderId);
+        return founder?.name || `未知国家（ID: ${organization.founderId.slice(0, 8)}）`;
+    }, [organization.founderId, organization.members, nations, playerNationId, empireName]);
+
     const memberList = useMemo(() => {
         return organization.members.map(memberId => {
             if (memberId === playerNationId) {
@@ -94,7 +108,7 @@ const OrganizationDetailsModal = ({
                     <div className="text-right">
                         <div className="text-ancient-stone text-xs uppercase tracking-wider mb-1">创始人</div>
                         <div className="text-ancient-gold font-bold">
-                            {memberList.find(m => m.isFounder)?.name || '未知'}
+                            {founderName}
                         </div>
                         <div className="text-ancient-stone text-xs mt-2">
                             成立已 {Math.max(0, Math.floor(daysElapsed - (organization.createdDay || 0)))} 天
@@ -252,18 +266,25 @@ const OrganizationDetailsModal = ({
                             {leaveCostInfo?.willDisband ? '解散组织' : '退出组织'}
                         </Button>
                     ) : (
-                        founderNation && onNegotiateWithFounder && (
-                            <Button
-                                variant="primary"
-                                onClick={() => {
-                                    onNegotiateWithFounder(founderNation, organization);
-                                    onClose();
-                                }}
-                            >
-                                <Icon name="MessageSquare" size={16} className="mr-1" />
-                                与创始国谈判
-                            </Button>
-                        )
+                        <>
+                            {founderNation && onNegotiateWithFounder ? (
+                                <Button
+                                    variant="primary"
+                                    onClick={() => {
+                                        onNegotiateWithFounder(founderNation, organization);
+                                        onClose();
+                                    }}
+                                >
+                                    <Icon name="MessageSquare" size={16} className="mr-1" />
+                                    与创始国谈判
+                                </Button>
+                            ) : (
+                                <div className="text-red-400 text-sm flex items-center gap-2">
+                                    <Icon name="AlertCircle" size={16} />
+                                    <span>创始国不存在或已消亡，无法加入此组织</span>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

@@ -5726,10 +5726,27 @@ export const simulateTick = ({
                 if (orgIndex >= 0) {
                     const org = updatedOrganizations[orgIndex];
                     if (org.members.includes(req.nationId)) {
-                        updatedOrganizations[orgIndex] = {
-                            ...org,
-                            members: org.members.filter(m => m !== req.nationId),
-                        };
+                        // Check if the leaving member is the founder
+                        const isFounder = org.founderId === req.nationId;
+                        const config = ORGANIZATION_TYPE_CONFIGS[org.type];
+                        const willDisband = isFounder && (config?.founderLeaveDisbands !== false);
+                        
+                        if (willDisband) {
+                            // Founder leaving - mark organization for removal
+                            updatedOrganizations[orgIndex] = {
+                                ...org,
+                                members: org.members.filter(m => m !== req.nationId),
+                                isActive: false,
+                                disbandReason: '创始国退出',
+                            };
+                            logs.push(`🏛️ "${org.name}" 因创始国退出而解散。`);
+                        } else {
+                            // Regular member leaving
+                            updatedOrganizations[orgIndex] = {
+                                ...org,
+                                members: org.members.filter(m => m !== req.nationId),
+                            };
+                        }
                         organizationUpdatesOccurred = true;
                     }
                 }
@@ -5765,8 +5782,33 @@ export const simulateTick = ({
         const filteredOrgs = [];
         updatedOrganizations.forEach(org => {
             const keepSoloPlayerOrg = org?.members?.includes('player') && org.members.length === 1;
-            if (shouldDisbandOrganization(org) && !keepSoloPlayerOrg) {
-                logs.push(`🏛️ "${org.name}" 因成员不足而解散。`);
+            
+            // Check if organization is marked as inactive (e.g., founder left)
+            if (org.isActive === false && !keepSoloPlayerOrg) {
+                const reason = org.disbandReason || '未知原因';
+                // Only log if not already logged
+                if (reason !== '创始国退出') {
+                    logs.push(`🏛️ "${org.name}" 因${reason}而解散。`);
+                }
+                organizationUpdatesOccurred = true;
+                return;
+            }
+            
+            // Check other disband conditions
+            if (shouldDisbandOrganization(org, validNationIds) && !keepSoloPlayerOrg) {
+                // Determine disband reason for better logging
+                const config = ORGANIZATION_TYPE_CONFIGS[org.type];
+                const founderExists = org.founderId ? validNationIds.has(org.founderId) : true;
+                const memberCount = org.members?.length || 0;
+                
+                let reason = '未知原因';
+                if (!founderExists) {
+                    reason = '创始国已消亡';
+                } else if (memberCount < (config?.minMembers || 2)) {
+                    reason = '成员不足';
+                }
+                
+                logs.push(`🏛️ "${org.name}" 因${reason}而解散。`);
                 organizationUpdatesOccurred = true;
                 return;
             }

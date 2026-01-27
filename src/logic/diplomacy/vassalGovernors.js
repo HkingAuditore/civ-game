@@ -9,6 +9,8 @@
  * - Loyalty (忠诚): 廉政、独立倾向影响
  */
 
+import { INDEPENDENCE_CONFIG } from '../../config/diplomacy.js';
+
 /**
  * 总督施政纲领 (Governor Mandates)
  * 决定总督治理的侧重点，并修正属性收益
@@ -91,7 +93,8 @@ export const GOVERNOR_EFFECTS_CONFIG = {
         clergy: { stability: 1.5, corruption: 0.8 }, // Boosted
     },
 
-    // 每日成本基数
+    // 每日成本基数（已废弃，改用 diplomacy.js 中的动态成本配置）
+    // @deprecated 请使用 INDEPENDENCE_CONFIG.controlMeasures.governor
     dailyCost: {
         base: 30,
         perPrestige: 0.5,
@@ -177,8 +180,14 @@ export const calculateGovernorFullEffects = (official, vassalNation = {}) => {
     stabilityBonus *= stratumBonus.stability || 1.0;
     tributeModifier *= stratumBonus.tributeBonus || 1.0;
 
-    // ========== 每日成本 ==========
-    const dailyCost = config.dailyCost.base + prestige * config.dailyCost.perPrestige;
+    // ========== 每日成本（动态计算，考虑附庸财富） ==========
+    // 成本组成：基础成本 + 附庸财富系数 + 威望系数
+    const governorConfig = INDEPENDENCE_CONFIG.controlMeasures.governor;
+    const vassalWealth = vassalNation?.wealth || 0;
+    const dailyCost =
+        governorConfig.baseCost +
+        vassalWealth * governorConfig.wealthScalingFactor +
+        prestige * config.dailyCost.perPrestige;
 
     // ========== 生成随机治理事件 (Governor Actions) ==========
     const governorEvent = generateGovernorEvent(official, mandate, vassalNation);

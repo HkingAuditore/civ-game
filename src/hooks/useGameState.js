@@ -811,6 +811,49 @@ const buildInitialDiplomacyOrganizations = () => ({
     organizations: [],
 });
 
+/**
+ * 迁移旧存档中的组织数据，确保每个组织都有 founderId
+ * @param {Object} diplomacyOrganizations - 外交组织数据
+ * @returns {Object} 迁移后的组织数据
+ */
+const migrateDiplomacyOrganizations = (diplomacyOrganizations) => {
+    if (!diplomacyOrganizations || typeof diplomacyOrganizations !== 'object') {
+        return buildInitialDiplomacyOrganizations();
+    }
+
+    const organizations = Array.isArray(diplomacyOrganizations.organizations)
+        ? diplomacyOrganizations.organizations
+        : [];
+
+    const migratedOrganizations = organizations
+        .map(org => {
+            // 如果组织已经有 founderId，直接返回
+            if (org.founderId) {
+                return org;
+            }
+
+            // 旧存档兼容：使用第一个成员作为创始人
+            const firstMember = org.members?.[0];
+            if (!firstMember) {
+                // 没有成员的组织应该被移除
+                console.log(`[Save Migration] Removing organization "${org.name}" with no members.`);
+                return null;
+            }
+
+            console.log(`[Save Migration] Organization "${org.name}" missing founderId, using first member: ${firstMember}`);
+            return {
+                ...org,
+                founderId: firstMember,
+            };
+        })
+        .filter(org => org !== null); // 移除无效组织
+
+    return {
+        ...diplomacyOrganizations,
+        organizations: migratedOrganizations,
+    };
+};
+
 const buildInitialOverseasBuildings = () => ([]);
 
 const buildInitialMinisterAssignments = () => ({
@@ -1909,7 +1952,7 @@ export const useGameState = () => {
         });
         setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
         setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
-        setDiplomacyOrganizations(data.diplomacyOrganizations || buildInitialDiplomacyOrganizations());
+        setDiplomacyOrganizations(migrateDiplomacyOrganizations(data.diplomacyOrganizations));
         setVassalDiplomacyQueue(Array.isArray(data.vassalDiplomacyQueue) ? data.vassalDiplomacyQueue : []);
         setVassalDiplomacyHistory(Array.isArray(data.vassalDiplomacyHistory) ? data.vassalDiplomacyHistory : []);
         setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
