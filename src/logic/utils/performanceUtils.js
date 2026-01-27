@@ -24,7 +24,7 @@ export const RATE_LIMIT_CONFIG = {
     tradeUpdateFrequency: 3,
 
     // Merchant trade generation: every N ticks (separate from AI trade)
-    merchantTradeFrequency: 5,
+    merchantTradeFrequency: 1, // Changed from 5 to 1 to enable per-tick rotation
 
     // Manual trade routes: every N ticks
     manualTradeFrequency: 3,

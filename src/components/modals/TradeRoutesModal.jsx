@@ -304,7 +304,8 @@ const TradeRoutesModal = ({
             (nation) =>
                 epoch >= (nation.appearEpoch ?? 0) &&
                 (nation.expireEpoch == null || epoch <= nation.expireEpoch) &&
-                !nation.isAtWar // Exclude nations at war
+                !nation.isAtWar && // Exclude nations at war
+                nation.relation !== undefined && nation.relation !== null // Only show discovered nations
         );
     }, [nations, epoch]);
 
@@ -516,6 +517,15 @@ const TradeRoutesModal = ({
         const tradeMap = new Map();
         
         pendingTrades.forEach(trade => {
+            // [FIX] Filter out trades with undiscovered nations
+            if (trade.partnerId) {
+                const partner = nations.find(n => n?.id === trade.partnerId);
+                if (!partner || partner.relation === null || partner.relation === undefined) {
+                    // Skip this trade - nation is not discovered
+                    return;
+                }
+            }
+            
             // Create a unique key for grouping: partnerId-resource-type-daysRemaining
             const key = `${trade.partnerId}-${trade.resource}-${trade.type}-${trade.daysRemaining || 0}`;
             
@@ -534,7 +544,7 @@ const TradeRoutesModal = ({
         });
         
         return Array.from(tradeMap.values());
-    }, [pendingTrades]);
+    }, [pendingTrades, nations]);
 
     const tabs = [
         { id: 'assignments', label: '派驻商人', shortLabel: '派驻', count: assignedTotal, icon: 'Users' },

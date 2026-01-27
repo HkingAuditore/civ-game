@@ -96,7 +96,8 @@ const DiplomacyTabComponent = ({
                 (nation) =>
                     epoch >= (nation.appearEpoch ?? 0) &&
                     (nation.expireEpoch == null || epoch <= nation.expireEpoch) &&
-                    !nation.isAnnexed // 排除已被吞并的国家
+                    !nation.isAnnexed && // 排除已被吞并的国家
+                    nation.relation !== undefined && nation.relation !== null // 只显示已发现的国家
             ),
         [nations, epoch]
     );

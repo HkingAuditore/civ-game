@@ -258,9 +258,9 @@ const DiplomacyDashboard = ({
                             </div>
                             <h4 className="text-sm font-bold text-ancient-stone mb-3 uppercase tracking-wider">国内价格信号</h4>
                             <div className="space-y-2">
-                                <MarketSignalList title="价格偏高 (利润↑)" tone="text-green-300" items={marketSignals.expensive} />
+                                <MarketSignalList title="价格偏高" tone="text-green-300" items={marketSignals.expensive} />
                                 <div className="h-px bg-white/5 my-2"></div>
-                                <MarketSignalList title="价格偏低 (适宜囤货)" tone="text-blue-300" items={marketSignals.cheap} />
+                                <MarketSignalList title="价格偏低" tone="text-blue-300" items={marketSignals.cheap} />
                             </div>
                         </Card>
 
