@@ -576,7 +576,9 @@ export function canEstablishOverseasInvestment(targetNation, buildingId, ownerSt
     }
 
     // 检查投资上限（附庸GDP的20%）
-    const nationGDP = targetNation.wealth || 1000;
+    const nationGDP = Number.isFinite(targetNation?.gdp)
+        ? targetNation.gdp
+        : (targetNation.wealth || 1000);
     const maxInvestment = nationGDP * OVERSEAS_INVESTMENT_CONFIGS.limits.maxInvestmentRatio;
     const currentInvestmentValue = existingInvestments
         .filter(inv => inv.targetNationId === targetNation.id && inv.status === 'operating')

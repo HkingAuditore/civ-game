@@ -205,7 +205,7 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
         name: '自治',
         description: '附庸完全自我管理',
         tributeMod: 0.5,              // -50% tribute (as concession)
-        controlCostMod: 0,            // No control cost
+        controlCostMod: 0.50,            // No control cost
         independenceGrowthMod: 0.6,   // 40% slower independence
     },
     puppet_govt: {
@@ -213,7 +213,7 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
         name: '傀儡政府',
         description: '扶植亲玩家的本地政府',
         tributeMod: 1.0,              // Normal tribute
-        controlCostMod: 0.5,          // 50% control cost (cheaper)
+        controlCostMod: 1.0,          // 50% control cost (cheaper)
         independenceGrowthMod: 1.0,   // Normal
     },
     direct_rule: {
@@ -221,7 +221,7 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
         name: '直接统治',
         description: '中央政府直接管理附庸内政',
         tributeMod: 1.3,              // +30% tribute
-        controlCostMod: 1.5,          // 150% control cost (expensive)
+        controlCostMod: 2.5,          // 150% control cost (expensive)
         independenceGrowthMod: 0.8,   // 20% slower (active suppression)
         requiresGovernor: true,       // Must assign an official
     },
@@ -475,8 +475,10 @@ export const calculateTribute = (vassalNation) => {
 
     const tributeRate = vassalNation.tributeRate || 0;
 
-    // 基于国家财富估算GDP增量
-    const gdpEstimate = (vassalNation.wealth || 500) * 0.05;
+    // 优先使用GDP，缺省时用财富估算
+    const gdpEstimate = Number.isFinite(vassalNation.gdp)
+        ? vassalNation.gdp
+        : (vassalNation.wealth || 500);
     const tributeBase = gdpEstimate * tributeRate;
 
     // 独立倾向降低实际朝贡
@@ -657,7 +659,7 @@ export const TRIBUTE_CONFIG = {
     // 基础朝贡计算参数
     baseAmount: 100,                    // 固定基数（保底，降低以减少对穷国的负担）
     // playerWealthRate Removed: Tribute should not depend on overlord wealth
-    vassalWealthRate: 0.08,             // 基于附庸财富的比例 (Increased to 8%)
+    vassalGDPRate: 0.1,                // 基于附庸GDP的比例 (Increased to 8%)
 
     // 附庸规模系数
     sizeMultipliers: {
@@ -701,35 +703,36 @@ export const INDEPENDENCE_CONFIG = {
         high: 70,               // 高于此值降低独立倾向
     },
 
-    // 控制手段效果 (REVAMPED - dynamic cost scaling)
+    // 控制手段效果 (REVAMPED - 成本基于GDP计算，而非累积财富)
+    // 注意：调用 calculateControlMeasureCost 时现在应传入 GDP 而非 wealth
     controlMeasures: {
         governor: {             // 派遣总督
-            baseCost: 30,       // Base daily cost (reduced from 50)
-            wealthScalingFactor: 0.003,  // 0.3% of vassal wealth
+            baseCost: 0.5,        // Base daily cost (降低)
+            wealthScalingFactor: 0.001,  // 1% of vassal GDP per day
             independenceReduction: 0.2,  // Base reduction (modified by official stats)
             eliteSatisfactionBonus: 2,   // Elite satisfaction bonus
             requiresOfficial: true,      // Now requires an assigned official
             baseEffectiveness: 0.5,      // Base effectiveness (multiplied by official prestige)
         },
         garrison: {             // 驻军占领
-            baseCost: 50,       // Base daily cost (reduced from 100)
-            wealthScalingFactor: 0.005,  // 0.5% of vassal wealth
+            baseCost: 1,       // Base daily cost (降低)
+            wealthScalingFactor: 0.002,  // 2% of vassal GDP per day
             independenceReduction: 0.5,  // Per day reduction
             commonerSatisfactionPenalty: -3,  // Commoner satisfaction penalty
             militaryStrengthRequirement: 0.5, // Player military must be >= 50% of vassal
             militaryCommitmentFactor: 0.5,    // Reduce available military by vassal strength * factor
         },
         assimilation: {         // 文化同化
-            baseCost: 60,       // Base daily cost (reduced from 100)
-            wealthScalingFactor: 0.002,  // 0.2% of vassal wealth
+            baseCost: 0.8,        // Base daily cost (降低)
+            wealthScalingFactor: 0.0015,  // 1.5% of vassal GDP per day
             independenceCapReduction: 0.05,  // Daily reduction of independence cap
             independenceReduction: 0.15,     // [NEW] Daily reduction of current independence (direct effect)
             minIndependenceCap: 30,          // Minimum independence cap
             satisfactionPenalty: -1,         // All classes satisfaction penalty
         },
         economicAid: {          // 经济扶持
-            baseCost: 50,       // Base daily cost (reduced from 80)
-            wealthScalingFactor: 0.004,  // 0.4% of vassal wealth
+            baseCost: 1,       // Base daily cost (降低)
+            wealthScalingFactor: 0.0025,  // 2.5% of vassal GDP per day
             commonerSatisfactionBonus: 3,    // Commoner satisfaction bonus
             underclassSatisfactionBonus: 5,  // Underclass satisfaction bonus
             vassalWealthTransfer: 0.001,     // 0.1% of cost transferred to vassal wealth

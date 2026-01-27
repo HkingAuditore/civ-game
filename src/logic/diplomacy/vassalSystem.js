@@ -27,6 +27,22 @@ import {
     getVassalIndependenceMultiplier,
     getVassalIndependenceWarChance,
 } from '../../config/difficulty.js';
+import { getNationGDP } from './economyUtils.js';
+
+const getGovernancePolicyConfig = (vassalPolicy = {}) => {
+    const policyId = vassalPolicy?.governance || 'autonomous';
+    return GOVERNANCE_POLICY_DEFINITIONS[policyId] || {};
+};
+
+const getGovernanceTributeMod = (vassalPolicy = {}) => {
+    const policyConfig = getGovernancePolicyConfig(vassalPolicy);
+    return Number.isFinite(policyConfig.tributeMod) ? policyConfig.tributeMod : 1;
+};
+
+const getGovernanceControlCostMod = (vassalPolicy = {}) => {
+    const policyConfig = getGovernancePolicyConfig(vassalPolicy);
+    return Number.isFinite(policyConfig.controlCostMod) ? policyConfig.controlCostMod : 1;
+};
 
 // ========== 独立倾向计算共享配置 ==========
 // 所有涉及独立倾向每日变化的数值都在此处统一配置
@@ -439,18 +455,18 @@ export const calculateDynamicSatisfactionCap = (nation, context = {}) => {
 };
 
 /**
- * Calculate dynamic control cost based on vassal wealth
+ * Calculate dynamic control cost based on vassal GDP (not accumulated wealth!)
  * @param {string} measureType - Control measure type
- * @param {number} vassalWealth - Vassal nation wealth
+ * @param {number} vassalGDP - Vassal nation daily GDP
  * @returns {number} Daily cost
  */
-export const calculateControlMeasureCost = (measureType, vassalWealth = 1000) => {
+export const calculateControlMeasureCost = (measureType, vassalGDP = 1000) => {
     const measureConfig = INDEPENDENCE_CONFIG.controlMeasures[measureType];
     if (!measureConfig) return 0;
 
     const baseCost = measureConfig.baseCost || 50;
     const scalingFactor = measureConfig.wealthScalingFactor || 0;
-    const scaledCost = Math.floor(vassalWealth * scalingFactor);
+    const scaledCost = Math.floor(vassalGDP * scalingFactor);
 
     return baseCost + scaledCost;
 };
@@ -577,8 +593,9 @@ export const processVassalUpdates = ({
         const vassalConfig = VASSAL_TYPE_CONFIGS[updated.vassalType];
         if (!vassalConfig) return updated;
 
-        const vassalWealth = updated.wealth || 500;
+        const vassalGDP = getNationGDP(updated, 1000);  // 使用GDP而非累积财富来计算控制成本
         const vassalMilitary = updated.militaryStrength || 0.5;
+        const governanceCostMod = getGovernanceControlCostMod(updated.vassalPolicy);
 
         // ========== 1. Process Control Measures Costs and Effects ==========
         let controlMeasureIndependenceReduction = 0;
@@ -597,7 +614,7 @@ export const processVassalUpdates = ({
                 if (!measureConfig) return;
 
                 // Calculate dynamic cost
-                const dailyCost = calculateControlMeasureCost(measureId, vassalWealth);
+                const dailyCost = calculateControlMeasureCost(measureId, vassalGDP) * governanceCostMod;
                 totalControlCost += dailyCost;
 
                 // Process specific measure effects
@@ -682,7 +699,8 @@ export const processVassalUpdates = ({
                         }
 
                         // Override cost with governor-calculated cost
-                        totalControlCost += govEffects.dailyCost - dailyCost; // Adjust by difference
+                        const governorCost = govEffects.dailyCost * governanceCostMod;
+                        totalControlCost += governorCost - dailyCost; // Adjust by difference
 
                         // [NEW] Governor Mandate Effects (Persistent State)
                         if (govEffects.mandateId === 'develop') {
@@ -809,9 +827,9 @@ export const processVassalUpdates = ({
             updated.wealth = (updated.wealth || 0) + vassalWealthChange;
         }
 
-        // ========== 2. 每日结算朝贡（按月值/30拆分） ==========
+        // ========== 2. 每日结算朝贡（使用日值） ==========
         const tribute = calculateEnhancedTribute(updated);
-        const dailySilver = (tribute.silver || 0) / 30;
+        const dailySilver = (tribute.silver || 0);
         if (dailySilver > 0) {
             tributeIncome += dailySilver;
             updated.wealth = Math.max(0, (updated.wealth || 0) - dailySilver);
@@ -917,12 +935,13 @@ export const calculateEnhancedTribute = (vassalNation) => {
 
     const config = TRIBUTE_CONFIG;
     const tributeRate = vassalNation.tributeRate || 0;
-    const vassalWealth = vassalNation.wealth || 500;
+    const vassalGDP = getNationGDP(vassalNation, 1000);
+    const governanceTributeMod = getGovernanceTributeMod(vassalNation?.vassalPolicy);
 
     // 计算基础朝贡金额
-    // 公式: 基础值 + 附庸财富 * 比例
+    // 公式: 基础值 + 附庸GDP * 比例
     // 完全移除玩家财富依赖，确保自洽性 (Updated per user request)
-    const vassalBasedTribute = vassalWealth * config.vassalWealthRate;
+    const vassalBasedTribute = vassalGDP * config.vassalGDPRate;
 
     let baseTribute = config.baseAmount + vassalBasedTribute;
 
@@ -931,12 +950,15 @@ export const calculateEnhancedTribute = (vassalNation) => {
 
     // 附庸规模系数
     let sizeMultiplier = config.sizeMultipliers.small;
-    if (vassalWealth > 3000) {
+    if (vassalGDP > 3000) {
         sizeMultiplier = config.sizeMultipliers.large;
-    } else if (vassalWealth > 1000) {
+    } else if (vassalGDP > 1000) {
         sizeMultiplier = config.sizeMultipliers.medium;
     }
     baseTribute *= sizeMultiplier;
+
+    // 治理政策朝贡修正
+    baseTribute *= governanceTributeMod;
 
     // 独立倾向降低实际朝贡
     const independenceDesire = vassalNation.independencePressure || 0;
@@ -970,7 +992,7 @@ export const calculateEnhancedTribute = (vassalNation) => {
             const resourceAmount = Math.floor(
                 Math.min(
                     inventory * 0.15,  // 最多朝贡15%库存（提高到15%）
-                    config.resourceTribute.baseAmount * tributeRate * sizeMultiplier * 3 // 提高基础数量3倍
+                    config.resourceTribute.baseAmount * tributeRate * sizeMultiplier * governanceTributeMod * 3 // 提高基础数量3倍
                 ) * resistanceFactor
             );
             
@@ -1618,11 +1640,12 @@ export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
 
         // Calculate control measure costs
         if (vassal.vassalPolicy?.controlMeasures) {
-            const vassalWealth = vassal.wealth || 500;
+            const vassalGDP = getNationGDP(vassal, 1000);  // 使用GDP而非累积财富
+            const governanceCostMod = getGovernanceControlCostMod(vassal.vassalPolicy);
             Object.entries(vassal.vassalPolicy.controlMeasures).forEach(([measureId, measureData]) => {
                 const isActive = measureData === true || (measureData && measureData.active !== false);
                 if (isActive) {
-                    totalControlCost += calculateControlMeasureCost(measureId, vassalWealth);
+                    totalControlCost += calculateControlMeasureCost(measureId, vassalGDP) * governanceCostMod;
                 }
             });
         }

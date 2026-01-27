@@ -1260,6 +1260,7 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     nation.population = Math.max(3, Math.round(adjustedPopulation));
 
     const currentWealth = nation.wealth ?? desiredWealth;
+    const previousWealth = Number.isFinite(nation._lastWealth) ? nation._lastWealth : currentWealth;
     const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
     let adjustedWealth = currentWealth +
         (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
@@ -1267,6 +1268,18 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
         adjustedWealth -= currentWealth * 0.015;
     }
     nation.wealth = Math.max(100, Math.round(adjustedWealth));
+
+    // ========== 计算GDP（稳健版：平滑的正向财富增量） ==========
+    // 设计：GDP 作为“流量”指标，不等同于财富存量
+    // gdp = gdp * 0.9 + max(0, wealthDelta) * 0.1
+    const rawWealthDelta = nation.wealth - previousWealth;
+    const positiveDelta = Math.max(0, rawWealthDelta);
+    const gdpSmoothing = 0.9;
+    const gdpBaseline = Number.isFinite(nation.gdp)
+        ? nation.gdp
+        : Math.max(1, previousWealth * 0.05);
+    nation.gdp = Math.max(1, gdpBaseline * gdpSmoothing + positiveDelta * (1 - gdpSmoothing));
+    nation._lastWealth = nation.wealth;
 
     // Update budget
     const dynamicBudgetTarget = nation.wealth * 0.45;

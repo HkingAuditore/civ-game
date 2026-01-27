@@ -3289,6 +3289,8 @@ export const useGameActions = (gameState, addLog) => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
                     if (!targetAllianceIds.includes(n.id)) return false;
                     if (sharedAllianceIds.has(n.id)) return false;
+                    // ✅ 排除附庸国（附庸国不应该通过联盟自动参战）
+                    if (n.vassalOf || n.isVassal === true) return false;
                     // ✅ 底线检查：如果这个盟友与玩家的盟友在同一组织，不能号召
                     if (checkAllianceConflict(n.id, potentialPlayerAllies)) return false;
                     return true;

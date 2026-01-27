@@ -4,9 +4,13 @@
  */
 import React, { useState, useMemo, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { VASSAL_TYPE_CONFIGS, VASSAL_TYPE_LABELS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS } from '../../config/diplomacy';
+import { VASSAL_TYPE_CONFIGS, VASSAL_TYPE_LABELS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS, GOVERNANCE_POLICY_DEFINITIONS } from '../../config/diplomacy';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { calculateControlMeasureCost, checkGarrisonEffectiveness, calculateGovernorEffectiveness } from '../../logic/diplomacy/vassalSystem';
+import { isDebugEnabled } from '../../utils/debugFlags';
+import { calculateEnhancedTribute, calculateControlMeasureCost, checkGarrisonEffectiveness, calculateGovernorEffectiveness } from '../../logic/diplomacy/vassalSystem';
+import { GOVERNOR_EFFECTS_CONFIG } from '../../logic/diplomacy/vassalGovernors';
+import { getNationGDP } from '../../logic/diplomacy/economyUtils';
+import { calculateGovernorFullEffects } from '../../logic/diplomacy/vassalGovernors';
 
 /**
  * 政策选项卡片
@@ -56,6 +60,57 @@ const PolicyOptionCard = memo(({
 const formatSatisfactionDelta = (value) => {
     if (!Number.isFinite(value) || value === 0) return '0';
     return value > 0 ? `+${value}` : `${value}`;
+};
+
+const formatDecimal = (value, digits = 2) => {
+    if (!Number.isFinite(value)) return '0';
+    return value.toFixed(digits).replace(/\.?0+$/, '');
+};
+
+const formatDailyRate = (value) => formatDecimal(value, 2);
+
+const getControlMeasureEffectsText = (measureId) => {
+    const config = INDEPENDENCE_CONFIG.controlMeasures?.[measureId];
+    if (!config) return null;
+
+    const parts = [];
+    if (measureId === 'garrison') {
+        if (config.independenceReduction) {
+            parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
+        }
+        if (config.commonerSatisfactionPenalty) {
+            parts.push(`平民满意度${formatSatisfactionDelta(config.commonerSatisfactionPenalty)}`);
+        }
+        return parts.join('，');
+    }
+
+    if (measureId === 'assimilation') {
+        if (config.independenceCapReduction) {
+            parts.push(`独立上限-${formatDailyRate(config.independenceCapReduction)}/天`);
+        }
+        if (config.independenceReduction) {
+            parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
+        }
+        if (config.satisfactionPenalty) {
+            parts.push(`全阶层满意度${formatSatisfactionDelta(config.satisfactionPenalty)}`);
+        }
+        return parts.join('，');
+    }
+
+    if (measureId === 'economicAid') {
+        if (config.commonerSatisfactionBonus) {
+            parts.push(`平民满意度+${config.commonerSatisfactionBonus}`);
+        }
+        if (config.underclassSatisfactionBonus) {
+            parts.push(`下层满意度+${config.underclassSatisfactionBonus}`);
+        }
+        if (config.independenceReduction) {
+            parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
+        }
+        return parts.join('，');
+    }
+
+    return null;
 };
 
 const getSatisfactionEffectsText = (category, policyId) => {
@@ -342,8 +397,11 @@ const VassalPolicyModalComponent = ({
     // 获取附庸配置
     const vassalConfig = VASSAL_TYPE_CONFIGS[nation?.vassalType] || {};
     const baseTributeRate = vassalConfig.tributeRate || 0.1;
-    const vassalWealth = nation?.wealth || 500;
+    const vassalGDP = getNationGDP(nation, 1000);  // 使用GDP而非累积财富来计算控制成本
     const vassalMilitary = nation?.militaryStrength || 0.5;
+    const governancePolicy = nation?.vassalPolicy?.governance || 'autonomous';
+    const governanceControlCostMod = GOVERNANCE_POLICY_DEFINITIONS?.[governancePolicy]?.controlCostMod ?? 1;
+    const showCostDebug = isDebugEnabled('vassalCost');
 
     // 政策状态
     const [diplomaticControl, setDiplomaticControl] = useState(
@@ -403,21 +461,46 @@ const VassalPolicyModalComponent = ({
             .map(([id]) => id);
     }, [controlMeasures]);
 
-    // 计算控制手段总成本 (NEW: Dynamic cost calculation)
-    const totalControlCost = useMemo(() => {
-        return activeControlMeasures.reduce((sum, measureId) => {
-            return sum + calculateControlMeasureCost(measureId, vassalWealth);
-        }, 0);
-    }, [activeControlMeasures, vassalWealth]);
-
     // Calculate individual measure costs for display
     const measureCosts = useMemo(() => {
         const costs = {};
         CONTROL_MEASURES.forEach(m => {
-            costs[m.id] = calculateControlMeasureCost(m.id, vassalWealth);
+            if (m.id === 'governor') {
+                const officialId = controlMeasures.governor?.officialId;
+                const official = officials.find(o => o.id === officialId);
+                if (official) {
+                    const governorEffects = calculateGovernorFullEffects(official, {
+                        ...nation,
+                        gdp: vassalGDP,
+                        vassalPolicy: {
+                            ...(nation?.vassalPolicy || {}),
+                            controlMeasures: {
+                                ...(nation?.vassalPolicy?.controlMeasures || {}),
+                                ...controlMeasures,
+                                governor: {
+                                    ...(controlMeasures.governor || {}),
+                                    mandate: controlMeasures.governor?.mandate || 'pacify',
+                                },
+                            },
+                        },
+                    });
+                    costs[m.id] = governorEffects.dailyCost * governanceControlCostMod;
+                } else {
+                    costs[m.id] = calculateControlMeasureCost(m.id, vassalGDP) * governanceControlCostMod;
+                }
+            } else {
+                costs[m.id] = calculateControlMeasureCost(m.id, vassalGDP) * governanceControlCostMod;
+            }
         });
         return costs;
-    }, [vassalWealth]);
+    }, [controlMeasures, governanceControlCostMod, nation, officials, vassalGDP]);
+
+    // 计算控制手段总成本 (NEW: Dynamic cost calculation based on GDP)
+    const totalControlCost = useMemo(() => {
+        return activeControlMeasures.reduce((sum, measureId) => {
+            return sum + (measureCosts[measureId] || 0);
+        }, 0);
+    }, [activeControlMeasures, measureCosts]);
 
     // 计算控制手段带来的独立倾向变化
     const controlMeasuresIndependenceChange = useMemo(() => {
@@ -466,11 +549,15 @@ const VassalPolicyModalComponent = ({
         return change;
     }, [diplomaticControl, tradePolicy, tributeRate, baseTributeRate, controlMeasuresIndependenceChange]);
 
-    // 计算预估朝贡收入
-    const estimatedTribute = useMemo(() => {
-        const gdp = nation?.gdp || 10000;
-        return gdp * (tributeRate / 100);
-    }, [nation?.gdp, tributeRate]);
+    // 计算预估朝贡收入（日均）
+    const estimatedTributeDaily = useMemo(() => {
+        if (!nation) return 0;
+        const tribute = calculateEnhancedTribute({
+            ...nation,
+            tributeRate: tributeRate / 100,
+        });
+        return (tribute.silver || 0);
+    }, [nation, tributeRate]);
 
     // 应用政策
     const handleApply = () => {
@@ -591,7 +678,7 @@ const VassalPolicyModalComponent = ({
                                 max={Math.floor(baseTributeRate * 150)}
                                 step={1}
                                 format={(v) => `${Math.round(v)}%`}
-                                description={`基准值：${Math.round(baseTributeRate * 100)}%，预计月收入：${formatNumberShortCN(estimatedTribute)}`}
+                                description={`基准值：${Math.round(baseTributeRate * 100)}%，预计日收入：${formatNumberShortCN(estimatedTributeDaily)}`}
                                 warningThreshold={baseTributeRate * 120}
                                 warningText="过高的朝贡率会增加独立倾向"
                             />
@@ -610,12 +697,13 @@ const VassalPolicyModalComponent = ({
                             )}
                         </h3>
                         <p className="text-xs text-gray-500 mb-2">
-                            成本基于附庸财富动态计算：基础成本 + 附庸财富 × 比例系数
+                            成本基于附庸GDP动态计算：基础成本 + 附庸GDP × 比例系数（总督另含威望成本）
                         </p>
                         <div className="grid grid-cols-1 gap-3">
                             {CONTROL_MEASURES.map(measure => {
                                 const isActive = controlMeasures[measure.id]?.active;
                                 const dynamicCost = measureCosts[measure.id];
+                                const measureConfig = INDEPENDENCE_CONFIG.controlMeasures?.[measure.id] || {};
 
                                 return (
                                     <div
@@ -658,7 +746,18 @@ const VassalPolicyModalComponent = ({
                                         </div>
 
                                         <p className="text-xs text-gray-400 mb-2 font-body">{measure.description}</p>
-                                        <p className={`text-xs ${measure.effectColor} font-body mb-2`}>{measure.effects}</p>
+                                        <p className={`text-xs ${measure.effectColor} font-body mb-2`}>
+                                            {getControlMeasureEffectsText(measure.id) || measure.effects}
+                                        </p>
+                                        {showCostDebug && (
+                                            <div className="text-[10px] text-gray-500 font-mono">
+                                                GDP={Math.round(vassalGDP)}
+                                                {' '}| base={measureConfig.baseCost ?? 0}
+                                                {' '}| scale={measureConfig.wealthScalingFactor ?? 0}
+                                                {' '}| govMod={governanceControlCostMod}
+                                                {measure.id === 'governor' ? ` | prestigeCost/pt=${GOVERNOR_EFFECTS_CONFIG?.dailyCost?.perPrestige ?? 0}` : ''}
+                                            </div>
+                                        )}
 
                                         {/* Governor-specific: Official Selector */}
                                         {measure.id === 'governor' && (
@@ -693,7 +792,7 @@ const VassalPolicyModalComponent = ({
                             <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5">
                                 <span className="text-gray-400 font-body">独立倾向变化</span>
                                 <span className={`font-mono font-epic ${estimatedIndependenceChange > 0 ? 'text-red-400' :
-                                        estimatedIndependenceChange < 0 ? 'text-green-400' : 'text-gray-400'
+                                    estimatedIndependenceChange < 0 ? 'text-green-400' : 'text-gray-400'
                                     }`}>
                                     {estimatedIndependenceChange > 0 ? '+' : ''}{estimatedIndependenceChange.toFixed(1)}/年
                                 </span>
@@ -701,7 +800,7 @@ const VassalPolicyModalComponent = ({
                             <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5">
                                 <span className="text-gray-400 font-body">预计日朝贡</span>
                                 <span className="text-amber-400 font-mono font-epic">
-                                    {formatNumberShortCN(estimatedTribute / 30)}
+                                    {formatNumberShortCN(estimatedTributeDaily)}
                                 </span>
                             </div>
                             {totalControlCost > 0 && (
@@ -729,7 +828,7 @@ const VassalPolicyModalComponent = ({
                             </div>
                         )}
 
-                        {totalControlCost > estimatedTribute && (
+                        {totalControlCost > estimatedTributeDaily && (
                             <div className="mt-2 text-xs text-red-400 flex items-center gap-1 font-body">
                                 <Icon name="AlertTriangle" size={12} />
                                 控制成本超过朝贡收入！考虑减少控制措施

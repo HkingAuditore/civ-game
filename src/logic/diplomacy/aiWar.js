@@ -925,6 +925,46 @@ export const checkWarDeclaration = ({
                 }
             });
         }
+
+        // [NEW] Military Alliance Auto-Join: Player's alliance members automatically join war against attacker
+        // But only if they are NOT allied with the attacker (allies cannot fight allies)
+        if (nations && diplomacyOrganizations?.organizations) {
+            const orgs = diplomacyOrganizations.organizations;
+            const playerAllies = getAllianceMembers('player', orgs);
+            
+            playerAllies.forEach(allyId => {
+                const ally = nations.find(n => n.id === allyId);
+                if (!ally) return;
+                
+                // Skip if ally is already at war with attacker
+                if (ally.foreignWars?.[next.id]?.isAtWar) return;
+                
+                // Skip if ally has peace treaty with attacker
+                const peaceUntil = ally.foreignWars?.[next.id]?.peaceTreatyUntil || 0;
+                if (tick < peaceUntil) return;
+                
+                // CRITICAL: Check if ally is also allied with the attacker
+                // If so, they remain neutral (allies cannot fight allies)
+                if (areNationsAllied(ally.id, next.id, orgs)) {
+                    logs.push(`⚖️ ${ally.name} 同时是你和 ${next.name} 的盟友，选择保持中立。`);
+                    return;
+                }
+                
+                // Ally joins war against attacker
+                if (!next.foreignWars) next.foreignWars = {};
+                if (!ally.foreignWars) ally.foreignWars = {};
+                
+                next.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                ally.foreignWars[next.id] = {
+                    isAtWar: true,
+                    warStartDay: tick,
+                    warScore: 0,
+                    followingAlliance: true,  // Mark this war as following alliance obligation
+                    allianceTarget: 'player'  // Track which ally they're defending
+                };
+                logs.push(`⚔️ ${ally.name} 响应军事同盟义务，对 ${next.name} 宣战！`);
+            });
+        }
     }
 
     // Wealth-based war check (also respects minWarEpoch from difficulty)
@@ -975,6 +1015,44 @@ export const checkWarDeclaration = ({
                             }
                         }
                     }
+                });
+            }
+
+            // [NEW] Military Alliance Auto-Join for Wealth War too
+            if (nations && diplomacyOrganizations?.organizations) {
+                const orgs = diplomacyOrganizations.organizations;
+                const playerAllies = getAllianceMembers('player', orgs);
+                
+                playerAllies.forEach(allyId => {
+                    const ally = nations.find(n => n.id === allyId);
+                    if (!ally) return;
+                    
+                    // Skip if ally is already at war with attacker
+                    if (ally.foreignWars?.[next.id]?.isAtWar) return;
+                    
+                    // Skip if ally has peace treaty with attacker
+                    const peaceUntil = ally.foreignWars?.[next.id]?.peaceTreatyUntil || 0;
+                    if (tick < peaceUntil) return;
+                    
+                    // CRITICAL: Check if ally is also allied with the attacker
+                    if (areNationsAllied(ally.id, next.id, orgs)) {
+                        logs.push(`⚖️ ${ally.name} 同时是你和 ${next.name} 的盟友，选择保持中立。`);
+                        return;
+                    }
+                    
+                    // Ally joins war against attacker
+                    if (!next.foreignWars) next.foreignWars = {};
+                    if (!ally.foreignWars) ally.foreignWars = {};
+                    
+                    next.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                    ally.foreignWars[next.id] = {
+                        isAtWar: true,
+                        warStartDay: tick,
+                        warScore: 0,
+                        followingAlliance: true,
+                        allianceTarget: 'player'
+                    };
+                    logs.push(`⚔️ ${ally.name} 响应军事同盟义务，对 ${next.name} 宣战！`);
                 });
             }
         }

@@ -10,6 +10,7 @@
  */
 
 import { INDEPENDENCE_CONFIG } from '../../config/diplomacy.js';
+import { getNationGDP } from './economyUtils.js';
 
 /**
  * 总督施政纲领 (Governor Mandates)
@@ -97,7 +98,7 @@ export const GOVERNOR_EFFECTS_CONFIG = {
     // @deprecated 请使用 INDEPENDENCE_CONFIG.controlMeasures.governor
     dailyCost: {
         base: 30,
-        perPrestige: 0.5,
+        perPrestige: 10,
     },
 };
 
@@ -180,13 +181,13 @@ export const calculateGovernorFullEffects = (official, vassalNation = {}) => {
     stabilityBonus *= stratumBonus.stability || 1.0;
     tributeModifier *= stratumBonus.tributeBonus || 1.0;
 
-    // ========== 每日成本（动态计算，考虑附庸财富） ==========
-    // 成本组成：基础成本 + 附庸财富系数 + 威望系数
+    // ========== 每日成本（动态计算，基于附庸GDP） ==========
+    // 成本组成：基础成本 + 附庸GDP系数 + 威望系数
     const governorConfig = INDEPENDENCE_CONFIG.controlMeasures.governor;
-    const vassalWealth = vassalNation?.wealth || 0;
+    const vassalGDP = getNationGDP(vassalNation, 1000);
     const dailyCost =
         governorConfig.baseCost +
-        vassalWealth * governorConfig.wealthScalingFactor +
+        vassalGDP * governorConfig.wealthScalingFactor +
         prestige * config.dailyCost.perPrestige;
 
     // ========== 生成随机治理事件 (Governor Actions) ==========

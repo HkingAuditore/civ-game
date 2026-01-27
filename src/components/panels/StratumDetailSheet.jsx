@@ -393,7 +393,7 @@ const StratumDetailSheetComponent = ({
                                 <Icon name="Users" size={12} className="text-blue-400" />
                                 <span className="text-[9px] text-gray-400 leading-none">人口</span>
                             </div>
-                            <div className="text-sm font-bold text-white font-mono leading-none">{count}</div>
+                            <div className="text-sm font-bold text-white font-mono leading-none">{Math.floor(count)}</div>
                         </div>
 
                         {/* 好感度 / 官员忠诚度 (特殊处理) */}

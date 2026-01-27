@@ -9,7 +9,8 @@ import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS, MILITARY_POLICY_DEFINITIONS } from '../../config/diplomacy';
+import { isDebugEnabled } from '../../utils/debugFlags';
+import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS, MILITARY_POLICY_DEFINITIONS, GOVERNANCE_POLICY_DEFINITIONS } from '../../config/diplomacy';
 import {
     calculateEnhancedTribute,
     calculateControlMeasureCost,
@@ -18,6 +19,7 @@ import {
     getIndependenceChangeBreakdown
 } from '../../logic/diplomacy/vassalSystem';
 import { GOVERNOR_MANDATES, calculateGovernorFullEffects, GOVERNOR_EFFECTS_CONFIG } from '../../logic/diplomacy/vassalGovernors';
+import { getNationGDP } from '../../logic/diplomacy/economyUtils';
 
 // ==================== 政策调整相关组件 ====================
 
@@ -75,6 +77,106 @@ const getSatisfactionEffectsText = (category, policyId) => {
     const effects = VASSAL_POLICY_SATISFACTION_EFFECTS?.[category]?.[policyId];
     if (!effects) return null;
     return `满意度: 精英${formatSatisfactionDelta(effects.elites)} / 平民${formatSatisfactionDelta(effects.commoners)} / 下层${formatSatisfactionDelta(effects.underclass)}`;
+};
+
+const formatDecimal = (value, digits = 2) => {
+    if (!Number.isFinite(value)) return '0';
+    return value.toFixed(digits).replace(/\.?0+$/, '');
+};
+
+const formatDailyRate = (value) => formatDecimal(value, 2);
+
+const formatModifierPercent = (modifier) => {
+    if (!Number.isFinite(modifier)) return '0%';
+    const percent = Math.round((modifier - 1) * 100);
+    return percent > 0 ? `+${percent}%` : `${percent}%`;
+};
+
+const getGovernanceEffectsText = (policyId) => {
+    const config = GOVERNANCE_POLICY_DEFINITIONS?.[policyId];
+    if (!config) return null;
+    const tributeText = `朝贡${formatModifierPercent(config.tributeMod ?? 1)}`;
+    const costText = `控制成本${formatModifierPercent(config.controlCostMod ?? 1)}`;
+    const independenceText = `独立倾向${formatModifierPercent(config.independenceGrowthMod ?? 1)}`;
+    return `${tributeText}，${costText}，${independenceText}`;
+};
+
+const getControlMeasureEffectsText = (measureId) => {
+    const config = INDEPENDENCE_CONFIG.controlMeasures?.[measureId];
+    if (!config) return null;
+
+    const parts = [];
+    if (measureId === 'garrison') {
+        if (config.independenceReduction) {
+            parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
+        }
+        if (config.commonerSatisfactionPenalty) {
+            parts.push(`平民满意度${formatSatisfactionDelta(config.commonerSatisfactionPenalty)}`);
+        }
+        return parts.join('，');
+    }
+
+    if (measureId === 'assimilation') {
+        if (config.independenceCapReduction) {
+            parts.push(`独立上限-${formatDailyRate(config.independenceCapReduction)}/天`);
+        }
+        if (config.independenceReduction) {
+            parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
+        }
+        if (config.satisfactionPenalty) {
+            parts.push(`全阶层满意度${formatSatisfactionDelta(config.satisfactionPenalty)}`);
+        }
+        return parts.join('，');
+    }
+
+    if (measureId === 'economicAid') {
+        if (config.commonerSatisfactionBonus) {
+            parts.push(`平民满意度+${config.commonerSatisfactionBonus}`);
+        }
+        if (config.underclassSatisfactionBonus) {
+            parts.push(`下层满意度+${config.underclassSatisfactionBonus}`);
+        }
+        if (config.independenceReduction) {
+            parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
+        }
+        return parts.join('，');
+    }
+
+    return null;
+};
+
+const getControlMeasureMechanics = (measureId) => {
+    const config = INDEPENDENCE_CONFIG.controlMeasures?.[measureId];
+    if (!config) return null;
+
+    if (measureId === 'garrison') {
+        const requirement = config.militaryStrengthRequirement ?? 0.5;
+        const commitment = config.militaryCommitmentFactor ?? 0.5;
+        return [
+            `判定：军力 ≥ 附庸军力 × ${Math.round(requirement * 100)}%`,
+            '军力不足仅 20% 效果',
+            `占用军力 = 附庸军力 × ${Math.round(commitment * 100)}%`,
+        ];
+    }
+
+    if (measureId === 'assimilation') {
+        const minCap = config.minIndependenceCap ?? 30;
+        return [
+            `每日降低独立上限（最低 ${minCap}）`,
+            '全阶层满意度小幅惩罚',
+        ];
+    }
+
+    if (measureId === 'economicAid') {
+        const focusChance = config.investmentFocusChance ?? 0;
+        const chanceMultiplier = config.investmentChanceMultiplier ?? 1;
+        return [
+            `优先投资概率 ${Math.round(focusChance * 100)}%`,
+            `投资执行概率 ×${formatDecimal(chanceMultiplier, 2)}`,
+        ];
+    }
+
+    return null;
 };
 
 /**
@@ -503,7 +605,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 <div>
                     <div className="text-xs text-gray-400">日朝贡</div>
                     <div className="text-lg font-bold text-amber-300">
-                        +{formatNumberShortCN((tribute.silver || 0) / 30)} 银
+                        +{formatNumberShortCN((tribute.silver || 0))} 银
                     </div>
                 </div>
                 <div>
@@ -522,10 +624,10 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 <span className="text-sm font-semibold text-gray-200">阶层满意度</span>
                 <span className="ml-auto text-xs text-gray-400">
                     平均: {Math.round(
-                        nation.socialStructure 
-                            ? ((nation.socialStructure.elites?.satisfaction || 50) + 
-                               (nation.socialStructure.commoners?.satisfaction || 50) + 
-                               (nation.socialStructure.underclass?.satisfaction || 50)) / 3
+                        nation.socialStructure
+                            ? ((nation.socialStructure.elites?.satisfaction || 50) +
+                                (nation.socialStructure.commoners?.satisfaction || 50) +
+                                (nation.socialStructure.underclass?.satisfaction || 50)) / 3
                             : 50
                     )}%
                 </span>
@@ -676,7 +778,8 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const vassalConfig = VASSAL_TYPE_CONFIGS[nation?.vassalType] || {};
     const vassalType = nation?.vassalType || 'protectorate';
     const baseTributeRate = vassalConfig.tributeRate || 0.1;
-    const vassalWealth = nation?.wealth || 500;
+    const vassalGDP = getNationGDP(nation, 1000);  // 使用GDP而非累积财富来计算控制成本
+    const showCostDebug = isDebugEnabled('vassalCost');
     const vassalMilitary = nation?.militaryStrength || 0.5;
 
     // 根据附庸类型过滤可用的外交控制选项 - All available now
@@ -698,6 +801,10 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const [governancePolicy, setGovernancePolicy] = useState(
         nation?.vassalPolicy?.governance || 'puppet_govt'
     );
+    const governanceControlCostMod = useMemo(() => {
+        const config = GOVERNANCE_POLICY_DEFINITIONS?.[governancePolicy];
+        return Number.isFinite(config?.controlCostMod) ? config.controlCostMod : 1;
+    }, [governancePolicy]);
     const [investmentPolicy, setInvestmentPolicy] = useState(
         nation?.vassalPolicy?.investmentPolicy || 'autonomous'
     );
@@ -797,24 +904,37 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     // Calculate individual measure costs for display
     const measureCosts = useMemo(() => {
         const costs = {};
+        const governorContextNation = {
+            ...nation,
+            gdp: vassalGDP,
+            vassalPolicy: {
+                ...(nation?.vassalPolicy || {}),
+                controlMeasures: {
+                    ...(nation?.vassalPolicy?.controlMeasures || {}),
+                    ...controlMeasures,
+                    governor: {
+                        ...(controlMeasures.governor || {}),
+                        mandate: controlMeasures.governor?.mandate || 'pacify',
+                    },
+                },
+            },
+        };
         CONTROL_MEASURES.forEach(m => {
             if (m.id === 'governor') {
                 const officialId = controlMeasures.governor?.officialId;
                 const official = officialsById.get(officialId);
                 if (official) {
-                    const baseCost = GOVERNOR_EFFECTS_CONFIG.dailyCost.base;
-                    const prestigeCost = (official.prestige || 50) * GOVERNOR_EFFECTS_CONFIG.dailyCost.perPrestige;
-                    // Use prestige-based cost directly to match backend replacement logic
-                    costs[m.id] = baseCost + prestigeCost;
+                    const governorEffects = calculateGovernorFullEffects(official, governorContextNation);
+                    costs[m.id] = governorEffects.dailyCost * governanceControlCostMod;
                 } else {
-                    costs[m.id] = calculateControlMeasureCost(m.id, vassalWealth);
+                    costs[m.id] = calculateControlMeasureCost(m.id, vassalGDP) * governanceControlCostMod;
                 }
             } else {
-                costs[m.id] = calculateControlMeasureCost(m.id, vassalWealth);
+                costs[m.id] = calculateControlMeasureCost(m.id, vassalGDP) * governanceControlCostMod;
             }
         });
         return costs;
-    }, [vassalWealth, controlMeasures.governor?.officialId, officialsById]);
+    }, [controlMeasures, governanceControlCostMod, nation, officialsById, vassalGDP]);
 
     // 计算控制手段总成本 (NEW: Dynamic cost calculation)
     const totalControlCost = useMemo(() => {
@@ -823,11 +943,19 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         }, 0);
     }, [activeControlMeasures, measureCosts]);
 
-    // 计算预估朝贡收入
-    const estimatedTribute = useMemo(() => {
-        const gdp = nation?.gdp || 10000;
-        return gdp * (tributeRate / 100);
-    }, [nation?.gdp, tributeRate]);
+    // 计算预估朝贡收入（日均）
+    const estimatedTributeDaily = useMemo(() => {
+        if (!nation) return 0;
+        const tribute = calculateEnhancedTribute({
+            ...nation,
+            tributeRate: tributeRate / 100,
+            vassalPolicy: {
+                ...(nation?.vassalPolicy || {}),
+                governance: governancePolicy,
+            },
+        });
+        return (tribute.silver || 0);
+    }, [governancePolicy, nation, tributeRate]);
 
     const buildPolicyPayload = useCallback(() => ({
         diplomaticControl,
@@ -859,14 +987,14 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const pendingPolicyRef = useRef(null);
     const lastAppliedRef = useRef({ nationId: null, payloadKey: null });
     const onApplyPolicyRef = useRef(onApplyPolicy);
-    
+
     // Keep onApplyPolicyRef up to date
     useEffect(() => {
         onApplyPolicyRef.current = onApplyPolicy;
     }, [onApplyPolicy]);
-    
+
     const policyPayload = useMemo(() => buildPolicyPayload(), [buildPolicyPayload]);
-    const policyPayloadKey = useMemo(() => JSON.stringify(policyPayload), [policyPayload]);    useEffect(() => {
+    const policyPayloadKey = useMemo(() => JSON.stringify(policyPayload), [policyPayload]); useEffect(() => {
         if (!nation) return;
 
         pendingPolicyRef.current = policyPayload;
@@ -1075,19 +1203,26 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                     <span className="text-[10px] text-gray-500 ml-1">（影响附庸的行政管理方式）</span>
                 </h3>
                 <div className="space-y-2">
-                    {GOVERNANCE_POLICY_OPTIONS.map(option => (
-                        <PolicyOptionCard
-                            key={option.id}
-                            selected={governancePolicy === option.id}
-                            title={option.title}
-                            description={option.description}
-                            effects={option.effects}
-                            effectColor={option.effectColor}
-                            extraEffects={satisfactionEffectsCache.governance?.[option.id]}
-                            onClick={() => setGovernancePolicy(option.id)}
-                            disabled={option.requiresGovernor && !controlMeasures.governor?.active}
-                        />
-                    ))}
+                    {GOVERNANCE_POLICY_OPTIONS.map(option => {
+                        const policyConfig = GOVERNANCE_POLICY_DEFINITIONS?.[option.id];
+                        const title = policyConfig?.name || option.title;
+                        const description = policyConfig?.description || option.description;
+                        const effects = getGovernanceEffectsText(option.id) || option.effects;
+                        const requiresGovernor = option.requiresGovernor || policyConfig?.requiresGovernor;
+                        return (
+                            <PolicyOptionCard
+                                key={option.id}
+                                selected={governancePolicy === option.id}
+                                title={title}
+                                description={description}
+                                effects={effects}
+                                effectColor={option.effectColor}
+                                extraEffects={satisfactionEffectsCache.governance?.[option.id]}
+                                onClick={() => setGovernancePolicy(option.id)}
+                                disabled={requiresGovernor && !controlMeasures.governor?.active}
+                            />
+                        );
+                    })}
                 </div>
             </div>
 
@@ -1153,7 +1288,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                         max={Math.floor(baseTributeRate * 150)}
                         step={1}
                         format={(v) => `${Math.round(v)}%`}
-                        description={`预计月收入：${formatNumberShortCN(estimatedTribute)}`}
+                        description={`预计日收入：${formatNumberShortCN(estimatedTributeDaily)}`}
                         warningThreshold={baseTributeRate * 120}
                         warningText="过高的朝贡率会增加独立倾向"
                         onInteractionStart={() => setIsAdjusting(true)}
@@ -1174,13 +1309,16 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                     )}
                 </h3>
                 <p className="text-[10px] text-gray-500 mb-2">
-                    成本基于附庸财富动态计算
+                    成本基于附庸GDP动态计算
                 </p>
                 <div className="space-y-2">
                     {CONTROL_MEASURES.map(measure => {
                         const isActive = controlMeasures[measure.id]?.active;
                         const dynamicCost = measureCosts[measure.id];
                         const isGovernor = measure.id === 'governor';
+                        const dynamicEffects = getControlMeasureEffectsText(measure.id) || measure.effects;
+                        const dynamicMechanics = getControlMeasureMechanics(measure.id) || measure.mechanics;
+                        const measureConfig = INDEPENDENCE_CONFIG.controlMeasures?.[measure.id] || {};
 
                         return (
                             <div
@@ -1249,15 +1387,24 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                         </div>
                                     </div>
                                     <p className="text-[11px] text-gray-400 mb-1">{measure.description}</p>
-                                    <p className={`text-[11px] font-medium ${measure.effectColor}`}>{measure.effects}</p>
+                                    <p className={`text-[11px] font-medium ${measure.effectColor}`}>{dynamicEffects}</p>
+                                    {showCostDebug && (
+                                        <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                            GDP={Math.round(vassalGDP)}
+                                            {' '}| base={measureConfig.baseCost ?? 0}
+                                            {' '}| scale={measureConfig.wealthScalingFactor ?? 0}
+                                            {' '}| govMod={governanceControlCostMod}
+                                            {measure.id === 'governor' ? ` | prestigeCost/pt=${GOVERNOR_EFFECTS_CONFIG?.dailyCost?.perPrestige ?? 0}` : ''}
+                                        </div>
+                                    )}
                                     {measure.id === 'garrison' && (
                                         <div className="text-[10px] text-gray-500 mt-0.5">
                                             占用军力：{garrisonCommitment.toFixed(1)}（附庸军力 {vassalMilitary.toFixed(1)} × {garrisonCommitmentFactor}）
                                         </div>
                                     )}
-                                    {measure.mechanics && (
+                                    {dynamicMechanics && (
                                         <div className="mt-1 space-y-0.5 text-[10px] text-gray-500">
-                                            {measure.mechanics.map((line) => (
+                                            {dynamicMechanics.map((line) => (
                                                 <div key={line} className="flex items-center gap-1">
                                                     <Icon name="Info" size={10} />
                                                     <span>{line}</span>

@@ -46,7 +46,7 @@ export const BottomSheet = ({
         <AnimatePresence>
             {isOpen && (
                 <div
-                    className={`fixed inset-0 z-50 flex items-end justify-center lg:items-center ${wrapperClassName}`}
+                    className={`fixed inset-0 z-[150] flex items-end justify-center lg:items-center ${wrapperClassName}`}
                     role="dialog"
                     aria-modal="true"
                 >
