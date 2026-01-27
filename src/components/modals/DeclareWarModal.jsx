@@ -52,7 +52,7 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                     </div>
 
                     {/* 内容 */}
-                    <div className="p-4 space-y-4">
+                    <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
                         {/* 目标国家信息 */}
                         <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-600/50">
                             <div className="flex items-center gap-2 mb-2">
