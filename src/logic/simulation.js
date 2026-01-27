@@ -1562,6 +1562,11 @@ export const simulateTick = ({
     // 逻辑与 simulation 尾部的 estimateVacantRoleIncome 类似，但只能使用上一 tick 的数据 (market.wages)
     const estimatePotentialIncomeForVacancy = (role) => {
         const VACANT_BONUS = 1.2;
+        
+        // [FIX] 计算税收效率，用于补贴计算
+        const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+        const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
+        
         let ownerIncome = 0;
         let ownerSlots = 0;
         let employeeWage = 0;
@@ -1608,9 +1613,14 @@ export const simulateTick = ({
                 const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
                 const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
+                // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
+                // 如果是补贴（负数），实际到账金额受税收效率影响
+                const effectiveBusinessTaxCost = businessTaxCost < 0 
+                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影响
+                    : businessTaxCost;                        // 正税全额支付
 
-                const netProfit = outputValue - inputCost - wageCost - headTaxCost - businessTaxCost;
+                const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
 
                 ownerIncome += profitPerOwner * roleSlots * count;
@@ -2191,8 +2201,10 @@ export const simulateTick = ({
         const businessTaxBase = b.businessTaxBase ?? 0.1;
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
-        // Use simTargetMultiplier for estimate
-        const estimatedBusinessTax = businessTaxPerBuilding * count * simTargetMultiplier;
+        // [FIX] 营业税只与建筑是否在运营相关（有工人在岗），与产量无关
+        // 使用 staffingRatio 确保预估和实际征收逻辑一致
+        const effectiveStaffingRatio = staffingRatio || 0;
+        const estimatedBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
 
         const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
         // Actual multiplier tracks real production (0 if empty)
@@ -2214,17 +2226,40 @@ export const simulateTick = ({
 
         if (producesTradableOutput) {
 
-            // 将营业税计入总成本（正税增加成本，负税（补贴）减少成本）
+            // [FIX] 使用边际成本分析而非总成本分析
+            // 工资是固定成本（已经承诺支付），不应影响产量决策
+            // 只有可变成本（原料+税费）应该影响产量决策
+            // 
+            // 经济学原理：
+            // - 如果边际收益（产出 - 原料 - 税费）> 0，应该生产
+            // - 即使总成本（含工资）> 总收入，只要边际收益 > 0，生产可以减少亏损
+            // - 只有当边际收益 < 0 时，才应该停产
+            
+            // 可变成本 = 原料成本 + 营业税（补贴为负，减少成本）
+            const variableCost = estimatedInputCost + estimatedBusinessTax;
+            // 边际收益 = 产出价值 - 可变成本
+            const marginalRevenue = estimatedRevenue - variableCost;
+            
+            // 总成本（用于调试和UI显示）
             const estimatedCost = estimatedInputCost + actualPayableWageCost + estimatedBusinessTax;
-            if (estimatedCost > 0 && estimatedRevenue <= 0) {
+            
+            if (estimatedRevenue <= 0) {
+                // 产出没有价值，停产
                 actualMultiplier = 0;
                 debugMarginRatio = 0;
-            } else if (estimatedCost > 0 && estimatedRevenue < estimatedCost * 0.98) {
-                const marginRatio = Math.max(0, Math.min(1, estimatedRevenue / estimatedCost));
+            } else if (marginalRevenue < 0) {
+                // 边际收益为负，生产越多亏损越大，停产
+                actualMultiplier = 0;
+                debugMarginRatio = 0;
+            } else if (marginalRevenue < actualPayableWageCost * 0.5) {
+                // 边际收益太低，无法覆盖一半的工资成本
+                // 按比例减产（边际收益 / 工资成本）
+                const marginRatio = Math.max(0, Math.min(1, marginalRevenue / actualPayableWageCost));
                 debugMarginRatio = marginRatio;
                 actualMultiplier = targetMultiplier * marginRatio;
                 simActualMultiplier = simTargetMultiplier * marginRatio;
             } else {
+                // 边际收益为正且足够，满负荷生产
                 debugMarginRatio = estimatedCost > 0 ? estimatedRevenue / estimatedCost : null;
             }
             // DEBUG: 存储调试数据到局部变量
@@ -2762,8 +2797,9 @@ export const simulateTick = ({
 
         // 营业税收取：每次建筑产出时收取固定银币值
         // businessTaxPerBuilding 已在上面声明，直接使用
-        // [FIX] 营业税应该根据实际到岗率征收，空置建筑不应产生营业税
-        // 使用 staffingRatio 确保只对有工人的建筑征税
+        // 营业税只与建筑是否在运营相关（有工人在岗），与产量无关
+        // 使用 staffingRatio 确保只对有工人的建筑征税/发补贴
+        // 空置建筑（staffingRatio=0）不产生税收/补贴
         if (businessTaxPerBuilding !== 0 && count > 0) {
             const effectiveStaffingRatio = staffingRatio || 0;
             const totalBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
@@ -2784,23 +2820,48 @@ export const simulateTick = ({
                 });
                 // taxBreakdown 由 Ledger 自动更新
             } else if (totalBusinessTax < 0) {
-                // 负值：按 owner 比例发放补贴
+                // [FIX] 负值：按 owner 比例发放补贴
+                // 补贴也应该受税收效率影响（腐败官员会贪污补贴）
+                // 使用 efficiency 参数（在 simulation 开始时计算）
+                // 注意：这里的 efficiency 是基础效率，不包含腐败加成
+                // 实际到账金额 = 补贴金额 × 效率
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
+                
+                // 计算实际发放金额（考虑税收效率）
+                // 使用与税收相同的效率计算逻辑
+                const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+                const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
+                const actualSubsidyAmount = subsidyAmount * effectiveEfficiency;
+                
                 if (treasury >= subsidyAmount) {
+                    // 从国库扣除全额补贴
                     Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                         const proportion = group.totalCount / count;
-                        const ownerSubsidy = subsidyAmount * proportion;
-                        ledger.transfer('state', oKey, ownerSubsidy, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
-                        roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidy;
+                        const ownerSubsidyFull = subsidyAmount * proportion;
+                        const ownerSubsidyActual = actualSubsidyAmount * proportion;
+                        
+                        // 业主只收到效率%的补贴
+                        ledger.transfer('state', oKey, ownerSubsidyActual, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+                        roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidyActual;
+                        
+                        // 剩余部分被腐败官员贪污（在后续腐败处理阶段统一分配）
+                        // 这里只记录补贴总额，腐败损失会在税收汇总阶段处理
                     });
+                    
+                    // 记录补贴支出（用于后续腐败计算）
+                    taxBreakdown.subsidy = (taxBreakdown.subsidy || 0) + subsidyAmount;
+                    
+                    if (effectiveEfficiency < 1 && tick % 30 === 0) {
+                        const lossPercent = ((1 - effectiveEfficiency) * 100).toFixed(1);
+                        recordAggregatedLog(`💸 ${b.name} 补贴因腐败损失 ${lossPercent}%`);
+                    }
                 } else {
                     if (tick % 30 === 0) {
-                        recordAggregatedLog(`?? 国库空虚，无法为 ${b.name} 支付营业补贴！`);
+                        recordAggregatedLog(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
                     }
                 }
-            }
-        }
+            }        }
 
         if (b.id === 'market') {
             const marketOwnerKey = b.owner || 'merchant';
@@ -6472,6 +6533,10 @@ export const simulateTick = ({
         }
         // 空岗位吸引力加成系数
         const VACANT_BONUS = 1.2;
+        
+        // [FIX] 计算税收效率，用于补贴计算
+        const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+        const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
 
         let ownerIncome = 0;
         let ownerSlots = 0;
@@ -6521,15 +6586,20 @@ export const simulateTick = ({
                     wageCost += avgPaidWage * slots;
                 });
 
-                // 计算税费成本（人头税 + 营业税）
+                // 计算税费成本（人头税 + 营业税/补贴）
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
                 const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
+                // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
+                // 如果是补贴（负数），实际到账金额受税收效率影响
+                const effectiveBusinessTaxCost = businessTaxCost < 0 
+                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影响
+                    : businessTaxCost;                        // 正税全额支付
 
-                // 业主净收入 = 产出 - 原材料 - 雇员工资 - 税费
-                const netProfit = outputValue - inputCost - wageCost - headTaxCost - businessTaxCost;
+                // 业主净收入 = 产出 - 原材料 - 雇员工资 - 税费（补贴为负，增加收入）
+                const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
 
                 ownerIncome += profitPerOwner * roleSlots * count;
@@ -6997,7 +7067,27 @@ export const simulateTick = ({
     const rawTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
     const effectiveTaxEfficiency = Math.max(0, Math.min(1, rawTaxEfficiency));
 
-    // 由于 taxBreakdown 现在是“实际入库”，collectedXxx 直接等于 taxBreakdown.xxx。
+    // ============================================================================
+    // 税收汇总与腐败处理（方案B）
+    // ============================================================================
+    // 【税收流程说明】
+    // 1. 征收阶段（第1760-1830行，第2760-2810行）：
+    //    - 阶层支付全额税款（已应用 effectiveTaxModifier，包含所有税收加成）
+    //    - 税款通过 ledger.transfer() 转入国库
+    //    - taxBreakdown 记录实际入库金额
+    //
+    // 2. 腐败处理阶段（本段代码）：
+    //    - 计算腐败损失 = 税基 × (理论效率 - 实际效率)
+    //    - 从国库扣除腐败损失，分配给贪污官员
+    //    - 国库最终收入 = 阶层支付 - 腐败损失
+    //
+    // 3. 结果：
+    //    - 阶层：支付 100% 税款（按 effectiveTaxModifier 计算）
+    //    - 国库：收到 效率% 的税款（扣除腐败后）
+    //    - 官员：获得 (1-效率)% 的贪污收入
+    // ============================================================================
+    
+    // 由于 taxBreakdown 现在是"实际入库"，collectedXxx 直接等于 taxBreakdown.xxx。
     const collectedHeadTax = taxBreakdown.headTax;
     const collectedIndustryTax = taxBreakdown.industryTax;
     const collectedBusinessTax = taxBreakdown.businessTax;
@@ -7016,6 +7106,8 @@ export const simulateTick = ({
     // });
 
     // 腐败分配逻辑：将部分税收收入视为被贪污挪走（真实从国库扣除），并按权重分配给官员财富。
+    // 腐败损失 = 税基 × (理论效率 - 实际效率)
+    // 例如：税基1000，理论效率100%，实际效率70% → 腐败损失 = 1000 × (1.0 - 0.7) = 300
     const corruptionLoss = Math.max(0, taxBaseForCorruption * (efficiencyNoCorruption - effectiveTaxEfficiency));
     if (corruptionLoss > 0 && updatedOfficials.length > 0) {
         const paidMultiplier = officialsPaid ? 1 : 0.5;
@@ -7027,7 +7119,6 @@ export const simulateTick = ({
         const totalWeight = weights.reduce((sum, val) => sum + val, 0);
         const fallbackShare = corruptionLoss / updatedOfficials.length;
         let distributed = 0;
-
         updatedOfficials.forEach((official, index) => {
             const share = totalWeight > 0 ? corruptionLoss * (weights[index] / totalWeight) : fallbackShare;
             if (share <= 0) return;
@@ -7103,36 +7194,29 @@ export const simulateTick = ({
     // 税收效率损失已通过腐败分配给官员（第 6082-6105 行）
     // 这里只需要处理收入倍率加成（如果 incomePercentMultiplier > 1）
 
+    // [FIX] 方案B：税收效率只影响国库收入，不凭空增加银币
+    // 阶层已支付全额税款（在征收环节），国库收到的是扣除腐败后的金额
+    // incomePercentMultiplier 不应该凭空增加银币，而应该在征收时就体现在 effectiveTaxModifier 中
+    
     // 计算最终税额（用于 rates 显示）
-    const finalHeadTax = collectedHeadTax * incomePercentMultiplier;
-    const finalIndustryTax = collectedIndustryTax * incomePercentMultiplier;
-    const finalBusinessTax = collectedBusinessTax * incomePercentMultiplier;
-    const finalTariff = collectedTariff * incomePercentMultiplier;
-
-    // 收入倍率加成部分（额外收入）
-    if (incomePercentMultiplier > 1) {
-        const headTaxBonus = collectedHeadTax * (incomePercentMultiplier - 1);
-        const industryTaxBonus = collectedIndustryTax * (incomePercentMultiplier - 1);
-        const businessTaxBonus = collectedBusinessTax * (incomePercentMultiplier - 1);
-        const tariffBonus = collectedTariff * (incomePercentMultiplier - 1);
-
-        if (headTaxBonus > 0) applySilverChange(headTaxBonus, 'headTax'); // 累加到 Ledger 的记录
-        if (industryTaxBonus > 0) applySilverChange(industryTaxBonus, 'transactionTax');
-        if (businessTaxBonus > 0) applySilverChange(businessTaxBonus, 'businessTax');
-        if (tariffBonus > 0) applySilverChange(tariffBonus, 'tariffs');
-    }
+    // 注意：这里不再乘以 incomePercentMultiplier，因为：
+    // 1. 阶层已经按照 effectiveTaxModifier（包含所有加成）支付了税款
+    // 2. 国库收到的是扣除腐败后的金额（已经通过 corruptionLoss 处理）
+    // 3. 不应该凭空增加银币
+    const finalHeadTax = collectedHeadTax;
+    const finalIndustryTax = collectedIndustryTax;
+    const finalBusinessTax = collectedBusinessTax;
+    const finalTariff = collectedTariff;
 
     // 更新 rates（用于 UI 显示）
     rates.silver = (rates.silver || 0) + finalHeadTax + finalIndustryTax + finalBusinessTax + finalTariff;
 
     // 5. 战争赔款加成部分
     // NOTE: processInstallmentPayment() already recorded the base amount with 'installment_payment_income'
-    // Here we only add the bonus portion from incomePercentMultiplier (if any)
-    const warIndemnityBonus = warIndemnityIncome * (incomePercentMultiplier - 1);
-    if (warIndemnityBonus > 0) {
-        applySilverChange(warIndemnityBonus, 'income_war_indemnity_bonus');
-        rates.silver = (rates.silver || 0) + warIndemnityBonus;
-    }
+    // [FIX] 方案B：战争赔款也不应该凭空增加银币
+    // processInstallmentPayment() 已经记录了基础金额
+    // 不应该再通过 incomePercentMultiplier 凭空增加
+    
     // Update rates for display (base amount was already added in processInstallmentPayment)
     if (warIndemnityIncome > 0) {
         rates.silver = (rates.silver || 0) + warIndemnityIncome;
@@ -7156,7 +7240,9 @@ export const simulateTick = ({
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
 
-    const totalFiscalIncome = (totalCollectedTax + warIndemnityIncome) * incomePercentMultiplier;
+    // [FIX] totalFiscalIncome 不应该乘以 incomePercentMultiplier
+    // 因为税收和战争赔款都已经是实际入库金额
+    const totalFiscalIncome = totalCollectedTax + warIndemnityIncome;
 
     const priceControlIncome = taxBreakdown.priceControlIncome || 0;
     const priceControlExpense = taxBreakdown.priceControlExpense || 0;
