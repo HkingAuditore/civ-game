@@ -1564,7 +1564,10 @@ export const simulateTick = ({
         const VACANT_BONUS = 1.2;
         
         // [FIX] 计算税收效率，用于补贴计算
-        const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+        // 注意：此时 efficiency 尚未计算，使用 currentStability 估算
+        const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
+        const estimatedEfficiency = estimatedStabilityFactor;
+        const rawEfficiency = estimatedEfficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
         const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
         
         let ownerIncome = 0;
@@ -2822,15 +2825,16 @@ export const simulateTick = ({
             } else if (totalBusinessTax < 0) {
                 // [FIX] 负值：按 owner 比例发放补贴
                 // 补贴也应该受税收效率影响（腐败官员会贪污补贴）
-                // 使用 efficiency 参数（在 simulation 开始时计算）
-                // 注意：这里的 efficiency 是基础效率，不包含腐败加成
+                // 注意：此时 efficiency 尚未计算，使用 currentStability 估算
                 // 实际到账金额 = 补贴金额 × 效率
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
                 
                 // 计算实际发放金额（考虑税收效率）
                 // 使用与税收相同的效率计算逻辑
-                const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+                const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
+                const estimatedEfficiency = estimatedStabilityFactor;
+                const rawEfficiency = estimatedEfficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
                 const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
                 const actualSubsidyAmount = subsidyAmount * effectiveEfficiency;
                 
