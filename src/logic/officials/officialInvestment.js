@@ -256,9 +256,10 @@ export const processOfficialInvestment = (
             return true;
         })
         .map(b => {
-            const currentCount = buildingCounts?.[b.id] || 0;
-            const scaledCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor);
-            const cost = calculateCostInSilver(scaledCost, market);
+            // [FIX] 官员投资使用基础成本，而非递增成本
+            // 避免在建筑数量很多时花费过高（如 1,316,667 银币）
+            // 官员投资代表"自筹资金新建分支机构"，不应受国家建设数量惩罚的影响
+            const cost = calculateCostInSilver(b.baseCost, market);
             const profit = calculateBuildingProfit(b, market, taxPolicies).profit;
             const preferenceWeight = profile.preferredCategories.includes(b.cat) ? 2.0 : 1.0;
             return {
