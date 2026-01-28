@@ -89,7 +89,7 @@ export const StrategicActionButton = ({
 
             {/* 弹窗 - 使用 createPortal 渲染到 document.body */}
             {showModal && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
                     {/* 遮罩层 */}
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
 

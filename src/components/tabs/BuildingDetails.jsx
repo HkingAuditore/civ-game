@@ -1249,11 +1249,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                             {Object.entries(nextCost).map(([res, val]) => {
                                 const hasEnough = (resources[res] || 0) >= val;
+                                const displayVal = Number.isFinite(val)
+                                    ? Math.ceil(val).toLocaleString()
+                                    : '0';
                                 return (
                                     <InfoRow
                                         key={res}
                                         label={RESOURCES[res]?.name || res}
-                                        value={`${val}`}
+                                        value={displayVal}
                                         valueClass={hasEnough ? 'text-green-400' : 'text-red-400'}
                                     />
                                 );

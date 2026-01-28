@@ -569,6 +569,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
         ministerAssignments,
+        ministerAutoExpansion,
         lastMinisterExpansionDay,
         setLastMinisterExpansionDay,
         setFiscalActual, // [NEW] realized fiscal numbers per tick
@@ -639,6 +640,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         officials,
         officialCapacity, // [FIX] 添加官员容量，用于 getCabinetStatus 计算
         ministerAssignments,
+        ministerAutoExpansion,
         lastMinisterExpansionDay,
         activeDecrees, // [NEW] Pass activeDecrees to simulation
         quotaTargets, // [NEW] Planned Economy targets
@@ -772,12 +774,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
             quotaTargets, // 计划经济目标配额
             officialCapacity, // 官员容量
             ministerAssignments,
+            ministerAutoExpansion,
             lastMinisterExpansionDay,
             priceControls, // [NEW] 计划经济价格管制设置
             foreignInvestments, // [NEW] 海外投资
             diplomaticReputation, // [FIX] 外交声誉
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation]);
 
     // 监听国家列表变化，自动清理无效的贸易路线和商人派驻（修复暂停状态下无法清理的问题）
     const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
