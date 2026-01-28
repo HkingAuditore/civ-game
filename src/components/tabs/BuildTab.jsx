@@ -86,11 +86,14 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                         <div className="text-[10px] text-gray-300 mb-1">下一个建造成本</div>
                         {Object.entries(cost).map(([res, val]) => {
                             const hasEnough = (resources[res] || 0) >= val;
+                            const displayVal = Number.isFinite(val)
+                                ? Math.ceil(val).toLocaleString()
+                                : '0';
                             return (
                                 <div key={`cost-${res}`} className="flex justify-between">
                                     <span className="text-gray-200">{RESOURCES[res]?.name || res}</span>
                                     <span className={`font-mono ${hasEnough ? 'text-green-400' : 'text-red-400'}`}>
-                                        {val}
+                                        {displayVal}
                                     </span>
                                 </div>
                             );

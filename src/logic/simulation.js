@@ -6864,7 +6864,9 @@ export const simulateTick = ({
 
     // ========== 部长自动扩建系统 ==========
     let nextLastMinisterExpansionDay = Number.isFinite(lastMinisterExpansionDay) ? lastMinisterExpansionDay : 0;
-    const shouldAttemptMinisterExpansion = ECONOMIC_MINISTER_ROLES.some((role) => ministerAssignments?.[role]);
+    const shouldAttemptMinisterExpansion = ECONOMIC_MINISTER_ROLES.some(
+        (role) => ministerAssignments?.[role] && ministerAutoExpansion?.[role] === true
+    );
 
     if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 10)) {
         const difficultyLevel = difficulty || 'normal';
@@ -6883,7 +6885,7 @@ export const simulateTick = ({
             if (!official) return;
             
             // [NEW] Check if auto-expansion is enabled for this minister
-            const autoExpansionEnabled = ministerAutoExpansion?.[role] ?? true;
+            const autoExpansionEnabled = ministerAutoExpansion?.[role] === true;
             if (!autoExpansionEnabled) return;
 
             BUILDINGS.forEach((building) => {
