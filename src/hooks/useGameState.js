@@ -12,7 +12,7 @@ import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
 // 多存档槽位系统
-const SAVE_SLOT_COUNT = 3; // 手动存档槽位数量
+const SAVE_SLOT_COUNT = 10; // 手动存档槽位数量
 const SAVE_SLOT_PREFIX = 'civ_game_save_slot_';
 const AUTOSAVE_KEY = 'civ_game_autosave_v1';
 const SAVE_FORMAT_VERSION = 1;
@@ -564,7 +564,7 @@ const trimMarketSnapshot = (market, limit) => {
 
 const compactSavePayload = (payload, { aggressive = false } = {}) => {
     const limits = aggressive ? AUTO_SAVE_AGGRESSIVE_LIMITS : AUTO_SAVE_LIMITS;
-    
+
     // Compact nations array (remove history and unnecessary data from vassals)
     const compactNations = (nations) => {
         if (!Array.isArray(nations)) return nations;
@@ -615,7 +615,7 @@ const compactSavePayload = (payload, { aggressive = false } = {}) => {
             return compacted;
         });
     };
-    
+
     const compacted = {
         ...payload,
         history: trimHistorySnapshot(payload.history, limits.history),
@@ -2002,7 +2002,7 @@ export const useGameState = () => {
         const payloadToSave = compactSavePayload(payload);
         let targetKey;
         let friendlyName;
-        
+
         // Helper function to clean up old saves
         const cleanupOldSaves = ({ includeAutoSave = false } = {}) => {
             try {
@@ -2021,7 +2021,7 @@ export const useGameState = () => {
                         }
                     }
                 }
-                
+
                 // Sort by timestamp (oldest first) and remove oldest saves
                 saveSlots.sort((a, b) => a.timestamp - b.timestamp);
                 const toRemove = saveSlots.slice(0, Math.max(0, saveSlots.length - 3));
@@ -2042,7 +2042,7 @@ export const useGameState = () => {
                 if (localStorage.getItem(LEGACY_SAVE_KEY)) {
                     localStorage.removeItem(LEGACY_SAVE_KEY);
                 }
-                
+
                 return toRemove.length > 0 || removedAuto;
             } catch (e) {
                 console.error('Failed to cleanup old saves:', e);
@@ -2093,7 +2093,7 @@ export const useGameState = () => {
             }
             return true;
         };
-        
+
         try {
 
             // 确定存储 key
@@ -2168,7 +2168,7 @@ export const useGameState = () => {
                         };
                         const minimalSize = calculateSaveSize(minimalPayload);
                         console.log(`Trying minimal manual save: ${minimalSize.display}`);
-                        
+
                         // Try IndexedDB first for minimal save too
                         if (hasIndexedDb()) {
                             const stored = await persistExternalSave(minimalPayload, minimalSize);
@@ -2186,7 +2186,7 @@ export const useGameState = () => {
                         console.error('Minimal manual save failed:', minimalManualError);
                     }
                 }
-                
+
                 // Try minimal save for auto-save
                 if (source === 'auto') {
                     try {
@@ -2212,12 +2212,12 @@ export const useGameState = () => {
                         console.error('Minimal auto save failed:', minimalError);
                     }
                 }
-                
+
                 // Try cleaning up old saves and retry
                 const cleaned = cleanupOldSaves({ includeAutoSave: source !== 'auto' });
                 if (cleaned) {
                     try {
-                        const minimalPayload = source === 'auto' 
+                        const minimalPayload = source === 'auto'
                             ? buildMinimalAutoSavePayload(payload)
                             : compactSavePayload(payload, { aggressive: true });
                         const retrySize = calculateSaveSize(minimalPayload);
@@ -2248,7 +2248,7 @@ export const useGameState = () => {
                 }
 
                 // Remove redundant final IndexedDB attempt since we already tried it first
-                
+
                 // All attempts failed
                 if (source === 'auto') {
                     setIsAutoSaveEnabled(false);
@@ -2679,11 +2679,11 @@ export const useGameState = () => {
                 updatedAt: processed.updatedAt || parsed.updatedAt || Date.now(),
                 lastAutoSaveTime: processed.lastAutoSaveTime || lastAutoSaveTime || Date.now(),
             };
-            
+
             // Helper function to check quota error
             const isQuotaExceeded = (err) => err?.name === 'QuotaExceededError'
                 || `${err?.message || ''}`.toLowerCase().includes('quota');
-            
+
             // Try to save, with fallback compression for quota issues
             const targetKey = `${SAVE_SLOT_PREFIX}0`;
             try {
@@ -2724,7 +2724,7 @@ export const useGameState = () => {
                     throw saveError;
                 }
             }
-            
+
             applyLoadedGameState(normalized);
             addLogEntry('📥 已从备份文件导入存档！');
             return true;
@@ -2788,7 +2788,7 @@ export const useGameState = () => {
             // Helper function to check quota error
             const isQuotaExceeded = (err) => err?.name === 'QuotaExceededError'
                 || `${err?.message || ''}`.toLowerCase().includes('quota');
-            
+
             // Try to save, with fallback compression for quota issues
             const targetKey = `${SAVE_SLOT_PREFIX}0`;
             try {
