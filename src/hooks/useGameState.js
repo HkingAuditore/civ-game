@@ -920,8 +920,38 @@ const buildDefaultBusinessTaxRates = () => {
     return rates;
 };
 
-const buildInitialNations = () => {
+const buildInitialNations = (playerState = null) => {
+    // 如果提供了玩家状态，用于缩放新国家的初始值
+    const playerPopulation = playerState?.population || 0;
+    const playerWealth = playerState?.resources?.silver || 0;
+    const currentEpoch = playerState?.epoch || 0;
+
     return COUNTRIES.map(nation => {
+        const appearEpoch = nation.appearEpoch ?? 0;
+        
+        // 计算缩放因子：基于玩家当前发展水平和国家出现时代
+        let populationScale = 1.0;
+        let wealthScale = 1.0;
+        
+        if (playerState && appearEpoch > 0) {
+            // 如果国家出现时代晚于当前时代，说明是后期解锁的国家
+            // 需要根据玩家当前实力进行缩放
+            if (appearEpoch <= currentEpoch) {
+                // 人口缩放：基于玩家当前人口，但有上下限
+                // 新国家人口应该是玩家的30%-80%之间
+                populationScale = Math.max(0.3, Math.min(0.8, playerPopulation / 5000));
+                
+                // 财富缩放：基于玩家当前财富，但有上下限
+                // 新国家财富应该是玩家的20%-60%之间
+                wealthScale = Math.max(0.2, Math.min(0.6, playerWealth / 50000));
+                
+                // 时代加成：每个时代额外增加20%
+                const epochBonus = 1 + (appearEpoch * 0.2);
+                populationScale *= epochBonus;
+                wealthScale *= epochBonus;
+            }
+        }
+        
         // 初始化库存：基于资源偏差，围绕目标库存500波动
         const inventory = {};
         const targetInventory = 500;
@@ -942,10 +972,11 @@ const buildInitialNations = () => {
             });
         }
 
-        // 初始化预算：基于财富
-        const wealth = nation.wealth ?? 800;
+        // 初始化财富：应用缩放因子
+        const baseWealth = nation.wealth ?? 800;
+        const wealth = Math.floor(baseWealth * wealthScale);
         const budget = Math.floor(wealth * 0.5);
-        const appearEpoch = nation.appearEpoch ?? 0;
+        
         const wealthRating = Math.max(0.4, wealth / 800);
         const baseVolatility = typeof nation.marketVolatility === 'number'
             ? Math.min(0.9, Math.max(0.1, nation.marketVolatility))
@@ -960,8 +991,8 @@ const buildInitialNations = () => {
             )
         );
 
-        // 初始化基础人口（用于战后恢复）
-        const basePopulation = 1000 + Math.floor(Math.random() * 500); // 1000-1500
+        // 初始化基础人口：应用缩放因子
+        const basePopulation = Math.floor((1000 + Math.floor(Math.random() * 500)) * populationScale); // 应用缩放
         const vassalStatus = {
             vassalOf: Object.prototype.hasOwnProperty.call(nation, 'vassalOf')
                 ? nation.vassalOf

@@ -185,11 +185,11 @@ export const processAIIndependentGrowth = ({
     const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
     if (ticksSinceLastGrowth >= 100) {
         const popScale = Math.max(1, (ownBasePopulation || 10) / 200);
-        const growthDampening = clamp(1 / (1 + popScale * 0.3), 0.4, 1);  // 减轻衰减：0.6->0.3, 最低0.2->0.4
-        const growthChance = 0.6 * developmentRate * growthDampening;  // 提高概率：0.3->0.6
+        const growthDampening = clamp(1 / (1 + popScale * 0.25), 0.5, 1);  // 进一步减轻衰减：0.3->0.25, 最低0.4->0.5
+        const growthChance = 0.7 * developmentRate * growthDampening;  // 提高概率：0.6->0.7
         if (Math.random() < growthChance && !next.isAtWar) {
-            const popGrowthRate = (1.05 + Math.random() * 0.08) * growthDampening;  // 提高增长率：3-8% -> 5-13%
-            const wealthGrowthRate = (1.06 + Math.random() * 0.12) * Math.max(0.5, growthDampening);  // 提高增长率：4-12% -> 6-18%
+            const popGrowthRate = (1.08 + Math.random() * 0.10) * growthDampening;  // 提高增长率：5-13% -> 8-18%
+            const wealthGrowthRate = (1.12 + Math.random() * 0.18) * Math.max(0.5, growthDampening);  // 提高增长率：8-22% -> 12-30%
             next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * popGrowthRate);
             next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * wealthGrowthRate);
         }
@@ -286,15 +286,15 @@ export const updateAIDevelopment = ({
     const currentPopulation = next.population ?? desiredPopulation;
     const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);  // 提高上限：1.8->2.2
     const populationDampening = clamp(
-        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.1)),  // 减轻衰减：1.3->1.1
-        0.35,  // 提高最低值：0.25->0.35
+        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.0)),  // 减轻衰减：1.1->1.0
+        0.4,  // 提高最低值：0.35->0.4
         1
     );
-    const populationDriftRate = (next.isAtWar ? 0.06 : 0.18) * driftMultiplier * populationDampening;  // 提高漂移率：3.2%/12% -> 6%/18%
+    const populationDriftRate = (next.isAtWar ? 0.08 : 0.22) * driftMultiplier * populationDampening;  // 提高漂移率：6%/18% -> 8%/22%
     const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04 * populationDampening;
     let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (next.isAtWar) {
-        adjustedPopulation -= currentPopulation * 0.006;  // 减轻战争惩罚：1.2% -> 0.6%
+        adjustedPopulation -= currentPopulation * 0.005;  // 减轻战争惩罚：0.6% -> 0.5%
     }
     next.population = Math.max(3, Math.round(adjustedPopulation));
     if (foodStatus.isShortage) {
@@ -304,11 +304,11 @@ export const updateAIDevelopment = ({
     }
 
     const currentWealth = next.wealth ?? desiredWealth;
-    const wealthDriftRate = (next.isAtWar ? 0.06 : 0.16) * driftMultiplier;  // 提高漂移率：3%/11% -> 6%/16%
+    const wealthDriftRate = (next.isAtWar ? 0.10 : 0.25) * driftMultiplier;  // 提高漂移率：6%/16% -> 10%/25%
     const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
     let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
     if (next.isAtWar) {
-        adjustedWealth -= currentWealth * 0.008;  // 减轻战争惩罚：1.5% -> 0.8%
+        adjustedWealth -= currentWealth * 0.006;  // 减轻战争惩罚：0.8% -> 0.6%
     }
     next.wealth = Math.max(100, Math.round(adjustedWealth));
 
@@ -422,4 +422,87 @@ export const checkAIEpochProgression = (nation, logs) => {
 
         logs.push(`🚀 ${nation.name} 迈入了新的时代：${nextEpochData.name}！`);
     }
+};
+
+/**
+ * Scale newly unlocked nations based on player's current development level
+ * This ensures that nations appearing in later epochs have appropriate strength
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - AI nation object (mutable)
+ * @param {number} params.playerPopulation - Player's current population
+ * @param {number} params.playerWealth - Player's current wealth (silver)
+ * @param {number} params.currentEpoch - Current game epoch
+ * @param {boolean} params.isFirstInitialization - Whether this is the first time initializing this nation
+ */
+export const scaleNewlyUnlockedNation = ({
+    nation,
+    playerPopulation,
+    playerWealth,
+    currentEpoch,
+    isFirstInitialization = false,
+}) => {
+    if (!nation) return;
+
+    const appearEpoch = nation.appearEpoch ?? 0;
+    
+    // Only scale if:
+    // 1. This is first initialization AND nation appears in current or past epoch
+    // 2. OR nation has a flag indicating it needs scaling
+    const shouldScale = (isFirstInitialization && appearEpoch <= currentEpoch) || nation._needsScaling;
+    
+    if (!shouldScale) return;
+
+    // Remove scaling flag if it exists
+    delete nation._needsScaling;
+
+    // Calculate scaling factors based on player's development
+    let populationScale = 1.0;
+    let wealthScale = 1.0;
+
+    if (appearEpoch > 0 && appearEpoch <= currentEpoch) {
+        // Population scaling: new nations should be 30%-80% of player's population
+        // Scale based on player population, with reasonable bounds
+        if (playerPopulation > 0) {
+            populationScale = Math.max(0.3, Math.min(0.8, playerPopulation / 5000));
+        }
+
+        // Wealth scaling: new nations should be 20%-60% of player's wealth
+        // Scale based on player wealth, with reasonable bounds
+        if (playerWealth > 0) {
+            wealthScale = Math.max(0.2, Math.min(0.6, playerWealth / 50000));
+        }
+
+        // Epoch bonus: each epoch adds 20% to the scaling
+        const epochBonus = 1 + (appearEpoch * 0.2);
+        populationScale *= epochBonus;
+        wealthScale *= epochBonus;
+
+        // Apply minimum thresholds to ensure nations are not too weak
+        populationScale = Math.max(1.0, populationScale);
+        wealthScale = Math.max(1.0, wealthScale);
+    }
+
+    // Scale population
+    const originalPopulation = nation.population || 1000;
+    const scaledPopulation = Math.floor(originalPopulation * populationScale);
+    nation.population = Math.max(100, scaledPopulation);
+
+    // Scale wealth
+    const originalWealth = nation.wealth || 800;
+    const scaledWealth = Math.floor(originalWealth * wealthScale);
+    nation.wealth = Math.max(500, scaledWealth);
+
+    // Update budget proportionally
+    nation.budget = Math.floor(nation.wealth * 0.5);
+
+    // Update economy traits base values for future growth
+    if (nation.economyTraits) {
+        nation.economyTraits.basePopulation = nation.population;
+        nation.economyTraits.baseWealth = nation.wealth;
+        nation.economyTraits.ownBasePopulation = Math.max(5, Math.floor(nation.population / 10));
+        nation.economyTraits.ownBaseWealth = Math.max(500, Math.floor(nation.wealth));
+    }
+
+    // Update wealth template for future calculations
+    nation.wealthTemplate = nation.wealth;
 };

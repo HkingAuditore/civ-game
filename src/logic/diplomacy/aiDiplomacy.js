@@ -553,13 +553,33 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
     const shuffled = [...visibleNations].sort(() => Math.random() - 0.5);
 
     shuffled.forEach(nation => {
-        if (Math.random() > 0.015) return; // Slightly higher chance
+        if (Math.random() > 0.003) return; // Reduced from 0.015 to 0.003 (0.3% chance)
 
-        // Wealth check
-        if ((nation.wealth || 0) < 1500) return;
+        // Add cooldown: prevent creating economic blocs too frequently
+        const lastBlocCreationDay = nation.lastBlocCreationDay || 0;
+        const blocCooldown = 720; // 2 years cooldown
+        if ((tick - lastBlocCreationDay) < blocCooldown) return;
 
+        // ===== 创建门槛检查 =====
+        // 1. 财富门槛：需要有较高经济实力
+        if ((nation.wealth || 0) < 150000) return; // 经济共同体需要更高的经济实力
+        
+        // 2. 贸易活跃度：需要有一定的贸易基础
+        const tradeVolume = (nation.exports?.length || 0) + (nation.imports?.length || 0);
+        if (tradeVolume < 3) return; // 至少有3个贸易关系
+        
+        // 3. 关系门槛：至少与2个国家关系良好（≥55）
+        const goodEconomicRelations = visibleNations.filter(other => {
+            if (other.id === nation.id) return false;
+            const relation = nation.foreignRelations?.[other.id] ?? 50;
+            return relation >= 55;
+        });
+        if (goodEconomicRelations.length < 2) return;
+
+        // ===== 成员资格检查 =====
         // Check if already in an economic bloc
         const myBloc = existingOrgs.find(org => org.type === 'economic_bloc' && org.members.includes(nation.id));
+        // 如果已经加入了经济共同体，就不能再创建新的经济共同体
         if (myBloc) return;
 
         // Check vassal diplomatic restrictions for Economic Bloc
@@ -571,7 +591,7 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
         const potentialPartners = visibleNations.filter(other => {
             if (other.id === nation.id) return false;
             // Wealth check for partner
-            if ((other.wealth || 0) < 2000) return false;
+            if ((other.wealth || 0) < 150000) return false;
 
             // Check restriction
             const otherDiplomacy = canVassalPerformDiplomacy(other, 'alliance'); // Re-use alliance restriction or similar
@@ -696,6 +716,9 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
                 const newOrg = createResult.organization;
                 newOrg.members.push(partner.id);
 
+                // Mark creation day for cooldown
+                nation.lastBlocCreationDay = tick;
+
                 result.createdOrganizations.push(newOrg);
                 logs.push(`💰 国际新闻：${nation.name} 与 ${partner.name} 宣布共同建立 "${name}"！`);
             }
@@ -719,7 +742,12 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
     const shuffledNations = [...visibleNations].sort(() => Math.random() - 0.5);
 
     shuffledNations.forEach(nation => {
-        if (Math.random() > 0.02) return; // Slightly higher chance
+        if (Math.random() > 0.005) return; // Reduced from 0.02 to 0.005 (0.5% chance)
+
+        // Add cooldown: prevent creating alliances too frequently
+        const lastAllianceCreationDay = nation.lastAllianceCreationDay || 0;
+        const allianceCooldown = 720; // 2 years cooldown
+        if ((tick - lastAllianceCreationDay) < allianceCooldown) return;
 
         // Check vassal diplomatic restrictions
         // Check vassal diplomatic restrictions
@@ -732,12 +760,30 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
         }
 
         const nationAggression = nation.aggression ?? 0.3;
+        
+        // ===== 创建门槛检查 =====
+        // 1. 财富门槛：需要有一定经济实力
+        if ((nation.wealth || 0) < 100000) return;
+        
+        // 2. 军事力量门槛：需要有一定军事实力
+        const militaryStrength = nation.militaryStrength || 0;
+        if (militaryStrength < 500) return;
+        
+        // 3. 关系门槛：至少与2个国家关系良好（≥60）
+        const goodRelations = visibleNations.filter(other => {
+            if (other.id === nation.id) return false;
+            const relation = nation.foreignRelations?.[other.id] ?? 50;
+            return relation >= 60;
+        });
+        if (goodRelations.length < 2) return;
+        
+        // ===== 成员资格检查 =====
         // Check if nation is already in a military alliance
         const myAlliance = existingOrgs.find(org =>
             org.type === 'military_alliance' && org.members.includes(nation.id)
         );
 
-        // Limit: one military alliance per nation for simplicity
+        // 如果已经加入了军事同盟，就不能再创建新的军事同盟
         if (myAlliance) return;
 
         const potentialAllies = visibleNations.filter(other => {
@@ -861,6 +907,9 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
                 const newOrg = createResult.organization;
                 // Add the ally immediately (simplification)
                 newOrg.members.push(ally.id);
+
+                // Mark creation day for cooldown
+                nation.lastAllianceCreationDay = tick;
 
                 result.createdOrganizations.push(newOrg);
                 logs.push(`🤝 国际新闻：${nation.name} 与 ${ally.name} 共同建立了新的军事同盟——"${orgName}"！`);

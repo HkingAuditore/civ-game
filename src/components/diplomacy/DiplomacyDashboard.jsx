@@ -158,10 +158,13 @@ const DiplomacyDashboard = ({
                     <div className="space-y-4">
                         {/* Create Org Section */}
                         <div className="grid grid-cols-1 gap-3">
-                            {ORG_TYPES.map((orgType) => {
+                        {ORG_TYPES.map((orgType) => {
                                 const isUnlocked = isDiplomacyUnlocked('organizations', orgType.type, epoch);
-                                const playerHasOrg = playerOrgs.some((o) => o.type === orgType.type);
-                                const canClick = isUnlocked && !playerHasOrg;
+                                // Check if player has CREATED (not just joined) an organization of this type
+                                const playerCreatedOrg = playerOrgs.some((o) => o.type === orgType.type && o.founder === 'player');
+                                // Check if player has joined any organization of this type
+                                const playerJoinedOrg = playerOrgs.some((o) => o.type === orgType.type && o.founder !== 'player');
+                                const canClick = isUnlocked && !playerCreatedOrg;
 
                                 return (
                                     <button
@@ -187,7 +190,7 @@ const DiplomacyDashboard = ({
                                         <div className="flex-1">
                                             <div className="flex justify-between items-center mb-1">
                                                 <div className="font-bold text-ancient-parchment text-lg group-hover:text-ancient-gold transition-colors">
-                                                    {playerHasOrg ? `已建立${orgType.name}` : `建立${orgType.name}`}
+                                                    {playerCreatedOrg ? `已建立${orgType.name}` : playerJoinedOrg ? `已加入${orgType.name}` : `建立${orgType.name}`}
                                                 </div>
                                                 {!isUnlocked && (
                                                     <span className="text-xs bg-black/40 px-2 py-0.5 rounded text-ancient-stone">

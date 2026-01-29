@@ -301,6 +301,7 @@ import {
     processAIIndependentGrowth,
     updateAIDevelopment,
     checkAIEpochProgression,
+    scaleNewlyUnlockedNation,
     initializeRebelEconomy,
     processPostWarRecovery,
     processInstallmentPayment,
@@ -5406,6 +5407,22 @@ export const simulateTick = ({
         // REFACTORED: Using module functions for AI development system
         if (shouldUpdateTrade) {
             initializeAIDevelopmentBaseline({ nation: next, tick });
+            
+            // [NEW] Scale newly unlocked nations based on player's current development
+            // This ensures nations appearing in later epochs have appropriate strength
+            scaleNewlyUnlockedNation({
+                nation: next,
+                playerPopulation: population,
+                playerWealth: res.silver || 0,
+                currentEpoch: visibleEpoch,
+                isFirstInitialization: !next.economyTraits?.hasBeenScaled,
+            });
+            
+            // Mark as scaled to avoid re-scaling
+            if (next.economyTraits) {
+                next.economyTraits.hasBeenScaled = true;
+            }
+            
             processAIIndependentGrowth({ nation: next, tick, difficulty });
 
             // [NEW] Check for independent epoch progression

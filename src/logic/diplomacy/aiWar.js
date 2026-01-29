@@ -950,6 +950,12 @@ export const checkWarDeclaration = ({
                     return;
                 }
                 
+                // CRITICAL: Vassals cannot be forced to fight their overlord through alliance obligations
+                if (ally.vassalOf === 'player') {
+                    logs.push(`⚖️ ${ally.name} 作为你的附庸国，不会因同盟义务对你作战。`);
+                    return;
+                }
+                
                 // Ally joins war against attacker
                 if (!next.foreignWars) next.foreignWars = {};
                 if (!ally.foreignWars) ally.foreignWars = {};
@@ -1037,6 +1043,12 @@ export const checkWarDeclaration = ({
                     // CRITICAL: Check if ally is also allied with the attacker
                     if (areNationsAllied(ally.id, next.id, orgs)) {
                         logs.push(`⚖️ ${ally.name} 同时是你和 ${next.name} 的盟友，选择保持中立。`);
+                        return;
+                    }
+                    
+                    // CRITICAL: Vassals cannot be forced to fight their overlord through alliance obligations
+                    if (ally.vassalOf === 'player') {
+                        logs.push(`⚖️ ${ally.name} 作为你的附庸国，不会因同盟义务对你作战。`);
                         return;
                     }
                     
@@ -1132,8 +1144,14 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             // [FIX] Check for Vassal/Suzerain relationship - standard wars not allowed
             // This includes both AI-AI vassal relationships AND player vassal relationships
             if (nation.vassalOf === otherNation.id || otherNation.vassalOf === nation.id) return;
-            // [FIX] Check if either nation is player's vassal or player is their vassal
-            if (nation.vassalOf === 'player' || otherNation.vassalOf === 'player') return;
+            
+            // CRITICAL: Vassals CANNOT attack their overlord (player) under ANY circumstances
+            // This applies to all military policies including "autonomous"
+            // Even if vassal has "autonomous" policy, they still cannot fight their overlord
+            if (nation.vassalOf === 'player' && otherNation.id === 'player') {
+                // Vassal trying to attack player - absolutely forbidden
+                return;
+            }
 
             const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
             const maxWarsAllowed = nation.aggression > 0.7 ? 2 : 1;
@@ -1311,6 +1329,18 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         // 同一军事联盟的成员绝对不能相互开战
                         if (areNationsAllied(ally.id, nation.id, allianceOrgs)) {
                             logs.push(`⚖️ ${ally.name} 与 ${nation.name} 同属一个军事联盟，拒绝参战。`);
+                            return;
+                        }
+                        
+                        // CRITICAL: Vassals cannot be forced to fight their overlord through alliance obligations
+                        // Check if defender is player and ally is player's vassal
+                        if (otherNation.id === 'player' && ally.vassalOf === 'player') {
+                            logs.push(`⚖️ ${ally.name} 作为玩家的附庸国，不会因同盟义务对宗主作战。`);
+                            return;
+                        }
+                        // Check if attacker is player and ally is player's vassal
+                        if (nation.id === 'player' && ally.vassalOf === 'player') {
+                            logs.push(`⚖️ ${ally.name} 作为玩家的附庸国，不会因同盟义务对宗主作战。`);
                             return;
                         }
                         
