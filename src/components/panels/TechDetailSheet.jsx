@@ -2,6 +2,7 @@ import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, BUILDINGS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { getTechCostMultiplier } from '../../config/difficulty';
 
 // 科技解锁的建筑列表
 const TECH_BUILDING_UNLOCKS = BUILDINGS.reduce((acc, building) => {
@@ -23,6 +24,7 @@ export const TechDetailSheet = ({
     market,
     onResearch,
     onClose,
+    difficulty = 'normal',
 }) => {
     if (!tech) {
         return (
@@ -33,12 +35,19 @@ export const TechDetailSheet = ({
         );
     }
 
-    const silverCost = calculateSilverCost(tech.cost, market);
+    // 获取难度调整后的成本
+    const techCostMultiplier = getTechCostMultiplier(difficulty);
+    const adjustedCost = {};
+    Object.entries(tech.cost).forEach(([resource, cost]) => {
+        adjustedCost[resource] = Math.ceil(cost * techCostMultiplier);
+    });
+    
+    const silverCost = calculateSilverCost(adjustedCost, market);
     const isUnlocked = status === 'unlocked';
     const unlockedBuildings = TECH_BUILDING_UNLOCKS[tech.id] || [];
 
-    // 检查是否有足够的资源研究
-    const canAfford = !isUnlocked && Object.entries(tech.cost).every(
+    // 检查是否有足够的资源研究（使用调整后的成本）
+    const canAfford = !isUnlocked && Object.entries(adjustedCost).every(
         ([resource, cost]) => (resources[resource] || 0) >= cost
     ) && (resources.silver || 0) >= silverCost;
 
@@ -103,7 +112,7 @@ export const TechDetailSheet = ({
                         研究成本
                     </h3>
                     <div className="space-y-1">
-                        {Object.entries(tech.cost).map(([resource, cost]) => {
+                        {Object.entries(adjustedCost).map(([resource, cost]) => {
                             const resourceInfo = RESOURCES[resource];
                             const hasEnough = (resources[resource] || 0) >= cost;
                             return (
