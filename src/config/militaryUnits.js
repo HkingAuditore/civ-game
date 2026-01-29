@@ -807,9 +807,9 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0) => {
     const militaryStrength = nation?.militaryStrength ?? 1.0;
     const aggression = nation?.aggression || 0.3;
 
-    // 基础军队规模 = 人口 × 军事强度 × 基础比例(10%) × 时代系数
+    // 基础军队规模 = 人口 × 军事强度 × 基础比例(6%) × 时代系数
     const epochFactor = 1 + epoch * 0.15;
-    const baseArmySize = Math.floor(population * militaryStrength * 0.10 * epochFactor);
+    const baseArmySize = Math.floor(population * militaryStrength * 0.06 * epochFactor);
 
     // 应用派遣比例
     const deployedSize = Math.max(1, Math.floor(baseArmySize * deploymentRatio));

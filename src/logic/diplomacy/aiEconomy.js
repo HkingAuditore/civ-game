@@ -183,15 +183,38 @@ export const processAIIndependentGrowth = ({
     const developmentRate = (next.economyTraits.developmentRate || 1.0) * multiplier;
 
     const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
-    if (ticksSinceLastGrowth >= 100) {
+    
+    // [FIX] Due to slicing mechanism, nations may not be processed every tick.
+    // Instead of requiring exactly 10 ticks, we calculate growth proportionally.
+    // Minimum 10 ticks to avoid too frequent updates, no upper limit.
+    if (ticksSinceLastGrowth >= 10) {
         const popScale = Math.max(1, (ownBasePopulation || 10) / 200);
-        const growthDampening = clamp(1 / (1 + popScale * 0.25), 0.5, 1);  // 进一步减轻衰减：0.3->0.25, 最低0.4->0.5
-        const growthChance = 0.7 * developmentRate * growthDampening;  // 提高概率：0.6->0.7
-        if (Math.random() < growthChance && !next.isAtWar) {
-            const popGrowthRate = (1.08 + Math.random() * 0.10) * growthDampening;  // 提高增长率：5-13% -> 8-18%
-            const wealthGrowthRate = (1.12 + Math.random() * 0.18) * Math.max(0.5, growthDampening);  // 提高增长率：8-22% -> 12-30%
-            next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * popGrowthRate);
-            next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * wealthGrowthRate);
+        const growthDampening = clamp(1 / (1 + popScale * 0.2), 0.6, 1);
+        
+        // [FIX] Always grow when not at war, remove random chance that caused inconsistent growth
+        if (!next.isAtWar) {
+            // Scale growth rate based on actual ticks passed (normalize to 10 ticks as baseline)
+            const tickScale = Math.min(ticksSinceLastGrowth / 10, 3);  // Cap at 3x to prevent explosion
+            
+            // Base growth rates per 10 ticks, scaled by actual time passed
+            const basePopGrowthRate = 0.02 + (developmentRate - 1) * 0.01;  // 2% base + development bonus
+            const baseWealthGrowthRate = 0.03 + (developmentRate - 1) * 0.015;  // 3% base + development bonus
+            
+            const popGrowthRate = 1 + (basePopGrowthRate * tickScale * growthDampening);
+            const wealthGrowthRate = 1 + (baseWealthGrowthRate * tickScale * Math.max(0.5, growthDampening));
+            
+            const newBasePopulation = Math.round(ownBasePopulation * popGrowthRate);
+            const newBaseWealth = Math.round(ownBaseWealth * wealthGrowthRate);
+            
+            // Update target values
+            next.economyTraits.ownBasePopulation = newBasePopulation;
+            next.economyTraits.ownBaseWealth = newBaseWealth;
+            
+            // [FIX] Directly apply 60% of growth to actual values for more visible growth
+            const popIncrease = newBasePopulation - ownBasePopulation;
+            const wealthIncrease = newBaseWealth - ownBaseWealth;
+            next.population = Math.max(3, Math.round((next.population || ownBasePopulation) + popIncrease * 0.6));
+            next.wealth = Math.max(100, Math.round((next.wealth || ownBaseWealth) + wealthIncrease * 0.6));
         }
         next.economyTraits.lastGrowthTick = tick;
     }
@@ -283,18 +306,26 @@ export const updateAIDevelopment = ({
     };
 
     // Apply drift towards target
+    // [FIX] Track time since last development update to scale drift rate appropriately
+    const lastDevTick = next.economyTraits?.lastDevelopmentTick || 0;
+    const ticksSinceDev = Math.max(1, tick - lastDevTick);
+    const tickScaleFactor = Math.min(ticksSinceDev / 3, 5);  // Normalize to 3 ticks, cap at 5x
+    next.economyTraits.lastDevelopmentTick = tick;
+    
     const currentPopulation = next.population ?? desiredPopulation;
-    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);  // 提高上限：1.8->2.2
+    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);
     const populationDampening = clamp(
-        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.0)),  // 减轻衰减：1.1->1.0
-        0.4,  // 提高最低值：0.35->0.4
+        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.0)),
+        0.4,
         1
     );
-    const populationDriftRate = (next.isAtWar ? 0.08 : 0.22) * driftMultiplier * populationDampening;  // 提高漂移率：6%/18% -> 8%/22%
+    // [FIX] Scale drift rate by actual tick interval to ensure consistent growth
+    const basePopDriftRate = (next.isAtWar ? 0.15 : 0.50) * driftMultiplier * populationDampening;
+    const populationDriftRate = Math.min(0.9, basePopDriftRate * tickScaleFactor);  // Cap at 90% to prevent overshoot
     const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04 * populationDampening;
     let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (next.isAtWar) {
-        adjustedPopulation -= currentPopulation * 0.005;  // 减轻战争惩罚：0.6% -> 0.5%
+        adjustedPopulation -= currentPopulation * 0.005 * tickScaleFactor;
     }
     next.population = Math.max(3, Math.round(adjustedPopulation));
     if (foodStatus.isShortage) {
@@ -304,11 +335,13 @@ export const updateAIDevelopment = ({
     }
 
     const currentWealth = next.wealth ?? desiredWealth;
-    const wealthDriftRate = (next.isAtWar ? 0.10 : 0.25) * driftMultiplier;  // 提高漂移率：6%/16% -> 10%/25%
+    // [FIX] Scale wealth drift rate similarly
+    const baseWealthDriftRate = (next.isAtWar ? 0.20 : 0.55) * driftMultiplier;
+    const wealthDriftRate = Math.min(0.9, baseWealthDriftRate * tickScaleFactor);  // Cap at 90%
     const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
     let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
     if (next.isAtWar) {
-        adjustedWealth -= currentWealth * 0.006;  // 减轻战争惩罚：0.8% -> 0.6%
+        adjustedWealth -= currentWealth * 0.006 * tickScaleFactor;
     }
     next.wealth = Math.max(100, Math.round(adjustedWealth));
 

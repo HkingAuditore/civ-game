@@ -22,7 +22,7 @@ import {
     getGovernmentType, // Determine current polity
 } from './rulingCoalition';
 import { getPolityEffects } from '../config/polityEffects';
-import { calculateNaturalRecovery } from '../config/reputationSystem';
+import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateVassalPolicyReputationChange } from '../config/reputationSystem';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
@@ -5405,38 +5405,43 @@ export const simulateTick = ({
         processPostWarRecovery(next);
 
         // REFACTORED: Using module functions for AI development system
-        if (shouldUpdateTrade) {
-            initializeAIDevelopmentBaseline({ nation: next, tick });
-            
-            // [NEW] Scale newly unlocked nations based on player's current development
-            // This ensures nations appearing in later epochs have appropriate strength
-            scaleNewlyUnlockedNation({
-                nation: next,
-                playerPopulation: population,
-                playerWealth: res.silver || 0,
-                currentEpoch: visibleEpoch,
-                isFirstInitialization: !next.economyTraits?.hasBeenScaled,
-            });
-            
-            // Mark as scaled to avoid re-scaling
-            if (next.economyTraits) {
-                next.economyTraits.hasBeenScaled = true;
-            }
-            
-            processAIIndependentGrowth({ nation: next, tick, difficulty });
-
-            // [NEW] Check for independent epoch progression
-            checkAIEpochProgression(next, logs);
-
-            updateAIDevelopment({
-                nation: next,
-                epoch: next.epoch, // [MODIFIED] Use nation's own epoch for development
-                playerPopulationBaseline,
-                playerWealthBaseline,
-                tick,
-                difficulty,
-            });
+        // [CRITICAL FIX] These functions are now OUTSIDE shouldUpdateTrade condition
+        // because the slice logic (tick % 3) was conflicting with trade update frequency (tick % 3 === 0)
+        // This caused only slice 0 nations to ever receive growth updates!
+        // Each function has its own internal tick-based checks, so they can safely run every slice.
+        
+        initializeAIDevelopmentBaseline({ nation: next, tick });
+        
+        // [NEW] Scale newly unlocked nations based on player's current development
+        // This ensures nations appearing in later epochs have appropriate strength
+        scaleNewlyUnlockedNation({
+            nation: next,
+            playerPopulation: population,
+            playerWealth: res.silver || 0,
+            currentEpoch: visibleEpoch,
+            isFirstInitialization: !next.economyTraits?.hasBeenScaled,
+        });
+        
+        // Mark as scaled to avoid re-scaling
+        if (next.economyTraits) {
+            next.economyTraits.hasBeenScaled = true;
         }
+        
+        // [GROWTH] These functions have internal tick-interval checks (>= 10 ticks)
+        // They will only apply growth when enough time has passed since last update
+        processAIIndependentGrowth({ nation: next, tick, difficulty });
+
+        // [NEW] Check for independent epoch progression
+        checkAIEpochProgression(next, logs);
+
+        updateAIDevelopment({
+            nation: next,
+            epoch: next.epoch, // [MODIFIED] Use nation's own epoch for development
+            playerPopulationBaseline,
+            playerWealthBaseline,
+            tick,
+            difficulty,
+        });
 
         return next;
     });
@@ -7580,8 +7585,42 @@ export const simulateTick = ({
         });
     }
 
-    // Calculate diplomatic reputation natural recovery (daily)
-    const updatedDiplomaticReputation = calculateNaturalRecovery(diplomaticReputation);
+    // Calculate diplomatic reputation with policy effects
+    // Reputation changes based on: natural recovery + vassal policies + treaties
+    let updatedDiplomaticReputation = diplomaticReputation;
+    
+    // Get player's vassals
+    const playerVassals = updatedNations.filter(n => n.vassalOf === 'player' && n.vassalPolicy);
+    
+    // Calculate vassal policy reputation change (applied daily but scaled down)
+    if (playerVassals.length > 0) {
+        const vassalEffect = calculateVassalPolicyReputationChange(playerVassals);
+        // Apply 1/30th of monthly effect daily
+        const dailyVassalEffect = vassalEffect.change / 30;
+        updatedDiplomaticReputation += dailyVassalEffect;
+    }
+    
+    // Get active peaceful treaties for reputation bonus
+    const peacefulTreatyCount = updatedNations.reduce((count, nation) => {
+        if (!nation.treaties || !Array.isArray(nation.treaties)) return count;
+        const peacefulTreaties = nation.treaties.filter(t => 
+            (t.type === 'peace' || t.type === 'non_aggression' || t.type === 'mutual_defense') &&
+            (!Number.isFinite(t.endDay) || tick < t.endDay)
+        );
+        return count + peacefulTreaties.length;
+    }, 0);
+    
+    // Apply treaty reputation bonus (scaled daily)
+    if (peacefulTreatyCount > 0) {
+        const monthlyTreatyBonus = Math.min(peacefulTreatyCount * 0.1, 0.5);
+        updatedDiplomaticReputation += monthlyTreatyBonus / 30;
+    }
+    
+    // Apply natural recovery (towards 50)
+    updatedDiplomaticReputation = calculateNaturalRecovery(updatedDiplomaticReputation);
+    
+    // Clamp to valid range
+    updatedDiplomaticReputation = Math.max(0, Math.min(100, updatedDiplomaticReputation));
 
     const perfTotalMs = perfTime() - perfStartAll;
     // [OPTIMIZATION REMOVED] 移除游标递增逻辑，不再需要批处理

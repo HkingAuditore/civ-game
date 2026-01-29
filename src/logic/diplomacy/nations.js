@@ -1228,15 +1228,24 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     }
 
     // Periodic independent growth
+    // [FIX] Track tick intervals and apply proportional growth to handle sliced updates
     const ticksSinceLastGrowth = tick - (nation.economyTraits.lastGrowthTick || 0);
-    if (ticksSinceLastGrowth >= 100) {
-        const growthChance = 0.3 * (nation.economyTraits.developmentRate || 1.0);
-        if (Math.random() < growthChance && !nation.isAtWar) {
+    if (ticksSinceLastGrowth >= 10) {  // 10 ticks minimum for sliced updates
+        // [FIX] Always grow when not at war - remove random chance that caused inconsistent growth
+        if (!nation.isAtWar) {
+            // Scale growth rate based on actual ticks passed (normalize to 10 ticks as baseline)
+            const tickScale = Math.min(ticksSinceLastGrowth / 10, 3);  // Cap at 3x to prevent explosion
+            const developmentRate = nation.economyTraits.developmentRate || 1.0;
+            
+            // Base growth rates, scaled by actual time passed
+            const popGrowthRate = 1 + (0.02 + (developmentRate - 1) * 0.01) * tickScale;  // ~2-3% per 10 ticks
+            const wealthGrowthRate = 1 + (0.03 + (developmentRate - 1) * 0.015) * tickScale;  // ~3-4.5% per 10 ticks
+            
             nation.economyTraits.ownBasePopulation = Math.round(
-                nation.economyTraits.ownBasePopulation * (1.03 + Math.random() * 0.05)
+                nation.economyTraits.ownBasePopulation * popGrowthRate
             );
             nation.economyTraits.ownBaseWealth = Math.round(
-                nation.economyTraits.ownBaseWealth * (1.04 + Math.random() * 0.08)
+                nation.economyTraits.ownBaseWealth * wealthGrowthRate
             );
         }
         nation.economyTraits.lastGrowthTick = tick;
@@ -1268,16 +1277,25 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     nation.economyTraits.baseWealth = desiredWealth;
 
     // Apply drift
-    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 1.8);
-    const populationDriftRate = (nation.isAtWar ? 0.032 : 0.12) * driftMultiplier;
-    const wealthDriftRate = (nation.isAtWar ? 0.03 : 0.11) * driftMultiplier;
+    // [FIX] Track tick intervals for proportional drift rate scaling
+    const lastDevTick = nation.economyTraits?.lastDevelopmentTick || 0;
+    const ticksSinceDev = Math.max(1, tick - lastDevTick);
+    const tickScaleFactor = Math.min(ticksSinceDev / 3, 5);  // Normalize to 3 ticks, cap at 5x
+    nation.economyTraits.lastDevelopmentTick = tick;
+    
+    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);
+    // [FIX] Significantly increased base drift rates: 3.2%/12% -> 15%/50%
+    const basePopDriftRate = (nation.isAtWar ? 0.15 : 0.50) * driftMultiplier;
+    const baseWealthDriftRate = (nation.isAtWar ? 0.20 : 0.55) * driftMultiplier;
+    const populationDriftRate = Math.min(0.9, basePopDriftRate * tickScaleFactor);
+    const wealthDriftRate = Math.min(0.9, baseWealthDriftRate * tickScaleFactor);
 
     const currentPopulation = nation.population ?? desiredPopulation;
     const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04;
     let adjustedPopulation = currentPopulation +
         (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (nation.isAtWar) {
-        adjustedPopulation -= currentPopulation * 0.012;
+        adjustedPopulation -= currentPopulation * 0.006 * tickScaleFactor;
     }
     nation.population = Math.max(3, Math.round(adjustedPopulation));
 
@@ -1287,7 +1305,7 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     let adjustedWealth = currentWealth +
         (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
     if (nation.isAtWar) {
-        adjustedWealth -= currentWealth * 0.015;
+        adjustedWealth -= currentWealth * 0.008 * tickScaleFactor;
     }
     nation.wealth = Math.max(100, Math.round(adjustedWealth));
 
