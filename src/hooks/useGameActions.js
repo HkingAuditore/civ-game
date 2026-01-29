@@ -2915,7 +2915,7 @@ export const useGameActions = (gameState, addLog) => {
                     playerAdvantage,
                     targetNation.warDuration || 0,
                     targetNation.enemyLosses || 0,
-                    { 
+                    {
                         population: typeof getTotalPopulation === 'function' ? getTotalPopulation() : 1000,
                         epoch: epoch || 0
                     },
@@ -3438,7 +3438,7 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
 
                     addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
-                    
+
                     // Actually reduce diplomatic reputation
                     if (setDiplomaticReputation) {
                         const { newReputation } = calculateReputationChange(
@@ -3450,7 +3450,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                 }
                 addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
-                
+
                 // 主动宣战减少声誉（非违约宣战也会有轻微声誉损失）
                 if (!breachPenalty && setDiplomaticReputation) {
                     const { newReputation } = calculateReputationChange(
@@ -3460,7 +3460,7 @@ export const useGameActions = (gameState, addLog) => {
                     );
                     setDiplomaticReputation(newReputation);
                 }
-                
+
                 // 通知盟友参战
                 if (targetAllies.length > 0) {
                     const allyNames = targetAllies.map(a => a.name).join('、');
@@ -3717,12 +3717,12 @@ export const useGameActions = (gameState, addLog) => {
                 const relation = targetNation.relation || 0;
                 const aggression = targetNation.aggression ?? 0.3;
                 const treatyConfig = TREATY_CONFIGS[type] || {};
-                
+
                 if (Number.isFinite(treatyConfig.minRelation) && relation < treatyConfig.minRelation) {
                     addLog(`${targetNation.name} 当前关系不足，难以接受该条约。`);
                     return;
                 }
-                
+
                 // Lower base acceptance rates - AI should be more selective
                 const baseChanceByType = {
                     peace_treaty: 0.30,      // 45% -> 30%
@@ -3735,20 +3735,20 @@ export const useGameActions = (gameState, addLog) => {
                     defensive_pact: 0.10,    // 18% -> 10%
                 };
                 const base = baseChanceByType[type] ?? 0.15;
-                
+
                 // Reduced relation boost - good relations help but not too much
                 const relationBoost = Math.max(0, (relation - 50) / 250); // 50=>0, 100=>0.2 (was 0.6)
                 const aggressionPenalty = aggression * 0.35; // Increased from 0.25
-                
+
                 // Wealth/Power imbalance penalty - AI is suspicious of much stronger players
                 const playerWealth = resources.silver || 0;
                 const targetWealth = targetNation.wealth || 1000;
                 const playerPower = militaryPower || 0;
                 const targetPower = targetNation.militaryPower || 100;
-                
+
                 const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
                 const powerRatio = targetPower > 0 ? playerPower / targetPower : 1;
-                
+
                 // Penalty for being much stronger (AI fears exploitation)
                 let dominancePenalty = 0;
                 if (['open_market', 'free_trade', 'investment_pact', 'trade_agreement'].includes(type)) {
@@ -3759,13 +3759,13 @@ export const useGameActions = (gameState, addLog) => {
                         dominancePenalty += (powerRatio - 1.5) * 0.08;
                     }
                 }
-                
+
                 // Maintenance penalty - scaled to target's wealth
                 const maintenanceRatio = targetWealth > 0 ? maintenancePerDay / (targetWealth * 0.001) : 0;
                 const maintenancePenalty = Math.min(0.30, maintenanceRatio * 0.5);
-                
+
                 let acceptChance = base + relationBoost - aggressionPenalty - maintenancePenalty - dominancePenalty;
-                
+
                 // Stricter type gating with harsher penalties
                 if (type === 'open_market' && relation < 55) acceptChance *= 0.25; // was 0.4
                 if (type === 'trade_agreement' && relation < 50) acceptChance *= 0.35; // was 0.5
@@ -3773,12 +3773,12 @@ export const useGameActions = (gameState, addLog) => {
                 if (type === 'investment_pact' && relation < 60) acceptChance *= 0.25; // was 0.4
                 if (type === 'academic_exchange' && relation < 65) acceptChance *= 0.15; // was 0.2
                 if (type === 'defensive_pact' && relation < 70) acceptChance *= 0.12; // was 0.2
-                
+
                 // Additional penalty for low relations
                 if (relation < 40) {
                     acceptChance *= 0.5; // 50% penalty for poor relations
                 }
-                
+
                 acceptChance = Math.max(0.01, Math.min(0.85, acceptChance)); // Lower max from 0.92 to 0.85
                 const accepted = Math.random() < acceptChance;
                 // 计算签约成本
@@ -3970,10 +3970,49 @@ export const useGameActions = (gameState, addLog) => {
                         return;
                     }
                 }
-                if (demandSilver > 0 && (targetNation.wealth || 0) < demandSilver) {
-                    addLog(`${targetNation.name} 无法承担索要金额（缺少 ${demandSilver} 银币）。`);
-                    if (onResult) onResult({ status: 'blocked', reason: 'demand_silver' });
+
+                // Validate maintenance fee
+                const rawMaintenance = Number(proposal.maintenancePerDay);
+                if (rawMaintenance < 0) {
+                    addLog('条约维护费不能为负数。');
+                    if (onResult) onResult({ status: 'blocked', reason: 'invalid_maintenance' });
                     return;
+                }
+
+                // Validate demand silver - check if the party being asked has enough
+                // For player proposals: check if AI (targetNation) can afford what player demands
+                // For AI counter-proposals: check if player can afford what AI demands
+                // Debug: log actual values
+                console.log('[NEGOTIATE DEBUG]', {
+                    demandSilver,
+                    targetWealth: targetNation.wealth || 0,
+                    playerWealth: resources.silver || 0,
+                    rawDemandSilver: proposal.demandSilver,
+                    nationName: targetNation.name,
+                    isCounterProposal: forceAccept
+                });
+
+                // Determine who is being asked to pay
+                const isCounterProposal = forceAccept;
+
+                if (demandSilver > 0) {
+                    if (isCounterProposal) {
+                        // This is AI's counter-proposal, AI is demanding from player
+                        // Check if PLAYER can afford
+                        if ((resources.silver || 0) < demandSilver) {
+                            addLog(`你无法承担对方索要的金额（缺少 ${demandSilver - (resources.silver || 0)} 银币）。`);
+                            if (onResult) onResult({ status: 'blocked', reason: 'silver' });
+                            return;
+                        }
+                    } else {
+                        // This is player's proposal, player is demanding from AI
+                        // Check if AI can afford
+                        if ((targetNation.wealth || 0) < demandSilver) {
+                            addLog(`${targetNation.name} 无法承担索要金额（缺少 ${demandSilver} 银币）。`);
+                            if (onResult) onResult({ status: 'blocked', reason: 'demand_silver' });
+                            return;
+                        }
+                    }
                 }
                 // Validate all demand resources
                 for (const res of demandResources) {
@@ -4039,14 +4078,14 @@ export const useGameActions = (gameState, addLog) => {
 
                 // ✅ Check and deduct stance upfront cost BEFORE negotiation
                 const stanceCheck = canAffordStance(stance, resources);
-                
+
                 if (!stanceCheck.canAfford) {
                     const missingResources = Object.entries(stanceCheck.missing)
                         .map(([res, amount]) => `${res}: ${Math.floor(amount)}`)
                         .join(', ');
                     addLog(`❌ 无法使用${NEGOTIATION_STANCES[stance]?.name || stance}姿态：资源不足 (${missingResources})`);
-                    if (onResult) onResult({ 
-                        status: 'blocked', 
+                    if (onResult) onResult({
+                        status: 'blocked',
                         reason: 'stance_cost',
                         missing: stanceCheck.missing,
                     });
@@ -4070,9 +4109,9 @@ export const useGameActions = (gameState, addLog) => {
                 let guaranteedReputationChange = stanceConfig?.guaranteedEffects?.reputationChange || 0;
 
                 const accepted = forceAccept || (evaluation.dealScore || 0) >= 0;
-                
+
                 const stanceDelta = guaranteedRelationChange;
-                
+
                 // Deduct political cost for aggressive/threat stance (regardless of outcome)
                 const politicalCost = evaluation?.breakdown?.politicalCost || 0;
                 if (politicalCost > 0) {
@@ -4082,7 +4121,7 @@ export const useGameActions = (gameState, addLog) => {
                         { nationId, treatyType: type, stance, cost: politicalCost }
                     );
                 }
-                
+
                 // 计算签约成本
 
                 const negotiateSigningCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0, epoch);
@@ -4300,7 +4339,7 @@ export const useGameActions = (gameState, addLog) => {
                     if (negotiateFinalMaintenancePerDay > 0) {
                         negotiateCostInfo += `，每日维护费 ${negotiateFinalMaintenancePerDay} 银币`;
                     }
-                    
+
                     if (politicalCost > 0) {
                         negotiateCostInfo += `，政治成本 ${politicalCost}`;
                     }
@@ -4964,34 +5003,34 @@ export const useGameActions = (gameState, addLog) => {
                         n.vassalOf !== 'player' &&     // Not player's vassal
                         n.id !== nationId              // Not the vassal we're calling to arms
                     );
-                    
+
                     if (playerEnemies.length === 0) {
                         alert(`当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
                         addLog(`⚠️ 当前没有与你交战的敌国，无需征召 ${targetNation.name} 参战。`);
                         break;
                     }
-                    
+
                     // Check if vassal is already at war with all player's enemies (prevent duplicate call)
                     const vassalForeignWars = targetNation.foreignWars || {};
                     const newEnemiesToFight = playerEnemies.filter(enemy => !vassalForeignWars[enemy.id]?.isAtWar);
-                    
+
                     if (newEnemiesToFight.length === 0) {
                         alert(`${targetNation.name} 已经在与你的所有敌人交战中，无需重复征召！`);
                         addLog(`⚠️ ${targetNation.name} 已经在与你的所有敌人交战中。`);
                         break;
                     }
-                    
+
                     // Deduct cost only when there's actually something to do
                     setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
-                    
+
                     setNations(prev => prev.map(n => {
                         if (n.id === nationId) {
                             // Set Vassal to War against player's enemies
                             const newForeignWars = { ...(n.foreignWars || {}) };
                             newEnemiesToFight.forEach(enemy => {
-                                newForeignWars[enemy.id] = { 
-                                    isAtWar: true, 
-                                    warStartDay: daysElapsed, 
+                                newForeignWars[enemy.id] = {
+                                    isAtWar: true,
+                                    warStartDay: daysElapsed,
                                     warScore: 0,
                                     followingSuzerain: true,  // Mark as following suzerain's war
                                     suzerainTarget: 'player'
@@ -5013,7 +5052,7 @@ export const useGameActions = (gameState, addLog) => {
                         }
                         return n;
                     }));
-                    
+
                     const enemyNames = newEnemiesToFight.map(e => e.name).join('、');
                     alert(`征召成功！${targetNation.name} 将与 ${enemyNames} 交战，花费 ${result.cost} 银币。`);
                     addLog(`⚔️ ${targetNation.name} 同意参战，将与 ${enemyNames} 交战！花费 ${result.cost} 银币。`);

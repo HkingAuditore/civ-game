@@ -80,7 +80,7 @@ export const NEGOTIATION_STANCES = {
         acceptChanceBonus: (relation, playerPower, targetPower, playerWealth, targetWealth) => {
             const powerRatio = targetPower > 0 ? playerPower / targetPower : 1;
             const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
-            
+
             if (powerRatio > 1.2 || wealthRatio > 1.5) {
                 return 0.20; // Strong advantage: +20%
             } else if (powerRatio > 1.0 || wealthRatio > 1.2) {
@@ -508,14 +508,14 @@ export const calculateDealScore = ({
         } else if (powerRatio > 1.0) {
             stanceScore += (powerRatio - 1.0) * 400;
         }
-        
+
         // Wealth advantage bonus
         if (wealthRatio > 1.5) {
             stanceScore += (wealthRatio - 1.0) * 400;
         } else if (wealthRatio > 1.2) {
             stanceScore += (wealthRatio - 1.0) * 250;
         }
-        
+
         // If you're weaker, aggressive stance backfires
         if (powerRatio < 1.0 && wealthRatio < 1.2) {
             stanceScore -= 400; // Penalty for empty threats
@@ -554,25 +554,49 @@ export const calculateDealScore = ({
     const treatyNet = targetBenefit.benefit - targetBenefit.risk;
     const strategicScore = targetBenefit.strategicValue * 20;
 
-    const wealthRatio = targetWealth > 0 ? (playerWealth || 0) / targetWealth : 1;
-    const powerRatio = targetPower > 0 ? (playerPower || 0) / targetPower : 1;
+    // Cap wealth and power ratios to avoid extreme penalties
+    // Cap at 1000x to allow significant penalties while preventing calculation overflow
+    const wealthRatio = targetWealth > 0 ? Math.min(1000, (playerWealth || 0) / targetWealth) : 1;
+    const powerRatio = targetPower > 0 ? Math.min(1000, (playerPower || 0) / targetPower) : 1;
     let dominancePenalty = 0;
     if (['open_market', 'free_trade', 'investment_pact', 'economic_bloc'].includes(type)) {
         const wealthPressure = Math.max(0, wealthRatio - 1);
         const powerPressure = Math.max(0, powerRatio - 1);
-        
-        // Dramatically increased penalties for economic treaties with power imbalance
-        const baseWeight = type === 'open_market' ? 2000 : (type === 'free_trade' ? 1200 : 800); // Increased from 900/650/450
-        
-        // Exponential scaling for extreme imbalances
-        const wealthExponent = wealthPressure > 1 ? Math.pow(wealthPressure, 1.5) : wealthPressure;
-        const powerExponent = powerPressure > 1 ? Math.pow(powerPressure, 1.3) : powerPressure;
-        
-        dominancePenalty = (wealthExponent * baseWeight * 2.0) + (powerExponent * baseWeight * 1.2); // Increased multipliers from 1.4/0.9
-        
+
+        // Base weight for penalties
+        const baseWeight = type === 'open_market' ? 2000 : (type === 'free_trade' ? 1200 : 800);
+
+        // CRITICAL FIX: Use logarithmic scaling instead of exponential
+        // This prevents penalties from exploding with extreme wealth gaps
+        // Scale: 10x->2x, 100x->3x, 1000x->4x, 10000x->5x
+        let wealthMultiplier = 1;
+        let powerMultiplier = 1;
+
+        if (wealthPressure > 1) {
+            // For wealth gaps > 2x, use log scaling
+            // log10(10) = 1 -> multiplier = 1.5
+            // log10(100) = 2 -> multiplier = 2.0
+            // log10(1000) = 3 -> multiplier = 2.5
+            wealthMultiplier = 1 + Math.log10(wealthPressure) * 0.5;
+        } else {
+            wealthMultiplier = 1 + wealthPressure;
+        }
+
+        if (powerPressure > 1) {
+            powerMultiplier = 1 + Math.log10(powerPressure) * 0.4;
+        } else {
+            powerMultiplier = 1 + powerPressure;
+        }
+
+        dominancePenalty = (wealthMultiplier * baseWeight * 2.0) + (powerMultiplier * baseWeight * 1.2);
+
         // Additional penalty for open_market specifically - it's the most exploitative
         if (type === 'open_market' && wealthRatio > 2.0) {
-            dominancePenalty += (wealthRatio - 2.0) * 1500; // Massive penalty for 2x+ wealth advantage
+            // Use log scaling here too
+            const extraPenalty = wealthRatio > 10
+                ? Math.log10(wealthRatio - 2.0) * 500
+                : (wealthRatio - 2.0) * 500;
+            dominancePenalty += extraPenalty;
         }
     }
     dominancePenalty = Math.round(dominancePenalty);
@@ -685,7 +709,7 @@ export const calculateNegotiationAcceptChance = ({
     // Aggression penalty: aggressive nations are harder to negotiate with (increased)
     // High aggression = more suspicious, less willing to cooperate
     const aggressionPenalty = aggression * 0.25; // Increased from 0.18 to 0.25
-    
+
     // Additional aggression impact for economic treaties - aggressive nations don't trust economic deals
     let aggressionEconomicPenalty = 0;
     if (['open_market', 'free_trade', 'investment_pact', 'trade_agreement'].includes(type)) {
@@ -713,7 +737,7 @@ export const calculateNegotiationAcceptChance = ({
         );
         acceptChance += stanceBonus;
     }
-    
+
     // Debug log
     console.log('🎯 Negotiation Calculation:', {
         stance,
@@ -763,25 +787,25 @@ export const calculateNegotiationAcceptChance = ({
     } else if (deal.score < 0) {
         acceptChance = Math.min(acceptChance, 0.15); // New: negative deals capped at 15%
     }
-    
+
     // CRITICAL: For exploitative treaties, even positive scores shouldn't guarantee acceptance
     // AI should have \"pride\" and resist being bought out
     const exploitativeTreaties = ['open_market', 'free_trade', 'investment_pact'];
     if (exploitativeTreaties.includes(type)) {
         const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
         const powerRatio = targetPower > 0 ? playerPower / targetPower : 1;
-        
+
         // If player is significantly stronger, AI becomes more resistant even to good deals
         if (wealthRatio > 2.0 || powerRatio > 1.5) {
             const pridePenalty = Math.min(0.4, (wealthRatio - 1) * 0.15 + (powerRatio - 1) * 0.1);
             acceptChance *= (1 - pridePenalty); // Reduce acceptance by up to 40%
-            
+
             // For open_market specifically, even more resistant
             if (type === 'open_market' && wealthRatio > 2.5) {
                 acceptChance *= 0.6; // Additional 40% reduction
             }
         }
-        
+
         // Cap maximum acceptance for exploitative treaties when there's power imbalance
         if (wealthRatio > 1.8) {
             if (type === 'open_market') {
@@ -790,7 +814,7 @@ export const calculateNegotiationAcceptChance = ({
                 acceptChance = Math.min(acceptChance, 0.50); // Max 50% for others
             }
         }
-        
+
         // RATIONAL ASSESSMENT: If the deal looks \"too good to be true\", AI becomes suspicious
         // This prevents players from just throwing money at AI to buy exploitative treaties
         if (deal.score > 3000 && wealthRatio > 1.5) {
@@ -798,7 +822,7 @@ export const calculateNegotiationAcceptChance = ({
             const suspicionPenalty = Math.min(0.3, (deal.score - 3000) / 10000);
             acceptChance *= (1 - suspicionPenalty);
         }
-    }    
+    }
     // Good deals should still be attractive, but not guaranteed
     // Reduced all thresholds to encourage counter-proposals
     if (deal.score > 3000) {
@@ -841,7 +865,7 @@ export const generateCounterProposal = ({
 }) => {
     const relation = nation.relation || 0;
     const aggression = nation.aggression ?? 0.3;
-    
+
     // MASSIVELY increased counter-proposal chance
     // Base 0.50 (was 0.25), relation bonus doubled, round bonus increased
     const counterChance = Math.min(0.90, 0.50 + (relation / 100) - (aggression * 0.05) + (round * 0.12));
@@ -868,11 +892,11 @@ export const generateCounterProposal = ({
     );
     const relationConcession = (relation - 50) * 5; // Reduced from 8 to 5 - less generous
     const roundConcession = round * 40; // Reduced from 60 to 40 - slower concessions
-    
+
     // AI now aims for HIGHER target scores - more demanding
     const targetScore = Math.max(200, referenceValue * 0.25) - relationConcession - roundConcession; // 0.15 -> 0.25, 120 -> 200
     const shortfall = Math.max(0, targetScore - deal.score);
-    
+
     // CRITICAL CHANGE: Even if deal is "good enough", AI may still counter-propose to get MORE
     // This creates real negotiation dynamics
     if (shortfall <= 0) {
@@ -884,19 +908,20 @@ export const generateCounterProposal = ({
 
     const targetWealthSafe = Math.max(10000, targetWealth || 10000);
     const playerWealthSafe = Math.max(10000, playerWealth || 10000);
-    
+
     // Calculate rawNeeded with safety checks to prevent Infinity
     let rawNeeded = Math.ceil((shortfall / VALUE_SCALE_FACTOR) * targetWealthSafe);
-    
+
     // Safety check: prevent Infinity or NaN
     if (!Number.isFinite(rawNeeded) || rawNeeded < 0) {
         rawNeeded = 0;
     }
-    
+
     // Cap rawNeeded to prevent unreasonable demands
-    const maxRawNeeded = Math.min(playerWealthSafe * 0.5, targetWealthSafe * 2.0);
+    // Increase max to allow AI to demand more when wealth gap is huge
+    const maxRawNeeded = Math.min(playerWealthSafe * 0.8, targetWealthSafe * 5.0); // 0.5->0.8, 2.0->5.0
     rawNeeded = Math.min(rawNeeded, maxRawNeeded);
-    
+
     // AI demands MORE compensation for exploitative treaties
     if (proposal.type === 'open_market') {
         rawNeeded = Math.ceil(rawNeeded * 2.0); // Increased from 1.5 to 2.0
@@ -905,13 +930,24 @@ export const generateCounterProposal = ({
     } else if (proposal.type === 'investment_pact') {
         rawNeeded = Math.ceil(rawNeeded * 1.4); // New: investment also needs more
     }
-    
+
     // If player is much wealthier, AI demands even MORE
-    const wealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
-    if (wealthRatio > 2.0) {
-        rawNeeded = Math.ceil(rawNeeded * (1 + (wealthRatio - 2.0) * 0.3)); // Extra 30% per wealth ratio
+    // Use REAL wealth ratio here (not capped at 10 like in dominancePenalty)
+    // This ensures AI asks for enough compensation in extreme wealth gaps
+    const realWealthRatio = targetWealth > 0 ? playerWealth / targetWealth : 1;
+    if (realWealthRatio > 100) {
+        // Massive wealth gap: AI demands proportional compensation
+        // Scale: 100x->3x multiplier, 1000x->5x, 10000x->7x
+        const multiplier = 1 + Math.min(6, Math.log10(realWealthRatio) * 2);
+        rawNeeded = Math.ceil(rawNeeded * multiplier);
+    } else if (realWealthRatio > 10) {
+        // Large wealth gap: AI demands extra
+        rawNeeded = Math.ceil(rawNeeded * (1 + (realWealthRatio - 10) / 20));
+    } else if (realWealthRatio > 2.0) {
+        // Moderate gap
+        rawNeeded = Math.ceil(rawNeeded * (1 + (realWealthRatio - 2.0) * 0.3));
     }
-    
+
     // Final safety check after all multipliers
     if (!Number.isFinite(rawNeeded) || rawNeeded < 0) {
         rawNeeded = 0;
@@ -943,13 +979,13 @@ export const generateCounterProposal = ({
         : baseGiftFloor;
     const giftFloor = Math.max(openMarketFloor, freeTradeFloor);
     const compensation = Math.ceil(rawNeeded * (1.0 + Math.random() * 0.3)); // 0.9-1.1 -> 1.0-1.3 (more demanding)
-    
+
     // Safety check for compensation
     const safeCompensation = Number.isFinite(compensation) && compensation >= 0 ? compensation : 0;
     const calculatedDemand = Math.ceil(Math.max(giftBase + safeCompensation, giftFloor));
-    
+
     // AI demands payment from player (put in demandSilver, not signingGift)
-    next.demandSilver = Number.isFinite(calculatedDemand) && calculatedDemand >= 0 
+    next.demandSilver = Number.isFinite(calculatedDemand) && calculatedDemand >= 0
         ? Math.min(calculatedDemand, playerWealthSafe * 0.8) // Cap at 80% of player wealth
         : giftFloor;
 

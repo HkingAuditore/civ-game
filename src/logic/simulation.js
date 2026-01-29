@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { buildOwnershipListFromLegacy, providesOwnerJobs, OWNER_TYPES } from '../config/ownerTypes';
@@ -30,8 +30,25 @@ const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tic
 let cachedPotentialResourcesKey = null;
 let cachedPotentialResourcesSet = null;
 
-const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange }) => {
+const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange, playerWealth }) => {
     const treaties = Array.isArray(nation.treaties) ? nation.treaties : [];
+
+    // Debug: log treaties being processed
+    if (treaties.length > 0) {
+        console.log('[TREATY MAINTENANCE DEBUG]', {
+            nationName: nation.name,
+            treatyCount: treaties.length,
+            treaties: treaties.map(t => ({
+                type: t.type,
+                endDay: t.endDay,
+                active: isTreatyActive(t, tick),
+                direction: t.direction,
+                maintenance: t.maintenancePerDay
+            })),
+            currentTick: tick
+        });
+    }
+
     const activeTreaties = [];
     const expiredTreaties = [];
     let maintenanceTotal = 0;
@@ -39,8 +56,35 @@ const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange
     treaties.forEach((treaty) => {
         if (isTreatyActive(treaty, tick)) {
             activeTreaties.push(treaty);
-            if (treaty.direction === 'player_to_ai' && Number.isFinite(treaty.maintenancePerDay)) {
-                maintenanceTotal += Math.max(0, treaty.maintenancePerDay);
+            if (treaty.direction === 'player_to_ai') {
+                let dailyMaintenance = 0;
+
+                // 先计算当前应有的维护费（使用新公式）
+                const recalculatedMaintenance = getTreatyDailyMaintenance(
+                    treaty.type,
+                    playerWealth || 0,
+                    nation.wealth || 0
+                );
+
+                // 如果条约中有玩家自定义的维护费
+                if (Number.isFinite(treaty.maintenancePerDay) && treaty.maintenancePerDay > 0) {
+                    // 检查是否在合理范围内（不超过新公式计算值的10倍）
+                    // 如果超过，说明是旧版本的异常值，需要重新计算
+                    const maxReasonable = Math.max(recalculatedMaintenance * 10, 10000);
+
+                    if (treaty.maintenancePerDay <= maxReasonable) {
+                        // 在合理范围内，使用玩家自定义的值
+                        dailyMaintenance = treaty.maintenancePerDay;
+                    } else {
+                        // 超出合理范围，使用新公式重新计算
+                        dailyMaintenance = recalculatedMaintenance;
+                    }
+                } else {
+                    // 没有自定义值或值为0，使用新公式
+                    dailyMaintenance = recalculatedMaintenance;
+                }
+
+                maintenanceTotal += Math.max(0, dailyMaintenance);
             }
         } else {
             expiredTreaties.push(treaty);
@@ -820,7 +864,7 @@ export const simulateTick = ({
         incomePercent: activeOfficialEffects.incomePercentBonus,
     };
     applyEffects(officialEffectsForBonuses, bonuses);
-    
+
     // [DEBUG] Track after officials
     bonusDebug.afterOfficials = bonuses.incomePercentBonus || 0;
     // === 应用官员专属效果到 bonuses ===
@@ -910,10 +954,10 @@ export const simulateTick = ({
     if (stanceEffects.incomePercentBonus) {
         bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + stanceEffects.incomePercentBonus;
     }
-    
+
     // [DEBUG] Track after stance
     bonusDebug.afterStance = bonuses.incomePercentBonus || 0;
-    
+
     if (stanceEffects.buildingCostMod) {
         bonuses.buildingCostMod = (bonuses.buildingCostMod || 0) + stanceEffects.buildingCostMod;
     }
@@ -1106,7 +1150,7 @@ export const simulateTick = ({
     taxBonus = bonuses.taxBonus;
     needsReduction = bonuses.needsReduction;
     const incomePercentBonus = bonuses.incomePercentBonus || 0; // NEW: income percentage bonus
-    
+
     // [DEBUG] Log incomePercentBonus accumulation if abnormal
     if (Math.abs(incomePercentBonus) > 0.5) {
         console.warn('[INCOME BONUS ACCUMULATION]', {
@@ -1557,19 +1601,19 @@ export const simulateTick = ({
     // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正中
     // bonuses.taxBonus 是来自 effects.taxIncome 的累加值（如庆典效果、政令效果等）
     const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
-    
+
     // [FIX] 提前定义空岗位收入预估函数，用于 fillVacancies 时的智能工资判断
     // 逻辑与 simulation 尾部的 estimateVacantRoleIncome 类似，但只能使用上一 tick 的数据 (market.wages)
     const estimatePotentialIncomeForVacancy = (role) => {
         const VACANT_BONUS = 1.2;
-        
+
         // [FIX] 计算税收效率，用于补贴计算
         // 注意：此时 efficiency 尚未计算，使用 currentStability 估算
         const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
         const estimatedEfficiency = estimatedStabilityFactor;
         const rawEfficiency = estimatedEfficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
         const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
-        
+
         let ownerIncome = 0;
         let ownerSlots = 0;
         let employeeWage = 0;
@@ -1619,7 +1663,7 @@ export const simulateTick = ({
                 // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
                 // 如果是补贴（负数），实际到账金额受税收效率影响
-                const effectiveBusinessTaxCost = businessTaxCost < 0 
+                const effectiveBusinessTaxCost = businessTaxCost < 0
                     ? businessTaxCost * effectiveEfficiency  // 补贴受效率影响
                     : businessTaxCost;                        // 正税全额支付
 
@@ -1799,7 +1843,7 @@ export const simulateTick = ({
             ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
             : plannedPerCapitaTax;
         const due = count * effectivePerCapitaTax;
-        
+
         // [DEBUG] 人头税征收调试日志
         // if (Math.abs(headRate) > 5) { // 只在税率异常高时输出
         //     console.log(`[HEAD TAX DEBUG] ${key}:`, {
@@ -1814,7 +1858,7 @@ export const simulateTick = ({
         //         是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '是' : '否'
         //     });
         // }
-        
+
         if (due !== 0) {
             if (due > 0) {
                 const paid = Math.min(available, due);
@@ -2237,15 +2281,15 @@ export const simulateTick = ({
             // - 如果边际收益（产出 - 原料 - 税费）> 0，应该生产
             // - 即使总成本（含工资）> 总收入，只要边际收益 > 0，生产可以减少亏损
             // - 只有当边际收益 < 0 时，才应该停产
-            
+
             // 可变成本 = 原料成本 + 营业税（补贴为负，减少成本）
             const variableCost = estimatedInputCost + estimatedBusinessTax;
             // 边际收益 = 产出价值 - 可变成本
             const marginalRevenue = estimatedRevenue - variableCost;
-            
+
             // 总成本（用于调试和UI显示）
             const estimatedCost = estimatedInputCost + actualPayableWageCost + estimatedBusinessTax;
-            
+
             if (estimatedRevenue <= 0) {
                 // 产出没有价值，停产
                 actualMultiplier = 0;
@@ -2829,7 +2873,7 @@ export const simulateTick = ({
                 // 实际到账金额 = 补贴金额 × 效率
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
-                
+
                 // 计算实际发放金额（考虑税收效率）
                 // 使用与税收相同的效率计算逻辑
                 const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
@@ -2837,25 +2881,25 @@ export const simulateTick = ({
                 const rawEfficiency = estimatedEfficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
                 const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
                 const actualSubsidyAmount = subsidyAmount * effectiveEfficiency;
-                
+
                 if (treasury >= subsidyAmount) {
                     // 从国库扣除全额补贴
                     Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                         const proportion = group.totalCount / count;
                         const ownerSubsidyFull = subsidyAmount * proportion;
                         const ownerSubsidyActual = actualSubsidyAmount * proportion;
-                        
+
                         // 业主只收到效率%的补贴
                         ledger.transfer('state', oKey, ownerSubsidyActual, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                         roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidyActual;
-                        
+
                         // 剩余部分被腐败官员贪污（在后续腐败处理阶段统一分配）
                         // 这里只记录补贴总额，腐败损失会在税收汇总阶段处理
                     });
-                    
+
                     // 记录补贴支出（用于后续腐败计算）
                     taxBreakdown.subsidy = (taxBreakdown.subsidy || 0) + subsidyAmount;
-                    
+
                     if (effectiveEfficiency < 1 && tick % 30 === 0) {
                         const lossPercent = ((1 - effectiveEfficiency) * 100).toFixed(1);
                         recordAggregatedLog(`💸 ${b.name} 补贴因腐败损失 ${lossPercent}%`);
@@ -2865,7 +2909,8 @@ export const simulateTick = ({
                         recordAggregatedLog(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
                     }
                 }
-            }        }
+            }
+        }
 
         if (b.id === 'market') {
             const marketOwnerKey = b.owner || 'merchant';
@@ -3116,44 +3161,44 @@ export const simulateTick = ({
         };
 
         if (totalArmyCost > 0) {
-        // [DEBUG] Military Log Trace
-        // console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
-        const available = res.silver || 0;
-        if (available >= totalArmyCost) {
-            // [FIX] Use Ledger for correct wealth transfer (State -> Soldier)
-            ledger.transfer('state', 'soldier', totalArmyCost, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
+            // [DEBUG] Military Log Trace
+            // console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
+            const available = res.silver || 0;
+            if (available >= totalArmyCost) {
+                // [FIX] Use Ledger for correct wealth transfer (State -> Soldier)
+                ledger.transfer('state', 'soldier', totalArmyCost, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
 
-            militaryDebug.applied = true;
-            militaryDebug.reason = 'expense_army_maintenance';
+                militaryDebug.applied = true;
+                militaryDebug.reason = 'expense_army_maintenance';
 
-            rates.silver = (rates.silver || 0) - totalArmyCost;
-            roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
-            roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
-            // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
-            if (classFinancialData.soldier) {
-                classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
-            }
-
-            // [DEBUG] Verify Log Immediate
-            const logLast = silverChangeLog.toArray().pop(); // .toArray() returns copy, get last
-            militaryDebug.logEntryFound = logLast && logLast.reason === TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE;
-            militaryDebug.logSizeAfter = silverChangeLog.length;
-        } else if (totalArmyCost > 0) {
-            // 部分支付
-            const partialPay = available * 0.9; // 留10%底
-            if (partialPay > 0) {
-                // [FIX] Use Ledger for partial payment too
-                ledger.transfer('state', 'soldier', partialPay, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
-
-                rates.silver = (rates.silver || 0) - partialPay;
-                roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
+                rates.silver = (rates.silver || 0) - totalArmyCost;
+                roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
+                roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
                 // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
                 if (classFinancialData.soldier) {
-                    classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + partialPay;
+                    classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
                 }
+
+                // [DEBUG] Verify Log Immediate
+                const logLast = silverChangeLog.toArray().pop(); // .toArray() returns copy, get last
+                militaryDebug.logEntryFound = logLast && logLast.reason === TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE;
+                militaryDebug.logSizeAfter = silverChangeLog.length;
+            } else if (totalArmyCost > 0) {
+                // 部分支付
+                const partialPay = available * 0.9; // 留10%底
+                if (partialPay > 0) {
+                    // [FIX] Use Ledger for partial payment too
+                    ledger.transfer('state', 'soldier', partialPay, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
+
+                    rates.silver = (rates.silver || 0) - partialPay;
+                    roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
+                    // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
+                    if (classFinancialData.soldier) {
+                        classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + partialPay;
+                    }
+                }
+                logs.push(`?? 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
             }
-            logs.push(`?? 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
-        }
         }
         perfEnd('armyMaintenance');
     }
@@ -3778,14 +3823,14 @@ export const simulateTick = ({
                 const requiredPayment = Math.abs(normalizedOfficial.salary);
                 const actualPayment = Math.min(requiredPayment, currentWealth);
                 currentWealth = Math.max(0, currentWealth - actualPayment);
-                
+
                 // 记录负薪酬收入到国库（通过ledger系统）
                 if (actualPayment > 0) {
                     ledger.transfer('official', 'state', actualPayment, 'NEGATIVE_SALARY', 'NEGATIVE_SALARY');
                     // 记录到官员支出
                     headTaxPaid += actualPayment; // 暂时归入headTaxPaid统计（或可以新增字段）
                 }
-                
+
                 // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Negative salary! Required: ${requiredPayment}, Paid: ${actualPayment}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
             }
         } else {
@@ -5100,7 +5145,7 @@ export const simulateTick = ({
             // Clear any diplomatic actions
             next.relation = 0;
             next.alliedWithPlayer = false;
-            
+
             // Skip all AI simulation for this nation
             return next;
         }
@@ -5116,7 +5161,7 @@ export const simulateTick = ({
             }
         }
 
-        processNationTreaties({ nation: next, tick, resources: res, logs, onTreasuryChange: trackSilverChange });
+        processNationTreaties({ nation: next, tick, resources: res, logs, onTreasuryChange: trackSilverChange, playerWealth: res.silver || 0 });
 
         if (next.isRebelNation) {
             // REFACTORED: Using module function for rebel economy initialization
@@ -5178,12 +5223,12 @@ export const simulateTick = ({
         if (!foreignPowerProfile.initializedAtTick) {
             const eraGap = Math.max(0, visibleEpoch - (foreignPowerProfile.appearEpoch ?? 0));
             const eraBonus = 1 + eraGap * 0.08;
-            
+
             // [MODIFIED] Generate dynamic strength relative to player
             // Some nations will be weaker (0.3-0.9x), some similar (0.9-1.5x), some stronger (1.5-10x)
             const strengthRoll = Math.random();
             let strengthMultiplier;
-            
+
             if (strengthRoll < 0.3) {
                 // 30% chance: Weak nation (0.3-0.9x player strength)
                 strengthMultiplier = 0.3 + Math.random() * 0.6;
@@ -5197,11 +5242,11 @@ export const simulateTick = ({
                 // 15% chance: Very strong nation (3-10x player strength)
                 strengthMultiplier = 3 + Math.random() * 7;
             }
-            
+
             // Apply nation's base characteristics and era bonus
             const basePopFactor = foreignPowerProfile.populationFactor * eraBonus;
             const baseWealthFactor = foreignPowerProfile.wealthFactor * eraBonus;
-            
+
             // Combine with strength multiplier
             const popFactor = clamp(
                 basePopFactor * strengthMultiplier,
@@ -5213,7 +5258,7 @@ export const simulateTick = ({
                 0.3,  // Allow weaker nations
                 10.0  // Allow much stronger nations
             );
-            
+
             const basePopInit = Math.max(3, Math.round(playerPopulationBaseline * popFactor));
             const baseWealthInit = Math.max(100, Math.round(playerWealthBaseline * wealthFactor));
             next.population = basePopInit;
@@ -5541,7 +5586,7 @@ export const simulateTick = ({
     const vassalMarketPrices = market?.prices || {};
     const playerAtWar = updatedNations.some(n => n.isAtWar && n.warTarget === 'player');
     const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
-    
+
     // 构建满意度上限计算所需的上下文
     const satisfactionContext = {
         suzereainWealth: res.silver || 10000,
@@ -5551,7 +5596,7 @@ export const simulateTick = ({
         suzereainReputation: diplomaticReputation ?? 50, // Use actual reputation value
         hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势力
     };
-    
+
     updatedNations = updatedNations.map(nation => {
         if (nation.vassalOf !== 'player') return nation;
         const initialized = initializeNationEconomyData({ ...nation }, vassalMarketPrices);
@@ -5750,7 +5795,7 @@ export const simulateTick = ({
                         const isFounder = org.founderId === req.nationId;
                         const config = ORGANIZATION_TYPE_CONFIGS[org.type];
                         const willDisband = isFounder && (config?.founderLeaveDisbands !== false);
-                        
+
                         if (willDisband) {
                             // Founder leaving - mark organization for removal
                             updatedOrganizations[orgIndex] = {
@@ -5784,7 +5829,7 @@ export const simulateTick = ({
         updatedOrganizations = updatedOrganizations.map(org => {
             const originalMemberCount = org.members?.length || 0;
             const cleanedMembers = (org.members || []).filter(memberId => validNationIds.has(memberId));
-            
+
             if (cleanedMembers.length < originalMemberCount) {
                 organizationUpdatesOccurred = true;
                 const removedCount = originalMemberCount - cleanedMembers.length;
@@ -5792,7 +5837,7 @@ export const simulateTick = ({
                     logs.push(`🏛️ "${org.name}" 清理了 ${removedCount} 个已消失的成员国。`);
                 }
             }
-            
+
             return {
                 ...org,
                 members: cleanedMembers,
@@ -5802,7 +5847,7 @@ export const simulateTick = ({
         const filteredOrgs = [];
         updatedOrganizations.forEach(org => {
             const keepSoloPlayerOrg = org?.members?.includes('player') && org.members.length === 1;
-            
+
             // Check if organization is marked as inactive (e.g., founder left)
             if (org.isActive === false && !keepSoloPlayerOrg) {
                 const reason = org.disbandReason || '未知原因';
@@ -5813,21 +5858,21 @@ export const simulateTick = ({
                 organizationUpdatesOccurred = true;
                 return;
             }
-            
+
             // Check other disband conditions
             if (shouldDisbandOrganization(org, validNationIds) && !keepSoloPlayerOrg) {
                 // Determine disband reason for better logging
                 const config = ORGANIZATION_TYPE_CONFIGS[org.type];
                 const founderExists = org.founderId ? validNationIds.has(org.founderId) : true;
                 const memberCount = org.members?.length || 0;
-                
+
                 let reason = '未知原因';
                 if (!founderExists) {
                     reason = '创始国已消亡';
                 } else if (memberCount < (config?.minMembers || 2)) {
                     reason = '成员不足';
                 }
-                
+
                 logs.push(`🏛️ "${org.name}" 因${reason}而解散。`);
                 organizationUpdatesOccurred = true;
                 return;
@@ -5835,6 +5880,38 @@ export const simulateTick = ({
             filteredOrgs.push(org);
         });
         updatedOrganizations = filteredOrgs;
+
+        // [NEW] Clean up treaties with annexed/destroyed nations
+        // This prevents treaties from persisting with non-existent nations
+        updatedNations = updatedNations.map(nation => {
+            if (!nation.treaties || nation.treaties.length === 0) return nation;
+
+            const originalTreatyCount = nation.treaties.length;
+            const cleanedTreaties = nation.treaties.filter(treaty => {
+                // Keep treaty only if both parties exist
+                if (treaty.direction === 'player_to_ai') {
+                    // Treaty with player, keep it if nation exists
+                    return validNationIds.has(nation.id);
+                } else if (treaty.direction === 'ai_to_player') {
+                    // Treaty from nation to player, always keep (player always valid)
+                    return true;
+                } else {
+                    // Treaty between two nations, check if both exist
+                    // For now, we assume if nation still exists, treaty is valid
+                    return true;
+                }
+            });
+
+            if (cleanedTreaties.length < originalTreatyCount) {
+                const removedCount = originalTreatyCount - cleanedTreaties.length;
+                logs.push(`📜 ${nation.name} 因条约对方消亡，清理了 ${removedCount} 个条约。`);
+            }
+
+            return {
+                ...nation,
+                treaties: cleanedTreaties,
+            };
+        });
     }
 
 
@@ -6599,7 +6676,7 @@ export const simulateTick = ({
         }
         // 空岗位吸引力加成系数
         const VACANT_BONUS = 1.2;
-        
+
         // [FIX] 计算税收效率，用于补贴计算
         const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
         const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
@@ -6660,7 +6737,7 @@ export const simulateTick = ({
                 // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
                 // 如果是补贴（负数），实际到账金额受税收效率影响
-                const effectiveBusinessTaxCost = businessTaxCost < 0 
+                const effectiveBusinessTaxCost = businessTaxCost < 0
                     ? businessTaxCost * effectiveEfficiency  // 补贴受效率影响
                     : businessTaxCost;                        // 正税全额支付
 
@@ -6883,7 +6960,7 @@ export const simulateTick = ({
             const officialId = ministerAssignments?.[role];
             const official = officialId ? ministerRoster.get(officialId) : null;
             if (!official) return;
-            
+
             // [NEW] Check if auto-expansion is enabled for this minister
             const autoExpansionEnabled = ministerAutoExpansion?.[role] === true;
             if (!autoExpansionEnabled) return;
@@ -6909,11 +6986,11 @@ export const simulateTick = ({
                 const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
                 const profit = profitResult?.profit ?? 0;
                 const operatingCost = (profitResult?.inputValue ?? 0) + (profitResult?.wageCost ?? 0) + (profitResult?.businessTax ?? 0);
-                
+
                 // [FIX] ROI should be calculated based on operating costs, not construction costs
                 // ROI = profit / operating_cost (per turn profitability)
                 const roi = operatingCost > 0 ? profit / operatingCost : 0;
-                
+
                 // [FIX] Consider market saturation: if too many buildings exist, skip
                 // Estimate: if current supply already meets 80%+ of demand, don't build more
                 const outputRes = Object.keys(building.output || {})[0];
@@ -6924,7 +7001,7 @@ export const simulateTick = ({
                         return;
                     }
                 }
-                
+
                 // Require ROI at least 0.3 (30% margin over costs) to ensure profitability
                 if (roi <= 0.3) return;
 
@@ -7154,7 +7231,7 @@ export const simulateTick = ({
     //    - 国库：收到 效率% 的税款（扣除腐败后）
     //    - 官员：获得 (1-效率)% 的贪污收入
     // ============================================================================
-    
+
     // 由于 taxBreakdown 现在是"实际入库"，collectedXxx 直接等于 taxBreakdown.xxx。
     const collectedHeadTax = taxBreakdown.headTax;
     const collectedIndustryTax = taxBreakdown.industryTax;
@@ -7245,7 +7322,7 @@ export const simulateTick = ({
     //         'taxBreakdown.businessTax': taxBreakdown.businessTax.toFixed(2),
     //     });
     // }
-    
+
     // console.log('[TAX SUMMARY DEBUG]', {
     //     'taxBreakdown.headTax（实际入库）': taxBreakdown.headTax.toFixed(2),
     //     '税收效率': effectiveTaxEfficiency.toFixed(3),
@@ -7265,7 +7342,7 @@ export const simulateTick = ({
     // [FIX] 方案B：税收效率只影响国库收入，不凭空增加银币
     // 阶层已支付全额税款（在征收环节），国库收到的是扣除腐败后的金额
     // incomePercentMultiplier 不应该凭空增加银币，而应该在征收时就体现在 effectiveTaxModifier 中
-    
+
     // 计算最终税额（用于 rates 显示）
     // 注意：这里不再乘以 incomePercentMultiplier，因为：
     // 1. 阶层已经按照 effectiveTaxModifier（包含所有加成）支付了税款
@@ -7284,7 +7361,7 @@ export const simulateTick = ({
     // [FIX] 方案B：战争赔款也不应该凭空增加银币
     // processInstallmentPayment() 已经记录了基础金额
     // 不应该再通过 incomePercentMultiplier 凭空增加
-    
+
     // Update rates for display (base amount was already added in processInstallmentPayment)
     if (warIndemnityIncome > 0) {
         rates.silver = (rates.silver || 0) + warIndemnityIncome;
