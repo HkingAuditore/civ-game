@@ -1809,6 +1809,8 @@ export const useGameState = () => {
                 eventConfirmationEnabled,
                 updatedAt: timestamp,
                 saveSource: source,
+                // AI balance version marker - saves with this field won't trigger legacy AI migration
+                aiBalanceVersion: 1,
             },
             nextLastAuto,
         };
@@ -1850,7 +1852,65 @@ export const useGameState = () => {
         setGameSpeed(data.gameSpeed ?? 1);
         setIsPaused(data.isPaused ?? false);
         setDiplomaticReputation(data.diplomaticReputation ?? 50);
-        setNations((data.nations || buildInitialNations()).map(n => ({
+
+        // [FIX] Legacy save migration: Fix AI nations with broken population/wealth from old versions
+        // Only apply to saves WITHOUT aiBalanceVersion marker (old saves before this fix)
+        const loadedNations = data.nations || buildInitialNations();
+        const playerPop = loadedPopulation; // Use player population loaded above
+        const playerWealth = (data.resources?.silver) || 1000;
+        const currentEpoch = data.epoch ?? 0;
+        
+        let migratedNations = loadedNations;
+        if (!data.aiBalanceVersion) {
+            // This is an old save - check for broken AI nations
+            migratedNations = loadedNations.map(n => {
+                const aiPop = n.population || 0;
+                const aiWealth = n.wealth || 0;
+                const popRatio = aiPop / Math.max(1, playerPop);
+                const wealthRatio = aiWealth / Math.max(1, playerWealth);
+                
+                // If AI population OR wealth exceeds 10x player's level, reset this nation
+                if (popRatio > 10 || wealthRatio > 10) {
+                    console.log(`[Save Migration] Resetting broken AI nation: ${n.name} (pop: ${aiPop}, wealth: ${aiWealth}, player pop: ${playerPop}, player wealth: ${playerWealth})`);
+                    
+                    // Calculate reasonable values based on player's current development
+                    // AI nations should be at 30-80% of player's level, scaled by their appear epoch
+                    const appearEpoch = n.appearEpoch ?? 0;
+                    const epochBonus = 1 + Math.min(appearEpoch, currentEpoch) * 0.2;
+                    
+                    // Population: 30-80% of player, with epoch bonus
+                    const targetPopScale = 0.3 + Math.random() * 0.5; // 0.3 to 0.8
+                    const newPopulation = Math.max(100, Math.floor(playerPop * targetPopScale * epochBonus));
+                    
+                    // Wealth: 20-60% of player, with epoch bonus
+                    const targetWealthScale = 0.2 + Math.random() * 0.4; // 0.2 to 0.6
+                    const newWealth = Math.max(500, Math.floor(playerWealth * targetWealthScale * epochBonus));
+                    
+                    // Reset economy traits
+                    const newEconomyTraits = {
+                        ...(n.economyTraits || {}),
+                        ownBasePopulation: Math.max(5, Math.floor(newPopulation / 10)),
+                        ownBaseWealth: newWealth,
+                        basePopulation: newPopulation,
+                        baseWealth: newWealth,
+                        developmentRate: 0.8 + Math.random() * 0.4,
+                        lastGrowthTick: 0,
+                    };
+                    
+                    return {
+                        ...n,
+                        population: newPopulation,
+                        wealth: newWealth,
+                        budget: Math.floor(newWealth * 0.5),
+                        wealthTemplate: newWealth,
+                        economyTraits: newEconomyTraits,
+                    };
+                }
+                return n;
+            });
+        }
+
+        setNations(migratedNations.map(n => ({
             ...n,
             treaties: Array.isArray(n.treaties) ? n.treaties : [],
             openMarketUntil: Object.prototype.hasOwnProperty.call(n, 'openMarketUntil') ? n.openMarketUntil : null,
