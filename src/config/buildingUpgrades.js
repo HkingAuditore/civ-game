@@ -78,32 +78,32 @@ export const BUILDING_UPGRADES = {
             name: "织布坊",
             cost: { wood: 80, stone: 40, tools: 10, silver: 250 },
             input: { tools: 0.02 },
-            output: { cloth: 2.5 }, // 1.3x
+            output: { cloth: 3.744 }, // 1.3x of base 2.88
             jobs: { worker: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "大织布坊",
             cost: { plank: 60, brick: 40, tools: 20, silver: 600 },
             input: { tools: 0.04, dye: 0.03 }, // 新增染料需求
-            output: { cloth: 4.32, culture: 0.05 }, // 2.25x + 织艺文化
+            output: { cloth: 6.48, culture: 0.05 }, // 2.25x of base 2.88 + 织艺文化
             jobs: { worker: 4 }, // +1 worker only
         },
     ],
 
-    // brickworks: base output 2.4 brick, owner: worker, base jobs: worker:2
+    // brickworks: base output 3.6 brick, owner: worker, base jobs: worker:3
     brickworks: [
         {
             name: "改良砖窑",
             cost: { stone: 80, wood: 40, tools: 15, silver: 300 },
-            input: { stone: 1.0, wood: 0.35, tools: 0.02 },
-            output: { brick: 3.12 }, // 1.3x
+            input: { stone: 1.725, wood: 0.5175, tools: 0.02 },
+            output: { brick: 4.68 }, // 1.3x of base 3.6
             jobs: { worker: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "大砖窑",
             cost: { stone: 120, brick: 80, tools: 30, silver: 700 },
-            input: { stone: 1.5, wood: 0.5, tools: 0.04 },
-            output: { brick: 5.4, tools: 0.02 }, // 2.25x + 模具生产
+            input: { stone: 2.7, wood: 0.81, tools: 0.04 },
+            output: { brick: 8.1, tools: 0.02 }, // 2.25x of base 3.6 + 模具生产
             jobs: { worker: 4 }, // +1 worker only
         },
     ],
@@ -331,20 +331,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // tailor_workshop: base output 0.5 fine_clothes + 0.5 culture, owner: artisan, base jobs: artisan:3
+    // tailor_workshop: base output 1.2 fine_clothes + 0.5 culture, owner: artisan, base jobs: artisan:3
     tailor_workshop: [
         {
             name: "高级成衣坊",
             cost: { plank: 50, tools: 15, silver: 350 },
-            input: { tools: 0.035, cloth: 0.85, dye: 0.17 },
-            output: { fine_clothes: 1.04, culture: 0.6 }, // 1.2x
+            input: { tools: 0.069, cloth: 1.725, dye: 0.345 },
+            output: { fine_clothes: 1.56, culture: 0.65 }, // 1.3x of base 1.2 & 0.5
             jobs: { artisan: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "御用成衣坊",
             cost: { brick: 40, fine_clothes: 10, silver: 800 },
-            input: { tools: 0.05, cloth: 1.3, dye: 0.25 },
-            output: { fine_clothes: 1.8, culture: 0.8 }, // 1.6x
+            input: { tools: 0.108, cloth: 2.7, dye: 0.54 },
+            output: { fine_clothes: 2.7, culture: 1.125 }, // 2.25x of base 1.2 & 0.5
             jobs: { artisan: 4 }, // +1 artisan only
         },
     ],
@@ -392,14 +392,14 @@ export const BUILDING_UPGRADES = {
             name: "繁荣庄园",
             cost: { plank: 60, tools: 20, silver: 400 },
             input: { tools: 0.1, wood: 0.15 }, // modest input cost
-            output: { food: 23.4 }, // 1.3x
+            output: { food: 31.2 }, // 1.3x of base 24.0
             jobs: { serf: 8, landowner: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "领主庄园",
             cost: { brick: 50, furniture: 15, silver: 900 },
             input: { tools: 0.18, wood: 0.25, cloth: 0.05 }, // reasonable input increase
-            output: { food: 40.5, cloth: 0.1, ale: 0.03 }, // 2.25x + small bonus products
+            output: { food: 54.0, cloth: 0.1, ale: 0.03 }, // 2.25x of base 24.0 + small bonus products
             jobs: { serf: 9, landowner: 1 }, // +1 serf only
         },
     ],
@@ -430,33 +430,33 @@ export const BUILDING_UPGRADES = {
         {
             name: "修道院大酒窖",
             cost: { stone: 80, tools: 20, silver: 400 },
-            input: { food: 2.0, wood: 0.35 },
-            output: { ale: 2.6, culture: 1.4 }, // 1.2x
+            input: { food: 3.105, wood: 0.5175 },
+            output: { ale: 3.9, culture: 1.56 }, // 1.3x of base 3.0 & 1.2
             jobs: { cleric: 1, worker: 3 }, // keep same
         },
         {
             name: "酿酒修道院",
             cost: { brick: 100, furniture: 20, silver: 900 },
-            input: { food: 2.7, wood: 0.5 },
-            output: { ale: 4.5, culture: 2.0, science: 0.08 }, // 1.6x + 神学研究
+            input: { food: 4.86, wood: 0.81 },
+            output: { ale: 6.75, culture: 2.7, science: 0.08 }, // 2.25x of base 3.0 & 1.2 + 神学研究
             jobs: { cleric: 2, worker: 2 }, // +1 cleric
         },
     ],
 
-    // wool_workshop: base output cloth: 3.2, fine_clothes: 0.2, owner: worker, base jobs: serf:3, worker:2
+    // wool_workshop: base output cloth: 4.8, fine_clothes: 0.3, owner: worker, base jobs: serf:4, worker:3
     wool_workshop: [
         {
             name: "大纺织工场",
             cost: { plank: 80, tools: 20, silver: 380 },
-            input: { food: 0.7, tools: 0.04 },
-            output: { cloth: 4.16, fine_clothes: 0.26 }, // 1.3x
+            input: { food: 1.035, tools: 0.05175 },
+            output: { cloth: 6.24, fine_clothes: 0.39 }, // 1.3x of base 4.8 & 0.3
             jobs: { serf: 4, worker: 3 }, // keep same
         },
         {
             name: "领主纺织工场",
             cost: { brick: 60, tools: 35, silver: 850 },
-            input: { food: 1.0, tools: 0.06, dye: 0.05 }, // 需要染料
-            output: { cloth: 7.2, fine_clothes: 0.45, culture: 0.05 }, // 2.25x + 织艺文化
+            input: { food: 1.62, tools: 0.081, dye: 0.05 }, // 需要染料
+            output: { cloth: 10.8, fine_clothes: 0.675, culture: 0.05 }, // 2.25x of base 4.8 & 0.3 + 织艺文化
             jobs: { serf: 5, worker: 3 }, // +1 serf
         },
     ],
@@ -541,15 +541,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "繁荣港口",
             cost: { plank: 150, spice: 30, silver: 600 },
-            input: { spice: 0.25 },
-            output: { food: 2.6, silver: 0.15 }, // 1.3x
+            input: { spice: 0.46 },
+            output: { food: 3.467, silver: 0.15 }, // 1.3x of base 2.6667
             jobs: { merchant: 4 }, // keep same, efficiency upgrade
         },
         {
             name: "贸易枢纽",
-            cost: { brick: 120, spice: 60, silver: 1300 },
-            input: { spice: 0.35, cloth: 0.06 }, // 需要帆布
-            output: { food: 4.5, silver: 0.4 }, // 2.25x + 贸易利润
+            cost: { plank: 120, spice: 60, silver: 1300 },
+            input: { spice: 0.72, cloth: 0.06 }, // 需要帆布
+            output: { food: 6.0, silver: 0.4 }, // 2.25x of base 2.6667 + 贸易利润
             jobs: { merchant: 5 }, // +1 merchant only
         },
     ],
@@ -600,14 +600,14 @@ export const BUILDING_UPGRADES = {
             name: "大种植园",
             cost: { wood: 300, spice: 40, silver: 800 },
             input: { tools: 0.03 },
-            output: { coffee: 0.52 }, // 1.3x
+            output: { coffee: 0.78 }, // 1.3x of base 0.6
             jobs: { serf: 6, merchant: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "种植园庄园",
             cost: { plank: 200, tools: 60, silver: 1800 },
             input: { tools: 0.06 },
-            output: { coffee: 0.9, spice: 0.02, food: 0.5 }, // 2.25x + 混种&粮食副产
+            output: { coffee: 1.35, spice: 0.02, food: 0.5 }, // 2.25x of base 0.6 + 混种&粮食副产
             jobs: { serf: 8, merchant: 1 }, // +1 serf only
         },
     ],
