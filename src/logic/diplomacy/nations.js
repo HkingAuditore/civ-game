@@ -1227,26 +1227,22 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
         };
     }
 
-    // Periodic independent growth
-    // [FIX] Track tick intervals and apply proportional growth to handle sliced updates
+    // [FIX] REMOVED INDEPENDENT GROWTH - Population growth is now handled ONLY by 
+    // processAIIndependentGrowth in aiEconomy.js using logistic growth model
+    // This duplicate growth logic was causing MULTIPLE GROWTH BUG!
     const ticksSinceLastGrowth = tick - (nation.economyTraits.lastGrowthTick || 0);
-    if (ticksSinceLastGrowth >= 10) {  // 10 ticks minimum for sliced updates
-        // [FIX] Always grow when not at war - remove random chance that caused inconsistent growth
+    if (ticksSinceLastGrowth >= 10) {
+        // [FIX] Only update wealth base, NOT population
+        // Population is handled by logistic growth model
         if (!nation.isAtWar) {
-            // Scale growth rate based on actual ticks passed (normalize to 10 ticks as baseline)
-            const tickScale = Math.min(ticksSinceLastGrowth / 10, 3);  // Cap at 3x to prevent explosion
             const developmentRate = nation.economyTraits.developmentRate || 1.0;
-            
-            // Base growth rates, scaled by actual time passed
-            const popGrowthRate = 1 + (0.02 + (developmentRate - 1) * 0.01) * tickScale;  // ~2-3% per 10 ticks
-            const wealthGrowthRate = 1 + (0.03 + (developmentRate - 1) * 0.015) * tickScale;  // ~3-4.5% per 10 ticks
-            
-            nation.economyTraits.ownBasePopulation = Math.round(
-                nation.economyTraits.ownBasePopulation * popGrowthRate
-            );
+            const tickScale = Math.min(ticksSinceLastGrowth / 30, 1.5);  // [FIX] Very conservative scaling
+            // [FIX] Only grow wealth base slowly (1-2% per update)
+            const wealthGrowthRate = 1 + (0.01 + (developmentRate - 1) * 0.005) * tickScale;
             nation.economyTraits.ownBaseWealth = Math.round(
                 nation.economyTraits.ownBaseWealth * wealthGrowthRate
             );
+            // [FIX] DO NOT modify ownBasePopulation here - it's handled by logistic model
         }
         nation.economyTraits.lastGrowthTick = tick;
     }
@@ -1276,34 +1272,33 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     nation.economyTraits.basePopulation = desiredPopulation;
     nation.economyTraits.baseWealth = desiredWealth;
 
-    // Apply drift
-    // [FIX] Track tick intervals for proportional drift rate scaling
+    // [FIX] REMOVED POPULATION DRIFT - Population is now handled ONLY by processAIIndependentGrowth in aiEconomy.js
+    // This function should only update economy traits and wealth targets, NOT directly modify population
+    // Having multiple functions modify population caused TRIPLE GROWTH BUG!
+    
+    // [FIX] Track tick intervals (for reference only, no longer used for growth)
     const lastDevTick = nation.economyTraits?.lastDevelopmentTick || 0;
     const ticksSinceDev = Math.max(1, tick - lastDevTick);
-    const tickScaleFactor = Math.min(ticksSinceDev / 3, 5);  // Normalize to 3 ticks, cap at 5x
+    const tickScaleFactor = Math.min(ticksSinceDev / 10, 2);
     nation.economyTraits.lastDevelopmentTick = tick;
     
     const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);
-    // [FIX] Significantly increased base drift rates: 3.2%/12% -> 15%/50%
-    const basePopDriftRate = (nation.isAtWar ? 0.15 : 0.50) * driftMultiplier;
-    const baseWealthDriftRate = (nation.isAtWar ? 0.20 : 0.55) * driftMultiplier;
-    const populationDriftRate = Math.min(0.9, basePopDriftRate * tickScaleFactor);
-    const wealthDriftRate = Math.min(0.9, baseWealthDriftRate * tickScaleFactor);
 
+    // [FIX] Only apply war casualty to population, don't drift towards target
     const currentPopulation = nation.population ?? desiredPopulation;
-    const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04;
-    let adjustedPopulation = currentPopulation +
-        (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (nation.isAtWar) {
-        adjustedPopulation -= currentPopulation * 0.006 * tickScaleFactor;
+        const warCasualty = currentPopulation * 0.006 * tickScaleFactor;
+        nation.population = Math.max(3, Math.round(currentPopulation - warCasualty));
     }
-    nation.population = Math.max(3, Math.round(adjustedPopulation));
 
+    // [FIX] Wealth still uses drift but with much more conservative rate
     const currentWealth = nation.wealth ?? desiredWealth;
     const previousWealth = Number.isFinite(nation._lastWealth) ? nation._lastWealth : currentWealth;
-    const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
-    let adjustedWealth = currentWealth +
-        (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
+    // [FIX] Very conservative wealth drift: 2% max
+    const baseWealthDriftRate = (nation.isAtWar ? 0.01 : 0.02) * driftMultiplier;
+    const wealthDriftRate = Math.min(0.03, baseWealthDriftRate * tickScaleFactor);
+    const wealthNoise = (Math.random() - 0.5) * currentWealth * 0.02;
+    let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
     if (nation.isAtWar) {
         adjustedWealth -= currentWealth * 0.008 * tickScaleFactor;
     }
