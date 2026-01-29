@@ -79,26 +79,30 @@ export const MusicPlayer = () => {
         localStorage.setItem('music:giteeMuted', giteeMuted ? '1' : '0');
     }, [giteeMuted]);
 
+    const APLAYER_CSS_URL = '/vendor/aplayer/APlayer.min.css';
+    const APLAYER_JS_URL = '/vendor/aplayer/APlayer.min.js';
+    const METING_JS_URL = '/vendor/meting/Meting.min.js';
+
     // Inject Scripts for APlayer (Only needed if we actally use it, but safe to load)
     useEffect(() => {
         const loadScripts = async () => {
-            if (!document.querySelector('link[href*="aplayer"]')) {
+            if (!document.querySelector(`link[href="${APLAYER_CSS_URL}"]`)) {
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
-                link.href = 'https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css';
+                link.href = APLAYER_CSS_URL;
                 document.head.appendChild(link);
             }
             if (!window.APlayer) {
                 await new Promise((resolve) => {
                     const script = document.createElement('script');
-                    script.src = 'https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js';
+                    script.src = APLAYER_JS_URL;
                     script.onload = resolve;
                     document.body.appendChild(script);
                 });
             }
-            if (!document.querySelector('script[src*="Meting.min.js"]')) {
+            if (!document.querySelector(`script[src="${METING_JS_URL}"]`)) {
                 const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/meting@2/dist/Meting.min.js';
+                script.src = METING_JS_URL;
                 document.body.appendChild(script);
             }
         };
