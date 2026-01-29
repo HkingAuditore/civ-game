@@ -3859,6 +3859,16 @@ export const useGameActions = (gameState, addLog) => {
                 const resultEvent = createTreatyProposalResultEvent(targetNation, { type, durationDays, maintenancePerDay: finalMaintenancePerDay }, accepted, () => { });
                 triggerDiplomaticEvent(resultEvent);
                 if (accepted) {
+                    // Honor promise - signing peaceful treaties improves reputation
+                    if (setDiplomaticReputation && (type === 'peace' || type === 'non_aggression' || type === 'mutual_defense')) {
+                        const { newReputation } = calculateReputationChange(
+                            diplomaticReputation ?? 50,
+                            'honorPromise',
+                            true  // positive event
+                        );
+                        setDiplomaticReputation(newReputation);
+                    }
+                    
                     let costInfo = '';
                     if (signingCost > 0) {
                         costInfo = `，签约成本 ${Math.floor(signingCost)} 银币`;
@@ -4129,6 +4139,16 @@ export const useGameActions = (gameState, addLog) => {
                 const negotiateAutoMaintenancePerDay = getTreatyDailyMaintenance(type, resources.silver || 0, targetNation.wealth || 0);
                 const negotiateFinalMaintenancePerDay = maintenancePerDay > 0 ? maintenancePerDay : negotiateAutoMaintenancePerDay;
                 if (accepted) {
+                    // Honor promise - signing peaceful treaties improves reputation
+                    if (setDiplomaticReputation && (type === 'peace' || type === 'non_aggression' || type === 'mutual_defense')) {
+                        const { newReputation } = calculateReputationChange(
+                            diplomaticReputation ?? 50,
+                            'honorPromise',
+                            true  // positive event
+                        );
+                        setDiplomaticReputation(newReputation);
+                    }
+                    
                     // 检查并扣除签约成本
                     if (negotiateSigningCost > 0) {
 
@@ -4177,17 +4197,22 @@ export const useGameActions = (gameState, addLog) => {
                                 return { ...t, endDay: daysElapsed };
                             })
                             : [];
-                        nextTreaties.push({
-                            id: `treaty_${n.id}_${Date.now()}`,
-                            type,
-                            startDay: daysElapsed,
+                        // [FIX] Only add to treaties array if NOT an organization type
+                        // Organization types (military_alliance, economic_bloc) should be handled
+                        // by the organization system, not stored as individual treaties
+                        if (!isOrganizationType) {
+                            nextTreaties.push({
+                                id: `treaty_${n.id}_${Date.now()}`,
+                                type,
+                                startDay: daysElapsed,
 
-                            endDay: daysElapsed + durationDays,
+                                endDay: daysElapsed + durationDays,
 
-                            maintenancePerDay: negotiateFinalMaintenancePerDay,
+                                maintenancePerDay: negotiateFinalMaintenancePerDay,
 
-                            direction: 'player_to_ai',
-                        });
+                                direction: 'player_to_ai',
+                            });
+                        }
                         const updates = {
                             treaties: nextTreaties,
 
@@ -4927,6 +4952,17 @@ export const useGameActions = (gameState, addLog) => {
                         if (n.id !== nationId) return n;
                         return releaseVassal(n, 'released');
                     }));
+
+                    // Peaceful independence grants reputation bonus
+                    if (setDiplomaticReputation) {
+                        const { newReputation } = calculateReputationChange(
+                            diplomaticReputation ?? 50,
+                            'peacefulIndependence',
+                            true  // positive event
+                        );
+                        setDiplomaticReputation(newReputation);
+                        addLog(`  ✨ 和平释放附庸国，外交声誉 +15`);
+                    }
 
                     addLog(`📜 你释放了 ${targetNation.name}，对方关系提升。`);
                 }).catch(err => {
@@ -5737,6 +5773,17 @@ export const useGameActions = (gameState, addLog) => {
     const handleEnemyPeaceAccept = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
+        
+        // Peaceful resolution grants reputation bonus (except for annexation)
+        if (proposalType !== 'annex' && setDiplomaticReputation) {
+            const { newReputation } = calculateReputationChange(
+                diplomaticReputation ?? 50,
+                'peacefulResolution',
+                true  // positive event
+            );
+            setDiplomaticReputation(newReputation);
+        }
+        
         const durationDays = INSTALLMENT_CONFIG?.DURATION_DAYS || 365;
         const basePopulation = targetNation.population || 0;
         const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
@@ -5747,6 +5794,16 @@ export const useGameActions = (gameState, addLog) => {
             if (populationGain > 0) {
                 setPopulation(prev => prev + populationGain);
                 setMaxPopBonus(prev => prev + populationGain);
+            }
+
+            // Annexation causes reputation loss
+            if (setDiplomaticReputation) {
+                const { newReputation } = calculateReputationChange(
+                    diplomaticReputation ?? 50,
+                    'annexVassal',
+                    false  // negative event
+                );
+                setDiplomaticReputation(newReputation);
             }
 
             endWarWithNation(nationId, {

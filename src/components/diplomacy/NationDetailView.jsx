@@ -1105,7 +1105,11 @@ const ActionCard = ({ icon, title, desc, cost, disabled, onClick, color }) => {
 const ActiveTreaties = ({ nation, daysElapsed, onDiplomaticAction, epoch }) => {
     const [confirmBreak, setConfirmBreak] = useState(null); // { treatyType, treatyLabel }
     
-    if (!nation.treaties || nation.treaties.length === 0) return null;
+    // Filter out organization types - they should be displayed in InternationalOrganizations section
+    const ORGANIZATION_TYPES = ['military_alliance', 'economic_bloc'];
+    const actualTreaties = (nation.treaties || []).filter(t => !ORGANIZATION_TYPES.includes(t.type));
+    
+    if (actualTreaties.length === 0) return null;
     
     // 检查是否在毁约冷却期
     const lastBreachDay = nation.lastTreatyBreachDay || -Infinity;
@@ -1133,7 +1137,7 @@ const ActiveTreaties = ({ nation, daysElapsed, onDiplomaticAction, epoch }) => {
                 </div>
             )}
             <div className="space-y-2">
-                {nation.treaties.map((treaty, i) => {
+                {actualTreaties.map((treaty, i) => {
                     const treatyLabel = treatyTypeToLabel(treaty.type);
                     const isConfirming = confirmBreak?.treatyType === treaty.type;
                     
@@ -1308,6 +1312,7 @@ const treatyTypeToLabel = (type) => {
         military_access: '军事通行条约',
         defensive_pact: '防御协定',
         alliance: '军事同盟',
+        military_alliance: '军事同盟', // Organization type - should be filtered out, but add mapping for safety
         peace_treaty: '和平条约',
         open_market: '开放市场',
         investment_pact: '投资协议',

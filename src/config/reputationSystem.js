@@ -318,3 +318,197 @@ export function getAllReputationEffects(reputation) {
         },
     };
 }
+
+// ========== 附庸政策声誉影响配置 ==========
+
+/**
+ * Vassal policy reputation effects configuration
+ * Maps labor and trade policies to reputation changes per tick
+ */
+export const VASSAL_POLICY_REPUTATION_EFFECTS = {
+    // Labor policies
+    labor: {
+        standard: 0,           // No reputation change
+        exploitation: -0.5,    // Moderate negative reputation per vassal
+        slavery: -1.5,         // Severe negative reputation per vassal
+    },
+    // Trade policies  
+    tradePolicy: {
+        free: 0.3,             // Slight positive reputation per vassal
+        preferential: 0.1,     // Minor positive reputation per vassal
+        exclusive: -0.2,       // Minor negative reputation per vassal
+        dumping: -0.5,         // Moderate negative reputation per vassal
+        looting: -1.0,         // Severe negative reputation per vassal
+    },
+    // Governance policies
+    governance: {
+        autonomous: 0.2,       // Slight positive reputation
+        puppet_govt: 0,        // No reputation change
+        direct_rule: -0.5,     // Negative reputation per vassal
+    },
+    // Military policies
+    military: {
+        autonomous: 0.1,       // Slight positive
+        call_to_arms: 0,       // Neutral
+        auto_join: -0.3,       // Negative
+    },
+};
+
+/**
+ * Calculate reputation change from vassal policies (per tick)
+ * @param {Array} vassals - Array of vassal nations with their policies
+ * @returns {object} { change: number, breakdown: Array<{name, effect, policy}> }
+ */
+export function calculateVassalPolicyReputationChange(vassals) {
+    if (!Array.isArray(vassals) || vassals.length === 0) {
+        return { change: 0, breakdown: [] };
+    }
+    
+    let totalChange = 0;
+    const breakdown = [];
+    
+    for (const vassal of vassals) {
+        if (!vassal || !vassal.vassalPolicy) continue;
+        
+        const policy = vassal.vassalPolicy;
+        let vassalChange = 0;
+        
+        // Labor policy effect
+        const laborPolicy = policy.laborPolicy || 'standard';
+        const laborEffect = VASSAL_POLICY_REPUTATION_EFFECTS.labor[laborPolicy] || 0;
+        if (laborEffect !== 0) {
+            vassalChange += laborEffect;
+            breakdown.push({
+                name: vassal.name || 'Unknown',
+                effect: laborEffect,
+                policy: `labor:${laborPolicy}`,
+            });
+        }
+        
+        // Trade policy effect
+        const tradePolicy = policy.tradePolicy || 'preferential';
+        const tradeEffect = VASSAL_POLICY_REPUTATION_EFFECTS.tradePolicy[tradePolicy] || 0;
+        if (tradeEffect !== 0) {
+            vassalChange += tradeEffect;
+            breakdown.push({
+                name: vassal.name || 'Unknown',
+                effect: tradeEffect,
+                policy: `trade:${tradePolicy}`,
+            });
+        }
+        
+        // Governance policy effect
+        const governancePolicy = policy.governancePolicy || 'autonomous';
+        const governanceEffect = VASSAL_POLICY_REPUTATION_EFFECTS.governance[governancePolicy] || 0;
+        if (governanceEffect !== 0) {
+            vassalChange += governanceEffect;
+            breakdown.push({
+                name: vassal.name || 'Unknown',
+                effect: governanceEffect,
+                policy: `governance:${governancePolicy}`,
+            });
+        }
+        
+        totalChange += vassalChange;
+    }
+    
+    return { change: totalChange, breakdown };
+}
+
+/**
+ * Calculate total periodic reputation change (called every 30 ticks / 1 month)
+ * Considers: vassal policies, treaties, trade activities, etc.
+ * @param {object} params - Game state parameters
+ * @param {number} params.currentReputation - Current reputation value
+ * @param {Array} params.vassals - Array of vassal nations
+ * @param {Array} params.treaties - Active treaties with other nations
+ * @param {object} params.tradeStats - Trade statistics (exports/imports with fair/unfair terms)
+ * @returns {object} { newReputation: number, change: number, breakdown: object }
+ */
+export function calculatePeriodicReputationChange({
+    currentReputation,
+    vassals = [],
+    treaties = [],
+    tradeStats = {},
+}) {
+    let totalChange = 0;
+    const breakdown = {
+        vassalPolicies: 0,
+        treaties: 0,
+        trade: 0,
+        naturalRecovery: 0,
+    };
+    
+    // 1. Vassal policy effects (aggregated)
+    const vassalEffect = calculateVassalPolicyReputationChange(vassals);
+    breakdown.vassalPolicies = vassalEffect.change;
+    totalChange += vassalEffect.change;
+    
+    // 2. Treaty effects (honorPromise bonus for active peaceful treaties)
+    const peacefulTreatyCount = treaties.filter(t => 
+        t.type === 'peace' || t.type === 'non_aggression' || t.type === 'mutual_defense'
+    ).length;
+    if (peacefulTreatyCount > 0) {
+        const treatyBonus = Math.min(peacefulTreatyCount * 0.1, 0.5); // Max +0.5 per month
+        breakdown.treaties = treatyBonus;
+        totalChange += treatyBonus;
+    }
+    
+    // 3. Trade activity effects
+    // fairTradeCount: number of active fair trade routes
+    // unfairTradeCount: number of exploitative trade routes
+    const fairTradeBonus = (tradeStats.fairTradeCount || 0) * 0.1;
+    const unfairTradePenalty = (tradeStats.unfairTradeCount || 0) * -0.2;
+    breakdown.trade = fairTradeBonus + unfairTradePenalty;
+    totalChange += fairTradeBonus + unfairTradePenalty;
+    
+    // 4. Apply natural recovery towards 50
+    const config = REPUTATION_CHANGE_CONFIG.naturalRecovery;
+    const target = config.targetNeutral;
+    const recoveryRate = config.rate * 30; // 30 ticks = 1 month
+    
+    if (Math.abs(currentReputation - target) >= 0.1) {
+        const direction = currentReputation < target ? 1 : -1;
+        const maxRecovery = config.maxPerMonth;
+        const recovery = Math.min(Math.abs(recoveryRate), maxRecovery) * direction;
+        breakdown.naturalRecovery = recovery;
+        totalChange += recovery;
+    }
+    
+    // Calculate final reputation
+    const newReputation = Math.max(0, Math.min(100, currentReputation + totalChange));
+    
+    return {
+        newReputation,
+        change: totalChange,
+        breakdown,
+        vassalBreakdown: vassalEffect.breakdown,
+    };
+}
+
+/**
+ * Evaluate if vassal policies are oppressive enough to warrant reputation penalty
+ * @param {object} vassalPolicy - The vassal's policy settings
+ * @returns {boolean} true if policies are considered oppressive
+ */
+export function isOppressiveVassalPolicy(vassalPolicy) {
+    if (!vassalPolicy) return false;
+    
+    const oppressiveLabor = ['exploitation', 'slavery'].includes(vassalPolicy.laborPolicy);
+    const oppressiveTrade = ['dumping', 'looting'].includes(vassalPolicy.tradePolicy);
+    const oppressiveGovernance = vassalPolicy.governancePolicy === 'direct_rule';
+    
+    return oppressiveLabor || oppressiveTrade || oppressiveGovernance;
+}
+
+/**
+ * Get reputation change description for UI display
+ * @param {string} eventType - The type of reputation event
+ * @param {boolean} isPositive - Whether it's a positive or negative event
+ * @returns {string} Description of the event
+ */
+export function getReputationEventDescription(eventType, isPositive) {
+    const category = isPositive ? 'positive' : 'negative';
+    const config = REPUTATION_CHANGE_CONFIG[category]?.[eventType];
+    return config?.description || eventType;
+}

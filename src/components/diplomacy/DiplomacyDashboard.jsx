@@ -4,7 +4,7 @@ import { Card, Button } from '../common/UnifiedUI';
 import { RESOURCES } from '../../config';
 import { isDiplomacyUnlocked } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
-import { getReputationTierInfo } from '../../config/reputationSystem';
+import { getReputationTierInfo, getAllReputationEffects } from '../../config/reputationSystem';
 import { CreateOrganizationModal } from '../modals/CreateOrganizationModal';
 import { BottomSheet } from '../tabs/BottomSheet';
 
@@ -14,12 +14,11 @@ const ORG_TYPES = [
 ];
 
 const formatNumber = (value) => {
-    if (!Number.isFinite(value)) return '0';
-    if (value >= 100000000) return `${(value / 100000000).toFixed(1)}亿`;
-    if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
+    // 提高显示精度，让玩家能看到更细微的变化
+    if (value >= 100000000) return `${(value / 100000000).toFixed(2)}亿`;  // 1位小数 -> 2位小数
+    if (value >= 10000) return `${(value / 10000).toFixed(2)}万`;  // 1位小数 -> 2位小数
     return value.toLocaleString();
 };
-
 const getTradableResources = (epoch = 0) => {
     return Object.entries(RESOURCES).filter(([key, info]) => {
         if (info.type === 'virtual' || info.type === 'currency') return false;
@@ -130,7 +129,19 @@ const DiplomacyDashboard = ({
                     color={getReputationTierInfo(gameState?.diplomaticReputation ?? 50).color}
                     borderColor="border-blue-500/30"
                     bg="bg-blue-900/10"
-                    tooltip="声誉影响附庸国满意度上限、外交关系和贸易条件"
+                    tooltip={(() => {
+                        const effects = getAllReputationEffects(gameState?.diplomaticReputation ?? 50);
+                        const lines = [
+                            '声誉影响：',
+                            `• 附庸满意度上限: ${effects.effects.vassalSatisfactionCap >= 0 ? '+' : ''}${effects.effects.vassalSatisfactionCap}%`,
+                            `• 初始外交关系: ${effects.effects.relationModifier >= 0 ? '+' : ''}${effects.effects.relationModifier}`,
+                            `• 贸易难度: ×${effects.effects.tradeDifficulty.toFixed(1)}`,
+                            '',
+                            '提升方式：签订和平条约、和平释放附庸',
+                            '降低方式：撕毁条约、宣战、压迫性附庸政策',
+                        ];
+                        return lines.join('\n');
+                    })()}
                 />
                 <DashboardCard
                     title="海外收益"
@@ -385,12 +396,13 @@ const OrganizationCard = ({ org, onViewOrganization, onDiplomaticAction }) => {
     );
 };
 
-const DashboardCard = ({ title, value, subValue, icon, color, borderColor = 'border-ancient-gold/20', bg = 'bg-ancient-ink/40' }) => (
+const DashboardCard = ({ title, value, subValue, icon, color, borderColor = 'border-ancient-gold/20', bg = 'bg-ancient-ink/40', tooltip }) => (
     <div
         className={`
             relative overflow-hidden p-4 rounded-xl border ${borderColor} ${bg}
             flex items-center justify-between transition-all duration-300 hover:shadow-metal-sm group
         `}
+        title={tooltip}
     >
         <div>
             <div className="text-[10px] uppercase font-bold tracking-wider mb-1 opacity-70 flex items-center gap-1 text-ancient-stone">
