@@ -9,6 +9,7 @@ import { clamp } from '../utils';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
 import { getAIDevelopmentMultiplier } from '../../config/difficulty.js';
+import { calculateAILogisticGrowth } from '../population/logisticGrowth.js';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -172,6 +173,8 @@ export const processAIIndependentGrowth = ({
     nation,
     tick,
     difficulty,
+    epoch = 0,
+    playerPopulation = 100,
 }) => {
     const next = nation;
 
@@ -184,37 +187,54 @@ export const processAIIndependentGrowth = ({
 
     const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
     
-    // [FIX] Due to slicing mechanism, nations may not be processed every tick.
-    // Instead of requiring exactly 10 ticks, we calculate growth proportionally.
-    // Minimum 10 ticks to avoid too frequent updates, no upper limit.
+    // [NEW] Use logistic growth model instead of exponential growth
+    // This creates a realistic S-curve that considers resource constraints
     if (ticksSinceLastGrowth >= 10) {
-        const popScale = Math.max(1, (ownBasePopulation || 10) / 200);
-        const growthDampening = clamp(1 / (1 + popScale * 0.2), 0.6, 1);
-        
-        // [FIX] Always grow when not at war, remove random chance that caused inconsistent growth
+        // Only grow when not at war
         if (!next.isAtWar) {
-            // Scale growth rate based on actual ticks passed (normalize to 10 ticks as baseline)
-            const tickScale = Math.min(ticksSinceLastGrowth / 10, 3);  // Cap at 3x to prevent explosion
+            const currentPopulation = next.population || ownBasePopulation;
             
-            // Base growth rates per 10 ticks, scaled by actual time passed
-            const basePopGrowthRate = 0.02 + (developmentRate - 1) * 0.01;  // 2% base + development bonus
-            const baseWealthGrowthRate = 0.03 + (developmentRate - 1) * 0.015;  // 3% base + development bonus
+            // Use logistic growth model for population
+            const newPopulation = calculateAILogisticGrowth({
+                nation: next,
+                epoch: epoch,
+                difficulty: difficulty,
+                playerPopulation: playerPopulation,
+                ticksSinceLastUpdate: ticksSinceLastGrowth
+            });
             
-            const popGrowthRate = 1 + (basePopGrowthRate * tickScale * growthDampening);
-            const wealthGrowthRate = 1 + (baseWealthGrowthRate * tickScale * Math.max(0.5, growthDampening));
+            // Ensure minimum growth of 1 for small populations (prevents stagnation)
+            const minGrowth = currentPopulation < 20 ? 1 : 0;
+            const actualNewPopulation = Math.max(currentPopulation + minGrowth, newPopulation);
             
-            const newBasePopulation = Math.round(ownBasePopulation * popGrowthRate);
-            const newBaseWealth = Math.round(ownBaseWealth * wealthGrowthRate);
+            // Calculate population growth ratio for wealth scaling
+            const popGrowthRatio = actualNewPopulation / Math.max(1, currentPopulation);
             
-            // Update target values
-            next.economyTraits.ownBasePopulation = newBasePopulation;
+            // Wealth grows proportionally to population growth (NOT independently!)
+            // This prevents wealth from growing while population is capped
+            const actualPopGrowth = actualNewPopulation - currentPopulation;
+            const popGrowthRate = actualPopGrowth / Math.max(1, currentPopulation);
+            
+            // Wealth growth rate should match population growth rate (with some bonus for development)
+            // If population growth is 0, wealth growth should also be minimal
+            const tickScale = Math.min(ticksSinceLastGrowth / 10, 2.0);
+            const developmentBonus = (developmentRate - 1) * 0.01;  // Small bonus for high development
+            
+            // Key fix: wealth growth is tied to population growth rate
+            // If pop growth rate is 0 (capped), wealth growth is only development bonus (very slow)
+            const baseWealthGrowthRate = popGrowthRate + developmentBonus;
+            const wealthGrowthRate = 1 + Math.max(0, baseWealthGrowthRate * tickScale);
+            
+            // Cap wealth growth rate to prevent runaway growth
+            const cappedWealthGrowthRate = Math.min(wealthGrowthRate, 1.05);  // Max 5% per update
+            
+            const newBaseWealth = Math.round(ownBaseWealth * cappedWealthGrowthRate);
+            
+            // Update values
+            next.economyTraits.ownBasePopulation = actualNewPopulation;
             next.economyTraits.ownBaseWealth = newBaseWealth;
-            
-            // [FIX] Directly apply 60% of growth to actual values for more visible growth
-            const popIncrease = newBasePopulation - ownBasePopulation;
-            const wealthIncrease = newBaseWealth - ownBaseWealth;
-            next.population = Math.max(3, Math.round((next.population || ownBasePopulation) + popIncrease * 0.6));
-            next.wealth = Math.max(100, Math.round((next.wealth || ownBaseWealth) + wealthIncrease * 0.6));
+            next.population = actualNewPopulation;
+            next.wealth = Math.max(100, Math.round((next.wealth || ownBaseWealth) * cappedWealthGrowthRate));
         }
         next.economyTraits.lastGrowthTick = tick;
     }
@@ -288,10 +308,12 @@ export const updateAIDevelopment = ({
         : 1;
     const foodFactor = clamp(foodPressure * foodSurplusBoost, 0.5, 1.15);
     const desiredPopulationRaw = Math.max(3, blendedTargetPopulation * templatePopulationBoost * foodFactor);
+    // [FIX] Significantly reduce soft cap to prevent early game population explosion
+    // Initial population ~16, so soft cap starts at ~160, grows slowly with actual population
     const populationSoftCap = Math.max(
-        10000,  // 大幅提高基础软上限：2000->10000（保证AI后期基础实力）
-        playerPopulationBaseline * 1.2,  // 改为玩家的120%（AI可以超过玩家，形成真正威胁）
-        (next.economyTraits?.ownBasePopulation || 16) * 300  // 大幅提高自身基准倍数：150->300（鼓励自主发展）
+        200,  // [FIX] Reduce base cap from 10000 to 200 for early game balance
+        playerPopulationBaseline * 0.8,  // [FIX] Reduce from 1.2x to 0.8x player population
+        (next.economyTraits?.ownBasePopulation || 16) * 10  // [FIX] Reduce from 300x to 10x base population
     );
     const populationOverage = Math.max(0, desiredPopulationRaw - populationSoftCap);
     const desiredPopulation = populationOverage > 0
@@ -305,44 +327,47 @@ export const updateAIDevelopment = ({
         baseWealth: desiredWealth,
     };
 
-    // Apply drift towards target
-    // [FIX] Track time since last development update to scale drift rate appropriately
+    // [FIX] REMOVED POPULATION DRIFT - Population is now handled ONLY by processAIIndependentGrowth
+    // This function should only update economy traits and wealth, NOT population
+    // Having two functions modify population caused DOUBLE GROWTH BUG!
+    
+    // [FIX] Track time since last development update (for wealth only now)
     const lastDevTick = next.economyTraits?.lastDevelopmentTick || 0;
     const ticksSinceDev = Math.max(1, tick - lastDevTick);
-    const tickScaleFactor = Math.min(ticksSinceDev / 3, 5);  // Normalize to 3 ticks, cap at 5x
+    const tickScaleFactor = Math.min(ticksSinceDev / 10, 2);
     next.economyTraits.lastDevelopmentTick = tick;
     
     const currentPopulation = next.population ?? desiredPopulation;
     const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);
-    const populationDampening = clamp(
-        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.0)),
-        0.4,
-        1
-    );
-    // [FIX] Scale drift rate by actual tick interval to ensure consistent growth
-    const basePopDriftRate = (next.isAtWar ? 0.15 : 0.50) * driftMultiplier * populationDampening;
-    const populationDriftRate = Math.min(0.9, basePopDriftRate * tickScaleFactor);  // Cap at 90% to prevent overshoot
-    const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04 * populationDampening;
-    let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
+    
+    // [FIX] Only apply war casualty, don't drift population towards target
+    // Population growth is handled by logistic model in processAIIndependentGrowth
     if (next.isAtWar) {
-        adjustedPopulation -= currentPopulation * 0.005 * tickScaleFactor;
+        const warCasualty = currentPopulation * 0.005 * tickScaleFactor;
+        next.population = Math.max(3, Math.round(currentPopulation - warCasualty));
     }
-    next.population = Math.max(3, Math.round(adjustedPopulation));
+    
+    // Food shortage affects military strength, not population directly
     if (foodStatus.isShortage) {
         const shortagePressure = clamp(foodStatus.shortageAmount / Math.max(1, foodStatus.target), 0, 1);
         const currentStrength = next.militaryStrength ?? 1.0;
         next.militaryStrength = Math.max(0.6, currentStrength - shortagePressure * 0.01);
     }
 
+    // [FIX] Wealth should NOT drift independently - it's tied to population growth
+    // Only apply minor adjustments here, main wealth growth is in processAIIndependentGrowth
     const currentWealth = next.wealth ?? desiredWealth;
-    // [FIX] Scale wealth drift rate similarly
-    const baseWealthDriftRate = (next.isAtWar ? 0.20 : 0.55) * driftMultiplier;
-    const wealthDriftRate = Math.min(0.9, baseWealthDriftRate * tickScaleFactor);  // Cap at 90%
-    const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
-    let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
+    
+    // War penalty on wealth (looting, destruction)
+    let adjustedWealth = currentWealth;
     if (next.isAtWar) {
-        adjustedWealth -= currentWealth * 0.006 * tickScaleFactor;
+        adjustedWealth -= currentWealth * 0.003 * tickScaleFactor;  // Small war penalty
     }
+    
+    // Small random fluctuation (±1%)
+    const wealthNoise = (Math.random() - 0.5) * currentWealth * 0.02;
+    adjustedWealth += wealthNoise;
+    
     next.wealth = Math.max(100, Math.round(adjustedWealth));
 
     // Update budget
@@ -428,13 +453,22 @@ export const processInstallmentPayment = ({
  * Check and process AI nation epoch progression
  * @param {Object} nation - AI nation object (mutable)
  * @param {Array} logs - Log array (mutable)
+ * @param {number} tick - Current game tick (optional, for cooldown)
  */
-export const checkAIEpochProgression = (nation, logs) => {
+export const checkAIEpochProgression = (nation, logs, tick = 0) => {
     if (!nation || nation.isRebelNation) return;
 
     // Safety check
     const currentEpochId = nation.epoch || 0;
     if (currentEpochId >= EPOCHS.length - 1) return; // Max epoch reached
+
+    // [FIX] Add cooldown to prevent rapid epoch progression
+    // AI can only advance one epoch every 200 ticks (about 2 seasons/50 days)
+    const EPOCH_COOLDOWN = 200;
+    const lastEpochTick = nation._lastEpochUpgradeTick || 0;
+    if (tick > 0 && (tick - lastEpochTick) < EPOCH_COOLDOWN) {
+        return; // Still on cooldown
+    }
 
     const nextEpochId = currentEpochId + 1;
     const nextEpochData = EPOCHS.find(e => e.id === nextEpochId);
@@ -443,15 +477,18 @@ export const checkAIEpochProgression = (nation, logs) => {
 
     // Requirements
     const reqPop = nextEpochData.req?.population || 0;
-    // For wealth, we use a multiplier of the silver cost as a safe buffer
-    const reqWealth = (nextEpochData.cost?.silver || 1000) * 2.5;
+    // [FIX] Increase wealth requirement multiplier from 2.5 to 5.0 for harder progression
+    const reqWealth = (nextEpochData.cost?.silver || 1000) * 5.0;
 
     if ((nation.population || 0) >= reqPop && (nation.wealth || 0) >= reqWealth) {
         // Upgrade!
         nation.epoch = nextEpochId;
         // Deduct cost (abstracted simulation of upgrading infrastructure)
-        const cost = nextEpochData.cost?.silver || 0;
+        // [FIX] Double the cost deduction to slow down wealth accumulation
+        const cost = (nextEpochData.cost?.silver || 0) * 2;
         nation.wealth = Math.max(0, (nation.wealth || 0) - cost);
+        // [FIX] Record cooldown timestamp
+        nation._lastEpochUpgradeTick = tick;
 
         logs.push(`🚀 ${nation.name} 迈入了新的时代：${nextEpochData.name}！`);
     }

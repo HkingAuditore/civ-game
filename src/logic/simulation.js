@@ -5429,10 +5429,17 @@ export const simulateTick = ({
         
         // [GROWTH] These functions have internal tick-interval checks (>= 10 ticks)
         // They will only apply growth when enough time has passed since last update
-        processAIIndependentGrowth({ nation: next, tick, difficulty });
+        processAIIndependentGrowth({ 
+            nation: next, 
+            tick, 
+            difficulty,
+            epoch: next.epoch || 0,
+            playerPopulation: playerPopulationBaseline
+        });
 
         // [NEW] Check for independent epoch progression
-        checkAIEpochProgression(next, logs);
+        // [FIX] Pass tick for cooldown calculation
+        checkAIEpochProgression(next, logs, tick);
 
         updateAIDevelopment({
             nation: next,
