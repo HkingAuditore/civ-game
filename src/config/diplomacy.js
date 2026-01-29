@@ -38,7 +38,7 @@ export const TREATY_CONFIGS = {
     trade_agreement: { baseDuration: 365, minRelation: 45 },
     free_trade: { baseDuration: 1095, minRelation: 60 },
     investment_pact: { baseDuration: 730, minRelation: 55 },
-    open_market: { baseDuration: 730, minRelation: 55 },
+    open_market: { baseDuration: 730, minRelation: 70 }, // Increased from 55 to 70 - exploitative treaty requires better relations
     academic_exchange: { baseDuration: 730, minRelation: 65 },
     defensive_pact: { baseDuration: 1095, minRelation: 70 },
     military_alliance: { baseDuration: 1825, minRelation: 80 }, // 5 years
@@ -601,7 +601,7 @@ export const TREATY_COSTS = {
     trade_agreement: { signingCostRate: 0.08, baseMaintenance: 100, dailyMaintenance: 0.00001 }, // 100银固定 + 0.001% 浮动
     free_trade: { signingCostRate: 0.15, baseMaintenance: 200, dailyMaintenance: 0.000025 }, // 200银固定 + 0.0025% 浮动
     investment_pact: { signingCostRate: 0.12, baseMaintenance: 150, dailyMaintenance: 0.000015 }, // 150银固定 + 0.0015% 浮动
-    open_market: { signingCostRate: 0.10, baseMaintenance: 120, dailyMaintenance: 0.00001 }, // 120银固定 + 0.001% 浮动
+    open_market: { signingCostRate: 0.20, baseMaintenance: 300, dailyMaintenance: 0.00004 }, // 300银固定 + 0.004% 浮动 - INCREASED: exploitative treaty should cost more
     academic_exchange: { signingCostRate: 0.05, baseMaintenance: 80, dailyMaintenance: 0.000008 }, // 80银固定 + 0.0008% 浮动
     defensive_pact: { signingCostRate: 0.18, baseMaintenance: 300, dailyMaintenance: 0.00003 }, // 300银固定 + 0.003% 浮动
 };
