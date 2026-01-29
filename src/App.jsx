@@ -1676,6 +1676,7 @@ function GameApp({ gameState }) {
                         status={activeSheet.data.status}
                         resources={gameState.resources}
                         market={gameState.market}
+                        difficulty={gameState.difficulty}
                         onResearch={actions.researchTech}
                         onClose={closeSheet}
                     />
