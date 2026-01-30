@@ -4,6 +4,7 @@ import { Icon } from '../common/UIComponents';
 import { RESOURCES, DIPLOMACY_ERA_UNLOCK, BUILDINGS } from '../../config';
 import { ORGANIZATION_EFFECTS, TRADE_POLICY_DEFINITIONS, VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 import { getEstimatedMilitaryStrength } from '../../logic/diplomacy/militaryUtils';
+import { getAIMilitaryStrengthMultiplier } from '../../config/difficulty';
 import { getForeignInvestmentTaxRate, hasActiveTreaty, isInSameBloc } from '../../logic/diplomacy/overseasInvestment';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
@@ -88,7 +89,7 @@ const NationDetailView = ({
     const formatCost = (val) => val >= 10000 ? `${(val / 10000).toFixed(1)}万` : val;
 
     const strengthEstimate = getEstimatedMilitaryStrength
-        ? getEstimatedMilitaryStrength(nation, epoch, daysElapsed)
+        ? getEstimatedMilitaryStrength(nation, epoch, daysElapsed, getAIMilitaryStrengthMultiplier(gameState?.difficulty || 'normal'))
         : { label: '???', colorClass: 'text-gray-400' };
 
     const relation = relationInfo

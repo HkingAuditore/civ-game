@@ -1331,7 +1331,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
                 effect: 'decrease',
             });
         } else {
-            const baseReduction = config.controlMeasures?.governor?.independenceReduction || 0.02;
+            const baseReduction = cfg.controlMeasures?.governor?.independenceReduction || 0.02;
             decreaseFactors.push({
                 name: '派遣总督',
                 value: baseReduction,
@@ -1344,7 +1344,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     // 6.2 驻军占领
     const garrisonData = controlMeasures.garrison;
     if (garrisonData && (garrisonData === true || garrisonData.active)) {
-        const garrisonReduction = config.controlMeasures?.garrison?.independenceReduction || 0.05;
+        const garrisonReduction = cfg.controlMeasures?.garrison?.independenceReduction || 0.05;
         decreaseFactors.push({
             name: '驻军占领',
             value: garrisonReduction,
@@ -1356,7 +1356,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     // 6.3 经济扶持
     const economicAidData = controlMeasures.economicAid;
     if (economicAidData && (economicAidData === true || economicAidData.active)) {
-        const aidReduction = config.controlMeasures?.economicAid?.independenceReduction || 0.01;
+        const aidReduction = cfg.controlMeasures?.economicAid?.independenceReduction || 0.01;
         if (aidReduction > 0) {
             decreaseFactors.push({
                 name: '经济扶持',
@@ -1370,7 +1370,7 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     // 6.4 文化同化
     const assimilationData = controlMeasures.assimilation;
     if (assimilationData && (assimilationData === true || assimilationData.active)) {
-        const directReduction = config.controlMeasures?.assimilation?.independenceReduction || 0.015;
+        const directReduction = cfg.controlMeasures?.assimilation?.independenceReduction || 0.015;
         decreaseFactors.push({
             name: '文化同化',
             value: directReduction,

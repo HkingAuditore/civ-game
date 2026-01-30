@@ -23,6 +23,8 @@ export const DIFFICULTY_CONFIG = {
         name: '和平',
         description: '轻松模式，专注于建设，战争威胁较低',
         icon: '🕊️',
+        // AI Military Strength modifier
+        aiMilitaryStrengthMultiplier: 0.5,     // 50% AI army size
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 0.4,     // 40% organization growth rate (was 0.2)
         organizationDecayMultiplier: 1.5,      // 150% decay rate (was 2.0)
@@ -80,6 +82,8 @@ export const DIFFICULTY_CONFIG = {
         name: '简单',
         description: '适合新手，叛乱增长较慢，敌人攻击概率降低',
         icon: '🌱',
+        // AI Military Strength modifier
+        aiMilitaryStrengthMultiplier: 0.7,     // 70% AI army size
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 0.7,     // 70% organization growth rate (was 0.5)
         organizationDecayMultiplier: 1.2,      // 120% decay rate (was 1.5)
@@ -133,6 +137,8 @@ export const DIFFICULTY_CONFIG = {
         name: '普通',
         description: '标准游戏体验，有一定挑战性',
         icon: '⚖️',
+        // AI Military Strength modifier
+        aiMilitaryStrengthMultiplier: 1.0,     // 100% AI army size (baseline)
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 1.2,     // 120% organization growth rate (was 1.0)
         organizationDecayMultiplier: 0.9,      // 90% decay rate (was 1.0)
@@ -185,6 +191,8 @@ export const DIFFICULTY_CONFIG = {
         name: '困难',
         description: '高难度挑战，内忧外患不断，需要精心策划',
         icon: '🔥',
+        // AI Military Strength modifier
+        aiMilitaryStrengthMultiplier: 1.5,     // 150% AI army size
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 2.8,     // 280% organization growth rate (was 2.0)
         organizationDecayMultiplier: 0.25,     // 25% decay rate (was 0.4)
@@ -237,6 +245,8 @@ export const DIFFICULTY_CONFIG = {
         name: '灾厄',
         description: '极高难度，四面楚歌，只有最精妙的策略才能存活',
         icon: '☠️',
+        // AI Military Strength modifier
+        aiMilitaryStrengthMultiplier: 2.0,     // 200% AI army size
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 3.5,     // 350% organization growth rate (was 2.5)
         organizationDecayMultiplier: 0.08,     // 8% decay rate (was 0.15)
@@ -287,6 +297,8 @@ export const DIFFICULTY_CONFIG = {
         name: '地狱',
         description: '绝望的深渊，每一步都是生死抉择，几乎无法通关',
         icon: '👿',
+        // AI Military Strength modifier
+        aiMilitaryStrengthMultiplier: 3.0,     // 300% AI army size
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 5.5,     // 550% organization growth rate (was 4.0)
         organizationDecayMultiplier: 0.02,     // 2% decay rate (was 0.03)
@@ -564,6 +576,8 @@ export default {
     // Vassal independence settings
     getVassalIndependenceMultiplier,
     getVassalIndependenceWarChance,
+    // AI Military Strength settings
+    getAIMilitaryStrengthMultiplier,
 };
 
 /**
@@ -733,4 +747,16 @@ export function getVassalIndependenceMultiplier(difficultyLevel) {
 export function getVassalIndependenceWarChance(difficultyLevel) {
     const config = getDifficultyConfig(difficultyLevel);
     return config.vassalIndependenceWarChance || 1.0;
+}
+
+/**
+ * Get AI military strength multiplier based on difficulty
+ * Higher values = larger AI armies (harder difficulties)
+ * Lower values = smaller AI armies (easier difficulties)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getAIMilitaryStrengthMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.aiMilitaryStrengthMultiplier || 1.0;
 }
