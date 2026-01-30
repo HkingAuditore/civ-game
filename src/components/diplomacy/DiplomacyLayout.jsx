@@ -80,6 +80,16 @@ const DiplomacyLayout = ({
         const playerResources = resources || {};
         const playerWealth = playerResources.silver || gameState?.silver || 10000;
         const playerPopulation = gameState?.population || 1000000;
+        
+        // [DEBUG] 调试日志
+        console.log(`%c🔵 [buildVassalSnapshot] ${nation?.name}`, 'color: blue; font-weight: bold', {
+            playerWealth,
+            'resources.silver': playerResources.silver,
+            'gameState.silver': gameState?.silver,
+            playerPopulation,
+            vassalWealth: nation?.wealth,
+        });
+        
         const officials = gameState?.officials || [];
         const army = gameState?.army || {};
         const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);

@@ -312,6 +312,10 @@ export const OfficialDetailModal = ({
         setIsEditingName(false);
     };
 
+    // [FIX] 直接使用模拟端计算好的isStanceSatisfied，保证与loyaltyChangeFactors一致
+    // 优先使用模拟端数据，如果没有（旧存档兼容）则使用UI层传入的值
+    const derivedStanceSatisfied = official?.isStanceSatisfied ?? isStanceSatisfied;
+
     // 忠诚度变化原因分析
     const loyaltyReasons = useMemo(() => {
         // 优先使用模拟端计算好的数据
@@ -596,9 +600,9 @@ export const OfficialDetailModal = ({
                                 <span className="font-semibold">政治主张：</span> {stance.condition.description}
                             </div>
                         )}
-                        {isStanceSatisfied !== null && (
-                            <div className={`text-[11px] font-semibold mb-2 ${isStanceSatisfied ? 'text-green-400' : 'text-red-400'}`}>
-                                {isStanceSatisfied ? '✓ 主张已满足' : '✗ 主张未满足'}
+                        {derivedStanceSatisfied !== null && (
+                            <div className={`text-[11px] font-semibold mb-2 ${derivedStanceSatisfied ? 'text-green-400' : 'text-red-400'}`}>
+                                {derivedStanceSatisfied ? '✓ 主张已满足' : '✗ 主张未满足'}
                             </div>
                         )}
                         {/* 满足时效果 */}

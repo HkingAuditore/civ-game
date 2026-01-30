@@ -117,9 +117,7 @@ const getControlMeasureEffectsText = (measureId) => {
     }
 
     if (measureId === 'assimilation') {
-        if (config.independenceCapReduction) {
-            parts.push(`独立上限-${formatDailyRate(config.independenceCapReduction)}/天`);
-        }
+        // [FIXED] 文化同化只降低独立倾向，不再修改上限
         if (config.independenceReduction) {
             parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
         }

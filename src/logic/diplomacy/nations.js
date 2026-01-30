@@ -1237,11 +1237,21 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
         if (!nation.isAtWar) {
             const developmentRate = nation.economyTraits.developmentRate || 1.0;
             const tickScale = Math.min(ticksSinceLastGrowth / 30, 1.5);  // [FIX] Very conservative scaling
-            // [FIX] Only grow wealth base slowly (1-2% per update)
-            const wealthGrowthRate = 1 + (0.01 + (developmentRate - 1) * 0.005) * tickScale;
-            nation.economyTraits.ownBaseWealth = Math.round(
-                nation.economyTraits.ownBaseWealth * wealthGrowthRate
-            );
+            
+            // [FIX] Apply per-capita wealth cap to prevent infinite wealth growth
+            const perCapitaWealthCap = Math.min(100000, 5000 * Math.pow(2, Math.min(epoch, 4)));
+            const currentPopulation = nation.population || 1;
+            const currentPerCapitaWealth = (nation.economyTraits.ownBaseWealth || 1000) / currentPopulation;
+            
+            // Only grow wealth base if below per-capita cap
+            if (currentPerCapitaWealth < perCapitaWealthCap) {
+                // [FIX] Only grow wealth base slowly (1-2% per update)
+                const wealthGrowthRate = 1 + (0.01 + (developmentRate - 1) * 0.005) * tickScale;
+                const newBaseWealth = Math.round(nation.economyTraits.ownBaseWealth * wealthGrowthRate);
+                // Ensure new per-capita wealth doesn't exceed cap
+                const maxBaseWealth = currentPopulation * perCapitaWealthCap;
+                nation.economyTraits.ownBaseWealth = Math.min(newBaseWealth, maxBaseWealth);
+            }
             // [FIX] DO NOT modify ownBasePopulation here - it's handled by logistic model
         }
         nation.economyTraits.lastGrowthTick = tick;
@@ -1294,14 +1304,36 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     // [FIX] Wealth still uses drift but with much more conservative rate
     const currentWealth = nation.wealth ?? desiredWealth;
     const previousWealth = Number.isFinite(nation._lastWealth) ? nation._lastWealth : currentWealth;
+    
+    // [FIX] Apply per-capita wealth cap check before drift
+    const perCapitaWealthCapForDrift = Math.min(100000, 5000 * Math.pow(2, Math.min(epoch, 4)));
+    const currentPerCapitaWealthForDrift = currentWealth / Math.max(1, currentPopulation);
+    const maxWealthForDrift = currentPopulation * perCapitaWealthCapForDrift;
+    
     // [FIX] Very conservative wealth drift: 2% max
     const baseWealthDriftRate = (nation.isAtWar ? 0.01 : 0.02) * driftMultiplier;
     const wealthDriftRate = Math.min(0.03, baseWealthDriftRate * tickScaleFactor);
-    const wealthNoise = (Math.random() - 0.5) * currentWealth * 0.02;
-    let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
+    
+    let adjustedWealth = currentWealth;
+    
+    // Only allow drift towards desiredWealth if below per-capita cap
+    if (currentPerCapitaWealthForDrift < perCapitaWealthCapForDrift) {
+        // Cap desiredWealth to respect per-capita limit
+        const cappedDesiredWealth = Math.min(desiredWealth, maxWealthForDrift);
+        const wealthNoise = (Math.random() - 0.5) * currentWealth * 0.02;
+        adjustedWealth = currentWealth + (cappedDesiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
+    } else {
+        // At or above cap - apply slight decay
+        const decayRate = 0.002 * tickScaleFactor;
+        adjustedWealth = currentWealth - currentWealth * decayRate;
+    }
+    
     if (nation.isAtWar) {
         adjustedWealth -= currentWealth * 0.008 * tickScaleFactor;
     }
+    
+    // Hard cap on wealth
+    adjustedWealth = Math.min(adjustedWealth, maxWealthForDrift);
     nation.wealth = Math.max(100, Math.round(adjustedWealth));
 
     // ========== 计算GDP（稳健版：平滑的正向财富增量） ==========

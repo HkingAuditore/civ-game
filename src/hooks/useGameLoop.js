@@ -1492,21 +1492,21 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 console.log('⚔️ [GameLoop] Reported Military Cost:', armyCostSim);
 
                 // === 显示simulation中的银币变化追踪 ===
-                if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
-                    console.group('🔍 银币变化详细追踪（simulation内部）');
-                    console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
-                    result._debug.silverChangeLog.forEach((log, index) => {
-                        if (!log) return;
-                        const amount = log.amount ?? 0;
-                        const balance = log.balance ?? 0;
-                        const sign = amount >= 0 ? '+' : '';
-                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${amount.toFixed(2)} 银币 (余额: ${balance.toFixed(2)})`);
-                    });
-                    console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
-                    const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
-                    console.log('  💰 Simulation净变化:', simulationChange.toFixed(2), '银币');
-                    console.groupEnd();
-                }
+                // if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
+                //     console.group('🔍 银币变化详细追踪（simulation内部）');
+                //     console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
+                //     result._debug.silverChangeLog.forEach((log, index) => {
+                //         if (!log) return;
+                //         const amount = log.amount ?? 0;
+                //         const balance = log.balance ?? 0;
+                //         const sign = amount >= 0 ? '+' : '';
+                //         console.log(`  ${index + 1}. ${log.reason}: ${sign}${amount.toFixed(2)} 银币 (余额: ${balance.toFixed(2)})`);
+                //     });
+                //     console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
+                //     const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
+                //     console.log('  💰 Simulation净变化:', simulationChange.toFixed(2), '银币');
+                //     console.groupEnd();
+                // }
 
                 // === useGameLoop本地扣除（simulation之后）===
                 const useGameLoopDeductions = [];
@@ -1517,16 +1517,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     useGameLoopDeductions.push({ reason: '强制补贴', amount: -forcedSubsidyPaid });
                 }
 
-                if (useGameLoopDeductions.length > 0) {
-                    console.group('🔧 useGameLoop本地扣除（simulation之后）');
-                    useGameLoopDeductions.forEach((item, index) => {
-                        const sign = item.amount >= 0 ? '+' : '';
-                        console.log(`  ${index + 1}. ${item.reason}: ${sign}${item.amount.toFixed(2)} 银币`);
-                    });
-                    const totalLocalDeduction = useGameLoopDeductions.reduce((sum, item) => sum + item.amount, 0);
-                    console.log('  💰 本地扣除总计:', totalLocalDeduction.toFixed(2), '银币');
-                    console.groupEnd();
-                }
+                // if (useGameLoopDeductions.length > 0) {
+                //     console.group('🔧 useGameLoop本地扣除（simulation之后）');
+                //     useGameLoopDeductions.forEach((item, index) => {
+                //         const sign = item.amount >= 0 ? '+' : '';
+                //         console.log(`  ${index + 1}. ${item.reason}: ${sign}${item.amount.toFixed(2)} 银币`);
+                //     });
+                //     const totalLocalDeduction = useGameLoopDeductions.reduce((sum, item) => sum + item.amount, 0);
+                //     console.log('  💰 本地扣除总计:', totalLocalDeduction.toFixed(2), '银币');
+                //     console.groupEnd();
+                // }
 
                 const auditEntries = [];
                 if (Array.isArray(result?._debug?.silverChangeLog) && result._debug.silverChangeLog.length > 0) {
@@ -1719,10 +1719,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     auditStartingSilver,
                 });
 
-                // 应用附庸系统更新的国家列表
-                if (vassalNationsUpdated) {
-                    setNations(vassalNationsUpdated);
-                }
+                // [FIX] 不要在这里单独setNations，会被后面的nextNations覆盖
+                // 附庸系统更新的国家列表会在后面与nextNations合并
 
                 // 显示附庸系统日志
                 if (vassalLogs.length > 0) {
@@ -2012,7 +2010,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         const triggerChance = Math.min(0.15, 0.02 * loyaltyFactor);
 
                         if (Math.random() < triggerChance) {
-                            const newOfficials = officialsList.filter(o => o.id !== target.official.id);
+                            // [FIX] 添加安全检查：确保目标官员有有效的ID，避免意外删除其他官员
+                            const targetId = target.official.id;
+                            if (!targetId) {
+                                console.error('[COUP BUG] Target official has no ID:', target.official);
+                            }
+                            const newOfficials = officialsList.filter(o => o && o.id && o.id !== targetId);
                             const newBuildings = { ...(result.buildings || {}) };
                             const newBuildingUpgrades = { ...(result.buildingUpgrades || {}) };
                             const newPopStructure = { ...(result.popStructure || {}) };
@@ -2104,7 +2107,36 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const nextOfficials = coupOutcome?.officials || result.officials;
                 const nextBuildings = coupOutcome?.buildings || result.buildings;
                 const nextBuildingUpgrades = coupOutcome?.buildingUpgrades || result.buildingUpgrades;
-                const nextNations = coupOutcome?.nations || result.nations;
+                // [FIX] 合并附庸系统更新到nextNations，避免被覆盖
+                // vassalNationsUpdated 包含了附庸的独立倾向等更新
+                let nextNations = coupOutcome?.nations || result.nations;
+                if (vassalNationsUpdated && nextNations) {
+                    // [DEBUG] 调试日志
+                    const vassalBefore = vassalNationsUpdated.find(n => n.vassalOf === 'player');
+                    const nationBefore = nextNations.find(n => n.vassalOf === 'player');
+                    if (vassalBefore) {
+                        console.log('[VASSAL DEBUG] Before merge:', {
+                            vassalUpdated_independencePressure: vassalBefore.independencePressure,
+                            vassalUpdated_lastChange: vassalBefore._lastIndependenceChange,
+                            resultNations_independencePressure: nationBefore?.independencePressure,
+                        });
+                    }
+                    
+                    // 用附庸系统更新的数据覆盖对应的国家
+                    const vassalMap = new Map(vassalNationsUpdated.map(n => [n.id, n]));
+                    nextNations = nextNations.map(n => vassalMap.get(n.id) || n);
+                    
+                    // [DEBUG] 合并后调试日志
+                    const vassalAfter = nextNations.find(n => n.vassalOf === 'player');
+                    if (vassalAfter) {
+                        console.log('[VASSAL DEBUG] After merge:', {
+                            nextNations_independencePressure: vassalAfter.independencePressure,
+                            nextNations_lastChange: vassalAfter._lastIndependenceChange,
+                        });
+                    }
+                } else if (vassalNationsUpdated && !nextNations) {
+                    nextNations = vassalNationsUpdated;
+                }
                 const nextPopulation = coupOutcome?.population ?? result.population;
 
                 // --- 历史数据更新 (Update Refs directly) ---

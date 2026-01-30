@@ -1250,7 +1250,8 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                     logs.push(declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)]);
 
                     // [NEW] Suzerain Protection Logic
-                    if (otherNation.vassalOf === 'player') {
+                    // [FIX] Only trigger if attacker is NOT also a vassal of the same overlord
+                    if (otherNation.vassalOf === 'player' && nation.vassalOf !== 'player') {
                         if (!nation.isAtWar) {
                             nation.isAtWar = true;
                             nation.warStartDay = tick;
