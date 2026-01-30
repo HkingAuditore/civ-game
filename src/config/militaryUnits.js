@@ -800,16 +800,19 @@ const getAvailableUnitsForEpoch = (epoch) => {
  * @param {Object} nation - 国家对象
  * @param {number} epoch - 当前时代
  * @param {number} deploymentRatio - 派遣比例 (0-1)，默认1.0表示全部派遣
+ * @param {number} difficultyMultiplier - 难度军力倍数，默认1.0
  * @returns {Object} 军队对象 { unitId: count, ... }
  */
-export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0) => {
+export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficultyMultiplier = 1.0) => {
     const population = nation?.population || 100;
     const militaryStrength = nation?.militaryStrength ?? 1.0;
     const aggression = nation?.aggression || 0.3;
 
-    // 基础军队规模 = 人口 × 军事强度 × 基础比例(6%) × 时代系数
+    // 基础军队规模 = 人口 × 军事强度 × 基础比例(0.6%) × 时代系数 × 难度倍数
+    // Note: population is in units of 10,000 (万), so 0.6% gives reasonable army size
+    // E.g. 3679万 × 1.0 × 0.006 × 1.15 × 1.0 ≈ 25,000 troops
     const epochFactor = 1 + epoch * 0.15;
-    const baseArmySize = Math.floor(population * militaryStrength * 0.06 * epochFactor);
+    const baseArmySize = Math.floor(population * militaryStrength * 0.006 * epochFactor * difficultyMultiplier);
 
     // 应用派遣比例
     const deployedSize = Math.max(1, Math.floor(baseArmySize * deploymentRatio));
@@ -886,10 +889,11 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0) => {
  * @param {Object} nation - 国家对象
  * @param {number} epoch - 当前时代
  * @param {number} deploymentRatio - 派遣比例 (0-1)，默认1.0表示全部军队
+ * @param {number} difficultyMultiplier - 难度军力倍数，默认1.0
  * @returns {number} 战斗力值
  */
-export const calculateNationBattlePower = (nation, epoch, deploymentRatio = 1.0) => {
-    const army = generateNationArmy(nation, epoch, deploymentRatio);
+export const calculateNationBattlePower = (nation, epoch, deploymentRatio = 1.0, difficultyMultiplier = 1.0) => {
+    const army = generateNationArmy(nation, epoch, deploymentRatio, difficultyMultiplier);
     const aggression = nation?.aggression || 0.3;
 
     // 侵略性作为军事buff（0.3侵略性 = 0军事buff，0.6侵略性 = +15%）

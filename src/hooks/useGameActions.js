@@ -37,7 +37,7 @@ import {
     VASSAL_TYPE_CONFIGS,
     VASSAL_TYPE_LABELS,
 } from '../config';
-import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier } from '../config/difficulty';
+import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier, getAIMilitaryStrengthMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
 import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
 import { simulateBattle, calculateBattlePower, calculateNationBattlePower, generateNationArmy } from '../config';
@@ -2365,8 +2365,12 @@ export const useGameActions = (gameState, addLog) => {
         // 随机选择派遣比例范围内的值
         const actualDeploymentRatio = deploymentRatio.min + Math.random() * (deploymentRatio.max - deploymentRatio.min);
 
+        // 获取难度军力倍数
+        const difficultyLevel = gameState.difficulty || 'normal';
+        const difficultyMultiplier = getAIMilitaryStrengthMultiplier(difficultyLevel);
+
         // 使用 generateNationArmy 生成敌方军队
-        const defenderArmy = generateNationArmy(targetNation, enemyEpoch, actualDeploymentRatio);
+        const defenderArmy = generateNationArmy(targetNation, enemyEpoch, actualDeploymentRatio, difficultyMultiplier);
 
         const defenderData = {
             army: defenderArmy,
@@ -4062,7 +4066,7 @@ export const useGameActions = (gameState, addLog) => {
                     stance,
                     daysElapsed,
                     playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
-                    targetPower: calculateNationBattlePower(targetNation, epoch),
+                    targetPower: calculateNationBattlePower(targetNation, epoch, 1.0, getAIMilitaryStrengthMultiplier(gameState.difficulty || 'normal')),
 
                     playerWealth: resources?.silver || 0,
                     targetWealth: targetNation?.wealth || 0,
@@ -4419,7 +4423,7 @@ export const useGameActions = (gameState, addLog) => {
                         round,
                         daysElapsed,
                         playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
-                        targetPower: calculateNationBattlePower(targetNation, epoch),
+                        targetPower: calculateNationBattlePower(targetNation, epoch, 1.0, getAIMilitaryStrengthMultiplier(gameState.difficulty || 'normal')),
                         playerWealth: resources?.silver || 0,
                         targetWealth: targetNation?.wealth || 0,
 

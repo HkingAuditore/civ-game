@@ -1292,6 +1292,7 @@ function GameApp({ gameState }) {
                                                 militaryBonus={gameState.modifiers?.militaryBonus}
                                                 // [FIX] Pass unified expense data (simulation preferred for consistency with StatusBar)
                                                 armyExpenseData={simulationMilitaryExpense || armyExpenseData}
+                                                difficulty={gameState.difficulty}
                                             />
                                         )}
 

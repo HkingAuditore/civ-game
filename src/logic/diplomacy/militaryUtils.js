@@ -6,16 +6,17 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
  * @param {Object} nation - The target nation
  * @param {number} epoch - Current game epoch
  * @param {number} daysElapsed - Days elapsed in game
+ * @param {number} difficultyMultiplier - Difficulty-based AI military strength multiplier (default 1.0)
  * @returns {Object} { label: string, colorClass: string }
  */
-export const getEstimatedMilitaryStrength = (nation, epoch, daysElapsed) => {
+export const getEstimatedMilitaryStrength = (nation, epoch, daysElapsed, difficultyMultiplier = 1.0) => {
     if (!nation) return { label: '未知', colorClass: 'text-gray-400' };
 
     // Default relation to 0 if missing
     const relation = nation.relation || 0;
 
-    // Calculate real power
-    const realPower = calculateNationBattlePower(nation, epoch);
+    // Calculate real power with difficulty multiplier
+    const realPower = calculateNationBattlePower(nation, epoch, 1.0, difficultyMultiplier);
 
     // Calculate accuracy based on relation (higher relation = more accurate)
     // Relation 0 => 0.1 accuracy (huge error range)

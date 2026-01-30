@@ -5,6 +5,7 @@ import React, { useState, useMemo, useRef, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, getEnemyUnitsForEpoch, TECHS, EPOCHS } from '../../config';
+import { getAIMilitaryStrengthMultiplier } from '../../config/difficulty';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
@@ -327,6 +328,7 @@ const MilitaryTabComponent = ({
     militaryBonus = 0,
     // [FIX] Receive unified expense data from parent
     armyExpenseData: propArmyExpenseData,
+    difficulty = 'normal', // 新增：难度设置，用于计算AI军力倍数
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
@@ -1137,16 +1139,19 @@ const MilitaryTabComponent = ({
                                     // 1. 修正时代计算：必须使用敌方所属时代，而非玩家当前时代
                                     const enemyEpoch = Math.max(activeNation.appearEpoch || 0, Math.min(epoch, activeNation.expireEpoch ?? epoch));
 
-                                    // 2. 修正战力计算：直接调用 calculateNationBattlePower 并传入比例
-                                    // 这样可以触发 generateNationArmy 中的保底逻辑 (Math.max(1, ...))，避免简单的乘法导致战力过低
-                                    let enemyPowerMin = activeNation ? calculateNationBattlePower(activeNation, enemyEpoch, deploymentRatio.min) : 0;
-                                    let enemyPowerMax = activeNation ? calculateNationBattlePower(activeNation, enemyEpoch, deploymentRatio.max) : 0;
+                                    // 2. 获取难度军力倍数
+                                    const difficultyMultiplier = getAIMilitaryStrengthMultiplier(difficulty);
 
-                                    // 3. 修正防御加成：战斗模拟中防御方有 1.2 倍加成 (simulateBattle line 948)
+                                    // 3. 修正战力计算：直接调用 calculateNationBattlePower 并传入比例和难度倍数
+                                    // 这样可以触发 generateNationArmy 中的保底逻辑 (Math.max(1, ...))，避免简单的乘法导致战力过低
+                                    let enemyPowerMin = activeNation ? calculateNationBattlePower(activeNation, enemyEpoch, deploymentRatio.min, difficultyMultiplier) : 0;
+                                    let enemyPowerMax = activeNation ? calculateNationBattlePower(activeNation, enemyEpoch, deploymentRatio.max, difficultyMultiplier) : 0;
+
+                                    // 4. 修正防御加成：战斗模拟中防御方有 1.2 倍加成 (simulateBattle line 948)
                                     enemyPowerMin = Math.floor(enemyPowerMin * 1.2);
                                     enemyPowerMax = Math.floor(enemyPowerMax * 1.2);
 
-                                    // 4. 添加 buff 加成预估 (action.enemyBuff)
+                                    // 5. 添加 buff 加成预估 (action.enemyBuff)
                                     if (action.enemyBuff) {
                                         enemyPowerMin = Math.floor(enemyPowerMin * (1 + action.enemyBuff));
                                         enemyPowerMax = Math.floor(enemyPowerMax * (1 + action.enemyBuff));
