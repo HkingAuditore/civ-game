@@ -85,9 +85,7 @@ const getControlMeasureEffectsText = (measureId) => {
     }
 
     if (measureId === 'assimilation') {
-        if (config.independenceCapReduction) {
-            parts.push(`独立上限-${formatDailyRate(config.independenceCapReduction)}/天`);
-        }
+        // [FIXED] 文化同化只降低独立倾向，不再修改上限
         if (config.independenceReduction) {
             parts.push(`独立倾向-${formatDailyRate(config.independenceReduction)}/天`);
         }
@@ -265,7 +263,7 @@ const CONTROL_MEASURES = [
         title: '文化同化',
         icon: 'BookOpen',
         description: '推广本国文化和语言',
-        effects: '独立倾向上限-0.05/天（长期）',
+        effects: '独立倾向-0.2/天（长期有效）',
         effectColor: 'text-purple-400',
     },
     {

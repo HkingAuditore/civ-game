@@ -145,7 +145,7 @@ const DiplomacyDashboard = ({
                 />
                 <DashboardCard
                     title="海外收益"
-                    value={`+${formatNumber(totalInvestmentIncome)}`}
+                    value={`${formatNumber(totalInvestmentIncome)}`}
                     subValue={`${totalInvestments} 处资产`}
                     icon="Coins"
                     color="text-amber-400"
@@ -172,10 +172,13 @@ const DiplomacyDashboard = ({
                         {ORG_TYPES.map((orgType) => {
                                 const isUnlocked = isDiplomacyUnlocked('organizations', orgType.type, epoch);
                                 // Check if player has CREATED (not just joined) an organization of this type
-                                const playerCreatedOrg = playerOrgs.some((o) => o.type === orgType.type && o.founder === 'player');
+                                const playerCreatedOrg = playerOrgs.some((o) => o.type === orgType.type && o.founderId === 'player');
                                 // Check if player has joined any organization of this type
-                                const playerJoinedOrg = playerOrgs.some((o) => o.type === orgType.type && o.founder !== 'player');
-                                const canClick = isUnlocked && !playerCreatedOrg;
+                                const playerJoinedOrg = playerOrgs.some((o) => o.type === orgType.type && o.founderId !== 'player');
+                                // For military_alliance, player can only be in ONE alliance (either as founder or member)
+                                // For economic_bloc, player can join multiple
+                                const isInAnyOrg = playerOrgs.some((o) => o.type === orgType.type);
+                                const canClick = isUnlocked && (orgType.type === 'military_alliance' ? !isInAnyOrg : !playerCreatedOrg);
 
                                 return (
                                     <button
@@ -201,7 +204,14 @@ const DiplomacyDashboard = ({
                                         <div className="flex-1">
                                             <div className="flex justify-between items-center mb-1">
                                                 <div className="font-bold text-ancient-parchment text-lg group-hover:text-ancient-gold transition-colors">
-                                                    {playerCreatedOrg ? `已建立${orgType.name}` : playerJoinedOrg ? `已加入${orgType.name}` : `建立${orgType.name}`}
+                                                    {orgType.type === 'military_alliance' && isInAnyOrg 
+                                                        ? (playerCreatedOrg ? `已建立${orgType.name}` : `已加入${orgType.name}`)
+                                                        : playerCreatedOrg 
+                                                            ? `已建立${orgType.name}` 
+                                                            : playerJoinedOrg 
+                                                                ? `已加入${orgType.name}` 
+                                                                : `建立${orgType.name}`
+                                                    }
                                                 </div>
                                                 {!isUnlocked && (
                                                     <span className="text-xs bg-black/40 px-2 py-0.5 rounded text-ancient-stone">

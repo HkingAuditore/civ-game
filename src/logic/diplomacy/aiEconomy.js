@@ -161,6 +161,15 @@ export const initializeAIDevelopmentBaseline = ({
             lastGrowthTick: tick,
         };
     }
+    
+    // [FIX] Legacy save compatibility: Initialize missing lastGrowthTick for old saves
+    // Old saves may have economyTraits but missing lastGrowthTick field
+    // Without this fix, ticksSinceLastGrowth calculation may fail or return invalid values
+    if (next.economyTraits && (next.economyTraits.lastGrowthTick === undefined || next.economyTraits.lastGrowthTick === null)) {
+        // Set to current tick minus a small amount to trigger immediate growth check
+        next.economyTraits.lastGrowthTick = Math.max(0, tick - 15);
+        console.log(`[Legacy Fix] Initialized missing lastGrowthTick for ${next.name || next.id}`);
+    }
 };
 
 /**

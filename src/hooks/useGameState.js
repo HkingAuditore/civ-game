@@ -1859,6 +1859,7 @@ export const useGameState = () => {
         const playerPop = loadedPopulation; // Use player population loaded above
         const playerWealth = (data.resources?.silver) || 1000;
         const currentEpoch = data.epoch ?? 0;
+        const loadedTick = data.daysElapsed || 0;
         
         let migratedNations = loadedNations;
         if (!data.aiBalanceVersion) {
@@ -1869,9 +1870,16 @@ export const useGameState = () => {
                 const popRatio = aiPop / Math.max(1, playerPop);
                 const wealthRatio = aiWealth / Math.max(1, playerWealth);
                 
-                // If AI population OR wealth exceeds 10x player's level, reset this nation
-                if (popRatio > 10 || wealthRatio > 10) {
-                    console.log(`[Save Migration] Resetting broken AI nation: ${n.name} (pop: ${aiPop}, wealth: ${aiWealth}, player pop: ${playerPop}, player wealth: ${playerWealth})`);
+                // [FIX] Also check per-capita wealth cap
+                // Per-capita wealth cap by epoch: Stone=5k, Ancient=10k, Classical=20k, etc.
+                const nationEpoch = n.epoch ?? 0;
+                const perCapitaWealthCap = Math.min(100000, 5000 * Math.pow(2, Math.min(nationEpoch, 4)));
+                const aiPerCapitaWealth = aiWealth / Math.max(1, aiPop);
+                const perCapitaExceeded = aiPerCapitaWealth > perCapitaWealthCap;
+                
+                // If AI population OR wealth exceeds 10x player's level, OR per-capita wealth exceeds cap
+                if (popRatio > 10 || wealthRatio > 10 || perCapitaExceeded) {
+                    console.log(`[Save Migration] Resetting broken AI nation: ${n.name} (pop: ${aiPop}, wealth: ${aiWealth}, per-capita: ${aiPerCapitaWealth.toFixed(0)}, cap: ${perCapitaWealthCap})`);
                     
                     // Calculate reasonable values based on player's current development
                     // AI nations should be at 30-80% of player's level, scaled by their appear epoch
@@ -1882,9 +1890,12 @@ export const useGameState = () => {
                     const targetPopScale = 0.3 + Math.random() * 0.5; // 0.3 to 0.8
                     const newPopulation = Math.max(100, Math.floor(playerPop * targetPopScale * epochBonus));
                     
-                    // Wealth: 20-60% of player, with epoch bonus
+                    // Wealth: 20-60% of player, with epoch bonus, but capped by per-capita limit
                     const targetWealthScale = 0.2 + Math.random() * 0.4; // 0.2 to 0.6
-                    const newWealth = Math.max(500, Math.floor(playerWealth * targetWealthScale * epochBonus));
+                    const rawNewWealth = Math.floor(playerWealth * targetWealthScale * epochBonus);
+                    // Ensure per-capita wealth doesn't exceed cap (use 50% of cap for safety margin)
+                    const maxWealthByPerCapita = newPopulation * perCapitaWealthCap * 0.5;
+                    const newWealth = Math.max(500, Math.min(rawNewWealth, maxWealthByPerCapita));
                     
                     // Reset economy traits
                     const newEconomyTraits = {
@@ -1894,7 +1905,7 @@ export const useGameState = () => {
                         basePopulation: newPopulation,
                         baseWealth: newWealth,
                         developmentRate: 0.8 + Math.random() * 0.4,
-                        lastGrowthTick: 0,
+                        lastGrowthTick: Math.max(0, loadedTick - 15), // [FIX] Set to recent tick instead of 0
                     };
                     
                     return {
@@ -1906,6 +1917,31 @@ export const useGameState = () => {
                         economyTraits: newEconomyTraits,
                     };
                 }
+                
+                // [FIX] For nations that don't need full reset, still ensure they have valid economyTraits
+                // This fixes old saves where nations may have economyTraits but missing lastGrowthTick
+                if (n.economyTraits) {
+                    const fixedEconomyTraits = { ...n.economyTraits };
+                    let needsFix = false;
+                    
+                    // Fix missing lastGrowthTick
+                    if (fixedEconomyTraits.lastGrowthTick === undefined || fixedEconomyTraits.lastGrowthTick === null) {
+                        fixedEconomyTraits.lastGrowthTick = Math.max(0, loadedTick - 15);
+                        needsFix = true;
+                        console.log(`[Save Migration] Fixed missing lastGrowthTick for: ${n.name}`);
+                    }
+                    
+                    // Fix missing lastDevelopmentTick
+                    if (fixedEconomyTraits.lastDevelopmentTick === undefined || fixedEconomyTraits.lastDevelopmentTick === null) {
+                        fixedEconomyTraits.lastDevelopmentTick = Math.max(0, loadedTick - 15);
+                        needsFix = true;
+                    }
+                    
+                    if (needsFix) {
+                        return { ...n, economyTraits: fixedEconomyTraits };
+                    }
+                }
+                
                 return n;
             });
         }

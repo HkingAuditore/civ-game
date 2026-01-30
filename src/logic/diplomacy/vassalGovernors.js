@@ -41,9 +41,9 @@ export const GOVERNOR_MANDATES = {
     },
     integrate: {
         name: '同化',
-        desc: '降低独立倾向上限，提高忠诚度',
+        desc: '加强文化同化，降低独立倾向',
         statFocus: 'prestige', // 威望属性收益翻倍
-        independenceCapReduction: 0.1, // 每日降低独立上限
+        independenceCapReduction: 0.1, // [FIXED] 这个现在是额外的独立倾向降低（不是上限）
     },
 };
 

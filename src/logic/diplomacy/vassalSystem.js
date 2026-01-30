@@ -690,12 +690,10 @@ export const processVassalUpdates = ({
                             }
                         }
 
-                        // 应用独立上限降低 (同化政策)
+                        // [FIXED] 同化政策：直接降低独立倾向（不再修改上限）
                         if (govEffects.independenceCapReduction > 0) {
-                            updated.independenceCap = Math.max(
-                                10, // 最小上限
-                                (updated.independenceCap || 100) - govEffects.independenceCapReduction
-                            );
+                            // 将原来的"上限降低"改为"直接降低独立倾向"
+                            controlMeasureIndependenceReduction += govEffects.independenceCapReduction;
                         }
 
                         // Override cost with governor-calculated cost
@@ -749,18 +747,12 @@ export const processVassalUpdates = ({
                     }
 
                     case 'assimilation': {
-                        // [ENHANCED] 文化同化：同时降低独立上限和当前独立值
-                        const currentCap = updated.independenceCap || 100;
-                        const capReduction = measureConfig.independenceCapReduction || 0.05;
-                        const newCap = Math.max(
-                            measureConfig.minIndependenceCap || 30,
-                            currentCap - capReduction
-                        );
-                        updated.independenceCap = newCap;
-
-                        // [NEW] 同时主动降低当前独立值（每天-0.15%）
-                        const directReduction = 0.15;
-                        controlMeasureIndependenceReduction += directReduction;
+                        // [FIXED] 文化同化：直接降低独立倾向（不再修改上限，上限永远是100%）
+                        // 原来的"上限降低"效果改为"直接降低独立倾向"
+                        const capReductionAsDirectEffect = measureConfig.independenceCapReduction || 0.05;
+                        const directReduction = measureConfig.independenceReduction || 0.15;
+                        // 两个效果叠加：原上限降低效果 + 直接降低效果
+                        controlMeasureIndependenceReduction += capReductionAsDirectEffect + directReduction;
 
                         // Small satisfaction penalty across all classes
                         if (measureConfig.satisfactionPenalty && updated.socialStructure) {
@@ -871,19 +863,29 @@ export const processVassalUpdates = ({
         );
         
         // 应用独立倾向上限
-        const independenceCap = updated.independenceCap || 100;
         const currentIndependence = updated.independencePressure || 0;
         
         // 纯粹的每日累加，不引入目标值机制
-        // 独立倾向是一个百分比（0-100%），限制在 0 到 independenceCap 之间
+        // [FIXED] 独立上限永远是100%，不再允许任何机制修改
+        const independenceCap = 100;
+        
+        // 独立倾向是一个百分比（0-100%），限制在 0 到 100% 之间
         const newIndependence = Math.max(0, Math.min(independenceCap, currentIndependence + dailyChange));
+        
+        // [DEBUG] 调试日志 - 追踪独立倾向更新
+        console.log(`[VASSAL processVassalUpdates] ${updated.name}:`, {
+            currentIndependence,
+            dailyChange,
+            newIndependence,
+            independenceCap,
+        });
+        
         updated.independencePressure = newIndependence;
+        // [FIXED] 清理旧的错误数据，确保independenceCap永远是100
+        updated.independenceCap = 100;
         
         // 存储每日变化量用于UI显示
-        updated._lastIndependenceChange = dailyChange;
-
-        // ========== 4. 检查独立战争触发 ==========
-        // 只有当独立倾向达到上限时才触发独立战争
+        updated._lastIndependenceChange = dailyChange;        // 只有当独立倾向达到上限时才触发独立战争
         // 移除了之前的概率触发机制（宗主战争、稳定度低、外国支持等）
         
         // 跳过已经在独立战争中的附庸，避免重复触发
@@ -1033,30 +1035,44 @@ const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, s
     // 获取难度系数
     const difficultyMultiplier = getVassalIndependenceMultiplier(difficultyLevel);
     
+    // [DEBUG] 调试日志 - 记录各因素
+    const debugFactors = {};
+    
     // ========== 1. 基础自然增长（模拟民族意识觉醒） ==========
     const eraMultiplier = 1 + Math.max(0, (epoch || 1) - 1) * cfg.eraMultiplierStep;
     let dailyChange = cfg.baseGrowthRate * eraMultiplier;
+    debugFactors['基础自然增长'] = cfg.baseGrowthRate * eraMultiplier;
     
     // ========== 2. 控制政策影响（每日变化） ==========
     // 2.1 劳工政策
     const laborPolicy = vassalPolicy.labor || 'standard';
-    dailyChange += cfg.policies.labor[laborPolicy]?.effect || 0;
+    const laborEffect = cfg.policies.labor[laborPolicy]?.effect || 0;
+    dailyChange += laborEffect;
+    debugFactors['劳工政策'] = laborEffect;
     
     // 2.2 贸易政策
     const tradePolicy = vassalPolicy.tradePolicy || 'preferential';
-    dailyChange += cfg.policies.trade[tradePolicy]?.effect || 0;
+    const tradeEffect = cfg.policies.trade[tradePolicy]?.effect || 0;
+    dailyChange += tradeEffect;
+    debugFactors['贸易政策'] = tradeEffect;
     
     // 2.3 治理政策
     const governancePolicy = vassalPolicy.governance || 'autonomous';
-    dailyChange += cfg.policies.governance[governancePolicy]?.effect || 0;
+    const governanceEffect = cfg.policies.governance[governancePolicy]?.effect || 0;
+    dailyChange += governanceEffect;
+    debugFactors['治理政策'] = governanceEffect;
     
     // 2.4 军事政策
     const militaryPolicy = vassalPolicy.military || 'call_to_arms';
-    dailyChange += cfg.policies.military[militaryPolicy]?.effect || 0;
+    const militaryEffect = cfg.policies.military[militaryPolicy]?.effect || 0;
+    dailyChange += militaryEffect;
+    debugFactors['军事政策'] = militaryEffect;
     
     // 2.5 投资政策
     const investmentPolicy = vassalPolicy.investmentPolicy || 'autonomous';
-    dailyChange += cfg.policies.investment[investmentPolicy]?.effect || 0;
+    const investmentEffect = cfg.policies.investment[investmentPolicy]?.effect || 0;
+    dailyChange += investmentEffect;
+    debugFactors['投资政策'] = investmentEffect;
     
     // ========== 3. 经济状况和阶层满意度影响 ==========
     if (nation?.socialStructure) {
@@ -1089,22 +1105,29 @@ const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, s
     // 4.1 总财富比值（国力对比）
     const wealthRatio = vassalWealth / effectiveSuzereainWealth;
     const totalWealthEffect = Math.log(Math.max(0.01, wealthRatio)) * cfg.economy.totalWealthFactor;
+    debugFactors['总财富比值影响'] = totalWealthEffect;
+    debugFactors['财富比值详情'] = { vassalWealth, effectiveSuzereainWealth, wealthRatio };
     
     // 4.2 人均财富比值（民众生活水平对比）
     const vassalPerCapita = vassalWealth / Math.max(1, vassalPopulation);
     const suzereainPerCapita = effectiveSuzereainWealth / Math.max(1, effectiveSuzereainPopulation);
     const perCapitaRatio = vassalPerCapita / Math.max(0.0001, suzereainPerCapita);
     const perCapitaEffect = Math.log(Math.max(0.01, perCapitaRatio)) * cfg.economy.perCapitaFactor;
+    debugFactors['人均财富比值影响'] = perCapitaEffect;
+    debugFactors['人均比值详情'] = { vassalPerCapita, suzereainPerCapita, perCapitaRatio };
     
     // 4.3 综合经济繁荣度影响
     dailyChange += totalWealthEffect + perCapitaEffect;
     
     // ========== 5. 朝贡负担影响 ==========
     const tributeRate = nation?.tributeRate || 0;
-    dailyChange += tributeRate * cfg.tribute.multiplier;
+    const tributeEffect = tributeRate * cfg.tribute.multiplier;
+    dailyChange += tributeEffect;
+    debugFactors['朝贡负担影响'] = tributeEffect;
     
     // ========== 6. 扣除控制措施效果 ==========
     dailyChange -= controlReduction;
+    debugFactors['控制措施减少'] = -controlReduction;
     
     // ========== 7. 应用难度系数 ==========
     // 只对正向增长应用难度系数，负向（控制措施效果）不受难度影响
@@ -1112,6 +1135,13 @@ const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, s
     if (dailyChange > 0) {
         dailyChange *= difficultyMultiplier;
     }
+    
+    // [DEBUG] 输出所有因素
+    console.log(`[VASSAL calculateDailyIndependenceChange] ${nation?.name}:`, {
+        ...debugFactors,
+        难度系数: difficultyMultiplier,
+        最终变化: dailyChange
+    });
     
     return dailyChange;
 };
@@ -1136,7 +1166,16 @@ const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
  * @returns {Object} 独立度变化的详细分解
  */
 export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = [], suzereainWealth = 10000, suzereainPopulation = 1000000, difficultyLevel = 'normal') => {
-    const config = INDEPENDENCE_CONFIG;
+    // [DEBUG] 调试日志 - 记录传入参数（带明显标记）
+    console.log(`%c🔴 [UI getIndependenceChangeBreakdown] ${nation?.name}`, 'color: red; font-weight: bold', {
+        epoch,
+        suzereainWealth,
+        suzereainPopulation,
+        difficultyLevel,
+        vassalWealth: nation?.wealth,
+        vassalPopulation: nation?.population,
+    });
+    
     const cfg = INDEPENDENCE_CHANGE_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
     
@@ -1344,13 +1383,30 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
     const totalIncrease = increaseFactors.reduce((sum, f) => sum + f.value, 0);
     const totalDecrease = decreaseFactors.reduce((sum, f) => sum + f.value, 0);
     
-    // 应用难度系数（只对增长因素应用，与实际游戏逻辑保持一致）
-    // 在高难度下，独立倾向增长更快，但控制措施效果不变
-    const adjustedIncrease = totalIncrease * difficultyMultiplier;
-    const dailyChange = adjustedIncrease - totalDecrease;
+    // 先计算基础净变化（与实际游戏逻辑保持一致）
+    let dailyChange = totalIncrease - totalDecrease;
+    
+    // 只有当净变化为正（独立倾向增长）时，才应用难度系数
+    // 这与 calculateDailyIndependenceChange 的逻辑一致
+    let adjustedIncrease = totalIncrease;
+    if (dailyChange > 0) {
+        dailyChange *= difficultyMultiplier;
+        adjustedIncrease = totalIncrease * difficultyMultiplier;
+    }
+    
+    // [DEBUG] 调试日志 - 输出计算结果
+    console.log(`%c🔴 [UI getIndependenceChangeBreakdown RESULT] ${nation?.name}`, 'color: red; font-weight: bold', {
+        totalIncrease,
+        totalDecrease,
+        difficultyMultiplier,
+        adjustedIncrease,
+        dailyChange,
+        '难度系数是否应用': dailyChange > 0 ? '是（净变化为正）' : '否（净变化为负或零）',
+    });
     
     const currentIndependence = nation?.independencePressure || 0;
-    const independenceCap = nation?.independenceCap || 100;
+    // [FIXED] 独立上限永远是100%
+    const independenceCap = 100;
     
     return {
         // 当前状态（独立倾向是百分比）
@@ -1398,7 +1454,8 @@ const checkIndependenceWarTrigger = ({
     nations,
 }) => {
     const triggers = INDEPENDENCE_WAR_CONDITIONS.triggers;
-    const independenceCap = vassalNation.independenceCap || 100;
+    // [FIXED] 独立上限永远是100%
+    const independenceCap = 100;
 
     // 独立倾向达到上限时必定触发
     if ((vassalNation.independencePressure || 0) >= independenceCap) {
@@ -1458,7 +1515,7 @@ export const establishVassalRelation = (nation, vassalType, epoch) => {
         // 核心参数初始化
         tributeRate: config.tributeRate,
         independencePressure: 0,
-        independenceCap: 100,
+        independenceCap: 100,  // [FIXED] 独立上限永远是100%，不允许任何机制修改
 
         // 初始化社会结构（如果不存在）
         socialStructure: nation.socialStructure || getSocialStructureTemplate(nation.governmentType || 'monarchy'),

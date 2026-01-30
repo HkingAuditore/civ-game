@@ -97,7 +97,12 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
  * @returns {Array} 新的在任官员列表
  */
 export const fireOfficial = (officialId, currentOfficials) => {
-    return currentOfficials.filter(o => o.id !== officialId);
+    // [FIX] 添加安全检查：确保只删除有有效ID的目标官员
+    if (!officialId) {
+        console.error('[FIRE BUG] Attempting to fire official with no ID');
+        return currentOfficials;
+    }
+    return currentOfficials.filter(o => o && o.id && o.id !== officialId);
 };
 
 /**
@@ -880,7 +885,13 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
         return { success: false, error: '无效的处置类型' };
     }
 
-    const newOfficials = currentOfficials.filter(o => o.id !== officialId);
+    // [FIX] 添加安全检查：确保只删除有有效ID的目标官员
+    const targetId = official.id;
+    if (!targetId) {
+        console.error('[DISPOSE BUG] Official has no ID:', official);
+        return { success: false, error: '官员ID无效' };
+    }
+    const newOfficials = currentOfficials.filter(o => o && o.id && o.id !== targetId);
 
     const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
 
@@ -971,13 +982,13 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
  */
 export const getCabinetStatus = (officials, activeDecrees = {}, capacity = 3, epoch = 0) => {
     // [DEBUG] 追踪传入参数
-    console.log('[GET_CABINET_STATUS] Called with:', {
-        officialCount: officials?.length || 0,
-        capacity,
-        epoch,
-        minRequired: Math.ceil(capacity * 0.5),
-        meetsCapacityRequirement: (officials?.length || 0) >= Math.ceil(capacity * 0.5),
-    });
+    // console.log('[GET_CABINET_STATUS] Called with:', {
+    //     officialCount: officials?.length || 0,
+    //     capacity,
+    //     epoch,
+    //     minRequired: Math.ceil(capacity * 0.5),
+    //     meetsCapacityRequirement: (officials?.length || 0) >= Math.ceil(capacity * 0.5),
+    // });
 
     const synergy = calculateCabinetSynergy(officials);
     const dominance = getCabinetDominance(officials, capacity, epoch);
@@ -985,11 +996,11 @@ export const getCabinetStatus = (officials, activeDecrees = {}, capacity = 3, ep
     const decreeEffects = getActiveDecreeEffects(activeDecrees);
 
     // [DEBUG] 输出结果
-    console.log('[GET_CABINET_STATUS] Result:', {
-        dominance,
-        synergy: synergy.synergy,
-        level: synergy.level,
-    });
+    // console.log('[GET_CABINET_STATUS] Result:', {
+    //     dominance,
+    //     synergy: synergy.synergy,
+    //     level: synergy.level,
+    // });
 
     return {
         synergy: synergy.synergy,

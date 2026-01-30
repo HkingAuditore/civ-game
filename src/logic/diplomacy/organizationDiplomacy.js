@@ -429,6 +429,11 @@ export function shouldDisbandOrganization(organization, validNationIds = null) {
         }
     }
 
+    // [FIX] 创始国不在成员列表中（可能已退出）
+    if (organization.founderId && !organization.members.includes(organization.founderId)) {
+        return true;
+    }
+
     // 所有成员互相交战（简化判断）
     // 实际实现需要更复杂的逻辑
 
