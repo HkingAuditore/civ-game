@@ -523,6 +523,11 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
          */
         addPopulation: (amount = 1000) => {
             gameState.setPopulation(prev => prev + amount);
+            // [FIX] Sync popStructure: new population joins as unemployed
+            gameState.setPopStructure(prev => ({
+                ...prev,
+                unemployed: (prev?.unemployed || 0) + amount,
+            }));
             addLog(`👥 作弊码：人口增加 ${amount}`);
             console.log(`✅ Added ${amount} population`);
         },
@@ -531,7 +536,32 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
          * Set population to specific value
          */
         setPopulation: (amount) => {
+            // [FIX] Also sync popStructure to match the new population
+            const currentPopStructure = gameState.popStructure || {};
+            const currentTotal = Object.values(currentPopStructure).reduce((sum, v) => sum + (v || 0), 0);
+            const diff = amount - currentTotal;
+            
             gameState.setPopulation(amount);
+            
+            if (diff > 0) {
+                // Adding population: add to unemployed
+                gameState.setPopStructure(prev => ({
+                    ...(prev || {}),
+                    unemployed: ((prev?.unemployed) || 0) + diff,
+                }));
+            } else if (diff < 0) {
+                // Removing population: proportionally reduce from all strata
+                gameState.setPopStructure(prev => {
+                    const totalPop = Object.values(prev || {}).reduce((sum, v) => sum + (v || 0), 0);
+                    if (totalPop <= 0) return prev;
+                    const scale = Math.max(0, amount / totalPop);
+                    const next = {};
+                    Object.keys(prev || {}).forEach(key => {
+                        next[key] = Math.max(0, Math.floor((prev[key] || 0) * scale));
+                    });
+                    return next;
+                });
+            }
             addLog(`👥 作弊码：人口设置为 ${amount}`);
             console.log(`✅ Set population to ${amount}`);
         },

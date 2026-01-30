@@ -588,11 +588,29 @@ export const useGameActions = (gameState, addLog) => {
         if (totalStructure <= 0 || change === 0) return;
 
         const nextStructure = { ...currentStructure };
+        let allocatedChange = 0;
+        let maxStratum = null;
+        let maxStratumValue = -1;
+        
         Object.entries(currentStructure).forEach(([key, value]) => {
             const share = totalStructure > 0 ? (Number(value) || 0) / totalStructure : 0;
             const deltaForStratum = Math.round(change * share);
             nextStructure[key] = Math.max(0, (Number(value) || 0) + deltaForStratum);
+            allocatedChange += deltaForStratum;
+            
+            // Track the largest stratum for rounding correction
+            if ((Number(value) || 0) > maxStratumValue) {
+                maxStratumValue = Number(value) || 0;
+                maxStratum = key;
+            }
         });
+        
+        // [FIX] Correct rounding error: ensure the sum of changes equals the target change
+        const roundingError = change - allocatedChange;
+        if (roundingError !== 0 && maxStratum) {
+            nextStructure[maxStratum] = Math.max(0, nextStructure[maxStratum] + roundingError);
+        }
+        
         setPopStructure(nextStructure);
     };
 
@@ -5797,6 +5815,11 @@ export const useGameActions = (gameState, addLog) => {
 
             if (populationGain > 0) {
                 setPopulation(prev => prev + populationGain);
+                // [FIX] Sync popStructure: new population joins as unemployed
+                setPopStructure(prev => ({
+                    ...prev,
+                    unemployed: (prev.unemployed || 0) + populationGain,
+                }));
                 setMaxPopBonus(prev => prev + populationGain);
             }
 
@@ -5835,6 +5858,11 @@ export const useGameActions = (gameState, addLog) => {
             if (transferPopulation > 0) {
 
                 setPopulation(prev => prev + transferPopulation);
+                // [FIX] Sync popStructure: new population joins as unemployed
+                setPopStructure(prev => ({
+                    ...prev,
+                    unemployed: (prev.unemployed || 0) + transferPopulation,
+                }));
                 setMaxPopBonus(prev => prev + transferPopulation);
             }
             endWarWithNation(nationId, {
@@ -5999,7 +6027,11 @@ export const useGameActions = (gameState, addLog) => {
             const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
             if (transferPopulation > 0) {
                 setPopulation(prev => prev + transferPopulation);
-
+                // [FIX] Sync popStructure: new population joins as unemployed
+                setPopStructure(prev => ({
+                    ...prev,
+                    unemployed: (prev.unemployed || 0) + transferPopulation,
+                }));
                 setMaxPopBonus(prev => prev + transferPopulation);
             }
             endWarWithNation(nationId, {
@@ -6028,6 +6060,11 @@ export const useGameActions = (gameState, addLog) => {
             const transferPopulation = Math.min(basePopulation, paymentAmount);
             if (transferPopulation > 0) {
                 setPopulation(prev => prev + transferPopulation);
+                // [FIX] Sync popStructure: new population joins as unemployed
+                setPopStructure(prev => ({
+                    ...prev,
+                    unemployed: (prev.unemployed || 0) + transferPopulation,
+                }));
                 setMaxPopBonus(prev => prev + transferPopulation);
 
             }
@@ -6130,6 +6167,34 @@ export const useGameActions = (gameState, addLog) => {
 
         if (proposalType === 'offer_population') {
             setPopulation(prev => Math.max(10, prev - paymentAmount));
+            // [FIX] Sync popStructure: remove population proportionally from all strata
+            setPopStructure(prev => {
+                const totalPop = Object.values(prev).reduce((sum, v) => sum + (v || 0), 0);
+                if (totalPop <= 0 || paymentAmount <= 0) return prev;
+                const next = { ...prev };
+                let remaining = paymentAmount;
+                // First try to remove from unemployed
+                const unemployedRemove = Math.min(next.unemployed || 0, remaining);
+                if (unemployedRemove > 0) {
+                    next.unemployed = (next.unemployed || 0) - unemployedRemove;
+                    remaining -= unemployedRemove;
+                }
+                // If still need to remove, proportionally from other strata
+                if (remaining > 0) {
+                    const activePop = totalPop - (prev.unemployed || 0);
+                    if (activePop > 0) {
+                        Object.keys(next).forEach(key => {
+                            if (key === 'unemployed' || remaining <= 0) return;
+                            const current = next[key] || 0;
+                            if (current <= 0) return;
+                            const remove = Math.min(current, Math.ceil((current / activePop) * remaining));
+                            next[key] = current - remove;
+                            remaining -= remove;
+                        });
+                    }
+                }
+                return next;
+            });
             setMaxPopBonus(prev => Math.max(-currentPop + 10, prev - paymentAmount));
             endWarWithNation(nationId, {
                 population: (targetNation.population || 0) + paymentAmount,

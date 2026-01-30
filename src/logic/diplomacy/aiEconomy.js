@@ -484,10 +484,22 @@ export const checkAIEpochProgression = (nation, logs, tick = 0) => {
 
     if (!nextEpochData) return;
 
-    // Requirements
-    const reqPop = nextEpochData.req?.population || 0;
-    // [FIX] Increase wealth requirement multiplier from 2.5 to 5.0 for harder progression
-    const reqWealth = (nextEpochData.cost?.silver || 1000) * 5.0;
+    // Requirements - progressive scaling: later epochs have exponentially higher requirements
+    // Base multiplier starts at 100x for early eras, scaling up to 800x+ for later eras
+    // This creates a more realistic and challenging progression curve for AI nations
+    const epochMultipliers = {
+        1: 100,   // Bronze Age: 100x
+        2: 150,   // Classical Age: 150x
+        3: 200,   // Feudal Age: 200x
+        4: 300,   // Exploration Age: 300x
+        5: 400,   // Enlightenment Age: 400x
+        6: 600,   // Industrial Age: 600x
+        7: 800,   // Information Age: 800x
+    };
+    const epochMult = epochMultipliers[nextEpochId] || 100;
+    
+    const reqPop = (nextEpochData.req?.population || 0) * epochMult;
+    const reqWealth = (nextEpochData.cost?.silver || 1000) * epochMult;
 
     if ((nation.population || 0) >= reqPop && (nation.wealth || 0) >= reqWealth) {
         // Upgrade!

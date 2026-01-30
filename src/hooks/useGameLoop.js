@@ -4075,6 +4075,34 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         return;
                                                     }
                                                     setPopulation(prev => Math.max(10, prev - amount));
+                                                    // [FIX] Sync popStructure: remove population proportionally from all strata
+                                                    setPopStructure(prev => {
+                                                        const totalPop = Object.values(prev).reduce((sum, v) => sum + (v || 0), 0);
+                                                        if (totalPop <= 0 || amount <= 0) return prev;
+                                                        const next = { ...prev };
+                                                        let remaining = amount;
+                                                        // First try to remove from unemployed
+                                                        const unemployedRemove = Math.min(next.unemployed || 0, remaining);
+                                                        if (unemployedRemove > 0) {
+                                                            next.unemployed = (next.unemployed || 0) - unemployedRemove;
+                                                            remaining -= unemployedRemove;
+                                                        }
+                                                        // If still need to remove, proportionally from other strata
+                                                        if (remaining > 0) {
+                                                            const activePop = totalPop - (prev.unemployed || 0);
+                                                            if (activePop > 0) {
+                                                                Object.keys(next).forEach(key => {
+                                                                    if (key === 'unemployed' || remaining <= 0) return;
+                                                                    const currentVal = next[key] || 0;
+                                                                    if (currentVal <= 0) return;
+                                                                    const remove = Math.min(currentVal, Math.ceil((currentVal / activePop) * remaining));
+                                                                    next[key] = currentVal - remove;
+                                                                    remaining -= remove;
+                                                                });
+                                                            }
+                                                        }
+                                                        return next;
+                                                    });
                                                     setMaxPopBonus(prev => Math.max(-currentPop + 10, prev - amount));
                                                     addLog(`🏴 你向 ${nation.name} 割让了 ${amount} 人口的领土。`);
                                                 }
