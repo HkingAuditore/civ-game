@@ -300,6 +300,10 @@ const StatCard = ({ label, icon, value, valueClass = 'text-white' }) => (
  * @param {Object} gameState - 完整的游戏状态
  */
 const formatCompactCost = (value) => {
+    if (!Number.isFinite(value)) return '0';
+    if (value >= 100) {
+        return Math.round(value).toLocaleString();
+    }
     return formatNumberShortCN(value, { decimals: 1 });
 };
 
@@ -522,6 +526,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         }
     }, [count, sellCount]);
 
+    const normalizedBuyCount = Math.max(1, Math.floor(Number(buyCount) || 1));
+
     // 计算批量成本
     const calculateBulkCost = (count) => {
         const currentCount = buildings[building.id] || 0;
@@ -531,7 +537,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
 
         let totalCost = {};
-        for (let i = 0; i < count; i++) {
+        const finalCount = Math.max(1, Math.floor(Number(count) || 1));
+        for (let i = 0; i < finalCount; i++) {
             const thisBuildCount = currentCount + i;
             const rawCost = calculateBuildingCost(building.baseCost, thisBuildCount, growthFactor, baseMultiplier);
             const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
@@ -543,7 +550,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     };
 
     // 动态计算当前buyCount下的成本
-    const nextCost = calculateBulkCost(buyCount);
+    const nextCost = calculateBulkCost(normalizedBuyCount);
     const nextSilverCost = calculateSilverCost(nextCost, market);
     const hasMaterials = Object.entries(nextCost).every(([res, val]) => (resources[res] || 0) >= val);
     const hasSilver = (resources.silver || 0) >= nextSilverCost;
@@ -1259,9 +1266,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                             <p className="text-[11px] text-gray-400">
                                 需要先采购/支付下列资源与资金才能建造：
                             </p>
-                            {buyCount > 1 && (
+                            {normalizedBuyCount > 1 && (
                                 <span className="text-[10px] text-green-300 font-semibold">
-                                    x{buyCount} 座
+                                    x{normalizedBuyCount} 座
                                 </span>
                             )}
                         </div>
@@ -1309,7 +1316,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                     <button
                                         key={`buy-${n}`}
                                         onClick={() => setBuyCount(n)}
-                                        className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === n
+                                        className={`flex-1 py-1 rounded text-xs font-bold transition-all ${normalizedBuyCount === n
                                             ? 'bg-green-600 text-white shadow'
                                             : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                                             }`}
@@ -1319,13 +1326,13 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 ))}
                             </div>
                             <button
-                                onClick={() => onBuy && onBuy(building.id, buyCount)}
+                                onClick={() => onBuy && onBuy(building.id, normalizedBuyCount)}
                                 disabled={!canAffordNext}
                                 className="w-full px-4 py-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
                             >
                                 <Icon name="Plus" size={16} />
                                 <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
-                                    <span className="tracking-wide">建造 {buyCount > 1 ? `x${buyCount}` : ''}</span>
+                                    <span className="tracking-wide">建造 {normalizedBuyCount > 1 ? `x${normalizedBuyCount}` : ''}</span>
                                     <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
                                         <span className="inline-flex items-center gap-0.5 sm:hidden">
                                             <Icon name="Coins" size={10} className="text-yellow-300" />
