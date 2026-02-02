@@ -1158,19 +1158,14 @@ const ResourceDetailContent = ({
                                     </p>
                                 </div>
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 lg:p-2.5">
-                                      <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日国库收入</p>
+                                    <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日国库收入</p>
                                     <p className="mt-1 text-base lg:text-lg font-bold text-emerald-200 font-mono leading-none">
                                         {formatAmount(displayedTreasuryIncome)}
                                     </p>
-                                      <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-emerald-200/80 leading-none">{treasuryIncomeLabel}</p>
+                                    <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-emerald-200/80 leading-none">{treasuryIncomeLabel}</p>
                                 </div>
                             </div>
-                            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
-                                <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-0.5 lg:mb-1">财政说明</p>
-                                <p className="text-[9px] lg:text-[10px] text-blue-100/80 leading-snug lg:leading-relaxed">
-                                    银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定度。
-                                </p>
-                            </div>
+
                             {/* 交易税调整 */}
                             {!isSilver && onUpdateTaxPolicies && (
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
@@ -1203,12 +1198,6 @@ const ResourceDetailContent = ({
                                     </div>
                                 </div>
                             )}
-                            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
-                                <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-0.5 lg:mb-1">财政说明</p>
-                                <p className="text-[9px] lg:text-[10px] text-blue-100/80 leading-snug lg:leading-relaxed">
-                                    银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定度。
-                                </p>
-                            </div>
                             {/* 走势图 */}
                             <div className="space-y-1.5 lg:space-y-2">
                                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
@@ -1230,7 +1219,7 @@ const ResourceDetailContent = ({
                                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
                                     <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                                         <div>
-                                              <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日国库收入走势</p>
+                                            <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日国库收入走势</p>
                                             <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
                                                 当前 {formatAmount(displayedTreasuryIncome)} / 日
                                             </p>
@@ -1536,7 +1525,7 @@ const ResourceDetailContent = ({
                                                     <p className="text-base lg:text-xl font-semibold text-white">
                                                         {activeTab === 'analysis' ? (
                                                             <>
-                                                实际消费 {formatAmount(stratumDemand.reduce((sum, item) => sum + item.amount, 0) + buildingDemand.reduce((sum, item) => sum + item.amount, 0) + armyDemand.reduce((sum, item) => sum + item.amount, 0) + tradeDemand.reduce((sum, item) => sum + item.amount, 0))}
+                                                                实际消费 {formatAmount(stratumDemand.reduce((sum, item) => sum + item.amount, 0) + buildingDemand.reduce((sum, item) => sum + item.amount, 0) + armyDemand.reduce((sum, item) => sum + item.amount, 0) + tradeDemand.reduce((sum, item) => sum + item.amount, 0))}
                                                                 {/* <span className="text-xs text-gray-500 ml-2 font-normal">
                                                                     (理论需求: {formatAmount(totalActualDemand)})
                                                                 </span> */}
@@ -1738,13 +1727,12 @@ const ResourceDetailContent = ({
                                                     buildingSupply.map(item => (
                                                         <div
                                                             key={item.id}
-                                                            className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${
-                                                                item.isReduced 
-                                                                    ? 'border-red-500/30 bg-red-950/20' 
-                                                                    : item.hasBonus 
-                                                                        ? 'border-emerald-500/30 bg-emerald-950/20' 
+                                                            className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.isReduced
+                                                                    ? 'border-red-500/30 bg-red-950/20'
+                                                                    : item.hasBonus
+                                                                        ? 'border-emerald-500/30 bg-emerald-950/20'
                                                                         : 'border-gray-800/60 bg-gray-900/60'
-                                                            } p-2 lg:p-3`}
+                                                                } p-2 lg:p-3`}
                                                         >
                                                             <div>
                                                                 <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>

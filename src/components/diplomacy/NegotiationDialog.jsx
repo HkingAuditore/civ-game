@@ -79,9 +79,6 @@ const NegotiationDialog = ({
 
     const handleApplyCounterToDraft = () => {
         if (!negotiationCounter) return;
-        // ✅ 正确的逻辑：
-        // AI的反提案中，AI愿意支付的 → 应该放到"我方索求"（因为我要从AI那里拿）
-        // AI的反提案中，AI索要的 → 应该放到"我方赠送"（因为我要给AI）
         const counterOfferResources = negotiationCounter.resources ||
             convertToResourcesArray(negotiationCounter.resourceKey, negotiationCounter.resourceAmount);
         const counterDemandResources = negotiationCounter.demandResources ||
@@ -91,12 +88,10 @@ const NegotiationDialog = ({
             type: negotiationDraft.type,
             durationDays: negotiationCounter.durationDays,
             maintenancePerDay: negotiationCounter.maintenancePerDay,
-            // AI愿意支付的 → 我方索求
-            demandSilver: negotiationCounter.signingGift || 0,
-            demandResources: counterOfferResources,
-            // AI索要的 → 我方赠送
-            signingGift: negotiationCounter.demandSilver || 0,
-            resources: counterDemandResources,
+            signingGift: negotiationCounter.signingGift || 0,
+            resources: counterOfferResources,
+            demandSilver: negotiationCounter.demandSilver || 0,
+            demandResources: counterDemandResources,
             stance: negotiationDraft.stance,
             targetOrganizationId: negotiationCounter.targetOrganizationId ?? negotiationDraft.targetOrganizationId ?? null,
             organizationMode: negotiationCounter.organizationMode ?? negotiationDraft.organizationMode ?? null,
@@ -348,12 +343,12 @@ const NegotiationDialog = ({
                                     <h4 className="font-bold text-ancient-stone uppercase text-xs">{t('negotiation.theyPay', '对方愿意支付')}</h4>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.silver', '银币')}:</span>
-                                        <span className="font-mono text-green-400">{formatNumberShortCN(negotiationCounter.signingGift || 0)}</span>
+                                        <span className="font-mono text-green-400">{formatNumberShortCN(negotiationCounter.demandSilver || 0)}</span>
                                     </div>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.resource', '资源')}:</span>
                                         <span className="font-mono text-cyan-400">
-                                            {formatResourcesDisplay(negotiationCounter.resources, negotiationCounter.resourceKey, negotiationCounter.resourceAmount) || t('common.none', '无')}
+                                            {formatResourcesDisplay(negotiationCounter.demandResources, negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount) || t('common.none', '无')}
                                         </span>
                                     </div>
                                 </div>
@@ -362,12 +357,12 @@ const NegotiationDialog = ({
                                     <h4 className="font-bold text-ancient-stone uppercase text-xs">{t('negotiation.theyDemand', '对方索要')}</h4>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.silver', '银币')}:</span>
-                                        <span className="font-mono text-red-400">{formatNumberShortCN(negotiationCounter.demandSilver || 0)}</span>
+                                        <span className="font-mono text-red-400">{formatNumberShortCN(negotiationCounter.signingGift || 0)}</span>
                                     </div>
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.resource', '资源')}:</span>
                                         <span className="font-mono text-red-400">
-                                            {formatResourcesDisplay(negotiationCounter.demandResources, negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount) || t('common.none', '无')}
+                                            {formatResourcesDisplay(negotiationCounter.resources, negotiationCounter.resourceKey, negotiationCounter.resourceAmount) || t('common.none', '无')}
                                         </span>
                                     </div>
                                 </div>

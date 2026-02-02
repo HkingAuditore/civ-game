@@ -466,9 +466,9 @@ export const BuildingUpgradePanel = ({
                         >
                             <Icon name={RESOURCES[resource]?.icon || 'Box'} size={10} />
                             <span className="opacity-90">{RESOURCES[resource]?.name || resource}</span>
-                            <span className="font-mono ml-0.5">{amount}</span>
+                            <span className="font-mono ml-0.5">{formatAmount(amount)}</span>
                             <span className="font-mono text-[9px] opacity-70 ml-0.5">
-                                ({Math.floor(currentAmount)}/{amount})
+                                ({formatAmount(Math.floor(currentAmount))}/{formatAmount(amount)})
                             </span>
                         </span>
                     ))}

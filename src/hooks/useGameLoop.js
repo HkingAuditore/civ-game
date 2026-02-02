@@ -1772,6 +1772,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             market: adjustedMarket,
                             epoch: current.epoch,
                             daysElapsed: effectiveDaysElapsed,
+                            taxPolicies: current.taxPolicies || {},
                             batchSize: 2, // 每个 tick 处理 2 个国家
                             batchOffset: outboundInvestmentBatchRef.current.offset,
                         });
@@ -1858,6 +1859,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             epoch: current.epoch,
                             daysElapsed: effectiveDaysElapsed,
                             foreignInvestments: current.foreignInvestments || [],
+                            taxPolicies: current.taxPolicies || {},
                             batchSize: 2,
                             batchOffset: inboundInvestmentBatchRef.current.offset,
                         });
