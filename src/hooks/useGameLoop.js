@@ -120,8 +120,9 @@ const formatUnitSummary = (unitMap = {}) => {
 
 /**
  * 根据可用士兵数量同步现役部队与训练队列
+ * [FIX] 移除 autoRecruitEnabled 参数 - 人口不足解散不再触发自动补兵
  */
-const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availableSoldiers = 0, autoRecruitEnabled = false) => {
+const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availableSoldiers = 0) => {
     const safeArmy = armyState || {};
     const safeQueue = Array.isArray(queueState) ? queueState : [];
     const available = Number.isFinite(availableSoldiers) ? Math.max(0, availableSoldiers) : 0;
@@ -184,7 +185,8 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     const currentArmyPopulation = calculateArmyPopulation(safeArmy);
     let updatedArmy = null;
     let removedUnits = null;
-    let unitsToRequeue = null; // [NEW] 需要重新加入队列的单位（关闭自动补兵时使用）
+    // [FIX] 移除 unitsToRequeue 逻辑 - 人口不足导致的解散不应触发自动补兵
+    // 只有战斗损失(通过 AUTO_REPLENISH_LOSSES 日志)才应触发自动补兵
 
     // [FIX] 减小容差值，只为即将毕业的单位保留容差
     // 基础容差从3减到1，防止长期超员导致无限爆兵
@@ -208,10 +210,8 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
         updatedArmy = { ...safeArmy };
         removedUnits = {};
 
-        // [FIX] 如果开启了自动补兵，记录需要重新排队的单位（保留编制意图）
-        if (autoRecruitEnabled) {
-            unitsToRequeue = {};
-        }
+        // [FIX] 移除自动重新排队逻辑 - 人口不足导致的解散是真正的解散
+        // 不应该消耗资源重新招募，这样做会导致无限循环
 
         const armyEntries = Object.entries(updatedArmy)
             .filter(([, count]) => count > 0)
@@ -245,19 +245,13 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
 
             removedUnits[unitId] = (removedUnits[unitId] || 0) + removable;
 
-            // [FIX] 如果开启了自动补兵，记录单位信息用于重新排队（保留编制意图）
-            if (autoRecruitEnabled) {
-                unitsToRequeue[unitId] = {
-                    count: (unitsToRequeue[unitId]?.count || 0) + removable,
-                    trainingTime: trainingTime,
-                };
-            }
+            // [FIX] 已移除自动重新排队逻辑
+            // 人口不足导致的解散不应触发自动补兵
         }
 
         if (Object.keys(removedUnits).length === 0) {
             removedUnits = null;
             updatedArmy = null;
-            unitsToRequeue = null;
         }
     }
 
@@ -266,7 +260,7 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
         updatedQueue: queueClone,
         removedUnits,
         cancelledTraining,
-        unitsToRequeue, // [NEW] 返回需要重新排队的单位
+        // [FIX] 已移除 unitsToRequeue - 人口不足解散不应触发自动补兵
     };
 };
 
@@ -1233,8 +1227,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     const manpowerSync = syncArmyWithSoldierPopulation(
                         armyStateForQueue,
                         current.militaryQueue || [],
-                        soldierPopulationAfterEvents,
-                        current.autoRecruitEnabled || false  // [NEW] 传入自动补兵开关状态
+                        soldierPopulationAfterEvents
+                        // [FIX] 移除 autoRecruitEnabled 参数 - 人口不足解散不再触发自动补兵
                     );
 
                     if (manpowerSync.updatedArmy) {
@@ -1246,33 +1240,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         queueOverrideForManpower = manpowerSync.updatedQueue;
                     }
 
-                    // [NEW] 处理需要重新排队的单位（关闭自动补兵时）
-                    if (manpowerSync.unitsToRequeue && Object.keys(manpowerSync.unitsToRequeue).length > 0) {
-                        const requeueItems = [];
-                        Object.entries(manpowerSync.unitsToRequeue).forEach(([unitId, data]) => {
-                            for (let i = 0; i < data.count; i++) {
-                                requeueItems.push({
-                                    unitId,
-                                    status: 'waiting',
-                                    totalTime: data.trainingTime,
-                                    remainingTime: data.trainingTime,
-                                    isRequeued: true, // 标记为重新排队
-                                });
-                            }
-                        });
-                        if (requeueItems.length > 0) {
-                            setMilitaryQueue(prev => [...(queueOverrideForManpower || prev), ...requeueItems]);
-                            queueOverrideForManpower = null; // 已处理，清空覆盖
-                            const summary = formatUnitSummary(manpowerSync.removedUnits);
-                            if (summary) {
-                                addLog(`⚠️ 军人人口不足，以下部队暂时解散并重新排入训练队列：${summary}`);
-                            }
-                        }
-                    } else if (manpowerSync.removedUnits) {
-                        // [FIX] 关闭自动补兵时，直接解散
+                    // [FIX] 人口不足导致的解散：直接解散，不触发自动补兵
+                    // 只有战斗损失（通过 AUTO_REPLENISH_LOSSES 日志）才触发自动补兵
+                    if (manpowerSync.removedUnits) {
                         const summary = formatUnitSummary(manpowerSync.removedUnits);
                         if (summary) {
-                            addLog(`⚠️ 军人阶级人口骤减，以下部队被迫解散：${summary}`);
+                            addLog(`⚠️ 军人阶级人口不足，以下部队被迫解散：${summary}`);
                         }
                     }
 
