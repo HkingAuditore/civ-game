@@ -389,12 +389,18 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
 export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, allVisibleNations = null) => {
     // [FIX] Calculate global gift cooldown ONCE before the loop, using all visible nations
     const nationsForGlobalCooldown = allVisibleNations || visibleNations;
-    let globalLastGiftDay = nationsForGlobalCooldown.reduce((max, n) => {
+    const playerNation = nationsForGlobalCooldown.find(n => n?.id === 'player' || n?.isPlayer);
+    const derivedGlobalLastGiftDay = nationsForGlobalCooldown.reduce((max, n) => {
         const d = n.lastGiftToPlayerDay || 0;
         return d > max ? d : max;
     }, 0);
-    // [FIX] Increased global cooldown from 1 year to 5 years to further reduce gift spam
-    const globalGiftCooldown = 625; // At least 5 years between ANY AI gift events
+    // [FIX] Store global cooldown on player to avoid resets when nations appear/expire
+    let globalLastGiftDay = Number.isFinite(playerNation?.lastGlobalGiftToPlayerDay)
+        ? playerNation.lastGlobalGiftToPlayerDay
+        : derivedGlobalLastGiftDay;
+    // [FIX] 1 year = 360 days (see calendar)
+    const DAYS_PER_YEAR = 360;
+    const globalGiftCooldown = 1 * DAYS_PER_YEAR;
     
     // Track if gift already given this tick to prevent multiple gifts in same tick
     let giftGivenThisTick = false;
@@ -445,7 +451,7 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, al
         
         // Individual nation gift cooldown
         const lastGiftDay = nation.lastGiftToPlayerDay || 0;
-        const giftCooldown = 2555; // Increased to 7 years per nation (was 5 years)
+        const giftCooldown = 7 * DAYS_PER_YEAR;
         const canGift = canGiftGlobally && (tick - lastGiftDay) >= giftCooldown;
 
         // Significantly reduced base chance and wealth influence
@@ -457,6 +463,9 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, al
             // [FIX] Mark that a gift was given this tick to prevent any more gifts
             giftGivenThisTick = true;
             globalLastGiftDay = tick; // Update for subsequent iterations
+            if (playerNation) {
+                playerNation.lastGlobalGiftToPlayerDay = tick;
+            }
 
             logs.push(`AI_GIFT_EVENT:${JSON.stringify({
                 nationId: nation.id,
