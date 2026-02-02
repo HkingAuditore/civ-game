@@ -813,6 +813,7 @@ const buildInitialTradeRoutes = () => ({
 
 const buildInitialDiplomacyOrganizations = () => ({
     organizations: [],
+    lastGlobalGiftToPlayerDay: 0,
 });
 
 /**
@@ -852,9 +853,14 @@ const migrateDiplomacyOrganizations = (diplomacyOrganizations) => {
         })
         .filter(org => org !== null); // 移除无效组织
 
+    const lastGlobalGiftToPlayerDay = Number.isFinite(diplomacyOrganizations.lastGlobalGiftToPlayerDay)
+        ? diplomacyOrganizations.lastGlobalGiftToPlayerDay
+        : 0;
+
     return {
         ...diplomacyOrganizations,
         organizations: migratedOrganizations,
+        lastGlobalGiftToPlayerDay,
     };
 };
 
@@ -2028,6 +2034,43 @@ export const useGameState = () => {
                 return next;
             });
         }
+
+        // ========================================================================
+        // [CRITICAL FIX] UNCONDITIONAL lastGrowthTick/lastDevelopmentTick reset
+        // This MUST run for ALL saves (not just old versions) because:
+        // 1. The save file stores lastGrowthTick from when it was saved
+        // 2. When loaded, daysElapsed is restored but growth functions check
+        //    (currentTick - lastGrowthTick >= 10) to decide if growth should happen
+        // 3. If the save was made recently (e.g., lastGrowthTick = daysElapsed - 2),
+        //    then after loading, nations won't grow until 10 ticks pass
+        // 4. This caused the "frozen AI" bug after loading saves
+        // 
+        // Solution: Reset lastGrowthTick to (loadedTick - 20) so growth triggers
+        // immediately on the first simulation tick after loading.
+        // ========================================================================
+        const finalLoadedTick = Number.isFinite(loadedTick) ? loadedTick : 0;
+        
+        migratedNations = migratedNations.map(n => {
+            if (!n || n.id === 'player') return n;
+            
+            const next = { ...n };
+            
+            // Ensure economyTraits exists
+            if (!next.economyTraits) {
+                next.economyTraits = {};
+            } else {
+                next.economyTraits = { ...next.economyTraits };
+            }
+            
+            // [FIX v4] ALWAYS reset lastGrowthTick unconditionally
+            // This ensures growth will happen on the first tick after loading
+            next.economyTraits.lastGrowthTick = Math.max(0, finalLoadedTick - 20);
+            
+            // Also reset lastDevelopmentTick unconditionally
+            next.economyTraits.lastDevelopmentTick = Math.max(0, finalLoadedTick - 20);
+            
+            return next;
+        });
 
         setNations(migratedNations.map(n => ({
             ...n,

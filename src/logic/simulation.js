@@ -891,6 +891,10 @@ export const simulateTick = ({
     bonuses.populationGrowthBonus = activeOfficialEffects.populationGrowth || 0;
     // 军费降低 → 存储供军费计算使用
     bonuses.militaryUpkeepMod = activeOfficialEffects.militaryUpkeep || 0;
+    // 军队战力加成 → 存储供战斗力计算使用
+    if (activeOfficialEffects.militaryBonus) {
+        bonuses.militaryBonus = (bonuses.militaryBonus || 0) + activeOfficialEffects.militaryBonus;
+    }
     // 贸易加成 → 存储供贸易计算使用
     bonuses.tradeBonusMod = activeOfficialEffects.tradeBonus || 0;
     // 建筑成本 → 存储供建筑购买使用
@@ -5074,6 +5078,10 @@ export const simulateTick = ({
     });
 
     let updatedOrganizations = diplomacyOrganizations?.organizations ? [...diplomacyOrganizations.organizations] : [];
+    const diplomacyState = {
+        ...(diplomacyOrganizations || {}),
+        organizations: updatedOrganizations,
+    };
     let organizationUpdatesOccurred = false;
 
     perfStart('aiNationUpdate');
@@ -5306,6 +5314,54 @@ export const simulateTick = ({
             return next;
         }
 
+        // REFACTORED: Using module functions for AI development system
+        // Each function has its own internal tick-based checks, so they can safely run every slice.
+        // [NOTE] These run only for sliced nations (1/3 per tick with aiNationUpdateSlices=3)
+        // The slice check above ensures nations take turns being processed.
+        // Save loading timestamp fix in useGameState.js ensures proper initialization.
+        if (!isExpiredNation && !next.isRebelNation) {
+            initializeAIDevelopmentBaseline({ nation: next, tick });
+
+            // [NEW] Scale newly unlocked nations based on player's current development
+            // This ensures nations appearing in later epochs have appropriate strength
+            scaleNewlyUnlockedNation({
+                nation: next,
+                playerPopulation: population,
+                playerWealth: res.silver || 0,
+                currentEpoch: visibleEpoch,
+                isFirstInitialization: !next.economyTraits?.hasBeenScaled,
+            });
+
+            // Mark as scaled to avoid re-scaling
+            if (next.economyTraits) {
+                next.economyTraits.hasBeenScaled = true;
+            }
+
+            updateAIDevelopment({
+                nation: next,
+                epoch: next.epoch, // [MODIFIED] Use nation's own epoch for development
+                playerPopulationBaseline,
+                playerWealthBaseline,
+                tick,
+                difficulty,
+            });
+
+            // [GROWTH] These functions have internal tick-interval checks (>= 10 ticks)
+            // They will only apply growth when enough time has passed since last update
+            // Growth is applied after development targets so it becomes the final settlement for pop/wealth.
+            processAIIndependentGrowth({
+                nation: next,
+                tick,
+                difficulty,
+                epoch: next.epoch || 0,
+                playerPopulation: playerPopulationBaseline
+            });
+
+            // [NEW] Check for independent epoch progression
+            // [FIX] Pass tick for cooldown calculation
+            checkAIEpochProgression(next, logs, tick);
+        }
+
         // REFACTORED: Using module function for foreign economy simulation
         if (shouldUpdateTrade && !isExpiredNation) {
             updateAINationInventory({ nation: next, tick, gameSpeed });
@@ -5427,49 +5483,6 @@ export const simulateTick = ({
         if (!isExpiredNation) {
             processPostWarRecovery(next);
         }
-
-        // REFACTORED: Using module functions for AI development system
-        // Each function has its own internal tick-based checks, so they can safely run every slice.
-        initializeAIDevelopmentBaseline({ nation: next, tick });
-
-        // [NEW] Scale newly unlocked nations based on player's current development
-        // This ensures nations appearing in later epochs have appropriate strength
-        scaleNewlyUnlockedNation({
-            nation: next,
-            playerPopulation: population,
-            playerWealth: res.silver || 0,
-            currentEpoch: visibleEpoch,
-            isFirstInitialization: !next.economyTraits?.hasBeenScaled,
-        });
-
-        // Mark as scaled to avoid re-scaling
-        if (next.economyTraits) {
-            next.economyTraits.hasBeenScaled = true;
-        }
-
-        updateAIDevelopment({
-            nation: next,
-            epoch: next.epoch, // [MODIFIED] Use nation's own epoch for development
-            playerPopulationBaseline,
-            playerWealthBaseline,
-            tick,
-            difficulty,
-        });
-
-        // [GROWTH] These functions have internal tick-interval checks (>= 10 ticks)
-        // They will only apply growth when enough time has passed since last update
-        // Growth is applied after development targets so it becomes the final settlement for pop/wealth.
-        processAIIndependentGrowth({
-            nation: next,
-            tick,
-            difficulty,
-            epoch: next.epoch || 0,
-            playerPopulation: playerPopulationBaseline
-        });
-
-        // [NEW] Check for independent epoch progression
-        // [FIX] Pass tick for cooldown calculation
-        checkAIEpochProgression(next, logs, tick);
 
         return next;
     });
@@ -5774,7 +5787,7 @@ export const simulateTick = ({
     // REFACTORED: Using module function for AI-Player interaction
     // Pass allVisibleNations for global gift cooldown calculation (fixes spam gifts bug)
     if (shouldUpdateDiplomacy) {
-        processAIPlayerInteraction(diplomacyTargets, tick, epoch, logs, visibleNations);
+        processAIPlayerInteraction(diplomacyTargets, tick, epoch, logs, visibleNations, diplomacyState);
     }
 
     // REFACTORED: AI invites player to join organizations
@@ -7723,7 +7736,10 @@ export const simulateTick = ({
         buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
         migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
         migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
-        diplomacyOrganizations: organizationUpdatesOccurred ? { organizations: updatedOrganizations } : null,
+        diplomacyOrganizations: {
+            ...diplomacyState,
+            organizations: updatedOrganizations,
+        },
         taxShock: updatedTaxShock, // [NEW] 各阶层累积税收冲击值
         // 加成修饰符数据，供UI显示"谁吃到了buff"
         modifiers: {

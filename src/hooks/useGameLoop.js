@@ -2122,9 +2122,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         });
                     }
                     
-                    // 用附庸系统更新的数据覆盖对应的国家
-                    const vassalMap = new Map(vassalNationsUpdated.map(n => [n.id, n]));
-                    nextNations = nextNations.map(n => vassalMap.get(n.id) || n);
+                    // [FIX] Only merge ACTUAL vassals, not all nations!
+                    // Previous bug: vassalNationsUpdated contains ALL nations (from current.nations),
+                    // but non-vassal nations have STALE data (before simulation).
+                    // This was overwriting AI growth results with old population/wealth values!
+                    const vassalOnlyMap = new Map(
+                        vassalNationsUpdated
+                            .filter(n => n.vassalOf === 'player')  // Only actual vassals
+                            .map(n => [n.id, n])
+                    );
+                    nextNations = nextNations.map(n => vassalOnlyMap.get(n.id) || n);
                     
                     // [DEBUG] 合并后调试日志
                     const vassalAfter = nextNations.find(n => n.vassalOf === 'player');
@@ -2371,7 +2378,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (result.diplomacyOrganizations) {
                         setDiplomacyOrganizations(prev => ({
                             ...(prev || {}),
-                            organizations: result.diplomacyOrganizations.organizations
+                            ...(result.diplomacyOrganizations || {}),
+                            organizations: result.diplomacyOrganizations.organizations || prev?.organizations || []
                         }));
                     }
                     if (result.jobFill) {
