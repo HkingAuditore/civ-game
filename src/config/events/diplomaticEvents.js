@@ -227,7 +227,8 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(20, Math.floor(estimatedPopulation * 0.20)));
-        const annexPopulation = Math.max(estimatedPopulation, nation.population || 1000);
+        // [FIX] Use actual population instead of estimated to prevent over-annexation
+        const annexPopulation = nation.population || 1000;
 
         options.push({
             id: 'annex',

@@ -385,18 +385,18 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
  * @param {number} epoch - Current epoch
  * @param {Array} logs - Log array (mutable)
  * @param {Array} allVisibleNations - All visible nations for global cooldown calculation (optional, defaults to visibleNations)
+ * @param {Object} diplomacyState - Diplomacy state (for global cooldown persistence)
  */
-export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, allVisibleNations = null) => {
+export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, allVisibleNations = null, diplomacyState = null) => {
     // [FIX] Calculate global gift cooldown ONCE before the loop, using all visible nations
     const nationsForGlobalCooldown = allVisibleNations || visibleNations;
-    const playerNation = nationsForGlobalCooldown.find(n => n?.id === 'player' || n?.isPlayer);
     const derivedGlobalLastGiftDay = nationsForGlobalCooldown.reduce((max, n) => {
         const d = n.lastGiftToPlayerDay || 0;
         return d > max ? d : max;
     }, 0);
-    // [FIX] Store global cooldown on player to avoid resets when nations appear/expire
-    let globalLastGiftDay = Number.isFinite(playerNation?.lastGlobalGiftToPlayerDay)
-        ? playerNation.lastGlobalGiftToPlayerDay
+    // [FIX] Store global cooldown in diplomacyState to avoid resets when nations appear/expire
+    let globalLastGiftDay = Number.isFinite(diplomacyState?.lastGlobalGiftToPlayerDay)
+        ? diplomacyState.lastGlobalGiftToPlayerDay
         : derivedGlobalLastGiftDay;
     // [FIX] 1 year = 360 days (see calendar)
     const DAYS_PER_YEAR = 360;
@@ -463,8 +463,8 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, al
             // [FIX] Mark that a gift was given this tick to prevent any more gifts
             giftGivenThisTick = true;
             globalLastGiftDay = tick; // Update for subsequent iterations
-            if (playerNation) {
-                playerNation.lastGlobalGiftToPlayerDay = tick;
+            if (diplomacyState) {
+                diplomacyState.lastGlobalGiftToPlayerDay = tick;
             }
 
             logs.push(`AI_GIFT_EVENT:${JSON.stringify({

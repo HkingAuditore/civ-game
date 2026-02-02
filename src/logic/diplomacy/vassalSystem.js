@@ -873,12 +873,12 @@ export const processVassalUpdates = ({
         const newIndependence = Math.max(0, Math.min(independenceCap, currentIndependence + dailyChange));
         
         // [DEBUG] 调试日志 - 追踪独立倾向更新
-        console.log(`[VASSAL processVassalUpdates] ${updated.name}:`, {
-            currentIndependence,
-            dailyChange,
-            newIndependence,
-            independenceCap,
-        });
+        // console.log(`[VASSAL processVassalUpdates] ${updated.name}:`, {
+        //     currentIndependence,
+        //     dailyChange,
+        //     newIndependence,
+        //     independenceCap,
+        // });
         
         updated.independencePressure = newIndependence;
         // [FIXED] 清理旧的错误数据，确保independenceCap永远是100
@@ -1137,11 +1137,11 @@ const calculateDailyIndependenceChange = (nation, epoch, controlReduction = 0, s
     }
     
     // [DEBUG] 输出所有因素
-    console.log(`[VASSAL calculateDailyIndependenceChange] ${nation?.name}:`, {
-        ...debugFactors,
-        难度系数: difficultyMultiplier,
-        最终变化: dailyChange
-    });
+    // console.log(`[VASSAL calculateDailyIndependenceChange] ${nation?.name}:`, {
+    //     ...debugFactors,
+    //     难度系数: difficultyMultiplier,
+    //     最终变化: dailyChange
+    // });
     
     return dailyChange;
 };
