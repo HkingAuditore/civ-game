@@ -7142,22 +7142,16 @@ export const simulateTick = ({
         const ownerWealth = wealth[ownerKey] || 0;
         const perCapitaWealth = ownerWealth / ownerPop;
 
-        // Get current upgrade distribution for this building
-        const currentLevelCounts = updatedBuildingUpgrades[buildingId] || {};
-
-        // Count buildings at each level
-        let accounted = 0;
-        for (const [, lvlCount] of Object.entries(currentLevelCounts)) {
-            if (typeof lvlCount === 'number' && lvlCount > 0) {
-                accounted += lvlCount;
-            }
-        }
-        const level0Count = count - accounted; // Buildings at level 0
+        // [FIX] Use getBuildingLevelDistribution to get normalized level counts
+        // This handles the case where upgrade data exceeds actual building count
+        const { fullLevelCounts, level0Count: normalizedLevel0Count } = getBuildingLevelDistribution(
+            tick, buildingId, updatedBuildingUpgrades, count
+        );
 
         // Find the lowest level building that can be upgraded
         // Start from level 0 and go up
         for (let fromLevel = 0; fromLevel < maxLevel; fromLevel++) {
-            const atThisLevel = fromLevel === 0 ? level0Count : (currentLevelCounts[fromLevel] || 0);
+            const atThisLevel = fullLevelCounts[fromLevel] || 0;
             if (atThisLevel <= 0) continue;
 
             // Get BASE upgrade cost (no scaling, existingUpgradeCount = 0)

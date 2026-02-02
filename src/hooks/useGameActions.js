@@ -1227,6 +1227,42 @@ export const useGameActions = (gameState, addLog) => {
                 }
             }
 
+            // [FIX] 如果升级数据超过建筑数量，先规范化数据
+            // 这可以修复由于数据损坏或旧版本bug导致的不一致
+            if (upgradedCount > remainingCount) {
+                console.warn(`[sellBuilding] Data inconsistency detected for ${id}: ${upgradedCount} upgrades > ${remainingCount} buildings. Normalizing...`);
+                // 按高等级优先分配，同时修复数据
+                const sortedLevels = Object.keys(levelCounts)
+                    .map(k => parseInt(k))
+                    .filter(l => Number.isFinite(l) && levelCounts[l] > 0)
+                    .sort((a, b) => b - a); // 降序，高等级优先
+                
+                let remaining = remainingCount;
+                const normalizedCounts = {};
+                for (const lvl of sortedLevels) {
+                    const wanted = levelCounts[lvl];
+                    const actual = Math.min(wanted, remaining);
+                    if (actual > 0) {
+                        normalizedCounts[lvl] = actual;
+                        remaining -= actual;
+                    }
+                }
+                
+                // 更新buildingUpgrades
+                setBuildingUpgrades(prev => {
+                    const newUpgrades = { ...prev };
+                    if (Object.keys(normalizedCounts).length > 0) {
+                        newUpgrades[id] = normalizedCounts;
+                    } else {
+                        delete newUpgrades[id];
+                    }
+                    return newUpgrades;
+                });
+                
+                // 重新计算upgradedCount和level0Count
+                upgradedCount = Object.values(normalizedCounts).reduce((sum, c) => sum + c, 0);
+            }
+
             // 0级建筑数量 = 剩余总数 - 有升级记录的数量
             const level0Count = remainingCount - upgradedCount;
             let targetLevel = -1;
