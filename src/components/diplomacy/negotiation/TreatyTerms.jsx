@@ -4,7 +4,7 @@ import { Card, Input, Icon, Tooltip } from '../../common/UnifiedUI';
 import { NEGOTIABLE_TREATY_TYPES, getTreatyDailyMaintenance, calculateTreatySigningCost } from '../../../config/diplomacy';
 import { getTreatyLabel, getTreatyUnlockEraName, getTreatyDuration } from '../../../utils/diplomacyUtils';
 import { getTreatyEffectDescriptionsByType } from '../../../logic/diplomacy/treatyEffects';
-import { getNationOrganizations, ORGANIZATION_TYPE_CONFIGS } from '../../../logic/diplomacy/organizationDiplomacy';
+import { getNationOrganizations, ORGANIZATION_TYPE_CONFIGS, getOrganizationMaxMembers } from '../../../logic/diplomacy/organizationDiplomacy';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
 
 // Floating tooltip component using portal
@@ -195,7 +195,7 @@ const TreatyTerms = ({
                     {t('negotiation.treatyType', '条约类型')}
                 </label>
 
-                <div className="grid grid-cols-4 lg:grid-cols-2 gap-0.5 lg:gap-2">
+                <div className="grid grid-cols-3 lg:grid-cols-2 gap-0.5 lg:gap-2">
                     {NEGOTIABLE_TREATY_TYPES.map((type) => {
                         // military_alliance and economic_bloc are organizations, not treaties
                         const isOrgType = type === 'military_alliance' || type === 'economic_bloc';
@@ -327,10 +327,10 @@ const TreatyTerms = ({
                                 {t('negotiation.inviteToJoin', '邀请对方加入你的组织')}
                             </div>
                             <div className="grid gap-1">
-                                {playerOrganizations.map(org => {
+                            {playerOrganizations.map(org => {
                                     const isSelected = draft.targetOrganizationId === org.id && draft.organizationMode === 'invite';
                                     const memberCount = org.members?.length || 0;
-                                    const maxMembers = orgConfig?.maxMembers || 10;
+                                    const maxMembers = getOrganizationMaxMembers(org.type, epoch);
                                     const isFull = memberCount >= maxMembers;
                                     const alreadyMember = org.members?.includes(selectedNation?.id);
                                     const disabled = isFull || alreadyMember;
@@ -396,7 +396,7 @@ const TreatyTerms = ({
                                 {targetOrganizations.map(org => {
                                     const isSelected = draft.targetOrganizationId === org.id && draft.organizationMode === 'join';
                                     const memberCount = org.members?.length || 0;
-                                    const maxMembers = orgConfig?.maxMembers || 10;
+                                    const maxMembers = getOrganizationMaxMembers(org.type, epoch);
                                     const isFull = memberCount >= maxMembers;
                                     
                                     return (

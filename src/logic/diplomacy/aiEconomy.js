@@ -149,26 +149,81 @@ export const initializeAIDevelopmentBaseline = ({
     tick,
 }) => {
     const next = nation;
+    const safeTick = Number.isFinite(tick) ? tick : 0;
 
-    if (!next.economyTraits?.ownBasePopulation) {
-        const templateWealth = next.wealthTemplate || 800;
-        const templateFactor = templateWealth / 800;
-        next.economyTraits = {
-            ...(next.economyTraits || {}),
-            ownBasePopulation: Math.max(5, Math.round(16 * templateFactor * (0.8 + Math.random() * 0.4))),
-            ownBaseWealth: Math.max(500, Math.round(1000 * templateFactor * (0.8 + Math.random() * 0.4))),
-            developmentRate: 0.8 + (next.aggression || 0.3) * 0.3 + Math.random() * 0.4,
-            lastGrowthTick: tick,
-        };
+    // [FIX v2] Comprehensive initialization for old saves compatibility
+    // Old saves may have:
+    // 1. No economyTraits at all
+    // 2. economyTraits but missing ownBasePopulation
+    // 3. economyTraits but missing lastGrowthTick
+    // 4. Invalid/NaN values in critical fields
+    
+    if (!next.economyTraits) {
+        next.economyTraits = {};
     }
     
-    // [FIX] Legacy save compatibility: Initialize missing lastGrowthTick for old saves
-    // Old saves may have economyTraits but missing lastGrowthTick field
-    // Without this fix, ticksSinceLastGrowth calculation may fail or return invalid values
-    if (next.economyTraits && (next.economyTraits.lastGrowthTick === undefined || next.economyTraits.lastGrowthTick === null)) {
+    // Initialize ownBasePopulation if missing or invalid
+    if (!next.economyTraits.ownBasePopulation || 
+        !Number.isFinite(next.economyTraits.ownBasePopulation) ||
+        next.economyTraits.ownBasePopulation < 1) {
+        const templateWealth = next.wealthTemplate || 800;
+        const templateFactor = templateWealth / 800;
+        // Use current population if available, otherwise calculate from template
+        const currentPop = next.population || 16;
+        next.economyTraits.ownBasePopulation = Math.max(5, Math.round(
+            currentPop > 10 ? currentPop : 16 * templateFactor * (0.8 + Math.random() * 0.4)
+        ));
+        console.log(`[Legacy Fix] Initialized ownBasePopulation for ${next.name || next.id}: ${next.economyTraits.ownBasePopulation}`);
+    }
+    
+    // Initialize ownBaseWealth if missing or invalid
+    if (!next.economyTraits.ownBaseWealth || 
+        !Number.isFinite(next.economyTraits.ownBaseWealth) ||
+        next.economyTraits.ownBaseWealth < 100) {
+        const templateWealth = next.wealthTemplate || 800;
+        const templateFactor = templateWealth / 800;
+        const currentWealth = next.wealth || 1000;
+        next.economyTraits.ownBaseWealth = Math.max(500, Math.round(
+            currentWealth > 100 ? currentWealth : 1000 * templateFactor * (0.8 + Math.random() * 0.4)
+        ));
+    }
+    
+    // Initialize developmentRate if missing or invalid
+    if (!next.economyTraits.developmentRate || 
+        !Number.isFinite(next.economyTraits.developmentRate) ||
+        next.economyTraits.developmentRate < 0.1) {
+        next.economyTraits.developmentRate = 0.8 + (next.aggression || 0.3) * 0.3 + Math.random() * 0.4;
+    }
+    
+    // [FIX v2] Initialize lastGrowthTick - critical for growth timing
+    // Old saves may have undefined, null, NaN, or very old tick values
+    if (next.economyTraits.lastGrowthTick === undefined || 
+        next.economyTraits.lastGrowthTick === null ||
+        !Number.isFinite(next.economyTraits.lastGrowthTick) ||
+        next.economyTraits.lastGrowthTick < 0) {
         // Set to current tick minus a small amount to trigger immediate growth check
-        next.economyTraits.lastGrowthTick = Math.max(0, tick - 15);
+        next.economyTraits.lastGrowthTick = Math.max(0, safeTick - 15);
         console.log(`[Legacy Fix] Initialized missing lastGrowthTick for ${next.name || next.id}`);
+    }
+    if (Number.isFinite(next.economyTraits.lastGrowthTick) && next.economyTraits.lastGrowthTick > safeTick) {
+        next.economyTraits.lastGrowthTick = Math.max(0, safeTick - 15);
+        console.log(`[Legacy Fix] Clamped future lastGrowthTick for ${next.name || next.id}`);
+    }
+
+    if (next.economyTraits.lastDevelopmentTick === undefined ||
+        next.economyTraits.lastDevelopmentTick === null ||
+        !Number.isFinite(next.economyTraits.lastDevelopmentTick) ||
+        next.economyTraits.lastDevelopmentTick < 0) {
+        next.economyTraits.lastDevelopmentTick = Math.max(0, safeTick - 15);
+    } else if (next.economyTraits.lastDevelopmentTick > safeTick) {
+        next.economyTraits.lastDevelopmentTick = Math.max(0, safeTick - 15);
+    }
+    
+    // [FIX v2] Sync population with ownBasePopulation if population is missing or too low
+    // This fixes old saves where population might be 0 or undefined
+    if (!next.population || !Number.isFinite(next.population) || next.population < 1) {
+        next.population = next.economyTraits.ownBasePopulation;
+        console.log(`[Legacy Fix] Synced population for ${next.name || next.id}: ${next.population}`);
     }
 };
 
@@ -194,57 +249,129 @@ export const processAIIndependentGrowth = ({
     const ownBaseWealth = next.economyTraits.ownBaseWealth;
     const developmentRate = (next.economyTraits.developmentRate || 1.0) * multiplier;
 
-    const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
+    // [FIX v2] Handle invalid lastGrowthTick more robustly
+    const lastGrowthTick = Number.isFinite(next.economyTraits.lastGrowthTick) 
+        ? next.economyTraits.lastGrowthTick 
+        : Math.max(0, tick - 20);
+    const ticksSinceLastGrowth = tick - lastGrowthTick;
     
     // [NEW] Use logistic growth model instead of exponential growth
     // This creates a realistic S-curve that considers resource constraints
     if (ticksSinceLastGrowth >= 10) {
-        // Only grow when not at war
-        if (!next.isAtWar) {
-            const currentPopulation = next.population || ownBasePopulation;
-            
-            // Use logistic growth model for population
-            const newPopulation = calculateAILogisticGrowth({
-                nation: next,
-                epoch: epoch,
-                difficulty: difficulty,
-                playerPopulation: playerPopulation,
-                ticksSinceLastUpdate: ticksSinceLastGrowth
-            });
-            
-            // Ensure minimum growth of 1 for small populations (prevents stagnation)
-            const minGrowth = currentPopulation < 20 ? 1 : 0;
-            const actualNewPopulation = Math.max(currentPopulation + minGrowth, newPopulation);
-            
-            // Calculate population growth ratio for wealth scaling
-            const popGrowthRatio = actualNewPopulation / Math.max(1, currentPopulation);
-            
-            // Wealth grows proportionally to population growth (NOT independently!)
-            // This prevents wealth from growing while population is capped
-            const actualPopGrowth = actualNewPopulation - currentPopulation;
-            const popGrowthRate = actualPopGrowth / Math.max(1, currentPopulation);
-            
-            // Wealth growth rate should match population growth rate (with some bonus for development)
-            // If population growth is 0, wealth growth should also be minimal
-            const tickScale = Math.min(ticksSinceLastGrowth / 10, 2.0);
-            const developmentBonus = (developmentRate - 1) * 0.01;  // Small bonus for high development
-            
-            // Key fix: wealth growth is tied to population growth rate
-            // If pop growth rate is 0 (capped), wealth growth is only development bonus (very slow)
-            const baseWealthGrowthRate = popGrowthRate + developmentBonus;
-            const wealthGrowthRate = 1 + Math.max(0, baseWealthGrowthRate * tickScale);
-            
-            // Cap wealth growth rate to prevent runaway growth
-            const cappedWealthGrowthRate = Math.min(wealthGrowthRate, 1.05);  // Max 5% per update
-            
-            const newBaseWealth = Math.round(ownBaseWealth * cappedWealthGrowthRate);
-            
-            // Update values
-            next.economyTraits.ownBasePopulation = actualNewPopulation;
-            next.economyTraits.ownBaseWealth = newBaseWealth;
-            next.population = actualNewPopulation;
-            next.wealth = Math.max(100, Math.round((next.wealth || ownBaseWealth) * cappedWealthGrowthRate));
+        // [FIX v2] Growth should happen even during war, just at reduced rate
+        // Old behavior completely blocked growth during war, causing stagnation
+        const warPenalty = next.isAtWar ? 0.3 : 1.0; // 70% reduction during war, not 100%
+        
+        const currentPopulation = next.population || ownBasePopulation;
+        
+        // [FIX v2] Ensure playerPopulation is valid
+        const safePlayerPopulation = Number.isFinite(playerPopulation) && playerPopulation > 0 
+            ? playerPopulation 
+            : 100;
+        
+        // Use logistic growth model for population
+        const newPopulation = calculateAILogisticGrowth({
+            nation: next,
+            epoch: epoch,
+            difficulty: difficulty,
+            playerPopulation: safePlayerPopulation,
+            ticksSinceLastUpdate: ticksSinceLastGrowth
+        });
+        
+        // [FIX v3] Enhanced minimum growth guarantee for small populations
+        // Problem: Populations < 10000 can get stuck due to rounding (especially war-damaged vassals)
+        // Solution: Scale minimum growth based on current population
+        let minGrowth = 0;
+        if (currentPopulation < 50) {
+            minGrowth = 2; // Very small: +2 minimum
+        } else if (currentPopulation < 100) {
+            minGrowth = 1; // Small: +1 minimum
+        } else if (currentPopulation < 500) {
+            minGrowth = Math.random() < 0.5 ? 1 : 0; // 50% chance of +1
+        } else if (currentPopulation < 1000) {
+            // Pop 500-1000: minimum +2
+            minGrowth = 2;
+        } else if (currentPopulation < 5000) {
+            // Pop 1000-5000: minimum +5
+            minGrowth = 5;
+        } else if (currentPopulation < 10000) {
+            // Pop 5000-10000: minimum +10
+            minGrowth = 10;
         }
+        
+        // Apply war penalty to minimum growth too
+        minGrowth = Math.floor(minGrowth * warPenalty);
+        
+        // Calculate actual population with war penalty and minimum growth
+        const growthFromModel = newPopulation - currentPopulation;
+        const warAdjustedGrowth = Math.trunc(growthFromModel * warPenalty);
+        let adjustedGrowth = warAdjustedGrowth;
+
+        if (adjustedGrowth >= 0) {
+            adjustedGrowth = Math.max(minGrowth, adjustedGrowth);
+        } else {
+            // Allow decline when over capacity or in prolonged shortages, but cap the drop rate.
+            const maxDecline = Math.max(1, Math.floor(currentPopulation * 0.02)); // Max -2% per update
+            adjustedGrowth = Math.max(adjustedGrowth, -maxDecline);
+        }
+
+        // If model indicates decline but rounding erased it, apply a tiny decline chance
+        if (adjustedGrowth === 0 && growthFromModel < 0 && currentPopulation > 100) {
+            adjustedGrowth = Math.random() < Math.min(0.5, Math.abs(growthFromModel)) ? -1 : 0;
+        }
+
+        const actualNewPopulation = Math.max(1, currentPopulation + adjustedGrowth);
+        
+        // Calculate population growth ratio for wealth scaling
+        const popGrowthRatio = actualNewPopulation / Math.max(1, currentPopulation);
+        
+        // Wealth grows proportionally to population growth (NOT independently!)
+        // This prevents wealth from growing while population is capped
+        const actualPopGrowth = actualNewPopulation - currentPopulation;
+        const popGrowthRate = actualPopGrowth / Math.max(1, currentPopulation);
+        
+        // Wealth growth rate should match population growth rate (with some bonus for development)
+        // If population growth is 0, wealth growth should also be minimal
+        const tickScale = Math.min(ticksSinceLastGrowth / 10, 2.0);
+        const developmentBonus = (developmentRate - 1) * 0.005;  // [FIX] Reduced from 0.01 to 0.005
+        
+        // Key fix: wealth growth is tied to population growth rate
+        // If pop growth rate is 0 (capped), wealth growth is only development bonus (very slow)
+        const baseWealthGrowthRate = popGrowthRate + developmentBonus;
+        const rawWealthRate = baseWealthGrowthRate * tickScale;
+        const cappedWealthRate = clamp(rawWealthRate, -0.02, 0.03);
+        const wealthGrowthRate = 1 + cappedWealthRate;
+        
+        // [FIX v4] Apply per-capita wealth cap to prevent late-game wealth explosion
+        // Per-capita cap: Stone=2k, Ancient=4k, Medieval=8k, Industrial=16k, Modern=32k (reduced caps)
+        const perCapitaWealthCap = Math.min(50000, 2000 * Math.pow(2, Math.min(epoch, 4)));
+        const currentPerCapitaWealth = (next.wealth || ownBaseWealth) / Math.max(1, actualNewPopulation);
+        
+        // If already at or above per-capita cap, no wealth growth (only development bonus)
+        let cappedWealthGrowthRate = 1.0;
+        if (currentPerCapitaWealth >= perCapitaWealthCap) {
+            // At cap: allow slight decline if population is shrinking, otherwise tiny growth
+            const atCapRate = clamp(baseWealthGrowthRate * tickScale, -0.01, 0.005);
+            cappedWealthGrowthRate = 1 + atCapRate;
+        } else {
+            // Below cap: normal growth but capped at 3% per update (reduced from 5%)
+            cappedWealthGrowthRate = Math.min(wealthGrowthRate, 1.03);
+        }
+        
+        const newBaseWealth = Math.round(ownBaseWealth * cappedWealthGrowthRate);
+        const newWealth = Math.max(100, Math.round((next.wealth || ownBaseWealth) * cappedWealthGrowthRate));
+        
+        // [FIX] Hard cap: ensure per-capita wealth doesn't exceed cap
+        const maxAllowedWealth = actualNewPopulation * perCapitaWealthCap;
+        const finalWealth = Math.min(newWealth, maxAllowedWealth);
+        const finalBaseWealth = Math.min(newBaseWealth, maxAllowedWealth);
+        
+        // Update values
+        next.economyTraits.ownBasePopulation = actualNewPopulation;
+        next.economyTraits.ownBaseWealth = finalBaseWealth;
+        next.population = actualNewPopulation;
+        next.wealth = finalWealth;
+        
         next.economyTraits.lastGrowthTick = tick;
     }
 };
@@ -278,12 +405,13 @@ export const updateAIDevelopment = ({
     const wealthFactor = clamp(
         powerProfile.wealthFactor ?? (powerProfile.baseRating ? powerProfile.baseRating * 1.1 : 1.1),
         0.5,
-        3.5
+        2.0  // [FIX v4] Reduced from 3.5 to 2.0 to prevent late-game wealth explosion
     );
     const eraMomentum = 1 + Math.max(0, epoch - (powerProfile.appearEpoch ?? 0)) * 0.03;
 
     // Era growth factor
-    const eraGrowthFactor = 1 + Math.max(0, epoch) * 0.15;
+    // [FIX v4] Reduced from 0.15 to 0.08 to slow late-game growth
+    const eraGrowthFactor = 1 + Math.max(0, epoch) * 0.08;
 
     // Calculate AI own target values (Applied difficulty multiplier)
     const aiOwnTargetPopulation = (next.economyTraits?.ownBasePopulation || 16) * eraGrowthFactor * populationFactor * multiplier;
@@ -298,13 +426,14 @@ export const updateAIDevelopment = ({
     const blendedTargetWealth = aiOwnTargetWealth * (1 - playerInfluenceFactor) + playerTargetWealth * playerInfluenceFactor;
 
     // Apply template boosts
+    // [FIX v4] Reduced template boost multipliers to prevent late-game explosion
     const templatePopulationBoost = Math.max(
         1,
-        (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.8
+        (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.5
     );
     const templateWealthBoost = Math.max(
         1,
-        (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 1.1
+        (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.6
     );
 
     // Final target values

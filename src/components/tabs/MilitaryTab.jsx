@@ -1008,6 +1008,7 @@ const MilitaryTabComponent = ({
                                 <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
                                     <Icon name="Clock" size={16} className="text-yellow-400" />
                                     训练队列
+                                    <span className="text-xs text-gray-500 font-normal">({militaryQueue.length})</span>
                                 </h3>
                                 <button
                                     onClick={() => onCancelAllTraining && onCancelAllTraining()}
@@ -1027,14 +1028,55 @@ const MilitaryTabComponent = ({
                                     e.stopPropagation();
                                 }}
                             >
-                                {militaryQueue.map((item, idx) => (
-                                    <TrainingQueueItem
-                                        key={`${item.unitId}-${idx}-${item.status}`}
-                                        item={item}
-                                        index={idx}
-                                        onCancelTraining={onCancelTraining}
-                                    />
-                                ))}
+                                {/* Performance optimization: when queue is large (>20), show summary instead of individual items */}
+                                {militaryQueue.length <= 20 ? (
+                                    // Normal mode: render each item individually
+                                    militaryQueue.map((item, idx) => (
+                                        <TrainingQueueItem
+                                            key={`${item.unitId}-${idx}-${item.status}`}
+                                            item={item}
+                                            index={idx}
+                                            onCancelTraining={onCancelTraining}
+                                        />
+                                    ))
+                                ) : (
+                                    // Summary mode: group items by unit type for performance
+                                    <>
+                                        {/* Show first 5 training items with progress */}
+                                        {militaryQueue.slice(0, 5).map((item, idx) => (
+                                            <TrainingQueueItem
+                                                key={`${item.unitId}-${idx}-${item.status}`}
+                                                item={item}
+                                                index={idx}
+                                                onCancelTraining={onCancelTraining}
+                                            />
+                                        ))}
+                                        
+                                        {/* Summary of remaining items grouped by unit type */}
+                                        <div className="mt-3 p-3 rounded bg-gray-800/50 border border-gray-700">
+                                            <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                                                <Icon name="List" size={12} />
+                                                队列中还有 {militaryQueue.length - 5} 个单位等待训练：
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {Object.entries(
+                                                    militaryQueue.slice(5).reduce((acc, item) => {
+                                                        acc[item.unitId] = (acc[item.unitId] || 0) + 1;
+                                                        return acc;
+                                                    }, {})
+                                                ).map(([unitId, count]) => (
+                                                    <span 
+                                                        key={unitId}
+                                                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-700/50 text-xs"
+                                                    >
+                                                        <span className="text-gray-300">{UNIT_TYPES[unitId]?.name || unitId}</span>
+                                                        <span className="text-yellow-400">×{count}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}

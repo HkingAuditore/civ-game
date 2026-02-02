@@ -202,6 +202,12 @@ import {
   Smile,
   Frown,
   Meh,
+  // 附庸管理面板需要的图标
+  ToggleLeft,
+  ToggleRight,
+  MousePointer,
+  ShieldQuestion,
+  ArrowLeft,
 } from 'lucide-react';
 
 export const iconMap = {
@@ -412,6 +418,12 @@ export const iconMap = {
   Smile,
   Frown,
   Meh,
+  // 附庸管理面板需要的图标
+  ToggleLeft,
+  ToggleRight,
+  MousePointer,
+  ShieldQuestion,
+  ArrowLeft,
 };
 
 export const getIcon = (name) => iconMap[name];

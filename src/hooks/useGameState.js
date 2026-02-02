@@ -665,6 +665,10 @@ const buildMinimalAutoSavePayload = (payload) => {
             isPlayer: nation.isPlayer,
             resources: nation.resources,
             population: nation.population,
+            wealth: nation.wealth,
+            budget: nation.budget,
+            economyTraits: nation.economyTraits,
+            lastGiftToPlayerDay: nation.lastGiftToPlayerDay,
             buildings: nation.buildings,
             vassalType: nation.vassalType,
             overlordId: nation.overlordId,
@@ -1809,8 +1813,11 @@ export const useGameState = () => {
                 eventConfirmationEnabled,
                 updatedAt: timestamp,
                 saveSource: source,
-                // AI balance version marker - saves with this field won't trigger legacy AI migration
-                aiBalanceVersion: 1,
+                // AI balance version marker - increment to trigger re-migration of old saves
+                // v1: initial migration for too-strong/too-weak AI
+                // v2: fix missing economyTraits fields that prevent AI development
+                // v3: clamp future AI ticks + seed missing AI gift cooldown
+                aiBalanceVersion: 3,
             },
             nextLastAuto,
         };
@@ -1862,24 +1869,42 @@ export const useGameState = () => {
         const loadedTick = data.daysElapsed || 0;
         
         let migratedNations = loadedNations;
-        if (!data.aiBalanceVersion) {
+        // [FIX v2] Check if save version is outdated (missing OR less than current version)
+        // This ensures old saves that were saved after partial fixes still get updated
+        const CURRENT_AI_BALANCE_VERSION = 3;
+        const saveAIVersion = data.aiBalanceVersion || 0;
+        const needsMigration = saveAIVersion < CURRENT_AI_BALANCE_VERSION;
+        
+        if (needsMigration) {
+            console.log(`[Save Migration] AI balance version ${saveAIVersion} < ${CURRENT_AI_BALANCE_VERSION}, applying migration...`);
             // This is an old save - check for broken AI nations
             migratedNations = loadedNations.map(n => {
+                // Skip player nation
+                if (n.id === 'player') return n;
+                
                 const aiPop = n.population || 0;
                 const aiWealth = n.wealth || 0;
                 const popRatio = aiPop / Math.max(1, playerPop);
                 const wealthRatio = aiWealth / Math.max(1, playerWealth);
                 
-                // [FIX] Also check per-capita wealth cap
-                // Per-capita wealth cap by epoch: Stone=5k, Ancient=10k, Classical=20k, etc.
+                // [FIX v4] Also check per-capita wealth cap (reduced caps)
+                // Per-capita wealth cap by epoch: Stone=2k, Ancient=4k, Medieval=8k, Industrial=16k, Modern=32k
                 const nationEpoch = n.epoch ?? 0;
-                const perCapitaWealthCap = Math.min(100000, 5000 * Math.pow(2, Math.min(nationEpoch, 4)));
+                const perCapitaWealthCap = Math.min(50000, 2000 * Math.pow(2, Math.min(nationEpoch, 4)));
                 const aiPerCapitaWealth = aiWealth / Math.max(1, aiPop);
                 const perCapitaExceeded = aiPerCapitaWealth > perCapitaWealthCap;
                 
-                // If AI population OR wealth exceeds 10x player's level, OR per-capita wealth exceeds cap
-                if (popRatio > 10 || wealthRatio > 10 || perCapitaExceeded) {
-                    console.log(`[Save Migration] Resetting broken AI nation: ${n.name} (pop: ${aiPop}, wealth: ${aiWealth}, per-capita: ${aiPerCapitaWealth.toFixed(0)}, cap: ${perCapitaWealthCap})`);
+                // [FIX v3] Check if AI nation is TOO WEAK (population < 100 or less than 5% of player)
+                // Old saves often have AI stuck at 10-30 population due to missing growth logic
+                const isTooWeak = aiPop < 100 || (playerPop > 100 && popRatio < 0.05);
+                
+                // If AI population OR wealth exceeds 10x player's level, OR per-capita wealth exceeds cap, OR is too weak
+                if (popRatio > 10 || wealthRatio > 10 || perCapitaExceeded || isTooWeak) {
+                    const reason = isTooWeak 
+                        ? `TOO WEAK: pop=${aiPop}, wealth=${aiWealth}` 
+                        : `TOO STRONG: pop=${aiPop}, wealth=${aiWealth}, per-capita=${aiPerCapitaWealth.toFixed(0)}, cap=${perCapitaWealthCap}`;
+                    console.log(`[Save Migration] Resetting broken AI nation: ${n.name} (${reason})`);
+                    
                     
                     // Calculate reasonable values based on player's current development
                     // AI nations should be at 30-80% of player's level, scaled by their appear epoch
@@ -1918,31 +1943,89 @@ export const useGameState = () => {
                     };
                 }
                 
-                // [FIX] For nations that don't need full reset, still ensure they have valid economyTraits
-                // This fixes old saves where nations may have economyTraits but missing lastGrowthTick
-                if (n.economyTraits) {
-                    const fixedEconomyTraits = { ...n.economyTraits };
-                    let needsFix = false;
-                    
-                    // Fix missing lastGrowthTick
-                    if (fixedEconomyTraits.lastGrowthTick === undefined || fixedEconomyTraits.lastGrowthTick === null) {
-                        fixedEconomyTraits.lastGrowthTick = Math.max(0, loadedTick - 15);
-                        needsFix = true;
-                        console.log(`[Save Migration] Fixed missing lastGrowthTick for: ${n.name}`);
-                    }
-                    
-                    // Fix missing lastDevelopmentTick
-                    if (fixedEconomyTraits.lastDevelopmentTick === undefined || fixedEconomyTraits.lastDevelopmentTick === null) {
-                        fixedEconomyTraits.lastDevelopmentTick = Math.max(0, loadedTick - 15);
-                        needsFix = true;
-                    }
-                    
-                    if (needsFix) {
-                        return { ...n, economyTraits: fixedEconomyTraits };
-                    }
+                // [FIX v2] For nations that don't need full reset, still ensure they have ALL required economyTraits
+                // This fixes old saves where nations may have economyTraits but missing critical fields
+                // Without these fields, AI nations WILL NOT DEVELOP!
+                const fixedEconomyTraits = { ...(n.economyTraits || {}) };
+                let needsFix = false;
+                const currentPop = n.population || 16;
+                const currentWealth = n.wealth || 1000;
+                
+                // [CRITICAL] Fix missing ownBasePopulation - without this, growth model fails!
+                if (!fixedEconomyTraits.ownBasePopulation || !Number.isFinite(fixedEconomyTraits.ownBasePopulation) || fixedEconomyTraits.ownBasePopulation < 1) {
+                    fixedEconomyTraits.ownBasePopulation = Math.max(5, currentPop);
+                    needsFix = true;
+                    console.log(`[Save Migration] Fixed missing ownBasePopulation for: ${n.name} -> ${fixedEconomyTraits.ownBasePopulation}`);
+                }
+                
+                // [CRITICAL] Fix missing ownBaseWealth
+                if (!fixedEconomyTraits.ownBaseWealth || !Number.isFinite(fixedEconomyTraits.ownBaseWealth) || fixedEconomyTraits.ownBaseWealth < 100) {
+                    fixedEconomyTraits.ownBaseWealth = Math.max(500, currentWealth);
+                    needsFix = true;
+                    console.log(`[Save Migration] Fixed missing ownBaseWealth for: ${n.name} -> ${fixedEconomyTraits.ownBaseWealth}`);
+                }
+                
+                // [CRITICAL] Fix missing developmentRate - controls growth speed!
+                if (!fixedEconomyTraits.developmentRate || !Number.isFinite(fixedEconomyTraits.developmentRate) || fixedEconomyTraits.developmentRate < 0.1) {
+                    fixedEconomyTraits.developmentRate = 0.8 + Math.random() * 0.4; // 0.8 - 1.2
+                    needsFix = true;
+                    console.log(`[Save Migration] Fixed missing developmentRate for: ${n.name} -> ${fixedEconomyTraits.developmentRate.toFixed(2)}`);
+                }
+                
+                // Fix missing lastGrowthTick
+                if (fixedEconomyTraits.lastGrowthTick === undefined || fixedEconomyTraits.lastGrowthTick === null || !Number.isFinite(fixedEconomyTraits.lastGrowthTick)) {
+                    fixedEconomyTraits.lastGrowthTick = Math.max(0, loadedTick - 15);
+                    needsFix = true;
+                    console.log(`[Save Migration] Fixed missing lastGrowthTick for: ${n.name}`);
+                }
+                
+                // Fix missing lastDevelopmentTick
+                if (fixedEconomyTraits.lastDevelopmentTick === undefined || fixedEconomyTraits.lastDevelopmentTick === null || !Number.isFinite(fixedEconomyTraits.lastDevelopmentTick)) {
+                    fixedEconomyTraits.lastDevelopmentTick = Math.max(0, loadedTick - 15);
+                    needsFix = true;
+                }
+                
+                // Fix missing basePopulation (target for development)
+                if (!fixedEconomyTraits.basePopulation || !Number.isFinite(fixedEconomyTraits.basePopulation)) {
+                    fixedEconomyTraits.basePopulation = currentPop;
+                    needsFix = true;
+                }
+                
+                // Fix missing baseWealth (target for development)
+                if (!fixedEconomyTraits.baseWealth || !Number.isFinite(fixedEconomyTraits.baseWealth)) {
+                    fixedEconomyTraits.baseWealth = currentWealth;
+                    needsFix = true;
+                }
+                
+                if (needsFix) {
+                    console.log(`[Save Migration] Applied economyTraits fixes for: ${n.name}`);
+                    return { ...n, economyTraits: fixedEconomyTraits };
                 }
                 
                 return n;
+            });
+
+            // [FIX v3] 修正未来时间戳 + 补齐 AI 送礼冷却字段
+            const safeLoadedTick = Number.isFinite(loadedTick) ? loadedTick : 0;
+            migratedNations = migratedNations.map(n => {
+                if (!n || n.id === 'player') return n;
+                const next = { ...n };
+
+                if (next.economyTraits) {
+                    if (Number.isFinite(next.economyTraits.lastGrowthTick) && next.economyTraits.lastGrowthTick > safeLoadedTick) {
+                        next.economyTraits.lastGrowthTick = Math.max(0, safeLoadedTick - 15);
+                    }
+                    if (Number.isFinite(next.economyTraits.lastDevelopmentTick) && next.economyTraits.lastDevelopmentTick > safeLoadedTick) {
+                        next.economyTraits.lastDevelopmentTick = Math.max(0, safeLoadedTick - 15);
+                    }
+                }
+
+                if (!Number.isFinite(next.lastGiftToPlayerDay) || next.lastGiftToPlayerDay > safeLoadedTick) {
+                    // 旧存档缺失该字段会绕过全局送礼冷却
+                    next.lastGiftToPlayerDay = safeLoadedTick;
+                }
+
+                return next;
             });
         }
 
@@ -2019,7 +2102,10 @@ export const useGameState = () => {
         setMigrationCooldowns(data.migrationCooldowns || {});
         setPopulationDetailView(data.populationDetailView || false);
         setHistory(trimHistorySnapshot(data.history || buildInitialHistory(), AUTO_SAVE_LIMITS.history));
-        setDaysElapsed(data.daysElapsed || 0);
+        const parsedDaysElapsed = Number.isFinite(data.daysElapsed)
+            ? data.daysElapsed
+            : Number(data.daysElapsed);
+        setDaysElapsed(Number.isFinite(parsedDaysElapsed) ? parsedDaysElapsed : 0);
         setArmy(data.army || {});
         setMilitaryQueue(data.militaryQueue || []);
         setSelectedTarget(data.selectedTarget || null);

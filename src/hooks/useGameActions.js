@@ -59,7 +59,7 @@ import {
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
 import { getOrganizationStage, getPhaseFromStage } from '../logic/organizationSystem';
-import { ORGANIZATION_TYPE_CONFIGS, createOrganization } from '../logic/diplomacy/organizationDiplomacy';
+import { ORGANIZATION_TYPE_CONFIGS, createOrganization, getOrganizationMaxMembers } from '../logic/diplomacy/organizationDiplomacy';
 import { getLegacyPolicyDecrees } from '../logic/officials/cabinetSynergy';
 import {
     triggerSelection,
@@ -333,8 +333,7 @@ export const useGameActions = (gameState, addLog) => {
                 updateOrganizationsState(orgs => {
                     return orgs.map(org => {
                         if (org.id !== orgId) return org;
-                        const config = ORGANIZATION_TYPE_CONFIGS[org.type];
-                        const maxMembers = config?.maxMembers || 10;
+                        const maxMembers = getOrganizationMaxMembers(org.type, epoch);
                         const members = Array.isArray(org.members) ? org.members : [];
                         if (members.includes(vassal.id) || members.length >= maxMembers) return org;
                         return { ...org, members: [...members, vassal.id] };
@@ -1854,20 +1853,35 @@ export const useGameActions = (gameState, addLog) => {
         // 实际容量限制：取 建筑提供的岗位数 和 面板容量上限 的最小值
         // 防止在没有建造相应建筑时雇佣官员
         const effectiveCapacity = Math.min(jobsAvailable?.official || 0, officialCapacity);
-        const result = hireOfficial(officialId, officialCandidates, officials, effectiveCapacity, daysElapsed);
-        if (!result.success) {
-            addLog(`雇佣失败：${result.error}`);
+        
+        // [FIX] 使用函数式更新避免竞态条件（与 simulation 的 setOfficials 冲突）
+        // 问题：直接赋值 setOfficials(result.newOfficials) 可能被 simulation 返回的旧数据覆盖
+        let hireResult = null;
+        let hiredOfficial = null;
+        
+        setOfficials(prevOfficials => {
+            const result = hireOfficial(officialId, officialCandidates, prevOfficials, effectiveCapacity, daysElapsed);
+            hireResult = result;
+            if (!result.success) {
+                return prevOfficials; // 保持原状态
+            }
+            hiredOfficial = result.newOfficials[result.newOfficials.length - 1];
+            return result.newOfficials;
+        });
+        
+        // 处理结果（在 setState 回调外执行副作用）
+        if (!hireResult || !hireResult.success) {
+            addLog(`雇佣失败：${hireResult?.error || '未知错误'}`);
             return;
         }
-        setOfficialCandidates(result.newCandidates);
-        setOfficials(result.newOfficials);
-        const hired = result.newOfficials[result.newOfficials.length - 1];
-        addLog(`雇佣了官员 ${hired.name}。`);
+        
+        setOfficialCandidates(hireResult.newCandidates);
+        addLog(`雇佣了官员 ${hiredOfficial.name}。`);
 
         // 更新人口结构：从来源阶层移动到官员阶层
         // 确保数据同步，防止出现"官员数量对不上"的问题
         setPopStructure(prev => {
-            const source = hired.sourceStratum || 'unemployed';
+            const source = hiredOfficial.sourceStratum || 'unemployed';
             const sourceCount = prev[source] || 0;
             return {
                 ...prev,
@@ -3418,19 +3432,49 @@ export const useGameActions = (gameState, addLog) => {
                             return n;
                         });
                     }
-                    // ????????
+                    // [FIX] Player's allies should attack the TARGET and its allies via foreignWars
+                    // NOT be set as isAtWar (which means at war WITH the player!)
                     if (playerAllies.length > 0) {
+                        // Collect all enemy IDs (target + target's allies)
+                        const enemyIds = [nationId, ...targetAllies.map(a => a.id)];
+                        
                         updated = updated.map(n => {
                             if (playerAllies.some(ally => ally.id === n.id)) {
-                                if (n.isAtWar) return n;
+                                // Initialize or update foreignWars
+                                const newForeignWars = { ...(n.foreignWars || {}) };
+                                enemyIds.forEach(enemyId => {
+                                    // Skip if already at war with this enemy
+                                    if (!newForeignWars[enemyId]?.isAtWar) {
+                                        newForeignWars[enemyId] = { 
+                                            isAtWar: true, 
+                                            warStartDay: daysElapsed, 
+                                            warScore: 0,
+                                            followingAlliance: true,  // Mark as following alliance obligation
+                                            allianceTarget: 'player'  // Track which ally they're defending
+                                        };
+                                    }
+                                });
                                 return {
                                     ...n,
-                                    isAtWar: true,
-                                    warScore: n.warScore || 0,
-                                    warStartDay: daysElapsed,
-                                    warDuration: 0,
-                                    enemyLosses: n.enemyLosses || 0,
+                                    foreignWars: newForeignWars,
                                     lastMilitaryActionDay: undefined,
+                                };
+                            }
+                            // Also update enemies to register war with player's allies
+                            if (enemyIds.includes(n.id)) {
+                                const newForeignWars = { ...(n.foreignWars || {}) };
+                                playerAllies.forEach(ally => {
+                                    if (!newForeignWars[ally.id]?.isAtWar) {
+                                        newForeignWars[ally.id] = {
+                                            isAtWar: true,
+                                            warStartDay: daysElapsed,
+                                            warScore: 0
+                                        };
+                                    }
+                                });
+                                return {
+                                    ...n,
+                                    foreignWars: newForeignWars,
                                 };
                             }
                             return n;
@@ -4303,7 +4347,8 @@ export const useGameActions = (gameState, addLog) => {
                                     const members = Array.isArray(o.members) ? o.members : [];
 
                                     if (members.includes(nationId)) return o;
-                                    if (orgConfig?.maxMembers && members.length >= orgConfig.maxMembers) return o;
+                                    const maxMembers = getOrganizationMaxMembers(o.type, epoch);
+                                    if (members.length >= maxMembers) return o;
                                     return { ...o, members: [...members, nationId] };
                                 }));
                                 setNations(prev => prev.map(n => {
@@ -4324,7 +4369,8 @@ export const useGameActions = (gameState, addLog) => {
                                 if (o.id !== organization.id) return o;
                                 const members = Array.isArray(o.members) ? o.members : [];
                                 if (members.includes(playerOrgMemberId)) return o;
-                                if (orgConfig?.maxMembers && members.length >= orgConfig.maxMembers) return o;
+                                const maxMembers = getOrganizationMaxMembers(o.type, epoch);
+                                if (members.length >= maxMembers) return o;
                                 return { ...o, members: [...members, playerOrgMemberId] };
                             }));
 

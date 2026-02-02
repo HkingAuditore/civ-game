@@ -4,13 +4,49 @@
  * 包含概览和政策调整两个Tab
  */
 
-import React, { useState, useMemo, memo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, memo, useEffect, useRef, useCallback, Component } from 'react';
 import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { isDebugEnabled } from '../../utils/debugFlags';
 import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS, MILITARY_POLICY_DEFINITIONS, GOVERNANCE_POLICY_DEFINITIONS } from '../../config/diplomacy';
+
+/**
+ * Error Boundary to catch rendering errors in policy tab
+ */
+class PolicyErrorBoundary extends Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error('[PolicyErrorBoundary] Caught error:', error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="p-4 bg-red-900/30 border border-red-600/50 rounded-lg text-center">
+                    <Icon name="AlertTriangle" size={32} className="mx-auto mb-2 text-red-400" />
+                    <div className="text-red-300 text-sm mb-2">渲染出错，请关闭面板后重试</div>
+                    <button
+                        onClick={() => this.setState({ hasError: false, error: null })}
+                        className="px-3 py-1 bg-red-700 hover:bg-red-600 rounded text-white text-xs"
+                    >
+                        尝试重新加载
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 import {
     calculateEnhancedTribute,
     calculateControlMeasureCost,
@@ -2009,12 +2045,14 @@ export const VassalManagementSheet = memo(({
                 )}
 
                 {activeTab === 'policy' && (
-                    <PolicyTab
-                        nation={nation}
-                        onApplyPolicy={handleApplyPolicy}
-                        officials={officials}
-                        playerMilitary={playerMilitary}
-                    />
+                    <PolicyErrorBoundary>
+                        <PolicyTab
+                            nation={nation}
+                            onApplyPolicy={handleApplyPolicy}
+                            officials={officials}
+                            playerMilitary={playerMilitary}
+                        />
+                    </PolicyErrorBoundary>
                 )}
 
                 {activeTab === 'diplomacy' && (

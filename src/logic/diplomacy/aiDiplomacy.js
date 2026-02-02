@@ -20,7 +20,7 @@ import {
     requiresVassalDiplomacyApproval,
     buildVassalDiplomacyRequest,
 } from './vassalSystem';
-import { ORGANIZATION_TYPE_CONFIGS } from './organizationDiplomacy';
+import { ORGANIZATION_TYPE_CONFIGS, getOrganizationMaxMembers } from './organizationDiplomacy';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -384,8 +384,21 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
  * @param {number} tick - Current game tick
  * @param {number} epoch - Current epoch
  * @param {Array} logs - Log array (mutable)
+ * @param {Array} allVisibleNations - All visible nations for global cooldown calculation (optional, defaults to visibleNations)
  */
-export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) => {
+export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, allVisibleNations = null) => {
+    // [FIX] Calculate global gift cooldown ONCE before the loop, using all visible nations
+    const nationsForGlobalCooldown = allVisibleNations || visibleNations;
+    let globalLastGiftDay = nationsForGlobalCooldown.reduce((max, n) => {
+        const d = n.lastGiftToPlayerDay || 0;
+        return d > max ? d : max;
+    }, 0);
+    // [FIX] Increased global cooldown from 1 year to 5 years to further reduce gift spam
+    const globalGiftCooldown = 625; // At least 5 years between ANY AI gift events
+    
+    // Track if gift already given this tick to prevent multiple gifts in same tick
+    let giftGivenThisTick = false;
+
     visibleNations.forEach(nation => {
         const wealth = nation.wealth || 500;
         const aggression = nation.aggression ?? 0.3;
@@ -425,17 +438,25 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
             }
         }
 
-        // AI gift to player
+        // AI gift to player - with GLOBAL cooldown to prevent spam
+        // Global gift cooldown: shared across all AI nations to limit popup frequency
+        // [FIX] Check global cooldown calculated at function start + prevent multiple gifts per tick
+        const canGiftGlobally = !giftGivenThisTick && (tick - globalLastGiftDay) >= globalGiftCooldown;
+        
+        // Individual nation gift cooldown
         const lastGiftDay = nation.lastGiftToPlayerDay || 0;
-        const giftCooldown = 1825; // Increased to 5 years (was 2 years)
-        const canGift = (tick - lastGiftDay) >= giftCooldown;
+        const giftCooldown = 2555; // Increased to 7 years per nation (was 5 years)
+        const canGift = canGiftGlobally && (tick - lastGiftDay) >= giftCooldown;
 
         // Significantly reduced base chance and wealth influence
-        const giftChance = 0.00002 + (playerRelation / 1000000) + (wealth / 100000000);
+        const giftChance = 0.000015 + (playerRelation / 1500000) + (wealth / 150000000);
         if (canGift && wealth > 1000 && playerRelation >= 70 && aggression < 0.4 && Math.random() < giftChance) {
             const giftAmount = calculateAIGiftAmount(wealth);
             nation.wealth = Math.max(0, nation.wealth - giftAmount);
             nation.lastGiftToPlayerDay = tick;
+            // [FIX] Mark that a gift was given this tick to prevent any more gifts
+            giftGivenThisTick = true;
+            globalLastGiftDay = tick; // Update for subsequent iterations
 
             logs.push(`AI_GIFT_EVENT:${JSON.stringify({
                 nationId: nation.id,
@@ -948,8 +969,7 @@ export const processAIOrganizationRecruitment = (visibleNations, tick, logs, dip
         if (!['military_alliance', 'economic_bloc'].includes(org.type)) return;
         if (!isDiplomacyUnlocked('organizations', org.type, epoch)) return;
 
-        const config = ORGANIZATION_TYPE_CONFIGS[org.type];
-        const maxMembers = config?.maxMembers || 10;
+        const maxMembers = getOrganizationMaxMembers(org.type, epoch);
         if (org.members?.length >= maxMembers) return;
 
         const candidates = visibleNations.filter(candidate => {
@@ -1118,8 +1138,7 @@ export const processAIOrganizationInvitesToPlayer = (visibleNations, tick, logs,
         const org = myOrgs.find(entry => isDiplomacyUnlocked('organizations', entry.type, epoch));
         if (!org) return;
 
-        const config = ORGANIZATION_TYPE_CONFIGS[org.type];
-        const maxMembers = config?.maxMembers || 10;
+        const maxMembers = getOrganizationMaxMembers(org.type, epoch);
         if (org.members?.length >= maxMembers) return;
 
         const inviteChance = 0.001 + Math.max(0, (relation - 60) / 50000);

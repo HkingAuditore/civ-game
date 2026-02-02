@@ -752,7 +752,8 @@ export const OfficialsPanel = ({
                                 />
                             ))}
                         </div>
-                        <div className="mt-3 flex items-center justify-between">
+                        {/* [FIX] 添加 pb-16 md:pb-3 为移动端底部导航栏留出空间 */}
+                        <div className="mt-3 pb-16 md:pb-3 flex items-center justify-between">
                             <button
                                 onClick={() => setPage(prev => Math.max(1, prev - 1))}
                                 disabled={safePage <= 1}

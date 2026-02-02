@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { Card, Button, Modal } from '../common/UnifiedUI';
-import { ORGANIZATION_TYPE_CONFIGS, getOrganizationEffectDescriptions, calculateLeaveOrganizationCost } from '../../logic/diplomacy/organizationDiplomacy';
+import { ORGANIZATION_TYPE_CONFIGS, getOrganizationEffectDescriptions, calculateLeaveOrganizationCost, getOrganizationMaxMembers } from '../../logic/diplomacy/organizationDiplomacy';
 
 const OrganizationDetailsModal = ({
     isOpen,
@@ -11,6 +11,7 @@ const OrganizationDetailsModal = ({
     playerNationId = 'player',
     empireName = '我的帝国', // 玩家帝国名称
     silver = 0, // Player's current silver for cost calculation
+    epoch = 0,  // Current era for max members calculation
     daysElapsed = 0, // Current game days for calculating organization age
     onLeave,
     onNegotiateWithFounder, // New: callback to open negotiation with founder
@@ -141,7 +142,7 @@ const OrganizationDetailsModal = ({
                     <div className="flex justify-between items-end mb-3">
                         <h3 className="text-ancient-parchment font-bold text-sm uppercase tracking-wider flex items-center gap-2">
                             <Icon name="Users" size={16} className="text-ancient-gold" />
-                            成员国 ({memberList.length}/{config?.maxMembers})
+                            成员国 ({memberList.length}/{getOrganizationMaxMembers(organization.type, epoch)})
                         </h3>
                     </div>
 

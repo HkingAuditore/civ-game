@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, Button, Input } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
-import { ORGANIZATION_TYPE_CONFIGS, calculateCreateOrganizationCost } from '../../logic/diplomacy/organizationDiplomacy';
+import { ORGANIZATION_TYPE_CONFIGS, calculateCreateOrganizationCost, getOrganizationMaxMembers } from '../../logic/diplomacy/organizationDiplomacy';
 
 export const CreateOrganizationModal = ({
     isOpen,
@@ -9,6 +9,7 @@ export const CreateOrganizationModal = ({
     orgType,
     onCreate,
     silver = 0, // Player's current silver
+    epoch = 0,  // Current era for max members calculation
     defaultName = ''
 }) => {
     const [name, setName] = useState(defaultName);
@@ -112,7 +113,7 @@ export const CreateOrganizationModal = ({
                         </h4>
                         <div className="space-y-1 text-xs text-ancient-stone">
                             <div>• 最低关系要求：{config.minRelation}（邀请成员时）</div>
-                            <div>• 成员上限：{config.maxMembers} 国</div>
+                            <div>• 当前时代成员上限：{getOrganizationMaxMembers(config.id, epoch)} 国</div>
                             <div>• 成员费：每月财富 × {(config.memberFee * 100).toFixed(1)}%</div>
                         </div>
                     </div>

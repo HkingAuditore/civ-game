@@ -63,9 +63,9 @@ export const NEGOTIABLE_TREATY_TYPES = [
     'investment_pact',
     'open_market',
     'free_trade',
-    // Note: military_alliance and economic_bloc are ORGANIZATION types, not treaty types
-    // They are negotiated through the organization system, not the treaty system
-    // See DIPLOMACY_ORGANIZATION_TYPES for organization types
+    // International organization types - negotiated through organization system
+    'military_alliance',
+    'economic_bloc',
 ];
 export const NEGOTIATION_MAX_ROUNDS = 3;
 

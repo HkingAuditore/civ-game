@@ -245,8 +245,10 @@ function GameApp({ gameState }) {
     // 官员超编检测状态
     const [showOfficialOverstaffModal, setShowOfficialOverstaffModal] = useState(false);
     const prevCapacityRef = useRef(null);
+    const overstaffModalShownRef = useRef(false); // Track if modal has been shown to prevent re-triggering
 
     // 检测官员超编情况
+    // [FIX] Remove isPaused and showOfficialOverstaffModal from deps to prevent infinite loop
     useEffect(() => {
         const currentCapacity = gameState.officialCapacity ?? 2;
         const currentOfficials = gameState.officials || [];
@@ -260,18 +262,17 @@ function GameApp({ gameState }) {
 
         // 检测容量是否减少导致超编
         if (officialCount > currentCapacity && currentCapacity < prevCapacityRef.current) {
-            // 容量减少且官员超编
-            if (!showOfficialOverstaffModal) {
+            // 容量减少且官员超编，且尚未显示弹窗
+            if (!overstaffModalShownRef.current) {
+                overstaffModalShownRef.current = true;
                 setShowOfficialOverstaffModal(true);
                 // 暂停游戏
-                if (!gameState.isPaused) {
-                    gameState.setIsPaused(true);
-                }
+                gameState.setIsPaused(true);
             }
         }
 
         prevCapacityRef.current = currentCapacity;
-    }, [gameState.officialCapacity, gameState.officials, gameState.isPaused, showOfficialOverstaffModal]);
+    }, [gameState.officialCapacity, gameState.officials, gameState.setIsPaused]);
 
     // 处理官员超编解雇
     const handleOfficialOverstaffFire = useCallback((officialId) => {
@@ -2014,7 +2015,10 @@ function GameApp({ gameState }) {
                     currentCount={gameState.officials?.length || 0}
                     maxCapacity={gameState.officialCapacity ?? 2}
                     onFireOfficial={handleOfficialOverstaffFire}
-                    onClose={() => setShowOfficialOverstaffModal(false)}
+                    onClose={() => {
+                        overstaffModalShownRef.current = false; // Reset ref to allow re-triggering
+                        setShowOfficialOverstaffModal(false);
+                    }}
                 />
             )}
 

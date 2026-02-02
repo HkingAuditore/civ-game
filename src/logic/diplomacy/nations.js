@@ -1211,7 +1211,7 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     const powerProfile = nation.foreignPower || {};
     const volatility = clamp(powerProfile.volatility ?? nation.marketVolatility ?? 0.3, 0.1, 0.9);
     const populationFactor = clamp(powerProfile.populationFactor ?? powerProfile.baseRating ?? 1, 0.6, 2.5);
-    const wealthFactor = clamp(powerProfile.wealthFactor ?? (powerProfile.baseRating ? powerProfile.baseRating * 1.1 : 1.1), 0.5, 3.5);
+    const wealthFactor = clamp(powerProfile.wealthFactor ?? (powerProfile.baseRating ? powerProfile.baseRating * 1.1 : 1.1), 0.5, 2.0);
     const eraMomentum = 1 + Math.max(0, epoch - (powerProfile.appearEpoch ?? 0)) * 0.03;
 
     // Initialize AI development baseline
@@ -1258,7 +1258,8 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     }
 
     // Calculate target values
-    const eraGrowthFactor = 1 + Math.max(0, epoch) * 0.15;
+    // [FIX v4] Reduced era growth factor from 0.15 to 0.08 to slow late-game growth
+    const eraGrowthFactor = 1 + Math.max(0, epoch) * 0.08;
     const aiOwnTargetPopulation = nation.economyTraits.ownBasePopulation * eraGrowthFactor * populationFactor;
     const aiOwnTargetWealth = nation.economyTraits.ownBaseWealth * eraGrowthFactor * wealthFactor;
 
@@ -1273,8 +1274,9 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
         playerTargetWealth * playerInfluenceFactor;
 
     // Template boosts
-    const templatePopulationBoost = Math.max(1, (nation.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.8);
-    const templateWealthBoost = Math.max(1, (nation.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 1.1);
+    // [FIX v4] Reduced template boost multipliers to prevent late-game explosion
+    const templatePopulationBoost = Math.max(1, (nation.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.5);
+    const templateWealthBoost = Math.max(1, (nation.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.6);
 
     const desiredPopulation = Math.max(3, blendedTargetPopulation * templatePopulationBoost);
     const desiredWealth = Math.max(100, blendedTargetWealth * templateWealthBoost);
@@ -1305,8 +1307,9 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     const currentWealth = nation.wealth ?? desiredWealth;
     const previousWealth = Number.isFinite(nation._lastWealth) ? nation._lastWealth : currentWealth;
     
-    // [FIX] Apply per-capita wealth cap check before drift
-    const perCapitaWealthCapForDrift = Math.min(100000, 5000 * Math.pow(2, Math.min(epoch, 4)));
+    // [FIX v4] Apply per-capita wealth cap check before drift (reduced caps)
+    // Per-capita cap: Stone=2k, Ancient=4k, Medieval=8k, Industrial=16k, Modern=32k
+    const perCapitaWealthCapForDrift = Math.min(50000, 2000 * Math.pow(2, Math.min(epoch, 4)));
     const currentPerCapitaWealthForDrift = currentWealth / Math.max(1, currentPopulation);
     const maxWealthForDrift = currentPopulation * perCapitaWealthCapForDrift;
     

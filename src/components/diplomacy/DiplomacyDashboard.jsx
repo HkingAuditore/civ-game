@@ -340,6 +340,7 @@ const DiplomacyDashboard = ({
                 }}
                 orgType={createOrgType}
                 silver={silver}
+                epoch={epoch}
                 onCreate={(name) => {
                     if (onDiplomaticAction && createOrgType) {
                         onDiplomaticAction('player', 'create_org', {

@@ -2295,8 +2295,31 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setArmy(result.army); // 保存战斗损失
                     }
                     // 更新官员状态（含独立财务数据）
+                    // [FIX] 使用函数式更新，合并新雇佣的官员避免竞态条件覆盖
                     if (nextOfficials) {
-                        setOfficials(nextOfficials);
+                        setOfficials(prevOfficials => {
+                            // 如果 simulation 返回的官员列表和当前状态一致，直接使用
+                            if (!prevOfficials || prevOfficials.length === 0) {
+                                return nextOfficials;
+                            }
+                            
+                            // 创建 simulation 结果的 ID 映射（用于快速查找）
+                            const simOfficialMap = new Map(nextOfficials.map(o => [o?.id, o]));
+                            
+                            // 找出当前状态中存在但 simulation 结果中没有的官员（新雇佣的）
+                            const newlyHiredOfficials = prevOfficials.filter(
+                                o => o?.id && !simOfficialMap.has(o.id)
+                            );
+                            
+                            // 如果没有新雇佣的官员，直接返回 simulation 结果
+                            if (newlyHiredOfficials.length === 0) {
+                                return nextOfficials;
+                            }
+                            
+                            // 合并：simulation 结果 + 新雇佣的官员
+                            console.log(`[HIRE FIX] Preserving ${newlyHiredOfficials.length} newly hired official(s) from race condition`);
+                            return [...nextOfficials, ...newlyHiredOfficials];
+                        });
                     }
                     if (typeof result.officialsSimCursor === 'number' && typeof setOfficialsSimCursor === 'function') {
                         setOfficialsSimCursor(result.officialsSimCursor);
@@ -2409,7 +2432,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }));
                     // 每次 Tick 推进 1 天（而非 gameSpeed 天）
                     // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
-                    setDaysElapsed(prev => prev + 1);
+                    setDaysElapsed(prev => {
+                        const numericPrev = Number.isFinite(prev) ? prev : Number(prev);
+                        return (Number.isFinite(numericPrev) ? numericPrev : 0) + 1;
+                    });
                 });
 
                 if (coupOutcome?.event && current.actions?.triggerDiplomaticEvent) {
@@ -3407,11 +3433,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             // 检测和平请求事件
                             if (log.includes('请求和平')) {
                                 debugLog('event', '[EVENT DEBUG] Peace request detected in log:', log);
-                                const match = log.match(/🤝 (.+) 请求和平，愿意支付 (\d+) 银币作为赔款/);
+                                // Support both regular numbers and scientific notation (e.g., 1.23e+25)
+                                const match = log.match(/🤝 (.+) 请求和平，愿意支付 ([\d.e+\-]+) 银币作为赔款/);
                                 debugLog('event', '[EVENT DEBUG] Regex match result:', match);
                                 if (match) {
                                     const nationName = match[1];
-                                    const tribute = parseInt(match[2], 10);
+                                    const tribute = parseFloat(match[2]);
                                     debugLog('event', '[EVENT DEBUG] Looking for nation:', nationName);
                                     debugLog('event', '[EVENT DEBUG] result.nations:', result.nations?.map(n => ({ name: n.name, isPeaceRequesting: n.isPeaceRequesting })));
                                     const nation = result.nations?.find(n => n.name === nationName);

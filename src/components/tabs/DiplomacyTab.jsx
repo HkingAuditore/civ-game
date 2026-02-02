@@ -624,6 +624,7 @@ const DiplomacyTabComponent = ({
                 playerNationId="player"
                 empireName={gameState?.empireName || '我的帝国'}
                 silver={resources?.silver || 0}
+                epoch={epoch}
                 daysElapsed={daysElapsed}
                 isDiplomacyUnlocked={(type, id) => isDiplomacyUnlocked(type, id, epoch)}
                 onLeave={(orgId) => {

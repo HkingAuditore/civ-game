@@ -643,8 +643,9 @@ export const checkAIPeaceRequest = ({
             const warDuration = next.warDuration || 0;
             const availableWealth = Math.max(0, next.wealth || 0);
             const tribute = calculateAIPeaceTribute(warScore, enemyLosses, warDuration, availableWealth);
-
-            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tribute} 银币作为赔款。`);
+            // Ensure tribute is an integer and format it properly to avoid scientific notation
+            const tributeInt = Math.floor(tribute);
+            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tributeInt.toLocaleString('fullwide', {useGrouping: false})} 银币作为赔款。`);
             next.isPeaceRequesting = true;
             next.peaceTribute = tribute;
             next.lastPeaceRequestDay = tick;

@@ -310,6 +310,7 @@ import {
     getOrganizationEffects,
     shouldDisbandOrganization,
     ORGANIZATION_TYPE_CONFIGS,
+    getOrganizationMaxMembers,
     // Population Migration functions
     processMonthlyMigration,
     applyMigrationToPopStructure,
@@ -383,6 +384,11 @@ export const simulateTick = ({
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
     diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
 }) => {
+    if (!Number.isFinite(tick)) {
+        const parsedTick = Number(tick);
+        tick = Number.isFinite(parsedTick) ? parsedTick : 0;
+    }
+    tick = Math.max(0, tick);
     // console.log('[TICK START]', tick); // Commented for performance
     const perfSections = {};
     const perfTime = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
@@ -5100,9 +5106,9 @@ export const simulateTick = ({
         }
 
         // [MODIFIED] AI国家不再因时代过期而消失，发展完全独立
-        const isVisibleToPlayer = visibleEpoch >= (nation.appearEpoch ?? 0)
-            && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
-        if (!isVisibleToPlayer) {
+        const hasAppeared = visibleEpoch >= (nation.appearEpoch ?? 0);
+        const isExpiredNation = nation.expireEpoch != null && visibleEpoch > nation.expireEpoch;
+        if (!hasAppeared) {
             if (next.isAtWar) {
                 next.isAtWar = false;
                 next.warScore = 0;
@@ -5151,6 +5157,18 @@ export const simulateTick = ({
             return next;
         }
 
+        if (isExpiredNation && next.isAtWar) {
+            next.isAtWar = false;
+            next.warScore = 0;
+            next.warDuration = 0;
+            next.warStartDay = null;
+            next.enemyLosses = 0;
+            next.warTarget = null;
+            next.isPeaceRequesting = false;
+            next.peaceTribute = null;
+            next.warTotalExpense = 0;
+        }
+
         // Initialize nation epoch if not present (Independent AI Era System)
         if (next.epoch === undefined) {
             // If already initialized (legacy save), sync to global epoch once to maintain status quo
@@ -5162,7 +5180,9 @@ export const simulateTick = ({
             }
         }
 
-        processNationTreaties({ nation: next, tick, resources: res, logs, onTreasuryChange: trackSilverChange, playerWealth: res.silver || 0 });
+        if (!isExpiredNation) {
+            processNationTreaties({ nation: next, tick, resources: res, logs, onTreasuryChange: trackSilverChange, playerWealth: res.silver || 0 });
+        }
 
         if (next.isRebelNation) {
             // REFACTORED: Using module function for rebel economy initialization
@@ -5287,10 +5307,10 @@ export const simulateTick = ({
         }
 
         // REFACTORED: Using module function for foreign economy simulation
-        if (shouldUpdateTrade) {
+        if (shouldUpdateTrade && !isExpiredNation) {
             updateAINationInventory({ nation: next, tick, gameSpeed });
         }
-        if (next.isAtWar) {
+        if (next.isAtWar && !isExpiredNation) {
             next.warDuration = (next.warDuration || 0) + 1;
             // 累计与该国战争期间的军费支出（用于战争赔款计算）
             // 注意：如果同时与多个国家交战，军费按国家数量分摊
@@ -5335,27 +5355,27 @@ export const simulateTick = ({
         const relation = next.relation ?? 50;
 
         // REFACTORED: Using module function for relation decay
-        if (shouldUpdateDiplomacy) {
+        if (shouldUpdateDiplomacy && !isExpiredNation) {
             processNationRelationDecay(next, difficulty);
         }
 
         const relationMultipliers = getRelationChangeMultipliers(difficulty);
 
-        if (bonuses.diplomaticIncident && !next.isRebelNation && !next.isAtWar) {
+        if (!isExpiredNation && bonuses.diplomaticIncident && !next.isRebelNation && !next.isAtWar) {
             // On hard: worsening is easier
             const dailyPenalty = (bonuses.diplomaticIncident / 30) * relationMultipliers.bad;
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) - dailyPenalty));
         }
 
         // 应用官员和政治立场的外交加成到玩家与AI的关系
-        if (bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
+        if (!isExpiredNation && bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
             // On hard: improving is harder
             const dailyBonus = (bonuses.diplomaticBonus / 30) * relationMultipliers.good;
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) + dailyBonus));
         }
 
         // REFACTORED: Using module function for AI alliance breaking check
-        if (shouldUpdateDiplomacy) {
+        if (shouldUpdateDiplomacy && !isExpiredNation) {
             const breakResult = checkAIBreakAlliance(next, logs, { organizations: updatedOrganizations });
             if (breakResult && breakResult.memberLeaveRequests) {
                 breakResult.memberLeaveRequests.forEach(req => {
@@ -5378,7 +5398,7 @@ export const simulateTick = ({
 
 
         // REFACTORED: Using module function for war declaration check
-        if (shouldUpdateAI) {
+        if (shouldUpdateAI && !isExpiredNation) {
             checkWarDeclaration({
                 nation: next,
                 nations,
@@ -5394,24 +5414,24 @@ export const simulateTick = ({
 
 
         // REFACTORED: Using module function for installment payment
-        warIndemnityIncome += processInstallmentPayment({
-            nation: next,
-            resources: res,
-            logs,
-            onTreasuryChange: trackSilverChange,
-        });
+        if (!isExpiredNation) {
+            warIndemnityIncome += processInstallmentPayment({
+                nation: next,
+                resources: res,
+                logs,
+                onTreasuryChange: trackSilverChange,
+            });
+        }
 
         // REFACTORED: Using module function for post-war recovery
-        processPostWarRecovery(next);
+        if (!isExpiredNation) {
+            processPostWarRecovery(next);
+        }
 
         // REFACTORED: Using module functions for AI development system
-        // [CRITICAL FIX] These functions are now OUTSIDE shouldUpdateTrade condition
-        // because the slice logic (tick % 3) was conflicting with trade update frequency (tick % 3 === 0)
-        // This caused only slice 0 nations to ever receive growth updates!
         // Each function has its own internal tick-based checks, so they can safely run every slice.
-        
         initializeAIDevelopmentBaseline({ nation: next, tick });
-        
+
         // [NEW] Scale newly unlocked nations based on player's current development
         // This ensures nations appearing in later epochs have appropriate strength
         scaleNewlyUnlockedNation({
@@ -5421,25 +5441,11 @@ export const simulateTick = ({
             currentEpoch: visibleEpoch,
             isFirstInitialization: !next.economyTraits?.hasBeenScaled,
         });
-        
+
         // Mark as scaled to avoid re-scaling
         if (next.economyTraits) {
             next.economyTraits.hasBeenScaled = true;
         }
-        
-        // [GROWTH] These functions have internal tick-interval checks (>= 10 ticks)
-        // They will only apply growth when enough time has passed since last update
-        processAIIndependentGrowth({ 
-            nation: next, 
-            tick, 
-            difficulty,
-            epoch: next.epoch || 0,
-            playerPopulation: playerPopulationBaseline
-        });
-
-        // [NEW] Check for independent epoch progression
-        // [FIX] Pass tick for cooldown calculation
-        checkAIEpochProgression(next, logs, tick);
 
         updateAIDevelopment({
             nation: next,
@@ -5449,6 +5455,21 @@ export const simulateTick = ({
             tick,
             difficulty,
         });
+
+        // [GROWTH] These functions have internal tick-interval checks (>= 10 ticks)
+        // They will only apply growth when enough time has passed since last update
+        // Growth is applied after development targets so it becomes the final settlement for pop/wealth.
+        processAIIndependentGrowth({
+            nation: next,
+            tick,
+            difficulty,
+            epoch: next.epoch || 0,
+            playerPopulation: playerPopulationBaseline
+        });
+
+        // [NEW] Check for independent epoch progression
+        // [FIX] Pass tick for cooldown calculation
+        checkAIEpochProgression(next, logs, tick);
 
         return next;
     });
@@ -5676,16 +5697,6 @@ export const simulateTick = ({
     }
     perfEnd('vassalUpdates');
 
-    // Filter visible nations for diplomacy processing
-    const visibleNations = updatedNations.filter(n =>
-        epoch >= (n.appearEpoch ?? 0)
-        && (n.expireEpoch == null || epoch <= n.expireEpoch)
-        && !n.isRebelNation
-        && !n.isAnnexed // 排除已被吞并的国家
-    );
-    const diplomacySliceCount = Math.max(1, RATE_LIMIT_CONFIG.diplomacyUpdateSlices || 1);
-    const diplomacyTargets = getSlice(visibleNations, diplomacySliceCount);
-
     // ========================================================================
     // PRICE CONVERGENCE DAILY UPDATE (Phase 4.2 Integration)
     // Process market price convergence for free trade agreement nations
@@ -5723,6 +5734,18 @@ export const simulateTick = ({
         perfEnd('priceConvergence');
     }
 
+    // [FIX] Filter visible nations AFTER all nation object replacements
+    // This ensures visibleNations holds references to the current updatedNations objects,
+    // so modifications in processAIPlayerInteraction will be persisted correctly
+    const visibleNations = updatedNations.filter(n =>
+        epoch >= (n.appearEpoch ?? 0)
+        && (n.expireEpoch == null || epoch <= n.expireEpoch)
+        && !n.isRebelNation
+        && !n.isAnnexed // 排除已被吞并的国家
+    );
+    const diplomacySliceCount = Math.max(1, RATE_LIMIT_CONFIG.diplomacyUpdateSlices || 1);
+    const diplomacyTargets = getSlice(visibleNations, diplomacySliceCount);
+
     perfStart('diplomacyAI');
     // REFACTORED: Using module function for ally cold events
     // Note: Must use visibleNations to avoid triggering events for destroyed/expired nations
@@ -5749,8 +5772,9 @@ export const simulateTick = ({
 
 
     // REFACTORED: Using module function for AI-Player interaction
+    // Pass allVisibleNations for global gift cooldown calculation (fixes spam gifts bug)
     if (shouldUpdateDiplomacy) {
-        processAIPlayerInteraction(diplomacyTargets, tick, epoch, logs);
+        processAIPlayerInteraction(diplomacyTargets, tick, epoch, logs, visibleNations);
     }
 
     // REFACTORED: AI invites player to join organizations
@@ -5793,8 +5817,7 @@ export const simulateTick = ({
                 const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
                 if (orgIndex >= 0) {
                     const org = updatedOrganizations[orgIndex];
-                    const orgConfig = ORGANIZATION_TYPE_CONFIGS[org.type];
-                    const maxMembers = orgConfig?.maxMembers || Infinity;
+                    const maxMembers = getOrganizationMaxMembers(org.type, visibleEpoch);
                     if (!org.members.includes(req.nationId) && org.members.length < maxMembers) {
                         updatedOrganizations[orgIndex] = {
                             ...org,
@@ -6368,7 +6391,11 @@ export const simulateTick = ({
                     const inventoryRatio = inventoryDays / inventoryTargetDays;
                     let priceMultiplier = 1.0;
 
-                    if (inventoryRatio < 0.5) {
+                    if (inventoryRatio < 0.1) {
+                        // [ENHANCED] 极度稀缺：库存接近0时，价格暴涨
+                        priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10倍
+                        priceMultiplier = Math.min(10.0, priceMultiplier); // 最高10倍
+                    } else if (inventoryRatio < 0.5) {
                         // 库存紧张，大幅涨价
                         priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
                     } else if (inventoryRatio < 1.0) {
@@ -6427,7 +6454,11 @@ export const simulateTick = ({
                 const inventoryRatio = inventoryDays / inventoryTargetDays;
                 let priceMultiplier = 1.0;
 
-                if (inventoryRatio < 0.5) {
+                if (inventoryRatio < 0.1) {
+                    // [极度稀缺] 库存接近0时，价格暴涨
+                    priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10倍
+                    priceMultiplier = Math.min(10.0, priceMultiplier);
+                } else if (inventoryRatio < 0.5) {
                     // 库存紧张，大幅涨价
                     priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
                 } else if (inventoryRatio < 1.0) {

@@ -130,9 +130,10 @@ export const processLevelUp = (official) => {
     // 野心增长
     const newAmbition = Math.min(100, (official.ambition || 30) + config.ambitionGrowthPerLevel);
 
-    // 薪资需求增长
-    const baseSalary = official.baseSalary || official.salary || 50;
-    const newSalary = Math.round(baseSalary * (1 + newLevel * config.salaryGrowthPerLevel));
+    // 薪资需求增长 - 只更新 baseSalary 作为参考值
+    // [FIX] 不再覆盖用户手动设置的 salary，保留用户设置的工资
+    const oldBaseSalary = official.baseSalary || official.salary || 50;
+    const newBaseSalary = Math.round(oldBaseSalary * (1 + newLevel * config.salaryGrowthPerLevel));
 
     // 更新升级所需经验
     const newXpToNextLevel = getXpRequiredForLevel(newLevel + 1);
@@ -150,7 +151,9 @@ export const processLevelUp = (official) => {
         military: newStats.military,
         diplomacy: newStats.diplomacy,
         ambition: newAmbition,
-        salary: newSalary,
+        // [FIX] 保留用户设置的 salary，不再覆盖
+        // salary 字段不在这里修改，使用 official 原有的值 (通过 ...official 继承)
+        baseSalary: newBaseSalary, // 只更新参考值，用于显示建议薪资
     };
 
     return {

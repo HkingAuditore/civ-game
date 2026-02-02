@@ -139,10 +139,15 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
 
     const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, wealthHeadroom, armyExpenseCap);
 
+    // Ensure wealthFloor values are also capped by effectiveCap to prevent overflow
+    const cappedWealthFloorHigh = Math.min(effectiveCap, wealthFloorHigh);
+    const cappedWealthFloorStandard = Math.min(effectiveCap, wealthFloorStandard);
+    const cappedWealthFloorLow = Math.min(effectiveCap, wealthFloorLow);
+
     return {
-        high: Math.max(600, wealthFloorHigh, Math.min(effectiveCap, rawHigh)),
-        standard: Math.max(400, wealthFloorStandard, Math.min(effectiveCap, rawStandard)),
-        low: Math.max(200, wealthFloorLow, Math.min(effectiveCap, rawLow)),
+        high: Math.max(600, cappedWealthFloorHigh, Math.min(effectiveCap, rawHigh)),
+        standard: Math.max(400, cappedWealthFloorStandard, Math.min(effectiveCap, rawStandard)),
+        low: Math.max(200, cappedWealthFloorLow, Math.min(effectiveCap, rawLow)),
         // 返回详细信息用于调试/显示
         breakdown: {
             scoreComponent,

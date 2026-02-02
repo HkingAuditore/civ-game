@@ -270,8 +270,14 @@ export const calculateAILogisticGrowth = ({
     
     // Ensure minimum carrying capacity (based on epoch)
     // This prevents early game stagnation
-    const epochMinimumFinal = [100, 500, 2000, 10000, 50000][Math.min(epoch, 4)];
-    const finalCarryingCapacity = Math.max(epochMinimumFinal, carryingCapacity);
+    // [FIX v2] Increased minimums significantly for early eras to prevent stagnation
+    // Old saves often have very small populations that get stuck because capacity was too low
+    const epochMinimumFinal = [1000, 5000, 20000, 100000, 500000][Math.min(epoch, 4)];
+    
+    // [FIX v2] Also ensure capacity is at least 10x current population for growth room
+    // This prevents situations where AI is already at capacity with tiny population
+    const populationBasedMinimum = currentPopulation * 10;
+    const finalCarryingCapacity = Math.max(epochMinimumFinal, populationBasedMinimum, carryingCapacity);
     
     // === RESOURCE FACTOR CALCULATION ===
     // Simplified: since carrying capacity already considers resources,
@@ -313,7 +319,8 @@ export const calculateAILogisticGrowth = ({
     const capacityRatio = currentPopulation / Math.max(1, finalCarryingCapacity);
     
     // Logistic growth factor (S-curve)
-    const logisticFactor = Math.max(0, 1 - capacityRatio);
+    // Allow negative values when over capacity to enable population decline.
+    const logisticFactor = 1 - capacityRatio;
     
     // Overcapacity penalty (exponential decay)
     let overcapacityPenalty = 1.0;
@@ -349,15 +356,56 @@ export const calculateAILogisticGrowth = ({
     // CRITICAL FIX: For small populations, ensure minimum growth
     // When population is small (< 1000), the calculated growth might round to 0
     // Solution: If not at capacity, guarantee at least +1 growth per update
-    if (currentPopulation < finalCarryingCapacity * 0.9) {
-        // Below 90% capacity: ensure growth happens
+    
+    // [FIX v3] Enhanced small population protection
+    // Problem: AI nations (especially vassals) with populations < 10000 get stuck because:
+    // 1. logisticFactor becomes very small when near capacity
+    // 2. Small base population means tiny absolute growth that rounds to 0
+    // 3. War-damaged vassals often have 5000-10000 population and never recover
+    // Solution: Guarantee minimum growth for ALL populations under 10000
+    
+    const SMALL_POP_THRESHOLD = 10000; // Populations below this get special protection
+    const isSmallPopulation = currentPopulation < SMALL_POP_THRESHOLD;
+    const isUnderCapacity = currentPopulation < finalCarryingCapacity * 0.95;
+    
+    if (isUnderCapacity) {
+        // Below 95% capacity: ensure growth happens
         if (rawChange < 1 && rawChange > 0) {
             // Probabilistic rounding: 0.3 has 30% chance to become 1
             rawChange = Math.random() < rawChange ? 1 : 0;
         }
-        // For very small populations (< 100), always grow by at least 1
-        if (currentPopulation < 100 && rawChange < 1) {
-            rawChange = 1;
+        
+        // For small populations, guarantee minimum growth based on population size
+        // This prevents stagnation at any small population level
+        if (isSmallPopulation && rawChange < 1) {
+            // Smaller populations get higher guaranteed growth rate
+            // [FIX v3] Extended protection to populations up to 10000
+            // Pop <50: +2, Pop <100: +1.5, Pop <200: +1.2, Pop <500: +1
+            // Pop <1000: +2-5, Pop <5000: +5-15, Pop <10000: +10-30
+            if (currentPopulation < 50) {
+                rawChange = 2;
+            } else if (currentPopulation < 100) {
+                rawChange = Math.random() < 0.5 ? 2 : 1; // Average 1.5
+            } else if (currentPopulation < 200) {
+                rawChange = Math.random() < 0.2 ? 2 : 1; // Average 1.2
+            } else if (currentPopulation < 500) {
+                rawChange = 1; // Minimum +1 for pop 200-500
+            } else if (currentPopulation < 1000) {
+                // Pop 500-1000: +2 to +5 (based on 0.3-0.5% growth)
+                rawChange = 2 + Math.floor(Math.random() * 4); // 2-5
+            } else if (currentPopulation < 5000) {
+                // Pop 1000-5000: +5 to +15 (based on 0.3-0.5% growth)
+                rawChange = 5 + Math.floor(Math.random() * 11); // 5-15
+            } else {
+                // Pop 5000-10000: +10 to +30 (based on 0.3-0.5% growth)
+                rawChange = 10 + Math.floor(Math.random() * 21); // 10-30
+            }
+        }
+    } else if (isSmallPopulation && capacityRatio < 1.1) {
+        // Even at capacity, small populations should still have some growth potential
+        // This allows them to push slightly past capacity before stopping
+        if (rawChange < 0.5) {
+            rawChange = Math.random() < 0.3 ? 1 : 0; // 30% chance of +1
         }
     }
     

@@ -27,7 +27,8 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         name: '军事联盟',
         minEra: 3,
         minMembers: 2,
-        maxMembers: 6,
+        // maxMembers now calculated by getOrganizationMaxMembers() based on era
+        maxMembersByEra: { 3: 4, 4: 6, 5: 8, 6: 10, 7: 12, 8: 15 },  // Era-based limits
         createCost: 0.05,           // 创建成本：玩家财富 × 5%
         memberFee: 0.001,           // 成员费：每月国家财富 × 0.1%
         minRelation: 60,            // 创建/加入最低关系
@@ -49,7 +50,8 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         name: '经济共同体',
         minEra: 5,
         minMembers: 2,
-        maxMembers: 10,
+        // maxMembers now calculated by getOrganizationMaxMembers() based on era
+        maxMembersByEra: { 5: 6, 6: 10, 7: 15, 8: 20 },  // Era-based limits
         createCost: 0.08,           // 创建成本：玩家财富 × 8%
         memberFee: 0.002,           // 成员费：每月国家财富 × 0.2%
         minRelation: 75,
@@ -67,6 +69,31 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         description: '成员国共享经济利益，减免关税，促进贸易自由化（加入需通过外交谈判，且通常要求与创始国关系≥75）',
     },
 };
+
+/**
+ * 根据时代获取组织成员上限
+ * @param {string} type - 组织类型
+ * @param {number} epoch - 当前时代
+ * @returns {number} - 成员上限
+ */
+export function getOrganizationMaxMembers(type, epoch) {
+    const config = ORGANIZATION_TYPE_CONFIGS[type];
+    if (!config || !config.maxMembersByEra) return 6; // fallback
+    
+    // Find the highest era config that is <= current epoch
+    const availableEras = Object.keys(config.maxMembersByEra)
+        .map(Number)
+        .filter(era => era <= epoch)
+        .sort((a, b) => b - a); // descending
+    
+    if (availableEras.length === 0) {
+        // If epoch is before minEra, use the minEra's value
+        const minEraValue = config.maxMembersByEra[config.minEra];
+        return minEraValue || 6;
+    }
+    
+    return config.maxMembersByEra[availableEras[0]];
+}
 
 /**
  * 计算创建组织的成本
@@ -171,9 +198,10 @@ export function canJoinOrganization(nation, organization, epoch) {
         return { canJoin: false, reason: '已是该组织成员' };
     }
 
-    // 人数上限
-    if (organization.members.length >= config.maxMembers) {
-        return { canJoin: false, reason: '组织成员已达上限' };
+    // 人数上限 (now era-based)
+    const maxMembers = getOrganizationMaxMembers(organization.type, epoch);
+    if (organization.members.length >= maxMembers) {
+        return { canJoin: false, reason: `组织成员已达当前时代上限(${maxMembers}国)` };
     }
 
     // 战争状态（不能加入敌对国所在的组织）
