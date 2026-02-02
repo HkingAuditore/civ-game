@@ -170,31 +170,53 @@ export function getBuildingLevelDistribution(tick, buildingId, buildingUpgrades,
     
     // Compute level distribution
     const storedLevelCounts = buildingUpgrades[buildingId] || {};
-    let upgradedCount = 0;
+    let rawUpgradedCount = 0;
+    const rawLevelCounts = {};
     
     Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
         const lvl = parseInt(lvlStr);
         if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-            upgradedCount += lvlCount;
+            rawUpgradedCount += lvlCount;
+            rawLevelCounts[lvl] = lvlCount;
         }
     });
     
-    const level0Count = Math.max(0, buildingCount - upgradedCount);
+    // [FIX] Normalize level counts if stored upgrades exceed actual building count
+    // This can happen due to data inconsistency (e.g., buildings sold but upgrades not synced)
+    // Prioritize higher level buildings when trimming
+    const fullLevelCounts = {};
+    let actualUpgradedCount = 0;
     
-    const fullLevelCounts = { 0: level0Count };
-    Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-        const lvl = parseInt(lvlStr);
-        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-            fullLevelCounts[lvl] = lvlCount;
+    if (rawUpgradedCount > buildingCount) {
+        // Upgrade data inconsistent - normalize by keeping higher levels first
+        const sortedLevels = Object.keys(rawLevelCounts)
+            .map(k => parseInt(k))
+            .sort((a, b) => b - a); // Descending order, higher levels first
+        
+        let remainingCapacity = buildingCount;
+        for (const lvl of sortedLevels) {
+            const wanted = rawLevelCounts[lvl];
+            const actual = Math.min(wanted, remainingCapacity);
+            if (actual > 0) {
+                fullLevelCounts[lvl] = actual;
+                actualUpgradedCount += actual;
+                remainingCapacity -= actual;
+            }
         }
-    });
+        fullLevelCounts[0] = remainingCapacity; // Remaining are level 0
+    } else {
+        // Normal case: upgrades total <= building count
+        Object.assign(fullLevelCounts, rawLevelCounts);
+        fullLevelCounts[0] = Math.max(0, buildingCount - rawUpgradedCount);
+        actualUpgradedCount = rawUpgradedCount;
+    }
     
     const result = {
         levelCounts: storedLevelCounts,
         fullLevelCounts,
-        upgradedCount,
-        level0Count,
-        hasUpgrades: upgradedCount > 0
+        upgradedCount: actualUpgradedCount,
+        level0Count: fullLevelCounts[0],
+        hasUpgrades: actualUpgradedCount > 0
     };
     
     buildingLevelCache.set(cacheKey, result);
