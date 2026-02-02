@@ -1858,6 +1858,49 @@ export const useGameState = () => {
             console.log('[Save Migration] Detected old buildingUpgrades format, migrating...');
             upgrades = migrateUpgradesToNewFormat(upgrades, data.buildings);
         }
+        
+        // [FIX] 清理不一致的升级数据：确保升级数量不超过建筑数量
+        // 这可以修复由于数据损坏或旧版本bug导致的不一致
+        const buildings = data.buildings || {};
+        let hasInconsistency = false;
+        for (const [buildingId, levelCounts] of Object.entries(upgrades)) {
+            if (!levelCounts || typeof levelCounts !== 'object') continue;
+            const buildingCount = buildings[buildingId] || 0;
+            let totalUpgraded = 0;
+            for (const lvlCount of Object.values(levelCounts)) {
+                if (typeof lvlCount === 'number' && lvlCount > 0) {
+                    totalUpgraded += lvlCount;
+                }
+            }
+            if (totalUpgraded > buildingCount) {
+                console.warn(`[Save Migration] Building upgrade inconsistency detected for ${buildingId}: ${totalUpgraded} upgrades > ${buildingCount} buildings. Normalizing...`);
+                hasInconsistency = true;
+                // 规范化：按高等级优先分配
+                const sortedLevels = Object.keys(levelCounts)
+                    .map(k => parseInt(k))
+                    .filter(k => Number.isFinite(k) && k > 0 && levelCounts[k] > 0)
+                    .sort((a, b) => b - a);
+                let remaining = buildingCount;
+                const normalizedCounts = {};
+                for (const lvl of sortedLevels) {
+                    const wanted = levelCounts[lvl];
+                    const actual = Math.min(wanted, remaining);
+                    if (actual > 0) {
+                        normalizedCounts[lvl] = actual;
+                        remaining -= actual;
+                    }
+                }
+                if (Object.keys(normalizedCounts).length > 0) {
+                    upgrades[buildingId] = normalizedCounts;
+                } else {
+                    delete upgrades[buildingId];
+                }
+            }
+        }
+        if (hasInconsistency) {
+            console.log('[Save Migration] Building upgrade data normalized.');
+        }
+        
         setBuildingUpgrades(upgrades);
         setTechsUnlocked(data.techsUnlocked || []);
         setEpoch(data.epoch ?? 0);

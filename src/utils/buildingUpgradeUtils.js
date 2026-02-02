@@ -116,6 +116,7 @@ export const calculateBuildingTotalEffects = (building, count, levelCounts = {})
 /**
  * 获取建筑各等级的分布
  * 新格式下直接返回 levelCounts，补全0级的数量
+ * [FIX] 如果升级数据超过建筑总数，进行规范化处理
  * 
  * @param {string} buildingId - 建筑ID
  * @param {number} count - 建筑总数
@@ -131,17 +132,41 @@ export const getBuildingLevelDistribution = (buildingId, count, levelCounts = {}
         distribution[i] = 0;
     }
 
-    // 填入已记录的等级数量
-    let accounted = 0;
+    // 收集已记录的等级数量
+    let rawAccounted = 0;
+    const rawCounts = {};
     for (const [levelStr, levelCount] of Object.entries(levelCounts)) {
         const level = parseInt(levelStr);
-        if (!Number.isFinite(level) || levelCount <= 0) continue;
-        distribution[level] = (distribution[level] || 0) + levelCount;
-        accounted += levelCount;
+        if (!Number.isFinite(level) || level <= 0 || levelCount <= 0) continue;
+        rawCounts[level] = levelCount;
+        rawAccounted += levelCount;
     }
 
-    // 剩余的建筑视为0级
-    distribution[0] = Math.max(0, count - accounted + (distribution[0] || 0));
+    // [FIX] 如果升级数据超过建筑总数，需要规范化
+    // 优先保留高等级建筑
+    if (rawAccounted > count) {
+        const sortedLevels = Object.keys(rawCounts)
+            .map(k => parseInt(k))
+            .sort((a, b) => b - a); // 降序，高等级优先
+        
+        let remainingCapacity = count;
+        for (const lvl of sortedLevels) {
+            const wanted = rawCounts[lvl];
+            const actual = Math.min(wanted, remainingCapacity);
+            if (actual > 0) {
+                distribution[lvl] = actual;
+                remainingCapacity -= actual;
+            }
+        }
+        distribution[0] = remainingCapacity; // 剩余的是0级
+    } else {
+        // 正常情况：填入已记录的等级数量
+        for (const [lvl, lvlCount] of Object.entries(rawCounts)) {
+            distribution[parseInt(lvl)] = lvlCount;
+        }
+        // 剩余的建筑视为0级
+        distribution[0] = Math.max(0, count - rawAccounted);
+    }
 
     return distribution;
 };

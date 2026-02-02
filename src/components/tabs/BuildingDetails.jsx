@@ -344,22 +344,42 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
         // 统计各等级建筑数量
         // upgradeData 格式为 { 等级: 数量 }
+        // [FIX] 对升级数据进行规范化，确保总数不超过实际建筑数量
         let hasUpgrades = false;
-        let upgradedCount = 0;
+        let rawUpgradedCount = 0;
+        const rawLevelCounts = {};
         Object.entries(upgradeData).forEach(([lvlStr, lvlCount]) => {
             const lvl = parseInt(lvlStr);
             if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                upgradedCount += lvlCount;
+                rawUpgradedCount += lvlCount;
+                rawLevelCounts[lvl] = lvlCount;
                 hasUpgrades = true;
             }
         });
-        levelCounts[0] = Math.max(0, count - upgradedCount);
-        Object.entries(upgradeData).forEach(([lvlStr, lvlCount]) => {
-            const lvl = parseInt(lvlStr);
-            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                levelCounts[lvl] = lvlCount;
+        
+        // [FIX] 如果升级数据超过实际建筑数量，需要规范化
+        // 优先保留高等级建筑，从低等级开始削减
+        let remainingCapacity = count; // 实际可用的建筑数量
+        if (rawUpgradedCount > count) {
+            // 升级数据不一致，按从高到低等级分配
+            const sortedLevels = Object.keys(rawLevelCounts)
+                .map(k => parseInt(k))
+                .sort((a, b) => b - a); // 降序，高等级优先
+            
+            for (const lvl of sortedLevels) {
+                const wanted = rawLevelCounts[lvl];
+                const actual = Math.min(wanted, remainingCapacity);
+                if (actual > 0) {
+                    levelCounts[lvl] = actual;
+                    remainingCapacity -= actual;
+                }
             }
-        });
+            levelCounts[0] = remainingCapacity; // 剩余的是0级
+        } else {
+            // 正常情况：升级数据总数 <= 实际建筑数量
+            Object.assign(levelCounts, rawLevelCounts);
+            levelCounts[0] = Math.max(0, count - rawUpgradedCount);
+        }
 
         if (!hasUpgrades && levelCounts[0] === count) {
             // 快速路径：无升级，总值为 基础 * count
