@@ -118,7 +118,7 @@ const getBuildingSilverCost = (building) => {
     return baseCost * 1.5;
 };
 
-const estimateROIForBuilding = (building, targetNation, market) => {
+const estimateROIForBuilding = (building, targetNation, market, taxPolicies = {}, organizations = [], daysElapsed = 0) => {
     const cost = getBuildingSilverCost(building);
     if (cost <= 0) return { roi: -Infinity, dailyProfit: 0 };
 
@@ -134,7 +134,14 @@ const estimateROIForBuilding = (building, targetNation, market) => {
         mockInvestment,
         targetNation,
         {},
-        market?.prices || {}
+        market?.prices || {},
+        {
+            taxPolicies,
+            organizations,
+            daysElapsed,
+            playerIsHome: true,
+            partnerNation: targetNation,
+        }
     );
 
     const dailyProfit = calcResult.profit || 0;
@@ -152,6 +159,7 @@ export function selectOutboundInvestmentsBatch({
     market,
     epoch,
     daysElapsed,
+    taxPolicies = {},
     maxInvestments = MAX_TOP_INVESTMENTS,
     batchSize = 2, // [NEW] 每次处理的国家数量
     batchOffset = 0, // [NEW] 当前批次的起始位置
@@ -194,7 +202,14 @@ export function selectOutboundInvestmentsBatch({
                 const cost = getBuildingSilverCost(building);
                 if (cost <= 0 || cost > wealth) return;
 
-                const { roi, dailyProfit } = estimateROIForBuilding(building, targetNation, market);
+                const { roi, dailyProfit } = estimateROIForBuilding(
+                    building,
+                    targetNation,
+                    market,
+                    taxPolicies,
+                    diplomacyOrganizations?.organizations || [],
+                    daysElapsed
+                );
                 
                 // Only consider investments with positive ROI (profitable)
                 if (!Number.isFinite(roi) || roi <= 0) return;
@@ -241,6 +256,7 @@ export function selectInboundInvestmentsBatch({
     epoch,
     daysElapsed,
     foreignInvestments = [],
+    taxPolicies = {},
     maxInvestments = MAX_TOP_INVESTMENTS,
     batchSize = 2, // [NEW] 每次处理的投资国数量
     batchOffset = 0, // [NEW] 当前批次的起始位置
@@ -364,7 +380,8 @@ export function processClassAutonomousInvestment({
     classWealth,
     market, // Player market
     epoch,
-    daysElapsed
+    daysElapsed,
+    taxPolicies = {}
 }) {
     // 1. Definition of autonomous investors
     // [FIX] Any stratum that can be a building owner should be able to invest
@@ -483,7 +500,14 @@ export function processClassAutonomousInvestment({
                     mockInvestment,
                     targetNation,
                     { [building.id]: 0 }, // Fake player resources, usually doesn't affect cost recalc too much unless input constrained
-                    market?.prices || {}
+                    market?.prices || {},
+                    {
+                        taxPolicies,
+                        organizations: diplomacyOrganizations?.organizations || [],
+                        daysElapsed,
+                        playerIsHome: true,
+                        partnerNation: targetNation,
+                    }
                 );
 
                 // [FIX] Use correct field name: 'profit' not 'totalProfit'
@@ -670,7 +694,14 @@ export function processAIInvestment({
                 { buildingId: building.id, strategy: 'PROFIT_MAX' },
                 target,
                 {},
-                investorMarketPrices
+                investorMarketPrices,
+                {
+                    taxPolicies,
+                    organizations: diplomacyOrganizations?.organizations || [],
+                    daysElapsed,
+                    playerIsHome: false,
+                    partnerNation: investorNation,
+                }
             );
 
             const dailyProfit = profitResult.profit || 0;

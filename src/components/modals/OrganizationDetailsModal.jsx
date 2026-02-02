@@ -226,14 +226,11 @@ const OrganizationDetailsModal = ({
 
                                 {organization?.type === 'economic_bloc' && (
                                     <div className="rounded border border-amber-500/30 bg-black/30 p-2">
-                                        <div className="font-semibold text-amber-300 mb-1">经济共同体（方案B：高门槛但写清楚）</div>
-                                        <div>• 硬门槛：与创始国关系需达到 <span className="text-amber-200 font-mono">75</span>（未达标会直接被阻止，或通过率极低）</div>
-                                        <div>• 时代门槛：需要解锁经济共同体（Era 5+）</div>
-                                        <div>• 战争限制：对方处于战争中时无法谈判</div>
-                                        <div>• 附庸限制：若你是“傀儡附庸/外交受控”，则不能独立申请加入组织</div>
-                                        <div className="mt-1 text-[11px] text-ancient-stone">
-                                            提示：实际是否满足门槛，以谈判面板里显示的“关系需达到 75（当前 X）”为准。
-                                        </div>
+                                        <div className="font-semibold text-amber-300 mb-1">经济共同体</div>
+                                        <div>• 与创始国关系需达到 <span className="text-amber-200 font-mono">75</span></div>
+                                        <div>• 需要解锁经济共同体（Era 5+）</div>
+                                        <div>• 对方处于战争中时无法谈判</div>
+                                        <div>• 若你是“傀儡附庸/外交受控”，则不能独立申请加入组织</div>
                                     </div>
                                 )}
                             </div>

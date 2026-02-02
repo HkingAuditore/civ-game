@@ -215,8 +215,6 @@ const DiplomacyTabComponent = ({
             setNegotiationCounter(counter);
 
             // ✅ 自动加载反提案到negotiationDraft，让用户立即看到AI的条件
-            // AI的反提案中，AI愿意支付的 → 应该放到"我方索求"（因为我要从AI那里拿）
-            // AI的反提案中，AI索要的 → 应该放到"我方赠送"（因为我要给AI）
             const convertToResourcesArray = (key, amount) => {
                 if (!key || !amount) return [];
                 return [{ key, amount }];
@@ -231,12 +229,10 @@ const DiplomacyTabComponent = ({
                 type: prev.type,
                 durationDays: counter.durationDays,
                 maintenancePerDay: counter.maintenancePerDay,
-                // AI愿意支付的 → 我方索求
-                demandSilver: counter.signingGift || 0,
-                demandResources: counterOfferResources,
-                // AI索要的 → 我方赠送
-                signingGift: counter.demandSilver || 0,
-                resources: counterDemandResources,
+                signingGift: counter.signingGift || 0,
+                resources: counterOfferResources,
+                demandSilver: counter.demandSilver || 0,
+                demandResources: counterDemandResources,
                 stance: prev.stance,
                 targetOrganizationId: counter.targetOrganizationId ?? prev.targetOrganizationId ?? null,
                 organizationMode: counter.organizationMode ?? prev.organizationMode ?? null,

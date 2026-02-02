@@ -729,6 +729,7 @@ export const simulateTick = ({
             resources: res,
             marketPrices: priceMap,
             classWealth: wealth, // Use the working wealth object (simulating direct mutation)
+            taxPolicies: policies,
             daysElapsed: tick,
         });
 
@@ -747,6 +748,15 @@ export const simulateTick = ({
                     }
                 }
             });
+        }
+
+        if (oiResult.tariffRevenue > 0) {
+            applySilverChange(oiResult.tariffRevenue, 'overseas_investment_tariff');
+            taxBreakdown.tariff = (taxBreakdown.tariff || 0) + oiResult.tariffRevenue;
+        }
+        if (oiResult.tariffSubsidy > 0) {
+            applySilverChange(-oiResult.tariffSubsidy, 'overseas_investment_tariff_subsidy');
+            taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + oiResult.tariffSubsidy;
         }
 
         // Apply market/player resource changes
@@ -7531,6 +7541,7 @@ export const simulateTick = ({
             playerMarket: { prices: updatedPrices },
             playerResources: res,
             foreignInvestmentPolicy,
+            taxPolicies: policies,
             daysElapsed: tick,
             jobFill: buildingJobFill,
             buildings: builds,
@@ -7541,6 +7552,14 @@ export const simulateTick = ({
 
         if (fiResult.taxRevenue > 0) {
             applySilverChange(fiResult.taxRevenue, 'foreign_investment_tax');
+        }
+        if (fiResult.tariffRevenue > 0) {
+            applySilverChange(fiResult.tariffRevenue, 'foreign_investment_tariff');
+            taxBreakdown.tariff = (taxBreakdown.tariff || 0) + fiResult.tariffRevenue;
+        }
+        if (fiResult.tariffSubsidy > 0) {
+            applySilverChange(-fiResult.tariffSubsidy, 'foreign_investment_tariff_subsidy');
+            taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + fiResult.tariffSubsidy;
         }
 
         // Apply market changes (from foreign operation)

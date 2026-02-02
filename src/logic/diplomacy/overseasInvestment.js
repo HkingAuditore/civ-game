@@ -9,10 +9,11 @@
  * 依赖：附庸系统 (vassalSystem.js)
  */
 
-import { BUILDINGS, RESOURCES, STRATA } from '../../config/index.js';
+import { BUILDINGS, RESOURCES, STRATA, ORGANIZATION_EFFECTS } from '../../config/index.js';
 import { debugLog } from '../../utils/debugFlags.js';
 import { getMaxUpgradeLevel, getUpgradeCost, getBuildingEffectiveConfig } from '../../config/buildingUpgrades.js';
-import { VASSAL_TYPE_CONFIGS, getLaborWageMultiplier } from '../../config/diplomacy.js';
+import { VASSAL_TYPE_CONFIGS, TRADE_POLICY_DEFINITIONS, getLaborWageMultiplier } from '../../config/diplomacy.js';
+import { getTreatyEffects } from './treatyEffects.js';
 
 // ===== 配置常量 =====
 
@@ -422,6 +423,56 @@ export function isInSameBloc(nation, organizations = []) {
     return false;
 }
 
+const findSharedOrganization = (nationId, organizations = []) => {
+    if (!nationId || !organizations) return null;
+    const nationIdStr = String(nationId);
+    return organizations.find(org => {
+        if (!org || org.isActive === false) return false;
+        const members = Array.isArray(org.members) ? org.members : [];
+        const hasPlayer = members.some(m => String(m) === 'player' || String(m) === '0');
+        const hasNation = members.some(m => String(m) === nationIdStr);
+        return hasPlayer && hasNation;
+    }) || null;
+};
+
+const getTariffDiscountForNation = (nation, organizations = []) => {
+    if (!nation) return 0;
+
+    let discount = 0;
+    const sharedOrg = findSharedOrganization(nation.id, organizations);
+    if (sharedOrg) {
+        discount = Math.max(discount, ORGANIZATION_EFFECTS[sharedOrg.type]?.tariffDiscount || 0);
+    }
+
+    if (nation.vassalOf === 'player') {
+        const policyId = nation.vassalPolicy?.tradePolicy;
+        const policyDiscount = TRADE_POLICY_DEFINITIONS[policyId]?.tariffDiscount || 0;
+        const typeDiscount = VASSAL_TYPE_CONFIGS[nation.vassalType]?.tariffDiscount || 0;
+        discount = Math.max(discount, policyDiscount, typeDiscount);
+    }
+
+    return discount;
+};
+
+const getTariffRateForPlayer = (resourceKey, tariffType, partnerNation, taxPolicies = {}, organizations = [], daysElapsed = 0) => {
+    const baseRate = tariffType === 'import'
+        ? (taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0)
+        : (taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0);
+
+    if (!Number.isFinite(baseRate) || baseRate === 0) return 0;
+
+    let adjustedRate = baseRate;
+    const discount = getTariffDiscountForNation(partnerNation, organizations);
+    if (discount) adjustedRate *= (1 - discount);
+
+    const treatyEffects = partnerNation ? getTreatyEffects(partnerNation, daysElapsed) : null;
+    if (Number.isFinite(treatyEffects?.tariffMultiplier)) {
+        adjustedRate *= treatyEffects.tariffMultiplier;
+    }
+
+    return adjustedRate;
+};
+
 /**
  * Calculate the foreign investment profit tax rate for a given nation
  * This function determines the tax rate that would apply when:
@@ -605,13 +656,38 @@ export function canEstablishOverseasInvestment(targetNation, buildingId, ownerSt
  * @param {Object} targetNation
  * @param {Object} playerResources
  * @param {Object} playerMarketPrices
+ * @param {Object} options
+ * @param {Object} options.taxPolicies
+ * @param {Array} options.organizations
+ * @param {number} options.daysElapsed
+ * @param {boolean} options.playerIsHome - True when player is the "home" market
+ * @param {Object|null} options.partnerNation - Counterparty nation for treaty/org tariff discounts
  */
-export function calculateOverseasProfit(investment, targetNation, playerResources, playerMarketPrices = {}) {
+export function calculateOverseasProfit(investment, targetNation, playerResources, playerMarketPrices = {}, options = {}) {
     const building = BUILDINGS.find(b => b.id === investment.buildingId);
-    if (!building) return { outputValue: 0, inputCost: 0, wageCost: 0, businessTaxCost: 0, profit: 0, transportCost: 0 };
+    if (!building) {
+        return {
+            outputValue: 0,
+            inputCost: 0,
+            wageCost: 0,
+            businessTaxCost: 0,
+            profit: 0,
+            transportCost: 0,
+            tariffCost: 0,
+            tariffRevenue: 0,
+            tariffSubsidy: 0,
+        };
+    }
 
     const strategy = investment.strategy || 'PROFIT_MAX';
     const transportRate = OVERSEAS_INVESTMENT_CONFIGS.config.transportCostRate;
+    const {
+        taxPolicies = {},
+        organizations = [],
+        daysElapsed = 0,
+        playerIsHome = true,
+        partnerNation = null,
+    } = options;
 
     // 价格获取器
     // [FIX] AI国家的价格存储在 nationPrices 字段，需要添加到查询链
@@ -629,6 +705,9 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     let inputCost = 0;
     let transportCost = 0;
     let inputAvailable = true;
+    let tariffCost = 0;
+    let tariffRevenue = 0;
+    let tariffSubsidy = 0;
     const localResourceChanges = {};
     const playerResourceChanges = {};
 
@@ -638,11 +717,29 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
         outputs: {}, // { resource: 'local' | 'home' }
     };
 
+    const recordTariff = (amount) => {
+        if (!Number.isFinite(amount) || amount === 0) return;
+        tariffCost += amount;
+        if (amount > 0) {
+            tariffRevenue += amount;
+        } else if (amount < 0) {
+            tariffSubsidy += Math.abs(amount);
+        }
+    };
+
+    const getTariffCost = (resourceKey, amount, basePrice, tariffType) => {
+        const rate = getTariffRateForPlayer(resourceKey, tariffType, partnerNation, taxPolicies, organizations, daysElapsed);
+        if (!rate) return 0;
+        return basePrice * amount * rate;
+    };
+
     // 1. 计算投入成本 & 自动决策来源
     Object.entries(building.input || {}).forEach(([res, amount]) => {
         const localPrice = getNationPrice(res);
         const homePrice = getHomePrice(res);
-        const importCost = homePrice * (1 + transportRate);
+        const importTariffType = playerIsHome ? 'export' : 'import';
+        const importTariff = getTariffCost(res, amount, homePrice, importTariffType);
+        const importCost = homePrice * (1 + transportRate) + importTariff;
 
         let useLocal = true;
 
@@ -674,12 +771,13 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
             const baseInput = amount * homePrice;
             inputCost += baseInput;
             transportCost += baseInput * transportRate; // 运费
+            recordTariff(importTariff);
             playerResourceChanges[res] = (playerResourceChanges[res] || 0) - amount;
         }
     });
 
     if (!inputAvailable) {
-        return { outputValue: 0, inputCost: 0, wageCost: 0, businessTaxCost: 0, profit: 0, transportCost: 0, inputAvailable: false, decisions };
+        return { outputValue: 0, inputCost: 0, wageCost: 0, businessTaxCost: 0, profit: 0, transportCost: 0, tariffCost: 0, tariffRevenue: 0, tariffSubsidy: 0, inputAvailable: false, decisions };
     }
 
     // 2. 计算产出价值 & 自动决策去向
@@ -689,7 +787,9 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 
         const localPrice = getNationPrice(res);
         const homePrice = getHomePrice(res);
-        const exportNetValue = homePrice * (1 - transportRate);
+        const exportTariffType = playerIsHome ? 'import' : 'export';
+        const exportTariff = getTariffCost(res, amount, localPrice, exportTariffType);
+        const exportNetValue = homePrice * (1 - transportRate) - exportTariff;
 
         let sellLocal = true;
 
@@ -717,6 +817,7 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 
             outputValue += (grossValue - transport); // 净收入
             transportCost += transport;
+            recordTariff(exportTariff);
             playerResourceChanges[res] = (playerResourceChanges[res] || 0) + amount;
         }
     });
@@ -733,7 +834,7 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     const businessTaxCost = businessTaxBase * businessTaxRate;
 
     // 5. 总利润（扣除营业税）
-    const profit = outputValue - inputCost - wageCost - businessTaxCost;
+    const profit = outputValue - inputCost - wageCost - businessTaxCost - tariffCost;
 
     return {
         outputValue,
@@ -742,6 +843,9 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
         wageBreakdown,
         businessTaxCost, // [NEW] 返回营业税成本供 UI 显示
         transportCost,
+        tariffCost,
+        tariffRevenue,
+        tariffSubsidy,
         profit,
         inputAvailable: true,
         localResourceChanges,
@@ -899,10 +1003,13 @@ export function processOverseasInvestments({
     resources = {},
     marketPrices = {},
     classWealth = {},
+    taxPolicies = {},
     daysElapsed = 0,
 }) {
     const logs = [];
     let totalProfit = 0;
+    let totalTariffRevenue = 0;
+    let totalTariffSubsidy = 0;
     const profitByStratum = {};
     const updatedInvestments = [];
 
@@ -940,13 +1047,22 @@ export function processOverseasInvestments({
 
         // 根据运营模式计算利润
         // 根据配置计算利润
-        const profitResult = calculateOverseasProfit(investment, targetNation, resources, marketPrices);
+        const profitResult = calculateOverseasProfit(investment, targetNation, resources, marketPrices, {
+            taxPolicies,
+            organizations,
+            daysElapsed,
+            playerIsHome: true,
+            partnerNation: targetNation,
+        });
         const scaledProfit = (profitResult.profit || 0) * multiplier;
         const scaledOutput = (profitResult.outputValue || 0) * multiplier;
         const scaledInput = (profitResult.inputCost || 0) * multiplier;
         const scaledWage = (profitResult.wageCost || 0) * multiplier;
         const scaledBusinessTax = (profitResult.businessTaxCost || 0) * multiplier;
         const scaledTransport = (profitResult.transportCost || 0) * multiplier;
+        const scaledTariffCost = (profitResult.tariffCost || 0) * multiplier;
+        const scaledTariffRevenue = (profitResult.tariffRevenue || 0) * multiplier;
+        const scaledTariffSubsidy = (profitResult.tariffSubsidy || 0) * multiplier;
 
         // 汇总资源变更
         if (profitResult.localResourceChanges) {
@@ -1087,6 +1203,9 @@ export function processOverseasInvestments({
             wageCost: scaledWage,
             businessTaxCost: scaledBusinessTax,
             transportCost: scaledTransport,
+            tariffCost: scaledTariffCost,
+            tariffRevenue: scaledTariffRevenue,
+            tariffSubsidy: scaledTariffSubsidy,
             profit: scaledProfit,
             repatriatedProfit,
             retainedProfit,
@@ -1098,6 +1217,8 @@ export function processOverseasInvestments({
 
         // 累加利润
         totalProfit += repatriatedProfit;
+        totalTariffRevenue += scaledTariffRevenue;
+        totalTariffSubsidy += scaledTariffSubsidy;
         profitByStratum[investment.ownerStratum] =
             (profitByStratum[investment.ownerStratum] || 0) + repatriatedProfit;
 
@@ -1150,6 +1271,8 @@ export function processOverseasInvestments({
     return {
         updatedInvestments,
         totalProfit,
+        tariffRevenue: totalTariffRevenue,
+        tariffSubsidy: totalTariffSubsidy,
         profitByStratum,
         logs,
         marketChanges,
@@ -1334,6 +1457,7 @@ export function processForeignInvestments({
     playerMarket = {},
     playerResources = {},
     foreignInvestmentPolicy = 'normal',
+    taxPolicies = {},
     daysElapsed = 0,
     // [NEW] 用于计算实际到岗率
     jobFill = {},
@@ -1342,6 +1466,8 @@ export function processForeignInvestments({
     const logs = [];
     let totalTaxRevenue = 0;
     let totalProfitOutflow = 0;
+    let totalTariffRevenue = 0;
+    let totalTariffSubsidy = 0;
     const updatedInvestments = [];
     const policyConfig = FOREIGN_INVESTMENT_POLICIES[foreignInvestmentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
 
@@ -1397,7 +1523,14 @@ export function processForeignInvestments({
             invWithStrategy,
             targetNation,
             homeResources,
-            homePrices
+            homePrices,
+            {
+                taxPolicies,
+                organizations,
+                daysElapsed,
+                playerIsHome: false,
+                partnerNation: ownerNation,
+            }
         );
 
         // 4. [NEW] 计算实际到岗率并应用到利润
@@ -1427,6 +1560,12 @@ export function processForeignInvestments({
         // 理论利润 * 到岗率 = 实际利润
         const theoreticalProfit = (profitResult.profit || 0) * multiplier;
         const dailyProfit = theoreticalProfit * staffingRatio;
+        const theoreticalTariffRevenue = (profitResult.tariffRevenue || 0) * multiplier;
+        const theoreticalTariffSubsidy = (profitResult.tariffSubsidy || 0) * multiplier;
+        const theoreticalTariffCost = (profitResult.tariffCost || 0) * multiplier;
+        const scaledTariffRevenue = theoreticalTariffRevenue * staffingRatio;
+        const scaledTariffSubsidy = theoreticalTariffSubsidy * staffingRatio;
+        const scaledTariffCost = theoreticalTariffCost * staffingRatio;
 
         // 计算税收 (Strict Rules Logic for Foreign Investment)
         let effectiveTaxRate = 0.60; // 默认惩罚性税率 60%
@@ -1465,6 +1604,8 @@ export function processForeignInvestments({
 
         totalTaxRevenue += taxAmount;
         totalProfitOutflow += profitAfterTax;
+        totalTariffRevenue += scaledTariffRevenue;
+        totalTariffSubsidy += scaledTariffSubsidy;
 
         // 记录市场变化
         if (profitResult.localResourceChanges) {
@@ -1513,6 +1654,9 @@ export function processForeignInvestments({
                             wageCost: (profitResult.wageCost || 0) * remainingCount,
                             businessTaxCost: (profitResult.businessTaxCost || 0) * remainingCount,
                             transportCost: (profitResult.transportCost || 0) * remainingCount,
+                            tariffCost: (profitResult.tariffCost || 0) * remainingCount,
+                            tariffRevenue: (profitResult.tariffRevenue || 0) * remainingCount,
+                            tariffSubsidy: (profitResult.tariffSubsidy || 0) * remainingCount,
                             taxPaid: taxAmount * (remainingCount / unitCount),
                             profitRepatriated: profitAfterTax * (remainingCount / unitCount),
                             consecutiveLossDays,
@@ -1540,6 +1684,9 @@ export function processForeignInvestments({
                 wageCost: (profitResult.wageCost || 0) * multiplier,
                 businessTaxCost: (profitResult.businessTaxCost || 0) * multiplier,
                 transportCost: (profitResult.transportCost || 0) * multiplier,
+                tariffCost: scaledTariffCost,
+                tariffRevenue: scaledTariffRevenue,
+                tariffSubsidy: scaledTariffSubsidy,
                 taxPaid: taxAmount,
                 profitRepatriated: profitAfterTax,
                 consecutiveLossDays, // Update counter
@@ -1559,6 +1706,8 @@ export function processForeignInvestments({
     return {
         updatedInvestments,
         taxRevenue: totalTaxRevenue,
+        tariffRevenue: totalTariffRevenue,
+        tariffSubsidy: totalTariffSubsidy,
         profitOutflow: totalProfitOutflow,
         logs,
         marketChanges, // 返回给 GameLoop 使用 (如果支持)

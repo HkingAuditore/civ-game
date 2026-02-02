@@ -965,10 +965,10 @@ export const generateCounterProposal = ({
     const durationBase = Math.max(1, Math.floor(Number(proposal.durationDays) || 365));
     const giftBase = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
 
-    // AI counter-proposal: AI demands payment from player, doesn't offer payment
-    // Clear what AI offers (should be nothing or minimal)
-    next.signingGift = 0; // AI doesn't pay player
-    next.resources = []; // AI doesn't give resources
+    // AI counter-proposal: AI demands payment from player
+    // signingGift/resources represent what the player pays to AI
+    next.signingGift = 0;
+    next.resources = [];
 
     const baseGiftFloor = clampValue(Math.round(targetWealthSafe * 0.02), 500, 8000); // 0.01 -> 0.02, 200 -> 500, 4000 -> 8000
     const openMarketFloor = proposal.type === 'open_market'
@@ -984,21 +984,25 @@ export const generateCounterProposal = ({
     const safeCompensation = Number.isFinite(compensation) && compensation >= 0 ? compensation : 0;
     const calculatedDemand = Math.ceil(Math.max(giftBase + safeCompensation, giftFloor));
 
-    // AI demands payment from player (put in demandSilver, not signingGift)
-    next.demandSilver = Number.isFinite(calculatedDemand) && calculatedDemand >= 0
+    // AI demands payment from player (put in signingGift)
+    next.signingGift = Number.isFinite(calculatedDemand) && calculatedDemand >= 0
         ? Math.min(calculatedDemand, playerWealthSafe * 0.8) // Cap at 80% of player wealth
         : giftFloor;
 
     // AI may also demand resources from player
     if (proposal.resources && Array.isArray(proposal.resources) && proposal.resources.length > 0) {
         // If player was offering resources, AI might demand MORE of those resources
-        next.demandResources = proposal.resources.map(res => ({
+        next.resources = proposal.resources.map(res => ({
             ...res,
             amount: Math.ceil(Math.max(1, (res.amount || 0) * (1.3 + Math.random() * 0.4))), // 1.3-1.7x more demanding
         }));
     } else {
-        next.demandResources = [];
+        next.resources = [];
     }
+
+    // AI does not offer payment by default in counter-proposals
+    next.demandSilver = 0;
+    next.demandResources = [];
 
     // AI adjusts treaty duration based on how bad the deal is
     if (shortfall > referenceValue * 0.4) {
