@@ -536,7 +536,7 @@ export const BUILDINGS = [
         desc: "培养探索时代的开路者，产出科研文化。",
         baseCost: { wood: 160, papyrus: 80, brick: 70 },
         output: { science: 0.75, culture: 1.0 },
-        jobs: { navigator: 3, scribe: 1, official: 1 },
+        jobs: { navigator: 3, scribe: 1},
         owner: 'scribe',
         epoch: 4,
         cat: 'civic',

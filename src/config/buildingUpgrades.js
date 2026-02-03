@@ -525,14 +525,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 80, papyrus: 40, silver: 400 },
             input: { papyrus: 0.05 },
             output: { science: 0.78, culture: 1.2 }, // 1.2x
-            jobs: { navigator: 3, scribe: 1, official: 1 }, // keep same, efficiency upgrade
+            jobs: { navigator: 3, scribe: 1}, // keep same, efficiency upgrade
         },
         {
             name: "皇家航海学院",
             cost: { brick: 60, papyrus: 80, silver: 900 },
             input: { papyrus: 0.08, coffee: 0.03 }, // 需要咖啡提神
             output: { science: 1.35, culture: 1.8 }, // 1.8x
-            jobs: { navigator: 4, scribe: 1, official: 1 }, // +1 navigator only
+            jobs: { navigator: 4, scribe: 1}, // +1 navigator only
         },
     ],
 
