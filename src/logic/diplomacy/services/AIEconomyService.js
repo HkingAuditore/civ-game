@@ -30,6 +30,11 @@ export class AIEconomyService {
             return nation;
         }
         
+        // [DEBUG] Log state before growth
+        const beforePop = state.population;
+        const beforeWealth = state.wealth;
+        const lastGrowthTick = state.lastGrowthTick;
+        
         // Update growth
         const shouldGrow = this._shouldUpdateGrowth(state, tick);
         if (shouldGrow) {
@@ -39,6 +44,14 @@ export class AIEconomyService {
                 difficulty,
                 playerPopulation,
             });
+            
+            // [DEBUG] Log growth results
+            if (nation.vassalOf === 'player') {
+                console.log(`[AIEconomy Growth] ${nation.name}: pop ${beforePop}→${state.population}, wealth ${beforeWealth}→${state.wealth}, ticks since last: ${tick - lastGrowthTick}, had traits: ${!!nation.economyTraits}`);
+            }
+        } else if (nation.vassalOf === 'player' && tick % 100 === 0) {
+            // [DEBUG] Log why growth didn't happen
+            console.log(`[AIEconomy No Growth] ${nation.name}: shouldGrow=false, ticks since last: ${tick - lastGrowthTick}, interval: ${getConfig('growth.updateInterval', 10)}`);
         }
         
         // Update resources
@@ -96,6 +109,8 @@ export class AIEconomyService {
             epoch,
             developmentRate: state.developmentRate,
             ticksSinceLastUpdate,
+            inventory: state.inventory,
+            resourceBias: state.resourceBias,
         });
         
         // Update state

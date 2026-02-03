@@ -2373,6 +2373,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     if (nextNations) {
                         setNations(nextNations);
+                        // [CRITICAL FIX] Update stateRef immediately to ensure next tick uses updated nations
+                        // Without this, vassal population/wealth growth is lost because each tick starts from stale data
+                        stateRef.current.nations = nextNations;
                     }
                     // [NEW] Update diplomatic reputation (natural recovery)
                     if (result.diplomaticReputation !== undefined && typeof setDiplomaticReputation === 'function') {

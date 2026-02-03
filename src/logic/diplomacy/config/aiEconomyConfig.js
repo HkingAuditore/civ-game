@@ -7,23 +7,23 @@ export const AI_ECONOMY_CONFIG = {
     // === Growth Parameters ===
     growth: {
         // Base growth rate (per 10 ticks)
-        baseRate: 0.01,
+        baseRate: 0.02,  // 2% growth rate (reasonable for all nations)
         
-        // Minimum growth guarantee
+        // Minimum growth guarantee (used by AIEconomyService)
         minimumGrowth: {
-            verySmall: { threshold: 50, minGrowth: 2 },
-            small: { threshold: 100, minGrowth: 1 },
-            medium: { threshold: 500, minGrowth: 0.5 },
-            large: { threshold: 1000, minGrowth: 2 },
-            veryLarge: { threshold: 5000, minGrowth: 5 },
-            huge: { threshold: 10000, minGrowth: 10 },
+            verySmall: { threshold: 50, minGrowth: 5 },
+            small: { threshold: 100, minGrowth: 3 },
+            medium: { threshold: 500, minGrowth: 2 },
+            large: { threshold: 1000, minGrowth: 5 },
+            veryLarge: { threshold: 5000, minGrowth: 10 },
+            huge: { threshold: 10000, minGrowth: 20 },
         },
         
         // War penalty
         warPenalty: 0.3,  // Growth rate × 0.3 during war
         
         // Update frequency
-        updateInterval: 30,  // Update every 10 ticks
+        updateInterval: 10,  // Update every 10 ticks
     },
     
     // === Wealth Parameters ===
@@ -39,10 +39,28 @@ export const AI_ECONOMY_CONFIG = {
             6: 128000, // Modern Age
         },
         
+        // Target per capita wealth (reasonable baseline by epoch)
+        targetPerCapita: {
+            0: 0.5,    // Stone Age: 0.5 wealth per capita
+            1: 1.0,    // Bronze Age: 1.0 wealth per capita
+            2: 2.0,    // Classical Age
+            3: 4.0,    // Medieval Age
+            4: 8.0,    // Renaissance Age
+            5: 16.0,   // Industrial Age
+            6: 32.0,   // Modern Age
+        },
+        
         // Wealth growth rate
-        baseGrowthRate: 0.005,
-        developmentBonus: 0.005,
-        maxGrowthRate: 0.03,
+        baseGrowthRate: 0.01,   // 1% base wealth growth
+        developmentBonus: 0.01, // 1% development bonus
+        maxGrowthRate: 0.05,    // 5% max growth rate
+        
+        // Resource abundance bonus
+        resourceAbundanceBonus: {
+            enabled: true,
+            maxBonus: 0.5,        // Max +50% growth from resources
+            optimalRatio: 1.0,    // Optimal inventory/target ratio
+        },
         
         // Budget ratio
         budgetRatio: 0.5,
@@ -135,6 +153,13 @@ export function getConfig(path, defaultValue = null) {
  */
 export function getPerCapitaWealthCap(epoch) {
     return getConfig(`wealth.perCapitaCaps.${epoch}`, 50000);
+}
+
+/**
+ * Get target per capita wealth (reasonable baseline)
+ */
+export function getTargetPerCapitaWealth(epoch) {
+    return getConfig(`wealth.targetPerCapita.${epoch}`, 1.0);
 }
 
 /**
