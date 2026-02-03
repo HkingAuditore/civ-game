@@ -1,53 +1,53 @@
-# AI Economy System - Testing Guide
+# AI 经济系统 - 测试指南
 
-## 📋 Overview
+## 📋 概述
 
-This guide provides instructions for testing the refactored AI economy system and comparing it with the legacy system.
+本指南提供了测试重构后的 AI 经济系统并与旧系统进行对比的说明。
 
-## 🚀 Quick Start
+## 🚀 快速开始
 
-### Enable the New System
+### 启用新系统
 
-1. Open `src/logic/simulation.js`
-2. Find the feature flag (around line 30):
+1. 打开 `src/logic/simulation.js`
+2. 找到特性开关（大约在第 30 行）：
    ```javascript
    const USE_NEW_AI_ECONOMY = false; // TODO: Enable after testing
    ```
-3. Change to `true`:
+3. 改为 `true`：
    ```javascript
    const USE_NEW_AI_ECONOMY = true; // Testing new system
    ```
-4. Save and restart the game
+4. 保存并重启游戏
 
-### Enable Debug Mode
+### 启用调试模式
 
-To see detailed economy updates:
+查看详细的经济更新信息：
 
 ```javascript
-// In browser console or add to simulation.js
+// 在浏览器控制台中或添加到 simulation.js
 import { EconomyDebugger } from './logic/diplomacy/economy/index.js';
 EconomyDebugger.enable();
 ```
 
-## 🧪 Test Scenarios
+## 🧪 测试场景
 
-### Test 1: Basic Growth
+### 测试 1：基本增长
 
-**Objective**: Verify AI nations grow population and wealth correctly
+**目标**：验证 AI 国家的人口和财富正确增长
 
-**Steps**:
-1. Start a new game
-2. Let it run for 100 ticks (10 growth updates)
-3. Check AI nation stats
+**步骤**：
+1. 开始新游戏
+2. 运行 100 ticks（10 次增长更新）
+3. 检查 AI 国家统计数据
 
-**Expected Results**:
-- Population should increase gradually
-- Wealth should increase with population
-- Growth rate should be reasonable (1-3% per update)
+**预期结果**：
+- 人口应该逐渐增加
+- 财富应该随人口增加
+- 增长率应该合理（每次更新 1-3%）
 
-**Verification**:
+**验证方法**：
 ```javascript
-// In browser console
+// 在浏览器控制台中
 const aiNation = nations.find(n => n.id === 'some_ai_nation');
 console.log({
     population: aiNation.population,
@@ -57,36 +57,36 @@ console.log({
 });
 ```
 
-### Test 2: War Penalty
+### 测试 2：战争惩罚
 
-**Objective**: Verify war reduces growth rate
+**目标**：验证战争降低增长率
 
-**Steps**:
-1. Start a war with an AI nation
-2. Observe growth rate during war
-3. Make peace
-4. Observe growth rate after peace
+**步骤**：
+1. 与 AI 国家开战
+2. 观察战争期间的增长率
+3. 和平
+4. 观察和平后的增长率
 
-**Expected Results**:
-- Growth during war should be ~30% of peacetime
-- Growth should recover after peace
-- Population should not decline rapidly
+**预期结果**：
+- 战争期间的增长应该是和平时期的约 30%
+- 和平后增长应该恢复
+- 人口不应该快速下降
 
-### Test 3: Resource Management
+### 测试 3：资源管理
 
-**Objective**: Verify resource inventory updates correctly
+**目标**：验证资源库存正确更新
 
-**Steps**:
-1. Check AI nation inventory at start
-2. Let game run for 50 ticks
-3. Check inventory again
+**步骤**：
+1. 检查开始时的 AI 国家库存
+2. 运行游戏 50 ticks
+3. 再次检查库存
 
-**Expected Results**:
-- Inventory should fluctuate around target levels
-- Specialty resources (bias > 1) should have higher stock
-- Scarce resources (bias < 1) should have lower stock
+**预期结果**：
+- 库存应该在目标水平附近波动
+- 特产资源（bias > 1）应该有更高的库存
+- 稀缺资源（bias < 1）应该有更低的库存
 
-**Verification**:
+**验证方法**：
 ```javascript
 const aiNation = nations.find(n => n.id === 'some_ai_nation');
 console.log({
@@ -95,78 +95,78 @@ console.log({
 });
 ```
 
-### Test 4: Epoch Progression
+### 测试 4：时代进步
 
-**Objective**: Verify AI nations advance through epochs
+**目标**：验证 AI 国家推进时代
 
-**Steps**:
-1. Start game in Stone Age
-2. Fast forward 500+ ticks
-3. Check AI nation epochs
+**步骤**：
+1. 从石器时代开始游戏
+2. 快进 500+ ticks
+3. 检查 AI 国家的时代
 
-**Expected Results**:
-- AI nations should advance to Bronze Age
-- Wealth cap should increase with epoch
-- Growth rate should increase with epoch
+**预期结果**：
+- AI 国家应该进入青铜时代
+- 财富上限应该随时代增加
+- 增长率应该随时代增加
 
-### Test 5: Vassal Growth
+### 测试 5：附庸增长
 
-**Objective**: Verify vassals grow correctly
+**目标**：验证附庸正确增长
 
-**Steps**:
-1. Vassalize an AI nation
-2. Observe growth over 100 ticks
-3. Compare with independent nations
+**步骤**：
+1. 使一个 AI 国家成为附庸
+2. 观察 100 ticks 内的增长
+3. 与独立国家对比
 
-**Expected Results**:
-- Vassals should grow at similar rate to independent nations
-- Vassal satisfaction should be calculated correctly
-- Tribute should be paid regularly
+**预期结果**：
+- 附庸应该以与独立国家相似的速率增长
+- 附庸满意度应该正确计算
+- 贡品应该定期支付
 
-### Test 6: Save/Load Compatibility
+### 测试 6：保存/加载兼容性
 
-**Objective**: Verify old saves load correctly
+**目标**：验证旧存档正确加载
 
-**Steps**:
-1. Load an old save (before refactoring)
-2. Check AI nation data
-3. Let game run for 50 ticks
-4. Save and reload
+**步骤**：
+1. 加载旧存档（重构前的）
+2. 检查 AI 国家数据
+3. 运行游戏 50 ticks
+4. 保存并重新加载
 
-**Expected Results**:
-- Old saves should load without errors
-- Migration should happen automatically
-- Data should be preserved correctly
-- New saves should work normally
+**预期结果**：
+- 旧存档应该无错误加载
+- 迁移应该自动进行
+- 数据应该正确保留
+- 新存档应该正常工作
 
-## 📊 Comparison Testing
+## 📊 对比测试
 
-### Side-by-Side Comparison
+### 并排对比
 
-To compare new vs legacy system:
+对比新旧系统：
 
-1. **Test with Legacy System**:
-   - Set `USE_NEW_AI_ECONOMY = false`
-   - Start new game
-   - Record AI nation stats every 100 ticks
-   - Save data to file
+1. **使用旧系统测试**：
+   - 设置 `USE_NEW_AI_ECONOMY = false`
+   - 开始新游戏
+   - 每 100 ticks 记录 AI 国家统计数据
+   - 将数据保存到文件
 
-2. **Test with New System**:
-   - Set `USE_NEW_AI_ECONOMY = true`
-   - Start new game (same seed if possible)
-   - Record AI nation stats every 100 ticks
-   - Save data to file
+2. **使用新系统测试**：
+   - 设置 `USE_NEW_AI_ECONOMY = true`
+   - 开始新游戏（如可能使用相同种子）
+   - 每 100 ticks 记录 AI 国家统计数据
+   - 将数据保存到文件
 
-3. **Compare Results**:
-   - Population growth rates
-   - Wealth growth rates
-   - Resource inventory levels
-   - Epoch progression timing
+3. **对比结果**：
+   - 人口增长率
+   - 财富增长率
+   - 资源库存水平
+   - 时代进步时机
 
-### Data Collection Script
+### 数据收集脚本
 
 ```javascript
-// Add to browser console
+// 在浏览器控制台中添加
 const collectEconomyData = () => {
     const data = nations
         .filter(n => !n.isPlayer)
@@ -185,59 +185,59 @@ const collectEconomyData = () => {
     return data;
 };
 
-// Run every 100 ticks
+// 每 100 ticks 运行一次
 setInterval(() => {
     console.log(`=== Tick ${tick} ===`);
     collectEconomyData();
-}, 10000); // Adjust timing as needed
+}, 10000); // 根据需要调整时间
 ```
 
-## 🐛 Known Issues to Watch For
+## 🐛 需要注意的已知问题
 
-### Issue 1: Double Growth
+### 问题 1：重复增长
 
-**Symptom**: AI nations grow too fast
-**Cause**: Both systems running simultaneously
-**Check**: Verify feature flag is set correctly
+**症状**：AI 国家增长过快
+**原因**：两个系统同时运行
+**检查**：验证特性开关设置正确
 
-### Issue 2: No Growth
+### 问题 2：无增长
 
-**Symptom**: AI nations don't grow at all
-**Cause**: Migration failed or data corruption
-**Check**: Look for validation errors in console
+**症状**：AI 国家完全不增长
+**原因**：迁移失败或数据损坏
+**检查**：查找控制台中的验证错误
 
-### Issue 3: Inventory Explosion
+### 问题 3：库存爆炸
 
-**Symptom**: Resource inventory grows infinitely
-**Cause**: Production/consumption imbalance
-**Check**: Verify inventory caps are working
+**症状**：资源库存无限增长
+**原因**：生产/消耗不平衡
+**检查**：验证库存上限是否生效
 
-### Issue 4: Negative Values
+### 问题 4：负值
 
-**Symptom**: Population or wealth becomes negative
-**Cause**: Validation not catching edge cases
-**Check**: Look for validation errors
+**症状**：人口或财富变为负数
+**原因**：验证未捕获边界情况
+**检查**：查找验证错误
 
-## 📈 Performance Testing
+## 📈 性能测试
 
-### Metrics to Track
+### 需要跟踪的指标
 
-1. **Frame Rate**: Should remain stable
-2. **Tick Duration**: Should not increase significantly
-3. **Memory Usage**: Should not grow over time
-4. **CPU Usage**: Should be similar to legacy system
+1. **帧率**：应该保持稳定
+2. **Tick 持续时间**：不应该显著增加
+3. **内存使用**：不应该随时间增长
+4. **CPU 使用**：应该与旧系统相似
 
-### Performance Test
+### 性能测试脚本
 
 ```javascript
-// Add to browser console
+// 在浏览器控制台中添加
 const perfTest = () => {
     const start = performance.now();
     
-    // Run 100 ticks
+    // 运行 100 ticks
     for (let i = 0; i < 100; i++) {
-        // Trigger simulation update
-        // (implementation depends on your game loop)
+        // 触发模拟更新
+        // （具体实现取决于你的游戏循环）
     }
     
     const end = performance.now();
@@ -252,71 +252,71 @@ const perfTest = () => {
 };
 ```
 
-## ✅ Acceptance Criteria
+## ✅ 验收标准
 
-The new system is ready for production when:
+当以下条件满足时，新系统就可以投入生产：
 
-- [ ] All test scenarios pass
-- [ ] Growth rates match legacy system (±5%)
-- [ ] Resource management works correctly
-- [ ] Old saves load without errors
-- [ ] Performance is equal or better than legacy
-- [ ] No console errors or warnings
-- [ ] Vassals grow correctly
-- [ ] Epoch progression works
-- [ ] War penalties apply correctly
-- [ ] No memory leaks after 1000+ ticks
+- [ ] 所有测试场景通过
+- [ ] 增长率与旧系统匹配（±5%）
+- [ ] 资源管理正常工作
+- [ ] 旧存档无错误加载
+- [ ] 性能相同或优于旧系统
+- [ ] 无控制台错误或警告
+- [ ] 附庸正确增长
+- [ ] 时代进步正常工作
+- [ ] 战争惩罚正确应用
+- [ ] 1000+ ticks 后无内存泄漏
 
-## 🔧 Troubleshooting
+## 🔧 故障排除
 
-### Problem: Console Errors
+### 问题：控制台错误
 
-**Solution**: Check browser console for detailed error messages
+**解决方案**：检查浏览器控制台获取详细错误信息
 
-### Problem: Unexpected Behavior
+### 问题：意外行为
 
-**Solution**: Enable debug mode and check logs
+**解决方案**：启用调试模式并检查日志
 
-### Problem: Performance Issues
+### 问题：性能问题
 
-**Solution**: Profile with browser dev tools
+**解决方案**：使用浏览器开发工具进行分析
 
-### Problem: Data Corruption
+### 问题：数据损坏
 
-**Solution**: Check validation errors, may need to reset save
+**解决方案**：检查验证错误，可能需要重置存档
 
-## 📝 Reporting Issues
+## 📝 问题报告
 
-When reporting issues, please include:
+报告问题时，请包含：
 
-1. **System**: New or Legacy (feature flag value)
-2. **Scenario**: What you were testing
-3. **Expected**: What should happen
-4. **Actual**: What actually happened
-5. **Console Logs**: Any errors or warnings
-6. **Save File**: If applicable
-7. **Steps to Reproduce**: Detailed steps
+1. **系统**：新系统或旧系统（特性开关值）
+2. **场景**：你正在测试什么
+3. **预期**：应该发生什么
+4. **实际**：实际发生了什么
+5. **控制台日志**：任何错误或警告
+6. **存档文件**：如果适用
+7. **重现步骤**：详细步骤
 
-## 🎯 Next Steps After Testing
+## 🎯 测试后的下一步
 
-1. **If tests pass**:
-   - Enable new system by default
-   - Monitor for issues
-   - Collect player feedback
+1. **如果测试通过**：
+   - 默认启用新系统
+   - 监控问题
+   - 收集玩家反馈
 
-2. **If tests fail**:
-   - Document issues
-   - Fix bugs
-   - Re-test
-   - Repeat until passing
+2. **如果测试失败**：
+   - 记录问题
+   - 修复 bug
+   - 重新测试
+   - 重复直到通过
 
-3. **After successful rollout**:
-   - Remove legacy code
-   - Update documentation
-   - Optimize performance
+3. **成功推出后**：
+   - 移除旧代码
+   - 更新文档
+   - 优化性能
 
 ---
 
-**Last Updated**: 2026-02-03  
-**Status**: Ready for Testing  
-**Feature Flag**: `USE_NEW_AI_ECONOMY` in `simulation.js`
+**最后更新**：2026-02-03  
+**状态**：准备测试  
+**特性开关**：`USE_NEW_AI_ECONOMY` 在 `simulation.js` 中
