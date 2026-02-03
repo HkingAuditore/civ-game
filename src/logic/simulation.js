@@ -30,7 +30,7 @@ const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tic
 // === AI Economy System Feature Flag ===
 // Set to true to use the new refactored AI economy system
 // Set to false to use the legacy system
-const USE_NEW_AI_ECONOMY = false; // TODO: Enable after testing
+const USE_NEW_AI_ECONOMY = true; // TODO: Enable after testing
 
 let cachedPotentialResourcesKey = null;
 let cachedPotentialResourcesSet = null;
@@ -5349,17 +5349,20 @@ export const simulateTick = ({
             // === NEW AI ECONOMY SYSTEM (Refactored) ===
             if (USE_NEW_AI_ECONOMY) {
                 // Migrate nation data if needed
-                next = migrateNationEconomy(next);
+                const migratedNation = migrateNationEconomy(next);
                 
                 // Use new unified economy service
-                next = AIEconomyService.update({
-                    nation: next,
+                const updatedNation = AIEconomyService.update({
+                    nation: migratedNation,
                     tick,
-                    epoch: next.epoch || 0,
+                    epoch: migratedNation.epoch || 0,
                     difficulty,
                     playerPopulation: playerPopulationBaseline,
                     gameSpeed,
                 });
+                
+                // Apply updates to next
+                Object.assign(next, updatedNation);
                 
                 // Check for epoch progression (still using legacy function)
                 checkAIEpochProgression(next, logs, tick);
@@ -5726,15 +5729,16 @@ export const simulateTick = ({
         const lastGrowthTick = nation.economyTraits?.lastGrowthTick;
         
         // === NEW AI ECONOMY SYSTEM (Refactored) ===
+        let resultNation = nation;
         if (USE_NEW_AI_ECONOMY) {
             // Migrate nation data if needed
-            nation = migrateNationEconomy(nation);
+            const migratedNation = migrateNationEconomy(nation);
             
             // Use new unified economy service
-            nation = AIEconomyService.update({
-                nation,
+            resultNation = AIEconomyService.update({
+                nation: migratedNation,
                 tick,
-                epoch: nation.epoch || epoch,
+                epoch: migratedNation.epoch || epoch,
                 difficulty,
                 playerPopulation: playerPopulationBaseline,
                 gameSpeed,
@@ -5756,21 +5760,21 @@ export const simulateTick = ({
         }
         
         // [DEBUG] Log growth results
-        const afterPop = nation.population;
-        const afterWealth = nation.wealth;
+        const afterPop = resultNation.population;
+        const afterWealth = resultNation.wealth;
         const ticksSinceGrowth = tick - (lastGrowthTick || 0);
         
         if (beforePop !== afterPop || beforeWealth !== afterWealth) {
-            console.log(`[Vassal Growth] ${nation.name}: pop ${beforePop}→${afterPop}, wealth ${beforeWealth}→${afterWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
+            console.log(`[Vassal Growth] ${resultNation.name}: pop ${beforePop}→${afterPop}, wealth ${beforeWealth}→${afterWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
         } else if (tick % 100 === 0) {
             // Log every 100 ticks even if no growth
-            console.log(`[Vassal No Growth] ${nation.name}: pop=${beforePop}, wealth=${beforeWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
+            console.log(`[Vassal No Growth] ${resultNation.name}: pop=${beforePop}, wealth=${beforeWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
         }
         
         // [DEBUG] Log the returned nation object
-        console.log(`[Vassal After Growth Return] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
+        console.log(`[Vassal After Growth Return] ${resultNation.name}: pop=${resultNation.population}, wealth=${resultNation.wealth}`);
         
-        return nation;
+        return resultNation;
     });
 
     // Now update economy data with the grown population/wealth values
