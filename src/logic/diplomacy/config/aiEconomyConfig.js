@@ -7,7 +7,7 @@ export const AI_ECONOMY_CONFIG = {
     // === Growth Parameters ===
     growth: {
         // Base growth rate (per 10 ticks)
-        baseRate: 0.02,
+        baseRate: 0.01,
         
         // Minimum growth guarantee
         minimumGrowth: {
@@ -23,7 +23,7 @@ export const AI_ECONOMY_CONFIG = {
         warPenalty: 0.3,  // Growth rate × 0.3 during war
         
         // Update frequency
-        updateInterval: 10,  // Update every 10 ticks
+        updateInterval: 30,  // Update every 10 ticks
     },
     
     // === Wealth Parameters ===
