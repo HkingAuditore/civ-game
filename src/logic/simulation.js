@@ -5689,6 +5689,12 @@ export const simulateTick = ({
     updatedNations = updatedNations.map(nation => {
         if (nation.vassalOf !== 'player' || !vassalTargetIds.includes(nation.id)) return nation;
         
+        // [DEBUG] Log vassal growth processing
+        const beforePop = nation.population;
+        const beforeWealth = nation.wealth;
+        const hasEconomyTraits = !!nation.economyTraits;
+        const lastGrowthTick = nation.economyTraits?.lastGrowthTick;
+        
         // Initialize AI development baseline if needed
         initializeAIDevelopmentBaseline({ nation, tick });
         
@@ -5700,6 +5706,18 @@ export const simulateTick = ({
             epoch: nation.epoch || epoch,
             playerPopulation: playerPopulationBaseline
         });
+        
+        // [DEBUG] Log growth results
+        const afterPop = nation.population;
+        const afterWealth = nation.wealth;
+        const ticksSinceGrowth = tick - (lastGrowthTick || 0);
+        
+        if (beforePop !== afterPop || beforeWealth !== afterWealth) {
+            console.log(`[Vassal Growth] ${nation.name}: pop ${beforePop}→${afterPop}, wealth ${beforeWealth}→${afterWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
+        } else if (tick % 100 === 0) {
+            // Log every 100 ticks even if no growth
+            console.log(`[Vassal No Growth] ${nation.name}: pop=${beforePop}, wealth=${beforeWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
+        }
         
         return nation;
     });
