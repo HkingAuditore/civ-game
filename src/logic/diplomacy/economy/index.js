@@ -14,7 +14,7 @@
  */
 
 // Models
-export { AIEconomyState } from './models/AIEconomyState.js';
+export { AIEconomyState } from '../models/AIEconomyState.js';
 
 // Configuration
 export { 
@@ -22,20 +22,20 @@ export {
     getConfig,
     getPerCapitaWealthCap,
     getMinimumGrowth
-} from './config/aiEconomyConfig.js';
+} from '../config/aiEconomyConfig.js';
 
 // Calculators
-export { GrowthCalculator } from './calculators/GrowthCalculator.js';
-export { ResourceManager } from './calculators/ResourceManager.js';
+export { GrowthCalculator } from '../calculators/GrowthCalculator.js';
+export { ResourceManager } from '../calculators/ResourceManager.js';
 
 // Services
-export { AIEconomyService } from './services/AIEconomyService.js';
+export { AIEconomyService } from '../services/AIEconomyService.js';
 
 // Migration
 export { 
     migrateNationEconomy,
     migrateAllNations
-} from './migration/economyMigration.js';
+} from '../migration/economyMigration.js';
 
 // Debug
-export { EconomyDebugger } from './debug/economyDebugger.js';
+export { EconomyDebugger } from '../debug/economyDebugger.js';
