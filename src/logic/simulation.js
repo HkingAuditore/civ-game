@@ -27,11 +27,6 @@ import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateV
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
 
-// === AI Economy System Feature Flag ===
-// Set to true to use the new refactored AI economy system
-// Set to false to use the legacy system
-const USE_NEW_AI_ECONOMY = true; // TODO: Enable after testing
-
 let cachedPotentialResourcesKey = null;
 let cachedPotentialResourcesSet = null;
 
@@ -300,20 +295,15 @@ import {
     processVassalUpdates,
     initializeNationEconomyData,
     updateNationEconomyData,
-    // AI Economy functions (Legacy)
-    updateAINationInventory,
-    initializeAIDevelopmentBaseline,
-    processAIIndependentGrowth,
-    updateAIDevelopment,
+    // AI Economy functions (Refactored System)
+    AIEconomyService,
+    migrateNationEconomy,
+    EconomyDebugger,
     checkAIEpochProgression,
     scaleNewlyUnlockedNation,
     initializeRebelEconomy,
     processPostWarRecovery,
     processInstallmentPayment,
-    // AI Economy functions (Refactored - New System)
-    AIEconomyService,
-    migrateNationEconomy,
-    EconomyDebugger,
     // International Organization functions
     processOrganizationMonthlyUpdate,
     getOrganizationEffects,
@@ -5338,7 +5328,7 @@ export const simulateTick = ({
             return next;
         }
 
-        // REFACTORED: Using module functions for AI development system
+        // REFACTORED: Using new AI economy system
         // Each function has its own internal tick-based checks, so they can safely run every slice.
         // [NOTE] These run only for sliced nations (1/3 per tick with aiNationUpdateSlices=3)
         // The slice check above ensures nations take turns being processed.
@@ -5346,76 +5336,24 @@ export const simulateTick = ({
         // [FIX] Exclude vassals here - they are processed separately in VASSAL SYSTEM DAILY UPDATE
         const isVassal = next.vassalOf === 'player';
         if (!isExpiredNation && !next.isRebelNation && !isVassal) {
-            // === NEW AI ECONOMY SYSTEM (Refactored) ===
-            if (USE_NEW_AI_ECONOMY) {
-                // Migrate nation data if needed
-                const migratedNation = migrateNationEconomy(next);
-                
-                // Use new unified economy service
-                const updatedNation = AIEconomyService.update({
-                    nation: migratedNation,
-                    tick,
-                    epoch: migratedNation.epoch || 0,
-                    difficulty,
-                    playerPopulation: playerPopulationBaseline,
-                    gameSpeed,
-                });
-                
-                // Apply updates to next
-                Object.assign(next, updatedNation);
-                
-                // Check for epoch progression (still using legacy function)
-                checkAIEpochProgression(next, logs, tick);
-            } 
-            // === LEGACY AI ECONOMY SYSTEM ===
-            else {
-                initializeAIDevelopmentBaseline({ nation: next, tick });
-
-                // [NEW] Scale newly unlocked nations based on player's current development
-                // This ensures nations appearing in later epochs have appropriate strength
-                scaleNewlyUnlockedNation({
-                    nation: next,
-                    playerPopulation: population,
-                    playerWealth: res.silver || 0,
-                    currentEpoch: visibleEpoch,
-                    isFirstInitialization: !next.economyTraits?.hasBeenScaled,
-                });
-
-                // Mark as scaled to avoid re-scaling
-                if (next.economyTraits) {
-                    next.economyTraits.hasBeenScaled = true;
-                }
-
-                updateAIDevelopment({
-                    nation: next,
-                    epoch: next.epoch, // [MODIFIED] Use nation's own epoch for development
-                    playerPopulationBaseline,
-                    playerWealthBaseline,
-                    tick,
-                    difficulty,
-                });
-
-                // [GROWTH] These functions have internal tick-interval checks (>= 10 ticks)
-                // They will only apply growth when enough time has passed since last update
-                // Growth is applied after development targets so it becomes the final settlement for pop/wealth.
-                processAIIndependentGrowth({
-                    nation: next,
-                    tick,
-                    difficulty,
-                    epoch: next.epoch || 0,
-                    playerPopulation: playerPopulationBaseline
-                });
-
-                // [NEW] Check for independent epoch progression
-                // [FIX] Pass tick for cooldown calculation
-                checkAIEpochProgression(next, logs, tick);
-            }
-        }
-
-        // REFACTORED: Using module function for foreign economy simulation
-        // [NOTE] New system handles inventory updates internally, so skip this for new system
-        if (shouldUpdateTrade && !isExpiredNation && !USE_NEW_AI_ECONOMY) {
-            updateAINationInventory({ nation: next, tick, gameSpeed });
+            // Migrate nation data if needed (automatic, transparent)
+            const migratedNation = migrateNationEconomy(next);
+            
+            // Use unified economy service (handles growth, resources, budget)
+            const updatedNation = AIEconomyService.update({
+                nation: migratedNation,
+                tick,
+                epoch: migratedNation.epoch || 0,
+                difficulty,
+                playerPopulation: playerPopulationBaseline,
+                gameSpeed,
+            });
+            
+            // Apply updates to next
+            Object.assign(next, updatedNation);
+            
+            // Check for epoch progression
+            checkAIEpochProgression(next, logs, tick);
         }
         if (next.isAtWar && !isExpiredNation) {
             next.warDuration = (next.warDuration || 0) + 1;
@@ -5728,36 +5666,18 @@ export const simulateTick = ({
         const hasEconomyTraits = !!nation.economyTraits;
         const lastGrowthTick = nation.economyTraits?.lastGrowthTick;
         
-        // === NEW AI ECONOMY SYSTEM (Refactored) ===
-        let resultNation = nation;
-        if (USE_NEW_AI_ECONOMY) {
-            // Migrate nation data if needed
-            const migratedNation = migrateNationEconomy(nation);
-            
-            // Use new unified economy service
-            resultNation = AIEconomyService.update({
-                nation: migratedNation,
-                tick,
-                epoch: migratedNation.epoch || epoch,
-                difficulty,
-                playerPopulation: playerPopulationBaseline,
-                gameSpeed,
-            });
-        }
-        // === LEGACY AI ECONOMY SYSTEM ===
-        else {
-            // Initialize AI development baseline if needed
-            initializeAIDevelopmentBaseline({ nation, tick });
-            
-            // Apply population and wealth growth using the same logic as independent AI nations
-            processAIIndependentGrowth({
-                nation,
-                tick,
-                difficulty,
-                epoch: nation.epoch || epoch,
-                playerPopulation: playerPopulationBaseline
-            });
-        }
+        // Migrate nation data if needed (automatic, transparent)
+        const migratedNation = migrateNationEconomy(nation);
+        
+        // Use unified economy service (handles growth, resources, budget)
+        const resultNation = AIEconomyService.update({
+            nation: migratedNation,
+            tick,
+            epoch: migratedNation.epoch || epoch,
+            difficulty,
+            playerPopulation: playerPopulationBaseline,
+            gameSpeed,
+        });
         
         // [DEBUG] Log growth results
         const afterPop = resultNation.population;
