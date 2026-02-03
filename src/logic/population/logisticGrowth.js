@@ -340,12 +340,34 @@ export const calculateAILogisticGrowth = ({
     // Use centralized config
     const difficultyGrowthMultiplier = DIFFICULTY_GROWTH_MULTIPLIERS[difficulty] || 1.0;
     
+    // [FIX v4] SMALL NATION GROWTH ACCELERATION
+    // Problem: Small nations (< 10000 pop) grow too slowly because:
+    // 1. They have very low absolute population (e.g., 75)
+    // 2. Even with high growth rate (5%), absolute growth is tiny (75 × 0.05 = 3.75)
+    // 3. Large nations benefit from compound growth, small nations don't
+    // Solution: Apply a MASSIVE growth multiplier for small nations
+    // This multiplier decreases as population grows, ensuring smooth transition
+    let smallNationBonus = 1.0;
+    if (currentPopulation < 100) {
+        smallNationBonus = 20.0;  // 20x growth for tiny nations (< 100)
+    } else if (currentPopulation < 500) {
+        smallNationBonus = 10.0;  // 10x growth for very small nations (100-500)
+    } else if (currentPopulation < 2000) {
+        smallNationBonus = 5.0;   // 5x growth for small nations (500-2000)
+    } else if (currentPopulation < 5000) {
+        smallNationBonus = 3.0;   // 3x growth for medium-small nations (2000-5000)
+    } else if (currentPopulation < 10000) {
+        smallNationBonus = 2.0;   // 2x growth for medium nations (5000-10000)
+    }
+    // Nations >= 10000: no bonus (1.0x)
+    
     // Final growth rate
     const effectiveGrowthRate = intrinsicGrowthRate 
         * logisticFactor 
         * resourceFactor 
         * overcapacityPenalty
-        * difficultyGrowthMultiplier;
+        * difficultyGrowthMultiplier
+        * smallNationBonus;  // NEW: Small nation acceleration
     
     // Calculate population change
     const populationChange = currentPopulation * effectiveGrowthRate;
