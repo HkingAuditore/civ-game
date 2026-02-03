@@ -40,7 +40,7 @@ export const AI_ECONOMY_CONFIG = {
         },
         
         // Wealth growth rate
-        baseGrowthRate: 0.01,
+        baseGrowthRate: 0.005,
         developmentBonus: 0.005,
         maxGrowthRate: 0.03,
         

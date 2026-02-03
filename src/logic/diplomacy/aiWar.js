@@ -338,12 +338,14 @@ export const processAIMilitaryAction = ({
     const lastMilitaryActionDay = next.lastMilitaryActionDay || 0;
     const cooldownBonus = getMilitaryCooldownBonus(difficultyLevel);
     if (!next.militaryCooldownDays) {
-        next.militaryCooldownDays = Math.max(5, 7 + Math.floor(Math.random() * 24) + cooldownBonus);
+        // [BALANCE] Increased cooldown: 15-45 days (was 7-31 days)
+        next.militaryCooldownDays = Math.max(10, 15 + Math.floor(Math.random() * 30) + cooldownBonus);
     }
     const canTakeMilitaryAction = (tick - lastMilitaryActionDay) >= next.militaryCooldownDays;
 
     const disadvantage = Math.max(0, -(next.warScore || 0));
-    let actionChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
+    // [BALANCE] Reduced action chance: base 1.5% (was 2%), max 12% (was 18%)
+    let actionChance = Math.min(0.12, 0.015 + (next.aggression || 0.2) * 0.03 + disadvantage / 500);
 
     // Apply difficulty modifier to action chance
     actionChance = applyMilitaryActionModifier(actionChance, difficultyLevel);
@@ -354,7 +356,8 @@ export const processAIMilitaryAction = ({
 
     // Record action time and reset cooldown (with difficulty bonus)
     next.lastMilitaryActionDay = tick;
-    next.militaryCooldownDays = Math.max(5, 7 + Math.floor(Math.random() * 24) + cooldownBonus);
+    // [BALANCE] Increased cooldown: 15-45 days (was 7-31 days)
+    next.militaryCooldownDays = Math.max(10, 15 + Math.floor(Math.random() * 30) + cooldownBonus);
 
     // Generate enemy army
     const enemyEpoch = Math.max(next.appearEpoch || 0, Math.min(epoch, next.expireEpoch ?? epoch));
@@ -1380,6 +1383,13 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
 
     visibleNations.forEach(nation => {
         Object.keys(nation.foreignWars || {}).forEach(enemyId => {
+            // [FIX] Prevent nation from attacking itself
+            if (enemyId === nation.id) {
+                // Clean up invalid self-war state
+                delete nation.foreignWars[enemyId];
+                return;
+            }
+
             const war = nation.foreignWars[enemyId];
             if (!war?.isAtWar) return;
 
