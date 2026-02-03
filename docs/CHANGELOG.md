@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+- **[2026-02-03] AI经济系统重构 Phase 1 & 2**
+  - 创建统一的AI经济数据模型 (AIEconomyState)
+  - 创建集中化配置系统 (aiEconomyConfig)
+  - 创建增长计算器 (GrowthCalculator)
+  - 创建资源管理器 (ResourceManager)
+  - 创建经济更新服务 (AIEconomyService)
+  - 创建数据迁移工具 (economyMigration)
+  - 创建调试工具 (economyDebugger)
+  - 添加完整的文档和使用指南
+- 项目初始化
+- 生成 llm.txt 协作规则
+
 ### Changed
 - 重构附庸独立倾向为单轨模型，日衰减与阶层满意度驱动
 - 附庸阶层满意度期望值调整为精英15/平民6/下层4
@@ -14,9 +27,4 @@
 - 附庸独立倾向未按日更新、满值不触发独立战争的问题
 - 附庸控制手段切换标签后回退的问题
 - 附庸阶层满意度不更新的问题
-
-### Added
-- 项目初始化
-- 生成 llm.txt 协作规则
-
 ---
