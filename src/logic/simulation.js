@@ -5099,6 +5099,11 @@ export const simulateTick = ({
     const aiTargets = getSlice(nations || [], aiSliceCount);
     const aiTargetIds = new Set(aiTargets.map(n => n?.id));
 
+    // [DEBUG] Log input nations array
+    (nations || []).forEach(n => {
+        console.log(`[Input Nations] ${n.name}: pop=${n.population}, wealth=${n.wealth}, ownBasePop=${n.economyTraits?.ownBasePopulation}, vassalOf=${n.vassalOf}`);
+    });
+
     let updatedNations = (nations || []).map(nation => {
         const next = { ...nation };
         const shouldProcessAIForNation = next.id === 'player' || aiTargetIds.has(next.id);
@@ -5672,22 +5677,17 @@ export const simulateTick = ({
         hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势力
     };
 
-    updatedNations = updatedNations.map(nation => {
-        if (nation.vassalOf !== 'player') return nation;
-        const initialized = initializeNationEconomyData({ ...nation }, vassalMarketPrices);
-        return updateNationEconomyData(initialized, vassalMarketPrices, satisfactionContext);
-    });
-
-    // [FIX] Apply population and wealth growth to vassals
-    // Vassals need to grow their population and wealth just like independent AI nations
+    // [FIX] Apply population and wealth growth to vassals BEFORE updateNationEconomyData
+    // This ensures that the growth values are preserved when creating new objects
     const vassalSliceCount = Math.max(1, RATE_LIMIT_CONFIG.vassalUpdateSlices || 1);
     const vassalNations = updatedNations.filter(n => n.vassalOf === 'player');
     const vassalTargets = getSlice(vassalNations, vassalSliceCount);
     const vassalTargetIds = vassalTargets.map(v => v.id);
 
-    // Apply growth to sliced vassals
+    // Apply growth to sliced vassals FIRST
     updatedNations = updatedNations.map(nation => {
         if (nation.vassalOf !== 'player' || !vassalTargetIds.includes(nation.id)) return nation;
+        
         
         // [DEBUG] Log vassal growth processing
         const beforePop = nation.population;
@@ -5719,9 +5719,42 @@ export const simulateTick = ({
             console.log(`[Vassal No Growth] ${nation.name}: pop=${beforePop}, wealth=${beforeWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
         }
         
+        // [DEBUG] Log the returned nation object
+        console.log(`[Vassal After Growth Return] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
+        
         return nation;
     });
 
+    // Now update economy data with the grown population/wealth values
+    // [FIX] Only process vassals in vassalTargetIds to match the growth logic
+    // [FIX] DO NOT call initializeNationEconomyData as it creates a new object and loses growth values
+    updatedNations = updatedNations.map(nation => {
+        if (nation.vassalOf !== 'player' || !vassalTargetIds.includes(nation.id)) return nation;
+        
+        // [DEBUG] Log input values before updateNationEconomyData
+        console.log(`[Before EconomyData] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
+        
+        // [FIX] Directly call updateNationEconomyData without initialization to preserve growth values
+        const result = updateNationEconomyData(nation, vassalMarketPrices, satisfactionContext);
+        
+        // [DEBUG] Log population after updateNationEconomyData
+        if (tick % 10 === 0 && nation.name) {
+            console.log(`[After EconomyData] ${nation.name}: pop ${nation.population}→${result.population}`);
+        }
+        
+        return result;
+    });
+
+    // [DEBUG] Log vassal state before processVassalUpdates
+    if (tick % 10 === 0) {
+        vassalTargetIds.forEach(vassalId => {
+            const vassal = updatedNations.find(n => n.id === vassalId);
+            if (vassal) {
+                console.log(`[Before Process] ${vassal.name}: pop=${vassal.population}, wealth=${vassal.wealth}`);
+            }
+        });
+    }
+    
     const vassalResult = processVassalUpdates({
         nations: updatedNations,
         updateIds: vassalTargetIds,
@@ -5736,7 +5769,29 @@ export const simulateTick = ({
         difficultyLevel: difficulty,
         logs,
     });
+    
+    // [DEBUG] Log vassal state before and after processVassalUpdates
+    if (tick % 10 === 0) {
+        vassalTargetIds.forEach(vassalId => {
+            const before = updatedNations.find(n => n.id === vassalId);
+            const after = vassalResult.nations.find(n => n.id === vassalId);
+            if (before && after && (before.wealth !== after.wealth || before.population !== after.population)) {
+                console.log(`[Vassal After Process] ${after.name}: pop ${before.population}→${after.population}, wealth ${before.wealth}→${after.wealth}`);
+            }
+        });
+    }
+    
     updatedNations = vassalResult.nations;
+    
+    // [DEBUG] Verify vassal data after assignment
+    if (tick % 10 === 0) {
+        vassalTargetIds.forEach(vassalId => {
+            const vassal = updatedNations.find(n => n.id === vassalId);
+            if (vassal) {
+                console.log(`[Vassal Final State] ${vassal.name}: pop=${vassal.population}, wealth=${vassal.wealth}`);
+            }
+        });
+    }
 
     if (vassalResult.tributeIncome > 0) {
         applySilverChange(vassalResult.tributeIncome, 'vassal_tribute_income');

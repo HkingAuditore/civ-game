@@ -11,11 +11,12 @@ import {
     calculateLogisticGrowth,
     calculateResourceFactor
 } from './logisticGrowth';
+import { GROWTH_RATES } from './growthConfig.js';
 
 /**
  * Old exponential growth model (for comparison)
  */
-const oldExponentialGrowth = (population, growthRate = 0.025) => {
+const oldExponentialGrowth = (population, growthRate = GROWTH_RATES.LEGACY) => {
     return Math.floor(population * (1 + growthRate));
 };
 
@@ -88,7 +89,7 @@ export const runGrowthComparison = ({
         }
 
         // Old model: pure exponential
-        oldPop = oldExponentialGrowth(oldPop, 0.025);
+        oldPop = oldExponentialGrowth(oldPop, GROWTH_RATES.LEGACY);
 
         // New model: logistic with resource constraints
         const foodNeeded = newPop * 0.5;
@@ -104,7 +105,7 @@ export const runGrowthComparison = ({
         const result = calculateLogisticGrowth({
             currentPopulation: newPop,
             carryingCapacity,
-            intrinsicGrowthRate: 0.025,
+            intrinsicGrowthRate: GROWTH_RATES.LEGACY,
             resourceFactor,
             difficulty,
             isAI: true

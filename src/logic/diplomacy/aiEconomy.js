@@ -249,6 +249,11 @@ export const processAIIndependentGrowth = ({
     const ownBaseWealth = next.economyTraits.ownBaseWealth;
     const developmentRate = (next.economyTraits.developmentRate || 1.0) * multiplier;
 
+    // [DEBUG] Log ownBasePopulation at start
+    if (next.vassalOf === 'player') {
+        console.log(`[Growth Start] ${next.name}: ownBasePopulation=${ownBasePopulation}, population=${next.population}`);
+    }
+
     // [FIX v2] Handle invalid lastGrowthTick more robustly
     const lastGrowthTick = Number.isFinite(next.economyTraits.lastGrowthTick) 
         ? next.economyTraits.lastGrowthTick 
@@ -371,6 +376,11 @@ export const processAIIndependentGrowth = ({
         next.economyTraits.ownBaseWealth = finalBaseWealth;
         next.population = actualNewPopulation;
         next.wealth = finalWealth;
+        
+        // [DEBUG] Log ownBasePopulation after update
+        if (next.vassalOf === 'player') {
+            console.log(`[Growth End] ${next.name}: ownBasePopulation=${next.economyTraits.ownBasePopulation}, population=${next.population}`);
+        }
         
         next.economyTraits.lastGrowthTick = tick;
     }

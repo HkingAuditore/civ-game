@@ -2096,7 +2096,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         console.log('[VASSAL DEBUG] Before merge:', {
                             vassalUpdated_independencePressure: vassalBefore.independencePressure,
                             vassalUpdated_lastChange: vassalBefore._lastIndependenceChange,
+                            vassalUpdated_pop: vassalBefore.population,
+                            vassalUpdated_wealth: vassalBefore.wealth,
                             resultNations_independencePressure: nationBefore?.independencePressure,
+                            resultNations_pop: nationBefore?.population,
+                            resultNations_wealth: nationBefore?.wealth,
                         });
                     }
                     
@@ -2104,10 +2108,29 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // Previous bug: vassalNationsUpdated contains ALL nations (from current.nations),
                     // but non-vassal nations have STALE data (before simulation).
                     // This was overwriting AI growth results with old population/wealth values!
+                    // 
+                    // [FIX v2] Merge strategy:
+                    // - Use vassalNationsUpdated for vassal-specific fields (independencePressure, satisfaction, etc.)
+                    // - Use result.nations for simulation-updated fields (population, wealth, economyTraits, etc.)
+                    const resultNationsMap = new Map(nextNations.map(n => [n.id, n]));
                     const vassalOnlyMap = new Map(
                         vassalNationsUpdated
                             .filter(n => n.vassalOf === 'player')  // Only actual vassals
-                            .map(n => [n.id, n])
+                            .map(n => {
+                                const resultNation = resultNationsMap.get(n.id);
+                                if (resultNation) {
+                                    // Merge: use simulation results for population/wealth/economyTraits,
+                                    // but keep vassalNationsUpdated for vassal-specific fields
+                                    return [n.id, {
+                                        ...n,  // Start with vassalNationsUpdated (has independencePressure, etc.)
+                                        population: resultNation.population,  // Override with simulation results
+                                        wealth: resultNation.wealth,
+                                        economyTraits: resultNation.economyTraits,
+                                        socialStructure: resultNation.socialStructure,
+                                    }];
+                                }
+                                return [n.id, n];
+                            })
                     );
                     nextNations = nextNations.map(n => vassalOnlyMap.get(n.id) || n);
                     
@@ -2117,6 +2140,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         console.log('[VASSAL DEBUG] After merge:', {
                             nextNations_independencePressure: vassalAfter.independencePressure,
                             nextNations_lastChange: vassalAfter._lastIndependenceChange,
+                            nextNations_pop: vassalAfter.population,
+                            nextNations_wealth: vassalAfter.wealth,
                         });
                     }
                 } else if (vassalNationsUpdated && !nextNations) {
