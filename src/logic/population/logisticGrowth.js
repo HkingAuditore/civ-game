@@ -274,10 +274,12 @@ export const calculateAILogisticGrowth = ({
     // Old saves often have very small populations that get stuck because capacity was too low
     const epochMinimumFinal = [1000, 5000, 20000, 100000, 500000][Math.min(epoch, 4)];
     
-    // [FIX v2] Also ensure capacity is at least 10x current population for growth room
-    // This prevents situations where AI is already at capacity with tiny population
-    const populationBasedMinimum = currentPopulation * 10;
-    const finalCarryingCapacity = Math.max(epochMinimumFinal, populationBasedMinimum, carryingCapacity);
+    // [FIX v3] REMOVED populationBasedMinimum - it created infinite growth loop!
+    // Old logic: capacity = max(epoch_min, current_pop * 10, calculated_cap)
+    // Problem: As population grows, capacity grows with it (current_pop * 10)
+    // Result: Population NEVER reaches capacity limit, grows infinitely!
+    // Solution: Only use epoch minimum and calculated capacity
+    const finalCarryingCapacity = Math.max(epochMinimumFinal, carryingCapacity);
     
     // === RESOURCE FACTOR CALCULATION ===
     // Simplified: since carrying capacity already considers resources,

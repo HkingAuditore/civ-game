@@ -5329,7 +5329,9 @@ export const simulateTick = ({
         // [NOTE] These run only for sliced nations (1/3 per tick with aiNationUpdateSlices=3)
         // The slice check above ensures nations take turns being processed.
         // Save loading timestamp fix in useGameState.js ensures proper initialization.
-        if (!isExpiredNation && !next.isRebelNation) {
+        // [FIX] Exclude vassals here - they are processed separately in VASSAL SYSTEM DAILY UPDATE
+        const isVassal = next.vassalOf === 'player';
+        if (!isExpiredNation && !next.isRebelNation && !isVassal) {
             initializeAIDevelopmentBaseline({ nation: next, tick });
 
             // [NEW] Scale newly unlocked nations based on player's current development
@@ -5676,10 +5678,31 @@ export const simulateTick = ({
         return updateNationEconomyData(initialized, vassalMarketPrices, satisfactionContext);
     });
 
+    // [FIX] Apply population and wealth growth to vassals
+    // Vassals need to grow their population and wealth just like independent AI nations
     const vassalSliceCount = Math.max(1, RATE_LIMIT_CONFIG.vassalUpdateSlices || 1);
     const vassalNations = updatedNations.filter(n => n.vassalOf === 'player');
     const vassalTargets = getSlice(vassalNations, vassalSliceCount);
     const vassalTargetIds = vassalTargets.map(v => v.id);
+
+    // Apply growth to sliced vassals
+    updatedNations = updatedNations.map(nation => {
+        if (nation.vassalOf !== 'player' || !vassalTargetIds.includes(nation.id)) return nation;
+        
+        // Initialize AI development baseline if needed
+        initializeAIDevelopmentBaseline({ nation, tick });
+        
+        // Apply population and wealth growth using the same logic as independent AI nations
+        processAIIndependentGrowth({
+            nation,
+            tick,
+            difficulty,
+            epoch: nation.epoch || epoch,
+            playerPopulation: playerPopulationBaseline
+        });
+        
+        return nation;
+    });
 
     const vassalResult = processVassalUpdates({
         nations: updatedNations,

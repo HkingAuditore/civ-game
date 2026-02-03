@@ -1823,7 +1823,8 @@ export const useGameState = () => {
                 // v1: initial migration for too-strong/too-weak AI
                 // v2: fix missing economyTraits fields that prevent AI development
                 // v3: clamp future AI ticks + seed missing AI gift cooldown
-                aiBalanceVersion: 3,
+                // v4: fix infinite growth bug (populationBasedMinimum loop)
+                aiBalanceVersion: 4,
             },
             nextLastAuto,
         };
@@ -1920,7 +1921,7 @@ export const useGameState = () => {
         let migratedNations = loadedNations;
         // [FIX v2] Check if save version is outdated (missing OR less than current version)
         // This ensures old saves that were saved after partial fixes still get updated
-        const CURRENT_AI_BALANCE_VERSION = 3;
+        const CURRENT_AI_BALANCE_VERSION = 4;
         const saveAIVersion = data.aiBalanceVersion || 0;
         const needsMigration = saveAIVersion < CURRENT_AI_BALANCE_VERSION;
         
@@ -1947,9 +1948,15 @@ export const useGameState = () => {
                 // Old saves often have AI stuck at 10-30 population due to missing growth logic
                 const isTooWeak = aiPop < 100 || (playerPop > 100 && popRatio < 0.05);
                 
-                // If AI population OR wealth exceeds 10x player's level, OR per-capita wealth exceeds cap, OR is too weak
-                if (popRatio > 10 || wealthRatio > 10 || perCapitaExceeded || isTooWeak) {
-                    const reason = isTooWeak 
+                // [FIX v4] Check for infinite growth bug (population > 1 billion indicates bug)
+                // Bug was caused by populationBasedMinimum = currentPop * 10 creating feedback loop
+                const hasInfiniteGrowthBug = aiPop > 1000000000 || aiWealth > 1000000000000;
+                
+                // If AI population OR wealth exceeds 10x player's level, OR per-capita wealth exceeds cap, OR is too weak, OR has infinite growth bug
+                if (popRatio > 10 || wealthRatio > 10 || perCapitaExceeded || isTooWeak || hasInfiniteGrowthBug) {
+                    const reason = hasInfiniteGrowthBug
+                        ? `INFINITE GROWTH BUG: pop=${aiPop.toExponential(2)}, wealth=${aiWealth.toExponential(2)}`
+                        : isTooWeak 
                         ? `TOO WEAK: pop=${aiPop}, wealth=${aiWealth}` 
                         : `TOO STRONG: pop=${aiPop}, wealth=${aiWealth}, per-capita=${aiPerCapitaWealth.toFixed(0)}, cap=${perCapitaWealthCap}`;
                     console.log(`[Save Migration] Resetting broken AI nation: ${n.name} (${reason})`);
