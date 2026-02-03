@@ -7,6 +7,7 @@ export * from './nations';
 export * from './aiWar';
 export * from './aiDiplomacy';
 export * from './aiEconomy';
+export * from './economy/index.js'; // New refactored AI economy system
 export * from './negotiation';
 export * from './organizationDiplomacy';
 export * from './populationMigration';
