@@ -589,6 +589,11 @@ export const processVassalUpdates = ({
             return nation;
         }
 
+        // [DEBUG] Log input values
+        if (daysElapsed % 10 === 0) {
+            console.log(`[Vassal Process Input] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
+        }
+
         const updated = { ...nation };
         const vassalConfig = VASSAL_TYPE_CONFIGS[updated.vassalType];
         if (!vassalConfig) return updated;
@@ -823,8 +828,15 @@ export const processVassalUpdates = ({
         const tribute = calculateEnhancedTribute(updated);
         const dailySilver = (tribute.silver || 0);
         if (dailySilver > 0) {
+            const beforeTribute = updated.wealth || 0;
             tributeIncome += dailySilver;
             updated.wealth = Math.max(0, (updated.wealth || 0) - dailySilver);
+            const afterTribute = updated.wealth;
+            
+            // [DEBUG] Log tribute deduction
+            if (daysElapsed % 10 === 0) {
+                console.log(`[Vassal Tribute] ${updated.name}: wealth ${beforeTribute}→${afterTribute} (tribute: -${dailySilver})`);
+            }
         }
 
         // 资源朝贡仍按月结算，避免每日小额损耗
@@ -904,6 +916,11 @@ export const processVassalUpdates = ({
             });
 
             logs.push(`⚠️ ${updated.name} 发动独立战争！`);
+        }
+
+        // [DEBUG] Log output values
+        if (daysElapsed % 10 === 0) {
+            console.log(`[Vassal Process Output] ${updated.name}: pop=${updated.population}, wealth=${updated.wealth}`);
         }
 
         return updated;

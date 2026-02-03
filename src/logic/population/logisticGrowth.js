@@ -15,6 +15,12 @@
  * - ResourceFactor: Multiplier based on resource availability
  */
 
+import { 
+    GROWTH_RATES, 
+    DIFFICULTY_GROWTH_MULTIPLIERS,
+    getIntrinsicGrowthRate 
+} from './growthConfig.js';
+
 /**
  * Calculate carrying capacity based on available resources
  * @param {Object} params - Resource parameters
@@ -112,7 +118,7 @@ export const calculateResourceFactor = ({
 export const calculateLogisticGrowth = ({
     currentPopulation,
     carryingCapacity,
-    intrinsicGrowthRate = 0.03, // 3% base growth rate
+    intrinsicGrowthRate = GROWTH_RATES.OLD_LOGISTIC, // Use config: 3% base growth rate (kept for backward compatibility)
     resourceFactor = 1.0,
     difficulty = 'normal',
     isAI = false
@@ -315,7 +321,7 @@ export const calculateAILogisticGrowth = ({
     // Growth every 10 ticks = ~36 cycles per year
     // Use a moderate 2% per cycle base rate
     const tickScale = Math.min(ticksSinceLastUpdate / 10, 2.0);
-    const intrinsicGrowthRate = 0.02 * tickScale; // 2% per 10 ticks
+    const intrinsicGrowthRate = getIntrinsicGrowthRate('ai', tickScale); // Use centralized config
     
     // Calculate capacity ratio using FINAL carrying capacity
     const capacityRatio = currentPopulation / Math.max(1, finalCarryingCapacity);
@@ -331,15 +337,8 @@ export const calculateAILogisticGrowth = ({
     }
     
     // Difficulty multiplier for GROWTH RATE (not capacity, that's handled above)
-    const difficultyGrowthMap = {
-        'veryEasy': 0.8,
-        'easy': 0.9,
-        'normal': 1.0,
-        'hard': 1.1,
-        'veryHard': 1.2,
-        'extreme': 1.3
-    };
-    const difficultyGrowthMultiplier = difficultyGrowthMap[difficulty] || 1.0;
+    // Use centralized config
+    const difficultyGrowthMultiplier = DIFFICULTY_GROWTH_MULTIPLIERS[difficulty] || 1.0;
     
     // Final growth rate
     const effectiveGrowthRate = intrinsicGrowthRate 
@@ -474,7 +473,7 @@ export const calculatePlayerLogisticGrowth = ({
     });
     
     // Base growth rate with bonuses
-    const baseGrowthRate = 0.003; // 0.3% per tick
+    const baseGrowthRate = GROWTH_RATES.PLAYER_BASE / 10; // 0.002 per tick (0.2% per tick, 2% per 10 ticks)
     const growthBonus = bonuses.populationGrowthBonus || 0;
     const intrinsicGrowthRate = baseGrowthRate * (1 + growthBonus);
     
