@@ -547,6 +547,84 @@ export const EconomicDashboard = ({
           {activeTab === 'prices' && (
             <div className="space-y-6">
               
+              {/* 分层CPI总览 */}
+              {economicIndicators.cpiByTier && (
+                <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
+                  <h3 className="text-lg font-semibold text-blue-300 mb-4">分层消费者物价指数 (CPI)</h3>
+                  <div className="text-xs text-gray-400 mb-4">
+                    基于各阶层实际消费数据动态计算，反映不同阶层的生活成本变化
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-4">
+                    {/* 综合CPI */}
+                    <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 rounded-lg border border-orange-500/30 p-4">
+                      <div className="text-xs text-orange-300 mb-1">综合CPI</div>
+                      <div className="text-2xl font-bold text-orange-100">{cpi.index.toFixed(1)}</div>
+                      <div className={`text-sm font-medium mt-1 ${cpi.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {formatPercent(cpi.change)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">全体居民</div>
+                    </div>
+                    
+                    {/* 底层CPI */}
+                    <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-lg border border-blue-500/30 p-4">
+                      <div className="text-xs text-blue-300 mb-1">底层CPI</div>
+                      <div className="text-2xl font-bold text-blue-100">
+                        {economicIndicators.cpiByTier.lower.index.toFixed(1)}
+                      </div>
+                      <div className={`text-sm font-medium mt-1 ${economicIndicators.cpiByTier.lower.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {formatPercent(economicIndicators.cpiByTier.lower.change)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">农民/工人</div>
+                    </div>
+                    
+                    {/* 中层CPI */}
+                    <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 rounded-lg border border-green-500/30 p-4">
+                      <div className="text-xs text-green-300 mb-1">中层CPI</div>
+                      <div className="text-2xl font-bold text-green-100">
+                        {economicIndicators.cpiByTier.middle.index.toFixed(1)}
+                      </div>
+                      <div className={`text-sm font-medium mt-1 ${economicIndicators.cpiByTier.middle.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {formatPercent(economicIndicators.cpiByTier.middle.change)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">工匠/商人</div>
+                    </div>
+                    
+                    {/* 上层CPI */}
+                    <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-lg border border-purple-500/30 p-4">
+                      <div className="text-xs text-purple-300 mb-1">上层CPI</div>
+                      <div className="text-2xl font-bold text-purple-100">
+                        {economicIndicators.cpiByTier.upper.index.toFixed(1)}
+                      </div>
+                      <div className={`text-sm font-medium mt-1 ${economicIndicators.cpiByTier.upper.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {formatPercent(economicIndicators.cpiByTier.upper.change)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">贵族/资本家</div>
+                    </div>
+                  </div>
+                  
+                  {/* 阶层差异分析 */}
+                  <div className="mt-4 p-4 bg-blue-900/20 rounded-lg border border-blue-500/30">
+                    <div className="text-sm font-medium text-blue-300 mb-2">阶层差异分析</div>
+                    <div className="text-sm text-gray-200">
+                      {(() => {
+                        const lowerChange = economicIndicators.cpiByTier.lower.change;
+                        const upperChange = economicIndicators.cpiByTier.upper.change;
+                        const diff = lowerChange - upperChange;
+                        
+                        if (diff > 2) {
+                          return '⚠️ 底层生活成本上涨显著高于上层，贫富差距可能扩大';
+                        } else if (diff < -2) {
+                          return '📈 上层生活成本上涨更快，奢侈品价格上涨';
+                        } else {
+                          return '✓ 各阶层生活成本变化相对均衡';
+                        }
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {/* CPI详细分解 */}
               <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
                 <h3 className="text-lg font-semibold text-orange-300 mb-4">消费者物价指数 (CPI) 详细分解</h3>
