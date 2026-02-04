@@ -1721,6 +1721,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
                 
                 // 3. 计算所有经济指标（每天）
+                console.log('[Economic Debug] Calculating indicators with data:', {
+                    classFinancialData: result.classFinancialData,
+                    buildingFinancialData: result.buildingFinancialData,
+                    dailyMilitaryExpense: result.dailyMilitaryExpense,
+                    officials: current.officials?.length,
+                    taxBreakdown: result.taxes?.breakdown,
+                    demandBreakdown: market.demandBreakdown,
+                    marketPrices: market.prices,
+                });
+                
                 const indicators = calculateAllIndicators({
                     // 价格数据
                     priceHistory: updatedPriceHistory,
@@ -1738,6 +1748,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // 历史数据
                     previousIndicators: economicIndicators,
                 });
+                
+                console.log('[Economic Debug] Calculated indicators:', indicators);
                 setEconomicIndicators(indicators);
 
                 const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
