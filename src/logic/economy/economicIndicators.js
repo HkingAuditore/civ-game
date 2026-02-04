@@ -39,15 +39,14 @@ export const ECONOMIC_INDICATOR_CONFIG = {
     historyLength: 100,       // 保留100天历史
   },
   
-  // 消费者篮子权重
+  // 消费者篮子权重（基于实际游戏资源）
   cpiBasket: {
-    food: 0.40,
-    cloth: 0.15,
-    wood: 0.10,
-    iron: 0.10,
-    luxury: 0.15,
-    wine: 0.05,
-    books: 0.05,
+    food: 0.40,        // 粮食 - 基础必需品
+    cloth: 0.20,       // 布料 - 基础必需品
+    furniture: 0.15,   // 家具 - 奢侈品
+    ale: 0.10,         // 美酒 - 奢侈品
+    delicacies: 0.10,  // 珍馐 - 奢侈品
+    spice: 0.05,       // 香料 - 奢侈品
   },
   
   // 生产者篮子权重
