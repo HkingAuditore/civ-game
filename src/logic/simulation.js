@@ -7809,6 +7809,7 @@ export const simulateTick = ({
         buildingFinancialData, // NEW: Per-building realized financial stats for UI
         buildingDebugData,  // DEBUG: Building production debug data
         dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算）
+        dailyInvestment: ledger.dailyInvestment || 0, // 新增：当日投资额（建筑建造+升级）
         needsShortages: classShortages,
         needsReport,
         livingStandardStreaks: updatedLivingStandardStreaks,

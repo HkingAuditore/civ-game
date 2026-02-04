@@ -52,6 +52,9 @@ export class EconomyLedger {
 
         // 辅助函数
         this.safeWealth = helpers.safeWealth;
+        
+        // 投资统计 (用于GDP计算)
+        this.dailyInvestment = 0; // 当日总投资额（建筑建造+升级）
     }
 
     /**
@@ -201,6 +204,11 @@ export class EconomyLedger {
         // 补贴统计
         if (from === 'state' && type === TRANSACTION_CATEGORIES.INCOME.SUBSIDY) {
             this.taxBreakdown.subsidy += amount;
+        }
+        
+        // 投资统计 (建筑建造/升级成本)
+        if (to === 'void' && type === TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST) {
+            this.dailyInvestment += amount;
         }
 
         // 建筑统计 (如果有 metadata.buildingId)

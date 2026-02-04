@@ -179,22 +179,23 @@ export function calculateEquilibriumPrices({
  * 
  * @param {Object} params
  * @param {Object} params.classFinancialData - 阶层财务数据
- * @param {Object} params.buildingFinancialData - 建筑财务数据
+ * @param {number} params.dailyInvestment - 当日投资额（从ledger统计）
  * @param {number} params.dailyMilitaryExpense - 每日军费
  * @param {Array} params.officials - 官员列表
  * @param {Object} params.taxBreakdown - 税收分解
- * @param {Object} params.demandBreakdown - 需求分解（包含进出口）
+ * @param {Object} params.demandBreakdown - 需求分解
  * @param {Object} params.marketPrices - 市场价格
- * @param {number} params.previousGDP - 上期GDP（用于计算增长率）
  * @returns {Object} GDP数据
  */
 export function calculateGDP({
   classFinancialData = {},
-  buildingFinancialData = {},
+  dailyInvestment = 0,  // 新增：从ledger获取
   dailyMilitaryExpense = 0,
   officials = [],
   taxBreakdown = {},
   demandBreakdown = {},
+  marketPrices = {},
+}) {  demandBreakdown = {},
   marketPrices = {},
   previousGDP = 0,
 }) {
@@ -219,17 +220,9 @@ export function calculateGDP({
   }, 0);
   
   // 2. 投资 (Investment - I)
-  // 新建建筑成本 + 建筑升级成本
-  // 注意：当前游戏中建筑升级成本没有记录到buildingFinancialData中
-  // 因此投资数据暂时为0，这是已知限制
-  // TODO: 在simulation.js中记录建筑升级成本
-  const investment = Object.values(buildingFinancialData).reduce((sum, building) => {
-    const constructionCost = building.constructionCost || 0;
-    const upgradeCost = building.upgradeCost || 0;
-    return sum + 
-      (Number.isFinite(constructionCost) ? constructionCost : 0) +
-      (Number.isFinite(upgradeCost) ? upgradeCost : 0);
-  }, 0);
+  // 建筑建造和升级成本（从ledger统计获取）
+  // ledger会自动统计所有BUILDING_COST类型的交易
+  const investment = Number.isFinite(dailyInvestment) ? dailyInvestment : 0;
   
   // 3. 政府支出 (Government Spending - G)
   // 军队维护费 + 官员薪水 + 政府补贴

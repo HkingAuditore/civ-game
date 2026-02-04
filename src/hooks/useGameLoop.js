@@ -1724,7 +1724,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 console.group('🎯 [ECONOMIC INDICATORS DEBUG] Day ' + (current.daysElapsed || 0));
                 console.log('📊 Input Data:', {
                     classFinancialData: result.classFinancialData,
-                    buildingFinancialData: result.buildingFinancialData,
+                    dailyInvestment: result.dailyInvestment,
                     dailyMilitaryExpense: result.dailyMilitaryExpense,
                     officials: current.officials?.length,
                     taxBreakdown: result.taxes?.breakdown,
@@ -1740,7 +1740,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     // GDP数据
                     classFinancialData: result.classFinancialData,
-                    buildingFinancialData: result.buildingFinancialData,
+                    dailyInvestment: result.dailyInvestment || 0,
                     dailyMilitaryExpense: result.dailyMilitaryExpense || 0,
                     officials: current.officials,
                     taxBreakdown: result.taxes?.breakdown || {},
