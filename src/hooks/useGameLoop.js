@@ -1711,7 +1711,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 
                 // 2. 计算均衡价格（每10天）
                 let currentEquilibriumPrices = equilibriumPrices;
-                if (tick % ECONOMIC_INDICATOR_CONFIG.equilibriumPrice.updateInterval === 0) {
+                if (daysElapsed % ECONOMIC_INDICATOR_CONFIG.equilibriumPrice.updateInterval === 0) {
                     currentEquilibriumPrices = calculateEquilibriumPrices({
                         priceHistory: updatedPriceHistory,
                         basePrices: getBasePrices(),
