@@ -195,8 +195,6 @@ export function calculateGDP({
   taxBreakdown = {},
   demandBreakdown = {},
   marketPrices = {},
-}) {  demandBreakdown = {},
-  marketPrices = {},
   previousGDP = 0,
 }) {
   // 1. 消费 (Consumption - C)
