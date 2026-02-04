@@ -616,6 +616,7 @@ export const simulateTick = ({
                     productionCosts: 0,
                     wages: 0,  // 工资支出（业主支付给工人）
                     tradeExportPurchase: 0, // 贸易出口购买成本
+                    transportCost: 0, // 海外投资运输成本
                     capitalFlight: 0, // 资本外逃
                     buildingCost: 0, // 建筑建造/升级成本
                     layoffTransfer: 0 // 裁员时随人口转移的财富
@@ -741,10 +742,21 @@ export const simulateTick = ({
                 if (profit > 0) {
                     // Update wealth directly
                     wealth[stratum] = (wealth[stratum] || 0) + profit;
-                    // Log in financial data
-                    if (classFinancialData[stratum]) {
-                        classFinancialData[stratum].income.ownerRevenue = (classFinancialData[stratum].income.ownerRevenue || 0) + profit;
-                    }
+                }
+            });
+        }
+        
+        // [FIX] 记录海外投资的成本和收入到classFinancialData
+        if (oiResult.costsByStratum) {
+            Object.entries(oiResult.costsByStratum).forEach(([stratum, costs]) => {
+                if (classFinancialData[stratum]) {
+                    // 记录销售收入（outputValue）
+                    classFinancialData[stratum].income.ownerRevenue = (classFinancialData[stratum].income.ownerRevenue || 0) + costs.outputValue;
+                    // 记录各项成本
+                    classFinancialData[stratum].expense.productionCosts = (classFinancialData[stratum].expense.productionCosts || 0) + costs.inputCost;
+                    classFinancialData[stratum].expense.wages = (classFinancialData[stratum].expense.wages || 0) + costs.wageCost;
+                    classFinancialData[stratum].expense.businessTax = (classFinancialData[stratum].expense.businessTax || 0) + costs.businessTaxCost;
+                    classFinancialData[stratum].expense.transportCost = (classFinancialData[stratum].expense.transportCost || 0) + costs.transportCost;
                 }
             });
         }
@@ -4036,6 +4048,10 @@ export const simulateTick = ({
 
         // 官员产业收益结算（独立核算）
         let totalPropertyIncome = 0;
+        let totalOfficialProductionCosts = 0; // 官员建筑的生产成本
+        let totalOfficialWages = 0; // 官员建筑的工资支出
+        let totalOfficialBusinessTax = 0; // 官员建筑的营业税
+        let totalOfficialOwnerRevenue = 0; // 官员建筑的业主收入
         const actualProfitCache = {};
         const getActualProfitPerBuilding = (buildingId) => {
             if (actualProfitCache[buildingId] !== undefined) return actualProfitCache[buildingId];
@@ -4095,6 +4111,22 @@ export const simulateTick = ({
             if (perBuildingProfit !== 0) {
                 totalPropertyIncome += perBuildingProfit * count;
             }
+            
+            // [FIX] 记录官员建筑的成本和收入到财务统计
+            const finance = buildingFinancialData?.[buildingId];
+            if (finance) {
+                const totalCount = builds?.[buildingId] || 0;
+                if (totalCount > 0) {
+                    // 按比例分摊：官员拥有的建筑数量 / 总建筑数量
+                    const ownerShare = count / totalCount;
+                    totalOfficialOwnerRevenue += (finance.ownerRevenue || 0) * ownerShare;
+                    totalOfficialProductionCosts += (finance.productionCosts || 0) * ownerShare;
+                    totalOfficialBusinessTax += (finance.businessTaxPaid || 0) * ownerShare;
+                    const totalWagesPaid = Object.values(finance.wagesByRole || {})
+                        .reduce((sum, val) => sum + (Number.isFinite(val) ? val : 0), 0);
+                    totalOfficialWages += totalWagesPaid * ownerShare;
+                }
+            }
         });
         if (totalPropertyIncome !== 0) {
             currentWealth = Math.max(0, currentWealth + totalPropertyIncome);
@@ -4102,6 +4134,14 @@ export const simulateTick = ({
             if (totalPropertyIncome > 0) {
                 ledger.transfer('void', 'official', totalPropertyIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
             }
+        }
+        
+        // [FIX] 记录官员的产业成本和收入到classFinancialData
+        if (classFinancialData.official) {
+            classFinancialData.official.income.ownerRevenue = (classFinancialData.official.income.ownerRevenue || 0) + totalOfficialOwnerRevenue;
+            classFinancialData.official.expense.productionCosts = (classFinancialData.official.expense.productionCosts || 0) + totalOfficialProductionCosts;
+            classFinancialData.official.expense.wages = (classFinancialData.official.expense.wages || 0) + totalOfficialWages;
+            classFinancialData.official.expense.businessTax = (classFinancialData.official.expense.businessTax || 0) + totalOfficialBusinessTax;
         }
 
         // [DEBUG] 追踪财富变化 - 产业收益后
@@ -7810,6 +7850,7 @@ export const simulateTick = ({
         buildingDebugData,  // DEBUG: Building production debug data
         dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算）
         dailyInvestment: ledger.dailyInvestment || 0, // 新增：当日投资额（建筑建造+升级）
+        dailyOwnerRevenue: ledger.dailyOwnerRevenue || 0, // 新增：当日建筑产出收入（用于存货变动计算）
         needsShortages: classShortages,
         needsReport,
         livingStandardStreaks: updatedLivingStandardStreaks,

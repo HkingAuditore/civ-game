@@ -1020,6 +1020,9 @@ export function processOverseasInvestments({
     // 新增：投资对各国阶层经济的影响
     // 结构：{ nationId: { totalWages, profitsExtracted, localReinvestment } }
     const nationInvestmentEffects = {};
+    
+    // [FIX] 新增：按阶层累计海外投资的成本和收入数据
+    const costsByStratum = {}; // { stratum: { outputValue, inputCost, wageCost, businessTaxCost, transportCost } }
 
     overseasInvestments.forEach(investment => {
         if (investment.status !== 'operating') {
@@ -1221,6 +1224,23 @@ export function processOverseasInvestments({
         totalTariffSubsidy += scaledTariffSubsidy;
         profitByStratum[investment.ownerStratum] =
             (profitByStratum[investment.ownerStratum] || 0) + repatriatedProfit;
+        
+        // [FIX] 累加各阶层的成本和收入数据
+        const stratum = investment.ownerStratum;
+        if (!costsByStratum[stratum]) {
+            costsByStratum[stratum] = {
+                outputValue: 0,
+                inputCost: 0,
+                wageCost: 0,
+                businessTaxCost: 0,
+                transportCost: 0,
+            };
+        }
+        costsByStratum[stratum].outputValue += scaledOutput;
+        costsByStratum[stratum].inputCost += scaledInput;
+        costsByStratum[stratum].wageCost += scaledWage;
+        costsByStratum[stratum].businessTaxCost += scaledBusinessTax;
+        costsByStratum[stratum].transportCost += scaledTransport;
 
         // 新增：累计投资对附庸国阶层经济的影响
         // 投资创造工资（流入当地底层和平民）和抽取利润（流出当地）
@@ -1274,6 +1294,7 @@ export function processOverseasInvestments({
         tariffRevenue: totalTariffRevenue,
         tariffSubsidy: totalTariffSubsidy,
         profitByStratum,
+        costsByStratum, // [FIX] 新增：各阶层的成本和收入数据
         logs,
         marketChanges,
         playerInventoryChanges,

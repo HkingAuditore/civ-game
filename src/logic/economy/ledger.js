@@ -55,6 +55,7 @@ export class EconomyLedger {
         
         // 投资统计 (用于GDP计算)
         this.dailyInvestment = 0; // 当日总投资额（建筑建造+升级）
+        this.dailyOwnerRevenue = 0; // 当日建筑产出收入（用于存货变动计算）
     }
 
     /**
@@ -169,6 +170,16 @@ export class EconomyLedger {
                 expense[type][resKey].cost += amount;
                 expense[type][resKey].quantity += (meta.quantity || 0);
                 expense[type][resKey].price = meta.price || 0;
+            } else if (type === TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT) {
+                // [FIX] 贸易出口购买成本：记录到 tradeExportPurchase
+                if (expense.tradeExportPurchase !== undefined) {
+                    expense.tradeExportPurchase += amount;
+                }
+            } else if (type === TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT) {
+                // [FIX] 贸易进口购买成本：记录到 productionCosts（商人购买进口货物的成本）
+                if (expense.productionCosts !== undefined) {
+                    expense.productionCosts += amount;
+                }
             } else {
                 // 其他类：直接累加数值
                 if (expense[type] !== undefined) {
@@ -209,6 +220,11 @@ export class EconomyLedger {
         // 投资统计 (建筑建造/升级成本)
         if (to === 'void' && type === TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST) {
             this.dailyInvestment += amount;
+        }
+        
+        // 建筑产出收入统计 (用于存货变动计算)
+        if (from === 'void' && type === TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE) {
+            this.dailyOwnerRevenue += amount;
         }
 
         // 建筑统计 (如果有 metadata.buildingId)

@@ -187,6 +187,7 @@ export function calculateEquilibriumPrices({
  * @param {Object} params
  * @param {Object} params.classFinancialData - 阶层财务数据
  * @param {number} params.dailyInvestment - 当日投资额（从ledger统计）
+ * @param {number} params.dailyOwnerRevenue - 当日建筑产出收入（从ledger统计，用于存货变动）
  * @param {number} params.dailyMilitaryExpense - 每日军费
  * @param {Array} params.officials - 官员列表
  * @param {Object} params.taxBreakdown - 税收分解
@@ -198,6 +199,7 @@ export function calculateEquilibriumPrices({
 export function calculateGDP({
   classFinancialData = {},
   dailyInvestment = 0,  // 新增：从ledger获取
+  dailyOwnerRevenue = 0,  // 新增：建筑产出收入（用于存货变动）
   dailyMilitaryExpense = 0,
   officials = [],
   taxBreakdown = {},
@@ -227,10 +229,13 @@ export function calculateGDP({
   }, 0);
   
   // 2. 投资 (Investment - I)
-  // 建筑建造和升级成本（从ledger统计获取）
-  // ledger会自动统计所有BUILDING_COST类型的交易
-  const investment = Number.isFinite(dailyInvestment) ? dailyInvestment : 0;
-  
+  // 投资 = 固定资产投资 + 存货变动
+  // - 固定资产投资：建筑建造和升级成本（从ledger统计）
+  // - 存货变动：建筑产出收入 - 居民消费
+  //   （建筑生产的产品进入市场，如果没被消费，就是存货增加）
+  const fixedInvestment = Number.isFinite(dailyInvestment) ? dailyInvestment : 0;
+  const inventoryChange = (Number.isFinite(dailyOwnerRevenue) ? dailyOwnerRevenue : 0) - consumption;
+  const investment = fixedInvestment + inventoryChange;  
   // 3. 政府支出 (Government Spending - G)
   // 军队维护费 + 官员薪水 + 政府补贴
   const militaryExpense = Number.isFinite(dailyMilitaryExpense) ? dailyMilitaryExpense : 0;
@@ -307,6 +312,8 @@ export function calculateGDP({
     breakdown: {
       consumption,
       investment,
+      fixedInvestment,      // 固定资产投资
+      inventoryChange,      // 存货变动
       government,
       netExports,
       exports,

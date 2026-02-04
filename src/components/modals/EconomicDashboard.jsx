@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, TrendingUp, TrendingDown, DollarSign, Activity, PieChart, BarChart3, Globe } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, DollarSign, Activity, PieChart, BarChart3, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import { RESOURCES } from '../../config/gameConstants';
 import { STRATA } from '../../config/strata';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import { SimpleLineChart } from '../common/SimpleLineChart';
 
 /**
  * 经济数据看板 - 专业的国家经济数据展示面板
@@ -11,7 +12,9 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
 const LABEL_MAP = {
   // 收入项
   wage: '工资',
+  wages: '工资支出',
   ownerRevenue: '所有者收入',
+  tradeImportRevenue: '进口销售收入',
   subsidy: '补贴',
   profit: '利润',
   rent: '租金',
@@ -19,14 +22,21 @@ const LABEL_MAP = {
   salary: '薪水',
   
   // 支出项
+  headTax: '人头税',
   transactionTax: '交易税',
   businessTax: '营业税',
+  tariffs: '关税',
   essentialNeeds: '必需品消费',
   luxuryNeeds: '奢侈品消费',
-  decay: '资产折旧',
+  decay: '富裕性挥霍',
   productionCosts: '生产成本',
   investmentCosts: '投资成本',
   maintenanceCosts: '维护成本',
+  buildingCost: '建筑投资',
+  tradeExportPurchase: '出口采购',
+  transportCost: '运输成本',
+  capitalFlight: '资本外流',
+  layoffTransferOut: '裁员转移',
 };
 
 export const EconomicDashboard = ({ 
@@ -41,6 +51,8 @@ export const EconomicDashboard = ({
   dailyTreasuryIncome,
 }) => {
   const [activeTab, setActiveTab] = useState('overview'); // overview, gdp, prices, trade, classes
+  const [isCPIExpanded, setIsCPIExpanded] = useState(false);
+  const [isPPIExpanded, setIsPPIExpanded] = useState(false);
 
   // 🎯 调试日志：当面板打开时输出所有数据
   React.useEffect(() => {
@@ -115,7 +127,6 @@ export const EconomicDashboard = ({
             </div>
             <div>
               <h2 className="text-xl font-bold text-blue-100">国家经济数据看板</h2>
-              <p className="text-xs text-gray-400">Economic Dashboard</p>
             </div>
           </div>
           <button
@@ -158,7 +169,7 @@ export const EconomicDashboard = ({
             <div className="space-y-6">
               
               {/* 核心指标卡片 */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 {/* GDP卡片 */}
                 <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl border border-blue-500/30 p-4">
@@ -272,12 +283,12 @@ export const EconomicDashboard = ({
               </div>
 
               {/* GDP构成饼图区域 */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 
                 {/* GDP构成 */}
                 <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
                   <h3 className="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wide">
-                    GDP构成分析 (支出法)
+                    GDP构成分析
                   </h3>
                   <div className="space-y-3">
                     {[
@@ -298,7 +309,7 @@ export const EconomicDashboard = ({
                           />
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          {item.percent.toFixed(1)}% of GDP
+                          {item.percent.toFixed(1)}%
                         </div>
                       </div>
                     ))}
@@ -368,7 +379,7 @@ export const EconomicDashboard = ({
                 <h3 className="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wide">
                   经济健康度评估
                 </h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   
                   {/* 增长指标 */}
                   <div className="text-center">
@@ -425,7 +436,7 @@ export const EconomicDashboard = ({
               {/* GDP总览 */}
               <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
                 <h3 className="text-lg font-semibold text-blue-300 mb-4">GDP总量与增长</h3>
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <div className="text-sm text-gray-400 mb-2">当前GDP (日)</div>
                     <div className="text-4xl font-bold text-blue-100 mb-1">{formatAmount(gdp.total)}</div>
@@ -434,16 +445,20 @@ export const EconomicDashboard = ({
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-400 mb-2">预估年GDP</div>
-                    <div className="text-4xl font-bold text-purple-100">{formatAmount(gdp.total * 365)}</div>
-                    <div className="text-sm text-gray-400 mt-2">基于当前日GDP × 365天</div>
+                    <div className="text-sm text-gray-400 mb-2">GDP历史趋势</div>
+                    <SimpleLineChart
+                      data={history?.gdp || []}
+                      color="#60a5fa"
+                      label="日GDP"
+                      height={100}
+                    />
                   </div>
                 </div>
               </div>
 
               {/* GDP构成详细分析 */}
               <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
-                <h3 className="text-lg font-semibold text-blue-300 mb-4">GDP构成详细分析 (支出法)</h3>
+                <h3 className="text-lg font-semibold text-blue-300 mb-4">GDP构成详细分析</h3>
                 <div className="space-y-6">
                   
                   {/* 消费 (C) */}
@@ -451,11 +466,11 @@ export const EconomicDashboard = ({
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="text-base font-medium text-blue-200">消费 (Consumption)</span>
+                        <span className="text-base font-medium text-blue-200">消费</span>
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-blue-100">{formatAmount(gdp.consumption)}</div>
-                        <div className="text-sm text-gray-400">{((gdp.consumption / gdp.total) * 100).toFixed(1)}% of GDP</div>
+                        <div className="text-sm text-gray-400">{((gdp.consumption / gdp.total) * 100).toFixed(1)}%</div>
                       </div>
                     </div>
                     <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
@@ -471,18 +486,18 @@ export const EconomicDashboard = ({
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="text-base font-medium text-green-200">投资 (Investment)</span>
+                        <span className="text-base font-medium text-green-200">投资</span>
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-green-100">{formatAmount(gdp.investment)}</div>
-                        <div className="text-sm text-gray-400">{((gdp.investment / gdp.total) * 100).toFixed(1)}% of GDP</div>
+                        <div className="text-sm text-gray-400">{((gdp.investment / gdp.total) * 100).toFixed(1)}%</div>
                       </div>
                     </div>
                     <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
                       <div className="h-full bg-green-500" style={{ width: `${(gdp.investment / gdp.total) * 100}%` }}></div>
                     </div>
                     <div className="mt-2 text-sm text-gray-400">
-                      包括：建筑建造成本 + 建筑升级成本
+                      包括：建筑建造成本 + 建筑升级成本 + 库存变化
                     </div>
                   </div>
 
@@ -491,11 +506,11 @@ export const EconomicDashboard = ({
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                        <span className="text-base font-medium text-yellow-200">政府支出 (Government)</span>
+                        <span className="text-base font-medium text-yellow-200">政府支出</span>
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-yellow-100">{formatAmount(gdp.government)}</div>
-                        <div className="text-sm text-gray-400">{((gdp.government / gdp.total) * 100).toFixed(1)}% of GDP</div>
+                        <div className="text-sm text-gray-400">{((gdp.government / gdp.total) * 100).toFixed(1)}%</div>
                       </div>
                     </div>
                     <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
@@ -511,13 +526,13 @@ export const EconomicDashboard = ({
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                        <span className="text-base font-medium text-purple-200">净出口 (Net Exports)</span>
+                        <span className="text-base font-medium text-purple-200">净出口</span>
                       </div>
                       <div className="text-right">
                         <div className={`text-2xl font-bold ${gdp.netExports >= 0 ? 'text-green-100' : 'text-red-100'}`}>
                           {gdp.netExports >= 0 ? '+' : ''}{formatAmount(gdp.netExports)}
                         </div>
-                        <div className="text-sm text-gray-400">{((gdp.netExports / gdp.total) * 100).toFixed(1)}% of GDP</div>
+                        <div className="text-sm text-gray-400">{((gdp.netExports / gdp.total) * 100).toFixed(1)}%</div>
                       </div>
                     </div>
                     <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
@@ -534,31 +549,6 @@ export const EconomicDashboard = ({
                 </div>
               </div>
 
-              {/* GDP公式说明 */}
-              <div className="bg-blue-900/20 rounded-xl border border-blue-500/30 p-5">
-                <h3 className="text-sm font-semibold text-blue-300 mb-3">📚 GDP计算公式 (支出法)</h3>
-                <div className="text-center text-2xl font-mono text-blue-100 mb-3">
-                  GDP = C + I + G + NX
-                </div>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="text-blue-300 font-medium mb-1">C</div>
-                    <div className="text-gray-400">消费</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-green-300 font-medium mb-1">I</div>
-                    <div className="text-gray-400">投资</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-yellow-300 font-medium mb-1">G</div>
-                    <div className="text-gray-400">政府支出</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-purple-300 font-medium mb-1">NX</div>
-                    <div className="text-gray-400">净出口</div>
-                  </div>
-                </div>
-              </div>
 
             </div>
           )}
@@ -575,7 +565,7 @@ export const EconomicDashboard = ({
                     基于各阶层实际消费数据动态计算，反映不同阶层的生活成本变化
                   </div>
                   
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* 综合CPI */}
                     <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 rounded-lg border border-orange-500/30 p-4">
                       <div className="text-xs text-orange-300 mb-1">综合CPI</div>
@@ -647,88 +637,152 @@ export const EconomicDashboard = ({
               
               {/* CPI详细分解 */}
               <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
-                <h3 className="text-lg font-semibold text-orange-300 mb-4">消费者物价指数 (CPI) 详细分解</h3>
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-400">综合指数</span>
-                    <span className="text-3xl font-bold text-orange-100">{cpi.index.toFixed(2)}</span>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-orange-300">消费者物价指数 (CPI) 详细分解</h3>
+                  <button
+                    onClick={() => setIsCPIExpanded(!isCPIExpanded)}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors text-gray-300 text-sm"
+                  >
+                    {isCPIExpanded ? (
+                      <>
+                        <ChevronUp size={16} />
+                        <span>收起</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={16} />
+                        <span>展开</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">综合指数</span>
+                      <span className="text-3xl font-bold text-orange-100">{cpi.index.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-400">变化率</span>
+                      <span className={`text-xl font-medium ${cpi.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {formatPercent(cpi.change)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-400">变化率</span>
-                    <span className={`text-xl font-medium ${cpi.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                      {formatPercent(cpi.change)}
-                    </span>
+                  <div>
+                    <div className="text-sm text-gray-400 mb-2">CPI历史趋势</div>
+                    <SimpleLineChart
+                      data={history?.cpi || []}
+                      color="#fb923c"
+                      label="CPI指数"
+                      height={100}
+                    />
                   </div>
                 </div>
                 
-                <div className="space-y-3 mt-6">
-                  {Object.entries(cpi.breakdown || {}).map(([resource, data]) => (
-                    <div key={resource} className="bg-gray-800/50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-200">{getResourceName(resource)}</span>
-                          <span className="text-xs text-gray-500">权重: {(data.weight * 100).toFixed(0)}%</span>
+                {isCPIExpanded && (
+                  <div className="space-y-3 mt-6">
+                    {Object.entries(cpi.breakdown || {}).map(([resource, data]) => (
+                      <div key={resource} className="bg-gray-800/50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-200">{getResourceName(resource)}</span>
+                            <span className="text-xs text-gray-500">权重: {(data.weight * 100).toFixed(0)}%</span>
+                          </div>
+                          <span className="text-sm font-bold text-orange-200">{data.currentPrice?.toFixed(2) || '0.00'}</span>
                         </div>
-                        <span className="text-sm font-bold text-orange-200">{data.currentPrice?.toFixed(2) || '0.00'}</span>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">基准价: {data.basePrice?.toFixed(2) || '0.00'}</span>
+                          <span className={`font-medium ${data.priceChange >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                            {data.priceChange >= 0 ? '+' : ''}{data.priceChange?.toFixed(1) || '0.0'}%
+                          </span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500">
+                          对CPI贡献: {data.contribution >= 0 ? '+' : ''}{data.contribution?.toFixed(2) || '0.00'}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-400">基准价: {data.basePrice?.toFixed(2) || '0.00'}</span>
-                        <span className={`font-medium ${data.priceChange >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                          {data.priceChange >= 0 ? '+' : ''}{data.priceChange?.toFixed(1) || '0.0'}%
-                        </span>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        对CPI贡献: {data.contribution >= 0 ? '+' : ''}{data.contribution?.toFixed(2) || '0.00'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* PPI详细分解 */}
               <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
-                <h3 className="text-lg font-semibold text-purple-300 mb-4">生产者物价指数 (PPI) 详细分解</h3>
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-400">综合指数</span>
-                    <span className="text-3xl font-bold text-purple-100">{ppi.index.toFixed(2)}</span>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-purple-300">生产者物价指数 (PPI) 详细分解</h3>
+                  <button
+                    onClick={() => setIsPPIExpanded(!isPPIExpanded)}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors text-gray-300 text-sm"
+                  >
+                    {isPPIExpanded ? (
+                      <>
+                        <ChevronUp size={16} />
+                        <span>收起</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={16} />
+                        <span>展开</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">综合指数</span>
+                      <span className="text-3xl font-bold text-purple-100">{ppi.index.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-400">变化率</span>
+                      <span className={`text-xl font-medium ${ppi.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {formatPercent(ppi.change)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-400">变化率</span>
-                    <span className={`text-xl font-medium ${ppi.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                      {formatPercent(ppi.change)}
-                    </span>
+                  <div>
+                    <div className="text-sm text-gray-400 mb-2">PPI历史趋势</div>
+                    <SimpleLineChart
+                      data={history?.ppi || []}
+                      color="#c084fc"
+                      label="PPI指数"
+                      height={100}
+                    />
                   </div>
                 </div>
                 
-                <div className="space-y-3 mt-6">
-                  {Object.entries(ppi.breakdown || {}).map(([resource, data]) => (
-                    <div key={resource} className="bg-gray-800/50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-200">{getResourceName(resource)}</span>
-                          <span className="text-xs text-gray-500">权重: {(data.weight * 100).toFixed(0)}%</span>
+                {isPPIExpanded && (
+                  <div className="space-y-3 mt-6">
+                    {Object.entries(ppi.breakdown || {}).map(([resource, data]) => (
+                      <div key={resource} className="bg-gray-800/50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-200">{getResourceName(resource)}</span>
+                            <span className="text-xs text-gray-500">权重: {(data.weight * 100).toFixed(0)}%</span>
+                          </div>
+                          <span className="text-sm font-bold text-purple-200">{data.currentPrice?.toFixed(2) || '0.00'}</span>
                         </div>
-                        <span className="text-sm font-bold text-purple-200">{data.currentPrice?.toFixed(2) || '0.00'}</span>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">基准价: {data.basePrice?.toFixed(2) || '0.00'}</span>
+                          <span className={`font-medium ${data.priceChange >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                            {data.priceChange >= 0 ? '+' : ''}{data.priceChange?.toFixed(1) || '0.0'}%
+                          </span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500">
+                          对PPI贡献: {data.contribution >= 0 ? '+' : ''}{data.contribution?.toFixed(2) || '0.00'}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-400">基准价: {data.basePrice?.toFixed(2) || '0.00'}</span>
-                        <span className={`font-medium ${data.priceChange >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                          {data.priceChange >= 0 ? '+' : ''}{data.priceChange?.toFixed(1) || '0.0'}%
-                        </span>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        对PPI贡献: {data.contribution >= 0 ? '+' : ''}{data.contribution?.toFixed(2) || '0.00'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 价格传导分析 */}
               <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
                 <h3 className="text-lg font-semibold text-blue-300 mb-4">价格传导分析</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-orange-900/20 rounded-lg p-4 border border-orange-500/30">
                     <div className="text-sm text-orange-300 mb-2">CPI变化</div>
                     <div className="text-3xl font-bold text-orange-100">{formatPercent(cpi.change)}</div>
@@ -762,16 +816,14 @@ export const EconomicDashboard = ({
             <div className="space-y-6">
               
               {/* 贸易总览 */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 rounded-xl border border-green-500/30 p-5">
                   <div className="text-sm text-green-300 mb-2">出口总额</div>
                   <div className="text-3xl font-bold text-green-100">{formatAmount(gdp.breakdown?.exports || 0)}</div>
-                  <div className="text-xs text-gray-400 mt-2">Export Value</div>
                 </div>
                 <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 rounded-xl border border-red-500/30 p-5">
                   <div className="text-sm text-red-300 mb-2">进口总额</div>
                   <div className="text-3xl font-bold text-red-100">{formatAmount(gdp.breakdown?.imports || 0)}</div>
-                  <div className="text-xs text-gray-400 mt-2">Import Value</div>
                 </div>
                 <div className={`bg-gradient-to-br rounded-xl border p-5 ${
                   gdp.netExports >= 0 
@@ -830,7 +882,7 @@ export const EconomicDashboard = ({
                     {gdp.netExports > gdp.total * 0.05 ? (
                       <span>✓ 贸易顺差健康，出口竞争力强</span>
                     ) : gdp.netExports < -gdp.total * 0.05 ? (
-                      <span>⚠️ 贸易逆差较大，需关注外汇储备</span>
+                      <span>⚠️ 贸易逆差较大</span>
                     ) : (
                       <span>✓ 贸易基本平衡</span>
                     )}
@@ -888,7 +940,7 @@ export const EconomicDashboard = ({
                           </span>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                           <div>
                             <div className="text-xs text-gray-400 mb-1">总收入</div>
                             <div className="text-sm font-medium text-green-300">{formatAmount(totalIncome)}</div>

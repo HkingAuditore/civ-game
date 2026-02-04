@@ -1742,6 +1742,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // GDP数据
                     classFinancialData: result.classFinancialData,
                     dailyInvestment: result.dailyInvestment || 0,
+                    dailyOwnerRevenue: result.dailyOwnerRevenue || 0, // 新增：建筑产出收入
                     dailyMilitaryExpense: result.dailyMilitaryExpense || 0,
                     officials: current.officials,
                     taxBreakdown: result.taxes?.breakdown || {},
