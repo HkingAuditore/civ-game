@@ -1,9 +1,50 @@
 # civ-game 当前上下文
 
 ## 当前状态
-- **阶段**: 经济指标系统开发 - Phase 1-3 完成 ✅
+- **阶段**: 经济指标系统开发 - Phase 1-4 完成 ✅
 
 ## 最新进展 (2026-02-04)
+
+### ✅ 已完成：经济面板UI优化 (2026-02-04 19:30)
+
+#### 优化内容
+1. **移除预估年GDP** ❌
+   - 移除了"预估年GDP"（`gdp.total * 365`）的显示
+   - 改为显示GDP历史趋势折线图
+
+2. **添加历史趋势折线图** ✅
+   - GDP历史趋势：蓝色曲线（`#60a5fa`）
+   - CPI历史趋势：橙色曲线（`#fb923c`）
+   - PPI历史趋势：紫色曲线（`#c084fc`）
+   - 使用 `SimpleLineChart` 组件，高度100px
+   - 显示最大值、最小值、当前值
+
+3. **修复移动端排版问题** 📱
+   - 核心指标卡片：`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`
+   - GDP构成区域：`grid-cols-1 lg:grid-cols-2`
+   - 经济健康度评估：`grid-cols-1 sm:grid-cols-3`
+   - GDP计算公式：`grid-cols-2 sm:grid-cols-4`
+   - 分层CPI：`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`
+   - 价格传导分析：`grid-cols-1 lg:grid-cols-2`
+   - 贸易总览：`grid-cols-1 sm:grid-cols-3`
+   - 阶层经济收入支出：`grid-cols-1 sm:grid-cols-2`
+
+#### 修改文件
+- `src/components/modals/EconomicDashboard.jsx`
+  - 导入 `SimpleLineChart` 组件
+  - 修改GDP总览布局（第437-457行）
+  - 修改CPI详细分解布局（第683-707行）
+  - 修改PPI详细分解布局（第755-779行）
+  - 修复8处网格布局的响应式类
+
+#### 技术细节
+- 历史数据来源：`history.gdp`、`history.cpi`、`history.ppi`
+- 数据记录：在 `useGameLoop.js` 中每5个tick更新一次
+- 数据保留：最多100个数据点
+- 响应式断点：
+  - 移动端（默认）：单列布局
+  - 小屏幕（640px+）：2-3列布局
+  - 大屏幕（1024px+）：4列布局
 
 ### ✅ 已完成：经济指标系统 Phase 1-3
 
