@@ -17,6 +17,20 @@ export const EconomicDashboard = ({
 }) => {
   const [activeTab, setActiveTab] = useState('overview'); // overview, gdp, prices, trade, classes
 
+  // 🎯 调试日志：当面板打开时输出所有数据
+  React.useEffect(() => {
+    if (isOpen) {
+      console.group('💰 [ECONOMIC DASHBOARD OPENED]');
+      console.log('📊 Economic Indicators:', economicIndicators);
+      console.log('💵 Treasury:', treasury);
+      console.log('📈 Daily Income:', dailyTreasuryIncome);
+      console.log('🏷️ Market Prices:', marketPrices);
+      console.log('⚖️ Equilibrium Prices:', equilibriumPrices);
+      console.log('👥 Class Financial Data:', classFinancialData);
+      console.groupEnd();
+    }
+  }, [isOpen, economicIndicators, treasury, dailyTreasuryIncome, marketPrices, equilibriumPrices, classFinancialData]);
+
   if (!isOpen) return null;
 
   // 安全获取数据

@@ -5099,9 +5099,9 @@ export const simulateTick = ({
     const aiTargetIds = new Set(aiTargets.map(n => n?.id));
 
     // [DEBUG] Log input nations array
-    (nations || []).forEach(n => {
-        console.log(`[Input Nations] ${n.name}: pop=${n.population}, wealth=${n.wealth}, ownBasePop=${n.economyTraits?.ownBasePopulation}, vassalOf=${n.vassalOf}`);
-    });
+    // (nations || []).forEach(n => {
+    //     console.log(`[Input Nations] ${n.name}: pop=${n.population}, wealth=${n.wealth}, ownBasePop=${n.economyTraits?.ownBasePopulation}, vassalOf=${n.vassalOf}`);
+    // });
 
     let updatedNations = (nations || []).map(nation => {
         const next = { ...nation };
@@ -5338,7 +5338,7 @@ export const simulateTick = ({
         if (!isExpiredNation && !next.isRebelNation && !isVassal) {
             // Migrate nation data if needed (automatic, transparent)
             const migratedNation = migrateNationEconomy(next);
-            
+
             // Use unified economy service (handles growth, resources, budget)
             const updatedNation = AIEconomyService.update({
                 nation: migratedNation,
@@ -5348,10 +5348,10 @@ export const simulateTick = ({
                 playerPopulation: playerPopulationBaseline,
                 gameSpeed,
             });
-            
+
             // Apply updates to next
             Object.assign(next, updatedNation);
-            
+
             // Check for epoch progression
             checkAIEpochProgression(next, logs, tick);
         }
@@ -5659,16 +5659,16 @@ export const simulateTick = ({
     // Apply growth to sliced vassals FIRST
     updatedNations = updatedNations.map(nation => {
         if (nation.vassalOf !== 'player' || !vassalTargetIds.includes(nation.id)) return nation;
-        
+
         // [DEBUG] Log vassal growth processing
         const beforePop = nation.population;
         const beforeWealth = nation.wealth;
         const hasEconomyTraits = !!nation.economyTraits;
         const lastGrowthTick = nation.economyTraits?.lastGrowthTick;
-        
+
         // Migrate nation data if needed (automatic, transparent)
         const migratedNation = migrateNationEconomy(nation);
-        
+
         // Use unified economy service (handles growth, resources, budget)
         const resultNation = AIEconomyService.update({
             nation: migratedNation,
@@ -5678,22 +5678,22 @@ export const simulateTick = ({
             playerPopulation: playerPopulationBaseline,
             gameSpeed,
         });
-        
+
         // [DEBUG] Log growth results
         const afterPop = resultNation.population;
         const afterWealth = resultNation.wealth;
         const ticksSinceGrowth = tick - (lastGrowthTick || 0);
-        
+
         if (beforePop !== afterPop || beforeWealth !== afterWealth) {
             console.log(`[Vassal Growth] ${resultNation.name}: pop ${beforePop}→${afterPop}, wealth ${beforeWealth}→${afterWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
         } else if (tick % 100 === 0) {
             // Log every 100 ticks even if no growth
             console.log(`[Vassal No Growth] ${resultNation.name}: pop=${beforePop}, wealth=${beforeWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
         }
-        
+
         // [DEBUG] Log the returned nation object
-        console.log(`[Vassal After Growth Return] ${resultNation.name}: pop=${resultNation.population}, wealth=${resultNation.wealth}`);
-        
+        // console.log(`[Vassal After Growth Return] ${resultNation.name}: pop=${resultNation.population}, wealth=${resultNation.wealth}`);
+
         return resultNation;
     });
 
@@ -5702,18 +5702,18 @@ export const simulateTick = ({
     // [FIX] DO NOT call initializeNationEconomyData as it creates a new object and loses growth values
     updatedNations = updatedNations.map(nation => {
         if (nation.vassalOf !== 'player' || !vassalTargetIds.includes(nation.id)) return nation;
-        
+
         // [DEBUG] Log input values before updateNationEconomyData
-        console.log(`[Before EconomyData] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
-        
+        // console.log(`[Before EconomyData] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
+
         // [FIX] Directly call updateNationEconomyData without initialization to preserve growth values
         const result = updateNationEconomyData(nation, vassalMarketPrices, satisfactionContext);
-        
-        // [DEBUG] Log population after updateNationEconomyData
-        if (tick % 10 === 0 && nation.name) {
-            console.log(`[After EconomyData] ${nation.name}: pop ${nation.population}→${result.population}`);
-        }
-        
+
+        // // [DEBUG] Log population after updateNationEconomyData
+        // if (tick % 10 === 0 && nation.name) {
+        //     console.log(`[After EconomyData] ${nation.name}: pop ${nation.population}→${result.population}`);
+        // }
+
         return result;
     });
 
@@ -5726,7 +5726,7 @@ export const simulateTick = ({
             }
         });
     }
-    
+
     const vassalResult = processVassalUpdates({
         nations: updatedNations,
         updateIds: vassalTargetIds,
@@ -5741,7 +5741,7 @@ export const simulateTick = ({
         difficultyLevel: difficulty,
         logs,
     });
-    
+
     // [DEBUG] Log vassal state before and after processVassalUpdates
     if (tick % 10 === 0) {
         vassalTargetIds.forEach(vassalId => {
@@ -5752,9 +5752,9 @@ export const simulateTick = ({
             }
         });
     }
-    
+
     updatedNations = vassalResult.nations;
-    
+
     // [DEBUG] Verify vassal data after assignment
     if (tick % 10 === 0) {
         vassalTargetIds.forEach(vassalId => {
@@ -7720,10 +7720,10 @@ export const simulateTick = ({
     // Calculate diplomatic reputation with policy effects
     // Reputation changes based on: natural recovery + vassal policies + treaties
     let updatedDiplomaticReputation = diplomaticReputation;
-    
+
     // Get player's vassals
     const playerVassals = updatedNations.filter(n => n.vassalOf === 'player' && n.vassalPolicy);
-    
+
     // Calculate vassal policy reputation change (applied daily but scaled down)
     if (playerVassals.length > 0) {
         const vassalEffect = calculateVassalPolicyReputationChange(playerVassals);
@@ -7731,26 +7731,26 @@ export const simulateTick = ({
         const dailyVassalEffect = vassalEffect.change / 30;
         updatedDiplomaticReputation += dailyVassalEffect;
     }
-    
+
     // Get active peaceful treaties for reputation bonus
     const peacefulTreatyCount = updatedNations.reduce((count, nation) => {
         if (!nation.treaties || !Array.isArray(nation.treaties)) return count;
-        const peacefulTreaties = nation.treaties.filter(t => 
+        const peacefulTreaties = nation.treaties.filter(t =>
             (t.type === 'peace' || t.type === 'non_aggression' || t.type === 'mutual_defense') &&
             (!Number.isFinite(t.endDay) || tick < t.endDay)
         );
         return count + peacefulTreaties.length;
     }, 0);
-    
+
     // Apply treaty reputation bonus (scaled daily)
     if (peacefulTreatyCount > 0) {
         const monthlyTreatyBonus = Math.min(peacefulTreatyCount * 0.1, 0.5);
         updatedDiplomaticReputation += monthlyTreatyBonus / 30;
     }
-    
+
     // Apply natural recovery (towards 50)
     updatedDiplomaticReputation = calculateNaturalRecovery(updatedDiplomaticReputation);
-    
+
     // Clamp to valid range
     updatedDiplomaticReputation = Math.max(0, Math.min(100, updatedDiplomaticReputation));
 
@@ -7911,7 +7911,7 @@ export const simulateTick = ({
             silverChangeLog: (() => {
                 const logArray = silverChangeLog.toArray();
                 const hasMilitary = logArray.some(e => e.reason === 'expense_army_maintenance');
-                console.log('[Simulation End] silverChangeLog has military?', hasMilitary, 'Entries:', logArray.length);
+                // console.log('[Simulation End] silverChangeLog has military?', hasMilitary, 'Entries:', logArray.length);
                 return logArray;
             })(),
             classWealthChangeLog, // 阶层财富变化追踪日志

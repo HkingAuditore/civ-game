@@ -247,13 +247,12 @@ export function calculateGDP({
   // 而不是 {exports: {food: 100}, imports: {food: 50}}
   
   // [DEBUG] 输出demandBreakdown结构
-  console.log('[GDP Debug] demandBreakdown structure:', {
-    keys: Object.keys(demandBreakdown || {}),
-    sample: Object.entries(demandBreakdown || {}).slice(0, 3).map(([k, v]) => ({
-      resource: k,
-      data: v,
-    })),
-  });
+  console.group('🌍 [NET EXPORTS DEBUG]');
+  console.log('📦 demandBreakdown keys:', Object.keys(demandBreakdown || {}));
+  console.log('📦 demandBreakdown sample:', Object.entries(demandBreakdown || {}).slice(0, 3).map(([k, v]) => ({
+    resource: k,
+    data: v,
+  })));
   
   let exports = 0;
   let imports = 0;
@@ -300,6 +299,9 @@ export function calculateGDP({
   }
   
   const netExports = exports - imports;
+  
+  console.log('✅ Net Exports Result:', { exports, imports, netExports });
+  console.groupEnd();
   
   // GDP总计
   const total = consumption + investment + government + netExports;

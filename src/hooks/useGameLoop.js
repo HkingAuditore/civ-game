@@ -1708,7 +1708,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     maxLength: ECONOMIC_INDICATOR_CONFIG.priceHistory.maxLength,
                 });
                 setPriceHistory(updatedPriceHistory);
-                
+
                 // 2. 计算均衡价格（每10天）
                 let currentEquilibriumPrices = equilibriumPrices;
                 if (daysElapsed % ECONOMIC_INDICATOR_CONFIG.equilibriumPrice.updateInterval === 0) {
@@ -1719,9 +1719,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                     setEquilibriumPrices(currentEquilibriumPrices);
                 }
-                
+
                 // 3. 计算所有经济指标（每天）
-                console.log('[Economic Debug] Calculating indicators with data:', {
+                console.group('🎯 [ECONOMIC INDICATORS DEBUG] Day ' + (current.daysElapsed || 0));
+                console.log('📊 Input Data:', {
                     classFinancialData: result.classFinancialData,
                     buildingFinancialData: result.buildingFinancialData,
                     dailyMilitaryExpense: result.dailyMilitaryExpense,
@@ -1730,13 +1731,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     demandBreakdown: market.demandBreakdown,
                     marketPrices: market.prices,
                 });
-                
+
                 const indicators = calculateAllIndicators({
                     // 价格数据
                     priceHistory: updatedPriceHistory,
                     equilibriumPrices: currentEquilibriumPrices,
                     marketPrices: market.prices,
-                    
+
                     // GDP数据
                     classFinancialData: result.classFinancialData,
                     buildingFinancialData: result.buildingFinancialData,
@@ -1744,12 +1745,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     officials: current.officials,
                     taxBreakdown: result.taxes?.breakdown || {},
                     demandBreakdown: market.demandBreakdown || {},
-                    
+
                     // 历史数据
                     previousIndicators: economicIndicators,
                 });
-                
-                console.log('[Economic Debug] Calculated indicators:', indicators);
+
+                console.log('✅ Calculated Indicators:', indicators);
+                console.groupEnd();
                 setEconomicIndicators(indicators);
 
                 const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
@@ -1801,17 +1803,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // [NEW] 不再采样，而是按优先级排序后，每个 tick 处理 2 个国家
                 // 这样可以在多个 tick 中覆盖所有符合条件的国家
                 const effectiveDaysElapsed = current.daysElapsed || 0;
-                
+
                 // [NEW] 检查是否应该开始新的投资周期（每10天）
                 // [FIX] 改为基于上次处理时间的相对触发，避免在游戏中途加载时无法触发
                 const lastOutboundDay = outboundInvestmentBatchRef.current.lastProcessDay;
                 const shouldStartNewCycle = lastOutboundDay === null
                     ? (effectiveDaysElapsed > 0) // 首次触发：立即触发（避免在游戏中途加载时等待特定余数）
                     : (effectiveDaysElapsed - lastOutboundDay >= 10); // 后续触发：距离上次处理 >= 10 天
-                const isInActiveCycle = lastOutboundDay !== null && 
-                                       effectiveDaysElapsed - lastOutboundDay < 10 &&
-                                       effectiveDaysElapsed > lastOutboundDay;
-                
+                const isInActiveCycle = lastOutboundDay !== null &&
+                    effectiveDaysElapsed - lastOutboundDay < 10 &&
+                    effectiveDaysElapsed > lastOutboundDay;
+
                 if (shouldStartNewCycle || isInActiveCycle) {
                     // 如果是新周期的开始，重置 offset
                     if (shouldStartNewCycle && outboundInvestmentBatchRef.current.lastProcessDay !== effectiveDaysElapsed) {
@@ -1848,7 +1850,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                         // [NEW] 更新批次状态
                         outboundInvestmentBatchRef.current.offset = nextOffset;
-                        
+
                         // 如果没有更多批次了，标记周期结束
                         if (!hasMore) {
                             outboundInvestmentBatchRef.current.lastProcessDay = null;
@@ -1881,15 +1883,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // [NEW] 不再采样，而是按优先级排序后，每个 tick 处理 2 个投资国
                 // [FIX] 改为基于上次处理时间的相对触发，避免在游戏中途加载时无法触发
                 const lastInboundDay = inboundInvestmentBatchRef.current.lastProcessDay;
-                const shouldStartInboundCycle = lastInboundDay === null 
+                const shouldStartInboundCycle = lastInboundDay === null
                     ? (effectiveDaysElapsed > 0) // 首次触发：立即触发（避免在游戏中途加载时等待特定余数）
                     : (effectiveDaysElapsed - lastInboundDay >= 10); // 后续触发：距离上次处理 >= 10 天
-                const isInInboundCycle = lastInboundDay !== null && 
-                                        effectiveDaysElapsed - lastInboundDay < 10 &&
-                                        effectiveDaysElapsed > lastInboundDay;
+                const isInInboundCycle = lastInboundDay !== null &&
+                    effectiveDaysElapsed - lastInboundDay < 10 &&
+                    effectiveDaysElapsed > lastInboundDay;
 
-                console.log('🔍 [INBOUND-CYCLE] Day', effectiveDaysElapsed, 
-                    '- shouldStart:', shouldStartInboundCycle, 
+                console.log('🔍 [INBOUND-CYCLE] Day', effectiveDaysElapsed,
+                    '- shouldStart:', shouldStartInboundCycle,
                     '- isInCycle:', isInInboundCycle,
                     '- lastProcessDay:', lastInboundDay,
                     '- offset:', inboundInvestmentBatchRef.current.offset);
@@ -2170,7 +2172,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             resultNations_wealth: nationBefore?.wealth,
                         });
                     }
-                    
+
                     // [FIX] Only merge ACTUAL vassals, not all nations!
                     // Previous bug: vassalNationsUpdated contains ALL nations (from current.nations),
                     // but non-vassal nations have STALE data (before simulation).
@@ -2200,7 +2202,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             })
                     );
                     nextNations = nextNations.map(n => vassalOnlyMap.get(n.id) || n);
-                    
+
                     // [DEBUG] 合并后调试日志
                     const vassalAfter = nextNations.find(n => n.vassalOf === 'player');
                     if (vassalAfter) {
@@ -2383,20 +2385,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             if (!prevOfficials || prevOfficials.length === 0) {
                                 return nextOfficials;
                             }
-                            
+
                             // 创建 simulation 结果的 ID 映射（用于快速查找）
                             const simOfficialMap = new Map(nextOfficials.map(o => [o?.id, o]));
-                            
+
                             // 找出当前状态中存在但 simulation 结果中没有的官员（新雇佣的）
                             const newlyHiredOfficials = prevOfficials.filter(
                                 o => o?.id && !simOfficialMap.has(o.id)
                             );
-                            
+
                             // 如果没有新雇佣的官员，直接返回 simulation 结果
                             if (newlyHiredOfficials.length === 0) {
                                 return nextOfficials;
                             }
-                            
+
                             // 合并：simulation 结果 + 新雇佣的官员
                             console.log(`[HIRE FIX] Preserving ${newlyHiredOfficials.length} newly hired official(s) from race condition`);
                             return [...nextOfficials, ...newlyHiredOfficials];
@@ -3368,11 +3370,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     // 触发玩家的宣战弹窗
                                     const aggressor = result.nations?.find(n => n.id === aggressorId);
                                     if (aggressor) {
+                                        // [NEW] Pass warData to show appropriate message for vassal protection wars
                                         const event = createWarDeclarationEvent(aggressor, () => {
                                             debugLog('event', '[EVENT DEBUG] War declaration acknowledged');
-                                        });
+                                        }, warData);
                                         currentActions.triggerDiplomaticEvent(event);
                                     }
+
 
                                     // === 战争同盟连锁反应逻辑 ===
                                     // 既然 simulation.js 仅仅触发了事件，我们需要在这里处理复杂的同盟逻辑

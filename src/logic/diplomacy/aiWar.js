@@ -620,12 +620,12 @@ export const checkAIPeaceRequest = ({
     logs,
 }) => {
     const next = nation;
-    
+
     // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot request peace
     if (next.isAnnexed || (next.population || 0) <= 0) {
         return false;
     }
-    
+
     const lastPeaceRequestDay = Number.isFinite(next.lastPeaceRequestDay)
         ? next.lastPeaceRequestDay
         : -Infinity;
@@ -648,7 +648,7 @@ export const checkAIPeaceRequest = ({
             const tribute = calculateAIPeaceTribute(warScore, enemyLosses, warDuration, availableWealth);
             // Ensure tribute is an integer and format it properly to avoid scientific notation
             const tributeInt = Math.floor(tribute);
-            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tributeInt.toLocaleString('fullwide', {useGrouping: false})} 银币作为赔款。`);
+            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tributeInt.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。`);
             next.isPeaceRequesting = true;
             next.peaceTribute = tribute;
             next.lastPeaceRequestDay = tick;
@@ -674,12 +674,12 @@ export const checkAISurrenderDemand = ({
     logs,
 }) => {
     const next = nation;
-    
+
     // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot demand surrender
     if (next.isAnnexed || (next.population || 0) <= 0) {
         return;
     }
-    
+
     const aiWarScore = -(next.warScore || 0);
 
     if (aiWarScore > 25 && (next.warDuration || 0) > 30) {
@@ -935,35 +935,35 @@ export const checkWarDeclaration = ({
         if (nations && diplomacyOrganizations?.organizations) {
             const orgs = diplomacyOrganizations.organizations;
             const playerAllies = getAllianceMembers('player', orgs);
-            
+
             playerAllies.forEach(allyId => {
                 const ally = nations.find(n => n.id === allyId);
                 if (!ally) return;
-                
+
                 // Skip if ally is already at war with attacker
                 if (ally.foreignWars?.[next.id]?.isAtWar) return;
-                
+
                 // Skip if ally has peace treaty with attacker
                 const peaceUntil = ally.foreignWars?.[next.id]?.peaceTreatyUntil || 0;
                 if (tick < peaceUntil) return;
-                
+
                 // CRITICAL: Check if ally is also allied with the attacker
                 // If so, they remain neutral (allies cannot fight allies)
                 if (areNationsAllied(ally.id, next.id, orgs)) {
                     logs.push(`⚖️ ${ally.name} 同时是你和 ${next.name} 的盟友，选择保持中立。`);
                     return;
                 }
-                
+
                 // CRITICAL: Vassals cannot be forced to fight their overlord through alliance obligations
                 if (ally.vassalOf === 'player') {
                     logs.push(`⚖️ ${ally.name} 作为你的附庸国，不会因同盟义务对你作战。`);
                     return;
                 }
-                
+
                 // Ally joins war against attacker
                 if (!next.foreignWars) next.foreignWars = {};
                 if (!ally.foreignWars) ally.foreignWars = {};
-                
+
                 next.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
                 ally.foreignWars[next.id] = {
                     isAtWar: true,
@@ -1032,34 +1032,34 @@ export const checkWarDeclaration = ({
             if (nations && diplomacyOrganizations?.organizations) {
                 const orgs = diplomacyOrganizations.organizations;
                 const playerAllies = getAllianceMembers('player', orgs);
-                
+
                 playerAllies.forEach(allyId => {
                     const ally = nations.find(n => n.id === allyId);
                     if (!ally) return;
-                    
+
                     // Skip if ally is already at war with attacker
                     if (ally.foreignWars?.[next.id]?.isAtWar) return;
-                    
+
                     // Skip if ally has peace treaty with attacker
                     const peaceUntil = ally.foreignWars?.[next.id]?.peaceTreatyUntil || 0;
                     if (tick < peaceUntil) return;
-                    
+
                     // CRITICAL: Check if ally is also allied with the attacker
                     if (areNationsAllied(ally.id, next.id, orgs)) {
                         logs.push(`⚖️ ${ally.name} 同时是你和 ${next.name} 的盟友，选择保持中立。`);
                         return;
                     }
-                    
+
                     // CRITICAL: Vassals cannot be forced to fight their overlord through alliance obligations
                     if (ally.vassalOf === 'player') {
                         logs.push(`⚖️ ${ally.name} 作为你的附庸国，不会因同盟义务对你作战。`);
                         return;
                     }
-                    
+
                     // Ally joins war against attacker
                     if (!next.foreignWars) next.foreignWars = {};
                     if (!ally.foreignWars) ally.foreignWars = {};
-                    
+
                     next.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
                     ally.foreignWars[next.id] = {
                         isAtWar: true,
@@ -1148,7 +1148,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             // [FIX] Check for Vassal/Suzerain relationship - standard wars not allowed
             // This includes both AI-AI vassal relationships AND player vassal relationships
             if (nation.vassalOf === otherNation.id || otherNation.vassalOf === nation.id) return;
-            
+
             // CRITICAL: Vassals CANNOT attack their overlord (player) under ANY circumstances
             // This applies to all military policies including "autonomous"
             // Even if vassal has "autonomous" policy, they still cannot fight their overlord
@@ -1193,15 +1193,36 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             const isHatedEnemy = relation < 15;
 
             // [NEW] Check Suzerain Protection (Attack on Vassal = Attack on Suzerain)
-            // If otherNation is Player's Vassal, check if War on Player triggers
+            // If otherNation is Player's Vassal, AI should consider Player's strength
+            let vassalProtectionPenalty = 1.0;
             if (otherNation.vassalOf === 'player' && !nation.isAtWar) {
-                // AI considering attacking Player's Vassal
-                // This effectively means declaring war on Player
-                // So we should check player strength + vassal strength?
-                // For now, simple logic: attacking vassal = war with player
-                // We skip this check here to avoid AI suicide, or we let them do it?
-                // Let's make AI smarter: consider Player Strength before attacking Vassal
-                // ... skipping complexity for now, just trigger the war if they decide to attack
+                // Calculate player side strength (all player's vassals)
+                let playerSideStrength = 0;
+                visibleNations.forEach(n => {
+                    if (n.vassalOf === 'player') {
+                        playerSideStrength += calculateNationPower(n);
+                    }
+                });
+                // Add estimated player strength (use average of visible nations as proxy)
+                const avgNationPower = visibleNations.reduce((sum, n) => sum + calculateNationPower(n), 0) / Math.max(1, visibleNations.length);
+                playerSideStrength += avgNationPower * 2; // Player is assumed to be stronger than average
+
+                // If attacker is weaker than player side, heavily reduce war chance
+                if (mySideStrength < playerSideStrength * 0.7) {
+                    vassalProtectionPenalty *= 0.1; // 90% reduction
+                } else if (mySideStrength < playerSideStrength) {
+                    vassalProtectionPenalty *= 0.3; // 70% reduction
+                }
+
+                // If AI has good relations with player, almost never attack vassal
+                const relationWithPlayer = nation.relation ?? 50;
+                if (relationWithPlayer > 70) {
+                    vassalProtectionPenalty *= 0.02; // 98% reduction - almost never
+                } else if (relationWithPlayer > 50) {
+                    vassalProtectionPenalty *= 0.1; // 90% reduction
+                } else if (relationWithPlayer > 30) {
+                    vassalProtectionPenalty *= 0.5; // 50% reduction
+                }
             }
 
             if ((isRelationsBadEnough && isAggressiveEnough) || isHatedEnemy) {
@@ -1224,6 +1245,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                 }
 
                 warChance = Math.min(0.003, warChance);
+
+                // [NEW] Apply vassal protection penalty if attacking player's vassal
+                warChance *= vassalProtectionPenalty;
 
                 if (Math.random() < warChance) {
                     if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
@@ -1261,9 +1285,20 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                             nation.warStartDay = tick;
                             nation.warDuration = 0;
                             nation.warDeclarationPending = true;
+
+                            // [NEW] Add formal war declaration event so player sees a popup notification
+                            logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({
+                                nationId: nation.id,
+                                nationName: nation.name,
+                                reason: 'vassal_protection',
+                                vassalId: otherNation.id,
+                                vassalName: otherNation.name
+                            })}`);
+
                             logs.push(`⚠️ ${nation.name} 攻击了您的附庸 ${otherNation.name}，自动对您宣战！`);
                         }
                     }
+
 
 
                     // ✅ Alliance aid request - check if player's military allies are involved
@@ -1329,14 +1364,14 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         if (allyId === nation.id || allyId === otherNation.id) return;
                         const ally = visibleNations.find(n => n.id === allyId);
                         if (!ally) return;
-                        
+
                         // 【修复】检查防御方盟友是否与攻击者在同一个军事联盟中
                         // 同一军事联盟的成员绝对不能相互开战
                         if (areNationsAllied(ally.id, nation.id, allianceOrgs)) {
                             logs.push(`⚖️ ${ally.name} 与 ${nation.name} 同属一个军事联盟，拒绝参战。`);
                             return;
                         }
-                        
+
                         // CRITICAL: Vassals cannot be forced to fight their overlord through alliance obligations
                         // Check if defender is player and ally is player's vassal
                         if (otherNation.id === 'player' && ally.vassalOf === 'player') {
@@ -1348,7 +1383,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                             logs.push(`⚖️ ${ally.name} 作为玩家的附庸国，不会因同盟义务对宗主作战。`);
                             return;
                         }
-                        
+
                         if (!ally.foreignWars) ally.foreignWars = {};
                         ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
                         if (!nation.foreignWars) nation.foreignWars = {};

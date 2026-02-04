@@ -146,21 +146,37 @@ const formatNumber = (value) => (typeof value === 'number' ? formatNumberShortCN
  * 创建外交事件 - 敌国宣战
  * @param {Object} nation - 宣战的国家
  * @param {Function} onAccept - 确认的回调
+ * @param {Object} warData - 可选的战争数据 { reason, vassalName, ... }
  * @returns {Object} - 外交事件对象
  */
-export function createWarDeclarationEvent(nation, onAccept) {
+export function createWarDeclarationEvent(nation, onAccept, warData = {}) {
+    let description;
+    let title;
+
+    if (warData.reason === 'vassal_protection') {
+        // 因攻击玩家附庸而触发的战争
+        title = `${nation.name}入侵附庸`;
+        description = `${nation.name}入侵了你的附庸国${warData.vassalName || ''}！根据宗主国保护义务，你自动与其进入战争状态。\n\n敌军正在向你的附庸领土推进，你必须做好应战准备，保护你的附庸国。`;
+    } else if (warData.reason === 'wealth') {
+        title = `${nation.name}宣战`;
+        description = `${nation.name}觊觎你的财富，对你的国家发动了战争！他们的军队正在集结，边境局势十分紧张。`;
+    } else {
+        title = `${nation.name}宣战`;
+        description = `${nation.name}对你的国家发动了战争！他们的军队正在集结，边境局势十分紧张。这是一场不可避免的冲突，你必须做好应战准备。`;
+    }
+
     return {
         id: `war_declaration_${nation.id}_${Date.now()}`,
-        name: `${nation.name}宣战`,
+        name: title,
         icon: 'Swords',
         image: null,
-        description: `${nation.name}对你的国家发动了战争!他们的军队正在集结,边境局势十分紧张。这是一场不可避免的冲突,你必须做好应战准备。`,
+        description: description,
         isDiplomaticEvent: true,
         options: [
             {
                 id: 'acknowledge',
                 text: '应战',
-                description: '接受战争状态,动员全国进入战时体制(稳定度-5)',
+                description: '接受战争状态，动员全国进入战时体制(稳定度-5)',
                 effects: {
                     stability: -5,
                 },
@@ -169,6 +185,7 @@ export function createWarDeclarationEvent(nation, onAccept) {
         ],
     };
 }
+
 
 /**
  * 创建外交事件 - 敌国送礼
@@ -252,7 +269,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
                 description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
                 effects: {},
                 disabled: true,
-                callback: () => {},
+                callback: () => { },
             });
         }
         options.push({
@@ -312,7 +329,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
                 description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
                 effects: {},
                 disabled: true,
-                callback: () => {},
+                callback: () => { },
             });
         }
         options.push({
@@ -514,7 +531,7 @@ export function createPlayerPeaceProposalEvent(
                 description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
                 effects: {},
                 disabled: true,
-                callback: () => {},
+                callback: () => { },
             });
         }
         options.push({
@@ -573,7 +590,7 @@ export function createPlayerPeaceProposalEvent(
                 description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
                 effects: {},
                 disabled: true,
-                callback: () => {},
+                callback: () => { },
             });
         }
     } else if (warScore > 50) {
@@ -618,10 +635,11 @@ export function createPlayerPeaceProposalEvent(
                 description: `附庸制度尚未解锁。需要进入封建时代（时代 ≥ 3）才能收附庸。`,
                 effects: {},
                 disabled: true,
-                callback: () => {},
+                callback: () => { },
             });
         }
-    } else if (warScore > -50) {        const payment = Math.max(offeringPayments.high, offeringPayments.standard);
+    } else if (warScore > -50) {
+        const payment = Math.max(offeringPayments.high, offeringPayments.standard);
         const installmentPlan = calculateInstallmentPlan(payment);
         const populationOffer = calculateTerritoryOffer(0.15, 200);
 
