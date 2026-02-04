@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { X, TrendingUp, TrendingDown, DollarSign, Activity, PieChart, BarChart3, Globe } from 'lucide-react';
-import { RESOURCES } from '../../config/resources';
 
 /**
  * 经济数据看板 - 专业的国家经济数据展示面板
