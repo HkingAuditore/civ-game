@@ -138,7 +138,7 @@ export const EconomicDashboard = ({
         </div>
 
         {/* 标签页导航 */}
-        <div className="flex gap-2 px-6 py-3 border-b border-gray-700/50 bg-gray-900/60">
+        <div className="flex gap-1 sm:gap-2 px-3 sm:px-6 py-2 sm:py-3 border-b border-gray-700/50 bg-gray-900/60 overflow-x-auto">
           {[
             { id: 'overview', label: '总览', icon: Activity },
             { id: 'gdp', label: 'GDP分析', icon: PieChart },
@@ -149,20 +149,21 @@ export const EconomicDashboard = ({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                   : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/50'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
+              <tab.icon className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.label.replace('分析', '').replace('指数', '').replace('数据', '').replace('经济', '')}</span>
             </button>
           ))}
         </div>
 
         {/* 内容区域 */}
-        <div className="h-[calc(100%-140px)] overflow-y-auto p-6">
+        <div className="h-[calc(100%-140px)] overflow-y-auto p-3 sm:p-6">
           
           {/* 总览标签页 */}
           {activeTab === 'overview' && (
@@ -909,9 +910,9 @@ export const EconomicDashboard = ({
             <div className="space-y-6">
               
               {/* 阶层经济总览 */}
-              <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-5">
-                <h3 className="text-lg font-semibold text-blue-300 mb-4">各阶层经济状况</h3>
-                <div className="space-y-4">
+              <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-3 sm:p-5">
+                <h3 className="text-base sm:text-lg font-semibold text-blue-300 mb-3 sm:mb-4">各阶层经济状况</h3>
+                <div className="space-y-3 sm:space-y-4">
                   {Object.entries(classFinancialData || {}).map(([className, data]) => {
                     const totalIncome = Object.values(data.income || {}).reduce((sum, val) => sum + (val || 0), 0);
                     
@@ -932,22 +933,22 @@ export const EconomicDashboard = ({
                     const netIncome = totalIncome - totalExpense;
                     
                     return (
-                      <div key={className} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-base font-medium text-gray-200">{STRATA[className]?.name || className}</span>
-                          <span className={`text-lg font-bold ${netIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      <div key={className} className="bg-gray-800/50 rounded-lg p-3 sm:p-4 border border-gray-700/50">
+                        <div className="flex items-center justify-between mb-2 sm:mb-3">
+                          <span className="text-sm sm:text-base font-medium text-gray-200">{STRATA[className]?.name || className}</span>
+                          <span className={`text-base sm:text-lg font-bold ${netIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {netIncome >= 0 ? '+' : ''}{formatAmount(netIncome)}
                           </span>
                         </div>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+                        <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-2 sm:mb-3">
                           <div>
                             <div className="text-xs text-gray-400 mb-1">总收入</div>
-                            <div className="text-sm font-medium text-green-300">{formatAmount(totalIncome)}</div>
+                            <div className="text-xs sm:text-sm font-medium text-green-300">{formatAmount(totalIncome)}</div>
                           </div>
                           <div>
                             <div className="text-xs text-gray-400 mb-1">总支出</div>
-                            <div className="text-sm font-medium text-red-300">{formatAmount(totalExpense)}</div>
+                            <div className="text-xs sm:text-sm font-medium text-red-300">{formatAmount(totalExpense)}</div>
                           </div>
                         </div>
 
