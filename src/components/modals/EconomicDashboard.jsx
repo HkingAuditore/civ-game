@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, TrendingUp, TrendingDown, DollarSign, Activity, PieChart, BarChart3, Globe } from 'lucide-react';
 import { RESOURCES } from '../../config/gameConstants';
+import { STRATA } from '../../config/strata';
 
 /**
  * 经济数据看板 - 专业的国家经济数据展示面板
@@ -885,7 +886,7 @@ export const EconomicDashboard = ({
                     return (
                       <div key={className} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-base font-medium text-gray-200 capitalize">{className}</span>
+                          <span className="text-base font-medium text-gray-200">{STRATA[className]?.name || className}</span>
                           <span className={`text-lg font-bold ${netIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {netIncome >= 0 ? '+' : ''}{formatAmount(netIncome)}
                           </span>
