@@ -378,6 +378,10 @@ const buildInitialHistory = () => {
         tax: [],
         population: [],
         class: classHistory,
+        // 经济指标历史
+        gdp: [],
+        cpi: [],
+        ppi: [],
     };
 };
 
@@ -1164,6 +1168,16 @@ export const useGameState = () => {
     const [taxShock, setTaxShock] = useState({}); // [NEW] 各阶层累积税收冲击值 { roleKey: number }
     const [populationDetailView, setPopulationDetailView] = useState(false);
     const [history, setHistory] = useState(buildInitialHistory());
+    
+    // ========== 经济指标 ==========
+    const [priceHistory, setPriceHistory] = useState({}); // 价格历史（最近365天）
+    const [equilibriumPrices, setEquilibriumPrices] = useState({}); // 长期均衡价格（90天滚动平均）
+    const [economicIndicators, setEconomicIndicators] = useState({
+        gdp: { total: 0, consumption: 0, investment: 0, government: 0, netExports: 0, change: 0 },
+        cpi: { index: 100, change: 0, breakdown: {} },
+        ppi: { index: 100, change: 0, breakdown: {} },
+    });
+    
     const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
     const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());
 
@@ -1771,6 +1785,10 @@ export const useGameState = () => {
                 migrationCooldowns,
                 populationDetailView,
                 history,
+                // 经济指标
+                priceHistory,
+                equilibriumPrices,
+                economicIndicators,
                 daysElapsed,
                 army,
                 militaryQueue,
@@ -2195,6 +2213,16 @@ export const useGameState = () => {
         setMigrationCooldowns(data.migrationCooldowns || {});
         setPopulationDetailView(data.populationDetailView || false);
         setHistory(trimHistorySnapshot(data.history || buildInitialHistory(), AUTO_SAVE_LIMITS.history));
+        
+        // 经济指标
+        setPriceHistory(data.priceHistory || {});
+        setEquilibriumPrices(data.equilibriumPrices || {});
+        setEconomicIndicators(data.economicIndicators || {
+            gdp: { total: 0, consumption: 0, investment: 0, government: 0, netExports: 0, change: 0 },
+            cpi: { index: 100, change: 0, breakdown: {} },
+            ppi: { index: 100, change: 0, breakdown: {} },
+        });
+        
         const parsedDaysElapsed = Number.isFinite(data.daysElapsed)
             ? data.daysElapsed
             : Number(data.daysElapsed);
@@ -3373,6 +3401,15 @@ export const useGameState = () => {
         setPopulationDetailView,
         history,
         setHistory,
+        
+        // 经济指标
+        priceHistory,
+        setPriceHistory,
+        equilibriumPrices,
+        setEquilibriumPrices,
+        economicIndicators,
+        setEconomicIndicators,
+        
         eventEffectSettings,
         setEventEffectSettings,
         activeEventEffects,
