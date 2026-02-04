@@ -201,17 +201,17 @@ export function calculateGDP({
   // 1. 消费 (Consumption - C)
   // 所有阶层的基础需求和奢侈需求消费总额
   const consumption = Object.values(classFinancialData).reduce((sum, classData) => {
-    // 基础需求消费
-    const essentialConsumption = Object.values(classData.essentialNeeds || {})
+    // 基础需求消费（从expense.essentialNeeds获取）
+    const essentialConsumption = Object.values(classData.expense?.essentialNeeds || {})
       .reduce((total, need) => {
-        const cost = need.totalCost || 0;
+        const cost = need.cost || need.totalCost || 0;
         return total + (Number.isFinite(cost) ? cost : 0);
       }, 0);
     
-    // 奢侈需求消费
-    const luxuryConsumption = Object.values(classData.luxuryNeeds || {})
+    // 奢侈需求消费（从expense.luxuryNeeds获取）
+    const luxuryConsumption = Object.values(classData.expense?.luxuryNeeds || {})
       .reduce((total, need) => {
-        const cost = need.totalCost || 0;
+        const cost = need.cost || need.totalCost || 0;
         return total + (Number.isFinite(cost) ? cost : 0);
       }, 0);
     

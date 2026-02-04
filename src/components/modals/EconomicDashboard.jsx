@@ -57,8 +57,10 @@ export const EconomicDashboard = ({
   const gdpGrowthRate = gdp.change || 0;
   const growthStatus = gdpGrowthRate > 3 ? 'good' : gdpGrowthRate > 0 ? 'warning' : 'danger';
 
-  // 计算财政健康度（国库/GDP比率）
-  const fiscalHealth = gdp.total > 0 ? (treasury / gdp.total) * 100 : 0;
+  // 计算财政健康度（国库储备占年GDP的百分比）
+  // 注意：这里的GDP是每日GDP，需要乘以365得到年GDP
+  const annualGDP = gdp.total * 365;
+  const fiscalHealth = annualGDP > 0 ? (treasury / annualGDP) * 100 : 0;
   const fiscalStatus = fiscalHealth > 20 ? 'good' : fiscalHealth > 10 ? 'warning' : 'danger';
 
   return (
@@ -209,7 +211,7 @@ export const EconomicDashboard = ({
                     fiscalStatus === 'warning' ? 'text-yellow-400' :
                     'text-red-400'
                   }`}>
-                    国库/GDP比率
+                    国库/年GDP比率
                   </div>
                   <div className="mt-3 pt-3 border-t border-green-500/20">
                     <div className="text-xs text-gray-400">
