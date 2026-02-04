@@ -220,6 +220,9 @@ export function calculateGDP({
   
   // 2. 投资 (Investment - I)
   // 新建建筑成本 + 建筑升级成本
+  // 注意：当前游戏中建筑升级成本没有记录到buildingFinancialData中
+  // 因此投资数据暂时为0，这是已知限制
+  // TODO: 在simulation.js中记录建筑升级成本
   const investment = Object.values(buildingFinancialData).reduce((sum, building) => {
     const constructionCost = building.constructionCost || 0;
     const upgradeCost = building.upgradeCost || 0;
@@ -240,19 +243,61 @@ export function calculateGDP({
   
   // 4. 净出口 (Net Exports - NX)
   // 出口额 - 进口额
-  const exports = Object.entries(demandBreakdown.exports || {})
-    .reduce((sum, [resource, quantity]) => {
-      const price = marketPrices[resource] || 0;
-      const value = quantity * price;
-      return sum + (Number.isFinite(value) ? value : 0);
-    }, 0);
+  // 注意：demandBreakdown的实际结构是 {food: {exports: 100, imports: 50}, ...}
+  // 而不是 {exports: {food: 100}, imports: {food: 50}}
   
-  const imports = Object.entries(demandBreakdown.imports || {})
-    .reduce((sum, [resource, quantity]) => {
-      const price = marketPrices[resource] || 0;
-      const value = quantity * price;
-      return sum + (Number.isFinite(value) ? value : 0);
-    }, 0);
+  // [DEBUG] 输出demandBreakdown结构
+  console.log('[GDP Debug] demandBreakdown structure:', {
+    keys: Object.keys(demandBreakdown || {}),
+    sample: Object.entries(demandBreakdown || {}).slice(0, 3).map(([k, v]) => ({
+      resource: k,
+      data: v,
+    })),
+  });
+  
+  let exports = 0;
+  let imports = 0;
+  
+  // 适配实际的demandBreakdown数据结构
+  if (demandBreakdown && typeof demandBreakdown === 'object') {
+    // 检查是否是新格式 {exports: {}, imports: {}}
+    if (demandBreakdown.exports && typeof demandBreakdown.exports === 'object') {
+      exports = Object.entries(demandBreakdown.exports)
+        .reduce((sum, [resource, quantity]) => {
+          const price = marketPrices[resource] || 0;
+          const value = quantity * price;
+          return sum + (Number.isFinite(value) ? value : 0);
+        }, 0);
+    }
+    
+    if (demandBreakdown.imports && typeof demandBreakdown.imports === 'object') {
+      imports = Object.entries(demandBreakdown.imports)
+        .reduce((sum, [resource, quantity]) => {
+          const price = marketPrices[resource] || 0;
+          const value = quantity * price;
+          return sum + (Number.isFinite(value) ? value : 0);
+        }, 0);
+    }
+    
+    // 如果上面没有找到数据，尝试旧格式 {food: {exports: 100}, ...}
+    if (exports === 0 && imports === 0) {
+      Object.entries(demandBreakdown).forEach(([resource, data]) => {
+        if (data && typeof data === 'object') {
+          const price = marketPrices[resource] || 0;
+          
+          if (Number.isFinite(data.exports)) {
+            const value = data.exports * price;
+            exports += Number.isFinite(value) ? value : 0;
+          }
+          
+          if (Number.isFinite(data.imports)) {
+            const value = data.imports * price;
+            imports += Number.isFinite(value) ? value : 0;
+          }
+        }
+      });
+    }
+  }
   
   const netExports = exports - imports;
   
