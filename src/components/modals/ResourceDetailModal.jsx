@@ -574,8 +574,10 @@ const ResourceDetailContent = ({
     onUpdateTaxPolicies,
     activeDebuffs = [],
     buildingFinancialData = {},
+    economicIndicators = {}, // 新增：经济指标数据
 }) => {
     const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].id);
+    const [showEconomicDetails, setShowEconomicDetails] = useState(false); // 新增：经济指标详情折叠状态
     // Removed isAnimatingOut as framer-motion handles it
     const resourceDef = RESOURCES[resourceKey];
     const isSilver = resourceKey === 'silver';
@@ -1166,6 +1168,109 @@ const ResourceDetailContent = ({
                                 </div>
                             </div>
 
+                            {/* 宏观经济指标 */}
+                            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2 lg:p-2.5">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[9px] uppercase tracking-wide text-blue-300/80">
+                                        宏观经济指标
+                                    </p>
+                                    <button
+                                        onClick={() => setShowEconomicDetails(!showEconomicDetails)}
+                                        className="text-[8px] text-gray-400 hover:text-gray-300 transition-colors"
+                                    >
+                                        {showEconomicDetails ? '收起' : '展开'}
+                                    </button>
+                                </div>
+                                
+                                {/* 核心指标 */}
+                                <div className="grid gap-2 grid-cols-3">
+                                    {/* GDP */}
+                                    <div>
+                                        <p className="text-[8px] text-gray-400">GDP</p>
+                                        <p className="text-sm font-bold text-blue-200">
+                                            {formatAmount(economicIndicators.gdp?.total || 0)}
+                                        </p>
+                                        <p className={`text-[8px] ${(economicIndicators.gdp?.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {(economicIndicators.gdp?.change || 0) >= 0 ? '+' : ''}
+                                            {(economicIndicators.gdp?.change || 0).toFixed(1)}%
+                                        </p>
+                                    </div>
+                                    
+                                    {/* CPI */}
+                                    <div>
+                                        <p className="text-[8px] text-gray-400">CPI</p>
+                                        <p className="text-sm font-bold text-orange-200">
+                                            {(economicIndicators.cpi?.index || 100).toFixed(1)}
+                                        </p>
+                                        <p className={`text-[8px] ${(economicIndicators.cpi?.change || 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                            {(economicIndicators.cpi?.change || 0) >= 0 ? '+' : ''}
+                                            {(economicIndicators.cpi?.change || 0).toFixed(1)}%
+                                        </p>
+                                        <p className="text-[7px] text-gray-600">基准: 90日均价</p>
+                                    </div>
+                                    
+                                    {/* PPI */}
+                                    <div>
+                                        <p className="text-[8px] text-gray-400">PPI</p>
+                                        <p className="text-sm font-bold text-purple-200">
+                                            {(economicIndicators.ppi?.index || 100).toFixed(1)}
+                                        </p>
+                                        <p className={`text-[8px] ${(economicIndicators.ppi?.change || 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                            {(economicIndicators.ppi?.change || 0) >= 0 ? '+' : ''}
+                                            {(economicIndicators.ppi?.change || 0).toFixed(1)}%
+                                        </p>
+                                        <p className="text-[7px] text-gray-600">基准: 90日均价</p>
+                                    </div>
+                                </div>
+                                
+                                {/* 详细信息（可折叠） */}
+                                {showEconomicDetails && (
+                                    <div className="mt-2 space-y-2 border-t border-blue-500/20 pt-2">
+                                        {/* GDP分解 */}
+                                        <div className="text-xs">
+                                            <p className="text-gray-400 mb-1 text-[9px]">GDP构成</p>
+                                            <div className="space-y-0.5">
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500 text-[9px]">消费 (C)</span>
+                                                    <span className="text-white text-[9px]">{formatAmount(economicIndicators.gdp?.consumption || 0)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500 text-[9px]">投资 (I)</span>
+                                                    <span className="text-white text-[9px]">{formatAmount(economicIndicators.gdp?.investment || 0)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500 text-[9px]">政府支出 (G)</span>
+                                                    <span className="text-white text-[9px]">{formatAmount(economicIndicators.gdp?.government || 0)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500 text-[9px]">净出口 (NX)</span>
+                                                    <span className={`text-[9px] ${(economicIndicators.gdp?.netExports || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {formatAmount(economicIndicators.gdp?.netExports || 0)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* CPI贡献度 */}
+                                        <div className="text-xs">
+                                            <p className="text-gray-400 mb-1 text-[9px]">CPI主要贡献</p>
+                                            {Object.entries(economicIndicators.cpi?.breakdown || {})
+                                                .sort((a, b) => Math.abs(b[1].contribution || 0) - Math.abs(a[1].contribution || 0))
+                                                .slice(0, 3)
+                                                .map(([resource, data]) => (
+                                                    <div key={resource} className="flex justify-between">
+                                                        <span className="text-gray-500 text-[9px]">{RESOURCES[resource]?.name || resource}</span>
+                                                        <span className={`text-[9px] ${(data.contribution || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                            {(data.contribution || 0) > 0 ? '+' : ''}{(data.contribution || 0).toFixed(1)}%
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            }
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* 交易税调整 */}
                             {!isSilver && onUpdateTaxPolicies && (
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
@@ -1230,6 +1335,35 @@ const ResourceDetailContent = ({
                                         data={taxHistory}
                                         color="#34d399"
                                         label="每日国库收入"
+                                    />
+                                </div>
+                                
+                                {/* 经济指标走势图 */}
+                                <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
+                                    <div className="mb-1.5 lg:mb-2">
+                                        <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">
+                                            经济指标走势
+                                        </p>
+                                    </div>
+                                    <MarketTrendChart
+                                        series={[
+                                            { 
+                                                name: 'GDP', 
+                                                data: history.gdp || [], 
+                                                color: '#60a5fa' 
+                                            },
+                                            { 
+                                                name: 'CPI', 
+                                                data: history.cpi || [], 
+                                                color: '#fb923c' 
+                                            },
+                                            { 
+                                                name: 'PPI', 
+                                                data: history.ppi || [], 
+                                                color: '#c084fc' 
+                                            },
+                                        ]}
+                                        height={180}
                                     />
                                 </div>
                             </div>

@@ -1931,6 +1931,7 @@ function GameApp({ gameState }) {
                     onUpdateTaxPolicies={gameState.setTaxPolicies}
                     activeDebuffs={gameState.activeDebuffs}
                     buildingFinancialData={gameState.buildingFinancialData}
+                    economicIndicators={gameState.economicIndicators}
                 />
             )}
 
