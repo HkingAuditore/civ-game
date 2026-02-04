@@ -44,6 +44,7 @@ import {
     TutorialModal,
     WikiModal,
 } from './components';
+import { EconomicDashboard } from './components/modals/EconomicDashboard';
 import { UnitDetailSheet } from './components/panels/UnitDetailSheet';
 import { TechDetailSheet } from './components/panels/TechDetailSheet';
 import { DecreeDetailSheet } from './components/panels/DecreeDetailSheet';
@@ -240,6 +241,7 @@ function GameApp({ gameState }) {
     const [showSaveTransferModal, setShowSaveTransferModal] = useState(false); // 新增：控制存档传输弹窗
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [showDonateModal, setShowDonateModal] = useState(false);
+    const [showEconomicDashboard, setShowEconomicDashboard] = useState(false); // 新增：控制经济数据看板
     const [expandedFestival, setExpandedFestival] = useState(null);
 
     // 官员超编检测状态
@@ -1013,7 +1015,13 @@ function GameApp({ gameState }) {
                     officialSalaryPerDay={officialSalaryPerDay}
                     playerInstallmentPayment={gameState.playerInstallmentPayment}
                     activeEventEffects={gameState.activeEventEffects}
-                    onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
+                    onResourceDetailClick={(key) => {
+                        if (key === 'silver') {
+                            setShowEconomicDashboard(true); // 点击银币打开经济数据看板
+                        } else {
+                            gameState.setResourceDetailView(key);
+                        }
+                    }}
                     onPopulationDetailClick={() => gameState.setPopulationDetailView(true)}
                     onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
                     onMarketClick={() => setShowMarket(true)}  // 新增：打开国内市场弹窗
@@ -1492,7 +1500,13 @@ function GameApp({ gameState }) {
                                                 rates={gameState.rates}
                                                 market={deferredMarket}
                                                 epoch={gameState.epoch}
-                                                onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
+                                                onResourceDetailClick={(key) => {
+                                                    if (key === 'silver') {
+                                                        setShowEconomicDashboard(true); // 点击银币打开经济数据看板
+                                                    } else {
+                                                        gameState.setResourceDetailView(key);
+                                                    }
+                                                }}
                                                 // 日志
                                                 logs={deferredLogs}
                                             />
@@ -1934,6 +1948,19 @@ function GameApp({ gameState }) {
                     economicIndicators={gameState.economicIndicators}
                 />
             )}
+
+            {/* 经济数据看板 */}
+            <EconomicDashboard
+                isOpen={showEconomicDashboard}
+                onClose={() => setShowEconomicDashboard(false)}
+                economicIndicators={gameState.economicIndicators}
+                history={gameState.history}
+                marketPrices={gameState.market?.prices || {}}
+                equilibriumPrices={gameState.equilibriumPrices || {}}
+                classFinancialData={gameState.classFinancialData || {}}
+                treasury={gameState.resources?.silver || 0}
+                dailyTreasuryIncome={netSilverPerDay || 0}
+            />
 
             {gameState.populationDetailView && (
                 <PopulationDetailModal
