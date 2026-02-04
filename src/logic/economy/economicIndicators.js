@@ -39,7 +39,15 @@ export const ECONOMIC_INDICATOR_CONFIG = {
     historyLength: 100,       // 保留100天历史
   },
   
+  // 阶层分类（用于分层CPI计算）
+  strataTiers: {
+    lower: ['peasant', 'lumberjack', 'serf', 'worker', 'unemployed', 'miner'],
+    middle: ['artisan', 'merchant', 'scribe', 'navigator'],
+    upper: ['landowner', 'capitalist', 'official', 'knight', 'engineer', 'cleric'],
+  },
+  
   // 消费者篮子权重（基于实际游戏资源）
+  // 注意：这是后备篮子，优先使用动态计算的篮子
   cpiBasket: {
     food: 0.40,        // 粮食 - 基础必需品
     cloth: 0.20,       // 布料 - 基础必需品
@@ -319,6 +327,75 @@ export function calculateGDP({
   };
 }
 
+// ==================== 动态CPI篮子计算 ====================
+
+/**
+ * 从实际消费数据中提取CPI篮子权重
+ * @param {Object} classFinancialData - 阶层财务数据
+ * @param {Array<string>} strataList - 要包含的阶层列表
+ * @returns {Object} 篮子权重 {resource: weight}
+ */
+function extractConsumptionBasket(classFinancialData, strataList) {
+  const resourceConsumption = {}; // {resource: totalCost}
+  let totalConsumption = 0;
+  
+  // 遍历指定的阶层
+  strataList.forEach(strataKey => {
+    const classData = classFinancialData[strataKey];
+    if (!classData || !classData.expense) return;
+    
+    // 提取必需品消费
+    const essentialNeeds = classData.expense.essentialNeeds || {};
+    Object.entries(essentialNeeds).forEach(([resource, data]) => {
+      const cost = data.cost || data.totalCost || 0;
+      if (Number.isFinite(cost) && cost > 0) {
+        resourceConsumption[resource] = (resourceConsumption[resource] || 0) + cost;
+        totalConsumption += cost;
+      }
+    });
+    
+    // 提取奢侈品消费
+    const luxuryNeeds = classData.expense.luxuryNeeds || {};
+    Object.entries(luxuryNeeds).forEach(([resource, data]) => {
+      const cost = data.cost || data.totalCost || 0;
+      if (Number.isFinite(cost) && cost > 0) {
+        resourceConsumption[resource] = (resourceConsumption[resource] || 0) + cost;
+        totalConsumption += cost;
+      }
+    });
+  });
+  
+  // 计算权重
+  const basket = {};
+  if (totalConsumption > 0) {
+    Object.entries(resourceConsumption).forEach(([resource, cost]) => {
+      basket[resource] = cost / totalConsumption;
+    });
+  }
+  
+  return basket;
+}
+
+/**
+ * 计算分层CPI篮子
+ * @param {Object} classFinancialData - 阶层财务数据
+ * @returns {Object} 分层篮子 {lower: {}, middle: {}, upper: {}, overall: {}}
+ */
+export function calculateDynamicCPIBaskets(classFinancialData) {
+  const { strataTiers } = ECONOMIC_INDICATOR_CONFIG;
+  
+  return {
+    lower: extractConsumptionBasket(classFinancialData, strataTiers.lower),
+    middle: extractConsumptionBasket(classFinancialData, strataTiers.middle),
+    upper: extractConsumptionBasket(classFinancialData, strataTiers.upper),
+    overall: extractConsumptionBasket(classFinancialData, [
+      ...strataTiers.lower,
+      ...strataTiers.middle,
+      ...strataTiers.upper,
+    ]),
+  };
+}
+
 // ==================== CPI 计算 ====================
 
 /**
@@ -329,20 +406,22 @@ export function calculateGDP({
  * @param {Object} params.marketPrices - 当前市场价格
  * @param {Object} params.equilibriumPrices - 长期均衡价格（基准）
  * @param {number} params.previousCPI - 上期CPI（用于计算变化率）
+ * @param {Object} params.basket - CPI篮子权重（可选，默认使用配置中的篮子）
  * @returns {Object} CPI数据
  */
 export function calculateCPI({
   marketPrices = {},
   equilibriumPrices = {},
-  previousCPI = 100,
+  basket = null,
 }) {
-  const basket = ECONOMIC_INDICATOR_CONFIG.cpiBasket;
+  // 使用传入的篮子，或使用配置中的默认篮子
+  const cpiBasket = basket || ECONOMIC_INDICATOR_CONFIG.cpiBasket;
   
   let currentBasketCost = 0;
   let baseBasketCost = 0;
   const breakdown = {};
   
-  Object.entries(basket).forEach(([resource, weight]) => {
+  Object.entries(cpiBasket).forEach(([resource, weight]) => {
     const currentPrice = marketPrices[resource] || equilibriumPrices[resource] || getBasePrice(resource);
     const basePrice = equilibriumPrices[resource] || getBasePrice(resource);
     
@@ -445,22 +524,60 @@ export function calculateAllIndicators(params) {
     priceHistory,
     equilibriumPrices,
     previousIndicators = {},
+    classFinancialData = {},
   } = params;
   
+  // 计算动态CPI篮子
+  const dynamicBaskets = calculateDynamicCPIBaskets(classFinancialData);
+  
+  // 计算GDP
+  const gdp = calculateGDP({
+    ...params,
+    previousGDP: previousIndicators.gdp?.total || 0,
+  });
+  
+  // 计算综合CPI（使用动态篮子）
+  const cpi = calculateCPI({
+    marketPrices: params.marketPrices,
+    equilibriumPrices,
+    previousCPI: previousIndicators.cpi?.index || 100,
+    basket: Object.keys(dynamicBaskets.overall).length > 0 ? dynamicBaskets.overall : null,
+  });
+  
+  // 计算分层CPI
+  const cpiByTier = {
+    lower: calculateCPI({
+      marketPrices: params.marketPrices,
+      equilibriumPrices,
+      previousCPI: previousIndicators.cpiByTier?.lower?.index || 100,
+      basket: Object.keys(dynamicBaskets.lower).length > 0 ? dynamicBaskets.lower : null,
+    }),
+    middle: calculateCPI({
+      marketPrices: params.marketPrices,
+      equilibriumPrices,
+      previousCPI: previousIndicators.cpiByTier?.middle?.index || 100,
+      basket: Object.keys(dynamicBaskets.middle).length > 0 ? dynamicBaskets.middle : null,
+    }),
+    upper: calculateCPI({
+      marketPrices: params.marketPrices,
+      equilibriumPrices,
+      previousCPI: previousIndicators.cpiByTier?.upper?.index || 100,
+      basket: Object.keys(dynamicBaskets.upper).length > 0 ? dynamicBaskets.upper : null,
+    }),
+  };
+  
+  // 计算PPI
+  const ppi = calculatePPI({
+    marketPrices: params.marketPrices,
+    equilibriumPrices,
+    previousPPI: previousIndicators.ppi?.index || 100,
+  });
+  
   return {
-    gdp: calculateGDP({
-      ...params,
-      previousGDP: previousIndicators.gdp?.total || 0,
-    }),
-    cpi: calculateCPI({
-      marketPrices: params.marketPrices,
-      equilibriumPrices,
-      previousCPI: previousIndicators.cpi?.index || 100,
-    }),
-    ppi: calculatePPI({
-      marketPrices: params.marketPrices,
-      equilibriumPrices,
-      previousPPI: previousIndicators.ppi?.index || 100,
-    }),
+    gdp,
+    cpi,
+    cpiByTier,
+    ppi,
+    dynamicBaskets, // 返回动态篮子供调试使用
   };
 }
