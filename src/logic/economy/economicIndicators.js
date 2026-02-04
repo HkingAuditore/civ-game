@@ -190,7 +190,8 @@ export function calculateEquilibriumPrices({
  * @param {number} params.dailyMilitaryExpense - 每日军费
  * @param {Array} params.officials - 官员列表
  * @param {Object} params.taxBreakdown - 税收分解
- * @param {Object} params.demandBreakdown - 需求分解
+ * @param {Object} params.demandBreakdown - 需求分解（用于出口统计）
+ * @param {Object} params.supplyBreakdown - 供给分解（用于进口统计）
  * @param {Object} params.marketPrices - 市场价格
  * @returns {Object} GDP数据
  */
@@ -201,6 +202,7 @@ export function calculateGDP({
   officials = [],
   taxBreakdown = {},
   demandBreakdown = {},
+  supplyBreakdown = {},  // 新增：用于进口统计
   marketPrices = {},
   previousGDP = 0,
 }) {
@@ -241,13 +243,18 @@ export function calculateGDP({
   
   // 4. 净出口 (Net Exports - NX)
   // 出口额 - 进口额
-  // 注意：demandBreakdown的实际结构是 {food: {exports: 100, imports: 50}, ...}
-  // 而不是 {exports: {food: 100}, imports: {food: 50}}
+  // 出口数据从demandBreakdown获取（需求侧：资源被出口消耗）
+  // 进口数据从supplyBreakdown获取（供给侧：资源通过进口增加）
   
-  // [DEBUG] 输出demandBreakdown结构
+  // [DEBUG] 输出breakdown结构
   console.group('🌍 [NET EXPORTS DEBUG]');
   console.log('📦 demandBreakdown keys:', Object.keys(demandBreakdown || {}));
   console.log('📦 demandBreakdown sample:', Object.entries(demandBreakdown || {}).slice(0, 3).map(([k, v]) => ({
+    resource: k,
+    data: v,
+  })));
+  console.log('📦 supplyBreakdown keys:', Object.keys(supplyBreakdown || {}));
+  console.log('📦 supplyBreakdown sample:', Object.entries(supplyBreakdown || {}).slice(0, 3).map(([k, v]) => ({
     resource: k,
     data: v,
   })));
@@ -255,45 +262,26 @@ export function calculateGDP({
   let exports = 0;
   let imports = 0;
   
-  // 适配实际的demandBreakdown数据结构
+  // 计算出口（从demandBreakdown）
   if (demandBreakdown && typeof demandBreakdown === 'object') {
-    // 检查是否是新格式 {exports: {}, imports: {}}
-    if (demandBreakdown.exports && typeof demandBreakdown.exports === 'object') {
-      exports = Object.entries(demandBreakdown.exports)
-        .reduce((sum, [resource, quantity]) => {
-          const price = marketPrices[resource] || 0;
-          const value = quantity * price;
-          return sum + (Number.isFinite(value) ? value : 0);
-        }, 0);
-    }
-    
-    if (demandBreakdown.imports && typeof demandBreakdown.imports === 'object') {
-      imports = Object.entries(demandBreakdown.imports)
-        .reduce((sum, [resource, quantity]) => {
-          const price = marketPrices[resource] || 0;
-          const value = quantity * price;
-          return sum + (Number.isFinite(value) ? value : 0);
-        }, 0);
-    }
-    
-    // 如果上面没有找到数据，尝试旧格式 {food: {exports: 100}, ...}
-    if (exports === 0 && imports === 0) {
-      Object.entries(demandBreakdown).forEach(([resource, data]) => {
-        if (data && typeof data === 'object') {
-          const price = marketPrices[resource] || 0;
-          
-          if (Number.isFinite(data.exports)) {
-            const value = data.exports * price;
-            exports += Number.isFinite(value) ? value : 0;
-          }
-          
-          if (Number.isFinite(data.imports)) {
-            const value = data.imports * price;
-            imports += Number.isFinite(value) ? value : 0;
-          }
-        }
-      });
-    }
+    Object.entries(demandBreakdown).forEach(([resource, data]) => {
+      if (data && typeof data === 'object' && Number.isFinite(data.exports)) {
+        const price = marketPrices[resource] || 0;
+        const value = data.exports * price;
+        exports += Number.isFinite(value) ? value : 0;
+      }
+    });
+  }
+  
+  // 计算进口（从supplyBreakdown）
+  if (supplyBreakdown && typeof supplyBreakdown === 'object') {
+    Object.entries(supplyBreakdown).forEach(([resource, data]) => {
+      if (data && typeof data === 'object' && Number.isFinite(data.imports)) {
+        const price = marketPrices[resource] || 0;
+        const value = data.imports * price;
+        imports += Number.isFinite(value) ? value : 0;
+      }
+    });
   }
   
   const netExports = exports - imports;
@@ -396,6 +384,77 @@ export function calculateDynamicCPIBaskets(classFinancialData) {
   };
 }
 
+// ==================== 动态PPI篮子计算 ====================
+
+/**
+ * 从实际生产数据中提取PPI篮子权重（使用滚动平均）
+ * @param {Array<Object>} supplyBreakdownHistory - 生产数据历史 [{resource: {buildings: {}, imports: 0}}, ...]
+ * @param {Object} marketPrices - 市场价格
+ * @param {Object} equilibriumPrices - 均衡价格
+ * @param {number} window - 滚动窗口天数（默认30天）
+ * @returns {Object} 篮子权重 {resource: weight}
+ */
+export function calculateDynamicPPIBasket({
+  supplyBreakdownHistory = [],
+  marketPrices = {},
+  equilibriumPrices = {},
+  window = 30,
+}) {
+  // 如果历史数据不足，返回空篮子（将使用默认篮子）
+  if (!supplyBreakdownHistory || supplyBreakdownHistory.length === 0) {
+    return {};
+  }
+  
+  // 使用最近window天的数据
+  const recentHistory = supplyBreakdownHistory.slice(-window);
+  const avgProduction = {}; // {resource: avgQuantity}
+  
+  // 计算平均生产量
+  recentHistory.forEach(dayData => {
+    if (!dayData || typeof dayData !== 'object') return;
+    
+    Object.entries(dayData).forEach(([resource, data]) => {
+      if (!data || typeof data !== 'object') return;
+      
+      // 统计建筑生产量
+      const buildings = data.buildings || {};
+      const totalProduction = Object.values(buildings).reduce((sum, amt) => {
+        return sum + (Number.isFinite(amt) ? amt : 0);
+      }, 0);
+      
+      if (totalProduction > 0) {
+        avgProduction[resource] = (avgProduction[resource] || 0) + totalProduction / recentHistory.length;
+      }
+    });
+  });
+  
+  // 计算每种资源的生产价值
+  const productionValues = {}; // {resource: value}
+  let totalValue = 0;
+  
+  Object.entries(avgProduction).forEach(([resource, quantity]) => {
+    // 只统计有价格的生产性资源
+    const price = marketPrices[resource] || equilibriumPrices[resource] || getBasePrice(resource);
+    
+    // 排除非资源项（如maxPop等）
+    if (price > 0 && RESOURCES[resource]) {
+      const value = quantity * price;
+      productionValues[resource] = value;
+      totalValue += value;
+    }
+  });
+  
+  // 计算权重
+  const basket = {};
+  if (totalValue > 0) {
+    Object.entries(productionValues).forEach(([resource, value]) => {
+      basket[resource] = value / totalValue;
+    });
+  }
+  
+  return basket;
+}
+
 // ==================== CPI 计算 ====================
 
 /**
@@ -466,20 +525,23 @@ export function calculateCPI({
  * @param {Object} params.marketPrices - 当前市场价格
  * @param {Object} params.equilibriumPrices - 长期均衡价格（基准）
  * @param {number} params.previousPPI - 上期PPI（用于计算变化率）
+ * @param {Object} params.basket - PPI篮子权重（可选，默认使用配置中的篮子）
  * @returns {Object} PPI数据
  */
 export function calculatePPI({
   marketPrices = {},
   equilibriumPrices = {},
   previousPPI = 100,
+  basket = null,
 }) {
-  const basket = ECONOMIC_INDICATOR_CONFIG.ppiBasket;
+  // 使用传入的篮子，或使用配置中的默认篮子
+  const ppiBasket = basket || ECONOMIC_INDICATOR_CONFIG.ppiBasket;
   
   let currentBasketCost = 0;
   let baseBasketCost = 0;
   const breakdown = {};
   
-  Object.entries(basket).forEach(([resource, weight]) => {
+  Object.entries(ppiBasket).forEach(([resource, weight]) => {
     const currentPrice = marketPrices[resource] || equilibriumPrices[resource] || getBasePrice(resource);
     const basePrice = equilibriumPrices[resource] || getBasePrice(resource);
     
@@ -526,10 +588,19 @@ export function calculateAllIndicators(params) {
     equilibriumPrices,
     previousIndicators = {},
     classFinancialData = {},
+    supplyBreakdownHistory = [], // 新增：生产数据历史
   } = params;
   
   // 计算动态CPI篮子
   const dynamicBaskets = calculateDynamicCPIBaskets(classFinancialData);
+  
+  // 计算动态PPI篮子
+  const dynamicPPIBasket = calculateDynamicPPIBasket({
+    supplyBreakdownHistory,
+    marketPrices: params.marketPrices,
+    equilibriumPrices,
+    window: 30, // 使用30天滚动平均
+  });
   
   // 计算GDP
   const gdp = calculateGDP({
@@ -567,11 +638,12 @@ export function calculateAllIndicators(params) {
     }),
   };
   
-  // 计算PPI
+  // 计算PPI（使用动态篮子）
   const ppi = calculatePPI({
     marketPrices: params.marketPrices,
     equilibriumPrices,
     previousPPI: previousIndicators.ppi?.index || 100,
+    basket: Object.keys(dynamicPPIBasket).length > 0 ? dynamicPPIBasket : null,
   });
   
   // [DEBUG] 输出分层CPI数据
@@ -582,11 +654,18 @@ export function calculateAllIndicators(params) {
   console.log('📦 Dynamic Baskets:', dynamicBaskets);
   console.groupEnd();
   
+  // [DEBUG] 输出动态PPI篮子
+  console.group('🏭 [DYNAMIC PPI BASKET DEBUG]');
+  console.log('📦 Dynamic PPI Basket:', dynamicPPIBasket);
+  console.log('📊 PPI Result:', ppi);
+  console.groupEnd();
+  
   return {
     gdp,
     cpi,
     cpiByTier,
     ppi,
     dynamicBaskets, // 返回动态篮子供调试使用
+    dynamicPPIBasket, // 返回动态PPI篮子供调试使用
   };
 }

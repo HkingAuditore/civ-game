@@ -686,6 +686,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         price: market?.priceHistory || {},
         supply: market?.supplyHistory || {},
         demand: market?.demandHistory || {},
+        supplyBreakdown: [], // 生产数据历史（用于动态PPI篮子）
     });
 
     // 初始化/同步 Ref
@@ -1745,9 +1746,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     officials: current.officials,
                     taxBreakdown: result.taxes?.breakdown || {},
                     demandBreakdown: market.demandBreakdown || {},
+                    supplyBreakdown: market.supplyBreakdown || {}, // 新增：供给分解（用于进口统计）
 
                     // 历史数据
                     previousIndicators: economicIndicators,
+                    supplyBreakdownHistory: marketHistoryRef.current.supplyBreakdown, // 新增：生产数据历史
                 });
 
                 console.log('✅ Calculated Indicators:', indicators);
@@ -2255,6 +2258,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     nHist[key].push(report.satisfactionRatio);
                     if (nHist[key].length > MAX_POINTS) nHist[key].shift();
                 });
+
+                // 4. Supply Breakdown History Update (for dynamic PPI basket)
+                if (result.market?.supplyBreakdown) {
+                    // 确保supplyBreakdown数组存在（兼容旧存档）
+                    if (!mHist.supplyBreakdown) {
+                        mHist.supplyBreakdown = [];
+                    }
+                    mHist.supplyBreakdown.push(result.market.supplyBreakdown);
+                    // 保留最近30天的数据（用于PPI篮子计算）
+                    const MAX_SUPPLY_BREAKDOWN_DAYS = 30;
+                    if (mHist.supplyBreakdown.length > MAX_SUPPLY_BREAKDOWN_DAYS) {
+                        mHist.supplyBreakdown.shift();
+                    }
+                }
 
                 const adjustedMarket = {
                     ...(result.market || {}),

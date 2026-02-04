@@ -279,7 +279,7 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
  * @param {Array} logs - Log array (mutable)
  * @param {Object} taxPolicies - Player tax policies (optional)
  */
-export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs, taxPolicies = {}, diplomacyOrganizations = null, onTreasuryChange = null) => {
+export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs, taxPolicies = {}, diplomacyOrganizations = null, onTreasuryChange = null, demandBreakdown = null, supplyBreakdown = null) => {
     const res = resources;
     const organizationList = diplomacyOrganizations?.organizations || [];
     const getTariffDiscount = (nationId) => {
@@ -336,6 +336,14 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
                 }
                 nation.inventory[resourceKey] = (nation.inventory[resourceKey] || 0) + quantity;
 
+                // [NEW] Track export to demandBreakdown for GDP calculation
+                if (demandBreakdown) {
+                    if (!demandBreakdown[resourceKey]) {
+                        demandBreakdown[resourceKey] = { buildings: {}, pop: 0, exports: 0 };
+                    }
+                    demandBreakdown[resourceKey].exports = (demandBreakdown[resourceKey].exports || 0) + quantity;
+                }
+
                 logs.push(`AI_TRADE_EVENT:${JSON.stringify({
                     nationId: nation.id,
                     nationName: nation.name,
@@ -361,6 +369,14 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
                     nation.inventory = {};
                 }
                 nation.inventory[resourceKey] = Math.max(0, (nation.inventory[resourceKey] || 0) - quantity);
+
+                // [NEW] Track import to supplyBreakdown for GDP calculation
+                if (supplyBreakdown) {
+                    if (!supplyBreakdown[resourceKey]) {
+                        supplyBreakdown[resourceKey] = { buildings: {}, imports: 0 };
+                    }
+                    supplyBreakdown[resourceKey].imports = (supplyBreakdown[resourceKey].imports || 0) + quantity;
+                }
 
                 logs.push(`AI_TRADE_EVENT:${JSON.stringify({
                     nationId: nation.id,
