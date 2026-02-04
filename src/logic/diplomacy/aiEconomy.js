@@ -330,37 +330,47 @@ export const processAIIndependentGrowth = ({
         // Calculate population growth ratio for wealth scaling
         const popGrowthRatio = actualNewPopulation / Math.max(1, currentPopulation);
         
-        // Wealth grows proportionally to population growth (NOT independently!)
-        // This prevents wealth from growing while population is capped
+        // [FIX v5] 财富增长机制重构：确保财富能跟上人口增长
+        // 问题：之前的机制导致人口22亿但财富只有89，人均财富极低
+        // 解决：财富增长应该基于人口规模和增长率，而不是仅仅跟随人口增长率
+        
         const actualPopGrowth = actualNewPopulation - currentPopulation;
         const popGrowthRate = actualPopGrowth / Math.max(1, currentPopulation);
         
-        // Wealth growth rate should match population growth rate (with some bonus for development)
-        // If population growth is 0, wealth growth should also be minimal
         const tickScale = Math.min(ticksSinceLastGrowth / 10, 2.0);
-        const developmentBonus = (developmentRate - 1) * 0.005;  // [FIX] Reduced from 0.01 to 0.005
+        const developmentBonus = (developmentRate - 1) * 0.01;  // [FIX] Increased from 0.005 to 0.01
         
-        // Key fix: wealth growth is tied to population growth rate
-        // If pop growth rate is 0 (capped), wealth growth is only development bonus (very slow)
+        // 基础财富增长率 = 人口增长率 + 发展奖励
         const baseWealthGrowthRate = popGrowthRate + developmentBonus;
-        const rawWealthRate = baseWealthGrowthRate * tickScale;
-        const cappedWealthRate = clamp(rawWealthRate, -0.02, 0.03);
+        
+        // [FIX v5] 添加人均财富修正：如果人均财富过低，给予额外增长
+        const currentPerCapitaWealth = (next.wealth || ownBaseWealth) / Math.max(1, actualNewPopulation);
+        const targetPerCapitaWealth = 50;  // 目标人均财富基准
+        
+        // 如果人均财富低于目标，给予追赶增长（最多+5%）
+        let catchUpBonus = 0;
+        if (currentPerCapitaWealth < targetPerCapitaWealth) {
+            const wealthGap = (targetPerCapitaWealth - currentPerCapitaWealth) / targetPerCapitaWealth;
+            catchUpBonus = Math.min(0.05, wealthGap * 0.1);  // 差距越大，追赶越快
+        }
+        
+        const rawWealthRate = (baseWealthGrowthRate + catchUpBonus) * tickScale;
+        const cappedWealthRate = clamp(rawWealthRate, -0.02, 0.08);  // [FIX] Increased cap from 0.03 to 0.08
         const wealthGrowthRate = 1 + cappedWealthRate;
         
-        // [FIX v4] Apply per-capita wealth cap to prevent late-game wealth explosion
-        // Per-capita cap: Stone=2k, Ancient=4k, Medieval=8k, Industrial=16k, Modern=32k (reduced caps)
-        const perCapitaWealthCap = Math.min(50000, 2000 * Math.pow(2, Math.min(epoch, 4)));
-        const currentPerCapitaWealth = (next.wealth || ownBaseWealth) / Math.max(1, actualNewPopulation);
+        // [FIX v5] 调整人均财富上限，防止过度限制
+        // Per-capita cap: Stone=3k, Ancient=6k, Medieval=12k, Industrial=24k, Modern=48k
+        const perCapitaWealthCap = Math.min(100000, 3000 * Math.pow(2, Math.min(epoch, 4)));
         
-        // If already at or above per-capita cap, no wealth growth (only development bonus)
+        // If already at or above per-capita cap, slow down growth
         let cappedWealthGrowthRate = 1.0;
         if (currentPerCapitaWealth >= perCapitaWealthCap) {
             // At cap: allow slight decline if population is shrinking, otherwise tiny growth
             const atCapRate = clamp(baseWealthGrowthRate * tickScale, -0.01, 0.005);
             cappedWealthGrowthRate = 1 + atCapRate;
         } else {
-            // Below cap: normal growth but capped at 3% per update (reduced from 5%)
-            cappedWealthGrowthRate = Math.min(wealthGrowthRate, 1.03);
+            // Below cap: normal growth but capped at 8% per update (increased from 3%)
+            cappedWealthGrowthRate = Math.min(wealthGrowthRate, 1.08);
         }
         
         const newBaseWealth = Math.round(ownBaseWealth * cappedWealthGrowthRate);
@@ -495,6 +505,26 @@ export const updateAIDevelopment = ({
         next.population = Math.max(3, Math.round(currentPopulation - warCasualty));
     }
     
+    // [FIX v5] 添加饥荒死亡机制：极度贫困导致人口崩溃
+    // 当人均财富极低时（< 0.5），说明经济完全崩溃，应该触发大规模死亡
+    const currentWealth = next.wealth ?? desiredWealth;
+    const wealthPerCapita = currentWealth / Math.max(1, next.population);
+    
+    if (wealthPerCapita < 0.5) {
+        // 极度贫困：每次更新损失5-15%人口（饥荒）
+        const starvationSeverity = Math.max(0, (0.5 - wealthPerCapita) / 0.5);  // 0-1
+        const starvationRate = 0.05 + starvationSeverity * 0.1;  // 5%-15%
+        const deaths = Math.floor(next.population * starvationRate * tickScaleFactor);
+        next.population = Math.max(3, next.population - deaths);
+        
+        console.warn(`[FAMINE] ${next.name}: 人均财富${wealthPerCapita.toFixed(4)}过低，触发饥荒，人口损失${deaths}（${(starvationRate*100).toFixed(1)}%）`);
+    } else if (wealthPerCapita < 2) {
+        // 严重贫困：每次更新损失1-3%人口
+        const povertyRate = 0.01 + (2 - wealthPerCapita) / 1.5 * 0.02;  // 1%-3%
+        const deaths = Math.floor(next.population * povertyRate * tickScaleFactor);
+        next.population = Math.max(3, next.population - deaths);
+    }
+    
     // Food shortage affects military strength, not population directly
     if (foodStatus.isShortage) {
         const shortagePressure = clamp(foodStatus.shortageAmount / Math.max(1, foodStatus.target), 0, 1);
@@ -504,7 +534,6 @@ export const updateAIDevelopment = ({
 
     // [FIX] Wealth should NOT drift independently - it's tied to population growth
     // Only apply minor adjustments here, main wealth growth is in processAIIndependentGrowth
-    const currentWealth = next.wealth ?? desiredWealth;
     
     // War penalty on wealth (looting, destruction)
     let adjustedWealth = currentWealth;

@@ -808,11 +808,33 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
     const militaryStrength = nation?.militaryStrength ?? 1.0;
     const aggression = nation?.aggression || 0.3;
 
-    // 基础军队规模 = 人口 × 军事强度 × 基础比例(0.6%) × 时代系数 × 难度倍数
+    // [FIX] 添加财富约束：军队需要经济支撑
+    const wealth = nation?.wealth || 500;
+    const wealthPerCapita = wealth / Math.max(1, population);
+    
+    // 财富约束系数：基于人均财富
+    // 人均财富 < 0.5: 极度贫困，军队规模削减到5%以下
+    // 人均财富 0.5-5: 贫困，军队规模10%-50%
+    // 人均财富 5-20: 正常，军队规模50%-100%
+    // 人均财富 > 20: 富裕，军队规模100%
+    let wealthConstraint = 1.0;
+    if (wealthPerCapita < 0.5) {
+        // 极度贫困：几乎无法维持军队
+        wealthConstraint = Math.max(0.05, wealthPerCapita * 0.1);
+    } else if (wealthPerCapita < 5) {
+        // 贫困：军队规模受限
+        wealthConstraint = 0.05 + (wealthPerCapita - 0.5) / 4.5 * 0.45;  // 5%-50%
+    } else if (wealthPerCapita < 20) {
+        // 正常：逐渐恢复到正常规模
+        wealthConstraint = 0.5 + (wealthPerCapita - 5) / 15 * 0.5;  // 50%-100%
+    }
+    // else: wealthPerCapita >= 20, wealthConstraint = 1.0 (无约束)
+
+    // 基础军队规模 = 人口 × 军事强度 × 基础比例(0.6%) × 时代系数 × 难度倍数 × 财富约束
     // Note: population is in units of 10,000 (万), so 0.6% gives reasonable army size
-    // E.g. 3679万 × 1.0 × 0.006 × 1.15 × 1.0 ≈ 25,000 troops
+    // E.g. 3679万 × 1.0 × 0.006 × 1.15 × 1.0 × 1.0 ≈ 25,000 troops
     const epochFactor = 1 + epoch * 0.15;
-    const baseArmySize = Math.floor(population * militaryStrength * 0.006 * epochFactor * difficultyMultiplier);
+    const baseArmySize = Math.floor(population * militaryStrength * 0.006 * epochFactor * difficultyMultiplier * wealthConstraint);
 
     // 应用派遣比例
     const deployedSize = Math.max(1, Math.floor(baseArmySize * deploymentRatio));
