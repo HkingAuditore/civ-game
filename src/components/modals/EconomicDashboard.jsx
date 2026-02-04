@@ -5,6 +5,28 @@ import { RESOURCES } from '../../config/gameConstants';
 /**
  * 经济数据看板 - 专业的国家经济数据展示面板
  */
+// 中文映射表
+const LABEL_MAP = {
+  // 收入项
+  wage: '工资',
+  ownerRevenue: '所有者收入',
+  subsidy: '补贴',
+  profit: '利润',
+  rent: '租金',
+  dividend: '股息',
+  salary: '薪水',
+  
+  // 支出项
+  transactionTax: '交易税',
+  businessTax: '营业税',
+  essentialNeeds: '必需品消费',
+  luxuryNeeds: '奢侈品消费',
+  decay: '资产折旧',
+  productionCosts: '生产成本',
+  investmentCosts: '投资成本',
+  maintenanceCosts: '维护成本',
+};
+
 export const EconomicDashboard = ({ 
   isOpen, 
   onClose, 
@@ -843,7 +865,21 @@ export const EconomicDashboard = ({
                 <div className="space-y-4">
                   {Object.entries(classFinancialData || {}).map(([className, data]) => {
                     const totalIncome = Object.values(data.income || {}).reduce((sum, val) => sum + (val || 0), 0);
-                    const totalExpense = Object.values(data.expense || {}).reduce((sum, val) => sum + (val || 0), 0);
+                    
+                    // 修复：正确计算总支出（处理嵌套对象）
+                    const totalExpense = Object.values(data.expense || {}).reduce((sum, val) => {
+                      if (typeof val === 'object' && val !== null) {
+                        // 如果是对象（如essentialNeeds），计算其中所有项的cost总和
+                        const objTotal = Object.values(val).reduce((objSum, item) => {
+                          const cost = item?.cost || item?.totalCost || 0;
+                          return objSum + cost;
+                        }, 0);
+                        return sum + objTotal;
+                      }
+                      // 如果是数字，直接累加
+                      return sum + (val || 0);
+                    }, 0);
+                    
                     const netIncome = totalIncome - totalExpense;
                     
                     return (
@@ -875,7 +911,7 @@ export const EconomicDashboard = ({
                             {Object.entries(data.income || {}).map(([key, value]) => (
                               value > 0 && (
                                 <div key={key} className="flex justify-between text-xs">
-                                  <span className="text-gray-400">{key}</span>
+                                  <span className="text-gray-400">{LABEL_MAP[key] || key}</span>
                                   <span className="text-green-400">{formatAmount(value)}</span>
                                 </div>
                               )
@@ -898,7 +934,7 @@ export const EconomicDashboard = ({
                                 }, 0);
                                 return total > 0 && (
                                   <div key={key} className="flex justify-between text-xs">
-                                    <span className="text-gray-400">{key}</span>
+                                    <span className="text-gray-400">{LABEL_MAP[key] || key}</span>
                                     <span className="text-red-400">{formatAmount(total)}</span>
                                   </div>
                                 );
@@ -906,7 +942,7 @@ export const EconomicDashboard = ({
                               // 如果是数字
                               return value > 0 && (
                                 <div key={key} className="flex justify-between text-xs">
-                                  <span className="text-gray-400">{key}</span>
+                                  <span className="text-gray-400">{LABEL_MAP[key] || key}</span>
                                   <span className="text-red-400">{formatAmount(value)}</span>
                                 </div>
                               );
