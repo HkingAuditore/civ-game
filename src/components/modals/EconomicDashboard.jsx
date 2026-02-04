@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, TrendingUp, TrendingDown, DollarSign, Activity, PieChart, BarChart3, Globe } from 'lucide-react';
 import { RESOURCES } from '../../config/gameConstants';
 import { STRATA } from '../../config/strata';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 经济数据看板 - 专业的国家经济数据展示面板
@@ -63,15 +64,10 @@ export const EconomicDashboard = ({
   const cpi = economicIndicators?.cpi || { index: 100, change: 0, breakdown: {} };
   const ppi = economicIndicators?.ppi || { index: 100, change: 0, breakdown: {} };
 
-  // 格式化数字
+  // 格式化数字 - 使用中文格式
   const formatAmount = (value) => {
     if (!value || isNaN(value)) return '0';
-    if (Math.abs(value) >= 1000000) {
-      return `${(value / 1000000).toFixed(1)}M`;
-    } else if (Math.abs(value) >= 1000) {
-      return `${(value / 1000).toFixed(1)}K`;
-    }
-    return value.toFixed(0);
+    return formatNumberShortCN(value, { decimals: 1 });
   };
 
   // 格式化百分比
