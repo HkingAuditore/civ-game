@@ -573,6 +573,14 @@ export function calculateAllIndicators(params) {
     previousPPI: previousIndicators.ppi?.index || 100,
   });
   
+  // [DEBUG] 输出分层CPI数据
+  console.group('📊 [CPI BY TIER DEBUG]');
+  console.log('🔵 Lower CPI:', cpiByTier.lower);
+  console.log('🟢 Middle CPI:', cpiByTier.middle);
+  console.log('🟣 Upper CPI:', cpiByTier.upper);
+  console.log('📦 Dynamic Baskets:', dynamicBaskets);
+  console.groupEnd();
+  
   return {
     gdp,
     cpi,

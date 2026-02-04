@@ -23,6 +23,7 @@ export const EconomicDashboard = ({
     if (isOpen) {
       console.group('💰 [ECONOMIC DASHBOARD OPENED]');
       console.log('📊 Economic Indicators:', economicIndicators);
+      console.log('🔍 CPI By Tier:', economicIndicators?.cpiByTier);
       console.log('💵 Treasury:', treasury);
       console.log('📈 Daily Income:', dailyTreasuryIncome);
       console.log('🏷️ Market Prices:', marketPrices);
