@@ -80,6 +80,14 @@ import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
 import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
 import { LOYALTY_CONFIG } from '../config/officials';
 import { updateAllOfficialsDaily } from '../logic/officials/progression';
+// 经济指标系统
+import {
+    updatePriceHistory,
+    calculateEquilibriumPrices,
+    calculateAllIndicators,
+    getBasePrices,
+    ECONOMIC_INDICATOR_CONFIG,
+} from '../logic/economy/economicIndicators';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
@@ -519,6 +527,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
         lastFestivalYear,
         setLastFestivalYear,
         setHistory,
+        // 经济指标
+        priceHistory,
+        setPriceHistory,
+        equilibriumPrices,
+        setEquilibriumPrices,
+        economicIndicators,
+        setEconomicIndicators,
         autoSaveInterval,
         isAutoSaveEnabled,
         lastAutoSaveTime,
@@ -1685,6 +1700,46 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // === 财政日志结束 ===
                 console.log('🔴🔴🔴 [DEBUG-CHECKPOINT] 财政日志结束，继续执行...');
 
+                // ========== 经济指标计算 ==========
+                // 1. 更新价格历史（每天）
+                const updatedPriceHistory = updatePriceHistory({
+                    priceHistory,
+                    currentPrices: market.prices,
+                    maxLength: ECONOMIC_INDICATOR_CONFIG.priceHistory.maxLength,
+                });
+                setPriceHistory(updatedPriceHistory);
+                
+                // 2. 计算均衡价格（每10天）
+                let currentEquilibriumPrices = equilibriumPrices;
+                if (tick % ECONOMIC_INDICATOR_CONFIG.equilibriumPrice.updateInterval === 0) {
+                    currentEquilibriumPrices = calculateEquilibriumPrices({
+                        priceHistory: updatedPriceHistory,
+                        basePrices: getBasePrices(),
+                        window: ECONOMIC_INDICATOR_CONFIG.equilibriumPrice.window,
+                    });
+                    setEquilibriumPrices(currentEquilibriumPrices);
+                }
+                
+                // 3. 计算所有经济指标（每天）
+                const indicators = calculateAllIndicators({
+                    // 价格数据
+                    priceHistory: updatedPriceHistory,
+                    equilibriumPrices: currentEquilibriumPrices,
+                    marketPrices: market.prices,
+                    
+                    // GDP数据
+                    classFinancialData: result.classFinancialData,
+                    buildingFinancialData: result.buildingFinancialData,
+                    dailyMilitaryExpense: result.dailyMilitaryExpense || 0,
+                    officials: current.officials,
+                    taxBreakdown: result.taxes?.breakdown || {},
+                    demandBreakdown: market.demandBreakdown || {},
+                    
+                    // 历史数据
+                    previousIndicators: economicIndicators,
+                });
+                setEconomicIndicators(indicators);
+
                 const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
                     ? result._debug.startingSilver
                     : treasuryAtTickStart;
@@ -2225,6 +2280,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
                             tax: appendValue(safeHistory.tax, treasuryIncome || 0),
                             population: appendValue(safeHistory.population, nextPopulation || 0),
+                            // 经济指标历史
+                            gdp: appendValue(safeHistory.gdp, indicators.gdp?.total || 0),
+                            cpi: appendValue(safeHistory.cpi, indicators.cpi?.index || 100),
+                            ppi: appendValue(safeHistory.ppi, indicators.ppi?.index || 100),
                         };
 
                         const previousClassHistory = safeHistory.class || {};
