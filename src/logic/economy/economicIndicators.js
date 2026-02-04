@@ -412,6 +412,7 @@ export function calculateDynamicCPIBaskets(classFinancialData) {
 export function calculateCPI({
   marketPrices = {},
   equilibriumPrices = {},
+  previousCPI = 100,
   basket = null,
 }) {
   // 使用传入的篮子，或使用配置中的默认篮子
