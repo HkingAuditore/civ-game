@@ -96,20 +96,20 @@ export const BUILDING_CHAINS = {
         buildings: ['loom_house', 'wool_workshop', 'textile_mill'],
     },
 
-    // 华服生产链：成衣作坊 → 印染工坊 → 服装工厂
+    // 华服生产链：成衣作坊 → 服装工厂
     fine_clothes_production: {
         name: '华服制作',
         icon: 'Package',
         primaryOutput: 'fine_clothes',
-        buildings: ['tailor_workshop', 'dye_workshop', 'garment_factory'],
+        buildings: ['tailor_workshop', 'garment_factory'],
     },
 
-    // 染料生产链：染坊（单独，印染工坊主产华服）
+    // 染料生产链：染坊 → 印染工坊
     dye_production: {
         name: '染料生产',
         icon: 'Paintbrush',
         primaryOutput: 'dye',
-        buildings: ['dye_works'],
+        buildings: ['dye_works', 'dye_workshop'],
     },
 
     // 酒类生产链：酿造坊 → 修道院酒窖 → 蒸馏酒厂

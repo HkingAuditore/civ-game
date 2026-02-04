@@ -1746,8 +1746,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     dailyMilitaryExpense: result.dailyMilitaryExpense || 0,
                     officials: current.officials,
                     taxBreakdown: result.taxes?.breakdown || {},
-                    demandBreakdown: market.demandBreakdown || {},
-                    supplyBreakdown: market.supplyBreakdown || {}, // 新增：供给分解（用于进口统计）
+                    demandBreakdown: result.market?.demandBreakdown || {}, // [FIX] 使用simulation返回的新数据
+                    supplyBreakdown: result.market?.supplyBreakdown || {}, // [FIX] 使用simulation返回的新数据
 
                     // 历史数据
                     previousIndicators: economicIndicators,
