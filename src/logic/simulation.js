@@ -5858,7 +5858,7 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-Player trade
     if (shouldUpdateTrade) {
-        processAIPlayerTrade(diplomacyTargets, tick, res, market, logs, policies, diplomacyOrganizations, trackSilverChange);
+        processAIPlayerTrade(diplomacyTargets, tick, res, market, logs, policies, diplomacyOrganizations, trackSilverChange, demandBreakdown, supplyBreakdown);
     }
 
 
