@@ -1348,17 +1348,17 @@ const ResourceDetailContent = ({
                                     <MarketTrendChart
                                         series={[
                                             { 
-                                                name: 'GDP', 
+                                                label: 'GDP', 
                                                 data: history.gdp || [], 
                                                 color: '#60a5fa' 
                                             },
                                             { 
-                                                name: 'CPI', 
+                                                label: 'CPI', 
                                                 data: history.cpi || [], 
                                                 color: '#fb923c' 
                                             },
                                             { 
-                                                name: 'PPI', 
+                                                label: 'PPI', 
                                                 data: history.ppi || [], 
                                                 color: '#c084fc' 
                                             },
