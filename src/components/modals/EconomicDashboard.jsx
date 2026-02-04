@@ -958,15 +958,32 @@ export const EconomicDashboard = ({
                 <h3 className="text-lg font-semibold text-blue-300 mb-4">阶层经济健康度</h3>
                 <div className="space-y-3">
                   {Object.entries(classFinancialData || {}).map(([className, data]) => {
+                    // 计算总收入（所有income字段都是数字）
                     const totalIncome = Object.values(data.income || {}).reduce((sum, val) => sum + (val || 0), 0);
-                    const totalExpense = Object.values(data.expense || {}).reduce((sum, val) => sum + (val || 0), 0);
+                    
+                    // 计算总支出（需要处理嵌套对象）
+                    let totalExpense = 0;
+                    Object.entries(data.expense || {}).forEach(([key, val]) => {
+                      if (typeof val === 'object' && val !== null) {
+                        // 嵌套对象（essentialNeeds、luxuryNeeds）：累加其中的cost值
+                        Object.values(val).forEach(item => {
+                          if (typeof item === 'object' && item !== null && item.cost) {
+                            totalExpense += item.cost || 0;
+                          }
+                        });
+                      } else {
+                        // 普通数字字段
+                        totalExpense += val || 0;
+                      }
+                    });
+                    
                     const netIncome = totalIncome - totalExpense;
                     const healthPercent = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
                     
                     return (
                       <div key={className}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-gray-300 capitalize">{className}</span>
+                          <span className="text-sm text-gray-300">{STRATA[className]?.name || className}</span>
                           <span className={`text-sm font-medium ${
                             healthPercent > 20 ? 'text-green-400' :
                             healthPercent > 0 ? 'text-yellow-400' :
