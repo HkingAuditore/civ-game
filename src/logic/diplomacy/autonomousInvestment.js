@@ -261,38 +261,38 @@ export function selectInboundInvestmentsBatch({
     batchSize = 2, // [NEW] 每次处理的投资国数量
     batchOffset = 0, // [NEW] 当前批次的起始位置
 }) {
-    console.log('🔍 [INBOUND-DEBUG] 开始筛选投资国...');
-    console.log('🔍 [INBOUND-DEBUG] investorNations 数量:', investorNations?.length || 0);
-    console.log('🔍 [INBOUND-DEBUG] playerState:', playerState?.id);
-    console.log('🔍 [INBOUND-DEBUG] daysElapsed:', daysElapsed);
+    debugLog('investment', '[INBOUND] Starting investor filtering...');
+    debugLog('investment', '[INBOUND] investorNations count:', investorNations?.length || 0);
+    debugLog('investment', '[INBOUND] playerState:', playerState?.id);
+    debugLog('investment', '[INBOUND] daysElapsed:', daysElapsed);
 
     const eligibleInvestors = (investorNations || []).filter(n => {
         if (!n || n.id === 'player') {
-            console.log('🔍 [INBOUND-DEBUG] 跳过:', n?.name || 'null', '- 原因: 玩家或null');
+            debugLog('investment', '[INBOUND] Skip:', n?.name || 'null', '- Reason: player or null');
             return false;
         }
         if ((n.wealth || 0) < 5000) {
-            console.log('🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 财富不足', n.wealth);
+            debugLog('investment', '[INBOUND] Skip:', n.name, '- Reason: insufficient wealth', n.wealth);
             return false;
         }
         if (!canForeignInvestInPlayer(n, playerState, diplomacyOrganizations, daysElapsed)) {
-            console.log('🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 无投资权限');
+            debugLog('investment', '[INBOUND] Skip:', n.name, '- Reason: no investment permission');
             return false;
         }
         const lastDay = n.lastForeignInvestmentDay ?? -Infinity;
         const cooldown = daysElapsed - lastDay;
         if (cooldown < 60) {
-            console.log('🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 冷却中', cooldown, '天');
+            debugLog('investment', '[INBOUND] Skip:', n.name, '- Reason: cooldown', cooldown, 'days');
             return false;
         }
-        console.log('✅ [INBOUND-DEBUG] 符合条件:', n.name, '- 财富:', n.wealth, '关系:', n.relation);
+        debugLog('investment', '[INBOUND] Eligible:', n.name, '- Wealth:', n.wealth, 'Relation:', n.relation);
         return true;
     });
 
-    console.log('🔍 [INBOUND-DEBUG] eligibleInvestors 数量:', eligibleInvestors.length);
+    debugLog('investment', '[INBOUND] eligibleInvestors count:', eligibleInvestors.length);
 
     if (eligibleInvestors.length === 0) {
-        console.log('❌ [INBOUND-DEBUG] 没有符合条件的投资国');
+        debugLog('investment', '[INBOUND] No eligible investors');
         return { investments: [], hasMore: false, nextOffset: 0 };
     }
 
@@ -303,15 +303,15 @@ export function selectInboundInvestmentsBatch({
         return weightB - weightA;
     });
 
-    console.log('🔍 [INBOUND-DEBUG] 排序后的投资国:', sortedInvestors.map(n => n.name));
+    debugLog('investment', '[INBOUND] Sorted investors:', sortedInvestors.map(n => n.name));
 
     // 分批处理：每次处理 batchSize 个投资国
     const batchInvestors = sortedInvestors.slice(batchOffset, batchOffset + batchSize);
     const hasMore = (batchOffset + batchSize) < sortedInvestors.length;
     const nextOffset = hasMore ? (batchOffset + batchSize) : 0;
 
-    console.log('🔍 [INBOUND-DEBUG] 本批次处理:', batchInvestors.map(n => n.name));
-    console.log('🔍 [INBOUND-DEBUG] batchOffset:', batchOffset, 'hasMore:', hasMore, 'nextOffset:', nextOffset);
+    debugLog('investment', '[INBOUND] Batch processing:', batchInvestors.map(n => n.name));
+    debugLog('investment', '[INBOUND] batchOffset:', batchOffset, 'hasMore:', hasMore, 'nextOffset:', nextOffset);
 
     const decisions = [];
 
@@ -319,7 +319,7 @@ export function selectInboundInvestmentsBatch({
         const investmentPolicy = investorNation.vassalPolicy?.investmentPolicy || 'autonomous';
         const roiThreshold = getInvestmentPolicyThreshold(investmentPolicy);
 
-        console.log('🔍 [INBOUND-DEBUG] 评估', investorNation.name, '- policy:', investmentPolicy, 'threshold:', roiThreshold);
+        debugLog('investment', '[INBOUND] Evaluating', investorNation.name, '- policy:', investmentPolicy, 'threshold:', roiThreshold);
 
         const bestBuilding = selectBestInvestmentBuilding({
             targetBuildings: playerState?.buildings || {},
@@ -330,14 +330,14 @@ export function selectInboundInvestmentsBatch({
             foreignInvestments,
         });
 
-        console.log('🔍 [INBOUND-DEBUG]', investorNation.name, '最佳建筑:', bestBuilding?.building?.name, 'ROI:', bestBuilding?.roi);
+        debugLog('investment', '[INBOUND]', investorNation.name, 'best building:', bestBuilding?.building?.name, 'ROI:', bestBuilding?.roi);
 
         if (!bestBuilding || bestBuilding.roi <= roiThreshold) {
-            console.log('❌ [INBOUND-DEBUG]', investorNation.name, '跳过 - ROI不足或无建筑');
+            debugLog('investment', '[INBOUND]', investorNation.name, 'skip - insufficient ROI or no building');
             return;
         }
 
-        console.log('✅ [INBOUND-DEBUG]', investorNation.name, '决定投资:', bestBuilding.building.name);
+        debugLog('investment', '[INBOUND]', investorNation.name, 'decides to invest:', bestBuilding.building.name);
 
         decisions.push({
             investorNation,
@@ -348,17 +348,17 @@ export function selectInboundInvestmentsBatch({
         });
     });
 
-    console.log('🔍 [INBOUND-DEBUG] 本批次投资决策数量:', decisions.length);
+    debugLog('investment', '[INBOUND] Batch decisions count:', decisions.length);
 
     if (decisions.length === 0) {
-        console.log('❌ [INBOUND-DEBUG] 本批次没有投资决策');
+        debugLog('investment', '[INBOUND] No investment decisions in this batch');
         return { investments: [], hasMore, nextOffset };
     }
 
     decisions.sort((a, b) => b.roi - a.roi);
     const topDecisions = decisions.slice(0, Math.min(maxInvestments, decisions.length));
-    
-    console.log('✅ [INBOUND-DEBUG] 返回投资决策:', topDecisions.map(d => `${d.investorNation.name} -> ${d.building.name}`));
+
+    debugLog('investment', '[INBOUND] Returning decisions:', topDecisions.map(d => `${d.investorNation.name} -> ${d.building.name}`));
 
     return {
         investments: topDecisions,
@@ -418,7 +418,7 @@ export function processClassAutonomousInvestment({
         ) || false;
 
         const canInvest = isVassal || hasInvestmentPact || hasEconomicPact || hasOrgEconomicBloc;
-        console.log(`🤖 [AUTO-INVEST] 检查目标 ${targetNation.name}: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgEconomicBloc=${hasOrgEconomicBloc} => ${canInvest}`);
+        debugLog('investment', `[AUTO-INVEST] Check target ${targetNation.name}: isVassal=${isVassal}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact}, hasOrgEconomicBloc=${hasOrgEconomicBloc} => ${canInvest}`);
         return canInvest;
     };
     const isEconomicAidActive = (targetNation) => {
@@ -430,24 +430,24 @@ export function processClassAutonomousInvestment({
     // 2. Shuffle strata to give random chance of who invests first
     const strata = [...INVESTOR_STRATA].sort(() => Math.random() - 0.5);
 
-    console.log(`🤖 [AUTO-INVEST] 检查投资者阶层: ${strata.join(', ')}`);
-    console.log(`🤖 [AUTO-INVEST] 阶层财富:`, classWealth);
+    debugLog('investment', `[AUTO-INVEST] Checking investor strata: ${strata.join(', ')}`);
+    debugLog('investment', `[AUTO-INVEST] Strata wealth:`, classWealth);
 
     for (const stratum of strata) {
         const wealth = classWealth[stratum] || 0;
         // Basic check: needs enough money for at least a cheap building (e.g. 1000)
         if (wealth < 1000) {
-            console.log(`🤖 [AUTO-INVEST] ${stratum} 财富不足 (${wealth} < 1000), 跳过`);
+            debugLog('investment', `[AUTO-INVEST] ${stratum} insufficient wealth (${wealth} < 1000), skip`);
             continue;
         }
 
-        console.log(`🤖 [AUTO-INVEST] ${stratum} 财富=${wealth}, 开始寻找投资目标...`);
+        debugLog('investment', `[AUTO-INVEST] ${stratum} wealth=${wealth}, searching for targets...`);
 
         // 3. Find potential targets
         // Filter valid nations first
-        console.log(`🤖 [AUTO-INVEST] nations 列表: ${nations?.length || 0} 个, 国家: ${nations?.map(n => n.name).join(', ') || '无'}`);
+        debugLog('investment', `[AUTO-INVEST] nations list: ${nations?.length || 0}, nations: ${nations?.map(n => n.name).join(', ') || 'none'}`);
         const validNations = nations.filter(n => canInvestInNation(n));
-        console.log(`🤖 [AUTO-INVEST] ${stratum} 找到 ${validNations.length} 个有效投资目标`);
+        debugLog('investment', `[AUTO-INVEST] ${stratum} found ${validNations.length} valid targets`);
         if (validNations.length === 0) continue;
 
         // Shuffle nations to avoid always investing in the same one
@@ -456,7 +456,7 @@ export function processClassAutonomousInvestment({
             && Math.random() < investmentFocusChance;
         const targetPool = preferAidTargets ? preferredTargets : validNations;
         if (preferAidTargets) {
-            console.log(`🤖 [AUTO-INVEST] ${stratum} 经济扶持优先目标: ${preferredTargets.map(n => n.name).join(', ')}`);
+            debugLog('investment', `[AUTO-INVEST] ${stratum} economic aid priority targets: ${preferredTargets.map(n => n.name).join(', ')}`);
         }
         const preferredTargetIds = new Set(preferredTargets.map(n => n.id));
         const shuffledNations = [...targetPool].sort(() => Math.random() - 0.5);
@@ -467,7 +467,7 @@ export function processClassAutonomousInvestment({
             // Each stratum can only invest in buildings where they are the owner
             const candidateBuildings = getInvestableBuildings('treaty', stratum, epoch);
 
-            console.log(`🤖 [AUTO-INVEST] ${stratum} 可投资的建筑: ${candidateBuildings.map(b => b.name).join(', ') || '无'}`);
+            debugLog('investment', `[AUTO-INVEST] ${stratum} investable buildings: ${candidateBuildings.map(b => b.name).join(', ') || 'none'}`);
             if (candidateBuildings.length === 0) continue;
 
             // Shuffle buildings
@@ -477,9 +477,9 @@ export function processClassAutonomousInvestment({
                 // [FIX] Use getBuildingSilverCost instead of building.cost?.silver
                 // Building cost is the sum of all material costs * 1.5 overseas markup
                 const cost = getBuildingSilverCost(building);
-                console.log(`🤖 [AUTO-INVEST] ${stratum} 检查 ${building.name}: cost=${cost}, wealth=${wealth.toFixed(0)}, canAfford=${wealth >= cost}`);
+                debugLog('investment', `[AUTO-INVEST] ${stratum} checking ${building.name}: cost=${cost}, wealth=${wealth.toFixed(0)}, canAfford=${wealth >= cost}`);
                 if (cost <= 0 || wealth < cost) {
-                    console.log(`🤖 [AUTO-INVEST] ${stratum} 跳过 ${building.name}: 成本=${cost}, 财富不足`);
+                    debugLog('investment', `[AUTO-INVEST] ${stratum} skip ${building.name}: cost=${cost}, insufficient wealth`);
                     continue;
                 }
 
@@ -515,7 +515,7 @@ export function processClassAutonomousInvestment({
                 // Annualized ROI = (Daily Profit * 360) / Cost
                 const annualROI = (dailyProfit * 360) / cost;
 
-                console.log(`🤖 [AUTO-INVEST] ${stratum} 评估 ${building.name} 在 ${targetNation.name}: profit=${dailyProfit.toFixed(1)}/day, ROI=${(annualROI * 100).toFixed(1)}%, threshold=${(MIN_ROI_THRESHOLD * 100).toFixed(1)}%`);
+                debugLog('investment', `[AUTO-INVEST] ${stratum} evaluating ${building.name} in ${targetNation.name}: profit=${dailyProfit.toFixed(1)}/day, ROI=${(annualROI * 100).toFixed(1)}%, threshold=${(MIN_ROI_THRESHOLD * 100).toFixed(1)}%`);
 
                 if (annualROI > MIN_ROI_THRESHOLD) {
                     // Found a good investment!
@@ -524,13 +524,13 @@ export function processClassAutonomousInvestment({
                         ? Math.min(1, INVESTMENT_CHANCE * investmentChanceMultiplier)
                         : INVESTMENT_CHANCE;
                     const roll = Math.random();
-                    console.log(`🤖 [AUTO-INVEST] ${stratum} ROI足够! roll=${roll.toFixed(3)}, threshold=${effectiveInvestmentChance}, willInvest=${roll <= effectiveInvestmentChance}`);
+                    debugLog('investment', `[AUTO-INVEST] ${stratum} ROI sufficient! roll=${roll.toFixed(3)}, threshold=${effectiveInvestmentChance}, willInvest=${roll <= effectiveInvestmentChance}`);
                     if (roll > effectiveInvestmentChance) {
-                        console.log(`🤖 [AUTO-INVEST] ${stratum} 随机跳过投资 (${(effectiveInvestmentChance * 100).toFixed(0)}%概率)`);
+                        debugLog('investment', `[AUTO-INVEST] ${stratum} random skip investment (${(effectiveInvestmentChance * 100).toFixed(0)}% chance)`);
                         continue; // Chance to skip
                     }
 
-                    console.log(`🤖 [AUTO-INVEST] ✅ ${stratum} 决定投资 ${building.name} 在 ${targetNation.name}!`);
+                    debugLog('investment', `[AUTO-INVEST] ${stratum} decides to invest ${building.name} in ${targetNation.name}!`);
 
                     return {
                         success: true,
@@ -597,9 +597,9 @@ export function processAIInvestment({
         const hasEconomicPact = hasActiveTreaty(investorNation, 'economic_pact', daysElapsed);
 
         const canInvest = isVassal || isSuzerain || hasEconomicOrg || hasInvestmentPact || hasEconomicPact;
-        
-        console.log(`[AI投资检查] ${investorNation.name} -> ${targetId}: isVassal=${isVassal}, isSuzerain=${isSuzerain}, hasEconomicOrg=${hasEconomicOrg}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact} => ${canInvest}`);
-        
+
+        debugLog('ai', `[AI-INVEST-CHECK] ${investorNation.name} -> ${targetId}: isVassal=${isVassal}, isSuzerain=${isSuzerain}, hasEconomicOrg=${hasEconomicOrg}, hasInvestmentPact=${hasInvestmentPact}, hasEconomicPact=${hasEconomicPact} => ${canInvest}`);
+
         return canInvest;
     };
     // 1. Check AI capability
@@ -707,11 +707,11 @@ export function processAIInvestment({
             const dailyProfit = profitResult.profit || 0;
             const roi = cost > 0 ? (dailyProfit * 360) / cost : 0;
 
-            console.log(`[AI投资] ${investorNation.name} 评估 ${building.name} (Policy: ${investmentPolicy}): ROI=${(roi * 100).toFixed(1)}%, Threshold=${(roiThreshold * 100).toFixed(1)}%`);
+            debugLog('ai', `[AI-INVEST] ${investorNation.name} evaluating ${building.name} (Policy: ${investmentPolicy}): ROI=${(roi * 100).toFixed(1)}%, Threshold=${(roiThreshold * 100).toFixed(1)}%`);
 
             // [NEW] Use dynamic threshold based on policy
             if (roi > roiThreshold) {
-                console.log(`[AI投资] ${investorNation.name} 决定投资 ${building.name}! ROI=${(roi * 100).toFixed(1)}%`);
+                debugLog('ai', `[AI-INVEST] ${investorNation.name} decides to invest ${building.name}! ROI=${(roi * 100).toFixed(1)}%`);
                 return {
                     type: 'request_investment',
                     investorNation,
@@ -782,7 +782,7 @@ export function selectBestInvestmentBuilding({
         const jobs = b.jobs || {};
         const hasEmployees = Object.keys(jobs).some(jobStratum => jobStratum !== b.owner);
         if (!hasEmployees) {
-            console.log(`[投资筛选] 排除 ${b.name}: 没有雇佣关系 (owner=${b.owner}, jobs=${Object.keys(jobs).join(',')})`);
+            debugLog('investment', `[INVEST-FILTER] Exclude ${b.name}: no employment relationship (owner=${b.owner}, jobs=${Object.keys(jobs).join(',')})`);
             return false;
         }
 
@@ -798,7 +798,7 @@ export function selectBestInvestmentBuilding({
             inv => inv.buildingId === b.id && inv.status === 'operating'
         ).reduce((sum, inv) => sum + (inv.count || 1), 0);
         if (existingForeignCount >= buildingCount) {
-            console.log(`[投资筛选] 排除 ${b.name}: 外资数量已达上限 (${existingForeignCount}/${buildingCount})`);
+            debugLog('investment', `[INVEST-FILTER] Exclude ${b.name}: foreign investment limit reached (${existingForeignCount}/${buildingCount})`);
             return false;
         }
 
@@ -817,7 +817,7 @@ export function selectBestInvestmentBuilding({
             });
             const staffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
             if (staffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
-                console.log(`[投资筛选] 排除 ${b.name}: 到岗率不足 (${(staffingRatio * 100).toFixed(1)}% < 95%)`);
+                debugLog('investment', `[INVEST-FILTER] Exclude ${b.name}: insufficient staffing (${(staffingRatio * 100).toFixed(1)}% < 95%)`);
                 return false;
             }
         }
@@ -834,11 +834,11 @@ export function selectBestInvestmentBuilding({
     });
 
     if (candidateBuildings.length === 0) {
-        console.log('[投资筛选] 没有找到满足条件的建筑');
+        debugLog('investment', '[INVEST-FILTER] No buildings meet requirements');
         return null;
     }
 
-    console.log(`[投资筛选] 找到 ${candidateBuildings.length} 个候选建筑: ${candidateBuildings.map(b => b.name).join(', ')}`);
+    debugLog('investment', `[INVEST-FILTER] Found ${candidateBuildings.length} candidate buildings: ${candidateBuildings.map(b => b.name).join(', ')}`);
 
     // 2. Calculate ROI for each candidate and select the best
     let bestBuilding = null;
@@ -887,7 +887,7 @@ export function selectBestInvestmentBuilding({
         const dailyProfit = outputValue - inputCost - wageCost;
         const roi = cost > 0 ? (dailyProfit * 360) / cost : 0;
 
-        console.log(`[投资筛选] ${building.name}: profit=${dailyProfit.toFixed(1)}/day, cost=${cost}, ROI=${(roi * 100).toFixed(1)}%`);
+        debugLog('investment', `[INVEST-FILTER] ${building.name}: profit=${dailyProfit.toFixed(1)}/day, cost=${cost}, ROI=${(roi * 100).toFixed(1)}%`);
 
         if (roi > bestRoi) {
             bestRoi = roi;

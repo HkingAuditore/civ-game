@@ -1392,6 +1392,7 @@ export const useGameState = () => {
     // ========== 事件系统状态 ==========
     const [currentEvent, setCurrentEvent] = useState(null); // 当前显示的事件
     const [eventHistory, setEventHistory] = useState([]); // 事件历史记录
+    const [deferredEvents, setDeferredEvents] = useState([]); // 延迟处理的事件队列 { event, deferredAtTick, expiresAtTick }
 
     // ========== 成就系统状态 ==========
     const [unlockedAchievements, setUnlockedAchievements] = useState(loadAchievementsFromStorage);
@@ -1786,6 +1787,7 @@ export const useGameState = () => {
                 showTutorial,
                 currentEvent,
                 eventHistory,
+                deferredEvents,
                 logs,
                 clicks,
                 rates,
@@ -2213,6 +2215,7 @@ export const useGameState = () => {
         setShowTutorial(data.showTutorial ?? true);
         setCurrentEvent(data.currentEvent || null);
         setEventHistory(trimArray(data.eventHistory || [], AUTO_SAVE_LIMITS.eventHistory));
+        setDeferredEvents(Array.isArray(data.deferredEvents) ? data.deferredEvents : []);
         setLogs(Array.isArray(data.logs) ? data.logs : []);
         setClicks(Array.isArray(data.clicks) ? data.clicks : []);
         setRates(data.rates || {});
@@ -3450,6 +3453,8 @@ export const useGameState = () => {
         setCurrentEvent,
         eventHistory,
         setEventHistory,
+        deferredEvents,
+        setDeferredEvents,
         unlockedAchievements,
         setUnlockedAchievements,
         achievementNotifications,

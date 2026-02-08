@@ -48,6 +48,7 @@ import { UnitDetailSheet } from './components/panels/UnitDetailSheet';
 import { TechDetailSheet } from './components/panels/TechDetailSheet';
 import { DecreeDetailSheet } from './components/panels/DecreeDetailSheet';
 import { EventDetail } from './components/modals/EventDetail';
+import { EventManagerPanel } from './components/panels/EventManagerPanel';
 import { DifficultySelectionModal } from './components/modals/DifficultySelectionModal';
 import { SaveSlotModal } from './components/modals/SaveSlotModal';
 import { SaveTransferModal } from './components/modals/SaveTransferModal';
@@ -325,6 +326,7 @@ function GameApp({ gameState }) {
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isWikiOpen, setIsWikiOpen] = useState(false);
+    const [isEventManagerOpen, setIsEventManagerOpen] = useState(false); // 事件管理面板
     const [showDifficultyModal, setShowDifficultyModal] = useState(false); // 难度选择弹窗
     const [showSaveSlotModal, setShowSaveSlotModal] = useState(false); // 存档槽位弹窗
     const [saveSlotModalMode, setSaveSlotModalMode] = useState('save'); // 'save' | 'load'
@@ -478,10 +480,17 @@ function GameApp({ gameState }) {
         const eventName = fallbackEvent?.name;
         const optionText = selectedOption.text;
 
+        // 记录处理前是否有待处理事件
+        const hadPendingEvents = (actions.pendingDiplomaticEvents || []).length > 0;
+
         actions.handleEventOption(eventId, option);
         playSound(SOUND_TYPES.CLICK);
-        // 恢复事件触发前的暂停状态，而不是无条件取消暂停
-        gameState.setIsPaused(gameState.pausedBeforeEvent);
+
+        // 只有当没有新事件弹出时才恢复暂停状态
+        // 如果有待处理事件，handleEventOption 会自动弹出下一个，此时应保持暂停
+        if (!hadPendingEvents) {
+            gameState.setIsPaused(gameState.pausedBeforeEvent);
+        }
 
         if (eventName) {
             const detail = optionText ? `「${optionText}」` : '所选方案';
@@ -1018,6 +1027,13 @@ function GameApp({ gameState }) {
                     onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
                     onMarketClick={() => setShowMarket(true)}  // 新增：打开国内市场弹窗
                     onEmpireSceneClick={() => setShowEmpireScene(true)}  // 新增：点击日期按钮弹出帝国场景
+                    onEventManagerClick={() => {
+                        // 打开事件管理面板时暂停游戏
+                        gameState.setPausedBeforeEvent(gameState.isPaused);
+                        gameState.setIsPaused(true);
+                        setIsEventManagerOpen(true);
+                    }}
+                    deferredEventsCount={(gameState.deferredEvents || []).length}
                     gameControls={
                         <GameControls
                             isPaused={gameState.isPaused}
@@ -1971,12 +1987,43 @@ function GameApp({ gameState }) {
                         event={gameState.currentEvent}
                         onSelectOption={handleEventOption}
                         onClose={() => gameState.setCurrentEvent(null)}
+                        onDeferEvent={actions.deferCurrentEvent}
+                        canDefer={!gameState.currentEvent.isForcePopup}
                         nations={gameState.nations}
                         epoch={gameState.epoch}
                         techsUnlocked={gameState.techsUnlocked}
                         confirmationEnabled={gameState.eventConfirmationEnabled}
                     />
                 )}
+            </BottomSheet>
+
+            {/* 事件管理面板 */}
+            <BottomSheet
+                isOpen={isEventManagerOpen}
+                onClose={() => {
+                    setIsEventManagerOpen(false);
+                    // 关闭时恢复之前的暂停状态
+                    gameState.setIsPaused(gameState.pausedBeforeEvent);
+                }}
+                title="事件管理"
+                showHeader={false}
+                showCloseButton={false}
+                wrapperClassName="z-[75]"
+            >
+                <EventManagerPanel
+                    deferredEvents={gameState.deferredEvents || []}
+                    currentTick={gameState.daysElapsed || 0}
+                    onHandleEvent={(eventId, option) => {
+                        actions.handleDeferredEventOption(eventId, option);
+                    }}
+                    onClose={() => {
+                        setIsEventManagerOpen(false);
+                        gameState.setIsPaused(gameState.pausedBeforeEvent);
+                    }}
+                    nations={gameState.nations}
+                    epoch={gameState.epoch}
+                    techsUnlocked={gameState.techsUnlocked}
+                />
             </BottomSheet>
 
             {/* 新手教程模态框（原静态教程，已被交互式教程取代）

@@ -8,6 +8,12 @@ const DEFAULT_DEBUG_FLAGS = {
     simulation: false,
     trade: false,
     demands: false,
+    // Added for comprehensive debug coverage
+    investment: false,  // Overseas/foreign investment system
+    diplomacy: false,   // Diplomatic relations and treaties
+    cabinet: false,     // Cabinet and minister system
+    officials: false,   // Officials management
+    ai: false,          // AI nation behavior
 };
 
 const toFlagMap = (list = []) => {

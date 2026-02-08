@@ -335,7 +335,9 @@ const MilitaryTabComponent = ({
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
-    const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 5, 10
+    const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 5, 10, 50, 100, 1000, 自定义
+    const [showCustomRecruitInput, setShowCustomRecruitInput] = useState(false); // 是否显示自定义数量输入框
+    const [customRecruitValue, setCustomRecruitValue] = useState(''); // 自定义数量输入值
     const [disbandCount, setDisbandCount] = useState(1); // 批量解散数量：1, 10, 100, 1000
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
@@ -834,14 +836,17 @@ const MilitaryTabComponent = ({
 
                         {/* 数量倍率（紧凑版） */}
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-[11px] text-gray-500">招募</span>
-                                <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
-                                    {[1, 5, 10].map((n) => (
+                                <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5 flex-wrap">
+                                    {[1, 5, 10, 50, 100, 1000].map((n) => (
                                         <button
                                             key={n}
-                                            onClick={() => setRecruitCount(n)}
-                                            className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${recruitCount === n
+                                            onClick={() => {
+                                                setRecruitCount(n);
+                                                setShowCustomRecruitInput(false);
+                                            }}
+                                            className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${recruitCount === n && !showCustomRecruitInput
                                                 ? 'bg-blue-600 text-white shadow'
                                                 : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
                                                 }`}
@@ -852,19 +857,64 @@ const MilitaryTabComponent = ({
                                     ))}
                                     <button
                                         onClick={() => {
-                                            const remainingCap = Math.max(0, militaryCapacity - totalArmyCount);
-                                            const safeMax = Math.min(50, remainingCap > 0 ? remainingCap : 1);
-                                            setRecruitCount(safeMax);
+                                            setShowCustomRecruitInput(!showCustomRecruitInput);
+                                            if (!showCustomRecruitInput) {
+                                                setCustomRecruitValue('');
+                                            }
                                         }}
-                                        className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${recruitCount > 10
+                                        className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${showCustomRecruitInput
                                             ? 'bg-blue-600 text-white shadow'
                                             : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
                                             }`}
-                                        title="设置为剩余容量（Max 50）"
+                                        title="自定义招募数量"
                                     >
-                                        Max
+                                        自定义
                                     </button>
                                 </div>
+                                {/* 自定义数量输入框 */}
+                                {showCustomRecruitInput && (
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="99999"
+                                            value={customRecruitValue}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setCustomRecruitValue(val);
+                                                const num = parseInt(val, 10);
+                                                if (!isNaN(num) && num > 0 && num <= 99999) {
+                                                    setRecruitCount(num);
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    const num = parseInt(customRecruitValue, 10);
+                                                    if (!isNaN(num) && num > 0) {
+                                                        setRecruitCount(Math.min(num, 99999));
+                                                        setShowCustomRecruitInput(false);
+                                                    }
+                                                }
+                                            }}
+                                            placeholder="数量"
+                                            className="w-16 px-2 py-1 rounded-full text-[11px] font-bold bg-gray-900/60 border border-gray-700 text-white text-center focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                const num = parseInt(customRecruitValue, 10);
+                                                if (!isNaN(num) && num > 0) {
+                                                    setRecruitCount(Math.min(num, 99999));
+                                                    setShowCustomRecruitInput(false);
+                                                }
+                                            }}
+                                            className="px-2 py-1 rounded-full text-[11px] font-bold bg-green-600 hover:bg-green-500 text-white transition-all"
+                                            title="确认"
+                                        >
+                                            确认
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-2">

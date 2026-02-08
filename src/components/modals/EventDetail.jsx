@@ -81,8 +81,10 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
  * @param {Object} event - 事件对象
  * @param {Function} onSelectOption - 选择选项的回调
  * @param {Function} onClose - 关闭回调
+ * @param {Function} onDeferEvent - 暂不处理回调（可选）
+ * @param {boolean} canDefer - 是否允许暂不处理（默认true）
  */
-export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoch = 0, techsUnlocked = [], confirmationEnabled = false }) => {
+export const EventDetail = ({ event, onSelectOption, onClose, onDeferEvent, canDefer = true, nations = [], epoch = 0, techsUnlocked = [], confirmationEnabled = false }) => {
     if (!event) return null;
 
     // 图片加载状态管理
@@ -670,6 +672,22 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                     );
                 })}
             </div>
+
+            {/* 暂不处理按钮 - 允许玩家延迟处理事件 */}
+            {canDefer && onDeferEvent && (
+                <div className="pt-2 border-t border-gray-700/50">
+                    <button
+                        onClick={() => {
+                            onDeferEvent();
+                            onClose();
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 font-sans bg-gray-700/60 hover:bg-gray-600/60 text-gray-300 hover:text-gray-100 border border-gray-600/50 hover:border-gray-500/50"
+                    >
+                        <Icon name="Clock" size={16} />
+                        暂不处理（15天内需做出选择）
+                    </button>
+                </div>
+            )}
 
             {/* 底部确认按钮 - 仅在开启二次确认时显示 */}
             {confirmationEnabled && (
