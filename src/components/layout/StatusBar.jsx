@@ -28,6 +28,8 @@ export const StatusBar = ({
     onStrataClick,
     onMarketClick,
     onEmpireSceneClick,
+    onEventManagerClick, // 新增：打开事件管理面板
+    deferredEventsCount = 0, // 新增：延迟事件数量
     gameControls,
 }) => {
     const TAX_POPOVER_Z_INDEX = 95;
@@ -487,6 +489,22 @@ export const StatusBar = ({
                                 </span>
                             </div>
                         </button>
+
+                        {/* 事件通知按钮 - 当有延迟事件时显示 */}
+                        {deferredEventsCount > 0 && onEventManagerClick && (
+                            <button
+                                onClick={onEventManagerClick}
+                                className="relative group flex items-center gap-1.5 glass-ancient px-2 py-1 rounded-lg border border-yellow-500/40 hover:border-yellow-400/60 hover:shadow-glow-gold transition-all touch-feedback animate-pulse"
+                            >
+                                <Icon name="Bell" size={12} className="text-yellow-400" />
+                                <span className="text-[9px] sm:text-[10px] font-bold text-yellow-300">
+                                    {deferredEventsCount}
+                                </span>
+                                {/* 紧急提示徽章 */}
+                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                            </button>
+                        )}
                     </div>
 
                     {/* 中间：核心数据胶囊 */}

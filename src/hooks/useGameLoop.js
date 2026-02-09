@@ -1004,6 +1004,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
             }
 
+            // [NEW] 检查延迟事件超时
+            // 如果有延迟事件超过15tick未处理，强制弹出并暂停游戏
+            if (actions?.checkDeferredEventTimeout) {
+                const expiredEvent = actions.checkDeferredEventTimeout();
+                if (expiredEvent) {
+                    // 强制暂停游戏，要求玩家处理超时事件
+                    setIsPaused(true);
+                }
+            }
+
             // 执行游戏模拟
             // 【关键】强制将 gameSpeed 设为 1，确保单次 Tick 只计算 1 个单位时间的产出
             // 原因：我们已经通过调整 setInterval 的频率来实现加速（时间流）

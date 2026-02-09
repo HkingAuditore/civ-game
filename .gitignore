@@ -24,3 +24,11 @@ dist-ssr
 *.sw?
 tmp/civ-save-何时缚住苍龙-2026-02-02T08-53-41-369Z.cgsave
 tmp/civ-save-何时缚住苍龙-2026-02-02T08-58-55-006Z.cgsave
+
+# Documentation
+docs/
+# 新增忽略的目录（复制粘贴到.gitignore末尾）
+.codebuddy/
+civ-game-master/
+civ-game/
+skills/game-design-skill/

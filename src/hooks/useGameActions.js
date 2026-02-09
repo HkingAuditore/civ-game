@@ -171,6 +171,14 @@ export const useGameActions = (gameState, addLog) => {
         // Diplomatic reputation
         diplomaticReputation,
         setDiplomaticReputation,
+        // 延迟事件系统
+        deferredEvents,
+        setDeferredEvents,
+        // 暂停控制
+        isPaused,
+        setIsPaused,
+        pausedBeforeEvent,
+        setPausedBeforeEvent,
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
@@ -490,6 +498,9 @@ export const useGameActions = (gameState, addLog) => {
             setPendingDiplomaticEvents(prev => [...prev, event]);
             return;
         }
+        // 保存当前暂停状态，然后暂停游戏
+        setPausedBeforeEvent(isPaused);
+        setIsPaused(true);
         setCurrentEvent(event);
         setEventHistory(prev => [...(prev || []), event.id]);
     };
@@ -884,6 +895,116 @@ export const useGameActions = (gameState, addLog) => {
         } else {
             setCurrentEvent(null);
         }
+    };
+
+    // ========== 延迟事件处理 ==========
+    // 延迟事件缓冲时间（tick数）
+    const DEFER_EVENT_TIMEOUT = 15;
+
+    /**
+     * 延迟处理当前事件
+     * 将事件加入延迟队列，关闭当前弹窗，玩家可稍后通过事件管理页面处理
+     */
+    const deferCurrentEvent = () => {
+        if (!currentEvent) return false;
+
+        const deferredEvent = {
+            event: currentEvent,
+            deferredAtTick: daysElapsed,
+            expiresAtTick: daysElapsed + DEFER_EVENT_TIMEOUT,
+        };
+
+        setDeferredEvents(prev => [...prev, deferredEvent]);
+
+        // 检查是否有待处理的事件队列
+        if (pendingDiplomaticEvents.length > 0) {
+            const [next, ...rest] = pendingDiplomaticEvents;
+            setPendingDiplomaticEvents(rest);
+            setCurrentEvent(next);
+            // 有下一个事件，保持暂停状态
+        } else {
+            setCurrentEvent(null);
+            // 没有更多事件，恢复之前的暂停状态
+            setIsPaused(pausedBeforeEvent);
+        }
+
+        addLog(`事件「${currentEvent.name}」已暂缓处理，请在 ${DEFER_EVENT_TIMEOUT} 天内做出选择。`);
+        return true;
+    };
+
+    /**
+     * 处理延迟队列中的事件
+     * @param {string} eventId - 事件ID
+     * @param {object} option - 选择的选项
+     */
+    const handleDeferredEventOption = (eventId, option) => {
+        const deferredItem = deferredEvents.find(item => item.event?.id === eventId);
+        if (!deferredItem) return false;
+
+        const { event } = deferredItem;
+        const selected = option || {};
+
+        // 应用效果
+        if (selected.effects) {
+            applyEventEffects(selected.effects);
+        }
+
+        // 处理随机效果
+        if (Array.isArray(selected.randomEffects)) {
+            selected.randomEffects.forEach(effect => {
+                if (!effect || typeof effect !== 'object') return;
+                const chance = typeof effect.chance === 'number' ? effect.chance : 0;
+                if (Math.random() <= chance) {
+                    applyEventEffects(effect.effects || {});
+                }
+            });
+        }
+
+        // 执行回调
+        if (typeof selected.callback === 'function') {
+            selected.callback();
+        }
+
+        // 记录历史
+        setEventHistory(prev => [...(prev || []), event.id]);
+
+        // 从延迟队列中移除
+        setDeferredEvents(prev => prev.filter(item => item.event?.id !== eventId));
+
+        return true;
+    };
+
+    /**
+     * 从延迟队列中移除事件（不处理效果）
+     * @param {string} eventId - 事件ID
+     */
+    const removeDeferredEvent = (eventId) => {
+        setDeferredEvents(prev => prev.filter(item => item.event?.id !== eventId));
+    };
+
+    /**
+     * 强制弹出超时的延迟事件
+     * 由游戏循环调用，检查是否有事件超时需要强制处理
+     */
+    const checkDeferredEventTimeout = () => {
+        if (currentEvent) return null; // 已有事件显示中，不强制弹出
+
+        const expiredEvent = deferredEvents.find(item => daysElapsed >= item.expiresAtTick);
+        if (expiredEvent) {
+            // 从延迟队列移除
+            setDeferredEvents(prev => prev.filter(item => item.event?.id !== expiredEvent.event?.id));
+            // 保存当前暂停状态，然后强制暂停
+            setPausedBeforeEvent(isPaused);
+            // 设置为当前事件，强制弹窗，并标记为强制弹窗（禁止再次延迟）
+            const forcedEvent = {
+                ...expiredEvent.event,
+                isForcePopup: true, // 标记为超时强制弹窗，禁止再次选择"暂不处理"
+            };
+            setCurrentEvent(forcedEvent);
+            addLog(`事件「${expiredEvent.event.name}」缓冲时间已到，请立即做出选择！`);
+            return forcedEvent;
+        }
+        return null;
     };
 
     const getMarketPrice = (resource) => {
@@ -6334,6 +6455,14 @@ export const useGameActions = (gameState, addLog) => {
         triggerRandomEvent,
         triggerDiplomaticEvent,
         handleEventOption,
+        // 延迟事件处理
+        deferCurrentEvent,
+        handleDeferredEventOption,
+        removeDeferredEvent,
+        checkDeferredEventTimeout,
+        DEFER_EVENT_TIMEOUT,
+        // 待处理事件队列（用于判断是否有待处理事件）
+        pendingDiplomaticEvents,
         // 战斗结果
         setBattleResult,
         setBattleNotifications,
