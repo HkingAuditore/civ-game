@@ -137,8 +137,8 @@ export class GrowthCalculator {
         if (currentWealth < targetWealth) {
             const wealthGap = targetWealth - currentWealth;
             const gapRatio = wealthGap / Math.max(1, targetWealth);
-            // Stronger catch-up for larger gaps (up to 5x for very poor nations)
-            catchUpFactor = 1.0 + Math.min(4.0, gapRatio * 5.0);
+            // Moderate catch-up for larger gaps (up to 2x for very poor nations) [Reduced from 5x]
+            catchUpFactor = 1.0 + Math.min(1.0, gapRatio * 2.0);
         } else if (currentPerCapita > targetPerCapita * 2) {
             // Slow down if wealth is way above target
             catchUpFactor = 0.5;
@@ -158,8 +158,8 @@ export class GrowthCalculator {
         
         // === STEP 7: Apply Growth Rate Limits ===
         const maxGrowthRate = getConfig('wealth.maxGrowthRate', 0.05);
-        // Allow higher growth for nations catching up
-        const effectiveMaxGrowth = catchUpFactor > 2.0 ? maxGrowthRate * 3 : maxGrowthRate;
+        // Allow slightly higher growth for nations catching up [Reduced from 3x to 1.5x]
+        const effectiveMaxGrowth = catchUpFactor > 1.5 ? maxGrowthRate * 1.5 : maxGrowthRate;
         const cappedGrowthRate = Math.max(-0.02, Math.min(effectiveMaxGrowth, rawGrowthRate));
         
         // === STEP 8: Apply Per Capita Wealth Cap ===

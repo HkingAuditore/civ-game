@@ -114,9 +114,9 @@ export const AI_ECONOMY_CONFIG = {
         veryEasy: 0.7,
         easy: 0.85,
         normal: 1.0,
-        hard: 1.15,
-        veryHard: 1.3,
-        impossible: 1.5,
+        hard: 1.05,      // [Reduced from 1.15]
+        veryHard: 1.1,   // [Reduced from 1.3]
+        impossible: 1.2, // [Reduced from 1.5]
     },
     
     // === Soft Caps ===
