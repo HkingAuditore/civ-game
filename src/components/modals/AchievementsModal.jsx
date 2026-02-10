@@ -11,7 +11,7 @@ import { cn } from '../../config/unifiedStyles';
 const AchievementItem = ({ achievement, unlocked }) => (
     <div
         className={cn(
-            'p-3 rounded-xl border transition-all',
+            'p-2.5 rounded-lg border transition-all',
             unlocked
                 ? 'border-ancient-gold/40 bg-gray-800/60'
                 : 'border-gray-700/50 bg-gray-900/40 opacity-70'
@@ -78,13 +78,18 @@ export const AchievementsModal = ({ isOpen, onClose, unlockedAchievements = [] }
                         exit={{ y: "100%", opacity: 0 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     >
-                        <div className="flex-shrink-0 p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800">
+                        <div className="flex-shrink-0 px-3 py-2.5 border-b border-gray-700 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <Icon name="Award" size={20} className="text-ancient-gold" />
-                                    <h2 className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-ancient-gold via-yellow-400 to-orange-400">
-                                        成就
-                                    </h2>
+                                    <Icon name="Award" size={18} className="text-ancient-gold" />
+                                    <div>
+                                        <h2 className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-ancient-gold via-yellow-400 to-orange-400">
+                                            成就
+                                        </h2>
+                                        <p className="text-[10px] text-gray-400 leading-tight">
+                                            成就解锁与设备绑定，不随存档变化
+                                        </p>
+                                    </div>
                                 </div>
                                 <button
                                     onClick={onClose}
@@ -93,12 +98,9 @@ export const AchievementsModal = ({ isOpen, onClose, unlockedAchievements = [] }
                                     <Icon name="X" size={18} className="text-gray-400" />
                                 </button>
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-1">
-                                成就解锁与设备绑定，不随存档变化
-                            </p>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
                             {ACHIEVEMENTS.map((achievement) => (
                                 <AchievementItem
                                     key={achievement.id}
@@ -108,10 +110,10 @@ export const AchievementsModal = ({ isOpen, onClose, unlockedAchievements = [] }
                             ))}
                         </div>
 
-                        <div className="flex-shrink-0 p-4 border-t border-gray-700 bg-gray-800/50">
+                        <div className="flex-shrink-0 px-3 py-2 border-t border-gray-700 bg-gray-800/50">
                             <button
                                 onClick={onClose}
-                                className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                                className="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
                             >
                                 关闭
                             </button>

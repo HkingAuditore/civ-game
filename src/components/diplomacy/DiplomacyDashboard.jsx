@@ -93,18 +93,18 @@ const DiplomacyDashboard = ({
     }, [market, epoch]);
 
     return (
-        <div className="p-6 h-full overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-ancient-gold/20">
+        <div className="p-3 md:p-4 h-full overflow-y-auto space-y-3 md:space-y-4 scrollbar-thin scrollbar-thumb-ancient-gold/20">
             {/* Header */}
-            <div className="flex flex-col gap-1">
-                <h1 className="text-3xl font-bold text-ancient-gold font-decorative flex items-center gap-3">
-                    <Icon name="Globe" size={32} />
+            <div className="flex flex-col gap-0.5">
+                <h1 className="text-xl md:text-2xl font-bold text-ancient-gold font-decorative flex items-center gap-2">
+                    <Icon name="Globe" size={24} />
                     外交概览
                 </h1>
-                <p className="text-ancient-stone text-sm">掌握局势、组织关系与全球市场动向。</p>
+                <p className="text-ancient-stone text-xs">掌握局势、组织关系与全球市场动向。</p>
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                 <DashboardCard
                     title="当前战争"
                     value={wars.length}
@@ -155,20 +155,20 @@ const DiplomacyDashboard = ({
             </div>
 
             {/* Main Content Layout: 2 Columns */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 md:gap-4">
 
                 {/* Column 1: International Organizations */}
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-ancient-gold/20 pb-2">
-                        <h3 className="text-xl font-bold text-ancient-parchment font-decorative flex items-center gap-2">
-                            <Icon name="Landmark" size={24} className="text-ancient-gold" />
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-ancient-gold/20 pb-1.5">
+                        <h3 className="text-base font-bold text-ancient-parchment font-decorative flex items-center gap-2">
+                            <Icon name="Landmark" size={18} className="text-ancient-gold" />
                             国际组织与联盟
                         </h3>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                         {/* Create Org Section */}
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-1 gap-2">
                         {ORG_TYPES.map((orgType) => {
                                 const isUnlocked = isDiplomacyUnlocked('organizations', orgType.type, epoch);
                                 // Check if player has CREATED (not just joined) an organization of this type
@@ -191,19 +191,19 @@ const DiplomacyDashboard = ({
                                         }}
                                         disabled={!canClick}
                                         className={`
-                                            relative overflow-hidden p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 text-left group
+                                            relative overflow-hidden p-3 rounded-lg border flex items-center gap-3 transition-all duration-300 text-left group
                                             ${canClick
                                                 ? 'bg-ancient-ink/40 border-ancient-gold/30 hover:bg-ancient-gold/10 hover:border-ancient-gold/60 hover:shadow-gold-metal cursor-pointer'
                                                 : 'bg-ancient-ink/20 border-ancient-stone/10 opacity-60 cursor-not-allowed'
                                             }
                                         `}
                                     >
-                                        <div className={`p-3 rounded-lg bg-ancient-ink/60 border border-current ${orgType.color} shadow-inner bg-opacity-50`}>
-                                            <Icon name={orgType.icon} size={28} />
+                                        <div className={`p-2 rounded-lg bg-ancient-ink/60 border border-current ${orgType.color} shadow-inner bg-opacity-50`}>
+                                            <Icon name={orgType.icon} size={22} />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <div className="font-bold text-ancient-parchment text-lg group-hover:text-ancient-gold transition-colors">
+                                            <div className="flex justify-between items-center mb-0.5">
+                                                <div className="font-bold text-ancient-parchment text-sm group-hover:text-ancient-gold transition-colors">
                                                     {orgType.type === 'military_alliance' && isInAnyOrg 
                                                         ? (playerCreatedOrg ? `已建立${orgType.name}` : `已加入${orgType.name}`)
                                                         : playerCreatedOrg 
@@ -233,7 +233,7 @@ const DiplomacyDashboard = ({
 
                         {/* Existing Orgs List - 只显示前2个 */}
                         {organizations.length > 0 && (
-                            <div className="mt-4 space-y-3">
+                            <div className="mt-2 space-y-2">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-sm font-bold text-ancient-stone uppercase tracking-wider">活跃组织</h4>
                                     {organizations.length > 2 && (
@@ -267,20 +267,20 @@ const DiplomacyDashboard = ({
                 </div>
 
                 {/* Column 2: Market & Trade */}
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-ancient-gold/20 pb-2">
-                        <h3 className="text-xl font-bold text-ancient-parchment font-decorative flex items-center gap-2">
-                            <Icon name="Store" size={24} className="text-ancient-gold" />
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-ancient-gold/20 pb-1.5">
+                        <h3 className="text-base font-bold text-ancient-parchment font-decorative flex items-center gap-2">
+                            <Icon name="Store" size={18} className="text-ancient-gold" />
                             市场与贸易情报
                         </h3>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                        <Card className="p-4 border-ancient-gold/20 bg-ancient-ink/30 relative overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">
+                        <Card className="p-3 border-ancient-gold/20 bg-ancient-ink/30 relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 opacity-10">
-                                <Icon name="TrendingUp" size={64} />
+                                <Icon name="TrendingUp" size={48} />
                             </div>
-                            <h4 className="text-sm font-bold text-ancient-stone mb-3 uppercase tracking-wider">国内价格信号</h4>
+                            <h4 className="text-xs font-bold text-ancient-stone mb-2 uppercase tracking-wider">国内价格信号</h4>
                             <div className="space-y-2">
                                 <MarketSignalList title="价格偏高" tone="text-green-300" items={marketSignals.expensive} />
                                 <div className="h-px bg-white/5 my-2"></div>
@@ -288,11 +288,11 @@ const DiplomacyDashboard = ({
                             </div>
                         </Card>
 
-                        <Card className="p-4 border-ancient-gold/20 bg-ancient-ink/30 relative overflow-hidden">
+                        <Card className="p-3 border-ancient-gold/20 bg-ancient-ink/30 relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 opacity-10">
-                                <Icon name="Ship" size={64} />
+                                <Icon name="Ship" size={48} />
                             </div>
-                            <h4 className="text-sm font-bold text-ancient-stone mb-3 uppercase tracking-wider">全球贸易良机</h4>
+                            <h4 className="text-xs font-bold text-ancient-stone mb-2 uppercase tracking-wider">全球贸易良机</h4>
                             <div className="space-y-2">
                                 <TradeOpportunityList title="最佳出口目标" tone="text-amber-300" items={tradeOpportunities.exports} />
                                 <div className="h-px bg-white/5 my-2"></div>
@@ -362,10 +362,10 @@ const DiplomacyDashboard = ({
 const OrganizationCard = ({ org, onViewOrganization, onDiplomaticAction }) => {
     const isMember = org.members?.includes('player');
     return (
-        <Card
+    <Card
             onClick={() => onDiplomaticAction && onViewOrganization && onViewOrganization(org)}
             className={`
-                p-4 flex items-center justify-between group transition-all duration-300
+                p-2.5 flex items-center justify-between group transition-all duration-300
                 ${onViewOrganization
                     ? 'cursor-pointer hover:bg-ancient-gold/10 hover:border-ancient-gold/40'
                     : ''
@@ -376,12 +376,12 @@ const OrganizationCard = ({ org, onViewOrganization, onDiplomaticAction }) => {
                 }
             `}
         >
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 font-bold text-ancient-parchment">
+            <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 font-bold text-ancient-parchment text-sm">
                     {org.name.charAt(0)}
                 </div>
                 <div>
-                    <div className="font-bold text-ancient-parchment text-base group-hover:text-ancient-gold transition-colors">{org.name}</div>
+                    <div className="font-bold text-ancient-parchment text-sm group-hover:text-ancient-gold transition-colors">{org.name}</div>
                     <div className="text-xs text-ancient-stone flex items-center gap-2">
                         <span>{org.members?.length || 0} 个成员国</span>
                         <span className="opacity-50">|</span>
@@ -410,20 +410,20 @@ const OrganizationCard = ({ org, onViewOrganization, onDiplomaticAction }) => {
 const DashboardCard = ({ title, value, subValue, icon, color, borderColor = 'border-ancient-gold/20', bg = 'bg-ancient-ink/40', tooltip }) => (
     <div
         className={`
-            relative overflow-hidden p-4 rounded-xl border ${borderColor} ${bg}
+            relative overflow-hidden p-2.5 md:p-3 rounded-lg border ${borderColor} ${bg}
             flex items-center justify-between transition-all duration-300 hover:shadow-metal-sm group
         `}
         title={tooltip}
     >
-        <div>
-            <div className="text-[10px] uppercase font-bold tracking-wider mb-1 opacity-70 flex items-center gap-1 text-ancient-stone">
+        <div className="min-w-0 flex-1">
+            <div className="text-[9px] md:text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-70 text-ancient-stone truncate">
                 {title}
             </div>
-            <div className={`text-3xl font-bold ${color} font-epic shadow-black drop-shadow-md`}>{value}</div>
-            {subValue && <div className="text-[10px] text-ancient-stone mt-1">{subValue}</div>}
+            <div className={`text-xl md:text-2xl font-bold ${color} font-epic shadow-black drop-shadow-md leading-tight`}>{value}</div>
+            {subValue && <div className="text-[9px] md:text-[10px] text-ancient-stone mt-0.5 truncate">{subValue}</div>}
         </div>
-        <div className={`p-3 rounded-full bg-black/20 border border-white/5 ${color} group-hover:scale-110 transition-transform`}>
-            <Icon name={icon} size={24} />
+        <div className={`p-2 rounded-full bg-black/20 border border-white/5 ${color} group-hover:scale-110 transition-transform flex-shrink-0 ml-2`}>
+            <Icon name={icon} size={18} />
         </div>
     </div>
 );

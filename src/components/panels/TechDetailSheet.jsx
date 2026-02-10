@@ -55,15 +55,15 @@ export const TechDetailSheet = ({
         <div className="space-y-2 pb-6">
             {/* 头部：科技名称和图标 */}
             <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
-                <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
                     {isUnlocked ? (
-                        <Icon name="Check" size={24} className="text-green-400 icon-metal-green" />
+                        <Icon name="Check" size={20} className="text-green-400 icon-metal-green" />
                     ) : (
-                        <Icon name="Lightbulb" size={24} className="text-blue-400 icon-metal-blue" />
+                        <Icon name="Lightbulb" size={20} className="text-blue-400 icon-metal-blue" />
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-bold text-white leading-tight flex items-center gap-2 font-decorative">
+                    <h2 className="text-base font-bold text-white leading-tight flex items-center gap-2 font-decorative">
                         {tech.name}
                         {isUnlocked && (
                             <span className="text-xs px-2 py-0.5 bg-green-600 text-white rounded">已研究</span>
@@ -164,7 +164,7 @@ export const TechDetailSheet = ({
                             }
                         }}
                         disabled={!canAfford || !onResearch}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all ${canAfford && onResearch
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all ${canAfford && onResearch
                                 ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-xl active:scale-95'
                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                             }`}

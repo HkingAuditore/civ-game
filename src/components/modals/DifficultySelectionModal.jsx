@@ -99,19 +99,19 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     >
                         {/* 头部 */}
-                        <div className="flex-shrink-0 p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800">
+                        <div className="flex-shrink-0 px-3 py-2.5 border-b border-gray-700 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800">
                             <div className="text-center">
-                                <div className="flex items-center justify-center gap-2 mb-2">
-                                    <Icon name="Target" size={22} className="text-ancient-gold" />
-                                    <h2 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-ancient-gold via-yellow-400 to-orange-400">
+                                <div className="flex items-center justify-center gap-2 mb-1">
+                                    <Icon name="Target" size={18} className="text-ancient-gold" />
+                                    <h2 className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-ancient-gold via-yellow-400 to-orange-400">
                                         选择新档模式
                                     </h2>
                                 </div>
-                                <p className="text-xs text-gray-400">
+                                <p className="text-[10px] text-gray-400">
                                     标准模式选择难度，情景模式选择起始条件
                                 </p>
                             </div>
-                            <div className="mt-3 flex items-center justify-center gap-2">
+                            <div className="mt-2 flex items-center justify-center gap-2">
                                 <button
                                     onClick={() => setMode('standard')}
                                     className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-colors ${mode === 'standard'
@@ -132,7 +132,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                         </div>
 
                         {/* 难度选项 */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
                             {mode === 'standard' && difficultyOptions.map((option) => {
                                 const isSelected = selectedDifficulty === option.id;
                                 return (
@@ -235,8 +235,8 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                         </div>
 
                         {/* 帝国名称输入 */}
-                        <div className="flex-shrink-0 px-4 mb-3">
-                            <div className="bg-ancient-gold/10 border border-ancient-gold/30 p-3 rounded-lg">
+                        <div className="flex-shrink-0 px-3 mb-2">
+                            <div className="bg-ancient-gold/10 border border-ancient-gold/30 p-2.5 rounded-lg">
                                 <label className="flex items-center gap-2 mb-2">
                                     <Icon name="Crown" size={14} className="text-ancient-gold" />
                                     <span className="text-xs font-bold text-ancient-gold">为你的帝国命名</span>
@@ -254,8 +254,8 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                         </div>
 
                         {/* 提示信息 */}
-                        <div className="flex-shrink-0 px-4">
-                            <div className="bg-blue-900/30 border border-blue-500/30 p-3 rounded-lg">
+                        <div className="flex-shrink-0 px-3">
+                            <div className="bg-blue-900/30 border border-blue-500/30 p-2.5 rounded-lg">
                                 <div className="flex items-start gap-2">
                                     <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
                                     <p className="text-[10px] text-blue-300 leading-relaxed">
@@ -269,7 +269,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                         </div>
 
                         {/* 底部按钮 */}
-                        <div className="flex-shrink-0 p-4 border-t border-gray-700 bg-gray-800/50">
+                        <div className="flex-shrink-0 p-3 border-t border-gray-700 bg-gray-800/50">
                             <div className="flex gap-3">
                                 <button
                                     onClick={onCancel}

@@ -20,7 +20,7 @@ export const DonateModal = ({ isOpen, onClose }) => {
             {/* 模态框内容 */}
             <div className="relative w-full max-w-sm bg-gray-900/95 border border-gray-700 rounded-xl shadow-2xl animate-slide-up">
                 {/* 头部 */}
-                <div className="flex items-center justify-between p-4 border-b border-gray-700">
+                <div className="flex items-center justify-between p-3 border-b border-gray-700">
                     <h3 className="text-base font-bold text-gray-100 flex items-center gap-2">
                         <Icon name="Heart" size={18} className="text-pink-400" />
                         打赏作者
@@ -34,7 +34,7 @@ export const DonateModal = ({ isOpen, onClose }) => {
                 </div>
 
                 {/* 内容 */}
-                <div className="p-4 space-y-4">
+                <div className="p-3 space-y-3">
                     <p className="text-sm text-gray-300 text-center leading-relaxed">
                         作者在自由市场里开动脑筋了，<br />
                         打赏助力作者扩张游戏规模 💰

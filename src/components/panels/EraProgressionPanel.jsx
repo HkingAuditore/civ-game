@@ -47,15 +47,14 @@ const EffectCard = ({ type, name, value, effect }) => {
     const icon = EFFECT_ICONS[type] || '📊';
     
     return (
-        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-            <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">{icon}</span>
-                <span className="text-sm text-gray-300">{name}</span>
+        <div className="bg-gray-800/50 rounded-lg p-2.5 border border-gray-700/50">
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-sm">{icon}</span>
+                <span className="text-xs text-gray-300">{name}</span>
             </div>
-            <div className="text-lg font-medium text-green-400">{value}</div>
+            <div className="text-base font-medium text-green-400">{value}</div>
             
-            {/* 详细效果说明 */}
-            <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+            <div className="mt-1.5 text-[10px] text-gray-500 space-y-0.5">
                 {type === 'merchantEfficiency' && effect.multiplier && (
                     <div>商人贸易效率 ×{effect.multiplier.toFixed(2)}</div>
                 )}
@@ -105,33 +104,29 @@ const EraProgressionPanel = ({ currentEra = 0 }) => {
     const eraAdvantage = currentEra; // 相对于时代0的优势
     
     return (
-        <div className="bg-gray-900/50 rounded-lg">
-            {/* 标题 */}
-            <div className="p-3 border-b border-gray-700/50">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium text-gray-200 flex items-center gap-2">
-                        <span>⏳</span>
-                        <span>时代演进效果</span>
-                    </h3>
-                    <span className="px-2 py-1 bg-blue-900/50 text-blue-300 text-sm rounded">
-                        {eraName}
-                    </span>
-                </div>
+        <div className="bg-gray-900/50 rounded-lg p-2.5 border border-gray-700/50">
+            <div className="flex items-center gap-2 mb-1">
+                <span className="text-base">⏳</span>
+                <span className="text-sm font-medium text-gray-200">时代演进效果</span>
+            </div>
+            <div className="flex items-center justify-between">
+                <span className="px-2 py-0.5 bg-blue-900/50 text-blue-300 text-xs rounded">
+                    {eraName}
+                </span>
                 {eraAdvantage > 0 && (
-                    <div className="text-xs text-gray-500 mt-1">
-                        当前时代优势: +{eraAdvantage} 级
-                    </div>
+                    <span className="text-[10px] text-gray-500">
+                        时代优势: +{eraAdvantage} 级
+                    </span>
                 )}
             </div>
             
-            {/* 效果列表 */}
-            <div className="p-3">
+            <div className="p-2.5">
                 {progressionEffects.length === 0 ? (
-                    <div className="text-center text-gray-500 py-4">
+                    <div className="text-center text-gray-500 py-3 text-xs">
                         当前时代尚无额外加成
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                         {progressionEffects.map(effect => (
                             <EffectCard
                                 key={effect.type}
@@ -147,11 +142,11 @@ const EraProgressionPanel = ({ currentEra = 0 }) => {
             
             {/* 下一时代预览 */}
             {currentEra < 8 && (
-                <div className="p-3 border-t border-gray-700/50 bg-gray-800/30">
-                    <div className="text-xs text-gray-400 mb-2">
+                <div className="p-2.5 border-t border-gray-700/50 bg-gray-800/30">
+                    <div className="text-[10px] text-gray-400 mb-1.5">
                         下一时代 ({ERA_NAMES[currentEra + 1]}) 新增效果:
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="grid grid-cols-3 gap-1.5 text-[10px]">
                         <div className="text-gray-500">
                             <span className="text-yellow-400">🏪</span> 商人 +10%
                         </div>

@@ -583,7 +583,7 @@ const MilitaryTabComponent = ({
     };
 
     return (
-        <div className="space-y-4">
+<div className="space-y-3">
             <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
                 <button
                     className={`w-1/2 py-2 rounded-full border-2 transition-all ${activeSection === 'soldiers'
@@ -611,7 +611,7 @@ const MilitaryTabComponent = ({
             {activeSection === 'soldiers' && (
                 <>
                     {/* 军队概览 */}
-                    <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
+<div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name="Shield" size={16} className="text-red-400" />
                             军队概览
@@ -624,7 +624,7 @@ const MilitaryTabComponent = ({
                                     <Icon name="Users" size={14} className="text-blue-400" />
                                     <span className="text-xs text-gray-400">总兵力</span>
                                 </div>
-                                <p className="text-lg font-bold text-white">{totalUnits}</p>
+<p className="text-base font-bold text-white">{totalUnits}</p>
                             </div>
 
                             {/* 人口占用 */}
@@ -633,7 +633,7 @@ const MilitaryTabComponent = ({
                                     <Icon name="UserCheck" size={14} className="text-cyan-400" />
                                     <span className="text-xs text-gray-400">人口占用</span>
                                 </div>
-                                <p className="text-lg font-bold text-cyan-400">{totalPopulationCost}</p>
+<p className="text-base font-bold text-cyan-400">{totalPopulationCost}</p>
                                 <p className="text-[10px] text-gray-500">现役 {totalArmyPopulation} + 训练 {queuePopulation}</p>
                             </div>
 
@@ -643,7 +643,7 @@ const MilitaryTabComponent = ({
                                     <Icon name="Castle" size={14} className="text-red-400" />
                                     <span className="text-xs text-gray-400">军事容量</span>
                                 </div>
-                                <p className={`text-lg font-bold ${totalArmyCount > militaryCapacity ? 'text-red-400' : 'text-white'}`}>
+<p className={`text-base font-bold ${totalArmyCount > militaryCapacity ? 'text-red-400' : 'text-white'}`}>
                                     {totalArmyCount} / {militaryCapacity}
                                 </p>
                             </div>
@@ -654,7 +654,7 @@ const MilitaryTabComponent = ({
                                     <Icon name="Clock" size={14} className="text-yellow-400" />
                                     <span className="text-xs text-gray-400">训练中</span>
                                 </div>
-                                <p className="text-lg font-bold text-white">{militaryQueue.length}</p>
+<p className="text-base font-bold text-white">{militaryQueue.length}</p>
                             </div>
                         </div>
 
@@ -747,7 +747,7 @@ const MilitaryTabComponent = ({
                     </div>
 
                     {/* 自动补兵 */}
-                    <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
+<div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <Icon name="RefreshCcw" size={16} className="text-emerald-400" />
@@ -776,7 +776,7 @@ const MilitaryTabComponent = ({
                     </div>
 
                     {/* 兵种克制关系 */}
-                    <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
+<div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                         <h3 className="text-xs font-bold mb-2 flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name="Info" size={14} className="text-blue-400" />
                             兵种克制关系
@@ -826,7 +826,7 @@ const MilitaryTabComponent = ({
                     </div>
 
                     {/* 招募单位 */}
-                    <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
+<div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name="Plus" size={16} className="text-green-400" />
                             招募单位
@@ -1003,7 +1003,7 @@ const MilitaryTabComponent = ({
 
                     {/* 训练队列 */}
                     {militaryQueue.length > 0 && (
-                        <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
+<div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
                                     <Icon name="Clock" size={16} className="text-yellow-400" />
@@ -1085,7 +1085,7 @@ const MilitaryTabComponent = ({
 
             {/* 军事行动 */}
             {activeSection === 'battle' && (
-                <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
+<div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name="Swords" size={16} className="text-red-400" />
@@ -1364,7 +1364,7 @@ const MilitaryTabComponent = ({
                     <div className="bg-gray-900 border border-ancient-gold/40 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden animate-fade-in-fast">
                         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700">
                             <div>
-                                <h4 className="text-lg font-bold text-white font-decorative">战争分数指引</h4>
+<h4 className="text-base font-bold text-white font-decorative">战争分数指引</h4>
                                 <p className="text-xs text-gray-400 mt-0.5">
                                     "我方优势"越高，可提出的和平条件越苛刻；优势为负时，说明敌方占优，需要支付赔款或割地才能求和。
                                 </p>
@@ -1378,7 +1378,7 @@ const MilitaryTabComponent = ({
                                 <Icon name="X" size={18} />
                             </button>
                         </div>
-                        <div className="p-5 space-y-4 overflow-y-auto">
+<div className="p-4 space-y-3 overflow-y-auto">
                             {WAR_SCORE_GUIDE.map((tier) => (
                                 <div
                                     key={tier.range}

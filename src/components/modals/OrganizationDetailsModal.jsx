@@ -104,68 +104,68 @@ const OrganizationDetailsModal = ({
             size="lg"
             containerClassName="max-w-2xl"
         >
-            <div className="space-y-6">
+            <div className="space-y-3">
                 {/* Header Info */}
-                <div className="bg-ancient-ink/40 p-4 rounded-lg border border-ancient-gold/20 flex justify-between items-start">
-                    <div>
-                        <div className="text-ancient-stone text-xs uppercase tracking-wider mb-1">组织类型</div>
-                        <div className="text-ancient-parchment font-bold text-lg mb-2">{config?.name || organization.type}</div>
-                        <div className="text-ancient-stone text-sm">{config?.description}</div>
+                <div className="bg-ancient-ink/40 p-2.5 rounded-lg border border-ancient-gold/20 flex justify-between items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                        <div className="text-ancient-stone text-[9px] uppercase tracking-wider">组织类型</div>
+                        <div className="text-ancient-parchment font-bold text-sm">{config?.name || organization.type}</div>
+                        <div className="text-ancient-stone text-xs mt-0.5 leading-snug">{config?.description}</div>
                     </div>
-                    <div className="text-right">
-                        <div className="text-ancient-stone text-xs uppercase tracking-wider mb-1">创始人</div>
-                        <div className="text-ancient-gold font-bold">
+                    <div className="text-right flex-shrink-0">
+                        <div className="text-ancient-stone text-[9px] uppercase tracking-wider">创始人</div>
+                        <div className="text-ancient-gold font-bold text-sm">
                             {founderName}
                         </div>
-                        <div className="text-ancient-stone text-xs mt-2">
+                        <div className="text-ancient-stone text-[10px] mt-0.5">
                             成立已 {Math.max(0, Math.floor(daysElapsed - (organization.createdDay || 0)))} 天
                         </div>
                     </div>
                 </div>
 
-                {/* Effects Section */}
+                {/* Effects Section - Redesigned as compact list */}
                 <div>
-                    <h3 className="text-ancient-parchment font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <Icon name="Sparkles" size={16} className="text-ancient-gold" />
+                    <h3 className="text-ancient-parchment font-bold text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <Icon name="Sparkles" size={14} className="text-ancient-gold" />
                         组织效力
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
                         {effects.length > 0 ? (
                             effects.map((effect, idx) => (
-                                <div key={idx} className="bg-ancient-ink/30 border border-ancient-gold/10 p-2 rounded flex items-center gap-2">
-                                    <Icon name="CheckCircle" size={14} className="text-green-400" />
-                                    <span className="text-ancient-parchment text-sm">{effect}</span>
+                                <div key={idx} className="bg-ancient-ink/30 border border-ancient-gold/10 px-2 py-1.5 rounded flex items-start gap-1.5">
+                                    <Icon name="CheckCircle" size={12} className="text-green-400 flex-shrink-0 mt-0.5" />
+                                    <span className="text-ancient-parchment text-xs leading-snug">{effect}</span>
                                 </div>
                             ))
                         ) : (
-                            <div className="text-ancient-stone italic text-sm">暂无明显效果</div>
+                            <div className="text-ancient-stone italic text-xs">暂无明显效果</div>
                         )}
                     </div>
                 </div>
 
                 {/* Members Section */}
                 <div>
-                    <div className="flex justify-between items-end mb-3">
-                        <h3 className="text-ancient-parchment font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                            <Icon name="Users" size={16} className="text-ancient-gold" />
+                    <div className="flex justify-between items-end mb-1.5">
+                        <h3 className="text-ancient-parchment font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+                            <Icon name="Users" size={14} className="text-ancient-gold" />
                             成员国 ({memberList.length}/{getOrganizationMaxMembers(organization.type, epoch)})
                         </h3>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
                         {memberList.map(member => {
                             const rInfo = relationInfoHelper(member.relation);
                             return (
                                 <div key={member.id} className={`
-                                    flex items-center justify-between p-2 rounded border
+                                    flex items-center justify-between px-2 py-1.5 rounded border
                                     ${member.isPlayer ? 'bg-ancient-gold/10 border-ancient-gold/40' : 'bg-ancient-ink/20 border-white/5'}
                                 `}>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 text-xs font-bold text-ancient-parchment">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-5 h-5 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 text-[10px] font-bold text-ancient-parchment">
                                             {member.name.charAt(0)}
                                         </div>
                                         <div>
-                                            <div className="text-sm font-medium text-ancient-parchment flex items-center gap-1">
+                                            <div className="text-xs font-medium text-ancient-parchment flex items-center gap-1">
                                                 {member.name}
                                                 {member.isFounder && (
                                                     <Icon name="Crown" size={12} className="text-amber-400" />
@@ -189,12 +189,12 @@ const OrganizationDetailsModal = ({
 
                 {/* Leave Cost Warning (for members) */}
                 {isMember && leaveCostInfo && (
-                    <div className={`p-4 rounded-lg border ${isFounder ? 'bg-red-900/20 border-red-500/30' : 'bg-amber-900/20 border-amber-500/30'}`}>
-                        <h4 className={`font-bold text-sm mb-2 flex items-center gap-2 ${isFounder ? 'text-red-400' : 'text-amber-400'}`}>
-                            <Icon name={isFounder ? 'AlertTriangle' : 'Info'} size={16} />
+                    <div className={`p-2.5 rounded-lg border ${isFounder ? 'bg-red-900/20 border-red-500/30' : 'bg-amber-900/20 border-amber-500/30'}`}>
+                        <h4 className={`font-bold text-xs mb-1.5 flex items-center gap-1.5 ${isFounder ? 'text-red-400' : 'text-amber-400'}`}>
+                            <Icon name={isFounder ? 'AlertTriangle' : 'Info'} size={14} />
                             退出须知
                         </h4>
-                        <div className="space-y-2 text-sm">
+                        <div className="space-y-1 text-xs">
                             <div className="flex justify-between items-center">
                                 <span className="text-ancient-stone">退出违约金：</span>
                                 <span className={`font-bold ${canAffordLeave ? 'text-ancient-parchment' : 'text-red-400'}`}>
@@ -218,14 +218,13 @@ const OrganizationDetailsModal = ({
 
                 {/* Non-member info */}
                 {!isMember && (
-                    <div className="p-4 rounded-lg border bg-blue-900/20 border-blue-500/30">
-                        <h4 className="font-bold text-sm mb-2 flex items-center gap-2 text-blue-400">
-                            <Icon name="Info" size={16} />
+                    <div className="p-2.5 rounded-lg border bg-blue-900/20 border-blue-500/30">
+                        <h4 className="font-bold text-xs mb-1.5 flex items-center gap-1.5 text-blue-400">
+                            <Icon name="Info" size={14} />
                             如何加入
                         </h4>
-                        <div className="mt-4">
-                            <div className="text-ancient-stone font-bold mb-2">如何加入</div>
-                            <div className="text-xs text-ancient-stone space-y-2">
+                        <div className="mt-2">
+                            <div className="text-xs text-ancient-stone space-y-1.5">
                                 <div>
                                     加入国际组织需要通过外交谈判。请前往创始国的外交界面，选择"军事同盟"或"经济共同体"条约类型，然后选择"申请加入该组织"。
                                 </div>
@@ -245,7 +244,7 @@ const OrganizationDetailsModal = ({
                 )}
 
                 {/* Actions */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-ancient-gold/10">
+                <div className="flex justify-end gap-2 pt-2 border-t border-ancient-gold/10">
                     <Button variant="ghost" onClick={onClose}>
                         关闭
                     </Button>

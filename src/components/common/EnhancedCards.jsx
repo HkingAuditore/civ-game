@@ -36,7 +36,7 @@ export const EnhancedCard = ({
 
   const CardContent = (
     <div
-      className={`relative rounded-xl transition-all duration-300 ${variants[variant]} ${hoverClass} ${className}`}
+className={`relative rounded-lg transition-all duration-300 ${variants[variant]} ${hoverClass} ${className}`}
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -92,7 +92,7 @@ export const InfoCard = ({
       variant="default"
       hover={true}
       glow={true}
-      className={`p-4 ${className}`}
+className={`p-3 ${className}`}
     >
       <div className="flex items-start gap-3">
         {/* 图标 */}
@@ -178,7 +178,7 @@ export const CollapsibleCard = ({
       {/* 标题栏 */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-4 flex items-center justify-between hover:bg-ancient-gold/5 transition-colors rounded-t-xl"
+className="w-full p-3 flex items-center justify-between hover:bg-ancient-gold/5 transition-colors rounded-t-lg"
       >
         <div className="flex items-center gap-3">
           {icon && (
@@ -186,7 +186,7 @@ export const CollapsibleCard = ({
               {icon}
             </div>
           )}
-<h3 className="text-lg font-bold text-ancient font-decorative">{title}</h3>
+<h3 className="text-base font-bold text-ancient font-decorative">{title}</h3>
           {badge && (
             <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-ancient-gold/20 text-ancient-gold border border-ancient-gold/30">
               {badge}
@@ -220,7 +220,7 @@ export const CollapsibleCard = ({
           isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
-        <div className="p-4 pt-0">{children}</div>
+<div className="p-3 pt-0">{children}</div>
       </div>
     </EnhancedCard>
   );
@@ -245,19 +245,19 @@ export const ActionCard = ({
       variant="default"
       hover={!disabled}
       glow={!disabled}
-      className={`p-4 ${className}`}
+className={`p-3 ${className}`}
     >
       <div className="flex items-start gap-4">
         {/* 图标 */}
         {icon && (
-          <div className="flex-shrink-0 p-3 rounded-xl bg-ancient-gold/10 border border-ancient-gold/20">
+<div className="flex-shrink-0 p-2 rounded-lg bg-ancient-gold/10 border border-ancient-gold/20">
             {icon}
           </div>
         )}
 
         {/* 内容 */}
         <div className="flex-1 min-w-0">
-<h4 className="text-lg font-bold text-ancient mb-2 font-decorative">{title}</h4>
+<h4 className="text-base font-bold text-ancient mb-1.5 font-decorative">{title}</h4>
           {description && <p className="text-sm text-gray-400 mb-4">{description}</p>}
 
           {/* 操作按钮 */}

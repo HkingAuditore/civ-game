@@ -125,7 +125,7 @@ const NationDetailView = ({
     return (
         <div className="flex flex-col h-full bg-theme-surface-trans">
             <div
-                className="p-4 md:p-6 border-b border-theme-border flex-shrink-0"
+className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                 style={{ background: 'linear-gradient(to bottom, var(--theme-surface), transparent)' }}
             >
                 {/* Header Section */}
@@ -137,7 +137,7 @@ const NationDetailView = ({
                             <Icon name="Flag" size={24} className={`${nation.color || 'text-gray-400'} md:w-8 md:h-8`} />
                         </div>
                         <div>
-                            <h2 className="text-2xl md:text-3xl font-bold text-theme-accent tracking-wide font-decorative shadow-black drop-shadow-md">
+<h2 className="text-xl md:text-2xl font-bold text-theme-accent tracking-wide font-decorative shadow-black drop-shadow-md">
                                 {nation.name}
                             </h2>
                             <div className="flex items-center gap-2 mt-1">
@@ -185,9 +185,9 @@ const NationDetailView = ({
                 <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} variant="underline" />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin scrollbar-thumb-ancient-gold/20 hover:scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/10">
+<div className="flex-1 overflow-y-auto p-3 md:p-4 scrollbar-thin scrollbar-thumb-ancient-gold/20 hover:scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/10">
                 {activeTab === 'overview' && (
-                    <div className="space-y-6">
+<div className="space-y-4">
                         {nation.desc && (
                             <div className="p-4 bg-ancient-ink/40 rounded-lg border border-ancient-gold/10 text-ancient-parchment italic font-serif leading-relaxed relative">
                                 <Icon name="Quote" size={16} className="absolute top-2 left-2 text-ancient-gold/20" />
@@ -292,7 +292,7 @@ const NationDetailView = ({
                 )}
 
                 {activeTab === 'trade' && (
-                    <div className="space-y-6">
+<div className="space-y-4">
                         {/* Player's Investments in this nation */}
                         <PlayerInvestmentInNation
                             nation={nation}
@@ -988,8 +988,8 @@ const DetailedMarketTable = ({ nation, market, epoch, daysElapsed, onTrade }) =>
 const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) => (
     <div className="space-y-4">
         {nation.vassalOf === 'player' ? (
-            <Card className="p-6 bg-purple-900/10 border-purple-500/30">
-                <h3 className="text-purple-300 font-bold mb-4 flex items-center gap-2 text-xl font-decorative">
+<Card className="p-4 bg-purple-900/10 border-purple-500/30">
+                <h3 className="text-purple-300 font-bold mb-3 flex items-center gap-2 text-base font-decorative">
                     <Icon name="Crown" size={24} />
                     附庸国管理
                 </h3>
@@ -997,7 +997,7 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
                     <div className="relative">
                         <div className="text-xs text-purple-400/60 uppercase tracking-wider mb-1">独立倾向</div>
                         <div
-                            className={`text-3xl font-mono font-bold ${(nation.independencePressure || 0) > 50 ? 'text-red-400' : 'text-green-400'}`}
+                            className={`text-2xl font-mono font-bold ${(nation.independencePressure || 0) > 50 ? 'text-red-400' : 'text-green-400'}`}
                         >
                             {Math.round(nation.independencePressure || 0)}%
                         </div>
@@ -1029,8 +1029,8 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
                 </div>
             </Card>
         ) : nation.vassals && nation.vassals.includes('player') ? (
-            <Card className="p-6 bg-red-900/10 border-red-500/30">
-                <h3 className="text-red-300 font-bold mb-2 flex items-center gap-2 text-xl">
+<Card className="p-4 bg-red-900/10 border-red-500/30">
+                <h3 className="text-red-300 font-bold mb-2 flex items-center gap-2 text-base">
                     <Icon name="Lock" size={24} />
                     宗主国
                 </h3>
@@ -1044,7 +1044,7 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
                 </Button>
             </Card>
         ) : (
-            <div className="p-12 text-center text-ancient-stone/50 italic border border-dashed border-ancient-stone/20 rounded-xl">
+<div className="p-8 text-center text-ancient-stone/50 italic border border-dashed border-ancient-stone/20 rounded-lg">
                 <Icon name="ShieldQuestion" size={48} className="mx-auto mb-4 opacity-50" />
                 双方之间不存在宗主附庸关系
             </div>
@@ -1080,7 +1080,7 @@ const ActionCard = ({ icon, title, desc, cost, disabled, onClick, color }) => {
             disabled={disabled}
             onClick={onClick}
             className={`
-                group flex items-start gap-3 md:gap-4 p-3 md:p-4 text-left rounded-xl border transition-all duration-300 relative overflow-hidden
+group flex items-start gap-2.5 md:gap-3 p-2.5 md:p-3 text-left rounded-lg border transition-all duration-300 relative overflow-hidden
                 ${disabled
                     ? 'opacity-50 cursor-not-allowed bg-theme-surface-trans border-theme-border text-theme-text'
                     : 'glass-epic border-theme-border text-theme-text hover:border-theme-accent hover:shadow-gold-metal hover:-translate-y-0.5'
@@ -1394,7 +1394,7 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
                     商人会自动寻找最有利可图的商品进行贸易。
                 </p>
             </div>
-            <div className="flex items-center gap-4 bg-black/40 p-2 sm:p-3 rounded-xl border border-blue-500/30 text-white w-full sm:w-auto justify-center">
+<div className="flex items-center gap-3 bg-black/40 p-2 sm:p-2.5 rounded-lg border border-blue-500/30 text-white w-full sm:w-auto justify-center">
                 <Button
                     size="md"
                     variant="danger"
@@ -1405,7 +1405,7 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
                 >
                     <Icon name="Minus" size={20} className="text-white" />
                 </Button>
-                <div className="text-2xl sm:text-3xl font-bold font-mono w-12 sm:w-16 text-center text-blue-100 drop-shadow-md">
+<div className="text-xl sm:text-2xl font-bold font-mono w-10 sm:w-14 text-center text-blue-100 drop-shadow-md">
                     {merchantCount}
                 </div>
                 <Button

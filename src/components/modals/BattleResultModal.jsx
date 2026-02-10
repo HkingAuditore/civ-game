@@ -58,21 +58,21 @@ export const BattleResultModal = ({ result, onClose }) => {
                         <div className="relative z-10 flex flex-col h-full min-h-0">
                             {/* 头部 */}
                             <div
-                                className={`flex-shrink-0 p-4 border-b border-ancient-gold/20 ${result.victory
+                                className={`flex-shrink-0 p-3 border-b border-ancient-gold/20 ${result.victory
                                     ? 'bg-gradient-to-r from-emerald-900/40 to-blue-900/30'
                                     : 'bg-gradient-to-r from-red-900/50 to-ancient-ink/60'
                                     }`}
                             >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-xl bg-ancient-ink/60 border border-ancient-gold/30 flex items-center justify-center flex-shrink-0 shadow-inner">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-10 h-10 rounded-lg bg-ancient-ink/60 border border-ancient-gold/30 flex items-center justify-center flex-shrink-0 shadow-inner">
                                         <Icon
                                             name={result.victory ? 'Trophy' : 'Skull'}
-                                            size={26}
+                                            size={22}
                                             className={result.victory ? 'text-ancient-gold' : 'text-red-400'}
                                         />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h2 className="text-lg font-bold text-ancient leading-tight flex items-center gap-2">
+                                        <h2 className="text-base font-bold text-ancient leading-tight flex items-center gap-2">
                                             {result.victory ? '战斗胜利' : '战斗失利…'}
                                             {typeof result.score === 'number' && (
                                                 <span className="px-2 py-0.5 text-[10px] rounded-full border border-ancient-gold/30 text-ancient-parchment bg-ancient-ink/40">
@@ -322,7 +322,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                             </div>
 
                             {/* 底部按钮 */}
-                            <div className="flex-shrink-0 p-3 border-t border-gray-700 bg-gray-800/50">
+                            <div className="flex-shrink-0 px-3 py-2 border-t border-gray-700 bg-gray-800/50">
                                 <button
                                     onClick={onClose}
                                     className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"

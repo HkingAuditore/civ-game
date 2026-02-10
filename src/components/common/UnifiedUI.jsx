@@ -93,7 +93,7 @@ export const Modal = ({
       >
         {/* 头部 */}
         <div className={MODAL_STYLES.header}>
-<h3 className="text-lg font-bold text-ancient-gold font-decorative">{title}</h3>
+<h3 className="text-base font-bold text-ancient-gold font-decorative">{title}</h3>
           {showCloseButton && (
             <button className={MODAL_STYLES.closeButton} onClick={onClose}>
               <Icon name="X" size={20} />
@@ -266,15 +266,15 @@ export const InfoCard = ({
 }) => {
   return (
     <Card variant={variant} padding="md" hover className={cn('flex flex-col', className)}>
-      <div className="flex items-center gap-3 mb-2">
+      <div className="flex items-center gap-2 mb-1.5">
         {icon && (
-          <div className="p-2 rounded-lg bg-ancient-gold/10 text-ancient-gold">
+          <div className="p-1.5 rounded-lg bg-ancient-gold/10 text-ancient-gold">
             {icon}
           </div>
         )}
         <div className="flex-1">
-          <div className="text-xs text-ancient-stone mb-1">{title}</div>
-          <div className="text-2xl font-bold text-ancient-gold">{value}</div>
+          <div className="text-[10px] text-ancient-stone mb-0.5">{title}</div>
+          <div className="text-xl font-bold text-ancient-gold">{value}</div>
         </div>
       </div>
       {subtitle && <div className="text-xs text-ancient-stone/70 mt-1">{subtitle}</div>}
@@ -303,12 +303,12 @@ export const CollapsibleCard = ({
   return (
     <Card variant={variant} padding="none" className={className}>
       <button
-        className="w-full flex items-center justify-between p-4 hover:bg-ancient-gold/5 transition-colors"
+        className="w-full flex items-center justify-between p-3 hover:bg-ancient-gold/5 transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3">
           {icon && <div className="text-ancient-gold">{icon}</div>}
-<span className="font-semibold text-ancient-parchment font-decorative">{title}</span>
+<span className="font-semibold text-ancient-parchment font-decorative text-sm">{title}</span>
           {badge && <Badge variant="primary">{badge}</Badge>}
         </div>
         <Icon
@@ -321,7 +321,7 @@ export const CollapsibleCard = ({
         />
       </button>
       {isExpanded && (
-        <div className="p-4 border-t border-ancient-gold/20">
+        <div className="p-3 border-t border-ancient-gold/20">
           {children}
         </div>
       )}
@@ -342,15 +342,15 @@ export const ActionCard = ({
 }) => {
   return (
     <Card variant="epic" padding="md" hover className={className}>
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3">
         {icon && (
-          <div className="p-3 rounded-xl bg-ancient-gold/10 text-ancient-gold flex-shrink-0">
+          <div className="p-2 rounded-lg bg-ancient-gold/10 text-ancient-gold flex-shrink-0">
             {icon}
           </div>
         )}
         <div className="flex-1">
-<h4 className="font-bold text-ancient-parchment mb-1 font-decorative">{title}</h4>
-          {description && <p className="text-sm text-ancient-stone mb-3">{description}</p>}
+<h4 className="font-bold text-ancient-parchment mb-1 font-decorative text-sm">{title}</h4>
+          {description && <p className="text-xs text-ancient-stone mb-2">{description}</p>}
           <Button
             variant={variant}
             size="sm"

@@ -28,7 +28,7 @@ export const CityMap = ({ buildings, epoch }) => {
   const displayTiles = [...activeTiles, ...Array(emptyCount).fill(null)];
 
   return (
-    <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner overflow-hidden">
+<div className="bg-gray-900 p-3 rounded-lg border border-gray-700 shadow-inner overflow-hidden">
       {/* 标题栏 */}
       <div className="mb-2 flex justify-between items-center">
         <h3 className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2">

@@ -173,20 +173,20 @@ const OfficialOverstaffModal = ({
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]">
-            <div className="bg-gray-900 border-2 border-red-500/50 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl">
+            <div className="bg-gray-900 border-2 border-red-500/50 rounded-lg p-4 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] flex flex-col">
                 {/* 标题 */}
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
-                        <Icon name="UserMinus" size={20} className="text-red-400" />
+                <div className="flex items-center gap-2 mb-3 flex-shrink-0">
+                    <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center">
+                        <Icon name="UserMinus" size={16} className="text-red-400" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-red-400">官员编制超额</h2>
-                        <p className="text-sm text-gray-400">必须解雇部分官员以符合新的编制限制</p>
+                        <h2 className="text-base font-bold text-red-400">官员编制超额</h2>
+                        <p className="text-xs text-gray-400">必须解雇部分官员以符合新的编制限制</p>
                     </div>
                 </div>
 
                 {/* 说明 */}
-                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-4">
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-3 flex-shrink-0">
                     <p className="text-sm text-gray-300">
                         由于政体变更或其他原因，官员编制从 <span className="text-white font-bold">{currentCount}</span> 人
                         降低至 <span className="text-white font-bold">{maxCapacity}</span> 人。
@@ -202,7 +202,7 @@ const OfficialOverstaffModal = ({
                 </div>
 
                 {/* 官员列表 */}
-                <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+                <div className="space-y-2 max-h-64 overflow-y-auto mb-3 flex-1 min-h-0">
                     {officials.map(official => {
                         const isSelected = selectedIds.has(official.id);
                         const stratumInfo = STRATA[official.sourceStratum];
@@ -288,7 +288,7 @@ const OfficialOverstaffModal = ({
                     onClick={handleConfirm}
                     disabled={!canClose}
                     className={`
-                        w-full py-3 rounded-lg font-medium transition-all
+                        w-full py-2.5 rounded-lg font-medium text-sm transition-all flex-shrink-0
                         ${canClose
                             ? 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
                             : 'bg-gray-700 text-gray-500 cursor-not-allowed'

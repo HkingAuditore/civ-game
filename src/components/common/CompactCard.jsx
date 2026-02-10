@@ -136,11 +136,11 @@ export const CompactCard = ({
           
           {/* 内容 */}
           <div
-            className="relative w-full sm:max-w-lg bg-gray-900 sm:rounded-xl overflow-hidden animate-slide-up"
+className="relative w-full sm:max-w-lg bg-gray-900 sm:rounded-lg overflow-hidden animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+<div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-700">
               <div className="flex items-center gap-2">
                 {icon && (
                   <div className={`${iconBg} ${iconColor} p-2 rounded`}>
@@ -163,13 +163,13 @@ export const CompactCard = ({
             </div>
             
             {/* 详情内容 */}
-            <div className="p-4 max-h-[70vh] overflow-y-auto">
+<div className="p-3 max-h-[70vh] overflow-y-auto">
               {details}
             </div>
             
             {/* 底部操作 */}
             {actions && (
-              <div className="p-4 border-t border-gray-700 bg-gray-800/50">
+<div className="px-3 py-2.5 border-t border-gray-700 bg-gray-800/50">
                 {actions}
               </div>
             )}

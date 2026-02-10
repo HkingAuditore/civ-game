@@ -226,10 +226,10 @@ export const CoalitionPanel = ({
     };
 
     return (
-        <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30 mb-4">
+        <div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30 mb-3">
             {/* 标题栏 */}
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
+            <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold flex items-center gap-1.5 text-gray-300 font-decorative">
                     <Icon name="Users" size={16} className="text-amber-400" />
                     执政联盟
                     {isEditMode && (
@@ -248,7 +248,7 @@ export const CoalitionPanel = ({
 
             {/* 编辑模式提示/按钮区 */}
             {!isEditMode ? (
-                <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <div className="mb-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="text-xs text-gray-400">
                             <Icon name="Info" size={12} className="inline mr-1" />
@@ -279,7 +279,7 @@ export const CoalitionPanel = ({
                     )}
                 </div>
             ) : (
-                <div className="mb-3 p-2 bg-amber-900/20 rounded-lg border border-amber-700/50">
+                <div className="mb-2 p-2 bg-amber-900/20 rounded-lg border border-amber-700/50">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="text-xs text-amber-300">
                             <Icon name="AlertCircle" size={12} className="inline mr-1" />
@@ -317,7 +317,7 @@ export const CoalitionPanel = ({
             )}
 
             {/* 政体描述词徽章 */}
-            <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
+            <div className="mb-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
                 <div className="flex items-center gap-2">
                     <Icon name={governmentType.icon} size={18} className={governmentType.color} />
                     <div className="flex-1">
@@ -358,9 +358,9 @@ export const CoalitionPanel = ({
             </div>
 
             {/* 合法性说明 */}
-            <div className="mb-3 p-2 bg-gray-900/30 rounded-lg">
-                <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-gray-400">联盟影响力</span>
+            <div className="mb-2 p-2 bg-gray-900/30 rounded-lg">
+                <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[11px] text-gray-400">联盟影响力</span>
                     <span className={`text-sm font-bold ${coalitionInfluenceShare >= LEGITIMACY_THRESHOLD ? 'text-green-400' : 'text-red-400'}`}>
                         {(coalitionInfluenceShare * 100).toFixed(1)}%
                         {isEditMode && hasChanges && <span className="ml-1 text-amber-400 text-xs font-normal">(预览)</span>}
@@ -379,9 +379,9 @@ export const CoalitionPanel = ({
                 <p className="text-[10px] text-gray-500 mt-1">
                     {legitimacyInfo.description}
                 </p>
-                <div className="mt-2 pt-2 border-t border-gray-700/50">
-                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-600/30">
-                        <span className="text-sm font-bold text-gray-300">政府合法性</span>
+                <div className="mt-1.5 pt-1.5 border-t border-gray-700/50">
+                    <div className="flex items-center justify-between mb-1.5 pb-1.5 border-b border-gray-600/30">
+                        <span className="text-xs font-bold text-gray-300">政府合法性</span>
                         <span className={`text-lg font-bold ${legitimacyInfo.color}`}>
                             {realTimeLegitimacy.toFixed(0)}
                             {isEditMode && hasChanges && <span className="ml-1 text-amber-400 text-xs font-normal">(预览)</span>}
@@ -448,13 +448,13 @@ export const CoalitionPanel = ({
             </div>
 
             {/* 阶层选择网格 */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
                 {Object.entries(STRATA_GROUPS).map(([key, group]) => renderStrataGroup(key, group))}
             </div>
 
             {/* 警告提示 */}
             {displayCoalition.length > 0 && (
-                <div className="mt-3 p-2 bg-amber-900/20 rounded-lg border border-amber-700/30">
+                <div className="mt-2 p-2 bg-amber-900/20 rounded-lg border border-amber-700/30">
                     <div className="flex items-start gap-2">
                         <Icon name="AlertTriangle" size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
                         <div className="text-[10px] text-amber-300/80">

@@ -59,8 +59,8 @@ export const CreateOrganizationModal = ({
                 </div>
             }
         >
-            <div className="space-y-4">
-                <p className="text-ancient-stone text-sm">
+            <div className="space-y-3">
+                <p className="text-ancient-stone text-xs">
                     请为即将建立的{orgType.name}命名。一个响亮的名字有助于提升组织的威望。
                 </p>
 

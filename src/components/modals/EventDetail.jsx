@@ -15,7 +15,7 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
         ?? getPublicAssetUrl(`images/events/${eventId}.webp`);
 
     return (
-        <div className="relative w-full h-44 mb-3 rounded-xl overflow-hidden">
+        <div className="relative w-full h-36 mb-2 rounded-xl overflow-hidden">
             {/* 背景图片 - 确保完全填满容器 */}
             <img
                 src={imagePath}
@@ -36,21 +36,21 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
             }} />
 
             {/* 叠加在图片上的标题区域 */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 z-[2]">
-                <div className="flex items-end gap-3">
+            <div className="absolute bottom-0 left-0 right-0 p-3 z-[2]">
+                <div className="flex items-end gap-2">
                     {/* 仅当图片未加载成功时显示图标 */}
                     {!hasImage && (
                         <div
-                            className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-xl border backdrop-blur-sm ${event.isDiplomaticEvent
+                            className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center shadow-xl border backdrop-blur-sm ${event.isDiplomaticEvent
                                 ? 'bg-gradient-to-br from-blue-600/90 to-purple-700/90 border-blue-400/50'
                                 : 'bg-gradient-to-br from-ancient-gold/80 to-ancient-bronze/80 border-ancient-gold/60'
                                 }`}
                         >
-                            <Icon name={event.icon} size={28} className="text-white drop-shadow-lg" />
+                            <Icon name={event.icon} size={22} className="text-white drop-shadow-lg" />
                         </div>
                     )}
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-xl font-bold text-white leading-tight font-decorative drop-shadow-lg">
+                        <h2 className="text-lg font-bold text-white leading-tight font-decorative drop-shadow-lg">
                             {event.name}
                         </h2>
                         <div className="flex items-center gap-2 mt-1">
@@ -307,7 +307,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
     };
 
     return (
-        <div className="space-y-3 font-sans">
+        <div className="space-y-2 font-sans">
             {/* 沉浸式英雄区块 - 当有图片时显示，标题叠加在图片上 */}
             {!imageError && (
                 <EventHeroImage
@@ -321,17 +321,17 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
 
             {/* 传统头部 - 仅当图片加载失败时显示 */}
             {imageError && (
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2">
                     <div
-                        className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-lg border ${event.isDiplomaticEvent
+                        className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center shadow-lg border ${event.isDiplomaticEvent
                             ? 'bg-gradient-to-br from-blue-600/80 to-purple-700/80 border-blue-400/30'
                             : 'bg-gradient-to-br from-ancient-gold/60 to-ancient-bronze/60 border-ancient-gold/40'
                             }`}
                     >
-                        <Icon name={event.icon} size={28} className="text-white drop-shadow-lg" />
+                    <Icon name={event.icon} size={22} className="text-white drop-shadow-lg" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-bold text-ancient leading-tight font-decorative">{event.name}</h2>
+                        <h2 className="text-base font-bold text-ancient leading-tight font-decorative">{event.name}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             {event.isDiplomaticEvent && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-blue-600/20 text-blue-300 rounded border border-blue-500/30 font-sans">
@@ -345,14 +345,14 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
             )}
 
             {/* 事件描述 - 玻璃拟态 */}
-            <div className="glass-ancient rounded-xl p-3 border border-ancient-gold/20 font-sans">
-                <p className="text-sm text-ancient-parchment leading-relaxed font-sans">{event.description}</p>
+            <div className="glass-ancient rounded-lg p-2.5 border border-ancient-gold/20 font-sans">
+                <p className="text-[13px] text-ancient-parchment leading-relaxed font-sans">{event.description}</p>
             </div>
 
             {/* 事件选项 */}
-            <div className="space-y-2">
-                <h3 className="text-xs font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <Icon name="Target" size={12} style={{ color: 'var(--theme-accent)' }} />
+            <div className="space-y-1.5">
+                <h3 className="text-[11px] font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5">
+                    <Icon name="Target" size={11} style={{ color: 'var(--theme-accent)' }} />
                     选择你的行动
                 </h3>
                 {filteredOptions.map((option) => {
@@ -363,7 +363,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                             key={option.id}
                             onClick={() => !isDisabled && handleOptionClick(option)}
                             disabled={isDisabled}
-                            className="w-full text-left rounded-xl p-3 transition-all group font-sans"
+                            className="w-full text-left rounded-lg p-2.5 transition-all group font-sans"
                             style={{
                                 background: isDisabled
                                     ? 'rgba(60, 60, 60, 0.3)'
@@ -394,7 +394,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                         >
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                    <h4 className="text-sm font-bold text-ancient-parchment group-hover:text-ancient transition-colors leading-tight font-sans">
+                                    <h4 className="text-[13px] font-bold text-ancient-parchment group-hover:text-ancient transition-colors leading-tight font-sans">
                                         {option.text}
                                     </h4>
                                     {option.description && (
@@ -402,7 +402,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                     )}
 
                                     {/* 效果预览 - 显示完整文字标签 */}
-                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
                                         {/* 资源效果（固定值） - 显示资源名称 */}
                                         {option.effects?.resources &&
                                             Object.entries(option.effects.resources || {}).map(([resource, value]) => (
@@ -560,7 +560,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
 
                                     {/* 随机效果预览 */}
                                     {option.randomEffects && option.randomEffects.length > 0 && (
-                                        <div className="mt-2 pt-2 border-t border-ancient-gold/10">
+                                        <div className="mt-1.5 pt-1.5 border-t border-ancient-gold/10">
                                             <div className="flex items-center gap-1 mb-1.5">
                                                 <Icon name="Dices" size={10} className="text-yellow-400" />
                                                 <span className="text-[10px] text-yellow-400 font-medium font-sans">可能的额外效果</span>
@@ -673,11 +673,11 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
 
             {/* 底部确认按钮 - 仅在开启二次确认时显示 */}
             {confirmationEnabled && (
-                <div className="pt-2 border-t border-ancient-gold/20">
+                <div className="pt-1.5 border-t border-ancient-gold/20">
                     <button
                         onClick={handleConfirmOption}
                         disabled={!selectedOption}
-                        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 font-sans ${selectedOption
+                        className={`w-full px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 font-sans ${selectedOption
                             ? 'btn-epoch-primary'
                             : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
                             }`}
@@ -700,7 +700,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
 
             {/* 提示信息 - 仅在开启二次确认时显示 */}
             {confirmationEnabled && (
-                <div className="glass-ancient rounded-xl p-2.5 border border-blue-500/20 font-sans">
+                <div className="glass-ancient rounded-lg p-2 border border-blue-500/20 font-sans">
                     <div className="flex items-start gap-2">
                         <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
                         <p className="text-blue-300 text-[11px] leading-snug font-sans">

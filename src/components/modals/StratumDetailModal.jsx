@@ -41,10 +41,10 @@ const AllStrataSummary = ({
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
       <div className="glass-epic rounded-xl border-2 border-ancient-gold/30 max-w-4xl w-full max-h-[90vh] flex flex-col shadow-metal-xl">
-        <div className="p-4 md:p-6 border-b border-gray-700">
+        <div className="p-3 md:p-4 border-b border-gray-700">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-<h2 className="text-xl md:text-2xl font-bold text-white font-decorative">社会阶层总览</h2>
+<h2 className="text-lg md:text-xl font-bold text-white font-decorative">社会阶层总览</h2>
               {/* 稳定度显示 */}
               <div className="flex items-center gap-2 mt-2">
                 <Icon 
@@ -71,7 +71,7 @@ const AllStrataSummary = ({
             </button>
           </div>
         </div>
-        <div className="p-6 overflow-y-auto">
+        <div className="p-4 overflow-y-auto">
           <table className="w-full text-left table-auto">
             <thead>
               <tr className="border-b border-gray-600">
@@ -146,10 +146,10 @@ const AllStrataSummary = ({
             </tbody>
           </table>
         </div>
-        <div className="p-6 border-t border-gray-700 bg-gray-800/50">
+        <div className="p-3 border-t border-gray-700 bg-gray-800/50">
           <button
             onClick={onClose}
-            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"
+            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"
           >
             关闭
           </button>
@@ -260,7 +260,7 @@ export const StratumDetailModal = ({
                 <Icon name={stratum.icon} size={22} className="text-ancient-gold icon-metal-gold md:w-7 md:h-7" />
               </div>
               <div className="flex-1 min-w-0">
-<h2 className="text-lg md:text-2xl font-bold text-white font-decorative">{stratum.name}</h2>
+<h2 className="text-base md:text-lg font-bold text-white font-decorative">{stratum.name}</h2>
                 <p className="text-xs md:text-sm text-gray-300 mt-1">{stratum.description}</p>
                 {/* 稳定度显示 */}
                 <div className="flex items-center gap-1.5 md:gap-2 mt-2">
@@ -294,8 +294,8 @@ export const StratumDetailModal = ({
         </div>
 
         {/* 模态框内容 */}
-        <div className="border-b border-gray-700 bg-gray-800/60 px-6 pt-4">
-          <div className="flex flex-wrap items-center gap-3 pb-4">
+        <div className="border-b border-gray-700 bg-gray-800/60 px-4 pt-3">
+          <div className="flex flex-wrap items-center gap-2 pb-3">
             {STRATUM_TAB_OPTIONS.map(tab => (
               <button
                 key={tab.id}
@@ -316,9 +316,9 @@ export const StratumDetailModal = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4">
           {activeTab === 'overview' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
                   <Icon name="BarChart" size={16} className="text-blue-400" />
@@ -429,7 +429,7 @@ export const StratumDetailModal = ({
           )}
 
           {activeTab === 'economy' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
                   <Icon name="Activity" size={16} className="text-cyan-400" />
@@ -505,7 +505,7 @@ export const StratumDetailModal = ({
           )}
 
           {activeTab === 'needs' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
                   <Icon name="Package" size={16} className="text-green-400" />
@@ -590,10 +590,10 @@ export const StratumDetailModal = ({
         </div>
 
         {/* 模态框底部 */}
-        <div className="p-6 border-t border-gray-700 bg-gray-800/50">
+        <div className="p-3 border-t border-gray-700 bg-gray-800/50">
           <button
             onClick={onClose}
-            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"
+            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"
           >
             关闭
           </button>

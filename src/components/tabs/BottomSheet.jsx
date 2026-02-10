@@ -48,11 +48,6 @@ export const BottomSheet = ({
         return () => document.removeEventListener('keydown', handleEscape);
     }, [preventEscapeClose, isOpen, handleClose]);
 
-    // Framer Motion handles rendering via AnimatePresence, so we always render the Portal if implementation allows,
-    // but since we want the portal to exist only when open (or animating), 
-    // AnimatePresence works best when the direct child is conditional.
-    // However, createPortal returns a React Node. We can wrap the content INSIDE the portal.
-
     return createPortal(
         <AnimatePresence>
             {isOpen && (
@@ -80,28 +75,17 @@ export const BottomSheet = ({
                         exit={{ y: "100%", opacity: 0 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     >
-                        {/* Emergency close button - always visible at top-right corner */}
-                        <button
-                            onClick={handleClose}
-                            className="absolute top-2 right-2 z-50 p-2 rounded-full bg-red-900/80 hover:bg-red-700 transition-colors shadow-lg border border-red-600/50"
-                            aria-label="关闭面板"
-                            title="点击关闭 (或按 Escape)"
-                        >
-                            <Icon name="X" size={18} className="text-white" />
-                        </button>
-
                         {showHeader ? (
                             <>
-                                <div className="flex-shrink-0 p-4 pr-12 border-b border-theme-border flex items-center justify-between">
+                                <div className="flex-shrink-0 px-4 py-3 border-b border-theme-border flex items-center justify-between">
                                     <h3 className="text-lg font-bold text-white font-decorative">{title}</h3>
-                                    {/* Keep the original close button for header mode */}
                                     {showCloseButton && (
-                                        <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700">
+                                        <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700 transition-colors">
                                             <Icon name="X" size={20} className="text-gray-400" />
                                         </button>
                                     )}
                                 </div>
-                                <div className="flex-1 p-4 overflow-y-auto">{children}</div>
+                                <div className="flex-1 px-4 py-3 overflow-y-auto">{children}</div>
                             </>
                         ) : (
                             <div className="relative flex-1 p-4 pt-10 overflow-y-auto">

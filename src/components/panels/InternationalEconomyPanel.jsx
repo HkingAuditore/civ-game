@@ -150,40 +150,40 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
     return (
         <div className="space-y-4">
              {/* Summary Cards */}
-             <div className="grid grid-cols-3 gap-3">
-                <div className="bg-gradient-to-br from-amber-900/40 to-black/40 rounded-xl p-3 border border-amber-700/30 shadow-lg">
-                    <div className="text-[10px] text-amber-500 uppercase tracking-wider font-bold mb-1">总资产价值</div>
-                    <div className="text-xl font-bold text-amber-200 font-mono">
+             <div className="grid grid-cols-3 gap-2">
+                <div className="bg-gradient-to-br from-amber-900/40 to-black/40 rounded-lg p-2.5 border border-amber-700/30 shadow-lg">
+                    <div className="text-[9px] text-amber-500 uppercase tracking-wider font-bold mb-0.5">总资产价值</div>
+                    <div className="text-lg font-bold text-amber-200 font-mono">
                         {formatNumberShortCN(summary.totalValue)}
                     </div>
                 </div>
-                <div className="bg-gradient-to-br from-green-900/40 to-black/40 rounded-xl p-3 border border-green-700/30 shadow-lg">
-                    <div className="text-[10px] text-green-500 uppercase tracking-wider font-bold mb-1">日净汇回</div>
-                    <div className="text-xl font-bold text-green-300 font-mono">
+                <div className="bg-gradient-to-br from-green-900/40 to-black/40 rounded-lg p-2.5 border border-green-700/30 shadow-lg">
+                    <div className="text-[9px] text-green-500 uppercase tracking-wider font-bold mb-0.5">日净汇回</div>
+                    <div className="text-lg font-bold text-green-300 font-mono">
                         +{formatNumberShortCN(summary.estimatedDailyProfit)}
                     </div>
                 </div>
-                <div className="bg-gradient-to-br from-blue-900/40 to-black/40 rounded-xl p-3 border border-blue-700/30 shadow-lg">
-                    <div className="text-[10px] text-blue-500 uppercase tracking-wider font-bold mb-1">运营项目</div>
-                    <div className="text-xl font-bold text-blue-200 font-mono">
+                <div className="bg-gradient-to-br from-blue-900/40 to-black/40 rounded-lg p-2.5 border border-blue-700/30 shadow-lg">
+                    <div className="text-[9px] text-blue-500 uppercase tracking-wider font-bold mb-0.5">运营项目</div>
+                    <div className="text-lg font-bold text-blue-200 font-mono">
                         {summary.count}
                     </div>
                 </div>
             </div>
 
             {/* List */}
-            <div className="bg-gray-800/30 rounded-xl border border-white/5 overflow-hidden">
-                <div className="p-3 bg-white/5 border-b border-white/5 flex justify-between items-center">
-                    <span className="text-sm font-bold text-gray-300">资产列表</span>
-                    <span className="text-[10px] text-gray-500">显示最近30天内的运营状态</span>
+            <div className="bg-gray-800/30 rounded-lg border border-white/5 overflow-hidden">
+                <div className="px-3 py-2 bg-white/5 border-b border-white/5 flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-300">资产列表</span>
+                    <span className="text-[9px] text-gray-500">显示最近30天内的运营状态</span>
                 </div>
                 <div className="divide-y divide-white/5 max-h-[50vh] overflow-y-auto">
                     {activeInvestments.length > 0 ? activeInvestments.map(inv => (
-                        <div key={inv.id} className="p-3 hover:bg-white/5 transition-colors">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center">
-                                        <Icon name={inv.building?.visual?.icon || "Building"} size={16} className="text-gray-300"/>
+                        <div key={inv.id} className="px-3 py-2 hover:bg-white/5 transition-colors">
+                            <div className="flex justify-between items-start mb-1.5">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded bg-gray-700 flex items-center justify-center flex-shrink-0">
+                                        <Icon name={inv.building?.visual?.icon || "Building"} size={14} className="text-gray-300"/>
                                     </div>
                                     <div>
                                         <div className="text-sm font-bold text-gray-200 flex items-center gap-2">
@@ -212,7 +212,7 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
                             </div>
 
                             {/* Tax line */}
-                            <div className="flex justify-between items-center text-[10px] text-gray-500 mb-2">
+                            <div className="flex justify-between items-center text-[9px] text-gray-500 mb-1">
                                 <span>外资利润税/汇回税</span>
                                 <span>
                                     <span className="text-gray-400">税率</span> <span className="text-amber-300 font-mono">{(inv.effectiveTaxRate * 100).toFixed(1)}%</span>
@@ -287,13 +287,13 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
 
             {/* List */}
              <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-                {investmentsByNation.length > 0 ? investmentsByNation.map(group => (
-                    <div key={group.nationId} className="bg-gray-800/30 rounded-xl border border-gray-700/40 overflow-hidden">
+                    {investmentsByNation.length > 0 ? investmentsByNation.map(group => (
+                    <div key={group.nationId} className="bg-gray-800/30 rounded-lg border border-gray-700/40 overflow-hidden">
                         {/* Header */}
-                        <div className="p-3 bg-white/5 flex justify-between items-center">
-                             <div className="flex items-center gap-2">
-                                <Icon name="Flag" size={18} className={group.nationColor} />
-                                <span className="text-sm font-bold text-gray-200">{group.nationName}</span>
+                        <div className="px-3 py-2 bg-white/5 flex justify-between items-center">
+                             <div className="flex items-center gap-1.5">
+                                <Icon name="Flag" size={14} className={group.nationColor} />
+                                <span className="text-xs font-bold text-gray-200">{group.nationName}</span>
                                 <Badge variant="neutral" className="text-[10px]">
                                     {group.totalCount} 处资产
                                 </Badge>
@@ -316,8 +316,8 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                             {group.investments.map(inv => {
                                 const building = BUILDINGS.find(b => b.id === inv.buildingId);
                                 return (
-                                    <div key={inv.id} className="p-3">
-                                        <div className="flex justify-between mb-2">
+                                    <div key={inv.id} className="px-3 py-2">
+                                        <div className="flex justify-between mb-1">
                                             <div className="text-xs font-bold text-gray-300 flex items-center gap-2">
                                                 {building?.name || inv.buildingId}
                                         <span className="text-[10px] font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
