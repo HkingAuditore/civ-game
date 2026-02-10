@@ -204,6 +204,7 @@ const DiplomacyLayout = ({
                         setIsMobileDetailOpen(true);
                     }}
                     relationInfo={relationInfo}
+                    diplomacyOrganizations={diplomacyOrganizations}
                     diplomacyRequests={vassalDiplomacyQueue} // [NEW] Pass queue for notifications
                 />
             </div>

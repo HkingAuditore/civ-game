@@ -3,15 +3,28 @@ import { Input, Badge } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
 
-const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation, relationInfo, diplomacyRequests = [] }) => {
+const NationList = ({
+    nations,
+    visibleNations,
+    selectedNationId,
+    onSelectNation,
+    relationInfo,
+    diplomacyOrganizations = { organizations: [] },
+    diplomacyRequests = [],
+}) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('all'); // all, allies, enemies
     const [sortBy] = useState('relation'); // relation, name
 
-    // Helper to check for pending requests
-    const getPendingRequestCount = (nationId) => {
-        return diplomacyRequests.filter(req => req.vassalId === nationId).length;
-    };
+    const pendingRequestCountMap = useMemo(() => {
+        const map = {};
+        diplomacyRequests.forEach((req) => {
+            const nationId = req?.vassalId;
+            if (!nationId) return;
+            map[nationId] = (map[nationId] || 0) + 1;
+        });
+        return map;
+    }, [diplomacyRequests]);
 
     const filteredNations = useMemo(() => {
         let result = visibleNations || nations || [];
@@ -32,8 +45,8 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
 
         result = result.slice().sort((a, b) => {
             // Prioritize nations with pending requests
-            const aCount = getPendingRequestCount(a.id);
-            const bCount = getPendingRequestCount(b.id);
+            const aCount = pendingRequestCountMap[a.id] || 0;
+            const bCount = pendingRequestCountMap[b.id] || 0;
             if (aCount !== bCount) return bCount - aCount;
 
             if (sortBy === 'name') return a.name.localeCompare(b.name);
@@ -43,7 +56,31 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
         });
 
         return result;
-    }, [nations, visibleNations, searchTerm, filterType, sortBy, relationInfo, diplomacyRequests]);
+    }, [nations, visibleNations, searchTerm, filterType, sortBy, relationInfo, pendingRequestCountMap]);
+
+    const sharedOrganizationMap = useMemo(() => {
+        const organizations = diplomacyOrganizations?.organizations || [];
+        const map = {};
+
+        organizations.forEach((org) => {
+            if (!org || org.isActive === false) return;
+            if (org.type !== 'military_alliance' && org.type !== 'economic_bloc') return;
+            if (!Array.isArray(org.members) || !org.members.includes('player')) return;
+
+            org.members.forEach((memberId) => {
+                if (!memberId || memberId === 'player') return;
+                if (!map[memberId]) {
+                    map[memberId] = {
+                        military_alliance: false,
+                        economic_bloc: false,
+                    };
+                }
+                map[memberId][org.type] = true;
+            });
+        });
+
+        return map;
+    }, [diplomacyOrganizations]);
 
     return (
         <div className="flex flex-col h-full bg-theme-surface-trans border-r border-theme-border">
@@ -130,9 +167,12 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
                         const isSelected = selectedNationId === nation.id;
                         const relColor = rel.value >= 60 ? 'text-green-400' : rel.value <= 20 ? 'text-red-400' : 'text-ancient-stone';
                         const relIcon = rel.value >= 60 ? 'Smile' : rel.value <= 20 ? 'Frown' : 'Meh';
-                        const pendingCount = getPendingRequestCount(nation.id);
+                        const pendingCount = pendingRequestCountMap[nation.id] || 0;
                         const hasRequest = pendingCount > 0;
                         const isVassal = nation.isVassal || nation.vassalOf === 'player';
+                        const sharedOrgFlags = sharedOrganizationMap[nation.id] || {};
+                        const isSharedMilitaryAlliance = sharedOrgFlags.military_alliance === true;
+                        const isSharedEconomicBloc = sharedOrgFlags.economic_bloc === true;
 
                         return (
                             <div
@@ -196,6 +236,8 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
                                         <div className="flex gap-1">
                                             {isVassal && <Icon name="Anchor" size={12} className="text-blue-400" title="附庸国" />}
                                             {nation.isSuzerain && <Icon name="Crown" size={12} className="text-amber-400" title="宗主国" />}
+                                            {isSharedMilitaryAlliance && <Icon name="Shield" size={12} className="text-red-400" title="同军事同盟" />}
+                                            {isSharedEconomicBloc && <Icon name="Landmark" size={12} className="text-emerald-400" title="同经济共同体" />}
                                         </div>
                                     </div>
                                 </div>
