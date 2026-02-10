@@ -4,6 +4,7 @@ import { RESOURCES } from '../../config/gameConstants';
 import { STRATA } from '../../config/strata';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { SimpleLineChart } from '../common/SimpleLineChart';
+import { ResponsiveModal } from '../common/ResponsiveModal';
 
 /**
  * 经济数据看板 - 专业的国家经济数据展示面板
@@ -116,8 +117,14 @@ export const EconomicDashboard = ({
   const fiscalStatus = fiscalHealth > 20 ? 'good' : fiscalHealth > 10 ? 'warning' : 'danger';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full h-full sm:w-[95vw] sm:h-[90vh] sm:max-w-[1400px] bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900 sm:rounded-lg border-0 sm:border border-blue-500/30 shadow-2xl overflow-hidden">
+    <ResponsiveModal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="xl"
+      mobileMode="fullscreen"
+      panelClassName="w-full h-full sm:w-[95vw] sm:h-[90vh] sm:max-w-[1400px] bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900 sm:rounded-lg border-0 sm:border border-blue-500/30 shadow-2xl overflow-hidden"
+      ariaLabel="经济数据看板"
+    >
         
         {/* 头部 */}
         <div className="flex items-center justify-between px-3 py-2.5 sm:px-6 sm:py-4 border-b border-blue-500/30 bg-gray-900/80 backdrop-blur-sm">
@@ -1069,7 +1076,6 @@ export const EconomicDashboard = ({
 
         </div>
 
-      </div>
-    </div>
+    </ResponsiveModal>
   );
 };

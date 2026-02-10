@@ -4,6 +4,7 @@
 // 通用组件
 export { Icon, FloatingText } from './common/UIComponents';
 export { BattleNotification } from './common/BattleNotification';
+export { ResponsiveModal } from './common/ResponsiveModal';
 
 // 统一UI组件
 export {

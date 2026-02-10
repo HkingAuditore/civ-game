@@ -1,6 +1,6 @@
-import { createPortal } from 'react-dom';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
+import { ResponsiveModal } from '../common/ResponsiveModal';
 import { RESOURCES, COUNTRIES } from '../../config';
 import { calculateMaxTradeRoutes, calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { formatNumberShortCN } from '../../utils/numberFormat';
@@ -13,7 +13,6 @@ const AssignmentRow = ({
     merchantAssignments,
     remainingMerchants,
     daysElapsed,
-    merchantCount,
     getNationRouteMode,
     toggleNationRouteMode,
     setAssignment,
@@ -631,13 +630,15 @@ const TradeRoutesModal = ({
         );
     };
 
-    return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
-            {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}></div>
-
-            {/* Modal Content - Fixed height to prevent jumping when market data changes */}
-            <div className="relative w-full max-w-2xl glass-panel border-2 border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up bg-gray-900/90 h-[85vh] sm:h-[80vh] max-h-[700px] flex flex-col">
+    return (
+        <ResponsiveModal
+            isOpen={true}
+            onClose={onClose}
+            size="md"
+            mobileMode="fullscreen"
+            panelClassName="w-full max-w-2xl glass-panel border-2 border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up bg-gray-900/90 h-[92vh] sm:h-[80vh] max-h-[700px] flex flex-col"
+            ariaLabel="贸易路线分析"
+        >
                 {/* Header */}
                 <div className="p-3 sm:p-4 border-b border-amber-500/20 bg-gradient-to-r from-amber-900/40 to-gray-900/60 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -877,7 +878,6 @@ const TradeRoutesModal = ({
                                             merchantAssignments={merchantAssignments}
                                             remainingMerchants={remainingMerchants}
                                             daysElapsed={daysElapsed}
-                                            merchantCount={merchantCount}
                                             getNationRouteMode={getNationRouteMode}
                                             toggleNationRouteMode={toggleNationRouteMode}
                                             setAssignment={setAssignment}
@@ -1178,9 +1178,7 @@ const TradeRoutesModal = ({
                         关闭
                     </button>
                 </div>
-            </div>
-        </div>,
-        document.body
+        </ResponsiveModal>
     );
 };
 

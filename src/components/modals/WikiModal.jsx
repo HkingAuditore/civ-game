@@ -4,6 +4,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
+import { ResponsiveModal } from '../common/ResponsiveModal';
 import {
     BUILDINGS,
     TECHS,
@@ -1636,8 +1637,14 @@ export const WikiModal = ({ show, onClose }) => {
     if (!show) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-0 sm:p-4">
-            <div className="bg-gray-900/95 backdrop-blur-lg sm:rounded-2xl border-t sm:border border-indigo-500/40 shadow-2xl w-full max-w-6xl h-full sm:h-[90vh] flex flex-col overflow-hidden">
+        <ResponsiveModal
+            isOpen={show}
+            onClose={onClose}
+            size="xl"
+            mobileMode="fullscreen"
+            panelClassName="bg-gray-900/95 backdrop-blur-lg sm:rounded-2xl border-t sm:border border-indigo-500/40 shadow-2xl w-full max-w-6xl h-full sm:h-[90vh] flex flex-col overflow-hidden"
+            ariaLabel="文明百科"
+        >
                 {/* 头部 - 移动端紧凑 */}
                 <div className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4 border-b border-gray-800 bg-gray-900">
                     <div>
@@ -1774,8 +1781,7 @@ export const WikiModal = ({ show, onClose }) => {
                         )}
                     </section>
                 </div>
-            </div>
-        </div>
+        </ResponsiveModal>
     );
 };
 

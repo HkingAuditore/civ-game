@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { OfficialCard } from './OfficialCard';
 import { Icon } from '../../common/UIComponents';
+import { ResponsiveModal } from '../../common/ResponsiveModal';
 import { calculateTotalDailySalary, getCabinetStatus } from '../../../logic/officials/manager';
 import { STRATA } from '../../../config';
 import { isStanceSatisfied, POLITICAL_STANCES } from '../../../config/politicalStances';
@@ -789,16 +789,16 @@ export const OfficialsPanel = ({
             )}
 
             {/* 派系面板弹窗 - 使用 Portal 渲染到 body 顶层 */}
-            {showDominancePanel && dominantPanel && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
-                    {/* 背景遮罩 */}
-                    <div
-                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setShowDominancePanel(false)}
-                    />
-
-                    {/* 弹窗内容 */}
-                    <div className="relative w-full max-w-2xl max-h-[85vh] bg-gray-900 rounded-t-2xl sm:rounded-2xl border border-gray-700 shadow-2xl overflow-hidden animate-slide-up">
+            {showDominancePanel && dominantPanel && (
+                <ResponsiveModal
+                    isOpen={showDominancePanel}
+                    onClose={() => setShowDominancePanel(false)}
+                    size="md"
+                    mobileMode="sheet"
+                    panelClassName="w-full max-w-2xl max-h-[85vh] bg-gray-900 rounded-t-2xl sm:rounded-2xl border border-gray-700 shadow-2xl overflow-hidden animate-slide-up"
+                    ariaLabel="派系面板"
+                    zIndexClass="z-[9999]"
+                >
                         {/* 弹窗头部 */}
                         <div className={`flex items-center justify-between p-4 border-b border-gray-700 bg-gradient-to-r from-${currentPanelConfig?.color}-900/30 to-gray-900`}>
                             <div className="flex items-center gap-3">
@@ -860,9 +860,7 @@ export const OfficialsPanel = ({
                                 />
                             )}
                         </div>
-                    </div>
-                </div>,
-                document.body
+                </ResponsiveModal>
             )}
 
             <OfficialDetailModal
