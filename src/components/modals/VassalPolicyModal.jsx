@@ -598,7 +598,7 @@ const VassalPolicyModalComponent = ({
                 </div>
 
                 {/* 标题栏 */}
-                <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-800/50">
                     <div className="flex items-center gap-2">
                         <Icon name="Settings" size={18} className="text-purple-400" />
                         <h2 className="text-base font-bold text-white font-decorative">
@@ -617,7 +617,7 @@ const VassalPolicyModalComponent = ({
                 </div>
 
                 {/* 内容区 */}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(85vh-140px)]">
+                <div className="p-3 space-y-3 overflow-y-auto max-h-[calc(85vh-140px)]">
                     {/* 外交控制 */}
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -836,7 +836,7 @@ const VassalPolicyModalComponent = ({
                 </div>
 
                 {/* 底部按钮 */}
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700 bg-gray-800/50">
+                <div className="flex items-center justify-between px-3 py-2.5 border-t border-gray-700 bg-gray-800/50">
                     <button
                         onClick={handleReset}
                         className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors font-body"

@@ -1133,7 +1133,7 @@ const BuildTabComponent = ({
     }, [categoriesToRender, flatItemsByCategory, gridColumns, viewportScrollY, viewportHeight]);
 
     return (
-        <div className="space-y-4 build-tab">
+<div className="space-y-3 build-tab">
             <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm overflow-x-auto">
                 {categoryFilters.map((filter) => {
                     const isActive = filter.key === activeCategory;
@@ -1157,7 +1157,7 @@ const BuildTabComponent = ({
                 const categoryWorkers = categoryWorkersByKey[catKey] || 0;
 
                 return (
-                    <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
+<div key={catKey} className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                         {/* 类别标题 */}
                         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name={catInfo.icon} size={16} className={catInfo.color} />

@@ -671,20 +671,20 @@ const PoliticsTabComponent = ({
             )}
 
             {activeSection === 'tax' && onUpdateTaxPolicies && (
-                <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-                    <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
-                        <Icon name="DollarSign" size={16} className="text-yellow-400" />
+                <div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
+                    <h3 className="text-xs font-bold mb-2 flex items-center gap-1.5 text-gray-300 font-decorative">
+                        <Icon name="DollarSign" size={14} className="text-yellow-400" />
                         税收政策调节
                     </h3>
-                    <div className="flex flex-nowrap gap-2 mb-4 border-b border-gray-700 overflow-x-auto scrollbar-thin">
-                        <button onClick={() => setActiveTaxTab('head')} className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${activeTaxTab === 'head' ? 'text-yellow-300 border-b-2 border-yellow-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-2"><Icon name="Users" size={14} />人头税</div></button>
-                        <button onClick={() => setActiveTaxTab('resource')} className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${activeTaxTab === 'resource' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-2"><Icon name="Package" size={14} />交易税</div></button>
-                        <button onClick={() => setActiveTaxTab('business')} className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${activeTaxTab === 'business' ? 'text-green-300 border-b-2 border-green-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-2"><Icon name="Building" size={14} />营业税</div></button>
+                    <div className="flex flex-nowrap gap-1.5 mb-3 border-b border-gray-700 overflow-x-auto scrollbar-thin">
+                        <button onClick={() => setActiveTaxTab('head')} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'head' ? 'text-yellow-300 border-b-2 border-yellow-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Users" size={12} />人头税</div></button>
+                        <button onClick={() => setActiveTaxTab('resource')} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'resource' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Package" size={12} />交易税</div></button>
+                        <button onClick={() => setActiveTaxTab('business')} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'business' ? 'text-green-300 border-b-2 border-green-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Building" size={12} />营业税</div></button>
                     </div>
 
                     {activeTaxTab === 'head' && (
-                        <div className="space-y-4">
-                            <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg text-xs text-blue-100">
+                        <div className="space-y-3">
+                            <div className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-[11px] text-blue-100">
                                 <p className="flex items-center gap-2 mb-1"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">人头税说明</span></p>
                                 <p>对各阶层人口征收的税收。税率系数越高，税收越多，但可能影响阶层满意度。</p>
                             </div>
@@ -704,8 +704,8 @@ const PoliticsTabComponent = ({
                     )}
 
                     {activeTaxTab === 'resource' && (
-                        <div className="space-y-4">
-                            <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg text-xs text-blue-100">
+                        <div className="space-y-3">
+                            <div className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-[11px] text-blue-100">
                                 <p className="flex items-center gap-2 mb-1"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">交易税说明</span></p>
                                 <p>对市场交易的资源征收的税收。税率为正时征税，为负时作为补贴。仅对有市场供应的资源生效。</p>
                             </div>
@@ -743,8 +743,8 @@ const PoliticsTabComponent = ({
                     )}
 
                     {activeTaxTab === 'business' && (
-                        <div className="space-y-4">
-                            <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg text-xs text-blue-100">
+                        <div className="space-y-3">
+                            <div className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-[11px] text-blue-100">
                                 <p className="flex items-center gap-2 mb-1"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">营业税说明</span></p>
                                 <p>对建筑每次产出征收的税收。实际税额 = 基准税额 × 税率系数 × 生产效率。生产加成越高，税收越多。负数系数代表政府补贴。</p>
                             </div>
@@ -829,7 +829,7 @@ const PoliticsTabComponent = ({
                         onShowDecreeDetails={onShowDecreeDetails}
                     />
                 ) : (
-                    <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">
+<div className="glass-ancient p-4 rounded-lg border border-ancient-gold/30 text-center">
                         <Icon name="Lock" size={48} className="text-gray-500 mx-auto mb-4" />
                         <h3 className="text-lg font-bold text-gray-400 mb-2">官员系统未解锁</h3>
                         <p className="text-gray-500 text-sm">

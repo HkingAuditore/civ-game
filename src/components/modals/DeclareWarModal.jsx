@@ -29,13 +29,13 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
 
                 <div className="relative z-10">
                     {/* 头部 */}
-                    <div className="p-4 border-b border-red-500/30 bg-gradient-to-r from-red-900/40 to-ancient-ink/60">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-red-900/60 border border-red-500/30 flex items-center justify-center flex-shrink-0 shadow-inner">
-                                <Icon name="Swords" size={26} className="text-red-400" />
+                    <div className="p-3 border-b border-red-500/30 bg-gradient-to-r from-red-900/40 to-ancient-ink/60">
+                        <div className="flex items-center gap-2">
+                            <div className="w-10 h-10 rounded-lg bg-red-900/60 border border-red-500/30 flex items-center justify-center flex-shrink-0 shadow-inner">
+                                <Icon name="Swords" size={22} className="text-red-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h2 className="text-lg font-bold text-red-200 leading-tight">
+                                <h2 className="text-base font-bold text-red-200 leading-tight">
                                     宣战确认
                                 </h2>
                                 <p className="text-[11px] text-gray-300 leading-tight">
@@ -52,7 +52,7 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                     </div>
 
                     {/* 内容 */}
-                    <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div className="p-3 space-y-3 max-h-[60vh] overflow-y-auto">
                         {/* 目标国家信息 */}
                         <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-600/50">
                             <div className="flex items-center gap-2 mb-2">
@@ -133,7 +133,7 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                     </div>
 
                     {/* 底部按钮 */}
-                    <div className="p-4 border-t border-gray-700/50 bg-gray-900/50 flex gap-3">
+                    <div className="p-3 border-t border-gray-700/50 bg-gray-900/50 flex gap-3">
                         <button
                             onClick={onCancel}
                             className="flex-1 px-4 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-bold transition-colors"

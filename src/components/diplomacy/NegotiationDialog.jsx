@@ -332,13 +332,13 @@ const NegotiationDialog = ({
                             <Icon name="X" size={20} />
                         </button>
 
-                        <div className="p-6 space-y-4">
+<div className="p-4 space-y-3">
                             <div className="flex items-center gap-3 text-amber-400 border-b border-amber-500/30 pb-4">
                                 <Icon name="MessageSquare" size={24} />
-                                <h3 className="text-xl font-bold font-decorative">{t('negotiation.counterOfferTitle', '对方提出的反向提案')}</h3>
+<h3 className="text-base font-bold font-decorative">{t('negotiation.counterOfferTitle', '对方提出的反向提案')}</h3>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6 text-sm">
+<div className="grid grid-cols-2 gap-4 text-sm">
                                 <div className="space-y-3">
                                     <h4 className="font-bold text-ancient-stone uppercase text-xs">{t('negotiation.theyPay', '对方愿意支付')}</h4>
                                     <div className="flex justify-between border-b border-white/10 pb-1">

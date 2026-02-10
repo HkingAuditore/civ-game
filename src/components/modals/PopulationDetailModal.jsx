@@ -130,7 +130,7 @@ export const PopulationDetailModal = ({
                         </div>
 
                         {/* 底部按钮 */}
-                        <div className="flex-shrink-0 p-3 border-t border-gray-700 bg-gray-800/50">
+                        <div className="flex-shrink-0 px-3 py-2 border-t border-gray-700 bg-gray-800/50">
                             <button
                                 onClick={handleClose}
                                 className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"

@@ -225,11 +225,11 @@ const DiplomacyLayout = ({
                     </div>
                 )}
 
-                <div className="mb-3 rounded-xl border border-theme-border bg-theme-surface-trans px-3 py-2 flex flex-wrap items-center gap-2">
-                    <div className="text-[10px] uppercase tracking-wider text-theme-text opacity-70 font-bold">
+                <div className="mb-2 rounded-lg border border-theme-border bg-theme-surface-trans px-2.5 py-1.5 flex flex-wrap items-center gap-1.5">
+                    <div className="text-[9px] uppercase tracking-wider text-theme-text opacity-70 font-bold">
                         全局事务
                     </div>
-                    <div className="ml-auto flex flex-wrap gap-2">
+                    <div className="ml-auto flex flex-wrap gap-1.5">
                         <Button size="sm" variant="secondary" onClick={onManageTrade}>
                             商人派驻
                         </Button>

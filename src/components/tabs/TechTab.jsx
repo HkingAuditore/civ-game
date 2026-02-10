@@ -371,21 +371,21 @@ const TechTabComponent = ({
         <div className="space-y-4">
             {/* 时代升级区域 */}
             <div
-                className="relative p-4 rounded-2xl border-2 shadow-epic overflow-hidden transition-all"
+                className="relative p-3 rounded-xl border-2 shadow-epic overflow-hidden transition-all"
                 style={upgradeCardStyles}
             >
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-2">
                     <div>
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2 font-decorative">
+                        <h3 className="text-base font-bold text-white flex items-center gap-1.5 font-decorative">
                             <Icon
                                 name="Crown"
-                                size={20}
+                                size={18}
                                 className="drop-shadow"
                                 style={{ color: upgradeAccentColor }}
                             />
                             当前时代：{currentEpoch?.name || '未知时代'}
                         </h3>
-                        <p className="text-xs text-gray-300 mt-1">
+                        <p className="text-[11px] text-gray-300 mt-0.5">
                             {currentEpoch?.description || ''}
                         </p>
                     </div>
@@ -405,9 +405,9 @@ const TechTabComponent = ({
 
                 {/* 时代加成 */}
                 {currentEpoch?.bonuses && (
-                    <div className="mb-3 p-3 bg-black/20 rounded">
-                        <p className="text-xs text-gray-400 mb-2">当前时代加成：</p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="mb-2 p-2 bg-black/20 rounded">
+                        <p className="text-[11px] text-gray-400 mb-1.5">当前时代加成：</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
                             {Object.entries(currentEpoch.bonuses).map(([key, value]) => (
                                 key === 'desc' ? null : (
                                     <div key={key} className="flex items-center gap-1 text-xs">
@@ -485,10 +485,10 @@ const TechTabComponent = ({
                             </div>
                         </div>
 
-                        <button
+                            <button
                             onClick={onUpgradeEpoch}
                             disabled={!canTriggerUpgrade}
-                            className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all border-2 ${canTriggerUpgrade
+                            className={`w-full px-4 py-2.5 rounded-lg text-sm font-bold transition-all border-2 ${canTriggerUpgrade
                                 ? 'shadow-lg'
                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed border-gray-600'
                                 }`}
@@ -516,13 +516,13 @@ const TechTabComponent = ({
             </div>
 
             {/* 科技树 */}
-            <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-                <h3 className="font-bold mb-3 text-[19px] flex items-center gap-2 text-gray-300 font-decorative">
-                    <Icon name="Lightbulb" size={16} className="text-yellow-400" />
+            <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
+                <h3 className="font-bold mb-2 text-base flex items-center gap-1.5 text-gray-300 font-decorative">
+                    <Icon name="Lightbulb" size={14} className="text-yellow-400" />
                     科技树
                 </h3>
 
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-4">
+                <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:justify-between mb-3">
                     <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
                         <input
                             type="checkbox"
@@ -541,7 +541,7 @@ const TechTabComponent = ({
                 </div>
 
                 {/* 按时代显示科技 */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                     {visibleEpochIndices.map((epochIdx) => {
                         const epochInfo = EPOCHS[epochIdx];
                         const summary = epochSummaries[epochIdx];

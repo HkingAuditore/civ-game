@@ -154,7 +154,7 @@ export const OverseasInvestmentPanel = memo(({
 
     return (
         <BottomSheet isOpen={isOpen} onClose={onClose} title={`对 ${targetNation.name} 的海外投资`}>
-            <div className="space-y-4 pb-20">
+            <div className="space-y-3 pb-16">
                 {/* 顶部概览: 选中阶层的可用财富 */}
                 {/* <div className="bg-gray-800/50 rounded-lg p-3 flex justify-between items-center border border-gray-700/50">
                     <div className="text-xs text-gray-400">
@@ -188,19 +188,19 @@ export const OverseasInvestmentPanel = memo(({
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-6 text-gray-400 bg-gray-800/30 rounded-lg border border-gray-700/40">
-                            <Icon name="Building2" size={32} className="mx-auto mb-2 opacity-50" />
-                            <div className="text-sm">暂无海外投资</div>
-                            <div className="text-[10px] mt-1">点击下方按钮新建投资</div>
+                        <div className="text-center py-4 text-gray-400 bg-gray-800/30 rounded-lg border border-gray-700/40">
+                            <Icon name="Building2" size={28} className="mx-auto mb-1.5 opacity-50" />
+                            <div className="text-xs">暂无海外投资</div>
+                            <div className="text-[10px] mt-0.5">点击下方按钮新建投资</div>
                         </div>
                     )}
                 </div>
 
                 {/* 新建投资区域 - 已禁用，投资由阶层自动决策 */}
-                <div className="border-t border-gray-700/50 pt-4">
-                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50 text-center">
-                        <Icon name="TrendingUp" size={32} className="mx-auto mb-2 text-amber-400 opacity-50" />
-                        <div className="text-sm text-gray-300 font-semibold mb-1">投资由阶层自主决策</div>
+                <div className="border-t border-gray-700/50 pt-3">
+                    <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50 text-center">
+                        <Icon name="TrendingUp" size={24} className="mx-auto mb-1.5 text-amber-400 opacity-50" />
+                        <div className="text-xs text-gray-300 font-semibold mb-0.5">投资由阶层自主决策</div>
                         <div className="text-xs text-gray-400 leading-relaxed">
                             资本家、商人等阶层会根据市场机会自动寻找高利润投资项目。<br/>
                             您可以通过外交政策和条约引导投资方向。

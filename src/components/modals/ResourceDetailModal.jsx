@@ -282,8 +282,8 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
     const resourceDef = RESOURCES[resourceKey];
 
     return (
-        <div className="space-y-6">
-            <div className="glass-ancient rounded-xl lg:rounded-2xl border border-ancient-gold/20 p-4 lg:p-6">
+        <div className="space-y-4">
+            <div className="glass-ancient rounded-xl lg:rounded-xl border border-ancient-gold/20 p-4 lg:p-4">
                 <div className="lg:hidden space-y-4">
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -325,7 +325,7 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                             <span className="text-[10px] font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
                         </div>
                         <div className="flex flex-col items-center gap-3">
-                            <div className="w-16 h-16 rounded-xl bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
+                            <div className="w-12 h-12 rounded-lg bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
                                 <Icon name={resourceDef?.icon || 'Package'} size={30} className={resourceDef?.color || 'text-white'} />
                             </div>
                             <div className="text-center">
@@ -428,7 +428,7 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                                 <span className="text-[10px] font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
                             </div>
                             <div className="flex flex-col items-center gap-3">
-                                <div className="w-16 h-16 rounded-xl bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
+                                <div className="w-12 h-12 rounded-lg bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
                                     <Icon name={resourceDef?.icon || 'Package'} size={30} className={resourceDef?.color || 'text-white'} />
                                 </div>
                                 <div className="text-center">
@@ -1123,7 +1123,7 @@ const ResourceDetailContent = ({
 
             {/* 内容面板 */}
             <motion.div
-                className="relative w-full max-w-6xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[90vh] overflow-hidden"
+                className="relative w-full max-w-6xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-xl shadow-metal-xl flex flex-col max-h-[90vh] overflow-hidden"
                 initial={{ y: "100%", opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "100%", opacity: 0 }}
@@ -1394,7 +1394,7 @@ const ResourceDetailContent = ({
                             <div className="flex-1 space-y-2 lg:space-y-3 p-2 lg:p-3 overflow-y-auto">
                                 {/* 交易税调整 - 非银币资源 */}
                                 {!isSilver && onUpdateTaxPolicies && (
-                                    <div className="rounded-xl lg:rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-2.5 lg:p-4">
+                                    <div className="rounded-xl lg:rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-2.5 lg:p-4">
                                         <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1.5 lg:mb-2">交易税调整</p>
                                         <div className="flex items-center gap-2 lg:gap-4">
                                             <div className="flex items-center gap-1">
@@ -1500,19 +1500,19 @@ const ResourceDetailContent = ({
                                     </div>
                                 )}
                                 {activeTab === 'market' && (
-                                    <div className="space-y-3 lg:space-y-6">
+                                    <div className="space-y-3 lg:space-y-4">
                                         <div className="grid grid-cols-2 gap-2 lg:gap-4">
-                                            <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
+                                            <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
                                                 <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">库存概览</p>
-                                                <p className="mt-1 lg:mt-2 text-2xl lg:text-3xl font-bold text-white">{formatAmount(inventory)}</p>
+                                                <p className="mt-1 lg:mt-2 text-2xl lg:text-2xl font-bold text-white">{formatAmount(inventory)}</p>
                                                 <p className="mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400">
                                                     日净变化 {formatAmount((latestSupply - latestDemand) || 0)}
                                                 </p>
                                             </div>
-                                            <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
+                                            <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
                                                 <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">市场价</p>
                                                 <div className="mt-1 lg:mt-2 flex items-center gap-2 lg:gap-3 text-white">
-                                                    <span className="text-2xl lg:text-3xl font-bold">{marketPrice.toFixed(2)}</span>
+                                                    <span className="text-2xl lg:text-2xl font-bold">{marketPrice.toFixed(2)}</span>
                                                     <span
                                                         className={`flex items-center gap-0.5 lg:gap-1 text-xs lg:text-sm ${priceTrend > 0
                                                             ? 'text-emerald-400'
@@ -1532,7 +1532,7 @@ const ResourceDetailContent = ({
                                         {/* 价格走势和供需走势 - 同行展示 */}
                                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-3">
                                             {/* 价格走势图 */}
-                                            <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
+                                            <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">价格走势</p>
                                                     <Icon name="TrendingUp" size={14} className="text-sky-300" />
@@ -1563,7 +1563,7 @@ const ResourceDetailContent = ({
                                             </div>
 
                                             {/* 供需走势图 */}
-                                            <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
+                                            <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">供需走势</p>
                                                     <Icon name="Activity" size={14} className="text-emerald-300" />
@@ -1603,7 +1603,7 @@ const ResourceDetailContent = ({
                                 )}
 
                                 {activeTab === 'analysis' && (
-                                    <div className="grid gap-3 lg:gap-6 lg:grid-cols-2">
+                                    <div className="grid gap-3 lg:gap-4 lg:grid-cols-2">
 
                                         {/* 市场实际数据对比说明 */}
                                         {(() => {
@@ -1652,7 +1652,7 @@ const ResourceDetailContent = ({
                                             return null;
                                         })()}
 
-                                        <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
+                                        <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-3 lg:p-4">
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成</p>
@@ -1836,7 +1836,7 @@ const ResourceDetailContent = ({
                                             </div>
                                         </div>
 
-                                        <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
+                                        <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-3 lg:p-4">
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源</p>

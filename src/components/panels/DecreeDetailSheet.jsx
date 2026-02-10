@@ -73,15 +73,15 @@ export const DecreeDetailSheet = ({
     <div className="space-y-2">
       {/* 头部：政策名称和图标 */}
       <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
-        <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
           {isActive ? (
-            <Icon name="Check" size={24} className="text-green-400 icon-metal-green" />
+            <Icon name="Check" size={20} className="text-green-400 icon-metal-green" />
           ) : (
-            <Icon name="FileText" size={24} className="text-purple-400 icon-metal-purple" />
+            <Icon name="FileText" size={20} className="text-purple-400 icon-metal-purple" />
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-white leading-tight flex items-center gap-2 font-decorative">
+          <h2 className="text-base font-bold text-white leading-tight flex items-center gap-2 font-decorative">
             {decree.name}
             {isActive && (
               <span className="text-xs px-2 py-0.5 bg-green-600 text-white rounded">生效中</span>
@@ -221,18 +221,18 @@ export const DecreeDetailSheet = ({
       )}
 
       {/* 状态说明 */}
-      <div className={`rounded p-3 border ${
+      <div className={`rounded p-2.5 border ${
         isActive 
           ? 'bg-green-900/20 border-green-500/30' 
           : 'bg-gray-700/50 border-gray-600'
       }`}>
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-1.5">
           <Icon 
             name={isActive ? "CheckCircle" : "Circle"} 
-            size={20} 
+            size={16} 
             className={isActive ? "text-green-400" : "text-gray-400"} 
           />
-          <span className={`text-sm font-bold ${isActive ? 'text-green-300' : 'text-gray-300'}`}>
+          <span className={`text-xs font-bold ${isActive ? 'text-green-300' : 'text-gray-300'}`}>
             {isActive ? '该政策当前生效中' : '该政策当前未启用'}
           </span>
         </div>

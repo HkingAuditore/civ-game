@@ -104,15 +104,15 @@ export const TreatyNegotiationModal = memo(({
             onClose={onClose}
             title={`📜 ${treatyDetails.name}`}
         >
-            <div className="space-y-4">
+            <div className="space-y-3">
                 {/* 条约头部 */}
-                <div className={`p-4 rounded-lg border ${treatyDetails.visual.bg} ${treatyDetails.visual.border}`}>
-                    <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${treatyDetails.visual.bg}`}>
-                            <Icon name={treatyDetails.visual.icon} size={24} className={`text-${treatyDetails.visual.color}-400`} />
+                <div className={`p-3 rounded-lg border ${treatyDetails.visual.bg} ${treatyDetails.visual.border}`}>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${treatyDetails.visual.bg}`}>
+                            <Icon name={treatyDetails.visual.icon} size={20} className={`text-${treatyDetails.visual.color}-400`} />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-white">{treatyDetails.name}</h3>
+                            <h3 className="text-base font-bold text-white">{treatyDetails.name}</h3>
                             <div className="text-sm text-gray-400">
                                 与 <span className="text-amber-300">{targetNation.name}</span> 签订
                             </div>
@@ -141,29 +141,29 @@ export const TreatyNegotiationModal = memo(({
                 </div>
 
                 {/* 条约参数 */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/40">
-                        <div className="text-[10px] text-gray-400 mb-1">有效期</div>
-                        <div className="text-lg font-bold text-white">
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-gray-800/50 rounded-lg p-2.5 border border-gray-700/40">
+                        <div className="text-[10px] text-gray-400 mb-0.5">有效期</div>
+                        <div className="text-base font-bold text-white">
                             {treatyDetails.durationYears}年
                             <span className="text-xs text-gray-500 ml-1">({treatyDetails.duration}天)</span>
                         </div>
                     </div>
-                    <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/40">
-                        <div className="text-[10px] text-gray-400 mb-1">解锁时代</div>
-                        <div className={`text-lg font-bold ${treatyDetails.isUnlocked ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className="bg-gray-800/50 rounded-lg p-2.5 border border-gray-700/40">
+                        <div className="text-[10px] text-gray-400 mb-0.5">解锁时代</div>
+                        <div className={`text-base font-bold ${treatyDetails.isUnlocked ? 'text-green-400' : 'text-red-400'}`}>
                             {treatyDetails.isUnlocked ? '✓ 已解锁' : `Era ${treatyDetails.unlockEra}`}
                         </div>
                     </div>
-                    <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-700/40">
-                        <div className="text-[10px] text-amber-400 mb-1">签约成本</div>
-                        <div className="text-lg font-bold text-amber-200">
+                    <div className="bg-amber-900/30 rounded-lg p-2.5 border border-amber-700/40">
+                        <div className="text-[10px] text-amber-400 mb-0.5">签约成本</div>
+                        <div className="text-base font-bold text-amber-200">
                             {formatNumberShortCN(treatyDetails.signingCost)} 银
                         </div>
                     </div>
-                    <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/40">
-                        <div className="text-[10px] text-gray-400 mb-1">月维护费</div>
-                        <div className="text-lg font-bold text-gray-200">
+                    <div className="bg-gray-800/50 rounded-lg p-2.5 border border-gray-700/40">
+                        <div className="text-[10px] text-gray-400 mb-0.5">月维护费</div>
+                        <div className="text-base font-bold text-gray-200">
                             {treatyDetails.monthlyMaintenance > 0 ? `${treatyDetails.monthlyMaintenance} 银/月` : '无'}
                         </div>
                     </div>
@@ -196,15 +196,15 @@ export const TreatyNegotiationModal = memo(({
                 )}
 
                 {/* 操作按钮 */}
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                     <button
-                        className="flex-1 py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-semibold transition-all"
+                        className="flex-1 py-2.5 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-all"
                         onClick={onClose}
                     >
                         取消
                     </button>
                     <button
-                        className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${treatyDetails.canSign
+                        className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2 ${treatyDetails.canSign
                                 ? 'bg-green-600 hover:bg-green-500 text-white'
                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                             }`}

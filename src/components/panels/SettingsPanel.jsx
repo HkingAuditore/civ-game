@@ -21,10 +21,10 @@ const PerformanceModeSection = () => {
     ];
 
     return (
-        <div className="border-t border-gray-700 pt-4 space-y-3">
-            <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                <Icon name="Zap" size={16} /> 性能模式
-            </h4>
+            <div className="border-t border-gray-700 pt-3 space-y-2">
+                <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Icon name="Zap" size={14} /> 性能模式
+                </h4>
             <p className="text-[11px] text-gray-400 leading-relaxed">
                 手机默认使用流畅模式，如需高画质请手动切换。
             </p>
@@ -80,24 +80,24 @@ const DifficultySectionComponent = ({ currentDifficulty }) => {
     const currentConfig = difficultyOptions.find(o => o.id === currentDifficulty) || {};
 
     return (
-        <div className="border-t border-gray-700 pt-4 space-y-3">
-            <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                <Icon name="Target" size={16} /> 游戏难度
+            <div className="border-t border-gray-700 pt-3 space-y-2">
+                <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Icon name="Target" size={14} /> 游戏难度
                 <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-gray-700 text-gray-400 flex items-center gap-1">
                     <Icon name="Lock" size={10} /> 游戏中不可更改
                 </span>
             </h4>
 
-            <div className={`p-4 rounded-xl border-2 overflow-hidden relative ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'bg-emerald-900/20 border-emerald-500/30' :
+                <div className={`p-3 rounded-lg border-2 overflow-hidden relative ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'bg-emerald-900/20 border-emerald-500/30' :
                 currentDifficulty === 'normal' ? 'bg-amber-900/20 border-amber-500/30' :
                     'bg-red-900/20 border-red-500/30'
                 }`}>
-                <div className="flex items-center gap-4 relative z-10">
-                    <div className="text-4xl filter drop-shadow-lg transform hover:scale-110 transition-transform duration-300">
-                        {currentConfig.icon || '⚖️'}
-                    </div>
-                    <div>
-                        <div className={`text-lg font-bold flex items-center gap-2 ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'text-emerald-300' :
+                    <div className="flex items-center gap-3 relative z-10">
+                        <div className="text-3xl filter drop-shadow-lg">
+                            {currentConfig.icon || '⚖️'}
+                        </div>
+                        <div>
+                            <div className={`text-sm font-bold flex items-center gap-2 ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'text-emerald-300' :
                             currentDifficulty === 'normal' ? 'text-amber-300' :
                                 'text-red-300'
                             }`}>
@@ -221,7 +221,7 @@ export const SettingsPanel = ({
     };
 
     return (
-        <div className="bg-gray-900/90 backdrop-blur border border-gray-700 rounded-xl p-4 space-y-4 shadow-lg max-h-[85vh] overflow-y-auto">
+        <div className="bg-gray-900/90 backdrop-blur border border-gray-700 rounded-lg p-3 space-y-3 shadow-lg max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-gray-200 flex items-center gap-2">
                     <Icon name="Sliders" size={16} /> 设置
@@ -362,9 +362,9 @@ export const SettingsPanel = ({
 
 
 
-            <div className="border-t border-gray-700 pt-4 space-y-3">
-                <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                    <Icon name="HardDrive" size={16} /> 跨设备备份
+            <div className="border-t border-gray-700 pt-3 space-y-2">
+                <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Icon name="HardDrive" size={14} /> 跨设备备份
                 </h4>
                 <p className="text-[11px] text-gray-400 leading-relaxed">
                     导出二进制存档文件（.cgsave）即可复制到其他设备；在此导入可立即恢复进度。
@@ -490,9 +490,9 @@ export const SettingsPanel = ({
             <PerformanceModeSection />
 
             {/* Debug选项 */}
-            <div className="border-t border-gray-700 pt-4 space-y-3">
-                <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                    <Icon name="Code" size={16} /> Debug选项
+            <div className="border-t border-gray-700 pt-3 space-y-2">
+                <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Icon name="Code" size={14} /> Debug选项
                 </h4>
                 <p className="text-[11px] text-gray-400 leading-relaxed">
                     开发者调试选项，用于显示性能监控信息。
@@ -540,9 +540,9 @@ export const SettingsPanel = ({
             </div>
 
             {/* 音效设置 */}
-            <div className="border-t border-gray-700 pt-4 space-y-4">
-                <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                    <Icon name="Volume2" size={16} /> 音效设置
+            <div className="border-t border-gray-700 pt-3 space-y-3">
+                <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Icon name="Volume2" size={14} /> 音效设置
                 </h4>
 
                 <div className="space-y-2">
@@ -623,9 +623,9 @@ export const SettingsPanel = ({
             </div>
 
             {/* 关于与法律 */}
-            <div className="border-t border-gray-700 pt-4 space-y-3">
-                <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                    <Icon name="Info" size={16} /> 关于
+            <div className="border-t border-gray-700 pt-3 space-y-2">
+                <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Icon name="Info" size={14} /> 关于
                 </h4>
                 <a
                     href="./privacy.html"

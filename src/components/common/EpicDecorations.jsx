@@ -340,7 +340,7 @@ export const EpicCard = ({ children, className = '', variant = 'ancient', delay 
 
     return (
         <motion.div
-            className={`relative ${variants[variant]} rounded-xl p-6 ${className}`}
+className={`relative ${variants[variant]} rounded-lg p-4 ${className}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay }}
@@ -363,9 +363,9 @@ export const EpicCard = ({ children, className = '', variant = 'ancient', delay 
 export const AnimatedBorder = ({ children, className = '' }) => {
     return (
         <div className={`relative ${className}`}>
-            <div className="absolute inset-0 rounded-xl overflow-hidden">
+<div className="absolute inset-0 rounded-lg overflow-hidden">
                 <div className="absolute inset-0 animate-shimmer">
-                    <div className="absolute inset-0 border-2 border-amber-500/30 rounded-xl" />
+<div className="absolute inset-0 border-2 border-amber-500/30 rounded-lg" />
                 </div>
             </div>
             <div className="relative">{children}</div>

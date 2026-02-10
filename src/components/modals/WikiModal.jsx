@@ -1736,7 +1736,7 @@ export const WikiModal = ({ show, onClose }) => {
                         {selectedEntry ? (
                             <>
                                 {/* 头部 - 移动端紧凑，带返回按钮 */}
-                                <div className="p-3 sm:p-6 border-b border-gray-800 bg-gray-800/20">
+                                <div className="p-3 sm:p-4 border-b border-gray-800 bg-gray-800/20">
                                     {/* 移动端返回按钮 */}
                                     <button
                                         onClick={() => setShowSidebar(true)}
@@ -1753,7 +1753,7 @@ export const WikiModal = ({ show, onClose }) => {
                                             <p className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">
                                                 {CATEGORY_CONFIG.find((c) => c.id === selectedCategory)?.label}
                                             </p>
-                                            <h3 className="text-lg sm:text-3xl font-bold text-white truncate font-decorative">{selectedEntry.name}</h3>
+                                            <h3 className="text-lg sm:text-xl font-bold text-white truncate font-decorative">{selectedEntry.name}</h3>
                                             {selectedEntry.summary && (
                                                 <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1 line-clamp-2">{selectedEntry.summary}</p>
                                             )}
@@ -1817,7 +1817,7 @@ const renderMechanicsDetails = (content) => {
     if (!Array.isArray(content)) return null;
 
     return (
-        <div className="space-y-3 sm:space-y-6 max-w-3xl">
+        <div className="space-y-3 sm:space-y-4 max-w-3xl">
             {content.map((block, idx) => {
                 if (block.type === 'h4') {
                     return <h4 key={idx} className="text-sm sm:text-lg font-bold text-indigo-300 mt-3 sm:mt-6 mb-1 sm:mb-2 pb-1 sm:pb-2 border-b border-gray-700 font-decorative">{block.text}</h4>;
@@ -1852,7 +1852,7 @@ const renderEconomyDetails = (data) => {
     ].filter(Boolean);
 
     return (
-        <div className="space-y-3 sm:space-y-6">
+        <div className="space-y-3 sm:space-y-4">
             <div className="bg-gray-800/40 p-2 sm:p-4 rounded-lg sm:rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-xs sm:text-sm">{data.desc}</p>
             </div>
@@ -1875,12 +1875,12 @@ const renderBuildingDetails = (data) => {
     ].filter(Boolean);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
             </div>
             <InfoGrid rows={rows} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {renderResourceSection('建造成本', data.baseCost)}
                 {renderResourceSection('产出资源', data.output)}
                 {renderResourceSection('消耗原料', data.input)}
@@ -1902,16 +1902,16 @@ const renderMilitaryDetails = (data) => {
     ].filter(Boolean);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
             </div>
             <InfoGrid rows={rows} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {renderResourceSection('征召成本', data.recruitCost)}
                 {renderResourceSection('每日维护', data.maintenanceCost)}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {renderListSection('特殊能力', data.abilities)}
                 {renderListSection('克制对象', flattenEffects(data.counters).map(s => s.replace('infantry', '步兵').replace('cavalry', '骑兵').replace('archer', '远程').replace('siege', '攻城')))}
             </div>
@@ -1925,7 +1925,7 @@ const renderTechDetails = (data) => {
     ].filter(Boolean);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
             </div>
@@ -1943,12 +1943,12 @@ const renderDecreeDetails = (data) => {
     ].filter(Boolean);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
             </div>
             <InfoGrid rows={rows} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-green-900/20 border border-green-800/30 rounded-lg">
                     {renderListSection('正面效果', data.effects)}
                 </div>
@@ -1970,7 +1970,7 @@ const renderResourceDetails = (data) => {
     ].filter(Boolean);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-sm">{data.desc || '基础资源信息'}</p>
             </div>
@@ -2125,7 +2125,7 @@ const buildTriggerConditionLines = (conditions) => {
 // --- 政体显示逻辑 ---
 const renderPolityDetails = (data) => {
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* 描述 */}
             <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-sm">{data.description}</p>
@@ -2264,7 +2264,7 @@ const renderEventDetails = (data) => {
     const triggerLines = buildTriggerConditionLines(data.triggerConditions);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
                 <p className="text-gray-300 leading-relaxed text-sm italic">"{data.description}"</p>
                 {data.flavorText && <p className="text-gray-500 text-xs mt-2 text-right">—— {data.flavorText}</p>}

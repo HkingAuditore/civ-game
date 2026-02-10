@@ -108,13 +108,13 @@ export const MODAL_STYLES = {
   },
   
   // 头部
-  header: 'flex items-center justify-between p-4 border-b border-ancient-gold/20 flex-shrink-0',
+  header: 'flex items-center justify-between px-4 py-3 border-b border-ancient-gold/20 flex-shrink-0',
   
   // 内容区
-  body: 'flex-1 overflow-y-auto overflow-x-hidden p-4',
+  body: 'flex-1 overflow-y-auto overflow-x-hidden p-3',
   
   // 底部
-  footer: 'flex items-center justify-end gap-3 p-4 border-t border-ancient-gold/20 flex-shrink-0',
+  footer: 'flex items-center justify-end gap-3 px-4 py-3 border-t border-ancient-gold/20 flex-shrink-0',
   
   // 关闭按钮
   closeButton: 'p-2 rounded-lg hover:bg-ancient-gold/10 transition-colors text-ancient-stone hover:text-ancient-gold',
