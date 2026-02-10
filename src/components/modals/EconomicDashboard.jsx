@@ -122,7 +122,7 @@ export const EconomicDashboard = ({
       onClose={onClose}
       size="xl"
       mobileMode="fullscreen"
-      panelClassName="w-full h-full sm:w-[95vw] sm:h-[90vh] sm:max-w-[1400px] bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900 sm:rounded-lg border-0 sm:border border-blue-500/30 shadow-2xl overflow-hidden"
+      panelClassName="w-full h-full sm:w-[95vw] sm:h-[90vh] sm:max-w-[1400px] bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900 sm:rounded-lg border-0 sm:border border-blue-500/30 shadow-2xl overflow-hidden flex flex-col"
       ariaLabel="经济数据看板"
     >
         
@@ -170,7 +170,7 @@ export const EconomicDashboard = ({
         </div>
 
         {/* 内容区域 */}
-        <div className="h-[calc(100%-100px)] sm:h-[calc(100%-140px)] overflow-y-auto p-2 sm:p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-4">
           
           {/* 总览标签页 */}
           {activeTab === 'overview' && (

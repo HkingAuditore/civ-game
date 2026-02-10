@@ -795,7 +795,7 @@ export const OfficialsPanel = ({
                     onClose={() => setShowDominancePanel(false)}
                     size="md"
                     mobileMode="sheet"
-                    panelClassName="w-full max-w-2xl max-h-[85vh] bg-gray-900 rounded-t-2xl sm:rounded-2xl border border-gray-700 shadow-2xl overflow-hidden animate-slide-up"
+                    panelClassName="w-full max-w-2xl h-full sm:max-h-[85vh] bg-gray-900 rounded-t-2xl sm:rounded-2xl border border-gray-700 shadow-2xl overflow-hidden animate-slide-up flex flex-col"
                     ariaLabel="派系面板"
                     zIndexClass="z-[9999]"
                 >
@@ -819,7 +819,7 @@ export const OfficialsPanel = ({
                         </div>
 
                         {/* 弹窗内容区域 */}
-                        <div className="p-4 overflow-y-auto max-h-[70vh]">
+                        <div className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto">
                             {dominantPanel === 'plannedEconomy' && (
                                 <PlannedEconomyPanel
                                     popStructure={popStructure}
