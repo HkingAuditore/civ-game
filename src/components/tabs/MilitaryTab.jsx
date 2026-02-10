@@ -335,7 +335,7 @@ const MilitaryTabComponent = ({
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
-    const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 5, 10
+    const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 10, 100, 1000
     const [disbandCount, setDisbandCount] = useState(1); // 批量解散数量：1, 10, 100, 1000
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
@@ -837,7 +837,7 @@ const MilitaryTabComponent = ({
                             <div className="flex items-center gap-2">
                                 <span className="text-[11px] text-gray-500">招募</span>
                                 <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
-                                    {[1, 5, 10].map((n) => (
+                                    {[1, 10, 100, 1000].map((n) => (
                                         <button
                                             key={n}
                                             onClick={() => setRecruitCount(n)}
@@ -850,20 +850,6 @@ const MilitaryTabComponent = ({
                                             x{n}
                                         </button>
                                     ))}
-                                    <button
-                                        onClick={() => {
-                                            const remainingCap = Math.max(0, militaryCapacity - totalArmyCount);
-                                            const safeMax = Math.min(50, remainingCap > 0 ? remainingCap : 1);
-                                            setRecruitCount(safeMax);
-                                        }}
-                                        className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${recruitCount > 10
-                                            ? 'bg-blue-600 text-white shadow'
-                                            : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-                                            }`}
-                                        title="设置为剩余容量（Max 50）"
-                                    >
-                                        Max
-                                    </button>
                                 </div>
                             </div>
 

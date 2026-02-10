@@ -69,9 +69,77 @@ const AssignmentRow = ({
     );
 
     return (
-        <div
-            className="grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
-        >
+        <>
+            <div className="hidden p-3 rounded-lg bg-gray-800/40 border border-white/5 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
+                        <div className="min-w-0">
+                            <div className="font-medium text-gray-200 truncate" title={nation.name}>{nation.name}</div>
+                            <div className="text-[10px] text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
+                        </div>
+                    </div>
+                    <div className="text-right text-[10px] text-gray-400 flex-shrink-0">
+                        {nation.isAtWar ? '交战中' : (maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`)}
+                    </div>
+                </div>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => toggleNationRouteMode(nation.id, 'dumping')}
+                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.dumping
+                            ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                            : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
+                            }`}
+                    >
+                        倾销
+                    </button>
+                    <button
+                        onClick={() => toggleNationRouteMode(nation.id, 'forceBuy')}
+                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.forceBuy
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                            : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
+                            }`}
+                    >
+                        强买
+                    </button>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                    <button
+                        className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                        {...(!disabledDec ? longPressDecrement : {})}
+                        disabled={disabledDec}
+                    >
+                        <Icon name="Minus" size={14} />
+                    </button>
+                    <input
+                        className="w-16 h-8 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-center font-mono"
+                        value={value}
+                        onChange={(e) => setAssignment(nation.id, e.target.value)}
+                        onPaste={(e) => {
+                            e.preventDefault();
+                            const pastedText = e.clipboardData.getData('text');
+                            const num = parseInt(pastedText, 10);
+                            if (!isNaN(num)) {
+                                setAssignment(nation.id, num, false);
+                            }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        inputMode="numeric"
+                        disabled={nation.isAtWar}
+                    />
+                    <button
+                        className="w-8 h-8 rounded bg-amber-600/70 hover:bg-amber-600 text-white border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                        {...(!disabledInc ? longPressIncrement : {})}
+                        disabled={disabledInc}
+                    >
+                        <Icon name="Plus" size={14} />
+                    </button>
+                </div>
+            </div>
+
+            <div
+                className="grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
+            >
             {/* 1. Nation Info (Cols 1-4) - reduced */}
             <div className="col-span-4 flex items-center gap-2 min-w-0">
                 <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
@@ -106,9 +174,9 @@ const AssignmentRow = ({
             </div>
 
             {/* 3+4. Limit + Assignment Controls */}
-            <div className="col-span-5 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-1 sm:gap-2">
+            <div className="col-span-5 flex items-center justify-end gap-2">
                 {/* Limit */}
-                <div className="sm:w-24 text-right text-xs text-gray-400 flex-shrink-0">
+                <div className="text-right text-xs text-gray-400 flex-shrink-0">
                     {nation.isAtWar ? (
                         <span className="text-red-400 text-[10px]">交战中</span>
                     ) : (
@@ -156,7 +224,8 @@ const AssignmentRow = ({
                     </button>
                 </div>
             </div>
-        </div>
+            </div>
+        </>
     );
 };
 
@@ -636,7 +705,7 @@ const TradeRoutesModal = ({
             onClose={onClose}
             size="md"
             mobileMode="fullscreen"
-            panelClassName="w-full max-w-2xl glass-panel border-2 border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up bg-gray-900/90 h-[92vh] sm:h-[80vh] max-h-[700px] flex flex-col"
+            panelClassName="w-full max-w-2xl glass-panel border-2 border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up bg-gray-900/90 h-full sm:h-[80vh] max-h-[700px] flex flex-col"
             ariaLabel="贸易路线分析"
         >
                 {/* Header */}
@@ -682,7 +751,7 @@ const TradeRoutesModal = ({
                 </div>
 
                 {/* Scrollable List */}
-                <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3 custom-scrollbar">
+                <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3 custom-scrollbar">
                     {activeTab === 'assignments' && (
                         <div className="space-y-2">
                             <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-500/20 text-xs text-gray-300">
@@ -855,7 +924,7 @@ const TradeRoutesModal = ({
                             </div>
 
                             {/* Assignments list header */}
-                            <div className="grid grid-cols-12 gap-2 items-center px-3 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
+                            <div className="hidden sm:grid grid-cols-12 gap-2 items-center px-3 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
                                 <div className="col-span-4">国家</div>
                                 <div className="col-span-3 text-center">政策</div>
                                 <div className="col-span-2 text-right">限制</div>

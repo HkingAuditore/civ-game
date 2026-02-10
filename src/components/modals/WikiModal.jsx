@@ -1663,7 +1663,7 @@ export const WikiModal = ({ show, onClose }) => {
                     </button>
                 </div>
 
-                <div className="flex flex-1 overflow-hidden relative">
+                <div className="flex flex-1 min-h-0 overflow-hidden relative">
                     {/* 侧边栏 - 移动端条件显示 */}
                     <aside className={`${showSidebar ? 'flex' : 'hidden'} lg:flex w-full lg:w-72 border-r border-gray-800 bg-gray-900/60 flex-col overflow-y-auto absolute lg:relative inset-0 lg:inset-auto z-10`}>
                         {/* 侧边栏分类按钮 - 移动端紧凑 */}
@@ -1739,7 +1739,7 @@ export const WikiModal = ({ show, onClose }) => {
                     </aside>
 
                     {/* 内容区域 - 移动端全屏 */}
-                    <section className={`${showSidebar ? 'hidden' : 'flex'} lg:flex flex-1 flex-col bg-gray-900/30 overflow-hidden`}>
+                    <section className={`${showSidebar ? 'hidden' : 'flex'} lg:flex flex-1 min-h-0 flex-col bg-gray-900/30 overflow-hidden`}>
                         {selectedEntry ? (
                             <>
                                 {/* 头部 - 移动端紧凑，带返回按钮 */}
