@@ -3052,12 +3052,61 @@ export const useGameActions = (gameState, addLog) => {
                         if (['demand_population', 'demand_annex'].includes(type)) {
 
                             popChange = -Math.floor(value || 0); // AI loses pop
-                            // TODO: Add to player population (need global setter or event)
-                            // For now assuming simplified population abstraction or separate effect
-                            addLog(`接收割让人口 ${Math.abs(popChange)} (及对应土地)`);
+                            const populationGain = Math.abs(popChange);
+                            
+                            // [FIX] Add population to player
+                            if (populationGain > 0) {
+                                setPopulation(prev => prev + populationGain);
+                                // Sync popStructure: new population joins as unemployed
+                                setPopStructure(prev => ({
+                                    ...prev,
+                                    unemployed: (prev.unemployed || 0) + populationGain,
+                                }));
+                                setMaxPopBonus(prev => prev + populationGain);
+                            }
+                            
+                            addLog(`接收割让人口 ${populationGain} (及对应土地)`);
                         } else if (type === 'offer_population') {
                             // Player loses pop
-                            addLog(`割让人口 ${Math.floor(value || 0)}`);
+                            const populationLoss = Math.floor(value || 0);
+                            if (populationLoss > 0) {
+                                setPopulation(prev => Math.max(0, prev - populationLoss));
+                                // Reduce from unemployed first, then proportionally from other strata
+                                setPopStructure(prev => {
+                                    const updated = { ...prev };
+                                    let remaining = populationLoss;
+                                    
+                                    // First take from unemployed
+                                    const unemployedLoss = Math.min(remaining, prev.unemployed || 0);
+                                    updated.unemployed = Math.max(0, (prev.unemployed || 0) - unemployedLoss);
+                                    remaining -= unemployedLoss;
+                                    
+                                    // If still need to reduce, take proportionally from other strata
+                                    if (remaining > 0) {
+                                        const totalEmployed = Object.keys(STRATA).reduce((sum, key) => {
+                                            if (key !== 'unemployed') {
+                                                return sum + (prev[key] || 0);
+                                            }
+                                            return sum;
+                                        }, 0);
+                                        
+                                        if (totalEmployed > 0) {
+                                            Object.keys(STRATA).forEach(key => {
+                                                if (key !== 'unemployed' && remaining > 0) {
+                                                    const ratio = (prev[key] || 0) / totalEmployed;
+                                                    const loss = Math.min(Math.floor(remaining * ratio), prev[key] || 0);
+                                                    updated[key] = Math.max(0, (prev[key] || 0) - loss);
+                                                    remaining -= loss;
+                                                }
+                                            });
+                                        }
+                                    }
+                                    
+                                    return updated;
+                                });
+                                setMaxPopBonus(prev => Math.max(0, prev - populationLoss));
+                            }
+                            addLog(`割让人口 ${populationLoss}`);
                         }
                         // Handle Vassalage
                         let vassalUpdates = {};

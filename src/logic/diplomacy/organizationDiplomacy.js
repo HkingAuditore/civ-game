@@ -476,19 +476,25 @@ export function shouldDisbandOrganization(organization, validNationIds = null) {
  * @returns {Array} - 成员信息数组
  */
 export function getOrganizationMembers(organization, nations = [], empireName = '我的帝国') {
-    return organization.members.map(memberId => {
-        if (memberId === 'player') {
-            return { id: 'player', name: empireName, isPlayer: true, isFounder: memberId === organization.founderId };
-        }
-        const nation = nations.find(n => n.id === memberId);
-        return {
-            id: memberId,
-            name: nation?.name || '未知国家',
-            isPlayer: false,
-            isFounder: memberId === organization.founderId,
-            relation: nation?.relation || 0,
-        };
-    });
+    return organization.members
+        .map(memberId => {
+            if (memberId === 'player') {
+                return { id: 'player', name: empireName, isPlayer: true, isFounder: memberId === organization.founderId };
+            }
+            const nation = nations.find(n => n.id === memberId);
+            // Filter out destroyed/annexed nations (those not found in nations list)
+            if (!nation) {
+                return null;
+            }
+            return {
+                id: memberId,
+                name: nation.name,
+                isPlayer: false,
+                isFounder: memberId === organization.founderId,
+                relation: nation.relation || 0,
+            };
+        })
+        .filter(member => member !== null); // Remove null entries (destroyed nations)
 }
 
 /**
