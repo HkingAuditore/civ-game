@@ -50,25 +50,31 @@ const OrganizationDetailsModal = ({
     }, [organization.founderId, organization.members, nations, playerNationId, empireName]);
 
     const memberList = useMemo(() => {
-        return organization.members.map(memberId => {
-            if (memberId === playerNationId) {
+        return organization.members
+            .map(memberId => {
+                if (memberId === playerNationId) {
+                    return {
+                        id: playerNationId,
+                        name: empireName,
+                        isPlayer: true,
+                        isFounder: memberId === (organization.founderId || organization.leaderId),
+                        relation: 0
+                    };
+                }
+                const nation = nations.find(n => n.id === memberId);
+                // Filter out destroyed/annexed nations (those not found in nations list)
+                if (!nation) {
+                    return null;
+                }
                 return {
-                    id: playerNationId,
-                    name: empireName,
-                    isPlayer: true,
+                    id: memberId,
+                    name: nation.name,
+                    isPlayer: false,
                     isFounder: memberId === (organization.founderId || organization.leaderId),
-                    relation: 0
+                    relation: nation.relation || 0,
                 };
-            }
-            const nation = nations.find(n => n.id === memberId);
-            return {
-                id: memberId,
-                name: nation?.name || '未知国家',
-                isPlayer: false,
-                isFounder: memberId === (organization.founderId || organization.leaderId),
-                relation: nation?.relation || 0,
-            };
-        });
+            })
+            .filter(member => member !== null); // Remove null entries (destroyed nations)
     }, [organization.members, nations, playerNationId, organization.founderId, organization.leaderId, empireName]);
 
     const effects = useMemo(() => {
