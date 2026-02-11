@@ -1,0 +1,5 @@
+﻿interface:
+  display_name: "Civ Grounded Development"
+  short_description: "Read existing architecture first; implement changes inside current systems."
+  default_prompt: "Use $civ-grounded-development to inspect current architecture and mechanics first, then implement changes strictly within existing systems."
+
