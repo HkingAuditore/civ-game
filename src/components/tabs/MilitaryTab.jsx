@@ -13,6 +13,7 @@ import CorpsManagementPanel from '../panels/CorpsManagementPanel';
 import FrontViewPanel from '../panels/FrontViewPanel';
 import ActiveBattlePanel from '../panels/ActiveBattlePanel';
 import WarfrontCard from '../panels/WarfrontCard';
+import { calculateFrontEconomicImpact } from '../../logic/diplomacy/frontSystem';
 
 const WAR_SCORE_GUIDE = [
     {
@@ -521,6 +522,20 @@ const MilitaryTabComponent = ({
     );
     const activeNation =
         warringNations.find((nation) => nation.id === selectedTarget) || warringNations[0] || null;
+    const playerActiveFronts = (activeFronts || []).filter(front =>
+        front?.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player')
+    );
+    const playerAdvancingFronts = playerActiveFronts.filter(front => {
+        const linePos = Number.isFinite(front?.linePosition) ? front.linePosition : 50;
+        const control = front.attackerId === 'player' ? linePos : (100 - linePos);
+        return control > 60;
+    }).length;
+    const frontlineEconomicPressure = playerActiveFronts.reduce((sum, front) => {
+        const impact = calculateFrontEconomicImpact(front, 'player');
+        const productionPenalty = Number(impact?.productionPenalty || 0) * 100;
+        const incomePenalty = Number(impact?.incomePenalty || 0) / 100;
+        return sum + productionPenalty + incomePenalty;
+    }, 0);
 
     React.useEffect(() => {
         if (!activeNation && warringNations.length > 0 && onSelectTarget) {
@@ -1102,15 +1117,32 @@ const MilitaryTabComponent = ({
             {/* ===== 统一战局视图 ===== */}
             {activeSection === 'warfront' && (
                 <div className="space-y-3">
-                    {activeFronts.filter(f => f.status === 'active' && (f.attackerId === 'player' || f.defenderId === 'player')).length === 0 ? (
+                    {playerActiveFronts.length > 0 && (
+                        <div className="rounded-lg border border-cyan-700/30 bg-cyan-900/20 p-3">
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                                <div>
+                                    <p className="text-gray-400">活跃战线</p>
+                                    <p className="text-cyan-200 font-bold text-sm">{playerActiveFronts.length}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">我方推进</p>
+                                    <p className="text-emerald-300 font-bold text-sm">{playerAdvancingFronts}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">前线经济压力</p>
+                                    <p className="text-orange-300 font-bold text-sm">{frontlineEconomicPressure.toFixed(1)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {playerActiveFronts.length === 0 ? (
                         <div className="glass-ancient p-4 rounded-lg border border-ancient-gold/20 text-center">
                             <Icon name="MapPin" size={32} className="mx-auto mb-2 text-gray-600" />
                             <p className="text-sm text-gray-400">暂无交战国</p>
                             <p className="text-xs text-gray-500 mt-1">与其他国家开战时会自动生成战线，届时可在此管理战局</p>
                         </div>
                     ) : (
-                        activeFronts
-                            .filter(f => f.status === 'active' && (f.attackerId === 'player' || f.defenderId === 'player'))
+                        playerActiveFronts
                             .map(front => (
                                 <WarfrontCard
                                     key={front.id}

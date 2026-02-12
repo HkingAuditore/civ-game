@@ -836,8 +836,12 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
     const epochFactor = 1 + epoch * 0.15;
     const baseArmySize = Math.floor(population * militaryStrength * 0.006 * epochFactor * difficultyMultiplier * wealthConstraint);
 
+    // [FIX] Minimum army size floor to prevent 0-strength AI armies
+    const MIN_ARMY_SIZE = Math.max(10, Math.floor(population * 0.001));
+    const effectiveSize = Math.max(MIN_ARMY_SIZE, baseArmySize);
+
     // 应用派遣比例
-    const deployedSize = Math.max(1, Math.floor(baseArmySize * deploymentRatio));
+    const deployedSize = Math.max(1, Math.floor(effectiveSize * deploymentRatio));
 
     // 获取当前时代可用兵种
     const availableUnits = getAvailableUnitsForEpoch(epoch);

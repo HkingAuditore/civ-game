@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CorpsManagementPanel - Military Corps & Generals management UI
  * Shows corps list, general assignment, unit allocation
  */
@@ -69,8 +69,8 @@ const CorpsManagementPanel = ({
     // ========== Handlers ==========
 
     const handleCreateCorps = () => {
-        if (militaryCorps.length >= MAX_CORPS_PER_PLAYER) return;
-        const name = newCorpsName.trim() || `第${militaryCorps.length + 1}军团`;
+        if (playerCorps.length >= MAX_CORPS_PER_PLAYER) return;
+        const name = newCorpsName.trim() || `Corps ${playerCorps.length + 1}`;
         const newCorps = createCorps(name);
         onUpdateCorps([...militaryCorps, newCorps]);
         setSelectedCorpsId(newCorps.id);
@@ -83,10 +83,11 @@ const CorpsManagementPanel = ({
         if (!corps) return;
         // Prevent disbanding corps in combat or deployed to front
         if (corps.status === 'in_combat') {
-            alert('该军团正在战斗中，无法解散！请等待战斗结束。');
+            alert('该军团正在战斗中，无法解散，请等待战斗结束。');
             return;
         }
-        if (corps.assignedFrontId) {
+        const assignedActiveFront = activeFronts.find(f => f?.status === 'active' && f.id === corps.assignedFrontId);
+        if (assignedActiveFront) {
             alert('该军团已部署到战线，请先从战线撤回后再解散。');
             return;
         }
@@ -168,25 +169,25 @@ const CorpsManagementPanel = ({
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
                         <Icon name="Shield" size={16} className="text-ancient-gold" />
-                        军团管理
+                        鍐涘洟绠＄悊
                     </h3>
                     <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-400">
-                            {playerCorps.length}/{MAX_CORPS_PER_PLAYER} 军团
+                            {playerCorps.length}/{MAX_CORPS_PER_PLAYER} 鍐涘洟
                         </span>
                         <button
                             className="px-2 py-1 text-xs bg-ancient-gold/20 border border-ancient-gold/40 rounded hover:bg-ancient-gold/30 text-ancient-parchment disabled:opacity-50"
                             onClick={() => setShowCreateModal(true)}
                             disabled={playerCorps.length >= MAX_CORPS_PER_PLAYER}
                         >
-                            + 创建军团
+                            + 鍒涘缓鍐涘洟
                         </button>
                     </div>
                 </div>
 
                 {/* Unassigned pool info */}
                 <div className="text-xs text-gray-400 bg-gray-900/30 rounded px-2 py-1">
-                    未编入军团: <span className="text-ancient-parchment">{totalUnassigned}</span> 单位
+                    鏈紪鍏ュ啗鍥? <span className="text-ancient-parchment">{totalUnassigned}</span> 鍗曚綅
                 </div>
             </div>
 
@@ -194,8 +195,8 @@ const CorpsManagementPanel = ({
             {playerCorps.length === 0 ? (
                 <div className="glass-ancient p-4 rounded-lg border border-ancient-gold/20 text-center text-sm text-gray-400">
                     <Icon name="Shield" size={32} className="mx-auto mb-2 text-gray-600" />
-                    <p>尚未创建任何军团</p>
-                    <p className="text-xs mt-1">军团用于组织部队并部署到战线</p>
+                    <p>灏氭湭鍒涘缓浠讳綍鍐涘洟</p>
+                    <p className="text-xs mt-1">鍐涘洟鐢ㄤ簬缁勭粐閮ㄩ槦骞堕儴缃插埌鎴樼嚎</p>
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -204,8 +205,10 @@ const CorpsManagementPanel = ({
                         const unitCount = getCorpsTotalUnits(corps);
                         const isSelected = corps.id === selectedCorpsId;
                         const front = activeFronts.find(f =>
-                            f.assignedCorps?.attacker?.includes(corps.id) ||
-                            f.assignedCorps?.defender?.includes(corps.id)
+                            f?.status === 'active' && (
+                                f.assignedCorps?.attacker?.includes(corps.id) ||
+                                f.assignedCorps?.defender?.includes(corps.id)
+                            )
                         );
 
                         return (
@@ -220,21 +223,19 @@ const CorpsManagementPanel = ({
                                     <div className="flex items-center gap-2">
                                         <Icon name="Shield" size={14} className="text-ancient-gold" />
                                         <span className="text-sm font-bold text-ancient-parchment">{corps.name}</span>
-                                        <span className="text-xs text-gray-400">({unitCount} 单位)</span>
+                                        <span className="text-xs text-gray-400">({unitCount} 鍗曚綅)</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {front && (
                                             <span className="text-xs px-1.5 py-0.5 bg-red-900/40 border border-red-500/30 rounded text-red-300">
-                                                已部署
-                                            </span>
+                                                宸查儴缃?                                            </span>
                                         )}
                                         {corps.status === 'in_combat' && (
                                             <span className="text-xs px-1.5 py-0.5 bg-orange-900/40 border border-orange-500/30 rounded text-orange-300 animate-pulse">
-                                                战斗中
-                                            </span>
+                                                鎴樻枟涓?                                            </span>
                                         )}
                                         <span className="text-xs text-gray-500">
-                                            士气: <span className={corps.morale > 70 ? 'text-green-400' : corps.morale > 40 ? 'text-yellow-400' : 'text-red-400'}>{Math.round(corps.morale)}</span>
+                                            澹皵: <span className={corps.morale > 70 ? 'text-green-400' : corps.morale > 40 ? 'text-yellow-400' : 'text-red-400'}>{Math.round(corps.morale)}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -244,7 +245,7 @@ const CorpsManagementPanel = ({
                                     {general ? (
                                         <span className="flex items-center gap-1">
                                             <Icon name="Star" size={10} className="text-yellow-400" />
-                                            将领: <span className="text-ancient-parchment">{general.name}</span>
+                                            灏嗛: <span className="text-ancient-parchment">{general.name}</span>
                                             <span className="text-gray-500">(Lv.{general.level})</span>
                                             {general.traits?.map(t => {
                                                 const detail = getTraitDetails([t])[0];
@@ -256,7 +257,7 @@ const CorpsManagementPanel = ({
                                             })}
                                         </span>
                                     ) : (
-                                        <span className="text-gray-500 italic">无将领 (-15%战力)</span>
+                                        <span className="text-gray-500 italic">鏃犲皢棰?(-15%鎴樺姏)</span>
                                     )}
                                 </div>
 
@@ -265,7 +266,7 @@ const CorpsManagementPanel = ({
                                     <div className="mt-1 flex flex-wrap gap-1">
                                         {Object.entries(corps.units).map(([uid, count]) => (
                                             <span key={uid} className="text-[10px] px-1.5 py-0.5 bg-gray-800/60 rounded text-gray-300">
-                                                {UNIT_TYPES[uid]?.name || uid} ×{count}
+                                                {UNIT_TYPES[uid]?.name || uid} 脳{count}
                                             </span>
                                         ))}
                                     </div>
@@ -280,19 +281,19 @@ const CorpsManagementPanel = ({
                                                 className="px-2 py-1 text-xs bg-blue-900/30 border border-blue-500/30 rounded hover:bg-blue-900/50 text-blue-300"
                                                 onClick={(e) => { e.stopPropagation(); setAssignMode('assign'); setAssignAmounts({}); }}
                                             >
-                                                编入兵力
+                                                缂栧叆鍏靛姏
                                             </button>
                                             <button
                                                 className="px-2 py-1 text-xs bg-yellow-900/30 border border-yellow-500/30 rounded hover:bg-yellow-900/50 text-yellow-300"
                                                 onClick={(e) => { e.stopPropagation(); setAssignMode('remove'); setAssignAmounts({}); }}
                                             >
-                                                撤出兵力
+                                                鎾ゅ嚭鍏靛姏
                                             </button>
                                             <button
                                                 className="px-2 py-1 text-xs bg-red-900/30 border border-red-500/30 rounded hover:bg-red-900/50 text-red-300"
                                                 onClick={(e) => { e.stopPropagation(); handleDisbandCorps(corps.id); }}
                                             >
-                                                解散军团
+                                                瑙ｆ暎鍐涘洟
                                             </button>
                                         </div>
 
@@ -300,14 +301,14 @@ const CorpsManagementPanel = ({
                                         {assignMode && (
                                             <div className="bg-gray-900/50 rounded p-2 space-y-2">
                                                 <p className="text-xs text-gray-400">
-                                                    {assignMode === 'assign' ? '选择要编入的兵力:' : '选择要撤出的兵力:'}
+                                                    {assignMode === 'assign' ? '閫夋嫨瑕佺紪鍏ョ殑鍏靛姏:' : '閫夋嫨瑕佹挙鍑虹殑鍏靛姏:'}
                                                 </p>
                                                 <div className="space-y-1 max-h-40 overflow-y-auto">
                                                     {Object.entries(assignMode === 'assign' ? unassignedArmy : (corps.units || {}))
                                                         .filter(([, count]) => count > 0)
                                                         .map(([uid, available]) => (
                                                             <div key={uid} className="flex items-center justify-between text-xs">
-                                                                <span className="text-gray-300">{UNIT_TYPES[uid]?.name || uid} (可用: {available})</span>
+                                                                <span className="text-gray-300">{UNIT_TYPES[uid]?.name || uid} (鍙敤: {available})</span>
                                                                 <input
                                                                     type="number"
                                                                     min={0}
@@ -328,13 +329,13 @@ const CorpsManagementPanel = ({
                                                             assignMode === 'assign' ? handleAssignUnits() : handleRemoveUnits();
                                                         }}
                                                     >
-                                                        确认
+                                                        纭
                                                     </button>
                                                     <button
                                                         className="px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 text-gray-300"
                                                         onClick={(e) => { e.stopPropagation(); setAssignMode(null); }}
                                                     >
-                                                        取消
+                                                        鍙栨秷
                                                     </button>
                                                 </div>
                                             </div>
@@ -342,7 +343,7 @@ const CorpsManagementPanel = ({
 
                                         {/* General assignment */}
                                         <div className="bg-gray-900/50 rounded p-2">
-                                            <p className="text-xs text-gray-400 mb-1">将领管理:</p>
+                                            <p className="text-xs text-gray-400 mb-1">灏嗛绠＄悊:</p>
                                             {general ? (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-ancient-parchment">{general.name} (Lv.{general.level})</span>
@@ -350,7 +351,7 @@ const CorpsManagementPanel = ({
                                                         className="px-2 py-0.5 text-[10px] bg-gray-700 border border-gray-600 rounded text-gray-300"
                                                         onClick={(e) => { e.stopPropagation(); handleUnassignGeneral(general.id); }}
                                                     >
-                                                        卸任
+                                                        鍗镐换
                                                     </button>
                                                 </div>
                                             ) : (
@@ -362,13 +363,13 @@ const CorpsManagementPanel = ({
                                                 className="px-2 py-0.5 text-[10px] bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment"
                                                 onClick={(e) => { e.stopPropagation(); handleAssignGeneral(g.id, corps.id); }}
                                             >
-                                                指派
+                                                鎸囨淳
                                             </button>
                                         </div>
                                     ))}
                                     {playerGenerals.filter(g => !g.assignedCorpsId).length === 0 && (
-                                                        <span className="text-[10px] text-gray-500">无可用将领</span>
-                                                    )}
+                                        <span className="text-[10px] text-gray-500">无可用将领</span>
+                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -385,25 +386,25 @@ const CorpsManagementPanel = ({
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
                         <Icon name="Star" size={16} className="text-yellow-400" />
-                        将领
+                        灏嗛
                     </h3>
                     <button
                         className="px-2 py-1 text-xs bg-ancient-gold/20 border border-ancient-gold/40 rounded hover:bg-ancient-gold/30 text-ancient-parchment"
                         onClick={handleRecruitGeneral}
                     >
-                        从官员中选拔
+                        浠庡畼鍛樹腑閫夋嫈
                     </button>
                 </div>
                 {/* Official picker for selecting general from officials */}
                 {showOfficialPicker && (
                     <div className="bg-gray-900/50 rounded p-2 mb-2 border border-ancient-gold/20">
                         <div className="flex items-center justify-between mb-1">
-                            <p className="text-xs text-gray-400">选择一位官员担任将领:</p>
+                            <p className="text-xs text-gray-400">閫夋嫨涓€浣嶅畼鍛樻媴浠诲皢棰?</p>
                             <button
                                 className="text-[10px] text-gray-500 hover:text-gray-300"
                                 onClick={() => setShowOfficialPicker(false)}
                             >
-                                取消
+                                鍙栨秷
                             </button>
                         </div>
                         {(() => {
@@ -417,8 +418,7 @@ const CorpsManagementPanel = ({
                             if (availableOfficials.length === 0) {
                                 return (
                                     <p className="text-[10px] text-yellow-400 text-center py-2">
-                                        无合适官员可担任将领。建议在行政面板录用具有军事才能的官员。
-                                    </p>
+                                        鏃犲悎閫傚畼鍛樺彲鎷呬换灏嗛銆傚缓璁湪琛屾斂闈㈡澘褰曠敤鍏锋湁鍐涗簨鎵嶈兘鐨勫畼鍛樸€?                                    </p>
                                 );
                             }
                             return (
@@ -431,14 +431,14 @@ const CorpsManagementPanel = ({
                                                 <div className="flex items-center gap-2 text-xs">
                                                     <span className="text-ancient-parchment font-bold">{o.name}</span>
                                                     <span className="text-[10px] text-gray-500">
-                                                        {o.sourceStratum || '未知'}出身
+                                                        {o.sourceStratum || '鏈煡'}鍑鸿韩
                                                     </span>
                                                     <span className="text-[10px] text-blue-300" title="军事属性">
-                                                        武 {milStat}
+                                                        军{milStat}
                                                     </span>
                                                     {milBonus > 0 && (
                                                         <span className="text-[10px] text-green-400">
-                                                            军事+{(milBonus * 100).toFixed(0)}%
+                                                            鍐涗簨+{(milBonus * 100).toFixed(0)}%
                                                         </span>
                                                     )}
                                                 </div>
@@ -446,7 +446,7 @@ const CorpsManagementPanel = ({
                                                     className="px-2 py-0.5 text-[10px] bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment hover:bg-ancient-gold/30"
                                                     onClick={() => handleSelectOfficialAsGeneral(o)}
                                                 >
-                                                    选拔
+                                                    閫夋嫈
                                                 </button>
                                             </div>
                                         );
@@ -457,7 +457,7 @@ const CorpsManagementPanel = ({
                     </div>
                 )}
                 {playerGenerals.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-2">尚无将领，点击招募</p>
+                    <p className="text-xs text-gray-500 text-center py-2">尚无将领，点击“从官员中选拔”</p>
                 ) : (
                     <div className="space-y-1">
                         {playerGenerals.map(gen => {
@@ -477,7 +477,7 @@ const CorpsManagementPanel = ({
                                         ))}
                                     </div>
                                     <div className="text-[10px] text-gray-500">
-                                        {assignedCorps ? `指派: ${assignedCorps.name}` : '待命'}
+                                        {assignedCorps ? `鎸囨淳: ${assignedCorps.name}` : '寰呭懡'}
                                     </div>
                                 </div>
                             );
@@ -490,12 +490,12 @@ const CorpsManagementPanel = ({
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
                     <div className="bg-gray-800 border border-ancient-gold/40 rounded-lg p-4 w-72" onClick={e => e.stopPropagation()}>
-                        <h4 className="text-sm font-bold text-ancient-parchment mb-3">创建军团</h4>
+                        <h4 className="text-sm font-bold text-ancient-parchment mb-3">鍒涘缓鍐涘洟</h4>
                         <input
                             type="text"
                             value={newCorpsName}
                             onChange={e => setNewCorpsName(e.target.value)}
-                            placeholder={`第${militaryCorps.length + 1}军团`}
+                            placeholder={`Corps ${playerCorps.length + 1}`}
                             className="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-white mb-3"
                             autoFocus
                             onKeyDown={e => { if (e.key === 'Enter') handleCreateCorps(); }}
@@ -505,13 +505,13 @@ const CorpsManagementPanel = ({
                                 className="px-3 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-300"
                                 onClick={() => setShowCreateModal(false)}
                             >
-                                取消
+                                鍙栨秷
                             </button>
                             <button
                                 className="px-3 py-1 text-xs bg-ancient-gold/20 border border-ancient-gold/40 rounded text-ancient-parchment"
                                 onClick={handleCreateCorps}
                             >
-                                创建
+                                鍒涘缓
                             </button>
                         </div>
                     </div>

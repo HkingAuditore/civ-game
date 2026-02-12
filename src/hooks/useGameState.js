@@ -6,6 +6,7 @@ import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
 import { HISTORY_STORAGE_LIMIT, LOG_STORAGE_LIMIT } from '../config/gameConstants';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
+import { ensureFrontDefaults, generateFront } from '../logic/diplomacy/frontSystem';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
 import { getScenarioById } from '../config/scenarios';
 import { Share } from '@capacitor/share';
@@ -2243,8 +2244,61 @@ export const useGameState = () => {
         setMilitaryQueue(data.militaryQueue || []);
         setMilitaryCorps(data.militaryCorps || []);
         setGenerals(data.generals || []);
-        setActiveFronts(data.activeFronts || []);
-        setActiveBattles(data.activeBattles || []);
+        const loadedFronts = (data.activeFronts || []).map(front => ensureFrontDefaults(front));
+        const playerWarNations = (migratedNations || []).filter(n => n?.isAtWar === true && !n?.isRebelNation);
+        const existingActiveEnemyIds = new Set(
+            loadedFronts
+                .filter(front => front.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player'))
+                .map(front => (front.attackerId === 'player' ? front.defenderId : front.attackerId))
+        );
+        const playerEco = {
+            resources: data.resources || {},
+            buildings: data.buildings || {},
+            population: loadedPopulation || data.population || 0,
+            wealth: data.resources?.silver || 0,
+        };
+        const rebuiltFronts = playerWarNations
+            .filter(nation => !existingActiveEnemyIds.has(nation.id))
+            .map(nation => {
+                const enemyEco = {
+                    resources: {},
+                    buildings: {},
+                    population: nation.population || nation.militaryPower || 200,
+                    wealth: nation.wealth || 500,
+                };
+                const front = generateFront(nation.id, 'player', data.epoch ?? 0, enemyEco, playerEco);
+                front.createdDay = data.daysElapsed || 0;
+                front.startDay = data.daysElapsed || 0;
+                return front;
+            });
+
+        const reconciledFronts = [...loadedFronts, ...rebuiltFronts].map(front => {
+            if (front.status !== 'active') return front;
+            const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
+            const enemyNation = (migratedNations || []).find(n => n.id === enemyId);
+            if (!enemyNation || enemyNation.isAtWar !== true) {
+                return { ...front, status: 'collapsed' };
+            }
+            return front;
+        });
+        setActiveFronts(reconciledFronts);
+        const frontStatusMap = new Map(reconciledFronts.map(front => [front.id, front.status]));
+        const reconciledBattles = (data.activeBattles || []).map(battle => {
+            if (battle?.status !== 'active') return battle;
+            if (frontStatusMap.get(battle.frontId) === 'active') return battle;
+            return {
+                ...battle,
+                status: 'ended',
+                result: {
+                    ...(battle.result || {}),
+                    reason: 'front_collapsed',
+                    finalized: true,
+                    winner: battle.result?.winner || 'attacker',
+                    totalRounds: battle.result?.totalRounds || battle.currentRound || 0,
+                },
+            };
+        });
+        setActiveBattles(reconciledBattles);
         setSelectedTarget(data.selectedTarget || null);
         setBattleResult(data.battleResult || null);
         setPlayerInstallmentPayment(data.playerInstallmentPayment || null);

@@ -1,232 +1,117 @@
-/**
- * WarfrontCard - Unified warfront card combining front info + battle panel
- * One card per active front, showing everything: force comparison, corps deployment,
- * active battles inline, resource nodes, infrastructure, and attack controls.
- */
-import React, { useState, useMemo, memo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 import { getCorpsTotalUnits, getCorpsGeneral } from '../../logic/diplomacy/corpsSystem';
-import { getPlayerSide, getEnemySide, calculateFrontEconomicImpact } from '../../logic/diplomacy/frontSystem';
-import { TACTICS, isBattleActive, getBattleStatusText, createBattle } from '../../logic/diplomacy/battleSystem';
-import { formatNumberShortCN } from '../../utils/numberFormat';
+import { getPlayerSide, calculateFrontEconomicImpact, FRONT_ZONES, CHECKPOINTS, getZoneForPosition } from '../../logic/diplomacy/frontSystem';
+import { TACTICS, isBattleActive, getBattleStatusText } from '../../logic/diplomacy/battleSystem';
 
-// ========== Inline Battle Section ==========
-const InlineBattleSection = ({ battle, onSetTactic }) => {
+const PHASE_TEXT = { contact: '接触', pressure: '压制', breakthrough: '突破', collapse: '崩溃' };
+const POSTURE_STYLE = {
+    aggressive: 'bg-red-900/30 border-red-500/50 text-red-300',
+    defensive: 'bg-blue-900/30 border-blue-500/50 text-blue-300',
+    passive: 'bg-gray-900/30 border-gray-500/50 text-gray-300',
+};
+
+const POSTURE_DESC = {
+    aggressive: '敌军伤亡+50%, 我军伤亡+20%, 推进+0.8/天',
+    defensive: '标准伤亡率, 推进速度不变',
+    passive: '双方伤亡-50%, 推进-0.5/天',
+};
+
+// Zone colors for the progress bar segments
+const ZONE_COLORS = [
+    'bg-red-800',      // 0: defender core
+    'bg-orange-700',   // 1: defender economic
+    'bg-yellow-700/60',// 2: defender frontier
+    'bg-blue-700/60',  // 3: attacker frontier
+    'bg-blue-600',     // 4: attacker economic
+    'bg-blue-800',     // 5: attacker core
+];
+const ZONE_BREACH_OVERLAY = 'bg-white/10';
+
+const InlineBattle = ({ battle, onSetTactic }) => {
     if (!battle) return null;
-
     const { attacker, defender, momentum, currentRound, maxRounds, typeName } = battle;
-    const playerUnits = Object.values(attacker.currentUnits).reduce((s, c) => s + c, 0);
-    const enemyUnits = Object.values(defender.currentUnits).reduce((s, c) => s + c, 0);
-    const playerInitial = Object.values(attacker.initialUnits).reduce((s, c) => s + c, 0);
-    const enemyInitial = Object.values(defender.initialUnits).reduce((s, c) => s + c, 0);
-    const roundProgress = maxRounds > 0 ? (currentRound / maxRounds) * 100 : 0;
-    const momentumText = momentum > 55 ? '攻方优势' : momentum < 45 ? '守方优势' : '胶着';
-    const momentumColor = momentum > 60 ? 'text-blue-400' : momentum < 40 ? 'text-red-400' : 'text-yellow-400';
-    const lastLog = battle.roundLog?.[battle.roundLog.length - 1];
+    const aNow = Object.values(attacker.currentUnits || {}).reduce((s, c) => s + c, 0);
+    const dNow = Object.values(defender.currentUnits || {}).reduce((s, c) => s + c, 0);
+    const aInit = Object.values(attacker.initialUnits || {}).reduce((s, c) => s + c, 0);
+    const dInit = Object.values(defender.initialUnits || {}).reduce((s, c) => s + c, 0);
+    const progress = maxRounds > 0 ? (currentRound / maxRounds) * 100 : 0;
 
     return (
-        <div className="bg-gray-900/50 rounded-lg border border-orange-700/50 p-2.5 animate-pulse-subtle">
-            {/* Battle Header */}
-            <div className="flex items-center justify-between mb-1.5">
+        <div className="bg-gray-900/50 rounded-lg border border-orange-700/50 p-2.5">
+            <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                    <Icon name="Swords" size={13} className="text-orange-400 animate-pulse" />
+                    <Icon name="Swords" size={13} className="text-orange-400" />
                     <span className="text-xs font-bold text-orange-200">{typeName}</span>
-                    <span className="text-[10px] text-gray-400">第{currentRound}/{maxRounds}回合</span>
+                    <span className="text-[10px] text-gray-400">第 {currentRound}/{maxRounds} 回合</span>
                 </div>
                 <span className="text-[10px] text-gray-500">{getBattleStatusText(battle)}</span>
             </div>
-
-            {/* Round progress */}
-            <div className="w-full bg-gray-800 rounded-full h-1 mb-1.5">
-                <div className="bg-orange-500 h-1 rounded-full transition-all" style={{ width: `${roundProgress}%` }} />
+            <div className="w-full bg-gray-800 rounded-full h-1 mb-2">
+                <div className="bg-orange-500 h-1 rounded-full transition-all" style={{ width: `${progress}%` }} />
             </div>
-
-            {/* Momentum bar */}
-            <div className="mb-2">
-                <div className="flex justify-between text-[10px] mb-0.5">
-                    <span className="text-blue-300">攻方</span>
-                    <span className={momentumColor}>{momentumText} ({Math.round(momentum)})</span>
-                    <span className="text-red-300">守方</span>
-                </div>
-                <div className="w-full bg-red-900/40 rounded-full h-1.5 relative">
-                    <div className="bg-blue-500/70 h-1.5 rounded-l-full transition-all" style={{ width: `${momentum}%` }} />
-                </div>
+            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="bg-blue-900/20 rounded p-1.5 text-blue-200">{attacker.corpsName || '进攻方'} {aNow}/{aInit}</div>
+                <div className="bg-red-900/20 rounded p-1.5 text-red-200">{defender.corpsName || '防守方'} {dNow}/{dInit}</div>
             </div>
-
-            {/* Force comparison */}
-            <div className="grid grid-cols-2 gap-1.5 mb-2">
-                <div className="bg-blue-900/20 rounded p-1.5">
-                    <div className="flex justify-between text-[10px]">
-                        <span className="text-blue-300">{attacker.corpsName || '攻方'}</span>
-                        <span className="text-gray-400">士气 <span className={attacker.morale > 60 ? 'text-green-400' : attacker.morale > 30 ? 'text-yellow-400' : 'text-red-400'}>{Math.round(attacker.morale)}</span></span>
-                    </div>
-                    <div className="text-sm font-bold text-blue-200">
-                        {playerUnits}<span className="text-[10px] text-gray-500">/{playerInitial}</span>
-                    </div>
-                    {attacker.generalName && <div className="text-[10px] text-yellow-400">⭐ {attacker.generalName}</div>}
-                </div>
-                <div className="bg-red-900/20 rounded p-1.5">
-                    <div className="flex justify-between text-[10px]">
-                        <span className="text-red-300">{defender.corpsName || '守方'}</span>
-                        <span className="text-gray-400">士气 <span className={defender.morale > 60 ? 'text-green-400' : defender.morale > 30 ? 'text-yellow-400' : 'text-red-400'}>{Math.round(defender.morale)}</span></span>
-                    </div>
-                    <div className="text-sm font-bold text-red-200">
-                        {enemyUnits}<span className="text-[10px] text-gray-500">/{enemyInitial}</span>
-                    </div>
-                    {defender.generalName && <div className="text-[10px] text-red-400">敌将: {defender.generalName}</div>}
-                </div>
+            <div className="mt-2 text-[10px] text-gray-400">当前战术: {TACTICS[attacker.tactic]?.name || '常规作战'}</div>
+            <div className="mt-1 flex gap-1 flex-wrap">
+                {Object.entries(TACTICS).map(([id, tactic]) => (
+                    <button
+                        key={id}
+                        className={`px-1.5 py-0.5 text-[10px] rounded border ${attacker.tactic === id ? 'bg-ancient-gold/20 border-ancient-gold/50 text-ancient-parchment' : 'bg-gray-800 border-gray-700 text-gray-400'}`}
+                        onClick={() => onSetTactic?.(battle.id, 'attacker', id)}
+                    >
+                        {tactic.name}
+                    </button>
+                ))}
             </div>
-
-            {/* Last round events */}
-            {lastLog && (
-                <div className="bg-gray-900/40 rounded p-1.5 mb-2 text-[10px] text-gray-400">
-                    {lastLog.events?.slice(-2).map((evt, i) => <p key={i}>{evt}</p>)}
-                </div>
-            )}
-
-            {/* Tactical controls */}
-            <div className="border-t border-gray-700/50 pt-1.5">
-                <p className="text-[10px] text-gray-400 mb-1">
-                    当前战术: <span className="text-ancient-parchment">{TACTICS[attacker.tactic]?.name || '正常作战'}</span>
-                </p>
-                <div className="flex gap-1 flex-wrap">
-                    {Object.entries(TACTICS).map(([id, tactic]) => (
-                        <button
-                            key={id}
-                            className={`px-1.5 py-0.5 text-[10px] rounded border transition-all ${attacker.tactic === id
-                                ? 'bg-ancient-gold/20 border-ancient-gold/50 text-ancient-parchment'
-                                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
-                            }`}
-                            onClick={() => onSetTactic?.(battle.id, 'attacker', id)}
-                            title={tactic.desc}
-                        >
-                            {tactic.name}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <div className="mt-1 text-[10px] text-gray-500">势头 {Math.round(momentum)}</div>
         </div>
     );
 };
 
-// ========== Battle Result Summary ==========
-const BattleResultSummary = ({ battle }) => {
-    if (!battle?.result) return null;
-    const { winner, reason, totalRounds, attackerCasualties, defenderCasualties } = battle.result;
-    const reasonText = reason === 'annihilation' ? '全歼' : reason === 'morale_collapse' ? '士气崩溃' : reason === 'rout' ? '溃败' : '持久战结束';
-    const winnerName = winner === 'attacker' ? battle.attacker.corpsName : battle.defender.corpsName;
-    const isPlayerWin = winner === 'attacker'; // Simplified assumption
-
-    return (
-        <div className={`rounded-lg border p-2 mb-2 ${isPlayerWin ? 'bg-green-900/20 border-green-700/40' : 'bg-red-900/20 border-red-700/40'}`}>
-            <div className="flex items-center gap-2 mb-1">
-                <Icon name={isPlayerWin ? "Trophy" : "Frown"} size={14} className={isPlayerWin ? "text-yellow-400" : "text-red-400"} />
-                <span className={`text-xs font-bold ${isPlayerWin ? 'text-green-300' : 'text-red-300'}`}>
-                    {isPlayerWin ? '战斗胜利！' : '战斗失败'} — {winnerName}获胜（{reasonText}，{totalRounds}回合）
-                </span>
-            </div>
-            <div className="flex gap-3 text-[10px] text-gray-400">
-                <span>我方损失: {Object.values(attackerCasualties || {}).reduce((s, c) => s + c, 0)}</span>
-                <span>敌方损失: {Object.values(defenderCasualties || {}).reduce((s, c) => s + c, 0)}</span>
-            </div>
-        </div>
-    );
-};
-
-// ========== Main WarfrontCard ==========
-const WarfrontCard = ({
-    front,
-    activeBattles = [],
-    militaryCorps = [],
-    generals = [],
-    nations = [],
-    day = 0,
-    epoch = 0,
-    onAssignCorpsToFront,
-    onRemoveCorpsFromFront,
-    onSetBattleTactic,
-    onCreateBattle,
-    onSetPosture,
-}) => {
+const WarfrontCard = ({ front, activeBattles = [], militaryCorps = [], generals = [], nations = [], day = 0, epoch = 0, onAssignCorpsToFront, onRemoveCorpsFromFront, onSetBattleTactic, onCreateBattle, onSetPosture }) => {
     const [showDetails, setShowDetails] = useState(false);
     const [showAttackConfirm, setShowAttackConfirm] = useState(false);
-
     const playerSide = getPlayerSide(front);
-    const enemySide = getEnemySide(playerSide);
     const enemyId = playerSide === 'attacker' ? front.defenderId : front.attackerId;
     const enemyNation = nations.find(n => n.id === enemyId);
     const enemyName = enemyNation?.name || enemyId || '未知国家';
 
-    // War duration
-    const warDuration = day - (front.startDay || 0);
+    const linePosition = Number.isFinite(front.linePosition) ? front.linePosition : 50;
+    // playerFrontControl computed for internal use
+    const _playerFrontControl = playerSide === 'attacker' ? linePosition : (100 - linePosition);
+    const phaseText = PHASE_TEXT[front.phase] || PHASE_TEXT.contact;
+    const lineVelocity = Number(front.lineVelocity || 0);
+    const lineVelocityText = lineVelocity > 0.6 ? (playerSide === 'attacker' ? '我军推进' : '敌军推进') : lineVelocity < -0.6 ? (playerSide === 'attacker' ? '敌军反推' : '我军反推') : '战线僵持';
 
-    // WarScore indicator
-    const warScore = enemyNation?.warScore || 0;
-    const warScoreColor = warScore > 50 ? 'text-green-400' : warScore > 0 ? 'text-green-300' : warScore > -50 ? 'text-yellow-400' : 'text-red-400';
-    const warScoreBarWidth = Math.min(100, Math.max(0, (warScore + 100) / 2));
-    const warScoreBarColor = warScore > 50 ? 'bg-green-500' : warScore > 0 ? 'bg-green-400' : warScore > -50 ? 'bg-yellow-500' : 'bg-red-500';
-
-    // Corps data
     const playerCorpsIds = front.assignedCorps?.[playerSide] || [];
     const playerCorpsList = militaryCorps.filter(c => playerCorpsIds.includes(c.id));
-    const enemyCorpsList = militaryCorps.filter(c =>
-        c.isAI && c.assignedFrontId === front.id && c.nationId === enemyId
-    );
-    const undeployedCorps = militaryCorps.filter(c =>
-        !c.isAI && !c.assignedFrontId && c.status === 'idle' && getCorpsTotalUnits(c) > 0
-    );
+    const enemyCorpsList = militaryCorps.filter(c => c.isAI && c.assignedFrontId === front.id && c.nationId === enemyId);
+    const undeployedCorps = militaryCorps.filter(c => !c.isAI && !c.assignedFrontId && c.status === 'idle' && getCorpsTotalUnits(c) > 0);
 
-    // Player total force
     const playerTotalUnits = playerCorpsList.reduce((s, c) => s + getCorpsTotalUnits(c), 0);
     const enemyTotalUnits = enemyCorpsList.reduce((s, c) => s + getCorpsTotalUnits(c), 0);
-    const totalForce = Math.max(1, playerTotalUnits + enemyTotalUnits);
-    const playerForceRatio = (playerTotalUnits / totalForce) * 100;
-
-    // Active battles on this front
-    const frontBattles = useMemo(() =>
-        activeBattles.filter(b => b.frontId === front.id),
-        [activeBattles, front.id]
-    );
-    const activeFrontBattles = frontBattles.filter(b => isBattleActive(b));
-    const recentEndedBattles = frontBattles.filter(b => b.result?.finalized && (day - (b.startDay || 0)) < 15);
-
-    // Resource & Infrastructure
-    const enemyNodes = (front.resourceNodes || []).filter(n => n.owner === enemyId);
-    const plunderedCount = enemyNodes.filter(n => n.plundered).length;
-    const enemyInfra = (front.infrastructure || []).filter(i => i.owner === enemyId);
-    const destroyedCount = enemyInfra.filter(i => i.destroyed).length;
-    const isSuppressed = front._suppressed || (enemyNodes.length > 0 && plunderedCount === enemyNodes.length && destroyedCount === enemyInfra.length);
-
-    // Economic impact
+    const playerForceRatio = (playerTotalUnits / Math.max(1, playerTotalUnits + enemyTotalUnits)) * 100;
     const impact = calculateFrontEconomicImpact(front, 'player');
 
-    // Can attack?
+    const frontBattles = useMemo(() => (activeBattles || []).filter(b => b && b.frontId === front.id), [activeBattles, front.id]);
+    const activeFrontBattles = frontBattles.filter(b => isBattleActive(b));
     const canAttack = activeFrontBattles.length === 0 && playerCorpsList.length > 0 && enemyCorpsList.length > 0;
-    const canSweep = activeFrontBattles.length === 0 && playerCorpsList.length > 0 && enemyCorpsList.length === 0 && !isSuppressed;
+    const canSweep = activeFrontBattles.length === 0 && playerCorpsList.length > 0 && enemyCorpsList.length === 0;
 
-    // Determine card border color
-    const borderColor = activeFrontBattles.length > 0
-        ? 'border-orange-600/60 shadow-orange-900/20'
-        : isSuppressed
-            ? 'border-green-700/40'
-            : 'border-red-900/40';
-
-    // Handle attack
-    const handleLaunchAttack = () => {
-        if (!canAttack || !onCreateBattle) return;
+    const launchBattle = () => {
+        if ((!canAttack && !canSweep) || !onCreateBattle) return;
         const playerCorps = playerCorpsList[0];
         const aiCorps = enemyCorpsList[0];
-        const playerGen = generals.find(g => g.assignedCorpsId === playerCorps.id) || null;
-        const aiGen = generals.find(g => g.id === aiCorps.generalId) || null;
-
-        const pUnits = getCorpsTotalUnits(playerCorps);
-        const eUnits = getCorpsTotalUnits(aiCorps);
-        const total = pUnits + eUnits;
+        const playerGen = generals.find(g => g.assignedCorpsId === playerCorps?.id) || null;
+        const aiGen = generals.find(g => g.id === aiCorps?.generalId) || null;
+        const total = getCorpsTotalUnits(playerCorps) + getCorpsTotalUnits(aiCorps);
         let battleType = 'skirmish';
         if (total > 100) battleType = 'pitched_battle';
         if (total > 500) battleType = 'siege';
-
         const isPlayerAttacker = playerSide === 'attacker';
         onCreateBattle({
             attackerCorps: isPlayerAttacker ? playerCorps : aiCorps,
@@ -242,220 +127,132 @@ const WarfrontCard = ({
     };
 
     return (
-        <div className={`glass-ancient rounded-lg border ${borderColor} ${activeFrontBattles.length > 0 ? 'ring-1 ring-orange-500/30' : ''}`}>
-            {/* ===== Card Header ===== */}
+        <div className={`glass-ancient rounded-lg border ${activeFrontBattles.length > 0 ? 'border-orange-600/60' : 'border-red-900/40'}`}>
             <div className="p-3 pb-2">
-                <div className="flex items-center justify-between mb-1.5">
-                    <h3 className="text-sm font-bold flex items-center gap-2 text-red-200 font-decorative">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-red-200">
                         <Icon name="MapPin" size={15} className="text-red-400" />
-                        对{enemyName}战线
-                        {activeFrontBattles.length > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-orange-900/50 border border-orange-500/40 rounded text-orange-300 animate-pulse">
-                                ⚔️ 交战中
-                            </span>
-                        )}
-                        {isSuppressed && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-green-900/40 border border-green-500/30 rounded text-green-300">
-                                🏳️ 已压制
-                            </span>
-                        )}
+                        对 {enemyName} 战线
                     </h3>
-                    <span className="text-[10px] text-gray-500">持续 {warDuration} 天</span>
+                    <span className="text-[10px] text-gray-500">持续 {day - (front.startDay || 0)} 天</span>
                 </div>
-
-                {/* WarScore bar */}
                 <div className="mb-2">
                     <div className="flex justify-between text-[10px] mb-0.5">
-                        <span className="text-gray-400">战争局势</span>
-                        <span className={warScoreColor}>我方优势 {warScore > 0 ? '+' : ''}{warScore}</span>
+                        <span className="text-gray-300">战线推进</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-cyan-300">{phaseText} / {lineVelocityText}</span>
+                            {linePosition >= 65 && <span className="text-[9px] px-1 py-0.5 bg-green-900/40 border border-green-500/40 rounded text-green-300">💪 战线优势</span>}
+                            {linePosition <= 35 && <span className="text-[9px] px-1 py-0.5 bg-red-900/40 border border-red-500/40 rounded text-red-300">⚠️ 战线告急</span>}
+                        </div>
                     </div>
-                    <div className="w-full bg-red-900/30 rounded-full h-1.5">
-                        <div className={`${warScoreBarColor} h-1.5 rounded-full transition-all`} style={{ width: `${warScoreBarWidth}%` }} />
+                    {/* 7-zone checkpoint progress bar */}
+                    <div className="relative w-full h-3 rounded-full overflow-hidden border border-slate-700/40 flex">
+                        {FRONT_ZONES.map((zone, idx) => {
+                            const width = zone.end - zone.start;
+                            const isBeyondLine = playerSide === 'attacker'
+                                ? linePosition > zone.start
+                                : (100 - linePosition) > (100 - zone.end);
+                            return (
+                                <div
+                                    key={zone.id}
+                                    className={`h-full ${ZONE_COLORS[idx]} relative ${isBeyondLine ? 'opacity-100' : 'opacity-30'}`}
+                                    style={{ width: `${width}%` }}
+                                    title={zone.name}
+                                />
+                            );
+                        })}
+                        {/* Checkpoint markers */}
+                        {CHECKPOINTS.map(cp => (
+                            <div key={cp} className="absolute top-0 h-full flex flex-col items-center" style={{ left: `${cp}%`, transform: 'translateX(-50%)' }}>
+                                <div className="w-px h-full bg-white/40" />
+                            </div>
+                        ))}
+                        {/* Position indicator */}
+                        <div className="absolute top-0 h-full" style={{ left: `${linePosition}%`, transform: 'translateX(-50%)' }}>
+                            <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent border-t-yellow-400" />
+                        </div>
                     </div>
+                    {/* Next checkpoint hint */}
+                    {(() => {
+                        const nextCp = playerSide === 'attacker'
+                            ? CHECKPOINTS.find(cp => cp > linePosition)
+                            : CHECKPOINTS.slice().reverse().find(cp => cp < linePosition);
+                        if (!nextCp) return null;
+                        const dist = Math.abs(nextCp - linePosition).toFixed(0);
+                        const targetZone = FRONT_ZONES.find(z => playerSide === 'attacker' ? z.start === nextCp : z.end === nextCp);
+                        return <p className="text-[9px] text-gray-500 mt-0.5">距{targetZone?.name || '下一节点'}还需推进 {dist}%</p>;
+                    })()}
                 </div>
-
-                {/* Force comparison bar */}
                 <div className="mb-2">
                     <div className="flex justify-between text-[10px] mb-0.5">
                         <span className="text-blue-300">我方 {playerTotalUnits}</span>
                         <span className="text-red-300">敌方 {enemyTotalUnits}</span>
                     </div>
-                    <div className="w-full bg-red-900/30 rounded-full h-2 flex overflow-hidden">
+                    <div className="w-full bg-red-900/30 rounded-full h-2 overflow-hidden">
                         <div className="bg-blue-500/60 h-2 transition-all" style={{ width: `${playerForceRatio}%` }} />
                     </div>
                 </div>
-
-                {/* No defense warning */}
-                {playerCorpsList.length === 0 && (
-                    <div className="bg-yellow-900/30 border border-yellow-600/40 rounded p-2 mb-2 flex items-center gap-2">
-                        <Icon name="AlertTriangle" size={14} className="text-yellow-400" />
-                        <span className="text-xs text-yellow-300">⚠️ 无防御！此战线没有部署军团</span>
-                        {undeployedCorps.length > 0 && (
-                            <button
-                                className="ml-auto text-[10px] px-2 py-0.5 bg-blue-900/40 border border-blue-500/30 rounded text-blue-300 hover:bg-blue-900/60"
-                                onClick={() => onAssignCorpsToFront?.(front.id, undeployedCorps[0].id, playerSide)}
-                            >
-                                快速部署
-                            </button>
-                        )}
-                    </div>
-                )}
+                <div className="text-[10px] text-gray-400">经济压力: 产出-{(impact.productionPenalty * 100).toFixed(0)}% 财政-{Math.round(impact.incomePenalty || 0)}/天</div>
             </div>
 
-            {/* ===== Active Battle (Inline) ===== */}
             {activeFrontBattles.length > 0 && (
                 <div className="px-3 pb-2 space-y-2">
-                    {activeFrontBattles.map(battle => (
-                        <InlineBattleSection key={battle.id} battle={battle} onSetTactic={onSetBattleTactic} />
-                    ))}
+                    {activeFrontBattles.map(b => <InlineBattle key={b.id} battle={b} onSetTactic={onSetBattleTactic} />)}
                 </div>
             )}
 
-            {/* ===== Recent Battle Results ===== */}
-            {recentEndedBattles.length > 0 && activeFrontBattles.length === 0 && (
-                <div className="px-3 pb-2">
-                    {recentEndedBattles.slice(0, 2).map(battle => (
-                        <BattleResultSummary key={battle.id} battle={battle} />
-                    ))}
-                </div>
-            )}
-
-            {/* ===== Attack / Sweep Buttons ===== */}
             {activeFrontBattles.length === 0 && (
                 <div className="px-3 pb-2">
                     {canAttack && !showAttackConfirm && (
-                        <button
-                            className="w-full py-2 bg-red-700/60 hover:bg-red-600/70 text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 border border-red-500/30"
-                            onClick={() => setShowAttackConfirm(true)}
-                        >
-                            <Icon name="Swords" size={14} />
+                        <button className="w-full py-2 bg-red-700/60 text-white rounded-lg text-sm font-semibold" onClick={() => setShowAttackConfirm(true)}>
                             发起进攻
                         </button>
                     )}
                     {canAttack && showAttackConfirm && (
                         <div className="bg-gray-900/60 border border-red-700/40 rounded-lg p-2.5 space-y-2">
                             <p className="text-xs text-gray-300">确认发起进攻？</p>
-                            <div className="grid grid-cols-2 gap-2 text-[10px]">
-                                <div className="bg-blue-900/20 rounded p-1.5">
-                                    <p className="text-blue-300 mb-0.5">我方: {playerCorpsList[0]?.name}</p>
-                                    <p className="text-blue-200 font-bold">{getCorpsTotalUnits(playerCorpsList[0])} 单位</p>
-                                </div>
-                                <div className="bg-red-900/20 rounded p-1.5">
-                                    <p className="text-red-300 mb-0.5">敌方: {enemyCorpsList[0]?.name}</p>
-                                    <p className="text-red-200 font-bold">{getCorpsTotalUnits(enemyCorpsList[0])} 单位</p>
-                                </div>
-                            </div>
                             <div className="flex gap-2">
-                                <button
-                                    className="flex-1 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-xs font-bold"
-                                    onClick={handleLaunchAttack}
-                                >
-                                    ⚔️ 确认进攻
-                                </button>
-                                <button
-                                    className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-xs"
-                                    onClick={() => setShowAttackConfirm(false)}
-                                >
-                                    取消
-                                </button>
+                                <button className="flex-1 py-1.5 bg-red-700 text-white rounded text-xs font-bold" onClick={launchBattle}>确认</button>
+                                <button className="flex-1 py-1.5 bg-gray-700 text-gray-300 rounded text-xs" onClick={() => setShowAttackConfirm(false)}>取消</button>
                             </div>
                         </div>
                     )}
                     {canSweep && (
-                        <button
-                            className="w-full py-2 bg-green-800/50 hover:bg-green-700/60 text-green-200 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 border border-green-600/30"
-                            onClick={handleLaunchAttack}
-                        >
-                            <Icon name="Shield" size={14} />
-                            扫荡 (无抵抗)
+                        <button className="w-full py-2 bg-green-800/50 text-green-200 rounded-lg text-sm font-semibold" onClick={launchBattle}>
+                            扫荡（无抵抗）
                         </button>
                     )}
                 </div>
             )}
 
-            {/* ===== Front Posture & Friction Log ===== */}
-            {playerCorpsList.length > 0 && enemyCorpsList.length > 0 && activeFrontBattles.length === 0 && (
-                <div className="px-3 pb-2">
-                    <div className="bg-gray-900/40 rounded-lg border border-gray-700/40 p-2 space-y-2">
-                        {/* Posture selector */}
+            <div className="px-3 pb-2">
+                {playerCorpsList.length > 0 && enemyCorpsList.length > 0 && activeFrontBattles.length === 0 && (
+                    <div className="bg-gray-900/40 rounded-lg border border-gray-700/40 p-2 space-y-2 mb-2">
                         <div>
-                            <p className="text-[10px] text-gray-400 mb-1">战线姿态:</p>
+                            <p className="text-[10px] text-gray-400 mb-1">战线姿态</p>
                             <div className="flex gap-1">
-                                {[{ id: 'aggressive', name: '主动骚扰', icon: 'Swords', color: 'red' },
-                                  { id: 'defensive', name: '积极防御', icon: 'Shield', color: 'blue' },
-                                  { id: 'passive', name: '消极防守', icon: 'Eye', color: 'gray' }].map(p => (
+                                {[{ id: 'aggressive', name: '主动袭扰', icon: 'Swords' }, { id: 'defensive', name: '积极防御', icon: 'Shield' }, { id: 'passive', name: '消极防御', icon: 'Eye' }].map(p => (
                                     <button
                                         key={p.id}
-                                        className={`px-2 py-1 text-[10px] rounded border transition-all flex items-center gap-1 ${
-                                            (front.posture || 'defensive') === p.id
-                                                ? `bg-${p.color}-900/30 border-${p.color}-500/50 text-${p.color}-300`
-                                                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
-                                        }`}
+                                        className={`px-2 py-1 text-[10px] rounded border transition-all flex items-center gap-1 ${(front.posture || 'defensive') === p.id ? POSTURE_STYLE[p.id] : 'bg-gray-800 border-gray-700 text-gray-400'}`}
                                         onClick={() => onSetPosture?.(front.id, p.id)}
                                     >
-                                        <Icon name={p.id === 'aggressive' ? 'Swords' : p.id === 'defensive' ? 'Shield' : 'Eye'} size={10} />
+                                        <Icon name={p.icon} size={10} />
                                         {p.name}
                                     </button>
                                 ))}
                             </div>
+                            <p className="text-[9px] text-gray-500 mt-0.5">{POSTURE_DESC[front.posture || 'defensive']}</p>
                         </div>
-
-                        {/* Friction event log */}
-                        {(front.frictionLog || []).length > 0 && (
-                            <div>
-                                <p className="text-[10px] text-gray-400 mb-1">前线动态:</p>
-                                <div className="space-y-0.5 max-h-24 overflow-y-auto">
-                                    {(front.frictionLog || []).slice(-5).reverse().map((evt, i) => (
-                                        <div
-                                            key={`${evt.day}_${i}`}
-                                            className={`text-[10px] px-2 py-0.5 rounded bg-gray-800/50 text-gray-300 ${i === 0 ? 'animate-pulse' : 'opacity-70'}`}
-                                        >
-                                            <span className="text-gray-500 mr-1">第{evt.day}天</span>
-                                            {evt.text}
-                                        </div>
-                                    ))}
-                                </div>
+                        {(front.controlLog || []).slice(-4).reverse().map((evt, i) => (
+                            <div key={`${evt.day}_${i}`} className={`text-[10px] px-2 py-0.5 rounded bg-cyan-900/20 text-cyan-100 ${i === 0 ? 'animate-pulse' : 'opacity-80'}`}>
+                                <span className="text-cyan-300/70 mr-1">第{evt.day}天</span>{evt.text}
                             </div>
-                        )}
-
-                        {/* No friction state */}
-                        {(front.frictionLog || []).length === 0 && (
-                            <p className="text-[10px] text-gray-500 italic">双方对峨中，等待前线动态...</p>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* One side empty - no friction */}
-            {playerCorpsList.length > 0 && enemyCorpsList.length === 0 && !isSuppressed && activeFrontBattles.length === 0 && (
-                <div className="px-3 pb-2">
-                    <p className="text-[10px] text-gray-500 italic">敌方无军团对抗，前线平静</p>
-                </div>
-            )}
-
-            {/* ===== Deployed Corps ===== */}
-            <div className="px-3 pb-2">
-                {/* Enemy corps intel */}
-                {enemyCorpsList.length > 0 && (
-                    <div className="mb-1.5">
-                        <p className="text-[10px] text-red-400/70 font-bold mb-1">敌方军团情报 ({enemyCorpsList.length})</p>
-                        <div className="space-y-0.5">
-                            {enemyCorpsList.map(corps => {
-                                const gen = getCorpsGeneral(generals, corps.id);
-                                return (
-                                    <div key={corps.id} className="flex items-center gap-2 rounded px-2 py-0.5 bg-red-900/20 border border-red-800/20 text-[10px]">
-                                        <Icon name="Shield" size={10} className="text-red-400" />
-                                        <span className="text-red-300">{corps.name}</span>
-                                        <span className="text-gray-500">({getCorpsTotalUnits(corps)})</span>
-                                        {gen && <span className="text-red-400">敌将: {gen.name} Lv.{gen.level}</span>}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        ))}
                     </div>
                 )}
 
-                <div className="flex items-center justify-between mb-1">
+                <div className="mb-1">
                     <p className="text-[10px] text-gray-400 font-bold">已部署军团 ({playerCorpsList.length})</p>
                 </div>
                 {playerCorpsList.length > 0 ? (
@@ -469,21 +266,10 @@ const WarfrontCard = ({
                                         <Icon name="Shield" size={10} className="text-ancient-gold" />
                                         <span className="text-ancient-parchment">{corps.name}</span>
                                         <span className="text-gray-500">({getCorpsTotalUnits(corps)})</span>
-                                        {gen && <span className="text-yellow-400 text-[10px]">⭐{gen.name}</span>}
-                                        {isInCombat && <span className="text-[10px] text-orange-400">⚔️</span>}
-                                        {/* Morale indicator */}
-                                        <div className="w-12 bg-gray-800 rounded-full h-1 ml-1">
-                                            <div
-                                                className={`h-1 rounded-full ${(corps.morale || 80) > 60 ? 'bg-green-500' : (corps.morale || 80) > 30 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                                style={{ width: `${corps.morale || 80}%` }}
-                                            />
-                                        </div>
+                                        {gen && <span className="text-yellow-400 text-[10px]">将领: {gen.name}</span>}
                                     </div>
                                     {!isInCombat && (
-                                        <button
-                                            className="text-[10px] px-1.5 py-0.5 bg-gray-700 rounded text-gray-400 hover:text-white hover:bg-gray-600"
-                                            onClick={() => onRemoveCorpsFromFront?.(front.id, corps.id, playerSide)}
-                                        >
+                                        <button className="text-[10px] px-1.5 py-0.5 bg-gray-700 rounded text-gray-400" onClick={() => onRemoveCorpsFromFront?.(front.id, corps.id, playerSide)}>
                                             撤回
                                         </button>
                                     )}
@@ -492,20 +278,15 @@ const WarfrontCard = ({
                         })}
                     </div>
                 ) : (
-                    <p className="text-[10px] text-gray-500 italic">无军团部署</p>
+                    <p className="text-[10px] text-gray-500 italic">未部署军团。</p>
                 )}
 
-                {/* Deploy more */}
                 {undeployedCorps.length > 0 && (
                     <div className="mt-1.5 pt-1.5 border-t border-gray-700/50">
-                        <p className="text-[10px] text-gray-400 mb-1">增派军团:</p>
+                        <p className="text-[10px] text-gray-400 mb-1">增派军团</p>
                         <div className="flex flex-wrap gap-1">
                             {undeployedCorps.map(corps => (
-                                <button
-                                    key={corps.id}
-                                    className="text-[10px] px-2 py-0.5 bg-blue-900/30 border border-blue-500/20 rounded text-blue-300 hover:bg-blue-900/50 transition-colors"
-                                    onClick={() => onAssignCorpsToFront?.(front.id, corps.id, playerSide)}
-                                >
+                                <button key={corps.id} className="text-[10px] px-2 py-0.5 bg-blue-900/30 border border-blue-500/20 rounded text-blue-300" onClick={() => onAssignCorpsToFront?.(front.id, corps.id, playerSide)}>
                                     + {corps.name} ({getCorpsTotalUnits(corps)})
                                 </button>
                             ))}
@@ -514,82 +295,57 @@ const WarfrontCard = ({
                 )}
             </div>
 
-            {/* ===== Expandable Details (Resources, Infrastructure, Economic) ===== */}
             <div className="px-3 pb-2">
-                <button
-                    className="text-[10px] text-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
-                    onClick={() => setShowDetails(!showDetails)}
-                >
-                    <Icon name={showDetails ? "ChevronDown" : "ChevronRight"} size={10} />
-                    战线详情 (资源点 {plunderedCount}/{enemyNodes.length} 被掠 · 设施 {destroyedCount}/{enemyInfra.length} 被毁)
+                <button className="text-[10px] text-gray-500 hover:text-gray-300 flex items-center gap-1" onClick={() => setShowDetails(!showDetails)}>
+                    <Icon name={showDetails ? 'ChevronDown' : 'ChevronRight'} size={10} />
+                    战线详情
                 </button>
-
                 {showDetails && (
                     <div className="mt-1.5 space-y-1.5">
-                        {/* Resource Nodes */}
-                        <div className="bg-gray-900/30 rounded p-2">
-                            <p className="text-[10px] text-gray-400 mb-1">资源点</p>
-                            <div className="flex flex-wrap gap-1">
-                                {(front.resourceNodes || []).map(node => {
-                                    const resDef = RESOURCES[node.resource];
-                                    const resColor = resDef?.color || 'text-gray-300';
-                                    const resIcon = resDef?.icon;
-                                    const resName = resDef?.name || node.resource;
-                                    return (
-                                        <span
-                                            key={node.id}
-                                            className={`text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${node.plundered
-                                                ? 'bg-gray-800 text-gray-600 line-through'
-                                                : node.owner === enemyId
-                                                    ? 'bg-red-900/30'
-                                                    : 'bg-blue-900/30'
-                                            }`}
-                                            title={`${node.desc} → ${resName} (${node.amount}/${node.maxAmount})`}
-                                        >
-                                            {node.plundered ? '💀 ' : resIcon ? <Icon name={resIcon} size={10} className={resColor} /> : null}
-                                            <span className={node.plundered ? '' : resColor}>{node.desc}</span>
-                                            <span className="text-gray-500">({resName} {node.amount})</span>
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        {/* Zone-grouped resource display */}
+                        {FRONT_ZONES.map((zone) => {
+                            const zoneData = front.zones?.[zone.id];
+                            const isReached = zoneData?.reached;
+                            const currentZone = getZoneForPosition(linePosition);
+                            const isCurrent = currentZone?.id === zone.id;
+                            const zoneNodes = (zoneData?.resourceNodes || []);
+                            const zoneInfra = (zoneData?.infrastructure || []);
 
-                        {/* Infrastructure */}
-                        <div className="bg-gray-900/30 rounded p-2">
-                            <p className="text-[10px] text-gray-400 mb-1">设施</p>
-                            <div className="flex flex-wrap gap-1">
-                                {(front.infrastructure || []).map(infra => {
-                                    const healthPct = infra.maxDurability > 0 ? Math.round(infra.durability / infra.maxDurability * 100) : 0;
-                                    return (
-                                        <span
-                                            key={infra.id}
-                                            className={`text-[10px] px-1.5 py-0.5 rounded ${infra.destroyed
-                                                ? 'bg-gray-800 text-gray-600 line-through'
-                                                : infra.owner === enemyId
-                                                    ? 'bg-red-900/30 text-red-300'
-                                                    : 'bg-blue-900/30 text-blue-300'
-                                            }`}
-                                            title={`${infra.name}: ${infra.desc} (耐久: ${healthPct}%)`}
-                                        >
-                                            {infra.destroyed ? '🏚️' : ''} {infra.name} {!infra.destroyed && `${healthPct}%`}
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Economic Impact */}
-                        {(impact.productionPenalty > 0 || impact.supplyBonus > 0) && (
-                            <div className="bg-gray-900/30 rounded p-2 text-[10px]">
-                                <p className="text-gray-400 mb-1">经济影响:</p>
-                                <div className="flex gap-2">
-                                    {impact.productionPenalty > 0 && <span className="text-red-400">产出 -{(impact.productionPenalty * 100).toFixed(0)}%</span>}
-                                    {impact.supplyBonus > 0 && <span className="text-green-400">补给 +{(impact.supplyBonus * 100).toFixed(0)}%</span>}
-                                    {impact.defenseBonus > 0 && <span className="text-blue-400">防御 +{(impact.defenseBonus * 100).toFixed(0)}%</span>}
+                            return (
+                                <div key={zone.id} className={`bg-gray-900/30 rounded p-2 ${isCurrent ? 'border border-yellow-600/40' : ''}`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className={`text-[10px] font-bold ${isCurrent ? 'text-yellow-300' : isReached ? 'text-gray-300' : 'text-gray-600'}`}>
+                                            {zone.name} ({zone.start}-{zone.end}%)
+                                            {isCurrent && <span className="ml-1 text-yellow-400">◄ 当前</span>}
+                                        </p>
+                                        {!isReached && <span className="text-[9px] text-gray-600 italic">未探索</span>}
+                                    </div>
+                                    {isReached ? (
+                                        <div className="flex flex-wrap gap-1">
+                                            {zoneNodes.map(node => {
+                                                const resDef = RESOURCES[node.resource];
+                                                const resName = resDef?.name || node.resource;
+                                                return (
+                                                    <span key={node.id} className={`text-[10px] px-1.5 py-0.5 rounded ${node.plundered ? 'bg-gray-800 text-gray-600 line-through' : node.owner === enemyId ? 'bg-red-900/30 text-red-300' : 'bg-blue-900/30 text-blue-300'}`}>
+                                                        {node.desc} ({resName} {node.amount})
+                                                    </span>
+                                                );
+                                            })}
+                                            {zoneInfra.map(inf => (
+                                                <span key={inf.id} className={`text-[10px] px-1.5 py-0.5 rounded ${inf.destroyed ? 'bg-gray-800 text-gray-600 line-through' : 'bg-purple-900/30 text-purple-300'}`}>
+                                                    🏗 {inf.name} ({inf.destroyed ? '已摧毁' : `耐久 ${inf.durability}/${inf.maxDurability}`})
+                                                </span>
+                                            ))}
+                                            {zoneNodes.length === 0 && zoneInfra.length === 0 && (
+                                                <span className="text-[9px] text-gray-600 italic">此区段无资源</span>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="h-4" />
+                                    )}
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })}
                     </div>
                 )}
             </div>
