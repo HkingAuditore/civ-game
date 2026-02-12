@@ -146,6 +146,8 @@ export const useGameActions = (gameState, addLog) => {
         autoRecruitEnabled,
         modifiers,
         productionPerDay,
+        setMilitaryCorps,
+        setActiveBattles,
         // Cabinet policy decrees (permanent)
         decrees,
         setDecrees,
@@ -221,6 +223,7 @@ export const useGameActions = (gameState, addLog) => {
         };
         const front = generateFront(attackerId, defenderId, epoch, playerEco, enemyEco);
         front.createdDay = daysElapsed;
+        front.startDay = daysElapsed;
         setActiveFronts(prev => {
             const existing = Array.isArray(prev) ? prev : [];
             // Avoid duplicate fronts for the same war
@@ -531,6 +534,103 @@ export const useGameActions = (gameState, addLog) => {
         launchDiplomaticEvent(event);
     };
 
+    const collectWarFrontIdsForNation = (nationId, fronts = activeFronts) => {
+        if (!nationId || !Array.isArray(fronts)) return [];
+        return fronts
+            .filter(f => f && (
+                (f.attackerId === nationId && f.defenderId === 'player')
+                || (f.attackerId === 'player' && f.defenderId === nationId)
+            ))
+            .map(f => f.id);
+    };
+
+    const cleanupWarRuntimeState = (nationId, reason = 'peace_treaty') => {
+        if (!nationId) return;
+        const frontIds = collectWarFrontIdsForNation(nationId, activeFronts || []);
+
+        if (typeof setActiveFronts === 'function') {
+            setActiveFronts(prev => {
+                if (!Array.isArray(prev)) return prev;
+                return prev.map(front => {
+                    if (!front || front.status !== 'active') return front;
+                    const involves = (
+                        (front.attackerId === nationId && front.defenderId === 'player')
+                        || (front.attackerId === 'player' && front.defenderId === nationId)
+                    );
+                    return involves ? { ...front, status: 'collapsed' } : front;
+                });
+            });
+        }
+
+        if (typeof setActiveBattles === 'function') {
+            setActiveBattles(prev => {
+                if (!Array.isArray(prev)) return prev;
+                return prev.map(battle => {
+                    if (!battle || battle.status !== 'active') return battle;
+                    if (!frontIds.includes(battle.frontId)) return battle;
+                    return {
+                        ...battle,
+                        status: 'ended',
+                        result: {
+                            ...(battle.result || {}),
+                            reason,
+                            finalized: true,
+                            winner: battle.result?.winner || 'attacker',
+                            totalRounds: battle.result?.totalRounds || battle.currentRound || 0,
+                        },
+                    };
+                });
+            });
+        }
+
+        if (typeof setMilitaryCorps === 'function') {
+            setMilitaryCorps(prev => {
+                if (!Array.isArray(prev)) return prev;
+                return prev.map(corps => {
+                    if (!corps || corps.isAI) return corps;
+                    const isOnEndedWarFront = frontIds.includes(corps.assignedFrontId);
+                    const isOrphanDeployed = corps.status === 'deployed' && !corps.assignedFrontId;
+                    if (!isOnEndedWarFront && !isOrphanDeployed) return corps;
+                    return {
+                        ...corps,
+                        status: 'idle',
+                        assignedFrontId: null,
+                    };
+                });
+            });
+        }
+    };
+
+    const startWarAgainstPlayer = (aggressorId, meta = {}) => {
+        const aggressor = (nations || []).find(n => n.id === aggressorId);
+        if (!aggressor) return null;
+
+        setNations(prev => prev.map(n => {
+            if (n.id !== aggressorId) return n;
+            return {
+                ...n,
+                isAtWar: true,
+                warStartDay: daysElapsed,
+                warDuration: 0,
+                warScore: n.warScore ?? 0,
+                warReason: meta.reason || n.warReason || 'normal',
+                lastMilitaryActionDay: undefined,
+            };
+        }));
+
+        createFrontForWar(aggressorId, 'player', aggressor);
+
+        if (meta.showEvent !== false) {
+            const event = createWarDeclarationEvent(aggressor, () => { }, { reason: meta.reason || 'normal', ...meta });
+            triggerDiplomaticEvent(event);
+        }
+
+        if (meta.logMessage) {
+            addLog(meta.logMessage);
+        }
+        return aggressor;
+    };
+
     const buildEventGameState = () => ({
         population: population || 0,
         epoch: epoch || 0,
@@ -831,16 +931,10 @@ export const useGameActions = (gameState, addLog) => {
             if (triggerWarTarget) {
                 const targetNation = selectNationBySelector(triggerWarTarget, visible);
                 if (targetNation) {
-                    setNations(prev => prev.map(n => n.id === targetNation.id ? {
-                        ...n,
-                        isAtWar: true,
-                        warStartDay: daysElapsed,
-                        warDuration: 0,
-                        warScore: n.warScore || 0,
-                        lastMilitaryActionDay: undefined,
-                    } : n));
-                    // Generate front for event-triggered war
-                    createFrontForWar(targetNation.id, 'player', targetNation);
+                    startWarAgainstPlayer(targetNation.id, {
+                        reason: 'event',
+                        logMessage: `⚔️ ${targetNation.name} 对你宣战！`,
+                    });
                 }
             }
 
@@ -848,13 +942,12 @@ export const useGameActions = (gameState, addLog) => {
             if (triggerPeaceTarget) {
                 const targetNation = selectNationBySelector(triggerPeaceTarget, visible);
                 if (targetNation) {
-                    setNations(prev => prev.map(n => n.id === targetNation.id ? {
-                        ...n,
-                        isAtWar: false,
-                        warDuration: 0,
-                        warScore: 0,
+                    endWarWithNation(targetNation.id, {
                         peaceTreatyUntil: daysElapsed + 365,
-                    } : n));
+                    }, {
+                        cleanupRuntime: true,
+                        cleanupReason: 'event_peace',
+                    });
                 }
             }
         }
@@ -3176,48 +3269,7 @@ export const useGameActions = (gameState, addLog) => {
                 }));
                 addLog(`与 ${targetNation.name} 达成和平协议。`);
 
-                // Collapse fronts for this ended war
-                if (typeof setActiveFronts === 'function') {
-                    setActiveFronts(prev => {
-                        if (!Array.isArray(prev)) return prev;
-                        return prev.map(f => {
-                            if (f.status !== 'active') return f;
-                            const involves = (f.attackerId === nationId && f.defenderId === 'player')
-                                || (f.attackerId === 'player' && f.defenderId === nationId)
-                                || (f.attackerId === nationId && f.defenderId === 'player')
-                                || (f.defenderId === nationId && f.attackerId === 'player');
-                            return involves ? { ...f, status: 'collapsed' } : f;
-                        });
-                    });
-                }
-
-                // Clean up active battles related to this peace
-                if (typeof setActiveBattles === 'function') {
-                    setActiveBattles(prev => {
-                        if (!Array.isArray(prev)) return prev;
-                        return prev.map(b => {
-                            if (b.status !== 'active') return b;
-                            const relatedFront = (activeFronts || []).find(f => f.id === b.frontId);
-                            if (!relatedFront) return b;
-                            const involves = (relatedFront.attackerId === nationId || relatedFront.defenderId === nationId);
-                            return involves ? { ...b, status: 'ended', result: { ...b.result, reason: 'peace_treaty', finalized: true } } : b;
-                        });
-                    });
-                }
-
-                // Restore corps from combat/deployed status
-                if (typeof setMilitaryCorps === 'function') {
-                    const collapsedFrontIds = (activeFronts || [])
-                        .filter(f => (f.attackerId === nationId && f.defenderId === 'player') || (f.attackerId === 'player' && f.defenderId === nationId))
-                        .map(f => f.id);
-                    setMilitaryCorps(prev => prev.map(c => {
-                        if (c.isAI) return c;
-                        if (collapsedFrontIds.includes(c.assignedFrontId)) {
-                            return { ...c, status: 'idle', assignedFrontId: null };
-                        }
-                        return c;
-                    }));
-                }
+                cleanupWarRuntimeState(nationId, 'peace_treaty');
 
                 break;
 
@@ -5995,7 +6047,8 @@ export const useGameActions = (gameState, addLog) => {
             launchDiplomaticEvent(endEvent);
         }, 200);
     };
-    const endWarWithNation = (nationId, extraUpdates = {}) => {
+    const endWarWithNation = (nationId, extraUpdates = {}, options = {}) => {
+        const { cleanupRuntime = true, cleanupReason = 'peace_treaty' } = options;
         setNations(prev => prev.map(n => {
             if (n.id !== nationId) return n;
             return {
@@ -6009,6 +6062,10 @@ export const useGameActions = (gameState, addLog) => {
 
             };
         }));
+
+        if (cleanupRuntime) {
+            cleanupWarRuntimeState(nationId, cleanupReason);
+        }
     };
     const handleEnemyPeaceAccept = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
@@ -6455,6 +6512,8 @@ export const useGameActions = (gameState, addLog) => {
         cancelTraining,
         cancelAllTraining,
         launchBattle,
+        startWarAgainstPlayer,
+        cleanupWarRuntimeState,
         // 外交
         handleDiplomaticAction,
         handleEnemyPeaceAccept,

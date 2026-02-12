@@ -76,6 +76,20 @@ export const createBattle = ({
     epoch = 0,
     currentDay = 0,
 }) => {
+    // [FIX] Validate both sides have units > 0
+    const atkTotal = Object.values(attackerCorps?.units || {}).reduce((s, c) => s + (c || 0), 0);
+    const defTotal = Object.values(defenderCorps?.units || {}).reduce((s, c) => s + (c || 0), 0);
+    if (atkTotal <= 0 || defTotal <= 0) {
+        console.warn(`[battleSystem] createBattle blocked: attacker=${atkTotal}, defender=${defTotal} units`);
+        return null;
+    }
+
+    // [FIX] Auto-downgrade to skirmish when force ratio > 10:1
+    const forceRatio = Math.max(atkTotal, defTotal) / Math.max(1, Math.min(atkTotal, defTotal));
+    if (forceRatio > 10 && battleType === 'siege') {
+        battleType = 'skirmish';
+    }
+
     battleIdCounter++;
     const type = BATTLE_TYPES[battleType] || BATTLE_TYPES.pitched_battle;
     const maxRounds = type.minRounds + Math.floor(Math.random() * (type.maxRounds - type.minRounds));
@@ -181,10 +195,10 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
     const defCasualties = applyCasualties(b.attacker, actualDefDamage, b.epoch);
 
     // Track total casualties
-    for (const [uid, count] of Object.entries(atkCasualties)) {
+    for (const [uid] of Object.entries(atkCasualties)) {
         b.attacker.totalCasualties[uid] = (b.attacker.totalCasualties[uid] || 0);
     }
-    for (const [uid, count] of Object.entries(defCasualties)) {
+    for (const [uid] of Object.entries(defCasualties)) {
         b.defender.totalCasualties[uid] = (b.defender.totalCasualties[uid] || 0);
     }
     // The casualties arrays are losses inflicted ON the enemy
@@ -195,11 +209,12 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
         b.attacker.totalCasualties[uid] = (b.attacker.totalCasualties[uid] || 0) + count;
     }
 
-    // 6. Update momentum
+    // 6. Update momentum (capped per round to prevent instant rout)
     const totalDamage = actualAtkDamage + actualDefDamage;
     if (totalDamage > 0) {
-        const momentumShift = ((actualAtkDamage / totalDamage) - 0.5) * 15;
-        b.momentum = Math.max(0, Math.min(100, b.momentum + momentumShift));
+        const rawMomentumShift = ((actualAtkDamage / totalDamage) - 0.5) * 15;
+        const clampedShift = Math.max(-8, Math.min(8, rawMomentumShift));
+        b.momentum = Math.max(0, Math.min(100, b.momentum + clampedShift));
     }
 
     // 7. Update morale
@@ -256,10 +271,10 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
         } else if (b.defender.morale <= MORALE_COLLAPSE_THRESHOLD) {
             b.status = 'ended';
             b.result = { winner: 'attacker', reason: 'morale_collapse' };
-        } else if (b.momentum >= MOMENTUM_ROUT_THRESHOLD && b.currentRound >= 3) {
+        } else if (b.momentum >= MOMENTUM_ROUT_THRESHOLD && b.currentRound >= Math.max(5, Math.floor(b.maxRounds * 0.3))) {
             b.status = 'rout';
             b.result = { winner: 'attacker', reason: 'rout' };
-        } else if (b.momentum <= (100 - MOMENTUM_ROUT_THRESHOLD) && b.currentRound >= 3) {
+        } else if (b.momentum <= (100 - MOMENTUM_ROUT_THRESHOLD) && b.currentRound >= Math.max(5, Math.floor(b.maxRounds * 0.3))) {
             b.status = 'rout';
             b.result = { winner: 'defender', reason: 'rout' };
         } else if (b.currentRound >= b.maxRounds) {
@@ -441,7 +456,7 @@ const calculateSidePower = (sideData, general, epoch, role) => {
  * Apply casualties to a side based on incoming damage
  * Returns the casualties inflicted { unitId: count }
  */
-const applyCasualties = (targetSide, damage, epoch) => {
+const applyCasualties = (targetSide, damage, _Epoch) => {
     const casualties = {};
     const units = targetSide.currentUnits;
     const totalHP = getTotalHP(units);
