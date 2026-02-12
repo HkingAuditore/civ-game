@@ -183,6 +183,46 @@ export const BUILDING_CHAINS = {
 
     // ========== 军事建筑 ==========
 
+    // 刀剑生产链：铸剑坊（单独）
+    swords_production: {
+        name: '刀剑锻造',
+        icon: 'Sword',
+        primaryOutput: 'swords',
+        buildings: ['swordsmith'],
+    },
+
+    // 铠甲生产链：甲胄工坊（单独）
+    armor_production: {
+        name: '铠甲锻造',
+        icon: 'ShieldCheck',
+        primaryOutput: 'plate_armor',
+        buildings: ['armorsmith'],
+    },
+
+    // 火药生产链：火药工坊（单独）
+    gunpowder_production: {
+        name: '火药制造',
+        icon: 'Flame',
+        primaryOutput: 'gunpowder',
+        buildings: ['powder_mill'],
+    },
+
+    // 火器生产链：枪炮作坊 → 枪械工坊（火器从早期火枪到精密步枪）
+    firearms_production: {
+        name: '火器制造',
+        icon: 'Crosshair',
+        primaryOutput: 'muskets',
+        buildings: ['gun_workshop', 'rifle_works'],
+    },
+
+    // 弹药生产链：弹药厂 → 兵工厂（弹药从专门生产到军工综合体）
+    ammunition_production: {
+        name: '弹药生产',
+        icon: 'Zap',
+        primaryOutput: 'ammunition',
+        buildings: ['ammo_factory', 'arms_factory'],
+    },
+
     // 军事容量链：兵营 → 训练场 → 要塞
     military_capacity: {
         name: '军事设施',

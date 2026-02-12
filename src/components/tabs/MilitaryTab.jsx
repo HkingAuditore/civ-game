@@ -9,6 +9,10 @@ import { getAIMilitaryStrengthMultiplier } from '../../config/difficulty';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import CorpsManagementPanel from '../panels/CorpsManagementPanel';
+import FrontViewPanel from '../panels/FrontViewPanel';
+import ActiveBattlePanel from '../panels/ActiveBattlePanel';
+import WarfrontCard from '../panels/WarfrontCard';
 
 const WAR_SCORE_GUIDE = [
     {
@@ -329,6 +333,20 @@ const MilitaryTabComponent = ({
     // [FIX] Receive unified expense data from parent
     armyExpenseData: propArmyExpenseData,
     difficulty = 'normal', // 新增：难度设置，用于计算AI军力倍数
+    // [NEW] Military corps & front system props
+    militaryCorps = [],
+    generals = [],
+    activeFronts = [],
+    activeBattles = [],
+    onUpdateCorps,
+    onUpdateGenerals,
+    onUpdateArmy,
+    onAssignCorpsToFront,
+    onRemoveCorpsFromFront,
+    onSetBattleTactic, // (battleId, side, tacticId) => void
+    onCreateBattle, // (battleParams) => void - Create a new battle
+    onSetPosture, // (frontId, posture) => void - Set tactical posture
+    officials = [], // [NEW] Officials list for general selection
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
@@ -586,7 +604,7 @@ const MilitaryTabComponent = ({
 <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
                 <button
-                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${activeSection === 'soldiers'
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'soldiers'
                         ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
                     onClick={() => setActiveSection('soldiers')}
@@ -597,14 +615,26 @@ const MilitaryTabComponent = ({
                     </span>
                 </button>
                 <button
-                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${activeSection === 'battle'
-                        ? 'bg-red-900/40 border-ancient-gold/60 text-red-100 shadow-metal-sm'
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'corps'
+                        ? 'bg-purple-900/40 border-purple-500/60 text-purple-100 shadow-metal-sm'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('battle')}
+                    onClick={() => setActiveSection('corps')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="Shield" size={14} />
+                        军团
+                    </span>
+                </button>
+                <button
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'warfront'
+                        ? 'bg-red-900/40 border-red-500/60 text-red-100 shadow-metal-sm'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                    onClick={() => setActiveSection('warfront')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Swords" size={14} />
-                        战斗
+                        <Icon name="MapPin" size={12} className="-ml-1.5" />
+                        战局
                     </span>
                 </button>
             </div>
@@ -1069,280 +1099,51 @@ const MilitaryTabComponent = ({
                 </>
             )}
 
-            {/* 军事行动 */}
-            {activeSection === 'battle' && (
-<div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
-                            <Icon name="Swords" size={16} className="text-red-400" />
-                            军事行动
-                        </h3>
-                        <button
-                            type="button"
-                            onClick={() => setShowWarScoreInfo(true)}
-                            className="text-[11px] flex items-center gap-1 px-2 py-1 rounded border border-ancient-gold/40 text-amber-200 hover:bg-ancient-gold/10 transition-colors"
-                        >
-                            <Icon name="HelpCircle" size={12} />
-                            战争分数指南
-                        </button>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
-                        <span>
-                            当前战力评估：
-                            <span className="text-white font-semibold">{playerPower.toFixed(0)}</span>
-                            {militaryBonus !== 0 && (
-                                <span className={`text-xs ml-2 ${militaryBonus > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    ({militaryBonus > 0 ? '+' : ''}{(militaryBonus * 100).toFixed(0)}%)
-                                </span>
-                            )}
-                        </span>
-                        <span>
-                            现役兵力：
-                            <span className="text-white font-semibold">{totalUnits}</span>
-                        </span>
-                    </div>
-
-                    {warringNations.length === 0 ? (
-                        <div className="p-3 rounded bg-gray-900/40 border border-gray-700 text-xs text-gray-400">
-                            暂无交战国。可在外交界面主动宣战或等待敌国挑衅。
+            {/* ===== 统一战局视图 ===== */}
+            {activeSection === 'warfront' && (
+                <div className="space-y-3">
+                    {activeFronts.filter(f => f.status === 'active' && (f.attackerId === 'player' || f.defenderId === 'player')).length === 0 ? (
+                        <div className="glass-ancient p-4 rounded-lg border border-ancient-gold/20 text-center">
+                            <Icon name="MapPin" size={32} className="mx-auto mb-2 text-gray-600" />
+                            <p className="text-sm text-gray-400">暂无交战国</p>
+                            <p className="text-xs text-gray-500 mt-1">与其他国家开战时会自动生成战线，届时可在此管理战局</p>
                         </div>
                     ) : (
-                        <>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mb-3">
-                                <div className="flex items-center gap-2">
-                                    <span>目标国家</span>
-                                    <select
-                                        value={activeNation?.id || ''}
-                                        onChange={(e) => onSelectTarget && onSelectTarget(e.target.value)}
-                                        className="bg-gray-900/60 border border-gray-700 text-white rounded px-2 py-1"
-                                    >
-                                        {warringNations.map((nation) => (
-                                            <option key={nation.id} value={nation.id}>
-                                                {nation.name} · 我方优势 {nation.warScore || 0}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                {activeNation && (
-                                    <div className="flex flex-wrap gap-3">
-                                        <span className={(() => {
-                                            const playerScore = activeNation.warScore || 0;
-                                            if (playerScore > 150) return 'text-green-400 font-bold';
-                                            if (playerScore > 0) return 'text-green-300';
-                                            if (playerScore > -150) return 'text-yellow-400';
-                                            return 'text-red-400 font-bold';
-                                        })()}>
-                                            我方优势：{activeNation.warScore || 0}
-                                        </span>
-                                        <span>敌军损失：{activeNation.enemyLosses || 0}</span>
-                                        <span>财富：{Math.floor(activeNation.wealth || 0)}</span>
-                                        <span>军事实力：{Math.floor((activeNation.militaryStrength ?? 1.0) * 100)}%</span>
-                                        <span>人口：{Math.floor(activeNation.population || 1000)}</span>
-                                        <span className={(() => {
-                                            const initialReserve = (activeNation.wealth || 500) * 1.5;
-                                            const currentReserve = activeNation.lootReserve ?? initialReserve;
-                                            const ratio = currentReserve / Math.max(1, initialReserve);
-                                            if (ratio >= 0.7) return 'text-green-400';
-                                            if (ratio >= 0.3) return 'text-yellow-400';
-                                            return 'text-red-400';
-                                        })()}>
-                                            可掠夺：{(() => {
-                                                const initialReserve = (activeNation.wealth || 500) * 1.5;
-                                                const currentReserve = activeNation.lootReserve ?? initialReserve;
-                                                const ratio = Math.max(0, Math.min(1, currentReserve / Math.max(1, initialReserve)));
-                                                return Math.floor(ratio * 100);
-                                            })()}%
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {MILITARY_ACTIONS.map((action) => {
-                                    // 使用派遣比例计算敌方战力
-                                    // [FIXED] 统一算法：使用与战斗逻辑一致的计算方式
-                                    const deploymentRatio = action.deploymentRatio || { min: 0.1, max: 0.2 };
-
-                                    // 1. 修正时代计算：必须使用敌方所属时代，而非玩家当前时代
-                                    const enemyEpoch = Math.max(activeNation.appearEpoch || 0, Math.min(epoch, activeNation.expireEpoch ?? epoch));
-
-                                    // 2. 获取难度军力倍数
-                                    const difficultyMultiplier = getAIMilitaryStrengthMultiplier(difficulty);
-
-                                    // 3. 修正战力计算：直接调用 calculateNationBattlePower 并传入比例和难度倍数
-                                    // 这样可以触发 generateNationArmy 中的保底逻辑 (Math.max(1, ...))，避免简单的乘法导致战力过低
-                                    let enemyPowerMin = activeNation ? calculateNationBattlePower(activeNation, enemyEpoch, deploymentRatio.min, difficultyMultiplier) : 0;
-                                    let enemyPowerMax = activeNation ? calculateNationBattlePower(activeNation, enemyEpoch, deploymentRatio.max, difficultyMultiplier) : 0;
-
-                                    // 4. 修正防御加成：战斗模拟中防御方有 1.2 倍加成 (simulateBattle line 948)
-                                    enemyPowerMin = Math.floor(enemyPowerMin * 1.2);
-                                    enemyPowerMax = Math.floor(enemyPowerMax * 1.2);
-
-                                    // 5. 添加 buff 加成预估 (action.enemyBuff)
-                                    if (action.enemyBuff) {
-                                        enemyPowerMin = Math.floor(enemyPowerMin * (1 + action.enemyBuff));
-                                        enemyPowerMax = Math.floor(enemyPowerMax * (1 + action.enemyBuff));
-                                    }
-
-                                    // 格式化战力显示
-                                    const formatPower = (p) => formatNumberShortCN(p, { decimals: 1 });
-                                    // Check if required tech is unlocked
-                                    const hasRequiredTech = !action.requiresTech || techsUnlocked.includes(action.requiresTech);
-                                    const requiredTechName = action.requiresTech
-                                        ? TECHS.find(t => t.id === action.requiresTech)?.name || action.requiresTech
-                                        : null;
-
-                                    // 计算针对当前目标的冷却状态
-                                    const lastActionDay = activeNation?.lastMilitaryActionDay?.[action.id] || 0;
-                                    const cooldownDays = action.cooldownDays || 5;
-                                    const daysSinceLastAction = day - lastActionDay;
-                                    const isOnCooldown = lastActionDay > 0 && daysSinceLastAction < cooldownDays;
-                                    const cooldownRemaining = isOnCooldown ? cooldownDays - daysSinceLastAction : 0;
-
-                                    // 计算敌方掠夺储备状态
-                                    const initialLootReserve = (activeNation?.wealth || 500) * 1.5;
-                                    const currentLootReserve = activeNation?.lootReserve ?? initialLootReserve;
-                                    const reserveRatio = Math.max(0, currentLootReserve / Math.max(1, initialLootReserve));
-                                    const isLowReserve = reserveRatio < 0.3;
-
-                                    return (
-                                        <div
-                                            key={action.id}
-                                            className={`p-3 rounded-lg border flex flex-col gap-3 ${hasRequiredTech && !isOnCooldown
-                                                ? 'border-gray-700 bg-gray-900/40'
-                                                : 'border-gray-800 bg-gray-900/20 opacity-60'
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <h4 className="text-base font-bold text-white flex items-center gap-2 font-decorative">
-                                                        {action.name}
-                                                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-700 text-gray-200">
-                                                            {action.difficulty}
-                                                        </span>
-                                                        {!hasRequiredTech && (
-                                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-900/50 text-red-300">
-                                                                <Icon name="Lock" size={10} className="inline mr-1" />
-                                                                需要{requiredTechName}
-                                                            </span>
-                                                        )}
-                                                        {isOnCooldown && (
-                                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-300">
-                                                                <Icon name="Clock" size={10} className="inline mr-1" />
-                                                                冷却中 {cooldownRemaining}天
-                                                            </span>
-                                                        )}
-                                                    </h4>
-                                                    <p className="text-xs text-gray-400 mt-1">{action.desc}</p>
-                                                    {action.cooldownDays && !isOnCooldown && (
-                                                        <p className="text-[11px] text-amber-300 mt-1">
-                                                            冷却：{action.cooldownDays} 天
-                                                        </p>
-                                                    )}
-                                                    {isLowReserve && (
-                                                        <p className="text-[11px] text-orange-400 mt-1">
-                                                            ⚠️ 敌方资源已被大量掠夺，战利品将大幅减少
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <Icon name="Target" size={18} className={hasRequiredTech && !isOnCooldown ? 'text-red-300' : 'text-gray-500'} />
-                                            </div>
-
-                                            <div className="space-y-2 text-xs text-gray-300">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-gray-400">敌方派遣</span>
-                                                    <span className="text-yellow-300">
-                                                        {Math.floor(deploymentRatio.min * 100)}-{Math.floor(deploymentRatio.max * 100)}%
-                                                    </span>
-                                                </div>
-
-                                                {/* 新增：显示潜在防御部队/可能的敌军构成 */}
-                                                <div>
-                                                    <div className="flex items-center gap-1 mb-1">
-                                                        <span className="text-gray-400">潜在防御部队</span>
-                                                        <span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 rounded border border-gray-700">
-                                                            情报预估
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {getEnemyUnitsForEpoch(enemyEpoch, action.unitScale || 'medium').map(unitId => {
-                                                            const unit = UNIT_TYPES[unitId];
-                                                            if (!unit) return null;
-                                                            // 简单的类型图标映射
-                                                            const typeIconObj = {
-                                                                infantry: 'Sword',
-                                                                archer: 'Crosshair',
-                                                                cavalry: 'Wind',
-                                                                siege: 'Hammer',
-                                                                naval: 'Anchor'
-                                                            };
-                                                            const typeIcon = typeIconObj[unit.category] || 'User';
-
-                                                            return (
-                                                                <div
-                                                                    key={unitId}
-                                                                    className="flex items-center gap-1 bg-gray-800/60 px-1.5 py-0.5 rounded border border-gray-700/50 cursor-help"
-                                                                    title={`${unit.name} (${unit.category === 'cavalry' ? '骑兵' : unit.category === 'archer' ? '远程' : '步兵'})`}
-                                                                >
-                                                                    <Icon name={typeIcon} size={10} className="text-gray-400" />
-                                                                    <span className="text-[10px] text-gray-300">{unit.name}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-gray-400">预估敌方战力</span>
-                                                    <span className="text-red-300 font-mono">
-                                                        {formatPower(enemyPowerMin)} - {formatPower(enemyPowerMax)}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-gray-400 mb-1">可能战利品：</p>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {Object.entries(action.loot || {}).map(([resource, range]) => (
-                                                            <span
-                                                                key={resource}
-                                                                className="px-2 py-0.5 bg-yellow-900/20 rounded border border-yellow-600/30 text-[11px] text-yellow-200"
-                                                            >
-                                                                {(RESOURCES[resource]?.name || resource)} {formatLootRange(range)}
-                                                            </span>
-                                                        ))}
-                                                        {Object.keys(action.loot || {}).length === 0 && (
-                                                            <span className="text-gray-500">无特殊战利品</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                {action.influence && (
-                                                    <div className="flex items-center justify-between text-[11px]">
-                                                        <span className="text-gray-400">军人影响力</span>
-                                                        <span className="text-green-400">胜利 +{action.influence.win}</span>
-                                                        <span className="text-red-400">失败 {action.influence.lose}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <button
-                                                onClick={() => onLaunchBattle(action.id, activeNation?.id)}
-                                                disabled={totalUnits === 0 || !activeNation || !hasRequiredTech || isOnCooldown}
-                                                className="px-3 py-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed text-white rounded text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <Icon name="Sword" size={14} />
-                                                {isOnCooldown ? `冷却中(${cooldownRemaining}天)` : hasRequiredTech ? '发起攻击' : `需研发${requiredTechName}`}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </>
-                    )}
-
-                    {totalUnits === 0 && (
-                        <p className="text-xs text-yellow-400 mt-2">⚠️ 你需要先招募军队才能发起军事行动</p>
+                        activeFronts
+                            .filter(f => f.status === 'active' && (f.attackerId === 'player' || f.defenderId === 'player'))
+                            .map(front => (
+                                <WarfrontCard
+                                    key={front.id}
+                                    front={front}
+                                    activeBattles={activeBattles}
+                                    militaryCorps={militaryCorps}
+                                    generals={generals}
+                                    nations={nations}
+                                    day={day}
+                                    epoch={epoch}
+                                    onAssignCorpsToFront={onAssignCorpsToFront}
+                                    onRemoveCorpsFromFront={onRemoveCorpsFromFront}
+                                    onSetBattleTactic={onSetBattleTactic}
+                                    onCreateBattle={onCreateBattle}
+                                    onSetPosture={onSetPosture}
+                                />
+                            ))
                     )}
                 </div>
+            )}
+
+            {activeSection === 'corps' && (
+                <CorpsManagementPanel
+                    army={army}
+                    militaryCorps={militaryCorps}
+                    generals={generals}
+                    activeFronts={activeFronts}
+                    epoch={epoch}
+                    onUpdateCorps={onUpdateCorps}
+                    onUpdateGenerals={onUpdateGenerals}
+                    onUpdateArmy={onUpdateArmy}
+                    officials={officials}
+                />
             )}
 
             {showWarScoreInfo && createPortal(

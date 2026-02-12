@@ -856,6 +856,134 @@ export const BUILDINGS = [
         visual: { icon: 'Castle', color: 'bg-red-950', text: 'text-red-100' }
     },
 
+    // ========== Military Production Buildings ==========
+    {
+        id: 'swordsmith',
+        name: "铸剑坊",
+        desc: "冶炼铁铜，锻造刀剑等近战兵器。",
+        baseCost: { plank: 120, stone: 60, iron: 30 },
+        input: { iron: 0.60, copper: 0.30 },
+        output: { swords: 0.60 },
+        jobs: { artisan: 4 },
+        owner: 'artisan',
+        epoch: 2,
+        cat: 'military',
+        requiresTech: 'swordsmithing',
+        visual: { icon: 'Swords', color: 'bg-slate-800', text: 'text-slate-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
+            wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 }
+        }
+    },
+    {
+        id: 'armorsmith',
+        name: "甲胄工坊",
+        desc: "锻造铁甲、锁子甲与盾牌等金属防具。",
+        baseCost: { brick: 150, iron: 60, tools: 20 },
+        input: { iron: 0.80, cloth: 0.40 },
+        output: { plate_armor: 0.45 },
+        jobs: { artisan: 4, worker: 1 },
+        owner: 'artisan',
+        epoch: 3,
+        cat: 'military',
+        requiresTech: 'armor_forging',
+        visual: { icon: 'Shield', color: 'bg-zinc-800', text: 'text-zinc-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
+            wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 }
+        }
+    },
+    {
+        id: 'powder_mill',
+        name: "火药工坊",
+        desc: "研磨配制黑火药，供应火器与攻城武器。",
+        baseCost: { brick: 200, iron: 40, tools: 30 },
+        input: { coal: 0.50, food: 0.30 },
+        output: { gunpowder: 0.55 },
+        jobs: { artisan: 3, worker: 2 },
+        owner: 'artisan',
+        epoch: 4,
+        cat: 'military',
+        requiresTech: 'gunpowder_formula',
+        visual: { icon: 'Flame', color: 'bg-orange-900', text: 'text-orange-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
+            wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 }
+        }
+    },
+    {
+        id: 'gun_workshop',
+        name: "枪炮作坊",
+        desc: "铸造火绳枪与早期火炮，开启火器时代。",
+        baseCost: { brick: 250, iron: 80, tools: 40 },
+        input: { iron: 0.70, gunpowder: 0.20 },
+        output: { muskets: 0.40 },
+        jobs: { artisan: 4, worker: 2 },
+        owner: 'artisan',
+        epoch: 4,
+        cat: 'military',
+        requiresTech: 'musket_manufacturing',
+        visual: { icon: 'Crosshair', color: 'bg-amber-900', text: 'text-amber-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
+            wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 }
+        }
+    },
+    {
+        id: 'rifle_works',
+        name: "枪械工坊",
+        desc: "精密加工线膛枪管，生产高精度步枪。",
+        baseCost: { brick: 300, steel: 80, tools: 60, science: 120 },
+        input: { steel: 0.50, tools: 0.15 },
+        output: { rifles: 0.35 },
+        jobs: { artisan: 4, engineer: 1, worker: 3 },
+        owner: 'artisan',
+        epoch: 5,
+        cat: 'military',
+        requiresTech: 'rifle_engineering',
+        visual: { icon: 'Target', color: 'bg-gray-800', text: 'text-gray-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.25, taxCostWeight: 0.30 },
+            wage: { livingCostWeight: 0.15, taxCostWeight: 0.15 }
+        }
+    },
+    {
+        id: 'ammo_factory',
+        name: "弹药厂",
+        desc: "标准化生产弹药与炮弹，供应前线消耗。",
+        baseCost: { brick: 280, steel: 60, tools: 40, science: 100 },
+        input: { steel: 0.30, gunpowder: 0.40 },
+        output: { ammunition: 0.80 },
+        jobs: { worker: 6, artisan: 2, engineer: 1 },
+        owner: 'artisan',
+        epoch: 5,
+        cat: 'military',
+        requiresTech: 'rifle_engineering',
+        visual: { icon: 'Bomb', color: 'bg-red-800', text: 'text-red-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
+            wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 }
+        }
+    },
+    {
+        id: 'arms_factory',
+        name: "兵工厂",
+        desc: "蒸汽驱动的大规模军火生产线，制造制式武器与弹药。",
+        baseCost: { brick: 400, steel: 200, tools: 100, science: 300 },
+        input: { steel: 1.20, coal: 0.80, science: 0.20 },
+        output: { ordnance: 0.50, ammunition: 1.20 },
+        jobs: { worker: 15, engineer: 3, capitalist: 1 },
+        owner: 'capitalist',
+        epoch: 6,
+        cat: 'military',
+        requiresTech: 'military_industrialization',
+        visual: { icon: 'Factory', color: 'bg-red-900', text: 'text-red-100' },
+        marketConfig: {
+            price: { livingCostWeight: 0.25, taxCostWeight: 0.30 },
+            wage: { livingCostWeight: 0.15, taxCostWeight: 0.15 }
+        }
+    },
+
     // ========== 高级工业建筑（后期生产形式） ==========
 
     // 纺织产业升级线

@@ -239,6 +239,14 @@ export const updateMarketPrices = ({
                 priceMultiplier = 1 - Math.min(0.5, (inventoryRatio - 2.0) * inventoryPriceImpact * 0.5);
             }
 
+            // [NEW] Military resource epoch obsolescence decay
+            // Old-era military resources lose value as newer alternatives become available
+            if (resourceDef?.tags?.includes('military') && resourceDef.unlockEpoch != null && epoch > resourceDef.unlockEpoch + 2) {
+                const eraGap = epoch - resourceDef.unlockEpoch - 2;
+                const obsolescenceDecay = Math.max(0.4, 1 - eraGap * 0.12); // Min 40% of original value
+                priceMultiplier *= obsolescenceDecay;
+            }
+
             // Final price = max(cost * margin, base price) * inventory adjustment
             const minPrice = Math.max(weightedCost * 1.1, basePrice);
             const targetPrice = minPrice * priceMultiplier;

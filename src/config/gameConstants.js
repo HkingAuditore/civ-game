@@ -340,6 +340,50 @@ export const RESOURCES = {
         }
     },
 
+    // Military resources - Classical Era (Epoch 2)
+    swords: {
+        name: "刀剑",
+        icon: 'Swords',
+        color: "text-slate-300",
+        basePrice: 20.0,
+        minPrice: 0.2,
+        maxPrice: 600,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 2,
+        unlockTech: 'swordsmithing',
+        tags: ['military', 'manufactured'],
+        // Military equipment: moderate stability, strategic demand
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 300.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
+    // Military resources - Feudal Era (Epoch 3)
+    plate_armor: {
+        name: "铠甲",
+        icon: 'Shield',
+        color: "text-zinc-300",
+        basePrice: 35.0,
+        minPrice: 0.35,
+        maxPrice: 1050,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 3,
+        unlockTech: 'armor_forging',
+        tags: ['military', 'manufactured'],
+        // Heavy armor: high value, moderate stability
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 270.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
     // 探索时代
     spice: {
         name: "香料",
@@ -362,6 +406,48 @@ export const RESOURCES = {
         }
     },
 
+    // Military resources - Exploration Era (Epoch 4)
+    gunpowder: {
+        name: "火药",
+        icon: 'Flame',
+        color: "text-orange-500",
+        basePrice: 18.0,
+        minPrice: 0.18,
+        maxPrice: 540,  // Military consumable: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 4,
+        unlockTech: 'gunpowder_formula',
+        tags: ['military', 'manufactured'],
+        // Consumable military resource: moderate-high demand during war
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 240.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+    muskets: {
+        name: "火枪",
+        icon: 'Crosshair',
+        color: "text-amber-600",
+        basePrice: 30.0,
+        minPrice: 0.3,
+        maxPrice: 900,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 4,
+        unlockTech: 'musket_manufacturing',
+        tags: ['military', 'manufactured'],
+        // Early firearms: high value, moderate stability
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 270.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
     // 启蒙时代
     coffee: {
         name: "咖啡",
@@ -381,6 +467,48 @@ export const RESOURCES = {
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.8,          // 较高需求弹性
             outputVariation: 0.2            // 产出浮动±20%
+        }
+    },
+
+    // Military resources - Enlightenment Era (Epoch 5)
+    rifles: {
+        name: "步枪",
+        icon: 'Target',
+        color: "text-gray-400",
+        basePrice: 45.0,
+        minPrice: 0.45,
+        maxPrice: 1350,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 5,
+        unlockTech: 'rifle_engineering',
+        tags: ['military', 'manufactured'],
+        // Precision firearms: high value, strategic importance
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 270.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+    ammunition: {
+        name: "弹药",
+        icon: 'Bomb',
+        color: "text-red-500",
+        basePrice: 15.0,
+        minPrice: 0.15,
+        maxPrice: 450,  // Military consumable: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 5,
+        unlockTech: 'rifle_engineering',
+        tags: ['military', 'manufactured'],
+        // Standardized ammo: high consumption, moderate stability
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 240.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
         }
     },
 
@@ -423,6 +551,28 @@ export const RESOURCES = {
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
+        }
+    },
+
+    // Military resources - Industrial Era (Epoch 6)
+    ordnance: {
+        name: "制式军火",
+        icon: 'Bomb',
+        color: "text-red-600",
+        basePrice: 60.0,
+        minPrice: 0.6,
+        maxPrice: 1800,  // Military manufactured: 30x cap
+        defaultOwner: 'engineer',
+        unlockEpoch: 6,
+        unlockTech: 'military_industrialization',
+        tags: ['military', 'manufactured'],
+        // Industrial-era weapons: highest tier military resource
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 300.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
         }
     },
 

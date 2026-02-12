@@ -1365,6 +1365,16 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
             if (gameState.setSelectedTarget) {
                 gameState.setSelectedTarget(null);
             }
+            // Clean up all fronts and battles
+            if (gameState.setActiveFronts) {
+                gameState.setActiveFronts(prev => (prev || []).map(f => ({ ...f, status: 'collapsed' })));
+            }
+            if (gameState.setActiveBattles) {
+                gameState.setActiveBattles(prev => (prev || []).map(b => b.status === 'active' ? { ...b, status: 'ended', result: { reason: 'peace_treaty', finalized: true } } : b));
+            }
+            if (gameState.setMilitaryCorps) {
+                gameState.setMilitaryCorps(prev => (prev || []).map(c => c.isAI ? c : { ...c, status: 'idle', assignedFrontId: null }));
+            }
             addLog('🕊️ 作弊码：与所有国家停战');
             console.log('✅ All wars ended and war scores reset');
         },

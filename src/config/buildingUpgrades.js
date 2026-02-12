@@ -1016,6 +1016,134 @@ export const BUILDING_UPGRADES = {
             jobs: { worker: 5, artisan: 2, engineer: 1 }, // +1 worker only
         },
     ],
+
+    // ========== Military Production Buildings Upgrades ==========
+
+    // swordsmith: base output swords: 0.60, owner: artisan, base jobs: artisan:4
+    swordsmith: [
+        {
+            name: "大铸剑坊",
+            cost: { brick: 80, iron: 40, tools: 15, silver: 400 },
+            input: { iron: 0.69, copper: 0.345 },
+            output: { swords: 0.78 }, // 1.3x
+            jobs: { artisan: 4 },
+        },
+        {
+            name: "御用铸剑坊",
+            cost: { brick: 120, iron: 60, tools: 30, silver: 900 },
+            input: { iron: 1.08, copper: 0.54 },
+            output: { swords: 1.35 }, // 2.25x
+            jobs: { artisan: 5 },
+        },
+    ],
+
+    // armorsmith: base output plate_armor: 0.45, owner: artisan, base jobs: artisan:4, worker:1
+    armorsmith: [
+        {
+            name: "大甲胄工坊",
+            cost: { brick: 100, iron: 50, tools: 20, silver: 500 },
+            input: { iron: 0.92, cloth: 0.46 },
+            output: { plate_armor: 0.585 }, // 1.3x
+            jobs: { artisan: 4, worker: 1 },
+        },
+        {
+            name: "御用甲胄工坊",
+            cost: { brick: 160, iron: 80, tools: 35, silver: 1100 },
+            input: { iron: 1.44, cloth: 0.72 },
+            output: { plate_armor: 1.0125 }, // 2.25x
+            jobs: { artisan: 5, worker: 1 },
+        },
+    ],
+
+    // powder_mill: base output gunpowder: 0.55, owner: artisan, base jobs: artisan:3, worker:2
+    powder_mill: [
+        {
+            name: "大火药工坊",
+            cost: { brick: 140, iron: 30, tools: 25, silver: 550 },
+            input: { coal: 0.575, food: 0.345 },
+            output: { gunpowder: 0.715 }, // 1.3x
+            jobs: { artisan: 3, worker: 2 },
+        },
+        {
+            name: "火药工场",
+            cost: { brick: 220, iron: 50, tools: 45, silver: 1200 },
+            input: { coal: 0.9, food: 0.54 },
+            output: { gunpowder: 1.2375 }, // 2.25x
+            jobs: { artisan: 4, worker: 2 },
+        },
+    ],
+
+    // gun_workshop: base output muskets: 0.40, owner: artisan, base jobs: artisan:4, worker:2
+    gun_workshop: [
+        {
+            name: "大枪炮作坊",
+            cost: { brick: 160, iron: 60, tools: 30, silver: 600 },
+            input: { iron: 0.805, gunpowder: 0.23 },
+            output: { muskets: 0.52 }, // 1.3x
+            jobs: { artisan: 4, worker: 2 },
+        },
+        {
+            name: "枪炮工场",
+            cost: { brick: 260, iron: 100, tools: 50, silver: 1300 },
+            input: { iron: 1.26, gunpowder: 0.36 },
+            output: { muskets: 0.90 }, // 2.25x
+            jobs: { artisan: 5, worker: 2 },
+        },
+    ],
+
+    // rifle_works: base output rifles: 0.35, owner: artisan, base jobs: artisan:4, engineer:1, worker:3
+    rifle_works: [
+        {
+            name: "大枪械工坊",
+            cost: { brick: 200, steel: 60, tools: 45, silver: 700, science: 80 },
+            input: { steel: 0.575, tools: 0.1725 },
+            output: { rifles: 0.455 }, // 1.3x
+            jobs: { artisan: 4, engineer: 1, worker: 3 },
+        },
+        {
+            name: "精密枪械工场",
+            cost: { brick: 320, steel: 100, tools: 70, silver: 1500, science: 180 },
+            input: { steel: 0.9, tools: 0.27 },
+            output: { rifles: 0.7875 }, // 2.25x
+            jobs: { artisan: 5, engineer: 1, worker: 3 },
+        },
+    ],
+
+    // ammo_factory: base output ammunition: 0.80, owner: artisan, base jobs: worker:6, artisan:2, engineer:1
+    ammo_factory: [
+        {
+            name: "大弹药厂",
+            cost: { brick: 180, steel: 40, tools: 30, silver: 600, science: 60 },
+            input: { steel: 0.345, gunpowder: 0.46 },
+            output: { ammunition: 1.04 }, // 1.3x
+            jobs: { worker: 6, artisan: 2, engineer: 1 },
+        },
+        {
+            name: "弹药工场",
+            cost: { brick: 300, steel: 80, tools: 55, silver: 1300, science: 140 },
+            input: { steel: 0.54, gunpowder: 0.72 },
+            output: { ammunition: 1.80 }, // 2.25x
+            jobs: { worker: 7, artisan: 2, engineer: 1 },
+        },
+    ],
+
+    // arms_factory: base output ordnance: 0.50, ammunition: 1.20, owner: capitalist, base jobs: worker:15, engineer:3, capitalist:1
+    arms_factory: [
+        {
+            name: "大兵工厂",
+            cost: { brick: 280, steel: 150, tools: 70, silver: 900, science: 200 },
+            input: { steel: 1.38, coal: 0.92, science: 0.23 },
+            output: { ordnance: 0.65, ammunition: 1.56 }, // 1.3x
+            jobs: { worker: 15, engineer: 3, capitalist: 1 },
+        },
+        {
+            name: "军工联合体",
+            cost: { steel: 250, tools: 120, silver: 2000, science: 400 },
+            input: { steel: 2.16, coal: 1.44, science: 0.36 },
+            output: { ordnance: 1.125, ammunition: 2.70 }, // 2.25x
+            jobs: { worker: 16, engineer: 3, capitalist: 1 },
+        },
+    ],
 };
 
 // 获取建筑的有效配置（包含升级的效果）

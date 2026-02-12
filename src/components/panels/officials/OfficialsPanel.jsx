@@ -78,6 +78,8 @@ export const OfficialsPanel = ({
     // [NEW] 忠诚度系统相关
     stability = 50,        // 当前国家稳定度 (0-100)
     officialsPaid = true,  // 是否支付了全额薪水
+    // [NEW] Generals for OfficialCard display
+    generals = [],
 }) => {
 
     const centristDecrees = useMemo(() => getCentristCabinetDecrees(decrees), [decrees]);
@@ -624,6 +626,7 @@ export const OfficialsPanel = ({
                                 actionDisabled={isAtCapacity}
                                 compact={true}
                                 onViewDetail={setSelectedOfficial}
+                                generals={generals}
                             />
                         ))}
                     </div>
@@ -749,6 +752,7 @@ export const OfficialsPanel = ({
                                     compact={true}
                                     currentDay={currentTick}
                                     isStanceSatisfied={official.politicalStance ? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams) : null}
+                                    generals={generals}
                                 />
                             ))}
                         </div>

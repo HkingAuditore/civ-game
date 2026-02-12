@@ -382,6 +382,11 @@ export const simulateTick = ({
     foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
     diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
+    // [NEW] Military corps & battle system (pass-through for state preservation)
+    militaryCorps = [],
+    generals = [],
+    activeFronts = [],
+    activeBattles = [],
 }) => {
     if (!Number.isFinite(tick)) {
         const parsedTick = Number(tick);
@@ -7940,6 +7945,10 @@ export const simulateTick = ({
         },
         foreignInvestmentStats: foreignStats, // [NEW] Return calculated foreign stats
         army, // 确保返回army状态，以便保存战斗损失
+        militaryCorps, // [NEW] 军团状态
+        generals, // [NEW] 将领状态
+        activeFronts, // [NEW] 活跃战线
+        activeBattles, // [NEW] 进行中的战斗
         officials: updatedOfficials, // 更新后的官员列表（含财务数据）
         // 计算有效官员容量（基于时代、政体和科技）
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),

@@ -88,6 +88,10 @@ import {
     getBasePrices,
     ECONOMIC_INDICATOR_CONFIG,
 } from '../logic/economy/economicIndicators';
+import { generateFront, processFrontTick, processFrontFriction, plunderResourceNode, damageInfrastructure, getPlayerSide, getEnemySide, generateEnemyCorpsForFront } from '../logic/diplomacy/frontSystem';
+import { processCombatRound, calculateRoundSupplyCost, createBattle } from '../logic/diplomacy/battleSystem';
+import { getCorpsGeneral, awardGeneralXP, generateGeneral } from '../logic/diplomacy/corpsSystem';
+import { generateNationArmy } from '../config';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
@@ -468,6 +472,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setNations,
         diplomaticReputation,
         setDiplomaticReputation,
+        militaryCorps,
+        setMilitaryCorps,
+        generals,
+        setGenerals,
+        activeFronts,
+        setActiveFronts,
+        activeBattles,
+        setActiveBattles,
         setPopStructure,
         setMaxPop,
         maxPopBonus,
@@ -789,8 +801,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
             priceControls, // [NEW] 计划经济价格管制设置
             foreignInvestments, // [NEW] 海外投资
             diplomaticReputation, // [FIX] 外交声誉
+            militaryCorps, // [NEW] 军团状态
+            generals, // [NEW] 将领状态
+            activeFronts, // [NEW] 活跃战线
+            activeBattles, // [NEW] 进行中的战斗
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles]);
     // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
@@ -1160,6 +1176,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
                 foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal', // [NEW] Pass policy
                 diplomaticReputation: current.diplomaticReputation ?? 50, // [NEW] Pass diplomatic reputation
+                militaryCorps: current.militaryCorps || [], // [NEW] Corps state
+                generals: current.generals || [], // [NEW] Generals state
+                activeFronts: current.activeFronts || [], // [NEW] Active fronts
+                activeBattles: current.activeBattles || [], // [NEW] Active battles
             };
 
             const perfEnabled = typeof window !== 'undefined'
@@ -2417,9 +2437,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 return nextOfficials;
                             }
 
-                            // 合并：simulation 结果 + 新雇佣的官员
+                            // 合并：simulation 结果 + 新雇佣的官员（去重保护）
                             console.log(`[HIRE FIX] Preserving ${newlyHiredOfficials.length} newly hired official(s) from race condition`);
-                            return [...nextOfficials, ...newlyHiredOfficials];
+                            const merged = [...nextOfficials, ...newlyHiredOfficials];
+                            // Deduplicate by id to prevent key conflicts in UI
+                            const seen = new Set();
+                            return merged.filter(o => {
+                                if (!o?.id || seen.has(o.id)) return false;
+                                seen.add(o.id);
+                                return true;
+                            });
                         });
                     }
                     if (typeof result.officialsSimCursor === 'number' && typeof setOfficialsSimCursor === 'function') {
@@ -2471,6 +2498,23 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // [NEW] Update diplomatic reputation (natural recovery)
                     if (result.diplomaticReputation !== undefined && typeof setDiplomaticReputation === 'function') {
                         setDiplomaticReputation(result.diplomaticReputation);
+                    }
+                    // [NEW] Update military corps & battle system states
+                    if (result.militaryCorps && typeof setMilitaryCorps === 'function') {
+                        setMilitaryCorps(result.militaryCorps);
+                        stateRef.current.militaryCorps = result.militaryCorps;
+                    }
+                    if (result.generals && typeof setGenerals === 'function') {
+                        setGenerals(result.generals);
+                        stateRef.current.generals = result.generals;
+                    }
+                    if (result.activeFronts && typeof setActiveFronts === 'function') {
+                        setActiveFronts(result.activeFronts);
+                        stateRef.current.activeFronts = result.activeFronts;
+                    }
+                    if (result.activeBattles && typeof setActiveBattles === 'function') {
+                        setActiveBattles(result.activeBattles);
+                        stateRef.current.activeBattles = result.activeBattles;
                     }
                     if (result.diplomacyOrganizations) {
                         setDiplomacyOrganizations(prev => ({
@@ -2535,6 +2579,410 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         buildingProduction: nextEffects.buildingProduction,
                         // forcedSubsidy 由单独的逻辑处理，不在此更新
                     }));
+
+                    // ========== 战斗回合推进 & 战线 Tick ==========
+                    const currentActiveBattles = current.activeBattles || [];
+                    const currentActiveFronts = current.activeFronts || [];
+                    const currentCorps = current.militaryCorps || [];
+                    const currentGenerals = current.generals || [];
+
+                    if (currentActiveBattles.length > 0 || currentActiveFronts.length > 0) {
+                        let updatedBattles = [...currentActiveBattles];
+                        let updatedFronts = [...currentActiveFronts];
+                        let updatedCorps = [...currentCorps];
+                        let updatedGenerals = [...currentGenerals];
+                        let updatedArmyFromBattle = null;
+                        const battleLogs = [];
+
+                        // --- Process each active battle ---
+                        updatedBattles = updatedBattles.map(battle => {
+                            if (battle.status !== 'active') return battle;
+
+                            const atkGeneral = currentGenerals.find(g => g.id === battle.attacker.generalId) || null;
+                            const defGeneral = currentGenerals.find(g => g.id === battle.defender.generalId) || null;
+
+                            // Deduct supply costs from player
+                            const front = currentActiveFronts.find(f => f.id === battle.frontId);
+                            const playerSide = front ? getPlayerSide(front) : null;
+                            if (playerSide) {
+                                const supplyCost = calculateRoundSupplyCost(battle, playerSide, current.epoch || 0);
+                                let hasEnoughSupply = true;
+                                for (const [resource, cost] of Object.entries(supplyCost)) {
+                                    if ((adjustedResources[resource] || 0) < cost) hasEnoughSupply = false;
+                                    adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - cost);
+                                }
+                                if (!hasEnoughSupply) {
+                                    battleLogs.push(`⚠️ 补给不足！${battle.typeName}「${battle.attacker.corpsName} vs ${battle.defender.corpsName}」战斗力下降`);
+                                }
+                            }
+
+                            // Process one combat round
+                            const updatedBattle = processCombatRound(battle, atkGeneral, defGeneral);
+
+                            // Handle battle end
+                            if (updatedBattle.result && updatedBattle.result.finalized && !battle.result) {
+                                const winner = updatedBattle.result.winner;
+                                const reason = updatedBattle.result.reason;
+                                const reasonText = reason === 'annihilation' ? '全歼' : reason === 'morale_collapse' ? '士气崩溃' : reason === 'rout' ? '溃败' : '持久战结束';
+                                const winnerName = winner === 'attacker' ? updatedBattle.attacker.corpsName : updatedBattle.defender.corpsName;
+                                const loserName = winner === 'attacker' ? updatedBattle.defender.corpsName : updatedBattle.attacker.corpsName;
+                                battleLogs.push(`⚔️ ${updatedBattle.typeName}结束！${winnerName} 击败 ${loserName}（${reasonText}，共${updatedBattle.result.totalRounds}回合）`);
+
+                                // Sync survivors back to corps
+                                updatedCorps = updatedCorps.map(c => {
+                                    if (c.id === updatedBattle.attacker.corpsId) {
+                                        return { ...c, units: { ...updatedBattle.result.attackerSurvivors }, status: 'deployed', morale: Math.max(20, updatedBattle.attacker.morale) };
+                                    }
+                                    if (c.id === updatedBattle.defender.corpsId) {
+                                        return { ...c, units: { ...updatedBattle.result.defenderSurvivors }, status: 'deployed', morale: Math.max(20, updatedBattle.defender.morale) };
+                                    }
+                                    return c;
+                                });
+
+                                // Subtract player casualties from global army
+                                if (playerSide) {
+                                    const playerCasualties = playerSide === 'attacker'
+                                        ? updatedBattle.result.attackerCasualties
+                                        : updatedBattle.result.defenderCasualties;
+                                    if (playerCasualties && Object.keys(playerCasualties).length > 0) {
+                                        if (!updatedArmyFromBattle) updatedArmyFromBattle = { ...(armyStateForQueue || current.army || {}) };
+                                        for (const [uid, count] of Object.entries(playerCasualties)) {
+                                            updatedArmyFromBattle[uid] = Math.max(0, (updatedArmyFromBattle[uid] || 0) - count);
+                                            if (updatedArmyFromBattle[uid] <= 0) delete updatedArmyFromBattle[uid];
+                                        }
+                                        const totalPlayerLoss = Object.values(playerCasualties).reduce((s, c) => s + c, 0);
+                                        battleLogs.push(`💀 我军阵亡 ${totalPlayerLoss} 人`);
+                                    }
+                                }
+
+                                // Award XP to generals
+                                const xpReward = updatedBattle.result.totalRounds * 10;
+                                if (atkGeneral) {
+                                    updatedGenerals = updatedGenerals.map(g =>
+                                        g.id === atkGeneral.id ? awardGeneralXP(g, winner === 'attacker' ? xpReward * 1.5 : xpReward * 0.5) : g
+                                    );
+                                }
+                                if (defGeneral) {
+                                    updatedGenerals = updatedGenerals.map(g =>
+                                        g.id === defGeneral.id ? awardGeneralXP(g, winner === 'defender' ? xpReward * 1.5 : xpReward * 0.5) : g
+                                    );
+                                }
+
+                                // Update front warScore
+                                if (front) {
+                                    const scoreChange = 20 + Math.floor(updatedBattle.result.totalRounds * 1.5);
+                                    updatedFronts = updatedFronts.map(f => {
+                                        if (f.id !== front.id) return f;
+                                        const newFrontPower = { ...f.frontPower };
+                                        if (winner === 'attacker') {
+                                            newFrontPower.attacker = (newFrontPower.attacker || 0) + scoreChange;
+                                        } else {
+                                            newFrontPower.defender = (newFrontPower.defender || 0) + scoreChange;
+                                        }
+                                        return { ...f, frontPower: newFrontPower };
+                                    });
+                                }
+
+                                // Update nation warScore
+                                if (front && playerSide) {
+                                    const isPlayerWinner = (winner === playerSide);
+                                    const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
+                                    const warScoreChange = isPlayerWinner ? 25 : -25;
+                                    setNations(prev => prev.map(n =>
+                                        n.id === enemyId ? { ...n, warScore: Math.max(-100, Math.min(100, (n.warScore || 0) + warScoreChange)) } : n
+                                    ));
+                                }
+
+                                // --- Plunder & Damage on battle end ---
+                                if (front && playerSide) {
+                                    const isPlayerWin = (winner === playerSide);
+                                    const winnerSide = isPlayerWin ? playerSide : getEnemySide(playerSide);
+                                    const loserSide = isPlayerWin ? getEnemySide(playerSide) : playerSide;
+                                    const loserId = isPlayerWin
+                                        ? (playerSide === 'attacker' ? front.defenderId : front.attackerId)
+                                        : 'player';
+
+                                    // Winner plunders 1-2 resource nodes from loser
+                                    const loserNodes = (front.resourceNodes || []).filter(
+                                        n => n.owner === (isPlayerWin ? (playerSide === 'attacker' ? front.defenderId : front.attackerId) : 'player') && !n.plundered
+                                    );
+                                    const plunderCount = Math.min(loserNodes.length, 1 + (updatedBattle.result.reason === 'annihilation' ? 1 : 0));
+                                    const shuffledNodes = [...loserNodes].sort(() => Math.random() - 0.5);
+                                    let totalLoot = {};
+
+                                    for (let pi = 0; pi < plunderCount; pi++) {
+                                        const targetNode = shuffledNodes[pi];
+                                        if (!targetNode) break;
+                                        const { front: plunderedFront, loot } = plunderResourceNode(
+                                            updatedFronts.find(f => f.id === front.id) || front,
+                                            targetNode.id,
+                                            winnerSide,
+                                            0.4
+                                        );
+                                        // Update front in place
+                                        updatedFronts = updatedFronts.map(f => f.id === front.id ? plunderedFront : f);
+                                        for (const [res, amt] of Object.entries(loot)) {
+                                            totalLoot[res] = (totalLoot[res] || 0) + amt;
+                                        }
+                                    }
+
+                                    // Winner damages 1 infrastructure from loser
+                                    const loserInfra = ((updatedFronts.find(f => f.id === front.id) || front).infrastructure || []).filter(
+                                        i => i.owner === (isPlayerWin ? (playerSide === 'attacker' ? front.defenderId : front.attackerId) : 'player') && !i.destroyed
+                                    );
+                                    if (loserInfra.length > 0) {
+                                        const targetInfra = loserInfra[Math.floor(Math.random() * loserInfra.length)];
+                                        const damage = 30 + Math.floor(Math.random() * 40);
+                                        const damagedFront = damageInfrastructure(
+                                            updatedFronts.find(f => f.id === front.id) || front,
+                                            targetInfra.id,
+                                            damage
+                                        );
+                                        updatedFronts = updatedFronts.map(f => f.id === front.id ? damagedFront : f);
+                                        const wasDestroyed = damagedFront.infrastructure.find(i => i.id === targetInfra.id)?.destroyed;
+                                        if (wasDestroyed) {
+                                            battleLogs.push(`🏚️ ${targetInfra.name} 被摧毁！`);
+                                        } else {
+                                            battleLogs.push(`💥 ${targetInfra.name} 受到破坏（-${damage}耐久）`);
+                                        }
+                                    }
+
+                                    // Apply loot to player resources if player won
+                                    if (isPlayerWin && Object.keys(totalLoot).length > 0) {
+                                        setResources(prev => {
+                                            const next = { ...prev };
+                                            for (const [res, amt] of Object.entries(totalLoot)) {
+                                                next[res] = (next[res] || 0) + amt;
+                                            }
+                                            return next;
+                                        });
+                                        const lootDesc = Object.entries(totalLoot).map(([res, amt]) => `${res} +${amt}`).join(', ');
+                                        battleLogs.push(`🎁 掠夺战利品：${lootDesc}`);
+                                    }
+
+                                    // Check front suppression: all enemy nodes plundered + infra destroyed
+                                    const updFront = updatedFronts.find(f => f.id === front.id);
+                                    if (updFront) {
+                                        const enemyNodeId = isPlayerWin
+                                            ? (playerSide === 'attacker' ? front.defenderId : front.attackerId)
+                                            : 'player';
+                                        const allNodesPlundered = (updFront.resourceNodes || [])
+                                            .filter(n => n.owner === enemyNodeId)
+                                            .every(n => n.plundered);
+                                        const allInfraDestroyed = (updFront.infrastructure || [])
+                                            .filter(i => i.owner === enemyNodeId)
+                                            .every(i => i.destroyed);
+                                        if (allNodesPlundered && allInfraDestroyed) {
+                                            updatedFronts = updatedFronts.map(f =>
+                                                f.id === front.id ? { ...f, _suppressed: true } : f
+                                            );
+                                            battleLogs.push(`🏳️ 战线压制！敌方资源和设施全部摧毁`);
+                                        }
+                                    }
+                                }
+                            }
+
+                            return updatedBattle;
+                        });
+
+                        // --- Process front ticks (resource regeneration) ---
+                        updatedFronts = updatedFronts.map(f => {
+                            if (f.status !== 'active') return f;
+                            return processFrontTick(f);
+                        });
+
+                        // --- Process front friction events (low-intensity combat between battles) ---
+                        const currentDay = (current.daysElapsed || 0) + 1;
+                        updatedFronts = updatedFronts.map(f => {
+                            if (f.status !== 'active') return f;
+                            const playerSide = getPlayerSide(f);
+                            if (!playerSide) return f;
+                            const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
+                            const playerCorpsIds = f.assignedCorps?.[playerSide] || [];
+                            const enemyCorpsIds = f.assignedCorps?.[enemySide] || [];
+                            const pCorps = playerCorpsIds.map(id => updatedCorps.find(c => c.id === id)).filter(Boolean);
+                            const eCorps = enemyCorpsIds.map(id => updatedCorps.find(c => c.id === id)).filter(Boolean);
+
+                            // Skip if there's an active battle on this front
+                            const hasBattle = updatedBattles.some(b => b.frontId === f.id && b.status === 'active');
+                            if (hasBattle) return f;
+
+                            const frictionResult = processFrontFriction(f, pCorps, eCorps, currentDay, f.posture || 'defensive');
+                            if (!frictionResult) return f;
+
+                            // Apply casualties to corps (distribute proportionally)
+                            if (frictionResult.casualties.player > 0 && pCorps.length > 0) {
+                                let remaining = frictionResult.casualties.player;
+                                for (const corps of pCorps) {
+                                    if (remaining <= 0) break;
+                                    const unitKeys = Object.keys(corps.units || {});
+                                    if (unitKeys.length === 0) continue;
+                                    const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
+                                    const loss = Math.min(remaining, Math.max(1, Math.floor((corps.units[key] || 0) * 0.01)));
+                                    corps.units[key] = Math.max(0, (corps.units[key] || 0) - loss);
+                                    remaining -= loss;
+                                }
+                            }
+                            if (frictionResult.casualties.enemy > 0 && eCorps.length > 0) {
+                                let remaining = frictionResult.casualties.enemy;
+                                for (const corps of eCorps) {
+                                    if (remaining <= 0) break;
+                                    const unitKeys = Object.keys(corps.units || {});
+                                    if (unitKeys.length === 0) continue;
+                                    const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
+                                    const loss = Math.min(remaining, Math.max(1, Math.floor((corps.units[key] || 0) * 0.01)));
+                                    corps.units[key] = Math.max(0, (corps.units[key] || 0) - loss);
+                                    remaining -= loss;
+                                }
+                            }
+
+                            // Update war score
+                            const newWarScore = (f.warScore || 0) + (frictionResult.warScoreDelta || 0);
+
+                            // Update friction log (keep last 10 entries)
+                            const frictionLog = [...(f.frictionLog || []), ...frictionResult.events].slice(-10);
+
+                            // Log friction event
+                            if (frictionResult.events.length > 0) {
+                                battleLogs.push(`⚔️ ${frictionResult.events[0].text} (我方损失${frictionResult.casualties.player}，敌方损失${frictionResult.casualties.enemy})`);
+                            }
+
+                            return { ...f, warScore: newWarScore, frictionLog };
+                        });
+
+                        // --- Apply all state updates ---
+                        setActiveBattles(updatedBattles);
+                        setActiveFronts(updatedFronts);
+                        if (updatedCorps !== currentCorps) setMilitaryCorps(updatedCorps);
+                        if (updatedGenerals !== currentGenerals) setGenerals(updatedGenerals);
+                        if (updatedArmyFromBattle) setArmy(updatedArmyFromBattle);
+
+                        // Log battle events
+                        if (battleLogs.length > 0) {
+                            battleLogs.forEach(log => addLog(log));
+                        }
+                    }
+
+                    // ========== AI Enemy Corps & Auto-Battle Logic ==========
+                    {
+                        const fronts = current.activeFronts || [];
+                        const battles = current.activeBattles || [];
+                        const currentDay = (current.daysElapsed || 0) + 1;
+                        const aiNations = current.nations || [];
+
+                        for (const front of fronts) {
+                            if (front.status !== 'active') continue;
+
+                            const playerSide = getPlayerSide(front);
+                            if (!playerSide) continue;
+                            const enemySide = getEnemySide(playerSide);
+                            const enemyId = playerSide === 'attacker' ? front.defenderId : front.attackerId;
+                            const enemyNation = aiNations.find(n => n.id === enemyId);
+                            if (!enemyNation) continue;
+
+                            // Get all corps on this front (both player and AI)
+                            const allCorps = current.militaryCorps || [];
+                            const enemyCorpsOnFront = allCorps.filter(c =>
+                                c.isAI && c.assignedFrontId === front.id && c.nationId === enemyId
+                            );
+                            const playerCorpsOnFront = (front.assignedCorps?.[playerSide] || [])
+                                .map(cid => allCorps.find(c => c.id === cid))
+                                .filter(Boolean);
+
+                            // --- Generate enemy corps if none exist ---
+                            if (enemyCorpsOnFront.length === 0) {
+                                // Check cooldown: don't spawn too frequently
+                                const lastSpawnDay = front._lastEnemySpawnDay || 0;
+                                const spawnCooldown = front._enemySpawnCooldown || 0;
+                                if (currentDay - lastSpawnDay >= spawnCooldown) {
+                                    const { enemyCorps, enemyGenerals } = generateEnemyCorpsForFront(
+                                        front, enemyNation, current.epoch || 0, generateNationArmy, generateGeneral
+                                    );
+                                    if (enemyCorps.length > 0) {
+                                        // Add AI corps to militaryCorps state
+                                        setMilitaryCorps(prev => [...prev, ...enemyCorps]);
+                                        setGenerals(prev => [...prev, ...enemyGenerals]);
+                                        // Update front's assigned corps for enemy side
+                                        const enemyCorpsIds = enemyCorps.map(c => c.id);
+                                        setActiveFronts(prev => prev.map(f => {
+                                            if (f.id !== front.id) return f;
+                                            return {
+                                                ...f,
+                                                assignedCorps: {
+                                                    ...f.assignedCorps,
+                                                    [enemySide]: [...(f.assignedCorps[enemySide] || []), ...enemyCorpsIds],
+                                                },
+                                                _lastEnemySpawnDay: currentDay,
+                                                _enemySpawnCooldown: 30 + Math.floor(Math.random() * 30), // 30-60 days
+                                            };
+                                        }));
+                                        addLog(`⚔️ ${enemyNation.name || '敌国'} 在战线上部署了 ${enemyCorps.length} 个军团！`);
+                                    }
+                                }
+                            }
+
+                            // --- AI initiates battle if conditions met ---
+                            const hasBattleOnFront = battles.some(b =>
+                                b.frontId === front.id && b.status === 'active'
+                            );
+                            if (!hasBattleOnFront && enemyCorpsOnFront.length > 0 && playerCorpsOnFront.length > 0) {
+                                // AI attack cooldown: every 5-15 days
+                                const lastBattleDay = front._lastBattleDay || 0;
+                                const battleCooldown = front._battleCooldown || (5 + Math.floor(Math.random() * 10));
+                                if (currentDay - lastBattleDay >= battleCooldown) {
+                                    // Pick strongest AI corps and strongest player corps
+                                    const aiCorps = enemyCorpsOnFront[0]; // First available
+                                    const playerCorps = playerCorpsOnFront[0]; // First available
+                                    const aiGeneral = (current.generals || []).find(g => g.id === aiCorps.generalId) || null;
+                                    const playerGeneral = (current.generals || []).find(g => g.assignedCorpsId === playerCorps.id) || null;
+
+                                    // Determine battle type based on total units
+                                    const aiUnits = Object.values(aiCorps.units || {}).reduce((s, c) => s + c, 0);
+                                    const playerUnits = Object.values(playerCorps.units || {}).reduce((s, c) => s + c, 0);
+                                    const totalUnits = aiUnits + playerUnits;
+                                    let battleType = 'skirmish';
+                                    if (totalUnits > 100) battleType = 'pitched_battle';
+                                    if (totalUnits > 500) battleType = 'siege';
+
+                                    // Determine attacker/defender based on front roles
+                                    const isPlayerAttacker = playerSide === 'attacker';
+                                    const newBattle = createBattle({
+                                        attackerCorps: isPlayerAttacker ? playerCorps : aiCorps,
+                                        defenderCorps: isPlayerAttacker ? aiCorps : playerCorps,
+                                        attackerGeneral: isPlayerAttacker ? playerGeneral : aiGeneral,
+                                        defenderGeneral: isPlayerAttacker ? aiGeneral : playerGeneral,
+                                        front,
+                                        battleType,
+                                        epoch: current.epoch || 0,
+                                        currentDay,
+                                    });
+
+                                    setActiveBattles(prev => [...prev, newBattle]);
+                                    // Update corps status
+                                    setMilitaryCorps(prev => prev.map(c => {
+                                        if (c.id === aiCorps.id || c.id === playerCorps.id) {
+                                            return { ...c, status: 'in_combat' };
+                                        }
+                                        return c;
+                                    }));
+                                    // Update front cooldown
+                                    setActiveFronts(prev => prev.map(f => {
+                                        if (f.id !== front.id) return f;
+                                        return {
+                                            ...f,
+                                            _lastBattleDay: currentDay,
+                                            _battleCooldown: 5 + Math.floor(Math.random() * 10),
+                                        };
+                                    }));
+
+                                    const atkName = isPlayerAttacker ? playerCorps.name : aiCorps.name;
+                                    const defName = isPlayerAttacker ? aiCorps.name : playerCorps.name;
+                                    addLog(`⚔️ ${newBattle.typeName}爆发！${atkName} 对阵 ${defName}`);
+                                }
+                            }
+                        }
+                    }
+
                     // 每次 Tick 推进 1 天（而非 gameSpeed 天）
                     // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
                     setDaysElapsed(prev => {
@@ -3400,6 +3848,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     // 既然 simulation.js 仅仅触发了事件，我们需要在这里处理复杂的同盟逻辑
                                     // 我们需要同时更新 state 中的 nations (result.nations 是本Tick的结果，我们需要更新它)
 
+                                    // Track allies that actually join the war (for front generation)
+                                    const joinedAggressorAllyIds = [];
+
                                     setNations(prevNations => {
                                         const nextNations = [...prevNations];
                                         const aggressorIdx = nextNations.findIndex(n => n.id === aggressorId);
@@ -3473,6 +3924,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     relation: 0 // 与玩家关系破裂
                                                 };
                                                 currentWarsWithPlayer++; // 更新计数
+                                                joinedAggressorAllyIds.push(ally.id);
                                                 addLog(`⚔️ ${ally.name} 作为 ${aggressorName} 的盟友，对你宣战！`);
                                             }
                                         });
@@ -3518,6 +3970,52 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         return nextNations;
                                     });
 
+                                    // Generate front for this war (AI declared war on player)
+                                    if (typeof setActiveFronts === 'function') {
+                                        const playerEco = {
+                                            resources: resources || {},
+                                            buildings: buildings || {},
+                                            population: population || 0,
+                                            wealth: (resources?.silver || 0),
+                                        };
+
+                                        // Main aggressor front
+                                        const aggressor = result.nations?.find(n => n.id === aggressorId);
+                                        const enemyEco = {
+                                            resources: {},
+                                            buildings: {},
+                                            population: aggressor?.population || aggressor?.militaryPower || 200,
+                                            wealth: aggressor?.wealth || 500,
+                                        };
+                                        const front = generateFront(aggressorId, 'player', epoch, enemyEco, playerEco);
+                                        front.createdDay = daysElapsed;
+
+                                        // Collect all new fronts (aggressor + allies)
+                                        const newFronts = [front];
+                                        joinedAggressorAllyIds.forEach(allyId => {
+                                            const allyNation = result.nations?.find(n => n.id === allyId);
+                                            const allyEco = {
+                                                resources: {},
+                                                buildings: {},
+                                                population: allyNation?.population || allyNation?.militaryPower || 200,
+                                                wealth: allyNation?.wealth || 500,
+                                            };
+                                            const allyFront = generateFront(allyId, 'player', epoch, allyEco, playerEco);
+                                            allyFront.createdDay = daysElapsed;
+                                            newFronts.push(allyFront);
+                                        });
+
+                                        setActiveFronts(prev => {
+                                            const existing = Array.isArray(prev) ? prev : [];
+                                            // Filter out duplicate fronts
+                                            const toAdd = newFronts.filter(nf => {
+                                                const altWarId = `player_vs_${nf.attackerId}`;
+                                                return !existing.some(f => f.status === 'active' && (f.warId === nf.warId || f.warId === altWarId));
+                                            });
+                                            return [...existing, ...toAdd];
+                                        });
+                                    }
+
                                 } catch (e) {
                                     debugError('event', '[EVENT DEBUG] Failed to parse war declaration event:', e);
                                 }
@@ -3533,6 +4031,30 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             // 宣战事件只需要确认，不需要额外操作
                                         });
                                         currentActions.triggerDiplomaticEvent(event);
+                                        // Generate front for legacy war declaration
+                                        if (typeof setActiveFronts === 'function') {
+                                            const playerEco = {
+                                                resources: resources || {},
+                                                buildings: buildings || {},
+                                                population: population || 0,
+                                                wealth: (resources?.silver || 0),
+                                            };
+                                            const enemyEco = {
+                                                resources: {},
+                                                buildings: {},
+                                                population: nation?.population || nation?.militaryPower || 200,
+                                                wealth: nation?.wealth || 500,
+                                            };
+                                            const legacyFront = generateFront(nation.id, 'player', epoch, enemyEco, playerEco);
+                                            legacyFront.createdDay = daysElapsed;
+                                            setActiveFronts(prev => {
+                                                const existing = Array.isArray(prev) ? prev : [];
+                                                if (existing.some(f => f.status === 'active' && (f.warId === legacyFront.warId || f.warId === `player_vs_${nation.id}`))) {
+                                                    return existing;
+                                                }
+                                                return [...existing, legacyFront];
+                                            });
+                                        }
                                     }
                                 }
                             }
