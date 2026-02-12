@@ -618,6 +618,7 @@ export const checkAIPeaceRequest = ({
     tick,
     lastGlobalPeaceRequest = -Infinity,
     logs,
+    activeFronts = [], // [NEW] Active war fronts for damage assessment
 }) => {
     const next = nation;
 
@@ -640,7 +641,24 @@ export const checkAIPeaceRequest = ({
     if ((next.warScore || 0) > 12 && canRequestPeace && globalReady) {
         const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
 
-        if (Math.random() < willingness) {
+        // [NEW] Front damage increases willingness to seek peace
+        let frontDamageBonus = 0;
+        if (activeFronts && activeFronts.length > 0) {
+            for (const front of activeFronts) {
+                // Check if this AI is a participant
+                if (front.attackerId !== next.id && front.defenderId !== next.id) continue;
+                // Count destroyed infrastructure owned by this AI
+                const ownInfra = (front.infrastructure || []).filter(i => i.owner === next.id);
+                const destroyedCount = ownInfra.filter(i => i.destroyed).length;
+                // Count plundered resource nodes owned by this AI
+                const ownNodes = (front.resourceNodes || []).filter(n => n.owner === next.id);
+                const plunderedCount = ownNodes.filter(n => n.plundered).length;
+                // Heavy front losses significantly increase peace willingness
+                frontDamageBonus += destroyedCount * 0.04 + plunderedCount * 0.03;
+            }
+        }
+
+        if (Math.random() < willingness + frontDamageBonus) {
             const warScore = next.warScore || 0;
             const enemyLosses = next.enemyLosses || 0;
             const warDuration = next.warDuration || 0;
@@ -880,6 +898,16 @@ export const checkWarDeclaration = ({
     declarationChance = applyWarDeclarationModifier(declarationChance, difficultyLevel);
 
     declarationChance *= warCountPenalty;
+
+    // [NEW] Military industry chain deterrence
+    // AI is less likely to attack nations with strong military industry
+    if (res && epoch >= 2) {
+        const militaryResources = ['swords', 'plate_armor', 'gunpowder', 'muskets', 'rifles', 'ammunition', 'ordnance'];
+        const availableTypes = militaryResources.filter(r => (res[r] || 0) > 10);
+        // Each type of military resource in stock reduces war chance
+        const industryDeterrence = Math.min(0.6, availableTypes.length * 0.08);
+        declarationChance *= (1 - industryDeterrence);
+    }
 
     // Check conditions
     const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
@@ -1676,5 +1704,111 @@ export const makeVassalsPeaceAfterSuzerain = (enemyNationId, nations, logs) => {
     });
 
     return peacedVassals;
+};
+
+// ========== AI Military Corps & Front Integration ==========
+
+/**
+ * Generate an AI corps from a nation's simulated military
+ * AI nations don't have detailed army compositions; we generate one based on their stats
+ * @param {Object} nation - AI nation object
+ * @param {number} epoch - Current epoch
+ * @returns {Object} A pseudo-corps object compatible with battleSystem
+ */
+export const generateAICorps = (nation, epoch) => {
+    const militaryStrength = nation.militaryStrength ?? 1.0;
+    const wealth = nation.wealth || 500;
+    const population = nation.population || 100;
+
+    // Generate units based on nation stats and epoch
+    const units = {};
+    const availableUnits = getEnemyUnitsForEpoch(epoch, 'medium');
+    const totalUnits = Math.floor(5 + militaryStrength * 10 + population / 20);
+
+    availableUnits.forEach(unitId => {
+        if (UNIT_TYPES[unitId]) {
+            const count = Math.floor((totalUnits / availableUnits.length) * (0.6 + Math.random() * 0.8));
+            if (count > 0) units[unitId] = count;
+        }
+    });
+
+    return {
+        id: `ai_corps_${nation.id}_${Date.now()}`,
+        name: `${nation.name}远征军`,
+        units,
+        generalId: null,
+        assignedFrontId: null,
+        status: 'deployed',
+        morale: 70 + Math.floor(militaryStrength * 30),
+    };
+};
+
+/**
+ * Generate an AI general for a nation
+ * @param {Object} nation - AI nation object
+ * @param {number} epoch - Current epoch
+ * @returns {Object} A pseudo-general object compatible with corpsSystem
+ */
+export const generateAIGeneral = (nation, epoch) => {
+    const GENERAL_TRAIT_IDS = ['aggressive', 'defensive', 'swift', 'inspiring', 'cunning', 'veteran', 'logistics', 'siege_master'];
+    const aggression = nation.aggression ?? 0.3;
+
+    // Trait selection biased by nation personality
+    const traits = [];
+    if (aggression > 0.6) traits.push('aggressive');
+    else if (aggression < 0.3) traits.push('defensive');
+    else traits.push(GENERAL_TRAIT_IDS[Math.floor(Math.random() * GENERAL_TRAIT_IDS.length)]);
+
+    // Maybe add a second trait
+    if (Math.random() < 0.3) {
+        const remaining = GENERAL_TRAIT_IDS.filter(t => !traits.includes(t));
+        traits.push(remaining[Math.floor(Math.random() * remaining.length)]);
+    }
+
+    const baseLevel = 1 + Math.floor(epoch * 0.3) + Math.floor((nation.militaryStrength ?? 1.0) * 2);
+
+    return {
+        id: `ai_gen_${nation.id}_${Date.now()}`,
+        name: `${nation.name}将军`,
+        level: Math.min(baseLevel, 6),
+        experience: 0,
+        traits,
+        assignedCorpsId: null,
+    };
+};
+
+/**
+ * Determine what tactic an AI should use based on battle state
+ * @param {Object} battle - Current battle state
+ * @param {'attacker'|'defender'} side - Which side the AI is
+ * @param {Object} nation - AI nation object
+ * @returns {string} Tactic ID
+ */
+export const determineAITactic = (battle, side, nation) => {
+    const sideData = battle[side];
+    const aggression = nation?.aggression ?? 0.3;
+
+    // If morale is very low, consider retreating
+    if (sideData.morale < 25) {
+        return Math.random() < 0.6 ? 'retreat' : 'defensive';
+    }
+
+    // If momentum is heavily against us, go defensive
+    const momentum = battle.momentum;
+    const isAttacker = side === 'attacker';
+    const favorableMomentum = isAttacker ? momentum > 55 : momentum < 45;
+    const unfavorableMomentum = isAttacker ? momentum < 35 : momentum > 65;
+
+    if (unfavorableMomentum) {
+        if (aggression > 0.7) return 'focus_attack'; // Aggressive AI fights harder when losing
+        return 'defensive';
+    }
+
+    if (favorableMomentum && aggression > 0.5) {
+        return 'focus_attack'; // Press the advantage
+    }
+
+    // Default: normal combat
+    return 'normal';
 };
 

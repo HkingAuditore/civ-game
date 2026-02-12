@@ -167,7 +167,7 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 1,
 
-        recruitCost: { food: 500, copper: 200, iron: 100, silver: 250 },
+        recruitCost: { food: 500, copper: 200, iron: 100, swords: 8, silver: 250 },
         maintenanceCost: { food: 3.75, silver: 2.75, iron: 0.4 },
         trainingTime: 6,
 
@@ -194,7 +194,7 @@ export const UNIT_TYPES = {
         speed: 4,
         range: 5,
 
-        recruitCost: { food: 425, wood: 250, copper: 125, silver: 225 },
+        recruitCost: { food: 425, wood: 250, copper: 125, swords: 5, silver: 225 },
         maintenanceCost: { food: 3.5, silver: 2.5, wood: 1.25, copper: 0.25 },
         trainingTime: 6,
 
@@ -221,7 +221,7 @@ export const UNIT_TYPES = {
         speed: 8,
         range: 1,
 
-        recruitCost: { food: 600, silver: 300, iron: 125 },
+        recruitCost: { food: 600, silver: 300, iron: 125, swords: 6 },
         maintenanceCost: { food: 6, silver: 4, iron: 0.3 },
         trainingTime: 7,
 
@@ -248,7 +248,7 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 1,
 
-        recruitCost: { food: 750, wood: 1000, iron: 250, silver: 400 },
+        recruitCost: { food: 750, wood: 1000, iron: 250, swords: 4, silver: 400 },
         maintenanceCost: { food: 6, silver: 4, wood: 2.5, iron: 0.5 },
         trainingTime: 10,
 
@@ -276,7 +276,7 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 1,
 
-        recruitCost: { food: 700, iron: 300, silver: 400 },
+        recruitCost: { food: 700, iron: 300, swords: 10, plate_armor: 6, silver: 400 },
         maintenanceCost: { food: 4.5, silver: 3.5, iron: 0.6, cloth: 0.2 },
         trainingTime: 8,
 
@@ -303,7 +303,7 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 5,
 
-        recruitCost: { food: 550, wood: 350, iron: 225, silver: 275 },
+        recruitCost: { food: 550, wood: 350, iron: 225, swords: 6, silver: 275 },
         maintenanceCost: { food: 4, silver: 3, wood: 0.75, iron: 0.5 },
         trainingTime: 7,
 
@@ -330,7 +330,7 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 1250, iron: 500, copper: 150, silver: 800 },
+        recruitCost: { food: 1250, iron: 500, copper: 150, swords: 12, plate_armor: 10, silver: 800 },
         maintenanceCost: { food: 9, silver: 6.5, iron: 0.8, copper: 0.3 },
         trainingTime: 10,
 
@@ -357,7 +357,7 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 1000, wood: 1000, plank: 400, iron: 400, silver: 750 },
+        recruitCost: { food: 1000, wood: 1000, plank: 400, iron: 400, swords: 6, silver: 750 },
         maintenanceCost: { food: 7.5, silver: 6, plank: 1.5, iron: 0.6, stone: 1.2 },
         trainingTime: 12,
 
@@ -385,7 +385,7 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 2,
 
-        recruitCost: { food: 800, wood: 300, iron: 350, silver: 450 },
+        recruitCost: { food: 800, wood: 300, iron: 350, swords: 8, plate_armor: 5, silver: 450 },
         maintenanceCost: { food: 5, silver: 4, iron: 0.5 },
         trainingTime: 8,
 
@@ -412,8 +412,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 4,
 
-        recruitCost: { food: 700, iron: 300, tools: 200, copper: 80, silver: 500 },
-        maintenanceCost: { food: 4.5, silver: 4, iron: 0.35, tools: 0.9, copper: 0.15 },
+        recruitCost: { food: 700, iron: 300, muskets: 10, silver: 500 },
+        maintenanceCost: { food: 4.5, silver: 4, iron: 0.35, gunpowder: 0.8 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -439,7 +439,7 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 1500, iron: 600, silver: 1000 },
+        recruitCost: { food: 1500, iron: 600, plate_armor: 10, silver: 1000 },
         maintenanceCost: { food: 10, silver: 7.5, iron: 1.25 },
         trainingTime: 11,
 
@@ -466,8 +466,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 1250, iron: 600, copper: 250, tools: 350, silver: 1000 },
-        maintenanceCost: { food: 9, silver: 7.5, iron: 1.2, copper: 0.4, tools: 1.5 },
+        recruitCost: { food: 1250, iron: 600, muskets: 8, copper: 250, silver: 1000 },
+        maintenanceCost: { food: 9, silver: 7.5, iron: 1.2, gunpowder: 1.2, copper: 0.4 },
         trainingTime: 14,
 
         populationCost: 3,
@@ -494,8 +494,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 3,
 
-        recruitCost: { food: 900, iron: 350, tools: 250, silver: 550 },
-        maintenanceCost: { food: 5.5, silver: 5, iron: 0.45, tools: 1.0, cloth: 0.15 },
+        recruitCost: { food: 900, iron: 350, rifles: 10, silver: 550 },
+        maintenanceCost: { food: 5.5, silver: 5, iron: 0.45, ammunition: 0.8, cloth: 0.15 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -521,8 +521,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 5,
 
-        recruitCost: { food: 1000, iron: 400, tools: 300, silver: 650 },
-        maintenanceCost: { food: 6, silver: 5.5, iron: 0.5, tools: 1.3 },
+        recruitCost: { food: 1000, iron: 400, rifles: 12, silver: 650 },
+        maintenanceCost: { food: 6, silver: 5.5, iron: 0.5, ammunition: 1.0 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -548,8 +548,8 @@ export const UNIT_TYPES = {
         speed: 7,
         range: 2,
 
-        recruitCost: { food: 1400, iron: 450, tools: 225, silver: 900 },
-        maintenanceCost: { food: 10, silver: 7.5, iron: 0.75, tools: 1 },
+        recruitCost: { food: 1400, iron: 450, rifles: 8, silver: 900 },
+        maintenanceCost: { food: 10, silver: 7.5, iron: 0.75, ammunition: 0.6 },
         trainingTime: 12,
 
         populationCost: 1,
@@ -575,8 +575,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 7,
 
-        recruitCost: { food: 1500, iron: 700, copper: 300, tools: 450, silver: 1250 },
-        maintenanceCost: { food: 10, silver: 9, iron: 1.4, copper: 0.5, tools: 2.0 },
+        recruitCost: { food: 1500, iron: 700, rifles: 6, copper: 300, silver: 1250 },
+        maintenanceCost: { food: 10, silver: 9, iron: 1.4, ammunition: 1.5, copper: 0.5 },
         trainingTime: 15,
 
         populationCost: 3,
@@ -603,8 +603,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 4,
 
-        recruitCost: { food: 1250, steel: 150, tools: 200, silver: 800 },
-        maintenanceCost: { food: 7, silver: 6.5, steel: 0.3, coal: 0.15 },
+        recruitCost: { food: 1250, steel: 150, ordnance: 10, silver: 800 },
+        maintenanceCost: { food: 7, silver: 6.5, steel: 0.3, ammunition: 1.0, coal: 0.15 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -630,8 +630,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 5,
 
-        recruitCost: { food: 1500, steel: 300, tools: 350, coal: 200, silver: 1250 },
-        maintenanceCost: { food: 8, silver: 9, steel: 0.6, coal: 0.8 },
+        recruitCost: { food: 1500, steel: 300, ordnance: 15, coal: 200, silver: 1250 },
+        maintenanceCost: { food: 8, silver: 9, steel: 0.6, ammunition: 2.0, coal: 0.8 },
         trainingTime: 12,
 
         populationCost: 2,
@@ -657,8 +657,8 @@ export const UNIT_TYPES = {
         speed: 8,
         range: 1,
 
-        recruitCost: { food: 1600, steel: 120, tools: 180, silver: 1000 },
-        maintenanceCost: { food: 11, silver: 8, steel: 0.25, iron: 0.4 },
+        recruitCost: { food: 1600, steel: 120, ordnance: 8, silver: 1000 },
+        maintenanceCost: { food: 11, silver: 8, steel: 0.25, ammunition: 0.5, iron: 0.4 },
         trainingTime: 11,
 
         populationCost: 1,
@@ -684,8 +684,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 8,
 
-        recruitCost: { food: 2000, steel: 500, coal: 400, tools: 300, silver: 1750 },
-        maintenanceCost: { food: 10, silver: 11, steel: 1.2, coal: 1.5 },
+        recruitCost: { food: 2000, steel: 500, ordnance: 12, coal: 400, silver: 1750 },
+        maintenanceCost: { food: 10, silver: 11, steel: 1.2, ammunition: 2.5, coal: 1.5 },
         trainingTime: 18,
 
         populationCost: 4,
@@ -1548,7 +1548,14 @@ const DEFAULT_RESOURCE_PRICES = {
     iron: 3,
     tools: 5,
     coal: 2,
-    steel: 8
+    steel: 8,
+    swords: 20,
+    plate_armor: 35,
+    gunpowder: 18,
+    muskets: 30,
+    rifles: 45,
+    ammunition: 15,
+    ordnance: 60
 };
 
 /**

@@ -115,11 +115,16 @@ const OfficialCardInner = ({
     isStanceSatisfied = null, // 新增：政治主张是否满足 (null=不检查, true=满足, false=不满足)
     onViewDetail,
     compact = false,
+    generals = [], // Generals list for checking if official is leading a corps
 }) => {
     const [showDisposalMenu, setShowDisposalMenu] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
 
     if (!official) return null;
+
+    // Check if this official is serving as a general
+    const linkedGeneral = generals.find(g => g.officialId === official.id);
+    const isLeadingCorps = !!linkedGeneral?.assignedCorpsId;
 
     const stratumKey = official.sourceStratum || official.stratum;
     const stratumDef = STRATA[stratumKey];
@@ -455,6 +460,11 @@ const OfficialCardInner = ({
                                 </span>
                             )}
                             <span className="text-sm font-bold text-gray-100 truncate">{official.name}</span>
+                            {linkedGeneral && (
+                                <span className="px-1 py-0.5 bg-amber-900/50 text-amber-300 rounded text-[9px] flex-shrink-0">
+                                    🎖️ {isLeadingCorps ? '领军中' : '将领'}
+                                </span>
+                            )}
                             {official.ambition > 50 && (
                                 <span className="px-1 py-0.5 bg-orange-900/50 text-orange-300 rounded text-[9px]">
                                     <Icon name="Flame" size={8} className="inline" /> {official.ambition}
@@ -638,11 +648,14 @@ const OfficialCardInner = ({
                             雇佣
                         </button>
                     ) : (
-                        <div className="relative">
-                            <div className="flex gap-1">
+                        <div className="relative flex gap-1">
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
+                                        if (isLeadingCorps) {
+                                            alert('该官员正在领军中，请先在军团面板卸任将领后再解雇。');
+                                            return;
+                                        }
                                         onAction(official.id);
                                     }}
                                     disabled={actionDisabled}
@@ -661,7 +674,6 @@ const OfficialCardInner = ({
                                 >
                                     <Icon name="ChevronDown" size={12} />
                                 </button>
-                            </div>
 
                             {showDisposalMenu && (
                                 <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-900 border border-gray-700 rounded-lg shadow-lg overflow-hidden z-10">
@@ -690,6 +702,7 @@ const OfficialCardInner = ({
         );
     }
 
+    // ========== Full Card ==========
     return (
         <div
             className={`relative bg-gray-800/60 border ${stanceColors.border} rounded-lg p-3 transition-all overflow-hidden shadow-lg ${stanceColors.glow} ${onViewDetail ? 'cursor-pointer hover:border-opacity-100 hover:shadow-emerald-500/10 hover:-translate-y-0.5 hover:ring-1 hover:ring-emerald-400/30' : ''}`}
@@ -711,7 +724,11 @@ const OfficialCardInner = ({
                             <div className="font-bold text-gray-200 text-sm leading-tight truncate pr-1">
                                 {official.name}
                             </div>
-
+                            {linkedGeneral && (
+                                <span className="px-1 py-0.5 bg-amber-900/50 text-amber-300 rounded text-[9px] flex-shrink-0">
+                                    🎖️ {isLeadingCorps ? '领军中' : '将领'}
+                                </span>
+                            )}
                         </div>
                         <div className={`text-[10px] ${stratumColor} opacity-80 flex items-center flex-wrap gap-1.5 mt-0.5`}>
                             {/* 政治光谱小标签 (移至第二行以防重叠) */}
@@ -965,6 +982,10 @@ const OfficialCardInner = ({
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
+                                    if (isLeadingCorps) {
+                                        alert('该官员正在领军中，请先在军团面板卸任将领后再解雇。');
+                                        return;
+                                    }
                                     onAction(official.id);
                                 }}
                                 disabled={actionDisabled}
@@ -1025,7 +1046,8 @@ const officialCardPropsAreEqual = (prevProps, nextProps) => {
         prevProps.actionDisabled !== nextProps.actionDisabled ||
         prevProps.currentDay !== nextProps.currentDay ||
         prevProps.isStanceSatisfied !== nextProps.isStanceSatisfied ||
-        prevProps.compact !== nextProps.compact
+        prevProps.compact !== nextProps.compact ||
+        prevProps.generals !== nextProps.generals
     ) {
         return false;
     }

@@ -701,6 +701,10 @@ const buildMinimalAutoSavePayload = (payload) => {
         stability: payload.stability,
         daysElapsed: payload.daysElapsed,
         army: payload.army,
+        militaryCorps: payload.militaryCorps,
+        generals: payload.generals,
+        activeFronts: payload.activeFronts,
+        activeBattles: payload.activeBattles,
         taxes: payload.taxes,
         taxPolicies: payload.taxPolicies,
         jobFill: payload.jobFill,
@@ -1358,6 +1362,10 @@ export const useGameState = () => {
     const [targetArmyComposition, setTargetArmyComposition] = useState({});  // 目标军队编制
     const [lastBattleTargetId, setLastBattleTargetId] = useState(null); // 上次攻击的目标ID
     const [lastBattleDay, setLastBattleDay] = useState(-999); // 上次攻击的时间
+    const [militaryCorps, setMilitaryCorps] = useState([]); // 军团列表
+    const [generals, setGenerals] = useState([]); // 将领列表
+    const [activeFronts, setActiveFronts] = useState([]); // 活跃战线
+    const [activeBattles, setActiveBattles] = useState([]); // 进行中的战斗
 
     // ========== 庆典系统状态 ==========
     const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
@@ -1792,6 +1800,10 @@ export const useGameState = () => {
                 daysElapsed,
                 army,
                 militaryQueue,
+                militaryCorps,
+                generals,
+                activeFronts,
+                activeBattles,
                 selectedTarget,
                 battleResult,
                 playerInstallmentPayment,
@@ -2229,6 +2241,10 @@ export const useGameState = () => {
         setDaysElapsed(Number.isFinite(parsedDaysElapsed) ? parsedDaysElapsed : 0);
         setArmy(data.army || {});
         setMilitaryQueue(data.militaryQueue || []);
+        setMilitaryCorps(data.militaryCorps || []);
+        setGenerals(data.generals || []);
+        setActiveFronts(data.activeFronts || []);
+        setActiveBattles(data.activeBattles || []);
         setSelectedTarget(data.selectedTarget || null);
         setBattleResult(data.battleResult || null);
         setPlayerInstallmentPayment(data.playerInstallmentPayment || null);
@@ -3438,6 +3454,14 @@ export const useGameState = () => {
         setLastBattleTargetId,
         lastBattleDay,
         setLastBattleDay,
+        militaryCorps,
+        setMilitaryCorps,
+        generals,
+        setGenerals,
+        activeFronts,
+        setActiveFronts,
+        activeBattles,
+        setActiveBattles,
 
         // 庆典系统
         festivalModal,

@@ -48,6 +48,7 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost, INSTALLMENT_CONFIG } from '../utils/diplomaticUtils';
 import { filterEventEffects } from '../utils/eventEffectFilter';
 import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
+import { generateFront } from '../logic/diplomacy/frontSystem';
 // 外交叛乱干预系统
 import { executeIntervention, INTERVENTION_OPTIONS } from '../logic/diplomacy/rebellionSystem';
 // 内部叛乱系统
@@ -171,6 +172,9 @@ export const useGameActions = (gameState, addLog) => {
         // Diplomatic reputation
         diplomaticReputation,
         setDiplomaticReputation,
+        // Front system
+        activeFronts,
+        setActiveFronts,
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
@@ -197,6 +201,35 @@ export const useGameActions = (gameState, addLog) => {
             const current = prev && typeof prev === 'object' ? prev : { organizations: [] };
             const nextOrgs = updater(Array.isArray(current.organizations) ? current.organizations : []);
             return { ...current, organizations: nextOrgs };
+        });
+    };
+
+    // Helper: create a front when war starts between player and a nation
+    const createFrontForWar = (attackerId, defenderId, targetNation) => {
+        if (typeof setActiveFronts !== 'function') return;
+        const playerEco = {
+            resources: resources || {},
+            buildings: buildings || {},
+            population: population || 0,
+            wealth: (resources?.silver || 0),
+        };
+        const enemyEco = {
+            resources: {},
+            buildings: {},
+            population: targetNation?.population || targetNation?.militaryPower || 200,
+            wealth: targetNation?.wealth || 500,
+        };
+        const front = generateFront(attackerId, defenderId, epoch, playerEco, enemyEco);
+        front.createdDay = daysElapsed;
+        setActiveFronts(prev => {
+            const existing = Array.isArray(prev) ? prev : [];
+            // Avoid duplicate fronts for the same war
+            const warId = front.warId;
+            const altWarId = `${defenderId}_vs_${attackerId}`;
+            if (existing.some(f => f.status === 'active' && (f.warId === warId || f.warId === altWarId))) {
+                return existing;
+            }
+            return [...existing, front];
         });
     };
 
@@ -806,6 +839,8 @@ export const useGameActions = (gameState, addLog) => {
                         warScore: n.warScore || 0,
                         lastMilitaryActionDay: undefined,
                     } : n));
+                    // Generate front for event-triggered war
+                    createFrontForWar(targetNation.id, 'player', targetNation);
                 }
             }
 
@@ -3140,6 +3175,50 @@ export const useGameActions = (gameState, addLog) => {
 
                 }));
                 addLog(`与 ${targetNation.name} 达成和平协议。`);
+
+                // Collapse fronts for this ended war
+                if (typeof setActiveFronts === 'function') {
+                    setActiveFronts(prev => {
+                        if (!Array.isArray(prev)) return prev;
+                        return prev.map(f => {
+                            if (f.status !== 'active') return f;
+                            const involves = (f.attackerId === nationId && f.defenderId === 'player')
+                                || (f.attackerId === 'player' && f.defenderId === nationId)
+                                || (f.attackerId === nationId && f.defenderId === 'player')
+                                || (f.defenderId === nationId && f.attackerId === 'player');
+                            return involves ? { ...f, status: 'collapsed' } : f;
+                        });
+                    });
+                }
+
+                // Clean up active battles related to this peace
+                if (typeof setActiveBattles === 'function') {
+                    setActiveBattles(prev => {
+                        if (!Array.isArray(prev)) return prev;
+                        return prev.map(b => {
+                            if (b.status !== 'active') return b;
+                            const relatedFront = (activeFronts || []).find(f => f.id === b.frontId);
+                            if (!relatedFront) return b;
+                            const involves = (relatedFront.attackerId === nationId || relatedFront.defenderId === nationId);
+                            return involves ? { ...b, status: 'ended', result: { ...b.result, reason: 'peace_treaty', finalized: true } } : b;
+                        });
+                    });
+                }
+
+                // Restore corps from combat/deployed status
+                if (typeof setMilitaryCorps === 'function') {
+                    const collapsedFrontIds = (activeFronts || [])
+                        .filter(f => (f.attackerId === nationId && f.defenderId === 'player') || (f.attackerId === 'player' && f.defenderId === nationId))
+                        .map(f => f.id);
+                    setMilitaryCorps(prev => prev.map(c => {
+                        if (c.isAI) return c;
+                        if (collapsedFrontIds.includes(c.assignedFrontId)) {
+                            return { ...c, status: 'idle', assignedFrontId: null };
+                        }
+                        return c;
+                    }));
+                }
+
                 break;
 
             }
@@ -3628,6 +3707,14 @@ export const useGameActions = (gameState, addLog) => {
                         addLog(`⚖️ ${ally.name} 同时是你和 ${targetNation.name} 的盟友，选择保持中立。`);
                     });
                 }
+
+                // Generate fronts for the new war(s)
+                createFrontForWar('player', nationId, targetNation);
+                // Also create fronts for allied enemies
+                targetAllies.forEach(ally => {
+                    createFrontForWar('player', ally.id, ally);
+                });
+
                 break;
             }
             // ========================================================================

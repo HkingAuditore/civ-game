@@ -368,6 +368,8 @@ const PoliticsTabComponent = ({
     decrees = [],
     onToggleDecree,
     onShowDecreeDetails,
+    // [NEW] Generals for OfficialCard display
+    generals = [],
 }) => {
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
@@ -827,6 +829,7 @@ const PoliticsTabComponent = ({
                         decrees={decrees}
                         onToggleDecree={onToggleDecree}
                         onShowDecreeDetails={onShowDecreeDetails}
+                        generals={generals}
                     />
                 ) : (
 <div className="glass-ancient p-4 rounded-lg border border-ancient-gold/30 text-center">

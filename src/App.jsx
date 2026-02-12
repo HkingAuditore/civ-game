@@ -57,6 +57,8 @@ import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
+import { assignCorpsToFront, removeCorpsFromFront, getPlayerSide } from './logic/diplomacy/frontSystem';
+import { setTacticOrder, createBattle } from './logic/diplomacy/battleSystem';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 
@@ -563,6 +565,72 @@ function GameApp({ gameState }) {
     const handleShowDecreeDetails = useCallback((decree) => {
         setActiveSheet({ type: 'decree', data: decree });
     }, []);
+
+    // === Military front/battle callbacks ===
+
+    // Assign a corps to a front (update front.assignedCorps + corps.status)
+    const handleAssignCorpsToFront = useCallback((frontId, corpsId) => {
+        const fronts = gameState.activeFronts || [];
+        const front = fronts.find(f => f.id === frontId);
+        if (!front) return;
+
+        const playerSide = getPlayerSide(front);
+        if (!playerSide) return;
+
+        const updatedFront = assignCorpsToFront(front, corpsId, playerSide);
+        gameState.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
+
+        // Update corps status to 'deployed'
+        gameState.setMilitaryCorps(prev => prev.map(c =>
+            c.id === corpsId ? { ...c, status: 'deployed', assignedFrontId: frontId } : c
+        ));
+    }, [gameState]);
+
+    // Remove a corps from a front (restore to idle)
+    const handleRemoveCorpsFromFront = useCallback((frontId, corpsId) => {
+        const fronts = gameState.activeFronts || [];
+        const front = fronts.find(f => f.id === frontId);
+        if (!front) return;
+
+        const playerSide = getPlayerSide(front);
+        if (!playerSide) return;
+
+        const updatedFront = removeCorpsFromFront(front, corpsId, playerSide);
+        gameState.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
+
+        // Restore corps status to 'idle'
+        gameState.setMilitaryCorps(prev => prev.map(c =>
+            c.id === corpsId ? { ...c, status: 'idle', assignedFrontId: null } : c
+        ));
+    }, [gameState]);
+
+    // Set battle tactic for the player side
+    const handleSetBattleTactic = useCallback((battleId, side, tacticId) => {
+        gameState.setActiveBattles(prev => prev.map(b => {
+            if (b.id !== battleId) return b;
+            return setTacticOrder(b, side, tacticId);
+        }));
+    }, [gameState]);
+
+    // Create a new battle on a front
+    const handleCreateBattle = useCallback((battleParams) => {
+        const battle = createBattle(battleParams);
+        gameState.setActiveBattles(prev => [...prev, battle]);
+        // Mark participating corps as in combat
+        const corpsIds = [battleParams.attackerCorps?.id, battleParams.defenderCorps?.id].filter(Boolean);
+        if (corpsIds.length > 0) {
+            gameState.setMilitaryCorps(prev => prev.map(c =>
+                corpsIds.includes(c.id) ? { ...c, status: 'in_combat' } : c
+            ));
+        }
+    }, [gameState]);
+
+    // Set tactical posture for a front
+    const handleSetPosture = useCallback((frontId, posture) => {
+        gameState.setActiveFronts(prev => prev.map(f =>
+            f.id === frontId ? { ...f, posture } : f
+        ));
+    }, [gameState]);
 
     const estimateMilitaryPower = () => {
         const army = gameState.army || {};
@@ -1302,6 +1370,20 @@ function GameApp({ gameState }) {
                                                 // [FIX] Pass unified expense data (simulation preferred for consistency with StatusBar)
                                                 armyExpenseData={simulationMilitaryExpense || armyExpenseData}
                                                 difficulty={gameState.difficulty}
+                                                // [NEW] Military corps & front system props
+                                                militaryCorps={gameState.militaryCorps}
+                                                generals={gameState.generals}
+                                                activeFronts={gameState.activeFronts}
+                                                activeBattles={gameState.activeBattles}
+                                                onUpdateCorps={gameState.setMilitaryCorps}
+                                                onUpdateGenerals={gameState.setGenerals}
+                                                onUpdateArmy={gameState.setArmy}
+                                                onAssignCorpsToFront={handleAssignCorpsToFront}
+                                                onRemoveCorpsFromFront={handleRemoveCorpsFromFront}
+                                                onSetBattleTactic={handleSetBattleTactic}
+                                                onCreateBattle={handleCreateBattle}
+                                                onSetPosture={handleSetPosture}
+                                                officials={gameState.officials}
                                             />
                                         )}
 
@@ -1439,6 +1521,7 @@ function GameApp({ gameState }) {
                                                 // [NEW] Permanent policy decrees (legacy)
                                                 decrees={gameState.decrees}
                                                 onToggleDecree={actions.toggleDecree}
+                                                generals={gameState.generals}
                                             />
                                         )}
 
