@@ -1,0 +1,4 @@
+interface:
+  display_name: "Civ代码答疑"
+  short_description: "Ground mechanics answers in civ-game repository code only."
+  default_prompt: "请基于当前仓库代码回答该机制问题，先定位文件与函数，再给结论。"
