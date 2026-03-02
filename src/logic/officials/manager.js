@@ -54,6 +54,12 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
         return { success: false, error: "未找到该候选人" };
     }
 
+    // [BUG FIX] 防止同一官员被重复雇佣（UI 快速连点时 setOfficials 异步更新可能导致重入）
+    const alreadyHired = currentOfficials.some(o => o.id === officialId);
+    if (alreadyHired) {
+        return { success: false, error: "该官员已在任" };
+    }
+
     const candidate = currentCandidates[candidateIndex];
 
     // 从候选列表移除
