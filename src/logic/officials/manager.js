@@ -28,9 +28,9 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
  */
 export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null) => {
     const candidates = [];
-    // 固定生成5名候选人
+    // 固定生成5名候选人，传入 index 防止同批次 ID 碰撞
     for (let i = 0; i < 5; i++) {
-        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates));
+        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, i));
     }
     return candidates;
 };
