@@ -1425,7 +1425,7 @@ const normalizeEffectScore = (effect, market, rates) => {
     return score * typeWeight * resourceWeight * valueScale;
 };
 
-export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null) => {
+export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, batchIndex = 0) => {
     // 1. 基本信息
     const name = generateName(epoch);
 
@@ -1575,8 +1575,8 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     // 确保在 15 ~ 4000 范围内
     salary = Math.max(MIN_OFFICIAL_SALARY, Math.min(MAX_OFFICIAL_SALARY, salary));
 
-    // 生成ID
-    const id = `off_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+    // 生成ID：加入 batchIndex 防止同批次同毫秒内 ID 碰撞
+    const id = `off_${Date.now().toString(36)}_${batchIndex}_${Math.random().toString(36).substr(2, 5)}`;
 
     // 6. 计算出身阶层影响力加成
     // 公式: 基础值(5-10%) + 薪水因子

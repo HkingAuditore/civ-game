@@ -46,6 +46,11 @@ export const applyBuildingCostModifier = (cost = {}, modifier = 0, baseCost = nu
         // 如果提供了基础成本，只减免超出基础成本的部分（数量惩罚）
         if (baseCost && typeof baseCost[key] === 'number') {
             const baseAmount = baseCost[key];
+            // 当减免达到100%时，锁定到基础成本，不再随数量增长
+            if (modifier <= -1.0) {
+                adjusted[key] = baseAmount;
+                return;
+            }
             const penalty = Math.max(0, totalAmount - baseAmount);
             // 对数量惩罚部分应用减免，确保不低于0
             const adjustedPenalty = Math.max(0, penalty * (1 + modifier));
