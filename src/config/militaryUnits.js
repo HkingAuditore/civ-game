@@ -805,11 +805,11 @@ const getAvailableUnitsForEpoch = (epoch) => {
  */
 export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficultyMultiplier = 1.0) => {
     const population = nation?.population || 100;
-    const militaryStrength = nation?.militaryStrength ?? 1.0;
+    const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
     const aggression = nation?.aggression || 0.3;
 
-    // [FIX] 添加财富约束：军队需要经济支撑
     const wealth = nation?.wealth || 500;
+    const budget = nation?.budget || wealth * 0.45;
     const wealthPerCapita = wealth / Math.max(1, population);
     
     // 财富约束系数：基于人均财富
@@ -830,11 +830,19 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
     }
     // else: wealthPerCapita >= 20, wealthConstraint = 1.0 (无约束)
 
-    // 基础军队规模 = 人口 × 军事强度 × 基础比例(0.6%) × 时代系数 × 难度倍数 × 财富约束
-    // Note: population is in units of 10,000 (万), so 0.6% gives reasonable army size
-    // E.g. 3679万 × 1.0 × 0.006 × 1.15 × 1.0 × 1.0 ≈ 25,000 troops
-    const epochFactor = 1 + epoch * 0.15;
-    const baseArmySize = Math.floor(population * militaryStrength * 0.006 * epochFactor * difficultyMultiplier * wealthConstraint);
+    // 动员率主要由时代、战时状态和财政决定，质量只轻微影响可部署规模。
+    const wartimeMobilizationBonus = nation?.isAtWar ? 0.008 : 0;
+    const manpowerRatio = Math.min(0.026, 0.008 + epoch * 0.0015 + wartimeMobilizationBonus);
+    const budgetSupport = Math.max(0.35, Math.min(1.15, Math.sqrt(budget / Math.max(80, population * 12))));
+    const sizeQualityFactor = 0.9 + (militaryQuality - 1) * 0.2;
+    const baseArmySize = Math.floor(
+        population
+        * manpowerRatio
+        * difficultyMultiplier
+        * wealthConstraint
+        * budgetSupport
+        * sizeQualityFactor
+    );
 
     // [FIX] Minimum army size floor to prevent 0-strength AI armies
     const MIN_ARMY_SIZE = Math.max(10, Math.floor(population * 0.001));
@@ -921,9 +929,12 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
 export const calculateNationBattlePower = (nation, epoch, deploymentRatio = 1.0, difficultyMultiplier = 1.0) => {
     const army = generateNationArmy(nation, epoch, deploymentRatio, difficultyMultiplier);
     const aggression = nation?.aggression || 0.3;
+    const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
 
-    // 侵略性作为军事buff（0.3侵略性 = 0军事buff，0.6侵略性 = +15%）
-    const militaryBuffs = Math.max(0, (aggression - 0.3) * 0.5);
+    // 侵略性影响进攻意愿，质量影响军队执行力。
+    const aggressionBuff = Math.max(0, (aggression - 0.3) * 0.35);
+    const qualityBuff = (militaryQuality - 1) * 0.25;
+    const militaryBuffs = aggressionBuff + qualityBuff;
 
     return calculateBattlePower(army, epoch, militaryBuffs);
 };

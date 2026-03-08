@@ -4,7 +4,33 @@
 import React, { useMemo, useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES } from '../../config';
+import { BUILDINGS, RESOURCES } from '../../config';
+
+const RESOURCE_NAME_MAP = Object.fromEntries(
+    Object.entries(RESOURCES || {}).map(([key, config]) => [key, config?.name || key])
+);
+
+const BUILDING_NAME_MAP = Object.fromEntries(
+    (BUILDINGS || []).map((building) => [building.id, building.name || building.id])
+);
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const humanizeTechnicalIds = (text) => {
+    if (typeof text !== 'string' || !text) return text;
+
+    let normalized = text;
+
+    Object.entries(RESOURCE_NAME_MAP).forEach(([key, name]) => {
+        normalized = normalized.replace(new RegExp(`\\b${escapeRegex(key)}\\b`, 'g'), name);
+    });
+
+    Object.entries(BUILDING_NAME_MAP).forEach(([key, name]) => {
+        normalized = normalized.replace(new RegExp(`\\b${escapeRegex(key)}\\b`, 'g'), name);
+    });
+
+    return normalized;
+};
 
 /**
  * Transform technical logs to human-readable format
@@ -104,7 +130,7 @@ const transformLog = (log) => {
         }
     }
 
-    return log;
+    return humanizeTechnicalIds(log);
 };
 
 // 单个日志项组件 - 使用 React.memo 避免不必要的重渲染

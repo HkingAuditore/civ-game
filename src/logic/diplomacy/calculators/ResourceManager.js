@@ -146,8 +146,11 @@ export class ResourceManager {
     /**
      * Update budget
      */
-    static updateBudget({ currentBudget, wealth, gameSpeed = 1.0 }) {
-        const targetBudget = wealth * getConfig('wealth.budgetRatio', 0.5);
+    static updateBudget({ currentBudget, wealth, gameSpeed = 1.0, targetRatio = null }) {
+        const resolvedRatio = Number.isFinite(targetRatio)
+            ? targetRatio
+            : getConfig('wealth.budgetRatio', 0.22);
+        const targetBudget = wealth * resolvedRatio;
         const recoveryRate = getConfig('wealth.budgetRecoveryRate', 0.02);
         const budgetDiff = targetBudget - currentBudget;
         

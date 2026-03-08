@@ -4,8 +4,9 @@
  * Extracted from simulation.js for better code organization
  */
 
-import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits';
+import { simulateBattle, UNIT_TYPES, generateNationArmy, calculateBattlePower } from '../../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
+import { getCorpsTotalUnits } from './corpsSystem';
 import {
     calculateAIPeaceTribute,
     calculateAISurrenderDemand
@@ -29,6 +30,56 @@ import {
 } from '../../config/difficulty';
 import { VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 import { requiresVassalDiplomacyApproval, buildVassalDiplomacyRequest } from './vassalSystem';
+import {
+    getNationAnnualOutput,
+    getNationEconomicScale,
+    getNationTreasury,
+} from './economyUtils';
+
+const AI_DOCTRINES = {
+    line_breaker: {
+        id: 'line_breaker',
+        name: '突破学说',
+        preferredPosture: 'offensive',
+        preferredTasks: ['assault', 'assault', 'reserve', 'raid'],
+        techTags: ['冷兵器训练', '参谋组织'],
+    },
+    siege_attrition: {
+        id: 'siege_attrition',
+        name: '消耗学说',
+        preferredPosture: 'attrition',
+        preferredTasks: ['guard', 'guard', 'reserve', 'raid'],
+        techTags: ['工兵筑垒', '辎重体系'],
+    },
+    deep_raid: {
+        id: 'deep_raid',
+        name: '破袭学说',
+        preferredPosture: 'raid',
+        preferredTasks: ['raid', 'assault', 'reserve', 'guard'],
+        techTags: ['机动侦察', '补给破坏'],
+    },
+    balanced_command: {
+        id: 'balanced_command',
+        name: '均衡学说',
+        preferredPosture: 'balanced',
+        preferredTasks: ['assault', 'guard', 'reserve', 'raid'],
+        techTags: ['参谋组织'],
+    },
+};
+
+const getMaterielResourceForEpoch = (epoch = 0) => {
+    if (epoch >= 5) return 'ammunition';
+    if (epoch >= 4) return 'gunpowder';
+    return 'wood';
+};
+
+const pickDoctrine = (nation, epoch = 0) => {
+    const aggression = nation?.aggression ?? 0.3;
+    if (epoch >= 5 && aggression > 0.7) return AI_DOCTRINES.line_breaker;
+    if (aggression < 0.25) return AI_DOCTRINES.siege_attrition;
+    if (aggression > 0.6) return AI_DOCTRINES.deep_raid;
+    return AI_DOCTRINES.balanced_command;
+};
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -659,7 +710,7 @@ export const checkAIPeaceRequest = ({
         }
 
         if (Math.random() < willingness + frontDamageBonus) {
-            const warScore = next.warScore || 0;
+            const warScore = Math.abs(next.warScore || 0);
             const enemyLosses = next.enemyLosses || 0;
             const warDuration = next.warDuration || 0;
             const availableWealth = Math.max(0, next.wealth || 0);
@@ -1007,20 +1058,22 @@ export const checkWarDeclaration = ({
 
     // Wealth-based war check (also respects minWarEpoch from difficulty)
     const playerWealth = (res.food || 0) + (res.silver || 0) + (res.wood || 0);
-    const aiWealth = next.wealth || 500;
+    const aiEconomicScale = getNationEconomicScale(next, 500);
+    const aiTreasury = getNationTreasury(next, 200);
     const aiMilitaryStrength = next.militaryStrength ?? 1.0;
 
     if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
         next.vassalOf !== 'player' && // [FIX] Vassals cannot declare regular wealth wars on overlord
         epoch >= minWarEpoch &&
-        playerWealth > aiWealth * 2 &&
+        playerWealth > aiEconomicScale * 1.6 &&
+        aiTreasury > 180 &&
         aiMilitaryStrength > 0.8 &&
         relation < 50 &&
         aggression > 0.4 &&
         currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
         !recentWarDeclarations) {
 
-        let wealthWarChance = 0.001 * aggression * (playerWealth / aiWealth - 1);
+        let wealthWarChance = 0.001 * aggression * (playerWealth / Math.max(1, aiEconomicScale) - 1);
         // Apply difficulty modifier
         wealthWarChance = applyWarDeclarationModifier(wealthWarChance, difficultyLevel);
         if (Math.random() < wealthWarChance) {
@@ -1190,8 +1243,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             if (currentWarCount >= maxWarsAllowed) return;
 
             const myPopulation = nation.population || 100;
-            const myWealth = nation.wealth || 500;
-            if (myPopulation < 30 || myWealth < 300) return;
+            const myEconomyScale = getNationEconomicScale(nation, 500);
+            const myTreasury = getNationTreasury(nation, 200);
+            if (myPopulation < 30 || myTreasury < 180 || myEconomyScale < 350) return;
 
             const calculateNationPower = (n) => (n.militaryStrength ?? 1.0) * (n.population || 100) * (1 + (n.aggression || 0.3));
 
@@ -1266,10 +1320,10 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
 
                 warChance += opportunityBonus * 0.5;
 
-                const targetWealth = otherNation.wealth || 500;
-                if (targetWealth > myWealth * 1.5 && strengthRatio > 0.8) {
-                    const wealthWarBonus = 0.003 * aggression * (targetWealth / myWealth - 1);
-                    warChance += wealthWarBonus;
+                const targetEconomyScale = getNationEconomicScale(otherNation, 500);
+                if (targetEconomyScale > myEconomyScale * 1.3 && strengthRatio > 0.8) {
+                    const economicWarBonus = 0.002 * aggression * (targetEconomyScale / Math.max(1, myEconomyScale) - 1);
+                    warChance += economicWarBonus;
                 }
 
                 warChance = Math.min(0.003, warChance);
@@ -1480,7 +1534,7 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             const warDuration = tick - (war.warStartDay || tick);
             const warIntensity = Math.min(2.0, 1.0 + warDuration / 500);
 
-            const wealthDecayRate = 0.995 - (warIntensity * 0.003);
+            const wealthDecayRate = 0.997 - (warIntensity * 0.0015);
             const populationDecayRate = 0.998 - (warIntensity * 0.002);
 
             const nationWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
@@ -1488,9 +1542,11 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             const nationMultiWarPenalty = Math.pow(0.998, nationWarCount - 1);
             const enemyMultiWarPenalty = Math.pow(0.998, enemyWarCount - 1);
 
-            nation.wealth = Math.max(100, (nation.wealth || 500) * wealthDecayRate * nationMultiWarPenalty);
+            const nationWarExpense = Math.max(1, Math.round(getNationAnnualOutput(nation, 500) * 0.0009 * warIntensity));
+            const enemyWarExpense = Math.max(1, Math.round(getNationAnnualOutput(enemy, 500) * 0.0009 * warIntensity));
+            nation.wealth = Math.max(100, (nation.wealth || 500) * wealthDecayRate * nationMultiWarPenalty - nationWarExpense);
             nation.population = Math.max(10, (nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
-            enemy.wealth = Math.max(100, (enemy.wealth || 500) * wealthDecayRate * enemyMultiWarPenalty);
+            enemy.wealth = Math.max(100, (enemy.wealth || 500) * wealthDecayRate * enemyMultiWarPenalty - enemyWarExpense);
             enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
 
             if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
@@ -1507,13 +1563,13 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 if (Math.random() < nationWinChance) {
                     war.warScore = (war.warScore || 0) + 5;
                     enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) - 5;
-                    const loot = Math.floor((enemy.wealth || 500) * 0.08);
+                    const loot = Math.floor(Math.min((enemy.wealth || 500) * 0.05, getNationAnnualOutput(enemy, 500) * 0.04));
                     nation.wealth = (nation.wealth || 500) + loot;
                     enemy.wealth = Math.max(100, (enemy.wealth || 500) - loot);
                 } else {
                     war.warScore = (war.warScore || 0) - 5;
                     enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) + 5;
-                    const loot = Math.floor((nation.wealth || 500) * 0.08);
+                    const loot = Math.floor(Math.min((nation.wealth || 500) * 0.05, getNationAnnualOutput(nation, 500) * 0.04));
                     enemy.wealth = (enemy.wealth || 500) + loot;
                     nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
                 }
@@ -1524,8 +1580,8 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 }
 
                 const absoluteWarScore = Math.abs(war.warScore || 0);
-                const nationExhausted = (nation.population || 100) < 30 || (nation.wealth || 500) < 200;
-                const enemyExhausted = (enemy.population || 100) < 30 || (enemy.wealth || 500) < 200;
+                const nationExhausted = (nation.population || 100) < 30 || getNationTreasury(nation, 0) < Math.max(120, getNationAnnualOutput(nation, 500) * 0.01);
+                const enemyExhausted = (enemy.population || 100) < 30 || getNationTreasury(enemy, 0) < Math.max(120, getNationAnnualOutput(enemy, 500) * 0.01);
 
                 // 大幅降低随机结束概率
                 const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 : 0.005;
@@ -1716,21 +1772,9 @@ export const makeVassalsPeaceAfterSuzerain = (enemyNationId, nations, logs) => {
  * @returns {Object} A pseudo-corps object compatible with battleSystem
  */
 export const generateAICorps = (nation, epoch) => {
-    const militaryStrength = nation.militaryStrength ?? 1.0;
-    const wealth = nation.wealth || 500;
-    const population = nation.population || 100;
-
-    // Generate units based on nation stats and epoch
-    const units = {};
-    const availableUnits = getEnemyUnitsForEpoch(epoch, 'medium');
-    const totalUnits = Math.floor(5 + militaryStrength * 10 + population / 20);
-
-    availableUnits.forEach(unitId => {
-        if (UNIT_TYPES[unitId]) {
-            const count = Math.floor((totalUnits / availableUnits.length) * (0.6 + Math.random() * 0.8));
-            if (count > 0) units[unitId] = count;
-        }
-    });
+    const targetCorps = Math.max(1, Number(nation?.military?.forcePool?.targetCorps || 1));
+    const units = generateNationArmy(nation, epoch, 1 / targetCorps, 1.0);
+    const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
 
     return {
         id: `ai_corps_${nation.id}_${Date.now()}`,
@@ -1738,8 +1782,215 @@ export const generateAICorps = (nation, epoch) => {
         units,
         generalId: null,
         assignedFrontId: null,
+        frontTask: 'assault',
         status: 'deployed',
-        morale: 70 + Math.floor(militaryStrength * 30),
+        morale: 68 + Math.floor(militaryQuality * 20),
+        fatigue: 0,
+        isAI: true,
+        nationId: nation.id,
+    };
+};
+
+export const ensureAIMilitaryState = (nation, epoch = 0) => {
+    if (!nation) return nation;
+    const doctrine = pickDoctrine(nation, epoch);
+    const organizationBase = 40 + epoch * 6 + Math.round((nation.militaryStrength || 0.8) * 18);
+    const techLevel = Math.max(1, epoch + Math.round(getNationAnnualOutput(nation, 0) / 6000));
+    const materielResource = getMaterielResourceForEpoch(epoch);
+    const military = {
+        organization: clamp(nation.military?.organization ?? organizationBase, 20, 100),
+        doctrine: nation.military?.doctrine || doctrine.id,
+        techLevel: nation.military?.techLevel || techLevel,
+        techTags: Array.isArray(nation.military?.techTags) && nation.military.techTags.length > 0 ? nation.military.techTags : doctrine.techTags,
+        forcePool: {
+            targetCorps: Math.max(1, Math.min(5, Math.round((nation.population || 80) / 180) + (nation.isAtWar ? 1 : 0))),
+            reserveRatio: nation.isAtWar ? 0.35 : 0.55,
+            ...(nation.military?.forcePool || {}),
+        },
+        corpsTemplates: Array.isArray(nation.military?.corpsTemplates) ? nation.military.corpsTemplates : [],
+        logistics: {
+            throughput: clamp(nation.military?.logistics?.throughput ?? (0.8 + epoch * 0.08), 0.6, 2.5),
+            flexibility: clamp(nation.military?.logistics?.flexibility ?? (0.9 + (nation.aggression || 0.3) * 0.4), 0.7, 1.6),
+            supplyDiscipline: clamp(nation.military?.logistics?.supplyDiscipline ?? (0.8 + (organizationBase / 100) * 0.4), 0.7, 1.5),
+            ...(nation.military?.logistics || {}),
+        },
+        frontPlans: nation.military?.frontPlans || {},
+        budgetShare: clamp(nation.military?.budgetShare ?? (nation.isAtWar ? 0.22 : 0.14), 0.08, 0.35),
+        stockpile: {
+            food: Math.max(0, Math.round(nation.military?.stockpile?.food ?? ((nation.population || 100) * 0.9))),
+            silver: Math.max(0, Math.round(nation.military?.stockpile?.silver ?? (getNationTreasury(nation, 300) * 0.75))),
+            [materielResource]: Math.max(0, Math.round(nation.military?.stockpile?.[materielResource] ?? ((nation.population || 100) * 0.12 + epoch * 8))),
+            ...(nation.military?.stockpile || {}),
+        },
+    };
+
+    return {
+        ...nation,
+        military,
+    };
+};
+
+export const syncAINationMilitary = ({
+    nation,
+    epoch = 0,
+    currentDay = 0,
+    militaryCorps = [],
+    generals = [],
+}) => {
+    const nextNation = ensureAIMilitaryState(nation, epoch);
+    const doctrine = AI_DOCTRINES[nextNation.military?.doctrine] || pickDoctrine(nextNation, epoch);
+    const nationCorps = (militaryCorps || [])
+        .filter((corps) => corps?.isAI && corps.nationId === nextNation.id)
+        .filter((corps) => getCorpsTotalUnits(corps) > 0);
+    const nationGenerals = (generals || []).filter((general) => nationCorps.some((corps) => corps.generalId === general.id));
+    const targetCorps = Math.max(1, Number(nextNation.military?.forcePool?.targetCorps || 1));
+    const incomePulse = Math.max(
+        1,
+        Math.round(getNationAnnualOutput(nextNation, 0) * (nextNation.military?.budgetShare || 0.12) * 0.0025)
+    );
+    const foodPulse = Math.max(1, Math.round((nextNation.population || 0) * 0.03));
+    const materielKey = getMaterielResourceForEpoch(epoch);
+    const updatedNation = {
+        ...nextNation,
+        military: {
+            ...nextNation.military,
+            stockpile: {
+                ...nextNation.military.stockpile,
+                food: Math.max(0, Number(nextNation.military.stockpile?.food || 0) + foodPulse),
+                silver: Math.max(0, Number(nextNation.military.stockpile?.silver || 0) + incomePulse),
+                [materielKey]: Math.max(0, Number(nextNation.military.stockpile?.[materielKey] || 0) + Math.max(1, Math.round(incomePulse * 0.15))),
+            },
+        },
+    };
+
+    const updatedCorps = nationCorps.map((corps, index) => ({
+        ...corps,
+        name: corps.name || `${nation.name}第${index + 1}军团`,
+        frontTask: corps.frontTask || doctrine.preferredTasks[index % doctrine.preferredTasks.length] || 'assault',
+        status: corps.assignedFrontId ? corps.status : 'idle',
+        morale: clamp(Math.round((corps.morale || 80) + (corps.assignedFrontId ? -1 : 2)), 55, 100),
+        fatigue: clamp(Math.round(corps.fatigue || 0), 0, 100),
+        isAI: true,
+        nationId: nation.id,
+    }));
+
+    const newCorps = [];
+    const newGenerals = [];
+    if (updatedCorps.length < targetCorps) {
+        const missing = targetCorps - updatedCorps.length;
+        for (let i = 0; i < missing; i += 1) {
+            const corps = generateAICorps(updatedNation, epoch);
+            corps.id = `ai_corps_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
+            corps.name = `${updatedNation.name}第${updatedCorps.length + i + 1}军团`;
+            corps.frontTask = doctrine.preferredTasks[(updatedCorps.length + i) % doctrine.preferredTasks.length] || 'assault';
+            corps.status = 'idle';
+            corps.isAI = true;
+            corps.nationId = updatedNation.id;
+            corps.fatigue = 0;
+
+            const general = generateAIGeneral(updatedNation, epoch);
+            general.id = `ai_gen_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
+            general.assignedCorpsId = corps.id;
+            corps.generalId = general.id;
+
+            newCorps.push(corps);
+            newGenerals.push(general);
+        }
+    }
+
+    const allNationCorps = [...updatedCorps, ...newCorps];
+    const fieldedArmy = allNationCorps.reduce((army, corps) => {
+        Object.entries(corps.units || {}).forEach(([unitId, count]) => {
+            if (count > 0) {
+                army[unitId] = (army[unitId] || 0) + count;
+            }
+        });
+        return army;
+    }, {});
+    const totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    const orgFactor = 0.7 + Number(updatedNation.military?.organization || 50) / 100 * 0.6;
+    const techFactor = 0.8 + Number(updatedNation.military?.techLevel || 1) * 0.08;
+    const supplyFactor = Math.min(1.3, 0.7 + Number(updatedNation.military?.logistics?.throughput || 1) * 0.35);
+    const sustainableArmy = Math.max(
+        10,
+        Object.values(generateNationArmy(updatedNation, epoch, 1.0, 1.0)).reduce((sum, count) => sum + (count || 0), 0)
+    );
+    const mobilizationFactor = totalUnits / sustainableArmy;
+    updatedNation.militaryQuality = clamp(orgFactor * techFactor * supplyFactor, 0.7, 1.8);
+    updatedNation.militaryStrength = clamp(mobilizationFactor * updatedNation.militaryQuality, 0.25, 2.4);
+    updatedNation.military = {
+        ...updatedNation.military,
+        forcePool: {
+            ...updatedNation.military.forcePool,
+            readyUnits: totalUnits,
+            activeCorps: allNationCorps.filter((corps) => corps.assignedFrontId).length,
+        },
+        fieldedPower: Math.max(0, Math.round(calculateBattlePower(fieldedArmy, epoch, (updatedNation.militaryQuality - 1) * 0.2))),
+    };
+
+    return {
+        nation: updatedNation,
+        corps: [...allNationCorps],
+        generals: [...nationGenerals, ...newGenerals],
+    };
+};
+
+export const evaluateAIFrontPlan = ({
+    nation,
+    front,
+    ownCorps = [],
+    enemyCorps = [],
+}) => {
+    const doctrine = AI_DOCTRINES[nation?.military?.doctrine] || pickDoctrine(nation, front?.epoch || 0);
+    const ownUnits = ownCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    const enemyUnits = enemyCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    const side = nation?.id === front?.attackerId ? 'attacker' : 'defender';
+    const sideState = front?.sideState?.[side] || {};
+    const linePosition = Number(front?.linePosition || 50);
+    const underCorePressure = side === 'attacker' ? linePosition < 15 : linePosition > 85;
+    const supplyRatio = Number(sideState.supplyRatio ?? 1);
+    const unitRatio = ownUnits / Math.max(1, enemyUnits || 1);
+
+    let posture = doctrine.preferredPosture;
+    if (underCorePressure || supplyRatio < 0.7) posture = 'attrition';
+    else if (unitRatio > 1.25 && supplyRatio >= 0.9) posture = 'offensive';
+    else if (unitRatio < 0.85 && supplyRatio >= 0.8) posture = 'raid';
+    else posture = 'balanced';
+
+    const desiredCorps = clamp(
+        Math.round((nation?.military?.forcePool?.targetCorps || 1) * (underCorePressure ? 0.8 : posture === 'offensive' ? 0.75 : 0.6)),
+        1,
+        Math.max(1, nation?.military?.forcePool?.targetCorps || 1)
+    );
+
+    const sortedCorps = [...ownCorps].sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
+    const taskBlueprint = posture === 'offensive'
+        ? ['assault', 'assault', 'reserve', 'raid']
+        : posture === 'attrition'
+            ? ['guard', 'guard', 'reserve', 'raid']
+            : posture === 'raid'
+                ? ['raid', 'assault', 'reserve', 'guard']
+                : doctrine.preferredTasks;
+
+    const taskAssignments = {};
+    sortedCorps.forEach((corps, index) => {
+        taskAssignments[corps.id] = taskBlueprint[index] || taskBlueprint[taskBlueprint.length - 1] || 'assault';
+    });
+
+    return {
+        side,
+        posture,
+        desiredCorps,
+        shouldAttack: supplyRatio >= 0.7 && ownUnits > 0 && enemyUnits > 0 && (unitRatio >= 0.95 || posture === 'raid'),
+        taskAssignments,
+        frontlineCorpsOrder: sortedCorps.map((corps) => corps.id),
+        summary: {
+            ownUnits,
+            enemyUnits,
+            supplyRatio,
+            unitRatio: Number(unitRatio.toFixed(2)),
+            underCorePressure,
+        },
     };
 };
 

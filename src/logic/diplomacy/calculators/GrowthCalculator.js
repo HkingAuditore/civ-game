@@ -44,10 +44,14 @@ export class GrowthCalculator {
         // Apply minimum growth guarantee
         if (growth >= 0) {
             const minGrowth = getMinimumGrowth(currentPopulation);
-            growth = Math.max(minGrowth, growth);
+            const cappedMinimum = Math.min(
+                minGrowth,
+                Math.max(0, Math.floor(currentPopulation * 0.003))
+            );
+            growth = Math.max(cappedMinimum, growth);
         } else {
-            // Limit decline rate (max -2% per update)
-            const maxDecline = Math.max(1, Math.floor(currentPopulation * 0.02));
+            // Allow unhealthy empires to contract, but avoid collapse in a single update.
+            const maxDecline = Math.max(1, Math.floor(currentPopulation * 0.05));
             growth = Math.max(growth, -maxDecline);
         }
         
@@ -103,17 +107,15 @@ export class GrowthCalculator {
             
             if (resourceCount > 0) {
                 const avgRatio = totalRatio / resourceCount;
-                const optimalRatio = getConfig('wealth.resourceAbundanceBonus.optimalRatio', 1.0);
-                const maxBonus = getConfig('wealth.resourceAbundanceBonus.maxBonus', 0.5);
-                
-                // Bonus peaks at optimal ratio, decreases if too low or too high
-                if (avgRatio < optimalRatio) {
-                    // Below optimal: linear bonus from 0 to maxBonus
-                    resourceAbundanceFactor = 1.0 + (avgRatio / optimalRatio) * maxBonus;
+                const maxBonus = getConfig('wealth.resourceAbundanceBonus.maxBonus', 0.05);
+
+                // Inventory should mainly act as a shortage penalty.
+                // Large stockpiles do not directly create wealth.
+                if (avgRatio < 1.0) {
+                    resourceAbundanceFactor = Math.max(0.8, 0.8 + avgRatio * 0.2);
                 } else {
-                    // Above optimal: diminishing returns
-                    const excess = avgRatio - optimalRatio;
-                    resourceAbundanceFactor = 1.0 + maxBonus * Math.exp(-excess * 0.5);
+                    const surplusRatio = Math.min(1.0, avgRatio - 1.0);
+                    resourceAbundanceFactor = 1.0 + surplusRatio * maxBonus;
                 }
             }
         }
@@ -128,28 +130,22 @@ export class GrowthCalculator {
         // 3.3 Development bonus
         const developmentBonus = (developmentRate - 1) * getConfig('wealth.developmentBonus', 0.01);
         
-        // 3.4 Epoch technology bonus
-        const epochBonus = epoch * getConfig('epoch.growthFactor', 0.08);
-        
         // === STEP 4: Calculate Catch-Up Mechanism ===
         // Nations below target wealth should grow faster to catch up
         let catchUpFactor = 1.0;
         if (currentWealth < targetWealth) {
             const wealthGap = targetWealth - currentWealth;
             const gapRatio = wealthGap / Math.max(1, targetWealth);
-            // Moderate catch-up for larger gaps (up to 2x for very poor nations) [Reduced from 5x]
-            catchUpFactor = 1.0 + Math.min(1.0, gapRatio * 2.0);
+            catchUpFactor = 1.0 + Math.min(0.35, gapRatio * 0.35);
         } else if (currentPerCapita > targetPerCapita * 2) {
-            // Slow down if wealth is way above target
-            catchUpFactor = 0.5;
+            catchUpFactor = 0.9;
         }
         
         // === STEP 5: Combine All Factors ===
         const baseGrowthRate = (
             popGrowthRate + 
             baseWealthGrowthRate + 
-            developmentBonus + 
-            epochBonus
+            developmentBonus
         ) * resourceAbundanceFactor * catchUpFactor;
         
         // === STEP 6: Apply Time Scaling ===
@@ -158,17 +154,19 @@ export class GrowthCalculator {
         
         // === STEP 7: Apply Growth Rate Limits ===
         const maxGrowthRate = getConfig('wealth.maxGrowthRate', 0.05);
-        // Allow slightly higher growth for nations catching up [Reduced from 3x to 1.5x]
-        const effectiveMaxGrowth = catchUpFactor > 1.5 ? maxGrowthRate * 1.5 : maxGrowthRate;
+        const effectiveMaxGrowth = catchUpFactor > 1.2 ? maxGrowthRate * 1.25 : maxGrowthRate;
         const cappedGrowthRate = Math.max(-0.02, Math.min(effectiveMaxGrowth, rawGrowthRate));
         
         // === STEP 8: Apply Per Capita Wealth Cap ===
         const perCapitaCap = getPerCapitaWealthCap(epoch);
         let finalGrowthRate = cappedGrowthRate;
         
-        if (currentPerCapita >= perCapitaCap) {
-            // At cap, only allow minimal growth
-            finalGrowthRate = Math.min(0.005, cappedGrowthRate);
+        if (currentPerCapita > perCapitaCap) {
+            const overCapRatio = currentPerCapita / Math.max(1, perCapitaCap) - 1;
+            const compressionRate = Math.min(0.05, 0.01 + overCapRatio * 0.015);
+            finalGrowthRate = Math.min(-compressionRate, cappedGrowthRate);
+        } else if (currentPerCapita >= perCapitaCap * 0.9) {
+            finalGrowthRate = Math.min(0.001, cappedGrowthRate);
         }
         
         // === STEP 9: Calculate New Wealth ===
@@ -192,7 +190,7 @@ export class GrowthCalculator {
             catchUpFactor > 2.0
         );
         
-        if (shouldLog) {
+        if (shouldLog && typeof globalThis !== 'undefined' && globalThis.__CIV_DEBUG__) {
             console.log(`[Wealth Growth] pop=${newPopulation.toFixed(0)}, wealth ${currentWealth}→${finalWealth}, ` +
                 `perCapita=${currentPerCapita.toFixed(2)} (target=${targetPerCapita.toFixed(2)}), ` +
                 `epoch=${epoch}, catchUp=${catchUpFactor.toFixed(2)}x, ` +

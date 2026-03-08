@@ -32,6 +32,44 @@ const GENERAL_NAMES = [
 const NO_GENERAL_PENALTY = 0.85; // -15% combat power without general
 const MAX_CORPS_PER_PLAYER = 8;
 const LEVEL_UP_XP = [100, 250, 500, 1000, 2000, 4000]; // XP needed for level 1->2, 2->3, etc.
+export const CORPS_FRONT_TASKS = {
+    assault: {
+        id: 'assault',
+        name: '主攻',
+        shortName: '主攻',
+        advanceWeight: 1.25,
+        defenseWeight: 0.85,
+        raidWeight: 0.75,
+        reserveWeight: 0.2,
+    },
+    guard: {
+        id: 'guard',
+        name: '守备',
+        shortName: '守备',
+        advanceWeight: 0.75,
+        defenseWeight: 1.3,
+        raidWeight: 0.5,
+        reserveWeight: 0.35,
+    },
+    raid: {
+        id: 'raid',
+        name: '骚扰',
+        shortName: '骚扰',
+        advanceWeight: 0.7,
+        defenseWeight: 0.8,
+        raidWeight: 1.45,
+        reserveWeight: 0.15,
+    },
+    reserve: {
+        id: 'reserve',
+        name: '预备队',
+        shortName: '预备',
+        advanceWeight: 0.9,
+        defenseWeight: 0.95,
+        raidWeight: 0.35,
+        reserveWeight: 1.2,
+    },
+};
 
 let corpsIdCounter = 0;
 let generalIdCounter = 0;
@@ -204,9 +242,16 @@ export const createCorps = (name = '新军团') => {
         units: {}, // { unitId: count }
         generalId: null,
         assignedFrontId: null,
+        frontTask: 'assault',
         status: 'idle', // idle | deployed | in_combat | retreating
         morale: 100,
+        fatigue: 0,
     };
+};
+
+export const getCorpsFrontTask = (corps) => {
+    const taskId = corps?.frontTask || 'assault';
+    return CORPS_FRONT_TASKS[taskId] || CORPS_FRONT_TASKS.assault;
 };
 
 /**
@@ -357,6 +402,32 @@ export const calculateCorpsCombatPower = (corps, general, epoch) => {
  */
 export const getCorpsGeneral = (generals, corpsId) => {
     return (generals || []).find(g => g.assignedCorpsId === corpsId) || null;
+};
+
+export const selectPrimaryBattleCorps = (corpsList = [], generals = []) => {
+    const weighted = corpsList
+        .filter(corps => getCorpsTotalUnits(corps) > 0)
+        .map((corps) => {
+            const task = getCorpsFrontTask(corps);
+            const general = getCorpsGeneral(generals, corps.id);
+            const totalUnits = getCorpsTotalUnits(corps);
+            const moraleFactor = 0.5 + ((corps?.morale ?? 100) / 100) * 0.5;
+            const fatiguePenalty = Math.max(0.5, 1 - ((corps?.fatigue || 0) / 120));
+            const generalFactor = general ? 1 + ((general.level || 1) - 1) * 0.05 : NO_GENERAL_PENALTY;
+            const taskWeight = (task.advanceWeight * 0.7) + (task.reserveWeight * 0.2) + (task.raidWeight * 0.1);
+            const score = totalUnits * moraleFactor * fatiguePenalty * generalFactor * taskWeight;
+
+            return {
+                corps,
+                general,
+                task,
+                score,
+                reason: `${task.name}优先，兵力${totalUnits}，士气${Math.round(corps?.morale ?? 100)}`,
+            };
+        })
+        .sort((a, b) => b.score - a.score);
+
+    return weighted[0] || null;
 };
 
 // ========== Exports ==========
