@@ -582,7 +582,7 @@ function GameApp({ gameState }) {
 
         // Update corps status to 'deployed'
         gameState.setMilitaryCorps(prev => prev.map(c =>
-            c.id === corpsId ? { ...c, status: 'deployed', assignedFrontId: frontId } : c
+            c.id === corpsId ? { ...c, status: 'deployed', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
         ));
     }, [gameState]);
 
@@ -604,6 +604,12 @@ function GameApp({ gameState }) {
         ));
     }, [gameState]);
 
+    const handleSetCorpsFrontTask = useCallback((corpsId, frontTask) => {
+        gameState.setMilitaryCorps(prev => prev.map(c =>
+            c.id === corpsId ? { ...c, frontTask } : c
+        ));
+    }, [gameState]);
+
     // Set battle tactic for the player side
     const handleSetBattleTactic = useCallback((battleId, side, tacticId) => {
         gameState.setActiveBattles(prev => prev.map(b => {
@@ -614,8 +620,15 @@ function GameApp({ gameState }) {
 
     // Create a new battle on a front
     const handleCreateBattle = useCallback((battleParams) => {
+        if (!battleParams?.attackerCorps || !battleParams?.defenderCorps) return;
         const battle = createBattle(battleParams);
+        if (!battle) return;
         gameState.setActiveBattles(prev => [...prev, battle]);
+        if (battleParams.front?.id) {
+            gameState.setActiveFronts(prev => prev.map(front =>
+                front.id === battleParams.front.id ? { ...front, activeBattleId: battle.id } : front
+            ));
+        }
         // Mark participating corps as in combat
         const corpsIds = [battleParams.attackerCorps?.id, battleParams.defenderCorps?.id].filter(Boolean);
         if (corpsIds.length > 0) {
@@ -1383,6 +1396,7 @@ function GameApp({ gameState }) {
                                                 onSetBattleTactic={handleSetBattleTactic}
                                                 onCreateBattle={handleCreateBattle}
                                                 onSetPosture={handleSetPosture}
+                                                onSetCorpsFrontTask={handleSetCorpsFrontTask}
                                                 officials={gameState.officials}
                                             />
                                         )}

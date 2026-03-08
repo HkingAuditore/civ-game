@@ -1,7 +1,7 @@
 // 军事标签页组件
 // 显示可招募的兵种、当前军队和战斗功能
 
-import React, { useState, useMemo, useRef, useLayoutEffect, memo } from 'react';
+import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, getEnemyUnitsForEpoch, TECHS, EPOCHS } from '../../config';
@@ -13,6 +13,7 @@ import CorpsManagementPanel from '../panels/CorpsManagementPanel';
 import FrontViewPanel from '../panels/FrontViewPanel';
 import ActiveBattlePanel from '../panels/ActiveBattlePanel';
 import WarfrontCard from '../panels/WarfrontCard';
+import { BottomSheet } from './BottomSheet';
 import { calculateFrontEconomicImpact } from '../../logic/diplomacy/frontSystem';
 
 const WAR_SCORE_GUIDE = [
@@ -347,6 +348,7 @@ const MilitaryTabComponent = ({
     onSetBattleTactic, // (battleId, side, tacticId) => void
     onCreateBattle, // (battleParams) => void - Create a new battle
     onSetPosture, // (frontId, posture) => void - Set tactical posture
+    onSetCorpsFrontTask,
     officials = [], // [NEW] Officials list for general selection
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
@@ -354,11 +356,35 @@ const MilitaryTabComponent = ({
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
+    const [selectedFrontId, setSelectedFrontId] = useState(null);
+    const [isFrontDetailSheetOpen, setIsFrontDetailSheetOpen] = useState(false);
+    const [isMobileWarfrontLayout, setIsMobileWarfrontLayout] = useState(false);
     const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 10, 100, 1000
     const [disbandCount, setDisbandCount] = useState(1); // 批量解散数量：1, 10, 100, 1000
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+        const mediaQuery = window.matchMedia('(max-width: 1279px)');
+        const handleChange = (event) => {
+            setIsMobileWarfrontLayout(event.matches);
+            if (!event.matches) {
+                setIsFrontDetailSheetOpen(false);
+            }
+        };
+
+        handleChange(mediaQuery);
+
+        if (mediaQuery.addEventListener) {
+            mediaQuery.addEventListener('change', handleChange);
+            return () => mediaQuery.removeEventListener('change', handleChange);
+        }
+
+        mediaQuery.addListener(handleChange);
+        return () => mediaQuery.removeListener(handleChange);
+    }, []);
     
     // Memoize queue counts to prevent recalculation on every render
     const queueCounts = useMemo(() => {
@@ -543,11 +569,17 @@ const MilitaryTabComponent = ({
         }
     }, [activeNation, warringNations, onSelectTarget]);
 
-    const formatLootRange = (range) => {
-        if (!Array.isArray(range) || range.length < 2) return '';
-        const [min, max] = range;
-        return `${min}-${max}`;
-    };
+    React.useEffect(() => {
+        if (activeSection !== 'warfront') return;
+        if (playerActiveFronts.length === 0) {
+            setSelectedFrontId(null);
+            setIsFrontDetailSheetOpen(false);
+            return;
+        }
+        if (!selectedFrontId || !playerActiveFronts.some((front) => front.id === selectedFrontId)) {
+            setSelectedFrontId(playerActiveFronts[0].id);
+        }
+    }, [activeSection, playerActiveFronts, selectedFrontId]);
 
     /**
      * 检查单位是否可招募
@@ -613,6 +645,19 @@ const MilitaryTabComponent = ({
         }
 
         return '';
+    };
+
+    const selectedFront = playerActiveFronts.find((front) => front.id === selectedFrontId) || playerActiveFronts[0] || null;
+    const selectedFrontEnemyName = selectedFront
+        ? (nations.find((nation) => nation.id === (selectedFront.attackerId === 'player' ? selectedFront.defenderId : selectedFront.attackerId))?.name
+            || (selectedFront.attackerId === 'player' ? selectedFront.defenderId : selectedFront.attackerId)
+            || '未知国家')
+        : '战区';
+    const handleSelectFront = (frontId) => {
+        setSelectedFrontId(frontId);
+        if (isMobileWarfrontLayout) {
+            setIsFrontDetailSheetOpen(true);
+        }
     };
 
     return (
@@ -1118,20 +1163,64 @@ const MilitaryTabComponent = ({
             {activeSection === 'warfront' && (
                 <div className="space-y-3">
                     {playerActiveFronts.length > 0 && (
-                        <div className="rounded-lg border border-cyan-700/30 bg-cyan-900/20 p-3">
-                            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                                <div>
-                                    <p className="text-gray-400">活跃战线</p>
-                                    <p className="text-cyan-200 font-bold text-sm">{playerActiveFronts.length}</p>
+                        <div className="space-y-3">
+                            <div className="rounded-2xl border border-cyan-700/30 bg-cyan-900/20 p-4">
+                                <div className="grid grid-cols-2 gap-3 text-center text-xs md:grid-cols-5">
+                                    <div>
+                                        <p className="text-gray-400">战线数</p>
+                                        <p className="text-cyan-200 font-bold text-sm">{playerActiveFronts.length}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400">推进战线</p>
+                                        <p className="text-emerald-300 font-bold text-sm">{playerAdvancingFronts}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400">前线经济压强</p>
+                                        <p className="text-orange-300 font-bold text-sm">{frontlineEconomicPressure.toFixed(1)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400">现役军团</p>
+                                        <p className="text-blue-200 font-bold text-sm">{(militaryCorps || []).filter((corps) => !corps.isAI && (corps.assignedFrontId || corps.status === 'in_combat')).length}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400">活跃会战</p>
+                                        <p className="text-purple-200 font-bold text-sm">{(activeBattles || []).filter((battle) => battle?.status === 'active').length}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-gray-400">我方推进</p>
-                                    <p className="text-emerald-300 font-bold text-sm">{playerAdvancingFronts}</p>
+                            </div>
+                            <div className={`grid gap-3 ${isMobileWarfrontLayout ? 'grid-cols-1' : 'xl:grid-cols-[0.82fr_1.18fr]'}`}>
+                                <div className="space-y-3">
+                                    {playerActiveFronts.map((front) => (
+                                        <WarfrontCard
+                                            key={front.id}
+                                            front={front}
+                                            activeBattles={activeBattles}
+                                            militaryCorps={militaryCorps}
+                                            nations={nations}
+                                            resources={resources}
+                                            selected={selectedFront?.id === front.id}
+                                            onSelectFront={handleSelectFront}
+                                        />
+                                    ))}
                                 </div>
-                                <div>
-                                    <p className="text-gray-400">前线经济压力</p>
-                                    <p className="text-orange-300 font-bold text-sm">{frontlineEconomicPressure.toFixed(1)}</p>
-                                </div>
+                                {!isMobileWarfrontLayout && (
+                                    <FrontViewPanel
+                                        front={selectedFront}
+                                        activeBattles={activeBattles}
+                                        militaryCorps={militaryCorps}
+                                        generals={generals}
+                                        nations={nations}
+                                        resources={resources}
+                                        day={day}
+                                        epoch={epoch}
+                                        onAssignCorpsToFront={onAssignCorpsToFront}
+                                        onRemoveCorpsFromFront={onRemoveCorpsFromFront}
+                                        onSetBattleTactic={onSetBattleTactic}
+                                        onCreateBattle={onCreateBattle}
+                                        onSetPosture={onSetPosture}
+                                        onSetCorpsFrontTask={onSetCorpsFrontTask}
+                                    />
+                                )}
                             </div>
                         </div>
                     )}
@@ -1141,27 +1230,33 @@ const MilitaryTabComponent = ({
                             <p className="text-sm text-gray-400">暂无交战国</p>
                             <p className="text-xs text-gray-500 mt-1">与其他国家开战时会自动生成战线，届时可在此管理战局</p>
                         </div>
-                    ) : (
-                        playerActiveFronts
-                            .map(front => (
-                                <WarfrontCard
-                                    key={front.id}
-                                    front={front}
-                                    activeBattles={activeBattles}
-                                    militaryCorps={militaryCorps}
-                                    generals={generals}
-                                    nations={nations}
-                                    day={day}
-                                    epoch={epoch}
-                                    onAssignCorpsToFront={onAssignCorpsToFront}
-                                    onRemoveCorpsFromFront={onRemoveCorpsFromFront}
-                                    onSetBattleTactic={onSetBattleTactic}
-                                    onCreateBattle={onCreateBattle}
-                                    onSetPosture={onSetPosture}
-                                />
-                            ))
-                    )}
+                    ) : null}
                 </div>
+            )}
+
+            {activeSection === 'warfront' && isMobileWarfrontLayout && selectedFront && (
+                <BottomSheet
+                    isOpen={isFrontDetailSheetOpen}
+                    onClose={() => setIsFrontDetailSheetOpen(false)}
+                    title={`${selectedFrontEnemyName} 战区`}
+                >
+                    <FrontViewPanel
+                        front={selectedFront}
+                        activeBattles={activeBattles}
+                        militaryCorps={militaryCorps}
+                        generals={generals}
+                        nations={nations}
+                        resources={resources}
+                        day={day}
+                        epoch={epoch}
+                        onAssignCorpsToFront={onAssignCorpsToFront}
+                        onRemoveCorpsFromFront={onRemoveCorpsFromFront}
+                        onSetBattleTactic={onSetBattleTactic}
+                        onCreateBattle={onCreateBattle}
+                        onSetPosture={onSetPosture}
+                        onSetCorpsFrontTask={onSetCorpsFrontTask}
+                    />
+                </BottomSheet>
             )}
 
             {activeSection === 'corps' && (

@@ -16,7 +16,7 @@ export class AIEconomyState {
         
         // === Resource System ===
         this.inventory = initialData.inventory || {};
-        this.budget = initialData.budget || this.wealth * 0.5;
+        this.budget = initialData.budget || this.wealth * 0.22;
         this.prices = initialData.prices || {};
         
         // === Growth Parameters ===

@@ -318,6 +318,7 @@ import {
     processRebellionSystemDaily,
     getRebellionRiskAssessment,
 } from './diplomacy';
+import { calculateAITreasuryTargetRatio } from './diplomacy/economyUtils';
 import { calculateOverseasInvestmentSummary, processOverseasInvestments, processForeignInvestments, processOverseasInvestmentUpgrades, processForeignInvestmentUpgrades } from './diplomacy/overseasInvestment';
 import { getFrontlineEconomicModifiers } from './diplomacy/frontSystem';
 import { processManualTradeRoutes } from './economy/manualTrade';
@@ -5352,7 +5353,15 @@ export const simulateTick = ({
             const baseWealthInit = Math.max(100, Math.round(playerWealthBaseline * wealthFactor));
             next.population = basePopInit;
             next.wealth = baseWealthInit;
-            next.budget = Math.max(50, baseWealthInit * 0.5);
+            next.budget = Math.max(50, baseWealthInit * calculateAITreasuryTargetRatio({
+                wealth: baseWealthInit,
+                population: basePopInit,
+                epoch: next.epoch || visibleEpoch || 0,
+                isAtWar: false,
+                aggression: next.aggression || 0.3,
+                capacityUsage: 0.55,
+                developmentRate: next.economyTraits?.developmentRate || 1.0,
+            }));
             next.economyTraits = {
                 ...(next.economyTraits || {}),
                 basePopulation: basePopInit,
@@ -6380,36 +6389,22 @@ export const simulateTick = ({
         );
         let frontlineProductionPenalty = 0;
         let frontlineIncomePenalty = 0;
-        let frontlinePricePressure = 0;
-        let frontlineDemandPressure = 0;
-        let frontlineStabilityMod = 0;
-        let frontlineFoodUpkeep = 0;
-        let frontlineSilverUpkeep = 0;
-        let frontlinePopLossRate = 0;
-        const frontlineStratumMods = {};
         if (playerActiveFronts.length > 0) {
-            // Calculate deployed units from army
-            const deployedUnits = Object.values(army || {}).reduce((s, c) => s + (c || 0), 0);
             const silverIncome = Object.values(supply || {}).reduce((s, v) => s + (v || 0), 0) * 0.1; // rough estimate
             playerActiveFronts.forEach(front => {
+                const playerSide = front.attackerId === 'player' ? 'attacker' : front.defenderId === 'player' ? 'defender' : null;
+                const deployedUnits = playerSide
+                    ? (front.assignedCorps?.[playerSide] || []).reduce((sum, corpsId) => {
+                        const corps = (militaryCorps || []).find(item => item?.id === corpsId);
+                        if (!corps) return sum;
+                        return sum + Object.values(corps.units || {}).reduce((s, c) => s + (c || 0), 0);
+                    }, 0)
+                    : 0;
                 const modifiers = getFrontlineEconomicModifiers(front, 'player', tick, deployedUnits, silverIncome);
                 frontlineProductionPenalty += Number(modifiers.productionPenalty || 0);
                 frontlineIncomePenalty += Number(modifiers.incomePenalty || 0);
-                frontlinePricePressure += Number(modifiers.frontlinePressure || 0) * 0.02;
-                frontlineDemandPressure += Number(modifiers.militaryDemandPressure || 0);
-                frontlineStabilityMod += Number(modifiers.stabilityMod || 0);
-                frontlineFoodUpkeep += Number(modifiers.foodUpkeep || 0);
-                frontlineSilverUpkeep += Number(modifiers.silverUpkeep || 0);
-                frontlinePopLossRate += Number(modifiers.populationLossRate || 0);
-                // Merge stratum mods
-                if (modifiers.stratumMods) {
-                    for (const [stratum, mod] of Object.entries(modifiers.stratumMods)) {
-                        frontlineStratumMods[stratum] = (frontlineStratumMods[stratum] || 0) + mod;
-                    }
-                }
             });
             frontlineProductionPenalty = Math.min(0.50, frontlineProductionPenalty);
-            frontlineDemandPressure = Math.min(1.2, frontlineDemandPressure);
             if (frontlineIncomePenalty > 0) {
                 const roundedIncomePenalty = Math.floor(frontlineIncomePenalty);
                 if (roundedIncomePenalty > 0) {
@@ -6422,24 +6417,6 @@ export const simulateTick = ({
                 Object.keys(supply || {}).forEach(resourceKey => {
                     supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) * (1 - frontlineProductionPenalty));
                 });
-            }
-            // War upkeep: deduct food and silver for army maintenance
-            if (frontlineFoodUpkeep > 0) {
-                res.food = Math.max(0, (res.food || 0) - frontlineFoodUpkeep);
-            }
-            if (frontlineSilverUpkeep > 0) {
-                const beforeSilver = res.silver || 0;
-                res.silver = Math.max(0, beforeSilver - frontlineSilverUpkeep);
-                trackSilverChange(-Math.min(beforeSilver, frontlineSilverUpkeep), 'war_upkeep');
-            }
-            // Apply war fatigue stability modifier
-            if (frontlineStabilityMod !== 0) {
-                bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + frontlineStabilityMod;
-            }
-            // Apply population loss from core zone being breached (handled in simulation for consistency)
-            if (frontlinePopLossRate > 0 && population > 100) {
-                const popLoss = Math.max(1, Math.floor(population * frontlinePopLossRate));
-                population = Math.max(100, population - popLoss);
             }
         }
 
@@ -6479,7 +6456,7 @@ export const simulateTick = ({
             const sup = supply[resource] || 0;
             const dem = demand[resource] || 0;
             const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
-            const adjustedDemand = dem + virtualDemandBaseline * (1 + frontlineDemandPressure * 0.15);
+            const adjustedDemand = dem + virtualDemandBaseline;
 
 
             // 计算当前库存可以支撑多少天
@@ -6710,7 +6687,7 @@ export const simulateTick = ({
             foreignWarCount = Math.floor(foreignWarCount / 2); // 每场战争被计算两次，需要除以2
 
             // 战争物价系数：每场与玩家的战争增加2.5%物价，每场AI间战争增加1%物价
-            const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01) + frontlinePricePressure;
+            const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
 
             // 【修复】将战争乘数应用到目标价格（marketPrice），而非平滑后的价格
             // 这样平滑处理会正确地向战争调整后的目标价格移动，避免价格卡在上限

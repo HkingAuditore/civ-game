@@ -14,9 +14,12 @@
 
 import { BUILDINGS } from '../../config/buildings';
 import { RESOURCES } from '../../config';
-import { UNIT_TYPES } from '../../config/militaryUnits';
+import { UNIT_TYPES, calculateArmyMaintenance } from '../../config/militaryUnits';
+import { getCorpsTotalUnits, getCorpsFrontTask } from './corpsSystem';
 
 let frontIdCounter = 0;
+const FRONT_MIN_POSITION = 5;
+const FRONT_MAX_POSITION = 95;
 
 const generateFrontId = () => {
     frontIdCounter += 1;
@@ -75,10 +78,59 @@ export const getCheckpointsCrossed = (oldPos, newPos) => {
 };
 
 const FRONT_PHASE_LABELS = {
-    contact: '接触',
-    pressure: '压制',
-    breakthrough: '突破',
+    contact: '僵持',
+    pressure: '拉锯',
+    breakthrough: '压制',
     collapse: '崩溃',
+};
+
+export const FRONT_POSTURES = {
+    offensive: {
+        id: 'offensive',
+        name: '强攻推进',
+        desc: '推进更快，但补给、伤亡与疲劳压力更高。',
+        advanceMod: 1.25,
+        attritionMod: 1.25,
+        supplyMod: 1.2,
+        entrenchmentMod: 0.9,
+        raidMod: 0.95,
+    },
+    balanced: {
+        id: 'balanced',
+        name: '稳扎稳打',
+        desc: '推进稳定，兼顾补给、工事与持续作战。',
+        advanceMod: 1.0,
+        attritionMod: 1.0,
+        supplyMod: 1.0,
+        entrenchmentMod: 1.0,
+        raidMod: 1.0,
+    },
+    attrition: {
+        id: 'attrition',
+        name: '固守消耗',
+        desc: '强化工事与对峙收益，推进较慢，适合拖垮对手。',
+        advanceMod: 0.82,
+        attritionMod: 0.85,
+        supplyMod: 0.9,
+        entrenchmentMod: 1.25,
+        raidMod: 0.8,
+    },
+    raid: {
+        id: 'raid',
+        name: '破袭骚扰',
+        desc: '重点打击敌方补给和经济，不追求快速突破。',
+        advanceMod: 0.75,
+        attritionMod: 0.95,
+        supplyMod: 0.95,
+        entrenchmentMod: 0.95,
+        raidMod: 1.35,
+    },
+};
+
+const LEGACY_POSTURE_MAP = {
+    aggressive: 'offensive',
+    defensive: 'balanced',
+    passive: 'attrition',
 };
 
 const deriveFrontPhase = (linePosition = 50) => {
@@ -92,6 +144,284 @@ const getTotalUnitsFromCorps = (corpsList = []) => corpsList.reduce((sum, corps)
     const units = Object.values(corps?.units || {}).reduce((s, count) => s + (count || 0), 0);
     return sum + units;
 }, 0);
+
+const normalizePostureId = (posture) => LEGACY_POSTURE_MAP[posture] || posture || 'balanced';
+
+const buildEmptySideState = (epoch = 0) => ({
+    deployedUnits: 0,
+    corpsCount: 0,
+    supplyNeed: {
+        resources: {},
+        logisticsMultiplier: 1,
+        food: 0,
+        silver: 0,
+        materiel: 0,
+        materielResource: epoch >= 5 ? 'ammunition' : epoch >= 4 ? 'gunpowder' : 'wood',
+    },
+    supplyAvailable: {
+        resources: {},
+        food: 0,
+        silver: 0,
+        materiel: 0,
+        materielResource: epoch >= 5 ? 'ammunition' : epoch >= 4 ? 'gunpowder' : 'wood',
+    },
+    supplyRatio: 1,
+    supplyState: '未接战',
+    entrenchment: 25,
+    raidPower: 0,
+    reservePower: 0,
+    advancePower: 0,
+    defensePower: 0,
+    economicPressure: 0,
+    civilianPressure: 0,
+    fatiguePressure: 0,
+});
+
+export const getFrontPostureIdForSide = (front, side) => {
+    const configured = front?.postures?.[side];
+    if (configured) return normalizePostureId(configured);
+    if (side === getPlayerSide(front)) {
+        return normalizePostureId(front?.posture);
+    }
+    return normalizePostureId(front?.aiPosture || 'balanced');
+};
+
+export const getFrontPostureConfig = (posture) => {
+    const postureId = normalizePostureId(posture);
+    return FRONT_POSTURES[postureId] || FRONT_POSTURES.balanced;
+};
+
+const getRoleWeightedStrength = (corpsList = [], mode = 'advance') => corpsList.reduce((sum, corps) => {
+    const units = getCorpsTotalUnits(corps);
+    if (units <= 0) return sum;
+    const task = getCorpsFrontTask(corps);
+    const moraleFactor = 0.5 + ((corps?.morale ?? 100) / 100) * 0.5;
+    const fatiguePenalty = Math.max(0.55, 1 - ((corps?.fatigue || 0) / 120));
+    const modeWeight = task?.[`${mode}Weight`] || 1;
+    return sum + units * moraleFactor * fatiguePenalty * modeWeight;
+}, 0);
+
+const getZoneRiskLabel = (linePosition, side) => {
+    if (side === 'attacker') {
+        if (linePosition < 15) return '核心区承压';
+        if (linePosition < 35) return '经济区承压';
+        if (linePosition < 50) return '边境区承压';
+    } else {
+        if (linePosition > 85) return '核心区承压';
+        if (linePosition > 65) return '经济区承压';
+        if (linePosition > 50) return '边境区承压';
+    }
+    return '边境接触';
+};
+
+const getSupplyStateLabel = (ratio) => {
+    if (ratio >= 1.05) return '充足';
+    if (ratio >= 0.85) return '稳定';
+    if (ratio >= 0.65) return '吃紧';
+    return '断裂';
+};
+
+const aggregateArmyFromCorps = (corpsList = []) => corpsList.reduce((army, corps) => {
+    Object.entries(corps?.units || {}).forEach(([unitId, count]) => {
+        if (count > 0) {
+            army[unitId] = (army[unitId] || 0) + count;
+        }
+    });
+    return army;
+}, {});
+
+const getSideLogisticsPressure = (linePosition = 50, side = 'attacker') => {
+    if (side === 'attacker') {
+        return Math.max(0, (linePosition - 50) / 50);
+    }
+    return Math.max(0, (50 - linePosition) / 50);
+};
+
+const isSideUnderTerritorialPressure = (linePosition = 50, side = 'attacker') => (
+    side === 'attacker' ? linePosition < 50 : linePosition > 50
+);
+
+const buildResourceCoverage = (needResources = {}, availableResources = {}) => {
+    const resourceKeys = Object.keys(needResources);
+    if (resourceKeys.length === 0) return 1;
+    const coverage = resourceKeys.map((resourceKey) => {
+        const needed = Number(needResources[resourceKey] || 0);
+        if (needed <= 0) return 1;
+        return Number(availableResources[resourceKey] || 0) / needed;
+    });
+    return Math.max(0, Math.min(...coverage.map((value) => (Number.isFinite(value) ? value : 1))));
+};
+
+const buildFactor = (label, value, kind = 'neutral') => ({
+    label,
+    value: Number(value.toFixed(2)),
+    kind,
+});
+
+const buildWarScoreBreakdown = (prev = {}, updates = {}) => ({
+    battle: (prev.battle || 0) + (updates.battle || 0),
+    advance: (prev.advance || 0) + (updates.advance || 0),
+    economic: (prev.economic || 0) + (updates.economic || 0),
+    homeland: (prev.homeland || 0) + (updates.homeland || 0),
+});
+
+const getWarScoreBreakdownTotal = (breakdown = {}) => (
+    Number(breakdown?.battle || 0)
+    + Number(breakdown?.advance || 0)
+    + Number(breakdown?.economic || 0)
+    + Number(breakdown?.homeland || 0)
+);
+
+const deriveDetailedPhase = (linePosition, pressure, supplyRatio, contestedZone) => {
+    if (linePosition <= 8 || linePosition >= 92 || pressure >= 80) return 'collapse';
+    if (linePosition <= 22 || linePosition >= 78 || (pressure >= 62 && supplyRatio >= 0.9)) return 'breakthrough';
+    if (linePosition <= 40 || linePosition >= 60 || contestedZone.includes('经济')) return 'pressure';
+    return 'contact';
+};
+
+export const summarizeFrontState = (front, attackerCorps = [], defenderCorps = []) => {
+    const normalizedFront = ensureFrontDefaults(front);
+    const attackerUnits = getTotalUnitsFromCorps(attackerCorps);
+    const defenderUnits = getTotalUnitsFromCorps(defenderCorps);
+    const totalUnits = Math.max(1, attackerUnits + defenderUnits);
+    const attackerAdvance = getRoleWeightedStrength(attackerCorps, 'advance');
+    const defenderAdvance = getRoleWeightedStrength(defenderCorps, 'advance');
+    const attackerDefense = getRoleWeightedStrength(attackerCorps, 'defense');
+    const defenderDefense = getRoleWeightedStrength(defenderCorps, 'defense');
+    const attackerRaid = getRoleWeightedStrength(attackerCorps, 'raid');
+    const defenderRaid = getRoleWeightedStrength(defenderCorps, 'raid');
+    const attackerReserve = getRoleWeightedStrength(attackerCorps, 'reserve');
+    const defenderReserve = getRoleWeightedStrength(defenderCorps, 'reserve');
+
+    const attackerPostureCfg = getFrontPostureConfig(getFrontPostureIdForSide(normalizedFront, 'attacker'));
+    const defenderPostureCfg = getFrontPostureConfig(getFrontPostureIdForSide(normalizedFront, 'defender'));
+    const attackPressure = ((attackerAdvance * attackerPostureCfg.advanceMod) - (defenderDefense * defenderPostureCfg.entrenchmentMod)) / totalUnits * 100;
+    const defensePressure = ((defenderAdvance * defenderPostureCfg.advanceMod) - (attackerDefense * attackerPostureCfg.entrenchmentMod)) / totalUnits * 100;
+    const rawPressure = 50 + (attackPressure - defensePressure) * 0.6;
+    const pressure = clamp(rawPressure, 0, 100);
+
+    const ownSide = getPlayerSide(normalizedFront);
+    const playerUnits = ownSide === 'attacker' ? attackerUnits : defenderUnits;
+    const enemyUnits = ownSide === 'attacker' ? defenderUnits : attackerUnits;
+    const playerRaid = ownSide === 'attacker' ? attackerRaid : defenderRaid;
+    const enemyRaid = ownSide === 'attacker' ? defenderRaid : attackerRaid;
+    const playerReserve = ownSide === 'attacker' ? attackerReserve : defenderReserve;
+    const enemyReserve = ownSide === 'attacker' ? defenderReserve : attackerReserve;
+
+    const playerPostureCfg = getFrontPostureConfig(getFrontPostureIdForSide(normalizedFront, ownSide || 'attacker'));
+    const enemyPostureCfg = getFrontPostureConfig(getFrontPostureIdForSide(normalizedFront, ownSide === 'attacker' ? 'defender' : 'attacker'));
+    const raidIntensity = clamp(((playerRaid * playerPostureCfg.raidMod) - (enemyRaid * enemyPostureCfg.raidMod)) / Math.max(1, playerUnits + enemyUnits) * 120 + 50, 0, 100);
+    const entrenchment = {
+        attacker: clamp(Math.round((attackerDefense / Math.max(1, attackerUnits)) * 20 * attackerPostureCfg.entrenchmentMod + 25), 0, 100),
+        defender: clamp(Math.round((defenderDefense / Math.max(1, defenderUnits)) * 20 * defenderPostureCfg.entrenchmentMod + 25), 0, 100),
+    };
+
+    const fallbackPlayerResources = normalizedFront.playerResources || {};
+    const fallbackEnemyStock = normalizedFront.aiResources || {};
+    const sideResources = {
+        attacker: normalizedFront.sideResources?.attacker || (normalizedFront.attackerId === 'player' ? fallbackPlayerResources : fallbackEnemyStock),
+        defender: normalizedFront.sideResources?.defender || (normalizedFront.defenderId === 'player' ? fallbackPlayerResources : fallbackEnemyStock),
+    };
+    const buildSideState = (side, corpsList, units, raidPower, reservePower, advancePower, defensePower, postureCfg) => {
+        const army = aggregateArmyFromCorps(corpsList);
+        const baseMaintenance = calculateArmyMaintenance(army);
+        const logisticsPressure = getSideLogisticsPressure(normalizedFront.linePosition, side);
+        const supplyLinePressure = Math.max(0, Number(normalizedFront.economicDamageBreakdown?.supplyLineDamage || 0)) / 100;
+        const logisticsMultiplier = clamp(
+            postureCfg.supplyMod + logisticsPressure * 1.45 + supplyLinePressure * 0.55,
+            1,
+            3
+        );
+        const needResources = Object.fromEntries(
+            Object.entries(baseMaintenance).map(([resourceKey, amount]) => [
+                resourceKey,
+                Math.max(0, Math.ceil(Number(amount || 0) * logisticsMultiplier)),
+            ])
+        );
+        const stock = sideResources[side] || {};
+        const availableResources = Object.fromEntries(
+            Object.keys(needResources).map((resourceKey) => [resourceKey, Number(stock[resourceKey] || 0)])
+        );
+        const ammoResource = Object.keys(needResources).find((resourceKey) => ['ammunition', 'gunpowder', 'wood'].includes(resourceKey)) || 'wood';
+        const supplyRatio = units > 0 ? buildResourceCoverage(needResources, availableResources) : 1;
+        return {
+            deployedUnits: units,
+            corpsCount: corpsList.length,
+            supplyNeed: {
+                resources: needResources,
+                logisticsMultiplier: Number(logisticsMultiplier.toFixed(2)),
+                food: Number(needResources.food || 0),
+                silver: Number(needResources.silver || 0),
+                materiel: Number(needResources[ammoResource] || 0),
+                materielResource: ammoResource,
+            },
+            supplyAvailable: {
+                resources: availableResources,
+                food: Number(availableResources.food || 0),
+                silver: Number(availableResources.silver || 0),
+                materiel: Number(availableResources[ammoResource] || 0),
+                materielResource: ammoResource,
+            },
+            supplyRatio: Number(supplyRatio.toFixed(2)),
+            supplyState: units > 0 ? getSupplyStateLabel(supplyRatio) : '未接战',
+            entrenchment: entrenchment[side],
+            raidPower: Number(raidPower.toFixed(1)),
+            reservePower: Number(reservePower.toFixed(1)),
+            advancePower: Number(advancePower.toFixed(1)),
+            defensePower: Number(defensePower.toFixed(1)),
+            economicPressure: 0,
+            civilianPressure: Number(normalizedFront.economicDamageBreakdown?.civilianPressure || 0),
+            fatiguePressure: Math.round(corpsList.reduce((sum, corps) => sum + Number(corps?.fatigue || 0), 0) / Math.max(1, corpsList.length)),
+        };
+    };
+
+    const attackerState = buildSideState('attacker', attackerCorps, attackerUnits, attackerRaid, attackerReserve, attackerAdvance, attackerDefense, attackerPostureCfg);
+    const defenderState = buildSideState('defender', defenderCorps, defenderUnits, defenderRaid, defenderReserve, defenderAdvance, defenderDefense, defenderPostureCfg);
+    const playerState = ownSide === 'attacker' ? attackerState : defenderState;
+    const enemyState = ownSide === 'attacker' ? defenderState : attackerState;
+    const supplyState = {
+        attacker: attackerState.supplyState,
+        defender: defenderState.supplyState,
+        player: playerState.supplyState,
+        playerRatio: playerState.supplyRatio,
+        playerNeed: playerState.supplyNeed,
+    };
+
+    const contestedZone = getZoneRiskLabel(normalizedFront.linePosition, ownSide || 'attacker');
+    const phase = deriveDetailedPhase(normalizedFront.linePosition, pressure, playerState.supplyRatio, contestedZone);
+
+    return {
+        pressure: Math.round(pressure),
+        raidIntensity: Math.round(raidIntensity),
+        entrenchment,
+        contestedZone,
+        phase,
+        supplyState,
+        sideState: {
+            attacker: attackerState,
+            defender: defenderState,
+        },
+        attacker: attackerState,
+        defender: defenderState,
+        playerView: {
+            side: ownSide,
+            own: playerState,
+            enemy: enemyState,
+            supplyState,
+            pressure: Math.round(pressure),
+            raidIntensity: Math.round(raidIntensity),
+            entrenchment,
+            contestedZone,
+            phase,
+        },
+        summary: {
+            playerUnits,
+            enemyUnits,
+            playerReserve: Math.round(playerReserve),
+            enemyReserve: Math.round(enemyReserve),
+        },
+    };
+};
 
 const getAdvanceNarrative = (front, delta) => {
     const absDelta = Math.abs(delta);
@@ -367,7 +697,36 @@ export const generateFront = (attackerId, defenderId, epoch, attackerEconomy, de
         phase: 'contact',
         controlLog: [],
         _lastAdvanceDay: 0,
-        posture: 'defensive',
+        posture: 'balanced',
+        aiPosture: 'balanced',
+        postures: { attacker: 'balanced', defender: 'balanced' },
+        pressure: 50,
+        supplyState: {
+            attacker: '稳定',
+            defender: '稳定',
+            player: '稳定',
+            playerRatio: 1,
+            playerNeed: { resources: {}, logisticsMultiplier: 1, food: 0, silver: 0, materiel: 0, materielResource: 'wood' },
+        },
+        sideState: {
+            attacker: buildEmptySideState(epoch),
+            defender: buildEmptySideState(epoch),
+        },
+        raidIntensity: 0,
+        entrenchment: { attacker: 25, defender: 25 },
+        contestedZone: '边境接触',
+        lastResolvedFactors: [],
+        frontDailySummary: [],
+        warScoreBreakdown: { battle: 0, advance: 0, economic: 0, homeland: 0 },
+        lastOccupationScoreDay: 0,
+        activeBattleId: null,
+        recentBattleReports: [],
+        economicDamageBreakdown: {
+            supplyLineDamage: 0,
+            productionLoss: 0,
+            infrastructureLoss: 0,
+            civilianPressure: 0,
+        },
         zones,
         resourceNodes,
         infrastructure,
@@ -375,6 +734,15 @@ export const generateFront = (attackerId, defenderId, epoch, attackerEconomy, de
         assignedCorps: {
             attacker: [], // corps IDs
             defender: [], // corps IDs
+        },
+        frontlineCorpsOrder: {
+            attacker: [],
+            defender: [],
+        },
+        frontPlans: {},
+        sideResources: {
+            attacker: attackerId === 'player' ? { ...(attackerEconomy?.resources || {}) } : {},
+            defender: defenderId === 'player' ? { ...(defenderEconomy?.resources || {}) } : {},
         },
         frontPower: {
             attacker: 0,
@@ -427,6 +795,11 @@ export const ensureFrontDefaults = (front) => {
         }
     }
 
+    const normalizedWarScoreBreakdown = buildWarScoreBreakdown(front.warScoreBreakdown, {});
+    const normalizedWarScore = getWarScoreBreakdownTotal(normalizedWarScoreBreakdown);
+    const hasBreakdownScore = normalizedWarScore !== 0
+        || Object.values(front.warScoreBreakdown || {}).some((value) => Number(value || 0) !== 0);
+
     return {
         ...front,
         startDay: Number.isFinite(front.startDay) ? front.startDay : (front.createdDay || 0),
@@ -435,8 +808,50 @@ export const ensureFrontDefaults = (front) => {
         phase: front.phase || deriveFrontPhase(normalizedPosition),
         controlLog: Array.isArray(front.controlLog) ? front.controlLog.slice(-12) : [],
         frictionLog: Array.isArray(front.frictionLog) ? front.frictionLog.slice(-10) : [],
-        posture: front.posture || 'defensive',
+        posture: normalizePostureId(front.posture),
+        aiPosture: normalizePostureId(front.aiPosture || 'balanced'),
+        postures: {
+            attacker: normalizePostureId(front.postures?.attacker || (front.attackerId === 'player' ? front.posture : front.aiPosture)),
+            defender: normalizePostureId(front.postures?.defender || (front.defenderId === 'player' ? front.posture : front.aiPosture)),
+        },
+        pressure: Number.isFinite(front.pressure) ? front.pressure : 50,
+        supplyState: front.supplyState || {
+            attacker: '稳定',
+            defender: '稳定',
+            player: '稳定',
+            playerRatio: 1,
+            playerNeed: { resources: {}, logisticsMultiplier: 1, food: 0, silver: 0, materiel: 0, materielResource: 'wood' },
+        },
+        sideState: {
+            attacker: { ...buildEmptySideState(front.epoch || 0), ...(front.sideState?.attacker || {}) },
+            defender: { ...buildEmptySideState(front.epoch || 0), ...(front.sideState?.defender || {}) },
+        },
+        raidIntensity: Number.isFinite(front.raidIntensity) ? front.raidIntensity : 0,
+        entrenchment: front.entrenchment || { attacker: 25, defender: 25 },
+        contestedZone: front.contestedZone || '边境接触',
+        lastResolvedFactors: Array.isArray(front.lastResolvedFactors) ? front.lastResolvedFactors.slice(-8) : [],
+        frontDailySummary: Array.isArray(front.frontDailySummary) ? front.frontDailySummary.slice(-30) : [],
+        warScore: hasBreakdownScore ? normalizedWarScore : Number(front.warScore || 0),
+        warScoreBreakdown: normalizedWarScoreBreakdown,
+        lastOccupationScoreDay: Number.isFinite(front.lastOccupationScoreDay) ? front.lastOccupationScoreDay : (front.startDay || 0),
+        activeBattleId: front.activeBattleId || null,
+        recentBattleReports: Array.isArray(front.recentBattleReports) ? front.recentBattleReports.slice(-6) : [],
+        economicDamageBreakdown: {
+            supplyLineDamage: Number(front.economicDamageBreakdown?.supplyLineDamage || 0),
+            productionLoss: Number(front.economicDamageBreakdown?.productionLoss || 0),
+            infrastructureLoss: Number(front.economicDamageBreakdown?.infrastructureLoss || 0),
+            civilianPressure: Number(front.economicDamageBreakdown?.civilianPressure || 0),
+        },
         _lastAdvanceDay: Number.isFinite(front._lastAdvanceDay) ? front._lastAdvanceDay : 0,
+        frontlineCorpsOrder: {
+            attacker: Array.isArray(front.frontlineCorpsOrder?.attacker) ? front.frontlineCorpsOrder.attacker : [],
+            defender: Array.isArray(front.frontlineCorpsOrder?.defender) ? front.frontlineCorpsOrder.defender : [],
+        },
+        frontPlans: front.frontPlans || {},
+        sideResources: {
+            attacker: front.sideResources?.attacker || {},
+            defender: front.sideResources?.defender || {},
+        },
         zones,
         destroyedBuildings: front.destroyedBuildings || {},
     };
@@ -818,23 +1233,31 @@ export const calculateFrontEconomicImpact = (front, nationId) => {
         }
     }
 
+    const side = nationId === normalizedFront.attackerId
+        ? 'attacker'
+        : nationId === normalizedFront.defenderId
+            ? 'defender'
+            : null;
+    if (side && isSideUnderTerritorialPressure(normalizedFront.linePosition, side)) {
+        const ecoBreakdown = normalizedFront.economicDamageBreakdown || {};
+        productionPenalty += Math.min(0.2, (ecoBreakdown.productionLoss || 0) / 100);
+        incomePenalty += Math.max(0, ecoBreakdown.infrastructureLoss || 0);
+    }
+
     return { productionPenalty, incomePenalty, supplyBonus, defenseBonus };
 };
 
 /**
  * Calculate front economic modifiers used by main simulation.
- * Three-layer economic pressure model:
- * 1. Base war upkeep (food/silver per deployed soldier)
- * 2. Zone-depth production/income penalty
- * 3. War fatigue (stability + stratum satisfaction)
+ * 仅保留战线位置导致的经济损失/产出减益，以及供 AI/前端读取的后勤状态。
  * @param {Object} front
  * @param {string} nationId
- * @param {number} currentDay - Current game day
- * @param {number} deployedUnits - Total deployed units for this nation
+ * @param {number} _currentDay - Current game day
+ * @param {number} _deployedUnits - Total deployed units for this nation
  * @param {number} silverIncome - Nation's current silver income per day
  * @returns {Object}
  */
-export const getFrontlineEconomicModifiers = (front, nationId, currentDay = 0, deployedUnits = 0, silverIncome = 100) => {
+export const getFrontlineEconomicModifiers = (front, nationId, _currentDay = 0, _deployedUnits = 0, silverIncome = 100, nationResources = null) => {
     const normalizedFront = ensureFrontDefaults(front);
     const impact = calculateFrontEconomicImpact(normalizedFront, nationId);
     const side = nationId === normalizedFront.attackerId
@@ -842,6 +1265,16 @@ export const getFrontlineEconomicModifiers = (front, nationId, currentDay = 0, d
         : nationId === normalizedFront.defenderId
             ? 'defender'
             : null;
+    const sideState = normalizedFront.sideState?.[side] || buildEmptySideState(normalizedFront.epoch || 0);
+    const derivedResources = nationResources || normalizedFront.sideResources?.[side] || (nationId === 'player' ? normalizedFront.playerResources : normalizedFront.aiResources) || {};
+    const needResources = sideState.supplyNeed?.resources || {};
+    const availableResources = Object.fromEntries(
+        Object.keys(needResources).map((resourceKey) => [resourceKey, Number(derivedResources[resourceKey] || 0)])
+    );
+    const manualSupplyRatio = Object.keys(needResources).length > 0
+        ? buildResourceCoverage(needResources, availableResources)
+        : 1;
+    const supplyRatio = Number(sideState.supplyRatio ?? manualSupplyRatio ?? 1);
 
     if (!side) {
         return {
@@ -850,47 +1283,30 @@ export const getFrontlineEconomicModifiers = (front, nationId, currentDay = 0, d
             supplyBonus: impact.supplyBonus,
             defenseBonus: impact.defenseBonus,
             frontlinePressure: 0,
-            militaryDemandPressure: 0,
-            foodUpkeep: 0,
-            silverUpkeep: 0,
-            stabilityMod: 0,
-            stratumMods: {},
+            logisticsMultiplier: 1,
+            supplyRatio: 1,
             supplyCrisis: false,
-            populationLossRate: 0,
         };
     }
 
-    // === Layer 1: Base war upkeep ===
-    const foodUpkeep = deployedUnits * 0.3;
-    const silverUpkeep = deployedUnits * 0.1;
-
-    // === Layer 2: Zone-depth penalty ===
+    // 战线位置只决定掠夺、经济损失与产出减益。
     const linePos = normalizedFront.linePosition;
     let zoneProductionPenalty = 0;
     let zoneIncomePenalty = 0;
-    let populationLossRate = 0;
 
     if (side === 'attacker') {
-        // Attacker is hurt when defender pushes into attacker territory (linePos < 50)
         if (linePos < 50) {
-            // Attacker frontier breached (35-50)
             zoneProductionPenalty += 0.05;
         }
         if (linePos < 35) {
-            // Attacker economic zone breached (15-35)
             zoneProductionPenalty += 0.15;
             zoneIncomePenalty += silverIncome * 0.2;
         }
         if (linePos < 15) {
-            // Attacker core breached (0-15)
             zoneProductionPenalty += 0.25;
             zoneIncomePenalty += silverIncome * 0.4;
-            // Population loss: 0.5% × depth penetration factor
-            const depthFactor = (15 - linePos) / 15;
-            populationLossRate = 0.005 * depthFactor;
         }
     } else {
-        // Defender is hurt when attacker pushes into defender territory (linePos > 50)
         if (linePos > 50) {
             zoneProductionPenalty += 0.05;
         }
@@ -901,48 +1317,24 @@ export const getFrontlineEconomicModifiers = (front, nationId, currentDay = 0, d
         if (linePos > 85) {
             zoneProductionPenalty += 0.25;
             zoneIncomePenalty += silverIncome * 0.4;
-            const depthFactor = (linePos - 85) / 15;
-            populationLossRate = 0.005 * depthFactor;
         }
     }
-
-    // === Layer 3: War fatigue ===
-    const warDuration = Math.max(0, currentDay - (normalizedFront.startDay || 0));
-    const fatiguePeriods = Math.floor(warDuration / 30); // Every 30 days
-    const stabilityMod = fatiguePeriods * -2; // -2 stability per 30 days
-    const stratumMods = {};
-    if (fatiguePeriods > 0) {
-        stratumMods.soldier = fatiguePeriods * 3;    // Military likes war
-        stratumMods.merchant = fatiguePeriods * -3;  // Merchants hate war
-    }
-
-    // Combined pressure
+    const territorialPressure = isSideUnderTerritorialPressure(linePos, side);
     const totalProductionPenalty = Math.min(0.5, impact.productionPenalty + zoneProductionPenalty);
     const totalIncomePenalty = impact.incomePenalty + zoneIncomePenalty;
     const frontlinePressure = side === 'attacker'
         ? Math.max(0, (50 - linePos) / 50)
         : Math.max(0, (linePos - 50) / 50);
-    const phaseMultiplier = normalizedFront.phase === 'collapse'
-        ? 1.25
-        : normalizedFront.phase === 'breakthrough'
-            ? 1.1
-            : normalizedFront.phase === 'pressure'
-                ? 1.0
-                : 0.8;
 
     return {
         productionPenalty: totalProductionPenalty,
-        incomePenalty: totalIncomePenalty,
+        incomePenalty: totalIncomePenalty + (territorialPressure ? Math.max(0, Number(normalizedFront.economicDamageBreakdown?.civilianPressure || 0) * 0.4) : 0),
         supplyBonus: impact.supplyBonus,
         defenseBonus: impact.defenseBonus,
         frontlinePressure,
-        militaryDemandPressure: frontlinePressure * (0.4 + phaseMultiplier * 0.3),
-        foodUpkeep,
-        silverUpkeep,
-        stabilityMod,
-        stratumMods,
-        supplyCrisis: false, // Will be set by caller if resources run out
-        populationLossRate,
+        logisticsMultiplier: Number(sideState.supplyNeed?.logisticsMultiplier || 1),
+        supplyRatio,
+        supplyCrisis: supplyRatio < 0.65,
     };
 };
 
@@ -997,12 +1389,18 @@ const FRICTION_EVENT_TEMPLATES = [
 export const processFrontFriction = (front, playerCorps, enemyCorps, day, posture = 'defensive') => {
     // Preconditions: both sides must have corps, no active battle
     if (!playerCorps?.length || !enemyCorps?.length) return null;
+    const normalizedFront = ensureFrontDefaults(front);
+    const postureCfg = getFrontPostureConfig(posture);
+    const playerRaidStrength = getRoleWeightedStrength(playerCorps, 'raid');
+    const enemyRaidStrength = getRoleWeightedStrength(enemyCorps, 'raid');
+    const totalUnits = Math.max(1, getTotalUnitsFromCorps(playerCorps) + getTotalUnitsFromCorps(enemyCorps));
 
     // Frequency control based on posture
     const baseInterval = 4; // every 4 days
     let interval = baseInterval;
-    if (posture === 'aggressive') interval = Math.max(2, Math.floor(baseInterval * 0.6));
-    if (posture === 'passive') interval = Math.floor(baseInterval * 1.5);
+    if (normalizePostureId(posture) === 'offensive') interval = Math.max(2, Math.floor(baseInterval * 0.7));
+    if (normalizePostureId(posture) === 'attrition') interval = Math.floor(baseInterval * 1.35);
+    if (normalizePostureId(posture) === 'raid') interval = Math.max(2, Math.floor(baseInterval * 0.75));
 
     // Use front id hash + day for deterministic but varied timing
     const hash = (front.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -1020,16 +1418,18 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     }, 0);
 
     const baseCasualtyRate = 0.001 + Math.random() * 0.004; // 0.1% ~ 0.5%
-    let playerCasualties = Math.max(1, Math.floor(playerTotal * baseCasualtyRate * template.intensity));
+    let playerCasualties = Math.max(1, Math.floor(playerTotal * baseCasualtyRate * template.intensity * postureCfg.attritionMod));
     let enemyCasualties = Math.max(1, Math.floor(enemyTotal * baseCasualtyRate * template.intensity));
 
     // Posture adjustments
-    if (posture === 'aggressive') {
+    if (normalizePostureId(posture) === 'offensive') {
         playerCasualties = Math.ceil(playerCasualties * 1.2);
         enemyCasualties = Math.ceil(enemyCasualties * 1.5);
-    } else if (posture === 'passive') {
+    } else if (normalizePostureId(posture) === 'attrition') {
         playerCasualties = Math.ceil(playerCasualties * 0.5);
         enemyCasualties = Math.ceil(enemyCasualties * 0.5);
+    } else if (normalizePostureId(posture) === 'raid') {
+        enemyCasualties = Math.ceil(enemyCasualties * 1.1);
     }
 
     // Player bias from event template
@@ -1049,6 +1449,13 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     } else if (playerCasualties > enemyCasualties) {
         advanceDelta = -(0.4 + Math.min(1.8, (playerCasualties - enemyCasualties) / Math.max(20, enemyCasualties + playerCasualties) * 6));
     }
+
+    const raidSwing = (playerRaidStrength - enemyRaidStrength) / totalUnits;
+    const raidPressure = Math.max(0, raidSwing * 120 * postureCfg.raidMod);
+    const supplyLineDamage = Math.max(0, Math.round(raidPressure * 0.08));
+    const productionLoss = Math.max(0, Math.round(raidPressure * 0.05));
+    const infrastructureLoss = Math.max(0, Math.round(raidPressure * 0.03));
+    const civilianPressure = Math.max(0, Math.round(Math.max(0, Math.abs(normalizedFront.linePosition - 50) - 10) * 0.2));
 
     // Auto-plunder: when friction occurs in enemy zone, 30% chance to destroy a resource node
     let autoPlunderNodeId = null;
@@ -1075,6 +1482,22 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
         warScoreDelta,
         advanceDelta,
         autoPlunderNodeId,
+        factors: [
+            buildFactor('边境摩擦', enemyCasualties > playerCasualties ? 0.6 : -0.6, enemyCasualties > playerCasualties ? 'positive' : enemyCasualties < playerCasualties ? 'negative' : 'neutral'),
+            buildFactor('袭扰强度', raidPressure / 40, raidPressure > 0 ? 'positive' : 'neutral'),
+        ],
+        economicDamage: {
+            supplyLineDamage,
+            productionLoss,
+            infrastructureLoss,
+            civilianPressure,
+        },
+        warScoreBreakdown: {
+            battle: 0,
+            advance: warScoreDelta,
+            economic: Math.max(0, Math.round(raidPressure / 25)),
+            homeland: 0,
+        },
     };
 };
 
@@ -1094,31 +1517,87 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
 
     const attackerUnits = getTotalUnitsFromCorps(attackerCorps);
     const defenderUnits = getTotalUnitsFromCorps(defenderCorps);
+    if (attackerUnits <= 0 && defenderUnits <= 0) {
+        const summary = summarizeFrontState(normalizedFront, attackerCorps, defenderCorps);
+        return {
+            ...normalizedFront,
+            lineVelocity: 0,
+            pressure: summary.pressure,
+            supplyState: summary.supplyState,
+            raidIntensity: summary.raidIntensity,
+            entrenchment: summary.entrenchment,
+            contestedZone: summary.contestedZone,
+            lastResolvedFactors: [],
+            frontDailySummary: [
+                ...(normalizedFront.frontDailySummary || []).slice(-29),
+                {
+                    day,
+                    lineVelocity: 0,
+                    phase: normalizedFront.phase || summary.phase,
+                    contestedZone: summary.contestedZone,
+                    supplyState: '未接战',
+                    pressure: summary.pressure,
+                    factors: [],
+                },
+            ],
+        };
+    }
     const totalUnits = Math.max(1, attackerUnits + defenderUnits);
     const ratioDelta = (attackerUnits - defenderUnits) / totalUnits;
+    const summary = summarizeFrontState(normalizedFront, attackerCorps, defenderCorps);
+    const factorList = [];
 
     let postureDelta = 0;
     const playerSide = getPlayerSide(normalizedFront);
-    const posture = normalizedFront.posture || 'defensive';
-    if (playerSide === 'attacker') {
-        if (posture === 'aggressive') postureDelta += 0.8;
-        if (posture === 'passive') postureDelta -= 0.5;
-    } else if (playerSide === 'defender') {
-        if (posture === 'aggressive') postureDelta -= 0.8;
-        if (posture === 'passive') postureDelta += 0.5;
+    const attackerPosture = getFrontPostureIdForSide(normalizedFront, 'attacker');
+    const defenderPosture = getFrontPostureIdForSide(normalizedFront, 'defender');
+    const postureBiasMap = {
+        offensive: 0.8,
+        balanced: 0,
+        attrition: -0.5,
+        raid: -0.25,
+    };
+    postureDelta += (postureBiasMap[attackerPosture] || 0) * 0.35;
+    postureDelta -= (postureBiasMap[defenderPosture] || 0) * 0.35;
+    factorList.push(buildFactor('兵力对比', ratioDelta * 1.2, ratioDelta >= 0 ? 'positive' : 'negative'));
+    if (postureDelta !== 0) {
+        const playerPosture = getFrontPostureIdForSide(normalizedFront, playerSide || 'attacker');
+        factorList.push(buildFactor(FRONT_POSTURES[playerPosture]?.name || '战区姿态', postureDelta, postureDelta >= 0 ? 'positive' : 'negative'));
     }
 
     let naturalDrift = 0;
-    if (attackerUnits === 0 && defenderUnits > 0) naturalDrift = -1.4;
-    if (defenderUnits === 0 && attackerUnits > 0) naturalDrift = 1.4;
+    if (attackerUnits === 0 && defenderUnits > 0) naturalDrift = -0.45;
+    if (defenderUnits === 0 && attackerUnits > 0) naturalDrift = 0.45;
+    if (naturalDrift !== 0) {
+        factorList.push(buildFactor('战线空虚', naturalDrift, naturalDrift >= 0 ? 'positive' : 'negative'));
+    }
 
-    const rawDelta = ratioDelta * 3.2 + postureDelta + naturalDrift + (battleDelta || 0);
-    const clampedDelta = clamp(rawDelta, -4, 4);
+    const pressureDelta = ((summary.pressure || 50) - 50) / 60;
+    if (pressureDelta !== 0) {
+        factorList.push(buildFactor('战区压力', pressureDelta, pressureDelta >= 0 ? 'positive' : 'negative'));
+    }
+    const supplyPenalty = summary.supplyState?.playerRatio < 0.85
+        ? -((0.85 - summary.supplyState.playerRatio) * 1.6)
+        : 0;
+    if (supplyPenalty !== 0) {
+        factorList.push(buildFactor('补给不足', supplyPenalty, 'negative'));
+    }
+    const entrenchmentDelta = ((summary.entrenchment?.attacker || 25) - (summary.entrenchment?.defender || 25)) / 90;
+    if (entrenchmentDelta !== 0) {
+        factorList.push(buildFactor('工事对抗', entrenchmentDelta, entrenchmentDelta >= 0 ? 'positive' : 'negative'));
+    }
+    if (battleDelta) {
+        factorList.push(buildFactor('会战结果', battleDelta, battleDelta >= 0 ? 'positive' : 'negative'));
+    }
+
+    const battleMomentum = (battleDelta || 0) * 0.35;
+    const rawDelta = ratioDelta * 1.2 + postureDelta + naturalDrift + pressureDelta + supplyPenalty + entrenchmentDelta + battleMomentum;
+    const clampedDelta = clamp(rawDelta, -0.9, 0.9);
     const oldPosition = normalizedFront.linePosition;
-    const linePosition = clamp(oldPosition + clampedDelta, 0, 100);
+    const linePosition = clamp(oldPosition + clampedDelta, FRONT_MIN_POSITION, FRONT_MAX_POSITION);
     const lineVelocity = linePosition - oldPosition;
-    const oldPhase = normalizedFront.phase || deriveFrontPhase(oldPosition);
-    const phase = deriveFrontPhase(linePosition);
+    const oldPhase = normalizedFront.phase || deriveDetailedPhase(oldPosition, summary.pressure, summary.supplyState?.playerRatio ?? 1, summary.contestedZone);
+    const phase = deriveDetailedPhase(linePosition, summary.pressure, summary.supplyState?.playerRatio ?? 1, summary.contestedZone);
 
     // Deep clone zones for mutation
     const zones = {};
@@ -1177,18 +1656,7 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
         }
     }
 
-    // Check for collapse (linePosition reaches 0 or 100)
-    let status = normalizedFront.status;
-    if (linePosition <= 0 || linePosition >= 100) {
-        status = 'collapsed';
-        controlLog.push({
-            day,
-            phase: 'collapse',
-            delta: Number(lineVelocity.toFixed(2)),
-            text: linePosition <= 0 ? '💀 守方防线彻底崩溃！' : '💀 攻方防线彻底崩溃！',
-            isCheckpoint: true,
-        });
-    }
+    const status = normalizedFront.status;
 
     const shouldLogAdvance = crossed.length === 0 && (Math.abs(lineVelocity) >= 1.2 || oldPhase !== phase);
     if (shouldLogAdvance) {
@@ -1209,6 +1677,25 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
         zones,
         controlLog: controlLog.slice(-16),
         _lastAdvanceDay: day || normalizedFront._lastAdvanceDay,
+        lastOccupationScoreDay: normalizedFront.lastOccupationScoreDay || normalizedFront.startDay || 0,
+        pressure: summary.pressure,
+        supplyState: summary.supplyState,
+        raidIntensity: summary.raidIntensity,
+        entrenchment: summary.entrenchment,
+        contestedZone: summary.contestedZone,
+        lastResolvedFactors: factorList.sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).slice(0, 5),
+        frontDailySummary: [
+            ...(normalizedFront.frontDailySummary || []).slice(-29),
+            {
+                day,
+                lineVelocity: Number(lineVelocity.toFixed(2)),
+                phase,
+                contestedZone: summary.contestedZone,
+                supplyState: summary.supplyState?.player || '稳定',
+                pressure: summary.pressure,
+                factors: factorList.sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).slice(0, 5),
+            },
+        ],
     };
 
     // Rebuild top-level aggregates

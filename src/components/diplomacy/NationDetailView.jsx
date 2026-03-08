@@ -62,6 +62,7 @@ const NationDetailView = ({
     nations = [],  // For AI-AI war lookup
 }) => {
     const [activeTab, setActiveTab] = useState('overview');
+    const economyMetrics = nation.aiEconomyMetrics || {};
 
     // Calculate cooldown status for each action
     const currentDay = gameState?.day || daysElapsed || 0;
@@ -79,15 +80,6 @@ const NationDetailView = ({
     const provokeCooldown = getCooldownInfo('provoke');
     const negotiateCooldown = getCooldownInfo('negotiate_treaty');
 
-    // Calculate costs
-    const playerWealth = gameState?.resources?.silver || 0;
-    const targetWealth = nation.wealth || 0;
-
-    const giftCostValue = calculateDynamicGiftCost(playerWealth, targetWealth);
-    const provokeCostValue = calculateProvokeCost(playerWealth, targetWealth);
-
-    const formatCost = (val) => val >= 10000 ? `${(val / 10000).toFixed(1)}万` : val;
-
     const strengthEstimate = getEstimatedMilitaryStrength
         ? getEstimatedMilitaryStrength(nation, epoch, daysElapsed, getAIMilitaryStrengthMultiplier(gameState?.difficulty || 'normal'))
         : { label: '???', colorClass: 'text-gray-400' };
@@ -95,6 +87,37 @@ const NationDetailView = ({
     const relation = relationInfo
         ? relationInfo(nation)
         : { value: 0, label: '未知', color: 'text-ancient-stone', bg: '' };
+
+    const capacityUsage = Number.isFinite(economyMetrics.capacityUsage)
+        ? economyMetrics.capacityUsage
+        : null;
+    const carryingCapacity = Number.isFinite(economyMetrics.carryingCapacity)
+        ? economyMetrics.carryingCapacity
+        : null;
+    const annualOutput = Number.isFinite(economyMetrics.annualOutput)
+        ? economyMetrics.annualOutput
+        : (Number.isFinite(nation.gdp) ? nation.gdp : null);
+    const treasury = Number.isFinite(economyMetrics.treasury)
+        ? economyMetrics.treasury
+        : (Number.isFinite(nation.budget) ? nation.budget : null);
+    const treasuryRatio = Number.isFinite(economyMetrics.treasuryRatio)
+        ? economyMetrics.treasuryRatio
+        : (treasury != null && nation.wealth > 0 ? treasury / nation.wealth : null);
+    const wealthStock = Number.isFinite(economyMetrics.wealthStock)
+        ? economyMetrics.wealthStock
+        : nation.wealth;
+    const wealthPerCapita = Number.isFinite(economyMetrics.wealthPerCapita)
+        ? economyMetrics.wealthPerCapita
+        : (wealthStock / Math.max(1, nation.population || 1));
+    const outputPerCapita = Number.isFinite(economyMetrics.outputPerCapita)
+        ? economyMetrics.outputPerCapita
+        : (annualOutput ? annualOutput / Math.max(1, nation.population || 1) : null);
+    const playerWealth = gameState?.resources?.silver || 0;
+    const targetEconomicScale = annualOutput ?? wealthStock ?? nation.wealth ?? 0;
+    const giftCostValue = calculateDynamicGiftCost(playerWealth, targetEconomicScale);
+    const provokeCostValue = calculateProvokeCost(playerWealth, targetEconomicScale);
+
+    const formatCost = (val) => val >= 10000 ? `${(val / 10000).toFixed(1)}万` : val;
 
     const tabs = [
         { id: 'overview', label: '国家概览' },
@@ -163,9 +186,37 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                 </div>
 
                 {/* Key Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    <StatCard icon="Users" label="人口" value={formatStat(nation.population)} color="text-blue-300" />
-                    <StatCard icon="Coins" label="财富" value={formatStat(nation.wealth)} color="text-amber-300" />
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mt-6">
+                    <StatCard
+                        icon="Users"
+                        label="人口"
+                        value={formatStat(nation.population)}
+                        color="text-blue-300"
+                        subtitle={capacityUsage !== null && carryingCapacity
+                            ? `承载率 ${(capacityUsage * 100).toFixed(0)}% / 上限 ${formatStat(carryingCapacity)}`
+                            : null}
+                    />
+                    <StatCard
+                        icon="Factory"
+                        label="年产出"
+                        value={annualOutput != null ? formatStat(annualOutput) : '未知'}
+                        color="text-emerald-300"
+                        subtitle={outputPerCapita != null ? `人均 ${outputPerCapita.toFixed(2)}` : null}
+                    />
+                    <StatCard
+                        icon="Landmark"
+                        label="财政储备"
+                        value={treasury != null ? formatStat(treasury) : '未知'}
+                        color="text-cyan-300"
+                        subtitle={treasuryRatio != null ? `占财富 ${(treasuryRatio * 100).toFixed(0)}%` : null}
+                    />
+                    <StatCard
+                        icon="Coins"
+                        label="财富存量"
+                        value={formatStat(wealthStock)}
+                        color="text-amber-300"
+                        subtitle={Number.isFinite(wealthPerCapita) ? `人均 ${wealthPerCapita.toFixed(2)}` : null}
+                    />
                     <StatCard
                         icon="Swords"
                         label="军力评估"
@@ -1052,7 +1103,7 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
     </div>
 );
 
-const StatCard = ({ icon, label, value, color }) => (
+const StatCard = ({ icon, label, value, color, subtitle = null }) => (
     <div className="bg-theme-surface-trans border border-theme-border p-3 rounded-lg flex items-center gap-3 hover:bg-theme-surface transition-colors">
         <div className={`p-2 rounded bg-black/30 shadow-inner ${color}`}>
             <Icon name={icon} size={18} />
@@ -1060,6 +1111,9 @@ const StatCard = ({ icon, label, value, color }) => (
         <div>
             <div className="text-[10px] text-theme-text opacity-70 uppercase tracking-wider font-bold">{label}</div>
             <div className={`text-sm font-bold font-mono ${color} drop-shadow-sm`}>{value}</div>
+            {subtitle && (
+                <div className="text-[10px] text-theme-text opacity-60 mt-0.5">{subtitle}</div>
+            )}
         </div>
     </div>
 );
