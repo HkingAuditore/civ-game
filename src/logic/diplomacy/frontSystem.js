@@ -245,12 +245,31 @@ const isSideUnderTerritorialPressure = (linePosition = 50, side = 'attacker') =>
 const buildResourceCoverage = (needResources = {}, availableResources = {}) => {
     const resourceKeys = Object.keys(needResources);
     if (resourceKeys.length === 0) return 1;
-    const coverage = resourceKeys.map((resourceKey) => {
+    // 核心资源权重高（food、silver 是军队生存必需），次要资源按需求量比例加权
+    const CORE_RESOURCES = ['food', 'silver'];
+    let coreMin = 1;       // 核心资源取最低覆盖率
+    let secondaryWeightedSum = 0;
+    let secondaryWeightTotal = 0;
+    resourceKeys.forEach((resourceKey) => {
         const needed = Number(needResources[resourceKey] || 0);
-        if (needed <= 0) return 1;
-        return Number(availableResources[resourceKey] || 0) / needed;
+        if (needed <= 0) return;
+        const available = Number(availableResources[resourceKey] || 0);
+        const ratio = Math.min(1, available / needed);
+        const safeRatio = Number.isFinite(ratio) ? ratio : 1;
+        if (CORE_RESOURCES.includes(resourceKey)) {
+            coreMin = Math.min(coreMin, safeRatio);
+        } else {
+            // 次要资源按需求量加权（需求越大权重越高）
+            secondaryWeightedSum += safeRatio * needed;
+            secondaryWeightTotal += needed;
+        }
     });
-    return Math.max(0, Math.min(1, ...coverage.map((value) => (Number.isFinite(value) ? value : 1))));
+    // 次要资源加权平均覆盖率（无次要资源时视为 100%）
+    const secondaryAvg = secondaryWeightTotal > 0 ? secondaryWeightedSum / secondaryWeightTotal : 1;
+    // 总补给率 = 核心资源覆盖率 * 70% 权重 + 次要资源覆盖率 * 30% 权重
+    // 但核心资源不足时应直接体现（核心覆盖率作为硬上限）
+    const combined = coreMin * 0.7 + secondaryAvg * 0.3;
+    return Math.max(0, Math.min(1, Math.min(combined, coreMin + 0.15)));
 };
 
 const buildFactor = (label, value, kind = 'neutral') => ({
@@ -1363,6 +1382,7 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
             lineVelocity: 0,
             pressure: summary.pressure,
             supplyState: summary.supplyState,
+            sideState: summary.sideState, // [FIX] 保存 sideState
             raidIntensity: summary.raidIntensity,
             entrenchment: summary.entrenchment,
             contestedZone: summary.contestedZone,
@@ -1584,6 +1604,7 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
         lastOccupationScoreDay: normalizedFront.lastOccupationScoreDay || normalizedFront.startDay || 0,
         pressure: summary.pressure,
         supplyState: summary.supplyState,
+        sideState: summary.sideState, // [FIX] 保存 sideState 供 AI stockpile 消耗计算使用
         raidIntensity: summary.raidIntensity,
         entrenchment: summary.entrenchment,
         contestedZone: summary.contestedZone,

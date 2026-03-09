@@ -4,7 +4,7 @@
  * Extracted from simulation.js for better code organization
  */
 
-import { simulateBattle, UNIT_TYPES, generateNationArmy, calculateBattlePower } from '../../config/militaryUnits';
+import { simulateBattle, UNIT_TYPES, generateNationArmy, calculateBattlePower, calculateArmyMaintenance } from '../../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
 import { getCorpsTotalUnits } from './corpsSystem';
 import {
@@ -1833,6 +1833,17 @@ export const ensureAIMilitaryState = (nation, epoch = 0) => {
             food: Math.max(0, Math.round(nation.military?.stockpile?.food ?? ((nation.population || 100) * 0.9))),
             silver: Math.max(0, Math.round(nation.military?.stockpile?.silver ?? (getNationTreasury(nation, 300) * 0.75))),
             [materielResource]: Math.max(0, Math.round(nation.military?.stockpile?.[materielResource] ?? ((nation.population || 100) * 0.12 + epoch * 8))),
+            // 军队维护所需的次要资源——根据时代自动补充合理储备
+            wood: Math.max(0, Math.round(nation.military?.stockpile?.wood ?? ((nation.population || 100) * 0.2 + epoch * 5))),
+            iron: Math.max(0, Math.round(nation.military?.stockpile?.iron ?? (epoch >= 2 ? (nation.population || 100) * 0.08 + epoch * 4 : 0))),
+            copper: Math.max(0, Math.round(nation.military?.stockpile?.copper ?? (epoch >= 1 ? (nation.population || 100) * 0.06 + epoch * 3 : 0))),
+            stone: Math.max(0, Math.round(nation.military?.stockpile?.stone ?? ((nation.population || 100) * 0.1 + epoch * 2))),
+            cloth: Math.max(0, Math.round(nation.military?.stockpile?.cloth ?? (epoch >= 3 ? (nation.population || 100) * 0.04 + epoch * 2 : 0))),
+            plank: Math.max(0, Math.round(nation.military?.stockpile?.plank ?? (epoch >= 3 ? (nation.population || 100) * 0.05 + epoch * 3 : 0))),
+            gunpowder: Math.max(0, Math.round(nation.military?.stockpile?.gunpowder ?? (epoch >= 4 ? (nation.population || 100) * 0.03 + epoch * 4 : 0))),
+            ammunition: Math.max(0, Math.round(nation.military?.stockpile?.ammunition ?? (epoch >= 5 ? (nation.population || 100) * 0.04 + epoch * 5 : 0))),
+            steel: Math.max(0, Math.round(nation.military?.stockpile?.steel ?? (epoch >= 5 ? (nation.population || 100) * 0.03 + epoch * 3 : 0))),
+            coal: Math.max(0, Math.round(nation.military?.stockpile?.coal ?? (epoch >= 5 ? (nation.population || 100) * 0.02 + epoch * 2 : 0))),
             ...(nation.military?.stockpile || {}),
         },
     };
@@ -1857,22 +1868,47 @@ export const syncAINationMilitary = ({
         .filter((corps) => getCorpsTotalUnits(corps) > 0);
     const nationGenerals = (generals || []).filter((general) => nationCorps.some((corps) => corps.generalId === general.id));
     const targetCorps = Math.max(1, Number(nextNation.military?.forcePool?.targetCorps || 1));
-    const incomePulse = Math.max(
+    const baseIncomePulse = Math.max(
         1,
         Math.round(getNationAnnualOutput(nextNation, 0) * (nextNation.military?.budgetShare || 0.12) * 0.0025)
     );
-    const foodPulse = Math.max(1, Math.round((nextNation.population || 0) * 0.03));
+    const baseFoodPulse = Math.max(1, Math.round((nextNation.population || 0) * 0.03));
     const materielKey = getMaterielResourceForEpoch(epoch);
+    // 计算 AI 军队实际维护需求，按需补充各类资源
+    const nationArmyUnits = nationCorps.reduce((army, corps) => {
+        Object.entries(corps?.units || {}).forEach(([unitId, count]) => {
+            if (count > 0) army[unitId] = (army[unitId] || 0) + count;
+        });
+        return army;
+    }, {});
+    const armyMaintenance = calculateArmyMaintenance(nationArmyUnits);
+    // [FIX] 食物和银币的补充也需要覆盖军队维护需求，否则大军补给率会降为 0
+    // 补充量 = max(基础人口/经济脉冲, 军队维护需求 × 1.2)，确保 AI 储备足以覆盖前线补给
+    const foodPulse = Math.max(baseFoodPulse, Math.round((armyMaintenance.food || 0) * 1.2));
+    const incomePulse = Math.max(baseIncomePulse, Math.round((armyMaintenance.silver || 0) * 1.2));
+    // 所有资源统一用军队维护需求的 1.2 倍作为最低补充量
+    const allResourcePulse = {};
+    Object.entries(armyMaintenance).forEach(([resource, amount]) => {
+        allResourcePulse[resource] = Math.max(1, Math.round(amount * 1.2));
+    });
+    const stockpileUpdate = {
+        ...nextNation.military.stockpile,
+        food: Math.max(0, Number(nextNation.military.stockpile?.food || 0) + foodPulse),
+        silver: Math.max(0, Number(nextNation.military.stockpile?.silver || 0) + incomePulse),
+        [materielKey]: Math.max(0, Number(nextNation.military.stockpile?.[materielKey] || 0) + Math.max(1, Math.round(incomePulse * 0.15))),
+    };
+    // 补充所有维护资源（含次要资源）
+    Object.entries(allResourcePulse).forEach(([resource, pulse]) => {
+        // food 和 silver 已在上面设置，此处补充其余（含 materielKey）
+        if (resource !== 'food' && resource !== 'silver') {
+            stockpileUpdate[resource] = Math.max(0, Number(stockpileUpdate[resource] || 0) + pulse);
+        }
+    });
     const updatedNation = {
         ...nextNation,
         military: {
             ...nextNation.military,
-            stockpile: {
-                ...nextNation.military.stockpile,
-                food: Math.max(0, Number(nextNation.military.stockpile?.food || 0) + foodPulse),
-                silver: Math.max(0, Number(nextNation.military.stockpile?.silver || 0) + incomePulse),
-                [materielKey]: Math.max(0, Number(nextNation.military.stockpile?.[materielKey] || 0) + Math.max(1, Math.round(incomePulse * 0.15))),
-            },
+            stockpile: stockpileUpdate,
         },
     };
 

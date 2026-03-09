@@ -2398,6 +2398,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 鏇存柊鎵€鏈夌姸鎬?- 浣跨敤鎵归噺鏇存柊鍑忓皯閲嶆覆鏌撴鏁?
                 // 灏嗘墍鏈?setState 璋冪敤鍖呰鍦?unstable_batchedUpdates 涓?
                 // 杩欏彲浠ュ皢 30+ 娆℃覆鏌撳悎骞朵负 1 娆★紝澶у箙鎻愬崌浣庣璁惧鎬ц兘
+                // [FIX] 将 currentActions 提升到 .then() 回调顶层作用域，
+                // 确保 unstable_batchedUpdates 内外所有代码都能访问
+                const currentActions = current.actions;
+
                 unstable_batchedUpdates(() => {
                     setPopStructure(nextPopStructure);
                     setMaxPop(result.maxPop);
@@ -2717,7 +2721,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             ratio: Math.min(battleContext.supply.defender?.ratio ?? 1, actualSupplyRatio),
                                         };
                                     }
-                                }
                                     battleLogs.push(`鈿狅笍 琛ョ粰涓嶈冻锛?{battle.typeName}銆?{battle.attacker.corpsName} vs ${battle.defender.corpsName}銆嶆垬鏂楀姏涓嬮檷`);
                                 }
                             }
@@ -3408,28 +3411,56 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 .filter(front => front?.status === 'active')
                                 .map(front => front.id)
                         );
+                        // 收集活跃会战中的兵团 ID，用于判断 in_combat 是否合法
+                        const activeBattleCorpsSet = new Set(
+                            (updatedBattles || [])
+                                .filter(b => b?.status === 'active')
+                                .flatMap(b => [b?.attacker?.corpsId, b?.defender?.corpsId])
+                                .filter(Boolean)
+                        );
+                        const recoveredCorpsIds = new Set(); // 记录被恢复为 idle 的兵团 ID
                         updatedCorps = updatedCorps.map(corps => {
                             if (!corps || corps.isAI) return corps;
                             const frontId = corps.assignedFrontId;
                             const hasActiveFront = frontId ? activeFrontIdSet.has(frontId) : false;
                             const shouldRecoverFromInvalidFront = frontId && !hasActiveFront;
                             const shouldRecoverFromOrphanDeployed = !frontId && corps.status === 'deployed';
-                            if (!shouldRecoverFromInvalidFront && !shouldRecoverFromOrphanDeployed) {
+                            // [FIX] 没有 assignedFrontId 且不在活跃会战中的 in_combat 兵团应恢复为 idle
+                            const isOrphanCombat = !frontId && corps.status === 'in_combat' && !activeBattleCorpsSet.has(corps.id);
+                            if (!shouldRecoverFromInvalidFront && !shouldRecoverFromOrphanDeployed && !isOrphanCombat) {
                                 return corps;
+                            }
+                            // 仅在兵团不在活跃会战中时才恢复状态
+                            const inActiveBattle = activeBattleCorpsSet.has(corps.id);
+                            if (!inActiveBattle) {
+                                recoveredCorpsIds.add(corps.id);
                             }
                             return {
                                 ...corps,
-                                status: corps.status === 'in_combat' ? corps.status : 'idle',
-                                assignedFrontId: null,
+                                status: inActiveBattle ? 'in_combat' : 'idle',
+                                assignedFrontId: inActiveBattle ? corps.assignedFrontId : null,
                             };
                         });
-
-                        const activeBattleCorpsSet = new Set(
-                            (updatedBattles || [])
-                                .filter((battle) => battle?.status === 'active')
-                                .flatMap((battle) => [battle?.attacker?.corpsId, battle?.defender?.corpsId])
-                                .filter(Boolean)
-                        );
+                        // [FIX] 从 front.assignedCorps 中清理已被恢复为 idle 的兵团幽灵引用
+                        if (recoveredCorpsIds.size > 0) {
+                            updatedFronts = updatedFronts.map(front => {
+                                if (!front) return front;
+                                const pruneSide = (list = []) => list.filter(id => !recoveredCorpsIds.has(id));
+                                const newAttacker = pruneSide(front.assignedCorps?.attacker);
+                                const newDefender = pruneSide(front.assignedCorps?.defender);
+                                if (newAttacker.length === (front.assignedCorps?.attacker || []).length &&
+                                    newDefender.length === (front.assignedCorps?.defender || []).length) {
+                                    return front; // 无变化
+                                }
+                                return {
+                                    ...front,
+                                    assignedCorps: {
+                                        attacker: newAttacker,
+                                        defender: newDefender,
+                                    },
+                                };
+                            });
+                        }
                         updatedCorps = updatedCorps.map((corps) => {
                             if (!corps) return corps;
                             const totalUnits = getCorpsTotalUnits(corps);
@@ -3440,7 +3471,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     assignedFrontId: null,
                                 };
                             }
-                            const isInCombat = activeBattleCorpsSet.has(corps.id) || corps.status === 'in_combat';
+                            // [FIX] 仅依赖 activeBattleCorpsSet 判断是否在战斗中，
+                            // 不再用旧的 corps.status === 'in_combat' 避免状态死循环
+                            const isInCombat = activeBattleCorpsSet.has(corps.id);
                             const isOnFront = Boolean(corps.assignedFrontId);
 
                             // 补给不足 → 缓慢掉士气
@@ -3469,14 +3502,30 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                             return {
                                 ...corps,
-                                status: isInCombat ? 'in_combat' : (corps.status === 'destroyed' ? 'idle' : corps.status),
+                                // [FIX] 战斗中以 activeBattleCorpsSet 为准；
+                                // 不在战斗中时，若旧状态是 in_combat/destroyed，恢复为正确状态
+                                status: isInCombat
+                                    ? 'in_combat'
+                                    : (corps.status === 'in_combat' || corps.status === 'destroyed')
+                                        ? (isOnFront ? 'deployed' : 'idle')
+                                        : corps.status,
                                 morale: Math.max(10, Math.min(100, (corps.morale ?? 100) + moraleDelta)),
                             };
                         });
 
+                        // [FIX] 仅清理已部署到前线或属于 AI 的空兵团；
+                        // 玩家未部署的 idle 空兵团保留，给玩家时间分配兵力
                         const removedCorpsIds = new Set(
                             updatedCorps
-                                .filter((corps) => !corps || getCorpsTotalUnits(corps) <= 0)
+                                .filter((corps) => {
+                                    if (!corps) return true;
+                                    if (getCorpsTotalUnits(corps) > 0) return false;
+                                    // AI 兵团空了直接清理
+                                    if (corps.isAI) return true;
+                                    // 玩家兵团：仅清理已部署到前线的空兵团（战损殆尽）
+                                    // 未部署(idle)的空兵团是玩家刚创建的，保留
+                                    return !!corps.assignedFrontId;
+                                })
                                 .map((corps) => corps?.id)
                                 .filter(Boolean)
                         );
@@ -4724,7 +4773,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setLogs(prev => [...processedLogs.filter(log => log !== null), ...prev].slice(0, LOG_STORAGE_LIMIT));
 
                     // 妫€娴嬪浜や簨浠跺苟瑙﹀彂浜嬩欢绯荤粺
-                    const currentActions = current.actions;
                     const eventDebug = isDebugEnabled('event');
                     if (eventDebug) {
                         debugLog('event', '[EVENT DEBUG] actions:', !!currentActions, 'triggerDiplomaticEvent:', !!currentActions?.triggerDiplomaticEvent);
@@ -6593,8 +6641,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
                     const slotsAvailableForCompletion = militaryCapacity > 0
                         ? Math.max(0, militaryCapacity - currentTotalArmy)
-                        : completed.length;
-                        : completed.length; // 濡傛灉娌℃湁瀹归噺闄愬埗锛屽厑璁告墍鏈夊畬鎴愮殑鍗曚綅鍔犲叆
+                        : completed.length; // 如果没有容量限制，允许所有完成的单位加入
 
                     // 鍙彇鑳藉姞鍏ョ殑閮ㄥ垎
                     const canComplete = completed.slice(0, slotsAvailableForCompletion);
