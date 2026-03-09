@@ -1869,3 +1869,66 @@ ${nation.name}政府强烈抗议，要求赔偿并保证不再发生类似事件
         options,
     };
 }
+
+/**
+ * 将领会战提议事件
+ * 将军根据战场态势主动提议发起会战，玩家选择批准/暂缓/否决
+ * @param {Object} params
+ * @param {Function} callback - (choice: 'approve'|'delay'|'reject') => void
+ * @returns {Object} Event object
+ */
+export function createBattleProposalEvent({ general, corps, front, proposal, callback }) {
+    const generalName = general?.name || '将军';
+    const corpsName = corps?.name || '军团';
+    const engagementNames = { probe: '试探接敌', assault: '主力决战', siege: '攻坚围城' };
+    const engagementName = engagementNames[proposal?.engagementType] || '会战';
+    const riskLabels = { low: '低', medium: '中', high: '高', extreme: '极高' };
+    const riskLabel = riskLabels[proposal?.riskLevel] || '中';
+    const riskColors = { low: '', medium: '⚠️', high: '⚠️⚠️', extreme: '🔴' };
+    const riskIcon = riskColors[proposal?.riskLevel] || '';
+    const confidence = proposal?.confidence ?? 0;
+    const confidenceText = confidence > 0.6 ? '强烈建议' : '建议';
+    const forceRatioText = proposal?.forceRatio ? `${proposal.forceRatio.toFixed(1)}:1` : '未知';
+    const supplyRatioText = proposal?.supplyRatio ? `${Math.round(proposal.supplyRatio * 100)}%` : '未知';
+
+    const description = `${generalName}将军${confidenceText}率领「${corpsName}」发起${engagementName}。\n\n` +
+        `📊 兵力比：${forceRatioText}\n` +
+        `📦 补给率：${supplyRatioText}\n` +
+        `${riskIcon} 风险评级：${riskLabel}\n\n` +
+        `${proposal?.reason || '将军认为时机成熟。'}\n\n` +
+        `⚔️ 战术将由将军自行决定，无需手动选择。`;
+
+    const options = [
+        {
+            id: 'approve',
+            text: '准许出战',
+            description: `批准${generalName}将军发起${engagementName}，将军士气+5`,
+            effects: {},
+            callback: () => callback('approve'),
+        },
+        {
+            id: 'delay',
+            text: '暂缓观望',
+            description: '不做处置，48天内该将军不会再次提议',
+            effects: {},
+            callback: () => callback('delay'),
+        },
+        {
+            id: 'reject',
+            text: '否决提议',
+            description: `否决出战请求，将军士气-8，30天内不再提议`,
+            effects: {},
+            callback: () => callback('reject'),
+        },
+    ];
+
+    return {
+        id: `battle_proposal_${general?.id}_${Date.now()}`,
+        name: '将领请战',
+        icon: 'Swords',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options,
+    };
+}

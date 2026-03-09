@@ -965,6 +965,19 @@ export const checkWarDeclaration = ({
     // Fixed: Use formal alliance status instead of relation-based check
     const isPlayerAlly = areNationsAllied(next.id, 'player', diplomacyOrganizations?.organizations);
 
+    // [NEW] 军团余量权衡：没有空闲军团时大幅降低宣战意愿
+    const forcePool = next.military?.forcePool;
+    const totalCorps = forcePool?.targetCorps || 1;
+    const activeCorps = forcePool?.activeCorps || 0;
+    const idleCorps = Math.max(0, totalCorps - activeCorps);
+    if (idleCorps === 0 && totalCorps > 0) {
+        // 所有军团已部署，几乎不会再开新战
+        declarationChance *= 0.05;
+    } else if (idleCorps <= 1) {
+        // 仅剩1个空闲军团，谨慎开战
+        declarationChance *= 0.3;
+    }
+
     const canDeclareWar = !next.isAtWar &&
         !hasPeaceTreaty &&
         !isPlayerAlly &&
@@ -1869,7 +1882,6 @@ export const syncAINationMilitary = ({
         frontTask: corps.frontTask || doctrine.preferredTasks[index % doctrine.preferredTasks.length] || 'assault',
         status: corps.assignedFrontId ? corps.status : 'idle',
         morale: clamp(Math.round((corps.morale || 80) + (corps.assignedFrontId ? -1 : 2)), 55, 100),
-        fatigue: clamp(Math.round(corps.fatigue || 0), 0, 100),
         isAI: true,
         nationId: nation.id,
     }));
@@ -1886,7 +1898,6 @@ export const syncAINationMilitary = ({
             corps.status = 'idle';
             corps.isAI = true;
             corps.nationId = updatedNation.id;
-            corps.fatigue = 0;
 
             const general = generateAIGeneral(updatedNation, epoch);
             general.id = `ai_gen_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
@@ -2029,6 +2040,117 @@ export const generateAIGeneral = (nation, epoch) => {
 };
 
 /**
+ * 将领会战提议评估
+ * 将军根据自身特质、军团状态、战线态势综合评估是否提议发起会战
+ * @param {Object} params
+ * @returns {{ shouldPropose: boolean, engagementType: string, confidence: number, reason: string, riskLevel: string }}
+ */
+export const evaluateGeneralBattleProposal = ({
+    general,
+    corps,
+    front,
+    allCorps = [],
+    generals = [],
+    epoch = 0,
+    currentDay = 0,
+}) => {
+    const NO_PROPOSAL = { shouldPropose: false, engagementType: 'probe', confidence: 0, reason: '', riskLevel: 'low' };
+    if (!general || !corps || !front) return NO_PROPOSAL;
+
+    // 冷却检查：将军个人冷却
+    const lastProposalDay = general.lastBattleProposalDay || 0;
+    const extraCooldown = general.proposalCooldownDays || 0;
+    const traitIds = general.traits || [];
+    const isAggressive = traitIds.includes('aggressive');
+    const isDefensive = traitIds.includes('defensive');
+    const baseCooldown = isAggressive ? 8 : isDefensive ? 20 : 12;
+    if (currentDay - lastProposalDay < baseCooldown + extraCooldown) return NO_PROPOSAL;
+
+    // 战线全局冷却
+    const lastBattleEndDay = front.lastBattleEndDay || 0;
+    if (currentDay - lastBattleEndDay < 5) return NO_PROPOSAL;
+
+    // 条件门槛
+    const totalUnits = Object.values(corps.units || {}).reduce((s, c) => s + c, 0);
+    if (totalUnits <= 0) return NO_PROPOSAL;
+    const morale = corps.morale ?? 100;
+    if (morale < 40) return NO_PROPOSAL;
+    // 补给检查
+    const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
+    const sideState = front.sideState?.[playerSide] || {};
+    const supplyRatio = sideState.supplyRatio ?? 1;
+    if (supplyRatio < 0.65) return NO_PROPOSAL;
+    // 已有活跃会战
+    if (front.activeBattleId) return NO_PROPOSAL;
+
+    // 敌方兵力估算
+    const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
+    const enemyUnits = front.sideState?.[enemySide]?.deployedUnits || 1;
+
+    // 决策权重计算
+    let weight = 0;
+    // 将军特质加成
+    if (isAggressive) weight += 0.3;
+    if (traitIds.includes('cunning')) weight += 0.15;
+    if (traitIds.includes('swift')) weight += 0.1;
+    if (traitIds.includes('veteran')) weight += 0.05;
+    if (isDefensive) weight -= 0.2;
+    // 兵力比优势
+    const forceRatio = totalUnits / Math.max(1, enemyUnits);
+    weight += (forceRatio - 1) * 0.4;
+    // 补给充裕度
+    weight += (supplyRatio - 0.8) * 0.5;
+    // 士气加成
+    weight += (morale - 60) / 200;
+    // 战线位置（深入敌境更激进）
+    const linePosition = front.linePosition ?? 50;
+    const penetration = playerSide === 'attacker'
+        ? Math.max(0, linePosition - 50) / 50
+        : Math.max(0, 50 - linePosition) / 50;
+    weight += penetration * 0.15;
+
+    // 提议阈值
+    if (weight < 0.3) return NO_PROPOSAL;
+
+    // 交战类型选择
+    let engagementType = 'probe';
+    if (traitIds.includes('siege_master') && penetration > 0.3) {
+        engagementType = 'siege';
+    } else if (isAggressive || forceRatio > 1.5) {
+        engagementType = 'assault';
+    } else if (weight > 0.6) {
+        engagementType = 'assault';
+    }
+
+    // 风险评级
+    let riskLevel = 'low';
+    if (forceRatio < 0.8) riskLevel = 'extreme';
+    else if (forceRatio < 1.0) riskLevel = 'high';
+    else if (supplyRatio < 0.8 || morale < 60) riskLevel = 'medium';
+
+    // 信心
+    const confidence = Math.min(1, Math.max(0, weight));
+
+    // 提议理由
+    const reason = weight > 0.6
+        ? `${general.name}将军强烈建议发起${engagementType === 'siege' ? '攻坚战' : engagementType === 'assault' ? '主力决战' : '试探进攻'}，兵力比${forceRatio.toFixed(1)}:1，补给率${Math.round(supplyRatio * 100)}%。`
+        : `${general.name}将军认为可以尝试${engagementType === 'siege' ? '围城' : engagementType === 'assault' ? '进攻' : '试探'}，但局面仍有不确定性。`;
+
+    return {
+        shouldPropose: true,
+        engagementType,
+        confidence,
+        reason,
+        riskLevel,
+        generalId: general.id,
+        corpsId: corps.id,
+        frontId: front.id,
+        forceRatio: Number(forceRatio.toFixed(2)),
+        supplyRatio: Number(supplyRatio.toFixed(2)),
+    };
+};
+
+/**
  * Determine what tactic an AI should use based on battle state
  * @param {Object} battle - Current battle state
  * @param {'attacker'|'defender'} side - Which side the AI is
@@ -2062,4 +2184,178 @@ export const determineAITactic = (battle, side, nation) => {
     // Default: normal combat
     return 'normal';
 };
+
+// ========== AI军团多战线调度器 ==========
+
+/**
+ * 将AI国家的有限军团按优先级分配到各活跃战线
+ * 核心理念：多战线劣势不通过debuff实现，而是通过"有限军团在多条战线间分配"自然产生
+ * 
+ * @param {Object} params
+ * @param {Object} params.nation - AI国家对象
+ * @param {Array} params.allCorps - 全部军团数组（含AI和玩家）
+ * @param {Array} params.activeFronts - 所有活跃战线数组
+ * @param {number} params.epoch - 当前时代
+ * @returns {Object} { allocations: { frontId: corpsIds[] }, unallocatedCorps: string[] }
+ */
+export const allocateAICorpsToFronts = ({
+    nation,
+    allCorps = [],
+    activeFronts = [],
+    epoch = 0,
+}) => {
+    if (!nation?.id) return { allocations: {}, unallocatedCorps: [] };
+
+    const nationId = nation.id;
+    const doctrine = AI_DOCTRINES[nation.military?.doctrine] || pickDoctrine(nation, epoch);
+
+    // 1. 获取该AI国家所有可用军团（有兵力且属于该国）
+    const availableCorps = allCorps
+        .filter(c => c?.isAI && c.nationId === nationId && getCorpsTotalUnits(c) > 0)
+        .sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a)); // 按战力降序
+
+    // 2. 获取该AI参与的所有活跃战线
+    const relevantFronts = activeFronts.filter(f =>
+        f?.status === 'active' &&
+        (f.attackerId === nationId || f.defenderId === nationId)
+    );
+
+    if (relevantFronts.length === 0 || availableCorps.length === 0) {
+        return {
+            allocations: {},
+            unallocatedCorps: availableCorps.map(c => c.id),
+        };
+    }
+
+    // 3. 为每条战线评分（优先级）
+    const scoredFronts = relevantFronts.map(front => {
+        const side = front.attackerId === nationId ? 'attacker' : 'defender';
+        const linePos = Number(front.linePosition ?? 50);
+
+        // 核心区威胁权重 ×3
+        let coreThreated = 0;
+        if (side === 'attacker' && linePos < 15) coreThreated = 3;
+        else if (side === 'defender' && linePos > 85) coreThreated = 3;
+
+        // 经济区威胁权重 ×2
+        let econThreated = 0;
+        if (side === 'attacker' && linePos < 35 && linePos >= 15) econThreated = 2;
+        else if (side === 'defender' && linePos > 65 && linePos <= 85) econThreated = 2;
+
+        // 战线得分差权重 ×1（战线偏向敌方越多，我方越安全，优先级越低）
+        const positionScore = side === 'attacker'
+            ? (50 - linePos) / 50  // attacker: linePos越低越危险，得分越高
+            : (linePos - 50) / 50; // defender: linePos越高越危险，得分越高
+
+        // 学说偏好修正
+        let doctrineMod = 0;
+        if (doctrine.id === 'line_breaker' && positionScore < 0) doctrineMod = 0.3; // 突破学说：主动进攻偏好
+        if (doctrine.id === 'siege_attrition' && coreThreated > 0) doctrineMod = 0.5; // 消耗学说：核心受威胁时更重视防守
+
+        const priority = coreThreated + econThreated + Math.max(0, positionScore) + doctrineMod;
+
+        return {
+            frontId: front.id,
+            side,
+            priority,
+            linePos,
+        };
+    });
+
+    // 按优先级降序排列
+    scoredFronts.sort((a, b) => b.priority - a.priority);
+
+    // 4. 分配军团到战线
+    const allocations = {};
+    const assignedCorpsIds = new Set();
+
+    // 第一轮：每条战线至少分1个军团（如果有足够军团）
+    let corpIndex = 0;
+    for (const sf of scoredFronts) {
+        if (corpIndex >= availableCorps.length) break;
+        allocations[sf.frontId] = [availableCorps[corpIndex].id];
+        assignedCorpsIds.add(availableCorps[corpIndex].id);
+        corpIndex++;
+    }
+
+    // 第二轮：剩余军团按优先级分配给高优先级战线
+    while (corpIndex < availableCorps.length) {
+        // 找到当前军团最少的高优先级战线
+        let bestFrontId = scoredFronts[0]?.frontId;
+        let minCorps = Infinity;
+        for (const sf of scoredFronts) {
+            const count = (allocations[sf.frontId] || []).length;
+            // 优先级加权：高优先级战线更容易获得额外军团
+            const weightedCount = count - sf.priority * 0.5;
+            if (weightedCount < minCorps) {
+                minCorps = weightedCount;
+                bestFrontId = sf.frontId;
+            }
+        }
+        if (!bestFrontId) break;
+        if (!allocations[bestFrontId]) allocations[bestFrontId] = [];
+        allocations[bestFrontId].push(availableCorps[corpIndex].id);
+        assignedCorpsIds.add(availableCorps[corpIndex].id);
+        corpIndex++;
+    }
+
+    // 未分配的军团（理论上不应该有，除非没有活跃战线）
+    const unallocatedCorps = availableCorps
+        .filter(c => !assignedCorpsIds.has(c.id))
+        .map(c => c.id);
+
+    return { allocations, unallocatedCorps };
+};
+
+/**
+ * 执行AI军团调度结果：更新军团的 assignedFrontId 和 frontTask
+ * @param {Object} params
+ * @param {Object} params.allocations - allocateAICorpsToFronts 的返回结果
+ * @param {Array} params.allCorps - 全部军团数组（将被修改）
+ * @param {Object} params.nation - AI国家对象
+ * @param {number} params.epoch - 当前时代
+ * @returns {Array} 更新后的军团数组
+ */
+export const applyAICorpsAllocation = ({
+    allocations = {},
+    allCorps = [],
+    nation,
+    epoch = 0,
+}) => {
+    const nationId = nation?.id;
+    if (!nationId) return allCorps;
+
+    const doctrine = AI_DOCTRINES[nation.military?.doctrine] || pickDoctrine(nation, epoch);
+
+    // 构建 corpsId -> frontId 的反向映射
+    const corpsToFront = {};
+    for (const [frontId, corpsIds] of Object.entries(allocations)) {
+        (corpsIds || []).forEach((cId, idx) => {
+            corpsToFront[cId] = { frontId, taskIndex: idx };
+        });
+    }
+
+    return allCorps.map(corps => {
+        if (!corps?.isAI || corps.nationId !== nationId) return corps;
+
+        const assignment = corpsToFront[corps.id];
+        if (assignment) {
+            return {
+                ...corps,
+                assignedFrontId: assignment.frontId,
+                frontTask: doctrine.preferredTasks[assignment.taskIndex % doctrine.preferredTasks.length] || 'assault',
+                status: 'deployed',
+            };
+        } else {
+            // 未被分配的军团设为idle
+            return {
+                ...corps,
+                assignedFrontId: null,
+                frontTask: 'reserve',
+                status: 'idle',
+            };
+        }
+    });
+};
+
 

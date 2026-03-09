@@ -88,10 +88,89 @@ export const generateGeneralId = () => {
     return `gen_${Date.now()}_${generalIdCounter}`;
 };
 
+// ========== Trait Derivation from Official ==========
+
+/**
+ * 出身阶层 → 基础军事特质映射
+ * primary: 主特质, secondary: 备选特质, chance: 获得概率
+ */
+const STRATUM_TRAIT_MAP = {
+    soldier:    { primary: 'aggressive', secondary: 'veteran', chance: 0.6 },
+    landowner:  { primary: 'defensive', chance: 0.8 },
+    merchant:   { primary: 'logistics', chance: 0.7 },
+    navigator:  { primary: 'swift', chance: 0.75 },
+    scribe:     { primary: 'cunning', chance: 0.65 },
+    engineer:   { primary: 'siege_master', chance: 0.7 },
+    cleric:     { primary: 'inspiring', chance: 0.75 },
+    capitalist: { primary: 'logistics', chance: 0.6 },
+    artisan:    { primary: 'siege_master', chance: 0.55 },
+    peasant:    { primary: 'defensive', secondary: 'veteran', chance: 0.5 },
+    worker:     { primary: 'veteran', chance: 0.6 },
+};
+
+/**
+ * 基于官员属性的三层特质推导系统
+ *
+ * 第一层：出身底色 — sourceStratum → 基础军事倾向
+ * 第二层：能力驱动 — 四维属性阈值触发对应特质
+ * 第三层：性格映射 — ambition/greed 极端值塑造指挥风格
+ *
+ * @param {Object} official - 官员对象
+ * @param {number} maxTraits - 特质数量上限（由将军等级决定）
+ * @returns {string[]} 特质ID数组
+ */
+export const deriveTraitsFromOfficial = (official, maxTraits = 2) => {
+    const traits = new Set();
+    const sourceStratum = official.sourceStratum || '';
+    const military = official.stats?.military || official.military || 30;
+    const administrative = official.stats?.administrative || official.administrative || 30;
+    const diplomacyStat = official.stats?.diplomacy || official.diplomacy || 30;
+    const prestige = official.stats?.prestige || official.prestige || 30;
+    const ambition = official.ambition ?? 50;
+    const greed = official.greed ?? 1.0;
+
+    // === 第一层：出身底色 ===
+    const stratumEntry = STRATUM_TRAIT_MAP[sourceStratum];
+    if (stratumEntry && Math.random() < stratumEntry.chance) {
+        if (stratumEntry.secondary && Math.random() < 0.5) {
+            traits.add(stratumEntry.secondary);
+        } else {
+            traits.add(stratumEntry.primary);
+        }
+    }
+
+    // === 第二层：能力驱动 ===
+    if (military >= 70) {
+        if (traits.has('aggressive') || traits.has('veteran')) {
+            traits.add('veteran');
+        } else {
+            traits.add('aggressive');
+        }
+    }
+    if (administrative >= 65) traits.add('logistics');
+    if (diplomacyStat >= 65) traits.add('cunning');
+    if (prestige >= 70) traits.add('inspiring');
+
+    // === 第三层：性格映射 ===
+    if (ambition >= 80) traits.add('aggressive');
+    else if (ambition <= 20) traits.add('defensive');
+    if (greed >= 2.0) traits.add('logistics');
+    else if (greed <= 0.5) traits.add('inspiring');
+
+    // === 互斥处理：aggressive 和 defensive 不共存 ===
+    if (traits.has('aggressive') && traits.has('defensive')) {
+        traits.delete(ambition >= 50 ? 'defensive' : 'aggressive');
+    }
+
+    // 截取到上限，优先保留先添加的特质
+    return [...traits].slice(0, maxTraits);
+};
+
 // ========== General Functions ==========
 
 /**
- * Generate a random general with random traits
+ * Generate a random general with random traits (AI only)
+ * 注意：此函数仅供 AI 敌国使用，玩家侧通过 createGeneralFromOfficial() 获取将军
  * @param {number} epoch - Current epoch affects trait quality
  * @returns {Object} New general object
  */
@@ -112,12 +191,17 @@ export const generateGeneral = (epoch = 0) => {
         experience: 0,
         traits,
         assignedCorpsId: null,
+        lastBattleProposalDay: 0,
+        proposalCooldownDays: 0,
     };
 };
 
 /**
  * Create a general from an existing official (bridge to official system)
- * @param {Object} official - Official object with name, sourceStratum, effects, stats
+ * 玩家获取将军的唯一路径：官员兼任将领，不消耗官员
+ * 特质由官员的出身阶层+四维属性+个性三层推导
+ *
+ * @param {Object} official - Official object with name, sourceStratum, effects, stats, ambition, greed
  * @param {number} epoch - Current epoch
  * @returns {Object} New general object linked to the official
  */
@@ -125,11 +209,9 @@ export const createGeneralFromOfficial = (official, epoch = 0) => {
     if (!official) return null;
 
     const militaryBonus = official.effects?.militaryBonus || 0;
-    const militaryUpkeep = official.effects?.militaryUpkeep || 0;
     const militaryStat = official.stats?.military || official.military || 30;
-    const stratum = official.sourceStratum || '';
 
-    // Derive level from military stat and militaryBonus
+    // 等级推导：基于军事属性 + 时代 + 军事加成效果
     let level = 1 + Math.floor(epoch * 0.3);
     if (militaryStat >= 85) level = Math.max(level, 4);
     else if (militaryStat >= 70) level = Math.max(level, 3);
@@ -137,36 +219,25 @@ export const createGeneralFromOfficial = (official, epoch = 0) => {
     if (militaryBonus >= 0.2) level += 1;
     level = Math.min(level, 6);
 
-    // Derive traits from stratum and effects
-    const traits = [];
-    // Soldier stratum → higher chance of aggressive/veteran
-    if (stratum === 'soldier') {
-        traits.push(Math.random() < 0.6 ? 'aggressive' : 'veteran');
-    }
-    // militaryUpkeep effect → logistics trait
-    if (militaryUpkeep && Math.abs(militaryUpkeep) > 0) {
-        traits.push('logistics');
-    }
-    // militaryBonus ≥ 0.15 → inspiring trait
-    if (militaryBonus >= 0.15 && !traits.includes('inspiring')) {
-        traits.push('inspiring');
-    }
-    // Ensure at least 1 trait
-    if (traits.length === 0) {
-        const fallback = ['defensive', 'cunning', 'swift'];
-        traits.push(fallback[Math.floor(Math.random() * fallback.length)]);
-    }
-    // Cap at 2 traits
-    const finalTraits = traits.slice(0, 2);
+    // 特质上限由等级决定
+    let maxTraits;
+    if (level >= 5) maxTraits = 3;
+    else if (level >= 3) maxTraits = 2;
+    else maxTraits = 1;
+
+    // 三层特质推导
+    const traits = deriveTraitsFromOfficial(official, maxTraits);
 
     return {
         id: generateGeneralId(),
         name: official.name,
         level,
         experience: 0,
-        traits: finalTraits,
+        traits,
         assignedCorpsId: null,
-        officialId: official.id, // Link back to the official
+        officialId: official.id, // 反向链接到官员（兼任关系）
+        lastBattleProposalDay: 0,
+        proposalCooldownDays: 0,
     };
 };
 
@@ -411,10 +482,9 @@ export const selectPrimaryBattleCorps = (corpsList = [], generals = []) => {
             const general = getCorpsGeneral(generals, corps.id);
             const totalUnits = getCorpsTotalUnits(corps);
             const moraleFactor = 0.5 + ((corps?.morale ?? 100) / 100) * 0.5;
-            const fatiguePenalty = Math.max(0.5, 1 - ((corps?.fatigue || 0) / 120));
             const generalFactor = general ? 1 + ((general.level || 1) - 1) * 0.05 : NO_GENERAL_PENALTY;
             const taskWeight = (task.advanceWeight * 0.7) + (task.reserveWeight * 0.2) + (task.raidWeight * 0.1);
-            const score = totalUnits * moraleFactor * fatiguePenalty * generalFactor * taskWeight;
+            const score = totalUnits * moraleFactor * generalFactor * taskWeight;
 
             return {
                 corps,

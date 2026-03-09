@@ -640,6 +640,52 @@ export const RESOURCES = {
 /**
  * 税收上限限制
  */
+/**
+ * 战争经济联动常量
+ * 控制战争对经济的影响程度
+ */
+export const WAR_ECONOMY = {
+    // 建筑破坏
+    BUILDING_DESTROY_BASE_PROBABILITY: 0.15,    // 基础15%每次checkpoint crossing
+    MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT: 2,  // 单次最多破坏2座建筑
+
+    // AI侧经济损伤（替代建筑破坏）
+    AI_WEALTH_LOSS_ECONOMIC: 0.02,   // 经济区每次checkpoint扣减wealth×2%
+    AI_WEALTH_LOSS_CAPITAL: 0.04,    // 核心区每次checkpoint扣减wealth×4%
+    AI_MILSTR_LOSS_CAPITAL: 0.05,    // 核心区每次扣减militaryStrength 0.05
+
+    // 人口流失（每次checkpoint crossing）
+    POP_LOSS_FRONTIER: 0.01,     // 前沿：1%
+    POP_LOSS_ECONOMIC: 0.02,     // 经济区：2%
+    POP_LOSS_CAPITAL: 0.03,      // 核心区：3%
+
+    // 财富掠夺（每tick）
+    PLUNDER_RATE_ECONOMIC: 0.02,    // 经济区：wealth×2%/tick
+    PLUNDER_RATE_CAPITAL: 0.04,     // 核心区：wealth×4%/tick
+    PLUNDER_GAIN_RATIO: 0.6,       // 入侵方获得掠夺的60%
+
+    // 贸易中断
+    TRADE_DISRUPTION_PER_WAR: 0.15, // 每场战争减少15%贸易量
+    TRADE_DISRUPTION_MAX: 0.45,     // 最高45%
+
+    // 军工繁荣
+    MILITARY_INDUSTRY_BOOST: 0.20,  // 战时军事类建筑产出+20%
+    MINING_INDUSTRY_BOOST: 0.10,    // 战时采矿类建筑产出+10%
+
+    // 腹地沦陷惩罚（linePos<=8 或 >=92）
+    HINTERLAND_EXTRA_PRODUCTION_PENALTY: 0.20,   // 额外+20%产出惩罚
+    HINTERLAND_EXTRA_INCOME_PENALTY_RATIO: 0.30, // 额外+30%银币收入惩罚
+    MAX_PRODUCTION_PENALTY: 0.55,                 // 总产出惩罚上限从0.35提到0.55
+
+    // 军费预算制
+    WAR_BUDGET_RATIO: 0.25,     // 战时军费预算占wealth比例
+    PEACE_BUDGET_RATIO: 0.15,   // 和平时军费预算占wealth比例
+    MIN_ARMY_FLOOR: 10,         // 极端情况保底兵力
+
+    // AI战后恢复
+    AI_POST_WAR_WEALTH_RECOVERY: 0.001,  // 战后每tick恢复wealth×0.1%
+};
+
 export const TAX_LIMITS = {
     MAX_HEAD_TAX: 1000000,      // 人头税系数上限
     MAX_RESOURCE_TAX: 5.0,    // 交易税率上限 (500%)

@@ -1,17 +1,14 @@
 /**
- * ActiveBattlePanel - Shows ongoing battles with real-time status and tactical controls
- * Displayed as a floating panel when battles are in progress
+ * ActiveBattlePanel - 会战观战面板（只读）
+ * 将领自动选择战术，玩家仅观察战况和补给状态
  */
 import React, { useMemo, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES } from '../../config/militaryUnits';
 import { TACTICS, getBattleStatusText, isBattleActive } from '../../logic/diplomacy/battleSystem';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const ActiveBattlePanel = ({
     activeBattles = [],
-    onSetTactic,       // (battleId, side, tacticId) => void
-    onOrderRetreat,    // (battleId, side) => void
 }) => {
     const ongoingBattles = useMemo(() =>
         activeBattles.filter(b => isBattleActive(b)),
@@ -25,8 +22,6 @@ const ActiveBattlePanel = ({
             {ongoingBattles.map(battle => {
                 const { attacker, defender, momentum, currentRound, maxRounds, battleType, typeName } = battle;
 
-                // Determine player side (always check both)
-                const isPlayerAttacker = true; // Simplified: player is always involved in displayed battles
                 const playerSide = attacker;
                 const enemySide = defender;
 
@@ -38,6 +33,12 @@ const ActiveBattlePanel = ({
                 const roundProgress = maxRounds > 0 ? (currentRound / maxRounds) * 100 : 0;
                 const momentumText = momentum > 55 ? '攻方优势' : momentum < 45 ? '守方优势' : '胶着';
                 const momentumColor = momentum > 60 ? 'text-blue-400' : momentum < 40 ? 'text-red-400' : 'text-yellow-400';
+
+                // 将领当前战术
+                const playerTacticId = battle.battlePlan?.attacker || playerSide.plan || 'steady';
+                const enemyTacticId = battle.battlePlan?.defender || enemySide.plan || 'steady';
+                const playerTactic = TACTICS[playerTacticId];
+                const enemyTactic = TACTICS[enemyTacticId];
 
                 // Last round log
                 const lastLog = battle.roundLog?.[battle.roundLog.length - 1];
@@ -116,26 +117,23 @@ const ActiveBattlePanel = ({
                             </div>
                         )}
 
-                        {/* Tactical controls */}
+                        {/* 将领战术决策（只读） */}
                         <div className="border-t border-gray-700 pt-2">
-                            <p className="text-[10px] text-gray-400 mb-1">
-                                当前战术: <span className="text-ancient-parchment">{TACTICS[playerSide.tactic]?.name || '正常作战'}</span>
-                            </p>
-                            <div className="flex gap-1 flex-wrap">
-                                {Object.entries(TACTICS).map(([id, tactic]) => (
-                                    <button
-                                        key={id}
-                                        className={`px-2 py-1 text-[10px] rounded border transition-all ${playerSide.tactic === id
-                                            ? 'bg-ancient-gold/20 border-ancient-gold/50 text-ancient-parchment'
-                                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
-                                            }`}
-                                        onClick={() => onSetTactic?.(battle.id, 'attacker', id)}
-                                        title={tactic.desc}
-                                    >
-                                        {tactic.name}
-                                    </button>
-                                ))}
+                            <div className="flex items-center justify-between text-[10px]">
+                                <div className="text-gray-400">
+                                    <span className="text-blue-300">{playerSide.generalName || '我方'}</span>
+                                    {' → '}
+                                    <span className="text-ancient-parchment font-bold">{playerTactic?.name || '正常作战'}</span>
+                                </div>
+                                <div className="text-gray-400">
+                                    <span className="text-red-300">{enemySide.generalName || '敌方'}</span>
+                                    {' → '}
+                                    <span className="text-red-200 font-bold">{enemyTactic?.name || '正常作战'}</span>
+                                </div>
                             </div>
+                            <p className="text-[9px] text-gray-500 mt-1 italic">
+                                战术由将领根据战况自动决定
+                            </p>
                         </div>
                     </div>
                 );

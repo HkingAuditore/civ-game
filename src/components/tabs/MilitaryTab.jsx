@@ -489,8 +489,16 @@ const MilitaryTabComponent = ({
         if (canHover) setHoveredUnit({ unit, element: e.currentTarget });
     };
 
-    // 计算军队统计信息 - memoized to prevent recalculation
-    const totalUnits = useMemo(() => Object.values(army).reduce((sum, count) => sum + count, 0), [army]);
+    // [FIX Bug7] 计算军队统计信息 - 包含散兵(army)和军团(militaryCorps)内的所有单位
+    const totalUnits = useMemo(() => {
+        let total = Object.values(army).reduce((sum, count) => sum + count, 0);
+        // 加上军团内的单位
+        for (const corps of (militaryCorps || [])) {
+            if (corps?.isAI) continue;
+            total += Object.values(corps?.units || {}).reduce((sum, count) => sum + count, 0);
+        }
+        return total;
+    }, [army, militaryCorps]);
     
     // Memoize queue statistics
     const { waitingCount, trainingCount, queuePopulation } = useMemo(() => {

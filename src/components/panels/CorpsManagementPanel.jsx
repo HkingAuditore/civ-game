@@ -48,19 +48,16 @@ const CorpsManagementPanel = ({
     const playerCorps = useMemo(() => militaryCorps.filter(c => !c.isAI), [militaryCorps]);
     const playerGenerals = useMemo(() => generals.filter(g => !g.id?.startsWith('ai_gen_') && !g.isAI), [generals]);
 
-    // Unassigned army (units not in any player corps)
+    // [FIX] Unassigned army = army state itself
+    // assignUnitsToCorps already physically removes units from global army,
+    // so army IS the unassigned pool. No need to subtract corps units again (was causing double-deduction).
     const unassignedArmy = useMemo(() => {
-        const result = { ...army };
-        for (const corps of playerCorps) {
-            for (const [unitId, count] of Object.entries(corps.units || {})) {
-                if (result[unitId]) {
-                    result[unitId] = Math.max(0, result[unitId] - count);
-                    if (result[unitId] <= 0) delete result[unitId];
-                }
-            }
+        const result = {};
+        for (const [unitId, count] of Object.entries(army || {})) {
+            if (count > 0) result[unitId] = count;
         }
         return result;
-    }, [army, playerCorps]);
+    }, [army]);
 
     const totalUnassigned = Object.values(unassignedArmy).reduce((s, c) => s + c, 0);
 
@@ -285,7 +282,7 @@ const CorpsManagementPanel = ({
                                     <div className="mt-1 flex flex-wrap gap-1">
                                         {Object.entries(corps.units).map(([uid, count]) => (
                                             <span key={uid} className="text-[10px] px-1.5 py-0.5 bg-gray-800/60 rounded text-gray-300">
-                                                {UNIT_TYPES[uid]?.name || uid} 脳{count}
+                                                {UNIT_TYPES[uid]?.name || uid} ×{count}
                                             </span>
                                         ))}
                                     </div>

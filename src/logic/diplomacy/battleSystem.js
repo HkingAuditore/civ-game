@@ -342,7 +342,7 @@ const calculateSideStrength = ({
     const generalDefense = generalBonuses ? (1 + generalBonuses.defenseBonus) : NO_GENERAL_PENALTY;
     const supplyMod = getSupplyModifiers(battleContext.supply?.[role], plan);
     const zoneMod = getZoneCombatModifiers(role, battleContext.linePosition, battleContext.zone, battle.engagementType);
-    const counterMultiplier = clamp(Number(counterData.multiplier || 1), 0.88, 1.32);
+    const counterMultiplier = clamp(Number(counterData.multiplier || 1), 0.80, 1.45);
     const siegePenalty = battle.engagementType === 'siege' && (profile.totals.siege || 0) <= 0 ? 0.78 : 1;
 
     const attackScore = profile.attack
@@ -379,35 +379,65 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
     const phaseConfig = battle.phaseSchedule[battle.phaseIndex] || battle.phaseSchedule[battle.phaseSchedule.length - 1];
     const phasePressure = 0.8 + (battle.phaseIndex / Math.max(1, battle.phaseSchedule.length - 1)) * 0.35;
 
-    const attackerScore = Math.max(1, attackerState.effectiveScore * (0.65 + attackerState.morale / 200));
-    const defenderScore = Math.max(1, defenderState.effectiveScore * (0.65 + defenderState.morale / 200));
-    const scoreShare = attackerScore / Math.max(1, attackerScore + defenderScore);
+    const attackerScore = Math.max(1, attackerState.effectiveScore * (0.65 + attackerState.morale / 150));
+    const defenderScore = Math.max(1, defenderState.effectiveScore * (0.65 + defenderState.morale / 150));
+    // 增强随机波动 ±15%
+    const randomFactor = 0.85 + Math.random() * 0.30;
+    const scoreShare = (attackerScore * randomFactor) / Math.max(1, attackerScore * randomFactor + defenderScore * (2 - randomFactor));
     const advantage = clamp((scoreShare - 0.5) * 2, -1, 1);
 
     const attackerUnits = Math.max(1, attackerState.profile.totalUnits);
     const defenderUnits = Math.max(1, defenderState.profile.totalUnits);
+
+    // [FIX Bug13] 兵力比修正：当一方兵力远超对方时，弱势方对强势方造成的损失受限
+    // ratio > 1 表示攻方人多，ratio < 1 表示守方人多
+    const forceRatio = attackerUnits / defenderUnits;
+    // 对攻方：如果攻方远多于守方，守方能造成的损伤比例下降
+    // 例如 10000 vs 100 时，forceRatio = 100，dampenAttacker ≈ 0.1（大幅降低攻方损失率）
+    const dampenAttacker = forceRatio > 1 ? Math.min(1, 1 / Math.sqrt(forceRatio)) : 1;
+    // 对守方：如果守方远多于攻方，攻方能造成的损伤比例下降
+    const dampenDefender = forceRatio < 1 ? Math.min(1, Math.sqrt(forceRatio)) : 1;
+
     const attackerLossRate = engagement.baseCasualtyRate
         * phasePressure
         * (1.02 - advantage * 0.3)
         * defenderState.plan.casualtyInflict
-        * attackerState.plan.casualtyTaken;
+        * attackerState.plan.casualtyTaken
+        * dampenAttacker; // [FIX Bug13] 兵力优势修正
     const defenderLossRate = engagement.baseCasualtyRate
         * phasePressure
         * (0.98 + advantage * 0.3)
         * attackerState.plan.casualtyInflict
-        * defenderState.plan.casualtyTaken;
+        * defenderState.plan.casualtyTaken
+        * dampenDefender; // [FIX Bug13] 兵力优势修正
+
+    // [FIX Bug13] 动态保底战损率：根据兵力比动态调整，避免碾压局下大军团反而损失更大
+    // 保底从 0.3% 降到最低 0.05%（兵力碾压10:1时）
+    const attackerMinRate = Math.max(0.0005, 0.003 * dampenAttacker);
+    const defenderMinRate = Math.max(0.0005, 0.003 * dampenDefender);
+
+    // [FIX Bug13] 伤害上限：一方的绝对伤害不能超过对方兵力的合理比例
+    // 防止 "万人大军每阶段自损30人而敌方百人残部也损失30人" 的悖论
+    const attackerMaxAbsLoss = Math.max(1, Math.ceil(defenderUnits * 0.5)); // 攻方损失不超过守方兵力的50%
+    const defenderMaxAbsLoss = Math.max(1, Math.ceil(attackerUnits * 0.5)); // 守方损失不超过攻方兵力的50%
 
     const attackerLossTarget = attackerUnits <= 1
         ? 0
-        : Math.max(
-            1,
-            Math.min(attackerUnits - 1, Math.round(attackerUnits * clamp(attackerLossRate, 0.003, 0.12)))
+        : Math.min(
+            attackerMaxAbsLoss,
+            Math.max(
+                1,
+                Math.min(attackerUnits - 1, Math.round(attackerUnits * clamp(attackerLossRate, attackerMinRate, 0.12)))
+            )
         );
     const defenderLossTarget = defenderUnits <= 1
         ? 0
-        : Math.max(
-            1,
-            Math.min(defenderUnits - 1, Math.round(defenderUnits * clamp(defenderLossRate, 0.003, 0.14)))
+        : Math.min(
+            defenderMaxAbsLoss,
+            Math.max(
+                1,
+                Math.min(defenderUnits - 1, Math.round(defenderUnits * clamp(defenderLossRate, defenderMinRate, 0.14)))
+            )
         );
 
     const momentumShift = clamp(Math.round(advantage * (engagement.engagementMomentum || 12 || 12)), -10, 10);
@@ -891,6 +921,69 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
     }
 
     return maybeFinalizeBattle(b);
+};
+
+/**
+ * 将领自动战术选择（核心自动化）
+ * 根据将领特质 + 当前战况自动选择战术，玩家无需操作
+ * @param {Object} battle - 当前会战对象
+ * @param {'attacker'|'defender'} side - 哪一方
+ * @param {Object|null} general - 将领对象
+ * @returns {string} 选择的战术 ID
+ */
+export const autoSelectTactic = (battle, side, general) => {
+    const b = battle || {};
+    const sideData = b[side] || {};
+    const units = getTotalUnits(sideData.currentUnits || {});
+    const initialUnits = Math.max(1, getTotalUnits(sideData.initialUnits || {}));
+    const morale = Number(sideData.morale || 50);
+    const momentum = Number(b.momentum || 50);
+    const isAttacker = side === 'attacker';
+    const traitIds = general?.traits || [];
+
+    // 特殊情况覆盖：最高优先级
+    if (units < initialUnits * 0.2) return 'withdraw';
+    if (morale < 25) return 'withdraw';
+
+    // 判断优劣势
+    const favorableMomentum = isAttacker ? momentum > 60 : momentum < 40;
+    const unfavorableMomentum = isAttacker ? momentum < 40 : momentum > 60;
+    const enemyUnits = getTotalUnits(b[isAttacker ? 'defender' : 'attacker']?.currentUnits || {});
+    const forceRatio = units / Math.max(1, enemyUnits);
+    const forceAdvantage = forceRatio > 1.3;
+    const forceDisadvantage = forceRatio < 0.7;
+    const enemyMorale = Number(b[isAttacker ? 'defender' : 'attacker']?.morale || 50);
+    const moraleEdge = morale > 70 && enemyMorale < 40;
+
+    const isAdvantage = favorableMomentum || forceAdvantage || moraleEdge;
+    const isDisadvantage = unfavorableMomentum || forceDisadvantage;
+
+    // 根据将领特质 + 态势选择战术矩阵
+    if (traitIds.includes('aggressive')) {
+        return isDisadvantage ? 'steady' : 'shock';
+    }
+    if (traitIds.includes('defensive')) {
+        if (isAdvantage) return 'steady';
+        return 'hold';
+    }
+    if (traitIds.includes('swift')) {
+        if (isDisadvantage) return 'withdraw';
+        return isAdvantage ? 'shock' : 'steady';
+    }
+    if (traitIds.includes('cunning')) {
+        // 诡诈型：根据敌方弱点选
+        if (enemyMorale < 35) return 'shock';
+        if (isDisadvantage) return 'hold';
+        return 'steady';
+    }
+    if (traitIds.includes('veteran')) {
+        return isDisadvantage ? 'hold' : 'steady';
+    }
+    // 无特质 / 其他情况
+    if (!general) {
+        return isDisadvantage ? 'withdraw' : isAdvantage ? 'steady' : 'hold';
+    }
+    return isDisadvantage ? 'hold' : 'steady';
 };
 
 export const setTacticOrder = (battle, side, tacticId) => {

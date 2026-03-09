@@ -1,5 +1,8 @@
 // 军事单位配置文件
 
+import { RESOURCES } from './gameConstants';
+import { WAR_ECONOMY } from './gameConstants';
+
 /**
  * 兵种克制关系说明:
  * - 步兵(infantry) 克制 骑兵(cavalry) - 长矛阵/刺刀阵克制骑兵冲锋
@@ -795,8 +798,31 @@ const getAvailableUnitsForEpoch = (epoch) => {
 };
 
 /**
+ * 计算一个兵种的实际银币造价（基于当地物价）
+ * @param {string} unitId - 兵种ID
+ * @param {Object} prices - 当地物价 { resource: price }
+ * @returns {number} 实际银币总造价
+ */
+export const calculateUnitCost = (unitId, prices = {}) => {
+    const unit = UNIT_TYPES[unitId];
+    if (!unit?.recruitCost) return Infinity;
+    let totalCost = 0;
+    Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
+        // silver=1（货币本身）；没有价格数据时用basePrice
+        const price = resource === 'silver'
+            ? 1
+            : (prices[resource] ?? RESOURCES?.[resource]?.basePrice ?? 1);
+        totalCost += amount * price;
+    });
+    return totalCost;
+};
+
+/**
  * 为AI国家生成虚拟军队组成
- * 每次战斗临时生成，数量基于人口、militaryStrength和时代
+ * 【军费预算制】：军队规模和装备由真实造价决定
+ * - 军费预算 = wealth × 军费比例（和平15%/战时25%）
+ * - 兵种选择 = 每类别内按epoch降序、在预算约束内选最先进能负担的
+ * - 兵力 = min(人口上限, 预算 ÷ 单兵加权成本)
  * @param {Object} nation - 国家对象
  * @param {number} epoch - 当前时代
  * @param {number} deploymentRatio - 派遣比例 (0-1)，默认1.0表示全部派遣
@@ -807,67 +833,31 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
     const population = nation?.population || 100;
     const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
     const aggression = nation?.aggression || 0.3;
-
     const wealth = nation?.wealth || 500;
-    const budget = nation?.budget || wealth * 0.45;
-    const wealthPerCapita = wealth / Math.max(1, population);
-    
-    // 财富约束系数：基于人均财富
-    // 人均财富 < 0.5: 极度贫困，军队规模削减到5%以下
-    // 人均财富 0.5-5: 贫困，军队规模10%-50%
-    // 人均财富 5-20: 正常，军队规模50%-100%
-    // 人均财富 > 20: 富裕，军队规模100%
-    let wealthConstraint = 1.0;
-    if (wealthPerCapita < 0.5) {
-        // 极度贫困：几乎无法维持军队
-        wealthConstraint = Math.max(0.05, wealthPerCapita * 0.1);
-    } else if (wealthPerCapita < 5) {
-        // 贫困：军队规模受限
-        wealthConstraint = 0.05 + (wealthPerCapita - 0.5) / 4.5 * 0.45;  // 5%-50%
-    } else if (wealthPerCapita < 20) {
-        // 正常：逐渐恢复到正常规模
-        wealthConstraint = 0.5 + (wealthPerCapita - 5) / 15 * 0.5;  // 50%-100%
-    }
-    // else: wealthPerCapita >= 20, wealthConstraint = 1.0 (无约束)
 
-    // 动员率主要由时代、战时状态和财政决定，质量只轻微影响可部署规模。
+    // 1. 军费预算 = wealth × 军费比例
+    const warBudgetRatio = nation?.isAtWar
+        ? (WAR_ECONOMY?.WAR_BUDGET_RATIO || 0.25)
+        : (WAR_ECONOMY?.PEACE_BUDGET_RATIO || 0.15);
+    const militaryBudget = wealth * warBudgetRatio * difficultyMultiplier;
+
+    // 2. 人口上限（保留现有动员率逻辑）
     const wartimeMobilizationBonus = nation?.isAtWar ? 0.008 : 0;
     const manpowerRatio = Math.min(0.026, 0.008 + epoch * 0.0015 + wartimeMobilizationBonus);
-    const budgetSupport = Math.max(0.35, Math.min(1.15, Math.sqrt(budget / Math.max(80, population * 12))));
     const sizeQualityFactor = 0.9 + (militaryQuality - 1) * 0.2;
-    const baseArmySize = Math.floor(
-        population
-        * manpowerRatio
-        * difficultyMultiplier
-        * wealthConstraint
-        * budgetSupport
-        * sizeQualityFactor
-    );
+    const maxManpower = Math.floor(population * manpowerRatio * sizeQualityFactor);
 
-    // [FIX] Minimum army size floor to prevent 0-strength AI armies
-    const MIN_ARMY_SIZE = Math.max(10, Math.floor(population * 0.001));
-    const effectiveSize = Math.max(MIN_ARMY_SIZE, baseArmySize);
+    // 3. 获取当地物价（AI用nationPrices，否则用默认basePrice）
+    const localPrices = nation?.nationPrices || {};
 
-    // 应用派遣比例
-    const deployedSize = Math.max(1, Math.floor(effectiveSize * deploymentRatio));
-
-    // 获取当前时代可用兵种
+    // 4. 获取当前时代可用兵种
     const availableUnits = getAvailableUnitsForEpoch(epoch);
     if (availableUnits.length === 0) {
-        return { militia: deployedSize };
+        const minFloor = WAR_ECONOMY?.MIN_ARMY_FLOOR || 10;
+        return { militia: Math.max(minFloor, Math.min(maxManpower, Math.floor(militaryBudget / 200))) };
     }
 
-    // 按类别分配军队（根据国家侵略性调整比例）
-    const army = {};
-    let remaining = deployedSize;
-
-    // 侵略性高的国家更多进攻型单位
-    const infantryRatio = 0.35 + (1 - aggression) * 0.15;  // 35-50%
-    const rangedRatio = 0.25 + aggression * 0.1;           // 25-35%
-    const cavalryRatio = 0.20 + aggression * 0.1;          // 20-30%
-    const siegeRatio = 0.05;                                // 5%
-
-    // 过滤可用兵种按类别
+    // 5. 按类别分组
     const infantryUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'infantry');
     const rangedUnits = availableUnits.filter(id =>
         UNIT_TYPES[id]?.category === 'archer' || UNIT_TYPES[id]?.category === 'gunpowder'
@@ -875,44 +865,114 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
     const cavalryUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'cavalry');
     const siegeUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'siege');
 
-    // 分配步兵
-    if (infantryUnits.length > 0) {
-        const count = Math.floor(remaining * infantryRatio);
-        const unitId = infantryUnits[Math.floor(Math.random() * infantryUnits.length)];
-        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
-        remaining -= count;
-    }
+    // 6. 兵种选择函数：每类别内按epoch降序选预算内最先进的
+    const selectBestAffordableUnit = (categoryUnits, budgetForCategory, minCount) => {
+        if (categoryUnits.length === 0) return null; // 当前时代该类别无兵种，不出兵
 
-    // 分配远程
-    if (rangedUnits.length > 0 && remaining > 0) {
-        const count = Math.floor(deployedSize * rangedRatio);
-        const unitId = rangedUnits[Math.floor(Math.random() * rangedUnits.length)];
-        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
-        remaining -= count;
-    }
+        const sorted = [...categoryUnits].sort((a, b) =>
+            (UNIT_TYPES[b]?.epoch || 0) - (UNIT_TYPES[a]?.epoch || 0)
+        );
+        for (const unitId of sorted) {
+            const cost = calculateUnitCost(unitId, localPrices);
+            if (budgetForCategory / cost >= minCount) {
+                return { unitId, cost };
+            }
+        }
+        // 都太贵？选该类别内最便宜的（不会跨类别凑）
+        let cheapestId = sorted[sorted.length - 1];
+        let cheapestCost = Infinity;
+        for (const id of sorted) {
+            const c = calculateUnitCost(id, localPrices);
+            if (c < cheapestCost) {
+                cheapestCost = c;
+                cheapestId = id;
+            }
+        }
+        return { unitId: cheapestId, cost: cheapestCost };
+    };
 
-    // 分配骑兵
-    if (cavalryUnits.length > 0 && remaining > 0) {
-        const count = Math.floor(deployedSize * cavalryRatio);
-        const unitId = cavalryUnits[Math.floor(Math.random() * cavalryUnits.length)];
-        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
-        remaining -= count;
-    }
+    // 7. 预算分配比例（根据侵略性调整）
+    const budgetRatios = {
+        infantry: 0.35 + (1 - aggression) * 0.15,  // 35-50%
+        ranged: 0.25 + aggression * 0.1,            // 25-35%
+        cavalry: 0.20 + aggression * 0.1,           // 20-30%
+        siege: 0.05,                                 // 5%
+    };
 
-    // 分配攻城
-    if (siegeUnits.length > 0 && remaining > 2) {
-        const count = Math.floor(deployedSize * siegeRatio);
-        if (count > 0) {
-            const unitId = siegeUnits[Math.floor(Math.random() * siegeUnits.length)];
-            army[unitId] = (army[unitId] || 0) + count;
-            remaining -= count;
+    // 8. 两轮分配：第一轮按比例，第二轮回收无兵种类别的预算
+    const categories = [
+        { key: 'infantry', units: infantryUnits, ratio: budgetRatios.infantry },
+        { key: 'ranged', units: rangedUnits, ratio: budgetRatios.ranged },
+        { key: 'cavalry', units: cavalryUnits, ratio: budgetRatios.cavalry },
+        { key: 'siege', units: siegeUnits, ratio: budgetRatios.siege },
+    ];
+
+    // 第一轮：标记哪些类别有兵种
+    let recycleBudget = 0;
+    let activeTotalRatio = 0;
+    for (const cat of categories) {
+        if (cat.units.length === 0) {
+            recycleBudget += militaryBudget * cat.ratio;
+            cat.active = false;
+        } else {
+            cat.active = true;
+            activeTotalRatio += cat.ratio;
         }
     }
 
-    // 剩余分配给步兵
-    if (remaining > 0 && infantryUnits.length > 0) {
-        const unitId = infantryUnits[0];
-        army[unitId] = (army[unitId] || 0) + remaining;
+    // 第二轮：回收预算按比例分配给有兵种的类别
+    const army = {};
+    let totalRecruited = 0;
+    const minCountPerCategory = 3; // 每类别至少能招到3人才选先进兵种
+
+    for (const cat of categories) {
+        if (!cat.active) continue;
+
+        // 基础预算 + 回收预算（按比例）
+        const baseBudget = militaryBudget * cat.ratio;
+        const recyclePortion = activeTotalRatio > 0
+            ? recycleBudget * (cat.ratio / activeTotalRatio)
+            : 0;
+        const categoryBudget = baseBudget + recyclePortion;
+
+        const selection = selectBestAffordableUnit(cat.units, categoryBudget, minCountPerCategory);
+        if (!selection) continue;
+
+        const count = Math.floor(categoryBudget / selection.cost);
+        if (count > 0) {
+            army[selection.unitId] = (army[selection.unitId] || 0) + count;
+            totalRecruited += count;
+        }
+    }
+
+    // 9. 应用人口上限
+    if (totalRecruited > maxManpower && maxManpower > 0) {
+        const scaleFactor = maxManpower / totalRecruited;
+        for (const unitId of Object.keys(army)) {
+            army[unitId] = Math.max(1, Math.floor(army[unitId] * scaleFactor));
+        }
+        totalRecruited = Object.values(army).reduce((s, c) => s + c, 0);
+    }
+
+    // 10. 保底：极端情况下至少有MIN_ARMY_FLOOR人步兵
+    const minFloor = WAR_ECONOMY?.MIN_ARMY_FLOOR || 10;
+    if (totalRecruited < minFloor) {
+        // 选当前时代最便宜的步兵
+        const fallbackInfantry = infantryUnits.length > 0
+            ? infantryUnits.reduce((best, id) => {
+                const c = calculateUnitCost(id, localPrices);
+                return c < (best.cost || Infinity) ? { id, cost: c } : best;
+            }, { id: infantryUnits[0], cost: Infinity })
+            : { id: 'militia' };
+        const needed = minFloor - totalRecruited;
+        army[fallbackInfantry.id] = (army[fallbackInfantry.id] || 0) + needed;
+    }
+
+    // 11. 应用派遣比例
+    if (deploymentRatio < 1.0) {
+        for (const unitId of Object.keys(army)) {
+            army[unitId] = Math.max(1, Math.floor(army[unitId] * deploymentRatio));
+        }
     }
 
     return army;

@@ -1398,13 +1398,23 @@ const processAIRelations = (nations, tick, logs) => {
  * Process monthly relation decay for all nations
  * @private
  */
-const processMonthlyRelationDecay = (nations, difficultyLevel = 'normal') => {
+const processMonthlyRelationDecay = (nations, difficultyLevel = 'normal', diplomacyOrganizations = null) => {
     if (!Array.isArray(nations)) return [];
+    // [FIX Bug10] 从组织系统获取玩家盟友列表
+    const orgs = diplomacyOrganizations?.organizations || [];
+    const playerOrgAllyIds = new Set();
+    orgs.forEach(org => {
+        if (org?.type !== 'military_alliance') return;
+        if (!Array.isArray(org.members) || !org.members.includes('player')) return;
+        org.members.forEach(id => { if (id && id !== 'player') playerOrgAllyIds.add(id); });
+    });
+
     return nations.map(nation => {
         if (nation.isRebelNation) return nation;
 
         const currentRelation = nation.relation ?? 50;
-        const isAlly = nation.alliedWithPlayer === true;
+        // [FIX Bug10] 组织盟友也享受盟友关系衰减保护
+        const isAlly = nation.alliedWithPlayer === true || playerOrgAllyIds.has(nation.id);
         const decayRate = getRelationMonthlyDriftRate(difficultyLevel, isAlly);
 
         let newRelation = currentRelation;
