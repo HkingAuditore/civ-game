@@ -761,6 +761,9 @@ export const generateFront = (attackerId, defenderId, epoch, attackerEconomy, de
  */
 export const ensureFrontDefaults = (front) => {
     if (!front || typeof front !== 'object') return front;
+    // 已正规化的 front 直接返回，避免每 tick 重复处理
+    if (front._normalized) return front;
+
     const normalizedPosition = clamp(
         Number.isFinite(front.linePosition) ? front.linePosition : 50,
         0,
@@ -775,14 +778,12 @@ export const ensureFrontDefaults = (front) => {
             zones[zone.id] = {
                 resourceNodes: [],
                 infrastructure: [],
-                reached: zone.id === 2 || zone.id === 3, // frontline zones
+                reached: zone.id === 2 || zone.id === 3,
                 cleared: false,
             };
         }
-        // Migrate old resourceNodes into nearest matching zone
         if (Array.isArray(front.resourceNodes)) {
             for (const node of front.resourceNodes) {
-                // Put defender-owned nodes in zone 2, attacker-owned in zone 3
                 const targetZoneId = node.owner === front.defenderId ? 2 : 3;
                 zones[targetZoneId].resourceNodes.push(node);
             }
@@ -802,6 +803,7 @@ export const ensureFrontDefaults = (front) => {
 
     return {
         ...front,
+        _normalized: true,
         startDay: Number.isFinite(front.startDay) ? front.startDay : (front.createdDay || 0),
         linePosition: normalizedPosition,
         lineVelocity: Number.isFinite(front.lineVelocity) ? front.lineVelocity : 0,
@@ -857,208 +859,8 @@ export const ensureFrontDefaults = (front) => {
     };
 };
 
-/**
- * Generate resource nodes on the front, derived from actual BUILDINGS config
- * Player side: pick from owned buildings' output resources
- * AI side: simulate based on epoch/wealth if no building data
- */
-const _generateResourceNodes = (epoch, attackerEco, defenderEco, attackerId, defenderId) => {
-    const nodes = [];
-    let nodeId = 0;
-
-    const sides = [
-        { owner: attackerId, eco: attackerEco },
-        { owner: defenderId, eco: defenderEco },
-    ];
-
-    // Helper: get primary output resource from a building's output object
-    // Excludes non-resource outputs like maxPop, militaryCapacity
-    const NON_RESOURCE_OUTPUTS = ['maxPop', 'militaryCapacity', 'culture', 'science'];
-    const getMainResource = (output) => {
-        if (!output || typeof output !== 'object') return null;
-        const entries = Object.entries(output).filter(([k]) => !NON_RESOURCE_OUTPUTS.includes(k) && RESOURCES[k]);
-        if (entries.length === 0) return null;
-        // Pick highest output
-        entries.sort((a, b) => b[1] - a[1]);
-        return { resource: entries[0][0], outputRate: entries[0][1] };
-    };
-
-    for (const side of sides) {
-        const buildings = side.eco?.buildings || {}; // { buildingId: count }
-        const ownedEntries = Object.entries(buildings).filter(([, count]) => count > 0);
-
-        if (ownedEntries.length > 0) {
-            // Pick 2-4 buildings that have valid resource output
-            const candidates = [];
-            for (const [bId, count] of ownedEntries) {
-                const bDef = BUILDINGS.find(b => b.id === bId);
-                if (!bDef) continue;
-                const main = getMainResource(bDef.output);
-                if (!main) continue;
-                candidates.push({ building: bDef, count, ...main });
-            }
-
-            // Shuffle and take 2-4
-            const shuffled = candidates.sort(() => Math.random() - 0.5);
-            const nodeCount = Math.min(4, Math.max(2, shuffled.length));
-
-            for (let i = 0; i < nodeCount && i < shuffled.length; i++) {
-                const c = shuffled[i];
-                // Amount = output rate * building count * coefficient (50~100 days of production)
-                const coefficient = 50 + Math.floor(Math.random() * 50);
-                const amount = Math.max(10, Math.floor(c.outputRate * c.count * coefficient));
-
-                nodeId++;
-                nodes.push({
-                    id: `rn_${nodeId}`,
-                    type: c.building.id,
-                    resource: c.resource,
-                    desc: c.building.name,
-                    amount,
-                    maxAmount: amount,
-                    owner: side.owner,
-                    plundered: false,
-                });
-            }
-        } else {
-            // AI fallback: simulate buildings based on epoch/wealth
-            const wealth = side.eco?.wealth || 500;
-            const population = side.eco?.population || 100;
-            const nodeCount = Math.min(4, Math.max(2, Math.floor((wealth / 300) + (population / 200))));
-            const epochBuildings = BUILDINGS.filter(b => b.epoch <= epoch);
-            // Pick random buildings that have valid resource outputs
-            const validBuildings = epochBuildings.filter(b => getMainResource(b.output));
-            const available = validBuildings.length > 0 ? validBuildings : [];
-
-            if (available.length > 0) {
-                for (let i = 0; i < nodeCount; i++) {
-                    const bDef = available[Math.floor(Math.random() * available.length)];
-                    const main = getMainResource(bDef.output);
-                    if (!main) continue;
-                    const amount = Math.max(10, Math.floor(main.outputRate * (2 + Math.floor(Math.random() * 5)) * (60 + Math.random() * 40)));
-
-                    nodeId++;
-                    nodes.push({
-                        id: `rn_${nodeId}`,
-                        type: bDef.id,
-                        resource: main.resource,
-                        desc: bDef.name,
-                        amount,
-                        maxAmount: amount,
-                        owner: side.owner,
-                        plundered: false,
-                    });
-                }
-            } else {
-                // Ultimate fallback to legacy templates
-                for (let i = 0; i < nodeCount; i++) {
-                    const template = RESOURCE_NODE_FALLBACK[Math.floor(Math.random() * RESOURCE_NODE_FALLBACK.length)];
-                    const amount = Math.floor(template.baseAmount * Math.pow(template.epochScale, epoch) * (0.7 + Math.random() * 0.6));
-                    nodeId++;
-                    nodes.push({
-                        id: `rn_${nodeId}`,
-                        type: template.type,
-                        resource: template.resource,
-                        desc: template.desc,
-                        amount,
-                        maxAmount: amount,
-                        owner: side.owner,
-                        plundered: false,
-                    });
-                }
-            }
-        }
-    }
-
-    return nodes;
-};
-
-/**
- * Generate infrastructure on the front, derived from actual BUILDINGS by category
- * military cat → defense effect; civic cat → income effect; gather/industry → supply effect
- */
-const _generateInfrastructure = (epoch, attackerEco, defenderEco, attackerId, defenderId) => {
-    const infra = [];
-    let infraId = 0;
-
-    // Category to effect mapping
-    const CAT_EFFECT_MAP = {
-        military: { defense: 0.12 },
-        civic: { income: 40 },
-        gather: { supply: 0.08 },
-        industry: { supply: 0.1 },
-    };
-
-    const sides = [
-        { owner: attackerId, eco: attackerEco },
-        { owner: defenderId, eco: defenderEco },
-    ];
-
-    for (const side of sides) {
-        const buildings = side.eco?.buildings || {};
-        const ownedEntries = Object.entries(buildings).filter(([, count]) => count > 0);
-
-        if (ownedEntries.length > 0) {
-            // Group owned buildings by category, pick one representative per category
-            const byCat = {};
-            for (const [bId, count] of ownedEntries) {
-                const bDef = BUILDINGS.find(b => b.id === bId);
-                if (!bDef || !bDef.cat) continue;
-                if (!byCat[bDef.cat]) byCat[bDef.cat] = [];
-                byCat[bDef.cat].push({ building: bDef, count });
-            }
-
-            // Pick 1 representative from each category (up to 3 categories)
-            const cats = Object.keys(byCat).slice(0, 3);
-            for (const cat of cats) {
-                const candidates = byCat[cat];
-                const pick = candidates[Math.floor(Math.random() * candidates.length)];
-                const bLevel = side.eco?.buildingLevels?.[pick.building.id] || 0;
-                const durability = Math.floor(100 * (1 + bLevel * 0.3) * (1 + epoch * 0.15));
-
-                infraId++;
-                infra.push({
-                    id: `inf_${infraId}`,
-                    type: pick.building.id,
-                    name: pick.building.name,
-                    desc: pick.building.desc || pick.building.name,
-                    owner: side.owner,
-                    durability,
-                    maxDurability: durability,
-                    effect: { ...(CAT_EFFECT_MAP[cat] || { supply: 0.05 }) },
-                    destroyed: false,
-                });
-            }
-        } else {
-            // Fallback: use legacy templates
-            const buildingCount = Object.values(side.eco?.buildings || {}).reduce((s, c) => s + c, 0);
-            const infraCount = Math.min(3, Math.max(1, Math.floor(Math.max(1, buildingCount) / 5)));
-            const available = [...INFRASTRUCTURE_FALLBACK];
-            for (let i = 0; i < infraCount; i++) {
-                const idx = Math.floor(Math.random() * available.length);
-                const template = available.splice(idx, 1)[0];
-                if (!template) break;
-                const durabilityScale = 1 + epoch * 0.15;
-                const durability = Math.floor(template.baseDurability * durabilityScale);
-
-                infraId++;
-                infra.push({
-                    id: `inf_${infraId}`,
-                    type: template.type,
-                    name: template.name,
-                    desc: template.desc,
-                    owner: side.owner,
-                    durability,
-                    maxDurability: durability,
-                    effect: { ...template.effect },
-                    destroyed: false,
-                });
-            }
-        }
-    }
-
-    return infra;
-};
+// [已删除] _generateResourceNodes / _generateInfrastructure 旧版全局资源生成
+// 功能已完全迁移至 generateZoneResources / generateZoneInfrastructure（zone-based）
 
 // ========== Front Operations ==========
 
@@ -1294,33 +1096,34 @@ export const getFrontlineEconomicModifiers = (front, nationId, _currentDay = 0, 
     let zoneProductionPenalty = 0;
     let zoneIncomePenalty = 0;
 
+    // 区域惩罚：边境轻微、经济区中等、核心区较重但留有翻盘空间
     if (side === 'attacker') {
         if (linePos < 50) {
             zoneProductionPenalty += 0.05;
         }
         if (linePos < 35) {
-            zoneProductionPenalty += 0.15;
-            zoneIncomePenalty += silverIncome * 0.2;
+            zoneProductionPenalty += 0.10;
+            zoneIncomePenalty += silverIncome * 0.15;
         }
         if (linePos < 15) {
-            zoneProductionPenalty += 0.25;
-            zoneIncomePenalty += silverIncome * 0.4;
+            zoneProductionPenalty += 0.10;
+            zoneIncomePenalty += silverIncome * 0.20;
         }
     } else {
         if (linePos > 50) {
             zoneProductionPenalty += 0.05;
         }
         if (linePos > 65) {
-            zoneProductionPenalty += 0.15;
-            zoneIncomePenalty += silverIncome * 0.2;
+            zoneProductionPenalty += 0.10;
+            zoneIncomePenalty += silverIncome * 0.15;
         }
         if (linePos > 85) {
-            zoneProductionPenalty += 0.25;
-            zoneIncomePenalty += silverIncome * 0.4;
+            zoneProductionPenalty += 0.10;
+            zoneIncomePenalty += silverIncome * 0.20;
         }
     }
     const territorialPressure = isSideUnderTerritorialPressure(linePos, side);
-    const totalProductionPenalty = Math.min(0.5, impact.productionPenalty + zoneProductionPenalty);
+    const totalProductionPenalty = Math.min(0.35, impact.productionPenalty + zoneProductionPenalty);
     const totalIncomePenalty = impact.incomePenalty + zoneIncomePenalty;
     const frontlinePressure = side === 'attacker'
         ? Math.max(0, (50 - linePos) / 50)

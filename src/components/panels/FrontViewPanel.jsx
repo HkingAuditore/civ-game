@@ -1,8 +1,7 @@
 import React, { memo, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES } from '../../config';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { getCorpsTotalUnits, getCorpsGeneral, getCorpsFrontTask, CORPS_FRONT_TASKS } from '../../logic/diplomacy/corpsSystem';
+import { getCorpsTotalUnits, getCorpsGeneral } from '../../logic/diplomacy/corpsSystem';
 import {
     getPlayerSide,
     CHECKPOINTS,
@@ -21,12 +20,6 @@ const formatFrontPenaltyText = (impact = {}) => {
     }
     return parts.length > 0 ? parts.join(' / ') : '当前未形成明显经济损失';
 };
-
-const getSupplyEntries = (sideState = {}) => (
-    Object.entries(sideState?.supplyNeed?.resources || {})
-        .filter(([, amount]) => Number(amount || 0) > 0)
-        .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))
-);
 
 const MetricBar = ({ label, value, maxValue, colorClass = 'bg-cyan-400', suffix = '', invert = false }) => {
     const safeValue = Math.max(0, Number(value || 0));
@@ -138,7 +131,6 @@ const ForceColumn = ({
     generals,
     canControlTasks,
     onRemoveCorpsFromFront,
-    onSetCorpsFrontTask,
     onAssignCorpsToFront,
     reserveCorps = [],
     front,
@@ -160,12 +152,12 @@ const ForceColumn = ({
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div className="rounded-xl border border-gray-800 bg-black/20 p-2">
-                    <p className="text-gray-500">前锋/预备</p>
-                    <p className="mt-1 text-white">{Math.round(sideState?.advancePower || 0)} / {Math.round(sideState?.reservePower || 0)}</p>
+                    <p className="text-gray-500">攻势/防御</p>
+                    <p className="mt-1 text-white">{Math.round(sideState?.advancePower || 0)} / {Math.round(sideState?.defensePower || 0)}</p>
                 </div>
                 <div className="rounded-xl border border-gray-800 bg-black/20 p-2">
-                    <p className="text-gray-500">袭扰/疲劳%</p>
-                    <p className="mt-1 text-white">{Math.round(sideState?.raidPower || 0)} / {Math.round(sideState?.fatiguePressure || 0)}%</p>
+                    <p className="text-gray-500">补给率/疲劳</p>
+                    <p className="mt-1 text-white">{Math.round((sideState?.supplyRatio || 1) * 100)}% / {Math.round(sideState?.fatiguePressure || 0)}%</p>
                 </div>
             </div>
             <div className="mt-3 space-y-2">
@@ -173,38 +165,24 @@ const ForceColumn = ({
                     <p className="rounded-xl border border-dashed border-gray-700 bg-black/20 px-3 py-2 text-xs text-gray-500">暂无军团部署</p>
                 ) : corpsList.map((corps) => {
                     const general = getCorpsGeneral(generals, corps.id);
-                    const task = getCorpsFrontTask(corps);
                     return (
                         <div key={corps.id} className="rounded-xl border border-gray-800 bg-black/20 p-2">
                             <div className="flex items-center justify-between gap-2">
                                 <div className="text-xs">
                                     <p className="font-semibold text-white">{corps.name} <span className="text-gray-500">({getCorpsTotalUnits(corps)})</span></p>
                                     <p className="text-[10px] text-gray-400">
-                                        {general ? `将领 ${general.name}` : '无将领'} · 士气 {Math.round(corps.morale || 100)} · 疲劳 {Math.round(corps.fatigue || 0)}%
+                                        {general ? `将领 ${general.name} Lv.${general.level || 1}` : '无将领'} · 士气 {Math.round(corps.morale || 100)} · 疲劳 {Math.round(corps.fatigue || 0)}%
                                     </p>
                                 </div>
                                 {canControlTasks && (
                                     <button
                                         type="button"
-                                        className="rounded bg-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300"
+                                        className="rounded bg-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-600"
                                         onClick={() => onRemoveCorpsFromFront?.(front.id, corps.id, playerSide)}
                                     >
                                         撤回
                                     </button>
                                 )}
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1">
-                                {Object.keys(CORPS_FRONT_TASKS).map((taskId) => (
-                                    <button
-                                        key={taskId}
-                                        type="button"
-                                        disabled={!canControlTasks}
-                                        onClick={() => canControlTasks && onSetCorpsFrontTask?.(corps.id, taskId)}
-                                        className={`rounded border px-2 py-0.5 text-[10px] ${task.id === taskId ? 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200' : 'border-gray-700 bg-gray-900 text-gray-400'} ${canControlTasks ? '' : 'cursor-default opacity-80'}`}
-                                    >
-                                        {CORPS_FRONT_TASKS[taskId].shortName}
-                                    </button>
-                                ))}
                             </div>
                         </div>
                     );
@@ -252,7 +230,6 @@ const FrontViewPanel = ({
     onSetBattleTactic,
     onCreateBattle,
     onSetPosture,
-    onSetCorpsFrontTask,
 }) => {
     if (!front) {
         return (
@@ -292,11 +269,6 @@ const FrontViewPanel = ({
     const ownEconomicImpact = useMemo(() => calculateFrontEconomicImpact(front, 'player'), [front]);
     const enemyEconomicImpact = useMemo(() => calculateFrontEconomicImpact(front, enemyId), [enemyId, front]);
     const phaseText = getPlayerPhaseText(relativeLinePosition);
-    const ownSupplyEntries = getSupplyEntries(ownState);
-    const enemySupplyEntries = getSupplyEntries(enemyState);
-    const maxIncomePenalty = Math.max(ownEconomicImpact?.incomePenalty || 0, enemyEconomicImpact?.incomePenalty || 0, 1);
-    const ownHasDeployedCorps = Number(ownState?.deployedUnits || 0) > 0;
-    const enemyHasDeployedCorps = Number(enemyState?.deployedUnits || 0) > 0;
     const warScoreTotal = getWarScoreTotal(front);
     const frontInterpretationHints = getFrontInterpretationHints({
         playerLineVelocity,
@@ -373,7 +345,6 @@ const FrontViewPanel = ({
                     reserveCorps={undeployedCorps}
                     onAssignCorpsToFront={onAssignCorpsToFront}
                     onRemoveCorpsFromFront={onRemoveCorpsFromFront}
-                    onSetCorpsFrontTask={onSetCorpsFrontTask}
                     front={front}
                     playerSide={playerSide}
                 />
@@ -390,83 +361,41 @@ const FrontViewPanel = ({
             </div>
 
             <section className="rounded-2xl border border-gray-800 bg-black/20 p-4">
-                <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-                    <div className="space-y-4">
-                        <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
-                            <div className="mb-2 flex items-center gap-2">
-                                <Icon name="Sparkles" size={14} className="text-cyan-300" />
-                                <p className="text-sm font-semibold text-white">战线解读</p>
-                            </div>
-                            <div className="space-y-2 text-xs text-gray-300">
-                                {frontInterpretationHints.map((hint, index) => (
-                                    <div key={`${hint}_${index}`} className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-                                        {hint}
-                                    </div>
-                                ))}
-                            </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
+                        <div className="mb-2 flex items-center gap-2">
+                            <Icon name="Sparkles" size={14} className="text-cyan-300" />
+                            <p className="text-sm font-semibold text-white">战线解读</p>
+                        </div>
+                        <div className="space-y-2 text-xs text-gray-300">
+                            {frontInterpretationHints.map((hint, index) => (
+                                <div key={`${hint}_${index}`} className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
+                                    {hint}
+                                </div>
+                            ))}
                         </div>
                     </div>
-                    <div>
-                        <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
-                            <div className="mb-2 flex items-center gap-2">
-                                <Icon name="Coins" size={14} className="text-yellow-300" />
-                                <p className="text-sm font-semibold text-white">战争经济</p>
+                    <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
+                        <div className="mb-2 flex items-center gap-2">
+                            <Icon name="Coins" size={14} className="text-yellow-300" />
+                            <p className="text-sm font-semibold text-white">战争经济</p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <div className="rounded-xl border border-blue-900/40 bg-blue-950/10 p-2 text-xs">
+                                <p className="mb-1 font-semibold text-white">我方</p>
+                                <MetricBar label="补给率" value={Math.round(Number(ownState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(ownState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(ownState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
+                                <div className="mt-2 space-y-1">
+                                    <MetricBar label="产出损失" value={Math.round(Number(ownEconomicImpact?.productionPenalty || 0) * 100)} maxValue={50} colorClass="bg-red-400" suffix="%" />
+                                </div>
+                                <p className="mt-1 text-[10px] text-gray-500">{formatFrontPenaltyText(ownEconomicImpact)}</p>
                             </div>
-                            <div className="grid gap-3 md:grid-cols-2">
-                                <div className="rounded-xl border border-blue-900/40 bg-blue-950/10 p-3 text-xs">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="font-semibold text-white">我方总日耗</p>
-                                        <p className="text-[10px] text-gray-400">{ownHasDeployedCorps ? `${ownSupplyEntries.length}类资源` : '无部署'}</p>
-                                    </div>
-                                    <div className="mt-3 space-y-2">
-                                        <MetricBar label="后勤倍率" value={Number(ownState?.supplyNeed?.logisticsMultiplier || 1)} maxValue={Math.max(Number(ownState?.supplyNeed?.logisticsMultiplier || 1), Number(enemyState?.supplyNeed?.logisticsMultiplier || 1), 3)} colorClass="bg-cyan-400" suffix="x" />
-                                        <MetricBar label="补给满足率" value={Math.round(Number(ownState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(ownState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(ownState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
-                                    </div>
-                                    <div className="mt-3 flex flex-wrap gap-1.5">
-                                        {ownSupplyEntries.length > 0 ? ownSupplyEntries.slice(0, 4).map(([resourceKey, amount]) => (
-                                            <span key={resourceKey} className="rounded-full border border-gray-700 bg-black/20 px-2 py-1 text-[10px] text-gray-200">
-                                                {RESOURCES[resourceKey]?.name || resourceKey} {formatNumberShortCN(amount, { decimals: 1 })}
-                                            </span>
-                                        )) : <span className="text-[10px] text-gray-500">{ownHasDeployedCorps ? '暂无资源明细' : '当前这条线没有我方部署军团。'}</span>}
-                                    </div>
+                            <div className="rounded-xl border border-red-900/40 bg-red-950/10 p-2 text-xs">
+                                <p className="mb-1 font-semibold text-white">敌方</p>
+                                <MetricBar label="补给率" value={Math.round(Number(enemyState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(enemyState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(enemyState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
+                                <div className="mt-2 space-y-1">
+                                    <MetricBar label="产出损失" value={Math.round(Number(enemyEconomicImpact?.productionPenalty || 0) * 100)} maxValue={50} colorClass="bg-red-400" suffix="%" />
                                 </div>
-
-                                <div className="rounded-xl border border-red-900/40 bg-red-950/10 p-3 text-xs">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="font-semibold text-white">敌方总日耗</p>
-                                        <p className="text-[10px] text-gray-400">{enemyHasDeployedCorps ? `${enemySupplyEntries.length}类资源` : '无部署'}</p>
-                                    </div>
-                                    <div className="mt-3 space-y-2">
-                                        <MetricBar label="后勤倍率" value={Number(enemyState?.supplyNeed?.logisticsMultiplier || 1)} maxValue={Math.max(Number(ownState?.supplyNeed?.logisticsMultiplier || 1), Number(enemyState?.supplyNeed?.logisticsMultiplier || 1), 3)} colorClass="bg-orange-400" suffix="x" />
-                                        <MetricBar label="补给满足率" value={Math.round(Number(enemyState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(enemyState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(enemyState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
-                                    </div>
-                                    <div className="mt-3 flex flex-wrap gap-1.5">
-                                        {enemySupplyEntries.length > 0 ? enemySupplyEntries.slice(0, 4).map(([resourceKey, amount]) => (
-                                            <span key={resourceKey} className="rounded-full border border-gray-700 bg-black/20 px-2 py-1 text-[10px] text-gray-200">
-                                                {RESOURCES[resourceKey]?.name || resourceKey} {formatNumberShortCN(amount, { decimals: 1 })}
-                                            </span>
-                                        )) : <span className="text-[10px] text-gray-500">{enemyHasDeployedCorps ? '暂无资源明细' : '当前这条线没有可见敌军部署。'}</span>}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                <div className="rounded-xl border border-gray-800 bg-black/20 p-3">
-                                    <p className="mb-2 text-[11px] font-semibold text-white">我方战线损失</p>
-                                    <div className="space-y-2">
-                                        <MetricBar label="产出损失" value={Math.round(Number(ownEconomicImpact?.productionPenalty || 0) * 100)} maxValue={50} colorClass="bg-red-400" suffix="%" />
-                                        <MetricBar label="财政损失" value={Number(ownEconomicImpact?.incomePenalty || 0)} maxValue={maxIncomePenalty} colorClass="bg-yellow-400" suffix="/日" />
-                                    </div>
-                                    <p className="mt-2 text-[10px] text-gray-500">{formatFrontPenaltyText(ownEconomicImpact)}</p>
-                                </div>
-                                <div className="rounded-xl border border-gray-800 bg-black/20 p-3">
-                                    <p className="mb-2 text-[11px] font-semibold text-white">敌方战线损失</p>
-                                    <div className="space-y-2">
-                                        <MetricBar label="产出损失" value={Math.round(Number(enemyEconomicImpact?.productionPenalty || 0) * 100)} maxValue={50} colorClass="bg-red-400" suffix="%" />
-                                        <MetricBar label="财政损失" value={Number(enemyEconomicImpact?.incomePenalty || 0)} maxValue={maxIncomePenalty} colorClass="bg-yellow-400" suffix="/日" />
-                                    </div>
-                                    <p className="mt-2 text-[10px] text-gray-500">{formatFrontPenaltyText(enemyEconomicImpact)}</p>
-                                </div>
+                                <p className="mt-1 text-[10px] text-gray-500">{formatFrontPenaltyText(enemyEconomicImpact)}</p>
                             </div>
                         </div>
                     </div>

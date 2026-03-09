@@ -76,6 +76,17 @@ const CorpsManagementPanel = ({
         setNewCorpsName('');
     };
 
+    // 一键编组：自动创建一个军团并将所有未编入的单位分配进去
+    const handleAutoGroup = () => {
+        if (playerCorps.length >= MAX_CORPS_PER_PLAYER || totalUnassigned <= 0) return;
+        const name = `第${playerCorps.length + 1}军团`;
+        const newCorps = createCorps(name);
+        const { corps: updatedCorps, army: updatedArmy } = assignUnitsToCorps(newCorps, army, { ...unassignedArmy });
+        onUpdateCorps([...militaryCorps, updatedCorps]);
+        onUpdateArmy(updatedArmy);
+        setSelectedCorpsId(updatedCorps.id);
+    };
+
     const handleDisbandCorps = (corpsId) => {
         const corps = militaryCorps.find(c => c.id === corpsId);
         if (!corps) return;
@@ -173,6 +184,14 @@ const CorpsManagementPanel = ({
                         <span className="text-xs text-gray-400">
                             {playerCorps.length}/{MAX_CORPS_PER_PLAYER} 军团
                         </span>
+                        {totalUnassigned > 0 && playerCorps.length < MAX_CORPS_PER_PLAYER && (
+                            <button
+                                className="px-2 py-1 text-xs bg-emerald-900/30 border border-emerald-500/30 rounded hover:bg-emerald-900/50 text-emerald-300"
+                                onClick={handleAutoGroup}
+                            >
+                                一键编组 ({totalUnassigned})
+                            </button>
+                        )}
                         <button
                             className="px-2 py-1 text-xs bg-ancient-gold/20 border border-ancient-gold/40 rounded hover:bg-ancient-gold/30 text-ancient-parchment disabled:opacity-50"
                             onClick={() => setShowCreateModal(true)}

@@ -9,6 +9,8 @@
  * - General: { id, name, level, experience, traits, assignedCorpsId }
  */
 
+import { UNIT_TYPES } from '../../config/militaryUnits';
+
 // ========== Constants ==========
 
 const GENERAL_TRAITS = [
@@ -25,8 +27,8 @@ const GENERAL_TRAITS = [
 // Name pool for random general generation
 const GENERAL_NAMES = [
     '张远', '李威', '赵刚', '王猛', '刘勇', '陈策', '孙武', '吴信',
-    '周瑜', '韩勇', '杨毅', '马超', '徐达', '常遇', '邓艾', '霍去',
-    '卫青', '岳飞', '戚继', '袁崇', '曾国', '左宗', '冯子', '聂士',
+    '周瑜', '韩勇', '杨毅', '马超', '徐达', '常遇春', '邓艾', '霍去病',
+    '卫青', '岳飞', '戚继光', '袁崇焕', '曾国藩', '左宗棠', '冯子材', '聂士成',
 ];
 
 const NO_GENERAL_PENALTY = 0.85; // -15% combat power without general
@@ -368,9 +370,6 @@ export const getCorpsTotalUnits = (corps) => {
  * @returns {number} Estimated combat power
  */
 export const calculateCorpsCombatPower = (corps, general, epoch) => {
-    // Import dynamically to avoid circular dependencies
-    const { UNIT_TYPES } = require('../../config/militaryUnits');
-
     let totalPower = 0;
     for (const [unitId, count] of Object.entries(corps.units || {})) {
         const unit = UNIT_TYPES[unitId];

@@ -348,7 +348,6 @@ const MilitaryTabComponent = ({
     onSetBattleTactic, // (battleId, side, tacticId) => void
     onCreateBattle, // (battleParams) => void - Create a new battle
     onSetPosture, // (frontId, posture) => void - Set tactical posture
-    onSetCorpsFrontTask,
     officials = [], // [NEW] Officials list for general selection
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
@@ -1218,7 +1217,6 @@ const MilitaryTabComponent = ({
                                         onSetBattleTactic={onSetBattleTactic}
                                         onCreateBattle={onCreateBattle}
                                         onSetPosture={onSetPosture}
-                                        onSetCorpsFrontTask={onSetCorpsFrontTask}
                                     />
                                 )}
                             </div>
