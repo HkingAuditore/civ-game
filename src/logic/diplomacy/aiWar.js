@@ -664,6 +664,80 @@ export const processAIMilitaryAction = ({
  * @param {Array} params.logs - Log array (mutable)
  * @returns {boolean} - Whether a peace request was made (for tracking global cooldown)
  */
+const getNationFrontPeaceContext = (nationId, fronts = []) => {
+    const relevantFronts = (fronts || []).filter((front) => front?.status === 'active' && (front.attackerId === nationId || front.defenderId === nationId));
+    if (relevantFronts.length === 0) {
+        return {
+            frontCount: 0,
+            isPressingPlayerCore: false,
+            isAdvancing: false,
+            favorableFrontCount: 0,
+            pressureFrontCount: 0,
+            averageRelativePosition: 50,
+            strengthRatio: 1,
+        };
+    }
+
+    let favorableFrontCount = 0;
+    let pressureFrontCount = 0;
+    let totalRelativePosition = 0;
+    let ownUnits = 0;
+    let enemyUnits = 0;
+
+    relevantFronts.forEach((front) => {
+        const side = front.attackerId === nationId ? 'attacker' : 'defender';
+        const enemySide = side === 'attacker' ? 'defender' : 'attacker';
+        const relativePosition = side === 'attacker'
+            ? Number(front.linePosition || 50)
+            : 100 - Number(front.linePosition || 50);
+        totalRelativePosition += relativePosition;
+        if (relativePosition >= 65) favorableFrontCount += 1;
+        if (relativePosition <= 35) pressureFrontCount += 1;
+        ownUnits += Number(front.sideState?.[side]?.deployedUnits || 0);
+        enemyUnits += Number(front.sideState?.[enemySide]?.deployedUnits || 0);
+    });
+
+    return {
+        frontCount: relevantFronts.length,
+        isPressingPlayerCore: favorableFrontCount > 0 && relevantFronts.some((front) => {
+            const side = front.attackerId === nationId ? 'attacker' : 'defender';
+            const relativePosition = side === 'attacker'
+                ? Number(front.linePosition || 50)
+                : 100 - Number(front.linePosition || 50);
+            return relativePosition >= 65;
+        }),
+        isAdvancing: favorableFrontCount > pressureFrontCount,
+        favorableFrontCount,
+        pressureFrontCount,
+        averageRelativePosition: totalRelativePosition / Math.max(1, relevantFronts.length),
+        strengthRatio: ownUnits / Math.max(1, enemyUnits),
+    };
+};
+
+const getNationNegotiationContext = (nation, activeFronts = []) => {
+    const frontContext = getNationFrontPeaceContext(nation?.id, activeFronts);
+    const playerAdvantageScore = Number(nation?.warScore || 0);
+    const aiAdvantageScore = -playerAdvantageScore;
+    const aiDominantOnFront = frontContext.frontCount > 0 && (
+        frontContext.isPressingPlayerCore
+        || frontContext.averageRelativePosition >= 58
+        || (frontContext.averageRelativePosition >= 54 && frontContext.strengthRatio >= 1.15)
+    );
+    const aiUnderFrontPressure = frontContext.frontCount > 0 && (
+        frontContext.averageRelativePosition <= 42
+        || frontContext.pressureFrontCount > frontContext.favorableFrontCount
+        || frontContext.strengthRatio <= 0.9
+    );
+
+    return {
+        frontContext,
+        playerAdvantageScore,
+        aiAdvantageScore,
+        aiDominantOnFront,
+        aiUnderFrontPressure,
+    };
+};
+
 export const checkAIPeaceRequest = ({
     nation,
     tick,
@@ -689,27 +763,34 @@ export const checkAIPeaceRequest = ({
     const globalCooldown = GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS;
     const globalReady = (tick - lastGlobalPeaceRequest) >= globalCooldown;
 
-    if ((next.warScore || 0) > 12 && canRequestPeace && globalReady) {
-        const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+    const negotiationContext = getNationNegotiationContext(next, activeFronts);
 
-        // [NEW] Front damage increases willingness to seek peace
+    if (negotiationContext.playerAdvantageScore > 12 && canRequestPeace && globalReady) {
+        const { frontContext, aiDominantOnFront } = negotiationContext;
+        if (aiDominantOnFront) {
+            return false;
+        }
+
+        const willingness = Math.min(0.5, 0.03 + negotiationContext.playerAdvantageScore / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+
         let frontDamageBonus = 0;
         if (activeFronts && activeFronts.length > 0) {
             for (const front of activeFronts) {
-                // Check if this AI is a participant
                 if (front.attackerId !== next.id && front.defenderId !== next.id) continue;
-                // Count destroyed infrastructure owned by this AI
                 const ownInfra = (front.infrastructure || []).filter(i => i.owner === next.id);
                 const destroyedCount = ownInfra.filter(i => i.destroyed).length;
-                // Count plundered resource nodes owned by this AI
                 const ownNodes = (front.resourceNodes || []).filter(n => n.owner === next.id);
                 const plunderedCount = ownNodes.filter(n => n.plundered).length;
-                // Heavy front losses significantly increase peace willingness
                 frontDamageBonus += destroyedCount * 0.04 + plunderedCount * 0.03;
             }
         }
 
-        if (Math.random() < willingness + frontDamageBonus) {
+        const currentFrontPenalty = frontContext.frontCount > 0
+            ? Math.max(0, (frontContext.averageRelativePosition - 50) / 18) + Math.max(0, (frontContext.strengthRatio - 1) * 0.12)
+            : 0;
+        const effectivePeaceChance = Math.max(0, willingness + frontDamageBonus - currentFrontPenalty);
+
+        if (Math.random() < effectivePeaceChance) {
             const warScore = Math.abs(next.warScore || 0);
             const enemyLosses = next.enemyLosses || 0;
             const warDuration = next.warDuration || 0;
@@ -741,6 +822,7 @@ export const checkAISurrenderDemand = ({
     population,
     playerWealth,
     logs,
+    activeFronts = [],
 }) => {
     const next = nation;
 
@@ -749,9 +831,10 @@ export const checkAISurrenderDemand = ({
         return;
     }
 
-    const aiWarScore = -(next.warScore || 0);
+    const negotiationContext = getNationNegotiationContext(next, activeFronts);
+    const aiWarScore = negotiationContext.aiAdvantageScore;
 
-    if (aiWarScore > 25 && (next.warDuration || 0) > 30) {
+    if (aiWarScore > 25 && (next.warDuration || 0) > 30 && !negotiationContext.aiUnderFrontPressure) {
         const lastDemandDay = next.lastSurrenderDemandDay || 0;
         if (tick - lastDemandDay >= 60 && Math.random() < 0.03) {
             next.lastSurrenderDemandDay = tick;
@@ -798,9 +881,11 @@ export const checkMercyPeace = ({
     playerWealth,
     resources,
     logs,
+    activeFronts = [],
 }) => {
     const next = nation;
-    const warScore = next.warScore || 0;
+    const negotiationContext = getNationNegotiationContext(next, activeFronts);
+    const warScore = negotiationContext.playerAdvantageScore;
 
     // Only check if at war and not already requesting peace
     if (!next.isAtWar || next.isPeaceRequesting) {
@@ -844,6 +929,10 @@ export const checkMercyPeace = ({
         return;
     }
 
+    if (negotiationContext.aiUnderFrontPressure) {
+        return;
+    }
+
     // AI's willingness to offer mercy peace depends on:
     // 1. How long the war has lasted (longer = more likely)
     // 2. AI's aggression (less aggressive = more likely)
@@ -859,7 +948,13 @@ export const checkMercyPeace = ({
     // Base chance increases with war duration and desperation, decreases with aggression
     const baseChance = 0.05 + (warDuration / 500) + (desperationFactor * 0.3);
     const aggressionPenalty = aggression * 0.15;
-    const mercyChance = Math.min(0.5, Math.max(0.1, baseChance - aggressionPenalty));
+    let mercyChance = Math.min(0.5, Math.max(0.1, baseChance - aggressionPenalty));
+    if (negotiationContext.aiDominantOnFront) {
+        mercyChance += 0.08;
+    }
+    if (negotiationContext.aiAdvantageScore >= 80 && negotiationContext.frontContext.isPressingPlayerCore) {
+        mercyChance = Math.max(0.05, mercyChance - 0.2);
+    }
 
     // Check if AI decides to offer mercy peace
     if (Math.random() < mercyChance) {
@@ -1798,7 +1893,6 @@ export const generateAICorps = (nation, epoch) => {
         frontTask: 'assault',
         status: 'deployed',
         morale: 68 + Math.floor(militaryQuality * 20),
-        fatigue: 0,
         isAI: true,
         nationId: nation.id,
     };

@@ -18,7 +18,7 @@ export const STRATEGIC_ACTIONS = {
         icon: 'Shield',
         description: '动用武力镇压叛乱组织',
         // 详细描述：用于UI展示完整说明
-        detailedDescription: '派遣军队强行镇压该阶层的叛乱组织。短期内可有效降低组织度，但会激化矛盾——军人阶层会因执行镇压任务而心生不满，持续的镇压还会导致军队陷入疲惫状态。注意：不能用于镇压军人阶层。',
+        detailedDescription: '派遣军队强行镇压该阶层的叛乱组织。短期内可有效降低组织度，但会激化矛盾——军人阶层会因执行镇压任务而心生不满，持续的镇压还会在军中留下消极余波。注意：不能用于镇压军人阶层。',
         // 效果预览：用于UI展示预期效果
         effectPreview: {
             organization: { value: -30, unit: '%', label: '组织度', type: 'immediate' },
@@ -30,7 +30,7 @@ export const STRATEGIC_ACTIONS = {
         sideEffects: [
             { text: '军人满意度 -15', severity: 'warning', icon: 'Users' },
             { text: '其他阶层满意度 -5', severity: 'warning', icon: 'Users' },
-            { text: '获得「镇压疲惫」：军事力量 -20%，持续30天', severity: 'danger', icon: 'AlertTriangle' },
+            { text: '获得「镇压余波」：军事力量 -20%，持续30天', severity: 'danger', icon: 'AlertTriangle' },
             { text: '获得「恐怖氛围」：生产效率 -15%，持续20天', severity: 'danger', icon: 'AlertOctagon' },
             { text: '该阶层人口损失约5%', severity: 'danger', icon: 'Skull' },
         ],
@@ -57,8 +57,8 @@ export const STRATEGIC_ACTIONS = {
         },
         debuffs: [
             {
-                id: 'suppression_fatigue',
-                name: '镇压疲惫',
+                id: 'suppression_aftershock',
+                name: '镇压余波',
                 description: '军事力量 -20%',
                 duration: 30,
                 effects: { militaryPower: -0.20 },

@@ -6,19 +6,41 @@ import {
     getPlayerSide,
     CHECKPOINTS,
     summarizeFrontState,
-    calculateFrontEconomicImpact,
+    getFrontlineEconomicModifiers,
 } from '../../logic/diplomacy/frontSystem';
 import { isBattleActive } from '../../logic/diplomacy/battleSystem';
+import ActiveBattlePanel from './ActiveBattlePanel';
 
 const formatFrontPenaltyText = (impact = {}) => {
     const parts = [];
     if (impact.productionPenalty > 0) {
         parts.push(`产出 -${Math.round(Number(impact.productionPenalty || 0) * 100)}%`);
     }
-    if (impact.incomePenalty > 0) {
-        parts.push(`财政 -${formatNumberShortCN(impact.incomePenalty || 0, { decimals: 1 })}/日`);
+    if (impact.taxEfficiencyPenalty > 0) {
+        parts.push(`税效 -${Math.round(Number(impact.taxEfficiencyPenalty || 0) * 100)}%`);
     }
     return parts.length > 0 ? parts.join(' / ') : '当前未形成明显经济损失';
+};
+
+const EconomyDataRow = ({ label, value, tone = 'text-gray-200' }) => (
+    <div className="flex items-center justify-between rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">
+        <span className="text-[10px] text-gray-500">{label}</span>
+        <span className={`text-[11px] font-semibold ${tone}`}>{value}</span>
+    </div>
+);
+
+const formatSupplyNeedText = (impact = {}) => {
+    const logistics = impact.logistics || {};
+    return `粮${formatNumberShortCN(logistics.dailyFoodUpkeep || 0, { decimals: 0 })} / 银${formatNumberShortCN(logistics.dailySilverUpkeep || 0, { decimals: 0 })} / 军需${formatNumberShortCN(logistics.dailyMaterielUpkeep || 0, { decimals: 0 })}`;
+};
+
+const getEconomicPressureHint = (impact = {}) => {
+    const relativePosition = Number(impact.territory?.relativePosition || 50);
+    if (relativePosition <= 8) return '战线已压入腹地，税收与生产都会遭受重创。';
+    if (relativePosition <= 15) return '战线已进入核心区，战争经济损失非常严重。';
+    if (relativePosition < 35) return '战线已进入经济区，产能与税收正在持续下滑。';
+    if (relativePosition < 50) return '边疆受压，战争经济开始明显恶化。';
+    return '战线尚未压入本土，当前主要是补给投入。';
 };
 
 const MetricBar = ({ label, value, maxValue, colorClass = 'bg-cyan-400', suffix = '', invert = false }) => {
@@ -137,7 +159,7 @@ const ForceColumn = ({
                                 <div className="text-xs">
                                     <p className="font-semibold text-white">{corps.name} <span className="text-gray-500">({getCorpsTotalUnits(corps)})</span></p>
                                     <p className="text-[10px] text-gray-400">
-                                        {general ? `将领 ${general.name} Lv.${general.level || 1}` : '无将领'} · 士气 {Math.round(corps.morale || 100)} · 疲劳 {Math.round(corps.fatigue || 0)}%
+                                        {general ? `将领 ${general.name} Lv.${general.level || 1}` : '无将领'} · 士气 {Math.round(corps.morale || 100)}
                                     </p>
                                 </div>
                                 {canControlTasks && (
@@ -218,20 +240,21 @@ const FrontViewPanel = ({
     const enemyCorpsList = militaryCorps.filter((corps) => corps.isAI && corps.nationId === enemyId && corps.assignedFrontId === front.id);
     const attackerNation = nations.find((n) => n.id === front.attackerId);
     const defenderNation = nations.find((n) => n.id === front.defenderId);
+    const frontContext = useMemo(() => ({
+        ...front,
+        playerResources: resources || {},
+        sideResources: {
+            attacker: front.attackerId === 'player' ? (resources || {}) : (attackerNation?.military?.stockpile || {}),
+            defender: front.defenderId === 'player' ? (resources || {}) : (defenderNation?.military?.stockpile || {}),
+        },
+    }), [attackerNation, defenderNation, front, resources]);
     const summary = useMemo(() => (
         summarizeFrontState(
-            {
-                ...front,
-                playerResources: resources || {},
-                sideResources: {
-                    attacker: front.attackerId === 'player' ? (resources || {}) : (attackerNation?.military?.stockpile || {}),
-                    defender: front.defenderId === 'player' ? (resources || {}) : (defenderNation?.military?.stockpile || {}),
-                },
-            },
+            frontContext,
             playerSide === 'attacker' ? playerCorpsList : enemyCorpsList,
             playerSide === 'attacker' ? enemyCorpsList : playerCorpsList
         )
-    ), [attackerNation, defenderNation, enemyCorpsList, front, playerCorpsList, playerSide, resources]);
+    ), [enemyCorpsList, frontContext, playerCorpsList, playerSide]);
     const currentZone = getDisplayZoneForPosition(relativeLinePosition);
     const playerLineVelocity = playerSide === 'attacker' ? Number(front.lineVelocity || 0) : -Number(front.lineVelocity || 0);
     const playerLineVelocityText = playerLineVelocity > 0.15 ? '我方前推' : playerLineVelocity < -0.15 ? '敌军压进' : '战线僵持';
@@ -241,8 +264,8 @@ const FrontViewPanel = ({
     const nextCheckpoint = CHECKPOINTS.find((cp) => cp > relativeLinePosition);
     const ownState = summary.playerView?.own || summary.sideState?.[playerSide] || {};
     const enemyState = summary.playerView?.enemy || summary.sideState?.[enemySide] || {};
-    const ownEconomicImpact = useMemo(() => calculateFrontEconomicImpact(front, 'player'), [front]);
-    const enemyEconomicImpact = useMemo(() => calculateFrontEconomicImpact(front, enemyId), [enemyId, front]);
+    const ownEconomicImpact = useMemo(() => getFrontlineEconomicModifiers(frontContext, 'player', day, ownState?.deployedUnits || 0, 100, resources || {}), [day, frontContext, ownState?.deployedUnits, resources]);
+    const enemyEconomicImpact = useMemo(() => getFrontlineEconomicModifiers(frontContext, enemyId, day, enemyState?.deployedUnits || 0, 100, enemyNation?.military?.stockpile || {}), [day, enemyId, enemyNation, enemyState?.deployedUnits, frontContext]);
     const phaseText = getPlayerPhaseText(relativeLinePosition);
     const warScoreTotal = getWarScoreTotal(front);
 
@@ -302,6 +325,13 @@ const FrontViewPanel = ({
                 </div>
             </section>
 
+            {activeFrontBattles.length > 0 && (
+                <ActiveBattlePanel
+                    activeBattles={activeFrontBattles}
+                    playerSide={playerSide}
+                />
+            )}
+
             <div className="grid gap-4 xl:grid-cols-2">
                 <ForceColumn
                     title="我方战力面板"
@@ -329,30 +359,46 @@ const FrontViewPanel = ({
             </div>
 
             <section className="rounded-2xl border border-gray-800 bg-black/20 p-4">
-                    <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
-                        <div className="mb-2 flex items-center gap-2">
-                            <Icon name="Coins" size={14} className="text-yellow-300" />
-                            <p className="text-sm font-semibold text-white">战争经济</p>
+                <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                        <Icon name="Coins" size={14} className="text-yellow-300" />
+                        <p className="text-sm font-semibold text-white">战争经济</p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-xl border border-blue-900/40 bg-blue-950/10 p-2 text-xs">
+                            <p className="mb-1 font-semibold text-white">我方</p>
+                            <MetricBar label="补给率" value={Math.round(Number(ownState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(ownState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(ownState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
+                            <div className="mt-2 space-y-1">
+                                <MetricBar label="生产效率损失" value={Math.round(Number(ownEconomicImpact?.productionPenalty || 0) * 100)} maxValue={80} colorClass="bg-red-400" suffix="%" />
+                                <MetricBar label="税收效率损失" value={Math.round(Number(ownEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
+                            </div>
+                            <div className="mt-2 grid gap-2">
+                                <EconomyDataRow label="日补给投入" value={formatSupplyNeedText(ownEconomicImpact)} />
+                                <EconomyDataRow label="累计掠夺" value={formatNumberShortCN(ownEconomicImpact?.cumulative?.lootGained || 0, { decimals: 1 })} tone="text-emerald-300" />
+                                <EconomyDataRow label="累计被掠夺" value={formatNumberShortCN(ownEconomicImpact?.cumulative?.lootLost || 0, { decimals: 1 })} tone="text-red-300" />
+                                <EconomyDataRow label="建筑破坏" value={`损失 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsLost || 0, { decimals: 0 })} / 摧毁 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsDestroyed || 0, { decimals: 0 })}`} />
+                                <EconomyDataRow label="本土压力" value={formatNumberShortCN(ownEconomicImpact?.territory?.homelandPressure || 0, { decimals: 0 })} tone="text-amber-300" />
+                            </div>
+                            <p className="mt-2 text-[10px] text-gray-500">{formatFrontPenaltyText(ownEconomicImpact)} ? {getEconomicPressureHint(ownEconomicImpact)}</p>
                         </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <div className="rounded-xl border border-blue-900/40 bg-blue-950/10 p-2 text-xs">
-                                <p className="mb-1 font-semibold text-white">我方</p>
-                                <MetricBar label="补给率" value={Math.round(Number(ownState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(ownState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(ownState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
-                                <div className="mt-2 space-y-1">
-                                    <MetricBar label="产出损失" value={Math.round(Number(ownEconomicImpact?.productionPenalty || 0) * 100)} maxValue={50} colorClass="bg-red-400" suffix="%" />
-                                </div>
-                                <p className="mt-1 text-[10px] text-gray-500">{formatFrontPenaltyText(ownEconomicImpact)}</p>
+                        <div className="rounded-xl border border-red-900/40 bg-red-950/10 p-2 text-xs">
+                            <p className="mb-1 font-semibold text-white">敌方</p>
+                            <MetricBar label="补给率" value={Math.round(Number(enemyState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(enemyState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(enemyState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
+                            <div className="mt-2 space-y-1">
+                                <MetricBar label="生产效率损失" value={Math.round(Number(enemyEconomicImpact?.productionPenalty || 0) * 100)} maxValue={80} colorClass="bg-red-400" suffix="%" />
+                                <MetricBar label="税收效率损失" value={Math.round(Number(enemyEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
                             </div>
-                            <div className="rounded-xl border border-red-900/40 bg-red-950/10 p-2 text-xs">
-                                <p className="mb-1 font-semibold text-white">敌方</p>
-                                <MetricBar label="补给率" value={Math.round(Number(enemyState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(enemyState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(enemyState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
-                                <div className="mt-2 space-y-1">
-                                    <MetricBar label="产出损失" value={Math.round(Number(enemyEconomicImpact?.productionPenalty || 0) * 100)} maxValue={50} colorClass="bg-red-400" suffix="%" />
-                                </div>
-                                <p className="mt-1 text-[10px] text-gray-500">{formatFrontPenaltyText(enemyEconomicImpact)}</p>
+                            <div className="mt-2 grid gap-2">
+                                <EconomyDataRow label="日补给投入" value={formatSupplyNeedText(enemyEconomicImpact)} />
+                                <EconomyDataRow label="累计掠夺" value={formatNumberShortCN(enemyEconomicImpact?.cumulative?.lootGained || 0, { decimals: 1 })} tone="text-emerald-300" />
+                                <EconomyDataRow label="累计被掠夺" value={formatNumberShortCN(enemyEconomicImpact?.cumulative?.lootLost || 0, { decimals: 1 })} tone="text-red-300" />
+                                <EconomyDataRow label="建筑破坏" value={`损失 ${formatNumberShortCN(enemyEconomicImpact?.cumulative?.buildingsLost || 0, { decimals: 0 })} / 摧毁 ${formatNumberShortCN(enemyEconomicImpact?.cumulative?.buildingsDestroyed || 0, { decimals: 0 })}`} />
+                                <EconomyDataRow label="本土压力" value={formatNumberShortCN(enemyEconomicImpact?.territory?.homelandPressure || 0, { decimals: 0 })} tone="text-amber-300" />
                             </div>
+                            <p className="mt-2 text-[10px] text-gray-500">{formatFrontPenaltyText(enemyEconomicImpact)} ? {getEconomicPressureHint(enemyEconomicImpact)}</p>
                         </div>
                     </div>
+                </div>
             </section>
         </div>
     );

@@ -175,7 +175,6 @@ const buildEmptySideState = (epoch = 0) => ({
     defensePower: 0,
     economicPressure: 0,
     civilianPressure: 0,
-    fatiguePressure: 0,
 });
 
 export const getFrontPostureIdForSide = (front, side) => {
@@ -197,9 +196,8 @@ const getRoleWeightedStrength = (corpsList = [], mode = 'advance') => corpsList.
     if (units <= 0) return sum;
     const task = getCorpsFrontTask(corps);
     const moraleFactor = 0.5 + ((corps?.morale ?? 100) / 100) * 0.5;
-    const fatiguePenalty = Math.max(0.55, 1 - ((corps?.fatigue || 0) / 120));
     const modeWeight = task?.[`${mode}Weight`] || 1;
-    return sum + units * moraleFactor * fatiguePenalty * modeWeight;
+    return sum + units * moraleFactor * modeWeight;
 }, 0);
 
 const getZoneRiskLabel = (linePosition, side) => {
@@ -242,7 +240,7 @@ const isSideUnderTerritorialPressure = (linePosition = 50, side = 'attacker') =>
     side === 'attacker' ? linePosition < 50 : linePosition > 50
 );
 
-const buildResourceCoverage = (needResources = {}, availableResources = {}) => {
+export const buildResourceCoverage = (needResources = {}, availableResources = {}) => {
     const resourceKeys = Object.keys(needResources);
     if (resourceKeys.length === 0) return 1;
     // 核心资源权重高（food、silver 是军队生存必需），次要资源按需求量比例加权
@@ -400,7 +398,6 @@ export const summarizeFrontState = (front, attackerCorps = [], defenderCorps = [
             defensePower: Number(defensePower.toFixed(1)),
             economicPressure: 0,
             civilianPressure: Number(normalizedFront.economicDamageBreakdown?.civilianPressure || 0),
-            fatiguePressure: Math.round(corpsList.reduce((sum, corps) => sum + Number(corps?.fatigue || 0), 0) / Math.max(1, corpsList.length)),
         };
     };
 
@@ -748,6 +745,7 @@ export const generateFront = (attackerId, defenderId, epoch, attackerEconomy, de
         frontDailySummary: [],
         warScoreBreakdown: { battle: 0, advance: 0, economic: 0, homeland: 0 },
         lastOccupationScoreDay: 0,
+        lastWarEconomyDamageDay: 0,
         activeBattleId: null,
         recentBattleReports: [],
         economicDamageBreakdown: {
@@ -865,6 +863,7 @@ export const ensureFrontDefaults = (front) => {
         warScore: hasBreakdownScore ? normalizedWarScore : Number(front.warScore || 0),
         warScoreBreakdown: normalizedWarScoreBreakdown,
         lastOccupationScoreDay: Number.isFinite(front.lastOccupationScoreDay) ? front.lastOccupationScoreDay : (front.startDay || 0),
+        lastWarEconomyDamageDay: Number.isFinite(front.lastWarEconomyDamageDay) ? front.lastWarEconomyDamageDay : (front.startDay || 0),
         activeBattleId: front.activeBattleId || null,
         activeBattleType: front.activeBattleType || null,
         lastBattleEndDay: Number.isFinite(front.lastBattleEndDay) ? front.lastBattleEndDay : 0,
@@ -1037,29 +1036,86 @@ export const damageInfrastructure = (front, infraId, damage) => {
  * @param {string} nationId - The nation to calculate impact for
  * @returns {Object} { productionPenalty, incomePenalty, supplyBonus }
  */
-export const calculateFrontEconomicImpact = (front, nationId) => {
+
+const sumMetricValues = (metric = {}) => Object.values(metric || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+
+const getSideRelativeLinePosition = (linePosition = 50, side = 'attacker') => (
+    side === 'attacker' ? Number(linePosition || 50) : 100 - Number(linePosition || 50)
+);
+
+export const getBoundedHomelandPressure = (relativePosition = 50) => {
+    const position = Math.max(0, Math.min(100, Number(relativePosition || 50)));
+    if (position <= 8) return 100;
+    if (position <= 15) return 78;
+    if (position < 35) return 52;
+    if (position < 50) return 24;
+    if (position >= 92) return -100;
+    if (position >= 85) return -78;
+    if (position > 65) return -52;
+    if (position > 50) return -24;
+    return 0;
+};
+
+const buildTerritorialEconomyPenalty = (relativePosition = 50, ecoBreakdown = {}, silverIncome = 100) => {
+    let zoneProductionPenalty = 0;
+    let zoneTaxPenalty = 0;
+
+    if (relativePosition < 50) {
+        zoneProductionPenalty += 0.08;
+        zoneTaxPenalty += 0.10;
+    }
+    if (relativePosition < 35) {
+        zoneProductionPenalty += 0.12;
+        zoneTaxPenalty += 0.18;
+    }
+    if (relativePosition < 15) {
+        zoneProductionPenalty += 0.16;
+        zoneTaxPenalty += 0.24;
+    }
+    if (relativePosition <= 8) {
+        zoneProductionPenalty += 0.22;
+        zoneTaxPenalty += 0.32;
+    }
+
+    const raidProductionPenalty = Math.min(0.25, Math.max(0, Number(ecoBreakdown.productionLoss || 0)) / 80);
+    const civilianProductionPenalty = Math.min(0.20, Math.max(0, Number(ecoBreakdown.civilianPressure || 0)) / 180);
+    const supplyLineTaxPenalty = Math.min(0.18, Math.max(0, Number(ecoBreakdown.supplyLineDamage || 0)) / 120);
+    const civilianTaxPenalty = Math.min(0.35, Math.max(0, Number(ecoBreakdown.civilianPressure || 0)) / 90);
+    const totalTaxEfficiencyPenalty = Math.min(0.85, zoneTaxPenalty + supplyLineTaxPenalty + civilianTaxPenalty);
+
+    return {
+        zoneProductionPenalty,
+        raidProductionPenalty,
+        civilianProductionPenalty,
+        zoneTaxPenalty,
+        supplyLineTaxPenalty,
+        civilianTaxPenalty,
+        totalTaxEfficiencyPenalty,
+        incomePenaltyFromTax: silverIncome * totalTaxEfficiencyPenalty,
+        infrastructureIncomePenalty: Math.max(0, Number(ecoBreakdown.infrastructureLoss || 0)),
+    };
+};
+
+export const calculateFrontEconomicImpact = (front, nationId, options = {}) => {
     const normalizedFront = ensureFrontDefaults(front);
-    let productionPenalty = 0;
-    let incomePenalty = 0;
+    const silverIncome = Math.max(0, Number(options.silverIncome || 0));
+    let nodeProductionPenalty = 0;
+    let destroyedInfraIncomePenalty = 0;
     let supplyBonus = 0;
     let defenseBonus = 0;
 
-    // Plundered resource nodes reduce production
-    const ownNodes = (normalizedFront.resourceNodes || []).filter(n => n.owner === nationId);
-    const totalPlundered = ownNodes.filter(n => n.plundered).length;
+    const ownNodes = (normalizedFront.resourceNodes || []).filter((node) => node.owner === nationId);
+    const totalPlundered = ownNodes.filter((node) => node.plundered).length;
     const totalNodes = ownNodes.length;
     if (totalNodes > 0) {
-        productionPenalty = (totalPlundered / totalNodes) * 0.15; // Up to 15% production penalty
+        nodeProductionPenalty = (totalPlundered / totalNodes) * 0.15;
     }
 
-    // Destroyed infrastructure provides penalties or removes bonuses
-    const ownInfra = (normalizedFront.infrastructure || []).filter(i => i.owner === nationId);
+    const ownInfra = (normalizedFront.infrastructure || []).filter((infra) => infra.owner === nationId);
     for (const infra of ownInfra) {
         if (infra.destroyed) {
-            // Destroyed infrastructure is a penalty
-            if (infra.effect.income) incomePenalty += infra.effect.income;
+            if (infra.effect.income) destroyedInfraIncomePenalty += infra.effect.income;
         } else {
-            // Surviving infrastructure provides bonuses
             const healthRatio = infra.durability / infra.maxDurability;
             if (infra.effect.supply) supplyBonus += infra.effect.supply * healthRatio;
             if (infra.effect.defense) defenseBonus += infra.effect.defense * healthRatio;
@@ -1071,18 +1127,71 @@ export const calculateFrontEconomicImpact = (front, nationId) => {
         : nationId === normalizedFront.defenderId
             ? 'defender'
             : null;
-    if (side && isSideUnderTerritorialPressure(normalizedFront.linePosition, side)) {
-        const ecoBreakdown = normalizedFront.economicDamageBreakdown || {};
-        productionPenalty += Math.min(0.2, (ecoBreakdown.productionLoss || 0) / 100);
-        incomePenalty += Math.max(0, ecoBreakdown.infrastructureLoss || 0);
-    }
+    const enemySide = side === 'attacker' ? 'defender' : 'attacker';
+    const enemyNationId = side === 'attacker' ? normalizedFront.defenderId : normalizedFront.attackerId;
+    const relativePosition = side ? getSideRelativeLinePosition(normalizedFront.linePosition, side) : 50;
+    const territorialPressure = Boolean(side) && isSideUnderTerritorialPressure(normalizedFront.linePosition, side);
+    const ecoBreakdown = normalizedFront.economicDamageBreakdown || {};
+    const territorialPenalty = territorialPressure
+        ? buildTerritorialEconomyPenalty(relativePosition, ecoBreakdown, silverIncome)
+        : buildTerritorialEconomyPenalty(50, {}, silverIncome);
+    const productionPenalty = Math.min(
+        0.80,
+        nodeProductionPenalty
+            + territorialPenalty.zoneProductionPenalty
+            + territorialPenalty.raidProductionPenalty
+            + territorialPenalty.civilianProductionPenalty
+    );
+    const taxEfficiencyPenalty = territorialPressure ? territorialPenalty.totalTaxEfficiencyPenalty : 0;
+    const incomePenalty = destroyedInfraIncomePenalty
+        + territorialPenalty.infrastructureIncomePenalty
+        + (territorialPressure ? territorialPenalty.incomePenaltyFromTax : 0);
+    const sideState = side ? (normalizedFront.sideState?.[side] || buildEmptySideState(normalizedFront.epoch || 0)) : buildEmptySideState(normalizedFront.epoch || 0);
 
-    return { productionPenalty, incomePenalty, supplyBonus, defenseBonus };
+    return {
+        productionPenalty,
+        incomePenalty,
+        taxEfficiencyPenalty,
+        supplyBonus,
+        defenseBonus,
+        breakdown: {
+            nodeProductionPenalty,
+            zoneProductionPenalty: territorialPenalty.zoneProductionPenalty,
+            raidProductionPenalty: territorialPenalty.raidProductionPenalty,
+            civilianProductionPenalty: territorialPenalty.civilianProductionPenalty,
+            destroyedInfraIncomePenalty,
+            infrastructureIncomePenalty: territorialPenalty.infrastructureIncomePenalty,
+            zoneTaxPenalty: territorialPenalty.zoneTaxPenalty,
+            supplyLineTaxPenalty: territorialPenalty.supplyLineTaxPenalty,
+            civilianTaxPenalty: territorialPenalty.civilianTaxPenalty,
+        },
+        territory: {
+            side,
+            relativePosition,
+            territorialPressure,
+            homelandPressure: Math.abs(getBoundedHomelandPressure(relativePosition)),
+        },
+        logistics: {
+            supplyRatio: Number(sideState.supplyRatio || 0),
+            dailySupplyNeed: sumMetricValues(sideState.supplyNeed?.resources || {}),
+            dailySupplyAvailable: sumMetricValues(sideState.supplyAvailable?.resources || {}),
+            dailyFoodUpkeep: Number(sideState.supplyNeed?.food || 0),
+            dailySilverUpkeep: Number(sideState.supplyNeed?.silver || 0),
+            dailyMaterielUpkeep: Number(sideState.supplyNeed?.materiel || 0),
+            logisticsMultiplier: Number(sideState.supplyNeed?.logisticsMultiplier || 1),
+        },
+        cumulative: {
+            lootGained: side ? sumMetricValues(normalizedFront.totalPlundered?.[side] || {}) : 0,
+            lootLost: side ? sumMetricValues(normalizedFront.totalPlundered?.[enemySide] || {}) : 0,
+            buildingsDestroyed: enemyNationId ? sumMetricValues(normalizedFront.destroyedBuildings?.[enemyNationId] || {}) : 0,
+            buildingsLost: sumMetricValues(normalizedFront.destroyedBuildings?.[nationId] || {}),
+        },
+    };
 };
 
 /**
  * Calculate front economic modifiers used by main simulation.
- * 仅保留战线位置导致的经济损失/产出减益，以及供 AI/前端读取的后勤状态。
+ * ?????????????????????/???????????? AI/????????????????
  * @param {Object} front
  * @param {string} nationId
  * @param {number} _currentDay - Current game day
@@ -1092,7 +1201,7 @@ export const calculateFrontEconomicImpact = (front, nationId) => {
  */
 export const getFrontlineEconomicModifiers = (front, nationId, _currentDay = 0, _deployedUnits = 0, silverIncome = 100, nationResources = null) => {
     const normalizedFront = ensureFrontDefaults(front);
-    const impact = calculateFrontEconomicImpact(normalizedFront, nationId);
+    const impact = calculateFrontEconomicImpact(normalizedFront, nationId, { silverIncome, nationResources });
     const side = nationId === normalizedFront.attackerId
         ? 'attacker'
         : nationId === normalizedFront.defenderId
@@ -1113,75 +1222,42 @@ export const getFrontlineEconomicModifiers = (front, nationId, _currentDay = 0, 
         return {
             productionPenalty: impact.productionPenalty,
             incomePenalty: impact.incomePenalty,
+            taxEfficiencyPenalty: impact.taxEfficiencyPenalty,
             supplyBonus: impact.supplyBonus,
             defenseBonus: impact.defenseBonus,
             frontlinePressure: 0,
             logisticsMultiplier: 1,
             supplyRatio: 1,
             supplyCrisis: false,
+            breakdown: impact.breakdown,
+            logistics: impact.logistics,
+            cumulative: impact.cumulative,
+            territory: impact.territory,
         };
     }
 
-    // 战线位置只决定掠夺、经济损失与产出减益。
-    const linePos = normalizedFront.linePosition;
-    let zoneProductionPenalty = 0;
-    let zoneIncomePenalty = 0;
-
-    // 区域惩罚：边境轻微、经济区中等、核心区较重、腹地沦陷致命但留翻盘空间
-    if (side === 'attacker') {
-        if (linePos < 50) {
-            zoneProductionPenalty += 0.05;
-        }
-        if (linePos < 35) {
-            zoneProductionPenalty += 0.10;
-            zoneIncomePenalty += silverIncome * 0.15;
-        }
-        if (linePos < 15) {
-            zoneProductionPenalty += 0.10;
-            zoneIncomePenalty += silverIncome * 0.20;
-        }
-        // 腹地沦陷：linePos <= 8 时额外重惩
-        if (linePos <= 8) {
-            zoneProductionPenalty += 0.20;
-            zoneIncomePenalty += silverIncome * 0.30;
-        }
-    } else {
-        if (linePos > 50) {
-            zoneProductionPenalty += 0.05;
-        }
-        if (linePos > 65) {
-            zoneProductionPenalty += 0.10;
-            zoneIncomePenalty += silverIncome * 0.15;
-        }
-        if (linePos > 85) {
-            zoneProductionPenalty += 0.10;
-            zoneIncomePenalty += silverIncome * 0.20;
-        }
-        // 腹地沦陷：linePos >= 92 时额外重惩
-        if (linePos >= 92) {
-            zoneProductionPenalty += 0.20;
-            zoneIncomePenalty += silverIncome * 0.30;
-        }
-    }
-    const territorialPressure = isSideUnderTerritorialPressure(linePos, side);
-    // 总产出惩罚上限提升到0.55（腹地沦陷时经济几乎瘫痪但不归零）
-    const totalProductionPenalty = Math.min(0.55, impact.productionPenalty + zoneProductionPenalty);
-    const totalIncomePenalty = impact.incomePenalty + zoneIncomePenalty;
-    const frontlinePressure = side === 'attacker'
-        ? Math.max(0, (50 - linePos) / 50)
-        : Math.max(0, (linePos - 50) / 50);
+    const frontlinePressure = Math.max(0, (50 - impact.territory.relativePosition) / 50);
 
     return {
-        productionPenalty: totalProductionPenalty,
-        incomePenalty: totalIncomePenalty + (territorialPressure ? Math.max(0, Number(normalizedFront.economicDamageBreakdown?.civilianPressure || 0) * 0.4) : 0),
+        productionPenalty: impact.productionPenalty,
+        incomePenalty: impact.incomePenalty,
+        taxEfficiencyPenalty: impact.taxEfficiencyPenalty,
         supplyBonus: impact.supplyBonus,
         defenseBonus: impact.defenseBonus,
         frontlinePressure,
         logisticsMultiplier: Number(sideState.supplyNeed?.logisticsMultiplier || 1),
         supplyRatio,
         supplyCrisis: supplyRatio < 0.65,
+        breakdown: impact.breakdown,
+        logistics: {
+            ...impact.logistics,
+            supplyRatio,
+        },
+        cumulative: impact.cumulative,
+        territory: impact.territory,
     };
 };
+
 
 /**
  * Process automatic front effects each tick (resource regeneration, income, etc.)
@@ -1297,9 +1373,10 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
 
     const raidSwing = (playerRaidStrength - enemyRaidStrength) / totalUnits;
     const raidPressure = Math.max(0, raidSwing * 120 * postureCfg.raidMod);
-    const supplyLineDamage = Math.max(0, Math.round(raidPressure * 0.08));
-    const productionLoss = Math.max(0, Math.round(raidPressure * 0.05));
-    const infrastructureLoss = Math.max(0, Math.round(raidPressure * 0.03));
+    const enemyRaidPressure = Math.max(0, -raidSwing * 120 * postureCfg.raidMod);
+    const supplyLineDamage = Math.max(0, Math.round(Math.max(raidPressure, enemyRaidPressure) * 0.08));
+    const productionLoss = Math.max(0, Math.round(Math.max(raidPressure, enemyRaidPressure) * 0.05));
+    const infrastructureLoss = Math.max(0, Math.round(Math.max(raidPressure, enemyRaidPressure) * 0.03));
     const civilianPressure = Math.max(0, Math.round(Math.max(0, Math.abs(normalizedFront.linePosition - 50) - 10) * 0.2));
 
     // Auto-plunder: when friction occurs in enemy zone, 30% chance to destroy a resource node
@@ -1353,7 +1430,7 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
         warScoreBreakdown: {
             battle: 0,
             advance: warScoreDelta,
-            economic: Math.max(0, Math.round(raidPressure / 25)),
+            economic: Math.round((raidPressure - enemyRaidPressure) / 25),
             homeland: 0,
         },
     };
@@ -1518,26 +1595,24 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
     // ========== 战争经济：checkpoint crossing 时触发建筑破坏和人口流失 ==========
     let warEconomyDamage = null;
     const destroyedBuildings = JSON.parse(JSON.stringify(normalizedFront.destroyedBuildings || {}));
+    let nextWarEconomyDamageDay = Number(normalizedFront.lastWarEconomyDamageDay || normalizedFront.startDay || 0);
+    const currentZone = getZoneForPosition(linePosition);
+    const zoneCategory = currentZone?.category || 'frontier';
+    const isAttackerAdvancing = linePosition > oldPosition;
+    const victimSide = isAttackerAdvancing ? 'defender' : 'attacker';
+    const victimId = victimSide === 'attacker' ? normalizedFront.attackerId : normalizedFront.defenderId;
+    const isVictimPlayer = victimId === 'player';
+    const victimBuildings = victimSide === 'attacker' ? (attackerBuildings || {}) : (defenderBuildings || {});
+    const advancerPosture = getFrontPostureIdForSide(normalizedFront, isAttackerAdvancing ? 'attacker' : 'defender');
+    const advancerRaidMod = (FRONT_POSTURES[advancerPosture]?.raidMod || 1.0);
 
     if (crossed.length > 0) {
-        // 确定哪一方被侵入（战线向谁推进）
-        const isAttackerAdvancing = linePosition > oldPosition;
-        const victimSide = isAttackerAdvancing ? 'defender' : 'attacker';
-        const victimId = victimSide === 'attacker' ? normalizedFront.attackerId : normalizedFront.defenderId;
-        const isVictimPlayer = victimId === 'player';
-        const advancerPosture = getFrontPostureIdForSide(normalizedFront, isAttackerAdvancing ? 'attacker' : 'defender');
-        const advancerRaidMod = (FRONT_POSTURES[advancerPosture]?.raidMod || 1.0);
-
-        // 确定被进入区域的类别
-        const currentZone = getZoneForPosition(linePosition);
-        const zoneCategory = currentZone?.category || 'frontier';
-
         // 建筑破坏判定（仅经济区和核心区触发）
         if (zoneCategory === 'economic' || zoneCategory === 'capital') {
             const damageResult = calculateWarBuildingDamage({
                 targetNationId: victimId,
                 isPlayerNation: isVictimPlayer,
-                buildings: isVictimPlayer ? (victimSide === 'attacker' ? (attackerBuildings || {}) : (defenderBuildings || {})) : {},
+                buildings: victimBuildings,
                 zoneCategory,
                 raidMod: advancerRaidMod,
                 existingDestroyed: destroyedBuildings[victimId] || {},
@@ -1546,7 +1621,7 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
             });
 
             // 更新 destroyedBuildings
-            if (isVictimPlayer && Object.keys(damageResult.destroyedBuildings).length > 0) {
+            if (Object.keys(damageResult.destroyedBuildings).length > 0) {
                 if (!destroyedBuildings[victimId]) destroyedBuildings[victimId] = {};
                 for (const [bId, cnt] of Object.entries(damageResult.destroyedBuildings)) {
                     destroyedBuildings[victimId][bId] = (destroyedBuildings[victimId][bId] || 0) + cnt;
@@ -1578,6 +1653,59 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
         }
         warEconomyDamage.victimId = victimId;
         warEconomyDamage.zoneCategory = zoneCategory;
+        nextWarEconomyDamageDay = day;
+    } else if (zoneCategory === 'economic' || zoneCategory === 'capital') {
+        const occupationInterval = zoneCategory === 'capital' ? 6 : 10;
+        const territoryOwnerSide = linePosition >= 50 ? 'defender' : 'attacker';
+        const occupiedVictimId = territoryOwnerSide === 'attacker' ? normalizedFront.attackerId : normalizedFront.defenderId;
+        const occupiedVictimBuildings = territoryOwnerSide === 'attacker' ? (attackerBuildings || {}) : (defenderBuildings || {});
+        const occupiedVictimIsPlayer = occupiedVictimId === 'player';
+        const occupiedAdvancerSide = territoryOwnerSide === 'attacker' ? 'defender' : 'attacker';
+        const occupiedRaidMod = FRONT_POSTURES[getFrontPostureIdForSide(normalizedFront, occupiedAdvancerSide)]?.raidMod || 1.0;
+
+        if (day - nextWarEconomyDamageDay >= occupationInterval) {
+            const sustainedDamage = calculateWarBuildingDamage({
+                targetNationId: occupiedVictimId,
+                isPlayerNation: occupiedVictimIsPlayer,
+                buildings: occupiedVictimBuildings,
+                zoneCategory,
+                raidMod: occupiedRaidMod * 0.7,
+                existingDestroyed: destroyedBuildings[occupiedVictimId] || {},
+                nationWealth: occupiedVictimIsPlayer ? 0 : 1000,
+                nationMilitaryStrength: 0,
+            });
+
+            if (
+                Object.keys(sustainedDamage.destroyedBuildings || {}).length > 0
+                || sustainedDamage.wealthLoss > 0
+                || sustainedDamage.milStrLoss > 0
+            ) {
+                if (Object.keys(sustainedDamage.destroyedBuildings || {}).length > 0) {
+                    if (!destroyedBuildings[occupiedVictimId]) destroyedBuildings[occupiedVictimId] = {};
+                    for (const [bId, cnt] of Object.entries(sustainedDamage.destroyedBuildings)) {
+                        destroyedBuildings[occupiedVictimId][bId] = (destroyedBuildings[occupiedVictimId][bId] || 0) + cnt;
+                    }
+                }
+                warEconomyDamage = {
+                    ...sustainedDamage,
+                    populationLossRate: 0,
+                    victimId: occupiedVictimId,
+                    zoneCategory,
+                    isSustainedOccupationDamage: true,
+                };
+                nextWarEconomyDamageDay = day;
+
+                if (sustainedDamage.narrative) {
+                    controlLog.push({
+                        day,
+                        phase,
+                        delta: 0,
+                        text: `🏚️ ${sustainedDamage.narrative}`,
+                        isWarEconomy: true,
+                    });
+                }
+            }
+        }
     }
 
     const status = normalizedFront.status;
@@ -1602,6 +1730,7 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
         controlLog: controlLog.slice(-16),
         _lastAdvanceDay: day || normalizedFront._lastAdvanceDay,
         lastOccupationScoreDay: normalizedFront.lastOccupationScoreDay || normalizedFront.startDay || 0,
+        lastWarEconomyDamageDay: nextWarEconomyDamageDay,
         pressure: summary.pressure,
         supplyState: summary.supplyState,
         sideState: summary.sideState, // [FIX] 保存 sideState 供 AI stockpile 消耗计算使用

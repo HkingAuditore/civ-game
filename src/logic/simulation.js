@@ -1285,7 +1285,27 @@ export const simulateTick = ({
     const { militaryBoost: warMilitaryBoost, miningBoost: warMiningBoost } = calculateMilitaryIndustryBoost(isPlayerAtWar);
     const { tradeDisruptionPenalty: warTradeDisruption } = calculateWartimeTradeDisruption(activeWarCount);
 
-    const producedResources = new Set();
+    let frontlineProductionPenalty = 0;
+    let frontlineIncomePenalty = 0;
+    if (playerActiveFrontsForDamage.length > 0) {
+        const silverIncomeEstimate = Object.values(res || {}).reduce((sum, value) => sum + Number(value || 0), 0) * 0.1;
+        playerActiveFrontsForDamage.forEach((front) => {
+            const playerSide = front.attackerId === 'player' ? 'attacker' : front.defenderId === 'player' ? 'defender' : null;
+            const deployedUnits = playerSide
+                ? (front.assignedCorps?.[playerSide] || []).reduce((sum, corpsId) => {
+                    const corps = (militaryCorps || []).find((item) => item?.id === corpsId);
+                    if (!corps) return sum;
+                    return sum + Object.values(corps.units || {}).reduce((unitSum, count) => unitSum + Number(count || 0), 0);
+                }, 0)
+                : 0;
+            const modifiers = getFrontlineEconomicModifiers(front, 'player', tick, deployedUnits, silverIncomeEstimate, res);
+            frontlineProductionPenalty += Number(modifiers.productionPenalty || 0);
+            frontlineIncomePenalty += Number(modifiers.incomePenalty || 0);
+        });
+        frontlineProductionPenalty = Math.min(0.80, frontlineProductionPenalty);
+    }
+    const frontlineProductionFactor = Math.max(0, 1 - frontlineProductionPenalty);
+
     const jobsAvailable = {};
     const roleWageStats = {};
     const roleWagePayout = {};
@@ -1381,16 +1401,6 @@ export const simulateTick = ({
                     for (let role in config.jobs) {
                         jobsAvailable[role] = (jobsAvailable[role] || 0) + config.jobs[role] * lvlCount;
                     }
-                }
-
-                // 记录已生产的资源类型
-                if (config.output) {
-                    Object.entries(config.output).forEach(([resKey, amount]) => {
-                        if (!RESOURCES[resKey]) return;
-                        if ((amount || 0) > 0) {
-                            producedResources.add(resKey);
-                        }
-                    });
                 }
             });
         }
@@ -2262,9 +2272,9 @@ export const simulateTick = ({
         }
 
         // 防死锁机制：采集类建筑在缺少输入原料时进入低效模式
-        let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+        let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit)) * frontlineProductionFactor;
         // Potential target multiplier (if staffed)
-        let simTargetMultiplier = simBaseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+        let simTargetMultiplier = simBaseMultiplier * Math.max(0, Math.min(1, resourceLimit)) * frontlineProductionFactor;
 
         if (b.cat === 'gather' && resourceLimit === 0 && Object.keys(effectiveOps.input).length > 0) {
             // 进入低效模式：20%效率，不消耗原料
@@ -5514,17 +5524,17 @@ export const simulateTick = ({
             // REFACTORED: Using module function for AI peace request check
             // Pass global cooldown to prevent multiple nations from requesting peace simultaneously
             if (shouldUpdateAI) {
-                const peaceRequested = checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs });
+                const peaceRequested = checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs, activeFronts });
                 if (peaceRequested) {
                     lastGlobalPeaceRequest = tick; // Update global cooldown for subsequent nations
                 }
 
                 // REFACTORED: Using module function for AI surrender demand check
                 // 传入玩家财富，使赔款计算与玩家主动求和时一致
-                checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
+                checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs, activeFronts });
 
                 // Check if AI should offer unconditional peace when player is in desperate situation
-                checkMercyPeace({ nation: next, tick, population, playerWealth: playerWealthBaseline, resources: res, logs });
+                checkMercyPeace({ nation: next, tick, population, playerWealth: playerWealthBaseline, resources: res, logs, activeFronts });
             }
         } else if (next.warDuration) {
             next.warDuration = 0;
@@ -6459,43 +6469,13 @@ export const simulateTick = ({
             updatedWages[role] = parseFloat(smoothed.toFixed(2));
 
         });
-
-
-
         const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
-        const playerActiveFronts = (activeFronts || []).filter(front =>
-            front?.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player')
-        );
-        let frontlineProductionPenalty = 0;
-        let frontlineIncomePenalty = 0;
-        if (playerActiveFronts.length > 0) {
-            const silverIncome = Object.values(supply || {}).reduce((s, v) => s + (v || 0), 0) * 0.1; // rough estimate
-            playerActiveFronts.forEach(front => {
-                const playerSide = front.attackerId === 'player' ? 'attacker' : front.defenderId === 'player' ? 'defender' : null;
-                const deployedUnits = playerSide
-                    ? (front.assignedCorps?.[playerSide] || []).reduce((sum, corpsId) => {
-                        const corps = (militaryCorps || []).find(item => item?.id === corpsId);
-                        if (!corps) return sum;
-                        return sum + Object.values(corps.units || {}).reduce((s, c) => s + (c || 0), 0);
-                    }, 0)
-                    : 0;
-                const modifiers = getFrontlineEconomicModifiers(front, 'player', tick, deployedUnits, silverIncome);
-                frontlineProductionPenalty += Number(modifiers.productionPenalty || 0);
-                frontlineIncomePenalty += Number(modifiers.incomePenalty || 0);
-            });
-            frontlineProductionPenalty = Math.min(0.55, frontlineProductionPenalty);
-            if (frontlineIncomePenalty > 0) {
-                const roundedIncomePenalty = Math.floor(frontlineIncomePenalty);
-                if (roundedIncomePenalty > 0) {
-                    const beforeSilver = res.silver || 0;
-                    res.silver = Math.max(0, beforeSilver - roundedIncomePenalty);
-                    trackSilverChange(-Math.min(beforeSilver, roundedIncomePenalty), 'frontline_infrastructure_loss');
-                }
-            }
-            if (frontlineProductionPenalty > 0) {
-                Object.keys(supply || {}).forEach(resourceKey => {
-                    supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) * (1 - frontlineProductionPenalty));
-                });
+        if (frontlineIncomePenalty > 0) {
+            const roundedIncomePenalty = Math.floor(frontlineIncomePenalty);
+            if (roundedIncomePenalty > 0) {
+                const beforeSilver = res.silver || 0;
+                res.silver = Math.max(0, beforeSilver - roundedIncomePenalty);
+                trackSilverChange(-Math.min(beforeSilver, roundedIncomePenalty), 'frontline_infrastructure_loss');
             }
         }
 

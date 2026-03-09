@@ -51,14 +51,14 @@ export const aggregateWarDamagedBuildings = (activeFronts = [], nationId = 'play
  * @returns {Object} { destroyedBuildings: {buildingId: count}, wealthLoss: number, milStrLoss: number, narrative: string }
  */
 export const calculateWarBuildingDamage = ({
-    targetNationId,
+    targetNationId: _targetNationId,
     isPlayerNation = false,
     buildings = {},
     zoneCategory = 'frontier',
     raidMod = 1.0,
     existingDestroyed = {},
     nationWealth = 0,
-    nationMilitaryStrength = 0,
+    nationMilitaryStrength: _nationMilitaryStrength = 0,
 }) => {
     const result = {
         destroyedBuildings: {},
@@ -69,27 +69,24 @@ export const calculateWarBuildingDamage = ({
 
     const baseProbability = WAR_ECONOMY.BUILDING_DESTROY_BASE_PROBABILITY;
     const destroyChance = baseProbability * raidMod;
+    const allowedCats = zoneCategory === 'capital'
+        ? ['gather', 'industry', 'civic', 'military']
+        : zoneCategory === 'economic'
+            ? ['industry', 'civic']
+            : ['military', 'gather'];
+    const candidates = [];
+
+    for (const [bId, count] of Object.entries(buildings)) {
+        if (count <= 0) continue;
+        const bDef = BUILDINGS.find(b => b.id === bId);
+        if (!bDef || !allowedCats.includes(bDef.cat)) continue;
+        const alreadyDestroyed = (existingDestroyed[bId] || 0);
+        if (count - alreadyDestroyed <= 1) continue;
+        candidates.push({ id: bId, name: bDef.name, available: count - alreadyDestroyed });
+    }
 
     if (isPlayerNation) {
         // 玩家侧：概率破坏实际建筑
-        // 根据区域类别筛选可破坏的建筑类别
-        const allowedCats = zoneCategory === 'capital'
-            ? ['gather', 'industry', 'civic', 'military']
-            : zoneCategory === 'economic'
-                ? ['industry', 'civic']
-                : ['military', 'gather'];
-
-        const candidates = [];
-        for (const [bId, count] of Object.entries(buildings)) {
-            if (count <= 0) continue;
-            const bDef = BUILDINGS.find(b => b.id === bId);
-            if (!bDef || !allowedCats.includes(bDef.cat)) continue;
-            // 同一建筑类型存量<=1时不可被破坏（防止彻底清零）
-            const alreadyDestroyed = (existingDestroyed[bId] || 0);
-            if (count - alreadyDestroyed <= 1) continue;
-            candidates.push({ id: bId, name: bDef.name, available: count - alreadyDestroyed });
-        }
-
         if (candidates.length === 0) {
             result.narrative = '战区建筑已严重受损，无更多可破坏目标';
             return result;
@@ -118,19 +115,37 @@ export const calculateWarBuildingDamage = ({
             result.narrative = `敌军破坏了我方${narratives.join('、')}（共${destroyCount}座建筑受损）`;
         }
     } else {
-        // AI侧：没有真实建筑，直接扣减经济数值
+        // AI侧：优先按真实建筑库存记录建筑损毁，同时继续扣减宏观经济数值
         const wealthPenaltyRate = zoneCategory === 'capital'
             ? WAR_ECONOMY.AI_WEALTH_LOSS_CAPITAL
             : WAR_ECONOMY.AI_WEALTH_LOSS_ECONOMIC;
         const milStrPenaltyRate = zoneCategory === 'capital'
             ? WAR_ECONOMY.AI_MILSTR_LOSS_CAPITAL
             : 0;
+        const maxDestroy = WAR_ECONOMY.MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT;
+        const narratives = [];
+
+        for (let i = 0; i < maxDestroy && candidates.length > 0; i++) {
+            if (Math.random() > destroyChance) continue;
+            const idx = Math.floor(Math.random() * candidates.length);
+            const target = candidates[idx];
+            result.destroyedBuildings[target.id] = (result.destroyedBuildings[target.id] || 0) + 1;
+            target.available -= 1;
+            if (target.available <= 1) {
+                candidates.splice(idx, 1);
+            }
+            narratives.push(target.name);
+        }
 
         result.wealthLoss = nationWealth * wealthPenaltyRate;
         result.milStrLoss = milStrPenaltyRate;
-        result.narrative = zoneCategory === 'capital'
-            ? `攻入敌方核心区，敌国经济和军工设施遭到重创`
-            : `推进至敌方经济区，敌国产能受损`;
+        if (narratives.length > 0) {
+            result.narrative = `攻势破坏了敌方${narratives.join('、')}（共${narratives.length}座建筑受损）`;
+        } else {
+            result.narrative = zoneCategory === 'capital'
+                ? `攻入敌方核心区，敌国经济和军工设施遭到重创`
+                : `推进至敌方经济区，敌国产能受损`;
+        }
     }
 
     return result;

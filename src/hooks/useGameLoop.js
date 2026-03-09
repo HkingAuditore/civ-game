@@ -93,11 +93,13 @@ import {
     processFrontTick,
     processFrontFriction,
     processFrontAdvance,
+    buildResourceCoverage,
     ensureFrontDefaults,
     plunderResourceNode,
     getPlayerSide,
     getEnemySide,
     summarizeFrontState,
+    getBoundedHomelandPressure,
 } from '../logic/diplomacy/frontSystem';
 import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits } from '../logic/diplomacy/corpsSystem';
@@ -3218,11 +3220,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 : 100 - Number(advancedFront.linePosition || 50);
                             const totalFrontUnits = attackerCorps.reduce((sum, corps) => sum + Object.values(corps?.units || {}).reduce((s, c) => s + (c || 0), 0), 0)
                                 + defenderCorps.reduce((sum, corps) => sum + Object.values(corps?.units || {}).reduce((s, c) => s + (c || 0), 0), 0);
-                            const homelandPressure = playerRelativePosition >= 85
-                                ? Math.max(1, Math.round(Math.abs(playerAdvance) || 1))
-                                : playerRelativePosition <= 15
-                                    ? -Math.max(1, Math.round(Math.abs(playerAdvance) || 1))
-                                    : 0;
+                            const homelandPressure = getBoundedHomelandPressure(playerRelativePosition);
                             let occupationDelta = 0;
                             let nextOccupationScoreDay = Number(advancedFront.lastOccupationScoreDay || advancedFront.startDay || currentDay);
                             if (advancedFront?.status === 'active' && totalFrontUnits > 0) {
@@ -3266,7 +3264,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 battle: Number(advancedFront.warScoreBreakdown?.battle || 0),
                                 advance: Number(advancedFront.warScoreBreakdown?.advance || 0) + Math.trunc(playerAdvance / 18) + occupationDelta,
                                 economic: Number(advancedFront.warScoreBreakdown?.economic || 0),
-                                homeland: Number(advancedFront.warScoreBreakdown?.homeland || 0) + homelandPressure,
+                                homeland: -homelandPressure,
                             };
                             return {
                                 ...advancedFront,
@@ -3283,7 +3281,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     supplyLineDamage: Number(advancedFront.economicDamageBreakdown?.supplyLineDamage || 0),
                                     productionLoss: Number(advancedFront.economicDamageBreakdown?.productionLoss || 0),
                                     infrastructureLoss: Number(advancedFront.economicDamageBreakdown?.infrastructureLoss || 0),
-                                    civilianPressure: Number(advancedFront.economicDamageBreakdown?.civilianPressure || 0) + homelandPressure,
+                                    civilianPressure: Math.max(0, Math.round(Math.abs(homelandPressure))),
                                 },
                             };
                         });
@@ -3292,6 +3290,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (warEconomyDamages.length > 0) {
                             const playerBuildingDamage = {};   // 玩家建筑破坏
                             const aiDamages = {};              // AI国家经济损伤
+                            const aiBuildingDamage = {};       // AI国家建筑破坏
                             let playerPopLoss = 0;
                             let playerWealthGain = 0;          // 玩家掠夺获益
 
@@ -3313,6 +3312,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     if (!aiDamages[victimId]) aiDamages[victimId] = { wealthLoss: 0, milStrLoss: 0 };
                                     aiDamages[victimId].wealthLoss += (dmg.wealthLoss || 0);
                                     aiDamages[victimId].milStrLoss += (dmg.milStrLoss || 0);
+                                    if (!aiBuildingDamage[victimId]) aiBuildingDamage[victimId] = {};
+                                    for (const [bId, cnt] of Object.entries(dmg.destroyedBuildings || {})) {
+                                        aiBuildingDamage[victimId][bId] = (aiBuildingDamage[victimId][bId] || 0) + cnt;
+                                    }
                                     // 玩家获得掠夺收益（通过建筑破坏间接获益的部分，这里取AI财富损失的60%）
                                     if (dmg.wealthLoss > 0) {
                                         playerWealthGain += dmg.wealthLoss * 0.6;
@@ -3336,14 +3339,23 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             }
 
                             // 应用AI经济损伤
-                            if (Object.keys(aiDamages).length > 0) {
+                            if (Object.keys(aiDamages).length > 0 || Object.keys(aiBuildingDamage).length > 0) {
                                 setNations(prev => prev.map(n => {
                                     const dmg = aiDamages[n.id];
-                                    if (!dmg) return n;
+                                    const buildingDamage = aiBuildingDamage[n.id] || {};
+                                    if (!dmg && Object.keys(buildingDamage).length === 0) return n;
+                                    const newBuildings = { ...(n.economy?.buildings || {}) };
+                                    for (const [buildingId, count] of Object.entries(buildingDamage)) {
+                                        newBuildings[buildingId] = Math.max(0, (newBuildings[buildingId] || 0) - count);
+                                    }
                                     return {
                                         ...n,
-                                        wealth: Math.max(100, Math.round((n.wealth || 500) - dmg.wealthLoss)),
-                                        militaryStrength: Math.max(0.25, (n.militaryStrength ?? 1.0) - dmg.milStrLoss),
+                                        wealth: Math.max(100, Math.round((n.wealth || 500) - (dmg?.wealthLoss || 0))),
+                                        militaryStrength: Math.max(0.25, (n.militaryStrength ?? 1.0) - (dmg?.milStrLoss || 0)),
+                                        economy: {
+                                            ...n.economy,
+                                            buildings: newBuildings,
+                                        },
                                     };
                                 }));
                             }
@@ -3964,12 +3976,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 Object.entries(warEconomy.resourceUpkeep).forEach(([resourceKey, amount]) => {
                                     stockpile[resourceKey] = Math.max(0, Number(stockpile[resourceKey] || 0) - Number(amount || 0));
                                 });
-                                const shortagePenalty = Object.entries(warEconomy.resourceUpkeep).map(([resourceKey, amount]) => (
-                                    Number(amount || 0) > 0 ? Number(stockpile[resourceKey] || 0) / Math.max(1, Number(amount || 0)) : 1
-                                ));
-                                const supplyCoverage = shortagePenalty.length > 0
-                                    ? Math.max(0, Math.min(...shortagePenalty))
-                                    : 1;
+                                const supplyCoverage = buildResourceCoverage(
+                                    warEconomy.resourceUpkeep,
+                                    stockpile
+                                );
 
                                 return {
                                     ...nation,
