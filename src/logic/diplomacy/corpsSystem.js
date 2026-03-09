@@ -318,7 +318,6 @@ export const createCorps = (name = '新军团') => {
         frontTask: 'assault',
         status: 'idle', // idle | deployed | in_combat | retreating
         morale: 100,
-        fatigue: 0,
     };
 };
 
