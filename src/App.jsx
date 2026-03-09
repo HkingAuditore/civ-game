@@ -604,12 +604,6 @@ function GameApp({ gameState }) {
         ));
     }, [gameState]);
 
-    const handleSetCorpsFrontTask = useCallback((corpsId, frontTask) => {
-        gameState.setMilitaryCorps(prev => prev.map(c =>
-            c.id === corpsId ? { ...c, frontTask } : c
-        ));
-    }, [gameState]);
-
     // Set battle tactic for the player side
     const handleSetBattleTactic = useCallback((battleId, side, tacticId) => {
         gameState.setActiveBattles(prev => prev.map(b => {
@@ -1396,7 +1390,6 @@ function GameApp({ gameState }) {
                                                 onSetBattleTactic={handleSetBattleTactic}
                                                 onCreateBattle={handleCreateBattle}
                                                 onSetPosture={handleSetPosture}
-                                                onSetCorpsFrontTask={handleSetCorpsFrontTask}
                                                 officials={gameState.officials}
                                             />
                                         )}

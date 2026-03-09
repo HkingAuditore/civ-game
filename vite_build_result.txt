@@ -1,0 +1,303 @@
+﻿[36mvite v7.2.4 [32mbuilding client environment for production...[36m[39m
+node : [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, pl
+ease update: `npm i baseline-browser-mapping@latest -D`
+所在位置 行:1 字符: 72
++ ... game\civ-game'; node node_modules/vite/bin/vite.js build 2>&1 | Out-F ...
++                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([baseline-brows...ping@latest -D`:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+transforming...
+[32m鉁?[39m 2455 modules transformed.
+rendering chunks...
+[33m[esbuild css minify]
+鈻?[WARNING] Expected identifier but found whitespace [css-syntax-error]
+
+    <stdin>:3840:21:
+      3840 鈹?  --tw-gradient-from: ${theme.secondaryColor} var(--tw-gradient-...
+           鈺?                     ^
+
+
+鈻?[WARNING] Unexpected "$" [css-syntax-error]
+
+    <stdin>:3840:22:
+      3840 鈹?  --tw-gradient-from: ${theme.secondaryColor} var(--tw-gradient-...
+           鈺?                      ^
+
+
+鈻?[WARNING] Expected ":" [css-syntax-error]
+
+    <stdin>:3840:29:
+      3840 鈹?  --tw-gradient-from: ${theme.secondaryColor} var(--tw-gradient-...
+           鈹?                             ^
+           鈺?                             :
+
+
+鈻?[WARNING] Expected identifier but found "var(" [css-syntax-error]
+
+    <stdin>:3840:46:
+      3840 鈹?...-from: ${theme.secondaryColor} var(--tw-gradient-from-position);
+           鈺?                                  ~~~~
+
+
+鈻?[WARNING] Expected identifier but found whitespace [css-syntax-error]
+
+    <stdin>:4279:19:
+      4279 鈹?  --tw-gradient-to: ${theme.primaryColor} var(--tw-gradient-to-p...
+           鈺?                   ^
+
+
+鈻?[WARNING] Unexpected "$" [css-syntax-error]
+
+    <stdin>:4279:20:
+      4279 鈹?  --tw-gradient-to: ${theme.primaryColor} var(--tw-gradient-to-p...
+           鈺?                    ^
+
+
+鈻?[WARNING] Expected ":" [css-syntax-error]
+
+    <stdin>:4279:27:
+      4279 鈹?  --tw-gradient-to: ${theme.primaryColor} var(--tw-gradient-to-p...
+           鈹?                           ^
+           鈺?                           :
+
+
+鈻?[WARNING] Expected identifier but found "var(" [css-syntax-error]
+
+    <stdin>:4279:42:
+      4279 鈹?...adient-to: ${theme.primaryColor} var(--tw-gradient-to-position);
+           鈺?                                    ~~~~
+
+
+鈻?[WARNING] Expected identifier but found whitespace [css-syntax-error]
+
+    <stdin>:5487:14:
+      5487 鈹?  --tw-shadow: 0 0 20px ${theme.glowColor};
+           鈺?              ^
+
+
+鈻?[WARNING] Unexpected "0" [css-syntax-error]
+
+    <stdin>:5487:15:
+      5487 鈹?  --tw-shadow: 0 0 20px ${theme.glowColor};
+           鈺?               ^
+
+
+鈻?[WARNING] Expected ":" [css-syntax-error]
+
+    <stdin>:5487:31:
+      5487 鈹?  --tw-shadow: 0 0 20px ${theme.glowColor};
+           鈹?                               ^
+           鈺?                               :
+
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/config/diplomacy.js is dynamically imported by
+ C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js but also statically impor
+ted by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/DiplomacyDashboard.jsx
+, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/DiplomacyLayout.jsx, C:/Use
+rs/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/NationDetailView.jsx, C:/Users/hkin
+ghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/NegotiationDialog.jsx, C:/Users/hkinghuang
+/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/negotiation/DealStatus.jsx, C:/Users/hkinghuang/
+Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/negotiation/TreatyTerms.jsx, C:/Users/hkinghuang/
+Documents/GitHub/simple_nation_game/civ-game/src/components/panels/EraProgressionPanel.jsx, C:/Users/hkinghuang/Documen
+ts/GitHub/simple_nation_game/civ-game/src/components/panels/VassalManagementSheet.jsx, C:/Users/hkinghuang/Documents/Gi
+tHub/simple_nation_game/civ-game/src/components/panels/VassalOverviewPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/si
+mple_nation_game/civ-game/src/config/events/diplomaticEvents.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_gam
+e/civ-game/src/config/index.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameLoop.
+js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/aiWar.js, C:/Users/hkinghuang/
+Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/autonomousInvestment.js, C:/Users/hkinghuang/Documents
+/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/nations.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_
+game/civ-game/src/logic/diplomacy/organizationDiplomacy.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ
+-game/src/logic/diplomacy/overseasInvestment.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/l
+ogic/diplomacy/populationMigration.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplo
+macy/vassalGovernors.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/vassalSys
+tem.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/economy/manualTrade.js, C:/Users/hki
+nghuang/Documents/GitHub/simple_nation_game/civ-game/src/utils/diplomacyUtils.js, dynamic import will not move module i
+nto another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/vassalSystem.js is dynamically
+ imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hki
+nghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/
+simple_nation_game/civ-game/src/hooks/useGameActions.js but also statically imported by C:/Users/hkinghuang/Documents/G
+itHub/simple_nation_game/civ-game/src/components/panels/VassalManagementSheet.jsx, C:/Users/hkinghuang/Documents/GitHub
+/simple_nation_game/civ-game/src/components/panels/VassalOverviewPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple
+_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src
+/hooks/useGameLoop.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/aiDiplomacy
+.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/aiWar.js, C:/Users/hkinghuang
+/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/index.js, C:/Users/hkinghuang/Documents/GitHub/simple
+_nation_game/civ-game/src/logic/diplomacy/nations.js, dynamic import will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/overseasInvestment.js is dynam
+ically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Use
+rs/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/G
+itHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/
+civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGam
+eLoop.js but also statically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/component
+s/diplomacy/NationDetailView.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panel
+s/InternationalEconomyPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels
+/InvestmentRow.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/OverseasInve
+stmentPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users
+/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/autonomousInvestment.js, C:/Users/hkinghua
+ng/Documents/GitHub/simple_nation_game/civ-game/src/logic/simulation.js, dynamic import will not move module into anoth
+er chunk.
+[39m
+computing gzip size...
+[2mdist/[22m[32mindex.html                                                    [39m[1m[2m   13.57 kB[22m[1m[22m[2m 鈹?gzip:   4.33 kB[22m
+[2mdist/[22m[32massets/comet_sighted-BqXLoIW0.webp                            [39m[1m[2m   38.29 kB[22m[1m[22m
+[2mdist/[22m[32massets/exploration_gunpowder_plot-BKinMZeb.webp               [39m[1m[2m   53.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/donate_qr-1Pu7rFen.jpg                                 [39m[1m[2m   61.06 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_age_miner_unrest-CQlPCdJx.webp                  [39m[1m[2m   61.56 kB[22m[1m[22m
+[2mdist/[22m[32massets/industrial_general_strike-5yogxasX.webp                [39m[1m[2m   62.64 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_age_hungry_peasants-CSoApFlG.webp                [39m[1m[2m   64.77 kB[22m[1m[22m
+[2mdist/[22m[32massets/natural_disaster-DM7KYQfj.webp                         [39m[1m[2m   68.21 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg_era_6_industrial-BmPCfUrg.webp                      [39m[1m[2m   73.91 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_age_drought-A0Zh67n9.webp                       [39m[1m[2m   74.71 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg_era_0_stone-24d-xr-f.webp                           [39m[1m[2m   75.43 kB[22m[1m[22m
+[2mdist/[22m[32massets/inventor_plea-B80YvOvu.webp                            [39m[1m[2m   76.79 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_age_tribal_legend-D4qRzQXX.webp                  [39m[1m[2m   78.99 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_age_merchant_plea-CZR4Trcw.webp                 [39m[1m[2m   79.22 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_age_unexpected_discovery-8aAjUGx4.webp           [39m[1m[2m   79.79 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_age_stranger_footprints-BgnwhojP.webp            [39m[1m[2m   84.72 kB[22m[1m[22m
+[2mdist/[22m[32massets/enlightenment_coffeehouse_circle-CtxCXynt.webp         [39m[1m[2m   85.28 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg_era_7_information-otj7kad8.webp                     [39m[1m[2m   88.01 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_age_bronze_vein-CZ3h11z_.webp                   [39m[1m[2m   88.24 kB[22m[1m[22m
+[2mdist/[22m[32massets/good_harvest-SusjPbRU.webp                             [39m[1m[2m   90.74 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_age_harsh_winter-B2ys_fBo.webp                   [39m[1m[2m   92.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_age_new_priest-CaMclwJC.webp                    [39m[1m[2m   92.48 kB[22m[1m[22m
+[2mdist/[22m[32massets/printing_house-CsZpth5m.webp                           [39m[1m[2m   92.50 kB[22m[1m[22m
+[2mdist/[22m[32massets/merchant_caravan-Db4BF1Mn.webp                         [39m[1m[2m   92.81 kB[22m[1m[22m
+[2mdist/[22m[32massets/enlightenment_pamphlet_storm-CwQNhoJ7.webp             [39m[1m[2m   92.95 kB[22m[1m[22m
+[2mdist/[22m[32massets/industrial_capitalist_boom-BYG_bFTQ.webp               [39m[1m[2m   92.96 kB[22m[1m[22m
+[2mdist/[22m[32massets/steel_works-tl8qdaPI.webp                              [39m[1m[2m   94.82 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_age_elder_council-n0sz2DZu.webp                  [39m[1m[2m   99.15 kB[22m[1m[22m
+[2mdist/[22m[32massets/exploration_mercenary_offer-BIZ4dM1G.webp              [39m[1m[2m  100.65 kB[22m[1m[22m
+[2mdist/[22m[32massets/town_hall-KjJxAEe9.webp                                [39m[1m[2m  101.43 kB[22m[1m[22m
+[2mdist/[22m[32massets/coal_mine-Cf5oxQ66.webp                                [39m[1m[2m  104.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/steel_foundry-BZjNt6Fx.webp                            [39m[1m[2m  105.61 kB[22m[1m[22m
+[2mdist/[22m[32massets/navigator_school-DAz8UJ-s.webp                         [39m[1m[2m  107.19 kB[22m[1m[22m
+[2mdist/[22m[32massets/textile_mill-B8RG1Q8T.webp                             [39m[1m[2m  108.07 kB[22m[1m[22m
+[2mdist/[22m[32massets/prefab_factory-DA5AapMO.webp                           [39m[1m[2m  108.86 kB[22m[1m[22m
+[2mdist/[22m[32massets/brewery-B3WW0mxV.webp                                  [39m[1m[2m  110.32 kB[22m[1m[22m
+[2mdist/[22m[32massets/apartment_block-Lk-jStFu.webp                          [39m[1m[2m  110.46 kB[22m[1m[22m
+[2mdist/[22m[32massets/church-VRTlYpYT.webp                                   [39m[1m[2m  110.65 kB[22m[1m[22m
+[2mdist/[22m[32massets/paper_mill-CZju1S7J.webp                               [39m[1m[2m  113.18 kB[22m[1m[22m
+[2mdist/[22m[32massets/large_estate-BtwiAZSM.webp                             [39m[1m[2m  113.39 kB[22m[1m[22m
+[2mdist/[22m[32massets/cannery-Dzybi3W-.webp                                  [39m[1m[2m  114.43 kB[22m[1m[22m
+[2mdist/[22m[32massets/university-B1Q07raW.webp                               [39m[1m[2m  115.64 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_age_merchant_boom-L3u5Q339.webp                 [39m[1m[2m  115.71 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_foundry-lSIV4HHW.webp                           [39m[1m[2m  116.15 kB[22m[1m[22m
+[2mdist/[22m[32massets/exploration_banking_family-BLiChkPN.webp               [39m[1m[2m  118.18 kB[22m[1m[22m
+[2mdist/[22m[32massets/culinary_kitchen-Dp7E-h2o.webp                         [39m[1m[2m  119.38 kB[22m[1m[22m
+[2mdist/[22m[32massets/trade_port-Bb8Wlznm.webp                               [39m[1m[2m  120.56 kB[22m[1m[22m
+[2mdist/[22m[32massets/mechanized_farm-D1yh2qwW.webp                          [39m[1m[2m  120.90 kB[22m[1m[22m
+[2mdist/[22m[32massets/national_archives-B16JYbGp.webp                        [39m[1m[2m  121.18 kB[22m[1m[22m
+[2mdist/[22m[32massets/iron_tool_workshop-JeU_HiCZ.webp                       [39m[1m[2m  121.50 kB[22m[1m[22m
+[2mdist/[22m[32massets/mine-Cx08ntSF.webp                                     [39m[1m[2m  123.29 kB[22m[1m[22m
+[2mdist/[22m[32massets/furniture_workshop-DJvDssET.webp                       [39m[1m[2m  125.38 kB[22m[1m[22m
+[2mdist/[22m[32massets/stock_exchange-D3C_crRP.webp                           [39m[1m[2m  125.45 kB[22m[1m[22m
+[2mdist/[22m[32massets/industrial_mine-CZLkmFKn.webp                          [39m[1m[2m  127.74 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg_era_3_feudal-BN6lWtZZ.webp                          [39m[1m[2m  128.01 kB[22m[1m[22m
+[2mdist/[22m[32massets/building_materials_plant-DMlLNyC5.webp                 [39m[1m[2m  128.18 kB[22m[1m[22m
+[2mdist/[22m[32massets/coffee_house-BvASx90_.webp                             [39m[1m[2m  128.61 kB[22m[1m[22m
+[2mdist/[22m[32massets/opera_house-9LtWiE3R.webp                              [39m[1m[2m  128.87 kB[22m[1m[22m
+[2mdist/[22m[32massets/factory-Bej-fbc-.webp                                  [39m[1m[2m  129.57 kB[22m[1m[22m
+[2mdist/[22m[32massets/lumber_mill-C_xbBWtw.webp                              [39m[1m[2m  130.29 kB[22m[1m[22m
+[2mdist/[22m[32massets/monastery_cellar-bKnSAW_n.webp                         [39m[1m[2m  130.32 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_tool_innovation-CKaKndUp.webp                    [39m[1m[2m  130.62 kB[22m[1m[22m
+[2mdist/[22m[32massets/distillery-Bgpj9hPj.webp                               [39m[1m[2m  134.55 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_workshop-3F-yLuHl.webp                           [39m[1m[2m  135.07 kB[22m[1m[22m
+[2mdist/[22m[32massets/research_institute-DiFCkGYd.webp                       [39m[1m[2m  135.92 kB[22m[1m[22m
+[2mdist/[22m[32massets/Gemini_Generated_Image_ksizagksizagksiz-ofbLTK05.webp  [39m[1m[2m  136.82 kB[22m[1m[22m
+[2mdist/[22m[32massets/granary-Bvj3LWjF.webp                                  [39m[1m[2m  137.00 kB[22m[1m[22m
+[2mdist/[22m[32massets/metallurgy_workshop-BLg8cWqi.webp                      [39m[1m[2m  137.73 kB[22m[1m[22m
+[2mdist/[22m[32massets/training_ground-DeLM4QF3.webp                          [39m[1m[2m  137.97 kB[22m[1m[22m
+[2mdist/[22m[32massets/reed_works-DIvZGRh4.webp                               [39m[1m[2m  142.98 kB[22m[1m[22m
+[2mdist/[22m[32massets/logging_company-QwprxuHv.webp                          [39m[1m[2m  143.38 kB[22m[1m[22m
+[2mdist/[22m[32massets/garment_factory-DVSWbhUo.webp                          [39m[1m[2m  143.69 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_age_new_water-BResHUZi.webp                      [39m[1m[2m  144.55 kB[22m[1m[22m
+[2mdist/[22m[32massets/fortress-JX1jMW_m.webp                                 [39m[1m[2m  144.60 kB[22m[1m[22m
+[2mdist/[22m[32massets/feudal_crusade_call-DfrghqQG.webp                      [39m[1m[2m  145.52 kB[22m[1m[22m
+[2mdist/[22m[32massets/great_flood-BPq7cA-s.webp                              [39m[1m[2m  145.62 kB[22m[1m[22m
+[2mdist/[22m[32massets/furniture_factory-C4CRnQpU.webp                        [39m[1m[2m  147.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/rail_depot--nQZeGRw.webp                               [39m[1m[2m  149.00 kB[22m[1m[22m
+[2mdist/[22m[32massets/house-CjQ8WvvF.webp                                    [39m[1m[2m  149.72 kB[22m[1m[22m
+[2mdist/[22m[32massets/plague_outbreak-DdY9eIc9.webp                          [39m[1m[2m  150.35 kB[22m[1m[22m
+[2mdist/[22m[32massets/wool_workshop-CLrf1CwP.webp                            [39m[1m[2m  150.39 kB[22m[1m[22m
+[2mdist/[22m[32massets/assassination_plot-BOtLDiIH.webp                       [39m[1m[2m  150.45 kB[22m[1m[22m
+[2mdist/[22m[32massets/stone_tool_workshop-Vaqfh4j8.webp                      [39m[1m[2m  150.65 kB[22m[1m[22m
+[2mdist/[22m[32massets/library-DwHmhXft.webp                                  [39m[1m[2m  151.67 kB[22m[1m[22m
+[2mdist/[22m[32massets/cultural_salon-CYxn9K0P.webp                           [39m[1m[2m  152.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/publishing_house-CBhcCWft.webp                         [39m[1m[2m  152.86 kB[22m[1m[22m
+[2mdist/[22m[32massets/coffee_plantation-ovBDjvwu.webp                        [39m[1m[2m  153.74 kB[22m[1m[22m
+[2mdist/[22m[32massets/shaft_mine-COSO6yfY.webp                               [39m[1m[2m  155.90 kB[22m[1m[22m
+[2mdist/[22m[32massets/townhouse-D4khJFfb.webp                                [39m[1m[2m  156.61 kB[22m[1m[22m
+[2mdist/[22m[32massets/tailor_workshop-CribB1sZ.webp                          [39m[1m[2m  156.80 kB[22m[1m[22m
+[2mdist/[22m[32massets/great_famine-Bnw2JOEr.webp                             [39m[1m[2m  157.71 kB[22m[1m[22m
+[2mdist/[22m[32massets/feudal_plague_doctor-BnegissS.webp                     [39m[1m[2m  158.41 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg_era_2_classical-DabNIB2L.webp                       [39m[1m[2m  158.79 kB[22m[1m[22m
+[2mdist/[22m[32massets/hut-LVQUC4Xi.webp                                      [39m[1m[2m  161.57 kB[22m[1m[22m
+[2mdist/[22m[32massets/copper_mine.bak-DD6sQtkq.webp                          [39m[1m[2m  162.73 kB[22m[1m[22m
+[2mdist/[22m[32massets/quarry-BAD9vus9.webp                                   [39m[1m[2m  163.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/dockyard-BkEil7rC.webp                                 [39m[1m[2m  164.64 kB[22m[1m[22m
+[2mdist/[22m[32massets/dye_workshop-Z59Ug4hI.webp                             [39m[1m[2m  165.09 kB[22m[1m[22m
+[2mdist/[22m[32massets/sawmill-BN2MKPw9.webp                                  [39m[1m[2m  166.02 kB[22m[1m[22m
+[2mdist/[22m[32massets/market-CJlj1pGm.webp                                   [39m[1m[2m  168.63 kB[22m[1m[22m
+[2mdist/[22m[32massets/lumber_mill.bak-DNjWIbL5.webp                          [39m[1m[2m  169.33 kB[22m[1m[22m
+[2mdist/[22m[32massets/copper_mine-Coug2DQu.webp                              [39m[1m[2m  173.13 kB[22m[1m[22m
+[2mdist/[22m[32massets/trading_post-DkxVBTfg.webp                             [39m[1m[2m  174.22 kB[22m[1m[22m
+[2mdist/[22m[32massets/barracks-DEem5Zva.webp                                 [39m[1m[2m  177.16 kB[22m[1m[22m
+[2mdist/[22m[32massets/classical_landowner_pressure-CjJpUwqD.webp             [39m[1m[2m  179.45 kB[22m[1m[22m
+[2mdist/[22m[32massets/manor_house-BQwkLpId.webp                              [39m[1m[2m  181.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/amphitheater-Bf7eVH44.webp                             [39m[1m[2m  181.83 kB[22m[1m[22m
+[2mdist/[22m[32massets/feudal_cleric_scandal-BBDkQA5I.webp                    [39m[1m[2m  182.19 kB[22m[1m[22m
+[2mdist/[22m[32massets/hardwood_camp-kjAZ39SJ.webp                            [39m[1m[2m  184.48 kB[22m[1m[22m
+[2mdist/[22m[32massets/exploration_new_world-yBBy20n5.webp                    [39m[1m[2m  185.23 kB[22m[1m[22m
+[2mdist/[22m[32massets/military_coup_threat-B6glYk_O.webp                     [39m[1m[2m  185.75 kB[22m[1m[22m
+[2mdist/[22m[32massets/classical_aqueduct_proposal-Gc_lDl0Z.webp              [39m[1m[2m  188.73 kB[22m[1m[22m
+[2mdist/[22m[32massets/dye_works-DE661Fa6.webp                                [39m[1m[2m  190.74 kB[22m[1m[22m
+[2mdist/[22m[32massets/currency_crisis-CbyaNZS6.webp                          [39m[1m[2m  194.34 kB[22m[1m[22m
+[2mdist/[22m[32massets/lumber_camp-0yXH1Lwc.webp                              [39m[1m[2m  195.83 kB[22m[1m[22m
+[2mdist/[22m[32massets/age_of_exploration_merchant_monopoly-B-qTLqAl.webp     [39m[1m[2m  198.71 kB[22m[1m[22m
+[2mdist/[22m[32massets/brickworks-evSlbQna.webp                               [39m[1m[2m  199.48 kB[22m[1m[22m
+[2mdist/[22m[32massets/farm-B3pwIqln.webp                                     [39m[1m[2m  200.42 kB[22m[1m[22m
+[2mdist/[22m[32massets/feudal_levy_dispute-CT4gp5JY.webp                      [39m[1m[2m  202.32 kB[22m[1m[22m
+[2mdist/[22m[32massets/loom_house-VmoM7Als.webp                               [39m[1m[2m  205.35 kB[22m[1m[22m
+[2mdist/[22m[32massets/palace_guard_demands-knOp2tvF.webp                     [39m[1m[2m  206.58 kB[22m[1m[22m
+[2mdist/[22m[32massets/civic_apartment-CTZIa9Zh.webp                          [39m[1m[2m  206.81 kB[22m[1m[22m
+[2mdist/[22m[32massets/classical_written_law-OBfYIX9N.webp                    [39m[1m[2m  207.18 kB[22m[1m[22m
+[2mdist/[22m[32massets/age_of_exploration_colonial_unrest-Bz-fWL-J.webp       [39m[1m[2m  220.49 kB[22m[1m[22m
+[2mdist/[22m[32massets/feudal_guild_charter-B3XRxmaU.webp                     [39m[1m[2m  223.75 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg_era_1_bronze-DS_IfOUj.webp                          [39m[1m[2m  226.37 kB[22m[1m[22m
+[2mdist/[22m[32massets/feudal_university_founding-CZEgm2xF.webp               [39m[1m[2m  232.37 kB[22m[1m[22m
+[2mdist/[22m[32massets/land_reform_proposal-CgiM6UMj.webp                     [39m[1m[2m  232.44 kB[22m[1m[22m
+[2mdist/[22m[32massets/classical_artistic_patronage-ByNgSN1P.webp             [39m[1m[2m  234.34 kB[22m[1m[22m
+[2mdist/[22m[32massets/magistrate_office-D8hUnLVc.webp                        [39m[1m[2m  236.34 kB[22m[1m[22m
+[2mdist/[22m[32massets/feudal_knight_parade-xh1PB5j8.webp                     [39m[1m[2m  237.55 kB[22m[1m[22m
+[2mdist/[22m[32massets/succession_dispute-AGnRC-95.webp                       [39m[1m[2m  237.55 kB[22m[1m[22m
+[2mdist/[22m[32massets/classical_scribe_salon-C9qie1QD.webp                   [39m[1m[2m  238.52 kB[22m[1m[22m
+[2mdist/[22m[32massets/bread_and_circuses-DmkSMOd0.webp                       [39m[1m[2m  250.42 kB[22m[1m[22m
+[2mdist/[22m[32massets/exploration_renaissance_artist-DlGCHhTB.webp           [39m[1m[2m  250.45 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg_era_4_exploration-Bv-7NqKP.webp                     [39m[1m[2m  260.92 kB[22m[1m[22m
+[2mdist/[22m[32massets/peasant_crusade-DU60xvnI.webp                          [39m[1m[2m  269.37 kB[22m[1m[22m
+[2mdist/[22m[32massets/bread_price_crisis-C5FdEKsl.webp                       [39m[1m[2m  272.07 kB[22m[1m[22m
+[2mdist/[22m[32massets/classical_philosopher_challenge-BjMYxnXN.webp          [39m[1m[2m  273.49 kB[22m[1m[22m
+[2mdist/[22m[32massets/bronze_age_skirmish-BTMErUn-.webp                      [39m[1m[2m  274.10 kB[22m[1m[22m
+[2mdist/[22m[32massets/technological_breakthrough-DNBRRXk8.webp               [39m[1m[2m  290.03 kB[22m[1m[22m
+[2mdist/[22m[32massets/simulation.worker-BYwyu4dL.js                          [39m[1m[2m  466.41 kB[22m[1m[22m
+[2mdist/[22m[35massets/index-C1Ars4dw.css                                     [39m[1m[2m  174.43 kB[22m[1m[22m[2m 鈹?gzip:  27.83 kB[22m
+[2mdist/[22m[36massets/web-DVXd22TV.js                                        [39m[1m[2m    0.44 kB[22m[1m[22m[2m 鈹?gzip:   0.29 kB[22m
+[2mdist/[22m[36massets/autonomousInvestment-WWA_9I3K.js                       [39m[1m[2m    8.38 kB[22m[1m[22m[2m 鈹?gzip:   3.45 kB[22m
+[2mdist/[22m[36massets/web-CeumRb2z.js                                        [39m[1m[2m    8.80 kB[22m[1m[22m[2m 鈹?gzip:   3.02 kB[22m
+[2mdist/[22m[36massets/vendor-7s51MWtJ.js                                     [39m[1m[2m   11.27 kB[22m[1m[22m[2m 鈹?gzip:   4.04 kB[22m
+[2mdist/[22m[36massets/motion-CXax0Jcm.js                                     [39m[1m[2m  119.51 kB[22m[1m[22m[2m 鈹?gzip:  39.65 kB[22m
+[2mdist/[22m[36massets/index-zyADW2Sn.js                                      [39m[1m[33m2,831.86 kB[39m[22m[2m 鈹?gzip: 830.16 kB[22m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-m
+anualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32m鉁?built in 8.43s[39m
