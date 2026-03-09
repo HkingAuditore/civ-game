@@ -1260,7 +1260,6 @@ const MilitaryTabComponent = ({
                         onSetBattleTactic={onSetBattleTactic}
                         onCreateBattle={onCreateBattle}
                         onSetPosture={onSetPosture}
-                        onSetCorpsFrontTask={onSetCorpsFrontTask}
                     />
                 </BottomSheet>
             )}

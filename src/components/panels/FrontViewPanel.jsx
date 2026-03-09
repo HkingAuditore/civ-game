@@ -123,7 +123,7 @@ const ForceColumn = ({
                 </div>
                 <div className="rounded-xl border border-gray-800 bg-black/20 p-2">
                     <p className="text-gray-500">补给率</p>
-                    <p className="mt-1 text-white">{Math.round((sideState?.supplyRatio || 1) * 100)}%</p>
+                    <p className="mt-1 text-white">{Math.round((sideState?.supplyRatio ?? 1) * 100)}%</p>
                 </div>
             </div>
             <div className="mt-3 space-y-2">
