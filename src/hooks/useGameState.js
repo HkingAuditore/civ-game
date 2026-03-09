@@ -1381,6 +1381,7 @@ export const useGameState = () => {
     const [generals, setGenerals] = useState([]); // 将领列表
     const [activeFronts, setActiveFronts] = useState([]); // 活跃战线
     const [activeBattles, setActiveBattles] = useState([]); // 进行中的战斗
+    const [pendingRepairs, setPendingRepairs] = useState([]); // 战后待修复建筑 [{ buildingId, count, source }]
 
     // ========== 庆典系统状态 ==========
     const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
@@ -1819,6 +1820,7 @@ export const useGameState = () => {
                 generals,
                 activeFronts,
                 activeBattles,
+                pendingRepairs,
                 selectedTarget,
                 battleResult,
                 playerInstallmentPayment,
@@ -2274,10 +2276,6 @@ export const useGameState = () => {
         setMilitaryQueue(data.militaryQueue || []);
         let loadedMilitaryCorps = (data.militaryCorps || [])
             .filter(Boolean)
-            .map((corps) => ({
-                ...corps,
-                fatigue: Math.max(0, Math.min(100, Math.round(Number(corps?.fatigue || 0)))),
-            }))
             .filter((corps) => getLoadedCorpsTotalUnits(corps) > 0);
         let loadedGenerals = (data.generals || []).filter(Boolean);
         const loadedFronts = (data.activeFronts || []).map(front => ensureFrontDefaults(front));
@@ -2448,6 +2446,7 @@ export const useGameState = () => {
         setGenerals(loadedGenerals);
         setActiveFronts(reconciledFronts);
         setActiveBattles(reconciledBattles);
+        setPendingRepairs(data.pendingRepairs || []);
         migratedNations = hydratedNations;
         setSelectedTarget(data.selectedTarget || null);
         setBattleResult(data.battleResult || null);
@@ -3666,6 +3665,8 @@ export const useGameState = () => {
         setActiveFronts,
         activeBattles,
         setActiveBattles,
+        pendingRepairs,
+        setPendingRepairs,
 
         // 庆典系统
         festivalModal,

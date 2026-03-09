@@ -5,6 +5,7 @@
  */
 
 import { RESOURCES, EPOCHS } from '../../config';
+import { WAR_ECONOMY } from '../../config/gameConstants';
 import { clamp } from '../utils';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
@@ -535,10 +536,16 @@ export const updateAIDevelopment = ({
     // [FIX] Wealth should NOT drift independently - it's tied to population growth
     // Only apply minor adjustments here, main wealth growth is in processAIIndependentGrowth
     
-    // War penalty on wealth (looting, destruction)
+    // War penalty on wealth (looting, destruction) — 使用 WAR_ECONOMY 常量保持与玩家侧一致
     let adjustedWealth = currentWealth;
     if (next.isAtWar) {
-        adjustedWealth -= currentWealth * 0.003 * tickScaleFactor;  // Small war penalty
+        // 基础战时财富损耗：介于经济区(2%)和核心区(4%)的中间值，按tick缩放
+        const warWealthPenaltyRate = (WAR_ECONOMY.AI_WEALTH_LOSS_ECONOMIC + WAR_ECONOMY.AI_WEALTH_LOSS_CAPITAL) / 2;
+        adjustedWealth -= currentWealth * warWealthPenaltyRate * 0.15 * tickScaleFactor;  // ×0.15缓和每tick的影响
+
+        // 战时 militaryStrength 缓慢消耗（模拟装备损耗和后勤压力）
+        const currentStrength = next.militaryStrength ?? 1.0;
+        next.militaryStrength = Math.max(0.5, currentStrength - 0.002 * tickScaleFactor);
     }
     
     // Small random fluctuation (±1%)
@@ -586,7 +593,8 @@ export const processPostWarRecovery = (nation) => {
     if (!nation.isAtWar) {
         const currentStrength = nation.militaryStrength ?? 1.0;
         if (currentStrength < 1.0) {
-            const recoveryRate = 0.005;
+            // 战后 militaryStrength 恢复，使用与wealth恢复一致的数量级
+            const recoveryRate = WAR_ECONOMY.AI_POST_WAR_WEALTH_RECOVERY * 5; // 0.005/tick
             nation.militaryStrength = Math.min(1.0, currentStrength + recoveryRate);
         }
     }

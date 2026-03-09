@@ -99,9 +99,11 @@ import {
     getEnemySide,
     summarizeFrontState,
 } from '../logic/diplomacy/frontSystem';
-import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults } from '../logic/diplomacy/battleSystem';
+import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits } from '../logic/diplomacy/corpsSystem';
-import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan } from '../logic/diplomacy/aiWar';
+import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan, evaluateGeneralBattleProposal, allocateAICorpsToFronts, applyAICorpsAllocation } from '../logic/diplomacy/aiWar';
+import { calculateWarPlunder } from '../logic/diplomacy/warEconomy';
+import { createBattleProposalEvent } from '../config/events/diplomaticEvents';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
@@ -113,7 +115,6 @@ const getUnitPopulationCost = (unitId) => {
     return unit?.populationCost || 1;
 };
 
-const clampPercent = (value) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
 
 const getMilitaryCapacity = (buildingState = {}) => {
     let capacity = 0;
@@ -127,10 +128,18 @@ const getMilitaryCapacity = (buildingState = {}) => {
     return capacity;
 };
 
-const getTotalArmyCount = (armyState = {}, queueState = []) => {
+// [FIX Bug8/9] 统计所有军事单位：散兵 + 训练队列 + 军团内单位
+const getTotalArmyCount = (armyState = {}, queueState = [], corpsState = []) => {
     const armyCount = Object.values(armyState || {}).reduce((sum, count) => sum + (count || 0), 0);
     const queueCount = Array.isArray(queueState) ? queueState.length : 0;
-    return armyCount + queueCount;
+    let corpsCount = 0;
+    if (Array.isArray(corpsState)) {
+        for (const corps of corpsState) {
+            if (corps?.isAI) continue;
+            corpsCount += Object.values(corps?.units || {}).reduce((sum, c) => sum + (c || 0), 0);
+        }
+    }
+    return armyCount + queueCount + corpsCount;
 };
 
 const formatUnitSummary = (unitMap = {}) => {
@@ -2682,16 +2691,33 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             if (playerSide) {
                                 const supplyCost = calculateRoundSupplyCost(battle, playerSide, current.epoch || 0);
                                 let hasEnoughSupply = true;
+                                // [FIX Bug12] 计算实际补给满足率（定量而非定性）
+                                let totalNeeded = 0;
+                                let totalFulfilled = 0;
                                 for (const [resource, cost] of Object.entries(supplyCost)) {
-                                    if ((adjustedResources[resource] || 0) < cost) hasEnoughSupply = false;
-                                    adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - cost);
+                                    const available = adjustedResources[resource] || 0;
+                                    totalNeeded += cost;
+                                    totalFulfilled += Math.min(available, cost);
+                                    if (available < cost) hasEnoughSupply = false;
+                                    adjustedResources[resource] = Math.max(0, available - cost);
                                 }
+                                // [FIX Bug12] 用实际满足率更新 supply ratio
+                                const actualSupplyRatio = totalNeeded > 0 ? totalFulfilled / totalNeeded : 1;
                                 if (!hasEnoughSupply) {
                                     if (playerSide === 'attacker') {
-                                        battleContext.supply.attacker = { ...(battleContext.supply.attacker || {}), hasEnoughSupply: false };
+                                        battleContext.supply.attacker = {
+                                            ...(battleContext.supply.attacker || {}),
+                                            hasEnoughSupply: false,
+                                            ratio: Math.min(battleContext.supply.attacker?.ratio ?? 1, actualSupplyRatio),
+                                        };
                                     } else {
-                                        battleContext.supply.defender = { ...(battleContext.supply.defender || {}), hasEnoughSupply: false };
+                                        battleContext.supply.defender = {
+                                            ...(battleContext.supply.defender || {}),
+                                            hasEnoughSupply: false,
+                                            ratio: Math.min(battleContext.supply.defender?.ratio ?? 1, actualSupplyRatio),
+                                        };
                                     }
+                                }
                                     battleLogs.push(`鈿狅笍 琛ョ粰涓嶈冻锛?{battle.typeName}銆?{battle.attacker.corpsName} vs ${battle.defender.corpsName}銆嶆垬鏂楀姏涓嬮檷`);
                                 }
                             }
@@ -2699,6 +2725,18 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             // Process one combat round
                             const updatedBattle = processCombatRound(battle, atkGeneral, defGeneral, battleContext);
                             const phaseResolved = Number(updatedBattle.lastResolvedPhaseDay || 0) > Number(battle.lastResolvedPhaseDay || 0);
+
+                            // 阶段切换时：将领自动调整战术
+                            if (phaseResolved && updatedBattle.status === 'active') {
+                                const newAtkTactic = autoSelectTactic(updatedBattle, 'attacker', atkGeneral);
+                                const newDefTactic = autoSelectTactic(updatedBattle, 'defender', defGeneral);
+                                if (updatedBattle.battlePlan) {
+                                    updatedBattle.battlePlan.attacker = newAtkTactic;
+                                    updatedBattle.battlePlan.defender = newDefTactic;
+                                }
+                                if (updatedBattle.attacker) updatedBattle.attacker.plan = newAtkTactic;
+                                if (updatedBattle.defender) updatedBattle.defender.plan = newDefTactic;
+                            }
 
                             if (front && playerSide && phaseResolved && updatedBattle.latestPhaseOutcome) {
                                 const phaseOutcome = updatedBattle.latestPhaseOutcome;
@@ -2841,6 +2879,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         return {
                                             ...f,
                                             activeBattleId: null,
+                                            activeBattleType: null,
+                                            lastBattleEndDay: resolvedDay,
                                             recentBattleReports: [report, ...(f.recentBattleReports || [])]
                                                 .filter((item) => Number(item?.expiresDay || 0) >= resolvedDay)
                                                 .slice(0, 5),
@@ -2883,6 +2923,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         const currentDay = (current.daysElapsed || 0) + 1;
                         const buildingDestructionQueue = []; // { buildingId, count } for player buildings destroyed
                         const aiNationBuildingDestruction = []; // { nationId, buildingId, count } for AI buildings destroyed
+                        const frictionPlunderQueue = []; // [NEW] 战线摩擦中的持续掠夺收集
                         updatedFronts = updatedFronts.map(f => {
                             if (f.status !== 'active') return f;
                             const playerSide = getPlayerSide(f);
@@ -3012,6 +3053,25 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 battleLogs.push(`战线摩擦：${frictionResult.events[0].text}（我方损失${frictionResult.casualties.player}，敌方损失${frictionResult.casualties.enemy}）`);
                             }
 
+                            // [NEW] 持续财富掠夺：用实际敌方财富计算
+                            const enemyIdForPlunder = playerSide === 'attacker' ? f.defenderId : f.attackerId;
+                            const enemyNationForPlunder = (current.nations || []).find(n => n.id === enemyIdForPlunder);
+                            if (enemyNationForPlunder) {
+                                const actualPlunder = calculateWarPlunder({
+                                    targetWealth: enemyNationForPlunder.wealth || 0,
+                                    linePosition: updatedFront.linePosition || f.linePosition || 50,
+                                    side: playerSide === 'attacker' ? 'defender' : 'attacker',
+                                    raidMod: frictionResult.plunderResult?.raidMod || 1.0,
+                                });
+                                if (actualPlunder.wealthPlundered > 0) {
+                                    frictionPlunderQueue.push({
+                                        enemyId: enemyIdForPlunder,
+                                        wealthPlundered: actualPlunder.wealthPlundered,
+                                        wealthGained: actualPlunder.wealthGained,
+                                    });
+                                }
+                            }
+
                             return updatedFront;
                         });
 
@@ -3035,6 +3095,34 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                                 return { ...n, economy: { ...n.economy, buildings: newBuildings } };
                             }));
+                        }
+
+                        // --- [NEW] 消费战线摩擦中的持续财富掠夺 ---
+                        if (frictionPlunderQueue.length > 0) {
+                            // 汇总每个AI国家的掠夺
+                            const plunderByEnemy = {};
+                            let totalPlayerGain = 0;
+                            for (const { enemyId, wealthPlundered, wealthGained } of frictionPlunderQueue) {
+                                plunderByEnemy[enemyId] = (plunderByEnemy[enemyId] || 0) + wealthPlundered;
+                                totalPlayerGain += wealthGained;
+                            }
+                            // 扣减AI财富
+                            if (Object.keys(plunderByEnemy).length > 0) {
+                                setNations(prev => prev.map(n => {
+                                    const loss = plunderByEnemy[n.id];
+                                    if (!loss) return n;
+                                    return { ...n, wealth: Math.max(100, Math.round((n.wealth || 500) - loss)) };
+                                }));
+                            }
+                            // 增加玩家银币
+                            if (totalPlayerGain > 1) {
+                                const gain = Math.floor(totalPlayerGain);
+                                setResources(prev => ({
+                                    ...prev,
+                                    silver: (prev.silver || 0) + gain,
+                                }));
+                                battleLogs.push(`💰 从敌方经济区持续掠夺${gain}银币`);
+                            }
                         }
 
                         // --- Core zone population loss: when enemy pushes into capital zone ---
@@ -3073,6 +3161,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         });
 
                         // --- Process line advancement and war-front consistency ---
+                        const warEconomyDamages = []; // 收集 processFrontAdvance 产生的战争经济伤害
                         updatedFronts = updatedFronts.map(front => {
                             if (front.status !== 'active') return front;
                             const playerSide = getPlayerSide(front);
@@ -3113,6 +3202,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 defenderBuildings
                             );
                             const resolvedSummary = summarizeFrontState(advancedFront, attackerCorps, defenderCorps);
+
+                            // [NEW] 收集战争经济伤害（建筑破坏、人口流失）
+                            if (advancedFront.warEconomyDamage) {
+                                warEconomyDamages.push(advancedFront.warEconomyDamage);
+                            }
+
                             const lineShift = (advancedFront.linePosition || 0) - (front.linePosition || 0);
                             const playerAdvance = playerSide === 'attacker' ? lineShift : -lineShift;
                             const playerRelativePosition = playerSide === 'attacker'
@@ -3190,6 +3285,83 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             };
                         });
 
+                        // --- [NEW] 消费 processFrontAdvance 产生的战争经济伤害 ---
+                        if (warEconomyDamages.length > 0) {
+                            const playerBuildingDamage = {};   // 玩家建筑破坏
+                            const aiDamages = {};              // AI国家经济损伤
+                            let playerPopLoss = 0;
+                            let playerWealthGain = 0;          // 玩家掠夺获益
+
+                            for (const dmg of warEconomyDamages) {
+                                if (!dmg) continue;
+                                const victimId = dmg.victimId;
+
+                                if (victimId === 'player') {
+                                    // 玩家侧建筑破坏
+                                    for (const [bId, cnt] of Object.entries(dmg.destroyedBuildings || {})) {
+                                        playerBuildingDamage[bId] = (playerBuildingDamage[bId] || 0) + cnt;
+                                    }
+                                    // 玩家人口流失
+                                    if (dmg.populationLossRate > 0) {
+                                        playerPopLoss += Math.floor((current.population || 1000) * dmg.populationLossRate);
+                                    }
+                                } else if (victimId) {
+                                    // AI侧经济损伤
+                                    if (!aiDamages[victimId]) aiDamages[victimId] = { wealthLoss: 0, milStrLoss: 0 };
+                                    aiDamages[victimId].wealthLoss += (dmg.wealthLoss || 0);
+                                    aiDamages[victimId].milStrLoss += (dmg.milStrLoss || 0);
+                                    // 玩家获得掠夺收益（通过建筑破坏间接获益的部分，这里取AI财富损失的60%）
+                                    if (dmg.wealthLoss > 0) {
+                                        playerWealthGain += dmg.wealthLoss * 0.6;
+                                    }
+                                }
+                            }
+
+                            // 应用玩家建筑破坏
+                            if (Object.keys(playerBuildingDamage).length > 0) {
+                                setBuildings(prev => {
+                                    const next = { ...prev };
+                                    for (const [bId, cnt] of Object.entries(playerBuildingDamage)) {
+                                        next[bId] = Math.max(0, (next[bId] || 0) - cnt);
+                                    }
+                                    return next;
+                                });
+                                const damagedNames = Object.keys(playerBuildingDamage).map(bId => getBuildingDisplayName(bId)).filter(Boolean);
+                                if (damagedNames.length > 0) {
+                                    battleLogs.push(`🔥 战线推进破坏了我方建筑：${damagedNames.join('、')}`);
+                                }
+                            }
+
+                            // 应用AI经济损伤
+                            if (Object.keys(aiDamages).length > 0) {
+                                setNations(prev => prev.map(n => {
+                                    const dmg = aiDamages[n.id];
+                                    if (!dmg) return n;
+                                    return {
+                                        ...n,
+                                        wealth: Math.max(100, Math.round((n.wealth || 500) - dmg.wealthLoss)),
+                                        militaryStrength: Math.max(0.25, (n.militaryStrength ?? 1.0) - dmg.milStrLoss),
+                                    };
+                                }));
+                            }
+
+                            // 应用玩家人口流失
+                            if (playerPopLoss > 0) {
+                                setPopulation(prev => Math.max(100, prev - playerPopLoss));
+                                battleLogs.push(`💀 战线推进造成平民伤亡，人口损失${playerPopLoss}`);
+                            }
+
+                            // 应用玩家掠夺获益
+                            if (playerWealthGain > 1) {
+                                const gain = Math.floor(playerWealthGain);
+                                setResources(prev => ({
+                                    ...prev,
+                                    silver: (prev.silver || 0) + gain,
+                                }));
+                                battleLogs.push(`💰 从敌方战区掠夺${gain}银币`);
+                            }
+                        }
+
                         // Collapse active fronts if the nation is no longer at war with player.
                         updatedFronts = updatedFronts.map(front => {
                             if (front.status !== 'active') return front;
@@ -3266,16 +3438,39 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     ...corps,
                                     status: 'destroyed',
                                     assignedFrontId: null,
-                                    fatigue: 100,
                                 };
                             }
                             const isInCombat = activeBattleCorpsSet.has(corps.id) || corps.status === 'in_combat';
                             const isOnFront = Boolean(corps.assignedFrontId);
-                            const fatigueDelta = isInCombat ? 10 : isOnFront ? 3 : -8;
+
+                            // 补给不足 → 缓慢掉士气
+                            let moraleDelta = 0;
+                            if (isOnFront) {
+                                const corpsOnFront = updatedFronts.find(f => f?.id === corps.assignedFrontId);
+                                const supplyRatio = corpsOnFront?.supplyState?.playerRatio ?? 1;
+                                if (supplyRatio < 0.85) {
+                                    // 补给率 < 85% 开始掉士气，越低掉越快（最多每 tick -10）
+                                    moraleDelta = -Math.ceil((0.85 - supplyRatio) * 12);
+                                }
+                            } else {
+                                // 待命军团缓慢恢复士气
+                                moraleDelta = corps.morale < 100 ? 2 : 0;
+                            }
+
+                            // [FIX Bug5] 欠饷被动士气衰减：每 tick -3 ~ -6（视支付比例而定）
+                            if (!corps.isAI) {
+                                const milExpense = current.dailyMilitaryExpense;
+                                if (milExpense?.isUnderPaid) {
+                                    const payRatio = milExpense.payRatio ?? 0;
+                                    // payRatio=0 → -6/tick，payRatio=0.5 → -3/tick
+                                    moraleDelta -= Math.ceil((1 - payRatio) * 6);
+                                }
+                            }
+
                             return {
                                 ...corps,
                                 status: isInCombat ? 'in_combat' : (corps.status === 'destroyed' ? 'idle' : corps.status),
-                                fatigue: clampPercent((corps.fatigue || 0) + fatigueDelta),
+                                morale: Math.max(10, Math.min(100, (corps.morale ?? 100) + moraleDelta)),
                             };
                         });
 
@@ -3370,6 +3565,49 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             aiNationChangedIds.add(syncResult.nation.id);
                             return syncResult.nation;
                         });
+
+                        // [NEW] 跨战线军团调度：每个AI国家的有限军团按优先级分配到各活跃战线
+                        for (const nation of aiNations) {
+                            if (!nation || nation.id === 'player') continue;
+                            const nationActiveFronts = updatedFronts.filter(f =>
+                                f.status === 'active' && (f.attackerId === nation.id || f.defenderId === nation.id)
+                            );
+                            if (nationActiveFronts.length === 0) continue;
+
+                            const { allocations } = allocateAICorpsToFronts({
+                                nation,
+                                allCorps: updatedCorps,
+                                activeFronts: nationActiveFronts,
+                                epoch: current.epoch || 0,
+                            });
+
+                            updatedCorps = applyAICorpsAllocation({
+                                allocations,
+                                allCorps: updatedCorps,
+                                nation,
+                                epoch: current.epoch || 0,
+                            });
+
+                            // 同步战线的 assignedCorps 记录
+                            for (const [frontId, corpsIds] of Object.entries(allocations)) {
+                                updatedFronts = updatedFronts.map(f => {
+                                    if (f.id !== frontId) return f;
+                                    const side = f.attackerId === nation.id ? 'attacker' : 'defender';
+                                    return {
+                                        ...f,
+                                        assignedCorps: {
+                                            ...f.assignedCorps,
+                                            [side]: [...new Set([...(f.assignedCorps?.[side] || []).filter(id => {
+                                                // 保留非本国家的军团ID
+                                                const corps = updatedCorps.find(c => c.id === id);
+                                                return corps && corps.nationId !== nation.id;
+                                            }), ...corpsIds])],
+                                        },
+                                    };
+                                });
+                            }
+                            aiNationChangedIds.add(nation.id);
+                        }
 
                         for (const front of fronts) {
                             if (front.status !== 'active') continue;
@@ -3470,16 +3708,117 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 });
                             }
 
-                            // --- AI initiates battle if conditions met ---
+
+                            // --- 会战发起逻辑：将领提议（玩家侧）+ AI自动 ---
                             const hasBattleOnFront = battles.some(b =>
                                 b.frontId === front.id && b.status === 'active'
                             );
                             const refreshedEnemyCorpsOnFront = updatedCorps.filter(c => c.isAI && c.assignedFrontId === front.id && c.nationId === enemyId);
-                            if (!hasBattleOnFront && refreshedEnemyCorpsOnFront.length > 0 && playerCorpsOnFront.length > 0 && frontPlan.shouldAttack) {
-                                // AI attack cooldown: every 5-15 days
+
+                            if (!hasBattleOnFront && refreshedEnemyCorpsOnFront.length > 0 && playerCorpsOnFront.length > 0) {
                                 const lastBattleDay = front._lastBattleDay || 0;
                                 const battleCooldown = front._battleCooldown || (5 + Math.floor(Math.random() * 10));
-                                if (currentDay - lastBattleDay >= battleCooldown) {
+                                const cooldownMet = currentDay - lastBattleDay >= battleCooldown;
+
+                                // === 玩家侧：将领提议系统 ===
+                                if (cooldownMet && currentActions?.triggerDiplomaticEvent) {
+                                    for (const pCorps of playerCorpsOnFront) {
+                                        const pGeneral = (updatedGenerals || []).find(g => g.assignedCorpsId === pCorps.id);
+                                        if (!pGeneral) continue;
+
+                                        const proposal = evaluateGeneralBattleProposal({
+                                            general: pGeneral,
+                                            corps: pCorps,
+                                            front,
+                                            allCorps: updatedCorps,
+                                            generals: updatedGenerals,
+                                            epoch: current.epoch || 0,
+                                            currentDay,
+                                        });
+
+                                        if (!proposal.shouldPropose) continue;
+
+                                        // 更新将军的提议日
+                                        updatedGenerals = updatedGenerals.map(g =>
+                                            g.id === pGeneral.id ? { ...g, lastBattleProposalDay: currentDay } : g
+                                        );
+
+                                        // 生成提议事件弹窗
+                                        const proposalEvent = createBattleProposalEvent({
+                                            general: pGeneral,
+                                            corps: pCorps,
+                                            front,
+                                            proposal,
+                                            callback: (choice) => {
+                                                if (choice === 'approve') {
+                                                    // 批准：创建会战
+                                                    const picks = selectBattleParticipants({
+                                                        attackerCorps: playerSide === 'attacker' ? [pCorps] : refreshedEnemyCorpsOnFront,
+                                                        defenderCorps: playerSide === 'attacker' ? refreshedEnemyCorpsOnFront : [pCorps],
+                                                        generals: updatedGenerals || [],
+                                                    });
+                                                    const atkCorps = picks.attacker?.corps;
+                                                    const defCorps = picks.defender?.corps;
+                                                    if (!atkCorps || !defCorps) return;
+                                                    const atkGen = (updatedGenerals || []).find(g => g.id === atkCorps.generalId || g.assignedCorpsId === atkCorps.id) || null;
+                                                    const defGen = (updatedGenerals || []).find(g => g.id === defCorps.generalId || g.assignedCorpsId === defCorps.id) || null;
+                                                    // 将领自动选择战术
+                                                    const atkTactic = autoSelectTactic(null, 'attacker', atkGen);
+                                                    const defTactic = autoSelectTactic(null, 'defender', defGen);
+                                                    const newBattle = createBattle({
+                                                        attackerCorps: atkCorps,
+                                                        defenderCorps: defCorps,
+                                                        attackerGeneral: atkGen,
+                                                        defenderGeneral: defGen,
+                                                        front,
+                                                        engagementType: proposal.engagementType,
+                                                        battlePlan: { attacker: atkTactic, defender: defTactic },
+                                                        epoch: current.epoch || 0,
+                                                        currentDay,
+                                                    });
+                                                    if (!newBattle) return;
+                                                    setActiveBattles(prev => [...(prev || []), newBattle]);
+                                                    setMilitaryCorps(prev => prev.map(c =>
+                                                        (c.id === atkCorps.id || c.id === defCorps.id) ? { ...c, status: 'in_combat' } : c
+                                                    ));
+                                                    setActiveFronts(prev => prev.map(f =>
+                                                        f.id !== front.id ? f : {
+                                                            ...f,
+                                                            activeBattleId: newBattle.id,
+                                                            activeBattleType: proposal.engagementType,
+                                                            _lastBattleDay: currentDay,
+                                                            _battleCooldown: 5 + Math.floor(Math.random() * 10),
+                                                        }
+                                                    ));
+                                                    setGenerals(prev => prev.map(g =>
+                                                        g.id === pGeneral.id ? { ...g, proposalCooldownDays: 0 } : g
+                                                    ));
+                                                    addLog(`⚔️ ${pGeneral.name}将军率「${pCorps.name}」发起${proposal.engagementType === 'siege' ? '攻坚围城' : proposal.engagementType === 'assault' ? '主力决战' : '试探接敌'}`);
+                                                } else if (choice === 'delay') {
+                                                    // 暂缓：48天冷却
+                                                    setGenerals(prev => prev.map(g =>
+                                                        g.id === pGeneral.id ? { ...g, proposalCooldownDays: 48 } : g
+                                                    ));
+                                                } else if (choice === 'reject') {
+                                                    // 否决：士气-8，30天冷却
+                                                    setMilitaryCorps(prev => prev.map(c =>
+                                                        c.id === pCorps.id ? { ...c, morale: Math.max(0, (c.morale || 100) - 8) } : c
+                                                    ));
+                                                    setGenerals(prev => prev.map(g =>
+                                                        g.id === pGeneral.id ? { ...g, proposalCooldownDays: 30 } : g
+                                                    ));
+                                                    addLog(`${pGeneral.name}将军的请战被否决`);
+                                                }
+                                            },
+                                        });
+
+                                        currentActions.triggerDiplomaticEvent(proposalEvent);
+                                        break; // 每条战线每日最多一个提议
+                                    }
+                                }
+
+                                // === AI 侧：自动发起会战（保留原有逻辑，改用 autoSelectTactic）===
+                                if (cooldownMet && frontPlan.shouldAttack) {
                                     const picks = selectBattleParticipants({
                                         attackerCorps: playerSide === 'attacker' ? playerCorpsOnFront : refreshedEnemyCorpsOnFront,
                                         defenderCorps: playerSide === 'attacker' ? refreshedEnemyCorpsOnFront : playerCorpsOnFront,
@@ -3487,73 +3826,63 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     });
                                     const aiCorps = playerSide === 'attacker' ? picks.defender?.corps : picks.attacker?.corps;
                                     const playerCorps = playerSide === 'attacker' ? picks.attacker?.corps : picks.defender?.corps;
-                                    if (!aiCorps || !playerCorps) {
-                                        continue;
-                                    }
-                                    const aiGeneral = (updatedGenerals || []).find(g => g.id === aiCorps.generalId) || null;
-                                    const playerGeneral = (updatedGenerals || []).find(g => g.assignedCorpsId === playerCorps.id) || null;
+                                    if (aiCorps && playerCorps) {
+                                        const aiGeneral = (updatedGenerals || []).find(g => g.id === aiCorps.generalId) || null;
+                                        const playerGeneral = (updatedGenerals || []).find(g => g.assignedCorpsId === playerCorps.id) || null;
 
-                                    // Determine engagement type based on front depth and force size
-                                    const aiUnits = Object.values(aiCorps.units || {}).reduce((s, c) => s + c, 0);
-                                    const playerUnits = Object.values(playerCorps.units || {}).reduce((s, c) => s + c, 0);
-                                    const totalUnits = aiUnits + playerUnits;
-                                    const playerRelativePosition = playerSide === 'attacker'
-                                        ? Number(front.linePosition || 50)
-                                        : 100 - Number(front.linePosition || 50);
-                                    let engagementType = 'probe';
-                                    if (playerRelativePosition >= 65 || playerRelativePosition <= 35) {
-                                        engagementType = 'assault';
-                                    }
-                                    if ((playerRelativePosition >= 82 || playerRelativePosition <= 18) && totalUnits > 180) {
-                                        engagementType = 'siege';
-                                    }
-
-                                    const playerPlan = playerRelativePosition > 58 ? 'steady' : 'hold';
-                                    const aiPlan = frontPlan.posture === 'offensive'
-                                        ? 'shock'
-                                        : frontPlan.posture === 'attrition'
-                                            ? 'hold'
-                                            : 'steady';
-
-                                    // Determine attacker/defender based on front roles
-                                    const isPlayerAttacker = playerSide === 'attacker';
-                                    const newBattle = createBattle({
-                                        attackerCorps: isPlayerAttacker ? playerCorps : aiCorps,
-                                        defenderCorps: isPlayerAttacker ? aiCorps : playerCorps,
-                                        attackerGeneral: isPlayerAttacker ? playerGeneral : aiGeneral,
-                                        defenderGeneral: isPlayerAttacker ? aiGeneral : playerGeneral,
-                                        front,
-                                        engagementType,
-                                        battlePlan: isPlayerAttacker
-                                            ? { attacker: playerPlan, defender: aiPlan }
-                                            : { attacker: aiPlan, defender: playerPlan },
-                                        epoch: current.epoch || 0,
-                                        currentDay,
-                                    });
-
-                                    // [FIX] Handle null battle (one side has 0 units)
-                                    if (!newBattle) continue;
-
-                                    updatedBattles.push(newBattle);
-                                    updatedCorps = updatedCorps.map(c => {
-                                        if (c.id === aiCorps.id || c.id === playerCorps.id) {
-                                            return { ...c, status: 'in_combat' };
+                                        const aiUnits = Object.values(aiCorps.units || {}).reduce((s, c) => s + c, 0);
+                                        const playerUnitsCount = Object.values(playerCorps.units || {}).reduce((s, c) => s + c, 0);
+                                        const totalUnitsCount = aiUnits + playerUnitsCount;
+                                        const playerRelativePosition = playerSide === 'attacker'
+                                            ? Number(front.linePosition || 50)
+                                            : 100 - Number(front.linePosition || 50);
+                                        let engagementType = 'probe';
+                                        if (playerRelativePosition >= 65 || playerRelativePosition <= 35) {
+                                            engagementType = 'assault';
                                         }
-                                        return c;
-                                    });
-                                    updatedFronts = updatedFronts.map(f => {
-                                        if (f.id !== front.id) return f;
-                                        return {
-                                            ...f,
-                                            activeBattleId: newBattle.id,
-                                            _lastBattleDay: currentDay,
-                                            _battleCooldown: 5 + Math.floor(Math.random() * 10),
-                                        };
-                                    });
+                                        if ((playerRelativePosition >= 82 || playerRelativePosition <= 18) && totalUnitsCount > 180) {
+                                            engagementType = 'siege';
+                                        }
 
-                                    const atkName = isPlayerAttacker ? playerCorps.name : aiCorps.name;
-                                    const defName = isPlayerAttacker ? aiCorps.name : playerCorps.name;
-                                    addLog(`战线会战爆发：${atkName} 对阵 ${defName}`);
+                                        const isPlayerAttacker = playerSide === 'attacker';
+                                        // 双方将领自动选择战术
+                                        const atkTactic = autoSelectTactic(null, 'attacker', isPlayerAttacker ? playerGeneral : aiGeneral);
+                                        const defTactic = autoSelectTactic(null, 'defender', isPlayerAttacker ? aiGeneral : playerGeneral);
+                                        const newBattle = createBattle({
+                                            attackerCorps: isPlayerAttacker ? playerCorps : aiCorps,
+                                            defenderCorps: isPlayerAttacker ? aiCorps : playerCorps,
+                                            attackerGeneral: isPlayerAttacker ? playerGeneral : aiGeneral,
+                                            defenderGeneral: isPlayerAttacker ? aiGeneral : playerGeneral,
+                                            front,
+                                            engagementType,
+                                            battlePlan: { attacker: atkTactic, defender: defTactic },
+                                            epoch: current.epoch || 0,
+                                            currentDay,
+                                        });
+
+                                        if (newBattle) {
+                                            updatedBattles.push(newBattle);
+                                            updatedCorps = updatedCorps.map(c => {
+                                                if (c.id === aiCorps.id || c.id === playerCorps.id) {
+                                                    return { ...c, status: 'in_combat' };
+                                                }
+                                                return c;
+                                            });
+                                            updatedFronts = updatedFronts.map(f => {
+                                                if (f.id !== front.id) return f;
+                                                return {
+                                                    ...f,
+                                                    activeBattleId: newBattle.id,
+                                                    activeBattleType: engagementType,
+                                                    _lastBattleDay: currentDay,
+                                                    _battleCooldown: 5 + Math.floor(Math.random() * 10),
+                                                };
+                                            });
+                                            const atkName = isPlayerAttacker ? playerCorps.name : aiCorps.name;
+                                            const defName = isPlayerAttacker ? aiCorps.name : playerCorps.name;
+                                            addLog(`⚔️ 敌军发起会战：${atkName} 对阵 ${defName}`);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -6039,8 +6368,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 setMilitaryQueue(prev => {
                     let baseQueue = queueOverrideForManpower || prev;
                     const currentSoldierPop = (soldierPopulationAfterEvents ?? result.popStructure?.soldier) || 0;
-                    // [FIX] 浣跨敤鎴樻枟鍚庣殑鍐涢槦鐘舵€?(result.army)
-                    const currentArmyCount = Object.values(result.army || armyStateForQueue || {}).reduce((sum, count) => sum + count, 0);
+                    // [FIX Bug8/9] 使用战斗后的军队状态 + 军团内单位
+                    let currentArmyCount = Object.values(result.army || armyStateForQueue || {}).reduce((sum, count) => sum + count, 0);
+                    const corpsForQueueCap = current.militaryCorps || [];
+                    for (const cps of corpsForQueueCap) {
+                        if (cps?.isAI) continue;
+                        currentArmyCount += Object.values(cps?.units || {}).reduce((sum, c) => sum + c, 0);
+                    }
                     // [FIX] 璁＄畻鍐涢槦瀹為檯浜哄彛娑堣€楋紙鑰冭檻涓嶅悓鍏电鐨刾opulationCost锛?
                     const currentArmyPopulation = calculateArmyPopulation(result.army || armyStateForQueue || {});
                     const militaryCapacity = getMilitaryCapacity(current.buildings || {});
@@ -6249,9 +6583,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
 
                     // [FIX] 璁＄畻鍙互鍔犲叆鍐涢槦鐨勬暟閲忥紙涓嶈秴杩囧閲忎笂闄愶級
-                    const currentTotalArmy = Object.values(result.army || armyStateForQueue || {}).reduce((sum, c) => sum + c, 0);
+                    // [FIX Bug8] 计算可以加入军队的数量（不超过容量上限）
+                    // 必须包含军团内的兵力，否则容量计算偏低导致丢兵
+                    let currentTotalArmy = Object.values(result.army || armyStateForQueue || {}).reduce((sum, c) => sum + c, 0);
+                    const corpsForCapCheck = current.militaryCorps || [];
+                    for (const cps of corpsForCapCheck) {
+                        if (cps?.isAI) continue;
+                        currentTotalArmy += Object.values(cps?.units || {}).reduce((sum, c) => sum + c, 0);
+                    }
                     const slotsAvailableForCompletion = militaryCapacity > 0
                         ? Math.max(0, militaryCapacity - currentTotalArmy)
+                        : completed.length;
                         : completed.length; // 濡傛灉娌℃湁瀹归噺闄愬埗锛屽厑璁告墍鏈夊畬鎴愮殑鍗曚綅鍔犲叆
 
                     // 鍙彇鑳藉姞鍏ョ殑閮ㄥ垎
@@ -6263,7 +6605,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setArmy(prevArmy => {
                             const newArmy = { ...prevArmy };
                             // [FIX] 鍐嶆妫€鏌ュ閲忥紝闃叉绔炴€佹潯浠?
-                            const prevTotal = Object.values(newArmy).reduce((sum, c) => sum + c, 0);
+                            // [FIX Bug8] 竞态条件检查：prevTotal 需要包含军团内的兵力
+                            let prevTotal = Object.values(newArmy).reduce((sum, c) => sum + c, 0);
+                            const corpsForRaceCheck = current.militaryCorps || [];
+                            for (const cps of corpsForRaceCheck) {
+                                if (cps?.isAI) continue;
+                                prevTotal += Object.values(cps?.units || {}).reduce((sum, c) => sum + c, 0);
+                            }
                             let addedCount = 0;
 
                             canComplete.forEach(item => {

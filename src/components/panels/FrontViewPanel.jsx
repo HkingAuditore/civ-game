@@ -81,40 +81,6 @@ const getWarScoreTone = (warScore) => {
     return 'text-gray-200';
 };
 
-const getFrontInterpretationHints = ({
-    playerLineVelocity,
-    ownState,
-    enemyState,
-    currentZone,
-    battle,
-}) => {
-    const hints = [];
-    const battleAnalysis = battle?.analysis || battle?.roundLog?.[battle.roundLog.length - 1]?.explainers || {};
-
-    if (ownState?.supplyState === '未接战' && enemyState?.supplyState === '未接战') {
-        hints.push('双方当前都没有有效军团部署，这条线不会自己前进，也不会持续累积分数。');
-    } else if (playerLineVelocity > 0.15) {
-        hints.push('当前战线在向敌方方向缓慢推进，接下来最关键的是别让补给和疲劳先崩。');
-    } else if (playerLineVelocity < -0.15) {
-        hints.push('当前敌军正在压进，这条线的首要问题不是进攻，而是先稳住补给和守备。');
-    } else {
-        hints.push('当前战线处于拉锯，短期内更看持续补给、兵力厚度和会战结果。');
-    }
-
-    if (currentZone?.ownerTone === 'enemy') {
-        hints.push(`战线已经进入${currentZone.name}，只要继续守住，就会缓慢累积这条战线的战争分数。`);
-    } else {
-        hints.push(`战线仍在${currentZone?.name || '接触地带'}，被敌军继续压进会持续带来本土压力分。`);
-    }
-
-    if (battleAnalysis?.keyReason) {
-        hints.push(battleAnalysis.keyReason);
-    } else if (ownState?.supplyState === '吃紧' || ownState?.supplyState === '断裂') {
-        hints.push('我方补给已经开始拖慢持续作战能力，会让推进变慢、会战更难打穿。');
-    }
-
-    return hints.slice(0, 3);
-};
 
 const SummaryStat = ({ label, value, tone = 'text-white', align = 'left' }) => (
     <div className="rounded-xl border border-gray-800 bg-gray-950/50 px-3 py-2">
@@ -156,8 +122,8 @@ const ForceColumn = ({
                     <p className="mt-1 text-white">{Math.round(sideState?.advancePower || 0)} / {Math.round(sideState?.defensePower || 0)}</p>
                 </div>
                 <div className="rounded-xl border border-gray-800 bg-black/20 p-2">
-                    <p className="text-gray-500">补给率/疲劳</p>
-                    <p className="mt-1 text-white">{Math.round((sideState?.supplyRatio || 1) * 100)}% / {Math.round(sideState?.fatiguePressure || 0)}%</p>
+                    <p className="text-gray-500">补给率</p>
+                    <p className="mt-1 text-white">{Math.round((sideState?.supplyRatio || 1) * 100)}%</p>
                 </div>
             </div>
             <div className="mt-3 space-y-2">
@@ -250,13 +216,22 @@ const FrontViewPanel = ({
     const playerCorpsList = militaryCorps.filter((corps) => playerCorpsIds.includes(corps.id));
     const undeployedCorps = militaryCorps.filter((corps) => !corps.isAI && !corps.assignedFrontId && corps.status === 'idle' && getCorpsTotalUnits(corps) > 0);
     const enemyCorpsList = militaryCorps.filter((corps) => corps.isAI && corps.nationId === enemyId && corps.assignedFrontId === front.id);
+    const attackerNation = nations.find((n) => n.id === front.attackerId);
+    const defenderNation = nations.find((n) => n.id === front.defenderId);
     const summary = useMemo(() => (
         summarizeFrontState(
-            { ...front, playerResources: resources || {} },
+            {
+                ...front,
+                playerResources: resources || {},
+                sideResources: {
+                    attacker: front.attackerId === 'player' ? (resources || {}) : (attackerNation?.military?.stockpile || {}),
+                    defender: front.defenderId === 'player' ? (resources || {}) : (defenderNation?.military?.stockpile || {}),
+                },
+            },
             playerSide === 'attacker' ? playerCorpsList : enemyCorpsList,
             playerSide === 'attacker' ? enemyCorpsList : playerCorpsList
         )
-    ), [enemyCorpsList, front, playerCorpsList, playerSide, resources]);
+    ), [attackerNation, defenderNation, enemyCorpsList, front, playerCorpsList, playerSide, resources]);
     const currentZone = getDisplayZoneForPosition(relativeLinePosition);
     const playerLineVelocity = playerSide === 'attacker' ? Number(front.lineVelocity || 0) : -Number(front.lineVelocity || 0);
     const playerLineVelocityText = playerLineVelocity > 0.15 ? '我方前推' : playerLineVelocity < -0.15 ? '敌军压进' : '战线僵持';
@@ -270,13 +245,6 @@ const FrontViewPanel = ({
     const enemyEconomicImpact = useMemo(() => calculateFrontEconomicImpact(front, enemyId), [enemyId, front]);
     const phaseText = getPlayerPhaseText(relativeLinePosition);
     const warScoreTotal = getWarScoreTotal(front);
-    const frontInterpretationHints = getFrontInterpretationHints({
-        playerLineVelocity,
-        ownState,
-        enemyState,
-        currentZone,
-        battle: primaryBattle,
-    });
 
     return (
         <div className="space-y-4 rounded-2xl border border-cyan-700/30 bg-gradient-to-br from-gray-950/95 via-cyan-950/10 to-gray-950/95 p-4 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
@@ -361,20 +329,6 @@ const FrontViewPanel = ({
             </div>
 
             <section className="rounded-2xl border border-gray-800 bg-black/20 p-4">
-                <div className="grid gap-4 xl:grid-cols-2">
-                    <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
-                        <div className="mb-2 flex items-center gap-2">
-                            <Icon name="Sparkles" size={14} className="text-cyan-300" />
-                            <p className="text-sm font-semibold text-white">战线解读</p>
-                        </div>
-                        <div className="space-y-2 text-xs text-gray-300">
-                            {frontInterpretationHints.map((hint, index) => (
-                                <div key={`${hint}_${index}`} className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-                                    {hint}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
                     <div className="rounded-xl border border-gray-800 bg-gray-950/40 p-3">
                         <div className="mb-2 flex items-center gap-2">
                             <Icon name="Coins" size={14} className="text-yellow-300" />
@@ -399,7 +353,6 @@ const FrontViewPanel = ({
                             </div>
                         </div>
                     </div>
-                </div>
             </section>
         </div>
     );

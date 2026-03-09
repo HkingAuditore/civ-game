@@ -146,6 +146,7 @@ export const useGameActions = (gameState, addLog) => {
         autoRecruitEnabled,
         modifiers,
         productionPerDay,
+        militaryCorps, // [FIX Bug9] 读取军团状态用于兵力统计
         setMilitaryCorps,
         setActiveBattles,
         // Cabinet policy decrees (permanent)
@@ -1032,10 +1033,18 @@ export const useGameActions = (gameState, addLog) => {
         return capacity;
     };
 
+    // [FIX Bug9] 统计所有军事单位：散兵 + 训练队列 + 军团内单位
     const getTotalArmyCount = (armyState = army, queueState = militaryQueue) => {
         const armyCount = Object.values(armyState || {}).reduce((sum, count) => sum + (count || 0), 0);
         const queueCount = Array.isArray(queueState) ? queueState.length : 0;
-        return armyCount + queueCount;
+        let corpsCount = 0;
+        if (Array.isArray(militaryCorps)) {
+            for (const corps of militaryCorps) {
+                if (corps?.isAI) continue;
+                corpsCount += Object.values(corps?.units || {}).reduce((sum, c) => sum + (c || 0), 0);
+            }
+        }
+        return armyCount + queueCount + corpsCount;
     };
 
     const handleAutoReplenishLosses = (losses = {}, options = {}) => {

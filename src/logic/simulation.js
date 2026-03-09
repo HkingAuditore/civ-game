@@ -23,6 +23,8 @@ import {
 } from './rulingCoalition';
 import { getPolityEffects } from '../config/polityEffects';
 import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateVassalPolicyReputationChange } from '../config/reputationSystem';
+import { aggregateWarDamagedBuildings, calculateMilitaryIndustryBoost, calculateWartimeTradeDisruption } from './diplomacy/warEconomy';
+import { WAR_ECONOMY } from '../config/gameConstants';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
@@ -1265,6 +1267,24 @@ export const simulateTick = ({
     perfStart('preProduction');
     const rates = {};
     const builds = buildings;
+
+    // ========== 战争经济：汇总建筑损毁，计算有效建筑数 ==========
+    const playerActiveFrontsForDamage = (activeFronts || []).filter(front =>
+        front?.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player')
+    );
+    const warDamagedBuildings = aggregateWarDamagedBuildings(playerActiveFrontsForDamage, 'player');
+    // effectiveBuilds: 扣除被战争破坏的建筑后的有效数量
+    const effectiveBuilds = {};
+    Object.keys(builds).forEach(bId => {
+        const damaged = warDamagedBuildings[bId] || 0;
+        effectiveBuilds[bId] = Math.max(0, (builds[bId] || 0) - damaged);
+    });
+
+    // 战时军工繁荣和贸易中断
+    const activeWarCount = playerActiveFrontsForDamage.length;
+    const { militaryBoost: warMilitaryBoost, miningBoost: warMiningBoost } = calculateMilitaryIndustryBoost(isPlayerAtWar);
+    const { tradeDisruptionPenalty: warTradeDisruption } = calculateWartimeTradeDisruption(activeWarCount);
+
     const producedResources = new Set();
     const jobsAvailable = {};
     const roleWageStats = {};
@@ -1929,7 +1949,8 @@ export const simulateTick = ({
     // console.log('[TICK] Starting production loop...'); // Commented for performance
     perfStart('productionLoop');
     BUILDINGS.forEach(b => {
-        const count = builds[b.id] || 0;
+        // 使用有效建筑数（扣除战争损毁后）用于产出计算
+        const count = effectiveBuilds[b.id] || 0;
         if (count === 0) return;
 
         // --- 计算升级加成后的基础数值 ---
@@ -2026,6 +2047,21 @@ export const simulateTick = ({
         // 2.5 战时产出加成（仅在战争中生效）
         if (isPlayerAtWar && bonuses.wartimeProduction) {
             bonusSum += bonuses.wartimeProduction;
+        }
+
+        // 2.6 战争经济：军工繁荣加成（军事类+20%，采矿类+10%）
+        if (isPlayerAtWar) {
+            if (b.cat === 'military' && warMilitaryBoost > 0) {
+                bonusSum += warMilitaryBoost;
+            }
+            // 采矿类建筑（gather中产出iron/copper/coal/stone的建筑）
+            if (b.cat === 'gather' && warMiningBoost > 0) {
+                const miningOutputs = ['iron', 'copper', 'coal', 'stone'];
+                const isMiningBuilding = b.output && Object.keys(b.output).some(k => miningOutputs.includes(k));
+                if (isMiningBuilding) {
+                    bonusSum += warMiningBoost;
+                }
+            }
         }
 
         // 3. 类别加成（categoryBonuses 现在直接存储加成百分比，如 0.25 = +25%）
@@ -3084,7 +3120,19 @@ export const simulateTick = ({
     perfEnd('productionLoop');
 
     // === 新军费计算系统 ===
-    const hasArmyUnits = army && Object.values(army).some(count => count > 0);
+    // [FIX] 合并散兵(army)和军团(militaryCorps)内的所有单位，统一计算军饷
+    const allMilitaryUnits = { ...(army || {}) };
+    if (Array.isArray(militaryCorps)) {
+        for (const corps of militaryCorps) {
+            if (corps?.isAI) continue; // 跳过AI军团
+            for (const [unitId, count] of Object.entries(corps?.units || {})) {
+                if (count > 0) {
+                    allMilitaryUnits[unitId] = (allMilitaryUnits[unitId] || 0) + count;
+                }
+            }
+        }
+    }
+    const hasArmyUnits = Object.values(allMilitaryUnits).some(count => count > 0);
     const hasArmyQueue = Array.isArray(militaryQueue) && militaryQueue.some(item => item.status === 'waiting' || item.status === 'training');
     const epochMultiplier = 1 + epoch * 0.1;
     const effectiveWageMultiplier = Math.max(0.5, militaryWageRatio ?? 1);
@@ -3108,7 +3156,8 @@ export const simulateTick = ({
     if (hasArmyUnits || hasArmyQueue) {
         // 1. 获取军队资源维护需求
         const armyMaintenanceMultiplier = getArmyMaintenanceMultiplier(difficulty);
-        const baseArmyMaintenance = calculateArmyMaintenance(army);
+        // [FIX] 使用合并后的 allMilitaryUnits 计算维护费（包含军团内的单位）
+        const baseArmyMaintenance = calculateArmyMaintenance(allMilitaryUnits);
         // Apply difficulty multiplier
         Object.keys(baseArmyMaintenance).forEach(key => {
             baseArmyMaintenance[key] = Math.ceil((baseArmyMaintenance[key] || 0) * armyMaintenanceMultiplier);
@@ -3174,7 +3223,8 @@ export const simulateTick = ({
 
         perfStart('armyMaintenance');
         // 3. 计算时代加成和规模惩罚
-        const armyPopulation = calculateArmyPopulation(army);
+        // [FIX] 使用合并后的 allMilitaryUnits 计算军队人口（含军团内单位）
+        const armyPopulation = calculateArmyPopulation(allMilitaryUnits);
         const scalePenalty = calculateArmyScalePenalty(armyPopulation, population);
 
         // 4. 总军费 = 资源成本 × 时代加成 × 规模惩罚 × 军饷倍率
@@ -3222,6 +3272,10 @@ export const simulateTick = ({
                 const logLast = silverChangeLog.toArray().pop(); // .toArray() returns copy, get last
                 militaryDebug.logEntryFound = logLast && logLast.reason === TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE;
                 militaryDebug.logSizeAfter = silverChangeLog.length;
+
+                // [FIX Bug5] 标记军饷支付状态
+                armyExpenseResult.isUnderPaid = false;
+                armyExpenseResult.payRatio = 1;
             } else if (totalArmyCost > 0) {
                 // 部分支付
                 const partialPay = available * 0.9; // 留10%底
@@ -3236,6 +3290,9 @@ export const simulateTick = ({
                         classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + partialPay;
                     }
                 }
+                // [FIX Bug5] 标记欠饷状态及支付比例
+                armyExpenseResult.isUnderPaid = true;
+                armyExpenseResult.payRatio = totalArmyCost > 0 ? partialPay / totalArmyCost : 0;
                 logs.push(`?? 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
             }
         }
@@ -5258,19 +5315,29 @@ export const simulateTick = ({
             initializeRebelEconomy(next);
 
             // REFACTORED: Using module function for rebel war actions
+            // 如果该叛军与玩家之间已有活跃战线，则由战线系统处理掠夺，跳过旧突袭逻辑
             if (next.isAtWar) {
-                const rebelResult = processRebelWarActions({
-                    nation: next,
-                    tick,
-                    epoch,
-                    resources: res,
-                    population,
-                    army,
-                    logs,
-                    onTreasuryChange: trackSilverChange,
-                    onResourceChange: onResourceChangeCallback,
-                });
-                raidPopulationLoss += rebelResult.raidPopulationLoss;
+                const rebelFronts = (activeFronts || []).filter(f =>
+                    f?.status === 'active' && (f.attackerId === next.id || f.defenderId === next.id)
+                );
+                if (rebelFronts.length > 0) {
+                    // 将战线战争分数同步到 nation.warScore
+                    const totalFrontWarScore = rebelFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    next.warScore = totalFrontWarScore;
+                } else {
+                    const rebelResult = processRebelWarActions({
+                        nation: next,
+                        tick,
+                        epoch,
+                        resources: res,
+                        population,
+                        army,
+                        logs,
+                        onTreasuryChange: trackSilverChange,
+                        onResourceChange: onResourceChangeCallback,
+                    });
+                    raidPopulationLoss += rebelResult.raidPopulationLoss;
+                }
             }
 
             // REFACTORED: Using module function for rebel surrender check
@@ -5419,19 +5486,30 @@ export const simulateTick = ({
             next.warTotalExpense = (next.warTotalExpense || 0) + dailyExpenseShare;
 
             if (visibleEpoch >= 1 && shouldUpdateAI) {
-                // REFACTORED: Using module function for AI military action
-                const militaryResult = processAIMilitaryAction({
-                    nation: next,
-                    tick,
-                    epoch,
-                    resources: res,
-                    army,
-                    logs,
-                    difficultyLevel: difficulty,
-                    onTreasuryChange: trackSilverChange,
-                    onResourceChange: onResourceChangeCallback,
-                });
-                raidPopulationLoss += militaryResult.raidPopulationLoss;
+                // 如果该国与玩家之间已有活跃战线，则由战线系统处理，跳过旧突袭逻辑
+                const nationFronts = (activeFronts || []).filter(f =>
+                    f?.status === 'active' && (f.attackerId === next.id || f.defenderId === next.id)
+                );
+                if (nationFronts.length > 0) {
+                    // 将战线战争分数同步到 nation.warScore（取所有战线的加权和）
+                    // 战线 warScore 正值=玩家优势，与 nation.warScore 方向一致
+                    const totalFrontWarScore = nationFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    next.warScore = totalFrontWarScore;
+                } else {
+                    // REFACTORED: Using module function for AI military action
+                    const militaryResult = processAIMilitaryAction({
+                        nation: next,
+                        tick,
+                        epoch,
+                        resources: res,
+                        army,
+                        logs,
+                        difficultyLevel: difficulty,
+                        onTreasuryChange: trackSilverChange,
+                        onResourceChange: onResourceChangeCallback,
+                    });
+                    raidPopulationLoss += militaryResult.raidPopulationLoss;
+                }
             }
             // REFACTORED: Using module function for AI peace request check
             // Pass global cooldown to prevent multiple nations from requesting peace simultaneously
@@ -5541,7 +5619,8 @@ export const simulateTick = ({
     const isMonthTick = tick % 30 === 0;
     if (isMonthTick && shouldUpdateDiplomacy) {
         perfStart('monthlyRelationDecay');
-        updatedNations = processMonthlyRelationDecay(updatedNations, difficulty);
+        // [FIX Bug10] 传入组织信息，确保组织盟友也享受关系衰减保护
+        updatedNations = processMonthlyRelationDecay(updatedNations, difficulty, { organizations: updatedOrganizations });
         perfEnd('monthlyRelationDecay');
     }
 
@@ -6404,7 +6483,7 @@ export const simulateTick = ({
                 frontlineProductionPenalty += Number(modifiers.productionPenalty || 0);
                 frontlineIncomePenalty += Number(modifiers.incomePenalty || 0);
             });
-            frontlineProductionPenalty = Math.min(0.50, frontlineProductionPenalty);
+            frontlineProductionPenalty = Math.min(0.55, frontlineProductionPenalty);
             if (frontlineIncomePenalty > 0) {
                 const roundedIncomePenalty = Math.floor(frontlineIncomePenalty);
                 if (roundedIncomePenalty > 0) {
@@ -6418,6 +6497,13 @@ export const simulateTick = ({
                     supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) * (1 - frontlineProductionPenalty));
                 });
             }
+        }
+
+        // 战争经济：贸易中断惩罚（减少所有供给的一部分，模拟贸易路线中断）
+        if (warTradeDisruption > 0) {
+            Object.keys(supply || {}).forEach(resourceKey => {
+                supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) * (1 - warTradeDisruption));
+            });
         }
 
         // calculateMinProfitMargin is imported from ./utils/helpers
