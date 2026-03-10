@@ -119,7 +119,7 @@ export const StatusBar = ({
         autonomous_investment_return: '投资回报',
         trade_route_transaction: '贸易结算',
         overseas_investment_return: '海外投资收益',
-        tax_efficiency_loss: '征税效率损失',
+        tax_efficiency_loss: '战争税收损失',
         build_purchase: '购买建筑',
         corruption: '腐败',
     };

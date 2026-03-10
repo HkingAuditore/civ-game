@@ -2,7 +2,7 @@
  * CorpsManagementPanel - Military Corps & Generals management UI
  * Shows corps list, general assignment, unit allocation
  */
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, useRef, useCallback, memo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES } from '../../config';
 import {
@@ -20,6 +20,117 @@ import {
     createGeneralFromOfficial,
 } from '../../logic/diplomacy/corpsSystem';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+
+/**
+ * 数量步进器组件 — 带 +/- 按钮和长按加速
+ * 长按策略：前300ms单步，之后每80ms步进，800ms后加速到每40ms步进5
+ */
+const QuantityStepper = memo(({ value, min = 0, max, onChange, unitName }) => {
+    const longPressRef = useRef(null);
+
+    // 清除长按定时器
+    const clearLongPress = useCallback(() => {
+        if (longPressRef.current) {
+            clearTimeout(longPressRef.current.timeout);
+            clearInterval(longPressRef.current.interval);
+            longPressRef.current = null;
+        }
+    }, []);
+
+    // 开始长按
+    const startLongPress = useCallback((direction) => {
+        clearLongPress();
+        const step = direction === 'inc' ? 1 : -1;
+        const startTime = Date.now();
+
+        // 先执行一次立即步进
+        onChange(prev => Math.min(max, Math.max(min, prev + step)));
+
+        // 300ms 后开始连续步进（递归 setTimeout 实现变速加速）
+        const timeout = setTimeout(() => {
+            const tick = () => {
+                const elapsed = Date.now() - startTime;
+                // 800ms后步进5; 2000ms后步进20; 4000ms后步进100
+                let stepSize = 1;
+                if (elapsed > 4000) stepSize = 100;
+                else if (elapsed > 2000) stepSize = 20;
+                else if (elapsed > 800) stepSize = 5;
+                const delay = elapsed > 2000 ? 30 : 60;
+
+                onChange(prev => {
+                    const next = prev + step * stepSize;
+                    return Math.min(max, Math.max(min, next));
+                });
+
+                if (longPressRef.current) {
+                    longPressRef.current.interval = setTimeout(tick, delay);
+                }
+            };
+            if (longPressRef.current) {
+                longPressRef.current.interval = setTimeout(tick, 60);
+            }
+        }, 300);
+
+        longPressRef.current = { timeout, interval: null };
+    }, [min, max, onChange, clearLongPress]);
+
+    const handleMax = useCallback((e) => {
+        e.stopPropagation();
+        onChange(() => max);
+    }, [max, onChange]);
+
+    const handleClear = useCallback((e) => {
+        e.stopPropagation();
+        onChange(() => 0);
+    }, [onChange]);
+
+    return (
+        <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+            {/* 清零按钮 */}
+            <button
+                className="w-5 h-6 flex items-center justify-center text-[9px] text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 rounded transition-colors"
+                onClick={handleClear}
+                title="清零"
+            >
+                0
+            </button>
+            {/* 减按钮 */}
+            <button
+                className="w-7 h-7 flex items-center justify-center bg-gray-700/60 hover:bg-red-900/50 border border-gray-600 hover:border-red-500/40 rounded-l text-red-300 text-sm font-bold select-none transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={value <= min}
+                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startLongPress('dec'); }}
+                onPointerUp={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onContextMenu={e => e.preventDefault()}
+            >
+                −
+            </button>
+            {/* 数值显示 */}
+            <div className="w-12 h-7 flex items-center justify-center bg-gray-900/80 border-y border-gray-600 text-xs font-mono text-white tabular-nums select-none">
+                {value}
+            </div>
+            {/* 加按钮 */}
+            <button
+                className="w-7 h-7 flex items-center justify-center bg-gray-700/60 hover:bg-green-900/50 border border-gray-600 hover:border-green-500/40 rounded-r text-green-300 text-sm font-bold select-none transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={value >= max}
+                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startLongPress('inc'); }}
+                onPointerUp={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onContextMenu={e => e.preventDefault()}
+            >
+                +
+            </button>
+            {/* 全部按钮 */}
+            <button
+                className="h-6 px-1.5 flex items-center justify-center text-[9px] text-ancient-gold/70 hover:text-ancient-gold hover:bg-ancient-gold/10 rounded transition-colors"
+                onClick={handleMax}
+                title={`全部 (${max})`}
+            >
+                全部
+            </button>
+        </div>
+    );
+});
 
 const CorpsManagementPanel = ({
     army = {},
@@ -263,14 +374,15 @@ const CorpsManagementPanel = ({
                                             <Icon name="Star" size={10} className="text-yellow-400" />
                                             将领: <span className="text-ancient-parchment">{general.name}</span>
                                             <span className="text-gray-500">(Lv.{general.level})</span>
-                                            {general.traits?.map(t => {
-                                                const detail = getTraitDetails([t])[0];
-                                                return detail ? (
-                                                    <span key={t} className="px-1 py-0.5 bg-gray-800 rounded text-gray-300" title={detail.desc}>
-                                                        {detail.name}
-                                                    </span>
-                                                ) : null;
-                                            })}
+                            {general.traits?.map(t => {
+                                const detail = getTraitDetails([t])[0];
+                                return detail ? (
+                                    <span key={t} className="px-1 py-0.5 bg-gray-800 rounded text-gray-300">
+                                        {detail.name}
+                                        <span className="ml-0.5 text-gray-500 text-[9px]">{detail.desc}</span>
+                                    </span>
+                                ) : null;
+                            })}
                                         </span>
                                     ) : (
                                         <span className="text-gray-500 italic">无将领（-15%战力）</span>
@@ -319,20 +431,24 @@ const CorpsManagementPanel = ({
                                                 <p className="text-xs text-gray-400">
                                                     {assignMode === 'assign' ? '选择要编入的部队:' : '选择要撤出的部队:'}
                                                 </p>
-                                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                                     {Object.entries(assignMode === 'assign' ? unassignedArmy : (corps.units || {}))
                                                         .filter(([, count]) => count > 0)
                                                         .map(([uid, available]) => (
-                                                            <div key={uid} className="flex items-center justify-between text-xs">
-                                                                <span className="text-gray-300">{UNIT_TYPES[uid]?.name || uid} (可用: {available})</span>
-                                                                <input
-                                                                    type="number"
+                                                            <div key={uid} className="flex items-center justify-between text-xs gap-2">
+                                                                <span className="text-gray-300 whitespace-nowrap">{UNIT_TYPES[uid]?.name || uid} <span className="text-gray-500">({available})</span></span>
+                                                                <QuantityStepper
+                                                                    value={assignAmounts[uid] || 0}
                                                                     min={0}
                                                                     max={available}
-                                                                    value={assignAmounts[uid] || 0}
-                                                                    onChange={(e) => setAssignAmounts(prev => ({ ...prev, [uid]: Math.min(available, Math.max(0, parseInt(e.target.value) || 0)) }))}
-                                                                    className="w-16 bg-gray-800 border border-gray-600 rounded px-1 py-0.5 text-center text-white"
-                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    unitName={UNIT_TYPES[uid]?.name || uid}
+                                                                    onChange={(updater) => {
+                                                                        setAssignAmounts(prev => {
+                                                                            const oldVal = prev[uid] || 0;
+                                                                            const newVal = typeof updater === 'function' ? updater(oldVal) : updater;
+                                                                            return { ...prev, [uid]: newVal };
+                                                                        });
+                                                                    }}
                                                                 />
                                                             </div>
                                                         ))}
@@ -488,8 +604,9 @@ const CorpsManagementPanel = ({
                                         <span className="text-xs text-ancient-parchment font-bold">{gen.name}</span>
                                         <span className="text-[10px] text-gray-400">Lv.{gen.level}</span>
                                         {traits.map(t => (
-                                            <span key={t.id} className="text-[10px] px-1 py-0.5 bg-gray-800 rounded text-gray-300" title={t.desc}>
+                                            <span key={t.id} className="text-[10px] px-1 py-0.5 bg-gray-800 rounded text-gray-300">
                                                 {t.name}
+                                                <span className="ml-0.5 text-gray-500 text-[9px]">{t.desc}</span>
                                             </span>
                                         ))}
                                     </div>

@@ -58,7 +58,7 @@ import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { assignCorpsToFront, removeCorpsFromFront, getPlayerSide } from './logic/diplomacy/frontSystem';
-import { setTacticOrder, createBattle } from './logic/diplomacy/battleSystem';
+import { setTacticOrder, createBattle, processReinforcement, isBattleActive } from './logic/diplomacy/battleSystem';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 
@@ -569,6 +569,7 @@ function GameApp({ gameState }) {
     // === Military front/battle callbacks ===
 
     // Assign a corps to a front (update front.assignedCorps + corps.status)
+    // If there's an active battle on the front, the corps joins as reinforcement
     const handleAssignCorpsToFront = useCallback((frontId, corpsId) => {
         const fronts = gameState.activeFronts || [];
         const front = fronts.find(f => f.id === frontId);
@@ -580,10 +581,27 @@ function GameApp({ gameState }) {
         const updatedFront = assignCorpsToFront(front, corpsId, playerSide);
         gameState.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
 
-        // Update corps status to 'deployed'
-        gameState.setMilitaryCorps(prev => prev.map(c =>
-            c.id === corpsId ? { ...c, status: 'deployed', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
-        ));
+        // Check if there's an active battle on this front
+        const activeBattles = gameState.activeBattles || [];
+        const frontBattle = activeBattles.find(b => b.frontId === frontId && isBattleActive(b));
+        const corps = (gameState.militaryCorps || []).find(c => c.id === corpsId);
+
+        if (frontBattle && corps) {
+            // Reinforce the ongoing battle with the new corps' units
+            const reinforcedBattle = processReinforcement(frontBattle, playerSide, corps.units || {}, corps);
+            gameState.setActiveBattles(prev => prev.map(b =>
+                b.id === frontBattle.id ? reinforcedBattle : b
+            ));
+            // Mark corps as in_combat since it's now part of the battle
+            gameState.setMilitaryCorps(prev => prev.map(c =>
+                c.id === corpsId ? { ...c, status: 'in_combat', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
+            ));
+        } else {
+            // No active battle: just deploy normally
+            gameState.setMilitaryCorps(prev => prev.map(c =>
+                c.id === corpsId ? { ...c, status: 'deployed', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
+            ));
+        }
     }, [gameState]);
 
     // Remove a corps from a front (restore to idle)
@@ -836,11 +854,22 @@ function GameApp({ gameState }) {
     // 计算税收和军队相关数据
     const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
     const dayScale = 1; // 收入计算已不受gameSpeed影响，固定为1
-    const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
+    // [FIX] Merge loose army + corps units for unified food/expense calculations
+    const allPlayerMilitaryUnits = useMemo(() => {
+        const merged = { ...(gameState.army || {}) };
+        for (const corps of (gameState.militaryCorps || [])) {
+            if (corps?.isAI) continue;
+            for (const [unitId, count] of Object.entries(corps?.units || {})) {
+                if (count > 0) merged[unitId] = (merged[unitId] || 0) + count;
+            }
+        }
+        return merged;
+    }, [gameState.army, gameState.militaryCorps]);
+    const armyFoodNeed = calculateArmyFoodNeed(allPlayerMilitaryUnits);
     const wageRatio = gameState.militaryWageRatio || 1;
     // 新军费计算系统：使用完整的维护成本计算（包含规模惩罚和时代加成）
     const armyExpenseData = calculateTotalArmyExpense(
-        gameState.army || {},
+        allPlayerMilitaryUnits,
         gameState.market?.prices || {},
         gameState.epoch || 0,
         gameState.population || 100,

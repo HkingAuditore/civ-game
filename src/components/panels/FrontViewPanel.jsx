@@ -1,7 +1,9 @@
 import React, { memo, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
+import { RESOURCES } from '../../config';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getCorpsTotalUnits, getCorpsGeneral } from '../../logic/diplomacy/corpsSystem';
+
 import {
     getPlayerSide,
     CHECKPOINTS,
@@ -29,12 +31,142 @@ const EconomyDataRow = ({ label, value, tone = 'text-gray-200' }) => (
     </div>
 );
 
-const formatSupplyNeedText = (impact = {}) => {
+const formatUnitPrice = (value) => {
+    const safeValue = Number(value || 0);
+    if (safeValue >= 10) return safeValue.toFixed(0);
+    if (safeValue >= 1) return safeValue.toFixed(1);
+    return safeValue.toFixed(2);
+};
+
+const getResourceUnitPrice = (resourceKey, prices = {}) => {
+    if (resourceKey === 'silver') return 1;
+    return Number(prices[resourceKey] || RESOURCES[resourceKey]?.basePrice || 1);
+};
+
+const SupplyNeedDisplay = ({ impact = {}, priceSource = {} }) => {
+    const [expanded, setExpanded] = React.useState(false);
     const logistics = impact.logistics || {};
-    return `粮${formatNumberShortCN(logistics.dailyFoodUpkeep || 0, { decimals: 0 })} / 银${formatNumberShortCN(logistics.dailySilverUpkeep || 0, { decimals: 0 })} / 军需${formatNumberShortCN(logistics.dailyMaterielUpkeep || 0, { decimals: 0 })}`;
+    const prices = priceSource?.prices || priceSource || {};
+
+    const resourceBreakdown = logistics.resourceBreakdown || {};
+    const baseResourceBreakdown = logistics.baseResourceBreakdown || {};
+    const modifierBreakdown = logistics.modifierBreakdown || {};
+    const logisticsMultiplier = Number(logistics.logisticsMultiplier || 1);
+    const resourceEntries = Object.entries(resourceBreakdown)
+        .filter(([, amount]) => Number(amount || 0) > 0)
+        .sort(([leftKey], [rightKey]) => {
+            if (leftKey === 'silver') return 1;
+            if (rightKey === 'silver') return -1;
+            return leftKey.localeCompare(rightKey);
+        });
+    const totalSilverCost = resourceEntries.reduce((sum, [resourceKey, amount]) => (
+        sum + Number(amount || 0) * getResourceUnitPrice(resourceKey, prices)
+    ), 0);
+    const modifierText = [
+        `部署 ${Number(modifierBreakdown.frontDeploymentBase || 1).toFixed(2)} × 姿态 ${Number(modifierBreakdown.postureSupplyMod || 1).toFixed(2)}`,
+        Number(modifierBreakdown.advanceSupplyPenalty || 0) > 0.01 ? `推进 +${Number(modifierBreakdown.advanceSupplyPenalty || 0).toFixed(2)}` : null,
+        Number(modifierBreakdown.supplyLinePenalty || 0) > 0.01 ? `线损 +${Number(modifierBreakdown.supplyLinePenalty || 0).toFixed(2)}` : null,
+        Number(modifierBreakdown.battleSupplyMod || 1) > 1.01 ? `会战 ×${Number(modifierBreakdown.battleSupplyMod || 1).toFixed(2)}` : null,
+    ].filter(Boolean).join(' · ');
+
+    return (
+        <div>
+            <div
+                className="flex cursor-pointer items-center justify-between gap-3"
+                onClick={() => setExpanded(!expanded)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && setExpanded(!expanded)}
+            >
+                <div>
+                    <div className="text-[11px] font-semibold text-amber-200">
+                        ≈ {formatNumberShortCN(totalSilverCost, { decimals: 0 })} 银/日
+                    </div>
+                    <div className="text-[9px] text-gray-500">
+                        仅统计本战线已部署军团，不等于全军维护
+                    </div>
+                </div>
+                <span className="text-[9px] text-gray-500">{expanded ? '▲ 收起' : '▼ 明细'}</span>
+            </div>
+            {expanded && (
+                <div className="mt-1.5 space-y-1 text-[10px] text-gray-400">
+                    <div className="rounded border border-gray-800/70 bg-black/20 px-2 py-1 text-[9px] leading-relaxed text-gray-500">
+                        前线补给 = 已部署军团基础维护 × 后勤倍率 {logisticsMultiplier.toFixed(2)}
+                        {modifierText ? `（${modifierText}）` : ''}
+                    </div>
+                    {resourceEntries.length === 0 ? (
+                        <div>当前没有前线补给需求。</div>
+                    ) : resourceEntries.map(([resourceKey, amount]) => {
+                        const resourceName = RESOURCES[resourceKey]?.name || resourceKey;
+                        const unitPrice = getResourceUnitPrice(resourceKey, prices);
+                        const silverValue = Number(amount || 0) * unitPrice;
+                        const baseAmount = Number(baseResourceBreakdown[resourceKey] || 0);
+                        return (
+                            <div key={resourceKey} className="rounded border border-gray-800/60 bg-black/10 px-2 py-1">
+                                <div>
+                                    {resourceName} {formatNumberShortCN(Number(amount || 0), { decimals: 0 })}
+                                    {` × ${formatUnitPrice(unitPrice)}银 = ${formatNumberShortCN(silverValue, { decimals: 0 })}`}
+                                </div>
+                                {baseAmount > 0 && (
+                                    <div className="mt-0.5 text-[9px] text-gray-500">
+                                        基础维护 {formatNumberShortCN(baseAmount, { decimals: 1 })} × 后勤倍率 {logisticsMultiplier.toFixed(2)} ≈ {formatNumberShortCN(baseAmount * logisticsMultiplier, { decimals: 1 })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ProcurementStatusCard = ({ procurement = {}, domesticPressure = 0, remainingWealth = 0 }) => {
+    const fulfillmentRatio = Math.max(0, Math.min(1, Number(procurement.fulfillmentRatio ?? 1)));
+    const totalCost = Number(procurement.totalCost || 0);
+    const shortfalls = Object.entries(procurement.shortfall || {})
+        .filter(([, amount]) => Number(amount || 0) > 0.05)
+        .sort(([, leftAmount], [, rightAmount]) => Number(rightAmount || 0) - Number(leftAmount || 0))
+        .slice(0, 2);
+
+    if (totalCost <= 0 && shortfalls.length === 0 && domesticPressure <= 0.01) {
+        return null;
+    }
+
+    const fulfillmentTone = fulfillmentRatio >= 0.95
+        ? 'text-emerald-300'
+        : fulfillmentRatio >= 0.75
+            ? 'text-yellow-300'
+            : 'text-red-300';
+    const pressureTone = domesticPressure >= 0.7
+        ? 'text-red-300'
+        : domesticPressure >= 0.4
+            ? 'text-yellow-300'
+            : 'text-emerald-300';
+
+    return (
+        <div className="space-y-2 rounded-lg border border-gray-800/80 bg-black/20 px-2 py-2">
+            <div className="flex items-center gap-2">
+                <Icon name="Wallet" size={12} className="text-yellow-300" />
+                <span className="text-[10px] font-semibold text-white">AI 战争采购</span>
+            </div>
+            <div className="grid gap-2">
+                <EconomyDataRow label="采购履约" value={`${Math.round(fulfillmentRatio * 100)}%`} tone={fulfillmentTone} />
+                <EconomyDataRow label="当日军购" value={`${formatNumberShortCN(totalCost, { decimals: 1 })} 银`} tone="text-yellow-300" />
+                <EconomyDataRow label="国内库存压力" value={`${Math.round(Number(domesticPressure || 0) * 100)}%`} tone={pressureTone} />
+                <EconomyDataRow label="剩余国家财富" value={`${formatNumberShortCN(remainingWealth || 0, { decimals: 1 })} 银`} tone="text-cyan-300" />
+            </div>
+            {shortfalls.length > 0 && (
+                <div className="rounded border border-red-900/40 bg-red-950/10 px-2 py-1 text-[9px] text-red-200">
+                    紧缺：{shortfalls.map(([resourceKey, amount]) => `${RESOURCES[resourceKey]?.name || resourceKey} -${formatNumberShortCN(amount, { decimals: 1 })}`).join('、')}
+                </div>
+            )}
+        </div>
+    );
 };
 
 const getEconomicPressureHint = (impact = {}) => {
+
     const relativePosition = Number(impact.territory?.relativePosition || 50);
     if (relativePosition <= 8) return '战线已压入腹地，税收与生产都会遭受重创。';
     if (relativePosition <= 15) return '战线已进入核心区，战争经济损失非常严重。';
@@ -218,6 +350,7 @@ const FrontViewPanel = ({
     onSetBattleTactic,
     onCreateBattle,
     onSetPosture,
+    market,
 }) => {
     if (!front) {
         return (
@@ -373,7 +506,12 @@ const FrontViewPanel = ({
                                 <MetricBar label="税收效率损失" value={Math.round(Number(ownEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
                             </div>
                             <div className="mt-2 grid gap-2">
-                                <EconomyDataRow label="日补给投入" value={formatSupplyNeedText(ownEconomicImpact)} />
+                                <div className="rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">
+                                    <span className="text-[10px] text-gray-500">日前线补给</span>
+
+                                    <SupplyNeedDisplay impact={ownEconomicImpact} priceSource={market} />
+
+                                </div>
                                 <EconomyDataRow label="累计掠夺" value={formatNumberShortCN(ownEconomicImpact?.cumulative?.lootGained || 0, { decimals: 1 })} tone="text-emerald-300" />
                                 <EconomyDataRow label="累计被掠夺" value={formatNumberShortCN(ownEconomicImpact?.cumulative?.lootLost || 0, { decimals: 1 })} tone="text-red-300" />
                                 <EconomyDataRow label="建筑破坏" value={`损失 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsLost || 0, { decimals: 0 })} / 摧毁 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsDestroyed || 0, { decimals: 0 })}`} />
@@ -389,11 +527,20 @@ const FrontViewPanel = ({
                                 <MetricBar label="税收效率损失" value={Math.round(Number(enemyEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
                             </div>
                             <div className="mt-2 grid gap-2">
-                                <EconomyDataRow label="日补给投入" value={formatSupplyNeedText(enemyEconomicImpact)} />
+                                <div className="rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">
+                                    <span className="text-[10px] text-gray-500">日前线补给</span>
+                                    <SupplyNeedDisplay impact={enemyEconomicImpact} priceSource={enemyNation?.nationPrices || enemyNation?.market || {}} />
+                                </div>
+                                <ProcurementStatusCard
+                                    procurement={enemyNation?.warEconomy?.procurement || enemyNation?.military?.procurement || {}}
+                                    domesticPressure={enemyNation?.warEconomy?.domesticPressure || 0}
+                                    remainingWealth={enemyNation?.wealth || 0}
+                                />
                                 <EconomyDataRow label="累计掠夺" value={formatNumberShortCN(enemyEconomicImpact?.cumulative?.lootGained || 0, { decimals: 1 })} tone="text-emerald-300" />
                                 <EconomyDataRow label="累计被掠夺" value={formatNumberShortCN(enemyEconomicImpact?.cumulative?.lootLost || 0, { decimals: 1 })} tone="text-red-300" />
                                 <EconomyDataRow label="建筑破坏" value={`损失 ${formatNumberShortCN(enemyEconomicImpact?.cumulative?.buildingsLost || 0, { decimals: 0 })} / 摧毁 ${formatNumberShortCN(enemyEconomicImpact?.cumulative?.buildingsDestroyed || 0, { decimals: 0 })}`} />
                                 <EconomyDataRow label="本土压力" value={formatNumberShortCN(enemyEconomicImpact?.territory?.homelandPressure || 0, { decimals: 0 })} tone="text-amber-300" />
+
                             </div>
                             <p className="mt-2 text-[10px] text-gray-500">{formatFrontPenaltyText(enemyEconomicImpact)} ? {getEconomicPressureHint(enemyEconomicImpact)}</p>
                         </div>

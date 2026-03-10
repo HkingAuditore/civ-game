@@ -489,16 +489,22 @@ const MilitaryTabComponent = ({
         if (canHover) setHoveredUnit({ unit, element: e.currentTarget });
     };
 
-    // [FIX Bug7] 计算军队统计信息 - 包含散兵(army)和军团(militaryCorps)内的所有单位
-    const totalUnits = useMemo(() => {
-        let total = Object.values(army).reduce((sum, count) => sum + count, 0);
-        // 加上军团内的单位
+    // [FIX] Merge all player military units (loose army + corps units) for unified stats
+    const allMilitaryUnits = useMemo(() => {
+        const merged = { ...(army || {}) };
         for (const corps of (militaryCorps || [])) {
             if (corps?.isAI) continue;
-            total += Object.values(corps?.units || {}).reduce((sum, count) => sum + count, 0);
+            for (const [unitId, count] of Object.entries(corps?.units || {})) {
+                if (count > 0) merged[unitId] = (merged[unitId] || 0) + count;
+            }
         }
-        return total;
+        return merged;
     }, [army, militaryCorps]);
+
+    // [FIX Bug7] 计算军队统计信息 - 包含散兵(army)和军团(militaryCorps)内的所有单位
+    const totalUnits = useMemo(() => {
+        return Object.values(allMilitaryUnits).reduce((sum, count) => sum + count, 0);
+    }, [allMilitaryUnits]);
     
     // Memoize queue statistics
     const { waitingCount, trainingCount, queuePopulation } = useMemo(() => {
@@ -517,8 +523,8 @@ const MilitaryTabComponent = ({
     
     const totalArmyCount = totalUnits + waitingCount + trainingCount;
 
-    // 计算军队总人口占用
-    const totalArmyPopulation = useMemo(() => calculateArmyPopulation(army), [army]);
+    // [FIX] 计算军队总人口占用 - 包含散兵和军团内所有单位
+    const totalArmyPopulation = useMemo(() => calculateArmyPopulation(allMilitaryUnits), [allMilitaryUnits]);
     const totalPopulationCost = totalArmyPopulation + queuePopulation;
 
     // 计算军事容量
@@ -530,23 +536,26 @@ const MilitaryTabComponent = ({
         }
     });
 
-    const maintenance = calculateArmyMaintenance(army);
+    // [FIX] 使用合并后的 allMilitaryUnits 计算维护费（包含军团内的单位）
+    const maintenance = calculateArmyMaintenance(allMilitaryUnits);
     // 新军费计算系统：完整军费包含资源成本、时代加成、规模惩罚
-    const totalFoodNeed = calculateArmyFoodNeed(army);
+    const totalFoodNeed = calculateArmyFoodNeed(allMilitaryUnits);
 
     // [FIX] Use simulation data from window (unified with StatusBar and financial panel)
     // This ensures MilitaryTab shows the same military expense as the financial panel,
     // which includes difficulty multiplier and wartime multiplier from simulation.js
     const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
+    // [FIX] Fallback uses allMilitaryUnits so corps units are included in cost estimate
     const armyExpenseData = propArmyExpenseData || simulationMilitaryExpense || calculateTotalArmyExpense(
-        army,
+        allMilitaryUnits,
         market?.prices || {},
         epoch,
         _population || 100,
         militaryWageRatio
     );
     const totalWage = armyExpenseData.dailyExpense;
-    const playerPower = calculateBattlePower(army, epoch, militaryBonus);
+    // [FIX] 战斗力计算包含军团内的单位
+    const playerPower = calculateBattlePower(allMilitaryUnits, epoch, militaryBonus);
     // 只显示可见且处于战争状态的国家
     const warringNations = (nations || []).filter((nation) =>
         nation.isAtWar &&
@@ -655,12 +664,19 @@ const MilitaryTabComponent = ({
     };
 
     const selectedFront = playerActiveFronts.find((front) => front.id === selectedFrontId) || playerActiveFronts[0] || null;
-    const selectedFrontEnemyName = selectedFront
-        ? (nations.find((nation) => nation.id === (selectedFront.attackerId === 'player' ? selectedFront.defenderId : selectedFront.attackerId))?.name
-            || (selectedFront.attackerId === 'player' ? selectedFront.defenderId : selectedFront.attackerId)
-            || '未知国家')
-        : '战区';
+    const selectedFrontEnemyId = selectedFront
+        ? (selectedFront.attackerId === 'player' ? selectedFront.defenderId : selectedFront.attackerId)
+        : null;
+    const selectedFrontEnemyNation = selectedFrontEnemyId
+        ? nations.find((nation) => nation.id === selectedFrontEnemyId) || null
+        : activeNation;
+    const selectedFrontEnemyName = selectedFrontEnemyNation?.name || selectedFrontEnemyId || activeNation?.name || '战区';
+    const selectedEnemyProcurement = selectedFrontEnemyNation?.warEconomy?.procurement || selectedFrontEnemyNation?.military?.procurement || {};
+    const selectedEnemyFulfillment = Math.max(0, Math.min(1, Number(selectedEnemyProcurement.fulfillmentRatio ?? 1)));
+    const selectedEnemyDomesticPressure = Math.max(0, Number(selectedFrontEnemyNation?.warEconomy?.domesticPressure || 0));
+    const selectedEnemyProcurementCost = Number(selectedEnemyProcurement.totalCost || 0);
     const handleSelectFront = (frontId) => {
+
         setSelectedFrontId(frontId);
         if (isMobileWarfrontLayout) {
             setIsFrontDetailSheetOpen(true);
@@ -1194,7 +1210,38 @@ const MilitaryTabComponent = ({
                                         <p className="text-purple-200 font-bold text-sm">{(activeBattles || []).filter((battle) => battle?.status === 'active').length}</p>
                                     </div>
                                 </div>
+                                {selectedFrontEnemyNation && (selectedEnemyProcurementCost > 0 || selectedEnemyDomesticPressure > 0.01 || Number(selectedEnemyProcurement.totalDemand || 0) > 0) && (
+                                    <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/15 p-3">
+                                        <div className="mb-2 flex items-center justify-between gap-3">
+                                            <p className="text-xs font-semibold text-red-100">敌国战争采购快照 · {selectedFrontEnemyName}</p>
+                                            <p className="text-[10px] text-gray-400">按当前选中战区对应国家汇总</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 text-center text-xs md:grid-cols-4">
+                                            <div>
+                                                <p className="text-gray-400">采购履约</p>
+                                                <p className={`font-bold text-sm ${selectedEnemyFulfillment >= 0.95 ? 'text-emerald-300' : selectedEnemyFulfillment >= 0.75 ? 'text-yellow-300' : 'text-red-300'}`}>
+                                                    {Math.round(selectedEnemyFulfillment * 100)}%
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-400">当日军购</p>
+                                                <p className="text-yellow-300 font-bold text-sm">{formatNumberShortCN(selectedEnemyProcurementCost, { decimals: 1 })}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-400">国内库存压力</p>
+                                                <p className={`font-bold text-sm ${selectedEnemyDomesticPressure >= 0.7 ? 'text-red-300' : selectedEnemyDomesticPressure >= 0.4 ? 'text-yellow-300' : 'text-emerald-300'}`}>
+                                                    {Math.round(selectedEnemyDomesticPressure * 100)}%
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-400">剩余国家财富</p>
+                                                <p className="text-cyan-200 font-bold text-sm">{formatNumberShortCN(selectedFrontEnemyNation?.wealth || 0, { decimals: 1 })}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
                             <div className={`grid gap-3 ${isMobileWarfrontLayout ? 'grid-cols-1' : 'xl:grid-cols-[0.82fr_1.18fr]'}`}>
                                 <div className="space-y-3">
                                     {playerActiveFronts.map((front) => (
@@ -1220,6 +1267,7 @@ const MilitaryTabComponent = ({
                                         resources={resources}
                                         day={day}
                                         epoch={epoch}
+                                        market={market}
                                         onAssignCorpsToFront={onAssignCorpsToFront}
                                         onRemoveCorpsFromFront={onRemoveCorpsFromFront}
                                         onSetBattleTactic={onSetBattleTactic}
@@ -1255,6 +1303,7 @@ const MilitaryTabComponent = ({
                         resources={resources}
                         day={day}
                         epoch={epoch}
+                        market={market}
                         onAssignCorpsToFront={onAssignCorpsToFront}
                         onRemoveCorpsFromFront={onRemoveCorpsFromFront}
                         onSetBattleTactic={onSetBattleTactic}

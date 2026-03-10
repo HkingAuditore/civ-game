@@ -6,7 +6,8 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
-import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier } from '../utils/livingStandard';
+import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier, calculatePriceAwareLivingStandardThresholds, getPriceAwareLivingStandardLevel } from '../utils/livingStandard';
+
 import { calculateLivingStandards } from './population/needs';
 import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinetSynergy';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
@@ -319,6 +320,9 @@ import {
     // Rebellion System functions
     processRebellionSystemDaily,
     getRebellionRiskAssessment,
+    // War Economy functions
+    generateAIBuildingProfile,
+    processAIBuildingRecovery,
 } from './diplomacy';
 import { calculateAITreasuryTargetRatio } from './diplomacy/economyUtils';
 import { calculateOverseasInvestmentSummary, processOverseasInvestments, processForeignInvestments, processOverseasInvestmentUpgrades, processForeignInvestmentUpgrades } from './diplomacy/overseasInvestment';
@@ -1268,17 +1272,14 @@ export const simulateTick = ({
     const rates = {};
     const builds = buildings;
 
-    // ========== 战争经济：汇总建筑损毁，计算有效建筑数 ==========
+    // ========== 战争经济：建筑现已真实销毁，直接使用 builds ==========
     const playerActiveFrontsForDamage = (activeFronts || []).filter(front =>
         front?.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player')
     );
+    // 统计战损（仅用于UI显示，不再用于虚拟扣减）
     const warDamagedBuildings = aggregateWarDamagedBuildings(playerActiveFrontsForDamage, 'player');
-    // effectiveBuilds: 扣除被战争破坏的建筑后的有效数量
-    const effectiveBuilds = {};
-    Object.keys(builds).forEach(bId => {
-        const damaged = warDamagedBuildings[bId] || 0;
-        effectiveBuilds[bId] = Math.max(0, (builds[bId] || 0) - damaged);
-    });
+    // effectiveBuilds 现在等于 builds（建筑已在战线推进时真实销毁）
+    const effectiveBuilds = { ...builds };
 
     // 战时军工繁荣和贸易中断
     const activeWarCount = playerActiveFrontsForDamage.length;
@@ -1286,7 +1287,7 @@ export const simulateTick = ({
     const { tradeDisruptionPenalty: warTradeDisruption } = calculateWartimeTradeDisruption(activeWarCount);
 
     let frontlineProductionPenalty = 0;
-    let frontlineIncomePenalty = 0;
+    let frontlineTaxEfficiencyPenalty = 0; // 方案A：收集税收效率惩罚
     if (playerActiveFrontsForDamage.length > 0) {
         const silverIncomeEstimate = Object.values(res || {}).reduce((sum, value) => sum + Number(value || 0), 0) * 0.1;
         playerActiveFrontsForDamage.forEach((front) => {
@@ -1300,9 +1301,10 @@ export const simulateTick = ({
                 : 0;
             const modifiers = getFrontlineEconomicModifiers(front, 'player', tick, deployedUnits, silverIncomeEstimate, res);
             frontlineProductionPenalty += Number(modifiers.productionPenalty || 0);
-            frontlineIncomePenalty += Number(modifiers.incomePenalty || 0);
+            frontlineTaxEfficiencyPenalty += Number(modifiers.taxEfficiencyPenalty || 0);
         });
         frontlineProductionPenalty = Math.min(0.80, frontlineProductionPenalty);
+        frontlineTaxEfficiencyPenalty = Math.min(0.80, frontlineTaxEfficiencyPenalty);
     }
     const frontlineProductionFactor = Math.max(0, 1 - frontlineProductionPenalty);
 
@@ -4540,23 +4542,44 @@ export const simulateTick = ({
         epoch,
         techsUnlocked,
         priceMap: getPrice, // 传递价格获取函数
-        livingStandardStreaks
+        livingStandardStreaks,
+        needsRequirementMultiplier,
+        potentialResources,
     });
+
 
     // Manually inject official stats (derived from independent simulation)
     const updatedOfficialCount = updatedOfficials.length;
     if (updatedOfficialCount > 0) {
         const avgWealth = totalOfficialWealth / updatedOfficialCount;
-        let pLevel = '赤贫';
-        let pCap = 30;
-
-        if (avgWealth > 300) { pLevel = '奢华'; pCap = 95; }
-        else if (avgWealth > 100) { pLevel = '富裕'; pCap = 85; }
-        else if (avgWealth > 50) { pLevel = '小康'; pCap = 75; }
-        else if (avgWealth > 20) { pLevel = '温饱'; pCap = 60; }
-        else { pLevel = '贫困'; pCap = 45; }
-
-        const wealthRatio = avgWealth / 400;
+        const officialDef = STRATA.official || {};
+        const officialThresholds = calculatePriceAwareLivingStandardThresholds({
+            baseNeeds: officialDef.needs || {},
+            luxuryNeeds: officialDef.luxuryNeeds || {},
+            priceMap: getPrice,
+            epoch,
+            techsUnlocked,
+            needsRequirementMultiplier,
+            potentialResources,
+            bufferDays: 30,
+        });
+        const pLevel = getPriceAwareLivingStandardLevel(avgWealth, officialThresholds.thresholds, '贫困');
+        const approvalCapMap = {
+            '贫困': 45,
+            '温饱': 60,
+            '小康': 75,
+            '富裕': 85,
+            '奢华': 95,
+        };
+        const scoreMap = {
+            '贫困': 25,
+            '温饱': 45,
+            '小康': 60,
+            '富裕': 75,
+            '奢华': 90,
+        };
+        const referenceThreshold = officialThresholds.referenceThreshold || officialDef.startingWealth || 400;
+        const wealthRatio = referenceThreshold > 0 ? avgWealth / referenceThreshold : 0;
         const styleMap = {
             '奢华': { icon: 'Crown', color: 'text-purple-400' },
             '富裕': { icon: 'Gem', color: 'text-blue-400' },
@@ -4565,22 +4588,27 @@ export const simulateTick = ({
             '贫困': { icon: 'AlertTriangle', color: 'text-orange-400' },
             '赤贫': { icon: 'Skull', color: 'text-red-500' }
         };
-        const style = styleMap[pLevel] || styleMap['赤贫'];
+        const style = styleMap[pLevel] || styleMap['贫困'];
 
         livingStandardsResult.classLivingStandard.official = {
             level: pLevel,
             satisfaction: 1.0,
             satisfactionRate: 1.0,
-            approvalCap: pCap,
+            approvalCap: approvalCapMap[pLevel] || 45,
             needsMet: 1.0,
             wealthRatio: wealthRatio,
-            wealthPerCapita: avgWealth, // 修复：添加人均财富字段
-            wealthMultiplier: Math.min(6, 1 + Math.log(Math.max(1, avgWealth / 100)) * 0.5), // 基于收入的消费能力
+            wealthPerCapita: avgWealth,
+            wealthReference: referenceThreshold,
+            wealthMultiplier: Math.min(6, 1 + Math.log(Math.max(1, wealthRatio)) * 0.5),
+
             icon: style.icon,
             color: style.color,
             bgColor: style.color.replace('text-', 'bg-').replace('-400', '-900/20'),
             borderColor: style.color.replace('text-', 'border-').replace('-400', '-500/30'),
-            score: avgWealth > 300 ? 90 : avgWealth > 100 ? 75 : avgWealth > 50 ? 60 : avgWealth > 20 ? 45 : 25,
+            score: scoreMap[pLevel] || 25,
+            basketDailyCosts: officialThresholds.dailyCosts,
+            basketThresholds: officialThresholds.thresholds,
+            basketBufferDays: officialThresholds.bufferDays,
         };
 
         // Update streaks
@@ -4591,6 +4619,7 @@ export const simulateTick = ({
             streak: isSame ? (prevStreak.streak || 0) + 1 : 1
         };
     }
+
 
     const classLivingStandard = livingStandardsResult.classLivingStandard;
     const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
@@ -5456,11 +5485,19 @@ export const simulateTick = ({
             }
         }
 
+        // 为和平期/未参战的国家补建一次常规建筑画像，避免外交面板只能看到外资建筑。
+        if (!isExpiredNation && !next.isRebelNation && (!next.virtualBuildings || Object.keys(next.virtualBuildings).length === 0)) {
+            generateAIBuildingProfile(next, next.epoch || visibleEpoch || epoch || 0, {
+                overseasInvestments: updatedOverseasInvestments,
+            });
+        }
+
         if (!shouldProcessAIForNation) {
             return next;
         }
 
         // REFACTORED: Using new AI economy system
+
         // Each function has its own internal tick-based checks, so they can safely run every slice.
         // [NOTE] These run only for sliced nations (1/3 per tick with aiNationUpdateSlices=3)
         // The slice check above ensures nations take turns being processed.
@@ -5483,6 +5520,9 @@ export const simulateTick = ({
 
             // Apply updates to next
             Object.assign(next, updatedNation);
+
+            // AI building peacetime recovery (every 30 days, only for nations with virtualBuildings)
+            processAIBuildingRecovery(next, next.epoch || epoch, tick);
 
             // Check for epoch progression
             checkAIEpochProgression(next, logs, tick);
@@ -6213,7 +6253,7 @@ export const simulateTick = ({
             { organizations: updatedOrganizations },
             vassalDiplomacyRequests,
         );
-        processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests);
+        processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests, epoch);
     }
     perfEnd('diplomacyAI');
 
@@ -6470,14 +6510,7 @@ export const simulateTick = ({
 
         });
         const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
-        if (frontlineIncomePenalty > 0) {
-            const roundedIncomePenalty = Math.floor(frontlineIncomePenalty);
-            if (roundedIncomePenalty > 0) {
-                const beforeSilver = res.silver || 0;
-                res.silver = Math.max(0, beforeSilver - roundedIncomePenalty);
-                trackSilverChange(-Math.min(beforeSilver, roundedIncomePenalty), 'frontline_infrastructure_loss');
-            }
-        }
+        // 战争税收debuff已在税收征收环节按百分比扣减（方案A），此处不再直接扣减银币
 
         // 战争经济：贸易中断惩罚（减少所有供给的一部分，模拟贸易路线中断）
         if (warTradeDisruption > 0) {
@@ -7534,10 +7567,25 @@ export const simulateTick = ({
     // ============================================================================
 
     // 由于 taxBreakdown 现在是"实际入库"，collectedXxx 直接等于 taxBreakdown.xxx。
-    const collectedHeadTax = taxBreakdown.headTax;
-    const collectedIndustryTax = taxBreakdown.industryTax;
-    const collectedBusinessTax = taxBreakdown.businessTax;
-    const collectedTariff = (taxBreakdown.tariff || 0); // 关税收入
+    let collectedHeadTax = taxBreakdown.headTax;
+    let collectedIndustryTax = taxBreakdown.industryTax;
+    let collectedBusinessTax = taxBreakdown.businessTax;
+    let collectedTariff = (taxBreakdown.tariff || 0); // 关税收入
+
+    // 方案A：战争税收效率惩罚 — 按百分比扣减所有税收，在征收环节就体现
+    const warTaxFactor = Math.max(0, 1 - frontlineTaxEfficiencyPenalty);
+    if (frontlineTaxEfficiencyPenalty > 0.001) {
+        const preLossTotal = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
+        collectedHeadTax *= warTaxFactor;
+        collectedIndustryTax *= warTaxFactor;
+        collectedBusinessTax *= warTaxFactor;
+        collectedTariff *= warTaxFactor;
+        const postLossTotal = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
+        const taxEfficiencyLoss = preLossTotal - postLossTotal;
+        if (taxEfficiencyLoss > 0) {
+            applySilverChange(-taxEfficiencyLoss, 'tax_efficiency_loss');
+        }
+    }
 
     const taxBaseForCorruption = taxBreakdown.headTax + taxBreakdown.industryTax + taxBreakdown.businessTax + (taxBreakdown.tariff || 0);
     const efficiencyNoCorruption = Math.max(0, Math.min(1, efficiency * (1 + (bonuses.taxEfficiencyBonus || 0))));
@@ -8028,6 +8076,9 @@ export const simulateTick = ({
                     });
                     return merged;
                 })(),
+                // 战争经济：建筑战损统计和前线产出惩罚
+                warDamagedBuildings: warDamagedBuildings || {},
+                frontlineProductionPenalty: frontlineProductionPenalty || 0,
             },
             // 官员效果修饰符（供外部使用）
             officialEffects: {

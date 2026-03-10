@@ -101,10 +101,11 @@ import {
     summarizeFrontState,
     getBoundedHomelandPressure,
 } from '../logic/diplomacy/frontSystem';
-import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic } from '../logic/diplomacy/battleSystem';
+import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic, processReinforcement, isBattleActive } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits } from '../logic/diplomacy/corpsSystem';
 import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan, evaluateGeneralBattleProposal, allocateAICorpsToFronts, applyAICorpsAllocation } from '../logic/diplomacy/aiWar';
-import { calculateWarPlunder } from '../logic/diplomacy/warEconomy';
+import { applyMilitaryProcurementPressure, calculateWarPlunder } from '../logic/diplomacy/warEconomy';
+
 import { createBattleProposalEvent } from '../config/events/diplomaticEvents';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
@@ -646,9 +647,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setForeignInvestments, // [FIX] Destructure setter
     } = gameState;
 
-    // 浣跨敤ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
-    const stateRef = useRef({
-        resources,
+    // 浣跨敤ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
+    const tickProcessingRef = useRef(false); // re-entrancy guard for high-speed ticks
+    const stateRef = useRef({        resources,
         market,
         buildings,
         buildingUpgrades,
@@ -982,6 +983,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
         const tickInterval = 1000 / Math.max(1, gameSpeed);
 
         const timer = setInterval(() => {
+            // Re-entrancy guard: prevent overlapping ticks at high game speeds
+            if (tickProcessingRef.current) return;
+            tickProcessingRef.current = true;
+            try {
             const current = stateRef.current;
 
             // 鑷姩瀛樻。妫€娴嬶細鍗充娇鏆傚仠涔熺収甯歌繍琛岋紝閬垮厤闀挎椂闂村仠鐣欎涪杩涘害
@@ -1253,6 +1258,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (perfEnabled) {
                     console.warn('[PerfTick] skip day=' + (current.daysElapsed || 0) + ' (simulation busy)');
                 }
+                tickProcessingRef.current = false;
                 return;
             }
 
@@ -2659,6 +2665,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         // --- Process each active battle ---
                         updatedBattles = updatedBattles.map(battle => {
                             if (battle.status !== 'active') return battle;
+                            // [FIX] Skip battles already finalized (defense against stale state at high speeds)
+                            if (battle.result?.finalized) return battle;
 
                             const atkGeneral = currentGenerals.find(g => g.id === battle.attacker.generalId) || null;
                             const defGeneral = currentGenerals.find(g => g.id === battle.defender.generalId) || null;
@@ -2792,35 +2800,65 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 const loserName = winner === 'attacker' ? updatedBattle.defender.corpsName : updatedBattle.attacker.corpsName;
                                 battleLogs.push('[战斗] ' + updatedBattle.engagementName + ' 结束，' + winnerName + ' 击败 ' + loserName + '（' + reasonText + '，共' + updatedBattle.result.totalDays + '天）');
 
-                                // Sync survivors back to corps and explicitly release them from battle lock.
+                                // Sync survivors back to corps: support multi-corps battles
+                                // 多兵团模式：按各兵团初始兵力比例分配剩余兵力
+                                const distributeSurvivorsToCorps = (sideData, sideCorpsList) => {
+                                    const survivors = { ...sideData };
+                                    const totalSurvivors = Object.values(survivors).reduce((s, c) => s + Number(c || 0), 0);
+                                    if (sideCorpsList.length <= 1) {
+                                        // 单兵团：直接赋值
+                                        return [{ corpsId: sideCorpsList[0], units: survivors, morale: 0 }];
+                                    }
+                                    // 多兵团：按初始兵力比例分配
+                                    const corpsInitialTotals = sideCorpsList.map(cid => {
+                                        const c = updatedCorps.find(x => x.id === cid);
+                                        return Object.values(c?.units || {}).reduce((s, v) => s + v, 0);
+                                    });
+                                    const totalInitial = corpsInitialTotals.reduce((s, v) => s + v, 0) || 1;
+                                    const result = [];
+                                    let remainingSurvivors = { ...survivors };
+                                    sideCorpsList.forEach((cid, idx) => {
+                                        if (idx === sideCorpsList.length - 1) {
+                                            // 最后一个兵团拿剩余所有
+                                            result.push({ corpsId: cid, units: { ...remainingSurvivors }, morale: 0 });
+                                        } else {
+                                            const share = totalInitial > 0 ? corpsInitialTotals[idx] / totalInitial : 0;
+                                            const corpsUnits = {};
+                                            for (const [uid, count] of Object.entries(remainingSurvivors)) {
+                                                const allocated = Math.floor(count * share);
+                                                if (allocated > 0) corpsUnits[uid] = allocated;
+                                                remainingSurvivors[uid] = (remainingSurvivors[uid] || 0) - (corpsUnits[uid] || 0);
+                                            }
+                                            result.push({ corpsId: cid, units: corpsUnits, morale: 0 });
+                                        }
+                                    });
+                                    return result;
+                                };
+
+                                const atkCorpsIds = updatedBattle.attacker.corpsIds || [updatedBattle.attacker.corpsId];
+                                const defCorpsIds = updatedBattle.defender.corpsIds || [updatedBattle.defender.corpsId];
+                                const atkDistrib = distributeSurvivorsToCorps(updatedBattle.result.attackerSurvivors, atkCorpsIds);
+                                const defDistrib = distributeSurvivorsToCorps(updatedBattle.result.defenderSurvivors, defCorpsIds);
+                                const allBattleCorpsIds = new Set([...atkCorpsIds, ...defCorpsIds].filter(Boolean));
+
                                 updatedCorps = updatedCorps.map((c) => {
-                                    if (c.id === updatedBattle.attacker.corpsId) {
-                                        const survivors = { ...updatedBattle.result.attackerSurvivors };
-                                        const remainingUnits = Object.values(survivors).reduce((sum, count) => sum + Number(count || 0), 0);
-                                        return {
-                                            ...c,
-                                            units: survivors,
-                                            status: remainingUnits > 0
-                                                ? (c.assignedFrontId ? 'deployed' : 'idle')
-                                                : 'destroyed',
-                                            assignedFrontId: remainingUnits > 0 ? c.assignedFrontId : null,
-                                            morale: Math.max(20, updatedBattle.attacker.morale),
-                                        };
-                                    }
-                                    if (c.id === updatedBattle.defender.corpsId) {
-                                        const survivors = { ...updatedBattle.result.defenderSurvivors };
-                                        const remainingUnits = Object.values(survivors).reduce((sum, count) => sum + Number(count || 0), 0);
-                                        return {
-                                            ...c,
-                                            units: survivors,
-                                            status: remainingUnits > 0
-                                                ? (c.assignedFrontId ? 'deployed' : 'idle')
-                                                : 'destroyed',
-                                            assignedFrontId: remainingUnits > 0 ? c.assignedFrontId : null,
-                                            morale: Math.max(20, updatedBattle.defender.morale),
-                                        };
-                                    }
-                                    return c;
+                                    if (!allBattleCorpsIds.has(c.id)) return c;
+                                    const atkEntry = atkDistrib.find(e => e.corpsId === c.id);
+                                    const defEntry = defDistrib.find(e => e.corpsId === c.id);
+                                    const entry = atkEntry || defEntry;
+                                    if (!entry) return c;
+                                    const survivorUnits = entry.units;
+                                    const remainingUnits = Object.values(survivorUnits).reduce((sum, count) => sum + Number(count || 0), 0);
+                                    const sideMorale = atkEntry ? updatedBattle.attacker.morale : updatedBattle.defender.morale;
+                                    return {
+                                        ...c,
+                                        units: survivorUnits,
+                                        status: remainingUnits > 0
+                                            ? (c.assignedFrontId ? 'deployed' : 'idle')
+                                            : 'destroyed',
+                                        assignedFrontId: remainingUnits > 0 ? c.assignedFrontId : null,
+                                        morale: Math.max(20, sideMorale),
+                                    };
                                 });
 
                                 // Subtract player casualties from global army
@@ -2957,29 +2995,39 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             const frictionResult = processFrontFriction(frontRuntime, pCorps, eCorps, currentDay, f.posture || 'balanced');
                             if (!frictionResult) return f;
 
-                            // Apply casualties to corps (distribute proportionally)
+                            // Apply casualties to corps (distribute across all corps, multiple passes)
                             if (frictionResult.casualties.player > 0 && pCorps.length > 0) {
                                 let remaining = frictionResult.casualties.player;
-                                for (const corps of pCorps) {
-                                    if (remaining <= 0) break;
-                                    const unitKeys = Object.keys(corps.units || {});
-                                    if (unitKeys.length === 0) continue;
-                                    const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
-                                    const loss = Math.min(remaining, Math.max(1, Math.floor((corps.units[key] || 0) * 0.01)));
-                                    corps.units[key] = Math.max(0, (corps.units[key] || 0) - loss);
-                                    remaining -= loss;
+                                let passes = 0;
+                                while (remaining > 0 && passes < 5) {
+                                    for (const corps of pCorps) {
+                                        if (remaining <= 0) break;
+                                        const unitKeys = Object.keys(corps.units || {}).filter(k => (corps.units[k] || 0) > 0);
+                                        if (unitKeys.length === 0) continue;
+                                        const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
+                                        const corpsUnits = corps.units[key] || 0;
+                                        const loss = Math.min(remaining, Math.max(1, Math.ceil(corpsUnits * 0.03)));
+                                        corps.units[key] = Math.max(0, corpsUnits - loss);
+                                        remaining -= loss;
+                                    }
+                                    passes++;
                                 }
                             }
                             if (frictionResult.casualties.enemy > 0 && eCorps.length > 0) {
                                 let remaining = frictionResult.casualties.enemy;
-                                for (const corps of eCorps) {
-                                    if (remaining <= 0) break;
-                                    const unitKeys = Object.keys(corps.units || {});
-                                    if (unitKeys.length === 0) continue;
-                                    const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
-                                    const loss = Math.min(remaining, Math.max(1, Math.floor((corps.units[key] || 0) * 0.01)));
-                                    corps.units[key] = Math.max(0, (corps.units[key] || 0) - loss);
-                                    remaining -= loss;
+                                let passes = 0;
+                                while (remaining > 0 && passes < 5) {
+                                    for (const corps of eCorps) {
+                                        if (remaining <= 0) break;
+                                        const unitKeys = Object.keys(corps.units || {}).filter(k => (corps.units[k] || 0) > 0);
+                                        if (unitKeys.length === 0) continue;
+                                        const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
+                                        const corpsUnits = corps.units[key] || 0;
+                                        const loss = Math.min(remaining, Math.max(1, Math.ceil(corpsUnits * 0.03)));
+                                        corps.units[key] = Math.max(0, corpsUnits - loss);
+                                        remaining -= loss;
+                                    }
+                                    passes++;
                                 }
                             }
 
@@ -3062,11 +3110,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             const enemyIdForPlunder = playerSide === 'attacker' ? f.defenderId : f.attackerId;
                             const enemyNationForPlunder = (current.nations || []).find(n => n.id === enemyIdForPlunder);
                             if (enemyNationForPlunder) {
+                                // Calculate force ratio for plunder amplification
+                                const pTotal = pCorps.reduce((s, c) => s + Object.values(c.units || {}).reduce((a, b) => a + (b || 0), 0), 0);
+                                const eTotal = eCorps.reduce((s, c) => s + Object.values(c.units || {}).reduce((a, b) => a + (b || 0), 0), 0);
+                                const plunderUnitRatio = eTotal > 0 ? pTotal / eTotal : (pTotal > 0 ? 5.0 : 0.2);
                                 const actualPlunder = calculateWarPlunder({
                                     targetWealth: enemyNationForPlunder.wealth || 0,
                                     linePosition: updatedFront.linePosition || f.linePosition || 50,
                                     side: playerSide === 'attacker' ? 'defender' : 'attacker',
                                     raidMod: frictionResult.plunderResult?.raidMod || 1.0,
+                                    unitRatio: plunderUnitRatio,
                                 });
                                 if (actualPlunder.wealthPlundered > 0) {
                                     frictionPlunderQueue.push({
@@ -3260,9 +3313,28 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     nationWarScoreDeltaByEnemyId[enemyId] = (nationWarScoreDeltaByEnemyId[enemyId] || 0) + strategicDelta;
                                 }
                             }
+                            // Advance score natural decay: when player has recovered territory,
+                            // old negative advance score should decay toward 0 (and vice versa)
+                            let rawAdvance = Number(advancedFront.warScoreBreakdown?.advance || 0) + Math.trunc(playerAdvance / 18) + occupationDelta;
+                            // Decay rate: 2% per tick when position contradicts score, 0.5% passive decay
+                            if (rawAdvance < 0 && playerRelativePosition >= 50) {
+                                // Player recovered but advance is still negative → accelerate decay
+                                const decayRate = playerRelativePosition >= 65 ? 0.04 : 0.02;
+                                rawAdvance = Math.min(0, rawAdvance + Math.max(1, Math.abs(rawAdvance) * decayRate));
+                            } else if (rawAdvance > 0 && playerRelativePosition < 50) {
+                                // Player losing ground but advance is positive → decay
+                                const decayRate = playerRelativePosition <= 35 ? 0.04 : 0.02;
+                                rawAdvance = Math.max(0, rawAdvance - Math.max(1, Math.abs(rawAdvance) * decayRate));
+                            } else if (Math.abs(rawAdvance) > 5) {
+                                // Passive decay: 0.5% toward 0
+                                const passiveDecay = Math.max(0.5, Math.abs(rawAdvance) * 0.005);
+                                rawAdvance = rawAdvance > 0
+                                    ? rawAdvance - passiveDecay
+                                    : rawAdvance + passiveDecay;
+                            }
                             const nextWarScoreBreakdown = {
                                 battle: Number(advancedFront.warScoreBreakdown?.battle || 0),
-                                advance: Number(advancedFront.warScoreBreakdown?.advance || 0) + Math.trunc(playerAdvance / 18) + occupationDelta,
+                                advance: Math.round(rawAdvance),
                                 economic: Number(advancedFront.warScoreBreakdown?.economic || 0),
                                 homeland: -homelandPressure,
                             };
@@ -3423,11 +3495,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 .filter(front => front?.status === 'active')
                                 .map(front => front.id)
                         );
-                        // 收集活跃会战中的兵团 ID，用于判断 in_combat 是否合法
+                        // 收集活跃会战中的兵团 ID，用于判断 in_combat 是否合法（支持多兵团）
                         const activeBattleCorpsSet = new Set(
                             (updatedBattles || [])
                                 .filter(b => b?.status === 'active')
-                                .flatMap(b => [b?.attacker?.corpsId, b?.defender?.corpsId])
+                                .flatMap(b => [
+                                    b?.attacker?.corpsId,
+                                    b?.defender?.corpsId,
+                                    ...(b?.attacker?.corpsIds || []),
+                                    ...(b?.defender?.corpsIds || []),
+                                ])
                                 .filter(Boolean)
                         );
                         const recoveredCorpsIds = new Set(); // 记录被恢复为 idle 的兵团 ID
@@ -3492,12 +3569,23 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             let moraleDelta = 0;
                             if (isOnFront) {
                                 const corpsOnFront = updatedFronts.find(f => f?.id === corps.assignedFrontId);
-                                const supplyRatio = corpsOnFront?.supplyState?.playerRatio ?? 1;
+                                let supplyRatio = 1;
+                                if (corpsOnFront) {
+                                    const corpsSide = corps.isAI
+                                        ? (corpsOnFront.attackerId === corps.nationId ? 'attacker' : corpsOnFront.defenderId === corps.nationId ? 'defender' : null)
+                                        : (corpsOnFront.attackerId === 'player' ? 'attacker' : corpsOnFront.defenderId === 'player' ? 'defender' : null);
+                                    supplyRatio = Number(
+                                        corpsSide
+                                            ? (corpsOnFront.sideState?.[corpsSide]?.supplyRatio ?? 1)
+                                            : (corpsOnFront.supplyState?.playerRatio ?? 1)
+                                    );
+                                }
                                 if (supplyRatio < 0.85) {
                                     // 补给率 < 85% 开始掉士气，越低掉越快（最多每 tick -10）
                                     moraleDelta = -Math.ceil((0.85 - supplyRatio) * 12);
                                 }
                             } else {
+
                                 // 待命军团缓慢恢复士气
                                 moraleDelta = corps.morale < 100 ? 2 : 0;
                             }
@@ -3583,6 +3671,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (updatedCorps !== currentCorps) setMilitaryCorps(updatedCorps);
                         if (updatedGenerals !== currentGenerals) setGenerals(updatedGenerals);
                         if (updatedArmyFromBattle) setArmy(updatedArmyFromBattle);
+
+                        // [FIX] Sync stateRef immediately to prevent stale reads in fast ticks
+                        stateRef.current.activeBattles = updatedBattles;
+                        stateRef.current.activeFronts = updatedFronts;
+                        stateRef.current.militaryCorps = updatedCorps;
+                        stateRef.current.generals = updatedGenerals;
+                        if (updatedArmyFromBattle) stateRef.current.army = updatedArmyFromBattle;
 
                         // Log battle events
                         if (battleLogs.length > 0) {
@@ -3710,6 +3805,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         frontTask: frontPlan.taskAssignments[corps.id] || corps.frontTask || 'assault',
                                     };
                                 });
+                                // AI reinforcement: if there's an active battle on this front, reinforce it
+                                const frontBattle = updatedBattles.find(b => b.frontId === front.id && isBattleActive(b));
+                                if (frontBattle) {
+                                    const aiSide = enemySide; // AI is the enemy side
+                                    for (const deployedId of deployedIds) {
+                                        const deployedCorps = updatedCorps.find(c => c.id === deployedId);
+                                        if (deployedCorps && deployedCorps.units) {
+                                            const reinforced = processReinforcement(frontBattle, aiSide, deployedCorps.units, deployedCorps);
+                                            updatedBattles = updatedBattles.map(b => b.id === frontBattle.id ? reinforced : b);
+                                        }
+                                    }
+                                    updatedCorps = updatedCorps.map(c => {
+                                        if (!deployedIds.includes(c.id)) return c;
+                                        return { ...c, status: 'in_combat' };
+                                    });
+                                }
                                 updatedFronts = updatedFronts.map((f) => {
                                     if (f.id !== front.id) return f;
                                     return {
@@ -3778,7 +3889,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                             if (!hasBattleOnFront && refreshedEnemyCorpsOnFront.length > 0 && playerCorpsOnFront.length > 0) {
                                 const lastBattleDay = front._lastBattleDay || 0;
-                                const battleCooldown = front._battleCooldown || (5 + Math.floor(Math.random() * 10));
+const battleCooldown = front._battleCooldown || (45 + Math.floor(Math.random() * 60));
                                 const cooldownMet = currentDay - lastBattleDay >= battleCooldown;
 
                                 // === 玩家侧：将领提议系统 ===
@@ -3812,23 +3923,21 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             proposal,
                                             callback: (choice) => {
                                                 if (choice === 'approve') {
-                                                    // 批准：创建会战
-                                                    const picks = selectBattleParticipants({
-                                                        attackerCorps: playerSide === 'attacker' ? [pCorps] : refreshedEnemyCorpsOnFront,
-                                                        defenderCorps: playerSide === 'attacker' ? refreshedEnemyCorpsOnFront : [pCorps],
-                                                        generals: updatedGenerals || [],
-                                                    });
-                                                    const atkCorps = picks.attacker?.corps;
-                                                    const defCorps = picks.defender?.corps;
-                                                    if (!atkCorps || !defCorps) return;
-                                                    const atkGen = (updatedGenerals || []).find(g => g.id === atkCorps.generalId || g.assignedCorpsId === atkCorps.id) || null;
-                                                    const defGen = (updatedGenerals || []).find(g => g.id === defCorps.generalId || g.assignedCorpsId === defCorps.id) || null;
-                                                    // 将领自动选择战术
+                                                    // 批准：所有前线兵团参战
+                                                    const latestCorps = [...(updatedCorps || [])];
+                                                    const latestGenerals = [...(updatedGenerals || [])];
+                                                    const allPlayerOnFront = latestCorps.filter(c => !c.isAI && c.assignedFrontId === front.id && Object.values(c.units || {}).reduce((s, v) => s + v, 0) > 0);
+                                                    const allEnemyOnFront = latestCorps.filter(c => c.isAI && c.assignedFrontId === front.id && c.nationId === enemyId && Object.values(c.units || {}).reduce((s, v) => s + v, 0) > 0);
+                                                    const atkList = playerSide === 'attacker' ? allPlayerOnFront : allEnemyOnFront;
+                                                    const defList = playerSide === 'attacker' ? allEnemyOnFront : allPlayerOnFront;
+                                                    if (atkList.length === 0 || defList.length === 0) return;
+                                                    const atkGen = latestGenerals.find(g => g.assignedCorpsId === pCorps.id) || null;
+                                                    const defGen = latestGenerals.find(g => allEnemyOnFront.some(c => g.assignedCorpsId === c.id || g.id === c.generalId)) || null;
                                                     const atkTactic = autoSelectTactic(null, 'attacker', atkGen);
                                                     const defTactic = autoSelectTactic(null, 'defender', defGen);
                                                     const newBattle = createBattle({
-                                                        attackerCorps: atkCorps,
-                                                        defenderCorps: defCorps,
+                                                        attackerCorpsList: atkList,
+                                                        defenderCorpsList: defList,
                                                         attackerGeneral: atkGen,
                                                         defenderGeneral: defGen,
                                                         front,
@@ -3839,8 +3948,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     });
                                                     if (!newBattle) return;
                                                     setActiveBattles(prev => [...(prev || []), newBattle]);
+                                                    const allBattleIds = new Set([...atkList, ...defList].map(c => c.id));
                                                     setMilitaryCorps(prev => prev.map(c =>
-                                                        (c.id === atkCorps.id || c.id === defCorps.id) ? { ...c, status: 'in_combat' } : c
+                                                        allBattleIds.has(c.id) ? { ...c, status: 'in_combat' } : c
                                                     ));
                                                     setActiveFronts(prev => prev.map(f =>
                                                         f.id !== front.id ? f : {
@@ -3848,7 +3958,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                             activeBattleId: newBattle.id,
                                                             activeBattleType: proposal.engagementType,
                                                             _lastBattleDay: currentDay,
-                                                            _battleCooldown: 5 + Math.floor(Math.random() * 10),
+_battleCooldown: 45 + Math.floor(Math.random() * 60),
                                                         }
                                                     ));
                                                     setGenerals(prev => prev.map(g =>
@@ -3878,26 +3988,23 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     }
                                 }
 
-                                // === AI 侧：自动发起会战（保留原有逻辑，改用 autoSelectTactic）===
+                                // === AI 侧：自动发起会战（多兵团参战）===
                                 if (cooldownMet && frontPlan.shouldAttack) {
-                                    const picks = selectBattleParticipants({
-                                        attackerCorps: playerSide === 'attacker' ? playerCorpsOnFront : refreshedEnemyCorpsOnFront,
-                                        defenderCorps: playerSide === 'attacker' ? refreshedEnemyCorpsOnFront : playerCorpsOnFront,
-                                        generals: updatedGenerals || [],
-                                    });
-                                    const aiCorps = playerSide === 'attacker' ? picks.defender?.corps : picks.attacker?.corps;
-                                    const playerCorps = playerSide === 'attacker' ? picks.attacker?.corps : picks.defender?.corps;
-                                    if (aiCorps && playerCorps) {
-                                        const aiGeneral = (updatedGenerals || []).find(g => g.id === aiCorps.generalId) || null;
-                                        const playerGeneral = (updatedGenerals || []).find(g => g.assignedCorpsId === playerCorps.id) || null;
-
-                                        const aiUnits = Object.values(aiCorps.units || {}).reduce((s, c) => s + c, 0);
-                                        const playerUnitsCount = Object.values(playerCorps.units || {}).reduce((s, c) => s + c, 0);
-                                        const totalUnitsCount = aiUnits + playerUnitsCount;
+                                    // 收集前线所有兵团参战
+                                    const allPlayerCorps = playerCorpsOnFront.filter(c => Object.values(c.units || {}).reduce((s, v) => s + v, 0) > 0);
+                                    const allEnemyCorps = refreshedEnemyCorpsOnFront.filter(c => Object.values(c.units || {}).reduce((s, v) => s + v, 0) > 0);
+                                    if (allPlayerCorps.length > 0 && allEnemyCorps.length > 0) {
+                                        const aiTotalUnits = allEnemyCorps.reduce((s, c) => s + Object.values(c.units || {}).reduce((a, v) => a + v, 0), 0);
+                                        const playerTotalUnits = allPlayerCorps.reduce((s, c) => s + Object.values(c.units || {}).reduce((a, v) => a + v, 0), 0);
+                                        const totalUnitsCount = aiTotalUnits + playerTotalUnits;
                                         const playerRelativePosition = playerSide === 'attacker'
                                             ? Number(front.linePosition || 50)
                                             : 100 - Number(front.linePosition || 50);
+                                        const aiForceRatio = aiTotalUnits / Math.max(1, playerTotalUnits);
                                         let engagementType = 'probe';
+                                        if (aiForceRatio >= 1.3 || (aiForceRatio >= 1.0 && totalUnitsCount >= 200)) {
+                                            engagementType = 'assault';
+                                        }
                                         if (playerRelativePosition >= 65 || playerRelativePosition <= 35) {
                                             engagementType = 'assault';
                                         }
@@ -3906,14 +4013,30 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         }
 
                                         const isPlayerAttacker = playerSide === 'attacker';
-                                        // 双方将领自动选择战术
-                                        const atkTactic = autoSelectTactic(null, 'attacker', isPlayerAttacker ? playerGeneral : aiGeneral);
-                                        const defTactic = autoSelectTactic(null, 'defender', isPlayerAttacker ? aiGeneral : playerGeneral);
+                                        const atkCorpsList = isPlayerAttacker ? allPlayerCorps : allEnemyCorps;
+                                        const defCorpsList = isPlayerAttacker ? allEnemyCorps : allPlayerCorps;
+                                        // 找到主将（按兵力最大的兵团的将领）
+                                        const pickGeneral = (corpsList) => {
+                                            const sorted = [...corpsList].sort((a, b) => {
+                                                const aU = Object.values(a.units || {}).reduce((s, v) => s + v, 0);
+                                                const bU = Object.values(b.units || {}).reduce((s, v) => s + v, 0);
+                                                return bU - aU;
+                                            });
+                                            for (const c of sorted) {
+                                                const g = (updatedGenerals || []).find(g => g.assignedCorpsId === c.id || g.id === c.generalId);
+                                                if (g) return g;
+                                            }
+                                            return null;
+                                        };
+                                        const atkGeneral = pickGeneral(atkCorpsList);
+                                        const defGeneral = pickGeneral(defCorpsList);
+                                        const atkTactic = autoSelectTactic(null, 'attacker', atkGeneral);
+                                        const defTactic = autoSelectTactic(null, 'defender', defGeneral);
                                         const newBattle = createBattle({
-                                            attackerCorps: isPlayerAttacker ? playerCorps : aiCorps,
-                                            defenderCorps: isPlayerAttacker ? aiCorps : playerCorps,
-                                            attackerGeneral: isPlayerAttacker ? playerGeneral : aiGeneral,
-                                            defenderGeneral: isPlayerAttacker ? aiGeneral : playerGeneral,
+                                            attackerCorpsList: atkCorpsList,
+                                            defenderCorpsList: defCorpsList,
+                                            attackerGeneral: atkGeneral,
+                                            defenderGeneral: defGeneral,
                                             front,
                                             engagementType,
                                             battlePlan: { attacker: atkTactic, defender: defTactic },
@@ -3923,8 +4046,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                         if (newBattle) {
                                             updatedBattles.push(newBattle);
+                                            const allBattleCorpsIds = new Set([...atkCorpsList, ...defCorpsList].map(c => c.id));
                                             updatedCorps = updatedCorps.map(c => {
-                                                if (c.id === aiCorps.id || c.id === playerCorps.id) {
+                                                if (allBattleCorpsIds.has(c.id)) {
                                                     return { ...c, status: 'in_combat' };
                                                 }
                                                 return c;
@@ -3936,12 +4060,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     activeBattleId: newBattle.id,
                                                     activeBattleType: engagementType,
                                                     _lastBattleDay: currentDay,
-                                                    _battleCooldown: 5 + Math.floor(Math.random() * 10),
+_battleCooldown: 45 + Math.floor(Math.random() * 60),
                                                 };
                                             });
-                                            const atkName = isPlayerAttacker ? playerCorps.name : aiCorps.name;
-                                            const defName = isPlayerAttacker ? aiCorps.name : playerCorps.name;
-                                            addLog(`⚔️ 敌军发起会战：${atkName} 对阵 ${defName}`);
+                                            addLog(`⚔️ 敌军发起会战：${newBattle.attacker.corpsName} 对阵 ${newBattle.defender.corpsName}`);
                                         }
                                     }
                                 }
@@ -3949,6 +4071,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         }
 
                         if (aiNationChangedIds.size > 0) {
+                            const aiMarketPrices = result.market?.prices || current.market?.prices || {};
                             setNations(prev => prev.map(nation => {
                                 const updatedNation = aiNations.find(item => item.id === nation.id);
                                 if (!updatedNation || !aiNationChangedIds.has(nation.id)) return nation;
@@ -3970,25 +4093,68 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     frontlinePressure: 0,
                                     productionPressure: 0,
                                 });
-                                const stockpile = {
-                                    ...(updatedNation.military?.stockpile || {}),
-                                };
+
+                                const procurementDemand = {};
                                 Object.entries(warEconomy.resourceUpkeep).forEach(([resourceKey, amount]) => {
-                                    stockpile[resourceKey] = Math.max(0, Number(stockpile[resourceKey] || 0) - Number(amount || 0));
+                                    const required = Math.max(0, Number(amount || 0));
+                                    if (required <= 0) return;
+                                    const currentStock = Math.max(0, Number(updatedNation.military?.stockpile?.[resourceKey] || 0));
+                                    const desiredBuffer = required * 1.15;
+                                    const topUpAmount = Math.max(0, desiredBuffer - currentStock);
+                                    if (topUpAmount > 0.01) {
+                                        procurementDemand[resourceKey] = Number(topUpAmount.toFixed(2));
+                                    }
+                                });
+
+                                const reserveWealth = Math.max(80, Number((updatedNation.wealth || nation.wealth || 0) * 0.05));
+                                const procurementNation = applyMilitaryProcurementPressure({
+                                    nation: updatedNation,
+                                    resourceDemand: procurementDemand,
+                                    marketPrices: aiMarketPrices,
+                                    reserveWealth,
+                                    day: currentDay,
+                                });
+
+                                const stockpileBeforeConsumption = {
+                                    ...(procurementNation.military?.stockpile || {}),
+                                };
+                                const consumedResources = {};
+                                const unmetDemand = {};
+                                Object.entries(warEconomy.resourceUpkeep).forEach(([resourceKey, amount]) => {
+                                    const required = Math.max(0, Number(amount || 0));
+                                    if (required <= 0) return;
+                                    const available = Math.max(0, Number(stockpileBeforeConsumption[resourceKey] || 0));
+                                    const consumed = Math.min(required, available);
+                                    consumedResources[resourceKey] = Number(consumed.toFixed(2));
+                                    unmetDemand[resourceKey] = Number(Math.max(0, required - consumed).toFixed(2));
+                                    stockpileBeforeConsumption[resourceKey] = Number(Math.max(0, available - consumed).toFixed(2));
                                 });
                                 const supplyCoverage = buildResourceCoverage(
                                     warEconomy.resourceUpkeep,
-                                    stockpile
+                                    procurementNation.military?.stockpile || {}
                                 );
+                                const domesticPressure = Object.entries(warEconomy.resourceUpkeep).reduce((maxPressure, [resourceKey, amount]) => {
+                                    const required = Math.max(0, Number(amount || 0));
+                                    if (required <= 0 || resourceKey === 'silver') return maxPressure;
+                                    const domesticInventory = Math.max(0, Number(procurementNation.nationInventories?.[resourceKey] || 0));
+                                    const pressure = Math.max(0, 1 - domesticInventory / Math.max(required * 3, 1));
+                                    return Math.max(maxPressure, pressure);
+                                }, 0);
+                                const procurement = procurementNation.military?.procurement || {};
 
                                 return {
                                     ...nation,
-                                    militaryStrength: updatedNation.militaryStrength,
+                                    militaryStrength: procurementNation.militaryStrength,
+                                    wealth: procurementNation.wealth,
+                                    nationPrices: procurementNation.nationPrices || nation.nationPrices,
+                                    nationInventories: procurementNation.nationInventories || nation.nationInventories,
+                                    inventory: procurementNation.inventory || nation.inventory,
                                     military: {
                                         ...(nation.military || {}),
                                         ...(updatedNation.military || {}),
-                                        stockpile,
-                                        organization: Math.max(15, Number(updatedNation.military?.organization || 50) - (supplyCoverage < 0.75 ? 1 : 0) + (warEconomy.frontCount === 0 ? 1 : 0)),
+                                        ...(procurementNation.military || {}),
+                                        stockpile: stockpileBeforeConsumption,
+                                        organization: Math.max(15, Number(procurementNation.military?.organization || updatedNation.military?.organization || 50) - (supplyCoverage < 0.75 ? 1 : 0) + (warEconomy.frontCount === 0 ? 1 : 0)),
                                     },
                                     warEconomy: {
                                         ...(nation.warEconomy || {}),
@@ -3997,19 +4163,33 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         silverUpkeep: Number(warEconomy.resourceUpkeep.silver || 0),
                                         materielUpkeep: Number(warEconomy.resourceUpkeep.ammunition || warEconomy.resourceUpkeep.gunpowder || warEconomy.resourceUpkeep.wood || 0),
                                         supplyCoverage: Number(supplyCoverage.toFixed(2)),
+                                        consumedResources,
+                                        unmetDemand,
+                                        domesticPressure: Number(domesticPressure.toFixed(2)),
+                                        procurement: {
+                                            ...procurement,
+                                            reserveWealth: Number(reserveWealth.toFixed(2)),
+                                            targetBuffer: procurementDemand,
+                                        },
                                     },
                                 };
                             }));
                         }
 
+
                         setActiveBattles(updatedBattles);
                         setActiveFronts(updatedFronts);
                         if (updatedCorps !== currentCorps) setMilitaryCorps(updatedCorps);
                         if (updatedGenerals !== currentGenerals) setGenerals(updatedGenerals);
+
+                        // [FIX] Sync stateRef for AI section too
+                        stateRef.current.activeBattles = updatedBattles;
+                        stateRef.current.activeFronts = updatedFronts;
+                        stateRef.current.militaryCorps = updatedCorps;
+                        stateRef.current.generals = updatedGenerals;
                     }
 
-                    // 姣忔 Tick 鎺ㄨ繘 1 澶╋紙鑰岄潪 gameSpeed 澶╋級
-                    // 鍔犻€熸晥鏋滈€氳繃澧炲姞 Tick 棰戠巼瀹炵幇锛岃€岄潪澧炲姞姣忔鎺ㄨ繘鐨勫ぉ鏁?
+                    // 姣忔 Tick 鎺ㄨ繘 1 澶╋紙鑰岄潪 gameSpeed 澶╋級                    // 鍔犻€熸晥鏋滈€氳繃澧炲姞 Tick 棰戠巼瀹炵幇锛岃€岄潪澧炲姞姣忔鎺ㄨ繘鐨勫ぉ鏁?
                     setDaysElapsed(prev => {
                         const numericPrev = Number.isFinite(prev) ? prev : Number(prev);
                         return (Number.isFinite(numericPrev) ? numericPrev : 0) + 1;
@@ -6768,9 +6948,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
             }).catch((error) => {
                 simInFlightRef.current = false;
                 console.error('[GameLoop] Simulation failed:', error);
+            }).finally(() => {
+                tickProcessingRef.current = false;
             });
-        }, tickInterval); // 鏍规嵁娓告垙閫熷害鍔ㄦ€佽皟鏁存墽琛岄鐜?
-
+            } catch (err) {
+                tickProcessingRef.current = false;
+                console.error('[GameLoop] Tick error:', err);
+            }
+        }, tickInterval); // 鏍规嵁娓告垙閫熷害鍔ㄦ€佽皟鏁存墽琛岄鐜?
         return () => clearInterval(timer);
     }, [gameSpeed, isPaused, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 渚濊禆娓告垙閫熷害銆佹殏鍋滅姸鎬佸拰搴嗗吀鐩稿叧鐘舵€?
 };

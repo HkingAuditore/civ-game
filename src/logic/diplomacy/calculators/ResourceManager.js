@@ -6,6 +6,7 @@
 import { RESOURCES } from '../../../config/index.js';
 import { isTradableResource } from '../../utils/helpers.js';
 import { getConfig } from '../config/aiEconomyConfig.js';
+import { calculateBuildingIntegrityModifiers } from '../warEconomy.js';
 
 export class ResourceManager {
     /**
@@ -20,6 +21,7 @@ export class ResourceManager {
         tick,
         gameSpeed,
         aggression = 0.2,
+        nation = null,
     }) {
         const updatedInventory = { ...inventory };
         const foreignResourceKeys = Object.keys(RESOURCES).filter(isTradableResource);
@@ -34,6 +36,9 @@ export class ResourceManager {
         const warMultiplier = isAtWar 
             ? (getConfig('resources.warConsumptionMultiplier', 1.3) + aggression * 0.5)
             : 1.0;
+
+        // Building integrity modifiers: war damage reduces production
+        const integrityModifiers = nation ? calculateBuildingIntegrityModifiers(nation) : {};
         
         foreignResourceKeys.forEach((resourceKey) => {
             const bias = resourceBias[resourceKey] ?? 1;
@@ -56,6 +61,7 @@ export class ResourceManager {
                 warMultiplier,
                 tick,
                 gameSpeed,
+                integrityFactor: integrityModifiers[resourceKey] ?? 1.0,
             });
             
             // Update inventory
@@ -83,6 +89,7 @@ export class ResourceManager {
         warMultiplier,
         tick,
         gameSpeed,
+        integrityFactor = 1.0,
     }) {
         const baseProduction = getConfig('resources.baseProductionRate', 5.0);
         const baseConsumption = getConfig('resources.baseConsumptionRate', 5.0);
@@ -107,8 +114,8 @@ export class ResourceManager {
             ? 1 + Math.max(0, cyclePhase) * trendAmplitude + 0.15
             : 1 - Math.max(0, cyclePhase) * trendAmplitude * 0.25;
         
-        // Base rates
-        const productionRate = baseProduction * epochMultiplier * wealthFactor * Math.pow(bias, 1.2) * productionTrend * gameSpeed;
+        // Base rates (with building integrity modifier)
+        const productionRate = baseProduction * epochMultiplier * wealthFactor * Math.pow(bias, 1.2) * productionTrend * gameSpeed * integrityFactor;
         const consumptionRate = baseConsumption * epochMultiplier * wealthFactor * Math.pow(1 / bias, 0.8) * consumptionTrend * warMultiplier * gameSpeed;
         
         // Inventory adjustment

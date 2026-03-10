@@ -371,7 +371,8 @@ const StrataPanelComponent = ({
                                                 name={livingStandardIcon}
                                                 size={10}
                                                 className={`${livingStandardColor} drop-shadow-[0_0_2px_rgba(255,255,255,0.3)]`}
-                                                title={`生活水平: ${getLivingStandardLevelName(livingStandardIcon)} (财富比率 ${wealthRatio.toFixed(2)}x)`}
+                                                title={`生活水平: ${getLivingStandardLevelName(livingStandardIcon)} (购买力比率 ${wealthRatio.toFixed(2)}x)`}
+
                                             />
                                             {/* 组织度状态图标 */}
                                             {organization > 0 && (

@@ -12,6 +12,8 @@ import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } 
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 import { useLongPress } from '../../hooks/useLongPress';
 import { getNationOrganizations, ORGANIZATION_TYPE_CONFIGS } from '../../logic/diplomacy/organizationDiplomacy';
+import { getCorpsTotalUnits, getCorpsGeneral, calculateCorpsCombatPower } from '../../logic/diplomacy/corpsSystem';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const formatStat = (val) => {
     const numberValue = Number(val || 0);
@@ -248,6 +250,8 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
 
                         <StrategicStatus nation={nation} epoch={epoch} market={market} daysElapsed={daysElapsed} gameState={gameState} />
 
+                        <BuildingOverview nation={nation} overseasInvestments={overseasInvestments} />
+
                         <TaxRatesCard
                             nation={nation}
                             daysElapsed={daysElapsed}
@@ -255,7 +259,7 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                             taxPolicies={taxPolicies}
                         />
 
-                        <ActiveWars nation={nation} gameState={gameState} daysElapsed={daysElapsed} nations={nations} />
+<ActiveWars nation={nation} gameState={gameState} daysElapsed={daysElapsed} nations={nations} epoch={epoch} />
 
                         <InternationalOrganizations 
                             nation={nation} 
@@ -975,6 +979,132 @@ const StrategicStatus = ({ nation, epoch, market, daysElapsed, gameState }) => {
     );
 };
 
+// ========== AI 建筑概况组件 ==========
+const CATEGORY_CONFIG = {
+    gather: { label: '采集', icon: 'Wheat', color: 'text-green-400' },
+    industry: { label: '工业', icon: 'Factory', color: 'text-amber-400' },
+    civic: { label: '民政', icon: 'Building2', color: 'text-blue-400' },
+    military: { label: '军事', icon: 'Shield', color: 'text-red-400' },
+};
+
+const BuildingOverview = ({ nation, overseasInvestments = [] }) => {
+    const buildingData = useMemo(() => {
+        const vb = nation?.virtualBuildings;
+        const foreign = nation?.virtualBuildingsForeign || {};
+        const baseline = nation?.virtualBuildingsBaseline || {};
+
+        // 也检查海外投资（即使没有 virtualBuildings）
+        const foreignFromInvestments = {};
+        if (Array.isArray(overseasInvestments)) {
+            for (const inv of overseasInvestments) {
+                if (inv.targetNationId === nation?.id && inv.status === 'operating') {
+                    const count = inv.count || 1;
+                    foreignFromInvestments[inv.buildingId] = (foreignFromInvestments[inv.buildingId] || 0) + count;
+                }
+            }
+        }
+
+        if (!vb && Object.keys(foreignFromInvestments).length === 0) return null;
+
+        const categories = {};
+        const allBuildings = { ...(vb || {}), ...foreignFromInvestments };
+
+        for (const [bId, count] of Object.entries(allBuildings)) {
+            if (count <= 0 && !(foreignFromInvestments[bId] > 0)) continue;
+            const bDef = BUILDINGS.find(b => b.id === bId);
+            if (!bDef) continue;
+
+            const cat = bDef.cat || 'gather';
+            if (!categories[cat]) {
+                categories[cat] = { total: 0, foreignTotal: 0, warDamage: 0, buildings: [] };
+            }
+
+            const localCount = vb ? Math.max(0, (vb[bId] || 0) - (foreign[bId] || 0)) : 0;
+            const foreignCount = (foreign[bId] || 0) + (foreignFromInvestments[bId] || 0);
+            const baseCount = baseline[bId] || 0;
+            const damage = Math.max(0, baseCount - (vb?.[bId] || 0));
+
+            categories[cat].total += localCount + foreignCount;
+            categories[cat].foreignTotal += foreignCount;
+            categories[cat].warDamage += damage;
+            categories[cat].buildings.push({
+                id: bId,
+                name: bDef.name,
+                localCount,
+                foreignCount,
+                damage,
+            });
+        }
+
+        // 每类按数量排序，取前3
+        for (const cat of Object.values(categories)) {
+            cat.buildings.sort((a, b) => (b.localCount + b.foreignCount) - (a.localCount + a.foreignCount));
+        }
+
+        return categories;
+    }, [nation, overseasInvestments]);
+
+    if (!buildingData) {
+        return (
+            <Card className="p-4 bg-ancient-ink/20 border-ancient-gold/10">
+                <h3 className="text-xs font-bold text-ancient-gold uppercase tracking-widest mb-2 flex items-center gap-2 opacity-80">
+                    <Icon name="Building" size={14} />
+                    建筑概况
+                </h3>
+                <div className="text-center text-ancient-stone/60 text-sm py-2 italic">暂无情报</div>
+            </Card>
+        );
+    }
+
+    return (
+        <Card className="p-4 bg-ancient-ink/20 border-ancient-gold/10">
+            <h3 className="text-xs font-bold text-ancient-gold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-80">
+                <Icon name="Building" size={14} />
+                建筑概况
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {Object.entries(CATEGORY_CONFIG).map(([catKey, catConfig]) => {
+                    const catData = buildingData[catKey];
+                    if (!catData || catData.total <= 0) return (
+                        <div key={catKey} className="p-2 bg-ancient-ink/30 rounded border border-ancient-gold/5">
+                            <div className={`text-[10px] ${catConfig.color} uppercase flex items-center gap-1 mb-1`}>
+                                <Icon name={catConfig.icon} size={12} /> {catConfig.label}
+                            </div>
+                            <div className="text-xs text-ancient-stone/40 italic">无</div>
+                        </div>
+                    );
+
+                    return (
+                        <div key={catKey} className="p-2 bg-ancient-ink/30 rounded border border-ancient-gold/5">
+                            <div className={`text-[10px] ${catConfig.color} uppercase flex items-center gap-1 mb-1`}>
+                                <Icon name={catConfig.icon} size={12} /> {catConfig.label}
+                                <span className="text-ancient-parchment ml-auto font-bold">{catData.total}</span>
+                            </div>
+                            {catData.foreignTotal > 0 && (
+                                <div className="text-[10px] text-blue-400 mb-1">外资 {catData.foreignTotal}座</div>
+                            )}
+                            {catData.warDamage > 0 && (
+                                <div className="text-[10px] text-red-400 mb-1">战损 {catData.warDamage}座</div>
+                            )}
+                            <div className="space-y-0.5">
+                                {catData.buildings.slice(0, 3).map(b => (
+                                    <div key={b.id} className="text-[10px] text-ancient-stone/80 flex justify-between">
+                                        <span className="truncate">{b.name}</span>
+                                        <span className="ml-1 shrink-0">
+                                            {b.localCount > 0 && <span>{b.localCount}</span>}
+                                            {b.foreignCount > 0 && <span className="text-blue-400 ml-0.5">+{b.foreignCount}</span>}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </Card>
+    );
+};
+
 const DetailedMarketTable = ({ nation, market, epoch, daysElapsed, onTrade }) => {
     const resources = getTradableResources(epoch);
     const localPrices = market?.prices || {};
@@ -1480,7 +1610,10 @@ const MerchantManager = ({ nation, merchantState, onMerchantStateChange, merchan
     );
 };
 
-const ActiveWars = ({ nation, gameState, daysElapsed, nations = [] }) => {
+const ActiveWars = ({ nation, gameState, daysElapsed, nations = [], epoch = 0 }) => {
+    const allMilitaryCorps = gameState?.militaryCorps || [];
+    const allGenerals = gameState?.generals || [];
+    const [expandedWarId, setExpandedWarId] = useState(null);
     // Collect all active wars
     const activeWars = useMemo(() => {
         const wars = [];
@@ -1511,6 +1644,16 @@ const ActiveWars = ({ nation, gameState, daysElapsed, nations = [] }) => {
                             isPlayer: false,
                             startDate: warData.warStartDay || 0,
                             score: warData.warScore || 0,
+                            linePosition: warData.linePosition,
+                            destroyedBuildings: warData.destroyedBuildings || {},
+                            warScoreBreakdown: warData.warScoreBreakdown || {},
+                            warEvents: warData.warEvents || [],
+                            nationEffStr: warData.nationEffStr || 0,
+                            enemyEffStr: warData.enemyEffStr || 0,
+                            warIntensity: warData.warIntensity || 1,
+                            warDuration: warData.warDuration || 0,
+                            endScoreThreshold: warData.endScoreThreshold || 0,
+                            enemy,
                         });
                     }
                 }
@@ -1522,6 +1665,11 @@ const ActiveWars = ({ nation, gameState, daysElapsed, nations = [] }) => {
 
     if (activeWars.length === 0) return null;
 
+    const handleWarClick = (warId) => {
+        if (warId === 'player') return; // 玩家战争不展开
+        setExpandedWarId(prev => prev === warId ? null : warId);
+    };
+
     return (
         <Card className="p-4 bg-red-900/10 border-red-500/20">
             <h3 className="text-xs font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2 opacity-90">
@@ -1530,31 +1678,540 @@ const ActiveWars = ({ nation, gameState, daysElapsed, nations = [] }) => {
             </h3>
             <div className="space-y-2">
                 {activeWars.map(war => {
-                    const duration = daysElapsed - war.startDate;
+                    const duration = war.startDate > 0 ? Math.max(0, daysElapsed - war.startDate) : 0;
+                    const isExpanded = expandedWarId === war.id;
                     return (
-                        <div key={war.id} className="flex justify-between items-center p-2.5 bg-black/30 rounded border border-red-900/30 hover:border-red-500/30 transition-colors">
-                            <div className="flex items-center gap-2">
-                                <Icon name="Skull" size={14} className="text-red-500" />
-                                <span className="text-sm text-ancient-parchment font-bold">
-                                    VS {war.name}
-                                </span>
-                                {war.isPlayer && (
-                                    <Badge variant="danger" className="text-[9px] scale-90">你</Badge>
-                                )}
-                            </div>
-                            <div className="text-right">
-                                <div className="text-xs text-red-300 font-mono">
-                                    {(war.score > 0 ? '+' : '') + Math.round(war.score)} 分
+                        <div key={war.id}>
+                            <div
+                                className={`flex justify-between items-center p-2.5 bg-black/30 rounded border transition-colors ${
+                                    war.isPlayer
+                                        ? 'border-red-900/30 hover:border-red-500/30'
+                                        : 'border-red-900/30 hover:border-yellow-500/40 cursor-pointer'
+                                } ${isExpanded ? 'border-yellow-500/50 bg-black/50' : ''}`}
+                                onClick={() => handleWarClick(war.id)}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Icon name="Skull" size={14} className="text-red-500" />
+                                    <span className="text-sm text-ancient-parchment font-bold">
+                                        VS {war.name}
+                                    </span>
+                                    {war.isPlayer && (
+                                        <Badge variant="danger" className="text-[9px] scale-90">你</Badge>
+                                    )}
+                                    {!war.isPlayer && (
+                                        <Icon name="ChevronDown" size={12} className={`text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                    )}
                                 </div>
-                                <div className="text-[10px] text-ancient-stone/60">
-                                    持续 {duration} 天
+                                <div className="text-right">
+                                    <div className="text-xs text-red-300 font-mono">
+                                        {(war.score > 0 ? '+' : '') + Math.round(war.score)} 分
+                                    </div>
+                                    <div className="text-[10px] text-ancient-stone/60">
+                                        {duration > 0 ? `持续 ${duration} 天` : '刚开战'}
+                                    </div>
                                 </div>
                             </div>
+                            {war.isPlayer && expandedWarId === 'player' && (
+                                <div className="mt-1 p-2 text-[11px] text-amber-400/80 bg-amber-900/10 rounded border border-amber-800/20 text-center">
+                                    在军事面板中查看此战线
+                                </div>
+                            )}
+                            {isExpanded && !war.isPlayer && (
+                                <AIWarFrontDetail
+                                    war={war}
+                                    nation={nation}
+                                    enemy={war.enemy}
+                                    daysElapsed={daysElapsed}
+                                    nations={nations}
+                                    militaryCorps={allMilitaryCorps}
+                                    generals={allGenerals}
+                                    epoch={epoch}
+                                />
+                            )}
                         </div>
                     );
                 })}
             </div>
         </Card>
+    );
+};
+
+// AI战线区域定义（与玩家战线语义一致）
+const AI_FRONT_ZONES = [
+    { id: 'our_core', name: '核心区', start: 0, end: 15, category: 'capital', tone: 'bg-blue-800/70' },
+    { id: 'our_economic', name: '经济区', start: 15, end: 35, category: 'economic', tone: 'bg-blue-700/50' },
+    { id: 'our_frontier', name: '前沿', start: 35, end: 50, category: 'frontier', tone: 'bg-blue-600/30' },
+    { id: 'enemy_frontier', name: '前沿', start: 50, end: 65, category: 'frontier', tone: 'bg-red-600/30' },
+    { id: 'enemy_economic', name: '经济区', start: 65, end: 85, category: 'economic', tone: 'bg-red-700/50' },
+    { id: 'enemy_core', name: '核心区', start: 85, end: 100, category: 'capital', tone: 'bg-red-800/70' },
+];
+
+const AI_FRONT_CHECKPOINTS = [15, 35, 50, 65, 85];
+
+// Helper: calculate supply rate from stockpile and logistics data
+const getAISupplyInfo = (n, warIntensity = 1, duration = 0) => {
+    if (!n) return { supplyRate: 0, label: '未知', tone: 'text-gray-400', dailyCost: 0 };
+    const stockpile = n.military?.stockpile || {};
+    const logistics = n.military?.logistics || {};
+    const pop = n.population || 100;
+    const wealth = n.wealth || 500;
+
+    // Estimate daily consumption: food + silver + materiel
+    const foodNeed = Math.max(1, pop * 0.005 * warIntensity);
+    const silverNeed = Math.max(1, wealth * 0.0003 * warIntensity);
+    const totalStockValue = Object.values(stockpile).reduce((s, v) => s + (v || 0), 0);
+
+    // Supply rate = how well stockpile covers daily needs
+    const dailyCost = Math.round(foodNeed + silverNeed);
+    const sustainDays = dailyCost > 0 ? totalStockValue / dailyCost : 9999;
+    const ratio = Math.min(1, sustainDays / 400);
+
+    // Logistics throughput affects effective supply rate
+    const throughput = logistics.throughput || 1;
+    const effectiveRatio = Math.min(1, ratio * throughput);
+
+    if (effectiveRatio >= 0.8) return { supplyRate: effectiveRatio, label: '充裕', tone: 'text-emerald-400', dailyCost, barColor: 'bg-emerald-400' };
+    if (effectiveRatio >= 0.5) return { supplyRate: effectiveRatio, label: '吃紧', tone: 'text-yellow-400', dailyCost, barColor: 'bg-yellow-400' };
+    if (effectiveRatio >= 0.2) return { supplyRate: effectiveRatio, label: '困难', tone: 'text-orange-400', dailyCost, barColor: 'bg-red-400' };
+    return { supplyRate: effectiveRatio, label: '崩溃', tone: 'text-red-400', dailyCost, barColor: 'bg-red-500' };
+};
+
+// AI war force and economy panel (similar to FrontViewPanel ForceColumn + WarEconomy)
+const AIWarForcePanel = ({ nation, enemy, militaryCorps, generals, epoch, nationWarCount, enemyWarCount, warIntensity, duration }) => {
+    const [showNationCorps, setShowNationCorps] = useState(true);
+    const [showEnemyCorps, setShowEnemyCorps] = useState(true);
+
+    // Filter corps for each side
+    const nationCorps = useMemo(() =>
+        (militaryCorps || []).filter(c => c?.isAI && c.nationId === nation?.id && getCorpsTotalUnits(c) > 0),
+        [militaryCorps, nation?.id]
+    );
+    const enemyCorps = useMemo(() =>
+        (militaryCorps || []).filter(c => c?.isAI && c.nationId === enemy?.id && getCorpsTotalUnits(c) > 0),
+        [militaryCorps, enemy?.id]
+    );
+
+    // Aggregate units
+    const nationTotalUnits = nationCorps.reduce((s, c) => s + getCorpsTotalUnits(c), 0);
+    const enemyTotalUnits = enemyCorps.reduce((s, c) => s + getCorpsTotalUnits(c), 0);
+
+    // Aggregate combat power
+    const nationTotalPower = nationCorps.reduce((s, c) => {
+        const gen = getCorpsGeneral(generals, c.id);
+        return s + calculateCorpsCombatPower(c, gen, epoch);
+    }, 0);
+    const enemyTotalPower = enemyCorps.reduce((s, c) => {
+        const gen = getCorpsGeneral(generals, c.id);
+        return s + calculateCorpsCombatPower(c, gen, epoch);
+    }, 0);
+
+    // Detailed supply info
+    const nationSupplyInfo = getAISupplyInfo(nation, warIntensity, duration);
+    const enemySupplyInfo = getAISupplyInfo(enemy, warIntensity, duration);
+
+    // Render a corps card
+    const renderCorpsCard = (corps, side) => {
+        const gen = getCorpsGeneral(generals, corps.id);
+        const units = getCorpsTotalUnits(corps);
+        const power = calculateCorpsCombatPower(corps, gen, epoch);
+        const borderColor = side === 'nation' ? 'border-blue-800/40' : 'border-red-800/40';
+        const nameColor = side === 'nation' ? 'text-blue-300' : 'text-red-300';
+
+        return (
+            <div key={corps.id} className={`rounded border ${borderColor} bg-black/20 p-1.5`}>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <span className={`text-[10px] font-semibold ${nameColor}`}>{corps.name}</span>
+                        <span className="text-[10px] text-gray-500 ml-1">({formatNumberShortCN(units, { decimals: 0 })})</span>
+                    </div>
+                    <span className="text-[9px] text-gray-500">战力 {formatNumberShortCN(power, { decimals: 0 })}</span>
+                </div>
+                <div className="text-[9px] text-gray-400 mt-0.5">
+                    {gen ? `将领 ${gen.name} Lv.${gen.level || 1}` : '无将领'}
+                    {' · '}士气 {Math.round(corps.morale || 0)}
+                    {corps.frontTask ? ` · ${corps.frontTask === 'assault' ? '主攻' : corps.frontTask === 'guard' ? '守备' : corps.frontTask === 'raid' ? '骚扰' : '预备'}` : ''}
+                </div>
+            </div>
+        );
+    };
+
+    // Render supply bar
+    const renderSupplyBar = (label, value, max, color) => (
+        <div className="mb-1">
+            <div className="flex items-center justify-between text-[9px] text-gray-400 mb-0.5">
+                <span>{label}</span>
+                <span>{Math.round(value * 100)}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-gray-800">
+                <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.max(2, (value / max) * 100)}%` }} />
+            </div>
+        </div>
+    );
+
+
+    return (
+        <div className="space-y-2">
+            {/* 双方战力面板 */}
+            <div className="grid grid-cols-2 gap-2">
+                {/* 左侧：nation */}
+                <div className="bg-blue-950/20 rounded p-2 border border-blue-900/30">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <div>
+                            <div className="text-[10px] text-blue-400 font-bold">{nation.name}</div>
+                            <div className="text-[9px] text-gray-500">
+                                兵力 {formatNumberShortCN(nationTotalUnits, { decimals: 0 })} · 军团 {nationCorps.length}
+                            </div>
+                        </div>
+                        <div className="text-right text-[9px] text-gray-500">
+                            补给 <span className={nationSupplyInfo.tone}>{nationSupplyInfo.label}</span>
+                        </div>
+                    </div>
+                    {/* Summary stats */}
+                    <div className="grid grid-cols-2 gap-1 mb-1.5">
+                        <div className="rounded bg-black/20 border border-gray-800/40 p-1">
+                            <div className="text-[8px] text-gray-500">攻防战力</div>
+                            <div className="text-[10px] text-white">{formatNumberShortCN(nationTotalPower, { decimals: 0 })}</div>
+                        </div>
+                        <div className="rounded bg-black/20 border border-gray-800/40 p-1">
+                            <div className="text-[8px] text-gray-500">补给率</div>
+                            <div className={`text-[10px] ${nationSupplyInfo.tone}`}>{Math.round(nationSupplyInfo.supplyRate * 100)}%</div>
+                        </div>
+                    </div>
+                    {/* Corps list */}
+                    <div className="space-y-1">
+                        {nationCorps.length === 0 ? (
+                            <div className="text-[9px] text-gray-600 text-center py-1 border border-dashed border-gray-700 rounded">无军团数据</div>
+                        ) : (
+                            <>
+                                <div className="flex items-center justify-between cursor-pointer" onClick={() => setShowNationCorps(!showNationCorps)}>
+                                    <span className="text-[9px] text-blue-400">军团列表 ({nationCorps.length})</span>
+                                    <span className="text-[8px] text-gray-600">{showNationCorps ? '▲' : '▼'}</span>
+                                </div>
+                                {showNationCorps && nationCorps.map(c => renderCorpsCard(c, 'nation'))}
+                            </>
+                        )}
+                    </div>
+                    {nationWarCount > 1 && (
+                        <div className="text-[9px] text-amber-400 mt-1">多线作战 ×{nationWarCount}</div>
+                    )}
+                </div>
+
+                {/* 右侧：enemy */}
+                <div className="bg-red-950/20 rounded p-2 border border-red-900/30">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <div>
+                            <div className="text-[10px] text-red-400 font-bold">{enemy?.name || '敌方'}</div>
+                            <div className="text-[9px] text-gray-500">
+                                兵力 {formatNumberShortCN(enemyTotalUnits, { decimals: 0 })} · 军团 {enemyCorps.length}
+                            </div>
+                        </div>
+                        <div className="text-right text-[9px] text-gray-500">
+                            补给 <span className={enemySupplyInfo.tone}>{enemySupplyInfo.label}</span>
+                        </div>
+                    </div>
+                    {/* Summary stats */}
+                    <div className="grid grid-cols-2 gap-1 mb-1.5">
+                        <div className="rounded bg-black/20 border border-gray-800/40 p-1">
+                            <div className="text-[8px] text-gray-500">攻防战力</div>
+                            <div className="text-[10px] text-white">{formatNumberShortCN(enemyTotalPower, { decimals: 0 })}</div>
+                        </div>
+                        <div className="rounded bg-black/20 border border-gray-800/40 p-1">
+                            <div className="text-[8px] text-gray-500">补给率</div>
+                            <div className={`text-[10px] ${enemySupplyInfo.tone}`}>{Math.round(enemySupplyInfo.supplyRate * 100)}%</div>
+                        </div>
+                    </div>
+                    {/* Corps list */}
+                    <div className="space-y-1">
+                        {enemyCorps.length === 0 ? (
+                            <div className="text-[9px] text-gray-600 text-center py-1 border border-dashed border-gray-700 rounded">无军团数据</div>
+                        ) : (
+                            <>
+                                <div className="flex items-center justify-between cursor-pointer" onClick={() => setShowEnemyCorps(!showEnemyCorps)}>
+                                    <span className="text-[9px] text-red-400">军团列表 ({enemyCorps.length})</span>
+                                    <span className="text-[8px] text-gray-600">{showEnemyCorps ? '▲' : '▼'}</span>
+                                </div>
+                                {showEnemyCorps && enemyCorps.map(c => renderCorpsCard(c, 'enemy'))}
+                            </>
+                        )}
+                    </div>
+                    {enemyWarCount > 1 && (
+                        <div className="text-[9px] text-amber-400 mt-1">多线作战 ×{enemyWarCount}</div>
+                    )}
+                </div>
+            </div>
+
+            {/* 战争经济 */}
+            <div className="bg-black/20 rounded p-2 border border-gray-800/20">
+                <div className="text-[10px] text-yellow-400 font-bold mb-1.5">战争经济</div>
+                <div className="grid grid-cols-2 gap-2">
+                    {/* nation economy */}
+                    <div className="rounded border border-blue-900/20 bg-blue-950/10 p-1.5 space-y-1.5">
+                        <div className="text-[10px] text-blue-400 font-semibold">{nation.name}</div>
+                        {renderSupplyBar('补给率', nationSupplyInfo.supplyRate, 1, nationSupplyInfo.barColor)}
+                        <div className="grid grid-cols-2 gap-1 text-[9px]">
+                            <div className="flex justify-between"><span className="text-gray-500">军事力量</span><span className="text-gray-300">{(nation.militaryStrength ?? 1.0).toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">人口</span><span className="text-gray-300">{formatNumberShortCN(nation.population || 0, { decimals: 0 })}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">财富</span><span className="text-gray-300">{formatNumberShortCN(nation.wealth || 0, { decimals: 0 })}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">日军费</span><span className="text-amber-300">≈{formatNumberShortCN(nationSupplyInfo.dailyCost, { decimals: 0 })}</span></div>
+                        </div>
+                    </div>
+                    {/* enemy economy */}
+                    <div className="rounded border border-red-900/20 bg-red-950/10 p-1.5 space-y-1.5">
+                        <div className="text-[10px] text-red-400 font-semibold">{enemy?.name || '敌方'}</div>
+                        {renderSupplyBar('补给率', enemySupplyInfo.supplyRate, 1, enemySupplyInfo.barColor)}
+                        <div className="grid grid-cols-2 gap-1 text-[9px]">
+                            <div className="flex justify-between"><span className="text-gray-500">军事力量</span><span className="text-gray-300">{(enemy?.militaryStrength ?? 1.0).toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">人口</span><span className="text-gray-300">{formatNumberShortCN(enemy?.population || 0, { decimals: 0 })}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">财富</span><span className="text-gray-300">{formatNumberShortCN(enemy?.wealth || 0, { decimals: 0 })}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">日军费</span><span className="text-amber-300">≈{formatNumberShortCN(enemySupplyInfo.dailyCost, { decimals: 0 })}</span></div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AIWarFrontDetail = ({ war, nation, enemy, daysElapsed, nations = [], militaryCorps = [], generals = [], epoch = 0 }) => {
+    const [showEvents, setShowEvents] = useState(false);
+    const linePos = war.linePosition != null ? war.linePosition : 50;
+    const hasData = war.linePosition != null;
+    const duration = war.warDuration || (war.startDate > 0 ? Math.max(0, daysElapsed - war.startDate) : 0);
+
+    // 多线作战信息
+    const nationWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
+    const enemyWarCount = enemy ? Object.values(enemy.foreignWars || {}).filter(w => w?.isAtWar).length : 1;
+
+    // 当前所在区域
+    const currentZone = AI_FRONT_ZONES.find(z => linePos >= z.start && linePos < z.end) || AI_FRONT_ZONES[AI_FRONT_ZONES.length - 1];
+
+    // 分数明细
+    const breakdown = war.warScoreBreakdown || {};
+    const hasBreakdown = (breakdown.checkpoint || 0) !== 0 || (breakdown.bonus || 0) !== 0 || (breakdown.occupation || 0) !== 0;
+
+    // 战事日志
+    const warEvents = war.warEvents || [];
+
+    // 有效战力
+    const nationEffStr = war.nationEffStr || 0;
+    const enemyEffStr = war.enemyEffStr || 0;
+    const totalEffStr = nationEffStr + enemyEffStr;
+    const nationStrPercent = totalEffStr > 0 ? Math.round((nationEffStr / totalEffStr) * 100) : 50;
+
+    // 战争强度
+    const warIntensity = war.warIntensity || 1;
+
+    // 建筑破坏统计
+    const nationDestroyed = war.destroyedBuildings?.[nation.id] || {};
+    const enemyDestroyed = war.destroyedBuildings?.[enemy?.id] || {};
+    const nationDestroyedTotal = Object.values(nationDestroyed).reduce((s, c) => s + c, 0);
+    const enemyDestroyedTotal = Object.values(enemyDestroyed).reduce((s, c) => s + c, 0);
+
+    const formatBuildingList = (destroyed) => {
+        const entries = Object.entries(destroyed).filter(([, c]) => c > 0);
+        if (entries.length === 0) return null;
+        const bldgConfig = BUILDINGS || [];
+        return entries.map(([bId, cnt]) => {
+            const def = bldgConfig.find(b => b.id === bId);
+            return `${def?.name || bId} ×${cnt}`;
+        }).join('、');
+    };
+
+    // 结束条件估算
+    const endThreshold = war.endScoreThreshold || 0;
+    const absoluteScore = Math.abs(war.score || 0);
+    const scoreProgress = endThreshold > 0 ? Math.min(1, absoluteScore / endThreshold) : 0;
+
+    if (!hasData) {
+        return (
+            <div className="mt-1 p-3 text-[11px] text-gray-400 bg-gray-900/30 rounded border border-gray-800/30 text-center">
+                战线数据不可用（旧存档）
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-1 p-3 bg-gray-900/40 rounded border border-gray-700/30 space-y-3">
+            {/* 战线位置条 */}
+            <div>
+                <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
+                    <span className="text-blue-400">{nation.name} 领土</span>
+                    <span>战线位置 {linePos.toFixed(1)}%</span>
+                    <span className="text-red-400">{enemy?.name || '敌方'} 领土</span>
+                </div>
+                <div className="relative h-4 overflow-hidden rounded-full border border-slate-700/40 bg-gray-900/80">
+                    <div className="absolute inset-0 flex">
+                        {AI_FRONT_ZONES.map((zone) => (
+                            <div
+                                key={zone.id}
+                                className={`${currentZone?.id === zone.id ? 'opacity-100 ring-1 ring-yellow-300/40' : 'opacity-50'} ${zone.tone} h-full`}
+                                style={{ width: `${zone.end - zone.start}%` }}
+                                title={zone.name}
+                            />
+                        ))}
+                    </div>
+                    {AI_FRONT_CHECKPOINTS.map((cp) => (
+                        <div key={cp} className="absolute top-0 h-full w-px bg-white/25" style={{ left: `${cp}%` }} />
+                    ))}
+                    <div className="absolute top-0 h-full" style={{ left: `${linePos}%`, transform: 'translateX(-50%)' }}>
+                        <div className="h-full w-1 rounded-full bg-yellow-300 shadow-[0_0_6px_rgba(253,224,71,0.7)]" />
+                    </div>
+                </div>
+                <div className="mt-0.5 flex justify-between text-[9px] text-gray-500">
+                    <span>核心区</span>
+                    <span>经济区</span>
+                    <span>边境</span>
+                    <span>经济区</span>
+                    <span>核心区</span>
+                </div>
+            </div>
+
+            {/* 战争概览 */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-black/30 rounded p-1.5">
+                    <div className="text-[9px] text-gray-500">战争分数</div>
+                    <div className={`text-xs font-bold ${war.score > 0 ? 'text-emerald-400' : war.score < 0 ? 'text-red-400' : 'text-gray-300'}`}>
+                        {war.score > 0 ? '+' : ''}{Math.round(war.score)}
+                    </div>
+                </div>
+                <div className="bg-black/30 rounded p-1.5">
+                    <div className="text-[9px] text-gray-500">当前区域</div>
+                    <div className="text-xs text-amber-300">{currentZone.name}</div>
+                </div>
+                <div className="bg-black/30 rounded p-1.5">
+                    <div className="text-[9px] text-gray-500">持续天数</div>
+                    <div className="text-xs text-gray-200">{duration > 0 ? `${duration}天` : '刚开战'}</div>
+                </div>
+            </div>
+
+            {/* 分数明细 */}
+            {hasBreakdown && (
+                <div className="bg-black/20 rounded p-2 border border-gray-800/20">
+                    <div className="text-[10px] text-cyan-400 font-bold mb-1.5">分数明细</div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                            <div className="text-[9px] text-gray-500">检查点推进</div>
+                            <div className={`text-[11px] font-semibold ${(breakdown.checkpoint || 0) > 0 ? 'text-emerald-400' : (breakdown.checkpoint || 0) < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                                {(breakdown.checkpoint || 0) > 0 ? '+' : ''}{breakdown.checkpoint || 0}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-[9px] text-gray-500">实力差奖分</div>
+                            <div className={`text-[11px] font-semibold ${(breakdown.bonus || 0) > 0 ? 'text-emerald-400' : (breakdown.bonus || 0) < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                                {(breakdown.bonus || 0) > 0 ? '+' : ''}{breakdown.bonus || 0}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-[9px] text-gray-500">持续占领</div>
+                            <div className={`text-[11px] font-semibold ${(breakdown.occupation || 0) > 0 ? 'text-emerald-400' : (breakdown.occupation || 0) < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                                {(breakdown.occupation || 0) > 0 ? '+' : ''}{breakdown.occupation || 0}
+                            </div>
+                        </div>
+                    </div>
+                    {/* 结束条件进度 */}
+                    {endThreshold > 0 && (
+                        <div className="mt-2">
+                            <div className="flex items-center justify-between text-[9px] text-gray-500 mb-0.5">
+                                <span>结束阈值进度</span>
+                                <span>{absoluteScore} / {endThreshold}</span>
+                            </div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-gray-800">
+                                <div
+                                    className={`h-full rounded-full transition-all ${scoreProgress >= 0.8 ? 'bg-emerald-400' : scoreProgress >= 0.5 ? 'bg-yellow-400' : 'bg-gray-500'}`}
+                                    style={{ width: `${Math.max(2, scoreProgress * 100)}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* 有效战力对比条 */}
+            {totalEffStr > 0 && (
+                <div className="bg-black/20 rounded p-2 border border-gray-800/20">
+                    <div className="text-[10px] text-purple-400 font-bold mb-1.5">有效战力对比</div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] text-blue-400 w-16 text-right">{nationEffStr.toLocaleString()}</span>
+                        <div className="flex-1 h-3 rounded-full overflow-hidden bg-gray-800 flex">
+                            <div className="bg-blue-500/70 h-full" style={{ width: `${nationStrPercent}%` }} />
+                            <div className="bg-red-500/70 h-full" style={{ width: `${100 - nationStrPercent}%` }} />
+                        </div>
+                        <span className="text-[10px] text-red-400 w-16">{enemyEffStr.toLocaleString()}</span>
+                    </div>
+                    <div className="text-[9px] text-gray-500 text-center">
+                        {nationStrPercent > 55 ? `${nation.name}占优` : nationStrPercent < 45 ? `${enemy?.name || '敌方'}占优` : '势均力敌'}
+                        {' · '}战力 = 军事力量 × √人口 × 侵略性
+                    </div>
+                </div>
+            )}
+
+            {/* 双方战力面板 */}
+            <AIWarForcePanel
+                nation={nation}
+                enemy={enemy}
+                militaryCorps={militaryCorps}
+                generals={generals}
+                epoch={epoch}
+                nationWarCount={nationWarCount}
+                enemyWarCount={enemyWarCount}
+                warIntensity={warIntensity}
+                duration={duration}
+            />
+
+            {/* 近期战事 */}
+            {warEvents.length > 0 && (
+                <div className="bg-black/20 rounded p-2 border border-gray-800/20">
+                    <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => setShowEvents(!showEvents)}
+                    >
+                        <div className="text-[10px] text-yellow-400 font-bold">近期战事 ({warEvents.length})</div>
+                        <span className="text-[9px] text-gray-500">{showEvents ? '▲ 收起' : '▼ 展开'}</span>
+                    </div>
+                    {showEvents && (
+                        <div className="mt-1.5 space-y-1 max-h-40 overflow-y-auto">
+                            {[...warEvents].reverse().map((evt, i) => (
+                                <div key={i} className="flex items-start gap-2 text-[10px]">
+                                    <span className="text-gray-600 shrink-0">Day {evt.day}</span>
+                                    <span className="text-gray-300 flex-1">{evt.text}</span>
+                                    <span className={`shrink-0 font-mono ${evt.score > 0 ? 'text-emerald-400' : evt.score < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                        {evt.score > 0 ? '+' : ''}{evt.score}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* 建筑破坏统计 */}
+            {(nationDestroyedTotal > 0 || enemyDestroyedTotal > 0) && (
+                <div className="bg-black/20 rounded p-2 border border-gray-800/20">
+                    <div className="text-[10px] text-orange-400 font-bold mb-1">建筑破坏统计</div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div>
+                            <span className="text-blue-400">{nation.name}:</span>
+                            <span className="text-red-300 ml-1">
+                                {nationDestroyedTotal > 0 ? `被毁 ${nationDestroyedTotal} 座` : '无损失'}
+                            </span>
+                            {nationDestroyedTotal > 0 && (
+                                <div className="text-[9px] text-gray-500 mt-0.5">{formatBuildingList(nationDestroyed)}</div>
+                            )}
+                        </div>
+                        <div>
+                            <span className="text-red-400">{enemy?.name || '敌方'}:</span>
+                            <span className="text-red-300 ml-1">
+                                {enemyDestroyedTotal > 0 ? `被毁 ${enemyDestroyedTotal} 座` : '无损失'}
+                            </span>
+                            {enemyDestroyedTotal > 0 && (
+                                <div className="text-[9px] text-gray-500 mt-0.5">{formatBuildingList(enemyDestroyed)}</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 
