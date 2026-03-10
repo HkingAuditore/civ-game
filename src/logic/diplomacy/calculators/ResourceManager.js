@@ -15,6 +15,7 @@ export class ResourceManager {
     static updateInventory({
         inventory,
         resourceBias,
+        resourceBalance = null,
         epoch,
         wealth,
         isAtWar,
@@ -62,6 +63,7 @@ export class ResourceManager {
                 tick,
                 gameSpeed,
                 integrityFactor: integrityModifiers[resourceKey] ?? 1.0,
+                resourceBalance,
             });
             
             // Update inventory
@@ -90,6 +92,7 @@ export class ResourceManager {
         tick,
         gameSpeed,
         integrityFactor = 1.0,
+        resourceBalance = null,
     }) {
         const baseProduction = getConfig('resources.baseProductionRate', 5.0);
         const baseConsumption = getConfig('resources.baseConsumptionRate', 5.0);
@@ -114,6 +117,9 @@ export class ResourceManager {
             ? 1 + Math.max(0, cyclePhase) * trendAmplitude + 0.15
             : 1 - Math.max(0, cyclePhase) * trendAmplitude * 0.25;
         
+        const buildingSupply = Math.max(0, Number(resourceBalance?.supplyByResource?.[resourceKey] || 0));
+        const buildingDemand = Math.max(0, Number(resourceBalance?.demandByResource?.[resourceKey] || 0));
+
         // Base rates (with building integrity modifier)
         const productionRate = baseProduction * epochMultiplier * wealthFactor * Math.pow(bias, 1.2) * productionTrend * gameSpeed * integrityFactor;
         const consumptionRate = baseConsumption * epochMultiplier * wealthFactor * Math.pow(1 / bias, 0.8) * consumptionTrend * warMultiplier * gameSpeed;
@@ -141,8 +147,10 @@ export class ResourceManager {
         const correction = (targetInventory - currentStock) * 0.01 * gameSpeed;
         const randomShock = (Math.random() - 0.5) * targetInventory * 0.1 * gameSpeed;
         
-        const finalProduction = productionRate * productionAdjustment + correction + randomShock;
-        const finalConsumption = consumptionRate * consumptionAdjustment;
+        const trendProduction = productionRate * productionAdjustment;
+        const trendConsumption = consumptionRate * consumptionAdjustment;
+        const finalProduction = trendProduction * 0.4 + buildingSupply * gameSpeed * 0.6 + correction + randomShock;
+        const finalConsumption = trendConsumption * 0.45 + buildingDemand * gameSpeed * 0.55;
         
         return {
             production: finalProduction,

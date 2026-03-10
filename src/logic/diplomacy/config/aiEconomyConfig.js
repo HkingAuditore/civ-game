@@ -51,9 +51,9 @@ export const AI_ECONOMY_CONFIG = {
         },
         
         // Wealth growth rate
-        baseGrowthRate: 0.002,  // 0.2% base wealth growth
-        developmentBonus: 0.004, // Development should be a mild structural bonus
-        maxGrowthRate: 0.012,   // 1.2% max growth rate per update
+        baseGrowthRate: 0.004,  // 0.4% base wealth growth
+        developmentBonus: 0.005, // Development should be visible but still controlled
+        maxGrowthRate: 0.025,   // 2.5% max growth rate per update
         
         // Resource abundance bonus
         resourceAbundanceBonus: {

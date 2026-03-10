@@ -239,15 +239,10 @@ const StratumDetailSheetComponent = ({
     // 从 livingStandardData 中提取所需的值（添加空值检查）
     const {
         wealthPerCapita = 0,
-        wealthRatio = 0,
         wealthMultiplier = 1,
         satisfactionRate = 0,
         unlockedLuxuryTiers = 0,
         totalLuxuryTiers = 0,
-        wealthReference = 0,
-        basketThresholds = {},
-        basketDailyCosts = {},
-        basketBufferDays = 30,
         level: livingStandardLevel = '赤贫',
         icon: livingStandardIcon = 'Skull',
         color: livingStandardColor = 'text-gray-400',
@@ -263,28 +258,6 @@ const StratumDetailSheetComponent = ({
         if (ratio >= 10) return ratio.toFixed(1);
         return ratio.toFixed(2);
     };
-
-    const wealthReferenceHint = wealthReference > 0
-        ? `温饱线 ${formatNumberShortCN(wealthReference, { decimals: 1 })}/人`
-        : '未建立温饱参考线';
-    const wealthReferenceStatus = wealthReference > 0
-        ? (wealthRatio >= 1
-            ? `约为温饱线 ${formatRatioValue(wealthRatio)}×`
-            : `达到温饱线 ${(wealthRatio * 100).toFixed(0)}%`)
-        : '等待市场价格数据';
-    const dynamicThresholdCards = ['温饱', '小康', '富裕', '奢华']
-        .map((level) => {
-            const threshold = basketThresholds?.[level] || 0;
-            const dailyCost = basketDailyCosts?.[level] || 0;
-            return {
-                level,
-                threshold,
-                dailyCost,
-                bufferDays: dailyCost > 0 ? Math.round(threshold / dailyCost) : basketBufferDays,
-                reached: threshold > 0 ? wealthPerCapita >= threshold : false,
-            };
-        })
-        .filter((item) => item.threshold > 0);
 
 
     // 计算解锁乘数（用于奢侈需求解锁判断，不受阶层消费上限限制）
@@ -525,30 +498,19 @@ const StratumDetailSheetComponent = ({
                                 </div>
                             </div>
 
-                            {/* 详细指标 */}
-                            <div className="flex-1 grid grid-cols-3 gap-1.5">
+                            {/* detail metrics */}
+                            <div className="flex-1 grid grid-cols-2 gap-1.5">
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
-                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">人均财富</div>
+                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">{'\u4eba\u5747\u8d22\u5bcc'}</div>
                                     <div className="text-xs font-bold text-yellow-300 font-mono">{formatNumberShortCN(wealthPerCapita, { decimals: 1 })}</div>
-                                    <div className="text-[8px] text-gray-500 leading-none">
-                                        {wealthReferenceStatus}
-                                    </div>
+                                    <div className="text-[8px] text-gray-500 leading-none">{'\u7528\u4e8e\u8861\u91cf\u5f53\u524d\u9636\u5c42\u8d44\u4ea7\u6c34\u5e73'}</div>
                                 </div>
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
-                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">动态参考线</div>
-                                    <div className="text-xs font-bold text-cyan-300 font-mono">{formatNumberShortCN(wealthReference, { decimals: 1 })}</div>
-                                    <div className="text-[8px] text-gray-500 leading-none">
-                                        {wealthReferenceHint}
-                                    </div>
-                                </div>
-                                <div className="bg-gray-800/40 rounded px-2 py-1">
-                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">需求满足</div>
+                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">{'\u9700\u6c42\u6ee1\u8db3'}</div>
                                     <div className={`text-xs font-bold font-mono ${satisfactionRate >= 0.8 ? 'text-green-400' : satisfactionRate >= 0.5 ? 'text-yellow-400' : 'text-red-400'}`}>
                                         {(satisfactionRate * 100).toFixed(0)}%
                                     </div>
-                                    <div className="text-[8px] text-gray-500 leading-none">
-                                        满意度上限: {approvalCap}%
-                                    </div>
+                                    <div className="text-[8px] text-gray-500 leading-none">{`\u6ee1\u610f\u5ea6\u4e0a\u9650: ${approvalCap}%`}</div>
                                 </div>
                             </div>
                         </div>
@@ -568,27 +530,6 @@ const StratumDetailSheetComponent = ({
                             </div>
                         </div>
 
-                        {dynamicThresholdCards.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-gray-700/50">
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="text-[9px] text-gray-400">动态购买力门槛</span>
-                                    <span className="text-[9px] font-bold text-cyan-400">{basketBufferDays}天缓冲</span>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-1">
-                                    {dynamicThresholdCards.map(({ level, threshold, dailyCost, reached }) => (
-                                        <div
-                                            key={level}
-                                            className={`rounded px-1.5 py-1 border ${reached ? 'bg-emerald-900/25 border-emerald-500/40' : 'bg-slate-900/30 border-slate-600/50'}`}
-                                            title={`${level}：每日篮子 ${formatNumberShortCN(dailyCost, { decimals: 2 })} / 30天门槛 ${formatNumberShortCN(threshold, { decimals: 1 })}`}
-                                        >
-                                            <div className={`text-[9px] font-bold ${reached ? 'text-emerald-300' : 'text-slate-200'}`}>{level}</div>
-                                            <div className="text-[10px] font-mono text-white">{formatNumberShortCN(threshold, { decimals: 1 })}</div>
-                                            <div className="text-[8px] text-gray-400 leading-none">日篮子 {formatNumberShortCN(dailyCost, { decimals: 2 })}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
                         {/* 奢侈需求解锁进度：这里展示的是消费倍率阈值，不是生活水平财富线 */}
                         {unlockedLuxuryNeedsDetail.length > 0 && (

@@ -14,3 +14,4 @@ export * from './populationMigration';
 export * from './rebellionSystem';
 export * from './vassalSystem';
 export * from './warEconomy';
+export * from './foreignEconomy';

@@ -108,6 +108,18 @@ const NationDetailView = ({
     const wealthStock = Number.isFinite(economyMetrics.wealthStock)
         ? economyMetrics.wealthStock
         : nation.wealth;
+    const liquidWealth = Number.isFinite(economyMetrics.liquidWealth)
+        ? economyMetrics.liquidWealth
+        : nation.wealth;
+    const inventoryAssetValue = Number.isFinite(economyMetrics.inventoryAssetValue)
+        ? economyMetrics.inventoryAssetValue
+        : 0;
+    const capitalAssetValue = Number.isFinite(economyMetrics.capitalAssetValue)
+        ? economyMetrics.capitalAssetValue
+        : 0;
+    const nationalNetWorth = Number.isFinite(economyMetrics.nationalNetWorth)
+        ? economyMetrics.nationalNetWorth
+        : wealthStock + (treasury || 0);
     const wealthPerCapita = Number.isFinite(economyMetrics.wealthPerCapita)
         ? economyMetrics.wealthPerCapita
         : (wealthStock / Math.max(1, nation.population || 1));
@@ -115,7 +127,7 @@ const NationDetailView = ({
         ? economyMetrics.outputPerCapita
         : (annualOutput ? annualOutput / Math.max(1, nation.population || 1) : null);
     const playerWealth = gameState?.resources?.silver || 0;
-    const targetEconomicScale = annualOutput ?? wealthStock ?? nation.wealth ?? 0;
+    const targetEconomicScale = annualOutput ?? nationalNetWorth ?? wealthStock ?? nation.wealth ?? 0;
     const giftCostValue = calculateDynamicGiftCost(playerWealth, targetEconomicScale);
     const provokeCostValue = calculateProvokeCost(playerWealth, targetEconomicScale);
 
@@ -217,7 +229,35 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                         label="财富存量"
                         value={formatStat(wealthStock)}
                         color="text-amber-300"
-                        subtitle={Number.isFinite(wealthPerCapita) ? `人均 ${wealthPerCapita.toFixed(2)}` : null}
+                        subtitle={Number.isFinite(wealthPerCapita) ? `人均 ${wealthPerCapita.toFixed(2)} · 含库存与建筑资本` : '含库存与建筑资本'}
+                    />
+                    <StatCard
+                        icon="Wallet"
+                        label="流动财富"
+                        value={formatStat(liquidWealth)}
+                        color="text-yellow-200"
+                        subtitle="民间可流动财富"
+                    />
+                    <StatCard
+                        icon="Package"
+                        label="库存资产"
+                        value={formatStat(inventoryAssetValue)}
+                        color="text-lime-300"
+                        subtitle="按本地价格折算"
+                    />
+                    <StatCard
+                        icon="Hammer"
+                        label="建筑资本"
+                        value={formatStat(capitalAssetValue)}
+                        color="text-orange-300"
+                        subtitle="按建造成本折旧估值"
+                    />
+                    <StatCard
+                        icon="BadgeDollarSign"
+                        label="总资产"
+                        value={formatStat(nationalNetWorth)}
+                        color="text-emerald-200"
+                        subtitle="财富存量 + 财政储备"
                     />
                     <StatCard
                         icon="Swords"
@@ -991,7 +1031,6 @@ const BuildingOverview = ({ nation, overseasInvestments = [] }) => {
     const buildingData = useMemo(() => {
         const vb = nation?.virtualBuildings;
         const foreign = nation?.virtualBuildingsForeign || {};
-        const baseline = nation?.virtualBuildingsBaseline || {};
 
         // 也检查海外投资（即使没有 virtualBuildings）
         const foreignFromInvestments = {};
@@ -1016,23 +1055,19 @@ const BuildingOverview = ({ nation, overseasInvestments = [] }) => {
 
             const cat = bDef.cat || 'gather';
             if (!categories[cat]) {
-                categories[cat] = { total: 0, foreignTotal: 0, warDamage: 0, buildings: [] };
+                categories[cat] = { total: 0, foreignTotal: 0, buildings: [] };
             }
 
             const localCount = vb ? Math.max(0, (vb[bId] || 0) - (foreign[bId] || 0)) : 0;
             const foreignCount = (foreign[bId] || 0) + (foreignFromInvestments[bId] || 0);
-            const baseCount = baseline[bId] || 0;
-            const damage = Math.max(0, baseCount - (vb?.[bId] || 0));
 
             categories[cat].total += localCount + foreignCount;
             categories[cat].foreignTotal += foreignCount;
-            categories[cat].warDamage += damage;
             categories[cat].buildings.push({
                 id: bId,
                 name: bDef.name,
                 localCount,
                 foreignCount,
-                damage,
             });
         }
 
@@ -1082,9 +1117,6 @@ const BuildingOverview = ({ nation, overseasInvestments = [] }) => {
                             </div>
                             {catData.foreignTotal > 0 && (
                                 <div className="text-[10px] text-blue-400 mb-1">外资 {catData.foreignTotal}座</div>
-                            )}
-                            {catData.warDamage > 0 && (
-                                <div className="text-[10px] text-red-400 mb-1">战损 {catData.warDamage}座</div>
                             )}
                             <div className="space-y-0.5">
                                 {catData.buildings.slice(0, 3).map(b => (

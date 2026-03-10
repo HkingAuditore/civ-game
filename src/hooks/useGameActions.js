@@ -6077,6 +6077,36 @@ export const useGameActions = (gameState, addLog) => {
             cleanupWarRuntimeState(nationId, cleanupReason);
         }
     };
+    const annexNationIntoPlayer = (nationId, nationToAnnex) => {
+            const annexPopulation = Math.max(0, Math.floor(nationToAnnex?.population || 0));
+            const annexedBuildings = { ...(nationToAnnex?.virtualBuildings || {}) };
+
+            if (annexPopulation > 0) {
+                setPopulation(prev => prev + annexPopulation);
+                setPopStructure(prev => ({
+                    ...prev,
+                    unemployed: (prev.unemployed || 0) + annexPopulation,
+                }));
+                setMaxPopBonus(prev => prev + annexPopulation);
+            }
+
+            if (Object.keys(annexedBuildings).length > 0) {
+                setBuildings(prev => {
+                    const next = { ...prev };
+                    Object.entries(annexedBuildings).forEach(([buildingId, count]) => {
+                        const numericCount = Math.max(0, Math.floor(Number(count) || 0));
+                        if (numericCount <= 0) return;
+                        next[buildingId] = (next[buildingId] || 0) + numericCount;
+                    });
+                    return next;
+                });
+            }
+
+            setOverseasInvestments(prev => prev.filter(inv => inv.targetNationId !== nationId));
+            setForeignInvestments(prev => prev.filter(inv => inv.ownerNationId !== nationId));
+
+            return annexPopulation;
+        };
     const handleEnemyPeaceAccept = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
@@ -6096,17 +6126,7 @@ export const useGameActions = (gameState, addLog) => {
         const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
         const paymentAmount = Math.max(0, Math.floor(amount || 0));
         if (proposalType === 'annex') {
-            const populationGain = transferPopulation;
-
-            if (populationGain > 0) {
-                setPopulation(prev => prev + populationGain);
-                // [FIX] Sync popStructure: new population joins as unemployed
-                setPopStructure(prev => ({
-                    ...prev,
-                    unemployed: (prev.unemployed || 0) + populationGain,
-                }));
-                setMaxPopBonus(prev => prev + populationGain);
-            }
+            const populationGain = annexNationIntoPlayer(nationId, targetNation);
 
             // Annexation causes reputation loss
             if (setDiplomaticReputation) {
@@ -6121,10 +6141,19 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 isAnnexed: true,
                 annexedBy: 'player',
-
                 annexedAt: daysElapsed,
                 population: 0,
                 wealth: 0,
+                virtualBuildings: {},
+                virtualBuildingsBaseline: {},
+                virtualBuildingsForeign: {},
+                economyDirtyFlags: {
+                    buildingsDirty: true,
+                    laborDirty: true,
+                    resourcesDirty: true,
+                    warDirty: true,
+                    investmentDirty: true,
+                },
             });
             const annexEvent = createNationAnnexedEvent(
 
@@ -6308,24 +6337,23 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
         if (proposalType === 'demand_annex') {
-            const basePopulation = targetNation.population || 0;
-            const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
-            if (transferPopulation > 0) {
-                setPopulation(prev => prev + transferPopulation);
-                // [FIX] Sync popStructure: new population joins as unemployed
-                setPopStructure(prev => ({
-                    ...prev,
-                    unemployed: (prev.unemployed || 0) + transferPopulation,
-                }));
-                setMaxPopBonus(prev => prev + transferPopulation);
-            }
+            const transferPopulation = annexNationIntoPlayer(nationId, targetNation);
             endWarWithNation(nationId, {
                 isAnnexed: true,
                 annexedBy: 'player',
-
                 annexedAt: daysElapsed,
                 population: 0,
                 wealth: 0,
+                virtualBuildings: {},
+                virtualBuildingsBaseline: {},
+                virtualBuildingsForeign: {},
+                economyDirtyFlags: {
+                    buildingsDirty: true,
+                    laborDirty: true,
+                    resourcesDirty: true,
+                    warDirty: true,
+                    investmentDirty: true,
+                },
             });
             const annexEvent = createNationAnnexedEvent(
                 targetNation,

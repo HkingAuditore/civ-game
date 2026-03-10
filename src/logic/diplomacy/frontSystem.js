@@ -1357,13 +1357,14 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     const largerForce = Math.max(playerTotal, enemyTotal);
     const smallerForce = Math.max(1, Math.min(playerTotal, enemyTotal));
     const forceRatio = largerForce / smallerForce;
-    // Ratio >= 3 → interval halved; ratio >= 8 → interval = 1 (every day)
+    // 极端兵力差不会让整条战线每天都进入高强度摩擦。
+    // 优势方更容易发起试探接敌，但小股守军无法无限制造接触机会。
     if (forceRatio >= 8) {
-        interval = 1;
+        interval = Math.max(2, Math.floor(interval * 0.75));
     } else if (forceRatio >= 3) {
-        interval = Math.max(1, Math.floor(interval * 0.5));
+        interval = Math.max(2, Math.floor(interval * 0.75));
     } else if (forceRatio >= 2) {
-        interval = Math.max(1, Math.floor(interval * 0.7));
+        interval = Math.max(2, Math.floor(interval * 0.85));
     }
 
     // Use front id hash + day for deterministic but varied timing
@@ -1373,16 +1374,38 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     // Pick a random event
     const template = FRICTION_EVENT_TEMPLATES[Math.floor(Math.random() * FRICTION_EVENT_TEMPLATES.length)];
 
+    // 摩擦战只会动用前沿接触兵力，而不是把整条战线的总兵力都卷进来。
+    // 否则超大军团会因为基数过大而在“暂无会战”时出现反直觉的巨额伤亡。
+    const epoch = Math.max(0, Number(normalizedFront.epoch || 0));
+    const frontlineDepth = Math.abs(Number(normalizedFront.linePosition || 50) - 50);
+    const baseContactWidth = 800 + epoch * 900;
+    const zoneContactBonus = frontlineDepth >= 15 ? 1.15 : 1.0;
+    const postureContactBonus = normalizePostureId(posture) === 'offensive'
+        ? 1.15
+        : normalizePostureId(posture) === 'attrition'
+            ? 0.75
+            : normalizePostureId(posture) === 'raid'
+                ? 0.9
+                : 1.0;
+    const contactWidth = Math.max(200, Math.round(baseContactWidth * zoneContactBonus * postureContactBonus));
+    const weakerEngagedUnits = Math.max(1, Math.min(smallerForce, contactWidth));
+    const strongerEngagedUnits = Math.max(
+        1,
+        Math.min(largerForce, Math.round(Math.min(contactWidth * 1.35, weakerEngagedUnits * 1.6)))
+    );
+    const playerEngagedUnits = playerTotal >= enemyTotal ? strongerEngagedUnits : weakerEngagedUnits;
+    const enemyEngagedUnits = enemyTotal >= playerTotal ? strongerEngagedUnits : weakerEngagedUnits;
+
     // Force ratio casualty multiplier: overwhelming force causes much higher attrition to the weaker side
     // ratio 1:1 → ×1.0, 3:1 → ×1.6, 5:1 → ×2.0, 10:1 → ×2.5
     const dominantRatioBonusCasualty = Math.min(2.5, 1.0 + Math.pow(Math.max(0, forceRatio - 1), 0.5) * 0.55);
 
-    const baseCasualtyRate = 0.003 + Math.random() * 0.009; // 0.3% ~ 1.2%
+    const baseCasualtyRate = 0.002 + Math.random() * 0.004; // 0.2% ~ 0.6% of engaged troops
     // Apply dominant-side casualty bonus: the weaker side suffers amplified losses
     const playerCasualtyMod = playerTotal < enemyTotal ? dominantRatioBonusCasualty : 1.0;
     const enemyCasualtyMod = enemyTotal < playerTotal ? dominantRatioBonusCasualty : 1.0;
-    let playerCasualties = Math.max(3, Math.floor(playerTotal * baseCasualtyRate * template.intensity * postureCfg.attritionMod * playerCasualtyMod));
-    let enemyCasualties = Math.max(3, Math.floor(enemyTotal * baseCasualtyRate * template.intensity * enemyCasualtyMod));
+    let playerCasualties = Math.max(1, Math.floor(playerEngagedUnits * baseCasualtyRate * template.intensity * postureCfg.attritionMod * playerCasualtyMod));
+    let enemyCasualties = Math.max(1, Math.floor(enemyEngagedUnits * baseCasualtyRate * template.intensity * enemyCasualtyMod));
 
     // Posture adjustments
     if (normalizePostureId(posture) === 'offensive') {

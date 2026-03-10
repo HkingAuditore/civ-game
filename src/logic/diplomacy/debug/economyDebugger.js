@@ -36,6 +36,10 @@ export class EconomyDebugger {
         console.log(`[Growth] ${nation.name}:`, {
             population: `${before.population} → ${after.population} (+${popGrowth}, +${popGrowthRate}%)`,
             wealth: `${before.wealth} → ${after.wealth} (+${wealthGrowth}, +${wealthGrowthRate}%)`,
+            grossSavingsFlow: after.aiDevelopment?.wealthGeneration?.grossSavingsFlow ?? null,
+            inventoryAssetValue: after.aiEconomyMetrics?.inventoryAssetValue ?? null,
+            capitalAssetValue: after.aiEconomyMetrics?.capitalAssetValue ?? null,
+            wealthDeltaBreakdown: after.aiEconomyMetrics?.wealthDeltaBreakdown ?? after.aiDevelopment?.wealthDeltaBreakdown ?? null,
         });
     }
     

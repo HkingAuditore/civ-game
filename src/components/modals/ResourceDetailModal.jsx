@@ -916,8 +916,6 @@ const ResourceDetailContent = ({
             return acc;
         }, []);
 
-        // 战争经济数据
-        const warDamaged = sources.warDamagedBuildings || {};
         const warProductionPenalty = sources.frontlineProductionPenalty || 0;
 
         const buildingSupplyList = BUILDINGS.reduce((acc, building) => {
@@ -965,10 +963,8 @@ const ResourceDetailContent = ({
             const productionEfficiency = finance?.productionEfficiency ?? 1;
             const isReduced = actualAmount < theoreticalAmount * 0.99 && theoreticalAmount > 0;
 
-            // 战争建筑战损显示
-            const warDamagedCount = warDamaged[building.id] || 0;
             const formulaText = perBuilding > 0
-                ? (warDamagedCount > 0 ? `${count} 座（战损-${warDamagedCount}座）` : `${count} 座`)
+                ? `${count} 座`
                 : '来自建筑升级';
 
             acc.push({
