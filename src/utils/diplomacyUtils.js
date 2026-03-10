@@ -1,5 +1,23 @@
 import { DIPLOMACY_ERA_UNLOCK, TREATY_TYPE_LABELS, getTreatyDuration as getDuration } from '../config/diplomacy';
 
+export const WAR_RELATION_CAP = 15;
+
+const clampRelationValue = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(100, parsed));
+};
+
+export const applyWarRelationCap = (relation, isAtWar = true, cap = WAR_RELATION_CAP) => {
+    const safeRelation = clampRelationValue(relation);
+    if (!isAtWar) return safeRelation;
+    return Math.min(safeRelation, Math.max(0, cap));
+};
+
+export const getEffectiveRelationValue = (relation, nation = null, cap = WAR_RELATION_CAP) => (
+    applyWarRelationCap(relation, Boolean(nation?.isAtWar), cap)
+);
+
 export const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 
 export const getTreatyUnlockEraName = (type) => {
@@ -20,3 +38,4 @@ export const getRelationLabel = (value) => {
     if (value >= -50) return '敌对';
     return '仇恨';
 };
+

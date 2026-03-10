@@ -20,12 +20,17 @@ import {
 import { getRelationMonthlyDriftRate } from '../../config/difficulty.js';
 import { processVassalUpdates, calculateDynamicSatisfactionCap, SATISFACTION_CAP_CONFIG } from './vassalSystem.js';
 import {
+    calculateNationLocalPrice,
+    getNationInventoryBaseline,
+} from './warEconomy.js';
+import {
     AI_ECONOMY_CONFIG,
     getSocialStructureTemplate,
     TREATY_CONFIGS,
     TREATY_TYPE_LABELS,
     VASSAL_POLICY_SATISFACTION_EFFECTS,
 } from '../../config/diplomacy.js';
+
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -231,6 +236,20 @@ const calculateSubsistenceCost = (nationPrices = {}) => {
     return cost;
 };
 
+const syncNationInventoryMirror = (nation) => {
+    if (!nation) return nation;
+    const nationInventories = { ...(nation.nationInventories || {}) };
+    return {
+        ...nation,
+        nationInventories,
+        inventory: {
+            ...(nation.inventory || {}),
+            ...nationInventories,
+        },
+    };
+};
+
+
 /**
  * 初始化AI国家的经济数据（价格、库存、阶层）
  * @param {Object} nation - 国家对象
@@ -240,42 +259,42 @@ const calculateSubsistenceCost = (nationPrices = {}) => {
 export const initializeNationEconomyData = (nation, marketPrices = {}) => {
     if (!nation) return nation;
 
-    const updated = { ...nation };
+    let updated = { ...nation };
     const config = AI_ECONOMY_CONFIG;
+    const wealth = Math.max(100, Number(updated.wealth || 1000));
 
-    // 1. 初始化价格数据（如果不存在）
+    // 1. 初始化库存数据（如果不存在）
+    if (!updated.nationInventories || Object.keys(updated.nationInventories).length === 0) {
+        updated.nationInventories = {};
+        Object.entries(RESOURCES).forEach(([resourceKey, resourceConfig]) => {
+            if (resourceConfig.type === 'virtual' || resourceConfig.type === 'currency') return;
+
+            const baseInventory = getNationInventoryBaseline({ resourceKey, wealth });
+            updated.nationInventories[resourceKey] = Math.max(5, Math.floor(baseInventory * (0.8 + Math.random() * 0.4)));
+        });
+    }
+
+    updated = syncNationInventoryMirror(updated);
+
+    // 2. 初始化价格数据（如果不存在）
     if (!updated.nationPrices || Object.keys(updated.nationPrices).length === 0) {
         updated.nationPrices = {};
         Object.entries(RESOURCES).forEach(([resourceKey, resourceConfig]) => {
             // 跳过虚拟资源
             if (resourceConfig.type === 'virtual' || resourceConfig.type === 'currency') return;
 
-            // 基于玩家市场价格或基础价格
+            // 基于玩家市场价格或基础价格，再叠加本地库存压力
             const basePrice = marketPrices[resourceKey] || resourceConfig.basePrice || 1;
             const variation = (Math.random() - 0.5) * 2 * config.prices.initialVariation;
-            updated.nationPrices[resourceKey] = Math.max(
-                resourceConfig.minPrice || 0.1,
-                Math.min(resourceConfig.maxPrice || 100, basePrice * (1 + variation))
-            );
-        });
-    }
-
-    // 2. 初始化库存数据（如果不存在）
-    if (!updated.nationInventories || Object.keys(updated.nationInventories).length === 0) {
-        updated.nationInventories = {};
-        const wealth = updated.wealth || 1000;
-
-        // 使用0.7次幂增长计算财富规模系数（与每日更新逻辑保持一致）
-        // 财富1000 -> 1.0, 财富10000 -> 5.0, 财富100000 -> 25.1, 财富1000000 -> 125.9
-        const wealthScale = Math.pow(wealth / 1000, 0.7);
-
-        Object.entries(RESOURCES).forEach(([resourceKey, resourceConfig]) => {
-            if (resourceConfig.type === 'virtual' || resourceConfig.type === 'currency') return;
-
-            const resourceWeight = config.inventory.resourceWeights[resourceKey] || config.inventory.resourceWeights.default;
-            // 基础库存 = 50 * 财富规模系数 * 资源权重 * (0.8~1.2随机因子)
-            const baseInventory = 50 * wealthScale * resourceWeight * (0.8 + Math.random() * 0.4);
-            updated.nationInventories[resourceKey] = Math.floor(baseInventory);
+            const seededPrice = basePrice * (1 + variation);
+            updated.nationPrices[resourceKey] = calculateNationLocalPrice({
+                resourceKey,
+                nation: updated,
+                marketPrice: basePrice,
+                currentPrice: seededPrice,
+                inventoryOverride: updated.nationInventories?.[resourceKey],
+                wealthOverride: wealth,
+            });
         });
     }
 
@@ -295,6 +314,7 @@ export const initializeNationEconomyData = (nation, marketPrices = {}) => {
 
     return updated;
 };
+
 
 /**
  * 计算玩家在附庸国的投资对阶层经济的影响
@@ -547,77 +567,65 @@ export const updateNationEconomyData = (nation, marketPrices = {}, context = {})
 
     let updated = { ...nation };
     const config = AI_ECONOMY_CONFIG;
+    const wealth = Math.max(100, Number(updated.wealth || 1000));
 
-    // 1. 更新价格（每日随机波动）
-    updated.nationPrices = { ...updated.nationPrices };
-    Object.entries(updated.nationPrices).forEach(([resourceKey, currentPrice]) => {
-        const resourceConfig = RESOURCES[resourceKey];
-        if (!resourceConfig) return;
-
-        // 随机波动
-        const variation = (Math.random() - 0.5) * 2 * config.prices.dailyVariation;
-        let newPrice = currentPrice * (1 + variation);
-
-        // 向玩家市场价格缓慢收敛（如果有自由贸易协定则更快）
-        const playerPrice = marketPrices[resourceKey];
-        if (playerPrice) {
-            const hasFreeTrade = nation.treaties?.some(t => t.type === 'free_trade' && t.status === 'active');
-            const convergenceRate = hasFreeTrade ? 0.03 : 0.01;
-            newPrice = newPrice * (1 - convergenceRate) + playerPrice * convergenceRate;
-        }
-
-        // 限制价格范围
-        const minPrice = resourceConfig.minPrice || 0.1;
-        const maxPrice = resourceConfig.maxPrice || 100;
-        updated.nationPrices[resourceKey] = Math.max(minPrice, Math.min(maxPrice, newPrice));
-    });
-
-    // 2. 更新库存（基于财富动态调整 + 随机波动）
+    // 1. 更新库存（基于财富动态调整 + 随机波动）
     // 设计理念：
     // - 产量/消耗量随财富增长（富裕国家生产和消费更多）
     // - 库存基线随财富增长（富裕国家有更大的库存容量）
     // - 库存向基线趋近，但保持随机波动以创造贸易机会
-    // - 不同资源有不同的权重系数
+    // - 战时采购/前线消耗则在 useGameLoop 中额外从这里真实扣减
     updated.nationInventories = { ...updated.nationInventories };
-    const wealth = updated.wealth || 1000;
-
-    // 计算国家规模系数（基于0.7次幂增长，财富增长10倍 → 规模增长约5倍）
-    // 财富1000 -> 1.0, 财富10000 -> 5.0, 财富100000 -> 25.1, 财富1000000 -> 125.9
-    const wealthScale = Math.pow(wealth / 1000, 0.7);
 
     Object.entries(updated.nationInventories).forEach(([resourceKey, currentInventory]) => {
         const resourceConfig = RESOURCES[resourceKey];
         if (!resourceConfig) return;
 
-        // 获取资源权重
-        const resourceWeight = config.inventory.resourceWeights[resourceKey] || config.inventory.resourceWeights.default;
-
-        // ========== 1. 库存基线（随财富增长） ==========
-        // 公式: 基础值(50) * 财富规模系数 * 资源权重
-        const baseInventory = 50 * wealthScale * resourceWeight;
-
-        // ========== 2. 目标库存（基线 ± 10%随机） ==========
+        const baseInventory = getNationInventoryBaseline({ resourceKey, wealth });
         const targetInventory = baseInventory * (0.9 + Math.random() * 0.2);
-
-        // ========== 3. 产量/消耗量（随财富增长的随机波动） ==========
-        // 富裕国家生产和消费的绝对量更大，创造更大的贸易机会
-        // 波动量 = 基础库存 * 5% * ±1 (正=净生产，负=净消耗)
         const productionConsumption = baseInventory * config.inventory.dailyChangeRate * (Math.random() - 0.5) * 2;
 
-        // ========== 4. 计算新库存 ==========
-        // 新库存 = 向目标趋近(5%) + 每日产量/消耗量
         const convergenceRate = 0.05;
         let newInventory = currentInventory * (1 - convergenceRate) + targetInventory * convergenceRate + productionConsumption;
 
-        // 战争状态消耗更多资源（每日-2%）
+        // 战争状态下，民用库存每天会有额外损耗，体现常备军备战与运输损耗；
+        // 真实的前线采购/补仓会在 useGameLoop 中进一步从 nationInventories 扣减。
         if (updated.isAtWar) {
             newInventory *= 0.98;
         }
 
-        // 确保库存在合理范围内
-        const minInventory = Math.max(5, baseInventory * 0.1);  // 最小值也随财富增长
-        const maxInventory = baseInventory * 3;  // 最大值为基线的3倍
+        const minInventory = Math.max(5, baseInventory * 0.1);
+        const maxInventory = baseInventory * 3;
         updated.nationInventories[resourceKey] = Math.max(minInventory, Math.min(maxInventory, Math.floor(newInventory)));
+    });
+
+    updated = syncNationInventoryMirror(updated);
+
+    // 2. 更新价格：先做日常波动/对外收敛，再叠加本地库存压力
+    updated.nationPrices = { ...updated.nationPrices };
+    Object.entries(updated.nationPrices).forEach(([resourceKey, currentPrice]) => {
+        const resourceConfig = RESOURCES[resourceKey];
+        if (!resourceConfig) return;
+
+        const variation = (Math.random() - 0.5) * 2 * config.prices.dailyVariation;
+        let newPrice = currentPrice * (1 + variation);
+
+        const playerPrice = marketPrices[resourceKey];
+        if (playerPrice) {
+            const hasFreeTrade = updated.treaties?.some(t => t.type === 'free_trade' && t.status === 'active');
+            const convergenceRate = hasFreeTrade ? 0.03 : 0.01;
+            newPrice = newPrice * (1 - convergenceRate) + playerPrice * convergenceRate;
+        }
+
+        updated.nationPrices[resourceKey] = calculateNationLocalPrice({
+            resourceKey,
+            nation: updated,
+            marketPrice: playerPrice,
+            currentPrice: newPrice,
+            inventoryOverride: updated.nationInventories?.[resourceKey],
+            wealthOverride: wealth,
+            shock: updated.isAtWar ? 0.03 : 0,
+        });
     });
 
     // 3. 全面更新阶层数据（代替旧的简单满意度更新）
@@ -625,6 +633,7 @@ export const updateNationEconomyData = (nation, marketPrices = {}, context = {})
 
     return updated;
 };
+
 
 /**
  * Updates all nations each tick

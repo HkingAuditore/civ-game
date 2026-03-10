@@ -1,3 +1,6 @@
+import { RESOURCES } from '../config';
+import { isResourceUnlocked } from './resources';
+
 /**
  * 生活水平计算工具函数
  * 用于计算各阶层的生活水平数据
@@ -7,6 +10,7 @@
  * - 需求满足评分 (0-30分)：商品需求是否被满足
  * - 财务安全评分 (0-20分)：存款能覆盖多少天支出
  */
+
 
 /**
  * 生活水平等级枚举
@@ -19,6 +23,156 @@ export const LIVING_STANDARD_LEVELS = {
     PROSPEROUS: { level: '富裕', icon: 'Gem', color: 'text-blue-400', bgColor: 'bg-blue-900/20', borderColor: 'border-blue-500/30', approvalCap: 95 },
     LUXURIOUS: { level: '奢华', icon: 'Crown', color: 'text-purple-400', bgColor: 'bg-purple-900/20', borderColor: 'border-purple-500/30', approvalCap: 100 },
 };
+
+export const LIVING_STANDARD_BASKET_UNLOCK_CAPS = {
+    '贫困': 0,
+    '温饱': 1.49,
+    '小康': 3.0,
+    '富裕': 6.0,
+    '奢华': 10.0,
+};
+
+function getPriceFromSource(resourceKey, priceMap) {
+    const fallbackPrice = RESOURCES[resourceKey]?.basePrice || 1;
+    if (typeof priceMap === 'function') {
+        return Math.max(0, priceMap(resourceKey) || fallbackPrice);
+    }
+    if (priceMap && typeof priceMap === 'object') {
+        return Math.max(0, priceMap[resourceKey] || fallbackPrice);
+    }
+    return fallbackPrice;
+}
+
+/**
+ * 计算指定生活水平对应的“每日消费篮子成本”
+ * 参考 CPI 的篮子思路：按当前物价 × 对应档位的消费数量累加
+ */
+export function calculateLivingStandardBasketDailyCost({
+    baseNeeds = {},
+    luxuryNeeds = {},
+    livingStandardLevel = '温饱',
+    priceMap = {},
+    epoch = 0,
+    techsUnlocked = [],
+    needsRequirementMultiplier = 1,
+    potentialResources = null,
+}) {
+    const unlockCap = LIVING_STANDARD_BASKET_UNLOCK_CAPS[livingStandardLevel] ?? 0;
+    const basket = {};
+
+    const addToBasket = (resourceKey, amount) => {
+        if (!resourceKey || !Number.isFinite(amount) || amount <= 0) {
+            return;
+        }
+        if (!isResourceUnlocked(resourceKey, epoch, techsUnlocked)) {
+            return;
+        }
+        if (potentialResources && !potentialResources.has(resourceKey)) {
+            return;
+        }
+        basket[resourceKey] = (basket[resourceKey] || 0) + amount * needsRequirementMultiplier;
+    };
+
+    Object.entries(baseNeeds || {}).forEach(([resourceKey, amount]) => {
+        addToBasket(resourceKey, amount);
+    });
+
+    if (unlockCap > 0) {
+        Object.keys(luxuryNeeds || {})
+            .map(Number)
+            .sort((a, b) => a - b)
+            .forEach((threshold) => {
+                if (threshold > unlockCap) {
+                    return;
+                }
+                const tierNeeds = luxuryNeeds?.[threshold] || luxuryNeeds?.[String(threshold)] || {};
+                Object.entries(tierNeeds).forEach(([resourceKey, amount]) => {
+                    addToBasket(resourceKey, amount);
+                });
+            });
+    }
+
+    let totalCost = 0;
+    Object.entries(basket).forEach(([resourceKey, amount]) => {
+        totalCost += amount * getPriceFromSource(resourceKey, priceMap);
+    });
+
+    return {
+        unlockCap,
+        basket,
+        totalCost,
+    };
+}
+
+/**
+ * 计算价格感知的生活水平阈值
+ * 用固定缓冲天数 × 各档位消费篮子成本，替代固定银币阈值
+ */
+export function calculatePriceAwareLivingStandardThresholds({
+    baseNeeds = {},
+    luxuryNeeds = {},
+    priceMap = {},
+    epoch = 0,
+    techsUnlocked = [],
+    needsRequirementMultiplier = 1,
+    potentialResources = null,
+    bufferDays = 30,
+    livingLevels = ['贫困', '温饱', '小康', '富裕', '奢华'],
+}) {
+    const dailyCosts = {};
+    const thresholds = {};
+    const baskets = {};
+
+    livingLevels.forEach((level) => {
+        const basketInfo = calculateLivingStandardBasketDailyCost({
+            baseNeeds,
+            luxuryNeeds,
+            livingStandardLevel: level,
+            priceMap,
+            epoch,
+            techsUnlocked,
+            needsRequirementMultiplier,
+            potentialResources,
+        });
+        baskets[level] = basketInfo.basket;
+        dailyCosts[level] = basketInfo.totalCost;
+        thresholds[level] = basketInfo.totalCost * bufferDays;
+    });
+
+    return {
+        bufferDays,
+        baskets,
+        dailyCosts,
+        thresholds,
+        referenceThreshold: thresholds['温饱'] || thresholds['贫困'] || 0,
+    };
+}
+
+export function getPriceAwareLivingStandardLevel(wealthPerCapita, thresholds = {}, fallbackLevel = '贫困') {
+    if (wealthPerCapita >= (thresholds['奢华'] || Number.POSITIVE_INFINITY)) {
+        return '奢华';
+    }
+    if (wealthPerCapita >= (thresholds['富裕'] || Number.POSITIVE_INFINITY)) {
+        return '富裕';
+    }
+    if (wealthPerCapita >= (thresholds['小康'] || Number.POSITIVE_INFINITY)) {
+        return '小康';
+    }
+    if (wealthPerCapita >= (thresholds['温饱'] || Number.POSITIVE_INFINITY)) {
+        return '温饱';
+    }
+    return fallbackLevel;
+}
+
+function normalizeWealthAgainstReference(wealthPerCapita, wealthReference = 100, baseline = 100) {
+    if (!Number.isFinite(wealthPerCapita) || wealthPerCapita <= 0) {
+        return 0;
+    }
+    const safeReference = wealthReference > 0 ? wealthReference : baseline;
+    return (wealthPerCapita / safeReference) * baseline;
+}
+
+
 
 /**
  * 计算收入充裕度评分
@@ -381,43 +535,33 @@ export function calculateLegacyScore(wealthRatio, satisfactionRate, luxuryUnlock
  * @param {number} incomeAdequacy - 收入充裕度评分 (0-50)
  * @param {number} satisfactionRate - 需求满足率 (0-1)
  * @param {number} financialSecurity - 财务安全度评分 (0-20)
- * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富）
+ * @param {number} wealthRatio - 财富比率（人均财富 / 动态购买力基准）
  * @param {number} wealthPerCapita - 人均财富（绝对值）
+ * @param {number} wealthReference - 动态购买力基准（默认100）
  * @returns {number} 综合评分 (0-100)
  */
-export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, financialSecurity, wealthRatio = 1, wealthPerCapita = 100) {
+export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, financialSecurity, wealthRatio = 1, wealthPerCapita = 100, wealthReference = 100) {
     // 收入充裕度 (0-50分) + 需求满足 (0-30分) + 财务安全 (0-20分)
     const satisfactionScore = satisfactionRate * 30;
-    let rawScore = incomeAdequacy + satisfactionScore + financialSecurity;
+    const rawScore = incomeAdequacy + satisfactionScore + financialSecurity;
 
     // ========== 混合评估模型 ==========
-    // 结合绝对财富和相对比率两个维度计算评分上限
-
-    // 1. 绝对财富评分 (0-60分)
-    // 基于人均财富的绝对值，使用平方根曲线拉开差距
-    // 50银币 → ~5分, 100 → ~7分, 200 → ~10分, 500 → ~16分, 1000 → ~22分, 2000 → ~31分, 5000 → ~50分
+    // 结合动态购买力下的“绝对财富”和“相对财富”两个维度计算评分上限
     let absoluteScore = 0;
-    if (wealthPerCapita > 0) {
-        absoluteScore = Math.min(60, 0.7 * Math.sqrt(wealthPerCapita));
+    const normalizedWealth = normalizeWealthAgainstReference(wealthPerCapita, wealthReference);
+    if (normalizedWealth > 0) {
+        absoluteScore = Math.min(60, 0.7 * Math.sqrt(normalizedWealth));
     }
 
-    // 2. 相对财富评分 (0-50分)
-    // 基于 wealthRatio，使用指数衰减曲线
-    // ratio=0.5 → ~9分, =1 → ~16分, =2 → ~25分, =4 → ~35分, =10 → ~40分
     let relativeScore = 0;
     if (wealthRatio > 0) {
         relativeScore = Math.min(40, 40 * (1 - Math.exp(-wealthRatio * 0.5)));
     }
 
-    // 3. 财富评分 (0-100分)
-    // 绝对财富为主导，相对财富提供阶层期望修正
     const wealthScore = absoluteScore + relativeScore;
-
-    // 4. 加权混合评分
-    // 2024-12 Fix: 提高 rawScore (收入/满足率) 权重至 50%，降低 wealthScore 至 50%
-    // 让高收入阶层能更快获得匹配的生活评级，而不需要积累数年财富
     return rawScore * 0.5 + wealthScore * 0.5;
 }
+
 
 /**
  * 计算阶层的完整生活水平数据（新算法）
@@ -432,7 +576,8 @@ export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, f
  * @param {number} params.income - 阶层总收入（日）
  * @param {number} params.expense - 阶层总支出（日）
  * @param {number} params.wealthValue - 阶层总财富（存款）
- * @param {number} params.startingWealth - 基准财富（每人）
+ * @param {number} params.startingWealth - 旧版基准财富（每人，作为回退）
+ * @param {number} params.wealthReference - 动态购买力基准（优先使用）
  * @param {number} params.essentialCost - 基础生存成本（总计，每日）
  * @param {number} params.shortagesCount - 短缺资源数量
  * @param {number} params.effectiveNeedsCount - 有效需求总数
@@ -450,6 +595,7 @@ export function calculateLivingStandardData({
     expense = 0,
     wealthValue = 0,
     startingWealth = 100,
+    wealthReference = null,
     essentialCost = 0,
     shortagesCount = 0,
     effectiveNeedsCount = 0,
@@ -470,46 +616,49 @@ export function calculateLivingStandardData({
     const expensePerCapita = expense / count;
     const wealthPerCapita = wealthValue / count;
     const essentialCostPerCapita = essentialCost / count;
+    const effectiveWealthReference = wealthReference > 0 ? wealthReference : startingWealth;
 
     // 1. 收入充裕度评分 (0-50分)
-    // 传入财富数据用于回退计算
+    // 传入动态购买力基准用于回退计算
     const incomeAdequacyScore = calculateIncomeAdequacyScore(
         incomePerCapita,
         essentialCostPerCapita,
         wealthPerCapita,
-        startingWealth
+        effectiveWealthReference
     );
 
     // 2. 需求满足率
-    // 如果没有有效需求计数，使用更保守的默认值（基于财富比率）
+    // 如果没有有效需求计数，使用更保守的默认值（基于动态购买力比率）
     let satisfactionRate;
     if (effectiveNeedsCount > 0) {
         satisfactionRate = Math.max(0, (effectiveNeedsCount - shortagesCount) / effectiveNeedsCount);
     } else {
-        // 没有需求数据时，使用财富比率估算
-        const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
-        satisfactionRate = Math.min(1, wealthRatio);
+        const wealthRatioFallback = effectiveWealthReference > 0 ? wealthPerCapita / effectiveWealthReference : 0;
+        satisfactionRate = Math.min(1, wealthRatioFallback);
     }
 
     // 3. 财务安全度评分 (0-20分)
-    // 传入基准财富用于回退计算
     const financialSecurityScore = calculateFinancialSecurityScore(
         wealthPerCapita,
         expensePerCapita,
         30,
-        startingWealth
+        effectiveWealthReference
     );
 
     // 计算财富比率用于评分约束
-    const realWealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+    const realWealthRatio = effectiveWealthReference > 0 ? wealthPerCapita / effectiveWealthReference : 0;
 
-    // 计算目标分数（传入财富比率和人均财富作为评分上限约束）
-    const targetScore = calculateLivingStandardScore(incomeAdequacyScore, satisfactionRate, financialSecurityScore, realWealthRatio, wealthPerCapita);
-
-
+    // 计算目标分数（传入动态购买力比率和人均财富作为评分约束）
+    const targetScore = calculateLivingStandardScore(
+        incomeAdequacyScore,
+        satisfactionRate,
+        financialSecurityScore,
+        realWealthRatio,
+        wealthPerCapita,
+        effectiveWealthReference
+    );
 
     // 4. 平滑过渡
-    // 新阶层直接采用目标分数，否则渐进变化
     const ADAPT_RATE = isNewStratum ? 1.0 : 0.15;
     const smoothedScore = previousScore !== null
         ? previousScore * (1 - ADAPT_RATE) + targetScore * ADAPT_RATE
@@ -519,7 +668,6 @@ export function calculateLivingStandardData({
     const livingStandard = getLivingStandardByScore(smoothedScore);
 
     // 计算消费能力乘数（同时考虑收入和财富，使用阶层配置的上限）
-    // 当没有基础成本数据时，根据实际收入判断：有收入给予较高值，无收入则为0
     const incomeRatio = essentialCostPerCapita > 0
         ? incomePerCapita / essentialCostPerCapita
         : (incomePerCapita > 0 ? 10 : 0);
@@ -528,8 +676,7 @@ export function calculateLivingStandardData({
     // 奢侈需求解锁比例
     const luxuryUnlockRatio = totalLuxuryTiers > 0 ? unlockedLuxuryTiers / totalLuxuryTiers : 0;
 
-    // wealthRatio: 真正的财富比率（人均财富/基准财富），用于UI显示
-    // 这与 realWealthRatio 相同，保持向后兼容
+    // wealthRatio: 真正的财富比率（人均财富/动态购买力基准），用于UI显示
     const wealthRatio = realWealthRatio;
 
     return {
@@ -549,7 +696,8 @@ export function calculateLivingStandardData({
 
         // 消费能力
         wealthMultiplier,
-        wealthRatio, // 兼容旧代码
+        wealthRatio,
+        wealthReference: effectiveWealthReference,
 
         // 奢侈品相关
         luxuryUnlockRatio,
@@ -566,6 +714,7 @@ export function calculateLivingStandardData({
     };
 }
 
+
 /**
  * 简化版本：基于收入快速计算生活水平图标和颜色
  * 适用于列表视图等简单场景
@@ -581,9 +730,7 @@ export function getSimpleLivingStandard(incomeRatio) {
         return { icon: 'UtensilsCrossed', color: 'text-yellow-400', level: '温饱', approvalCap: 70 };
     } else if (incomeRatio < 2.5) {
         return { icon: 'Home', color: 'text-green-400', level: '小康', approvalCap: 85 };
-    } else if (incomeRatio < 4) {
-        return { icon: 'Gem', color: 'text-blue-400', level: '富裕', approvalCap: 95 };
     } else {
-        return { icon: 'Crown', color: 'text-purple-400', level: '奢华', approvalCap: 100 };
+        return { icon: 'Crown', color: 'text-purple-400', level: '富裕', approvalCap: 100 };
     }
 }

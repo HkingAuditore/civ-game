@@ -343,28 +343,37 @@ export const summarizeFrontState = (front, attackerCorps = [], defenderCorps = [
     const buildSideState = (side, corpsList, units, raidPower, reservePower, advancePower, defensePower, postureCfg) => {
         const army = aggregateArmyFromCorps(corpsList);
         const baseMaintenance = calculateArmyMaintenance(army);
+        const normalizedBaseMaintenance = Object.fromEntries(
+            Object.entries(baseMaintenance).map(([resourceKey, amount]) => [
+                resourceKey,
+                Math.max(0, Number(amount || 0)),
+            ])
+        );
         const logisticsPressure = getSideLogisticsPressure(normalizedFront.linePosition, side);
         const supplyLinePressure = Math.max(0, Number(normalizedFront.economicDamageBreakdown?.supplyLineDamage || 0)) / 100;
+        const supplyLinePenalty = supplyLinePressure * 0.55;
         // 战线部署基础补给系数：部署到前线的军团比待命多30%补给需求
         const frontDeploymentBase = units > 0 ? 1.3 : 1.0;
         // 推进到敌方领土时产生额外补给需求（每深入10%增加约15%补给成本）
         const advanceSupplyPenalty = logisticsPressure * 1.5;
         let logisticsMultiplier = clamp(
-            frontDeploymentBase * postureCfg.supplyMod + advanceSupplyPenalty + supplyLinePressure * 0.55,
+            frontDeploymentBase * postureCfg.supplyMod + advanceSupplyPenalty + supplyLinePenalty,
             1,
             4
         );
+        let battleSupplyMod = 1;
         // 会战期间额外补给消耗
         if (normalizedFront.activeBattleId) {
-            const battleSupplyMod = { probe: 1.3, assault: 1.8, siege: 1.6 }[normalizedFront.activeBattleType] || 1.5;
+            battleSupplyMod = { probe: 1.3, assault: 1.8, siege: 1.6 }[normalizedFront.activeBattleType] || 1.5;
             logisticsMultiplier = clamp(logisticsMultiplier * battleSupplyMod, 1, 6);
         }
         const needResources = Object.fromEntries(
-            Object.entries(baseMaintenance).map(([resourceKey, amount]) => [
+            Object.entries(normalizedBaseMaintenance).map(([resourceKey, amount]) => [
                 resourceKey,
-                Math.max(0, Math.ceil(Number(amount || 0) * logisticsMultiplier)),
+                Math.max(0, Math.ceil(amount * logisticsMultiplier)),
             ])
         );
+
         const stock = sideResources[side] || {};
         const availableResources = Object.fromEntries(
             Object.keys(needResources).map((resourceKey) => [resourceKey, Number(stock[resourceKey] || 0)])
@@ -376,12 +385,21 @@ export const summarizeFrontState = (front, attackerCorps = [], defenderCorps = [
             corpsCount: corpsList.length,
             supplyNeed: {
                 resources: needResources,
+                baseResources: normalizedBaseMaintenance,
                 logisticsMultiplier: Number(logisticsMultiplier.toFixed(2)),
+                modifierBreakdown: {
+                    frontDeploymentBase: Number(frontDeploymentBase.toFixed(2)),
+                    postureSupplyMod: Number(postureCfg.supplyMod || 1),
+                    advanceSupplyPenalty: Number(advanceSupplyPenalty.toFixed(2)),
+                    supplyLinePenalty: Number(supplyLinePenalty.toFixed(2)),
+                    battleSupplyMod: Number(battleSupplyMod.toFixed(2)),
+                },
                 food: Number(needResources.food || 0),
                 silver: Number(needResources.silver || 0),
                 materiel: Number(needResources[ammoResource] || 0),
                 materielResource: ammoResource,
             },
+
             supplyAvailable: {
                 resources: availableResources,
                 food: Number(availableResources.food || 0),
@@ -1169,7 +1187,8 @@ export const calculateFrontEconomicImpact = (front, nationId, options = {}) => {
             side,
             relativePosition,
             territorialPressure,
-            homelandPressure: Math.abs(getBoundedHomelandPressure(relativePosition)),
+            // Positive = homeland under invasion pressure; negative = deep into enemy territory (advantage, show as 0)
+            homelandPressure: Math.max(0, getBoundedHomelandPressure(relativePosition)),
         },
         logistics: {
             supplyRatio: Number(sideState.supplyRatio || 0),
@@ -1178,8 +1197,13 @@ export const calculateFrontEconomicImpact = (front, nationId, options = {}) => {
             dailyFoodUpkeep: Number(sideState.supplyNeed?.food || 0),
             dailySilverUpkeep: Number(sideState.supplyNeed?.silver || 0),
             dailyMaterielUpkeep: Number(sideState.supplyNeed?.materiel || 0),
+            materielResource: sideState.supplyNeed?.materielResource || 'wood',
+            resourceBreakdown: sideState.supplyNeed?.resources || {},
+            baseResourceBreakdown: sideState.supplyNeed?.baseResources || {},
+            modifierBreakdown: sideState.supplyNeed?.modifierBreakdown || {},
             logisticsMultiplier: Number(sideState.supplyNeed?.logisticsMultiplier || 1),
         },
+
         cumulative: {
             lootGained: side ? sumMetricValues(normalizedFront.totalPlundered?.[side] || {}) : 0,
             lootLost: side ? sumMetricValues(normalizedFront.totalPlundered?.[enemySide] || {}) : 0,
@@ -1316,12 +1340,31 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     const enemyRaidStrength = getRoleWeightedStrength(enemyCorps, 'raid');
     const totalUnits = Math.max(1, getTotalUnitsFromCorps(playerCorps) + getTotalUnitsFromCorps(enemyCorps));
 
-    // Frequency control based on posture
+    // Frequency control based on posture and force ratio
     const baseInterval = 4; // every 4 days
     let interval = baseInterval;
     if (normalizePostureId(posture) === 'offensive') interval = Math.max(2, Math.floor(baseInterval * 0.7));
     if (normalizePostureId(posture) === 'attrition') interval = Math.floor(baseInterval * 1.35);
     if (normalizePostureId(posture) === 'raid') interval = Math.max(2, Math.floor(baseInterval * 0.75));
+
+    // Force ratio accelerates friction: when one side overwhelms the other, skirmishes happen more often
+    const playerTotal = playerCorps.reduce((s, c) => {
+        return s + Object.values(c.units || {}).reduce((a, b) => a + b, 0);
+    }, 0);
+    const enemyTotal = enemyCorps.reduce((s, c) => {
+        return s + Object.values(c.units || {}).reduce((a, b) => a + b, 0);
+    }, 0);
+    const largerForce = Math.max(playerTotal, enemyTotal);
+    const smallerForce = Math.max(1, Math.min(playerTotal, enemyTotal));
+    const forceRatio = largerForce / smallerForce;
+    // Ratio >= 3 → interval halved; ratio >= 8 → interval = 1 (every day)
+    if (forceRatio >= 8) {
+        interval = 1;
+    } else if (forceRatio >= 3) {
+        interval = Math.max(1, Math.floor(interval * 0.5));
+    } else if (forceRatio >= 2) {
+        interval = Math.max(1, Math.floor(interval * 0.7));
+    }
 
     // Use front id hash + day for deterministic but varied timing
     const hash = (front.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -1330,17 +1373,16 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     // Pick a random event
     const template = FRICTION_EVENT_TEMPLATES[Math.floor(Math.random() * FRICTION_EVENT_TEMPLATES.length)];
 
-    // Calculate casualties (0.1% ~ 0.5% of total units)
-    const playerTotal = playerCorps.reduce((s, c) => {
-        return s + Object.values(c.units || {}).reduce((a, b) => a + b, 0);
-    }, 0);
-    const enemyTotal = enemyCorps.reduce((s, c) => {
-        return s + Object.values(c.units || {}).reduce((a, b) => a + b, 0);
-    }, 0);
+    // Force ratio casualty multiplier: overwhelming force causes much higher attrition to the weaker side
+    // ratio 1:1 → ×1.0, 3:1 → ×1.6, 5:1 → ×2.0, 10:1 → ×2.5
+    const dominantRatioBonusCasualty = Math.min(2.5, 1.0 + Math.pow(Math.max(0, forceRatio - 1), 0.5) * 0.55);
 
-    const baseCasualtyRate = 0.001 + Math.random() * 0.004; // 0.1% ~ 0.5%
-    let playerCasualties = Math.max(1, Math.floor(playerTotal * baseCasualtyRate * template.intensity * postureCfg.attritionMod));
-    let enemyCasualties = Math.max(1, Math.floor(enemyTotal * baseCasualtyRate * template.intensity));
+    const baseCasualtyRate = 0.003 + Math.random() * 0.009; // 0.3% ~ 1.2%
+    // Apply dominant-side casualty bonus: the weaker side suffers amplified losses
+    const playerCasualtyMod = playerTotal < enemyTotal ? dominantRatioBonusCasualty : 1.0;
+    const enemyCasualtyMod = enemyTotal < playerTotal ? dominantRatioBonusCasualty : 1.0;
+    let playerCasualties = Math.max(3, Math.floor(playerTotal * baseCasualtyRate * template.intensity * postureCfg.attritionMod * playerCasualtyMod));
+    let enemyCasualties = Math.max(3, Math.floor(enemyTotal * baseCasualtyRate * template.intensity * enemyCasualtyMod));
 
     // Posture adjustments
     if (normalizePostureId(posture) === 'offensive') {
@@ -1405,6 +1447,7 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
         linePosition: normalizedFront.linePosition,
         side: enemySide,
         raidMod: playerRaidModFriction,
+        unitRatio: playerTotal > 0 && enemyTotal > 0 ? playerTotal / enemyTotal : (playerTotal > 0 ? 5.0 : 0.2),
     });
 
     return {
@@ -1606,8 +1649,16 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
     const advancerPosture = getFrontPostureIdForSide(normalizedFront, isAttackerAdvancing ? 'attacker' : 'defender');
     const advancerRaidMod = (FRONT_POSTURES[advancerPosture]?.raidMod || 1.0);
 
+    // 计算进攻方和防守方兵力，用于建筑破坏加速
+    const advancerSide = isAttackerAdvancing ? 'attacker' : 'defender';
+    const advancerCorps = advancerSide === 'attacker' ? attackerCorps : defenderCorps;
+    const victimCorps = advancerSide === 'attacker' ? defenderCorps : attackerCorps;
+    const advancerTotalUnits = getTotalUnitsFromCorps(advancerCorps);
+    const victimTotalUnits = getTotalUnitsFromCorps(victimCorps);
+    const advancerUnitRatio = victimTotalUnits > 0 ? advancerTotalUnits / victimTotalUnits : (advancerTotalUnits > 0 ? 5.0 : 1.0);
+
     if (crossed.length > 0) {
-        // 建筑破坏判定（仅经济区和核心区触发）
+        // 建筑破坏判定（仅经济区和核心区触发）- 真实销毁
         if (zoneCategory === 'economic' || zoneCategory === 'capital') {
             const damageResult = calculateWarBuildingDamage({
                 targetNationId: victimId,
@@ -1616,8 +1667,10 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
                 zoneCategory,
                 raidMod: advancerRaidMod,
                 existingDestroyed: destroyedBuildings[victimId] || {},
-                nationWealth: isVictimPlayer ? 0 : 1000, // AI wealth由外部传入，此处占位
+                nationWealth: isVictimPlayer ? 0 : 1000,
                 nationMilitaryStrength: 0,
+                enemyUnits: advancerTotalUnits,
+                unitRatio: advancerUnitRatio,
             });
 
             // 更新 destroyedBuildings
@@ -1655,13 +1708,26 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
         warEconomyDamage.zoneCategory = zoneCategory;
         nextWarEconomyDamageDay = day;
     } else if (zoneCategory === 'economic' || zoneCategory === 'capital') {
-        const occupationInterval = zoneCategory === 'capital' ? 6 : 10;
+        // Sustained occupation damage interval base
+        let occupationInterval = zoneCategory === 'capital' ? 3 : 5;
         const territoryOwnerSide = linePosition >= 50 ? 'defender' : 'attacker';
         const occupiedVictimId = territoryOwnerSide === 'attacker' ? normalizedFront.attackerId : normalizedFront.defenderId;
         const occupiedVictimBuildings = territoryOwnerSide === 'attacker' ? (attackerBuildings || {}) : (defenderBuildings || {});
         const occupiedVictimIsPlayer = occupiedVictimId === 'player';
         const occupiedAdvancerSide = territoryOwnerSide === 'attacker' ? 'defender' : 'attacker';
         const occupiedRaidMod = FRONT_POSTURES[getFrontPostureIdForSide(normalizedFront, occupiedAdvancerSide)]?.raidMod || 1.0;
+
+        // 持续占领时也计算兵力比
+        const occupiedAdvancerCorps = occupiedAdvancerSide === 'attacker' ? attackerCorps : defenderCorps;
+        const occupiedVictimCorps = occupiedAdvancerSide === 'attacker' ? defenderCorps : attackerCorps;
+        const occupiedAdvancerUnits = getTotalUnitsFromCorps(occupiedAdvancerCorps);
+        const occupiedVictimUnits = getTotalUnitsFromCorps(occupiedVictimCorps);
+        const occupiedUnitRatio = occupiedVictimUnits > 0 ? occupiedAdvancerUnits / occupiedVictimUnits : (occupiedAdvancerUnits > 0 ? 5.0 : 1.0);
+
+        // Force ratio shortens sustained occupation damage interval
+        if (occupiedUnitRatio >= 5) occupationInterval = Math.max(1, Math.floor(occupationInterval * 0.4));
+        else if (occupiedUnitRatio >= 3) occupationInterval = Math.max(1, Math.floor(occupationInterval * 0.6));
+        else if (occupiedUnitRatio >= 2) occupationInterval = Math.max(1, Math.floor(occupationInterval * 0.8));
 
         if (day - nextWarEconomyDamageDay >= occupationInterval) {
             const sustainedDamage = calculateWarBuildingDamage({
@@ -1673,6 +1739,8 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
                 existingDestroyed: destroyedBuildings[occupiedVictimId] || {},
                 nationWealth: occupiedVictimIsPlayer ? 0 : 1000,
                 nationMilitaryStrength: 0,
+                enemyUnits: occupiedAdvancerUnits,
+                unitRatio: occupiedUnitRatio,
             });
 
             if (

@@ -916,6 +916,10 @@ const ResourceDetailContent = ({
             return acc;
         }, []);
 
+        // 战争经济数据
+        const warDamaged = sources.warDamagedBuildings || {};
+        const warProductionPenalty = sources.frontlineProductionPenalty || 0;
+
         const buildingSupplyList = BUILDINGS.reduce((acc, building) => {
             const perBuilding = building.output?.[resourceKey] || 0;
             const count = buildings[building.id] || 0;
@@ -950,12 +954,22 @@ const ResourceDetailContent = ({
             if (eventBuildingPct !== 0) modList.push(`事件 +${(eventBuildingPct * 100).toFixed(0)}%`);
             if (techCategoryPct !== 0) modList.push(`类别科技 +${(techCategoryPct * 100).toFixed(0)}%`);
             if (eventCategoryPct !== 0) modList.push(`类别事件 +${(eventCategoryPct * 100).toFixed(0)}%`);
+            // 战争减产：前线产出惩罚
+            if (warProductionPenalty > 0.001) {
+                modList.push(`⚔️前线减产 -${(warProductionPenalty * 100).toFixed(0)}%`);
+            }
 
             // 获取减产信息
             const finance = buildingFinancialData[building.id];
             const reductionReasons = finance?.reductionReasons || [];
             const productionEfficiency = finance?.productionEfficiency ?? 1;
             const isReduced = actualAmount < theoreticalAmount * 0.99 && theoreticalAmount > 0;
+
+            // 战争建筑战损显示
+            const warDamagedCount = warDamaged[building.id] || 0;
+            const formulaText = perBuilding > 0
+                ? (warDamagedCount > 0 ? `${count} 座（战损-${warDamagedCount}座）` : `${count} 座`)
+                : '来自建筑升级';
 
             acc.push({
                 id: building.id,
@@ -964,7 +978,7 @@ const ResourceDetailContent = ({
                 theoreticalAmount,
                 amount: actualAmount,
                 isActual: realProduction !== undefined,
-                formula: perBuilding > 0 ? `${count} 座` : '来自建筑升级',
+                formula: formulaText,
                 mods: modList,
                 hasBonus: actualAmount !== baseAmount,
                 isReduced,

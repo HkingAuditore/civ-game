@@ -11,6 +11,7 @@ import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
 import { getAIDevelopmentMultiplier } from '../../config/difficulty.js';
 import { calculateAILogisticGrowth } from '../population/logisticGrowth.js';
+import { calculateBuildingIntegrityModifiers } from './warEconomy';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -65,6 +66,9 @@ export const updateAINationInventory = ({
         // 财富系数：让富裕国家有更高产出
         const wealthFactor = Math.max(0.8, Math.min(2.0, (next.wealth || 1000) / 1000));
 
+        // 建筑完好度修正：战争中建筑被破坏后削弱对应资源产量
+        const integrityModifiers = calculateBuildingIntegrityModifiers(next);
+
         foreignResourceKeys.forEach((resourceKey) => {
             const bias = resourceBiasMap[resourceKey] ?? 1;
             const currentStock = next.inventory[resourceKey] || 0;
@@ -98,7 +102,9 @@ export const updateAINationInventory = ({
             // 特产资源：生产多，消费少 -> 容易盈余
             // 稀缺资源：生产少，消费多 -> 容易缺口
             // 使用更激进的指数让差异更明显
-            const productionRate = baseProductionRate * Math.pow(bias, 1.2) * productionTrend;
+            // 建筑完好度修正：被破坏的建筑会降低对应资源产量
+            const integrityFactor = integrityModifiers[resourceKey] ?? 1.0;
+            const productionRate = baseProductionRate * Math.pow(bias, 1.2) * productionTrend * integrityFactor;
             const consumptionRate = baseConsumptionRate * Math.pow(1 / bias, 0.8) * consumptionTrend;
             const stockRatio = currentStock / targetInventory;
 

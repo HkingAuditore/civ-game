@@ -35,6 +35,9 @@ import {
     getNationEconomicScale,
     getNationTreasury,
 } from './economyUtils';
+import { getCheckpointsCrossed, CHECKPOINTS } from './frontSystem';
+import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile } from './warEconomy';
+import { BUILDINGS } from '../../config/buildings';
 
 const AI_DOCTRINES = {
     line_breaker: {
@@ -1602,9 +1605,39 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
  */
-export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null) => {
+/**
+ * 计算多线战争兵力折减系数
+ * @param {Object} nation - AI国家对象
+ * @param {Array} allNations - 所有国家列表（用于检查极端战线）
+ * @returns {{ ratio: number, activeWarCount: number, hasExtremeAIFront: boolean }}
+ */
+export const getMultiWarStrengthRatio = (nation, allNations = []) => {
+    const activeWars = Object.entries(nation.foreignWars || {}).filter(([, w]) => w?.isAtWar);
+    const activeWarCount = activeWars.length;
+    if (activeWarCount <= 1) return { ratio: 1.0, activeWarCount, hasExtremeAIFront: false };
+
+    // 基础折减: 1 / sqrt(activeWarCount)
+    const ratio = 1 / Math.sqrt(activeWarCount);
+
+    // 检查是否有极端AI-AI战线（linePosition <=15 或 >=85，从对方视角看）
+    let hasExtremeAIFront = false;
+    for (const [enemyId, w] of activeWars) {
+        if (enemyId === 'player') continue; // 玩家战线不算AI-AI
+        const lp = w.linePosition;
+        if (lp != null && (lp <= 15 || lp >= 85)) {
+            hasExtremeAIFront = true;
+            break;
+        }
+    }
+
+    return { ratio, activeWarCount, hasExtremeAIFront };
+};
+
+export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null, epoch = null) => {
     // Create a set of visible nation IDs for quick lookup
     const visibleNationIds = new Set(visibleNations.map(n => n.id));
+    // [FIX] Deduplicate war pairs — each A↔B war should only be processed once per tick
+    const processedPairs = new Set();
 
     visibleNations.forEach(nation => {
         Object.keys(nation.foreignWars || {}).forEach(enemyId => {
@@ -1614,6 +1647,11 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 delete nation.foreignWars[enemyId];
                 return;
             }
+
+            // [FIX] Skip if this war pair was already processed from the other side
+            const pairKey = [nation.id, enemyId].sort().join('|');
+            if (processedPairs.has(pairKey)) return;
+            processedPairs.add(pairKey);
 
             const war = nation.foreignWars[enemyId];
             if (!war?.isAtWar) return;
@@ -1630,20 +1668,56 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 return;
             }
 
+            // 修复 warStartDay 缺失：旧存档可能没有设置，回退为当前tick而非0
+            if (!war.warStartDay) {
+                war.warStartDay = tick;
+            }
+
             if (!enemy.foreignWars) enemy.foreignWars = {};
             if (!enemy.foreignWars[nation.id]) {
                 enemy.foreignWars[nation.id] = {
                     isAtWar: true,
                     warStartDay: war.warStartDay || tick,
-                    warScore: -(war.warScore || 0)
+                    warScore: -(war.warScore || 0),
+                    linePosition: 50,
+                    lastCheckpointDay: war.warStartDay || tick,
+                    destroyedBuildings: {},
                 };
+            }
+
+            // 旧存档容错：补充缺失的战线字段
+            if (war.linePosition == null) {
+                war.linePosition = 50;
+                war.lastCheckpointDay = war.warStartDay || tick;
+                war.destroyedBuildings = war.destroyedBuildings || {};
+            }
+
+            // 初始化分数明细和战事日志（兼容旧存档）
+            if (!war.warScoreBreakdown) {
+                war.warScoreBreakdown = { checkpoint: 0, bonus: 0, occupation: 0 };
+            }
+            if (!war.warEvents) {
+                war.warEvents = [];
+            }
+            const enemyWar = enemy.foreignWars[nation.id];
+            if (enemyWar && enemyWar.linePosition == null) {
+                enemyWar.linePosition = 50;
+                enemyWar.lastCheckpointDay = enemyWar.warStartDay || tick;
+                enemyWar.destroyedBuildings = enemyWar.destroyedBuildings || {};
             }
 
             const warDuration = tick - (war.warStartDay || tick);
             const warIntensity = Math.min(2.0, 1.0 + warDuration / 500);
 
-            const wealthDecayRate = 0.997 - (warIntensity * 0.0015);
+            // === 经济衰减（极端战线时翻倍） ===
+            let nationWealthDecay = 0.997 - (warIntensity * 0.0015);
+            let enemyWealthDecay = 0.997 - (warIntensity * 0.0015);
             const populationDecayRate = 0.998 - (warIntensity * 0.002);
+
+            // 极端战线衰减加速：linePosition <=8 表示 nation 被深入，>=92 表示 enemy 被深入
+            const lp = war.linePosition;
+            if (lp <= 8) nationWealthDecay *= 0.997; // 翻倍衰减
+            if (lp >= 92) enemyWealthDecay *= 0.997;
 
             const nationWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
             const enemyWarCount = Object.values(enemy.foreignWars || {}).filter(w => w?.isAtWar).length;
@@ -1652,37 +1726,196 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
 
             const nationWarExpense = Math.max(1, Math.round(getNationAnnualOutput(nation, 500) * 0.0009 * warIntensity));
             const enemyWarExpense = Math.max(1, Math.round(getNationAnnualOutput(enemy, 500) * 0.0009 * warIntensity));
-            nation.wealth = Math.max(100, (nation.wealth || 500) * wealthDecayRate * nationMultiWarPenalty - nationWarExpense);
+            nation.wealth = Math.max(100, (nation.wealth || 500) * nationWealthDecay * nationMultiWarPenalty - nationWarExpense);
             nation.population = Math.max(10, (nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
-            enemy.wealth = Math.max(100, (enemy.wealth || 500) * wealthDecayRate * enemyMultiWarPenalty - enemyWarExpense);
+            enemy.wealth = Math.max(100, (enemy.wealth || 500) * enemyWealthDecay * enemyMultiWarPenalty - enemyWarExpense);
             enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
 
-            if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
-                const nationStrength = (nation.militaryStrength ?? 1.0) * (nation.population || 100) * (1 + (nation.aggression || 0.3));
-                const enemyStrength = (enemy.militaryStrength ?? 1.0) * (enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+            // === linePosition 推进（每tick） ===
+            // 不再强制折减多线作战兵力——AI可自行决策兵力分配
+            const nationEffStr = (nation.militaryStrength ?? 1.0) * Math.sqrt(nation.population || 100) * (1 + (nation.aggression || 0.3));
+            const enemyEffStr = (enemy.militaryStrength ?? 1.0) * Math.sqrt(enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+            const totalStr = nationEffStr + enemyEffStr;
 
-                const totalStrength = nationStrength + enemyStrength;
-                const nationWinChance = nationStrength / totalStrength;
-
-                const battleCasualty = 0.02 + Math.random() * 0.03;
-                nation.population = Math.max(10, (nation.population || 100) * (1 - battleCasualty * (1 - nationWinChance)));
-                enemy.population = Math.max(10, (enemy.population || 100) * (1 - battleCasualty * nationWinChance));
-
-                if (Math.random() < nationWinChance) {
-                    war.warScore = (war.warScore || 0) + 5;
-                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) - 5;
-                    const loot = Math.floor(Math.min((enemy.wealth || 500) * 0.05, getNationAnnualOutput(enemy, 500) * 0.04));
-                    nation.wealth = (nation.wealth || 500) + loot;
-                    enemy.wealth = Math.max(100, (enemy.wealth || 500) - loot);
-                } else {
-                    war.warScore = (war.warScore || 0) - 5;
-                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) + 5;
-                    const loot = Math.floor(Math.min((nation.wealth || 500) * 0.05, getNationAnnualOutput(nation, 500) * 0.04));
-                    enemy.wealth = (enemy.wealth || 500) + loot;
-                    nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
+            if (totalStr > 0) {
+                // advanceRate 基础值 0.3~0.6/tick，根据战争强度微调
+                const advanceRate = 0.3 + warIntensity * 0.15;
+                const delta = ((nationEffStr - enemyEffStr) / totalStr) * advanceRate;
+                const oldLinePos = war.linePosition;
+                // linePosition > 50 表示 nation 占优（推入 enemy 领土），< 50 表示 enemy 占优
+                war.linePosition = clamp(war.linePosition + delta, 5, 95);
+                // 同步对方镜像（enemy 视角的 linePosition = 100 - nation 视角）
+                if (enemy.foreignWars[nation.id]) {
+                    enemy.foreignWars[nation.id].linePosition = 100 - war.linePosition;
                 }
 
-                // 获取或生成本场战争的结束分数阈值（存储在war对象中，避免每次重新随机）
+                // === checkpoint crossing 事件 ===
+                const crossings = getCheckpointsCrossed(oldLinePos, war.linePosition);
+                for (const { checkpoint, direction } of crossings) {
+                    // 确定被侵入的区域类型
+                    let zoneCategory = 'frontier';
+                    let victimNation = null;
+                    let attackerNation = null;
+                    let scoreChange = 5; // 边境区默认
+                    if (direction === 'forward') {
+                        // nation 推进 → 进入 enemy 的区域
+                        victimNation = enemy;
+                        attackerNation = nation;
+                        if (checkpoint >= 85) { zoneCategory = 'capital'; scoreChange = 15; }
+                        else if (checkpoint >= 65) { zoneCategory = 'economic'; scoreChange = 10; }
+                    } else {
+                        // enemy 反推 → 进入 nation 的区域
+                        victimNation = nation;
+                        attackerNation = enemy;
+                        if (checkpoint <= 15) { zoneCategory = 'capital'; scoreChange = 15; }
+                        else if (checkpoint <= 35) { zoneCategory = 'economic'; scoreChange = 10; }
+                    }
+
+                    // warScore 增量（nation 视角正值=nation 优势）
+                    const scoreDir = direction === 'forward' ? 1 : -1;
+                    war.warScore = (war.warScore || 0) + scoreChange * scoreDir;
+                    war.warScoreBreakdown.checkpoint = (war.warScoreBreakdown.checkpoint || 0) + scoreChange * scoreDir;
+                    if (enemy.foreignWars[nation.id]) {
+                        enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                    }
+
+                    // 额外 checkpoint crossing 奖分：根据双方实力差产生 1~3 额外分
+                    const strDiff = Math.abs(nationEffStr - enemyEffStr) / Math.max(1, totalStr);
+                    const bonusScore = Math.round(clamp(strDiff * 8, 1, 3));
+                    war.warScore = (war.warScore || 0) + bonusScore * scoreDir;
+                    war.warScoreBreakdown.bonus = (war.warScoreBreakdown.bonus || 0) + bonusScore * scoreDir;
+                    if (enemy.foreignWars[nation.id]) {
+                        enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                    }
+
+                    // 记录战事日志
+                    const zoneName = zoneCategory === 'capital' ? '核心区' : zoneCategory === 'economic' ? '经济区' : '边境';
+                    const eventText = direction === 'forward'
+                        ? `${nation.name}推进至${enemy.name}的${zoneName}（+${scoreChange + bonusScore}分）`
+                        : `${enemy.name}反推至${nation.name}的${zoneName}（${-(scoreChange + bonusScore)}分）`;
+                    war.warEvents = [...(war.warEvents || []), { day: tick, text: eventText, score: (scoreChange + bonusScore) * scoreDir }].slice(-15);
+
+                    // 人口流失
+                    const popLoss = calculateWarPopulationLoss({ population: victimNation.population || 100, zoneCategory });
+                    victimNation.population = Math.max(10, (victimNation.population || 100) - popLoss.populationLoss);
+
+                    // 经济损伤：被侵入方 wealth 按区域类型损伤
+                    const wealthDmgRate = zoneCategory === 'capital' ? 0.08 : zoneCategory === 'economic' ? 0.04 : 0.02;
+                    const wealthDmg = Math.floor((victimNation.wealth || 500) * wealthDmgRate);
+                    victimNation.wealth = Math.max(100, (victimNation.wealth || 500) - wealthDmg);
+                    // 攻方获得部分掠夺
+                    attackerNation.wealth = (attackerNation.wealth || 500) + Math.floor(wealthDmg * 0.4);
+
+                    // 按需生成虚拟建筑画像（仅在首次需要时生成）
+                    if (!victimNation.virtualBuildings || Object.keys(victimNation.virtualBuildings).length === 0) {
+                        // 优先使用传入的 epoch，其次使用 nation 自身的 epoch，最后回退到人口估算
+                        const buildingEpoch = epoch != null ? epoch : (victimNation.epoch ?? Math.min(6, Math.floor((victimNation.population || 100) / 80)));
+                        generateAIBuildingProfile(victimNation, buildingEpoch);
+                    }
+                    if (victimNation.virtualBuildings && Object.keys(victimNation.virtualBuildings).length > 0) {
+                        const attackerStr = attackerNation === nation ? nationEffStr : enemyEffStr;
+                        const victimStr = victimNation === nation ? nationEffStr : enemyEffStr;
+                        const unitRatio = victimStr > 0 ? attackerStr / victimStr : 2.0;
+                        const bldgDmg = calculateWarBuildingDamage({
+                            targetNationId: victimNation.id,
+                            isPlayerNation: false,
+                            buildings: victimNation.virtualBuildings,
+                            zoneCategory,
+                            raidMod: 1.0,
+                            existingDestroyed: war.destroyedBuildings?.[victimNation.id] || {},
+                            nationWealth: victimNation.wealth || 500,
+                            nationMilitaryStrength: victimNation.militaryStrength ?? 1.0,
+                            enemyUnits: Math.round(attackerStr * 100),
+                            unitRatio,
+                        });
+                        // 从 virtualBuildings 中真实扣减
+                        for (const [bId, cnt] of Object.entries(bldgDmg.destroyedBuildings)) {
+                            victimNation.virtualBuildings[bId] = Math.max(0, (victimNation.virtualBuildings[bId] || 0) - cnt);
+                        }
+                        // 同步处理外资建筑破坏：被破坏的建筑可能命中外资部分
+                        const foreignDamaged = {};
+                        if (victimNation.virtualBuildingsForeign) {
+                            for (const [bId, cnt] of Object.entries(bldgDmg.destroyedBuildings)) {
+                                const foreignCount = victimNation.virtualBuildingsForeign[bId] || 0;
+                                if (foreignCount > 0) {
+                                    // 外资建筑和本地建筑被破坏概率相同，按比例分配
+                                    const totalBefore = (victimNation.virtualBuildings[bId] || 0) + cnt; // 破坏前总量
+                                    const foreignRatio = foreignCount / Math.max(1, totalBefore);
+                                    const foreignDmg = Math.min(foreignCount, Math.round(cnt * foreignRatio));
+                                    if (foreignDmg > 0) {
+                                        victimNation.virtualBuildingsForeign[bId] = Math.max(0, foreignCount - foreignDmg);
+                                        foreignDamaged[bId] = (foreignDamaged[bId] || 0) + foreignDmg;
+                                    }
+                                }
+                            }
+                        }
+                        // 记录外资破坏到 war 日志（供战后结算用）
+                        if (Object.keys(foreignDamaged).length > 0) {
+                            if (!war.foreignBuildingsDamaged) war.foreignBuildingsDamaged = {};
+                            if (!war.foreignBuildingsDamaged[victimNation.id]) war.foreignBuildingsDamaged[victimNation.id] = {};
+                            for (const [bId, cnt] of Object.entries(foreignDamaged)) {
+                                war.foreignBuildingsDamaged[victimNation.id][bId] = (war.foreignBuildingsDamaged[victimNation.id][bId] || 0) + cnt;
+                            }
+                        }
+                        // 累计到 war.destroyedBuildings
+                        if (!war.destroyedBuildings[victimNation.id]) war.destroyedBuildings[victimNation.id] = {};
+                        for (const [bId, cnt] of Object.entries(bldgDmg.destroyedBuildings)) {
+                            war.destroyedBuildings[victimNation.id][bId] = (war.destroyedBuildings[victimNation.id][bId] || 0) + cnt;
+                        }
+                        // 同步对方 war 的 destroyedBuildings
+                        if (enemy.foreignWars[nation.id]) {
+                            enemy.foreignWars[nation.id].destroyedBuildings = { ...war.destroyedBuildings };
+                        }
+                        // 建筑产出价值折算 wealth 损失
+                        victimNation.wealth = Math.max(100, (victimNation.wealth || 500) - bldgDmg.wealthLoss);
+                    }
+
+                    // 日志（zoneName已在前面声明）
+                    logs.push(`⚔️ ${attackerNation.name} 战线推进至 ${victimNation.name} 的${zoneName}（战线位置: ${Math.round(war.linePosition)}）`);
+                    war.lastCheckpointDay = tick;
+                }
+            }
+
+            // === 持续占领 warScore（每5天根据战线位置累积） ===
+            if (warDuration > 0 && warDuration % 5 === 0) {
+                const posOffset = war.linePosition - 50; // >0 nation优势, <0 enemy优势
+                if (Math.abs(posOffset) > 5) {
+                    // 偏离中线越远，每5天积累越多分数（1~4分）
+                    const occupationScore = Math.round(clamp(Math.abs(posOffset) / 12, 1, 4));
+                    const occupationDir = posOffset > 0 ? 1 : -1;
+                    war.warScore = (war.warScore || 0) + occupationScore * occupationDir;
+                    war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + occupationScore * occupationDir;
+                    if (enemy.foreignWars[nation.id]) {
+                        enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                    }
+                }
+            }
+
+            // === 同步分数明细和战事日志到对方 ===
+            if (enemy.foreignWars[nation.id]) {
+                // 对方视角的分数明细取反
+                enemy.foreignWars[nation.id].warScoreBreakdown = {
+                    checkpoint: -(war.warScoreBreakdown?.checkpoint || 0),
+                    bonus: -(war.warScoreBreakdown?.bonus || 0),
+                    occupation: -(war.warScoreBreakdown?.occupation || 0),
+                };
+                enemy.foreignWars[nation.id].warEvents = war.warEvents || [];
+            }
+
+            // === 存储双方有效战力供UI显示 ===
+            war.nationEffStr = Math.round(nationEffStr);
+            war.enemyEffStr = Math.round(enemyEffStr);
+            war.warIntensity = Math.round(warIntensity * 100) / 100;
+            war.warDuration = warDuration;
+            if (enemy.foreignWars[nation.id]) {
+                enemy.foreignWars[nation.id].nationEffStr = Math.round(enemyEffStr);
+                enemy.foreignWars[nation.id].enemyEffStr = Math.round(nationEffStr);
+                enemy.foreignWars[nation.id].warIntensity = war.warIntensity;
+                enemy.foreignWars[nation.id].warDuration = warDuration;
+            }
+
+            // === 战争结束判定（每10天检查一次） ===
+            if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
                 if (!war.endScoreThreshold) {
                     war.endScoreThreshold = 25 + Math.floor(Math.random() * 56); // 25~80
                 }
@@ -1690,11 +1923,13 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 const absoluteWarScore = Math.abs(war.warScore || 0);
                 const nationExhausted = (nation.population || 100) < 30 || getNationTreasury(nation, 0) < Math.max(120, getNationAnnualOutput(nation, 500) * 0.01);
                 const enemyExhausted = (enemy.population || 100) < 30 || getNationTreasury(enemy, 0) < Math.max(120, getNationAnnualOutput(enemy, 500) * 0.01);
+                // 极端战线位置也可触发结束
+                const extremePosition = war.linePosition <= 8 || war.linePosition >= 92;
 
-                // 大幅降低随机结束概率
-                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 : 0.005;
+                // 战争疲劳因子：持续越久结束概率越高（100天后开始递增，上限15%）
+                const fatigueFactor = clamp((warDuration - 100) / 2000, 0, 0.15);
+                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 + fatigueFactor : extremePosition ? 0.02 + fatigueFactor : 0.005 + fatigueFactor;
 
-                // 战争结束条件：达到阈值 或 小概率随机结束
                 if (absoluteWarScore >= war.endScoreThreshold || Math.random() < exhaustionEndChance) {
                     const needsApproval = requiresVassalDiplomacyApproval(nation) || requiresVassalDiplomacyApproval(enemy);
                     if (needsApproval && Array.isArray(vassalDiplomacyRequests)) {
@@ -1763,6 +1998,22 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                     }
                     // finalScore < 25 保持 draw，无赔偿
 
+                    // linePosition 覆盖胜负等级：极端战线位置可提升胜利等级
+                    const winnerLinePos = winner.id === nation.id ? war.linePosition : (100 - war.linePosition);
+                    if (winnerLinePos >= 90 && victoryTier !== 'overwhelming') {
+                        victoryTier = 'major';
+                        populationTransferRate = Math.max(populationTransferRate, 0.15);
+                        wealthTransferRate = Math.max(wealthTransferRate, 0.25);
+                        peaceDuration = Math.max(peaceDuration, Math.floor(365 * 2.5));
+                        tierName = '大胜';
+                    } else if (winnerLinePos >= 80 && (victoryTier === 'draw' || victoryTier === 'pyrrhic')) {
+                        victoryTier = 'minor';
+                        populationTransferRate = Math.max(populationTransferRate, 0.08);
+                        wealthTransferRate = Math.max(wealthTransferRate, 0.12);
+                        peaceDuration = Math.max(peaceDuration, 365 * 2);
+                        tierName = '小胜';
+                    }
+
                     // 执行赔偿转移
                     const populationTransfer = Math.floor((loser.population || 100) * populationTransferRate);
                     const wealthTransfer = Math.floor((loser.wealth || 500) * wealthTransferRate);
@@ -1785,6 +2036,10 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                         loser.annexedAt = tick;
                         loser.population = 0;
                         loser.wealth = 0;
+                        // 清除虚拟建筑数据
+                        delete loser.virtualBuildings;
+                        delete loser.virtualBuildingsBaseline;
+                        delete loser.virtualBuildingsForeign;
                         isAnnexed = true;
                     }
 
@@ -1807,6 +2062,18 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                         logs.push(`📢 国际新闻：${nation.name} 与 ${enemy.name} 经过${warDurationDays}天的战争后握手言和。`);
                     } else {
                         logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中取得${tierName}！`);
+                    }
+
+                    // 外资建筑被破坏通知（供 simulation.js 消费同步到 overseasInvestments）
+                    const allForeignDamaged = war.foreignBuildingsDamaged || {};
+                    for (const [victimId, damages] of Object.entries(allForeignDamaged)) {
+                        const victimName = victimId === nation.id ? nation.name : enemy.name;
+                        for (const [bId, cnt] of Object.entries(damages)) {
+                            if (cnt > 0) {
+                                const bDef = BUILDINGS.find(b => b.id === bId);
+                                logs.push(`💼 你在 ${victimName} 的 ${bDef?.name || bId} ×${cnt} 在战争中被摧毁`);
+                            }
+                        }
                     }
                 }
             }
@@ -2006,15 +2273,20 @@ export const syncAINationMilitary = ({
         },
     };
 
-    const updatedCorps = nationCorps.map((corps, index) => ({
-        ...corps,
-        name: corps.name || `${nation.name}第${index + 1}军团`,
-        frontTask: corps.frontTask || doctrine.preferredTasks[index % doctrine.preferredTasks.length] || 'assault',
-        status: corps.assignedFrontId ? corps.status : 'idle',
-        morale: clamp(Math.round((corps.morale || 80) + (corps.assignedFrontId ? -1 : 2)), 55, 100),
-        isAI: true,
-        nationId: nation.id,
-    }));
+    const updatedCorps = nationCorps.map((corps, index) => {
+        const baseMorale = Number.isFinite(Number(corps.morale)) ? Number(corps.morale) : 80;
+        const standbyRecovery = !corps.assignedFrontId && baseMorale < 90 ? 1 : 0;
+        return {
+            ...corps,
+            name: corps.name || `${nation.name}第${index + 1}军团`,
+            frontTask: corps.frontTask || doctrine.preferredTasks[index % doctrine.preferredTasks.length] || 'assault',
+            status: corps.assignedFrontId ? corps.status : 'idle',
+            morale: clamp(Math.round(baseMorale + standbyRecovery), 20, 100),
+            isAI: true,
+            nationId: nation.id,
+        };
+    });
+
 
     const newCorps = [];
     const newGenerals = [];
@@ -2049,6 +2321,23 @@ export const syncAINationMilitary = ({
         return army;
     }, {});
     const totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+
+    // [FIX] Enforce population-based army cap: armies can't exceed what population can sustain
+    const population = updatedNation.population || 100;
+    const wartimeMobilizationBonus = updatedNation.isAtWar ? 0.008 : 0;
+    const manpowerRatio = Math.min(0.026, 0.008 + (epoch || 0) * 0.0015 + wartimeMobilizationBonus);
+    const maxManpower = Math.floor(population * manpowerRatio * 1.1); // 1.1x slight buffer
+    if (totalUnits > maxManpower && maxManpower > 0) {
+        const shrinkRatio = maxManpower / totalUnits;
+        allNationCorps.forEach(corps => {
+            if (corps.units) {
+                Object.keys(corps.units).forEach(unitId => {
+                    corps.units[unitId] = Math.max(1, Math.floor((corps.units[unitId] || 0) * shrinkRatio));
+                });
+            }
+        });
+    }
+
     const orgFactor = 0.7 + Number(updatedNation.military?.organization || 50) / 100 * 0.6;
     const techFactor = 0.8 + Number(updatedNation.military?.techLevel || 1) * 0.08;
     const supplyFactor = Math.min(1.3, 0.7 + Number(updatedNation.military?.logistics?.throughput || 1) * 0.35);
@@ -2059,6 +2348,16 @@ export const syncAINationMilitary = ({
     const mobilizationFactor = totalUnits / sustainableArmy;
     updatedNation.militaryQuality = clamp(orgFactor * techFactor * supplyFactor, 0.7, 1.8);
     updatedNation.militaryStrength = clamp(mobilizationFactor * updatedNation.militaryQuality, 0.25, 2.4);
+
+    // 多线战争信息记录（不再强制折减兵力，AI可自行决定兵力分配）
+    const multiWar = getMultiWarStrengthRatio(updatedNation);
+    if (multiWar.activeWarCount > 1) {
+        // 仅保存信息供UI显示，不影响militaryStrength
+        updatedNation._multiWarDeployment = { activeWarCount: multiWar.activeWarCount, hasExtremeAIFront: multiWar.hasExtremeAIFront };
+    } else {
+        updatedNation._multiWarDeployment = null;
+    }
+
     updatedNation.military = {
         ...updatedNation.military,
         forcePool: {
@@ -2187,18 +2486,18 @@ export const evaluateGeneralBattleProposal = ({
     const NO_PROPOSAL = { shouldPropose: false, engagementType: 'probe', confidence: 0, reason: '', riskLevel: 'low' };
     if (!general || !corps || !front) return NO_PROPOSAL;
 
-    // 冷却检查：将军个人冷却
+    // 冷却检查：将军个人冷却（增大间隔避免频繁提议）
     const lastProposalDay = general.lastBattleProposalDay || 0;
     const extraCooldown = general.proposalCooldownDays || 0;
     const traitIds = general.traits || [];
     const isAggressive = traitIds.includes('aggressive');
     const isDefensive = traitIds.includes('defensive');
-    const baseCooldown = isAggressive ? 8 : isDefensive ? 20 : 12;
+    const baseCooldown = isAggressive ? 54 : isDefensive ? 120 : 75;
     if (currentDay - lastProposalDay < baseCooldown + extraCooldown) return NO_PROPOSAL;
 
     // 战线全局冷却
     const lastBattleEndDay = front.lastBattleEndDay || 0;
-    if (currentDay - lastBattleEndDay < 5) return NO_PROPOSAL;
+    if (currentDay - lastBattleEndDay < 60) return NO_PROPOSAL;
 
     // 条件门槛
     const totalUnits = Object.values(corps.units || {}).reduce((s, c) => s + c, 0);

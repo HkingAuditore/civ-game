@@ -646,22 +646,22 @@ export const RESOURCES = {
  */
 export const WAR_ECONOMY = {
     // 建筑破坏
-    BUILDING_DESTROY_BASE_PROBABILITY: 0.15,    // 基础15%每次checkpoint crossing
-    MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT: 2,  // 单次最多破坏2座建筑
+    BUILDING_DESTROY_BASE_PROBABILITY: 0.35,    // 基础35%每次checkpoint crossing
+    MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT: 4,  // 单次最多破坏4座建筑
 
     // AI侧经济损伤（替代建筑破坏）
-    AI_WEALTH_LOSS_ECONOMIC: 0.02,   // 经济区每次checkpoint扣减wealth×2%
-    AI_WEALTH_LOSS_CAPITAL: 0.04,    // 核心区每次checkpoint扣减wealth×4%
-    AI_MILSTR_LOSS_CAPITAL: 0.05,    // 核心区每次扣减militaryStrength 0.05
+    AI_WEALTH_LOSS_ECONOMIC: 0.04,   // 经济区每次checkpoint扣减wealth×4%
+    AI_WEALTH_LOSS_CAPITAL: 0.08,    // 核心区每次checkpoint扣减wealth×8%
+    AI_MILSTR_LOSS_CAPITAL: 0.08,    // 核心区每次扣减militaryStrength 0.08
 
     // 人口流失（每次checkpoint crossing）
-    POP_LOSS_FRONTIER: 0.01,     // 前沿：1%
-    POP_LOSS_ECONOMIC: 0.02,     // 经济区：2%
-    POP_LOSS_CAPITAL: 0.03,      // 核心区：3%
+    POP_LOSS_FRONTIER: 0.02,     // 前沿：2%
+    POP_LOSS_ECONOMIC: 0.04,     // 经济区：4%
+    POP_LOSS_CAPITAL: 0.06,      // 核心区：6%
 
     // 财富掠夺（每tick）
-    PLUNDER_RATE_ECONOMIC: 0.02,    // 经济区：wealth×2%/tick
-    PLUNDER_RATE_CAPITAL: 0.04,     // 核心区：wealth×4%/tick
+    PLUNDER_RATE_ECONOMIC: 0.05,    // 经济区：wealth×5%/tick
+    PLUNDER_RATE_CAPITAL: 0.10,     // 核心区：wealth×10%/tick
     PLUNDER_GAIN_RATIO: 0.6,       // 入侵方获得掠夺的60%
 
     // 贸易中断

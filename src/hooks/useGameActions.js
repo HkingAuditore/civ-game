@@ -3642,9 +3642,10 @@ export const useGameActions = (gameState, addLog) => {
                                 const initialLootReserve = (n.wealth || 500) * 1.5;
                                 return {
                                     ...n,
-                                    relation: Math.max(0, (n.relation || 50) - 40), // 关系大幅恶化
+                                    relation: applyWarRelationCap((n.relation || 50) - 40, true),
                                     isAtWar: true,
                                     warScore: 0,
+
 
                                     warStartDay: daysElapsed,
                                     warDuration: 0,

@@ -68,6 +68,7 @@ export class AIEconomyService {
             tick,
             gameSpeed,
             aggression: nation.aggression,
+            nation,
         });
         
         const treasuryTargetRatio = calculateAITreasuryTargetRatio({
@@ -154,7 +155,7 @@ export class AIEconomyService {
     /**
      * Update resources
      */
-    static _updateResources(state, { tick, gameSpeed, aggression }) {
+    static _updateResources(state, { tick, gameSpeed, aggression, nation = null }) {
         state.inventory = ResourceManager.updateInventory({
             inventory: state.inventory,
             resourceBias: state.resourceBias,
@@ -164,6 +165,7 @@ export class AIEconomyService {
             tick,
             gameSpeed,
             aggression,
+            nation,
         });
     }
 

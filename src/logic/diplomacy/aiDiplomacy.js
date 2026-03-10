@@ -26,6 +26,7 @@ import {
     getNationEconomicScale,
     getNationTreasury,
 } from './economyUtils';
+import { applyWarRelationCap } from '../../utils/diplomacyUtils';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -1255,26 +1256,38 @@ export const processNationRelationDecay = (nation, difficultyLevel = 'normal') =
     const multipliers = getRelationChangeMultipliers(difficultyLevel);
     const baseDrift = getRelationDailyDriftRate(difficultyLevel);
 
-    if (relation > 50) {
-        // relation worsening (toward 50)
-        relationChange = -baseDrift * multipliers.bad;
-    } else if (relation < 50) {
-        // relation improving (toward 50)
-        relationChange = baseDrift * multipliers.good;
-    }
+    if (nation.isAtWar) {
+        nation.relation = applyWarRelationCap(relation, true);
+    } else {
+        if (relation > 50) {
+            // relation worsening (toward 50)
+            relationChange = -baseDrift * multipliers.bad;
+        } else if (relation < 50) {
+            // relation improving (toward 50)
+            relationChange = baseDrift * multipliers.good;
+        }
 
-    nation.relation = Math.max(0, Math.min(100, relation + relationChange));
+        nation.relation = Math.max(0, Math.min(100, relation + relationChange));
+    }
 
     // AI-AI relation decay
     if (nation.foreignRelations) {
         Object.keys(nation.foreignRelations).forEach(otherId => {
-            let r = nation.foreignRelations[otherId] ?? 50;
+            const relationValue = nation.foreignRelations[otherId] ?? 50;
+            const isAtForeignWar = nation.foreignWars?.[otherId]?.isAtWar === true;
+            if (isAtForeignWar) {
+                nation.foreignRelations[otherId] = applyWarRelationCap(relationValue, true);
+                return;
+            }
+
+            let r = relationValue;
             if (r > 50) r -= baseDrift * multipliers.bad;
             else if (r < 50) r += baseDrift * multipliers.good;
             nation.foreignRelations[otherId] = Math.max(0, Math.min(100, r));
         });
     }
 };
+
 
 /**
  * AI 海外投资决策逻辑

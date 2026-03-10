@@ -4,7 +4,8 @@ import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier, calculateLuxuryConsumptionMultiplier, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
+import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier, calculateLuxuryConsumptionMultiplier, calculatePriceAwareLivingStandardThresholds, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
+
 import {
     getOrganizationStage,
     getStageName,
@@ -71,8 +72,14 @@ const StratumDetailSheetComponent = ({
     const stratum = STRATA[stratumKey];
     const [draftMultiplier, setDraftMultiplier] = useState(null);
     const [activeTab, setActiveTab] = useState('overview'); // 新增：tab状态
+    const getMarketPrice = (resourceKey) => {
+        const marketPrice = market?.prices?.[resourceKey];
+        const basePrice = RESOURCES[resourceKey]?.basePrice || 1;
+        return Number.isFinite(marketPrice) && marketPrice > 0 ? marketPrice : basePrice;
+    };
 
     if (!stratum) {
+
         return (
             <div className="text-center text-gray-400 py-8">
                 <Icon name="AlertCircle" size={32} className="mx-auto mb-2" />
@@ -147,41 +154,47 @@ const StratumDetailSheetComponent = ({
     let livingStandardData = classLivingStandard[stratumKey];
 
     if (!livingStandardData) {
-        // 如果没有预计算数据，重新计算
+        // 如果没有预计算数据，按主链逻辑回退，避免详情页自己退回旧财富口径
         const startingWealth = stratum.startingWealth || 80;
         const luxuryNeeds = stratum.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
         const wealthPerCapita = count > 0 ? wealthValue / count : 0;
-        const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+        const priceAwareThresholds = calculatePriceAwareLivingStandardThresholds({
+            baseNeeds: stratum.needs || {},
+            luxuryNeeds,
+            priceMap: getMarketPrice,
+            epoch,
+            techsUnlocked,
+            bufferDays: 30,
+        });
+        const wealthReference = priceAwareThresholds.referenceThreshold || startingWealth;
+        const wealthRatio = wealthReference > 0 ? wealthPerCapita / wealthReference : 0;
 
         // 基础需求数量（已解锁的资源）
         const baseNeedsCount = stratum.needs
             ? Object.keys(stratum.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length
             : 0;
 
-        // 计算已解锁的奢侈需求档位（使用消费能力而非财富比率）
-        // 先计算收入比率
+        // 计算已解锁的奢侈需求档位（与主链保持一致：收入看当前物价，财富仍用配置基线判断解锁能力）
         const baseNeeds = stratum.needs || {};
         let essentialCost = 0;
         const essentialResources = ['food', 'cloth'];
         essentialResources.forEach(resKey => {
-            if (baseNeeds[resKey]) {
-                // 使用资源配置中的基础价格（而非硬编码的1）
+            if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+                const marketPrice = getMarketPrice(resKey);
                 const basePrice = RESOURCES[resKey]?.basePrice || 1;
-                essentialCost += baseNeeds[resKey] * basePrice;
+                essentialCost += baseNeeds[resKey] * Math.max(marketPrice, basePrice);
             }
         });
-        const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
-        // 解锁乘数（不受阶层上限限制，用于解锁判断）
+        const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : (incomePerCapita > 0 ? 10 : 0);
+        const unlockWealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
         const unlockMultiplier = calculateUnlockMultiplier(
             incomeRatio,
-            wealthRatio,
+            unlockWealthRatio,
             stratum.wealthElasticity || 1.0,
             null
         );
-        // 消费倍率（受阶层上限限制，用于 UI 显示）
         const maxConsumptionMultiplier = stratum.maxConsumptionMultiplier || 6;
-        const fallbackMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, stratum.wealthElasticity || 1.0, maxConsumptionMultiplier);
 
         let unlockedLuxuryTiers = 0;
         let effectiveNeedsCount = baseNeedsCount;
@@ -197,11 +210,12 @@ const StratumDetailSheetComponent = ({
 
         livingStandardData = calculateLivingStandardData({
             count,
-            income: totalIncome * count,
-            expense: totalExpense * count,
+            income: totalIncome,
+            expense: totalExpense,
             wealthValue,
             startingWealth,
-            essentialCost: essentialCost * count, // 传入总基础生存成本（非人均）
+            wealthReference,
+            essentialCost: essentialCost * count,
             shortagesCount: shortages.length,
             effectiveNeedsCount,
             unlockedLuxuryTiers,
@@ -211,17 +225,27 @@ const StratumDetailSheetComponent = ({
             maxConsumptionMultiplier,
             wealthElasticity: stratum.wealthElasticity || 1.0,
         });
+
+        if (livingStandardData) {
+            livingStandardData.basketDailyCosts = priceAwareThresholds.dailyCosts;
+            livingStandardData.basketThresholds = priceAwareThresholds.thresholds;
+            livingStandardData.basketBufferDays = priceAwareThresholds.bufferDays;
+        }
     }
 
-    // 从livingStandardData中提取所需的值（添加空值检查）
+
+    // 从 livingStandardData 中提取所需的值（添加空值检查）
     const {
         wealthPerCapita = 0,
         wealthRatio = 0,
         wealthMultiplier = 1,
         satisfactionRate = 0,
-        luxuryUnlockRatio = 0,
         unlockedLuxuryTiers = 0,
         totalLuxuryTiers = 0,
+        wealthReference = 0,
+        basketThresholds = {},
+        basketDailyCosts = {},
+        basketBufferDays = 30,
         level: livingStandardLevel = '赤贫',
         icon: livingStandardIcon = 'Skull',
         color: livingStandardColor = 'text-gray-400',
@@ -231,6 +255,33 @@ const StratumDetailSheetComponent = ({
         score: livingStandardScore = 0,
     } = livingStandardData || {};
 
+    const formatRatioValue = (ratio) => {
+        if (!Number.isFinite(ratio) || ratio <= 0) return '0';
+        if (ratio >= 100) return ratio.toFixed(0);
+        if (ratio >= 10) return ratio.toFixed(1);
+        return ratio.toFixed(2);
+    };
+
+    const wealthReferenceHint = wealthReference > 0
+        ? `温饱线 ${formatNumberShortCN(wealthReference, { decimals: 1 })}/人`
+        : '未建立温饱参考线';
+    const wealthReferenceStatus = wealthReference > 0
+        ? (wealthRatio >= 1
+            ? `约为温饱线 ${formatRatioValue(wealthRatio)}×`
+            : `达到温饱线 ${(wealthRatio * 100).toFixed(0)}%`)
+        : '等待市场价格数据';
+    const dynamicThresholdCards = ['温饱', '小康', '富裕', '奢华']
+        .map((level) => {
+            const threshold = basketThresholds?.[level] || 0;
+            return {
+                level,
+                threshold,
+                dailyCost: basketDailyCosts?.[level] || 0,
+                reached: threshold > 0 ? wealthPerCapita >= threshold : false,
+            };
+        })
+        .filter((item) => item.threshold > 0);
+
     // 计算解锁乘数（用于奢侈需求解锁判断，不受阶层消费上限限制）
     // 这里重新计算是因为 livingStandardData 中的 wealthMultiplier 是受上限限制的
     const startingWealthForCalc = stratum.startingWealth || 80;
@@ -239,9 +290,13 @@ const StratumDetailSheetComponent = ({
     const baseNeedsForCalc = stratum.needs || {};
     let essentialCostForCalc = 0;
     ['food', 'cloth'].forEach(resKey => {
-        if (baseNeedsForCalc[resKey]) essentialCostForCalc += baseNeedsForCalc[resKey] * 1;
+        if (baseNeedsForCalc[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+            const marketPrice = getMarketPrice(resKey);
+            const basePrice = RESOURCES[resKey]?.basePrice || 1;
+            essentialCostForCalc += baseNeedsForCalc[resKey] * Math.max(marketPrice, basePrice);
+        }
     });
-    const incomeRatioForCalc = essentialCostForCalc > 0 ? incomePerCapita / essentialCostForCalc : 1;
+    const incomeRatioForCalc = essentialCostForCalc > 0 ? incomePerCapita / essentialCostForCalc : (incomePerCapita > 0 ? 10 : 0);
     const unlockMultiplier = calculateUnlockMultiplier(
         incomeRatioForCalc,
         wealthRatioForCalc,
@@ -258,11 +313,10 @@ const StratumDetailSheetComponent = ({
     // 已解锁的奢侈需求详情（使用解锁乘数判断，不受阶层消费上限限制）
     const luxuryNeeds = stratum.luxuryNeeds || {};
     const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
-    let unlockedLuxuryNeedsDetail = [];
+    const unlockedLuxuryNeedsDetail = [];
     for (const threshold of luxuryThresholds) {
         if (unlockMultiplier >= threshold) {
             const tierNeeds = luxuryNeeds[threshold];
-            // Only show unlocked resources in tooltip
             const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
             const newResources = unlockedResources.filter(r => !stratum.needs?.[r]);
             if (unlockedResources.length > 0) {
@@ -270,6 +324,7 @@ const StratumDetailSheetComponent = ({
             }
         }
     }
+
 
     const handleDraftChange = (raw) => {
         setDraftMultiplier(raw);
@@ -471,16 +526,14 @@ const StratumDetailSheetComponent = ({
                                     <div className="text-[9px] text-gray-400 leading-none mb-0.5">人均财富</div>
                                     <div className="text-xs font-bold text-yellow-300 font-mono">{formatNumberShortCN(wealthPerCapita, { decimals: 1 })}</div>
                                     <div className="text-[8px] text-gray-500 leading-none">
-                                        {wealthRatio >= 1 ? '↑' : '↓'} 基准{wealthRatio >= 1 ? '+' : ''}{((wealthRatio - 1) * 100).toFixed(0)}%
+                                        {wealthReferenceStatus}
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
-                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">消费能力</div>
-                                    <div className={`text-xs font-bold font-mono ${wealthMultiplier >= 2 ? 'text-purple-400' : wealthMultiplier >= 1.5 ? 'text-blue-400' : wealthMultiplier >= 1 ? 'text-green-400' : 'text-red-400'}`}>
-                                        ×{wealthMultiplier.toFixed(2)}
-                                    </div>
+                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">动态参考线</div>
+                                    <div className="text-xs font-bold text-cyan-300 font-mono">{formatNumberShortCN(wealthReference, { decimals: 1 })}</div>
                                     <div className="text-[8px] text-gray-500 leading-none">
-                                        倍率 | 弹性: {stratum.wealthElasticity ?? 1.0}
+                                        {wealthReferenceHint}
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
@@ -495,11 +548,48 @@ const StratumDetailSheetComponent = ({
                             </div>
                         </div>
 
-                        {/* 富裕需求解锁进度 - 只显示已解锁的档位，且只显示当前时代已解锁的资源 */}
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
+                            <div className="bg-gray-800/30 rounded px-2 py-1 border border-gray-700/50">
+                                <div className="text-[9px] text-gray-400 leading-none mb-0.5">消费能力</div>
+                                <div className={`text-xs font-bold font-mono ${wealthMultiplier >= 2 ? 'text-purple-400' : wealthMultiplier >= 1.5 ? 'text-blue-400' : wealthMultiplier >= 1 ? 'text-green-400' : 'text-red-400'}`}>
+                                    ×{wealthMultiplier.toFixed(2)}
+                                </div>
+                                <div className="text-[8px] text-gray-500 leading-none">购买量倍率 | 弹性 {stratum.wealthElasticity ?? 1.0}</div>
+                            </div>
+                            <div className="bg-gray-800/30 rounded px-2 py-1 border border-gray-700/50">
+                                <div className="text-[9px] text-gray-400 leading-none mb-0.5">奢侈解锁</div>
+                                <div className="text-xs font-bold text-blue-300 font-mono">{unlockedLuxuryTiers}/{totalLuxuryTiers || 0} 档</div>
+                                <div className="text-[8px] text-gray-500 leading-none">消费阈值 {formatRatioValue(unlockMultiplier)}× | 奢侈消费 {formatRatioValue(luxuryConsumptionMultiplier)}×</div>
+                            </div>
+                        </div>
+
+                        {dynamicThresholdCards.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-gray-700/50">
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[9px] text-gray-400">动态购买力门槛</span>
+                                    <span className="text-[9px] font-bold text-cyan-400">{basketBufferDays}天缓冲</span>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-1">
+                                    {dynamicThresholdCards.map(({ level, threshold, dailyCost, reached }) => (
+                                        <div
+                                            key={level}
+                                            className={`rounded px-1.5 py-1 border ${reached ? 'bg-emerald-900/25 border-emerald-500/40' : 'bg-slate-900/30 border-slate-600/50'}`}
+                                            title={`${level}：每日篮子 ${formatNumberShortCN(dailyCost, { decimals: 2 })} / 30天门槛 ${formatNumberShortCN(threshold, { decimals: 1 })}`}
+                                        >
+                                            <div className={`text-[9px] font-bold ${reached ? 'text-emerald-300' : 'text-slate-200'}`}>{level}</div>
+                                            <div className="text-[10px] font-mono text-white">{formatNumberShortCN(threshold, { decimals: 1 })}</div>
+                                            <div className="text-[8px] text-gray-400 leading-none">日篮子 {formatNumberShortCN(dailyCost, { decimals: 2 })}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 奢侈需求解锁进度：这里展示的是消费倍率阈值，不是生活水平财富线 */}
                         {unlockedLuxuryNeedsDetail.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700/50">
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="text-[9px] text-gray-400">已解锁富裕需求</span>
+                                    <span className="text-[9px] text-gray-400">已解锁奢侈需求</span>
                                     <span className="text-[9px] font-bold text-blue-400">
                                         {unlockedLuxuryNeedsDetail.length} 档
                                     </span>
@@ -507,14 +597,13 @@ const StratumDetailSheetComponent = ({
                                 <div className="flex gap-1">
                                     {unlockedLuxuryNeedsDetail.map(({ threshold, count }) => {
                                         const tierNeeds = luxuryNeeds[threshold];
-                                        // Only show unlocked resources in tooltip
                                         const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
                                         const resourceNames = unlockedResources.map(r => RESOURCES[r]?.name || r).join('、');
                                         return (
                                             <div
                                                 key={threshold}
                                                 className="flex-1 rounded px-1.5 py-1 text-center bg-blue-900/30 border border-blue-500/40"
-                                                title={`${threshold}x财富解锁: ${resourceNames}`}
+                                                title={`${threshold}×消费阈值解锁: ${resourceNames}`}
                                             >
                                                 <div className="text-[9px] font-bold text-blue-300">
                                                     {threshold}×
@@ -528,6 +617,7 @@ const StratumDetailSheetComponent = ({
                                 </div>
                             </div>
                         )}
+
                     </div>
 
                     {/* 人头税调整 */}

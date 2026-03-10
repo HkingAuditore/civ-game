@@ -22,29 +22,32 @@ const ENGAGEMENT_TYPES = {
         duration: [5, 15],
         phaseTemplate: ['接敌试探', '局部拉扯', '脱离判定'],
         baseCasualtyRate: 0.012,
+        dailyCasualtyRate: 0.003,
         lineImpact: 1.1,
         warScoreImpact: 0.8,
-        moraleSwing: 7,
+        moraleSwing: 5,
         targetPhaseDays: 3,
     },
     assault: {
         name: '主力决战',
         duration: [15, 120],
         phaseTemplate: ['前锋接敌', '主力相持', '优势扩张', '决胜压迫'],
-        baseCasualtyRate: 0.024,
+        baseCasualtyRate: 0.028,
+        dailyCasualtyRate: 0.006,
         lineImpact: 1.8,
         warScoreImpact: 1.4,
-        moraleSwing: 11,
+        moraleSwing: 10,
         targetPhaseDays: 6,
     },
     siege: {
         name: '攻坚围城',
         duration: [50, 300],
         phaseTemplate: ['合围布势', '炮击消耗', '突破攻坚', '守军崩溃'],
-        baseCasualtyRate: 0.01,
+        baseCasualtyRate: 0.008,
+        dailyCasualtyRate: 0.002,
         lineImpact: 1.2,
         warScoreImpact: 1.7,
-        moraleSwing: 8,
+        moraleSwing: 6,
         targetPhaseDays: 14,
         needsSiege: true,
     },
@@ -427,7 +430,7 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
             attackerMaxAbsLoss,
             Math.max(
                 1,
-                Math.min(attackerUnits - 1, Math.round(attackerUnits * clamp(attackerLossRate, attackerMinRate, 0.12)))
+                Math.min(attackerUnits - 1, Math.round(attackerUnits * clamp(attackerLossRate, attackerMinRate, 0.07)))
             )
         );
     const defenderLossTarget = defenderUnits <= 1
@@ -436,7 +439,7 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
             defenderMaxAbsLoss,
             Math.max(
                 1,
-                Math.min(defenderUnits - 1, Math.round(defenderUnits * clamp(defenderLossRate, defenderMinRate, 0.14)))
+                Math.min(defenderUnits - 1, Math.round(defenderUnits * clamp(defenderLossRate, defenderMinRate, 0.08)))
             )
         );
 
@@ -452,13 +455,14 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
         + (lineShift > 0 ? 1 : lineShift < 0 ? -1 : 0)
     );
 
+    // Morale swing multiplier reduced from 100 to 40 to slow down morale collapse and extend battle duration
     const attackerMoraleShift = Math.round(
-        -(attackerLossTarget / attackerUnits) * engagement.moraleSwing * 100 * (2 - attackerState.plan.morale)
-        + (advantage > 0 ? 1 : advantage < 0 ? -3 : 0)
+        -(attackerLossTarget / attackerUnits) * engagement.moraleSwing * 40 * (2 - attackerState.plan.morale)
+        + (advantage > 0 ? 1 : advantage < 0 ? -2 : 0)
     );
     const defenderMoraleShift = Math.round(
-        -(defenderLossTarget / defenderUnits) * engagement.moraleSwing * 100 * (2 - defenderState.plan.morale)
-        + (advantage < 0 ? 1 : advantage > 0 ? -3 : 0)
+        -(defenderLossTarget / defenderUnits) * engagement.moraleSwing * 40 * (2 - defenderState.plan.morale)
+        + (advantage < 0 ? 1 : advantage > 0 ? -2 : 0)
     );
 
     return {
@@ -575,49 +579,99 @@ const finalizeBattleResult = (battle, result) => ({
     totalWarScoreDelta: Math.round(Number(battle.totalWarScoreDelta || 0)),
 });
 
+// 追击歼灭：会战结束时根据优势程度对败方施加额外追击损失
+const applyPursuitLosses = (battle, winner, reason) => {
+    const loserSide = winner === 'attacker' ? 'defender' : 'attacker';
+    const winnerSide = winner;
+    const loserUnits = getTotalUnits(battle[loserSide].currentUnits);
+    const winnerUnits = getTotalUnits(battle[winnerSide].currentUnits);
+    if (loserUnits <= 0 || winnerUnits <= 0) return;
+
+    const loserMorale = Number(battle[loserSide].morale || 0);
+    const momentum = Number(battle.momentum || 50);
+    // 追击强度取决于：胜者兵力优势、败者士气低迷、动量差距
+    const forceRatio = winnerUnits / Math.max(1, loserUnits);
+    const momentumAdvantage = winner === 'attacker'
+        ? Math.max(0, momentum - 50) / 50
+        : Math.max(0, 50 - momentum) / 50;
+    const moralePenalty = Math.max(0, (40 - loserMorale) / 40); // 败方士气<40时加重
+
+    // 基础追击率：annihilation/morale_collapse才有大追击，withdrawal/timeout追击弱
+    let basePursuitRate = 0;
+    if (reason === 'annihilation') basePursuitRate = 0.4;
+    else if (reason === 'morale_collapse') basePursuitRate = 0.3;
+    else if (reason === 'withdrawal') basePursuitRate = 0.05;
+    else if (reason === 'timeout') basePursuitRate = 0.08;
+
+    // probe交战追击减弱（小规模冲突不易包围歼灭）
+    if (battle.engagementType === 'probe') basePursuitRate *= 0.4;
+    // assault交战追击增强
+    if (battle.engagementType === 'assault') basePursuitRate *= 1.3;
+
+    const pursuitRate = clamp(
+        basePursuitRate * (1 + momentumAdvantage * 0.5 + moralePenalty * 0.5) * Math.min(2, Math.sqrt(forceRatio)),
+        0,
+        0.6
+    );
+    const pursuitLossTarget = Math.max(0, Math.round(loserUnits * pursuitRate));
+    if (pursuitLossTarget <= 0) return;
+
+    const applied = applyLosses(battle[loserSide].currentUnits, pursuitLossTarget, {});
+    battle[loserSide].currentUnits = applied.nextUnits;
+    battle[loserSide].totalCasualties = mergeLossMaps(battle[loserSide].totalCasualties, applied.losses);
+};
+
 const maybeFinalizeBattle = (battle) => {
     const attackerUnits = getTotalUnits(battle.attacker.currentUnits);
     const defenderUnits = getTotalUnits(battle.defender.currentUnits);
     const attackerInitial = Math.max(1, getTotalUnits(battle.attacker.initialUnits));
     const defenderInitial = Math.max(1, getTotalUnits(battle.defender.initialUnits));
 
-    const attackerCollapseThreshold = battle.engagementType === 'siege' ? 10 : 12;
-    const defenderCollapseThreshold = battle.engagementType === 'siege' ? 10 : 12;
+    const attackerCollapseThreshold = 5;
+    const defenderCollapseThreshold = 5;
 
     if (battle.attacker.withdrawRequested && battle.currentRound >= battle.attacker.withdrawRequestedDay + 3) {
+        applyPursuitLosses(battle, 'defender', 'withdrawal');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'defender', reason: 'withdrawal' });
         return battle;
     }
     if (battle.defender.withdrawRequested && battle.currentRound >= battle.defender.withdrawRequestedDay + 3) {
+        applyPursuitLosses(battle, 'attacker', 'withdrawal');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'attacker', reason: 'withdrawal' });
         return battle;
     }
     if (attackerUnits <= 0 || attackerUnits <= Math.max(1, Math.floor(attackerInitial * 0.08))) {
+        applyPursuitLosses(battle, 'defender', 'annihilation');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'defender', reason: 'annihilation' });
         return battle;
     }
     if (defenderUnits <= 0 || defenderUnits <= Math.max(1, Math.floor(defenderInitial * 0.08))) {
+        applyPursuitLosses(battle, 'attacker', 'annihilation');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'attacker', reason: 'annihilation' });
         return battle;
     }
     if (battle.attacker.morale <= attackerCollapseThreshold) {
+        applyPursuitLosses(battle, 'defender', 'morale_collapse');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'defender', reason: 'morale_collapse' });
         return battle;
     }
     if (battle.defender.morale <= defenderCollapseThreshold) {
+        applyPursuitLosses(battle, 'attacker', 'morale_collapse');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'attacker', reason: 'morale_collapse' });
         return battle;
     }
     if (battle.currentRound >= battle.totalDays) {
+        const winner = battle.momentum >= 50 ? 'attacker' : 'defender';
+        applyPursuitLosses(battle, winner, 'timeout');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, {
-            winner: battle.momentum >= 50 ? 'attacker' : 'defender',
+            winner,
             reason: 'timeout',
         });
         return battle;
@@ -625,11 +679,25 @@ const maybeFinalizeBattle = (battle) => {
     return battle;
 };
 
+// 合并多个兵团的兵力为一个聚合单位表
+const mergeCorpsUnits = (corpsList = []) => {
+    const merged = {};
+    for (const corps of corpsList) {
+        for (const [unitId, count] of Object.entries(corps?.units || {})) {
+            merged[unitId] = (merged[unitId] || 0) + (count || 0);
+        }
+    }
+    return merged;
+};
+
 export const createBattle = ({
     attackerCorps,
     defenderCorps,
     attackerGeneral = null,
     defenderGeneral = null,
+    // 多兵团参战支持：传入数组则合并所有兵团兵力
+    attackerCorpsList = null,
+    defenderCorpsList = null,
     front,
     battleType = 'pitched_battle',
     engagementType = null,
@@ -637,9 +705,22 @@ export const createBattle = ({
     epoch = 0,
     currentDay = 0,
 }) => {
-    const attackerTotal = getTotalUnits(attackerCorps?.units || {});
-    const defenderTotal = getTotalUnits(defenderCorps?.units || {});
+    // 多兵团模式：合并所有兵团的兵力
+    const atkCorpsList = attackerCorpsList || (attackerCorps ? [attackerCorps] : []);
+    const defCorpsList = defenderCorpsList || (defenderCorps ? [defenderCorps] : []);
+    const primaryAttacker = atkCorpsList[0] || attackerCorps;
+    const primaryDefender = defCorpsList[0] || defenderCorps;
+    const mergedAttackerUnits = atkCorpsList.length > 1 ? mergeCorpsUnits(atkCorpsList) : cloneUnits(primaryAttacker?.units || {});
+    const mergedDefenderUnits = defCorpsList.length > 1 ? mergeCorpsUnits(defCorpsList) : cloneUnits(primaryDefender?.units || {});
+    const attackerTotal = getTotalUnits(mergedAttackerUnits);
+    const defenderTotal = getTotalUnits(mergedDefenderUnits);
     if (attackerTotal <= 0 || defenderTotal <= 0) return null;
+
+    // 多兵团平均士气
+    const avgMorale = (list) => {
+        if (list.length === 0) return 100;
+        return list.reduce((s, c) => s + Number(c.morale || 100), 0) / list.length;
+    };
 
     const resolvedEngagementType = getEngagementType(engagementType, battleType);
     const engagement = ENGAGEMENT_TYPES[resolvedEngagementType] || ENGAGEMENT_TYPES.assault;
@@ -670,26 +751,32 @@ export const createBattle = ({
         epoch,
         status: 'active',
         attacker: {
-            corpsId: attackerCorps.id,
-            corpsName: attackerCorps.name,
-            initialUnits: cloneUnits(attackerCorps.units),
-            currentUnits: cloneUnits(attackerCorps.units),
-            generalId: attackerGeneral?.id || attackerCorps.generalId || null,
+            corpsId: primaryAttacker?.id || null,
+            corpsName: atkCorpsList.length > 1
+                ? atkCorpsList.map(c => c.name).join('、')
+                : (primaryAttacker?.name || '攻方'),
+            corpsIds: atkCorpsList.map(c => c.id).filter(Boolean),
+            initialUnits: cloneUnits(mergedAttackerUnits),
+            currentUnits: cloneUnits(mergedAttackerUnits),
+            generalId: attackerGeneral?.id || primaryAttacker?.generalId || null,
             generalName: attackerGeneral?.name || null,
-            morale: Number(attackerCorps.morale || 100),
+            morale: Math.round(avgMorale(atkCorpsList)),
             totalCasualties: {},
             plan: battlePlanState.attacker,
             withdrawRequested: false,
             withdrawRequestedDay: null,
         },
         defender: {
-            corpsId: defenderCorps.id,
-            corpsName: defenderCorps.name,
-            initialUnits: cloneUnits(defenderCorps.units),
-            currentUnits: cloneUnits(defenderCorps.units),
-            generalId: defenderGeneral?.id || defenderCorps.generalId || null,
+            corpsId: primaryDefender?.id || null,
+            corpsName: defCorpsList.length > 1
+                ? defCorpsList.map(c => c.name).join('、')
+                : (primaryDefender?.name || '守方'),
+            corpsIds: defCorpsList.map(c => c.id).filter(Boolean),
+            initialUnits: cloneUnits(mergedDefenderUnits),
+            currentUnits: cloneUnits(mergedDefenderUnits),
+            generalId: defenderGeneral?.id || primaryDefender?.generalId || null,
             generalName: defenderGeneral?.name || null,
-            morale: Number(defenderCorps.morale || 100),
+            morale: Math.round(avgMorale(defCorpsList)),
             totalCasualties: {},
             plan: battlePlanState.defender,
             withdrawRequested: false,
@@ -832,6 +919,23 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
         battle: b,
         battleContext,
     });
+
+    // 每日小额伤亡：阶段未结算期间也造成持续战损，让兵力实时变化
+    if (b.phaseDaysRemaining > 0) {
+        const engagement = ENGAGEMENT_TYPES[b.engagementType] || ENGAGEMENT_TYPES.assault;
+        const dailyRate = engagement.dailyCasualtyRate || 0.003;
+        const atkUnits = Math.max(1, getTotalUnits(b.attacker.currentUnits));
+        const defUnits = Math.max(1, getTotalUnits(b.defender.currentUnits));
+        // 每日小额随机伤亡（约为阶段结算的 1/3~1/2）
+        const dailyAtkLoss = Math.max(1, Math.round(atkUnits * dailyRate * (0.8 + Math.random() * 0.4)));
+        const dailyDefLoss = Math.max(1, Math.round(defUnits * dailyRate * (0.8 + Math.random() * 0.4)));
+        const atkApplied = applyLosses(b.attacker.currentUnits, dailyAtkLoss, {});
+        const defApplied = applyLosses(b.defender.currentUnits, dailyDefLoss, {});
+        b.attacker.currentUnits = atkApplied.nextUnits;
+        b.defender.currentUnits = defApplied.nextUnits;
+        b.attacker.totalCasualties = mergeLossMaps(b.attacker.totalCasualties, atkApplied.losses);
+        b.defender.totalCasualties = mergeLossMaps(b.defender.totalCasualties, defApplied.losses);
+    }
 
     if (b.phaseDaysRemaining <= 0) {
         const phaseOutcome = calculatePhaseOutcome(b, attackerState, defenderState, battleContext);
@@ -1006,17 +1110,27 @@ export const setTacticOrder = (battle, side, tacticId) => {
     return b;
 };
 
-export const processReinforcement = (battle, side, reinforcementUnits) => {
+export const processReinforcement = (battle, side, reinforcementUnits, reinforcementCorps = null) => {
     const b = ensureBattleDefaults(battle);
     if (!b || !b[side]) return battle;
     Object.entries(reinforcementUnits || {}).forEach(([unitId, count]) => {
         b[side].currentUnits[unitId] = (b[side].currentUnits[unitId] || 0) + count;
     });
     b[side].morale = Math.min(100, Number(b[side].morale || 0) + 8);
+    // Add reinforcement corps to the battle's participant list
+    if (reinforcementCorps) {
+        const corpsId = reinforcementCorps.id;
+        const corpsName = reinforcementCorps.name || corpsId;
+        if (corpsId && !b[side].corpsIds?.includes(corpsId)) {
+            b[side].corpsIds = [...(b[side].corpsIds || []), corpsId];
+            b[side].corpsName = (b[side].corpsName || '') + '、' + corpsName;
+        }
+    }
+    const reinforcementTotal = Object.values(reinforcementUnits || {}).reduce((s, c) => s + (c || 0), 0);
     b.roundLog = [...(b.roundLog || []), {
         round: b.currentRound,
         phase: b.phase,
-        events: [`${side === 'attacker' ? '攻方' : '守方'}援军抵达。`],
+        events: [`${side === 'attacker' ? '攻方' : '守方'}援军抵达（${reinforcementCorps?.name || '增援'}，${reinforcementTotal}人）。`],
         isReinforcement: true,
     }].slice(-20);
     return b;
