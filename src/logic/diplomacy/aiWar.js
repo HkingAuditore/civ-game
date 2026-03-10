@@ -6,7 +6,7 @@
 
 import { simulateBattle, UNIT_TYPES, generateNationArmy, calculateBattlePower, calculateArmyMaintenance } from '../../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
-import { getCorpsTotalUnits } from './corpsSystem';
+import { getCorpsTotalUnits, getCorpsGeneral, calculateCorpsCombatPower } from './corpsSystem';
 import {
     calculateAIPeaceTribute,
     calculateAISurrenderDemand
@@ -1633,9 +1633,68 @@ export const getMultiWarStrengthRatio = (nation, allNations = []) => {
     return { ratio, activeWarCount, hasExtremeAIFront };
 };
 
-export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null, epoch = null) => {
+export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null, epoch = null, militaryCorps = [], generals = []) => {
     // Create a set of visible nation IDs for quick lookup
     const visibleNationIds = new Set(visibleNations.map(n => n.id));
+
+    // === AI-AI 战争军团分配：每个国家的有限军团按战线优先级分配到各场战争 ===
+    // Map<nationId, Map<enemyId, Set<corpsId>>>
+    const aiWarCorpsAlloc = new Map();
+    for (const nation of visibleNations) {
+        if (!nation?.foreignWars) continue;
+        const nationId = nation.id;
+        const activeEnemyIds = Object.entries(nation.foreignWars)
+            .filter(([eid, w]) => w?.isAtWar && eid !== nationId)
+            .map(([eid]) => eid);
+        if (activeEnemyIds.length === 0) continue;
+
+        // 获取该国所有可用AI军团（按兵力降序）
+        const availCorps = (militaryCorps || [])
+            .filter(c => c?.isAI && c.nationId === nationId && getCorpsTotalUnits(c) > 0)
+            .sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
+        if (availCorps.length === 0) continue;
+
+        // 为每场战争评分（基于战线位置威胁程度）
+        const scoredWars = activeEnemyIds.map(eid => {
+            const war = nation.foreignWars[eid];
+            const linePos = Number(war?.linePosition ?? 50);
+            // linePos < 50 表示被敌人推进，越低越危险
+            const threat = Math.max(0, (50 - linePos) / 50) * 3;
+            // 基础优先级1.0 + 威胁分
+            const priority = 1.0 + threat;
+            return { enemyId: eid, priority };
+        }).sort((a, b) => b.priority - a.priority);
+
+        const allocMap = new Map();
+        for (const sw of scoredWars) allocMap.set(sw.enemyId, new Set());
+
+        // 第一轮：每场战争至少分1个军团
+        let corpIdx = 0;
+        for (const sw of scoredWars) {
+            if (corpIdx >= availCorps.length) break;
+            allocMap.get(sw.enemyId).add(availCorps[corpIdx].id);
+            corpIdx++;
+        }
+        // 第二轮：剩余军团按优先级权重分配
+        while (corpIdx < availCorps.length) {
+            let bestEid = scoredWars[0]?.enemyId;
+            let minWeighted = Infinity;
+            for (const sw of scoredWars) {
+                const count = allocMap.get(sw.enemyId).size;
+                const weighted = count - sw.priority * 0.5;
+                if (weighted < minWeighted) {
+                    minWeighted = weighted;
+                    bestEid = sw.enemyId;
+                }
+            }
+            if (!bestEid) break;
+            allocMap.get(bestEid).add(availCorps[corpIdx].id);
+            corpIdx++;
+        }
+
+        aiWarCorpsAlloc.set(nationId, allocMap);
+    }
+
     // [FIX] Deduplicate war pairs — each A↔B war should only be processed once per tick
     const processedPairs = new Set();
 
@@ -1732,9 +1791,28 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
 
             // === linePosition 推进（每tick） ===
-            // 不再强制折减多线作战兵力——AI可自行决策兵力分配
-            const nationEffStr = (nation.militaryStrength ?? 1.0) * Math.sqrt(nation.population || 100) * (1 + (nation.aggression || 0.3));
-            const enemyEffStr = (enemy.militaryStrength ?? 1.0) * Math.sqrt(enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+            // 基于分配到本战线的实际军团战力计算有效战力
+            const nationAllocCorps = aiWarCorpsAlloc.get(nation.id)?.get(enemyId);
+            const enemyAllocCorps = aiWarCorpsAlloc.get(enemy.id)?.get(nation.id);
+            const nationCorpsOnFront = nationAllocCorps
+                ? (militaryCorps || []).filter(c => nationAllocCorps.has(c.id))
+                : [];
+            const enemyCorpsOnFront = enemyAllocCorps
+                ? (militaryCorps || []).filter(c => enemyAllocCorps.has(c.id))
+                : [];
+            const nationCorpsPower = nationCorpsOnFront.reduce((s, c) => s + calculateCorpsCombatPower(c, getCorpsGeneral(generals, c.id), epoch), 0);
+            const enemyCorpsPower = enemyCorpsOnFront.reduce((s, c) => s + calculateCorpsCombatPower(c, getCorpsGeneral(generals, c.id), epoch), 0);
+            // 使用本战线实际军团战力；无军团数据时回退到国家宏观公式
+            const nationEffStr = nationCorpsPower > 0 ? nationCorpsPower : (nation.militaryStrength ?? 1.0) * Math.sqrt(nation.population || 100) * (1 + (nation.aggression || 0.3));
+            const enemyEffStr = enemyCorpsPower > 0 ? enemyCorpsPower : (enemy.militaryStrength ?? 1.0) * Math.sqrt(enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+
+            // 存储分配到本战线的军团ID列表供UI显示
+            war.assignedCorpsIds = nationAllocCorps ? [...nationAllocCorps] : [];
+            war.assignedEnemyCorpsIds = enemyAllocCorps ? [...enemyAllocCorps] : [];
+            if (enemy.foreignWars[nation.id]) {
+                enemy.foreignWars[nation.id].assignedCorpsIds = war.assignedEnemyCorpsIds;
+                enemy.foreignWars[nation.id].assignedEnemyCorpsIds = war.assignedCorpsIds;
+            }
             const totalStr = nationEffStr + enemyEffStr;
 
             if (totalStr > 0) {

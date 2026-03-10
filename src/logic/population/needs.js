@@ -385,8 +385,8 @@ export const calculateLivingStandards = ({
             techsUnlocked,
             needsRequirementMultiplier,
             potentialResources,
-            bufferDays: 30,
         });
+
 
         // 计算消费能力（用于奢侈需求解锁判断）
 
@@ -440,6 +440,7 @@ export const calculateLivingStandards = ({
             wealthValue,
             startingWealth,
             wealthReference: priceAwareThresholds.referenceThreshold || startingWealth,
+            wealthThresholds: priceAwareThresholds.thresholds,
             essentialCost,
             shortagesCount,
             effectiveNeedsCount,
@@ -451,6 +452,7 @@ export const calculateLivingStandards = ({
             wealthElasticity,
             greedy: def.greedy, // Pass greedy flag from stratum config
         });
+
 
 
         if (classLivingStandard[key]) {

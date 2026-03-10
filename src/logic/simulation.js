@@ -4561,8 +4561,8 @@ export const simulateTick = ({
             techsUnlocked,
             needsRequirementMultiplier,
             potentialResources,
-            bufferDays: 30,
         });
+
         const pLevel = getPriceAwareLivingStandardLevel(avgWealth, officialThresholds.thresholds, '贫困');
         const approvalCapMap = {
             '贫困': 45,
@@ -6253,7 +6253,7 @@ export const simulateTick = ({
             { organizations: updatedOrganizations },
             vassalDiplomacyRequests,
         );
-        processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests, epoch);
+        processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests, epoch, militaryCorps, generals);
     }
     perfEnd('diplomacyAI');
 
