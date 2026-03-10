@@ -1910,6 +1910,13 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                         for (const [bId, cnt] of Object.entries(bldgDmg.destroyedBuildings)) {
                             victimNation.virtualBuildings[bId] = Math.max(0, (victimNation.virtualBuildings[bId] || 0) - cnt);
                         }
+                        victimNation.economyDirtyFlags = {
+                            ...(victimNation.economyDirtyFlags || {}),
+                            buildingsDirty: true,
+                            laborDirty: true,
+                            resourcesDirty: true,
+                            warDirty: true,
+                        };
                         // 同步处理外资建筑破坏：被破坏的建筑可能命中外资部分
                         const foreignDamaged = {};
                         if (victimNation.virtualBuildingsForeign) {
@@ -2109,6 +2116,46 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                         // 执行吞并：获胜方获得败方全部资源
                         winner.population = (winner.population || 100) + (loser.population || 0);
                         winner.wealth = (winner.wealth || 500) + (loser.wealth || 0);
+                        const loserBuildings = loser.virtualBuildings || {};
+                        const loserForeignBuildings = loser.virtualBuildingsForeign || {};
+                        const winnerBuildings = winner.virtualBuildings || {};
+                        const winnerForeignBuildings = winner.virtualBuildingsForeign || {};
+                        const winnerBaseline = winner.virtualBuildingsBaseline || winnerBuildings;
+
+                        Object.entries(loserBuildings).forEach(([buildingId, count]) => {
+                            const totalCount = Math.max(0, Number(count) || 0);
+                            if (totalCount <= 0) return;
+                            const foreignCount = Math.max(0, Number(loserForeignBuildings[buildingId]) || 0);
+                            const localCount = Math.max(0, totalCount - foreignCount);
+                            if (localCount > 0) {
+                                winnerBuildings[buildingId] = (winnerBuildings[buildingId] || 0) + localCount;
+                            }
+                            if (foreignCount > 0) {
+                                winnerForeignBuildings[buildingId] = (winnerForeignBuildings[buildingId] || 0) + foreignCount;
+                            }
+                        });
+
+                        winner.virtualBuildings = { ...winnerBuildings };
+                        winner.virtualBuildingsForeign = { ...winnerForeignBuildings };
+                        winner.virtualBuildingsBaseline = Object.keys(winnerBaseline).length > 0
+                            ? {
+                                ...winnerBaseline,
+                                ...Object.fromEntries(
+                                    Object.entries(winner.virtualBuildings).map(([buildingId, count]) => [
+                                        buildingId,
+                                        Math.max(Number(winnerBaseline[buildingId]) || 0, Number(count) || 0),
+                                    ])
+                                ),
+                            }
+                            : { ...winner.virtualBuildings };
+                        winner.economyDirtyFlags = {
+                            ...(winner.economyDirtyFlags || {}),
+                            buildingsDirty: true,
+                            laborDirty: true,
+                            resourcesDirty: true,
+                            warDirty: true,
+                            investmentDirty: Object.keys(winnerForeignBuildings).length > 0,
+                        };
                         loser.isAnnexed = true;
                         loser.annexedBy = winner.id;
                         loser.annexedAt = tick;
@@ -2118,6 +2165,13 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                         delete loser.virtualBuildings;
                         delete loser.virtualBuildingsBaseline;
                         delete loser.virtualBuildingsForeign;
+                        loser.economyDirtyFlags = {
+                            ...(loser.economyDirtyFlags || {}),
+                            buildingsDirty: true,
+                            laborDirty: true,
+                            resourcesDirty: true,
+                            warDirty: true,
+                        };
                         isAnnexed = true;
                     }
 
