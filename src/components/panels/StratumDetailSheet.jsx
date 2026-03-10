@@ -165,8 +165,8 @@ const StratumDetailSheetComponent = ({
             priceMap: getMarketPrice,
             epoch,
             techsUnlocked,
-            bufferDays: 30,
         });
+
         const wealthReference = priceAwareThresholds.referenceThreshold || startingWealth;
         const wealthRatio = wealthReference > 0 ? wealthPerCapita / wealthReference : 0;
 
@@ -215,6 +215,7 @@ const StratumDetailSheetComponent = ({
             wealthValue,
             startingWealth,
             wealthReference,
+            wealthThresholds: priceAwareThresholds.thresholds,
             essentialCost: essentialCost * count,
             shortagesCount: shortages.length,
             effectiveNeedsCount,
@@ -225,6 +226,7 @@ const StratumDetailSheetComponent = ({
             maxConsumptionMultiplier,
             wealthElasticity: stratum.wealthElasticity || 1.0,
         });
+
 
         if (livingStandardData) {
             livingStandardData.basketDailyCosts = priceAwareThresholds.dailyCosts;
@@ -273,14 +275,17 @@ const StratumDetailSheetComponent = ({
     const dynamicThresholdCards = ['温饱', '小康', '富裕', '奢华']
         .map((level) => {
             const threshold = basketThresholds?.[level] || 0;
+            const dailyCost = basketDailyCosts?.[level] || 0;
             return {
                 level,
                 threshold,
-                dailyCost: basketDailyCosts?.[level] || 0,
+                dailyCost,
+                bufferDays: dailyCost > 0 ? Math.round(threshold / dailyCost) : basketBufferDays,
                 reached: threshold > 0 ? wealthPerCapita >= threshold : false,
             };
         })
         .filter((item) => item.threshold > 0);
+
 
     // 计算解锁乘数（用于奢侈需求解锁判断，不受阶层消费上限限制）
     // 这里重新计算是因为 livingStandardData 中的 wealthMultiplier 是受上限限制的

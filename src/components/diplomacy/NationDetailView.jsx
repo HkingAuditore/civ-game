@@ -1653,6 +1653,8 @@ const ActiveWars = ({ nation, gameState, daysElapsed, nations = [], epoch = 0 })
                             warIntensity: warData.warIntensity || 1,
                             warDuration: warData.warDuration || 0,
                             endScoreThreshold: warData.endScoreThreshold || 0,
+                            assignedCorpsIds: warData.assignedCorpsIds || [],
+                            assignedEnemyCorpsIds: warData.assignedEnemyCorpsIds || [],
                             enemy,
                         });
                     }
@@ -1777,19 +1779,23 @@ const getAISupplyInfo = (n, warIntensity = 1, duration = 0) => {
 };
 
 // AI war force and economy panel (similar to FrontViewPanel ForceColumn + WarEconomy)
-const AIWarForcePanel = ({ nation, enemy, militaryCorps, generals, epoch, nationWarCount, enemyWarCount, warIntensity, duration }) => {
+const AIWarForcePanel = ({ nation, enemy, militaryCorps, generals, epoch, nationWarCount, enemyWarCount, warIntensity, duration, assignedCorpsIds, assignedEnemyCorpsIds }) => {
     const [showNationCorps, setShowNationCorps] = useState(true);
     const [showEnemyCorps, setShowEnemyCorps] = useState(true);
 
-    // Filter corps for each side
-    const nationCorps = useMemo(() =>
-        (militaryCorps || []).filter(c => c?.isAI && c.nationId === nation?.id && getCorpsTotalUnits(c) > 0),
-        [militaryCorps, nation?.id]
-    );
-    const enemyCorps = useMemo(() =>
-        (militaryCorps || []).filter(c => c?.isAI && c.nationId === enemy?.id && getCorpsTotalUnits(c) > 0),
-        [militaryCorps, enemy?.id]
-    );
+    // Filter corps for each side — use assigned corps IDs if available (real allocation)
+    const nationAssignedSet = useMemo(() => new Set(assignedCorpsIds || []), [assignedCorpsIds]);
+    const enemyAssignedSet = useMemo(() => new Set(assignedEnemyCorpsIds || []), [assignedEnemyCorpsIds]);
+
+    const nationCorps = useMemo(() => {
+        const allCorps = (militaryCorps || []).filter(c => c?.isAI && c.nationId === nation?.id && getCorpsTotalUnits(c) > 0);
+        // If we have allocation data, only show assigned corps; otherwise show all
+        return nationAssignedSet.size > 0 ? allCorps.filter(c => nationAssignedSet.has(c.id)) : allCorps;
+    }, [militaryCorps, nation?.id, nationAssignedSet]);
+    const enemyCorps = useMemo(() => {
+        const allCorps = (militaryCorps || []).filter(c => c?.isAI && c.nationId === enemy?.id && getCorpsTotalUnits(c) > 0);
+        return enemyAssignedSet.size > 0 ? allCorps.filter(c => enemyAssignedSet.has(c.id)) : allCorps;
+    }, [militaryCorps, enemy?.id, enemyAssignedSet]);
 
     // Aggregate units
     const nationTotalUnits = nationCorps.reduce((s, c) => s + getCorpsTotalUnits(c), 0);
@@ -2141,7 +2147,7 @@ const AIWarFrontDetail = ({ war, nation, enemy, daysElapsed, nations = [], milit
                     </div>
                     <div className="text-[9px] text-gray-500 text-center">
                         {nationStrPercent > 55 ? `${nation.name}占优` : nationStrPercent < 45 ? `${enemy?.name || '敌方'}占优` : '势均力敌'}
-                        {' · '}战力 = 军事力量 × √人口 × 侵略性
+                        {' · '}战力 = 本战线分配军团的实际战斗力
                     </div>
                 </div>
             )}
@@ -2157,6 +2163,8 @@ const AIWarFrontDetail = ({ war, nation, enemy, daysElapsed, nations = [], milit
                 enemyWarCount={enemyWarCount}
                 warIntensity={warIntensity}
                 duration={duration}
+                assignedCorpsIds={war.assignedCorpsIds}
+                assignedEnemyCorpsIds={war.assignedEnemyCorpsIds}
             />
 
             {/* 近期战事 */}

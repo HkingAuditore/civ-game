@@ -27,10 +27,29 @@ export const LIVING_STANDARD_LEVELS = {
 export const LIVING_STANDARD_BASKET_UNLOCK_CAPS = {
     '贫困': 0,
     '温饱': 1.49,
-    '小康': 3.0,
-    '富裕': 6.0,
-    '奢华': 10.0,
+    '小康': 4.5,
+    '富裕': 12.0,
+    '奢华': Number.POSITIVE_INFINITY,
 };
+
+export const LIVING_STANDARD_BASKET_AMOUNT_MULTIPLIERS = {
+    '贫困': { base: 0.9, luxury: 0 },
+    '温饱': { base: 1.0, luxury: 1.0 },
+    '小康': { base: 1.15, luxury: 1.25 },
+    '富裕': { base: 1.35, luxury: 1.7 },
+    '奢华': { base: 1.6, luxury: 2.4 },
+};
+
+export const LIVING_STANDARD_BUFFER_DAYS = {
+    '贫困': 45,
+    '温饱': 90,
+    '小康': 180,
+    '富裕': 540,
+    '奢华': 1440,
+};
+
+
+
 
 function getPriceFromSource(resourceKey, priceMap) {
     const fallbackPrice = RESOURCES[resourceKey]?.basePrice || 1;
@@ -58,9 +77,10 @@ export function calculateLivingStandardBasketDailyCost({
     potentialResources = null,
 }) {
     const unlockCap = LIVING_STANDARD_BASKET_UNLOCK_CAPS[livingStandardLevel] ?? 0;
+    const basketMultipliers = LIVING_STANDARD_BASKET_AMOUNT_MULTIPLIERS[livingStandardLevel] || LIVING_STANDARD_BASKET_AMOUNT_MULTIPLIERS['温饱'];
     const basket = {};
 
-    const addToBasket = (resourceKey, amount) => {
+    const addToBasket = (resourceKey, amount, category = 'base') => {
         if (!resourceKey || !Number.isFinite(amount) || amount <= 0) {
             return;
         }
@@ -70,11 +90,14 @@ export function calculateLivingStandardBasketDailyCost({
         if (potentialResources && !potentialResources.has(resourceKey)) {
             return;
         }
-        basket[resourceKey] = (basket[resourceKey] || 0) + amount * needsRequirementMultiplier;
+        const categoryMultiplier = category === 'luxury'
+            ? (basketMultipliers.luxury ?? 1)
+            : (basketMultipliers.base ?? 1);
+        basket[resourceKey] = (basket[resourceKey] || 0) + amount * needsRequirementMultiplier * categoryMultiplier;
     };
 
     Object.entries(baseNeeds || {}).forEach(([resourceKey, amount]) => {
-        addToBasket(resourceKey, amount);
+        addToBasket(resourceKey, amount, 'base');
     });
 
     if (unlockCap > 0) {
@@ -87,10 +110,11 @@ export function calculateLivingStandardBasketDailyCost({
                 }
                 const tierNeeds = luxuryNeeds?.[threshold] || luxuryNeeds?.[String(threshold)] || {};
                 Object.entries(tierNeeds).forEach(([resourceKey, amount]) => {
-                    addToBasket(resourceKey, amount);
+                    addToBasket(resourceKey, amount, 'luxury');
                 });
             });
     }
+
 
     let totalCost = 0;
     Object.entries(basket).forEach(([resourceKey, amount]) => {
@@ -116,12 +140,13 @@ export function calculatePriceAwareLivingStandardThresholds({
     techsUnlocked = [],
     needsRequirementMultiplier = 1,
     potentialResources = null,
-    bufferDays = 30,
+    bufferDays = LIVING_STANDARD_BUFFER_DAYS,
     livingLevels = ['贫困', '温饱', '小康', '富裕', '奢华'],
 }) {
     const dailyCosts = {};
     const thresholds = {};
     const baskets = {};
+    const bufferDaysByLevel = {};
 
     livingLevels.forEach((level) => {
         const basketInfo = calculateLivingStandardBasketDailyCost({
@@ -134,19 +159,25 @@ export function calculatePriceAwareLivingStandardThresholds({
             needsRequirementMultiplier,
             potentialResources,
         });
+        const levelBufferDays = typeof bufferDays === 'number'
+            ? bufferDays
+            : (bufferDays?.[level] ?? LIVING_STANDARD_BUFFER_DAYS[level] ?? 30);
         baskets[level] = basketInfo.basket;
         dailyCosts[level] = basketInfo.totalCost;
-        thresholds[level] = basketInfo.totalCost * bufferDays;
+        thresholds[level] = basketInfo.totalCost * levelBufferDays;
+        bufferDaysByLevel[level] = levelBufferDays;
     });
 
     return {
-        bufferDays,
+        bufferDays: bufferDaysByLevel['温饱'] || 30,
+        bufferDaysByLevel,
         baskets,
         dailyCosts,
         thresholds,
         referenceThreshold: thresholds['温饱'] || thresholds['贫困'] || 0,
     };
 }
+
 
 export function getPriceAwareLivingStandardLevel(wealthPerCapita, thresholds = {}, fallbackLevel = '贫困') {
     if (wealthPerCapita >= (thresholds['奢华'] || Number.POSITIVE_INFINITY)) {
@@ -279,6 +310,28 @@ export function getLivingStandardByScore(score) {
     }
     return LIVING_STANDARD_LEVELS.LUXURIOUS;
 }
+
+export function getLivingStandardByLevel(level) {
+    const matched = Object.values(LIVING_STANDARD_LEVELS).find((item) => item.level === level);
+    return matched || LIVING_STANDARD_LEVELS.POOR;
+}
+
+function applyUpperLivingStandardWealthGate(level, wealthPerCapita, wealthThresholds = null) {
+    if (!wealthThresholds || !Number.isFinite(wealthPerCapita)) {
+        return level;
+    }
+
+    if (level === '奢华' && wealthPerCapita < (wealthThresholds['奢华'] || Number.POSITIVE_INFINITY)) {
+        return wealthPerCapita >= (wealthThresholds['富裕'] || Number.POSITIVE_INFINITY) ? '富裕' : '小康';
+    }
+
+    if (level === '富裕' && wealthPerCapita < (wealthThresholds['富裕'] || Number.POSITIVE_INFINITY)) {
+        return '小康';
+    }
+
+    return level;
+}
+
 
 /**
  * 计算财富乘数（消费能力）- 用于奢侈需求解锁
@@ -578,7 +631,9 @@ export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, f
  * @param {number} params.wealthValue - 阶层总财富（存款）
  * @param {number} params.startingWealth - 旧版基准财富（每人，作为回退）
  * @param {number} params.wealthReference - 动态购买力基准（优先使用）
+ * @param {object|null} params.wealthThresholds - 动态购买力分档门槛（用于限制富裕/奢华）
  * @param {number} params.essentialCost - 基础生存成本（总计，每日）
+
  * @param {number} params.shortagesCount - 短缺资源数量
  * @param {number} params.effectiveNeedsCount - 有效需求总数
  * @param {number} params.unlockedLuxuryTiers - 已解锁的奢侈需求档位数
@@ -596,7 +651,9 @@ export function calculateLivingStandardData({
     wealthValue = 0,
     startingWealth = 100,
     wealthReference = null,
+    wealthThresholds = null,
     essentialCost = 0,
+
     shortagesCount = 0,
     effectiveNeedsCount = 0,
     unlockedLuxuryTiers = 0,
@@ -664,8 +721,11 @@ export function calculateLivingStandardData({
         ? previousScore * (1 - ADAPT_RATE) + targetScore * ADAPT_RATE
         : targetScore;
 
-    // 根据分数确定等级
-    const livingStandard = getLivingStandardByScore(smoothedScore);
+    // 根据分数确定等级，并对富裕/奢华施加动态财富门槛
+    const scoreBasedLevel = getLivingStandardByScore(smoothedScore).level;
+    const gatedLevel = applyUpperLivingStandardWealthGate(scoreBasedLevel, wealthPerCapita, wealthThresholds);
+    const livingStandard = getLivingStandardByLevel(gatedLevel);
+
 
     // 计算消费能力乘数（同时考虑收入和财富，使用阶层配置的上限）
     const incomeRatio = essentialCostPerCapita > 0
