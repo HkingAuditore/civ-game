@@ -726,8 +726,8 @@ export const simulateTick = ({
                     transactionTax: 0,
                     businessTax: 0,
                     tariffs: 0,
-                    essentialNeeds: {},  // 基础需求消?{ resource: cost }
-                    luxuryNeeds: {},     // 奢侈需求消?{ resource: cost }
+                    essentialNeeds: {},  // 基础需求消费 { resource: cost }
+                    luxuryNeeds: {},     // 奢侈需求消费 { resource: cost }
                     decay: 0,
                     productionCosts: 0,
                     wages: 0,  // 工资支出（业主支付给工人?
@@ -1018,9 +1018,9 @@ export const simulateTick = ({
     }
     // 税收效率 ?存储供税收计算使?
     bonuses.taxEfficiencyBonus = activeOfficialEffects.taxEfficiency || 0;
-    // 腐败 ?存储供税收计算使?(负面效果)
+    // 腐败 存储供税收计算使用(负面效果)
     bonuses.corruption = activeOfficialEffects.corruption || 0;
-    // 收入百分??存储供财政计算使?
+    // 收入百分比 存储供财政计算使用
     if (activeOfficialEffects.incomePercentBonus) {
         bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + activeOfficialEffects.incomePercentBonus;
     }
@@ -1040,9 +1040,9 @@ export const simulateTick = ({
     bonuses.wartimeProduction = activeOfficialEffects.wartimeProduction || 0;
     // 资源浪费 ?存储供需?生产消耗使?
     bonuses.resourceWaste = activeOfficialEffects.resourceWaste || {};
-    // 联盟满意??存储供满意度计算使用
+    // 联盟满意度 存储供满意度计算使用
     bonuses.coalitionApproval = activeOfficialEffects.coalitionApproval || 0;
-    // 合法性加??存储供合法性修正使?
+    // 合法性加成 存储供合法性修正使用
     bonuses.legitimacyBonus = activeOfficialEffects.legitimacyBonus || 0;
     // 组织度增长修正（负值降低增长）
     bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + (activeOfficialEffects.organizationDecay || 0);
@@ -1901,10 +1901,10 @@ export const simulateTick = ({
     perfEnd('populationJobs');
 
     // 重新赋值更新后的人口结构和财富
-    // 注意：fillVacancies 会直接修改传入的对象引用，但?React/Redux 模式下通常建议返回新对?
-    // 这里 fillVacancies 返回?{ popStructure, wealth }，我们将其解构回来确保引用正?
-    // (虽然 simulation.js ?popStructure ?wealth 是局部变量，可以直接修改)
-    // 保持代码清晰?
+    // 注意：fillVacancies 会直接修改传入的对象引用，但在 React/Redux 模式下通常建议返回新对象
+    // 这里 fillVacancies 返回的 { popStructure, wealth }，我们将其解构回来确保引用正确
+    // (虽然 simulation.js 的 popStructure 和 wealth 是局部变量，可以直接修改)
+    // 保持代码清晰性
     // const { popStructure: updatedPop, wealth: updatedWealth } = filledResult;
 
     const classApproval = {};
@@ -2386,12 +2386,12 @@ export const simulateTick = ({
             targetMultiplier = baseMultiplier * 0.2;
             simTargetMultiplier = simBaseMultiplier * 0.2;
             isInLowEfficiencyMode = true;
-            inputCostPerMultiplier = 0; // 低效模式下不消耗原料，因此成本?
+            inputCostPerMultiplier = 0; // 低效模式下不消耗原料，因此成本为0
 
-            // 添加日志提示（每个建筑类型只提示一次，避免刷屏?
+            // 添加日志提示（每个建筑类型只提示一次，避免刷屏）
             const inputNames = Object.keys(effectiveOps.input).map(k => RESOURCES[k]?.name || k).join(', ');
-            if (tick % 30 === 0) { // ?0个tick提示一?
-                recordAggregatedLog(`?? ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
+            if (tick % 30 === 0) { // 每30个tick提示一次
+                recordAggregatedLog(`⚠️ ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
             }
         }
 
@@ -2434,7 +2434,7 @@ export const simulateTick = ({
         const isHousingBuilding = b.cat === 'civic' && !b.owner && b.output?.maxPop > 0;
         const isMilitaryBuilding = b.cat === 'military';
         // 营业税额 = 建筑基准税额 × 税率系数
-        // businessTaxBase 默认?0.1，税率系数由玩家设置（默??
+        // businessTaxBase 默认为0.1，税率系数由玩家设置（默认1）
         const businessTaxBase = b.businessTaxBase ?? 0.1;
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
@@ -3052,7 +3052,7 @@ export const simulateTick = ({
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
-                        recordAggregatedLog(`?? ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
+                        recordAggregatedLog(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }
                 });
                 // taxBreakdown ?Ledger 自动更新
@@ -3092,7 +3092,7 @@ export const simulateTick = ({
 
                     if (effectiveEfficiency < 1 && tick % 30 === 0) {
                         const lossPercent = ((1 - effectiveEfficiency) * 100).toFixed(1);
-                        recordAggregatedLog(`💸 ${b.name} 补贴因腐败损?${lossPercent}%`);
+                        recordAggregatedLog(`💸 ${b.name} 补贴因腐败损失${lossPercent}%`);
                     }
                 } else {
                     if (tick % 30 === 0) {
@@ -3209,7 +3209,7 @@ export const simulateTick = ({
                                     if (importCost > logThreshold) {
                                         const fromName = RESOURCES[sourceResource]?.name || sourceResource;
                                         const toName = RESOURCES[target.resource]?.name || target.resource;
-                                        // logs.push(`?? 市场：商人动用自有资?${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换?${importAmount.toFixed(1)} ${toName}。`);
+                                        // logs.push(`⚠️ 市场：商人动用自有资金${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换取${importAmount.toFixed(1)} ${toName}。`);
                                     }
                                 }
                             });
@@ -3329,10 +3329,10 @@ export const simulateTick = ({
             }
             totalResourceCost += needed * effectivePrice;
 
-            // 如果资源不足，记录日?
+            // 如果资源不足，记录日志
             if (consumed < needed && tick % 30 === 0) {
                 const shortage = needed - consumed;
-                recordAggregatedLog(`?? 军队维护资源不足：缺?${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
+                recordAggregatedLog(`⚠️ 军队维护资源不足：缺少${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
             }
         });
 
@@ -3408,7 +3408,7 @@ export const simulateTick = ({
                 // [FIX Bug5] 标记欠饷状态及支付比例
                 armyExpenseResult.isUnderPaid = true;
                 armyExpenseResult.payRatio = totalArmyCost > 0 ? partialPay / totalArmyCost : 0;
-                logs.push(`?? 军饷不足！应?{totalArmyCost.toFixed(0)}银币，仅能支?{partialPay.toFixed(0)}银币，军心不稳。`);
+                logs.push(`⚠️ 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
             }
         }
         perfEnd('armyMaintenance');
@@ -3704,9 +3704,9 @@ export const simulateTick = ({
                     // 判断短缺原因：买不起 vs 缺货
                     const canAfford = affordable >= requirement * 0.99;
                     const inStock = available >= requirement * 0.99;
-                    let reason = 'both'; // 既缺货又买不?
+                    let reason = 'both'; // 既缺货又买不起
                     if (canAfford && !inStock) {
-                        reason = 'outOfStock'; // 有钱但缺?
+                        reason = 'outOfStock'; // 有钱但缺货
                     } else if (!canAfford && inStock) {
                         reason = 'unaffordable'; // 有货但买不起
                     }
@@ -3723,7 +3723,7 @@ export const simulateTick = ({
                 satisfactionSum += ratio;
                 tracked += 1;
                 if (ratio < 0.99) {
-                    // 非交易资源只可能是缺?
+                    // 非交易资源只可能是缺货
                     shortages.push({ resource: resKey, reason: 'outOfStock' });
                 }
             }
@@ -3786,7 +3786,7 @@ export const simulateTick = ({
                 res[resKey] = Math.max(0, (res[resKey] || 0) - reduction);
             }
         });
-        // logs.push('劳动力因需求未满足而效率下降?);
+        // logs.push('劳动力因需求未满足而效率下降');
     }
     perfEnd('needsConsumption');
 
@@ -4411,7 +4411,7 @@ export const simulateTick = ({
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
             if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
                 // Log investment
-                logs.push(`🏗?官员${normalizedOfficial.name}投资?${investmentDecision.buildingId}（花?${Math.ceil(investmentDecision.cost)} 银）`);
+                logs.push(`🏗️ 官员${normalizedOfficial.name}投资了${investmentDecision.buildingId}（花费${Math.ceil(investmentDecision.cost)} 银）`);
             }
         }
 
@@ -4542,8 +4542,8 @@ export const simulateTick = ({
         newLoyalty += financialChange;
         totalLoyaltyChange += financialChange;
 
-        // 国家稳定?
-        const stabilityValue = (currentStability ?? 50) / 100; // currentStability?-100，转?-1
+        // 国家稳定度
+        const stabilityValue = (currentStability ?? 50) / 100; // currentStability为0-100，转为0-1
         let stabilityChange = 0;
         if (stabilityValue > 0.7) {
             stabilityChange = DAILY_CHANGES.stabilityHigh;
@@ -4602,8 +4602,8 @@ export const simulateTick = ({
             loyalty: newLoyalty,
             lowLoyaltyDays: newLowLoyaltyDays,
             isStanceSatisfied: isStanceMet,
-            // 忠诚度变化详?
-            loyaltyChange: newLoyalty - oldLoyalty, // 实际变化量（考虑了上下限?
+            // 忠诚度变化详情
+            loyaltyChange: newLoyalty - oldLoyalty, // 实际变化量（考虑了上下限）
             loyaltyChangeFactors: loyaltyChangeFactors, // 各因素的贡献
             loyaltyChangeTotal: totalLoyaltyChange, // 理论变化量（未考虑上下限）
             // [DEBUG] 调试字段
@@ -4836,13 +4836,13 @@ export const simulateTick = ({
                 // 所有基础需求都短缺 ?上限0
                 targetApproval = Math.min(targetApproval, 0);
             } else {
-                // 部分基础需求短??上限30
+                // 部分基础需求短缺 上限30
                 targetApproval = Math.min(targetApproval, 30);
             }
         }
 
-        // 奢侈需求短?- 较轻惩罚，与缺少数量相关
-        // 每缺?种奢侈品，惩?3，最多惩?15
+        // 奢侈需求短缺 - 较轻惩罚，与缺少数量相关
+        // 每缺一种奢侈品，惩罚3，最多惩罚15
         if (luxuryShortages.length > 0) {
             const luxuryPenalty = Math.min(15, luxuryShortages.length * 3);
             targetApproval -= luxuryPenalty;
@@ -5222,7 +5222,7 @@ export const simulateTick = ({
                 const resName = RESOURCES[resKey]?.name || resKey;
 
                 if (reason === 'unaffordable') {
-                    return `${resName}(买不?`;
+                    return `${resName}(买不起)`;
                 } else if (reason === 'outOfStock') {
                     return `${resName}(缺货)`;
                 } else if (reason === 'both') {
@@ -5232,19 +5232,19 @@ export const simulateTick = ({
             }).join(', ');
 
             const shortageMsg = shortageDetails ? `，短缺资源：${shortageDetails}` : '';
-            logs.push(`${className} 阶层对政局失望?{leaving} 人离开了国家，带走?${(leaving * (wealth[key] || 0) / Math.max(1, count)).toFixed(1)} 银币${shortageMsg}。`);
+            logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家，带走${(leaving * (wealth[key] || 0) / Math.max(1, count)).toFixed(1)} 银币${shortageMsg}。`);
         } else if (influenceShare >= 0.12) {
             const penalty = Math.min(0.2, 0.05 + influenceShare * 0.15);
             extraStabilityPenalty += penalty;
 
-            // 为稳定度惩罚也添加短缺详?
+            // 为稳定度惩罚也添加短缺详情
             const shortageDetails = (classShortages[key] || []).map(shortage => {
                 const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
                 const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
                 const resName = RESOURCES[resKey]?.name || resKey;
 
                 if (reason === 'unaffordable') {
-                    return `${resName}(买不?`;
+                    return `${resName}(买不起)`;
                 } else if (reason === 'outOfStock') {
                     return `${resName}(缺货)`;
                 } else if (reason === 'both') {
@@ -5254,7 +5254,7 @@ export const simulateTick = ({
             }).join(', ');
 
             const shortageMsg = shortageDetails ? `（短缺：${shortageDetails}）` : '';
-            logs.push(`${className} 阶层的愤怒正在削弱社会稳?{shortageMsg}。`);
+            logs.push(`${className} 阶层的愤怒正在削弱社会稳定${shortageMsg}。`);
         }
     });
     perfEnd('exodusAndPenalties');
@@ -5780,7 +5780,7 @@ export const simulateTick = ({
             if (n.id === 'player') return true;
             // Remove annexed nations with zero or negative population
             if (n.isAnnexed && (n.population || 0) <= 0) {
-                logs.push(`🗑?国家 "${n.name}" 已被完全清除（已吞并且人口为0）。`);
+                logs.push(`🗑️ 国家 "${n.name}" 已被完全清除（已吞并且人口为0）。`);
                 return false;
             }
             return true;
@@ -5895,12 +5895,12 @@ export const simulateTick = ({
         if (rebellionSystemResult && rebellionSystemResult.events) {
             for (const event of rebellionSystemResult.events) {
                 if (event.type === 'civil_war_started') {
-                    logs.push(`⚔️ ${event.nationName} 爆发内战！反对派势力与政府军交战?..`);
+                    logs.push(`⚔️ ${event.nationName} 爆发内战！反对派势力与政府军交战中...`);
                 } else if (event.type === 'civil_war_ended') {
                     if (event.winner === 'rebels') {
-                        logs.push(`🏴 ${event.nationName} 的叛军取得胜利，政权更迭?{event.newGovernment || '新政?}！`);
+                        logs.push(`🏴 ${event.nationName} 的叛军取得胜利，政权更迭！${event.newGovernment || '新政权'}！`);
                     } else {
-                        logs.push(`🏛?${event.nationName} 的政府军平定叛乱，恢复秩序。`);
+                        logs.push(`🏛️ ${event.nationName} 的政府军平定叛乱，恢复秩序。`);
                     }
                 }
             }
@@ -5946,7 +5946,7 @@ export const simulateTick = ({
 
         // // [DEBUG] Log population after updateNationEconomyData
         // if (tick % 10 === 0 && nation.name) {
-        //     console.log(`[After EconomyData] ${nation.name}: pop ${nation.population}?{result.population}`);
+        //     console.log(`[After EconomyData] ${nation.name}: pop ${nation.population}->${result.population}`);
         // }
 
         return result;
@@ -5983,7 +5983,7 @@ export const simulateTick = ({
             const before = updatedNations.find(n => n.id === vassalId);
             const after = vassalResult.nations.find(n => n.id === vassalId);
             if (before && after && (before.wealth !== after.wealth || before.population !== after.population)) {
-                console.log(`[Vassal After Process] ${after.name}: pop ${before.population}?{after.population}, wealth ${before.wealth}?{after.wealth}`);
+                console.log(`[Vassal After Process] ${after.name}: pop ${before.population}->${after.population}, wealth ${before.wealth}->${after.wealth}`);
             }
         });
     }
@@ -6182,7 +6182,7 @@ export const simulateTick = ({
                                 isActive: false,
                                 disbandReason: 'founder_left',
                             };
-                            logs.push(`🏛?"${org.name}" 因创始国退出而解散。`);
+                            logs.push(`🏛️ "${org.name}" 因创始国退出而解散。`);
                         } else {
                             // Regular member leaving
                             updatedOrganizations[orgIndex] = {
@@ -6212,7 +6212,7 @@ export const simulateTick = ({
                 organizationUpdatesOccurred = true;
                 const removedCount = originalMemberCount - cleanedMembers.length;
                 if (removedCount > 0) {
-                    logs.push(`🏛?"${org.name}" 清理?${removedCount} 个已消失的成员国。`);
+                    logs.push(`🏛️ "${org.name}" 清理了${removedCount} 个已消失的成员国。`);
                 }
             }
 
@@ -6231,7 +6231,7 @@ export const simulateTick = ({
                 const reason = org.disbandReason || '未知原因';
                 // Only log if not already logged
                 if (reason !== 'founder_left') {
-                    logs.push(`🏛?"${org.name}" ?{reason}而解散。`);
+                    logs.push(`🏛️ "${org.name}" 因${reason}而解散。`);
                 }
                 organizationUpdatesOccurred = true;
                 return;
@@ -6251,7 +6251,7 @@ export const simulateTick = ({
                     reason = '成员不足';
                 }
 
-                logs.push(`🏛?"${org.name}" ?{reason}而解散。`);
+                logs.push(`🏛️ "${org.name}" 因${reason}而解散。`);
                 organizationUpdatesOccurred = true;
                 return;
             }
@@ -6282,7 +6282,7 @@ export const simulateTick = ({
 
             if (cleanedTreaties.length < originalTreatyCount) {
                 const removedCount = originalTreatyCount - cleanedTreaties.length;
-                logs.push(`📜 ${nation.name} 因条约对方消亡，清理?${removedCount} 个条约。`);
+                logs.push(`📜 ${nation.name} 因条约对方消亡，清理了${removedCount} 个条约。`);
             }
 
             return {
@@ -6435,8 +6435,8 @@ export const simulateTick = ({
                     popStructure[key] = Math.max(0, count - deaths);
                     starvationDeaths += deaths;
 
-                    const reason = lackingFood && lackingCloth ? 'food and cloth' : (lackingFood ? 'food' : 'cloth');
-                    recordAggregatedLog(`${className} suffered deaths from prolonged shortages of ${reason}: ${deaths}.`);
+                    const reason = lackingFood && lackingCloth ? '粮食和布料' : (lackingFood ? '粮食' : '布料');
+                    recordAggregatedLog(`${className} 因长期缺少${reason}导致${deaths}人死亡。`);
                 }
             }
         }
@@ -7425,7 +7425,7 @@ export const simulateTick = ({
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
             nextLastMinisterExpansionDay = tick;
-            logs.push(`🏛?${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建?${bestCandidate.building.name}（花?${Math.ceil(bestCandidate.silverCost)} 银币）`);
+            logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
         }
     }
 
@@ -7560,7 +7560,7 @@ export const simulateTick = ({
             // 4. Log the upgrade
             const ownerName = STRATA[ownerKey]?.name || ownerKey;
             const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
-            // logs.push(`??? ${ownerName}自发投资了自己的产业 ${b.name} ?${upgradeName}（花?${Math.ceil(totalSilverCost)} 银币）`);
+            // logs.push(`⚠️ ${ownerName}自发投资了自己的产业 ${b.name} 到${upgradeName}（花费${Math.ceil(totalSilverCost)} 银币）`);
 
             // Only upgrade one building per type per tick to avoid rapid changes
             break;
@@ -7590,7 +7590,7 @@ export const simulateTick = ({
                 delete updatedBuildingUpgrades[buildingId];
             }
 
-            // logs.push(`??? 官员${officialName}升级?${buildingId}（花?${Math.ceil(cost)} 银）`);
+            // logs.push(`⚠️ 官员${officialName}升级了${buildingId}（花费${Math.ceil(cost)} 银）`);
         });
     }
 
