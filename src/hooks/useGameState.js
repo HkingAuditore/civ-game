@@ -1387,7 +1387,8 @@ export const useGameState = () => {
     const [pendingRepairs, setPendingRepairs] = useState([]); // 战后待修复建筑[{ buildingId, count, source }]
     const [corpsReplenishQueue, setCorpsReplenishQueue] = useState({}); // 军团补兵缺额队列 { [corpsId]: { [unitId]: deficitCount } }
 
-    // ========== 庆典系统状态    const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
+    // ========== 庆典系统状态 ==========
+    const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
     const [activeFestivalEffects, setActiveFestivalEffects] = useState([]); // 激活的庆典效果
     const [lastFestivalYear, setLastFestivalYear] = useState(1); // 上次庆典的年份（�?开始，避免�?年触发）
 
