@@ -81,7 +81,7 @@ export const SimpleLineChart = ({
   );
 
   const StatsRow = ({ title, stats }) => (
-    <div className="text-[11px] text-gray-400">
+    <div className="text-xs text-gray-400">
       <p className="text-xs text-gray-300">{title}</p>
       <div className="mt-1 flex gap-4 font-mono">
         <span>Max {formatNumber(stats.max)}</span>

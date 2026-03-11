@@ -107,14 +107,14 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                         选择新档模式
                                     </h2>
                                 </div>
-                                <p className="text-[10px] text-gray-400">
+                                <p className="text-xs text-gray-400">
                                     标准模式选择难度，情景模式选择起始条件
                                 </p>
                             </div>
                             <div className="mt-2 flex items-center justify-center gap-2">
                                 <button
                                     onClick={() => setMode('standard')}
-                                    className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-colors ${mode === 'standard'
+                                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${mode === 'standard'
                                         ? 'bg-ancient-gold/30 text-ancient-gold border border-ancient-gold/40'
                                         : 'bg-gray-700/40 text-gray-300 border border-transparent hover:border-gray-500/40'}`}
                                 >
@@ -122,7 +122,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                 </button>
                                 <button
                                     onClick={() => setMode('scenario')}
-                                    className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-colors ${mode === 'scenario'
+                                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${mode === 'scenario'
                                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
                                         : 'bg-gray-700/40 text-gray-300 border border-transparent hover:border-gray-500/40'}`}
                                 >
@@ -211,7 +211,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                                     {scenario.description}
                                                 </p>
                                                 {scenario.highlights?.length > 0 && (
-                                                    <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">
+                                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                                                         {scenario.highlights.join(' · ')}
                                                     </p>
                                                 )}
@@ -220,7 +220,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                                         {scenario.tags.map(tag => (
                                                             <span
                                                                 key={tag}
-                                                                className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-900/40 text-emerald-200 border border-emerald-700/30"
+                                                                className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-900/40 text-emerald-200 border border-emerald-700/30"
                                                             >
                                                                 {tag}
                                                             </span>
@@ -249,7 +249,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                     maxLength={20}
                                     className="w-full px-3 py-2 bg-gray-800/80 border border-ancient-gold/40 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-ancient-gold/70 transition-colors"
                                 />
-                                <p className="text-[10px] text-gray-500 mt-1.5">帝国名称将显示在存档和游戏界面中</p>
+                                <p className="text-xs text-gray-500 mt-1.5">帝国名称将显示在存档和游戏界面中</p>
                             </div>
                         </div>
 
@@ -258,7 +258,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                             <div className="bg-blue-900/30 border border-blue-500/30 p-2.5 rounded-lg">
                                 <div className="flex items-start gap-2">
                                     <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                                    <p className="text-[10px] text-blue-300 leading-relaxed">
+                                    <p className="text-xs text-blue-300 leading-relaxed">
                                         <span className="font-bold">提示：</span>
                                         {mode === 'standard'
                                             ? '开始新游戏不会删除您的现有存档，您可以随时通过读取存档继续之前的游戏。'

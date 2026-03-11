@@ -42,17 +42,17 @@ const DealStatus = ({
             {/* Header: Round & Chance */}
             <div className="flex justify-between items-end border-b border-ancient-gold/10 pb-1 lg:pb-2">
                 <div className="flex flex-col">
-                    <span className="text-[8px] lg:text-[10px] text-ancient-stone uppercase tracking-widest">{t('negotiation.round', '谈判轮次')}</span>
+                    <span className="text-xs lg:text-xs text-ancient-stone uppercase tracking-widest">{t('negotiation.round', '谈判轮次')}</span>
                     <div className="text-base lg:text-xl font-bold font-mono text-ancient-parchment flex items-center gap-1 lg:gap-2">
                         <Icon name="Clock" size={16} className="text-ancient-gold" />
                         {round} <span className="text-ancient-stone text-xs lg:text-sm">/ {NEGOTIATION_MAX_ROUNDS}</span>
                     </div>
                 </div>
                 <div className="flex flex-col items-end">
-                    <span className="text-[8px] lg:text-[10px] text-ancient-stone uppercase tracking-widest">{t('negotiation.successChance', '成功率')}</span>
+                    <span className="text-xs lg:text-xs text-ancient-stone uppercase tracking-widest">{t('negotiation.successChance', '成功率')}</span>
                     <div className={`text-base lg:text-xl font-bold font-mono ${statusColor}`}>
                         {Math.round(acceptChance * 100)}%
-                        <span className="text-[10px] lg:text-xs ml-1 opacity-70">({statusText})</span>
+                        <span className="text-xs lg:text-xs ml-1 opacity-70">({statusText})</span>
                     </div>
                 </div>
             </div>
@@ -63,7 +63,7 @@ const DealStatus = ({
                 <div className="bg-blue-900/20 p-2 rounded border border-blue-500/30 flex flex-col items-center">
                     <div className="flex items-center gap-1 mb-1">
                         <Icon name="Shield" size={10} className="text-blue-300" />
-                        <span className="text-[9px] text-blue-300 uppercase tracking-wide">{t('breakdown.strategic', '战略价值')}</span>
+                        <span className="text-xs text-blue-300 uppercase tracking-wide">{t('breakdown.strategic', '战略价值')}</span>
                     </div>
                     <span className="text-sm font-bold text-blue-100 font-mono">+{Math.round(strategicValue)}</span>
                 </div>
@@ -72,7 +72,7 @@ const DealStatus = ({
                 <div className={`p-2 rounded border flex flex-col items-center ${economicNet >= 0 ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
                     <div className="flex items-center gap-1 mb-1">
                         <Icon name="Coins" size={10} className={economicNet >= 0 ? 'text-green-300' : 'text-red-300'} />
-                        <span className={`text-[9px] uppercase tracking-wide ${economicNet >= 0 ? 'text-green-300' : 'text-red-300'}`}>{t('breakdown.economic', '经济净值')}</span>
+                        <span className={`text-xs uppercase tracking-wide ${economicNet >= 0 ? 'text-green-300' : 'text-red-300'}`}>{t('breakdown.economic', '经济净值')}</span>
                     </div>
                     <span className={`text-sm font-bold font-mono ${economicNet >= 0 ? 'text-green-100' : 'text-red-100'}`}>
                         {economicNet > 0 ? '+' : ''}{Math.round(economicNet)}
@@ -83,7 +83,7 @@ const DealStatus = ({
                 <div className={`p-2 rounded border flex flex-col items-center ${politicalCost > 0 ? 'bg-orange-900/20 border-orange-500/30' : 'bg-gray-800/30 border-gray-600/30'}`}>
                     <div className="flex items-center gap-1 mb-1">
                         <Icon name="AlertTriangle" size={10} className={politicalCost > 0 ? 'text-orange-300' : 'text-gray-400'} />
-                        <span className={`text-[9px] uppercase tracking-wide ${politicalCost > 0 ? 'text-orange-300' : 'text-gray-400'}`}>{t('breakdown.political', '政治风险')}</span>
+                        <span className={`text-xs uppercase tracking-wide ${politicalCost > 0 ? 'text-orange-300' : 'text-gray-400'}`}>{t('breakdown.political', '政治风险')}</span>
                     </div>
                     <span className={`text-sm font-bold font-mono ${politicalCost > 0 ? 'text-orange-100' : 'text-gray-400'}`}>
                         -{Math.round(politicalCost)}
@@ -91,34 +91,23 @@ const DealStatus = ({
                 </div>
             </div>
 
-            {/* Success Rate Explanation */}
-            <div className="bg-ancient-gold/5 rounded-lg p-2 border border-ancient-gold/20">
-                <div className="flex items-start gap-2">
-                    <Icon name="Info" size={12} className="text-ancient-gold mt-0.5 flex-shrink-0" />
-                    <div className="text-[8px] lg:text-[9px] text-ancient-stone/80 leading-relaxed">
-                        <span className="font-bold text-ancient-gold">{t('negotiation.successFactors', '成功率受多重因素影响：')}</span>
-                        <span className="text-ancient-parchment/70">
-                            {t('negotiation.successFactors.desc', '交易评分、双方关系、实力对比、谈判姿态、AI性格等。评分高只是基础，还需综合考虑其他因素。')}
-                        </span>
-                    </div>
-                </div>
-            </div>
+
 
             {/* The Deal Score Display */}
             <div className="mt-2 bg-black/40 rounded-xl p-2 lg:p-3 border border-ancient-gold/20 shadow-inner">
                 <div className="flex justify-between items-center mb-2">
                     <div className="flex items-center gap-1.5">
                         <Icon name="Scale" size={12} className="text-ancient-gold" />
-                        <span className="text-[9px] lg:text-[10px] text-ancient-stone uppercase tracking-wider font-bold">
+                        <span className="text-xs lg:text-xs text-ancient-stone uppercase tracking-wider font-bold">
                             {t('negotiation.dealScore', '交易评分')}
                         </span>
                     </div>
-                    <Badge variant={dealScore >= 0 ? 'success' : 'danger'} className="font-mono text-[10px] lg:text-xs">
+                    <Badge variant={dealScore >= 0 ? 'success' : 'danger'} className="font-mono text-xs lg:text-xs">
                         {dealScore > 0 ? '+' : ''}{dealScore}
                     </Badge>
                 </div>
                 
-                <div className="text-[8px] lg:text-[9px] text-ancient-stone/70 leading-relaxed">
+                <div className="text-xs lg:text-xs text-ancient-stone/70 leading-relaxed">
                     {dealScore > 1000 ? (
                         <span className="text-green-400">
                             ✓ {t('negotiation.dealScore.veryGood', 'AI认为这笔交易对他们非常有利')}
@@ -138,7 +127,7 @@ const DealStatus = ({
                     )}
                 </div>
                 
-                <div className="mt-2 pt-2 border-t border-ancient-gold/10 text-[7px] lg:text-[8px] text-ancient-stone/50 italic">
+                <div className="mt-2 pt-2 border-t border-ancient-gold/10 text-xs lg:text-xs text-ancient-stone/50 italic">
                     {t('negotiation.dealScore.note', '注意：交易评分高不代表一定会成功，还需考虑关系、实力对比等因素')}
                 </div>
             </div>
@@ -165,7 +154,7 @@ const DealStatus = ({
                         </div>
                         <div className="text-left">
                             <div className="font-bold text-xs lg:text-sm text-amber-400">{t('negotiation.counterReceived', '收到反提案')}</div>
-                            <div className="text-[9px] lg:text-[10px] text-amber-200/70">{t('negotiation.counterDesc', '对方修改了条款')}</div>
+                            <div className="text-xs lg:text-xs text-amber-200/70">{t('negotiation.counterDesc', '对方修改了条款')}</div>
                         </div>
                     </div>
                     <Icon name="ChevronRight" size={14} className="text-amber-500/50 group-hover:translate-x-1 transition-transform" />

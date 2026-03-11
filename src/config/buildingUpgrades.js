@@ -405,20 +405,21 @@ export const BUILDING_UPGRADES = {
     ],
 
     // church: base output culture: 3.2, silver: 0.6667, owner: cleric, base jobs: cleric:4
+    // base input: furniture: 0.04, fine_clothes: 0.03
     church: [
         {
             name: "大教堂",
             cost: { brick: 80, furniture: 25, silver: 500 },
-            input: { furniture: 0.05, fine_clothes: 0.04 }, // 降低消耗
-            output: { culture: 3.8, silver: 1.2 }, // 1.2x + 奉献收入
+            input: { furniture: 0.05, fine_clothes: 0.04 }, // 1.3x基础输入
+            output: { culture: 4.16, silver: 1.2 }, // 1.3x culture + 奉献收入
             jobs: { cleric: 3 }, // 减少岗位
         },
         {
             name: "主教座堂",
             cost: { brick: 150, furniture: 40, silver: 1200 },
-            input: { furniture: 0.06, fine_clothes: 0.05, papyrus: 0.02 }, // 降低消耗
-            output: { culture: 5.5, silver: 2.0, science: 0.15 }, // 1.7x + 高额奉献 + 神学
-            jobs: { cleric: 4 }, // 减少岗位
+            input: { furniture: 0.07, fine_clothes: 0.055, papyrus: 0.02 }, // 2.25x基础输入
+            output: { culture: 7.2, silver: 2.0, science: 0.15 }, // 2.25x culture + 高额奉献 + 神学
+            jobs: { cleric: 4 }, // 恢复岗位
         },
     ],
 
@@ -499,14 +500,14 @@ export const BUILDING_UPGRADES = {
 
     // ========== 探索时代建筑 ==========
 
-    // dockyard: base output 0.35 spice, owner: merchant, base jobs: navigator:2, worker:2, merchant:1
+    // dockyard: base output 0.84 spice, owner: merchant, base jobs: navigator:3, worker:2, merchant:1
     dockyard: [
         {
             name: "大船坞",
             cost: { plank: 120, tools: 30, silver: 500 },
             input: { wood: 0.4, tools: 0.02 },
-            output: { spice: 0.9 }, // 1.3x
-            jobs: { navigator: 2, worker: 2, merchant: 1 }, // keep same, efficiency upgrade
+            output: { spice: 1.092 }, // 1.3x of base 0.84
+            jobs: { navigator: 3, worker: 2, merchant: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "皇家船厂",
@@ -518,13 +519,13 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // navigator_school: base output science: 0.75, culture: 1.0, owner: official, base jobs: navigator:3, scribe:1, official:1
+    // navigator_school: base output science: 0.75, culture: 1.0, owner: scribe, base jobs: navigator:3, scribe:1
     navigator_school: [
         {
             name: "航海学府",
             cost: { plank: 80, papyrus: 40, silver: 400 },
             input: { papyrus: 0.05 },
-            output: { science: 0.78, culture: 1.2 }, // 1.2x
+            output: { science: 0.975, culture: 1.3 }, // 1.3x of base 0.75 & 1.0
             jobs: { navigator: 3, scribe: 1}, // keep same, efficiency upgrade
         },
         {
@@ -634,20 +635,20 @@ export const BUILDING_UPGRADES = {
     // ========== 启蒙时代建筑 ==========
 
     // printing_house: base output science: 2.4, culture: 2.0, owner: capitalist, base jobs: artisan:5, scribe:3, capitalist:1
-    // 效率提升型升级：印刷机改良，产出增加但岗位不增加
+    // base input: papyrus: 0.40, coffee: 0.08, science: 0.10
     printing_house: [
         {
             name: "大印刷所",
             cost: { brick: 120, papyrus: 40, silver: 500, science: 100 },
-            input: { papyrus: 0.48, coffee: 0.09, science: 0.20 },
-            output: { science: 3.12, culture: 2.4 },
+            input: { papyrus: 0.52, coffee: 0.10, science: 0.13 }, // 1.3x基础输入
+            output: { science: 3.12, culture: 2.6 }, // 1.3x
             jobs: { artisan: 5, scribe: 3, capitalist: 1 },
         },
         {
             name: "出版社",
             cost: { brick: 200, papyrus: 80, silver: 1100, science: 250 },
-            input: { papyrus: 0.75, coffee: 0.15, science: 0.35 },
-            output: { science: 5.4, culture: 3.6 },
+            input: { papyrus: 0.90, coffee: 0.18, science: 0.225 }, // 2.25x基础输入
+            output: { science: 5.4, culture: 4.5 }, // 2.25x
             jobs: { artisan: 5, scribe: 3, capitalist: 1 },
         },
     ],
@@ -781,22 +782,22 @@ export const BUILDING_UPGRADES = {
 
     // ========== 工业时代建筑 ==========
 
-    // coal_mine: base output 0.65 coal, owner: capitalist, base jobs: miner:6, capitalist:1
+    // coal_mine: base output 3.0 coal, owner: capitalist, base jobs: miner:12, capitalist:1
     // 激进升级：大幅提升煤炭产量以满足工业时代需求
     coal_mine: [
         {
             name: "深煤矿",
             cost: { plank: 150, tools: 40, silver: 500 },
             input: { tools: 0.35, wood: 0.5, food: 0.8 }, // 略微增加投入
-            output: { coal: 5.0 }, // 约1.6x基础产量
+            output: { coal: 5.0 }, // ~1.67x基础产量
             jobs: { miner: 13, capitalist: 1 }, // +1 miner
         },
         {
             name: "大煤矿",
             cost: { brick: 100, tools: 60, silver: 1100 },
             input: { tools: 0.55, wood: 0.8, food: 1.2 }, // 合理增加投入
-            output: { coal: 8.0, iron: 0.2 }, // 约 2.6x 基础产量 + 煤矿伴生铁
-            jobs: { miner: 9, capitalist: 1 }, // +3 miners 大规模采矿
+            output: { coal: 8.0, iron: 0.2 }, // ~2.67x 基础产量 + 煤矿伴生铁
+            jobs: { miner: 15, capitalist: 1 }, // +2 miners（不减少岗位）
         },
     ],
 

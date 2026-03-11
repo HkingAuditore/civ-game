@@ -162,14 +162,14 @@ export const BorderGlow = ({ className = '', intensity = 'medium' }) => {
  * 创建闪烁的星空效果
  */
 export const StarField = ({ count = 50, className = '' }) => {
-  const stars = Array.from({ length: count }, (_, i) => ({
+  const stars = useMemo(() => Array.from({ length: count }, (_, i) => ({
     id: i,
     size: Math.random() * 2 + 0.5,
     left: Math.random() * 100,
     top: Math.random() * 100,
     animationDuration: Math.random() * 3 + 2,
     animationDelay: Math.random() * 3,
-  }));
+  })), [count]);
 
   return (
     <div className={`absolute inset-0 overflow-hidden pointer-events-none ${className}`}>

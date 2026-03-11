@@ -66,7 +66,7 @@ export const PopulationDetailModal = ({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h2 className="text-base font-bold text-white leading-tight font-decorative">人口详情</h2>
-                                    <p className="text-[10px] text-gray-400 leading-tight">
+                                    <p className="text-xs text-gray-400 leading-tight">
                                         当前人口 {formatNumberShortCN(Math.round(population), { decimals: 0 })} / {formatNumberShortCN(Math.round(maxPop), { decimals: 0 })}
                                     </p>
                                 </div>
@@ -82,7 +82,7 @@ export const PopulationDetailModal = ({
                             <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
                                 <div className="mb-1.5 flex items-center justify-between">
                                     <div>
-                                        <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">总人口变化趋势</p>
+                                        <p className="text-xs uppercase tracking-wide text-gray-500 leading-none">总人口变化趋势</p>
                                         <p className="text-sm font-semibold text-white leading-tight mt-0.5">
                                             当前 {formatNumberShortCN(Math.round(population), { decimals: 0 })} 人 · 上限 {formatNumberShortCN(Math.round(maxPop), { decimals: 0 })}
                                         </p>
@@ -96,7 +96,7 @@ export const PopulationDetailModal = ({
                             <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
                                 <div className="mb-1.5 flex items-center justify-between">
                                     <div>
-                                        <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">阶层构成</p>
+                                        <p className="text-xs uppercase tracking-wide text-gray-500 leading-none">阶层构成</p>
                                         <p className="text-sm font-semibold text-white leading-tight mt-0.5">当前活跃阶层</p>
                                     </div>
                                     <Icon name="Layers" size={16} className="text-purple-300" />
@@ -105,12 +105,12 @@ export const PopulationDetailModal = ({
                                     {entries.length ? (
                                         entries.map(item => (
                                             <div key={item.key}>
-                                                <div className="flex items-center justify-between text-[10px] text-gray-300">
+                                                <div className="flex items-center justify-between text-xs text-gray-300">
                                                     <div className="flex items-center gap-1.5">
                                                         <Icon name={item.icon} size={14} className="text-amber-300" />
                                                         <span className="leading-none">{item.name}</span>
                                                     </div>
-                                                    <div className="text-[9px] text-gray-400 font-mono leading-none">
+                                                    <div className="text-xs text-gray-400 font-mono leading-none">
                                                         {formatNumberShortCN(Math.round(item.count), { decimals: 0 })} 人 · {item.percent.toFixed(1)}%
                                                     </div>
                                                 </div>
@@ -123,7 +123,7 @@ export const PopulationDetailModal = ({
                                             </div>
                                         ))
                                     ) : (
-                                        <p className="text-[10px] text-gray-500 text-center py-2">暂无社会阶层数据。</p>
+                                        <p className="text-xs text-gray-500 text-center py-2">暂无社会阶层数据。</p>
                                     )}
                                 </div>
                             </div>

@@ -81,7 +81,7 @@ export const CompactCard = ({
             <div className="flex-1 min-w-0">
               <h4 className="text-xs font-semibold text-white truncate">{title}</h4>
               {subtitle && (
-                <p className="text-[10px] text-gray-400 truncate">{subtitle}</p>
+                <p className="text-xs text-gray-400 truncate">{subtitle}</p>
               )}
             </div>
             

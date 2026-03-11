@@ -55,7 +55,7 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
                         </h2>
                         <div className="flex items-center gap-2 mt-1">
                             {event.isDiplomaticEvent && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-blue-600/40 text-blue-200 rounded border border-blue-400/40 backdrop-blur-sm font-sans">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-blue-600/40 text-blue-200 rounded border border-blue-400/40 backdrop-blur-sm font-sans">
                                     <Icon name="Globe" size={10} />
                                     外交事件
                                 </span>
@@ -266,7 +266,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                 return (
                     <span
                         key={`${keyPrefix}-${type}-${target}`}
-                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? style.positiveClass : style.negativeClass
+                        className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${value > 0 ? style.positiveClass : style.negativeClass
                             } font-sans`}
                     >
                         <Icon name={style.icon} size={10} />
@@ -298,7 +298,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
         return (
             <span
                 key={`${keyPrefix}-${type}-${target}`}
-                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${className} font-sans`}
+                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${className} font-sans`}
             >
                 <Icon name={icon} size={10} />
                 <span className="font-medium">与{targetName}{label}</span>
@@ -334,7 +334,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                         <h2 className="text-base font-bold text-ancient leading-tight font-decorative">{event.name}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             {event.isDiplomaticEvent && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-blue-600/20 text-blue-300 rounded border border-blue-500/30 font-sans">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-blue-600/20 text-blue-300 rounded border border-blue-500/30 font-sans">
                                     <Icon name="Globe" size={10} />
                                     外交事件
                                 </span>
@@ -351,7 +351,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
 
             {/* 事件选项 */}
             <div className="space-y-1.5">
-                <h3 className="text-[11px] font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5">
+                <h3 className="text-xs font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5">
                     <Icon name="Target" size={11} style={{ color: 'var(--theme-accent)' }} />
                     选择你的行动
                 </h3>
@@ -398,7 +398,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         {option.text}
                                     </h4>
                                     {option.description && (
-                                        <p className="text-[11px] text-ancient-stone mt-1 leading-snug font-sans">{option.description}</p>
+                                        <p className="text-xs text-ancient-stone mt-1 leading-snug font-sans">{option.description}</p>
                                     )}
 
                                     {/* 效果预览 - 显示完整文字标签 */}
@@ -408,7 +408,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                             Object.entries(option.effects.resources || {}).map(([resource, value]) => (
                                                 <span
                                                     key={resource}
-                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
+                                                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
                                                         } font-sans`}
                                                 >
                                                     <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
@@ -422,7 +422,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                             Object.entries(option.effects.resourcePercent || {}).map(([resource, value]) => (
                                                 <span
                                                     key={`pct-${resource}`}
-                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
+                                                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
                                                         } font-sans`}
                                                 >
                                                     <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
@@ -434,7 +434,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         {/* 人口效果（固定值） - 显示"人口"标签 */}
                                         {option.effects?.population && (
                                             <span
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.population > 0
+                                                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${option.effects.population > 0
                                                     ? 'bg-green-900/50 text-green-300 border border-green-500/40'
                                                     : 'bg-red-900/50 text-red-300 border border-red-500/40'
                                                     } font-sans`}
@@ -448,7 +448,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         {/* 人口效果（百分比） - 显示"人口"标签和百分比 */}
                                         {option.effects?.populationPercent && (
                                             <span
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.populationPercent > 0
+                                                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${option.effects.populationPercent > 0
                                                     ? 'bg-green-900/50 text-green-300 border border-green-500/40'
                                                     : 'bg-red-900/50 text-red-300 border border-red-500/40'
                                                     } font-sans`}
@@ -462,7 +462,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         {/* 稳定度效果 */}
                                         {option.effects?.stability && (
                                             <span
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.stability > 0
+                                                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${option.effects.stability > 0
                                                     ? 'bg-green-900/50 text-green-300 border border-green-500/40'
                                                     : 'bg-red-900/50 text-red-300 border border-red-500/40'
                                                     } font-sans`}
@@ -478,7 +478,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                             Object.entries(option.effects.approval || {}).map(([stratum, value]) => (
                                                 <span
                                                     key={stratum}
-                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-blue-900/50 text-blue-300 border border-blue-500/40' : 'bg-orange-900/50 text-orange-300 border border-orange-500/40'
+                                                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${value > 0 ? 'bg-blue-900/50 text-blue-300 border border-blue-500/40' : 'bg-orange-900/50 text-orange-300 border border-orange-500/40'
                                                         } font-sans`}
                                                 >
                                                     <Icon name={STRATA[stratum]?.icon || 'User'} size={10} />
@@ -494,7 +494,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                             return Object.entries(demandMod).map(([resource, value]) => (
                                                 <span
                                                     key={`demand-${resource}`}
-                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
+                                                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
                                                         } font-sans`}
                                                     title="此效果会随时间衰减"
                                                 >
@@ -513,7 +513,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                             return Object.entries(stratumDemand).map(([stratum, value]) => (
                                                 <span
                                                     key={`stratumDemand-${stratum}`}
-                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
+                                                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
                                                         } font-sans`}
                                                     title="此效果会随时间衰减"
                                                 >
@@ -537,7 +537,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                 return (
                                                     <span
                                                         key={`production-${target}`}
-                                                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-500/40' : 'bg-rose-900/50 text-rose-300 border border-rose-500/40'
+                                                        className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${value > 0 ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-500/40' : 'bg-rose-900/50 text-rose-300 border border-rose-500/40'
                                                             } font-sans`}
                                                         title="此效果会随时间衰减"
                                                     >
@@ -563,11 +563,11 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         <div className="mt-1.5 pt-1.5 border-t border-ancient-gold/10">
                                             <div className="flex items-center gap-1 mb-1.5">
                                                 <Icon name="Dices" size={10} className="text-yellow-400" />
-                                                <span className="text-[10px] text-yellow-400 font-medium font-sans">可能的额外效果</span>
+                                                <span className="text-xs text-yellow-400 font-medium font-sans">可能的额外效果</span>
                                             </div>
                                             {option.randomEffects.map((randomEffect, idx) => (
                                                 <div key={idx} className="mb-1.5 last:mb-0">
-                                                    <span className="text-[9px] text-yellow-300/70 font-medium font-sans">
+                                                    <span className="text-xs text-yellow-300/70 font-medium font-sans">
                                                         {Math.round(randomEffect.chance * 100)}% 概率：
                                                     </span>
                                                     <div className="flex flex-wrap gap-1 mt-0.5">
@@ -576,7 +576,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                             Object.entries(randomEffect.effects.resources).map(([resource, value]) => (
                                                                 <span
                                                                     key={`rand-res-${idx}-${resource}`}
-                                                                    className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                                                    className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
                                                                         } font-sans`}
                                                                 >
                                                                     <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
@@ -589,7 +589,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                             Object.entries(randomEffect.effects.resourcePercent).map(([resource, value]) => (
                                                                 <span
                                                                     key={`rand-res-pct-${idx}-${resource}`}
-                                                                    className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                                                    className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
                                                                         } font-sans`}
                                                                 >
                                                                     <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
@@ -600,7 +600,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                         {/* 随机效果 - 人口（固定值） */}
                                                         {randomEffect.effects.population && (
                                                             <span
-                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.population > 0
+                                                                className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${randomEffect.effects.population > 0
                                                                     ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
                                                                     } font-sans`}
                                                             >
@@ -612,7 +612,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                         {/* 随机效果 - 人口（百分比） */}
                                                         {randomEffect.effects.populationPercent && (
                                                             <span
-                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.populationPercent > 0
+                                                                className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${randomEffect.effects.populationPercent > 0
                                                                     ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
                                                                     } font-sans`}
                                                             >
@@ -624,7 +624,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                         {/* 随机效果 - 稳定度 */}
                                                         {randomEffect.effects.stability && (
                                                             <span
-                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.stability > 0
+                                                                className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${randomEffect.effects.stability > 0
                                                                     ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
                                                                     } font-sans`}
                                                             >
@@ -638,7 +638,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                             Object.entries(randomEffect.effects.approval).map(([stratum, value]) => (
                                                                 <span
                                                                     key={`rand-app-${idx}-${stratum}`}
-                                                                    className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-blue-900/30 text-blue-400 border border-blue-500/30' : 'bg-orange-900/30 text-orange-400 border border-orange-500/30'
+                                                                    className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${value > 0 ? 'bg-blue-900/30 text-blue-400 border border-blue-500/30' : 'bg-orange-900/30 text-orange-400 border border-orange-500/30'
                                                                         } font-sans`}
                                                                 >
                                                                     <Icon name={STRATA[stratum]?.icon || 'User'} size={9} />
@@ -703,7 +703,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                 <div className="glass-ancient rounded-lg p-2 border border-blue-500/20 font-sans">
                     <div className="flex items-start gap-2">
                         <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                        <p className="text-blue-300 text-[11px] leading-snug font-sans">
+                        <p className="text-blue-300 text-xs leading-snug font-sans">
                             点击选项进行选择，然后点击确认按钮执行。请仔细考虑每个选项的后果。
                         </p>
                     </div>

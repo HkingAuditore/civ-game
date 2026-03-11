@@ -37,14 +37,14 @@ const AchievementItem = ({ achievement, unlocked }) => (
             </div>
             <span
                 className={cn(
-                    'text-[10px] font-semibold',
+                    'text-xs font-semibold',
                     unlocked ? 'text-emerald-300' : 'text-gray-500'
                 )}
             >
                 {unlocked ? '已解锁' : '锁定中'}
             </span>
         </div>
-        <div className="mt-2 text-[10px] text-gray-300">
+        <div className="mt-2 text-xs text-gray-300">
             {achievement.description}
         </div>
     </div>
@@ -86,7 +86,7 @@ export const AchievementsModal = ({ isOpen, onClose, unlockedAchievements = [] }
                                         <h2 className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-ancient-gold via-yellow-400 to-orange-400">
                                             成就
                                         </h2>
-                                        <p className="text-[10px] text-gray-400 leading-tight">
+                                        <p className="text-xs text-gray-400 leading-tight">
                                             成就解锁与设备绑定，不随存档变化
                                         </p>
                                     </div>

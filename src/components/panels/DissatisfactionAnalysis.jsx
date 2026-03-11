@@ -105,7 +105,7 @@ export const DissatisfactionAnalysis = ({
                     <Icon name="BarChart2" size={14} className="text-gray-400" />
                     <span className="text-xs font-bold text-gray-300">{title}</span>
                 </div>
-                <span className="text-[10px] text-gray-400">
+                <span className="text-xs text-gray-400">
                     综合评估: <span className={overallAssessment.color}>{overallAssessment.text}</span>
                 </span>
             </div>
@@ -129,7 +129,7 @@ export const DissatisfactionAnalysis = ({
                                         <div className={`text-xs font-medium ${styles.text}`}>
                                             {source.label}
                                         </div>
-                                        <div className="text-[9px] text-gray-400">
+                                        <div className="text-xs text-gray-400">
                                             {source.detail}
                                         </div>
                                     </div>
@@ -139,7 +139,7 @@ export const DissatisfactionAnalysis = ({
                                         {severityText}
                                     </div>
                                     {(showContributionValue || showContributionPercent) && (
-                                        <div className="text-[9px] text-gray-400 font-mono leading-tight">
+                                        <div className="text-xs text-gray-400 font-mono leading-tight">
                                             {showContributionValue ? source.contribution.toFixed(2) : ''}
                                             {(showContributionValue && showContributionPercent) ? ' · ' : ''}
                                             {showContributionPercent ? `${percent}%` : ''}
@@ -162,13 +162,13 @@ export const DissatisfactionAnalysis = ({
                                     {source.resources.slice(0, 4).map((resource, ridx) => (
                                         <span
                                             key={ridx}
-                                            className="text-[8px] px-1 py-0.5 rounded bg-gray-700/50 text-gray-400"
+                                            className="text-xs px-1 py-0.5 rounded bg-gray-700/50 text-gray-400"
                                         >
                                             {resource}
                                         </span>
                                     ))}
                                     {source.resources.length > 4 && (
-                                        <span className="text-[8px] text-gray-500">
+                                        <span className="text-xs text-gray-500">
                                             +{source.resources.length - 4}
                                         </span>
                                     )}

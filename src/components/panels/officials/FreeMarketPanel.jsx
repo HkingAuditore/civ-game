@@ -67,7 +67,7 @@ const BuildingExpansionRow = ({
                 <Icon name={building.icon} size={16} className="text-amber-400" />
                 <div>
                     <div className="text-xs text-gray-200">{building.name}</div>
-                    <div className="text-[10px] text-gray-500">
+                    <div className="text-xs text-gray-500">
                         {ownerDef?.name || building.owner}
                     </div>
                 </div>
@@ -164,7 +164,7 @@ export const FreeMarketPanel = ({
                             setLocalSettings(newSettings);
                             setHasChanges(true);
                         }}
-                        className="px-2 py-0.5 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                        className="px-2 py-0.5 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
                     >
                         全选
                     </button>
@@ -177,7 +177,7 @@ export const FreeMarketPanel = ({
                             setLocalSettings(newSettings);
                             setHasChanges(true);
                         }}
-                        className="px-2 py-0.5 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                        className="px-2 py-0.5 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
                     >
                         全不选
                     </button>
@@ -191,7 +191,7 @@ export const FreeMarketPanel = ({
 
             {/* 建筑列表 */}
             <div className="space-y-0 max-h-64 overflow-y-auto">
-                <div className="flex items-center justify-between py-1 border-b border-gray-700/50 text-[10px] text-gray-500 sticky top-0 bg-gray-800/80 backdrop-blur-sm z-10">
+                <div className="flex items-center justify-between py-1 border-b border-gray-700/50 text-xs text-gray-500 sticky top-0 bg-gray-800/80 backdrop-blur-sm z-10">
                     <div className="flex items-center gap-2 flex-1">
                         <span className="pl-6">建筑</span>
                     </div>
@@ -222,7 +222,7 @@ export const FreeMarketPanel = ({
                 <div className="mt-3 p-2 bg-green-900/20 rounded border border-green-800/30">
                     <div className="text-xs text-green-400 font-bold mb-1">最近扩张</div>
                     {recentExpansions.slice(0, 3).map((exp, idx) => (
-                        <div key={idx} className="text-[10px] text-green-300">
+                        <div key={idx} className="text-xs text-green-300">
                             {BUILDINGS[exp.buildingId]?.name || exp.buildingId}
                             <span className="text-gray-500"> 由 {STRATA[exp.owner]?.name} 建造</span>
                         </div>

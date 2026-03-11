@@ -456,7 +456,7 @@ export const OfficialDetailModal = ({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {/* 存款 */}
                     <div className="rounded-lg border border-amber-700/40 bg-gradient-to-br from-amber-900/30 to-gray-900/50 p-3">
-                        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-400/80">
+                        <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-amber-400/80">
                             <Icon name="Vault" size={12} />
                             个人存款
                         </div>
@@ -466,31 +466,31 @@ export const OfficialDetailModal = ({
                     </div>
                     {/* 日收益 */}
                     <div className="rounded-lg border border-emerald-700/40 bg-gradient-to-br from-emerald-900/30 to-gray-900/50 p-3">
-                        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-emerald-400/80">
+                        <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-emerald-400/80">
                             <Icon name="TrendingUp" size={12} />
                             日收益
                         </div>
                         <div className={`mt-1 text-lg font-mono font-bold ${totalIncome >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                             {totalIncome >= 0 ? '+' : ''}{formatCost(totalIncome)}
                         </div>
-                        <div className="text-[9px] text-gray-500">
+                        <div className="text-xs text-gray-500">
                             薪俸{salary >= 0 ? salary : `(缴纳${Math.abs(salary)})`} + 产业{propertyIncome >= 0 ? '+' : ''}{formatCost(propertyIncome)}
                         </div>
                     </div>
                     {/* 日支出 */}
                     <div className="rounded-lg border border-orange-700/40 bg-gradient-to-br from-orange-900/30 to-gray-900/50 p-3">
-                        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-orange-400/80">
+                        <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-orange-400/80">
                             <Icon name="ShoppingBag" size={12} />
                             日支出
                         </div>
                         <div className="mt-1 text-lg font-mono font-bold text-orange-300">
                             {formatCost(totalExpense)}
                         </div>
-                        <div className="text-[9px] text-gray-500">奢侈消费 {formatCost(luxuryExpense)}</div>
+                        <div className="text-xs text-gray-500">奢侈消费 {formatCost(luxuryExpense)}</div>
                     </div>
                     {/* 忠诚度 */}
                     <div className="rounded-lg border border-gray-700/40 bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-3">
-                        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-gray-400">
+                        <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-gray-400">
                             <Icon name="Heart" size={12} />
                             忠诚度
                         </div>
@@ -501,18 +501,18 @@ export const OfficialDetailModal = ({
                             <div className={`h-full ${loyaltyBg} transition-all`} style={{ width: `${Math.min(100, loyalty)}%` }} />
                         </div>
                         {lowLoyaltyDays > 0 && (
-                            <div className="text-[9px] text-red-400 mt-1">⚠ 低忠诚 {lowLoyaltyDays} 天</div>
+                            <div className="text-xs text-red-400 mt-1">⚠ 低忠诚 {lowLoyaltyDays} 天</div>
                         )}
                     </div>
                 </div>
-                <div className="mt-2 rounded-lg border border-gray-700/40 bg-gray-900/40 p-2 text-[10px] text-gray-400">
+                <div className="mt-2 rounded-lg border border-gray-700/40 bg-gray-900/40 p-2 text-xs text-gray-400">
                     <div className="flex items-center justify-between">
                         <span>每日净变化</span>
                         <span className={`font-mono ${netChange >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                             {netChange >= 0 ? '+' : ''}{formatCost(netChange)}
                         </span>
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-2 text-[9px] text-gray-500">
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
                         <span>税 {formatCost(headTaxPaid)}</span>
                         <span>投资 {formatCost(investmentCost)}</span>
                         <span>升级 {formatCost(upgradeCost)}</span>
@@ -528,19 +528,19 @@ export const OfficialDetailModal = ({
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <div className="rounded-md border border-blue-700/40 bg-blue-900/20 p-2 text-center">
-                            <div className="text-[10px] text-blue-300">行政</div>
+                            <div className="text-xs text-blue-300">行政</div>
                             <div className="text-sm font-mono text-blue-200">{adminValue}</div>
                         </div>
                         <div className="rounded-md border border-red-700/40 bg-red-900/20 p-2 text-center">
-                            <div className="text-[10px] text-red-300">军事</div>
+                            <div className="text-xs text-red-300">军事</div>
                             <div className="text-sm font-mono text-red-200">{militaryValue}</div>
                         </div>
                         <div className="rounded-md border border-green-700/40 bg-green-900/20 p-2 text-center">
-                            <div className="text-[10px] text-green-300">外交</div>
+                            <div className="text-xs text-green-300">外交</div>
                             <div className="text-sm font-mono text-green-200">{diplomacyValue}</div>
                         </div>
                         <div className="rounded-md border border-purple-700/40 bg-purple-900/20 p-2 text-center">
-                            <div className="text-[10px] text-purple-300">威望</div>
+                            <div className="text-xs text-purple-300">威望</div>
                             <div className="text-sm font-mono text-purple-200">{prestigeValue}</div>
                         </div>
                     </div>
@@ -555,14 +555,14 @@ export const OfficialDetailModal = ({
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {loyaltyReasons.map((r, i) => (
-                                <div key={i} className={`px-2 py-1 rounded text-[10px] ${r.positive ? 'bg-green-900/40 text-green-300 border-green-700/50' : 'bg-red-900/40 text-red-300 border-red-700/50'} border`}>
+                                <div key={i} className={`px-2 py-1 rounded text-xs ${r.positive ? 'bg-green-900/40 text-green-300 border-green-700/50' : 'bg-red-900/40 text-red-300 border-red-700/50'} border`}>
                                     {r.text} <span className="font-mono">{r.value > 0 ? '+' : ''}{r.value.toFixed(2)}/日</span>
                                 </div>
                             ))}
                         </div>
                         {/* 净变化汇总 */}
                         <div className="mt-2 pt-2 border-t border-gray-700/50 flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400">每日净变化:</span>
+                            <span className="text-xs text-gray-400">每日净变化:</span>
                             <span className={`font-mono text-xs ${loyaltyReasons.reduce((sum, r) => sum + r.value, 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 {loyaltyReasons.reduce((sum, r) => sum + r.value, 0) > 0 ? '+' : ''}{loyaltyReasons.reduce((sum, r) => sum + r.value, 0).toFixed(2)}/日
                             </span>
@@ -581,7 +581,7 @@ export const OfficialDetailModal = ({
                             {(stance.issues || []).map(issueId => {
                                 const issue = POLITICAL_ISSUES[issueId];
                                 return issue ? (
-                                    <span key={issueId} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-800/60 text-gray-300 border border-gray-600/50">
+                                    <span key={issueId} className="px-1.5 py-0.5 rounded text-xs bg-gray-800/60 text-gray-300 border border-gray-600/50">
                                         {issue.name}
                                     </span>
                                 ) : null;
@@ -589,26 +589,26 @@ export const OfficialDetailModal = ({
                         </div>
                         {/* 触发条件 - 使用官员的 stanceConditionText */}
                         {official?.stanceConditionText && (
-                            <div className="text-[11px] text-gray-300 mb-2 p-2 rounded bg-gray-800/50 border border-gray-700/50">
+                            <div className="text-xs text-gray-300 mb-2 p-2 rounded bg-gray-800/50 border border-gray-700/50">
                                 <span className="font-semibold text-amber-400">触发条件：</span>
                                 <span className="ml-1">{official.stanceConditionText}</span>
                             </div>
                         )}
                         {/* 备选：使用 stance.condition?.description */}
                         {!official?.stanceConditionText && stance.condition?.description && (
-                            <div className="text-[11px] text-gray-400 mb-2">
+                            <div className="text-xs text-gray-400 mb-2">
                                 <span className="font-semibold">政治主张：</span> {stance.condition.description}
                             </div>
                         )}
                         {derivedStanceSatisfied !== null && (
-                            <div className={`text-[11px] font-semibold mb-2 ${derivedStanceSatisfied ? 'text-green-400' : 'text-red-400'}`}>
+                            <div className={`text-xs font-semibold mb-2 ${derivedStanceSatisfied ? 'text-green-400' : 'text-red-400'}`}>
                                 {derivedStanceSatisfied ? '✓ 主张已满足' : '✗ 主张未满足'}
                             </div>
                         )}
                         {/* 满足时效果 */}
                         {stanceActiveEffects && Object.keys(stanceActiveEffects).length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700/50">
-                                <div className="text-[10px] text-green-400/80 mb-1">满足时效果：</div>
+                                <div className="text-xs text-green-400/80 mb-1">满足时效果：</div>
                                 <div className="flex flex-wrap gap-1">
                                     {Object.entries(stanceActiveEffects).flatMap(([key, val]) => {
                                         const effectName = EFFECT_NAMES[key] || key;
@@ -618,7 +618,7 @@ export const OfficialDetailModal = ({
                                                 const targetName = getTargetDisplayName(target);
                                                 const displayVal = `${v > 0 ? '+' : ''}${v}`;
                                                 return (
-                                                    <span key={`${key}-${target}`} className="px-1.5 py-0.5 rounded text-[10px] bg-green-900/40 text-green-300 border border-green-700/40">
+                                                    <span key={`${key}-${target}`} className="px-1.5 py-0.5 rounded text-xs bg-green-900/40 text-green-300 border border-green-700/40">
                                                         {effectName}: {targetName} {displayVal}
                                                     </span>
                                                 );
@@ -637,7 +637,7 @@ export const OfficialDetailModal = ({
                                                 : `${val > 0 ? '+' : ''}${val}`;
                                         }
                                         return (
-                                            <span key={key} className="px-1.5 py-0.5 rounded text-[10px] bg-green-900/40 text-green-300 border border-green-700/40">
+                                            <span key={key} className="px-1.5 py-0.5 rounded text-xs bg-green-900/40 text-green-300 border border-green-700/40">
                                                 {effectName} {displayVal}
                                             </span>
                                         );
@@ -648,7 +648,7 @@ export const OfficialDetailModal = ({
                         {/* 未满足时效果 */}
                         {stanceFailureEffects && Object.keys(stanceFailureEffects).length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700/50">
-                                <div className="text-[10px] text-red-400/80 mb-1">未满足时惩罚：</div>
+                                <div className="text-xs text-red-400/80 mb-1">未满足时惩罚：</div>
                                 <div className="flex flex-wrap gap-1">
                                     {Object.entries(stanceFailureEffects).flatMap(([key, val]) => {
                                         const effectName = EFFECT_NAMES[key] || key;
@@ -658,7 +658,7 @@ export const OfficialDetailModal = ({
                                                 const targetName = getTargetDisplayName(target);
                                                 const displayVal = `${v > 0 ? '+' : ''}${v}`;
                                                 return (
-                                                    <span key={`${key}-${target}`} className="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-300 border border-red-700/40">
+                                                    <span key={`${key}-${target}`} className="px-1.5 py-0.5 rounded text-xs bg-red-900/40 text-red-300 border border-red-700/40">
                                                         {effectName}: {targetName} {displayVal}
                                                     </span>
                                                 );
@@ -677,7 +677,7 @@ export const OfficialDetailModal = ({
                                                 : `${val > 0 ? '+' : ''}${val}`;
                                         }
                                         return (
-                                            <span key={key} className="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-300 border border-red-700/40">
+                                            <span key={key} className="px-1.5 py-0.5 rounded text-xs bg-red-900/40 text-red-300 border border-red-700/40">
                                                 {effectName} {displayVal}
                                             </span>
                                         );
@@ -698,7 +698,7 @@ export const OfficialDetailModal = ({
                         <div className="space-y-1">
                             {/* 阶层影响力加成 */}
                             {official.stratumInfluenceBonus > 0 && (
-                                <div className="flex items-center gap-1 text-[11px] text-purple-300">
+                                <div className="flex items-center gap-1 text-xs text-purple-300">
                                     <Icon name="Users" size={12} className="text-purple-400" />
                                     <span>{stratumDef?.name || '阶层'}影响力 +{(official.stratumInfluenceBonus * 100).toFixed(0)}%</span>
                                 </div>
@@ -728,7 +728,7 @@ export const OfficialDetailModal = ({
                                             : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
                                         const isGood = getEffectStatus(type, value);
                                         return (
-                                            <div key={`${type}-${target}`} className={`flex items-center gap-1 text-[11px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>
+                                            <div key={`${type}-${target}`} className={`flex items-center gap-1 text-xs ${isGood ? 'text-green-300' : 'text-red-300'}`}>
                                                 <Icon name={isGood ? "Plus" : "Minus"} size={12} className={isGood ? "text-green-500" : "text-red-500"} />
                                                 <span>{EFFECT_NAMES[type] || type} ({targetName}) {displayVal}</span>
                                             </div>
@@ -742,7 +742,7 @@ export const OfficialDetailModal = ({
                                         : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
                                     const isGood = getEffectStatus(type, value);
                                     return (
-                                        <div key={type} className={`flex items-center gap-1 text-[11px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>
+                                        <div key={type} className={`flex items-center gap-1 text-xs ${isGood ? 'text-green-300' : 'text-red-300'}`}>
                                             <Icon name={isGood ? "Plus" : "Minus"} size={12} className={isGood ? "text-green-500" : "text-red-500"} />
                                             <span>{EFFECT_NAMES[type] || type} {displayVal}</span>
                                         </div>
@@ -765,14 +765,14 @@ export const OfficialDetailModal = ({
                     {propertyRows.length > 0 ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                             {propertyRows.map(row => (
-                                <div key={row.buildingId} className="flex items-center justify-between text-[11px] text-gray-300 px-2 py-1 bg-gray-800/40 rounded">
+                                <div key={row.buildingId} className="flex items-center justify-between text-xs text-gray-300 px-2 py-1 bg-gray-800/40 rounded">
                                     <span>{row.buildingName}</span>
                                     <span className="text-emerald-300">×{row.count}</span>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="text-[11px] text-gray-500">暂无产业持有</div>
+                        <div className="text-xs text-gray-500">暂无产业持有</div>
                     )}
                 </div>
 
@@ -783,7 +783,7 @@ export const OfficialDetailModal = ({
                             <Icon name="LineChart" size={14} />
                             私产利润明细
                         </div>
-                        <span className="text-[9px] text-gray-500">按本tick实际结算</span>
+                        <span className="text-xs text-gray-500">按本tick实际结算</span>
                     </div>
                     {propertyProfitRows.length > 0 ? (
                         <div className="space-y-1">
@@ -791,24 +791,24 @@ export const OfficialDetailModal = ({
                                 const avg = row.perBuildingProfit;
                                 const profitColor = row.profit >= 0 ? 'text-emerald-300' : 'text-red-300';
                                 return (
-                                    <div key={`profit-${row.buildingId}`} className="flex items-center justify-between text-[11px] text-gray-300 px-2 py-1 bg-gray-800/40 rounded">
+                                    <div key={`profit-${row.buildingId}`} className="flex items-center justify-between text-xs text-gray-300 px-2 py-1 bg-gray-800/40 rounded">
                                         <span>{row.buildingName} ×{row.count}</span>
                                         {row.hasActual ? (
                                             <span className={`font-mono ${profitColor}`}>
                                                 {row.profit >= 0 ? '+' : ''}{formatCost(row.profit)} /日
-                                                <span className="text-[9px] text-gray-500 ml-2">
+                                                <span className="text-xs text-gray-500 ml-2">
                                                     均 {avg >= 0 ? '+' : ''}{formatCost(avg)}
                                                 </span>
                                             </span>
                                         ) : (
-                                            <span className="text-[9px] text-gray-500">无实际数据</span>
+                                            <span className="text-xs text-gray-500">无实际数据</span>
                                         )}
                                     </div>
                                 );
                             })}
                         </div>
                     ) : (
-                        <div className="text-[11px] text-gray-500">暂无利润明细</div>
+                        <div className="text-xs text-gray-500">暂无利润明细</div>
                     )}
                 </div>
  */}
@@ -818,7 +818,7 @@ export const OfficialDetailModal = ({
                         <Icon name="Coins" size={14} />
                         薪俸设置
                         {salary < 0 && (
-                            <span className="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-700/50">
+                            <span className="text-xs text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-700/50">
                                 💰 负薪酬：官员每日向国库缴纳 {Math.abs(salary)} 银
                             </span>
                         )}
@@ -879,7 +879,7 @@ export const OfficialDetailModal = ({
                         </summary>
                         <div className="px-3 pb-3 space-y-1">
                             {expenseRows.map(row => (
-                                <div key={row.resource} className="flex items-center justify-between text-[11px] text-gray-300">
+                                <div key={row.resource} className="flex items-center justify-between text-xs text-gray-300">
                                     <span>{row.name} × {row.amount.toFixed(2)}</span>
                                     <span className="font-mono text-amber-200">{formatCost(row.cost)}</span>
                                 </div>

@@ -119,7 +119,7 @@ export const UnitDetailSheet = ({
         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
           <div className="flex items-center gap-1 mb-0.5">
             <Icon name="Sword" size={12} className="text-red-400" />
-            <span className="text-[9px] text-gray-400 leading-none">攻击</span>
+            <span className="text-xs text-gray-400 leading-none">攻击</span>
           </div>
           <div className="text-sm font-bold text-white font-mono leading-none">{unit.attack}</div>
         </div>
@@ -128,7 +128,7 @@ export const UnitDetailSheet = ({
         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
           <div className="flex items-center gap-1 mb-0.5">
             <Icon name="Shield" size={12} className="text-blue-400" />
-            <span className="text-[9px] text-gray-400 leading-none">防御</span>
+            <span className="text-xs text-gray-400 leading-none">防御</span>
           </div>
           <div className="text-sm font-bold text-white font-mono leading-none">{unit.defense}</div>
         </div>
@@ -137,7 +137,7 @@ export const UnitDetailSheet = ({
         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
           <div className="flex items-center gap-1 mb-0.5">
             <Icon name="Target" size={12} className="text-green-400" />
-            <span className="text-[9px] text-gray-400 leading-none">射程</span>
+            <span className="text-xs text-gray-400 leading-none">射程</span>
           </div>
           <div className="text-sm font-bold text-green-300 font-mono leading-none">{unit.range || 1}</div>
         </div>
@@ -146,7 +146,7 @@ export const UnitDetailSheet = ({
         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
           <div className="flex items-center gap-1 mb-0.5">
             <Icon name="Clock" size={12} className="text-purple-400" />
-            <span className="text-[9px] text-gray-400 leading-none">训练</span>
+            <span className="text-xs text-gray-400 leading-none">训练</span>
           </div>
           <div className="text-sm font-bold text-purple-300 font-mono leading-none">{unit.trainingTime}天</div>
         </div>
@@ -154,7 +154,7 @@ export const UnitDetailSheet = ({
 
       {/* 克制关系 */}
       <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+        <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
           <Icon name="Swords" size={12} className="text-yellow-400" />
           克制关系
         </h3>
@@ -163,7 +163,7 @@ export const UnitDetailSheet = ({
           <div className="bg-gray-800/40 rounded px-2 py-1.5">
             <div className="flex items-center gap-1 mb-1">
               <Icon name="ChevronUp" size={12} className="text-green-400" />
-              <span className="text-[9px] text-gray-400">克制</span>
+              <span className="text-xs text-gray-400">克制</span>
             </div>
             <div className="text-xs">
               {unit.counters && Object.keys(unit.counters).length > 0 ? (
@@ -184,7 +184,7 @@ export const UnitDetailSheet = ({
           <div className="bg-gray-800/40 rounded px-2 py-1.5">
             <div className="flex items-center gap-1 mb-1">
               <Icon name="ChevronDown" size={12} className="text-red-400" />
-              <span className="text-[9px] text-gray-400">被克制</span>
+              <span className="text-xs text-gray-400">被克制</span>
             </div>
             <div className="text-xs">
               {unit.weakAgainst && unit.weakAgainst.length > 0 ? (
@@ -207,13 +207,13 @@ export const UnitDetailSheet = ({
       {/* 特殊能力 */}
       {unit.abilities && unit.abilities.length > 0 && (
         <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-          <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+          <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
             <Icon name="Star" size={12} className="text-amber-400" />
             特殊能力
           </h3>
           <div className="flex flex-wrap gap-1">
             {unit.abilities.map((ability, index) => (
-              <span key={index} className="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full border border-amber-500/30">
+              <span key={index} className="bg-amber-500/20 text-amber-300 text-xs px-2 py-0.5 rounded-full border border-amber-500/30">
                 {ability}
               </span>
             ))}
@@ -223,7 +223,7 @@ export const UnitDetailSheet = ({
 
       {/* 招募成本 */}
       <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+        <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
           <Icon name="Package" size={12} className="text-amber-400" />
           招募成本
         </h3>
@@ -261,7 +261,7 @@ export const UnitDetailSheet = ({
 
       {/* 维护成本 */}
       <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+        <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
           <Icon name="TrendingDown" size={12} className="text-red-400" />
           维护成本（每日）
         </h3>
@@ -280,21 +280,21 @@ export const UnitDetailSheet = ({
                 const isAffordable = (resources[resource] || 0) >= cost;
                 return (
                   <div key={resource} className="flex items-center justify-between">
-                    <span className="flex items-center gap-1 text-[10px] text-gray-300">
+                    <span className="flex items-center gap-1 text-xs text-gray-300">
                       <Icon name={resourceInfo.icon || 'Package'} size={10} className={resourceInfo.color || 'text-gray-400'} />
                       {resourceInfo.name}
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className={`text-[10px] font-mono ${isAffordable ? 'text-gray-300' : 'text-red-400'}`}>
+                      <span className={`text-xs font-mono ${isAffordable ? 'text-gray-300' : 'text-red-400'}`}>
                         -{formatNumberShortCN(cost, { decimals: 1 })}/日
                       </span>
                       {resource !== 'silver' && (
-                        <span className="text-yellow-400/70 text-[9px] font-mono">
+                        <span className="text-yellow-400/70 text-xs font-mono">
                           ≈{formatNumberShortCN(silverValue, { decimals: 1 })}<Icon name="Coins" size={8} className="inline ml-0.5" />
                         </span>
                       )}
                       {resource === 'silver' && (
-                        <span className="text-yellow-400/70 text-[9px] font-mono">
+                        <span className="text-yellow-400/70 text-xs font-mono">
                           ×{militaryWageRatio.toFixed(1)}
                         </span>
                       )}
@@ -307,7 +307,7 @@ export const UnitDetailSheet = ({
                 <>
                   {resourceItems}
                   <div className="flex items-center justify-between pt-1.5 mt-1.5 border-t border-gray-700/50">
-                    <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
                       <Icon name="Coins" size={10} className="text-yellow-400" />
                       资源折算
                     </span>
@@ -325,7 +325,7 @@ export const UnitDetailSheet = ({
       {/* 单位描述 */}
       {unit.desc && (
         <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-          <h3 className="text-[10px] font-bold text-white mb-1 flex items-center gap-1">
+          <h3 className="text-xs font-bold text-white mb-1 flex items-center gap-1">
             <Icon name="Info" size={12} className="text-blue-400" />
             单位说明
           </h3>
@@ -344,7 +344,7 @@ export const UnitDetailSheet = ({
         </div>
         {unit.populationCost && unit.populationCost > 1 && (
           <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-700">
-            <span className="text-[9px] text-gray-400">人口占用</span>
+            <span className="text-xs text-gray-400">人口占用</span>
             <span className="text-xs text-white font-mono">{unit.populationCost} 人/单位</span>
           </div>
         )}

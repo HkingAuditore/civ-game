@@ -30,7 +30,7 @@ const AchievementToastItem = ({ notification, onDismiss }) => {
             <div className="flex-1">
                 <div className="text-xs font-bold text-ancient-gold">成就解锁</div>
                 <div className="text-sm font-semibold text-white">{notification.name}</div>
-                <div className="text-[10px] text-gray-300">{notification.description}</div>
+                <div className="text-xs text-gray-300">{notification.description}</div>
             </div>
         </motion.div>
     );

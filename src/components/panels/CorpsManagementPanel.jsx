@@ -88,7 +88,7 @@ const QuantityStepper = memo(({ value, min = 0, max, onChange, unitName }) => {
         <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
             {/* 清零按钮 */}
             <button
-                className="w-5 h-6 flex items-center justify-center text-[9px] text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 rounded transition-colors"
+                className="w-5 h-6 flex items-center justify-center text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 rounded transition-colors"
                 onClick={handleClear}
                 title="清零"
             >
@@ -122,7 +122,7 @@ const QuantityStepper = memo(({ value, min = 0, max, onChange, unitName }) => {
             </button>
             {/* 全部按钮 */}
             <button
-                className="h-6 px-1.5 flex items-center justify-center text-[9px] text-ancient-gold/70 hover:text-ancient-gold hover:bg-ancient-gold/10 rounded transition-colors"
+                className="h-6 px-1.5 flex items-center justify-center text-xs text-ancient-gold/70 hover:text-ancient-gold hover:bg-ancient-gold/10 rounded transition-colors"
                 onClick={handleMax}
                 title={`全部 (${max})`}
             >
@@ -379,7 +379,7 @@ const CorpsManagementPanel = ({
                                 return detail ? (
                                     <span key={t} className="px-1 py-0.5 bg-gray-800 rounded text-gray-300">
                                         {detail.name}
-                                        <span className="ml-0.5 text-gray-500 text-[9px]">{detail.desc}</span>
+                                        <span className="ml-0.5 text-gray-500 text-xs">{detail.desc}</span>
                                     </span>
                                 ) : null;
                             })}
@@ -393,7 +393,7 @@ const CorpsManagementPanel = ({
                                 {unitCount > 0 && (
                                     <div className="mt-1 flex flex-wrap gap-1">
                                         {Object.entries(corps.units).map(([uid, count]) => (
-                                            <span key={uid} className="text-[10px] px-1.5 py-0.5 bg-gray-800/60 rounded text-gray-300">
+                                            <span key={uid} className="text-xs px-1.5 py-0.5 bg-gray-800/60 rounded text-gray-300">
                                                 {UNIT_TYPES[uid]?.name || uid} ×{count}
                                             </span>
                                         ))}
@@ -480,7 +480,7 @@ const CorpsManagementPanel = ({
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-ancient-parchment">{general.name} (Lv.{general.level})</span>
                                                     <button
-                                                        className="px-2 py-0.5 text-[10px] bg-gray-700 border border-gray-600 rounded text-gray-300"
+                                                        className="px-2 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-300"
                                                         onClick={(e) => { e.stopPropagation(); handleUnassignGeneral(general.id); }}
                                                     >
                                                         卸任
@@ -492,7 +492,7 @@ const CorpsManagementPanel = ({
                                         <div key={g.id} className="flex items-center justify-between text-xs">
                                             <span className="text-gray-300">{g.name} (Lv.{g.level})</span>
                                             <button
-                                                className="px-2 py-0.5 text-[10px] bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment"
+                                                className="px-2 py-0.5 text-xs bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment"
                                                 onClick={(e) => { e.stopPropagation(); handleAssignGeneral(g.id, corps.id); }}
                                             >
                                                 指派
@@ -500,7 +500,7 @@ const CorpsManagementPanel = ({
                                         </div>
                                     ))}
                                     {playerGenerals.filter(g => !g.assignedCorpsId).length === 0 && (
-                                        <span className="text-[10px] text-gray-500">无可用将领</span>
+                                        <span className="text-xs text-gray-500">无可用将领</span>
                                     )}
                                                 </div>
                                             )}
@@ -533,7 +533,7 @@ const CorpsManagementPanel = ({
                         <div className="flex items-center justify-between mb-1">
                             <p className="text-xs text-gray-400">选择一位官员担任将领</p>
                             <button
-                                className="text-[10px] text-gray-500 hover:text-gray-300"
+                                className="text-xs text-gray-500 hover:text-gray-300"
                                 onClick={() => setShowOfficialPicker(false)}
                             >
                                 取消
@@ -549,7 +549,7 @@ const CorpsManagementPanel = ({
                             });
                             if (availableOfficials.length === 0) {
                                 return (
-                                    <p className="text-[10px] text-yellow-400 text-center py-2">
+                                    <p className="text-xs text-yellow-400 text-center py-2">
                                         没有合适官员可担任将领。建议先在行政面板录用具备军事能力的官员。
                                     </p>
                                 );
@@ -563,20 +563,20 @@ const CorpsManagementPanel = ({
                                             <div key={o.id} className="flex items-center justify-between bg-gray-800/50 rounded px-2 py-1">
                                                 <div className="flex items-center gap-2 text-xs">
                                                     <span className="text-ancient-parchment font-bold">{o.name}</span>
-                                                    <span className="text-[10px] text-gray-500">
+                                                    <span className="text-xs text-gray-500">
                                                         {o.sourceStratum || '未知'}出身
                                                     </span>
-                                                    <span className="text-[10px] text-blue-300" title="军事属性">
+                                                    <span className="text-xs text-blue-300" title="军事属性">
                                                         军{milStat}
                                                     </span>
                                                     {milBonus > 0 && (
-                                                        <span className="text-[10px] text-green-400">
+                                                        <span className="text-xs text-green-400">
                                                             军事+{(milBonus * 100).toFixed(0)}%
                                                         </span>
                                                     )}
                                                 </div>
                                                 <button
-                                                    className="px-2 py-0.5 text-[10px] bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment hover:bg-ancient-gold/30"
+                                                    className="px-2 py-0.5 text-xs bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment hover:bg-ancient-gold/30"
                                                     onClick={() => handleSelectOfficialAsGeneral(o)}
                                                 >
                                                     选拔
@@ -602,15 +602,15 @@ const CorpsManagementPanel = ({
                                     <div className="flex items-center gap-2">
                                         <Icon name="Star" size={12} className="text-yellow-400" />
                                         <span className="text-xs text-ancient-parchment font-bold">{gen.name}</span>
-                                        <span className="text-[10px] text-gray-400">Lv.{gen.level}</span>
+                                        <span className="text-xs text-gray-400">Lv.{gen.level}</span>
                                         {traits.map(t => (
-                                            <span key={t.id} className="text-[10px] px-1 py-0.5 bg-gray-800 rounded text-gray-300">
+                                            <span key={t.id} className="text-xs px-1 py-0.5 bg-gray-800 rounded text-gray-300">
                                                 {t.name}
-                                                <span className="ml-0.5 text-gray-500 text-[9px]">{t.desc}</span>
+                                                <span className="ml-0.5 text-gray-500 text-xs">{t.desc}</span>
                                             </span>
                                         ))}
                                     </div>
-                                    <div className="text-[10px] text-gray-500">
+                                    <div className="text-xs text-gray-500">
                                         {assignedCorps ? `指派至: ${assignedCorps.name}` : '待命'}
                                     </div>
                                 </div>

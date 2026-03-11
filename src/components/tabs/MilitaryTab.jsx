@@ -126,7 +126,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
             <p className="text-xs text-gray-400 mb-2">{unit.type}</p>
 
             <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2">
-                <div className="text-[10px] text-gray-400 mb-1">单位属性</div>
+                <div className="text-xs text-gray-400 mb-1">单位属性</div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-1"><Icon name="Sword" size={12} className="text-red-400" /><span className="text-gray-300">攻击:</span><span className="text-white">{unit.attack}</span></div>
                     <div className="flex items-center gap-1"><Icon name="Shield" size={12} className="text-blue-400" /><span className="text-gray-300">防御:</span><span className="text-white">{unit.defense}</span></div>
@@ -134,11 +134,11 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
                 </div>
                 {/* 资源维护费 */}
                 <div className="text-xs mt-2 pt-2 border-t border-gray-700">
-                    <div className="text-[10px] text-gray-400 mb-1">每日维护:</div>
+                    <div className="text-xs text-gray-400 mb-1">每日维护:</div>
                     <div className="flex flex-wrap gap-1">
                         {Object.entries(unit.maintenanceCost || {}).map(([res, cost]) => (
                             cost > 0 && (
-                                <span key={res} className="text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-300">
+                                <span key={res} className="text-xs px-1.5 py-0.5 bg-gray-800 rounded text-gray-300">
                                     {RESOURCES[res]?.name || res}: -{formatNumberShortCN(cost, { decimals: 1 })}
                                 </span>
                             )
@@ -155,12 +155,12 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
             {/* Counter relations */}
             {(Object.keys(unit.counters || {}).length > 0 || (unit.weakAgainst || []).length > 0) && (
                 <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2">
-                    <div className="text-[10px] text-gray-400 mb-1">克制关系</div>
+                    <div className="text-xs text-gray-400 mb-1">克制关系</div>
                     {Object.keys(unit.counters || {}).length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-1">
-                            <span className="text-[10px] text-green-400">克制:</span>
+                            <span className="text-xs text-green-400">克制:</span>
                             {Object.entries(unit.counters).map(([cat, mult]) => (
-                                <span key={cat} className="text-[10px] px-1.5 py-0.5 bg-green-900/40 rounded text-green-300">
+                                <span key={cat} className="text-xs px-1.5 py-0.5 bg-green-900/40 rounded text-green-300">
                                     {UNIT_CATEGORIES[cat]?.name || cat} +{Math.round((mult - 1) * 100)}%
                                 </span>
                             ))}
@@ -168,9 +168,9 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
                     )}
                     {(unit.weakAgainst || []).length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                            <span className="text-[10px] text-red-400">弱于:</span>
+                            <span className="text-xs text-red-400">弱于:</span>
                             {unit.weakAgainst.map((cat) => (
-                                <span key={cat} className="text-[10px] px-1.5 py-0.5 bg-red-900/40 rounded text-red-300">
+                                <span key={cat} className="text-xs px-1.5 py-0.5 bg-red-900/40 rounded text-red-300">
                                     {UNIT_CATEGORIES[cat]?.name || cat}
                                 </span>
                             ))}
@@ -202,7 +202,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
             </div>
 
             <div className="bg-gray-900/50 rounded px-2 py-1.5">
-                <div className="text-[10px] text-gray-400 mb-1">招募成本</div>
+                <div className="text-xs text-gray-400 mb-1">招募成本</div>
                 {Object.entries(unit.recruitCost).map(([resource, cost]) => (
                     <div key={resource} className="flex justify-between text-xs">
                         <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
@@ -394,8 +394,11 @@ const MilitaryTabComponent = ({
         }, {});
     }, [militaryQueue]);
 
-    const targetEntries = Object.entries(targetArmyComposition || {}).filter(([, value]) => (value ?? 0) > 0);
-    targetEntries.sort(([a], [b]) => (UNIT_TYPES[a]?.epoch || 0) - (UNIT_TYPES[b]?.epoch || 0));
+    const targetEntries = useMemo(() => {
+        const entries = Object.entries(targetArmyComposition || {}).filter(([, value]) => (value ?? 0) > 0);
+        entries.sort(([a], [b]) => (UNIT_TYPES[a]?.epoch || 0) - (UNIT_TYPES[b]?.epoch || 0));
+        return entries;
+    }, [targetArmyComposition]);
 
     const mutateTargetComposition = (mutator) => {
         if (!onUpdateTargetComposition) return;
@@ -528,56 +531,59 @@ const MilitaryTabComponent = ({
     const totalPopulationCost = totalArmyPopulation + queuePopulation;
 
     // 计算军事容量
-    let militaryCapacity = 0;
-    Object.entries(buildings).forEach(([buildingId, count]) => {
-        const building = BUILDINGS.find(b => b.id === buildingId);
-        if (building && building.output?.militaryCapacity) {
-            militaryCapacity += building.output.militaryCapacity * count;
-        }
-    });
+    const militaryCapacity = useMemo(() => {
+        let cap = 0;
+        Object.entries(buildings).forEach(([buildingId, count]) => {
+            const building = BUILDINGS.find(b => b.id === buildingId);
+            if (building && building.output?.militaryCapacity) {
+                cap += building.output.militaryCapacity * count;
+            }
+        });
+        return cap;
+    }, [buildings]);
 
     // [FIX] 使用合并后的 allMilitaryUnits 计算维护费（包含军团内的单位）
-    const maintenance = calculateArmyMaintenance(allMilitaryUnits);
+    const maintenance = useMemo(() => calculateArmyMaintenance(allMilitaryUnits), [allMilitaryUnits]);
     // 新军费计算系统：完整军费包含资源成本、时代加成、规模惩罚
-    const totalFoodNeed = calculateArmyFoodNeed(allMilitaryUnits);
+    const totalFoodNeed = useMemo(() => calculateArmyFoodNeed(allMilitaryUnits), [allMilitaryUnits]);
 
     // [FIX] Use simulation data from window (unified with StatusBar and financial panel)
     // This ensures MilitaryTab shows the same military expense as the financial panel,
     // which includes difficulty multiplier and wartime multiplier from simulation.js
     const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
     // [FIX] Fallback uses allMilitaryUnits so corps units are included in cost estimate
-    const armyExpenseData = propArmyExpenseData || simulationMilitaryExpense || calculateTotalArmyExpense(
+    const armyExpenseData = useMemo(() => propArmyExpenseData || simulationMilitaryExpense || calculateTotalArmyExpense(
         allMilitaryUnits,
         market?.prices || {},
         epoch,
         _population || 100,
         militaryWageRatio
-    );
+    ), [propArmyExpenseData, simulationMilitaryExpense, allMilitaryUnits, market?.prices, epoch, _population, militaryWageRatio]);
     const totalWage = armyExpenseData.dailyExpense;
     // [FIX] 战斗力计算包含军团内的单位
-    const playerPower = calculateBattlePower(allMilitaryUnits, epoch, militaryBonus);
+    const playerPower = useMemo(() => calculateBattlePower(allMilitaryUnits, epoch, militaryBonus), [allMilitaryUnits, epoch, militaryBonus]);
     // 只显示可见且处于战争状态的国家
-    const warringNations = (nations || []).filter((nation) =>
+    const warringNations = useMemo(() => (nations || []).filter((nation) =>
         nation.isAtWar &&
         epoch >= (nation.appearEpoch ?? 0) &&
         (nation.expireEpoch == null || epoch <= nation.expireEpoch)
-    );
+    ), [nations, epoch]);
     const activeNation =
         warringNations.find((nation) => nation.id === selectedTarget) || warringNations[0] || null;
-    const playerActiveFronts = (activeFronts || []).filter(front =>
+    const playerActiveFronts = useMemo(() => (activeFronts || []).filter(front =>
         front?.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player')
-    );
-    const playerAdvancingFronts = playerActiveFronts.filter(front => {
+    ), [activeFronts]);
+    const playerAdvancingFronts = useMemo(() => playerActiveFronts.filter(front => {
         const linePos = Number.isFinite(front?.linePosition) ? front.linePosition : 50;
         const control = front.attackerId === 'player' ? linePos : (100 - linePos);
         return control > 60;
-    }).length;
-    const frontlineEconomicPressure = playerActiveFronts.reduce((sum, front) => {
+    }).length, [playerActiveFronts]);
+    const frontlineEconomicPressure = useMemo(() => playerActiveFronts.reduce((sum, front) => {
         const impact = calculateFrontEconomicImpact(front, 'player');
         const productionPenalty = Number(impact?.productionPenalty || 0) * 100;
         const incomePenalty = Number(impact?.incomePenalty || 0) / 100;
         return sum + productionPenalty + incomePenalty;
-    }, 0);
+    }, 0), [playerActiveFronts]);
 
     React.useEffect(() => {
         if (!activeNation && warringNations.length > 0 && onSelectTarget) {
@@ -747,7 +753,7 @@ const MilitaryTabComponent = ({
                                     <span className="text-xs text-gray-400">人口占用</span>
                                 </div>
 <p className="text-base font-bold text-cyan-400">{totalPopulationCost}</p>
-                                <p className="text-[10px] text-gray-500">现役 {totalArmyPopulation} + 训练 {queuePopulation}</p>
+                                <p className="text-xs text-gray-500">现役 {totalArmyPopulation} + 训练 {queuePopulation}</p>
                             </div>
 
                             {/* 军事容量 */}
@@ -775,14 +781,9 @@ const MilitaryTabComponent = ({
                         {(() => {
                             const unlockedMaintenance = filterUnlockedResources(maintenance, epoch, techsUnlocked);
                             const prices = market?.prices || {};
-                            // Calculate total daily cost in silver
                             let totalDailyCost = 0;
                             Object.entries(unlockedMaintenance).forEach(([resource, cost]) => {
-                                if (resource === 'silver') {
-                                    totalDailyCost += cost;
-                                } else {
-                                    totalDailyCost += cost * (prices[resource] || 1);
-                                }
+                                totalDailyCost += resource === 'silver' ? cost : cost * (prices[resource] || 1);
                             });
                             return Object.keys(unlockedMaintenance).length > 0 && (
                                 <div className="mt-3 pt-3 border-t border-gray-700">
@@ -803,7 +804,7 @@ const MilitaryTabComponent = ({
                                                             -{formatNumberShortCN(cost, { decimals: 1 })}/日
                                                         </span>
                                                         {resource !== 'silver' && (
-                                                            <span className="text-yellow-400/70 text-[10px]">
+                                                            <span className="text-yellow-400/70 text-xs">
                                                                 ≈{formatNumberShortCN(silverValue, { decimals: 1 })}<Icon name="Coins" size={8} className="inline ml-0.5" />
                                                             </span>
                                                         )}
@@ -829,7 +830,7 @@ const MilitaryTabComponent = ({
                                 <span className="text-yellow-300 font-mono">-{totalWage.toFixed(2)} 银币</span>
                             </div>
                             {/* 军费分解显示 */}
-                            <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                                 <div className="bg-gray-800/50 rounded px-2 py-1">
                                     <span className="text-gray-400">时代加成</span>
                                     <span className="text-cyan-300 ml-1">×{armyExpenseData.epochMultiplier.toFixed(1)}</span>
@@ -845,7 +846,7 @@ const MilitaryTabComponent = ({
                                     <span className="text-yellow-300 ml-1">×{militaryWageRatio.toFixed(1)}</span>
                                 </div>
                             </div>
-                            <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400">
+                            <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
                                 <span>军饷倍率</span>
                                 <input
                                     type="number"
@@ -882,9 +883,7 @@ const MilitaryTabComponent = ({
                             )}
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                            {autoRecruitEnabled
-                                ? '战斗中阵亡的士兵将自动加入训练队列进行补充。'
-                                : '启用后，战斗中阵亡的士兵将自动加入训练队列。'}
+                            {autoRecruitEnabled ? '阵亡自动补兵中' : '开启后自动补充阵亡'}
                         </p>
                     </div>
 
@@ -894,7 +893,7 @@ const MilitaryTabComponent = ({
                             <Icon name="Info" size={14} className="text-blue-400" />
                             兵种克制关系
                         </h3>
-                        <div className="flex flex-wrap gap-3 text-[10px]">
+                        <div className="flex flex-wrap gap-3 text-xs">
                             <div className="flex items-center gap-1">
                                 <span className="text-red-400 font-semibold">步兵</span>
                                 <Icon name="ArrowRight" size={10} className="text-green-400" />
@@ -948,13 +947,13 @@ const MilitaryTabComponent = ({
                         {/* 数量倍率（紧凑版） */}
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-gray-500">招募</span>
+                                <span className="text-xs text-gray-500">招募</span>
                                 <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
                                     {[1, 10, 100, 1000].map((n) => (
                                         <button
                                             key={n}
                                             onClick={() => setRecruitCount(n)}
-                                            className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${recruitCount === n
+                                            className={`px-2 py-1 rounded-full text-xs font-bold transition-all ${recruitCount === n
                                                 ? 'bg-blue-600 text-white shadow'
                                                 : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
                                                 }`}
@@ -967,13 +966,13 @@ const MilitaryTabComponent = ({
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-gray-500">解散</span>
+                                <span className="text-xs text-gray-500">解散</span>
                                 <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
                                     {[1, 10, 100, 1000].map((n) => (
                                         <button
                                             key={n}
                                             onClick={() => setDisbandCount(n)}
-                                            className={`px-2 py-1 rounded-full text-[11px] font-bold transition-all ${disbandCount === n
+                                            className={`px-2 py-1 rounded-full text-xs font-bold transition-all ${disbandCount === n
                                                 ? 'bg-red-600 text-white shadow'
                                                 : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
                                                 }`}
@@ -1027,9 +1026,9 @@ const MilitaryTabComponent = ({
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <h4 className="text-xs font-bold text-white font-decorative truncate">{unit.name}</h4>
-                                                        <span className="text-[10px] text-gray-400">×{army[unitId] || 0}</span>
+                                                        <span className="text-xs text-gray-400">×{army[unitId] || 0}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-1 text-[9px] text-gray-400">
+                                                    <div className="flex items-center gap-1 text-xs text-gray-400">
                                                         <span className={`px-1 py-0.5 rounded whitespace-nowrap ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
                                                             {categoryInfo.name}
                                                         </span>
@@ -1043,7 +1042,7 @@ const MilitaryTabComponent = ({
                                                     onClick={(e) => { e.stopPropagation(); onRecruit(unitId, { count: recruitCount }); }}
                                                     disabled={!affordable}
                                                     title={!affordable ? getRecruitDisabledReason(unit, recruitCount) : `点击招募 ${recruitCount} 个`}
-                                                    className={`flex-1 px-2 py-1 rounded text-[10px] font-semibold transition-all active:scale-95 ${affordable
+                                                    className={`flex-1 px-2 py-1 rounded text-xs font-semibold transition-all active:scale-95 ${affordable
                                                         ? 'bg-green-600 hover:bg-green-500 text-white active:brightness-110'
                                                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                         }`}
@@ -1079,7 +1078,7 @@ const MilitaryTabComponent = ({
                                                             e.preventDefault();
                                                             handlePressEnd(unitId);
                                                         }}
-                                                        className="relative px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] transition-colors select-none overflow-hidden"
+                                                        className="relative px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-xs transition-colors select-none overflow-hidden"
                                                         title={`点击解散${disbandCount}个，长按解散全部`}
                                                     >
                                                         <span className="relative z-10">解散{disbandCount > 1 ? `x${disbandCount}` : ''}</span>
@@ -1111,7 +1110,7 @@ const MilitaryTabComponent = ({
                                 </h3>
                                 <button
                                     onClick={() => onCancelAllTraining && onCancelAllTraining()}
-                                    className="text-[10px] flex items-center gap-1 px-2 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-colors"
+                                    className="text-xs flex items-center gap-1 px-2 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-colors"
                                     title="取消所有训练（返还50%资源）"
                                 >
                                     <Icon name="Trash2" size={12} />
@@ -1214,7 +1213,7 @@ const MilitaryTabComponent = ({
                                     <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/15 p-3">
                                         <div className="mb-2 flex items-center justify-between gap-3">
                                             <p className="text-xs font-semibold text-red-100">敌国战争采购快照 · {selectedFrontEnemyName}</p>
-                                            <p className="text-[10px] text-gray-400">按当前选中战区对应国家汇总</p>
+                                            <p className="text-xs text-gray-400">按当前选中战区对应国家汇总</p>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3 text-center text-xs md:grid-cols-4">
                                             <div>

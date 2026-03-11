@@ -26,8 +26,8 @@ const formatFrontPenaltyText = (impact = {}) => {
 
 const EconomyDataRow = ({ label, value, tone = 'text-gray-200' }) => (
     <div className="flex items-center justify-between rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">
-        <span className="text-[10px] text-gray-500">{label}</span>
-        <span className={`text-[11px] font-semibold ${tone}`}>{value}</span>
+        <span className="text-xs text-gray-500">{label}</span>
+        <span className={`text-xs font-semibold ${tone}`}>{value}</span>
     </div>
 );
 
@@ -79,19 +79,19 @@ const SupplyNeedDisplay = ({ impact = {}, priceSource = {} }) => {
                 onKeyDown={(e) => e.key === 'Enter' && setExpanded(!expanded)}
             >
                 <div>
-                    <div className="text-[11px] font-semibold text-amber-200">
+                    <div className="text-xs font-semibold text-amber-200">
                         ≈ {formatNumberShortCN(totalSilverCost, { decimals: 0 })} 银/日
                     </div>
-                    <div className="text-[9px] text-gray-500">
-                        仅统计本战线已部署军团，不等于全军维护
+                    <div className="text-xs text-gray-500">
+                        本战线部署军团维护
                     </div>
                 </div>
-                <span className="text-[9px] text-gray-500">{expanded ? '▲ 收起' : '▼ 明细'}</span>
+                <span className="text-xs text-gray-500">{expanded ? '▲ 收起' : '▼ 明细'}</span>
             </div>
             {expanded && (
-                <div className="mt-1.5 space-y-1 text-[10px] text-gray-400">
-                    <div className="rounded border border-gray-800/70 bg-black/20 px-2 py-1 text-[9px] leading-relaxed text-gray-500">
-                        前线补给 = 已部署军团基础维护 × 后勤倍率 {logisticsMultiplier.toFixed(2)}
+                <div className="mt-1.5 space-y-1 text-xs text-gray-400">
+                    <div className="rounded border border-gray-800/70 bg-black/20 px-2 py-1 text-xs leading-relaxed text-gray-500">
+                        后勤倍率 ×{logisticsMultiplier.toFixed(2)}
                         {modifierText ? `（${modifierText}）` : ''}
                     </div>
                     {resourceEntries.length === 0 ? (
@@ -108,7 +108,7 @@ const SupplyNeedDisplay = ({ impact = {}, priceSource = {} }) => {
                                     {` × ${formatUnitPrice(unitPrice)}银 = ${formatNumberShortCN(silverValue, { decimals: 0 })}`}
                                 </div>
                                 {baseAmount > 0 && (
-                                    <div className="mt-0.5 text-[9px] text-gray-500">
+                                    <div className="mt-0.5 text-xs text-gray-500">
                                         基础维护 {formatNumberShortCN(baseAmount, { decimals: 1 })} × 后勤倍率 {logisticsMultiplier.toFixed(2)} ≈ {formatNumberShortCN(baseAmount * logisticsMultiplier, { decimals: 1 })}
                                     </div>
                                 )}
@@ -148,7 +148,7 @@ const ProcurementStatusCard = ({ procurement = {}, domesticPressure = 0, remaini
         <div className="space-y-2 rounded-lg border border-gray-800/80 bg-black/20 px-2 py-2">
             <div className="flex items-center gap-2">
                 <Icon name="Wallet" size={12} className="text-yellow-300" />
-                <span className="text-[10px] font-semibold text-white">AI 战争采购</span>
+                <span className="text-xs font-semibold text-white">AI 战争采购</span>
             </div>
             <div className="grid gap-2">
                 <EconomyDataRow label="采购履约" value={`${Math.round(fulfillmentRatio * 100)}%`} tone={fulfillmentTone} />
@@ -157,7 +157,7 @@ const ProcurementStatusCard = ({ procurement = {}, domesticPressure = 0, remaini
                 <EconomyDataRow label="剩余国家财富" value={`${formatNumberShortCN(remainingWealth || 0, { decimals: 1 })} 银`} tone="text-cyan-300" />
             </div>
             {shortfalls.length > 0 && (
-                <div className="rounded border border-red-900/40 bg-red-950/10 px-2 py-1 text-[9px] text-red-200">
+                <div className="rounded border border-red-900/40 bg-red-950/10 px-2 py-1 text-xs text-red-200">
                     紧缺：{shortfalls.map(([resourceKey, amount]) => `${RESOURCES[resourceKey]?.name || resourceKey} -${formatNumberShortCN(amount, { decimals: 1 })}`).join('、')}
                 </div>
             )}
@@ -168,11 +168,11 @@ const ProcurementStatusCard = ({ procurement = {}, domesticPressure = 0, remaini
 const getEconomicPressureHint = (impact = {}) => {
 
     const relativePosition = Number(impact.territory?.relativePosition || 50);
-    if (relativePosition <= 8) return '战线已压入腹地，税收与生产都会遭受重创。';
-    if (relativePosition <= 15) return '战线已进入核心区，战争经济损失非常严重。';
-    if (relativePosition < 35) return '战线已进入经济区，产能与税收正在持续下滑。';
-    if (relativePosition < 50) return '边疆受压，战争经济开始明显恶化。';
-    return '战线尚未压入本土，当前主要是补给投入。';
+    if (relativePosition <= 8) return '腹地受创';
+    if (relativePosition <= 15) return '核心区告急';
+    if (relativePosition < 35) return '经济区受压';
+    if (relativePosition < 50) return '边疆受压';
+    return '前线稳定';
 };
 
 const MetricBar = ({ label, value, maxValue, colorClass = 'bg-cyan-400', suffix = '', invert = false }) => {
@@ -184,7 +184,7 @@ const MetricBar = ({ label, value, maxValue, colorClass = 'bg-cyan-400', suffix 
 
     return (
         <div>
-            <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
+            <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
                 <span>{label}</span>
                 <span className="text-white">{suffix ? `${formatNumberShortCN(safeValue, { decimals: 1 })}${suffix}` : formatNumberShortCN(safeValue, { decimals: 1 })}</span>
             </div>
@@ -238,7 +238,7 @@ const getWarScoreTone = (warScore) => {
 
 const SummaryStat = ({ label, value, tone = 'text-white', align = 'left' }) => (
     <div className="rounded-xl border border-gray-800 bg-gray-950/50 px-3 py-2">
-        <p className="text-[10px] text-gray-500">{label}</p>
+        <p className="text-xs text-gray-500">{label}</p>
         <p className={`mt-1 text-sm font-semibold ${tone} ${align === 'right' ? 'text-right' : ''}`}>{value}</p>
     </div>
 );
@@ -261,16 +261,16 @@ const ForceColumn = ({
             <div className="mb-3 flex items-center justify-between">
                 <div>
                     <p className="text-sm font-semibold text-white">{title}</p>
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-xs text-gray-400">
                         兵力 {sideState?.deployedUnits || 0} · 军团 {sideState?.corpsCount || corpsList.length}
                     </p>
                 </div>
-                <div className="text-right text-[10px] text-gray-400">
+                <div className="text-right text-xs text-gray-400">
                     <p>补给 {sideState?.supplyState || '稳定'}</p>
                     <p>工事 {sideState?.entrenchment || 25}</p>
                 </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-xl border border-gray-800 bg-black/20 p-2">
                     <p className="text-gray-500">攻势/防御</p>
                     <p className="mt-1 text-white">{Math.round(sideState?.advancePower || 0)} / {Math.round(sideState?.defensePower || 0)}</p>
@@ -290,14 +290,14 @@ const ForceColumn = ({
                             <div className="flex items-center justify-between gap-2">
                                 <div className="text-xs">
                                     <p className="font-semibold text-white">{corps.name} <span className="text-gray-500">({getCorpsTotalUnits(corps)})</span></p>
-                                    <p className="text-[10px] text-gray-400">
+                                    <p className="text-xs text-gray-400">
                                         {general ? `将领 ${general.name} Lv.${general.level || 1}` : '无将领'} · 士气 {Math.round(corps.morale || 100)}
                                     </p>
                                 </div>
                                 {canControlTasks && (
                                     <button
                                         type="button"
-                                        className="rounded bg-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-600"
+                                        className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300 hover:bg-gray-600"
                                         onClick={() => onRemoveCorpsFromFront?.(front.id, corps.id, playerSide)}
                                     >
                                         撤回
@@ -312,7 +312,7 @@ const ForceColumn = ({
                 <div className="mt-3 rounded-xl border border-dashed border-cyan-800/40 bg-cyan-950/10 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-xs font-semibold text-cyan-100">可派遣军团</p>
-                        <p className="text-[10px] text-gray-400">{reserveCorps.length} 支待命</p>
+                        <p className="text-xs text-gray-400">{reserveCorps.length} 支待命</p>
                     </div>
                     {reserveCorps.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -328,7 +328,7 @@ const ForceColumn = ({
                             ))}
                         </div>
                     ) : (
-                        <p className="text-[11px] text-gray-500">当前没有可直接派遣到这条战线的待命军团。</p>
+                        <p className="text-xs text-gray-500">当前没有可直接派遣到这条战线的待命军团。</p>
                     )}
                 </div>
             )}
@@ -410,8 +410,8 @@ const FrontViewPanel = ({
                         <div className="flex flex-wrap items-center gap-2">
                             <Icon name="MapPin" size={16} className="text-red-400" />
                             <h3 className="text-base font-bold text-white">对 {enemyName} 战区</h3>
-                            <span className="rounded-full border border-gray-700 px-2 py-0.5 text-[10px] text-gray-300">{phaseText}</span>
-                            <span className="rounded-full border border-cyan-400/40 bg-cyan-950/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-100">
+                            <span className="rounded-full border border-gray-700 px-2 py-0.5 text-xs text-gray-300">{phaseText}</span>
+                            <span className="rounded-full border border-cyan-400/40 bg-cyan-950/20 px-2.5 py-0.5 text-xs font-semibold text-cyan-100">
                                 当前区域 {currentZone?.name || summary.contestedZone}
                             </span>
                         </div>
@@ -426,7 +426,7 @@ const FrontViewPanel = ({
                 </div>
 
                 <div className="mb-3">
-                    <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
+                    <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
                         <span>战线位置</span>
                         <span>{relativeLinePosition.toFixed(1)}% · 下一节点 {nextCheckpoint ? `${Math.abs(nextCheckpoint - relativeLinePosition).toFixed(0)}%` : '已到尽头'}</span>
                     </div>
@@ -507,7 +507,7 @@ const FrontViewPanel = ({
                             </div>
                             <div className="mt-2 grid gap-2">
                                 <div className="rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">
-                                    <span className="text-[10px] text-gray-500">日前线补给</span>
+                                    <span className="text-xs text-gray-500">日前线补给</span>
 
                                     <SupplyNeedDisplay impact={ownEconomicImpact} priceSource={market} />
 
@@ -517,7 +517,7 @@ const FrontViewPanel = ({
                                 <EconomyDataRow label="建筑破坏" value={`损失 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsLost || 0, { decimals: 0 })} / 摧毁 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsDestroyed || 0, { decimals: 0 })}`} />
                                 <EconomyDataRow label="本土压力" value={formatNumberShortCN(ownEconomicImpact?.territory?.homelandPressure || 0, { decimals: 0 })} tone="text-amber-300" />
                             </div>
-                            <p className="mt-2 text-[10px] text-gray-500">{formatFrontPenaltyText(ownEconomicImpact)} ? {getEconomicPressureHint(ownEconomicImpact)}</p>
+                            <p className="mt-2 text-xs text-gray-500">{formatFrontPenaltyText(ownEconomicImpact)} ? {getEconomicPressureHint(ownEconomicImpact)}</p>
                         </div>
                         <div className="rounded-xl border border-red-900/40 bg-red-950/10 p-2 text-xs">
                             <p className="mb-1 font-semibold text-white">敌方</p>
@@ -528,7 +528,7 @@ const FrontViewPanel = ({
                             </div>
                             <div className="mt-2 grid gap-2">
                                 <div className="rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">
-                                    <span className="text-[10px] text-gray-500">日前线补给</span>
+                                    <span className="text-xs text-gray-500">日前线补给</span>
                                     <SupplyNeedDisplay impact={enemyEconomicImpact} priceSource={enemyNation?.nationPrices || enemyNation?.market || {}} />
                                 </div>
                                 <ProcurementStatusCard
@@ -542,7 +542,7 @@ const FrontViewPanel = ({
                                 <EconomyDataRow label="本土压力" value={formatNumberShortCN(enemyEconomicImpact?.territory?.homelandPressure || 0, { decimals: 0 })} tone="text-amber-300" />
 
                             </div>
-                            <p className="mt-2 text-[10px] text-gray-500">{formatFrontPenaltyText(enemyEconomicImpact)} ? {getEconomicPressureHint(enemyEconomicImpact)}</p>
+                            <p className="mt-2 text-xs text-gray-500">{formatFrontPenaltyText(enemyEconomicImpact)} · {getEconomicPressureHint(enemyEconomicImpact)}</p>
                         </div>
                     </div>
                 </div>

@@ -205,7 +205,7 @@ const StrataPanelComponent = ({
                                             'text-red-400'
                                 }
                             />
-                            <span className={`text-[10px] font-bold ${stability >= 70 ? 'text-green-400' :
+                            <span className={`text-xs font-bold ${stability >= 70 ? 'text-green-400' :
                                 stability >= 40 ? 'text-yellow-400' :
                                     'text-red-400'
                                 }`}>
@@ -258,16 +258,16 @@ const StrataPanelComponent = ({
                                         {/* 头部：图标、阶层名称+人数、好感度 */}
                                         <div className="flex items-center gap-1 mb-0.5">
                                             <Icon name={strata.info.icon} size={12} className="text-ancient-gold flex-shrink-0" />
-                                            <span className="text-[10px] font-bold text-ancient-parchment truncate leading-none">{strata.info.name}</span>
-                                            <span className="text-[8px] text-ancient-stone font-mono">{formatNumberShortCN(Math.round(strata.count), { decimals: 0 })}</span>
+                                            <span className="text-xs font-bold text-ancient-parchment truncate leading-none">{strata.info.name}</span>
+                                            <span className="text-xs text-ancient-stone font-mono">{formatNumberShortCN(Math.round(strata.count), { decimals: 0 })}</span>
                                             <div className="flex-1" />
-                                            <span className={`text-[9px] font-bold font-mono ${strata.displayApproval >= 70 ? 'text-green-400' : strata.displayApproval >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                            <span className={`text-xs font-bold font-mono ${strata.displayApproval >= 70 ? 'text-green-400' : strata.displayApproval >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
                                                 {strata.displayApproval.toFixed(0)}%
                                             </span>
                                         </div>
 
                                         {/* 状态图标行 + 组织度 + 影响力 */}
-                                        <div className="flex items-center gap-1 mb-0.5 text-[8px]">
+                                        <div className="flex items-center gap-1 mb-0.5 text-xs">
                                             <Icon name={strata.livingStandardIcon} size={9} className={strata.livingStandardColor} title={`生活水平`} />
                                             {strata.shortages.length > 0 && (
                                                 <Icon name="AlertTriangle" size={9} className="text-red-400 animate-pulse" />
@@ -286,7 +286,7 @@ const StrataPanelComponent = ({
                                         </div>
 
                                         {/* 人均财富和净收入 + 短缺资源 */}
-                                        <div className="flex items-center justify-between text-[8px]">
+                                        <div className="flex items-center justify-between text-xs">
                                             <div className="flex items-center gap-1">
                                                 <span className="text-ancient-parchment font-mono flex items-center gap-0.5" title={`总财富: ${formatNumberShortCN(strata.wealthValue, { decimals: 1 })}`}>
                                                     <Icon name="Coins" size={8} className="text-ancient-gold" />
@@ -313,7 +313,7 @@ const StrataPanelComponent = ({
                                                         );
                                                     })}
                                                     {strata.shortages.length > 3 && (
-                                                        <span className="text-red-400 text-[7px]">+{strata.shortages.length - 3}</span>
+                                                        <span className="text-red-400 text-xs">+{strata.shortages.length - 3}</span>
                                                     )}
                                                 </div>
                                             )}
@@ -323,7 +323,7 @@ const StrataPanelComponent = ({
                             );
                         })}
                         {strataData.length === 0 && (
-                            <div className="col-span-full text-center text-ancient-stone opacity-70 text-[10px] py-4">
+                            <div className="col-span-full text-center text-ancient-stone opacity-70 text-xs py-4">
                                 暂无可显示的阶层数据。
                             </div>
                         )}
@@ -365,8 +365,8 @@ const StrataPanelComponent = ({
                                     <div className="flex items-center justify-between mb-0.5">
                                         <div className="flex items-center gap-1">
                                             <Icon name={info.icon} size={10} className="text-ancient-gold" />
-                                            <span className="text-[11px] font-semibold text-ancient-parchment">{info.name}</span>
-                                            <span className="text-[9px] text-ancient-stone">{formatNumberShortCN(Math.round(count), { decimals: 0 })}人</span>
+                                            <span className="text-xs font-semibold text-ancient-parchment">{info.name}</span>
+                                            <span className="text-xs text-ancient-stone">{formatNumberShortCN(Math.round(count), { decimals: 0 })}人</span>
                                             <Icon
                                                 name={livingStandardIcon}
                                                 size={10}
@@ -385,14 +385,14 @@ const StrataPanelComponent = ({
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1">
-                                            <span className={`text-[9px] font-semibold font-mono ${getApprovalColor(displayApproval)}`}>
+                                            <span className={`text-xs font-semibold font-mono ${getApprovalColor(displayApproval)}`}>
                                                 {displayApproval.toFixed(0)}%
                                             </span>
                                         </div>
                                     </div>
 
                                     {/* 收入、支出与净增（人均） - 更紧凑 */}
-                                    <div className="grid grid-cols-3 gap-0.5 text-[8px] mb-0.5 bg-ancient-ink/30 px-1 py-0.5 rounded border border-ancient-gold/10">
+                                    <div className="grid grid-cols-3 gap-0.5 text-xs mb-0.5 bg-ancient-ink/30 px-1 py-0.5 rounded border border-ancient-gold/10">
                                         <div className="flex items-center gap-0.5" title="人均日收入">
                                             <span className="text-ancient-stone">收</span>
                                             <span className="text-green-300 font-mono">
@@ -431,7 +431,7 @@ const StrataPanelComponent = ({
                                     {/* 组织度进度条 - 新增 */}
                                     {organization > 5 && (
                                         <div className="mb-0.5">
-                                            <div className="flex items-center gap-1 text-[7px] mb-0.5">
+                                            <div className="flex items-center gap-1 text-xs mb-0.5">
                                                 <span className="text-ancient-stone">组织度</span>
                                                 <span className={`font-mono ${organization >= 70 ? 'text-red-400' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
                                                     {organization.toFixed(0)}%
@@ -461,7 +461,7 @@ const StrataPanelComponent = ({
                                     )}
 
                                     {/* 影响力和人均财富 - 更紧凑 */}
-                                    <div className="flex items-center justify-between text-[8px]">
+                                    <div className="flex items-center justify-between text-xs">
                                         <div className="flex items-center gap-1">
                                             <span className="text-ancient-stone">影响</span>
                                             <span className="text-purple-400 font-semibold font-mono">{influenceShare.toFixed(1)}%</span>
@@ -507,7 +507,7 @@ const StrataPanelComponent = ({
 
                                         return (
                                             <div
-                                                className={`flex items-center gap-0.5 text-[8px] text-red-300 flex-wrap ${labelBg} border ${labelBorder} rounded px-1 py-0.5 mt-0.5`}
+                                                className={`flex items-center gap-0.5 text-xs text-red-300 flex-wrap ${labelBg} border ${labelBorder} rounded px-1 py-0.5 mt-0.5`}
                                             >
                                                 <Icon name={labelIcon} size={10} className="text-red-400 animate-pulse" />
                                                 <span className="text-red-200 font-semibold">{labelText}:</span>
@@ -547,7 +547,7 @@ const StrataPanelComponent = ({
                                                             >
                                                                 <Icon name={reasonIcon} size={8} className="text-red-200" />
                                                                 <Icon name={res?.icon || 'HelpCircle'} size={9} className="text-red-200" />
-                                                                <span className="text-red-100 font-medium text-[8px]">{res?.name || resKey}</span>
+                                                                <span className="text-red-100 font-medium text-xs">{res?.name || resKey}</span>
                                                             </span>
                                                         );
                                                     })}
@@ -577,7 +577,7 @@ const StrataPanelComponent = ({
                                         <span className="font-semibold">{buff.desc || '满意加成'}</span>
                                     </div>
                                     {details.length > 0 && (
-                                        <div className="text-ancient-parchment opacity-80 ml-2 text-[10px]">{details.join('，')}</div>
+                                        <div className="text-ancient-parchment opacity-80 ml-2 text-xs">{details.join('，')}</div>
                                     )}
                                 </div>
                             );
@@ -591,20 +591,20 @@ const StrataPanelComponent = ({
                                         <span className="font-semibold">{debuff.desc || '不满惩罚'}</span>
                                     </div>
                                     {details.length > 0 && (
-                                        <div className="text-ancient-parchment opacity-70 ml-2 text-[10px]">{details.join('，')}</div>
+                                        <div className="text-ancient-parchment opacity-70 ml-2 text-xs">{details.join('，')}</div>
                                     )}
                                 </div>
                             );
                         })}
                         {activeBuffs.length === 0 && activeDebuffs.length === 0 && (
-                            <span className="text-ancient-stone opacity-60 text-[10px] italic">无有效效果</span>
+                            <span className="text-ancient-stone opacity-60 text-xs italic">无有效效果</span>
                         )}
                     </div>
                 </div>
 
                 {/* 提示文字 - 替代无效的详情按钮 */}
                 <div className="mt-1 px-1.5 py-1 bg-ancient-ink/30 rounded-lg border border-ancient-gold/10 flex-shrink-0">
-                    <p className="text-[8px] text-ancient-stone text-center flex items-center justify-center gap-1">
+                    <p className="text-xs text-ancient-stone text-center flex items-center justify-center gap-1">
                         <Icon name="Info" size={8} className="text-ancient-gold/60" />
                         点击任意阶层卡片查看详细信息
                     </p>

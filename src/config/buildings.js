@@ -425,7 +425,7 @@ export const BUILDINGS = [
         name: "教堂",
         desc: "安抚民心，产出文化。",
         baseCost: { stone: 150, plank: 50, brick: 60 },
-        input: { furniture: 0.1333, fine_clothes: 0.1333, brick: 0.0533 },
+        input: { furniture: 0.04, fine_clothes: 0.03 }, // 降低输入消耗，使基础版净产出为正
         output: { culture: 3.2, silver: 0.6667 },
         jobs: { cleric: 4 },
         owner: 'cleric',
@@ -520,7 +520,7 @@ export const BUILDINGS = [
         name: "剧场",
         desc: "古典时代的文化舞台，激发灵感。",
         baseCost: { stone: 200, brick: 80, dye: 10 },
-        input: { fine_clothes: 0.225, brick: 0.045 },
+        input: { fine_clothes: 0.09, brick: 0.02 }, // 降低输入消耗，使基础版人均净产出合理
         output: { culture: 5.40 },
         jobs: { cleric: 3 },
         owner: 'cleric',
@@ -722,7 +722,7 @@ export const BUILDINGS = [
         name: "印刷所",
         desc: "启蒙时代的出版重镇，大量复制知识。",
         baseCost: { brick: 200, papyrus: 80, wood: 60, science: 150 },
-        input: { papyrus: 0.80, coffee: 0.20, brick: 0.08, science: 0.30 },
+        input: { papyrus: 0.40, coffee: 0.08, science: 0.10 }, // 降低输入消耗，使基础版人均净产出合理
         output: { science: 2.40, culture: 2.0 },
         jobs: { artisan: 5, scribe: 3, capitalist: 1 },
         owner: 'capitalist',

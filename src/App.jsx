@@ -7,6 +7,7 @@ import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
 import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS } from './hooks';
+import { useStoreSync } from './stores/useStoreSync';
 import { useTutorialSystem } from './hooks/useTutorialSystem';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
 import {
@@ -114,7 +115,7 @@ const PerfOverlay = () => {
         : [];
 
     return (
-        <div className="fixed right-2 top-16 z-[9999] bg-black/70 text-green-300 border border-green-600/40 rounded px-2 py-1 text-[10px] font-mono pointer-events-auto">
+        <div className="fixed right-2 top-16 z-[9999] bg-black/70 text-green-300 border border-green-600/40 rounded px-2 py-1 text-xs font-mono pointer-events-auto">
             <div className="flex items-center justify-between gap-2">
                 <span>PERF</span>
                 <button
@@ -178,6 +179,9 @@ function GameApp({ gameState }) {
 
     // 初始化设备性能检测（自动启用低端设备优化）
     useDevicePerformance();
+
+    // 将 gameState 同步到 Zustand stores（渐进迁移桥接层）
+    useStoreSync(gameState);
 
     // 添加日志函数 - memoized to prevent unnecessary re-renders
     const addLog = useCallback((msg) => {
@@ -1237,7 +1241,7 @@ function GameApp({ gameState }) {
 
                     {/* 标签 */}
                     <span
-                        className="relative z-10 text-[10px] font-bold tab-title"
+                        className="relative z-10 text-xs font-bold tab-title"
                         style={{
                             color: gameState.activeTab === 'overview'
                                 ? 'var(--theme-text)'
@@ -1666,7 +1670,7 @@ function GameApp({ gameState }) {
                                     </span>
                                     <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
                                 </summary>
-                                <div className="px-3 pb-3 text-[10px] text-gray-300 space-y-1.5">
+                                <div className="px-3 pb-3 text-xs text-gray-300 space-y-1.5">
                                     <p>• <span className="text-white">市场是经济核心</span>：供需关系决定价格，影响税收。</p>
                                     <p>• <span className="text-white">国库与库存</span>：银币是命脉，资源不足会自动购买。</p>
                                     <p>• <span className="text-white">三大税收</span>：人头税、交易税、营业税各有作用。</p>
@@ -1681,7 +1685,7 @@ function GameApp({ gameState }) {
                                     </span>
                                     <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
                                 </summary>
-                                <div className="px-3 pb-3 text-[10px] text-gray-200 space-y-1.5">
+                                <div className="px-3 pb-3 text-xs text-gray-200 space-y-1.5">
                                     <p><span className="text-white font-semibold">1.</span> 确保银币正增长</p>
                                     <p><span className="text-white font-semibold">2.</span> 在政令面板调整税率</p>
                                     <p><span className="text-white font-semibold">3.</span> 建设工业赚取税收</p>
@@ -1944,7 +1948,7 @@ function GameApp({ gameState }) {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-xs font-semibold text-ancient-parchment truncate">{effect.name}</span>
-                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${isExpired
+                                                            <span className={`text-xs px-1.5 py-0.5 rounded ${isExpired
                                                                 ? 'bg-gray-600/30 text-gray-400'
                                                                 : isPermanent
                                                                     ? 'bg-purple-500/30 text-purple-300'
@@ -1953,13 +1957,13 @@ function GameApp({ gameState }) {
                                                                 {isExpired ? '已过期' : isPermanent ? '永久' : '短期'}
                                                             </span>
                                                         </div>
-                                                        <div className="text-[10px] text-ancient-stone mt-0.5">
+                                                        <div className="text-xs text-ancient-stone mt-0.5">
                                                             第 {activatedYear} 年选择
                                                         </div>
                                                     </div>
                                                     <button
                                                         onClick={() => setExpandedFestival(isExpanded ? null : uniqueKey)}
-                                                        className="text-[10px] text-gray-400 hover:text-white transition-colors p-1 rounded-md"
+                                                        className="text-xs text-gray-400 hover:text-white transition-colors p-1 rounded-md"
                                                     >
                                                         <Icon name={isExpanded ? "ChevronUp" : "ChevronDown"} size={12} />
                                                     </button>
@@ -1981,7 +1985,7 @@ function GameApp({ gameState }) {
                         <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-gray-700/30 shadow-glass p-4 text-center">
                             <Icon name="Calendar" size={24} className="text-ancient-stone mx-auto mb-2 opacity-50" />
                             <p className="text-xs text-ancient-stone">暂无庆典历史记录</p>
-                            <p className="text-[10px] text-gray-500 mt-1">每年年初会触发庆典选择</p>
+                            <p className="text-xs text-gray-500 mt-1">每年年初会触发庆典选择</p>
                         </div>
                     )}
                 </div>

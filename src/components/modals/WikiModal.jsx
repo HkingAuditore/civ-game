@@ -1492,7 +1492,7 @@ const renderResourceSection = (label, resources) => {
                         >
                             {meta.icon && <Icon name={meta.icon} size={14} className={meta.color || 'text-gray-200'} />}
                             <span>{meta.name || key}</span>
-                            {value !== undefined && <span className="font-mono text-[11px]">{formatNumber(value)}</span>}
+                            {value !== undefined && <span className="font-mono text-xs">{formatNumber(value)}</span>}
                         </span>
                     );
                 })}
@@ -1519,7 +1519,7 @@ const renderJobSection = (jobs) => {
                         >
                             {stratum?.icon && <Icon name={stratum.icon} size={14} className="text-slate-200" />}
                             <span>{stratum?.name || key}</span>
-                            <span className="font-mono text-[11px]">x{formatNumber(value)}</span>
+                            <span className="font-mono text-xs">x{formatNumber(value)}</span>
                         </span>
                     );
                 })}
@@ -1584,7 +1584,7 @@ const ResourceTags = ({ tags }) => {
             {tags.map((tag) => (
                 <span
                     key={tag}
-                    className="px-2 py-0.5 text-[11px] uppercase tracking-wide bg-gray-800/70 border border-gray-700 rounded-full text-gray-300"
+                    className="px-2 py-0.5 text-xs uppercase tracking-wide bg-gray-800/70 border border-gray-700 rounded-full text-gray-300"
                 >
                     {tag}
                 </span>
@@ -1648,7 +1648,7 @@ export const WikiModal = ({ show, onClose }) => {
                 {/* 头部 - 移动端紧凑 */}
                 <div className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4 border-b border-gray-800 bg-gray-900">
                     <div>
-                        <p className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">CIVILIZATION KNOWLEDGE BASE</p>
+                        <p className="text-xs sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">CIVILIZATION KNOWLEDGE BASE</p>
                         <h2 className="text-base font-decorative sm:text-2xl font-bold text-white flex items-center gap-1 sm:gap-2">
                             <Icon name="BookOpen" size={18} className="text-indigo-300 sm:w-6 sm:h-6" />
                             文明百科全书
@@ -1675,7 +1675,7 @@ export const WikiModal = ({ show, onClose }) => {
                                         key={category.id}
                                         type="button"
                                         onClick={() => setSelectedCategory(category.id)}
-                                        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-[10px] sm:text-xs font-medium transition-colors ${isActive
+                                        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-xs font-medium transition-colors ${isActive
                                             ? 'border-indigo-400 bg-indigo-900/40 text-indigo-100'
                                             : 'border-gray-700 text-gray-400 hover:text-gray-100 hover:border-gray-500'
                                             }`}
@@ -1700,7 +1700,7 @@ export const WikiModal = ({ show, onClose }) => {
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     placeholder={`搜索${CATEGORY_CONFIG.find(c => c.id === selectedCategory)?.label}...`}
-                                    className="w-full bg-gray-800/70 border border-gray-700 rounded-lg pl-7 sm:pl-9 pr-2 sm:pr-3 py-1.5 sm:py-2 text-[11px] sm:text-xs text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full bg-gray-800/70 border border-gray-700 rounded-lg pl-7 sm:pl-9 pr-2 sm:pr-3 py-1.5 sm:py-2 text-xs sm:text-xs text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
                             </div>
                         </div>
@@ -1708,7 +1708,7 @@ export const WikiModal = ({ show, onClose }) => {
                         {/* 条目列表 - 移动端紧凑 */}
                         <div className="flex-1 overflow-y-auto px-2 sm:px-3 pb-4 space-y-0.5 sm:space-y-1">
                             {filteredEntries.length === 0 ? (
-                                <p className="text-[10px] sm:text-xs text-gray-500 px-2 py-3 sm:py-4 text-center border border-dashed border-gray-800 rounded-lg">
+                                <p className="text-xs sm:text-xs text-gray-500 px-2 py-3 sm:py-4 text-center border border-dashed border-gray-800 rounded-lg">
                                     暂无符合条件的条目
                                 </p>
                             ) : (
@@ -1729,7 +1729,7 @@ export const WikiModal = ({ show, onClose }) => {
                                                 <span className="truncate">{entry.name}</span>
                                             </p>
                                             {entry.summary && (
-                                                <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 truncate ml-4 sm:ml-6">{entry.summary}</p>
+                                                <p className="text-xs sm:text-xs text-gray-500 mt-0.5 truncate ml-4 sm:ml-6">{entry.summary}</p>
                                             )}
                                         </button>
                                     );
@@ -1757,7 +1757,7 @@ export const WikiModal = ({ show, onClose }) => {
                                             <Icon name={selectedEntry.icon || 'Book'} size={20} className={`${selectedEntry.iconColor} sm:w-8 sm:h-8`} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">
+                                            <p className="text-xs sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">
                                                 {CATEGORY_CONFIG.find((c) => c.id === selectedCategory)?.label}
                                             </p>
                                             <h3 className="text-lg sm:text-xl font-bold text-white truncate font-decorative">{selectedEntry.name}</h3>
@@ -2222,15 +2222,15 @@ const renderEventDetails = (data) => {
                                 className="bg-gray-900/60 p-2 rounded-lg border border-dashed border-purple-700/60"
                             >
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="text-purple-300 text-[11px] font-medium flex items-center gap-1">
+                                    <span className="text-purple-300 text-xs font-medium flex items-center gap-1">
                                         <span>🎲 随机分支</span>
-                                        <span className="px-1.5 py-0.5 rounded-full bg-purple-900/60 border border-purple-500/50 text-[10px] text-purple-100">
+                                        <span className="px-1.5 py-0.5 rounded-full bg-purple-900/60 border border-purple-500/50 text-xs text-purple-100">
                                             {Math.round(rand.chance * 100)}%
                                         </span>
                                     </span>
                                 </div>
                                 {rand.description && (
-                                    <div className="text-gray-400 text-[10px] mb-1 italic leading-snug">
+                                    <div className="text-gray-400 text-xs mb-1 italic leading-snug">
                                         "{rand.description}"
                                     </div>
                                 )}

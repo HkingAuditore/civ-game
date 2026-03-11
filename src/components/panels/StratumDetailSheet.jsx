@@ -395,7 +395,7 @@ const StratumDetailSheetComponent = ({
                             组织度
                             {(() => {
                                 const org = rebellionStates[stratumKey]?.organization ?? 0;
-                                if (org > 30) return <span className={`ml-1 px-1 py-0.5 rounded text-[9px] ${org >= 70 ? 'bg-red-600' : 'bg-orange-600'}`}>{org.toFixed(0)}%</span>;
+                                if (org > 30) return <span className={`ml-1 px-1 py-0.5 rounded text-xs ${org >= 70 ? 'bg-red-600' : 'bg-orange-600'}`}>{org.toFixed(0)}%</span>;
                                 return null;
                             })()}
                         </span>
@@ -424,7 +424,7 @@ const StratumDetailSheetComponent = ({
                         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
                             <div className="flex items-center gap-1 mb-0.5">
                                 <Icon name="Users" size={12} className="text-blue-400" />
-                                <span className="text-[9px] text-gray-400 leading-none">人口</span>
+                                <span className="text-xs text-gray-400 leading-none">人口</span>
                             </div>
                             <div className="text-sm font-bold text-white font-mono leading-none">{Math.floor(count)}</div>
                         </div>
@@ -434,7 +434,7 @@ const StratumDetailSheetComponent = ({
                             <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
                                 <div className="flex items-center gap-1 mb-0.5">
                                     <Icon name="Shield" size={12} className="text-blue-400" />
-                                    <span className="text-[9px] text-gray-400 leading-none">忠诚</span>
+                                    <span className="text-xs text-gray-400 leading-none">忠诚</span>
                                 </div>
                                 {(() => {
                                     const employedOfficials = officials || [];
@@ -453,7 +453,7 @@ const StratumDetailSheetComponent = ({
                             <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
                                 <div className="flex items-center gap-1 mb-0.5">
                                     <Icon name="Heart" size={12} className="text-pink-400" />
-                                    <span className="text-[9px] text-gray-400 leading-none">好感</span>
+                                    <span className="text-xs text-gray-400 leading-none">好感</span>
                                 </div>
                                 <div className={`text-sm font-bold font-mono leading-none ${getApprovalColor(approval)}`}>
                                     {approval.toFixed(0)}%
@@ -465,7 +465,7 @@ const StratumDetailSheetComponent = ({
                         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
                             <div className="flex items-center gap-1 mb-0.5">
                                 <Icon name="Zap" size={12} className="text-purple-400" />
-                                <span className="text-[9px] text-gray-400 leading-none">影响</span>
+                                <span className="text-xs text-gray-400 leading-none">影响</span>
                             </div>
                             <div className="text-sm font-bold text-purple-300 font-mono leading-none">{influence.toFixed(0)}</div>
                         </div>
@@ -474,7 +474,7 @@ const StratumDetailSheetComponent = ({
                         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
                             <div className="flex items-center gap-1 mb-0.5">
                                 <Icon name="Coins" size={12} className="text-yellow-400" />
-                                <span className="text-[9px] text-gray-400 leading-none">财富</span>
+                                <span className="text-xs text-gray-400 leading-none">财富</span>
                             </div>
                             <div className="text-sm font-bold text-yellow-300 font-mono leading-none">{formatNumberShortCN(wealthValue, { decimals: 1 })}</div>
                         </div>
@@ -482,7 +482,7 @@ const StratumDetailSheetComponent = ({
 
                     {/* 生活水平 */}
                     <div className={`rounded p-2 border ${livingStandardBorderColor} ${livingStandardBgColor}`}>
-                        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
                             <Icon name="Activity" size={12} className="text-cyan-400" />
                             生活水平
                         </h3>
@@ -494,39 +494,39 @@ const StratumDetailSheetComponent = ({
                                 </div>
                                 <div>
                                     <div className={`text-lg font-bold ${livingStandardColor}`}>{livingStandardLevel}</div>
-                                    <div className="text-[9px] text-gray-400 leading-none">综合评分: {livingStandardScore.toFixed(0)}</div>
+                                    <div className="text-xs text-gray-400 leading-none">综合评分: {livingStandardScore.toFixed(0)}</div>
                                 </div>
                             </div>
 
                             {/* detail metrics */}
                             <div className="flex-1 grid grid-cols-2 gap-1.5">
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
-                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">{'\u4eba\u5747\u8d22\u5bcc'}</div>
+                                    <div className="text-xs text-gray-400 leading-none mb-0.5">{'\u4eba\u5747\u8d22\u5bcc'}</div>
                                     <div className="text-xs font-bold text-yellow-300 font-mono">{formatNumberShortCN(wealthPerCapita, { decimals: 1 })}</div>
-                                    <div className="text-[8px] text-gray-500 leading-none">{'\u7528\u4e8e\u8861\u91cf\u5f53\u524d\u9636\u5c42\u8d44\u4ea7\u6c34\u5e73'}</div>
+                                    <div className="text-xs text-gray-500 leading-none">{'\u7528\u4e8e\u8861\u91cf\u5f53\u524d\u9636\u5c42\u8d44\u4ea7\u6c34\u5e73'}</div>
                                 </div>
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
-                                    <div className="text-[9px] text-gray-400 leading-none mb-0.5">{'\u9700\u6c42\u6ee1\u8db3'}</div>
+                                    <div className="text-xs text-gray-400 leading-none mb-0.5">{'\u9700\u6c42\u6ee1\u8db3'}</div>
                                     <div className={`text-xs font-bold font-mono ${satisfactionRate >= 0.8 ? 'text-green-400' : satisfactionRate >= 0.5 ? 'text-yellow-400' : 'text-red-400'}`}>
                                         {(satisfactionRate * 100).toFixed(0)}%
                                     </div>
-                                    <div className="text-[8px] text-gray-500 leading-none">{`\u6ee1\u610f\u5ea6\u4e0a\u9650: ${approvalCap}%`}</div>
+                                    <div className="text-xs text-gray-500 leading-none">{`\u6ee1\u610f\u5ea6\u4e0a\u9650: ${approvalCap}%`}</div>
                                 </div>
                             </div>
                         </div>
 
                         <div className="mt-2 grid grid-cols-2 gap-1.5">
                             <div className="bg-gray-800/30 rounded px-2 py-1 border border-gray-700/50">
-                                <div className="text-[9px] text-gray-400 leading-none mb-0.5">消费能力</div>
+                                <div className="text-xs text-gray-400 leading-none mb-0.5">消费能力</div>
                                 <div className={`text-xs font-bold font-mono ${wealthMultiplier >= 2 ? 'text-purple-400' : wealthMultiplier >= 1.5 ? 'text-blue-400' : wealthMultiplier >= 1 ? 'text-green-400' : 'text-red-400'}`}>
                                     ×{wealthMultiplier.toFixed(2)}
                                 </div>
-                                <div className="text-[8px] text-gray-500 leading-none">购买量倍率 | 弹性 {stratum.wealthElasticity ?? 1.0}</div>
+                                <div className="text-xs text-gray-500 leading-none">购买量倍率 | 弹性 {stratum.wealthElasticity ?? 1.0}</div>
                             </div>
                             <div className="bg-gray-800/30 rounded px-2 py-1 border border-gray-700/50">
-                                <div className="text-[9px] text-gray-400 leading-none mb-0.5">奢侈解锁</div>
+                                <div className="text-xs text-gray-400 leading-none mb-0.5">奢侈解锁</div>
                                 <div className="text-xs font-bold text-blue-300 font-mono">{unlockedLuxuryTiers}/{totalLuxuryTiers || 0} 档</div>
-                                <div className="text-[8px] text-gray-500 leading-none">消费阈值 {formatRatioValue(unlockMultiplier)}× | 奢侈消费 {formatRatioValue(luxuryConsumptionMultiplier)}×</div>
+                                <div className="text-xs text-gray-500 leading-none">消费阈值 {formatRatioValue(unlockMultiplier)}× | 奢侈消费 {formatRatioValue(luxuryConsumptionMultiplier)}×</div>
                             </div>
                         </div>
 
@@ -535,8 +535,8 @@ const StratumDetailSheetComponent = ({
                         {unlockedLuxuryNeedsDetail.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700/50">
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="text-[9px] text-gray-400">已解锁奢侈需求</span>
-                                    <span className="text-[9px] font-bold text-blue-400">
+                                    <span className="text-xs text-gray-400">已解锁奢侈需求</span>
+                                    <span className="text-xs font-bold text-blue-400">
                                         {unlockedLuxuryNeedsDetail.length} 档
                                     </span>
                                 </div>
@@ -551,10 +551,10 @@ const StratumDetailSheetComponent = ({
                                                 className="flex-1 rounded px-1.5 py-1 text-center bg-blue-900/30 border border-blue-500/40"
                                                 title={`${threshold}×消费阈值解锁: ${resourceNames}`}
                                             >
-                                                <div className="text-[9px] font-bold text-blue-300">
+                                                <div className="text-xs font-bold text-blue-300">
                                                     {threshold}×
                                                 </div>
-                                                <div className="text-[8px] text-gray-300">
+                                                <div className="text-xs text-gray-300">
                                                     +{count}项
                                                 </div>
                                             </div>
@@ -569,13 +569,13 @@ const StratumDetailSheetComponent = ({
                     {/* 人头税调整 */}
                     {onUpdateTaxPolicies && (
                         <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                            <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                            <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
                                 <Icon name="Sliders" size={12} className="text-yellow-400" />
                                 人头税调整
                             </h3>
                             <div className="grid grid-cols-2 gap-2 items-center">
                                 <div>
-                                    <div className="text-[9px] text-gray-400 mb-0.5 leading-none">税率系数</div>
+                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">税率系数</div>
                                     <div className="flex items-center gap-1">
                                         <button
                                             type="button"
@@ -593,7 +593,7 @@ const StratumDetailSheetComponent = ({
                                                 }));
                                                 setDraftMultiplier(null);
                                             }}
-                                            className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[10px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                                            className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
                                             title="切换正负值（税收/补贴）"
                                         >
                                             ±
@@ -617,7 +617,7 @@ const StratumDetailSheetComponent = ({
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="text-[9px] text-gray-400 mb-0.5 leading-none">实际税额 (每人每日)</div>
+                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每人每日)</div>
                                     <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                                         <span className={`text-sm font-bold font-mono ${(stratum.headTaxBase * headTaxMultiplier) > 0 ? 'text-yellow-300' : (stratum.headTaxBase * headTaxMultiplier) < 0 ? 'text-green-300' : 'text-gray-400'
                                             }`}>
@@ -632,31 +632,31 @@ const StratumDetailSheetComponent = ({
                                     </div>
                                 </div>
                             </div>
-                            <p className="text-[10px] text-gray-500 mt-1.5">实际税额 = 阶层基准税额 × 税率系数。负数系数代表补贴。</p>
+
                         </div>
                     )}
 
                     {/* 收支情况 */}
                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
                             <Icon name="TrendingUp" size={12} className="text-green-400" />
                             每日人均收支
                         </h3>
                         <div className="grid grid-cols-3 gap-2">
                             <div>
-                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">收入</div>
+                                <div className="text-xs text-gray-400 mb-0.5 leading-none">收入</div>
                                 <div className="text-sm font-bold text-green-400 font-mono leading-none">
                                     +{Math.abs(incomePerCapita).toFixed(2)}
                                 </div>
                             </div>
                             <div>
-                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">支出</div>
+                                <div className="text-xs text-gray-400 mb-0.5 leading-none">支出</div>
                                 <div className="text-sm font-bold text-red-400 font-mono leading-none">
                                     -{Math.abs(expensePerCapita).toFixed(2)}
                                 </div>
                             </div>
                             <div>
-                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">净收入</div>
+                                <div className="text-xs text-gray-400 mb-0.5 leading-none">净收入</div>
                                 <div className={`text-sm font-bold font-mono leading-none ${netIncomePerCapita >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {netIncomePerCapita >= 0 ? '+' : ''}{netIncomePerCapita.toFixed(2)}
                                 </div>
@@ -666,11 +666,11 @@ const StratumDetailSheetComponent = ({
 
                     {/* 资源需求 */}
                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
                             <Icon name="Package" size={12} className="text-amber-400" />
                             资源需求清单
                             {totalLuxuryTiers > 0 && unlockedLuxuryTiers > 0 && (
-                                <span className="text-[8px] text-purple-400 ml-1">(含富裕需求)</span>
+                                <span className="text-xs text-purple-400 ml-1">(含富裕需求)</span>
                             )}
                         </h3>
 
@@ -711,7 +711,7 @@ const StratumDetailSheetComponent = ({
 
                             if (effectiveNeedsEntries.length === 0) {
                                 return (
-                                    <div className="text-center text-gray-400 text-[10px] py-2">
+                                    <div className="text-center text-gray-400 text-xs py-2">
                                         该阶层暂无特殊资源需求
                                     </div>
                                 );
@@ -773,24 +773,24 @@ const StratumDetailSheetComponent = ({
                                                         <div className="flex items-center gap-1">
                                                             <span className="text-xs font-bold text-white leading-tight">{resource?.name || resourceKey}</span>
                                                             {!isBase && (
-                                                                <span className="text-[8px] px-1 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/30">
+                                                                <span className="text-xs px-1 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/30">
                                                                     富裕 {luxuryThreshold}×
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="text-[9px] text-gray-400 leading-tight truncate">{resource?.desc || '资源描述'}</div>
+                                                        <div className="text-xs text-gray-400 leading-tight truncate">{resource?.desc || '资源描述'}</div>
                                                     </div>
                                                 </div>
 
                                                 {/* 需求量信息 */}
                                                 <div className="bg-gray-800/40 rounded px-2 py-1 mb-1">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-[9px] text-gray-400 leading-none">人均需求</span>
-                                                        <span className="text-[10px] font-bold text-white font-mono leading-none">{amount.toFixed(2)}</span>
+                                                        <span className="text-xs text-gray-400 leading-none">人均需求</span>
+                                                        <span className="text-xs font-bold text-white font-mono leading-none">{amount.toFixed(2)}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between mt-0.5">
-                                                        <span className="text-[9px] text-gray-400 leading-none">总需求</span>
-                                                        <span className="text-[10px] font-bold text-blue-300 font-mono leading-none">{(amount * count).toFixed(2)}</span>
+                                                        <span className="text-xs text-gray-400 leading-none">总需求</span>
+                                                        <span className="text-xs font-bold text-blue-300 font-mono leading-none">{(amount * count).toFixed(2)}</span>
                                                     </div>
                                                 </div>
 
@@ -798,9 +798,9 @@ const StratumDetailSheetComponent = ({
                                                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${statusBg}`}>
                                                     <Icon name={statusIcon} size={12} className={statusColor} />
                                                     <div className="flex-1 min-w-0">
-                                                        <div className={`text-[10px] font-bold ${statusColor} leading-tight`}>{statusText}</div>
+                                                        <div className={`text-xs font-bold ${statusColor} leading-tight`}>{statusText}</div>
                                                         {reasonDetail && (
-                                                            <div className={`text-[9px] ${statusColor} leading-tight truncate`}>{reasonDetail}</div>
+                                                            <div className={`text-xs ${statusColor} leading-tight truncate`}>{reasonDetail}</div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -815,7 +815,7 @@ const StratumDetailSheetComponent = ({
                     {/* 激活效果 */}
                     {(relevantBuffs.length > 0 || relevantDebuffs.length > 0) && (
                         <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                            <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                            <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
                                 <Icon name="Activity" size={12} className="text-blue-400" />
                                 激活效果
                             </h3>
@@ -826,10 +826,10 @@ const StratumDetailSheetComponent = ({
                                         <div key={`buff-${index}`} className="bg-green-900/20 border border-green-500/30 rounded p-1.5">
                                             <div className="flex items-center gap-1 mb-0.5">
                                                 <Icon name="ArrowUp" size={10} className="text-green-400" />
-                                                <span className="text-[10px] font-semibold text-green-300 leading-tight">{buff.desc || '满意加成'}</span>
+                                                <span className="text-xs font-semibold text-green-300 leading-tight">{buff.desc || '满意加成'}</span>
                                             </div>
                                             {details.length > 0 && (
-                                                <div className="text-[9px] text-gray-300 ml-4 leading-tight">{details.join('，')}</div>
+                                                <div className="text-xs text-gray-300 ml-4 leading-tight">{details.join('，')}</div>
                                             )}
                                         </div>
                                     );
@@ -840,10 +840,10 @@ const StratumDetailSheetComponent = ({
                                         <div key={`debuff-${index}`} className="bg-red-900/20 border border-red-500/30 rounded p-1.5">
                                             <div className="flex items-center gap-1 mb-0.5">
                                                 <Icon name="ArrowDown" size={10} className="text-red-400" />
-                                                <span className="text-[10px] font-semibold text-red-300 leading-tight">{debuff.desc || '不满惩罚'}</span>
+                                                <span className="text-xs font-semibold text-red-300 leading-tight">{debuff.desc || '不满惩罚'}</span>
                                             </div>
                                             {details.length > 0 && (
-                                                <div className="text-[9px] text-gray-300 ml-4 leading-tight">{details.join('，')}</div>
+                                                <div className="text-xs text-gray-300 ml-4 leading-tight">{details.join('，')}</div>
                                             )}
                                         </div>
                                     );
@@ -960,11 +960,11 @@ const StratumDetailSheetComponent = ({
 
                                     {/* 为什么好感度会下降（解释卡片） */}
                                     <div className="bg-gray-800/40 rounded p-3 border border-gray-600">
-                                        <h3 className="text-[11px] font-bold text-white mb-2 flex items-center gap-2">
+                                        <h3 className="text-xs font-bold text-white mb-2 flex items-center gap-2">
                                             <Icon name="HelpCircle" size={14} className="text-amber-300" />
                                             为什么好感度会下降？
                                         </h3>
-                                        <div className="text-[11px] text-gray-300 space-y-1.5 leading-relaxed">
+                                        <div className="text-xs text-gray-300 space-y-1.5 leading-relaxed">
                                             <div>
                                                 <span className="text-gray-200 font-semibold">核心逻辑：</span>
                                                 好感度不是“永久值”，它会持续受到经济与政策的影响。
@@ -987,7 +987,7 @@ const StratumDetailSheetComponent = ({
                                                     <span><span className="text-gray-200 font-semibold">临时事件/政令效果消退</span>：事件加成有持续时间，结束后会回落，看起来像“突然下降”。</span>
                                                 </li>
                                             </ul>
-                                            <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-700/70">
+                                            <div className="text-xs text-gray-400 pt-1 border-t border-gray-700/70">
                                                 下面的<span className="text-gray-200 font-semibold">"好感度变化分析"</span>会把正负因素按贡献度拆出来，帮助你了解影响好感度的各项因素。
                                             </div>                                        </div>
                                     </div>
@@ -1081,7 +1081,7 @@ const StratumDetailSheetComponent = ({
                                             )}
                                         </div>
                                         <div className="pt-2 border-t border-gray-600/60">
-                                            <h4 className="text-[11px] font-bold text-white mb-1 flex items-center gap-1">
+                                            <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1">
                                                 <Icon name="FileText" size={12} className="text-amber-300" />
                                                 承诺任务
                                             </h4>
@@ -1091,13 +1091,13 @@ const StratumDetailSheetComponent = ({
                                                         const remaining = getPromiseTaskRemainingDays(task, daysElapsed || 0);
                                                         return (
                                                             <div key={task.id} className="bg-gray-800/60 border border-gray-600 rounded p-2">
-                                                                <div className="flex items-center justify-between text-[10px] text-gray-300">
+                                                                <div className="flex items-center justify-between text-xs text-gray-300">
                                                                     <span className="font-semibold text-white">{task.description}</span>
                                                                     <span className={`font-mono ${remaining <= 5 ? 'text-red-300' : 'text-green-300'}`}>
                                                                         剩余 {remaining} 天
                                                                     </span>
                                                                 </div>
-                                                                <div className="text-[9px] text-gray-400 mt-0.5">
+                                                                <div className="text-xs text-gray-400 mt-0.5">
                                                                     失败惩罚: 组织度 +{task.failurePenalty?.organization || 0}%
                                                                     {task.failurePenalty?.forcedUprising ? '（直接爆发）' : ''}
                                                                 </div>
@@ -1106,7 +1106,7 @@ const StratumDetailSheetComponent = ({
                                                     })}
                                                 </div>
                                             ) : (
-                                                <div className="text-[11px] text-gray-400">暂无该阶层的承诺。</div>
+                                                <div className="text-xs text-gray-400">暂无该阶层的承诺。</div>
                                             )}
                                         </div>
                                     </div>
@@ -1168,25 +1168,25 @@ const StratumDetailSheetComponent = ({
 
                         return (
                             <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                                <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                                <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1">
                                     <Icon name="TrendingUp" size={12} className="text-green-400" />
                                     每日人均收支总览
                                 </h3>
                                 <div className="grid grid-cols-3 gap-2">
                                     <div>
-                                        <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总收入</div>
+                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">总收入</div>
                                         <div className="text-sm font-bold text-green-400 font-mono leading-none">
                                             +{totalIncomeCalc.toFixed(2)}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总支出</div>
+                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">总支出</div>
                                         <div className="text-sm font-bold text-red-400 font-mono leading-none">
                                             -{totalExpenseCalc.toFixed(2)}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[9px] text-gray-400 mb-0.5 leading-none">净收益</div>
+                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">净收益</div>
                                         <div className={`text-sm font-bold font-mono leading-none ${netIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                             {netIncome >= 0 ? '+' : '-'}{netIncome.toFixed(2)}
                                         </div>
@@ -1198,7 +1198,7 @@ const StratumDetailSheetComponent = ({
 
                     {/* 收入明细 */}
                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                        <h3 className="text-[10px] font-bold text-white mb-2 flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-white mb-2 flex items-center gap-1">
                             <Icon name="ArrowDownLeft" size={12} className="text-green-400" />
                             收入构成 (人均/日)
                         </h3>
@@ -1267,7 +1267,7 @@ const StratumDetailSheetComponent = ({
 
                     {/* 支出明细 */}
                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                        <h3 className="text-[10px] font-bold text-white mb-2 flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-white mb-2 flex items-center gap-1">
                             <Icon name="ArrowUpRight" size={12} className="text-red-400" />
                             支出构成 (人均/日)
                         </h3>
@@ -1365,7 +1365,7 @@ const StratumDetailSheetComponent = ({
                                                     if (perCapitaCost < 0.001) return null;
                                                     const resInfo = RESOURCES[resKey];
                                                     return (
-                                                        <div key={resKey} className="flex items-center justify-between text-[10px] gap-1">
+                                                        <div key={resKey} className="flex items-center justify-between text-xs gap-1">
                                                             <span className="flex items-center gap-1 text-gray-400">
                                                                 <Icon name={resInfo?.icon || 'Package'} size={10} className={resInfo?.color || 'text-gray-400'} />
                                                                 {resInfo?.name || resKey}
@@ -1401,7 +1401,7 @@ const StratumDetailSheetComponent = ({
                                                     if (perCapitaCost < 0.001) return null;
                                                     const resInfo = RESOURCES[resKey];
                                                     return (
-                                                        <div key={resKey} className="flex items-center justify-between text-[10px] gap-1">
+                                                        <div key={resKey} className="flex items-center justify-between text-xs gap-1">
                                                             <span className="flex items-center gap-1 text-gray-400">
                                                                 <Icon name={resInfo?.icon || 'Package'} size={10} className={resInfo?.color || 'text-gray-400'} />
                                                                 {resInfo?.name || resKey}

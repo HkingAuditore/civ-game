@@ -145,6 +145,11 @@ export const updateMarketPrices = ({
             ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
             : defaultInventoryPriceImpact;
 
+        // Get resource-specific supplyDemandWeight
+        const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined
+            ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
+            : Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
+
         const sup = supply[resource] || 0;
         const dem = demand[resource] || 0;
         const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
@@ -228,16 +233,27 @@ export const updateMarketPrices = ({
 
             const basePrice = getBasePrice(resource);
             const inventoryRatio = inventoryDays / inventoryTargetDays;
-            
-            // Price adjustment based on inventory
+            // Max multiplier driven by maxPrice config
+            const maxMultiplier = (resourceDef.maxPrice != null && basePrice > 0)
+                ? resourceDef.maxPrice / basePrice
+                : 50.0;
+
+            // Price adjustment based on inventory - continuous piecewise function
             let priceMultiplier = 1.0;
-            if (inventoryRatio < 0.5) {
-                // Low inventory - price increases
-                priceMultiplier = 1 + (0.5 - inventoryRatio) * inventoryPriceImpact * 2;
+            if (inventoryRatio < 0.1) {
+                // Extreme shortage: steep increase, continuous at ratio=0.1 (value=5.0)
+                priceMultiplier = 5.0 + (0.1 - inventoryRatio) * 40.0;
+                priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
+            } else if (inventoryRatio < 0.5) {
+                // Low inventory: moderate increase, continuous at ratio=0.1 (value=5.0) and ratio=0.5 (value=1.0)
+                priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 10.0;
             } else if (inventoryRatio > 2.0) {
                 // High inventory - price decreases
                 priceMultiplier = 1 - Math.min(0.5, (inventoryRatio - 2.0) * inventoryPriceImpact * 0.5);
             }
+
+            // Apply supplyDemandWeight: scales how much supply/demand moves price away from 1.0
+            priceMultiplier = 1.0 + (priceMultiplier - 1.0) * supplyDemandWeight;
 
             // [NEW] Military resource epoch obsolescence decay
             // Old-era military resources lose value as newer alternatives become available
@@ -253,7 +269,7 @@ export const updateMarketPrices = ({
 
             // Smooth price transition
             const currentPrice = priceMap[resource] || basePrice;
-            const smoothing = 0.1;
+            const smoothing = 0.2;
             updatedPrices[resource] = parseFloat(
                 (currentPrice + (targetPrice - currentPrice) * smoothing).toFixed(2)
             );

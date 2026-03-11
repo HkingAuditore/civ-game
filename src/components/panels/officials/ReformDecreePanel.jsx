@@ -215,7 +215,7 @@ const DecreeCard = ({
                     return (
                         <span
                             key={key}
-                            className={`text-[10px] px-1.5 py-0.5 rounded ${isBad
+                            className={`text-xs px-1.5 py-0.5 rounded ${isBad
                                 ? 'bg-red-900/30 text-red-400'
                                 : 'bg-green-900/30 text-green-400'
                                 }`}
@@ -408,7 +408,7 @@ export const ReformDecreePanel = ({
                 <div className="mb-5">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-gray-300">传统政令（政策槽位）</span>
-                        <span className="text-[10px] text-gray-500">{visibleLegacyPolicies.length} 项 / 空余 {freeSlots}</span>
+                        <span className="text-xs text-gray-500">{visibleLegacyPolicies.length} 项 / 空余 {freeSlots}</span>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                         {visibleLegacyPolicies.map((policy) => {
@@ -445,7 +445,7 @@ export const ReformDecreePanel = ({
                                             return (
                                                 <span
                                                     key={key}
-                                                    className={`text-[10px] px-1.5 py-0.5 rounded ${isNegative
+                                                    className={`text-xs px-1.5 py-0.5 rounded ${isNegative
                                                         ? 'bg-red-900/30 text-red-400'
                                                         : 'bg-green-900/30 text-green-400'
                                                         }`}
@@ -482,7 +482,7 @@ export const ReformDecreePanel = ({
                 <div className="mb-2">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-gray-300">内阁专项（改良法令/临时）</span>
-                        <span className="text-[10px] text-gray-500">{visibleTimedDecrees.length} 项</span>
+                        <span className="text-xs text-gray-500">{visibleTimedDecrees.length} 项</span>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                         {visibleTimedDecrees.map((decree) => {

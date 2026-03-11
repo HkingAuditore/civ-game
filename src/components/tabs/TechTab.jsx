@@ -141,13 +141,13 @@ const TechTooltip = ({ tech, status, resources, market, anchorElement, difficult
             </h5>
             <p className="text-xs text-gray-400 mb-2">{tech.desc}</p>
 
-            {tech.effect && <div className="bg-blue-900/30 rounded px-2 py-1.5 mb-2"><div className="text-[10px] text-gray-400 mb-1">特殊效果</div><p className="text-xs text-blue-300">{tech.effect}</p></div>}
+            {tech.effect && <div className="bg-blue-900/30 rounded px-2 py-1.5 mb-2"><div className="text-xs text-gray-400 mb-1">特殊效果</div><p className="text-xs text-blue-300">{tech.effect}</p></div>}
 
-            {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && <div className="bg-amber-900/30 rounded px-2 py-1.5 mb-2"><div className="text-[10px] text-gray-400 mb-1">解锁建筑</div><p className="text-xs text-amber-300">{TECH_BUILDING_UNLOCKS[tech.id].join('、')}</p></div>}
+            {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && <div className="bg-amber-900/30 rounded px-2 py-1.5 mb-2"><div className="text-xs text-gray-400 mb-1">解锁建筑</div><p className="text-xs text-amber-300">{TECH_BUILDING_UNLOCKS[tech.id].join('、')}</p></div>}
 
             {status !== 'unlocked' && (
                 <div className="bg-gray-900/50 rounded px-2 py-1.5">
-                    <div className="text-[10px] text-gray-400 mb-1">研究成本</div>
+                    <div className="text-xs text-gray-400 mb-1">研究成本</div>
                     {Object.entries(adjustedCost).map(([resource, cost]) => (
                         <div key={resource} className="flex justify-between text-xs">
                             <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
@@ -385,7 +385,7 @@ const TechTabComponent = ({
                             />
                             当前时代：{currentEpoch?.name || '未知时代'}
                         </h3>
-                        <p className="text-[11px] text-gray-300 mt-0.5">
+                        <p className="text-xs text-gray-300 mt-0.5">
                             {currentEpoch?.description || ''}
                         </p>
                     </div>
@@ -406,7 +406,7 @@ const TechTabComponent = ({
                 {/* 时代加成 */}
                 {currentEpoch?.bonuses && (
                     <div className="mb-2 p-2 bg-black/20 rounded">
-                        <p className="text-[11px] text-gray-400 mb-1.5">当前时代加成：</p>
+                        <p className="text-xs text-gray-400 mb-1.5">当前时代加成：</p>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
                             {Object.entries(currentEpoch.bonuses).map(([key, value]) => (
                                 key === 'desc' ? null : (
@@ -585,11 +585,10 @@ const TechTabComponent = ({
                                                 {visibleTechs.map((tech) => {
                                                     const status = getTechStatus(tech);
                                                     const multiplier = getTechCostMultiplier(difficulty);
-                                                    const adjustedCost = {};
-                                                    Object.entries(tech.cost).forEach(([res, val]) => {
-                                                        adjustedCost[res] = Math.ceil(val * multiplier);
-                                                    });
-                                                    const silverCost = calculateSilverCost(adjustedCost, market);
+                                                    const silverCost = calculateSilverCost(
+                                                        Object.fromEntries(Object.entries(tech.cost).map(([r, v]) => [r, Math.ceil(v * multiplier)])),
+                                                        market
+                                                    );
                                                     const affordable = canResearch(tech);
 
                                                     return (
@@ -607,18 +606,18 @@ const TechTabComponent = ({
                                                         >
                                                             <span className="text-[13px] text-white text-center leading-tight mb-0.5 line-clamp-1">{tech.name}</span>
                                                             {status !== 'unlocked' && (
-                                                                <span className="text-[9px] text-cyan-300 font-mono mb-0.5 inline-flex items-center gap-1">
+                                                                <span className="text-xs text-cyan-300 font-mono mb-0.5 inline-flex items-center gap-1">
                                                                     <Icon name={RESOURCES.science?.icon || 'Flask'} size={10} className="text-cyan-300" />
                                                                     {adjustedCost?.science ?? 0}
                                                                 </span>
                                                             )}
                                                             {status === 'unlocked' ? (
-                                                                <span className="text-[9px] text-green-400">✓已研究</span>
+                                                                <span className="text-xs text-green-400">✓已研究</span>
                                                             ) : (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
                                                                     disabled={!affordable}
-                                                                    className={`w-full px-1 py-0.5 rounded text-[11px] font-semibold ${affordable
+                                                                    className={`w-full px-1 py-0.5 rounded text-xs font-semibold ${affordable
                                                                         ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
                                                                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                                         }`}

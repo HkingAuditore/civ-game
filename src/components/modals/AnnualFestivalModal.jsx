@@ -111,7 +111,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
                                 <p className="text-xs text-white font-semibold leading-tight">
                                     第 {year} 年庆典盛会
                                 </p>
-                                <p className="text-[10px] text-gray-300 leading-tight">
+                                <p className="text-xs text-gray-300 leading-tight">
                                     <span className={`font-bold ${currentEpoch.name}`}>{currentEpoch.name}</span> · 选择一项庆典效果来祝福您的文明
                                 </p>
                             </div>
@@ -123,7 +123,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
                             <div className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg">
                                 <div className="flex items-start gap-1.5">
                                     <Icon name="Info" size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                                    <div className="text-[10px] text-gray-300 leading-relaxed">
+                                    <div className="text-xs text-gray-300 leading-relaxed">
                                         <p className="font-semibold text-blue-300 leading-tight">庆典说明</p>
                                         <p>每年一度的盛大庆典来临！请从以下三个选项中选择一项效果。</p>
                                         <p className="mt-0.5">
@@ -190,7 +190,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
                                                     </div>
 
                                                     {/* 描述 */}
-                                                    <p className="text-[10px] text-gray-300 mb-1.5 leading-relaxed">
+                                                    <p className="text-xs text-gray-300 mb-1.5 leading-relaxed">
                                                         {effect.description}
                                                     </p>
 
@@ -199,7 +199,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
                                                         {effectDetails.map((detail, idx) => (
                                                             <div
                                                                 key={idx}
-                                                                className={`flex items-center gap-1.5 text-[11px] p-1 rounded ${isPermanent
+                                                                className={`flex items-center gap-1.5 text-xs p-1 rounded ${isPermanent
                                                                     ? 'bg-purple-900/30 border border-purple-600/30'
                                                                     : 'bg-yellow-900/30 border border-yellow-600/30'
                                                                     }`}
@@ -216,7 +216,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
 
                                                     {/* 风味文本 */}
                                                     <div className="pt-1.5 border-t border-gray-600">
-                                                        <p className="text-[9px] text-gray-400 italic leading-relaxed">
+                                                        <p className="text-xs text-gray-400 italic leading-relaxed">
                                                             "{effect.flavorText}"
                                                         </p>
                                                     </div>
@@ -230,7 +230,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
                             {/* 选择提示 */}
                             {!selectedEffect && (
                                 <div className="text-center">
-                                    <p className="text-[10px] text-gray-400 animate-pulse leading-tight">
+                                    <p className="text-xs text-gray-400 animate-pulse leading-tight">
                                         👆 请选择一项庆典效果
                                     </p>
                                 </div>

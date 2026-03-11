@@ -171,7 +171,7 @@ const TAB_OPTIONS = [
 
 // 流向标记
 const FlowBadge = ({ label, direction = 'right' }) => (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ancient-gold/30 bg-ancient-ink/50 px-2 py-0.5 text-[9px] text-ancient-parchment">
+    <span className="inline-flex items-center gap-1 rounded-full border border-ancient-gold/30 bg-ancient-ink/50 px-2 py-0.5 text-xs text-ancient-parchment">
         <Icon name={direction === 'right' ? 'ArrowRight' : 'ArrowLeft'} size={10} className="text-ancient-gold" />
         {label}
     </span>
@@ -195,12 +195,12 @@ const ProductionNode = ({ buildingId, building, role, currentResource, count = 0
         ratioNode = (
             <div className="mt-1.5 space-y-0.5">
                 {inputs.length > 0 ? inputs.map(input => (
-                    <div key={input.key} className="text-[10px] text-ancient-stone flex justify-between">
+                    <div key={input.key} className="text-xs text-ancient-stone flex justify-between">
                         <span>{input.name}</span>
                         <span className="text-ancient-stone/80">x{input.ratio}</span>
                     </div>
                 )) : (
-                    <div className="text-[10px] text-ancient-stone/80">基础采集/生产</div>
+                    <div className="text-xs text-ancient-stone/80">基础采集/生产</div>
                 )}
             </div>
         );
@@ -215,12 +215,12 @@ const ProductionNode = ({ buildingId, building, role, currentResource, count = 0
         ratioNode = (
             <div className="mt-1.5 space-y-0.5">
                 {outputs.length > 0 ? outputs.map(output => (
-                    <div key={output.key} className="text-[10px] text-ancient-stone flex justify-between">
+                    <div key={output.key} className="text-xs text-ancient-stone flex justify-between">
                         <span>→ {output.name}</span>
                         <span className="text-ancient-stone/80">x{output.ratio}</span>
                     </div>
                 )) : (
-                    <div className="text-[10px] text-ancient-stone/80">作为终端消费</div>
+                    <div className="text-xs text-ancient-stone/80">作为终端消费</div>
                 )}
             </div>
         );
@@ -235,7 +235,7 @@ const ProductionNode = ({ buildingId, building, role, currentResource, count = 0
                     </div>
                     <div className="min-w-0">
                         <p className="text-xs font-bold text-ancient-parchment truncate">{building.name}</p>
-                        <p className="text-[9px] text-ancient-stone">
+                        <p className="text-xs text-ancient-stone">
                             {count > 0 ? `已建 ${count | 0} 座` : '未建造'}
                         </p>
                     </div>
@@ -245,7 +245,7 @@ const ProductionNode = ({ buildingId, building, role, currentResource, count = 0
             <div className="h-px bg-ancient-gold/10 w-full mb-1.5"></div>
             {ratioNode}
             <div className="mt-2 pt-1 border-t border-ancient-gold/10 flex justify-between items-center">
-                <span className="text-[9px] text-ancient-stone">{isProducer ? '产出' : '消耗'}/座</span>
+                <span className="text-xs text-ancient-stone">{isProducer ? '产出' : '消耗'}/座</span>
                 <span className={`text-xs font-mono font-bold ${isProducer ? 'text-emerald-300' : 'text-rose-300'}`}>
                     {isProducer
                         ? building.output?.[currentResource]
@@ -287,12 +287,12 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                 <div className="lg:hidden space-y-4">
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-300">
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-300">
                                 来源 / 生产
                             </span>
-                            <span className="text-[9px] text-ancient-stone">上游</span>
+                            <span className="text-xs text-ancient-stone">上游</span>
                         </div>
-                        <p className="text-[11px] text-ancient-stone">
+                        <p className="text-xs text-ancient-stone">
                             将原料生产为 <span className="text-ancient-parchment font-semibold">{resourceDef?.name}</span>。
                         </p>
                         {producers.length > 0 ? (
@@ -322,7 +322,7 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
 
                     <div className="relative p-5 rounded-2xl border-2 border-ancient-gold/40 bg-ancient-ink/60 shadow-[0_0_30px_-5px_rgba(212,175,55,0.25)] backdrop-blur-sm">
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-ancient-ink border border-ancient-gold/40 rounded-full">
-                            <span className="text-[10px] font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
+                            <span className="text-xs font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
                         </div>
                         <div className="flex flex-col items-center gap-3">
                             <div className="w-12 h-12 rounded-lg bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
@@ -363,12 +363,12 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
 
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-[10px] text-rose-300">
+                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-xs text-rose-300">
                                 用途 / 消耗
                             </span>
-                            <span className="text-[9px] text-ancient-stone">下游</span>
+                            <span className="text-xs text-ancient-stone">下游</span>
                         </div>
-                        <p className="text-[11px] text-ancient-stone">
+                        <p className="text-xs text-ancient-stone">
                             作为生产材料或终端消费进入产业链。
                         </p>
                         {consumers.length > 0 ? (
@@ -396,10 +396,10 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                     {/* 上游：来源 */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-300">
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-300">
                                 来源 / 生产
                             </span>
-                            <span className="text-[9px] text-ancient-stone">上游</span>
+                            <span className="text-xs text-ancient-stone">上游</span>
                         </div>
                         {producers.length > 0 ? (
                             <div className="space-y-3">
@@ -425,7 +425,7 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                     <div className="flex flex-col justify-center items-center">
                         <div className="relative p-5 rounded-2xl border-2 border-ancient-gold/40 bg-ancient-ink/60 shadow-[0_0_30px_-5px_rgba(212,175,55,0.25)] backdrop-blur-sm">
                             <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-ancient-ink border border-ancient-gold/40 rounded-full">
-                                <span className="text-[10px] font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
+                                <span className="text-xs font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
                             </div>
                             <div className="flex flex-col items-center gap-3">
                                 <div className="w-12 h-12 rounded-lg bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
@@ -463,10 +463,10 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                     {/* 下游：去向 */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-[10px] text-rose-300">
+                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-xs text-rose-300">
                                 用途 / 消耗
                             </span>
-                            <span className="text-[9px] text-ancient-stone">下游</span>
+                            <span className="text-xs text-ancient-stone">下游</span>
                         </div>
                         {consumers.length > 0 ? (
                             <div className="space-y-3">
@@ -501,9 +501,9 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                             <div key={upgrade.id} className="p-3 rounded-lg border border-purple-500/10 bg-purple-500/5 hover:bg-purple-500/10 transition-colors">
                                 <div className="flex justify-between items-start mb-1">
                                     <span className="text-xs font-bold text-purple-200">{upgrade.name}</span>
-                                    <span className="text-[10px] text-gray-500">时代 {upgrade.unlockEpoch}</span>
+                                    <span className="text-xs text-gray-500">时代 {upgrade.unlockEpoch}</span>
                                 </div>
-                                <div className="text-[10px] text-gray-400 space-y-0.5">
+                                <div className="text-xs text-gray-400 space-y-0.5">
                                     {Object.entries(upgrade.bonus || {}).map(([k, v]) => {
                                         const bonusMap = {
                                             'efficiency': '效率',
@@ -1147,7 +1147,7 @@ const ResourceDetailContent = ({
                         </div>
                         <div className="flex-1 min-w-0">
                             <h2 className="text-sm lg:text-base font-bold text-white leading-tight font-decorative">{resourceDef.name}</h2>
-                            <p className="text-[9px] lg:text-[10px] text-gray-400 leading-tight truncate">
+                            <p className="text-xs lg:text-xs text-gray-400 leading-tight truncate">
                                 库存 {formatAmount(inventory)} {isSilver ? '· 财政资源' : `· 价格 ${marketPrice.toFixed(2)}`}
                             </p>
                         </div>
@@ -1163,30 +1163,30 @@ const ResourceDetailContent = ({
                             {/* 财政概览 */}
                             <div className="grid gap-1.5 lg:gap-2 grid-cols-2">
                                 <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2 lg:p-2.5">
-                                    <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-yellow-300/80 leading-none">国库银币</p>
+                                    <p className="text-xs lg:text-xs uppercase tracking-wide text-yellow-300/80 leading-none">国库银币</p>
                                     <p className="mt-1 text-base lg:text-lg font-bold text-yellow-200 font-mono leading-none">{formatAmount(latestTreasury)}</p>
-                                    <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-yellow-200/80 leading-none">
+                                    <p className="mt-0.5 lg:mt-1 text-xs lg:text-xs text-yellow-200/80 leading-none">
                                         储备 {formatAmount(resources[resourceKey] || 0)}
                                     </p>
                                 </div>
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 lg:p-2.5">
-                                    <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日国库收入</p>
+                                    <p className="text-xs lg:text-xs uppercase tracking-wide text-emerald-300/80 leading-none">每日国库收入</p>
                                     <p className="mt-1 text-base lg:text-lg font-bold text-emerald-200 font-mono leading-none">
                                         {formatAmount(displayedTreasuryIncome)}
                                     </p>
-                                    <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-emerald-200/80 leading-none">{treasuryIncomeLabel}</p>
+                                    <p className="mt-0.5 lg:mt-1 text-xs lg:text-xs text-emerald-200/80 leading-none">{treasuryIncomeLabel}</p>
                                 </div>
                             </div>
 
                             {/* 宏观经济指标 */}
                             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2 lg:p-2.5">
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-[9px] uppercase tracking-wide text-blue-300/80">
+                                    <p className="text-xs uppercase tracking-wide text-blue-300/80">
                                         宏观经济指标
                                     </p>
                                     <button
                                         onClick={() => setShowEconomicDetails(!showEconomicDetails)}
-                                        className="text-[8px] text-gray-400 hover:text-gray-300 transition-colors"
+                                        className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
                                     >
                                         {showEconomicDetails ? '收起' : '展开'}
                                     </button>
@@ -1196,11 +1196,11 @@ const ResourceDetailContent = ({
                                 <div className="grid gap-2 grid-cols-3">
                                     {/* GDP */}
                                     <div>
-                                        <p className="text-[8px] text-gray-400">GDP</p>
+                                        <p className="text-xs text-gray-400">GDP</p>
                                         <p className="text-sm font-bold text-blue-200">
                                             {formatAmount(economicIndicators.gdp?.total || 0)}
                                         </p>
-                                        <p className={`text-[8px] ${(economicIndicators.gdp?.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        <p className={`text-xs ${(economicIndicators.gdp?.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                             {(economicIndicators.gdp?.change || 0) >= 0 ? '+' : ''}
                                             {(economicIndicators.gdp?.change || 0).toFixed(1)}%
                                         </p>
@@ -1208,28 +1208,28 @@ const ResourceDetailContent = ({
                                     
                                     {/* CPI */}
                                     <div>
-                                        <p className="text-[8px] text-gray-400">CPI</p>
+                                        <p className="text-xs text-gray-400">CPI</p>
                                         <p className="text-sm font-bold text-orange-200">
                                             {(economicIndicators.cpi?.index || 100).toFixed(1)}
                                         </p>
-                                        <p className={`text-[8px] ${(economicIndicators.cpi?.change || 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                        <p className={`text-xs ${(economicIndicators.cpi?.change || 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                                             {(economicIndicators.cpi?.change || 0) >= 0 ? '+' : ''}
                                             {(economicIndicators.cpi?.change || 0).toFixed(1)}%
                                         </p>
-                                        <p className="text-[7px] text-gray-600">基准: 90日均价</p>
+                                        <p className="text-xs text-gray-600">基准: 90日均价</p>
                                     </div>
                                     
                                     {/* PPI */}
                                     <div>
-                                        <p className="text-[8px] text-gray-400">PPI</p>
+                                        <p className="text-xs text-gray-400">PPI</p>
                                         <p className="text-sm font-bold text-purple-200">
                                             {(economicIndicators.ppi?.index || 100).toFixed(1)}
                                         </p>
-                                        <p className={`text-[8px] ${(economicIndicators.ppi?.change || 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                        <p className={`text-xs ${(economicIndicators.ppi?.change || 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                                             {(economicIndicators.ppi?.change || 0) >= 0 ? '+' : ''}
                                             {(economicIndicators.ppi?.change || 0).toFixed(1)}%
                                         </p>
-                                        <p className="text-[7px] text-gray-600">基准: 90日均价</p>
+                                        <p className="text-xs text-gray-600">基准: 90日均价</p>
                                     </div>
                                 </div>
                                 
@@ -1238,23 +1238,23 @@ const ResourceDetailContent = ({
                                     <div className="mt-2 space-y-2 border-t border-blue-500/20 pt-2">
                                         {/* GDP分解 */}
                                         <div className="text-xs">
-                                            <p className="text-gray-400 mb-1 text-[9px]">GDP构成</p>
+                                            <p className="text-gray-400 mb-1 text-xs">GDP构成</p>
                                             <div className="space-y-0.5">
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500 text-[9px]">消费 (C)</span>
-                                                    <span className="text-white text-[9px]">{formatAmount(economicIndicators.gdp?.consumption || 0)}</span>
+                                                    <span className="text-gray-500 text-xs">消费 (C)</span>
+                                                    <span className="text-white text-xs">{formatAmount(economicIndicators.gdp?.consumption || 0)}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500 text-[9px]">投资 (I)</span>
-                                                    <span className="text-white text-[9px]">{formatAmount(economicIndicators.gdp?.investment || 0)}</span>
+                                                    <span className="text-gray-500 text-xs">投资 (I)</span>
+                                                    <span className="text-white text-xs">{formatAmount(economicIndicators.gdp?.investment || 0)}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500 text-[9px]">政府支出 (G)</span>
-                                                    <span className="text-white text-[9px]">{formatAmount(economicIndicators.gdp?.government || 0)}</span>
+                                                    <span className="text-gray-500 text-xs">政府支出 (G)</span>
+                                                    <span className="text-white text-xs">{formatAmount(economicIndicators.gdp?.government || 0)}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500 text-[9px]">净出口 (NX)</span>
-                                                    <span className={`text-[9px] ${(economicIndicators.gdp?.netExports || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    <span className="text-gray-500 text-xs">净出口 (NX)</span>
+                                                    <span className={`text-xs ${(economicIndicators.gdp?.netExports || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                         {formatAmount(economicIndicators.gdp?.netExports || 0)}
                                                     </span>
                                                 </div>
@@ -1263,14 +1263,14 @@ const ResourceDetailContent = ({
                                         
                                         {/* CPI贡献度 */}
                                         <div className="text-xs">
-                                            <p className="text-gray-400 mb-1 text-[9px]">CPI主要贡献</p>
+                                            <p className="text-gray-400 mb-1 text-xs">CPI主要贡献</p>
                                             {Object.entries(economicIndicators.cpi?.breakdown || {})
                                                 .sort((a, b) => Math.abs(b[1].contribution || 0) - Math.abs(a[1].contribution || 0))
                                                 .slice(0, 3)
                                                 .map(([resource, data]) => (
                                                     <div key={resource} className="flex justify-between">
-                                                        <span className="text-gray-500 text-[9px]">{RESOURCES[resource]?.name || resource}</span>
-                                                        <span className={`text-[9px] ${(data.contribution || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                        <span className="text-gray-500 text-xs">{RESOURCES[resource]?.name || resource}</span>
+                                                        <span className={`text-xs ${(data.contribution || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
                                                             {(data.contribution || 0) > 0 ? '+' : ''}{(data.contribution || 0).toFixed(1)}%
                                                         </span>
                                                     </div>
@@ -1284,7 +1284,7 @@ const ResourceDetailContent = ({
                             {/* 交易税调整 */}
                             {!isSilver && onUpdateTaxPolicies && (
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
-                                    <p className="text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none mb-2">交易税调整</p>
+                                    <p className="text-xs uppercase tracking-wide text-emerald-300/80 leading-none mb-2">交易税调整</p>
                                     <div className="flex items-center gap-2">
                                         <input
                                             type="text"
@@ -1306,7 +1306,7 @@ const ResourceDetailContent = ({
                                             <p className="text-sm font-semibold text-emerald-200">
                                                 当前税率: {(currentTaxRate * 100).toFixed(0)}%
                                             </p>
-                                            <p className="text-[10px] text-gray-400">
+                                            <p className="text-xs text-gray-400">
                                                 对市场交易额征税。负数为补贴。
                                             </p>
                                         </div>
@@ -1318,7 +1318,7 @@ const ResourceDetailContent = ({
                                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
                                     <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                                         <div>
-                                            <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">国库资金走势</p>
+                                            <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500 leading-none">国库资金走势</p>
                                             <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
                                                 当前 {formatAmount(resources[resourceKey] || 0)} 银币
                                             </p>
@@ -1334,7 +1334,7 @@ const ResourceDetailContent = ({
                                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
                                     <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                                         <div>
-                                            <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日国库收入走势</p>
+                                            <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500 leading-none">每日国库收入走势</p>
                                             <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
                                                 当前 {formatAmount(displayedTreasuryIncome)} / 日
                                             </p>
@@ -1351,7 +1351,7 @@ const ResourceDetailContent = ({
                                 {/* 经济指标走势图 */}
                                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
                                     <div className="mb-1.5 lg:mb-2">
-                                        <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">
+                                        <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500 leading-none">
                                             经济指标走势
                                         </p>
                                     </div>
@@ -1382,7 +1382,7 @@ const ResourceDetailContent = ({
                         <div className="flex h-full flex-col">
                             {/* 标签页 */}
                             <div className="px-2 lg:px-3 pt-1.5 lg:pt-2 flex-shrink-0">
-                                <div className="flex items-center gap-2 text-[10px] lg:text-xs rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm overflow-x-auto">
+                                <div className="flex items-center gap-2 text-xs lg:text-xs rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm overflow-x-auto">
                                     {TAB_OPTIONS.map(tab => (
                                         <button
                                             key={tab.id}
@@ -1398,14 +1398,14 @@ const ResourceDetailContent = ({
                                     ))}
                                 </div>
                                 {activeTabMeta && (
-                                    <p className="text-[8px] lg:text-[9px] text-gray-500 pb-1 leading-tight">{activeTabMeta.description}</p>
+                                    <p className="text-xs lg:text-xs text-gray-500 pb-1 leading-tight">{activeTabMeta.description}</p>
                                 )}
                             </div>
                             <div className="flex-1 space-y-2 lg:space-y-3 p-2 lg:p-3 overflow-y-auto">
                                 {/* 交易税调整 - 非银币资源 */}
                                 {!isSilver && onUpdateTaxPolicies && (
                                     <div className="rounded-xl lg:rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-2.5 lg:p-4">
-                                        <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1.5 lg:mb-2">交易税调整</p>
+                                        <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500 mb-1.5 lg:mb-2">交易税调整</p>
                                         <div className="flex items-center gap-2 lg:gap-4">
                                             <div className="flex items-center gap-1">
                                                 <button
@@ -1442,14 +1442,14 @@ const ResourceDetailContent = ({
                                                 <p className={`text-base lg:text-lg font-bold ${currentTaxRate > 0 ? 'text-yellow-300' : currentTaxRate < 0 ? 'text-green-300' : 'text-gray-400'}`}>
                                                     {currentTaxRate > 0 ? '征税' : currentTaxRate < 0 ? '补贴' : '无'}
                                                 </p>
-                                                <p className="text-[10px] lg:text-xs text-gray-400">当前状态</p>
+                                                <p className="text-xs lg:text-xs text-gray-400">当前状态</p>
                                             </div>
                                         </div>
-                                        <p className="text-[10px] lg:text-xs text-gray-400 mt-1.5 lg:mt-2">对该资源的国内市场交易额征税。负数代表政府进行补贴。</p>
+                                        <p className="text-xs lg:text-xs text-gray-400 mt-1.5 lg:mt-2">对该资源的国内市场交易额征税。负数代表政府进行补贴。</p>
                                         <div className="mt-2 lg:mt-3 space-y-3">
                                             {/* 进口关税 */}
                                             <div>
-                                                <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1 flex items-center gap-1">
+                                                <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500 mb-1 flex items-center gap-1">
                                                     <Icon name="ArrowDownLeft" size={12} className="text-blue-400" />
                                                     进口关税
                                                 </p>
@@ -1472,13 +1472,13 @@ const ResourceDetailContent = ({
                                                     />
                                                     <div className="text-right flex-1">
                                                         <p className="text-sm lg:text-base font-semibold text-blue-200">{(currentImportTariff * 100).toFixed(0)}%</p>
-                                                        <p className="text-[10px] lg:text-xs text-gray-400">当前税率</p>
+                                                        <p className="text-xs lg:text-xs text-gray-400">当前税率</p>
                                                     </div>
                                                 </div>
                                             </div>
                                             {/* 出口关税 */}
                                             <div>
-                                                <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1 flex items-center gap-1">
+                                                <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500 mb-1 flex items-center gap-1">
                                                     <Icon name="ArrowUpRight" size={12} className="text-green-400" />
                                                     出口关税
                                                 </p>
@@ -1501,11 +1501,11 @@ const ResourceDetailContent = ({
                                                     />
                                                     <div className="text-right flex-1">
                                                         <p className="text-sm lg:text-base font-semibold text-green-200">{(currentExportTariff * 100).toFixed(0)}%</p>
-                                                        <p className="text-[10px] lg:text-xs text-gray-400">当前税率</p>
+                                                        <p className="text-xs lg:text-xs text-gray-400">当前税率</p>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <p className="text-[10px] lg:text-xs text-gray-400">关税与交易税独立计算，最终税率 = 交易税率 + 关税率（加法叠加）。负数为补贴。</p>
+                                            <p className="text-xs lg:text-xs text-gray-400">关税与交易税独立计算，最终税率 = 交易税率 + 关税率（加法叠加）。负数为补贴。</p>
                                         </div>
                                     </div>
                                 )}
@@ -1513,14 +1513,14 @@ const ResourceDetailContent = ({
                                     <div className="space-y-3 lg:space-y-4">
                                         <div className="grid grid-cols-2 gap-2 lg:gap-4">
                                             <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
-                                                <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">库存概览</p>
+                                                <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500">库存概览</p>
                                                 <p className="mt-1 lg:mt-2 text-2xl lg:text-2xl font-bold text-white">{formatAmount(inventory)}</p>
                                                 <p className="mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400">
                                                     日净变化 {formatAmount((latestSupply - latestDemand) || 0)}
                                                 </p>
                                             </div>
                                             <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
-                                                <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">市场价</p>
+                                                <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500">市场价</p>
                                                 <div className="mt-1 lg:mt-2 flex items-center gap-2 lg:gap-3 text-white">
                                                     <span className="text-2xl lg:text-2xl font-bold">{marketPrice.toFixed(2)}</span>
                                                     <span
@@ -1544,7 +1544,7 @@ const ResourceDetailContent = ({
                                             {/* 价格走势图 */}
                                             <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">价格走势</p>
+                                                    <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500">价格走势</p>
                                                     <Icon name="TrendingUp" size={14} className="text-sky-300" />
                                                 </div>
                                                 <MarketTrendChart
@@ -1559,11 +1559,11 @@ const ResourceDetailContent = ({
                                                 />
                                                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
-                                                        <p className="text-[9px] lg:text-[10px] text-gray-500">当前价格</p>
+                                                        <p className="text-xs lg:text-xs text-gray-500">当前价格</p>
                                                         <p className="text-sm lg:text-base font-bold text-white">{marketPrice.toFixed(2)}</p>
                                                     </div>
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
-                                                        <p className="text-[9px] lg:text-[10px] text-gray-500">日变化</p>
+                                                        <p className="text-xs lg:text-xs text-gray-500">日变化</p>
                                                         <p className={`text-sm lg:text-base font-bold ${priceTrend > 0 ? 'text-emerald-300' : priceTrend < 0 ? 'text-rose-300' : 'text-white'
                                                             }`}>
                                                             {priceTrend >= 0 ? '+' : ''}{formatAmount(priceTrend)}
@@ -1575,7 +1575,7 @@ const ResourceDetailContent = ({
                                             {/* 供需走势图 */}
                                             <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">供需走势</p>
+                                                    <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500">供需走势</p>
                                                     <Icon name="Activity" size={14} className="text-emerald-300" />
                                                 </div>
                                                 <MarketTrendChart
@@ -1595,15 +1595,15 @@ const ResourceDetailContent = ({
                                                 />
                                                 <div className="mt-2 grid grid-cols-3 gap-1.5">
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
-                                                        <p className="text-[9px] lg:text-[10px] text-gray-500">供给</p>
+                                                        <p className="text-xs lg:text-xs text-gray-500">供给</p>
                                                         <p className="text-sm lg:text-base font-bold text-emerald-300">{formatAmount(latestSupply)}</p>
                                                     </div>
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
-                                                        <p className="text-[9px] lg:text-[10px] text-gray-500">需求</p>
+                                                        <p className="text-xs lg:text-xs text-gray-500">需求</p>
                                                         <p className="text-sm lg:text-base font-bold text-rose-300">{formatAmount(latestDemand)}</p>
                                                     </div>
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
-                                                        <p className="text-[9px] lg:text-[10px] text-gray-500">净供需</p>
+                                                        <p className="text-xs lg:text-xs text-gray-500">净供需</p>
                                                         <p className="text-sm lg:text-base font-bold text-white">{formatAmount((latestSupply || 0) - (latestDemand || 0))}</p>
                                                     </div>
                                                 </div>
@@ -1635,25 +1635,25 @@ const ResourceDetailContent = ({
                                                     <div className="lg:col-span-2 rounded-xl border border-blue-500/30 bg-blue-950/20 p-2.5">
                                                         <div className="flex items-center gap-2 mb-2">
                                                             <Icon name="Info" size={14} className="text-blue-400" />
-                                                            <p className="text-[10px] lg:text-xs text-blue-200 font-medium">实际成交数据</p>
+                                                            <p className="text-xs lg:text-xs text-blue-200 font-medium">实际成交数据</p>
                                                         </div>
                                                         <div className="grid gap-2 grid-cols-2">
                                                             <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-rose-500/30 bg-rose-950/30">
                                                                 <div>
-                                                                    <span className="text-[10px] text-rose-300">实际消费量</span>
-                                                                    <span className="text-[8px] text-gray-500 ml-1">需求 {formatAmount(marketDemand)}</span>
+                                                                    <span className="text-xs text-rose-300">实际消费量</span>
+                                                                    <span className="text-xs text-gray-500 ml-1">需求 {formatAmount(marketDemand)}</span>
                                                                 </div>
                                                                 <span className="text-xs font-bold text-rose-400">{formatAmount(actualDemandTotal)}</span>
                                                             </div>
                                                             <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/30">
                                                                 <div>
-                                                                    <span className="text-[10px] text-emerald-300">实际供给量</span>
-                                                                    <span className="text-[8px] text-gray-500 ml-1">市场 {formatAmount(marketSupply)}</span>
+                                                                    <span className="text-xs text-emerald-300">实际供给量</span>
+                                                                    <span className="text-xs text-gray-500 ml-1">市场 {formatAmount(marketSupply)}</span>
                                                                 </div>
                                                                 <span className="text-xs font-bold text-emerald-400">{formatAmount(actualSupplyTotal)}</span>
                                                             </div>
                                                         </div>
-                                                        <p className="text-[9px] text-gray-500 mt-1.5">
+                                                        <p className="text-xs text-gray-500 mt-1.5">
                                                             实际成交=真实购买/消耗；市场需求/供给可能包含未成交部分
                                                         </p>
                                                     </div>
@@ -1665,7 +1665,7 @@ const ResourceDetailContent = ({
                                         <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-3 lg:p-4">
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成</p>
+                                                    <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500">需求构成</p>
                                                     <p className="text-base lg:text-xl font-semibold text-white">
                                                         {activeTab === 'analysis' ? (
                                                             <>
@@ -1717,22 +1717,22 @@ const ResourceDetailContent = ({
                                                                             <div className="flex items-center gap-1.5">
                                                                                 <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
                                                                                 {item.isPureLuxury && (
-                                                                                    <span className="text-[8px] px-1 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-500/30">
+                                                                                    <span className="text-xs px-1 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-500/30">
                                                                                         富裕新增
                                                                                     </span>
                                                                                 )}
                                                                                 {item.isLuxuryNeed && !item.isPureLuxury && (
-                                                                                    <span className="text-[8px] px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-500/30">
+                                                                                    <span className="text-xs px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-500/30">
                                                                                         含富裕需求
                                                                                     </span>
                                                                                 )}
                                                                             </div>
-                                                                            <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                                                            <p className="text-xs lg:text-xs text-gray-500">{item.formula}</p>
                                                                             {/* {item.wealthRatio && (
-                                    <p className="text-[9px] text-gray-400">财富比例: {item.wealthRatio}×</p>
+                                    <p className="text-xs text-gray-400">财富比例: {item.wealthRatio}×</p>
                                   )} */}
                                                                             {item.mods && item.mods.length > 0 && (
-                                                                                <p className={`text-[9px] ${item.isPureLuxury
+                                                                                <p className={`text-xs ${item.isPureLuxury
                                                                                     ? 'text-purple-400'
                                                                                     : item.isLuxuryNeed
                                                                                         ? 'text-indigo-400'
@@ -1750,10 +1750,10 @@ const ResourceDetailContent = ({
                                                                             }`}>{formatAmount(item.amount)}</p>
 
                                                                         {/* {item.isActual && (
-                                                                            <p className="text-[9px] text-emerald-400">实际消费</p>
+                                                                            <p className="text-xs text-emerald-400">实际消费</p>
                                                                         )} */}
                                                                         {/* {!item.isActual && item.hasBonus && (
-                                                                            <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
+                                                                            <p className="text-xs text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
                                                                         )} */}
 
                                                                     </div>
@@ -1766,7 +1766,7 @@ const ResourceDetailContent = ({
                                                 </div>
                                                 <div>
                                                     <p className="text-xs lg:text-sm font-semibold text-gray-300">建筑/工坊</p>
-                                                    <p className="text-[9px] text-gray-500 mt-0.5">实际消耗 = 基础值 × 效率加成</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">实际消耗 = 基础值 × 效率加成</p>
                                                     <div className="mt-1.5 lg:mt-2 space-y-1.5 lg:space-y-2">
                                                         {buildingDemand.length ? (
                                                             buildingDemand.map(item => (
@@ -1776,9 +1776,9 @@ const ResourceDetailContent = ({
                                                                 >
                                                                     <div>
                                                                         <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
-                                                                        <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                                                        <p className="text-xs lg:text-xs text-gray-500">{item.formula}</p>
                                                                         {item.mods && item.mods.length > 0 && (
-                                                                            <p className="text-[9px] text-amber-400 mt-0.5">
+                                                                            <p className="text-xs text-amber-400 mt-0.5">
                                                                                 {item.mods.join(' · ')}
                                                                             </p>
                                                                         )}
@@ -1786,7 +1786,7 @@ const ResourceDetailContent = ({
                                                                     <div className="text-right">
                                                                         <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
                                                                         {item.hasBonus && item.baseAmount !== item.amount && (
-                                                                            <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
+                                                                            <p className="text-xs text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
                                                                         )}
                                                                     </div>
                                                                 </div>
@@ -1807,12 +1807,12 @@ const ResourceDetailContent = ({
                                                                 >
                                                                     <div>
                                                                         <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
-                                                                        <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                                                        <p className="text-xs lg:text-xs text-gray-500">{item.formula}</p>
                                                                     </div>
                                                                     <div className="text-right">
                                                                         <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
                                                                         {/* {item.hasBonus && (
-                                                                            <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
+                                                                            <p className="text-xs text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
                                                                         )} */}
                                                                     </div>
                                                                 </div>
@@ -1833,7 +1833,7 @@ const ResourceDetailContent = ({
                                                                 >
                                                                     <div>
                                                                         <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
-                                                                        <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                                                        <p className="text-xs lg:text-xs text-gray-500">{item.formula}</p>
                                                                     </div>
                                                                     <div className="text-right">
                                                                         <p className="text-sm lg:text-base font-bold text-blue-200">{formatAmount(item.amount)}</p>
@@ -1849,7 +1849,7 @@ const ResourceDetailContent = ({
                                         <div className="rounded-xl lg:rounded-xl border border-gray-800 bg-gray-950/60 p-3 lg:p-4">
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源</p>
+                                                    <p className="text-xs lg:text-xs uppercase tracking-wide text-gray-500">生产来源</p>
                                                     <p className="text-base lg:text-xl font-semibold text-white">
                                                         {activeTab === 'analysis' ? (
                                                             <>
@@ -1865,7 +1865,7 @@ const ResourceDetailContent = ({
                                                 </div>
                                                 <Icon name="TrendingDown" size={18} className="text-emerald-300" />
                                             </div>
-                                            <p className="text-[9px] text-gray-500 mt-1">实际产出/消耗 = 基础值 × 效率加成（产出和消耗同比例变化）</p>
+                                            <p className="text-xs text-gray-500 mt-1">实际产出/消耗 = 基础值 × 效率加成（产出和消耗同比例变化）</p>
                                             <div className="mt-2 lg:mt-4 space-y-1.5 lg:space-y-2">
                                                 {buildingSupply.length ? (
                                                     buildingSupply.map(item => (
@@ -1880,13 +1880,13 @@ const ResourceDetailContent = ({
                                                         >
                                                             <div>
                                                                 <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
-                                                                <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                                                <p className="text-xs lg:text-xs text-gray-500">{item.formula}</p>
                                                                 {item.mods && item.mods.length > 0 && (
-                                                                    <p className="text-[9px] text-emerald-400">{item.mods.join(' · ')}</p>
+                                                                    <p className="text-xs text-emerald-400">{item.mods.join(' · ')}</p>
                                                                 )}
                                                                 {/* 显示减产原因 */}
                                                                 {item.isReduced && item.reductionReasons && item.reductionReasons.length > 0 && (
-                                                                    <p className="text-[9px] text-red-400 mt-0.5">
+                                                                    <p className="text-xs text-red-400 mt-0.5">
                                                                         ⚠ 减产: {item.reductionReasons.map(r => `${r.label}(${(r.factor * 100).toFixed(0)}%)`).join(' · ')}
                                                                     </p>
                                                                 )}
@@ -1897,7 +1897,7 @@ const ResourceDetailContent = ({
                                                                 </p>
                                                                 {/* 当减产时显示理论产能作为对比 */}
                                                                 {item.isReduced && item.theoreticalAmount > 0 && (
-                                                                    <p className="text-[9px] text-gray-500">
+                                                                    <p className="text-xs text-gray-500">
                                                                         理论: {formatAmount(item.theoreticalAmount)}
                                                                     </p>
                                                                 )}
@@ -1910,7 +1910,7 @@ const ResourceDetailContent = ({
                                             </div>
                                             {stratumEfficiencyWarnings.length > 0 && (
                                                 <div className="mt-3 rounded-lg lg:rounded-xl border border-amber-600/30 bg-amber-500/5 p-2.5 lg:p-4">
-                                                    <div className="flex items-center gap-2 text-amber-200 text-[10px] lg:text-xs font-semibold">
+                                                    <div className="flex items-center gap-2 text-amber-200 text-xs lg:text-xs font-semibold">
                                                         <Icon name="AlertTriangle" size={14} className="text-amber-300" />
                                                         劳动效率预警
                                                     </div>
@@ -1924,10 +1924,10 @@ const ResourceDetailContent = ({
                                                                     <div>
                                                                         <p className="text-xs lg:text-sm font-semibold text-amber-100">{warning.name}</p>
                                                                         {warning.desc && (
-                                                                            <p className="text-[10px] text-gray-400">{warning.desc}</p>
+                                                                            <p className="text-xs text-gray-400">{warning.desc}</p>
                                                                         )}
                                                                         {warning.shortages.length > 0 && (
-                                                                            <p className="text-[10px] text-amber-200/80 mt-0.5">
+                                                                            <p className="text-xs text-amber-200/80 mt-0.5">
                                                                                 需求缺口：{warning.shortages.join('、')}
                                                                             </p>
                                                                         )}
@@ -1937,7 +1937,7 @@ const ResourceDetailContent = ({
                                                                     <p className="text-sm lg:text-base font-semibold text-amber-200">
                                                                         {warning.penaltyPercent}%
                                                                     </p>
-                                                                    <p className="text-[9px] text-gray-500">生产惩罚</p>
+                                                                    <p className="text-xs text-gray-500">生产惩罚</p>
                                                                 </div>
                                                             </div>
                                                         ))}
