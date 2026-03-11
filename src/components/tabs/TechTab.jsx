@@ -585,10 +585,8 @@ const TechTabComponent = ({
                                                 {visibleTechs.map((tech) => {
                                                     const status = getTechStatus(tech);
                                                     const multiplier = getTechCostMultiplier(difficulty);
-                                                    const silverCost = calculateSilverCost(
-                                                        Object.fromEntries(Object.entries(tech.cost).map(([r, v]) => [r, Math.ceil(v * multiplier)])),
-                                                        market
-                                                    );
+                                                    const adjustedCost = Object.fromEntries(Object.entries(tech.cost).map(([r, v]) => [r, Math.ceil(v * multiplier)]));
+                                                    const silverCost = calculateSilverCost(adjustedCost, market);
                                                     const affordable = canResearch(tech);
 
                                                     return (
