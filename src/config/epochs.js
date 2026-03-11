@@ -134,20 +134,20 @@ export const EPOCHS = [
     },
     {
         id: 7,
-        name: "信息时代",
-        color: "text-green-400",
-        bg: "bg-green-950",
-        tileColor: "bg-green-800",
-        req: { science: 35000, population: 1000, culture: 8000 },
-        cost: { food: 2000000, tools: 300000, silver: 250000, spice: 80000, papyrus: 100000, science: 35000 },
+        name: "电气时代",
+        color: "text-sky-400",
+        bg: "bg-sky-950",
+        tileColor: "bg-sky-800",
+        req: { science: 30000, population: 800, culture: 6000 },
+        cost: { silver: 5000, steel: 50, coal: 100 },
         bonuses: {
-            desc: "数字革命改变世界，知识和信息成为核心生产力。",
-            gatherBonus: 3.00,
-            militaryBonus: 0.80,
-            cultureBonus: 1.50,
-            scienceBonus: 3.00,
-            industryBonus: 3.00,
-            incomePercent: 0.40  // [FIX] 从1.00降低到0.40，防止税收异常翻倍（原值导致2倍税收）
+            desc: "电力驱动的第二次工业革命。石油化工、电力传输、汽车制造标志着新纪元的到来。",
+            gatherBonus: 2.20,
+            militaryBonus: 0.70,
+            cultureBonus: 1.00,
+            scienceBonus: 1.50,
+            industryBonus: 2.50,
+            incomePercent: 0.30
         }
     }
 ];

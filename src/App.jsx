@@ -1424,6 +1424,9 @@ function GameApp({ gameState }) {
                                                 onCreateBattle={handleCreateBattle}
                                                 onSetPosture={handleSetPosture}
                                                 officials={gameState.officials}
+                                                corpsReplenishQueue={gameState.corpsReplenishQueue}
+                                                onUpdateCorpsReplenishQueue={gameState.setCorpsReplenishQueue}
+                                                autoRecruitEnabled={gameState.autoRecruitEnabled}
                                             />
                                         )}
 

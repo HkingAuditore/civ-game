@@ -699,6 +699,88 @@ export const UNIT_TYPES = {
         weakAgainst: ['cavalry'],
 
         obsoleteAfterEpochs: 3
+    },
+
+    // ============ 电气时代 (Epoch 7) ============
+    machine_gun_squad: {
+        id: 'machine_gun_squad',
+        name: '机枪队',
+        desc: '装备重机枪的步兵小队，强大的防守火力。',
+        epoch: 7,
+        icon: 'Zap',
+        category: 'infantry',
+
+        attack: 55,
+        defense: 75,
+        speed: 3,
+        range: 5,
+
+        recruitCost: { food: 1500, ordnance: 3, ammunition: 5, steel: 2, silver: 250 },
+        maintenanceCost: { food: 8, silver: 12, steel: 0.5, ammunition: 1.4 },
+        trainingTime: 10,
+
+        populationCost: 2,
+
+        abilities: ['火器', '压制火力', '防守优势'],
+
+        counters: { infantry: 2.2, cavalry: 2.0 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    armored_car: {
+        id: 'armored_car',
+        name: '装甲车',
+        desc: '安装机枪的装甲汽车，快速机动的突击力量。',
+        epoch: 7,
+        icon: 'Truck',
+        category: 'cavalry',
+
+        attack: 65,
+        defense: 60,
+        speed: 8,
+        range: 3,
+
+        recruitCost: { food: 1800, machinery: 3, steel: 5, oil: 3, silver: 400 },
+        maintenanceCost: { food: 10, silver: 18, oil: 0.5, steel: 0.3, ammunition: 0.6 },
+        trainingTime: 12,
+
+        populationCost: 2,
+
+        abilities: ['装甲', '快速移动', '火器'],
+
+        counters: { archer: 2.0, gunpowder: 1.8 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    heavy_artillery: {
+        id: 'heavy_artillery',
+        name: '重炮',
+        desc: '大口径远程火炮，攻城利器。',
+        epoch: 7,
+        icon: 'Bomb',
+        category: 'siege',
+
+        attack: 100,
+        defense: 20,
+        speed: 1,
+        range: 10,
+
+        recruitCost: { food: 2500, ordnance: 5, steel: 8, chemicals: 2, silver: 500 },
+        maintenanceCost: { food: 12, silver: 22, ammunition: 1, steel: 0.8, coal: 1.0 },
+        trainingTime: 18,
+
+        populationCost: 4,
+
+        abilities: ['攻城', '范围伤害', '精确打击', '火器'],
+
+        counters: { infantry: 2.2, gunpowder: 2.0, siege: 1.8 },
+        weakAgainst: ['cavalry'],
+
+        obsoleteAfterEpochs: 3
     }
 };
 

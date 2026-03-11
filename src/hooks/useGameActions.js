@@ -178,6 +178,9 @@ export const useGameActions = (gameState, addLog) => {
         // Front system
         activeFronts,
         setActiveFronts,
+        // Corps replenish queue
+        corpsReplenishQueue,
+        setCorpsReplenishQueue,
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
@@ -1050,6 +1053,22 @@ export const useGameActions = (gameState, addLog) => {
     const handleAutoReplenishLosses = (losses = {}, options = {}) => {
         if (!autoRecruitEnabled) return;
         if (!losses || Object.keys(losses).length === 0) return;
+
+        // If corpsLosses provided, write to corpsReplenishQueue
+        if (options.corpsLosses && typeof setCorpsReplenishQueue === 'function') {
+            setCorpsReplenishQueue(prev => {
+                const next = { ...prev };
+                for (const [corpsId, unitLosses] of Object.entries(options.corpsLosses)) {
+                    if (!next[corpsId]) next[corpsId] = {};
+                    for (const [unitId, loss] of Object.entries(unitLosses)) {
+                        if (loss > 0) {
+                            next[corpsId][unitId] = (next[corpsId][unitId] || 0) + loss;
+                        }
+                    }
+                }
+                return next;
+            });
+        }
 
         const capacity = getMilitaryCapacity();
 

@@ -102,7 +102,7 @@ import {
     getBoundedHomelandPressure,
 } from '../logic/diplomacy/frontSystem';
 import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic, processReinforcement, isBattleActive } from '../logic/diplomacy/battleSystem';
-import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits } from '../logic/diplomacy/corpsSystem';
+import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits, findBestReplenishTarget } from '../logic/diplomacy/corpsSystem';
 import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan, evaluateGeneralBattleProposal, allocateAICorpsToFronts, applyAICorpsAllocation } from '../logic/diplomacy/aiWar';
 import { applyMilitaryProcurementPressure, calculateWarPlunder } from '../logic/diplomacy/warEconomy';
 
@@ -645,6 +645,8 @@ difficulty, // 游戏难度
         setDiplomacyOrganizations, // [FIX] Add missing setter
         foreignInvestments, // [NEW] 鐢ㄤ簬 simulation 璁＄畻
         setForeignInvestments, // [FIX] Destructure setter
+        corpsReplenishQueue,
+        setCorpsReplenishQueue,
     } = gameState;
 
     // 浣跨敤ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
@@ -712,6 +714,7 @@ difficulty, // 游戏难度
         quotaTargets, // [NEW] Planned Economy targets
         expansionSettings, // [NEW] Free Market settings
         priceControls, // [NEW] 浠锋牸绠″埗璁剧疆
+        corpsReplenishQueue, // Corps replenish deficit queue
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -849,10 +852,10 @@ difficulty, // 游戏难度
             militaryCorps, // [NEW] 鍐涘洟鐘舵€?
             generals, // [NEW] 灏嗛鐘舵€?
             activeFronts, // [NEW] 娲昏穬鎴樼嚎
-            activeBattles, // [NEW] 杩涜涓殑鎴樻枟
+            activeBattles, // [NEW] 杩涜涓殑鎴樻枟
+            corpsReplenishQueue, // Corps replenish deficit queue
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles]);
-    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
@@ -2632,6 +2635,8 @@ difficulty, // 游戏难度
                         const frontAdvanceDeltas = {};
                         const nationWarScoreDeltaByEnemyId = {};
                         const resolvedDay = (current.daysElapsed || 0) + 1;
+                        // Collect corps-level losses for auto-replenish queue
+                        const pendingCorpsLossUpdates = {}; // { corpsId: { unitId: lossCount } }
 
                         // --- Process each active battle ---
                         updatedBattles = updatedBattles.map(battle => {
@@ -2812,6 +2817,20 @@ difficulty, // 游戏难度
                                 const defDistrib = distributeSurvivorsToCorps(updatedBattle.result.defenderSurvivors, defCorpsIds);
                                 const allBattleCorpsIds = new Set([...atkCorpsIds, ...defCorpsIds].filter(Boolean));
 
+                                // Snapshot player corps units before survivor distribution
+                                const playerCorpsIdSet = playerSide === 'attacker'
+                                    ? new Set(atkCorpsIds)
+                                    : new Set(defCorpsIds);
+
+                                const preDistribSnapshot = {};
+                                if (playerSide) {
+                                    for (const c of updatedCorps) {
+                                        if (!c.isAI && playerCorpsIdSet.has(c.id)) {
+                                            preDistribSnapshot[c.id] = { ...c.units };
+                                        }
+                                    }
+                                }
+
                                 updatedCorps = updatedCorps.map((c) => {
                                     if (!allBattleCorpsIds.has(c.id)) return c;
                                     const atkEntry = atkDistrib.find(e => e.corpsId === c.id);
@@ -2831,6 +2850,24 @@ difficulty, // 游戏难度
                                         morale: Math.max(20, sideMorale),
                                     };
                                 });
+
+                                // Calculate per-corps losses for auto-replenish queue
+                                if (playerSide) {
+                                    for (const corpsId of Object.keys(preDistribSnapshot)) {
+                                        const before = preDistribSnapshot[corpsId];
+                                        const afterCorps = updatedCorps.find(c => c.id === corpsId);
+                                        if (!afterCorps) continue;
+                                        const after = afterCorps.units || {};
+                                        const allUnitIds = new Set([...Object.keys(before), ...Object.keys(after)]);
+                                        for (const uid of allUnitIds) {
+                                            const loss = (before[uid] || 0) - (after[uid] || 0);
+                                            if (loss > 0) {
+                                                if (!pendingCorpsLossUpdates[corpsId]) pendingCorpsLossUpdates[corpsId] = {};
+                                                pendingCorpsLossUpdates[corpsId][uid] = (pendingCorpsLossUpdates[corpsId][uid] || 0) + loss;
+                                            }
+                                        }
+                                    }
+                                }
 
                                 // Subtract player casualties from global army
                                 if (playerSide) {
@@ -2967,12 +3004,14 @@ difficulty, // 游戏难度
                             if (!frictionResult) return f;
 
                             // Apply casualties to corps (distribute across all corps, multiple passes)
+                            // Track per-corps friction losses for auto-replenish
                             if (frictionResult.casualties.player > 0 && pCorps.length > 0) {
                                 let remaining = frictionResult.casualties.player;
                                 let passes = 0;
                                 while (remaining > 0 && passes < 5) {
                                     for (const corps of pCorps) {
                                         if (remaining <= 0) break;
+                                        if (corps.isAI) continue;
                                         const unitKeys = Object.keys(corps.units || {}).filter(k => (corps.units[k] || 0) > 0);
                                         if (unitKeys.length === 0) continue;
                                         const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
@@ -2980,6 +3019,11 @@ difficulty, // 游戏难度
                                         const loss = Math.min(remaining, Math.max(1, Math.ceil(corpsUnits * 0.03)));
                                         corps.units[key] = Math.max(0, corpsUnits - loss);
                                         remaining -= loss;
+                                        // Record friction loss per corps for auto-replenish
+                                        if (loss > 0) {
+                                            if (!pendingCorpsLossUpdates[corps.id]) pendingCorpsLossUpdates[corps.id] = {};
+                                            pendingCorpsLossUpdates[corps.id][key] = (pendingCorpsLossUpdates[corps.id][key] || 0) + loss;
+                                        }
                                     }
                                     passes++;
                                 }
@@ -3642,6 +3686,23 @@ difficulty, // 游戏难度
                         if (updatedCorps !== currentCorps) setMilitaryCorps(updatedCorps);
                         if (updatedGenerals !== currentGenerals) setGenerals(updatedGenerals);
                         if (updatedArmyFromBattle) setArmy(updatedArmyFromBattle);
+
+                        // Merge corps losses into replenish queue (battle + friction combined)
+                        if (Object.keys(pendingCorpsLossUpdates).length > 0) {
+                            setCorpsReplenishQueue(prev => {
+                                const next = { ...prev };
+                                for (const [corpsId, unitLosses] of Object.entries(pendingCorpsLossUpdates)) {
+                                    // Skip AI corps
+                                    const corpsObj = updatedCorps.find(c => c.id === corpsId);
+                                    if (corpsObj?.isAI) continue;
+                                    if (!next[corpsId]) next[corpsId] = {};
+                                    for (const [unitId, loss] of Object.entries(unitLosses)) {
+                                        next[corpsId][unitId] = (next[corpsId][unitId] || 0) + loss;
+                                    }
+                                }
+                                return next;
+                            });
+                        }
 
                         // [FIX] Sync stateRef immediately to prevent stale reads in fast ticks
                         stateRef.current.activeBattles = updatedBattles;
@@ -6808,28 +6869,106 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     const mustWait = completed.slice(slotsAvailableForCompletion);
 
                     if (canComplete.length > 0) {
-                        // 灏嗗畬鎴愮殑鍗曚綅鍔犲叆鍐涢槦
-                        setArmy(prevArmy => {
-                            const newArmy = { ...prevArmy };
-                            // [FIX] 鍐嶆妫€鏌ュ閲忥紝闃叉绔炴€佹潯浠?
-                            // [FIX Bug8] 竞态条件检查：prevTotal 需要包含军团内的兵力
-                            let prevTotal = Object.values(newArmy).reduce((sum, c) => sum + c, 0);
-                            const corpsForRaceCheck = current.militaryCorps || [];
-                            for (const cps of corpsForRaceCheck) {
-                                if (cps?.isAI) continue;
-                                prevTotal += Object.values(cps?.units || {}).reduce((sum, c) => sum + c, 0);
-                            }
-                            let addedCount = 0;
+                        // Separate auto-replenish items from normal training completions
+                        const replenishItems = canComplete.filter(item => item.isAutoReplenish);
+                        const normalItems = canComplete.filter(item => !item.isAutoReplenish);
 
-                            canComplete.forEach(item => {
-                                if (militaryCapacity <= 0 || prevTotal + addedCount < militaryCapacity) {
-                                    newArmy[item.unitId] = (newArmy[item.unitId] || 0) + 1;
-                                    addedCount++;
+                        // Try to assign replenish items directly to damaged corps
+                        const toArmy = [...normalItems]; // items that go to the army pool
+                        const toCorps = []; // { item, corpsId, corpsName }
+                        const currentReplenishQueue = current.corpsReplenishQueue || {};
+                        const currentCorpsList = current.militaryCorps || [];
+                        const currentFronts = current.activeFronts || [];
+                        // Build a working copy of the queue to track assignments within this tick
+                        const workingQueue = JSON.parse(JSON.stringify(currentReplenishQueue));
+
+                        for (const item of replenishItems) {
+                            const target = findBestReplenishTarget(
+                                item.unitId,
+                                workingQueue,
+                                currentCorpsList,
+                                currentFronts
+                            );
+                            if (target) {
+                                toCorps.push({ item, corpsId: target.corpsId, corpsName: target.corps.name });
+                                // Decrement working queue so next item picks a different corps if needed
+                                if (workingQueue[target.corpsId]?.[item.unitId]) {
+                                    workingQueue[target.corpsId][item.unitId] -= 1;
+                                    if (workingQueue[target.corpsId][item.unitId] <= 0) {
+                                        delete workingQueue[target.corpsId][item.unitId];
+                                        if (Object.keys(workingQueue[target.corpsId]).length === 0) {
+                                            delete workingQueue[target.corpsId];
+                                        }
+                                    }
                                 }
-                            });
-                            return newArmy;
-                        });
+                            } else {
+                                // No corps needs this unit type, fall back to army pool
+                                toArmy.push(item);
+                            }
+                        }
 
+                        // Add units to corps via setMilitaryCorps
+                        if (toCorps.length > 0) {
+                            setMilitaryCorps(prevCorps => {
+                                const nextCorps = prevCorps.map(c => ({ ...c, units: { ...c.units } }));
+                                for (const { item, corpsId } of toCorps) {
+                                    const corps = nextCorps.find(c => c.id === corpsId);
+                                    if (corps) {
+                                        corps.units[item.unitId] = (corps.units[item.unitId] || 0) + 1;
+                                    }
+                                }
+                                return nextCorps;
+                            });
+                            // Update replenish queue: decrement deficits
+                            setCorpsReplenishQueue(prev => {
+                                const next = { ...prev };
+                                for (const { item, corpsId } of toCorps) {
+                                    if (next[corpsId]?.[item.unitId]) {
+                                        next[corpsId][item.unitId] -= 1;
+                                        if (next[corpsId][item.unitId] <= 0) {
+                                            delete next[corpsId][item.unitId];
+                                        }
+                                        if (Object.keys(next[corpsId]).length === 0) {
+                                            delete next[corpsId];
+                                        }
+                                    }
+                                }
+                                return next;
+                            });
+                            // Log corps assignments
+                            const corpsAssignSummary = {};
+                            toCorps.forEach(({ item, corpsName }) => {
+                                const unitName = UNIT_TYPES[item.unitId]?.name || item.unitId;
+                                const key = `${corpsName}:${unitName}`;
+                                corpsAssignSummary[key] = (corpsAssignSummary[key] || 0) + 1;
+                            });
+                            for (const [key, count] of Object.entries(corpsAssignSummary)) {
+                                const [corpsName, unitName] = key.split(':');
+                                addLog(`[自动补兵] ${unitName} x${count} 已补充到 ${corpsName}`);
+                            }
+                        }
+
+                        // Add remaining units to army pool (normal + fallback replenish)
+                        if (toArmy.length > 0) {
+                            setArmy(prevArmy => {
+                                const newArmy = { ...prevArmy };
+                                let prevTotal = Object.values(newArmy).reduce((sum, c) => sum + c, 0);
+                                const corpsForRaceCheck = current.militaryCorps || [];
+                                for (const cps of corpsForRaceCheck) {
+                                    if (cps?.isAI) continue;
+                                    prevTotal += Object.values(cps?.units || {}).reduce((sum, c) => sum + c, 0);
+                                }
+                                let addedCount = 0;
+
+                                toArmy.forEach(item => {
+                                    if (militaryCapacity <= 0 || prevTotal + addedCount < militaryCapacity) {
+                                        newArmy[item.unitId] = (newArmy[item.unitId] || 0) + 1;
+                                        addedCount++;
+                                    }
+                                });
+                                return newArmy;
+                            });
+                        }
                         // [PERF] 澶ч噺鍗曚綅鍚屾椂姣曚笟鏃堕€愭潯鏃ュ織浼氬崱椤匡細鏀逛负鎽樿 + 灏戦噺鏍蜂緥
                         {
                             const total = canComplete.length;

@@ -576,6 +576,163 @@ export const RESOURCES = {
         }
     },
 
+    // ============ 探索时代 (Epoch 4) 新增资源 ============
+    cotton: {
+        name: "棉花",
+        icon: 'Flower2',
+        color: "text-amber-100",
+        basePrice: 4.0,
+        minPrice: 0.04,
+        maxPrice: 200,
+        defaultOwner: 'merchant',
+        unlockEpoch: 4,
+        unlockTech: 'cotton_cultivation',
+        tags: ['raw_material'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 100.0,
+            inventoryPriceImpact: 0.25,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
+    // ============ 电气时代 (Epoch 7) 新增资源 ============
+    oil: {
+        name: "石油",
+        icon: 'Droplet',
+        color: "text-amber-900",
+        basePrice: 8.0,
+        minPrice: 0.08,
+        maxPrice: 400,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 7,
+        unlockTech: 'oil_drilling',
+        tags: ['raw_material', 'energy'],
+        marketConfig: {
+            supplyDemandWeight: 0.9,
+            inventoryTargetDays: 150.0,
+            inventoryPriceImpact: 0.25,
+            demandElasticity: 0.35,
+            outputVariation: 0.2
+        }
+    },
+    rubber: {
+        name: "橡胶",
+        icon: 'Circle',
+        color: "text-gray-600",
+        basePrice: 6.0,
+        minPrice: 0.06,
+        maxPrice: 300,
+        defaultOwner: 'merchant',
+        unlockEpoch: 7,
+        unlockTech: 'rubber_vulcanization',
+        tags: ['raw_material', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 100.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.45,
+            outputVariation: 0.2
+        }
+    },
+    chemicals: {
+        name: "化学品",
+        icon: 'Beaker',
+        color: "text-green-400",
+        basePrice: 18.0,
+        minPrice: 0.18,
+        maxPrice: 1800,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'organic_chemistry',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 90.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    wiring: {
+        name: "电缆",
+        icon: 'Cable',
+        color: "text-yellow-500",
+        basePrice: 14.0,
+        minPrice: 0.14,
+        maxPrice: 1400,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'electrical_wiring',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    electricity: {
+        name: "电力",
+        icon: 'Zap',
+        color: "text-yellow-300",
+        basePrice: 10.0,
+        minPrice: 0.1,
+        maxPrice: 500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'power_generation',
+        tags: ['industrial', 'energy'],
+        // 电力是普通可贸易资源，有库存、有价格
+        marketConfig: {
+            supplyDemandWeight: 0.8,
+            inventoryTargetDays: 200.0,
+            inventoryPriceImpact: 0.2,
+            demandElasticity: 0.3,
+            outputVariation: 0.15
+        }
+    },
+    machinery: {
+        name: "机械",
+        icon: 'Cog',
+        color: "text-zinc-400",
+        basePrice: 25.0,
+        minPrice: 0.25,
+        maxPrice: 2500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'mechanical_engineering',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    synthetic_fiber: {
+        name: "化纤",
+        icon: 'Layers',
+        color: "text-purple-400",
+        basePrice: 18.0,
+        minPrice: 0.18,
+        maxPrice: 1800,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 7,
+        unlockTech: 'synthetic_chemistry',
+        tags: ['industrial', 'manufactured'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+
     // 特殊资源
     silver: {
         name: "银币",

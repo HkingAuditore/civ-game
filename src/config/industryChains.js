@@ -193,6 +193,23 @@ export const INDUSTRY_CHAINS = {
         workers: ['peasant'],
       },
       {
+        stage: 'extraction',
+        name: "棉花种植",
+        buildings: ['cotton_plantation'],
+        output: 'cotton',
+        efficiency: 1.0,
+        workers: ['serf', 'merchant'],
+      },
+      {
+        stage: 'processing',
+        name: "棉纺织",
+        buildings: ['cotton_weaving_house'],
+        input: 'cotton',
+        output: ['cloth', 'fine_clothes'],
+        efficiency: 1.2,
+        workers: ['worker', 'artisan'],
+      },
+      {
         stage: 'processing',
         name: "染料提取",
         buildings: ['dye_works'],
@@ -212,6 +229,24 @@ export const INDUSTRY_CHAINS = {
         efficiency: 1.0,
         workers: ['artisan'],
         bonus: { culture: 0.1 },
+      },
+      {
+        stage: 'advanced',
+        name: "电气纺织",
+        buildings: ['electric_textile_mill'],
+        input: ['cotton', 'coal', 'dye'],
+        output: ['cloth', 'fine_clothes'],
+        efficiency: 1.5,
+        workers: ['worker', 'engineer', 'capitalist'],
+      },
+      {
+        stage: 'advanced',
+        name: "化纤生产",
+        buildings: ['synthetic_fiber_plant'],
+        input: ['coal', 'steel'],
+        output: 'synthetic_fiber',
+        efficiency: 1.0,
+        workers: ['worker', 'engineer', 'capitalist'],
       },
       {
         stage: 'consumption',
@@ -242,7 +277,14 @@ export const INDUSTRY_CHAINS = {
         unlockEpoch: 2,
         cost: { papyrus: 60, silver: 150 },
         bonus: { dye_output: 0.25, efficiency: 0.15 },
-      }
+      },
+      {
+        id: 'cotton_gin',
+        name: "轧棉机",
+        unlockEpoch: 5,
+        cost: { tools: 100, iron: 80 },
+        bonus: { cotton_processing: 0.3, efficiency: 0.2 },
+      },
     ],
   },
 
@@ -283,6 +325,15 @@ export const INDUSTRY_CHAINS = {
         name: "工业应用",
         consumers: ['military', 'buildings', 'machinery'],
         input: ['tools', 'steel', 'iron'],
+      },
+      {
+        stage: 'advanced',
+        name: "电缆制造",
+        buildings: ['wiring_factory'],
+        input: ['copper', 'rubber'],
+        output: 'wiring',
+        efficiency: 1.0,
+        workers: ['worker', 'artisan', 'engineer'],
       }
     ],
     upgrades: [
@@ -348,6 +399,15 @@ export const INDUSTRY_CHAINS = {
         name: "社会应用",
         consumers: ['education', 'research'],
         input: ['culture', 'science'],
+      },
+      {
+        stage: 'advanced',
+        name: "大众传媒",
+        buildings: ['broadcast_station'],
+        input: ['electricity', 'papyrus'],
+        output: ['science', 'culture'],
+        efficiency: 1.5,
+        workers: ['scribe', 'worker', 'engineer'],
       }
     ],
     upgrades: [
@@ -602,12 +662,109 @@ export const INDUSTRY_CHAINS = {
       }
     ],
   },
+
+  // ========== 电气时代新增产业链 ==========
+  power_chain: {
+    id: 'power_chain',
+    name: "电力产业链",
+    desc: "从煤炭采掘到电力发电和传输的能源体系",
+    unlockEpoch: 7,
+    stages: [
+      {
+        stage: 'extraction',
+        name: "煤炭采掘",
+        buildings: ['coal_mine'],
+        output: 'coal',
+        efficiency: 1.0,
+        workers: ['miner'],
+      },
+      {
+        stage: 'processing',
+        name: "燃煤发电",
+        buildings: ['coal_power_plant'],
+        input: 'coal',
+        output: 'electricity',
+        efficiency: 1.0,
+        workers: ['worker', 'engineer'],
+      },
+      {
+        stage: 'advanced',
+        name: "电力传输",
+        buildings: ['wiring_factory'],
+        input: ['copper', 'rubber'],
+        output: 'wiring',
+        efficiency: 1.0,
+        workers: ['worker', 'artisan', 'engineer'],
+      },
+      {
+        stage: 'consumption',
+        name: "工业消费",
+        consumers: ['industry', 'civic'],
+        input: 'electricity',
+      }
+    ],
+    upgrades: [
+      {
+        id: 'high_voltage_transmission',
+        name: "高压输电",
+        unlockEpoch: 7,
+        cost: { wiring: 100, steel: 80, silver: 500 },
+        bonus: { efficiency: 0.25, transmission: 0.3 },
+      },
+    ],
+  },
+
+  petrochemical_chain: {
+    id: 'petrochemical_chain',
+    name: "石油化工产业链",
+    desc: "从石油开采到化学品深加工的完整石化体系",
+    unlockEpoch: 7,
+    stages: [
+      {
+        stage: 'extraction',
+        name: "石油开采",
+        buildings: ['oil_well'],
+        output: 'oil',
+        efficiency: 1.0,
+        workers: ['worker', 'miner', 'capitalist'],
+      },
+      {
+        stage: 'processing',
+        name: "炼油化工",
+        buildings: ['oil_refinery'],
+        input: ['oil', 'coal', 'dye'],
+        output: 'chemicals',
+        efficiency: 1.0,
+        workers: ['worker', 'engineer'],
+      },
+      {
+        stage: 'advanced',
+        name: "化工应用",
+        buildings: ['fertilizer_plant'],
+        input: ['chemicals', 'coal'],
+        output: 'food',
+        efficiency: 1.0,
+        workers: ['worker', 'engineer'],
+      },
+      {
+        stage: 'consumption',
+        name: "农业消费",
+        consumers: ['agriculture'],
+        input: 'food',
+      }
+    ],
+    upgrades: [
+      {
+        id: 'catalytic_cracking',
+        name: "催化裂化",
+        unlockEpoch: 7,
+        cost: { steel: 120, chemicals: 50, silver: 400 },
+        bonus: { efficiency: 0.3, output: 0.2 },
+      },
+    ],
+  },
 };
 
-/**
- * 产业链效率加成系统
- * 当产业链各环节协同工作时，提供额外加成
- */
 export const CHAIN_SYNERGIES = {
   // 完整产业链加成
   complete_chain: {

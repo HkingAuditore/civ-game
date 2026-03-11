@@ -318,6 +318,7 @@ export const createCorps = (name = '新军团') => {
         frontTask: 'assault',
         status: 'idle', // idle | deployed | in_combat | retreating
         morale: 100,
+        autoReplenish: true, // 军团级自动补兵开关，默认跟随全局设置
     };
 };
 
@@ -496,6 +497,84 @@ export const selectPrimaryBattleCorps = (corpsList = [], generals = []) => {
         .sort((a, b) => b.score - a.score);
 
     return weighted[0] || null;
+};
+
+/**
+ * Calculate replenish priority for a corps.
+ * Higher score = higher priority for receiving replacement units.
+ *
+ * Factors:
+ * - Deployed to active front: +100
+ * - Deficit ratio (deficit / total capacity): up to +80
+ * - Earlier created corps: small bonus
+ *
+ * @param {Object} corps - Corps object
+ * @param {Object} corpsDeficits - { unitId: deficitCount } for this corps
+ * @param {Array} activeFronts - List of active fronts
+ * @returns {number} Priority score (higher = more urgent)
+ */
+export const getCorpsReplenishPriority = (corps, corpsDeficits, activeFronts = []) => {
+    if (!corps || !corpsDeficits) return 0;
+    let score = 0;
+
+    // Deployed to active front bonus
+    const isDeployed = corps.assignedFrontId &&
+        activeFronts.some(f => f.id === corps.assignedFrontId && f.status === 'active');
+    if (isDeployed) score += 100;
+
+    // Deficit ratio: higher deficit = higher priority
+    const totalDeficit = Object.values(corpsDeficits).reduce((s, c) => s + (c || 0), 0);
+    const currentUnits = Object.values(corps.units || {}).reduce((s, c) => s + (c || 0), 0);
+    const originalCapacity = currentUnits + totalDeficit;
+    if (originalCapacity > 0) {
+        const deficitRatio = totalDeficit / originalCapacity;
+        score += deficitRatio * 80; // up to +80 for 100% deficit
+    }
+
+    // Earlier corps gets slight priority (use id as proxy for creation order)
+    const idNum = parseInt((corps.id || '').replace(/\D/g, '').slice(-4) || '0');
+    score += Math.max(0, 10 - (idNum % 100) * 0.1);
+
+    return score;
+};
+
+/**
+ * Find the best corps to receive a replenishment unit.
+ *
+ * @param {string} unitId - The unit type being replenished
+ * @param {Object} corpsReplenishQueue - { corpsId: { unitId: deficitCount } }
+ * @param {Array} allCorps - All player corps
+ * @param {Array} activeFronts - Active fronts
+ * @returns {{ corpsId: string, corps: Object } | null} Best target corps, or null
+ */
+export const findBestReplenishTarget = (unitId, corpsReplenishQueue, allCorps, activeFronts = []) => {
+    const candidates = [];
+
+    for (const [corpsId, deficits] of Object.entries(corpsReplenishQueue || {})) {
+        const deficit = deficits[unitId] || 0;
+        if (deficit <= 0) continue;
+
+        const corps = allCorps.find(c => c.id === corpsId);
+        if (!corps) continue;
+        if (corps.isAI) continue;
+        // Skip if corps auto-replenish is disabled
+        if (corps.autoReplenish === false) continue;
+        // Skip corps in combat
+        if (corps.status === 'in_combat') continue;
+
+        const priority = getCorpsReplenishPriority(corps, deficits, activeFronts);
+        candidates.push({ corpsId, corps, deficit, priority });
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Sort by priority descending, then by deficit for this unit type descending
+    candidates.sort((a, b) => {
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        return b.deficit - a.deficit;
+    });
+
+    return candidates[0];
 };
 
 // ========== Exports ==========

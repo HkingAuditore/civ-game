@@ -1384,10 +1384,10 @@ export const useGameState = () => {
     const [generals, setGenerals] = useState([]); // 将领列表
     const [activeFronts, setActiveFronts] = useState([]); // 活跃战线
     const [activeBattles, setActiveBattles] = useState([]); // 进行中的战斗
-    const [pendingRepairs, setPendingRepairs] = useState([]); // 战后待修复建�?[{ buildingId, count, source }]
+    const [pendingRepairs, setPendingRepairs] = useState([]); // 战后待修复建筑[{ buildingId, count, source }]
+    const [corpsReplenishQueue, setCorpsReplenishQueue] = useState({}); // 军团补兵缺额队列 { [corpsId]: { [unitId]: deficitCount } }
 
-    // ========== 庆典系统状�?==========
-    const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
+    // ========== 庆典系统状态    const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
     const [activeFestivalEffects, setActiveFestivalEffects] = useState([]); // 激活的庆典效果
     const [lastFestivalYear, setLastFestivalYear] = useState(1); // 上次庆典的年份（�?开始，避免�?年触发）
 
@@ -1824,6 +1824,7 @@ export const useGameState = () => {
                 activeFronts,
                 activeBattles,
                 pendingRepairs,
+                corpsReplenishQueue,
                 selectedTarget,
                 battleResult,
                 playerInstallmentPayment,
@@ -2277,6 +2278,7 @@ export const useGameState = () => {
         setDaysElapsed(Number.isFinite(parsedDaysElapsed) ? parsedDaysElapsed : 0);
         setArmy(data.army || {});
         setMilitaryQueue(data.militaryQueue || []);
+        setCorpsReplenishQueue(data.corpsReplenishQueue || {});
         let loadedMilitaryCorps = (data.militaryCorps || [])
             .filter(Boolean)
             .filter((corps) => getLoadedCorpsTotalUnits(corps) > 0);
@@ -3670,6 +3672,8 @@ export const useGameState = () => {
         setActiveBattles,
         pendingRepairs,
         setPendingRepairs,
+        corpsReplenishQueue,
+        setCorpsReplenishQueue,
 
         // 庆典系统
         festivalModal,
