@@ -180,6 +180,18 @@ export const CLASS_DECREE_FEEDBACK = {
       high_approval_bonus: { scienceBonus: 0.2 },
       low_approval_penalty: { scienceBonus: -0.25 },
     },
+
+    technician: {
+      affects_decrees: ['infrastructure_plan', 'patent_law', 'industrial_policy'],
+      high_approval_bonus: { categories: { industry: 0.12 }, efficiency: 0.08 },
+      low_approval_penalty: { categories: { industry: -0.15 }, efficiency: -0.1 },
+    },
+
+    scientist: {
+      affects_decrees: ['research_grants', 'university_charter', 'patent_law'],
+      high_approval_bonus: { scienceBonus: 0.25, tech_speed: 0.15 },
+      low_approval_penalty: { scienceBonus: -0.3, tech_speed: -0.2 },
+    },
   },
 };
 
@@ -252,6 +264,71 @@ export const CHAIN_CLASS_INTERACTION = {
       level_1: { classApproval: { soldier: 5 }, militaryPower: 0.1 },
       level_2: { classApproval: { soldier: 10 }, militaryPower: 0.2 },
       level_3: { classApproval: { soldier: 15 }, militaryPower: 0.3, stability: 5 },
+    },
+  },
+
+  power_chain: {
+    primary_classes: ['worker', 'engineer', 'technician'],
+    development_effects: {
+      level_1: { classApproval: { worker: 5, engineer: 5 }, efficiency: 0.05 },
+      level_2: { classApproval: { worker: 10, engineer: 10, technician: 8 }, efficiency: 0.1 },
+      level_3: { classApproval: { worker: 15, engineer: 15, technician: 12 }, efficiency: 0.15, all_chains_bonus: 0.05 },
+    },
+    decline_effects: {
+      classApproval: { worker: -10, engineer: -15 },
+      all_chains_penalty: -0.1,
+    },
+  },
+
+  petrochemical_chain: {
+    primary_classes: ['worker', 'engineer', 'capitalist'],
+    development_effects: {
+      level_1: { classApproval: { worker: 5, engineer: 5 } },
+      level_2: { classApproval: { worker: 10, engineer: 10, capitalist: 8 }, wealth: { capitalist: 15 } },
+      level_3: { classApproval: { worker: 15, engineer: 15, capitalist: 12 }, wealth: { capitalist: 30, engineer: 15 } },
+    },
+    decline_effects: {
+      classApproval: { worker: -15, engineer: -10 },
+      stability: -5,
+    },
+  },
+
+  electronics_chain: {
+    primary_classes: ['technician', 'engineer', 'worker'],
+    development_effects: {
+      level_1: { classApproval: { technician: 8, engineer: 5 } },
+      level_2: { classApproval: { technician: 15, engineer: 10, worker: 5 }, wealth: { technician: 10 } },
+      level_3: { classApproval: { technician: 20, engineer: 15, worker: 10 }, wealth: { technician: 20, engineer: 15 }, science: 0.1 },
+    },
+    decline_effects: {
+      classApproval: { technician: -20, engineer: -15 },
+      unemployment: 0.1,
+    },
+  },
+
+  semiconductor_chain: {
+    primary_classes: ['scientist', 'engineer', 'technician'],
+    development_effects: {
+      level_1: { classApproval: { scientist: 10, engineer: 5, technician: 5 }, science: 0.1 },
+      level_2: { classApproval: { scientist: 18, engineer: 12, technician: 10 }, science: 0.2, wealth: { scientist: 15 } },
+      level_3: { classApproval: { scientist: 25, engineer: 18, technician: 15 }, science: 0.35, wealth: { scientist: 30, engineer: 20 }, influence: { scientist: 0.2 } },
+    },
+    decline_effects: {
+      classApproval: { scientist: -20, engineer: -15, technician: -10 },
+      science: -0.15,
+    },
+  },
+
+  pharmaceutical_chain: {
+    primary_classes: ['scientist', 'engineer', 'technician'],
+    development_effects: {
+      level_1: { classApproval: { scientist: 8, engineer: 5 }, population_growth: 0.03 },
+      level_2: { classApproval: { scientist: 15, engineer: 10, technician: 8 }, population_growth: 0.06 },
+      level_3: { classApproval: { scientist: 20, engineer: 15, technician: 12 }, population_growth: 0.1, science: 0.1 },
+    },
+    decline_effects: {
+      classApproval: { scientist: -15, engineer: -10 },
+      population_growth: -0.05,
     },
   },
 };
@@ -384,6 +461,20 @@ export const EPOCH_SYSTEM_EFFECTS = {
     class_structure: { worker: 0.30, engineer: 0.20, capitalist: 0.12, merchant: 0.12, peasant: 0.10, scribe: 0.08, miner: 0.08 },
     decree_efficiency: 1.4,
     new_mechanics: ['electrification', 'chemical_industry', 'automobile'],
+  },
+
+  8: { // 原子时代
+    available_chains: ['all', 'power_chain', 'petrochemical_chain', 'electronics_chain', 'pharmaceutical_chain'],
+    class_structure: { worker: 0.25, engineer: 0.18, technician: 0.15, capitalist: 0.12, merchant: 0.10, scribe: 0.08, peasant: 0.07, miner: 0.05 },
+    decree_efficiency: 1.5,
+    new_mechanics: ['nuclear_power', 'electronics', 'consumer_society', 'television'],
+  },
+
+  9: { // 信息时代
+    available_chains: ['all', 'power_chain', 'petrochemical_chain', 'electronics_chain', 'semiconductor_chain', 'pharmaceutical_chain'],
+    class_structure: { technician: 0.20, engineer: 0.18, scientist: 0.12, worker: 0.15, capitalist: 0.12, merchant: 0.10, scribe: 0.05, peasant: 0.05, miner: 0.03 },
+    decree_efficiency: 1.6,
+    new_mechanics: ['internet', 'software_economy', 'ai_automation', 'biotech', 'renewable_energy'],
   },
 };
 

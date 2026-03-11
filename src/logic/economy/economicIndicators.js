@@ -42,8 +42,8 @@ export const ECONOMIC_INDICATOR_CONFIG = {
   // 阶层分类（用于分层CPI计算）
   strataTiers: {
     lower: ['peasant', 'lumberjack', 'serf', 'worker', 'unemployed', 'miner'],
-    middle: ['artisan', 'merchant', 'scribe', 'navigator'],
-    upper: ['landowner', 'capitalist', 'official', 'knight', 'engineer', 'cleric'],
+    middle: ['artisan', 'merchant', 'scribe', 'navigator', 'technician'],
+    upper: ['landowner', 'capitalist', 'official', 'knight', 'engineer', 'cleric', 'scientist'],
   },
   
   // 消费者篮子权重（基于实际游戏资源）

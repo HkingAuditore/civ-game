@@ -781,6 +781,170 @@ export const UNIT_TYPES = {
         weakAgainst: ['cavalry'],
 
         obsoleteAfterEpochs: 3
+    },
+
+    // ============ 原子时代 (Epoch 8) ============
+    tank: {
+        id: 'tank',
+        name: '坦克',
+        desc: '钢铁洪流，地面战场的绝对王者。',
+        epoch: 8,
+        icon: 'Shield',
+        category: 'cavalry',
+
+        attack: 85,
+        defense: 80,
+        speed: 6,
+        range: 4,
+
+        recruitCost: { food: 2500, machinery: 5, steel: 10, oil: 5, ordnance: 3, silver: 800 },
+        maintenanceCost: { food: 12, silver: 30, oil: 1.0, steel: 0.5, ammunition: 1.0 },
+        trainingTime: 15,
+
+        populationCost: 3,
+
+        abilities: ['装甲', '火器', '碾压'],
+
+        counters: { infantry: 2.5, gunpowder: 2.0 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    fighter_plane: {
+        id: 'fighter_plane',
+        name: '战斗机',
+        desc: '制空权的象征，现代战争的关键力量。',
+        epoch: 8,
+        icon: 'Plane',
+        category: 'cavalry',
+
+        attack: 90,
+        defense: 40,
+        speed: 12,
+        range: 6,
+
+        recruitCost: { food: 2000, aluminum: 8, oil: 5, electronics: 2, silver: 1200 },
+        maintenanceCost: { food: 10, silver: 40, oil: 1.5, ammunition: 0.8 },
+        trainingTime: 16,
+
+        populationCost: 2,
+
+        abilities: ['火器', '快速移动', '空中打击'],
+
+        counters: { cavalry: 2.0, infantry: 1.8 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    rocket_artillery: {
+        id: 'rocket_artillery',
+        name: '火箭炮',
+        desc: '多管火箭齐射，面积覆盖的毁灭性武器。',
+        epoch: 8,
+        icon: 'Rocket',
+        category: 'siege',
+
+        attack: 95,
+        defense: 20,
+        speed: 3,
+        range: 12,
+
+        recruitCost: { food: 2200, chemicals: 5, electronics: 2, steel: 5, silver: 700 },
+        maintenanceCost: { food: 10, silver: 25, ammunition: 2.0, chemicals: 0.5 },
+        trainingTime: 16,
+
+        populationCost: 3,
+
+        abilities: ['攻城', '范围伤害', '火器'],
+
+        counters: { infantry: 2.2, gunpowder: 2.0, siege: 1.8 },
+        weakAgainst: ['cavalry'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    // ============ 信息时代 (Epoch 9) ============
+    drone: {
+        id: 'drone',
+        name: '无人机',
+        desc: '远程遥控的精确打击武器，零伤亡作战。',
+        epoch: 9,
+        icon: 'Crosshair',
+        category: 'cavalry',
+
+        attack: 100,
+        defense: 30,
+        speed: 15,
+        range: 8,
+
+        recruitCost: { food: 1500, electronics: 5, semiconductors: 2, composites: 3, silver: 1500 },
+        maintenanceCost: { food: 5, silver: 35, electricity: 0.5 },
+        trainingTime: 10,
+
+        populationCost: 1,
+
+        abilities: ['火器', '快速移动', '精确打击', '空中打击'],
+
+        counters: { infantry: 2.5, cavalry: 2.0 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    guided_missile: {
+        id: 'guided_missile',
+        name: '精确制导导弹',
+        desc: '卫星制导的远程精确打击武器，改变战争形态。',
+        epoch: 9,
+        icon: 'Target',
+        category: 'siege',
+
+        attack: 120,
+        defense: 10,
+        speed: 20,
+        range: 15,
+
+        recruitCost: { food: 2000, semiconductors: 3, electronics: 3, chemicals: 5, silver: 2000 },
+        maintenanceCost: { food: 8, silver: 50 },
+        trainingTime: 14,
+
+        populationCost: 2,
+
+        abilities: ['攻城', '精确打击', '火器'],
+
+        counters: { infantry: 2.5, siege: 2.0, gunpowder: 2.0 },
+        weakAgainst: ['cavalry'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    cyber_unit: {
+        id: 'cyber_unit',
+        name: '网络战部队',
+        desc: '在数字战场上作战的精英部队，瘫痪敌方基础设施。',
+        epoch: 9,
+        icon: 'Wifi',
+        category: 'infantry',
+
+        attack: 70,
+        defense: 90,
+        speed: 20,
+        range: 10,
+
+        recruitCost: { food: 1500, software: 3, electronics: 2, silver: 1000 },
+        maintenanceCost: { food: 8, silver: 30, electricity: 0.3 },
+        trainingTime: 12,
+
+        populationCost: 2,
+
+        abilities: ['压制火力', '防守优势', '精确打击'],
+
+        counters: { siege: 1.8 },
+        weakAgainst: ['cavalry', 'infantry'],
+
+        obsoleteAfterEpochs: 3
     }
 };
 
