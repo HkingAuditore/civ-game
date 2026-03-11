@@ -249,6 +249,16 @@ export const INDUSTRY_CHAINS = {
         workers: ['worker', 'engineer', 'capitalist'],
       },
       {
+        stage: 'advanced',
+        name: "化纤纺织",
+        buildings: ['synthetic_textile_mill'],
+        input: ['synthetic_fiber', 'dye'],
+        output: 'fine_clothes',
+        efficiency: 1.8,
+        workers: ['worker', 'engineer', 'capitalist'],
+        epochRange: [8, 9],
+      },
+      {
         stage: 'consumption',
         name: "日常衣物消费",
         consumers: ['all_classes'],
@@ -284,6 +294,13 @@ export const INDUSTRY_CHAINS = {
         unlockEpoch: 5,
         cost: { tools: 100, iron: 80 },
         bonus: { cotton_processing: 0.3, efficiency: 0.2 },
+      },
+      {
+        id: 'synthetic_fabric_tech',
+        name: "合成面料技术",
+        unlockEpoch: 8,
+        cost: { chemicals: 150, science: 800 },
+        bonus: { efficiency: 0.35, fine_clothes_output: 0.3 },
       },
     ],
   },
@@ -334,6 +351,26 @@ export const INDUSTRY_CHAINS = {
         output: 'wiring',
         efficiency: 1.0,
         workers: ['worker', 'artisan', 'engineer'],
+      },
+      {
+        stage: 'advanced',
+        name: "铝冶炼",
+        buildings: ['aluminum_smelter'],
+        input: ['stone', 'coal', 'electricity'],
+        output: 'aluminum',
+        efficiency: 1.0,
+        workers: ['worker', 'technician', 'engineer'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "自动化采矿",
+        buildings: ['automated_mine'],
+        input: ['electricity'],
+        output: ['copper', 'iron', 'coal', 'stone'],
+        efficiency: 2.0,
+        workers: ['technician', 'engineer', 'scientist'],
+        epochRange: [9, 9],
       }
     ],
     upgrades: [
@@ -408,6 +445,36 @@ export const INDUSTRY_CHAINS = {
         output: ['science', 'culture'],
         efficiency: 1.5,
         workers: ['scribe', 'worker', 'engineer'],
+      },
+      {
+        stage: 'advanced',
+        name: "电视传播",
+        buildings: ['television_station'],
+        input: ['electricity', 'electronics'],
+        output: ['culture', 'science'],
+        efficiency: 1.8,
+        workers: ['scribe', 'technician', 'engineer'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "互联网",
+        buildings: ['internet_platform'],
+        input: ['software', 'electricity'],
+        output: ['silver', 'culture'],
+        efficiency: 2.0,
+        workers: ['technician', 'scientist', 'capitalist'],
+        epochRange: [9, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "前沿科研",
+        buildings: ['research_institute'],
+        input: ['semiconductors', 'electricity', 'papyrus'],
+        output: ['science', 'culture'],
+        efficiency: 2.5,
+        workers: ['scientist', 'engineer'],
+        epochRange: [9, 9],
       }
     ],
     upgrades: [
@@ -494,7 +561,7 @@ export const INDUSTRY_CHAINS = {
         output: ['iron', 'copper', 'wood', 'stone'],
         efficiency: 1.0,
         workers: ['miner', 'lumberjack'],
-        epochRange: [0, 7],
+        epochRange: [0, 9],
       },
       {
         stage: 'primitive',
@@ -518,7 +585,7 @@ export const INDUSTRY_CHAINS = {
         ratio: 0.15,
         efficiency: 1.0,
         workers: ['artisan'],
-        epochRange: [2, 7],
+        epochRange: [2, 9],
         unlockTech: 'swordsmithing',
       },
       {
@@ -531,7 +598,7 @@ export const INDUSTRY_CHAINS = {
         ratio: 0.1,
         efficiency: 1.0,
         workers: ['artisan'],
-        epochRange: [3, 7],
+        epochRange: [3, 9],
         unlockTech: 'armor_forging',
       },
       // ---- 第三阶段：火器时代 (Epoch 4) ----
@@ -545,7 +612,7 @@ export const INDUSTRY_CHAINS = {
         ratio: 0.12,
         efficiency: 1.0,
         workers: ['artisan'],
-        epochRange: [4, 7],
+        epochRange: [4, 9],
         unlockTech: 'gunpowder_formula',
       },
       {
@@ -558,7 +625,7 @@ export const INDUSTRY_CHAINS = {
         ratio: 0.08,
         efficiency: 1.0,
         workers: ['artisan', 'engineer'],
-        epochRange: [4, 7],
+        epochRange: [4, 9],
         unlockTech: 'musket_manufacturing',
       },
       // ---- 第四阶段：步枪与弹药 (Epoch 5) ----
@@ -572,7 +639,7 @@ export const INDUSTRY_CHAINS = {
         ratio: 0.06,
         efficiency: 1.0,
         workers: ['engineer'],
-        epochRange: [5, 7],
+        epochRange: [5, 9],
         unlockTech: 'rifle_engineering',
       },
       {
@@ -585,7 +652,7 @@ export const INDUSTRY_CHAINS = {
         ratio: 0.15,
         efficiency: 1.0,
         workers: ['worker', 'engineer'],
-        epochRange: [5, 7],
+        epochRange: [5, 9],
         unlockTech: 'rifle_engineering',
       },
       // ---- 第五阶段：工业化军工 (Epoch 6) ----
@@ -599,8 +666,22 @@ export const INDUSTRY_CHAINS = {
         ratio: 0.05,
         efficiency: 1.2,
         workers: ['engineer', 'worker'],
-        epochRange: [6, 7],
+        epochRange: [6, 9],
         unlockTech: 'military_industrialization',
+      },
+      // ---- 第六阶段：电子化军工 (Epoch 8) ----
+      {
+        stage: 'advanced',
+        name: "军工综合体",
+        desc: "融合电子、化工与钢铁的现代军工综合体，生产精密武器装备",
+        buildings: ['military_industrial_complex'],
+        input: ['electronics', 'steel', 'chemicals'],
+        output: ['ordnance'],
+        ratio: 0.04,
+        efficiency: 1.5,
+        workers: ['engineer', 'technician', 'worker'],
+        epochRange: [8, 9],
+        unlockTech: 'military_electronics',
       },
       // ---- 军事训练与部署 ----
       {
@@ -612,7 +693,7 @@ export const INDUSTRY_CHAINS = {
         output: 'military_power',
         efficiency: 1.0,
         workers: ['soldier'],
-        epochRange: [0, 7],
+        epochRange: [0, 9],
       },
       // ---- 最终消耗 ----
       {
@@ -621,7 +702,7 @@ export const INDUSTRY_CHAINS = {
         desc: "战场消耗军备物资——火器部队尤其需要持续的弹药补给",
         consumers: ['defense', 'conquest', 'patrol'],
         input: ['military_power', 'food', 'silver', 'ammunition', 'gunpowder'],
-        epochRange: [0, 7],
+        epochRange: [0, 9],
       }
     ],
     upgrades: [
@@ -701,6 +782,26 @@ export const INDUSTRY_CHAINS = {
         name: "工业消费",
         consumers: ['industry', 'civic'],
         input: 'electricity',
+      },
+      {
+        stage: 'processing',
+        name: "核能发电",
+        buildings: ['nuclear_power_plant'],
+        input: ['uranium', 'steel', 'stone'],
+        output: 'electricity',
+        efficiency: 2.0,
+        workers: ['engineer', 'technician', 'scientist'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'processing',
+        name: "太阳能发电",
+        buildings: ['solar_power_plant'],
+        input: ['stone', 'aluminum'],
+        output: 'electricity',
+        efficiency: 1.5,
+        workers: ['technician', 'engineer', 'scientist'],
+        epochRange: [9, 9],
       }
     ],
     upgrades: [
@@ -747,10 +848,37 @@ export const INDUSTRY_CHAINS = {
         workers: ['worker', 'engineer'],
       },
       {
+        stage: 'advanced',
+        name: "塑料制造",
+        buildings: ['plastics_factory'],
+        input: ['chemicals', 'oil'],
+        output: 'plastics',
+        efficiency: 1.0,
+        workers: ['worker', 'technician', 'engineer'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "复合材料",
+        buildings: ['composites_factory'],
+        input: ['plastics', 'aluminum', 'chemicals'],
+        output: 'composites',
+        efficiency: 1.0,
+        workers: ['technician', 'engineer', 'scientist'],
+        epochRange: [9, 9],
+      },
+      {
         stage: 'consumption',
         name: "农业消费",
         consumers: ['agriculture'],
         input: 'food',
+      },
+      {
+        stage: 'consumption',
+        name: "工业消费",
+        consumers: ['industry', 'consumer'],
+        input: ['plastics', 'composites'],
+        epochRange: [8, 9],
       }
     ],
     upgrades: [
@@ -760,6 +888,252 @@ export const INDUSTRY_CHAINS = {
         unlockEpoch: 7,
         cost: { steel: 120, chemicals: 50, silver: 400 },
         bonus: { efficiency: 0.3, output: 0.2 },
+      },
+      {
+        id: 'polymer_engineering',
+        name: "高分子工程",
+        unlockEpoch: 8,
+        cost: { chemicals: 200, science: 600 },
+        bonus: { plastics_output: 0.3, efficiency: 0.2 },
+      },
+    ],
+  },
+
+  // ========== 原子时代新增产业链 ==========
+  electronics_chain: {
+    id: 'electronics_chain',
+    name: "电子产业链",
+    desc: "从铜矿开采到电子元件制造的现代电子工业体系",
+    unlockEpoch: 8,
+    stages: [
+      {
+        stage: 'extraction',
+        name: "铜矿开采",
+        buildings: ['copper_mine', 'advanced_copper_mine'],
+        output: 'copper',
+        efficiency: 1.0,
+        workers: ['miner', 'worker'],
+        epochRange: [1, 9],
+      },
+      {
+        stage: 'processing',
+        name: "电缆制造",
+        buildings: ['wiring_factory'],
+        input: ['copper', 'rubber'],
+        output: 'wiring',
+        efficiency: 1.0,
+        workers: ['worker', 'artisan', 'engineer'],
+        epochRange: [7, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "电子元件",
+        buildings: ['electronics_factory'],
+        input: ['copper', 'wiring', 'chemicals', 'stone'],
+        output: 'electronics',
+        efficiency: 1.0,
+        workers: ['worker', 'technician', 'engineer'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "家电制造",
+        buildings: ['appliance_factory'],
+        input: ['electronics', 'plastics', 'steel'],
+        output: ['silver', 'culture'],
+        efficiency: 1.2,
+        workers: ['worker', 'technician', 'capitalist'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'consumption',
+        name: "消费电子",
+        consumers: ['all_classes'],
+        input: 'electronics',
+        bonus: { approval: 0.08, culture: 0.05 },
+        epochRange: [8, 9],
+      }
+    ],
+    upgrades: [
+      {
+        id: 'transistor_miniaturization',
+        name: "晶体管小型化",
+        unlockEpoch: 8,
+        cost: { electronics: 80, science: 500 },
+        bonus: { efficiency: 0.3, output: 0.25 },
+      },
+      {
+        id: 'integrated_circuits',
+        name: "集成电路",
+        unlockEpoch: 8,
+        cost: { electronics: 150, science: 800 },
+        bonus: { efficiency: 0.4, quality: 0.3 },
+      },
+    ],
+  },
+
+  // ========== 信息时代新增产业链 ==========
+  semiconductor_chain: {
+    id: 'semiconductor_chain',
+    name: "半导体产业链",
+    desc: "从铜矿到芯片再到软件的信息产业超长链，横跨青铜时代到信息时代",
+    unlockEpoch: 9,
+    stages: [
+      {
+        stage: 'extraction',
+        name: "铜矿开采",
+        buildings: ['copper_mine', 'advanced_copper_mine', 'automated_mine'],
+        output: 'copper',
+        efficiency: 1.0,
+        workers: ['miner', 'technician'],
+        epochRange: [1, 9],
+      },
+      {
+        stage: 'processing',
+        name: "电缆制造",
+        buildings: ['wiring_factory'],
+        input: ['copper', 'rubber'],
+        output: 'wiring',
+        efficiency: 1.0,
+        workers: ['worker', 'artisan', 'engineer'],
+        epochRange: [7, 9],
+      },
+      {
+        stage: 'processing',
+        name: "电子元件",
+        buildings: ['electronics_factory'],
+        input: ['copper', 'wiring', 'chemicals', 'stone'],
+        output: 'electronics',
+        efficiency: 1.0,
+        workers: ['worker', 'technician', 'engineer'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "芯片制造",
+        buildings: ['semiconductor_fab'],
+        input: ['electronics', 'chemicals', 'copper', 'stone'],
+        output: 'semiconductors',
+        efficiency: 1.0,
+        workers: ['technician', 'engineer', 'scientist'],
+        epochRange: [9, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "软件开发",
+        buildings: ['software_company'],
+        input: ['semiconductors', 'electricity'],
+        output: ['software', 'science'],
+        efficiency: 1.0,
+        workers: ['scientist', 'engineer', 'technician'],
+        epochRange: [9, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "数据处理",
+        buildings: ['data_center'],
+        input: ['semiconductors', 'electricity', 'steel'],
+        output: ['silver', 'science'],
+        efficiency: 1.5,
+        workers: ['technician', 'engineer', 'scientist'],
+        epochRange: [9, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "金融科技",
+        buildings: ['financial_center'],
+        input: ['software', 'electricity'],
+        output: 'silver',
+        efficiency: 2.0,
+        workers: ['scientist', 'capitalist', 'merchant'],
+        epochRange: [9, 9],
+      },
+      {
+        stage: 'consumption',
+        name: "数字消费",
+        consumers: ['all_classes'],
+        input: ['software', 'semiconductors'],
+        bonus: { approval: 0.1, culture: 0.08, science: 0.05 },
+        epochRange: [9, 9],
+      }
+    ],
+    upgrades: [
+      {
+        id: 'euv_lithography',
+        name: "极紫外光刻",
+        unlockEpoch: 9,
+        cost: { semiconductors: 100, science: 1200 },
+        bonus: { efficiency: 0.4, semiconductors_output: 0.35 },
+      },
+      {
+        id: 'ai_optimization',
+        name: "AI优化",
+        unlockEpoch: 9,
+        cost: { software: 80, science: 1500 },
+        bonus: { efficiency: 0.5, output: 0.3, science: 0.2 },
+      },
+    ],
+  },
+
+  // ========== 医药产业链 ==========
+  pharmaceutical_chain: {
+    id: 'pharmaceutical_chain',
+    name: "医药产业链",
+    desc: "从化学品到药物制造和生物科技的医疗产业体系",
+    unlockEpoch: 8,
+    stages: [
+      {
+        stage: 'extraction',
+        name: "化学品供给",
+        buildings: ['oil_refinery'],
+        output: 'chemicals',
+        efficiency: 1.0,
+        workers: ['worker', 'engineer'],
+        epochRange: [7, 9],
+      },
+      {
+        stage: 'processing',
+        name: "药物制造",
+        buildings: ['pharmaceutical_plant'],
+        input: ['chemicals', 'papyrus'],
+        output: 'medicine',
+        efficiency: 1.0,
+        workers: ['technician', 'engineer', 'scientist'],
+        epochRange: [8, 9],
+      },
+      {
+        stage: 'advanced',
+        name: "生物科技",
+        buildings: ['biotech_center'],
+        input: ['medicine', 'electronics', 'chemicals'],
+        output: ['science', 'medicine'],
+        efficiency: 1.5,
+        workers: ['scientist', 'engineer'],
+        epochRange: [9, 9],
+      },
+      {
+        stage: 'consumption',
+        name: "医疗消费",
+        consumers: ['all_classes'],
+        input: 'medicine',
+        bonus: { approval: 0.1, population_growth: 0.05 },
+        epochRange: [8, 9],
+      }
+    ],
+    upgrades: [
+      {
+        id: 'mass_vaccination',
+        name: "大规模疫苗接种",
+        unlockEpoch: 8,
+        cost: { medicine: 80, science: 600 },
+        bonus: { population_growth: 0.15, approval: 0.1 },
+      },
+      {
+        id: 'gene_therapy',
+        name: "基因疗法",
+        unlockEpoch: 9,
+        cost: { medicine: 120, science: 1000 },
+        bonus: { efficiency: 0.4, science: 0.3 },
       },
     ],
   },
@@ -797,6 +1171,46 @@ export const CHAIN_SYNERGIES = {
     desc: "高级产业带动相关产业发展",
     bonus: { related_efficiency: 0.15 },
   },
+
+  // ========== 跨产业链协同 ==========
+  cross_chain_synergies: [
+    {
+      chain1: 'power_chain', chain2: 'mining_chain',
+      bonus: 0.08, desc: '电力驱动采矿效率提升',
+    },
+    {
+      chain1: 'power_chain', chain2: 'petrochemical_chain',
+      bonus: 0.10, desc: '电力支撑化工生产',
+    },
+    {
+      chain1: 'electronics_chain', chain2: 'military_chain',
+      bonus: 0.12, desc: '电子化提升军事装备',
+    },
+    {
+      chain1: 'electronics_chain', chain2: 'knowledge_chain',
+      bonus: 0.10, desc: '电子媒体促进文化传播',
+    },
+    {
+      chain1: 'petrochemical_chain', chain2: 'food_chain',
+      bonus: 0.08, desc: '化肥提升农业产出',
+    },
+    {
+      chain1: 'semiconductor_chain', chain2: 'knowledge_chain',
+      bonus: 0.15, desc: '半导体驱动知识革命',
+    },
+    {
+      chain1: 'power_chain', chain2: 'electronics_chain',
+      bonus: 0.10, desc: '稳定电力是电子工业的基础',
+    },
+    {
+      chain1: 'petrochemical_chain', chain2: 'textile_chain',
+      bonus: 0.08, desc: '化纤推动纺织产业升级',
+    },
+    {
+      chain1: 'semiconductor_chain', chain2: 'pharmaceutical_chain',
+      bonus: 0.10, desc: '半导体推动生物医药计算分析',
+    },
+  ],
 };
 
 /**
@@ -934,6 +1348,77 @@ export const CHAIN_DEVELOPMENT_PATHS = {
         effects: { ordnance_output: 0.5, ammunition_output: 0.4, efficiency: 0.35 },
         penalties: { civilian_chains: { efficiency: -0.15 } },
       },
+      {
+        id: 'electronic_warfare',
+        name: "电子战争",
+        desc: "将电子工业纳入军工体系，军事装备电子化、精密化。",
+        requirements: { epoch: 8, buildings: { military_industrial_complex: 1, electronics_factory: 2 }, tech: ['military_electronics'] },
+        effects: { ordnance_output: 0.4, efficiency: 0.3, military_power: 0.25 },
+      },
+    ],
+  },
+
+  power_chain: {
+    paths: [
+      {
+        id: 'fossil_dominance',
+        name: "化石能源主导",
+        desc: "大力发展火力发电，产量高但对煤炭需求巨大。",
+        requirements: { epoch: 7, buildings: { coal_power_plant: 3 } },
+        effects: { electricity_output: 0.4, efficiency: 0.2 },
+      },
+      {
+        id: 'nuclear_program',
+        name: "核能计划",
+        desc: "发展核电，电力产出极高但需要铀矿支撑。",
+        requirements: { epoch: 8, buildings: { nuclear_power_plant: 1, uranium_mine: 2 }, tech: ['nuclear_power'] },
+        effects: { electricity_output: 0.6, efficiency: 0.3 },
+      },
+      {
+        id: 'green_energy',
+        name: "绿色能源",
+        desc: "发展太阳能等可再生能源，可持续但前期投入大。",
+        requirements: { epoch: 9, buildings: { solar_power_plant: 2 }, tech: ['solar_energy'] },
+        effects: { electricity_output: 0.35, sustainability: 0.5, approval: 0.1 },
+      },
+    ],
+  },
+
+  electronics_chain: {
+    paths: [
+      {
+        id: 'consumer_electronics',
+        name: "消费电子",
+        desc: "以家电和消费品为核心，追求大众市场。",
+        requirements: { epoch: 8, buildings: { appliance_factory: 2, electronics_factory: 2 }, tech: ['consumer_electronics'] },
+        effects: { silver_output: 0.3, culture: 0.2, approval: 0.1 },
+      },
+      {
+        id: 'military_electronics',
+        name: "军事电子",
+        desc: "电子工业为军工服务，精密制导和雷达装备。",
+        requirements: { epoch: 8, buildings: { electronics_factory: 2, military_industrial_complex: 1 }, tech: ['military_electronics'] },
+        effects: { ordnance_quality: 0.4, military_power: 0.2 },
+      },
+    ],
+  },
+
+  semiconductor_chain: {
+    paths: [
+      {
+        id: 'chip_sovereignty',
+        name: "芯片主权",
+        desc: "建立完整的自主半导体产业，减少对外依赖。",
+        requirements: { epoch: 9, buildings: { semiconductor_fab: 2, software_company: 2 }, tech: ['semiconductor_manufacturing'] },
+        effects: { semiconductors_output: 0.4, science: 0.3, efficiency: 0.25 },
+      },
+      {
+        id: 'ai_revolution',
+        name: "AI革命",
+        desc: "以人工智能为核心驱动力，全面提升各行业效率。",
+        requirements: { epoch: 9, buildings: { data_center: 2, research_institute: 1 }, tech: ['ai_research'] },
+        effects: { all_chains_efficiency: 0.15, science: 0.5, silver: 0.2 },
+      },
     ],
   },
 };
@@ -967,6 +1452,8 @@ export const CHAIN_NATION_BONUSES = {
   industrial_consortium: {
     chains: {
       mining_chain: { efficiency: 0.35, output: 0.25 },
+      electronics_chain: { efficiency: 0.2, output: 0.15 },
+      power_chain: { efficiency: 0.15 },
     },
   },
 };
@@ -992,8 +1479,18 @@ export const CHAIN_DECREE_EFFECTS = {
   },
   
   war_economy: {
-    affects: ['military_chain'],
+    affects: ['military_chain', 'electronics_chain'],
     bonus: { efficiency: 0.5, output: 0.4 },
     penalty: { other_chains: { efficiency: -0.2 } },
+  },
+
+  research_grants: {
+    affects: ['knowledge_chain', 'semiconductor_chain', 'pharmaceutical_chain'],
+    bonus: { efficiency: 0.2, science: 0.15 },
+  },
+
+  industrial_policy: {
+    affects: ['electronics_chain', 'petrochemical_chain', 'power_chain'],
+    bonus: { efficiency: 0.15, output: 0.1 },
   },
 };

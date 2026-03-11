@@ -149,5 +149,41 @@ export const EPOCHS = [
             industryBonus: 2.50,
             incomePercent: 0.30
         }
+    },
+    {
+        id: 8,
+        name: "原子时代",
+        color: "text-violet-400",
+        bg: "bg-violet-950",
+        tileColor: "bg-violet-800",
+        req: { science: 50000, population: 1200, culture: 12000 },
+        cost: { silver: 10000, oil: 80, wiring: 30, chemicals: 20 },
+        bonuses: {
+            desc: "核能释放、电子革命、塑料帝国。人类文明进入超级工业化阶段。",
+            gatherBonus: 2.80,
+            militaryBonus: 0.80,
+            cultureBonus: 1.30,
+            scienceBonus: 2.50,
+            industryBonus: 3.50,
+            incomePercent: 0.35
+        }
+    },
+    {
+        id: 9,
+        name: "信息时代",
+        color: "text-cyan-400",
+        bg: "bg-cyan-950",
+        tileColor: "bg-cyan-800",
+        req: { science: 80000, population: 1800, culture: 22000 },
+        cost: { silver: 20000, electronics: 15, plastics: 20, aluminum: 10 },
+        bonuses: {
+            desc: "硅片上的文明。半导体、互联网和可再生能源重塑人类社会。",
+            gatherBonus: 3.50,
+            militaryBonus: 0.90,
+            cultureBonus: 1.60,
+            scienceBonus: 4.00,
+            industryBonus: 5.00,
+            incomePercent: 0.40
+        }
     }
 ];

@@ -733,6 +733,162 @@ export const RESOURCES = {
         }
     },
 
+    // ============ 原子时代 (Epoch 8) 新增资源 ============
+    plastics: {
+        name: "塑料",
+        icon: 'Box',
+        color: "text-blue-300",
+        basePrice: 15.0,
+        minPrice: 0.15,
+        maxPrice: 1500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'polymer_chemistry',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 90.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    electronics: {
+        name: "电子元件",
+        icon: 'Cpu',
+        color: "text-emerald-300",
+        basePrice: 40.0,
+        minPrice: 0.4,
+        maxPrice: 4000,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'integrated_circuits',
+        tags: ['intermediate', 'manufactured'],
+        marketConfig: {
+            supplyDemandWeight: 1.2,
+            inventoryTargetDays: 60.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.6,
+            outputVariation: 0.2
+        }
+    },
+    uranium: {
+        name: "铀矿",
+        icon: 'Atom',
+        color: "text-lime-400",
+        basePrice: 12.0,
+        minPrice: 0.12,
+        maxPrice: 1200,
+        defaultOwner: 'official',
+        unlockEpoch: 8,
+        unlockTech: 'nuclear_physics',
+        tags: ['raw_material', 'strategic'],
+        marketConfig: {
+            supplyDemandWeight: 0.8,
+            inventoryTargetDays: 180.0,
+            inventoryPriceImpact: 0.2,
+            demandElasticity: 0.3,
+            outputVariation: 0.15
+        }
+    },
+    aluminum: {
+        name: "铝材",
+        icon: 'Layers',
+        color: "text-slate-300",
+        basePrice: 22.0,
+        minPrice: 0.22,
+        maxPrice: 2200,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'aluminum_smelting',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    medicine: {
+        name: "医药",
+        icon: 'Pill',
+        color: "text-red-300",
+        basePrice: 35.0,
+        minPrice: 0.35,
+        maxPrice: 3500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'pharmaceutical_industry',
+        tags: ['manufactured', 'consumer'],
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 60.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.7,
+            outputVariation: 0.2
+        }
+    },
+
+    // ============ 信息时代 (Epoch 9) 新增资源 ============
+    semiconductors: {
+        name: "半导体",
+        icon: 'Cpu',
+        color: "text-teal-300",
+        basePrice: 80.0,
+        minPrice: 0.8,
+        maxPrice: 8000,
+        defaultOwner: 'engineer',
+        unlockEpoch: 9,
+        unlockTech: 'semiconductor_manufacturing',
+        tags: ['manufactured', 'high_tech'],
+        marketConfig: {
+            supplyDemandWeight: 1.3,
+            inventoryTargetDays: 40.0,
+            inventoryPriceImpact: 0.4,
+            demandElasticity: 0.7,
+            outputVariation: 0.2
+        }
+    },
+    software: {
+        name: "软件",
+        icon: 'Code',
+        color: "text-blue-400",
+        basePrice: 50.0,
+        minPrice: 0.5,
+        maxPrice: 5000,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 9,
+        unlockTech: 'software_engineering',
+        tags: ['manufactured', 'high_tech'],
+        marketConfig: {
+            supplyDemandWeight: 1.2,
+            inventoryTargetDays: 50.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.8,
+            outputVariation: 0.15
+        }
+    },
+    composites: {
+        name: "复合材料",
+        icon: 'Hexagon',
+        color: "text-indigo-300",
+        basePrice: 45.0,
+        minPrice: 0.45,
+        maxPrice: 4500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 9,
+        unlockTech: 'composite_materials',
+        tags: ['manufactured', 'high_tech'],
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 50.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.6,
+            outputVariation: 0.2
+        }
+    },
+
     // 特殊资源
     silver: {
         name: "银币",

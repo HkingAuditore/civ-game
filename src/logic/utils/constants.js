@@ -18,10 +18,12 @@ export const ROLE_PRIORITY = [
     'capitalist',
     'landowner',
     'engineer',
+    'scientist',
     'navigator',
     'merchant',
     'soldier',
     'scribe',
+    'technician',
     'worker',
     'artisan',
     'miner',
@@ -133,8 +135,8 @@ export const GLOBAL_WAR_COOLDOWN = 30;
 export const STRATUM_TIERS = {
     unemployed: 0, serf: 0,
     peasant: 1, lumberjack: 1, miner: 1,
-    worker: 1, artisan: 2, soldier: 2, navigator: 2, scribe: 2, merchant: 2, cleric: 2,
-    official: 3, landowner: 3, capitalist: 3, engineer: 3
+    worker: 1, artisan: 2, soldier: 2, navigator: 2, scribe: 2, merchant: 2, cleric: 2, technician: 2,
+    official: 3, landowner: 3, capitalist: 3, engineer: 3, scientist: 3
 };
 
 // Wealth requirements for tier promotion (ratio of target stratum's startingWealth)
