@@ -349,6 +349,8 @@ const MilitaryTabComponent = ({
     onCreateBattle, // (battleParams) => void - Create a new battle
     onSetPosture, // (frontId, posture) => void - Set tactical posture
     officials = [], // [NEW] Officials list for general selection
+    corpsReplenishQueue = {},
+    onUpdateCorpsReplenishQueue,
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
@@ -1323,6 +1325,9 @@ const MilitaryTabComponent = ({
                     onUpdateGenerals={onUpdateGenerals}
                     onUpdateArmy={onUpdateArmy}
                     officials={officials}
+                    corpsReplenishQueue={corpsReplenishQueue}
+                    onUpdateCorpsReplenishQueue={onUpdateCorpsReplenishQueue}
+                    autoRecruitEnabled={autoRecruitEnabled}
                 />
             )}
 

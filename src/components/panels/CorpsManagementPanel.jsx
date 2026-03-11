@@ -142,6 +142,9 @@ const CorpsManagementPanel = ({
     onUpdateCorps,
     onUpdateGenerals,
     onUpdateArmy,
+    corpsReplenishQueue = {},
+    onUpdateCorpsReplenishQueue,
+    autoRecruitEnabled = false,
 }) => {
     const [selectedCorpsId, setSelectedCorpsId] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -217,6 +220,14 @@ const CorpsManagementPanel = ({
         onUpdateArmy(updatedArmy);
         onUpdateCorps(updatedCorps);
         onUpdateGenerals(updatedGenerals);
+        // Clear replenish queue for disbanded corps
+        if (onUpdateCorpsReplenishQueue) {
+            onUpdateCorpsReplenishQueue(prev => {
+                const next = { ...prev };
+                delete next[corpsId];
+                return next;
+            });
+        }
         if (selectedCorpsId === corpsId) setSelectedCorpsId(null);
     };
 
@@ -226,6 +237,25 @@ const CorpsManagementPanel = ({
         const updatedList = militaryCorps.map(c => c.id === updatedCorps.id ? updatedCorps : c);
         onUpdateCorps(updatedList);
         onUpdateArmy(updatedArmy);
+        // Reduce replenish deficit when units are manually assigned to a corps
+        if (onUpdateCorpsReplenishQueue && corpsReplenishQueue[selectedCorps.id]) {
+            onUpdateCorpsReplenishQueue(prev => {
+                const next = { ...prev };
+                if (!next[selectedCorps.id]) return next;
+                for (const [unitId, count] of Object.entries(assignAmounts)) {
+                    if (next[selectedCorps.id]?.[unitId]) {
+                        next[selectedCorps.id][unitId] = Math.max(0, next[selectedCorps.id][unitId] - count);
+                        if (next[selectedCorps.id][unitId] <= 0) {
+                            delete next[selectedCorps.id][unitId];
+                        }
+                    }
+                }
+                if (Object.keys(next[selectedCorps.id] || {}).length === 0) {
+                    delete next[selectedCorps.id];
+                }
+                return next;
+            });
+        }
         setAssignAmounts({});
         setAssignMode(null);
     };
@@ -423,6 +453,42 @@ const CorpsManagementPanel = ({
                                             >
                                                 解散军团
                                             </button>
+                                        </div>
+
+                                        {/* Auto-replenish toggle for this corps */}
+                                        <div className="flex items-center gap-2 text-xs">
+                                            <span className="text-gray-400">自动补兵:</span>
+                                            <button
+                                                className={`px-2 py-0.5 rounded border text-xs transition-colors ${
+                                                    !autoRecruitEnabled
+                                                        ? 'bg-gray-800/50 border-gray-600 text-gray-500 cursor-not-allowed'
+                                                        : corps.autoReplenish !== false
+                                                            ? 'bg-green-900/30 border-green-500/40 text-green-300 hover:bg-green-900/50'
+                                                            : 'bg-gray-800/50 border-gray-600 text-gray-400 hover:bg-gray-700/50'
+                                                }`}
+                                                disabled={!autoRecruitEnabled}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const newValue = !(corps.autoReplenish !== false);
+                                                    const updatedList = militaryCorps.map(c =>
+                                                        c.id === corps.id ? { ...c, autoReplenish: newValue } : c
+                                                    );
+                                                    onUpdateCorps(updatedList);
+                                                }}
+                                            >
+                                                {!autoRecruitEnabled ? '全局已关闭' : (corps.autoReplenish !== false ? '开启' : '关闭')}
+                                            </button>
+                                            {/* Show deficit info */}
+                                            {(() => {
+                                                const deficits = corpsReplenishQueue[corps.id];
+                                                if (!deficits || Object.keys(deficits).length === 0) return null;
+                                                const totalDeficit = Object.values(deficits).reduce((s, c) => s + (c || 0), 0);
+                                                return (
+                                                    <span className="text-amber-400/80 ml-1">
+                                                        待补 {totalDeficit} 人
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* Unit assignment interface */}

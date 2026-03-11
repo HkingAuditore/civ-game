@@ -378,6 +378,13 @@ export const EPOCH_SYSTEM_EFFECTS = {
     decree_efficiency: 1.3,
     new_mechanics: ['industrialization', 'mass_production'],
   },
+
+  7: { // 电气时代
+    available_chains: ['all', 'power_chain', 'petrochemical_chain'],
+    class_structure: { worker: 0.30, engineer: 0.20, capitalist: 0.12, merchant: 0.12, peasant: 0.10, scribe: 0.08, miner: 0.08 },
+    decree_efficiency: 1.4,
+    new_mechanics: ['electrification', 'chemical_industry', 'automobile'],
+  },
 };
 
 /**

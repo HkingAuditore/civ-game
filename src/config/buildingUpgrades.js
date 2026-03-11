@@ -1145,6 +1145,260 @@ export const BUILDING_UPGRADES = {
             jobs: { worker: 16, engineer: 3, capitalist: 1 },
         },
     ],
+
+    // ============ 探索时代 (Epoch 4) 纺织链补充 ============
+    // cotton_plantation: base output cotton: 2.4, owner: merchant, base jobs: serf:5, merchant:1
+    cotton_plantation: [
+        {
+            name: "改良种植园",
+            cost: { wood: 300, tools: 40, spice: 30, silver: 400 },
+            input: {},
+            output: { cotton: 3.12 }, // 1.3x
+            jobs: { serf: 6, merchant: 1 },
+        },
+        {
+            name: "大棉花庄园",
+            cost: { wood: 500, tools: 80, spice: 50, silver: 900 },
+            input: {},
+            output: { cotton: 5.40 }, // 2.25x
+            jobs: { serf: 7, merchant: 1, worker: 1 },
+        },
+    ],
+
+    // cotton_weaving_house: base output cloth: 6.0, fine_clothes: 0.4, owner: artisan, base jobs: worker:4, artisan:2
+    cotton_weaving_house: [
+        {
+            name: "棉纺织工场",
+            cost: { brick: 200, plank: 120, tools: 50, silver: 350 },
+            input: { cotton: 1.95, tools: 0.065 },
+            output: { cloth: 7.80, fine_clothes: 0.52 }, // 1.3x
+            jobs: { worker: 5, artisan: 2 },
+        },
+        {
+            name: "大棉纺织坊",
+            cost: { brick: 350, plank: 200, tools: 90, silver: 750 },
+            input: { cotton: 3.375, tools: 0.1125 },
+            output: { cloth: 13.50, fine_clothes: 0.90 }, // 2.25x
+            jobs: { worker: 6, artisan: 3 },
+        },
+    ],
+
+    // ============ 电气时代 (Epoch 7) 建筑升级 ============
+    // oil_well: base output oil: 1.2, owner: capitalist, base jobs: worker:6, miner:3, capitalist:1
+    oil_well: [
+        {
+            name: "深钻井架",
+            cost: { silver: 2000, steel: 25, tools: 15, science: 100 },
+            input: {},
+            output: { oil: 1.56 }, // 1.3x
+            jobs: { worker: 7, miner: 3, capitalist: 1 },
+        },
+        {
+            name: "自动采油平台",
+            cost: { silver: 4500, steel: 50, machinery: 8, science: 200 },
+            input: {},
+            output: { oil: 2.70 }, // 2.25x
+            jobs: { worker: 7, miner: 4, capitalist: 1 },
+        },
+    ],
+
+    // rubber_plantation: base output rubber: 0.8, owner: merchant, base jobs: peasant:5, worker:3, merchant:1
+    rubber_plantation: [
+        {
+            name: "改良品种",
+            cost: { silver: 1200, wood: 50, tools: 10, science: 80 },
+            input: {},
+            output: { rubber: 1.04 }, // 1.3x
+            jobs: { peasant: 6, worker: 3, merchant: 1 },
+        },
+        {
+            name: "大规模种植园",
+            cost: { silver: 2500, wood: 80, tools: 20, science: 150 },
+            input: {},
+            output: { rubber: 1.80 }, // 2.25x
+            jobs: { peasant: 7, worker: 4, merchant: 1 },
+        },
+    ],
+
+    // coal_power_plant: base output electricity: 1.5, base input coal: 0.8, owner: engineer, base jobs: worker:6, engineer:2
+    coal_power_plant: [
+        {
+            name: "高压锅炉",
+            cost: { silver: 3500, steel: 40, brick: 40, science: 150 },
+            input: { coal: 1.04 },
+            output: { electricity: 1.95 }, // 1.3x
+            jobs: { worker: 7, engineer: 2 },
+        },
+        {
+            name: "超临界机组",
+            cost: { silver: 7000, steel: 80, brick: 60, science: 300 },
+            input: { coal: 1.80 },
+            output: { electricity: 3.375 }, // 2.25x
+            jobs: { worker: 8, engineer: 3 },
+        },
+    ],
+
+    // oil_refinery: base output chemicals: 0.5, base input oil:0.6 coal:0.3 dye:0.1, owner: engineer, base jobs: worker:5, engineer:2
+    oil_refinery: [
+        {
+            name: "催化裂解",
+            cost: { silver: 3000, steel: 30, brick: 20, science: 150 },
+            input: { oil: 0.78, coal: 0.39, dye: 0.13 },
+            output: { chemicals: 0.65 }, // 1.3x
+            jobs: { worker: 6, engineer: 2 },
+        },
+        {
+            name: "连续精馏塔",
+            cost: { silver: 6000, steel: 60, brick: 40, science: 300 },
+            input: { oil: 1.35, coal: 0.675, dye: 0.225 },
+            output: { chemicals: 1.125 }, // 2.25x
+            jobs: { worker: 7, engineer: 3 },
+        },
+    ],
+
+    // wiring_factory: base output wiring: 0.5, base input copper:0.8 rubber:0.3, owner: engineer, base jobs: worker:6, artisan:2, engineer:1
+    wiring_factory: [
+        {
+            name: "连续拉丝机",
+            cost: { silver: 2500, steel: 15, tools: 12, science: 120 },
+            input: { copper: 1.04, rubber: 0.39 },
+            output: { wiring: 0.65 }, // 1.3x
+            jobs: { worker: 7, artisan: 2, engineer: 1 },
+        },
+        {
+            name: "多芯线自动化",
+            cost: { silver: 5000, steel: 30, tools: 20, science: 250 },
+            input: { copper: 1.80, rubber: 0.675 },
+            output: { wiring: 1.125 }, // 2.25x
+            jobs: { worker: 8, artisan: 3, engineer: 1 },
+        },
+    ],
+
+    // machinery_plant: base output machinery: 0.4, base input steel:0.3 iron:0.4 tools:0.2, owner: engineer, base jobs: worker:8, artisan:2, engineer:2
+    machinery_plant: [
+        {
+            name: "精密车床",
+            cost: { silver: 3500, steel: 45, iron: 30, tools: 15, science: 160 },
+            input: { steel: 0.39, iron: 0.52, tools: 0.26 },
+            output: { machinery: 0.52 }, // 1.3x
+            jobs: { worker: 9, artisan: 2, engineer: 2 },
+        },
+        {
+            name: "数控加工",
+            cost: { silver: 7000, steel: 80, iron: 50, tools: 30, science: 350 },
+            input: { steel: 0.675, iron: 0.90, tools: 0.45 },
+            output: { machinery: 0.90 }, // 2.25x
+            jobs: { worker: 10, artisan: 3, engineer: 2 },
+        },
+    ],
+
+    // automobile_factory: base output silver:2.0 culture:0.05, base input steel:0.4 rubber:0.3 machinery:0.3, owner: capitalist
+    automobile_factory: [
+        {
+            name: "改进流水线",
+            cost: { silver: 6000, steel: 75, machinery: 15, science: 200 },
+            input: { steel: 0.52, rubber: 0.39, machinery: 0.39 },
+            output: { silver: 2.60, culture: 0.065 }, // 1.3x
+            jobs: { worker: 12, artisan: 3, engineer: 2, capitalist: 1 },
+        },
+        {
+            name: "全自动组装",
+            cost: { silver: 12000, steel: 120, machinery: 25, science: 400 },
+            input: { steel: 0.90, rubber: 0.675, machinery: 0.675 },
+            output: { silver: 4.50, culture: 0.1125 }, // 2.25x
+            jobs: { worker: 14, artisan: 4, engineer: 3, capitalist: 1 },
+        },
+    ],
+
+    // fertilizer_plant: base output food: 0.8, base input chemicals:0.3 coal:0.2, owner: engineer
+    fertilizer_plant: [
+        {
+            name: "高压合成",
+            cost: { silver: 2200, steel: 12, brick: 15, science: 100 },
+            input: { chemicals: 0.39, coal: 0.26 },
+            output: { food: 1.04 }, // 1.3x
+            jobs: { worker: 5, engineer: 1 },
+        },
+        {
+            name: "缓释配方",
+            cost: { silver: 4500, steel: 25, brick: 30, science: 200 },
+            input: { chemicals: 0.675, coal: 0.45 },
+            output: { food: 1.80 }, // 2.25x
+            jobs: { worker: 6, engineer: 2 },
+        },
+    ],
+
+    // advanced_copper_mine: base output copper: 1.6, base input electricity: 0.2, owner: capitalist
+    advanced_copper_mine: [
+        {
+            name: "电气化竖井",
+            cost: { silver: 2500, steel: 30, machinery: 8, science: 120 },
+            input: { electricity: 0.26 },
+            output: { copper: 2.08 }, // 1.3x
+            jobs: { miner: 7, worker: 3, engineer: 1 },
+        },
+        {
+            name: "露天开采",
+            cost: { silver: 5000, steel: 60, machinery: 15, science: 250 },
+            input: { electricity: 0.45 },
+            output: { copper: 3.60 }, // 2.25x
+            jobs: { miner: 8, worker: 4, engineer: 2 },
+        },
+    ],
+
+    // broadcast_station: base output science:0.8 culture:0.4, base input electricity:0.3 papyrus:0.1, owner: official
+    broadcast_station: [
+        {
+            name: "短波发射",
+            cost: { silver: 3000, wiring: 15, steel: 12, science: 150 },
+            input: { electricity: 0.39, papyrus: 0.13 },
+            output: { science: 1.04, culture: 0.52 }, // 1.3x
+            jobs: { scribe: 4, worker: 2, engineer: 1 },
+        },
+        {
+            name: "全国广播网",
+            cost: { silver: 6000, wiring: 30, steel: 20, science: 300 },
+            input: { electricity: 0.675, papyrus: 0.225 },
+            output: { science: 1.80, culture: 0.90 }, // 2.25x
+            jobs: { scribe: 5, worker: 3, engineer: 2 },
+        },
+    ],
+
+    // synthetic_fiber_plant: base output synthetic_fiber:2.0, base input coal:1.5 steel:0.3 science:0.1, owner: capitalist
+    synthetic_fiber_plant: [
+        {
+            name: "连续聚合",
+            cost: { steel: 450, brick: 350, tools: 180, silver: 2000, science: 250 },
+            input: { coal: 1.95, steel: 0.39, science: 0.13 },
+            output: { synthetic_fiber: 2.60 }, // 1.3x
+            jobs: { worker: 14, engineer: 3, capitalist: 1 },
+        },
+        {
+            name: "多品种共聚",
+            cost: { steel: 700, brick: 500, tools: 300, silver: 4000, science: 500 },
+            input: { coal: 3.375, steel: 0.675, science: 0.225 },
+            output: { synthetic_fiber: 4.50 }, // 2.25x
+            jobs: { worker: 16, engineer: 4, capitalist: 1 },
+        },
+    ],
+
+    // electric_textile_mill: base output cloth:18.0 fine_clothes:3.0, base input cotton:3.0 coal:0.8 dye:0.5, owner: capitalist
+    electric_textile_mill: [
+        {
+            name: "高速织机",
+            cost: { steel: 500, brick: 400, tools: 200, silver: 2500, science: 300 },
+            input: { cotton: 3.90, coal: 1.04, dye: 0.65 },
+            output: { cloth: 23.40, fine_clothes: 3.90 }, // 1.3x
+            jobs: { worker: 22, engineer: 3, capitalist: 1 },
+        },
+        {
+            name: "全自动印染",
+            cost: { steel: 800, brick: 600, tools: 350, silver: 5000, science: 600 },
+            input: { cotton: 6.75, coal: 1.80, dye: 1.125 },
+            output: { cloth: 40.50, fine_clothes: 6.75 }, // 2.25x
+            jobs: { worker: 25, engineer: 4, capitalist: 2 },
+        },
+    ],
 };
 
 // 获取建筑的有效配置（包含升级的效果）
