@@ -1963,6 +1963,19 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
+        // 检查前置知识
+        if (tech.prerequisites && tech.prerequisites.length > 0) {
+            const missingPrereqs = tech.prerequisites.filter(pid => !techsUnlocked.includes(pid));
+            if (missingPrereqs.length > 0) {
+                const missingNames = missingPrereqs.map(pid => {
+                    const pt = TECHS.find(t => t.id === pid);
+                    return pt ? pt.name : pid;
+                }).join('、');
+                addLog(`需要先研究 ${missingNames} 才能研究 ${tech.name}`);
+                return;
+            }
+        }
+
         // 检查资源
         const difficulty = gameState.difficulty || 'normal';
         const techCostMultiplier = getTechCostMultiplier(difficulty);

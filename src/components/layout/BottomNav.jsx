@@ -23,7 +23,7 @@ const TAB_CONFIG = {
         border: 'border-red-500/50'
     },
     tech: {
-        label: '科技',
+        label: '知识',
         icon: 'Cpu',
         color: 'from-cyan-500 to-blue-600',
         glow: 'shadow-cyan-500/40',

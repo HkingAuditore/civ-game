@@ -26,6 +26,7 @@ import { getPolityEffects } from '../config/polityEffects';
 import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateVassalPolicyReputationChange } from '../config/reputationSystem';
 import { aggregateWarDamagedBuildings, calculateMilitaryIndustryBoost, calculateWartimeTradeDisruption } from './diplomacy/warEconomy';
 import { WAR_ECONOMY } from '../config/gameConstants';
+import { applyIdeologyEffects, evaluateTriggerEffects, evaluateSynergyEffects } from './ideology/ideologyEffects';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
@@ -498,6 +499,9 @@ export const simulateTick = ({
     generals = [],
     activeFronts = [],
     activeBattles = [],
+    // 理念系统
+    equippedIdeologies = [],  // 已装备的理念对象列表 [{ id, level, effects, ... }]
+    ideologySynergies = [],   // 联动配置数组
 }) => {
     if (!Number.isFinite(tick)) {
         const parsedTick = Number(tick);
@@ -1279,7 +1283,23 @@ export const simulateTick = ({
             influenceData.totalInfluence
         );
         currentPolityEffects = getPolityEffects(currentPolity.name);
-        applyPolityEffects(currentPolityEffects, bonuses);
+    applyPolityEffects(currentPolityEffects, bonuses);
+    }
+
+    // Apply Ideology effects（理念效果：基础数值 + 条件触发 + 联动）
+    if (equippedIdeologies && equippedIdeologies.length > 0) {
+        applyIdeologyEffects(equippedIdeologies, bonuses);
+        const ideologyTriggerState = {
+            popStructure: previousPopStructure,
+            epoch,
+            techsUnlocked,
+            resources,
+            completedChains: 0, // TODO: 任务11中接入产业链计数
+            buildingCategoryCounts: {}, // TODO: 任务11中接入建筑类别计数
+        };
+        evaluateTriggerEffects(equippedIdeologies, ideologyTriggerState, bonuses);
+        const equippedIds = equippedIdeologies.map(i => i.id);
+        evaluateSynergyEffects(equippedIds, ideologySynergies, bonuses);
     }
 
     // Apply Epoch bonuses

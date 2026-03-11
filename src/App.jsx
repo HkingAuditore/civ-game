@@ -54,6 +54,7 @@ import { DifficultySelectionModal } from './components/modals/DifficultySelectio
 import { SaveSlotModal } from './components/modals/SaveSlotModal';
 import { SaveTransferModal } from './components/modals/SaveTransferModal';
 import { AchievementsModal } from './components/modals/AchievementsModal';
+import { IdeologyEmergenceModal } from './components/modals/IdeologyEmergenceModal';
 import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
@@ -62,6 +63,8 @@ import { assignCorpsToFront, removeCorpsFromFront, getPlayerSide } from './logic
 import { setTacticOrder, createBattle, processReinforcement, isBattleActive } from './logic/diplomacy/battleSystem';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
+import { selectIdeology } from './logic/ideology/ideologyEmergence';
+import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
 
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
@@ -1318,7 +1321,7 @@ function GameApp({ gameState }) {
                                 {[
                                     { id: 'build', label: '建设', icon: 'Hammer' },
                                     { id: 'military', label: '军事', icon: 'Swords' },
-                                    { id: 'tech', label: '科技', icon: 'Cpu' },
+                                    { id: 'tech', label: '知识', icon: 'Cpu' },
                                     { id: 'politics', label: '行政', icon: 'Gavel' },
                                     { id: 'diplo', label: '外交', icon: 'Globe' },
                                 ].map(tab => (
@@ -1443,6 +1446,16 @@ function GameApp({ gameState }) {
                                                 market={gameState.market}
                                                 onShowTechDetails={handleShowTechDetails}
                                                 difficulty={gameState.difficulty}
+                                                // 理念系统 props
+                                                ideologyScore={gameState.ideologyScore}
+                                                ideologyScoreSpent={gameState.ideologyScoreSpent}
+                                                ideologyCollection={gameState.ideologyCollection}
+                                                equippedIdeologies={gameState.equippedIdeologies}
+                                                ideologySlotCount={gameState.ideologySlotCount}
+                                                ideologyCooldowns={gameState.ideologyCooldowns}
+                                                setEquippedIdeologies={gameState.setEquippedIdeologies}
+                                                setIdeologyCooldowns={gameState.setIdeologyCooldowns}
+                                                setIdeologySlotCount={gameState.setIdeologySlotCount}
                                             />
                                         )}
 
@@ -2262,6 +2275,23 @@ function GameApp({ gameState }) {
             <DonateModal
                 isOpen={showDonateModal}
                 onClose={() => setShowDonateModal(false)}
+            />
+
+            {/* 理念涌现弹窗 */}
+            <IdeologyEmergenceModal
+                show={!!gameState.pendingIdeologyEmergence}
+                candidates={gameState.pendingIdeologyEmergence?.candidates || []}
+                equippedIds={gameState.equippedIdeologies || []}
+                onSelect={(ideologyId) => {
+                    // 处理涌现选择
+                    const result = selectIdeology(ideologyId, gameState.ideologyCollection || []);
+                    gameState.setIdeologyCollection(result.updatedCollection);
+                    // 消耗分数
+                    const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
+                    gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
+                    // 清除涌现事件
+                    gameState.setPendingIdeologyEmergence(null);
+                }}
             />
         </div>
     );
