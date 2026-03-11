@@ -1,21 +1,21 @@
 // Dynamic Background Effects - 动态背景特效组件
 // 为游戏界面添加沉浸式的视觉效果
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 
 /**
  * 浮动粒子背景
  * 创建缓慢漂浮的金色粒子效果
  */
 export const FloatingParticles = ({ count = 20, className = '' }) => {
-  const particles = Array.from({ length: count }, (_, i) => ({
+  const particles = useMemo(() => Array.from({ length: count }, (_, i) => ({
     id: i,
     size: Math.random() * 3 + 1,
     left: Math.random() * 100,
     animationDuration: Math.random() * 20 + 15,
     animationDelay: Math.random() * 5,
     opacity: Math.random() * 0.3 + 0.1,
-  }));
+  })), [count]);
 
   return (
     <div className={`absolute inset-0 overflow-hidden pointer-events-none ${className}`}>
