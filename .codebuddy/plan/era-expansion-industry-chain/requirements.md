@@ -1,45 +1,55 @@
-# 需求文档：时代扩展与产业链全面升级
+# 需求文档：时代扩展与超长产业链全面升级
 
 ## 引言
 
-当前游戏包含 8 个时代（石器→青铜→古典→封建→探索→启蒙→工业→信息），产业链在工业时代(epoch 6)基本到达终点，信息时代(epoch 7)缺乏专属建筑和产业链，后期内容空洞。本需求旨在**保留启蒙时代(epoch 5)不变**，在其之后将现有的「工业时代-信息时代」替换并扩展为**「蒸汽时代-电气时代-原子时代-信息时代」**四个全新时代，并为每个新时代设计完整的产业链、建筑、科技、资源和阶层。
+当前游戏有8个时代（石器→信息），26种资源，6条主要产业链，产业链最长4阶段。核心问题：
+1. **产业链太短**：大多数链只有采集→加工→消费3步，缺乏深度
+2. **后期空洞**：工业时代(epoch 6)内容尚可但信息时代(epoch 7)完全空壳
+3. **缺乏中间品**：没有足够的中间加工品让产业链变长
+
+本需求旨在**保留启蒙时代(epoch 5)不变**，将现有「工业→信息」替换为**「蒸汽→电气→原子→信息」**四时代，核心设计理念：
+- **旧资源新生命**：wood/iron/copper/coal/cloth/stone/tools/plank/brick/papyrus/dye 等全部在新产业中被大量复用为投入品
+- **超长产业链**：引入大量中间品，使产业链达到 5-8 个加工阶段
+- **交织网络**：不同产业链通过共享中间品形成复杂的供需网络
+- **数值一致**：所有新内容严格遵循现有经济模型和数据范式
 
 ### 设计原则
 
-1. **严格遵循现有范式**：所有新内容在数据结构、命名规则、数值体系上与现有系统完全一致
-2. **延长而非替代**：新时代的建筑和产业链优先在现有产业链末端延伸，而非创建平行系统
-3. **超长产业链**：引入多层级加工（原材料→初级加工→中级加工→高级制成品→最终消费），让经济网络更复杂
-4. **经济模型一致**：新资源遵循抽象市场模型（供需→价格→工资→税收反馈循环）
-5. **数值递进一致**：建筑产出倍率、时代加成系数、科技成本等遵循现有递进曲线
-6. **保留epoch 0-5不变**：石器、青铜、古典、封建、探索、启蒙六个时代的所有内容完全保留
+1. **严格遵循现有范式**：数据结构、命名规则、数值体系完全一致
+2. **旧资源深度复用**：每种旧资源至少在2-3条新产业链中作为投入品
+3. **超长产业链**：单条链最长 6-8 步加工，最短 4 步
+4. **中间品枢纽**：化学品/塑料/电子元件等中间品被多条链共享，形成供需枢纽
+5. **经济模型一致**：遵循抽象市场模型（供需→价格→工资→税收反馈循环）
+6. **保留 epoch 0-5 完全不变**
 
 ### 时代体系映射
 
-| 现有时代 | 现有 epoch ID | 重构后 | 新 epoch ID | 变更说明 |
-|---------|-------------|--------|-------------|---------|
-| 石器时代 | 0 | 石器时代 | 0 | 不变 |
-| 青铜时代 | 1 | 青铜时代 | 1 | 不变 |
-| 古典时代 | 2 | 古典时代 | 2 | 不变 |
-| 封建时代 | 3 | 封建时代 | 3 | 不变 |
-| 探索时代 | 4 | 探索时代 | 4 | 不变 |
-| 启蒙时代 | 5 | 启蒙时代 | 5 | **不变** |
-| 工业时代 | 6 | **蒸汽时代** | 6 | 改名，保留并重新归类现有epoch 6建筑/科技 |
-| 信息时代 | 7 | **电气时代** | 7 | 改名，填充全新内容（原epoch 7无专属建筑/科技） |
-| (无) | (无) | **原子时代** | 8 | 全新时代 |
-| (无) | (无) | **信息时代** | 9 | 全新终极时代 |
+| 现有时代 | 现有 epoch | 重构后 | 新 epoch | 变更说明 |
+|---------|-----------|--------|----------|---------|
+| 石器~启蒙 | 0-5 | 不变 | 0-5 | **完全不变** |
+| 工业时代 | 6 | **蒸汽时代** | 6 | 改名，保留全部16个建筑+20个科技 |
+| 信息时代 | 7 | **电气时代** | 7 | 改名，填充全新内容（原epoch 7空壳） |
+| (无) | - | **原子时代** | 8 | 全新时代 |
+| (无) | - | **信息时代** | 9 | 全新终极时代 |
 
-### 现有 epoch 6（工业时代）建筑归属
+### 现有资源在新时代的复用规划（核心！）
 
-现有 epoch 6 的 16 个建筑将全部归入**蒸汽时代(epoch 6)**，因为它们的主题（蒸汽动力、煤炭驱动、机械化）天然契合蒸汽时代：
+这是本次设计的灵魂——旧资源不会在新时代变成废物，而是成为新产业链的关键投入品：
 
-- 采集类：煤矿(coal_mine)、工业矿场(industrial_mine)、机械化农场(mechanized_farm)、伐木公司(logging_company)
-- 工业类：蒸汽工厂(steam_factory)、炼钢厂(steel_foundry)、钢铁联合体(steel_works)、服装工厂(garment_factory)、家具工厂(furniture_factory)、预制构件厂(prefab_factory)、罐头厂(cannery)、出版社(publishing_house)
-- 军事类：兵工厂(arsenal)
-- 市政类：火车站(railway_station)、公寓楼(apartment_block)
-
-### 现有 epoch 6（工业时代）科技归属
-
-现有 epoch 6 的 20 个科技将全部归入**蒸汽时代(epoch 6)**，保留其解锁关系不变。
+| 旧资源 | 现有用途 | 蒸汽时代新用途 | 电气时代新用途 | 原子时代新用途 | 信息时代新用途 |
+|--------|---------|-------------|-------------|-------------|-------------|
+| **wood** | 建筑/家具/船 | 蒸汽机燃料、枕木(铁路)、工业包装 | 电线杆、建筑模板 | 建筑模板 | 生态建材 |
+| **iron** | 工具/武器 | 蒸汽锅炉、铁轨、管道 | 电机铁芯、汽车底盘 | 核反应堆容器 | - |
+| **copper** | 青铜器/工具 | 蒸汽管道、电报线 | **电线电缆**(大量！)、电子元件 | 电路板、导线 | 芯片布线 |
+| **coal** | 蒸汽工厂燃料 | 所有蒸汽建筑燃料 | **发电厂燃料**、化工原料 | 活性炭/化工 | - |
+| **cloth** | 衣物 | 工业织带/滤布 | 汽车内饰、绝缘材料 | 防护服 | - |
+| **stone** | 建筑 | 工厂地基 | 水坝/电站地基 | 核电站屏蔽层 | 数据中心地基 |
+| **brick** | 建筑 | 工厂建筑 | 发电厂建筑 | 高层建筑 | 数据中心 |
+| **tools** | 生产工具 | 蒸汽机维护 | 汽车组装工具 | 精密仪器 | 半导体工具 |
+| **plank** | 家具/建筑 | 铁路枕木、包装箱 | 建筑模板 | - | - |
+| **papyrus** | 书籍/文化 | 蒸汽时代报纸 | 电气时代媒体 | 科研论文 | 知识数据化 |
+| **dye** | 华服 | 合成染料原料 | 化学品原料 | 药品着色 | - |
+| **steel** | 军工/工业 | 铁路/蒸汽机 | **汽车/电站**(大量！) | 核电/航天 | 智能工厂 |
 
 ---
 
@@ -47,302 +57,431 @@
 
 ### 需求 1：时代体系重构
 
-**用户故事：** 作为一名玩家，我希望在启蒙时代之后经历蒸汽时代、电气时代、原子时代、信息时代四个时代，以便感受到从早期机械化到现代信息社会的完整文明发展历程。
+**用户故事：** 作为一名玩家，我希望在启蒙时代之后经历蒸汽、电气、原子、信息四个时代，感受完整文明发展历程。
 
 #### 验收标准
 
 1. WHEN 玩家查看时代列表 THEN 系统 SHALL 显示 10 个时代：石器(0)→青铜(1)→古典(2)→封建(3)→探索(4)→启蒙(5)→蒸汽(6)→电气(7)→原子(8)→信息(9)
-2. WHEN 时代 0-5 的配置加载 THEN 系统 SHALL 完全保留现有数据（id、name、req、cost、bonuses）不做任何修改
-3. WHEN 蒸汽时代(epoch 6)配置加载 THEN 系统 SHALL 将现有工业时代的 name 改为"蒸汽时代"，保留其 req/cost/bonuses 数值（科研≥20000，人口≥650，文化≥4000）
-4. WHEN 电气时代(epoch 7)配置加载 THEN 系统 SHALL 将现有信息时代的 name 改为"电气时代"，并调整 req/cost/bonuses（科研≥35000，人口≥1000，文化≥8000）
-5. WHEN 原子时代(epoch 8)配置新增 THEN 系统 SHALL 设置升级条件（科研≥55000，人口≥1500，文化≥15000）及对应 bonuses
-6. WHEN 信息时代(epoch 9)配置新增 THEN 系统 SHALL 设置升级条件（科研≥85000，人口≥2200，文化≥25000）及对应 bonuses
-7. WHEN 时代升级发生 THEN 系统 SHALL 应用对应时代的 bonuses（gatherBonus, militaryBonus, cultureBonus, scienceBonus, industryBonus 等），数值递进符合现有曲线
-8. WHEN 新时代 bonuses 定义完成 THEN 系统 SHALL 确保递增趋势：
-   - gatherBonus: 蒸汽2.0 → 电气3.0 → 原子4.0 → 信息5.0
-   - industryBonus: 蒸汽2.0 → 电气3.0 → 原子4.5 → 信息6.0
-   - scienceBonus: 蒸汽1.2 → 电气2.0 → 原子3.5 → 信息5.0
-9. WHEN 新时代的 color/bg/tileColor 定义完成 THEN 系统 SHALL 为每个时代分配独特的 Tailwind 颜色主题
+2. WHEN 时代 0-5 配置加载 THEN 系统 SHALL 完全保留现有数据不做任何修改
+3. WHEN 蒸汽时代(epoch 6) THEN 系统 SHALL 将现有工业时代 name 改为"蒸汽时代"，保留 req/cost/bonuses
+4. WHEN 电气时代(epoch 7) THEN 系统 SHALL 改名"电气时代"，调整 req/cost/bonuses（科研≥35000，人口≥1000，文化≥8000）
+5. WHEN 原子时代(epoch 8)新增 THEN 系统 SHALL 设置（科研≥55000，人口≥1500，文化≥15000）
+6. WHEN 信息时代(epoch 9)新增 THEN 系统 SHALL 设置（科研≥85000，人口≥2200，文化≥25000）
+7. WHEN 时代 bonuses 定义 THEN 系统 SHALL 确保递增：gatherBonus 2.0→3.0→4.0→5.0, industryBonus 2.0→3.0→4.5→6.0, scienceBonus 1.2→2.0→3.5→5.0
+8. WHEN 时代升级 cost 定义 THEN 系统 SHALL 包含该时代新资源（电气需石油、原子需电子元件、信息需半导体），拉动新产业链
+9. WHEN 新时代 color/bg/tileColor 定义 THEN 系统 SHALL 为每个时代分配独特 Tailwind 颜色
 
 ---
 
-### 需求 2：新资源引入
+### 需求 2：新资源引入（大幅扩展版）
 
-**用户故事：** 作为一名玩家，我希望在后期时代解锁新的资源类型（棉花、橡胶、石油、电力、塑料、化学品、车辆、电子元件、半导体等），以便构建更丰富和更长的产业链。
+**用户故事：** 作为一名玩家，我希望后期时代有大量新资源类型，特别是中间加工品，使产业链变得更长更复杂。
 
-#### 验收标准
+#### 2.1 蒸汽时代(epoch 6)新资源
 
-1. WHEN 玩家进入蒸汽时代(epoch 6) THEN 系统 SHALL 解锁以下新资源：
-   - **棉花**(cotton)：基础纺织原材料，tags: ['raw']
-   - **橡胶**(rubber)：工业原材料，tags: ['raw', 'industrial']
+1. WHEN 进入蒸汽时代 THEN 系统 SHALL 解锁：
+   - **棉花**(cotton)：基础纺织原材料，tags:['raw'], basePrice:3, 被棉纺厂/化工厂消耗
+   - **橡胶**(rubber)：工业原材料，tags:['raw','industrial'], basePrice:5, 被汽车/电缆消耗
+   - **水泥**(cement)：中间建材品，tags:['intermediate','industrial'], basePrice:8, 由石料+�ite+coal制造，被大型建筑消耗。**关键复用**：消耗stone+coal（旧资源）
+   - **玻璃**(glass)：中间工业品，tags:['intermediate','industrial'], basePrice:10, 由stone(砂)+coal制造，被建筑/电子消耗。**关键复用**：消耗stone+coal
 
-2. WHEN 玩家进入电气时代(epoch 7) THEN 系统 SHALL 解锁以下新资源：
-   - **石油**(oil)：战略能源资源，tags: ['raw', 'energy']
-   - **电力**(electricity)：虚拟能源资源（type: 'virtual_energy'），由发电厂产出，被工业建筑消费
-   - **化学品**(chemicals)：中间工业品，tags: ['intermediate', 'industrial']
-   - **车辆**(vehicles)：高级制成品，tags: ['manufactured', 'military']
+#### 2.2 电气时代(epoch 7)新资源
 
-3. WHEN 玩家进入原子时代(epoch 8) THEN 系统 SHALL 解锁以下新资源：
-   - **塑料**(plastics)：通用工业材料，tags: ['intermediate', 'industrial']
-   - **电子元件**(electronics)：高级工业品，tags: ['manufactured', 'industrial']
-   - **铀矿**(uranium)：战略资源，tags: ['raw', 'strategic']
-   - **医药**(medicine)：消费品，tags: ['manufactured', 'consumer']
+2. WHEN 进入电气时代 THEN 系统 SHALL 解锁：
+   - **石油**(oil)：战略能源，tags:['raw','energy'], basePrice:6
+   - **电力**(electricity)：虚拟能源(type:'virtual_energy')，不进市场交易，实时产消
+   - **化学品**(chemicals)：关键中间品！tags:['intermediate','industrial'], basePrice:15。由coal+oil+dye制造。**关键复用**：消耗coal+dye（旧资源）
+   - **电线电缆**(wiring)：中间工业品，tags:['intermediate','industrial'], basePrice:12。由copper+rubber制造。**关键复用**：消耗copper（旧资源，大量！）
+   - **机械零件**(machinery)：中间工业品，tags:['intermediate','industrial'], basePrice:20。由steel+iron+tools制造。**关键复用**：消耗steel+iron+tools（全部旧资源！）
+   - **车辆**(vehicles)：高级制成品，tags:['manufactured','military'], basePrice:45。由steel+rubber+machinery+glass制造
+   - **化肥**(fertilizer)：农业中间品，tags:['intermediate'], basePrice:8。由chemicals+coal制造。**关键复用**：消耗coal，直接延长food_chain
 
-4. WHEN 玩家进入信息时代(epoch 9) THEN 系统 SHALL 解锁以下新资源：
-   - **半导体**(semiconductors)：尖端工业品，tags: ['manufactured', 'high_tech']
-   - **数据**(data)：虚拟资源（type: 'virtual'），tags: ['virtual', 'high_tech']
-   - **服务**(services)：虚拟消费品（type: 'virtual'），tags: ['virtual', 'consumer']
+#### 2.3 原子时代(epoch 8)新资源
 
-5. WHEN 新资源被定义 THEN 系统 SHALL 为每个资源配置完整的 RESOURCES 数据项（name, icon, color, basePrice, minPrice, maxPrice, defaultOwner, unlockEpoch, unlockTech, tags, marketConfig），遵循 `src/config/gameConstants.js` 中现有 RESOURCES 的范式
-6. IF 新资源为虚拟能源类型（如电力） THEN 系统 SHALL 将其标记为 type: 'virtual_energy'，不可存储但可实时消费，不进入市场交易
-7. WHEN 新资源的 basePrice 定义完成 THEN 系统 SHALL 确保价格层级：原材料(棉花/橡胶/石油/铀: 2-8) < 中间品(化学品/塑料: 10-20) < 工业品(电子/车辆/医药: 25-60) < 尖端品(半导体: 80-150)
+3. WHEN 进入原子时代 THEN 系统 SHALL 解锁：
+   - **塑料**(plastics)：关键中间品！tags:['intermediate','industrial'], basePrice:12。由chemicals+oil制造
+   - **电子元件**(electronics)：高级中间品！tags:['intermediate','manufactured'], basePrice:35。由copper+wiring+chemicals+glass制造。**关键复用**：消耗copper+glass
+   - **铀矿**(uranium)：战略资源，tags:['raw','strategic'], basePrice:8
+   - **医药**(medicine)：高级消费品，tags:['manufactured','consumer'], basePrice:30。由chemicals+papyrus(药典)制造。**关键复用**：消耗papyrus
+   - **合成纤维**(synthetic_fiber)：中间品，tags:['intermediate'], basePrice:10。由chemicals+oil→取代部分cloth需求，但也需cloth混纺。**关键复用**：与cloth(旧资源)形成互补
+   - **铝材**(aluminum)：工业金属，tags:['intermediate','industrial'], basePrice:18。由stone(铝土矿)+coal+electricity制造。**关键复用**：消耗stone+coal
+   - **家电**(appliances)：高级消费品，tags:['manufactured','consumer'], basePrice:40。由electronics+plastics+steel+glass制造。**关键复用**：消耗steel+glass
+
+#### 2.4 信息时代(epoch 9)新资源
+
+4. WHEN 进入信息时代 THEN 系统 SHALL 解锁：
+   - **半导体**(semiconductors)：尖端工业品，tags:['manufactured','high_tech'], basePrice:100。由electronics+chemicals+copper制造。**关键复用**：消耗copper
+   - **数据**(data)：虚拟资源(type:'virtual')，tags:['virtual','high_tech'], basePrice:不适用
+   - **软件**(software)：虚拟产品，tags:['virtual','high_tech'], basePrice:60
+   - **服务**(services)：虚拟消费品(type:'virtual')，tags:['virtual','consumer'], basePrice:不适用
+   - **复合材料**(composites)：终极材料，tags:['manufactured','high_tech'], basePrice:55。由plastics+aluminum+synthetic_fiber+glass制造
+   - **精密仪器**(precision_instruments)：尖端工业品，tags:['manufactured','high_tech'], basePrice:80。由electronics+tools+glass制造。**关键复用**：消耗tools+glass
+
+#### 2.5 资源通用规范
+
+5. WHEN 新资源被定义 THEN 系统 SHALL 为每个资源配置完整的 RESOURCES 数据项（name, icon, color, basePrice, minPrice, maxPrice, defaultOwner, unlockEpoch, unlockTech, tags, marketConfig），遵循 gameConstants.js 现有范式
+6. IF 资源为虚拟能源类型（电力） THEN 系统 SHALL 标记 type:'virtual_energy'，不可存储，不进入市场交易
+7. WHEN basePrice 定义完成 THEN 系统 SHALL 确保价格层级：原材料(3-8) < 中间品(8-20) < 高级工业品(30-55) < 尖端品(60-150)
+8. WHEN 新资源设计完成 THEN 系统 SHALL 确保每种旧资源至少被2条新产业链消耗（参见"旧资源复用规划"表）
 
 ---
 
 ### 需求 3：蒸汽时代(epoch 6)产业链与建筑
 
-**用户故事：** 作为一名玩家，我希望在蒸汽时代体验早期工业化的产业链，包括蒸汽动力驱动的工厂、棉纺织业和铁路运输，以便感受第一次工业革命的变革力量。
+**用户故事：** 作为玩家，我希望蒸汽时代不仅有新工业，还能让木材/铁/煤/铜/石料/布料等旧资源成为蒸汽工业的原料。
 
 #### 验收标准
 
-1. WHEN 蒸汽时代配置加载 THEN 系统 SHALL 保留现有 epoch 6 的全部 16 个建筑不变（仅时代名称从"工业时代"改为"蒸汽时代"）
-2. WHEN 玩家解锁蒸汽时代新科技 THEN 系统 SHALL 提供以下**新增**建筑（遵循 BUILDINGS 数组数据范式）：
-   - **棉花种植园**(cotton_plantation)：采集建筑，产出棉花，雇佣佃农/工人，epoch:6
-   - **棉纺厂**(cotton_mill)：工业建筑，棉花→布料+华服，蒸汽动力大规模生产，epoch:6
-   - **橡胶种植园**(rubber_plantation)：采集建筑，产出橡胶，epoch:6
-   - **蒸馏厂**(distillery_upgrade)：将酒类产业升级，消耗煤炭提高效率，epoch:6（如现有蒸馏酒厂未覆盖此功能）
+1. WHEN 蒸汽时代配置加载 THEN 系统 SHALL 保留现有 epoch 6 全部 16 建筑（仅改时代名）
+2. WHEN 蒸汽时代新科技解锁 THEN 系统 SHALL 新增以下建筑（epoch:6）：
+   - **棉花种植园**(cotton_plantation)：采集，产出cotton，雇佣serf/worker
+   - **棉纺厂**(cotton_mill)：加工，cotton+dye→fine_clothes（大规模），消耗旧资源dye
+   - **橡胶种植园**(rubber_plantation)：采集，产出rubber，雇佣serf/worker
+   - **水泥厂**(cement_works)：加工，**stone+coal→cement**，消耗旧资源stone+coal
+   - **玻璃工厂**(glass_works)：加工，**stone+coal→glass**，消耗旧资源stone+coal
+   - **电报局**(telegraph_office)：市政，消耗copper+papyrus→产出culture+science。消耗旧资源copper+papyrus
+   - **蒸汽印刷厂**(steam_press)：加工，papyrus+coal→更多culture+science，升级出版社。消耗旧资源papyrus+coal
 
-3. WHEN 蒸汽时代建筑定义完成 THEN 系统 SHALL 确保每个建筑包含完整字段：id, name, desc, baseCost, input, output, jobs, owner, epoch:6, cat, requiresTech, visual, marketConfig
-4. WHEN 棉纺产业链运行 THEN 系统 SHALL 实现：棉花(采集) → 棉纺厂(加工为布料/华服) → 消费者需求，延长现有纺织产业链
-5. WHEN 相关 BUILDING_CHAINS 配置更新 THEN 系统 SHALL 将新建筑加入对应的建筑链（如 cotton_plantation 加入纺织链）
-6. WHEN 相关 INDUSTRY_CHAINS 配置更新 THEN 系统 SHALL 在 textile_chain 中新增蒸汽时代阶段
+3. WHEN 蒸汽时代建筑定义 THEN 系统 SHALL 确保每个建筑含完整字段（id/name/desc/baseCost/input/output/jobs/owner/epoch/cat/requiresTech/visual/marketConfig）
+4. WHEN 水泥/玻璃产业运行 THEN 系统 SHALL 实现：stone(旧采集) → 水泥厂/玻璃工厂(新加工) → 后续建筑建材需求，**直接延长 mining_chain**
+5. WHEN 棉纺产业运行 THEN 系统 SHALL 实现：cotton(新采集) + dye(旧资源) → 棉纺厂 → fine_clothes(旧消费品大规模生产)，**直接延长 textile_chain**
+6. WHEN 电报系统运行 THEN 系统 SHALL 实现：copper(旧原料) + papyrus(旧原料) → 电报局 → culture+science，**让铜和纸在后期仍有价值**
 
 ---
 
 ### 需求 4：电气时代(epoch 7)产业链与建筑
 
-**用户故事：** 作为一名玩家，我希望在电气时代体验石油化工、电力驱动、汽车制造等第二次工业革命的产业链，以便感受现代工业体系的复杂性。
+**用户故事：** 作为玩家，我希望电气时代引入石油化工、电力、汽车等第二次工业革命产业链，且旧资源（煤/铜/铁/钢/工具/染料）是这些新产业的关键投入品。
 
 #### 验收标准
 
-1. WHEN 玩家解锁电气时代科技 THEN 系统 SHALL 提供以下新建筑（epoch:7）：
-   - **油田**(oil_well)：采集建筑，产出石油
-   - **炼油厂**(oil_refinery)：工业建筑，石油→化学品+燃料
-   - **燃煤电厂**(coal_power_plant)：能源建筑，消耗煤炭→产出电力
-   - **火力发电厂**(thermal_power_plant)：能源建筑，消耗石油→产出更多电力
-   - **化工厂**(chemical_plant)：化学品+石油→塑料/化肥等
-   - **汽车工厂**(automobile_factory)：钢材+橡胶+工具→车辆
-   - **电气工厂**(electric_factory)：通用工业升级，消耗电力代替煤炭，效率更高
-   - **电话交换局**(telephone_exchange)：市政建筑，产出银币/文化
-   - **百货商场**(department_store)：商业建筑，消耗多种消费品→银币+文化
-   - **现代医院**(modern_hospital)：市政建筑，增加人口上限/人口增长率
+1. WHEN 电气时代科技解锁 THEN 系统 SHALL 新增以下建筑（epoch:7）：
+   - **油田**(oil_well)：采集，产出oil
+   - **炼油厂**(oil_refinery)：加工，oil+coal→chemicals（**煤是关键投入！**）
+   - **燃煤电厂**(coal_power_plant)：能源，**coal→electricity**（让煤在电气时代仍是核心资源！）
+   - **火力电厂**(thermal_power_plant)：能源，oil→更多electricity
+   - **化工厂**(chemical_plant)：关键加工，chemicals+dye→高级化学品/化肥（**染料变工业原料！**）
+   - **电线工厂**(wiring_factory)：加工，**copper+rubber→wiring**（铜的新生命！大量消耗！）
+   - **机械厂**(machinery_plant)：加工，**steel+iron+tools→machinery**（三种旧资源全用！）
+   - **汽车工厂**(automobile_factory)：高级，steel+rubber+machinery+glass→vehicles
+   - **化肥厂**(fertilizer_plant)：加工，chemicals+coal→fertilizer（**煤的又一出路！**）
+   - **电气纺织厂**(electric_textile_mill)：升级，cotton+cloth+electricity→大量fine_clothes（**旧布料+新棉花混合！**）
+   - **百货商场**(department_store)：商业，消耗多种消费品→silver+culture
+   - **现代医院**(modern_hospital)：市政，增加人口上限/增长率
 
-2. WHEN 电气时代建筑定义完成 THEN 系统 SHALL 确保所有建筑遵循 BUILDINGS 数据范式
-3. WHEN 石化产业链运行 THEN 系统 SHALL 实现超长链：石油(采集) → 炼油厂(化学品) → 化工厂(塑料/化肥) → 汽车工厂(车辆) → 消费/军事
-4. WHEN 电力系统运行 THEN 系统 SHALL 实现：煤炭/石油 → 发电厂 → 电力 → 工业建筑消费电力获得产出加成
-5. WHEN 相关产业链配置更新 THEN 系统 SHALL 新增 **petrochemical_chain**（石化产业链）、**automotive_chain**（汽车产业链）、**power_chain**（电力产业链）
+2. WHEN 石化产业链运行 THEN 系统 SHALL 实现超长链：oil(采集)→炼油厂(+coal→chemicals)→化工厂(+dye→高级化学品)→化肥厂→农业消费 **链长5步，复用coal+dye**
+3. WHEN 电力产业链运行 THEN 系统 SHALL 实现：coal/oil→电厂→electricity→工业建筑消费，**让煤成为电气时代的核心战略资源**
+4. WHEN 汽车产业链运行 THEN 系统 SHALL 实现超长链：iron+steel(矿)+copper(铜线)+rubber(橡胶)→machinery+wiring+glass→automobile_factory→vehicles **链长6步，复用iron+steel+copper+tools**
+5. WHEN 化肥投入food_chain THEN 系统 SHALL 使machine_farm消耗fertilizer获得产量加成，**直接延长粮食产业链**
+6. WHEN 电线产业运行 THEN 系统 SHALL 大量消耗copper，**使铜矿在电气时代需求暴增**
+7. WHEN 相关产业链配置更新 THEN 系统 SHALL 新增 petrochemical_chain、automotive_chain、power_chain，并延长 mining_chain/food_chain/textile_chain
 
 ---
 
 ### 需求 5：原子时代(epoch 8)产业链与建筑
 
-**用户故事：** 作为一名玩家，我希望在原子时代体验核能、电子工业、医药和消费品大规模生产，以便感受战后经济繁荣与科技爆炸。
+**用户故事：** 作为玩家，我希望原子时代体验核能、电子工业、医药、消费品大规模生产，且旧资源（铜/钢/煤/石料/纸张/玻璃/工具）深度参与新产业。
 
 #### 验收标准
 
-1. WHEN 玩家解锁原子时代科技 THEN 系统 SHALL 提供以下新建筑（epoch:8）：
-   - **铀矿**(uranium_mine)：采集建筑，产出铀矿
-   - **核电站**(nuclear_power_plant)：产出大量电力，消耗铀矿
-   - **塑料工厂**(plastics_factory)：化学品+石油→塑料
-   - **电子工厂**(electronics_factory)：钢材+塑料+化学品→电子元件
-   - **制药厂**(pharmaceutical_plant)：化学品→医药
-   - **家电工厂**(appliance_factory)：电子元件+塑料+钢材→高级消费品
-   - **电视台**(television_station)：电子元件+电力→文化+影响力
-   - **医院**(hospital)：消耗医药，增加人口上限和人口增长率
-   - **高层公寓**(high_rise_apartment)：大型市政建筑，提供大量人口上限
-   - **军工综合体**(military_industrial_complex)：电子元件+钢材+化学品→高级军事装备
+1. WHEN 原子时代科技解锁 THEN 系统 SHALL 新增以下建筑（epoch:8）：
+   - **铀矿**(uranium_mine)：采集，产出uranium
+   - **核电站**(nuclear_power_plant)：能源，uranium+**steel**(容器)+**stone**(屏蔽)→大量electricity。**复用steel+stone**
+   - **塑料工厂**(plastics_factory)：加工，chemicals+oil→plastics
+   - **电子工厂**(electronics_factory)：关键加工，**copper+wiring+chemicals+glass**→electronics。**铜/玻璃的新生命！**
+   - **制药厂**(pharmaceutical_plant)：加工，chemicals+**papyrus**(药典研究)→medicine。**纸张的新生命！**
+   - **合成纤维厂**(synthetic_fiber_plant)：加工，chemicals+oil→synthetic_fiber（与cloth互补）
+   - **铝冶炼厂**(aluminum_smelter)：加工，**stone**(铝土)+**coal**+electricity→aluminum。**石料+煤的新生命！**
+   - **家电工厂**(appliance_factory)：高级，electronics+plastics+**steel**+glass→appliances。**复用steel**
+   - **电视台**(television_station)：文化，electronics+electricity→大量culture
+   - **高层公寓**(high_rise_apartment)：住房，需cement+**steel**+glass，大量maxPop
+   - **军工综合体**(military_complex)：军事，electronics+**steel**+chemicals→高级军备
 
-2. WHEN 电子产业链运行 THEN 系统 SHALL 实现超长链：矿石 → 钢材 → 化学品 → 塑料 → 电子元件 → 消费品/军事
-3. WHEN 核能产业链运行 THEN 系统 SHALL 实现：铀矿 → 核电站 → 电力 → 工业消费
-4. WHEN 医药产业链运行 THEN 系统 SHALL 实现：化学品 → 制药厂 → 医药 → 医院消费（增加人口上限/健康度）
-5. WHEN 相关产业链配置更新 THEN 系统 SHALL 新增 **electronics_chain**（电子产业链）、**pharmaceutical_chain**（医药产业链），并扩展 power_chain
+2. WHEN 电子产业链运行 THEN 系统 SHALL 实现终极超长链：**copper**(采集)→wiring(+rubber)→**electronics**(+chemicals+glass)→**appliances**(+plastics+steel)→消费。**链长6步，复用copper/glass/steel**
+3. WHEN 核能产业链运行 THEN 系统 SHALL 实现：uranium+**steel+stone**→核电站→electricity→工业消费
+4. WHEN 医药产业链运行 THEN 系统 SHALL 实现：coal+oil+dye→chemicals→**chemicals+papyrus**→medicine→医院消费。**链长5步，复用coal/dye/papyrus**
+5. WHEN 铝材产业运行 THEN 系统 SHALL 实现：**stone+coal**+electricity→aluminum→复合材料/航空。**石料和煤在原子时代仍是关键投入！**
+6. WHEN 相关产业链配置更新 THEN 系统 SHALL 新增 electronics_chain、pharmaceutical_chain、aluminum_chain，延长 power_chain/mining_chain
 
 ---
 
 ### 需求 6：信息时代(epoch 9)产业链与建筑
 
-**用户故事：** 作为一名玩家，我希望在信息时代体验半导体产业、互联网经济和服务业，以便作为文明发展的终极目标感受到信息革命的全面影响。
+**用户故事：** 作为玩家，我希望信息时代有半导体、互联网、服务业等终极产业，且旧资源仍通过长链间接参与。
 
 #### 验收标准
 
-1. WHEN 玩家解锁信息时代科技 THEN 系统 SHALL 提供以下新建筑（epoch:9）：
-   - **半导体工厂**(semiconductor_fab)：电子元件+化学品+电力→半导体
-   - **数据中心**(data_center)：半导体+电力→数据
-   - **软件公司**(software_company)：数据+电力→服务+科研
-   - **互联网平台**(internet_platform)：数据+电力→银币+文化
-   - **研究院**(research_institute)：半导体+数据+电力→大量科研
-   - **金融中心**(financial_center)：数据+服务→大量银币
-   - **购物中心**(shopping_mall)：消费品+服务→银币+文化
-   - **太阳能电站**(solar_power_plant)：清洁电力生产
-   - **生物科技中心**(biotech_center)：医药+电子元件+数据→超级医药/科研
-   - **智能工厂**(smart_factory)：半导体+电力→全品类工业品超高效生产
+1. WHEN 信息时代科技解锁 THEN 系统 SHALL 新增以下建筑（epoch:9）：
+   - **半导体工厂**(semiconductor_fab)：尖端加工，electronics+chemicals+**copper**→semiconductors。**铜的终极用途！**
+   - **数据中心**(data_center)：信息，semiconductors+electricity+**cement**(建筑)+**steel**(机架)→data
+   - **软件公司**(software_company)：信息，data+electricity→software+science
+   - **互联网平台**(internet_platform)：商业，data+software+electricity→silver+culture
+   - **研究院**(research_institute)：科研，semiconductors+data+**papyrus**(论文)+electricity→大量science。**纸张的终极用途！**
+   - **金融中心**(financial_center)：商业，data+software→大量silver
+   - **购物中心**(shopping_mall)：商业，消费品+services+**cement**(建筑)→silver+culture
+   - **太阳能电站**(solar_power_plant)：清洁能源，**glass**(太阳能板)+aluminum→electricity。**玻璃的终极用途！**
+   - **复合材料厂**(composites_factory)：加工，plastics+aluminum+synthetic_fiber+**glass**→composites
+   - **精密仪器厂**(precision_instruments_factory)：尖端，electronics+**tools**+**glass**→precision_instruments。**工具+玻璃的终极用途！**
+   - **智能工厂**(smart_factory)：终极工业，semiconductors+electricity→全品类工业品超高效
+   - **生物科技中心**(biotech_center)：尖端，medicine+electronics+data→超级医药/science
 
-2. WHEN 半导体产业链运行 THEN 系统 SHALL 实现终极超长链：矿石 → 化学品 → 电子元件 → 半导体 → 数据中心/软件 → 数据/服务
-3. WHEN 服务业产业链运行 THEN 系统 SHALL 实现：数据+电力 → 软件/互联网平台 → 服务 → 消费者需求满足
-4. WHEN 相关产业链配置更新 THEN 系统 SHALL 新增 **semiconductor_chain**（半导体产业链）、**digital_chain**（数字产业链）、**service_chain**（服务业产业链）
+2. WHEN 半导体产业链运行 THEN 系统 SHALL 实现终极超长链：**copper**(矿)→wiring→electronics→semiconductors→data_center→software→services。**链长7步，从青铜时代的铜矿一路到信息时代的软件！**
+3. WHEN 服务业产业链运行 THEN 系统 SHALL 实现：data+software→互联网平台/金融中心→services→消费
+4. WHEN 太阳能产业运行 THEN 系统 SHALL 实现：**stone**(砂)→**glass**→太阳能电站→electricity。**石料经历了整个文明的旅程**
+5. WHEN 相关产业链配置更新 THEN 系统 SHALL 新增 semiconductor_chain、digital_chain、service_chain、composites_chain
 
 ---
 
-### 需求 7：科技树扩展
+### 需求 7：旧产业链延长升级（核心需求！）
 
-**用户故事：** 作为一名玩家，我希望每个新时代都有对应的科技树，解锁新建筑和产业升级，以便通过科研驱动文明发展。
+**用户故事：** 作为玩家，我希望现有的6条产业链在新时代都得到实质性延长，而不仅仅是添加独立的新链。
 
-#### 验收标准
+#### 7.1 粮食产业链延长
 
-1. WHEN 蒸汽时代(epoch 6)科技树配置加载 THEN 系统 SHALL 保留现有 epoch 6 的全部 20 个科技不变（仅随时代名称变更），并新增以下科技：
-   - 棉花种植(cotton_cultivation) → 棉纺技术(cotton_spinning) → 橡胶加工(rubber_processing)
-   - 科技cost范围：12000-20000
+1. WHEN 电气时代解锁 THEN 系统 SHALL 在 food_chain 新增：化肥厂(chemicals+coal→fertilizer) → 机械化农场消耗fertilizer获得产量加成
+2. WHEN 原子时代解锁 THEN 系统 SHALL 在 food_chain 新增：冷链运输(vehicles+electricity→食品保鲜加成) → 超市(多种食品→silver+culture)
+3. 延长后链长：farm→granary→culinary_kitchen→cannery→fertilizer_plant→supermarket = **6步**
 
-2. WHEN 电气时代(epoch 7)科技树定义完成 THEN 系统 SHALL 包含以下科技：
-   - 石油钻探(oil_drilling) → 炼油技术(oil_refining) → 内燃机(internal_combustion) → 汽车制造(automobile_manufacturing)
-   - 发电技术(electricity_generation) → 电力传输(power_transmission) → 电气化(electrification)
-   - 化工技术(chemical_engineering) → 合成材料(synthetic_materials)
-   - 电话技术(telephony) → 大众零售(mass_retail)
-   - 科技cost范围：20000-35000
+#### 7.2 木材产业链延长
 
-3. WHEN 原子时代(epoch 8)科技树定义完成 THEN 系统 SHALL 包含以下科技：
-   - 核物理(nuclear_physics) → 核能发电(nuclear_power) → 铀浓缩(uranium_enrichment)
-   - 晶体管(transistor) → 集成电路(integrated_circuit) → 电子工业(electronics_industry)
-   - 抗生素(antibiotics) → 制药工业(pharmaceutical_industry) → 公共卫生(public_health)
-   - 消费电子(consumer_electronics) → 电视广播(television_broadcasting)
-   - 科技cost范围：35000-55000
+4. WHEN 蒸汽时代解锁 THEN 系统 SHALL 在 wood_chain 新增：工业包装厂(plank+iron→包装箱，被工业建筑消耗)
+5. WHEN 电气时代解锁 THEN 系统 SHALL 在 wood_chain 新增：木材+chemicals→合成板材(替代部分plank需求)
+6. 延长后链长：lumber→sawmill→furniture_workshop→packaging_factory→synthetic_board = **5步**
 
-4. WHEN 信息时代(epoch 9)科技树定义完成 THEN 系统 SHALL 包含以下科技：
-   - 光刻技术(photolithography) → 半导体制造(semiconductor_manufacturing) → 芯片设计(chip_design)
-   - 互联网(internet) → 云计算(cloud_computing) → 人工智能(artificial_intelligence)
-   - 可再生能源(renewable_energy) → 太阳能发电(solar_power)
-   - 金融工程(financial_engineering) → 数字经济(digital_economy)
-   - 基因工程(genetic_engineering) → 生物技术(biotechnology)
-   - 科技cost范围：55000-85000
+#### 7.3 纺织产业链延长
 
-5. WHEN 科技定义完成 THEN 系统 SHALL 确保每个科技包含：id, name, desc, cost, epoch, effects, prerequisites（如有），遵循 `src/config/technologies.js` 中现有 TECHS 范式
+7. WHEN 蒸汽时代解锁 THEN 系统 SHALL 在 textile_chain 新增：棉花种植→棉纺厂(cotton+dye→大规模fine_clothes)
+8. WHEN 电气时代解锁 THEN 系统 SHALL 新增：电气纺织厂(cotton+cloth+electricity→更多fine_clothes)
+9. WHEN 原子时代解锁 THEN 系统 SHALL 新增：合成纤维厂(chemicals+oil→synthetic_fiber) → 高级服装(synthetic_fiber+cloth→终极华服)
+10. 延长后链长：loom→dye_works→tailor→cotton_mill→electric_textile→synthetic_fiber→designer_fashion = **7步**
 
----
+#### 7.4 采矿产业链延长
 
-### 需求 8：社会阶层扩展
+11. WHEN 蒸汽时代解锁 THEN 系统 SHALL 在 mining_chain 新增：水泥厂/玻璃厂(stone+coal→cement/glass)
+12. WHEN 电气时代解锁 THEN 系统 SHALL 新增：电线工厂(copper→wiring)、机械厂(steel+iron+tools→machinery)
+13. WHEN 原子时代解锁 THEN 系统 SHALL 新增：电子工厂(copper+wiring+chemicals→electronics)、铝冶炼(stone+coal→aluminum)
+14. WHEN 信息时代解锁 THEN 系统 SHALL 新增：半导体(electronics+copper→semiconductors)
+15. 延长后链长：quarry→smelter→steel_mill→wiring_factory→electronics_factory→semiconductor_fab = **6步**
 
-**用户故事：** 作为一名玩家，我希望新时代引入新的社会阶层，以便体现工业化和信息化带来的社会结构变革。
+#### 7.5 知识产业链延长
 
-#### 验收标准
+16. WHEN 蒸汽时代解锁 THEN 系统 SHALL 在 knowledge_chain 新增：蒸汽印刷厂(papyrus+coal→大量culture+science)
+17. WHEN 电气时代解锁 THEN 系统 SHALL 新增：电话交换局(wiring+electricity→culture)、广播站
+18. WHEN 原子时代解锁 THEN 系统 SHALL 新增：电视台(electronics+electricity→大量culture)
+19. WHEN 信息时代解锁 THEN 系统 SHALL 新增：互联网平台(data+software→culture+silver)、研究院(semiconductors+data+papyrus→大量science)
+20. 延长后链长：reed_works→library→university→steam_press→broadcast→television→internet_platform = **7步**
 
-1. WHEN 电气时代(epoch 7)解锁 THEN 系统 SHALL 引入以下新阶层（遵循 `src/config/strata.js` 中 STRATA 数据范式）：
-   - **技术工人**(technician)：操作电气设备和复杂机械的熟练工，介于工人和工程师之间
-   - 阶层需包含完整字段：name, icon, weight, tax, headTaxBase, desc, wealthWeight, influenceBase, startingWealth, defaultResource, needs, luxuryNeeds, buffs
+#### 7.6 军事产业链延长
 
-2. WHEN 原子时代(epoch 8)解锁 THEN 系统 SHALL 引入以下新阶层：
-   - **科学家**(scientist)：高级知识工作者，从事核物理/化学/电子研究
-   - **医生**(doctor)：专业服务阶层，在医院和制药厂工作
+21. WHEN 电气时代解锁 THEN 系统 SHALL 在 military_chain 新增：汽车工厂→装甲车辆(vehicles+steel+ordnance)
+22. WHEN 原子时代解锁 THEN 系统 SHALL 新增：军工综合体(electronics+steel+chemicals→高级军备)
+23. WHEN 信息时代解锁 THEN 系统 SHALL 新增：精确制导武器(semiconductors+electronics→终极军备)
+24. 延长后epochRange全部更新到9
 
-3. WHEN 信息时代(epoch 9)解锁 THEN 系统 SHALL 引入以下新阶层：
-   - **程序员**(programmer)：信息时代核心劳动力，在软件公司和数据中心工作
-   - **企业家**(entrepreneur)：创新型资本家，拥有互联网平台和高科技企业
+#### 7.7 奢侈品产业链延长
 
-4. WHEN 新阶层定义完成 THEN 系统 SHALL 确保新阶层的需求体系（needs + luxuryNeeds）包含新时代资源，且 wealthElasticity 和 maxConsumptionMultiplier 等参数符合社会地位设定
-5. IF 新阶层需要被新建筑的 jobs 字段引用 THEN 系统 SHALL 在相应建筑中添加对应工作岗位
-6. WHEN 新阶层的 needs 定义完成 THEN 系统 SHALL 确保需求链合理：低阶层需要基础消费品(food/cloth) → 中阶层增加工业品需求(tools/furniture) → 高阶层增加新时代资源需求(electronics/services/data)
+25. WHEN 原子时代解锁 THEN 系统 SHALL 在 luxury_chain 新增：家电(electronics+plastics+steel→appliances作为新奢侈消费品)
+26. WHEN 信息时代解锁 THEN 系统 SHALL 新增：数字娱乐(data+software→virtual luxury)
 
 ---
 
-### 需求 9：现有产业链延长与升级
+### 需求 8：科技树扩展
 
-**用户故事：** 作为一名玩家，我希望现有的产业链（粮食、木材、纺织、采矿、知识、奢侈品、军事）在新时代得到延长和升级，以便感受到产业的持续进化。
+**用户故事：** 作为玩家，我希望每个新时代有足够的科技来解锁新建筑和产业升级。
 
 #### 验收标准
 
-1. WHEN 蒸汽时代解锁 THEN 系统 SHALL 在 textile_chain 中新增阶段：棉花种植 → 棉纺厂 → 大规模成衣生产
-2. WHEN 电气时代解锁 THEN 系统 SHALL 在 mining_chain 中新增阶段：石油开采 → 炼油 → 化工，将采矿链延伸到石化领域
-3. WHEN 电气时代解锁 THEN 系统 SHALL 在 food_chain 中新增阶段：化肥应用 → 机械化农业升级 → 冷链食品加工
-4. WHEN 原子时代解锁 THEN 系统 SHALL 在 knowledge_chain 中新增阶段：电视传播 → 大众传媒 → 知识普及
-5. WHEN 信息时代解锁 THEN 系统 SHALL 在 knowledge_chain 中新增阶段：互联网传播 → 数字化知识 → 信息时代教育
-6. WHEN 产业链延长完成 THEN 系统 SHALL 更新 CHAIN_DEVELOPMENT_PATHS（`src/config/industryChains.js`）中对应产业链的发展路径
-7. WHEN 军事产业链延长 THEN 系统 SHALL 新增：
-   - 电气时代：汽车工厂→装甲车辆
-   - 原子时代：军工综合体→高级军事装备（电子元件+钢材+化学品）
-   - 信息时代：精确制导武器（半导体+电子元件）
+1. WHEN 蒸汽时代(epoch 6)科技树 THEN 系统 SHALL 保留现有20个科技，新增：
+   - 棉花种植→棉纺技术→橡胶加工→水泥工艺→玻璃制造→电报技术→蒸汽印刷
+   - cost范围12000-20000
+
+2. WHEN 电气时代(epoch 7)科技树 THEN 系统 SHALL 包含：
+   - 石油钻探→炼油技术→有机化学→合成化学→化肥生产
+   - 发电技术→电力传输→电气化
+   - 内燃机→汽车制造→机械工程
+   - 电报升级→电话技术→大众零售
+   - 电线制造→电气纺织
+   - cost范围20000-35000
+
+3. WHEN 原子时代(epoch 8)科技树 THEN 系统 SHALL 包含：
+   - 核物理→核能发电→铀浓缩
+   - 晶体管→集成电路→电子工业
+   - 高分子化学→塑料工业→合成纤维
+   - 抗生素→制药工业→公共卫生
+   - 铝冶炼→轻合金
+   - 消费电子→电视广播
+   - cost范围35000-55000
+
+4. WHEN 信息时代(epoch 9)科技树 THEN 系统 SHALL 包含：
+   - 光刻技术→半导体制造→芯片设计
+   - 互联网→云计算→人工智能
+   - 可再生能源→太阳能发电
+   - 金融工程→数字经济→服务业
+   - 基因工程→生物技术
+   - 复合材料→精密仪器
+   - cost范围55000-85000
+
+5. WHEN 科技定义 THEN 系统 SHALL 确保每个科技含 id/name/desc/cost/epoch/effects/prerequisites，遵循 technologies.js 范式
 
 ---
 
-### 需求 10：数值平衡与经济一致性
+### 需求 9：社会阶层扩展
 
-**用户故事：** 作为一名玩家，我希望新时代的经济系统与现有系统保持一致的数值递进感，以便游戏节奏平滑且不出现通胀/通缩失控。
+**用户故事：** 作为玩家，我希望新时代引入新的社会阶层，且这些阶层的消费需求包含新旧资源的混合。
 
 #### 验收标准
 
-1. WHEN 新时代的 bonuses 被定义 THEN 系统 SHALL 保持各加成值的递增趋势与现有曲线一致
-2. WHEN 新建筑的 baseCost 被定义 THEN 系统 SHALL 确保同类型建筑的建造成本呈合理递增（约 1.5-2x 每时代）
-3. WHEN 新建筑的 output/input 被定义 THEN 系统 SHALL 确保人均产出递增约 1.3-1.5x 每时代，且消耗的中间品比例合理
-4. WHEN 新资源的 basePrice 和 marketConfig 被定义 THEN 系统 SHALL 确保价格层级合理（原材料 < 工业品 < 奢侈品 < 高级制成品）
-5. WHEN 新科技的 cost 被定义 THEN 系统 SHALL 确保科研成本在各时代区间内合理递增
-6. WHEN 时代升级 cost 被定义 THEN 系统 SHALL 确保升级所需的资源中包含该时代的新资源（如电气时代升级需要石油，原子时代需要电子元件），形成资源需求拉动
-7. IF 新产业链形成循环依赖（A→B→A） THEN 系统 SHALL 打破循环，确保单向流动
-8. WHEN 生产消费循环运行 THEN 系统 SHALL 确保新资源的供需能在市场定价中自然平衡（遵循现有 ECONOMIC_INFLUENCE 机制）
+1. WHEN 电气时代解锁 THEN 系统 SHALL 新增阶层（遵循 strata.js 范式）：
+   - **技术工人**(technician)：操作电气设备的熟练工。needs含food+cloth(旧)+新时代资源。luxuryNeeds含tools/copper/steel(旧)+chemicals/wiring(新)
+
+2. WHEN 原子时代解锁 THEN 系统 SHALL 新增：
+   - **科学家**(scientist)：高级知识工作者。needs含food+cloth+papyrus(旧)。luxuryNeeds含coffee/culture(旧)+electronics/medicine(新)
+   - **医生**(doctor)：专业服务阶层。needs含food+cloth(旧)。luxuryNeeds含papyrus/coffee(旧)+medicine/electronics(新)
+
+3. WHEN 信息时代解锁 THEN 系统 SHALL 新增：
+   - **程序员**(programmer)：信息时代核心劳动力。needs含food+cloth+coffee(旧)。luxuryNeeds含electronics/furniture(旧)+semiconductors/software/data(新)
+   - **企业家**(entrepreneur)：创新型资本家。needs含food+cloth+coffee+furniture(旧)。luxuryNeeds含所有旧奢侈品+新时代尖端品
+
+4. WHEN 新阶层定义 THEN 系统 SHALL 确保：
+   - needs基础需求始终包含food+cloth（与所有现有阶层一致）
+   - luxuryNeeds的低财富比阈值使用旧资源，高财富比阈值逐步引入新资源
+   - 这确保**旧资源永远有消费需求**
+
+5. IF 新阶层被新建筑 jobs 引用 THEN 系统 SHALL 在相应建筑添加工作岗位
 
 ---
 
-### 需求 11：建筑链与 UI 配置更新
+### 需求 10：产业链网络交织设计（新增核心需求）
 
-**用户故事：** 作为一名玩家，我希望新建筑在 UI 上正确显示在对应的建筑链中，并在合适的时机解锁，以便管理产业时一目了然。
+**用户故事：** 作为玩家，我希望不同产业链之间通过共享中间品形成复杂的供需网络，而非各自独立运行。
 
 #### 验收标准
 
-1. WHEN 新建筑被添加 THEN 系统 SHALL 更新 BUILDING_CHAINS（`src/config/buildingChains.js`）配置，将新建筑加入对应链或创建新链
-2. WHEN 新建筑链被创建 THEN 系统 SHALL 包含完整的链配置：name, icon, primaryOutput, buildings 数组
-3. WHEN BUILDING_TO_CHAIN 反向索引构建 THEN 系统 SHALL 自动包含所有新建筑的映射
-4. WHEN 新建筑的 visual 被定义 THEN 系统 SHALL 为每个建筑分配符合类别的 icon、color（bg-xxx）、text（text-xxx）
-5. IF 同一建筑链中有多个时代的建筑 THEN 系统 SHALL 确保后续建筑的人均产出高于前序建筑（构成升级关系）
-6. WHEN 需要新增建筑链 THEN 系统 SHALL 至少创建以下新链：石化链(petrochemical)、电力链(power)、汽车链(automotive)、电子链(electronics)、医药链(pharmaceutical)、半导体链(semiconductor)、数字服务链(digital_services)
+1. WHEN chemicals(化学品)被定义 THEN 系统 SHALL 确保它是至少4条链的投入品：石化链/医药链/电子链/合成纤维链/化肥链
+2. WHEN electronics(电子元件)被定义 THEN 系统 SHALL 确保它是至少3条链的投入品：家电/军工/半导体/精密仪器
+3. WHEN copper(铜)在新时代使用 THEN 系统 SHALL 确保它在电线工厂(大量)、电子工厂、半导体工厂中被消耗，使铜矿从青铜时代一直延续到信息时代
+4. WHEN steel(钢)在新时代使用 THEN 系统 SHALL 确保它在机械厂、汽车厂、家电厂、核电站、数据中心中被消耗
+5. WHEN glass(玻璃)在新时代使用 THEN 系统 SHALL 确保它在电子工厂、家电厂、太阳能电站、精密仪器厂中被消耗
+6. WHEN 产业链交织设计完成 THEN 系统 SHALL 确保无循环依赖（所有资源流单向：原材料→中间品→制成品→消费）
+7. WHEN 中间品供需瓶颈出现 THEN 系统 SHALL 通过现有 CHAIN_BOTTLENECKS 机制自动降低相关链效率
 
 ---
 
-### 需求 12：系统联动配置更新
+### 需求 11：数值平衡与经济一致性
 
-**用户故事：** 作为一名玩家，我希望新时代的产业链与国家特性、政令、产业协同等系统正确联动，以便策略选择有意义。
+**用户故事：** 作为玩家，我希望新时代经济系统与现有系统保持一致的数值递进感。
 
 #### 验收标准
 
-1. WHEN 新产业链被添加 THEN 系统 SHALL 更新 CHAIN_NATION_BONUSES（`src/config/industryChains.js`），为不同国家模板提供新产业链的差异化加成
-2. WHEN 新产业链被添加 THEN 系统 SHALL 更新 CHAIN_DECREE_EFFECTS，使现有政令和新增政令影响新产业链
-3. WHEN 新产业链被添加 THEN 系统 SHALL 更新 CHAIN_SYNERGIES，定义新产业链之间以及新旧产业链之间的协同效率加成
-4. WHEN 新时代效果被定义 THEN 系统 SHALL 更新 EPOCH_SYSTEM_EFFECTS（`src/config/systemSynergies.js`）中对应时代的系统效果
-5. IF 新阶层与新建筑交互 THEN 系统 SHALL 更新 CHAIN_CLASS_INTERACTION 中阶层与产业链的联动
+1. WHEN 新建筑 baseCost 定义 THEN 系统 SHALL 确保同类型建筑建造成本约 1.5-2x/时代递增
+2. WHEN 新建筑 output/input 定义 THEN 系统 SHALL 确保人均产出约 1.3-1.5x/时代递增
+3. WHEN 新资源 marketConfig 定义 THEN 系统 SHALL 设置合理的供需权重/库存目标/弹性：原材料(低弹性高库存) < 中间品(中弹性中库存) < 制成品(高弹性低库存)
+4. WHEN 旧资源在新产业中被大量消耗 THEN 系统 SHALL 确保旧资源的供给建筑（如铜矿、煤矿、采石场）在新时代有升级版本或效率加成，防止供不应求导致价格崩溃
+5. IF 新产业链形成循环依赖 THEN 系统 SHALL 打破循环确保单向流动
+6. WHEN 生产消费循环运行 THEN 系统 SHALL 确保新资源供需在市场定价中自然平衡
+
+---
+
+### 需求 12：建筑链与 UI 配置更新
+
+**用户故事：** 作为玩家，我希望新建筑在 UI 上正确显示在对应的建筑链中。
+
+#### 验收标准
+
+1. WHEN 新建筑添加 THEN 系统 SHALL 更新 BUILDING_CHAINS，将新建筑加入对应链或创建新链
+2. WHEN 新建筑链创建 THEN 系统 SHALL 含完整配置：name/icon/primaryOutput/buildings数组
+3. WHEN 需要新增建筑链 THEN 系统 SHALL 至少创建：
+   - 水泥链(cement_production)：水泥厂→后续建筑
+   - 玻璃链(glass_production)：玻璃工厂→后续建筑
+   - 石油链(oil_production)：油田→炼油厂
+   - 电力链(power_production)：燃煤电厂→火力电厂→核电站→太阳能电站
+   - 化学链(chemical_production)：炼油厂→化工厂→化肥厂/塑料厂
+   - 电线链(wiring_production)：电线工厂
+   - 机械链(machinery_production)：机械厂→汽车厂
+   - 电子链(electronics_production)：电子工厂→半导体工厂
+   - 医药链(medicine_production)：制药厂→生物科技中心
+   - 信息链(data_production)：数据中心→软件公司→互联网平台
+4. WHEN BUILDING_TO_CHAIN 反向索引构建 THEN 系统 SHALL 自动包含所有新建筑
+5. IF 同链多时代建筑 THEN 系统 SHALL 确保后续建筑人均产出高于前序
+
+---
+
+### 需求 13：系统联动配置更新
+
+**用户故事：** 作为玩家，我希望新产业链与国家特性、政令、产业协同等系统正确联动。
+
+#### 验收标准
+
+1. WHEN 新产业链添加 THEN 系统 SHALL 更新 CHAIN_NATION_BONUSES，为不同国家提供差异化加成
+2. WHEN 新产业链添加 THEN 系统 SHALL 更新 CHAIN_DECREE_EFFECTS，使政令影响新链
+3. WHEN 新产业链添加 THEN 系统 SHALL 更新 CHAIN_SYNERGIES，定义新旧链之间的协同效率
+4. WHEN 新时代效果定义 THEN 系统 SHALL 更新 EPOCH_SYSTEM_EFFECTS
+5. IF 新阶层与新建筑交互 THEN 系统 SHALL 更新 CHAIN_CLASS_INTERACTION
+
+---
+
+## 旧资源需求量预估（确保不脱节）
+
+以下是旧资源在新时代的预期需求增长，确保旧资源永不过时：
+
+| 旧资源 | 蒸汽时代需求增量 | 电气时代需求增量 | 原子时代需求增量 | 信息时代需求增量 |
+|--------|----------------|----------------|----------------|----------------|
+| copper | +20%(电报线) | +80%(电线电缆！) | +40%(电子元件) | +20%(半导体) |
+| coal | +30%(蒸汽机) | +60%(发电+化工！) | +20%(铝冶炼) | - |
+| stone | +15%(水泥) | +10%(电站地基) | +25%(铝冶炼+核电！) | +10%(太阳能) |
+| iron | +10%(铁路) | +30%(机械厂！) | +10% | - |
+| steel | +20%(铁路) | +40%(汽车+机械！) | +30%(核电+家电) | +15%(数据中心) |
+| tools | +10% | +20%(机械厂) | +10%(精密仪器) | +10%(半导体) |
+| cloth | +5% | +15%(电气纺织) | +10%(合成纤维混纺) | - |
+| dye | +5%(棉纺) | +20%(化工原料！) | +5%(药品) | - |
+| papyrus | +10%(印刷) | +5% | +15%(制药！) | +10%(研究院) |
+| wood | +15%(铁路枕木) | +5% | - | - |
+
+---
+
+## 产业链长度对比（改造前 vs 改造后）
+
+| 产业链 | 现有最长步数 | 改造后最长步数 | 增加步数 |
+|--------|-----------|-------------|---------|
+| food_chain | 3(farm→kitchen→consumption) | 6(+fertilizer+supermarket) | +3 |
+| wood_chain | 3(camp→sawmill→furniture) | 5(+packaging+synthetic_board) | +2 |
+| textile_chain | 3(loom→dye→tailor) | 7(+cotton_mill+electric+synthetic+designer) | +4 |
+| mining_chain | 3(quarry→smelter→factory) | 6(+wiring+electronics+semiconductor) | +3 |
+| knowledge_chain | 3(reed→library→university) | 7(+steam_press+broadcast+TV+internet) | +4 |
+| military_chain | 5(mine→swords→muskets→rifles→ordnance) | 8(+vehicles+military_complex+guided) | +3 |
+| 新：petrochemical | - | 5(oil→refinery→chemical→plastic→consumption) | 全新 |
+| 新：electronics | - | 7(copper→wiring→electronics→semiconductor→data→software→service) | 全新 |
+| 新：power | - | 4(coal/oil/uranium→power_plant→electricity→industrial) | 全新 |
 
 ---
 
 ## 边界情况与技术限制
 
 ### 边界情况
-- **旧存档兼容**：epoch 6 从"工业时代"改名为"蒸汽时代"、epoch 7 从"信息时代"改名为"电气时代"后，旧存档中的 epoch 数值仍然有效（数字未变），只需处理名称显示即可
-- **空时代问题**：如果玩家快速跳过某个时代，确保不会因为缺少中间资源而导致后续产业链断裂——每个时代应有自给自足的基础建筑
-- **虚拟资源处理**：电力(electricity)作为虚拟能源需要特殊处理——不进入市场交易，只在建筑间实时产消
-- **阶层过多**：新增阶层后总计 21+ 个阶层，需确保人口分配系统和 UI 能处理
-- **epoch 数组扩展**：EPOCHS 数组从 8 个扩展到 10 个，需确认所有引用 EPOCHS 的代码不假定数组长度
+- **旧存档兼容**：epoch 6/7改名不影响旧存档（数字ID不变）
+- **旧资源供给压力**：新产业大量消耗旧资源时，需确保旧资源有升级版采集建筑（如工业矿场/机械化农场已存在），必要时新增更高效版本
+- **虚拟资源处理**：electricity/data/services不进市场，需在simulation.js中扩展实时产消匹配
+- **阶层过多**：新增5个阶层后共21个，需确保UI和人口分配系统能处理
+- **产业链网络复杂度**：中间品被多条链共享，需确保市场定价系统能处理多买家竞争同一资源
+- **epoch数组扩展**：EPOCHS从8→10个，需确认所有引用代码不假定数组长度
 
 ### 技术限制
-- 所有配置在 `src/config/` 目录下的对应文件中扩展
-- 产业链逻辑在 `src/logic/simulation.js` 的 tick 循环中处理
-- 市场价格系统 `src/logic/economy/prices.js` 需支持新资源
-- UI 组件需要处理更多的建筑和资源显示
-- 电力系统可能需要在现有 `simulation.js` 中扩展"能源网络"概念（作为虚拟资源的产消匹配）
+- 所有配置在 src/config/ 对应文件中扩展
+- 产业链逻辑在 src/logic/simulation.js 的 tick 循环中处理
+- 市场价格系统 src/logic/economy/prices.js 需支持新资源
+- 电力系统需在 simulation.js 中扩展"能源网络"概念
+- UI组件需处理更多建筑和资源显示
 
 ### 成功标准
-- 10 个时代（epoch 0-9），前 6 个时代（0-5）完全不受影响
-- 蒸汽时代(6)保留现有 16 个建筑 + 3-4 个新增建筑
-- 电气时代(7)新增 8-10 个专属建筑
-- 原子时代(8)新增 8-10 个专属建筑
-- 信息时代(9)新增 8-10 个专属建筑
-- 每个新时代 8-15 个专属科技
-- 新增 13 种资源
+- 10个时代(epoch 0-9)，前6个(0-5)完全不受影响
+- **新增约20种资源**（含大量中间品）
+- **蒸汽时代(6)**：保留16建筑 + 7个新建筑
+- **电气时代(7)**：12个新建筑
+- **原子时代(8)**：11个新建筑
+- **信息时代(9)**：12个新建筑
+- 每个新时代 8-15 个科技
 - 新增 5 个社会阶层
-- 7+ 条新建筑链
+- 10+ 条新建筑链
+- **每种旧资源至少在2条新产业链中被消耗**
+- **最长产业链达7-8步**
 - 所有数值符合现有递进曲线
-- 不破坏现有游戏前 6 个时代（epoch 0-5）的任何功能
