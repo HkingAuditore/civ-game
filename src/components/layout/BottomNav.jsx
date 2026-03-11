@@ -52,7 +52,7 @@ const TAB_CONFIG = {
  * 底部导航栏组件 - 史诗金属风格
  * 移动端专用，使用时代主题色背景
  */
-export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
+export const BottomNav = React.memo(({ activeTab, onTabChange, epoch = 0 }) => {
     const tabs = Object.entries(TAB_CONFIG).map(([id, config]) => ({ id, ...config }));
 
     return (
@@ -133,7 +133,7 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
 
                                 {/* 标签文字 */}
                                 <span className={`
-                  relative z-10 text-[9px] font-bold mt-0.5 transition-all duration-200 tab-title
+                  relative z-10 text-xs font-bold mt-0.5 transition-all duration-200 tab-title
                   ${isActive ? tab.text : 'text-gray-500'}
                 `}>
                                     {tab.label}
@@ -155,4 +155,4 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
             />
         </nav>
     );
-};
+});

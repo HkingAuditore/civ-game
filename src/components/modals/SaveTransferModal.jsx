@@ -136,7 +136,7 @@ export const SaveTransferModal = ({
                                         <h2 className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-ancient-gold via-yellow-400 to-orange-400">
                                             存档传输
                                         </h2>
-                                        <p className="text-[10px] text-gray-400 leading-tight">
+                                        <p className="text-xs text-gray-400 leading-tight">
                                             在不同设备间传输存档数据
                                         </p>
                                     </div>
@@ -178,7 +178,7 @@ export const SaveTransferModal = ({
                         <div className="flex-1 overflow-y-auto p-3 space-y-2">
                             {activeTab === 'export' ? (
                                 <>
-                                    <p className="text-[10px] text-gray-400 mb-3">
+                                    <p className="text-xs text-gray-400 mb-3">
                                         选择导出方式，将当前存档传输到其他设备
                                     </p>
 
@@ -194,7 +194,7 @@ export const SaveTransferModal = ({
                                             </div>
                                             <div className="flex-1">
                                                 <div className="text-sm font-bold text-emerald-300">保存为文件</div>
-                                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                                <p className="text-xs text-gray-400 mt-0.5">
                                                     下载存档文件到设备，可通过文件管理器分享
                                                 </p>
                                             </div>
@@ -214,7 +214,7 @@ export const SaveTransferModal = ({
                                             </div>
                                             <div className="flex-1">
                                                 <div className="text-sm font-bold text-cyan-300">复制到剪贴板</div>
-                                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                                <p className="text-xs text-gray-400 mt-0.5">
                                                     复制存档数据，可粘贴到聊天软件发送
                                                 </p>
                                             </div>
@@ -224,7 +224,7 @@ export const SaveTransferModal = ({
                                 </>
                             ) : (
                                 <>
-                                    <p className="text-[10px] text-gray-400 mb-3">
+                                    <p className="text-xs text-gray-400 mb-3">
                                         选择导入方式，从其他设备恢复存档
                                     </p>
 
@@ -240,7 +240,7 @@ export const SaveTransferModal = ({
                                             </div>
                                             <div className="flex-1">
                                                 <div className="text-sm font-bold text-blue-300">从文件导入</div>
-                                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                                <p className="text-xs text-gray-400 mt-0.5">
                                                     选择 .cgsave 存档文件进行导入
                                                 </p>
                                             </div>
@@ -260,7 +260,7 @@ export const SaveTransferModal = ({
                                             </div>
                                             <div className="flex-1">
                                                 <div className="text-sm font-bold text-purple-300">从剪贴板导入</div>
-                                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                                <p className="text-xs text-gray-400 mt-0.5">
                                                     读取剪贴板中的存档数据
                                                 </p>
                                             </div>
@@ -302,7 +302,7 @@ export const SaveTransferModal = ({
 
                         {/* 底部提示 */}
                         <div className="flex-shrink-0 px-3 py-2 border-t border-gray-700 bg-gray-800/50">
-                            <p className="text-[9px] text-gray-500 text-center">
+                            <p className="text-xs text-gray-500 text-center">
                                 💡 提示：导出后请妥善保存，存档数据包含游戏进度
                             </p>
                         </div>

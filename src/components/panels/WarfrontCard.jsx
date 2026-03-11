@@ -117,55 +117,55 @@ const WarfrontCard = ({
                     <div className="flex items-center gap-2">
                         <Icon name="MapPin" size={15} className="text-red-400" />
                         <p className="text-sm font-semibold text-white">{enemyName} 战区</p>
-                        <span className="rounded-full border border-gray-700 px-2 py-0.5 text-[10px] text-gray-300">
+                        <span className="rounded-full border border-gray-700 px-2 py-0.5 text-xs text-gray-300">
                             {phaseText}
                         </span>
                     </div>
-                    <p className="mt-1 text-[11px] text-gray-500">{currentZoneLabel}</p>
+                    <p className="mt-1 text-xs text-gray-500">{currentZoneLabel}</p>
                 </div>
                 <div className="text-right">
                     <p className={`text-xs font-semibold ${dangerLevel === '危急' ? 'text-red-300' : dangerLevel === '受压' ? 'text-yellow-300' : dangerLevel === '优势' ? 'text-cyan-300' : dangerLevel === '未接战' ? 'text-gray-400' : 'text-emerald-300'}`}>
                         {dangerLevel}
                     </p>
-                    <p className="text-[10px] text-gray-500">{hasBattle ? `${currentBattle.engagementName} · ${currentBattle.phase || '进行中'}` : '无会战'}</p>
+                    <p className="text-xs text-gray-500">{hasBattle ? `${currentBattle.engagementName} · ${currentBattle.phase || '进行中'}` : '无会战'}</p>
                 </div>
             </div>
 
             <div className="mt-3 grid gap-2 md:grid-cols-[1.1fr_0.9fr]">
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                     <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-2">
-                        <p className="text-[10px] text-gray-500">态势</p>
+                        <p className="text-xs text-gray-500">态势</p>
                         <p className="mt-1 text-sm font-semibold text-white">{advanceLabel}</p>
                     </div>
                     <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-2">
-                        <p className="text-[10px] text-gray-500">战分</p>
+                        <p className="text-xs text-gray-500">战分</p>
                         <p className={`mt-1 text-sm font-semibold ${warScore > 0 ? 'text-emerald-300' : warScore < 0 ? 'text-red-300' : 'text-gray-200'}`}>
                             {warScore > 0 ? '+' : ''}{formatNumberShortCN(warScore, { decimals: 0 })}
                         </p>
                     </div>
                     <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-2">
-                        <p className="text-[10px] text-gray-500">位置</p>
+                        <p className="text-xs text-gray-500">位置</p>
                         <p className="mt-1 text-sm font-semibold text-white">{currentZoneLabel}</p>
                     </div>
                     <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-2">
-                        <p className="text-[10px] text-gray-500">兵力</p>
+                        <p className="text-xs text-gray-500">兵力</p>
                         <p className="mt-1 text-sm font-semibold text-white">{formatNumberShortCN(playerUnits, { decimals: 0 })} / {formatNumberShortCN(enemyUnits, { decimals: 0 })}</p>
                     </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-800 bg-black/20 px-3 py-2">
                     <div className="min-w-0">
-                        <p className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getDangerTone(dangerLevel)}`}>
+                        <p className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getDangerTone(dangerLevel)}`}>
                             {dangerLevel}
                         </p>
-                        <p className="mt-2 line-clamp-2 text-[11px] text-gray-300">{headline}</p>
+                        <p className="mt-2 line-clamp-2 text-xs text-gray-300">{headline}</p>
                     </div>
                     <div className="shrink-0 text-right">
                         <p className={`text-sm font-semibold ${velocity > 0 ? 'text-emerald-300' : velocity < 0 ? 'text-red-300' : 'text-gray-200'}`}>
                             {velocity > 0 ? '+' : ''}{velocity.toFixed(1)}
                         </p>
-                        <p className="mt-1 text-[10px] text-gray-500">{hasBattle ? `${currentBattle.phaseDaysRemaining}天后结算` : ownSupply}</p>
-                        <p className="mt-2 text-[10px] text-cyan-300">{selected ? '已展开' : '查看详情'}</p>
+                        <p className="mt-1 text-xs text-gray-500">{hasBattle ? `${currentBattle.phaseDaysRemaining}天后结算` : ownSupply}</p>
+                        <p className="mt-2 text-xs text-cyan-300">{selected ? '已展开' : '查看详情'}</p>
                     </div>
                 </div>
             </div>

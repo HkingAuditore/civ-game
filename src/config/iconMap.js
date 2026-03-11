@@ -208,6 +208,43 @@ import {
   MousePointer,
   ShieldQuestion,
   ArrowLeft,
+  // 缺失图标补充
+  Angry,
+  AlertOctagon,
+  Store,
+  Percent,
+  Banknote,
+  HandCoins,
+  BarChart2,
+  PartyPopper,
+  LogOut,
+  ShoppingBag,
+  UserX,
+  FileCheck,
+  FileX,
+  HeartCrack,
+  Cylinder,
+  Move,
+  FlaskConical,
+  Sprout,
+  Phone,
+  FileWarning,
+  Wrench,
+  Route,
+  Printer,
+  Brain,
+  Radio,
+  Dna,
+  Database,
+  Equal,
+  Expand,
+  HeartHandshake,
+  Monitor,
+  Triangle,
+  Image,
+  BadgeDollarSign,
+  Wallet,
+  Quote,
 } from 'lucide-react';
 
 export const iconMap = {
@@ -424,6 +461,52 @@ export const iconMap = {
   MousePointer,
   ShieldQuestion,
   ArrowLeft,
+  // 补充缺失图标
+  Angry,
+  AlertOctagon,
+  Store,
+  Percent,
+  Banknote,
+  HandCoins,
+  BarChart2,
+  PartyPopper,
+  LogOut,
+  ShoppingBag,
+  UserX,
+  FileCheck,
+  FileX,
+  HeartCrack,
+  Cylinder,
+  Move,
+  FlaskConical,
+  Sprout,
+  Phone,
+  FileWarning,
+  Wrench,
+  Route,
+  Printer,
+  Brain,
+  Radio,
+  Dna,
+  Database,
+  Equal,
+  Expand,
+  HeartHandshake,
+  Monitor,
+  Triangle,
+  Image,
+  // 财务/资产相关图标
+  BadgeDollarSign,
+  Wallet,
+  Quote,
+  // Fallback 映射（lucide-react 中不存在的图标）
+  Dog: Crosshair,      // 用 Crosshair 替代
+  Bone: Skull,          // 用 Skull 替代
+  Edit3: Edit,          // 用 Edit 替代
+  BookHeart: BookOpen,  // 用 BookOpen 替代
+  Beaker: FlaskConical, // 用 FlaskConical 替代
+  Bird: Feather,        // 用 Feather 替代
+  CircleSlash: XCircle, // 用 XCircle 替代
 };
 
 export const getIcon = (name) => iconMap[name];

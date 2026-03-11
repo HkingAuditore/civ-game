@@ -1,5 +1,5 @@
-﻿// 娓告垙寰幆閽╁瓙
-// 澶勭悊娓告垙鐨勬牳蹇冨惊鐜€昏緫锛屽寘鎷祫婧愮敓浜с€佷汉鍙ｅ闀跨瓑
+// 游戏循环钩子
+// 处理游戏的核心循环逻辑，包括资源生产、人口增长等
 
 import { useEffect, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
@@ -62,7 +62,7 @@ import {
 } from '../config/events';
 import { evaluatePromiseTasks } from '../logic/promiseTasks';
 import { debugLog, debugError, isDebugEnabled } from '../utils/debugFlags';
-// 鍙涗贡浜嬩欢锛堜繚鐣欎簨浠跺垱寤哄嚱鏁帮級
+// 叛乱事件（保留事件创建函数）
 import {
     hasAvailableMilitary,
     isMilitaryRebelling,
@@ -176,8 +176,8 @@ const getBattleLossTotal = (losses = {}) => (
 );
 
 /**
- * 鏍规嵁鍙敤澹叺鏁伴噺鍚屾鐜板焦閮ㄩ槦涓庤缁冮槦鍒?
- * [FIX] 绉婚櫎 autoRecruitEnabled 鍙傛暟 - 浜哄彛涓嶈冻瑙ｆ暎涓嶅啀瑙﹀彂鑷姩琛ュ叺
+ * 根据可用士兵数量同步现役部队与训练队列
+ * [FIX] 移除 autoRecruitEnabled 参数 - 人口不足解散不再触发自动补兵
  */
 const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availableSoldiers = 0) => {
     const safeArmy = armyState || {};
@@ -207,8 +207,8 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     });
 
     let cancelledTraining = null;
-    // [FIX] 鍑忓皬瀹瑰樊鍊硷紝闃叉闀挎湡瓒呭憳瀵艰嚧鏃犻檺鐖嗗叺
-    // 鍙繚鐣?鐐瑰宸敤浜庡鐞嗘瘯涓氭椂鐨勬椂搴忛棶棰?
+    // [FIX] 减小容差值，防止长期超员导致无限爆兵
+    // 只保留1点容差用于处理毕业时的时序问题
     const trainingTolerance = 1;
     const effectiveAvailableForTraining = available + trainingTolerance;
 
@@ -242,11 +242,11 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     const currentArmyPopulation = calculateArmyPopulation(safeArmy);
     let updatedArmy = null;
     let removedUnits = null;
-    // [FIX] 绉婚櫎 unitsToRequeue 閫昏緫 - 浜哄彛涓嶈冻瀵艰嚧鐨勮В鏁ｄ笉搴旇Е鍙戣嚜鍔ㄨˉ鍏?
-    // 鍙湁鎴樻枟鎹熷け(閫氳繃 AUTO_REPLENISH_LOSSES 鏃ュ織)鎵嶅簲瑙﹀彂鑷姩琛ュ叺
+    // [FIX] 移除 unitsToRequeue 逻辑 - 人口不足导致的解散不应触发自动补兵
+    // 只有战斗损失(通过 AUTO_REPLENISH_LOSSES 日志)才应触发自动补兵
 
-    // [FIX] 鍑忓皬瀹瑰樊鍊硷紝鍙负鍗冲皢姣曚笟鐨勫崟浣嶄繚鐣欏宸?
-    // 鍩虹瀹瑰樊浠?鍑忓埌1锛岄槻姝㈤暱鏈熻秴鍛樺鑷存棤闄愮垎鍏?
+    // [FIX] 减小容差值，只为即将毕业的单位保留容差
+    // 基础容差从3减到1，防止长期超员导致无限爆兵
     let toleranceForNewGraduates = 1; // Base tolerance for population allocation lag
     safeQueue.forEach(item => {
         if (item && item.status === 'training' && item.remainingTime <= 1) {
@@ -267,8 +267,8 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
         updatedArmy = { ...safeArmy };
         removedUnits = {};
 
-        // [FIX] 绉婚櫎鑷姩閲嶆柊鎺掗槦閫昏緫 - 浜哄彛涓嶈冻瀵艰嚧鐨勮В鏁ｆ槸鐪熸鐨勮В鏁?
-        // 涓嶅簲璇ユ秷鑰楄祫婧愰噸鏂版嫑鍕燂紝杩欐牱鍋氫細瀵艰嚧鏃犻檺寰幆
+        // [FIX] 移除自动重新排队逻辑 - 人口不足导致的解散是真正的解散
+        // 不应该消耗资源重新招募，这样做会导致无限循环
 
         const armyEntries = Object.entries(updatedArmy)
             .filter(([, count]) => count > 0)
@@ -483,11 +483,11 @@ const processTimedEventEffects = (effectState = {}, settings = {}) => {
 };
 
 /**
- * 娓告垙寰幆閽╁瓙
- * 澶勭悊娓告垙鐨勬牳蹇冨惊鐜€昏緫
- * @param {Object} gameState - 娓告垙鐘舵€佸璞?
+ * 游戏循环钩子
+ * 处理游戏的核心循环逻辑
+ * @param {Object} gameState - 游戏状态对象
  * @param {Function} addLog - 娣诲姞鏃ュ織鍑芥暟
- * @param {Object} actions - 娓告垙鎿嶄綔鍑芥暟闆?
+ * @param {Object} actions - 游戏操作函数集
  */
 export const useGameLoop = (gameState, addLog, actions) => {
     const {
@@ -623,11 +623,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setBuildingUpgrades, // For owner auto-upgrade
         autoRecruitEnabled,
         targetArmyComposition,
-        rulingCoalition, // 鎵ф斂鑱旂洘鎴愬憳
+        rulingCoalition, // 执政联盟鎴愬憳
         legitimacy, // 褰撳墠鍚堟硶鎬у€?
         setLegitimacy, // 鍚堟硶鎬ф洿鏂板嚱鏁?
         setModifiers, // Modifiers鏇存柊鍑芥暟
-        difficulty, // 娓告垙闅惧害
+difficulty, // 游戏难度
         officials, // 瀹樺憳绯荤粺
         setOfficials, // 瀹樺憳鐘舵€佹洿鏂板嚱鏁?
         officialsSimCursor,
@@ -700,9 +700,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         totalInfluence,
         birthAccumulator,
         stability,
-        rulingCoalition, // 鎵ф斂鑱旂洘鎴愬憳
+        rulingCoalition, // 执政联盟鎴愬憳
         legitimacy, // 褰撳墠鍚堟硶鎬у€?
-        difficulty, // 娓告垙闅惧害
+difficulty, // 游戏难度
         officials,
         officialCapacity, // [FIX] 娣诲姞瀹樺憳瀹归噺锛岀敤浜?getCabinetStatus 璁＄畻
         ministerAssignments,
@@ -768,7 +768,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     // ========== 鍘嗗彶鏁版嵁鑺傛祦 ==========
     // 姣?HISTORY_UPDATE_INTERVAL 涓?tick 鎵嶆洿鏂颁竴娆″巻鍙叉暟鎹?State
     const historyUpdateCounterRef = useRef(0);
-    const HISTORY_UPDATE_INTERVAL = 5; // 姣?涓猼ick鍚屾涓€娆″巻鍙叉暟鎹埌UI锛堟樉钁楀噺灏戦噸娓叉煋锛?
+    const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick同步一次历史数据到UI
 
     const { runSimulation } = useSimulationWorker();
 
@@ -830,9 +830,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             totalInfluence,
             birthAccumulator,
             stability,
-            rulingCoalition, // 鎵ф斂鑱旂洘鎴愬憳
+            rulingCoalition, // 执政联盟鎴愬憳
             legitimacy, // 褰撳墠鍚堟硶鎬у€?
-            difficulty, // 娓告垙闅惧害
+difficulty, // 游戏难度
             officials,
             officialsSimCursor,
             // [FIX] 娣诲姞鍐呴榿鏈哄埗鎵€闇€鐨勭姸鎬?
@@ -856,7 +856,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
-    // 鐩戝惉鍥藉鍒楄〃鍙樺寲锛岃嚜鍔ㄦ竻鐞嗘棤鏁堢殑璐告槗璺嚎鍜屽晢浜烘淳椹伙紙淇鏆傚仠鐘舵€佷笅鏃犳硶娓呯悊鐨勯棶棰橈級
+    // 监听国家列表变化，自动清理无效的贸易路线和商人派驻
     const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
 
     useEffect(() => {
@@ -953,14 +953,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
         }
     }, [nations, tradeRoutes, merchantState, setTradeRoutes, setMerchantState]);
 
-    // 娓告垙鏍稿績寰幆
+    // 游戏核心循环
     useEffect(() => {
         // 鍒濆鍖栦綔寮婄爜绯荤粺
         if (process.env.NODE_ENV !== 'production') {
             initCheatCodes(gameState, addLog, { setMerchantState, setTradeRoutes });
         }
 
-        // 鏆傚仠鏃朵笉璁剧疆娓告垙寰幆瀹氭椂鍣紝浣嗚嚜鍔ㄤ繚瀛樺畾鏃跺櫒闇€瑕佸崟鐙鐞?
+        // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独管理
         if (isPaused) {
             // 璁剧疆鐙珛鐨勮嚜鍔ㄤ繚瀛樺畾鏃跺櫒锛堟瘡60绉掓鏌ヤ竴娆★級
             const autoSaveTimer = setInterval(() => {
@@ -989,7 +989,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             try {
             const current = stateRef.current;
 
-            // 鑷姩瀛樻。妫€娴嬶細鍗充娇鏆傚仠涔熺収甯歌繍琛岋紝閬垮厤闀挎椂闂村仠鐣欎涪杩涘害
+            // 自动存档检测：即使暂停也照常运行，避免长时间停留丢进度
             if (current.isAutoSaveEnabled) {
                 const intervalSeconds = Math.max(60, current.autoSaveInterval || 60);
                 const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
@@ -1069,7 +1069,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
             }
 
-            // 鎵ц娓告垙妯℃嫙
+            // 执行游戏模拟
             // 銆愬叧閿€戝己鍒跺皢 gameSpeed 璁句负 1锛岀‘淇濆崟娆?Tick 鍙绠?1 涓崟浣嶆椂闂寸殑浜у嚭
             // 鍘熷洜锛氭垜浠凡缁忛€氳繃璋冩暣 setInterval 鐨勯鐜囨潵瀹炵幇鍔犻€燂紙鏃堕棿娴侊級
             // 濡傛灉杩欓噷涓嶅綊涓€鍖栵紝simulateTick 鍐呴儴浼氬啀娆′箻浠?gameSpeed锛屽鑷村€嶇巼鍙犲姞
@@ -1094,7 +1094,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             // Build simulation parameters - 鎵嬪姩鍒楀嚭鍙簭鍒楀寲瀛楁锛屾帓闄ゅ嚱鏁板璞★紙濡?actions锛?
             // 杩欐牱鍙互姝ｇ‘鍚敤 Web Worker 鍔犻€燂紝閬垮厤 DataCloneError
             const simulationParams = {
-                // 鍩虹娓告垙鏁版嵁
+                // 基础游戏数据
                 resources: current.resources,
                 market: current.market,
                 buildings: current.buildings,
@@ -1163,7 +1163,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 migrationCooldowns: current.migrationCooldowns,
                 previousTaxShock: current.taxShock, // [NEW] 绱Н绋庢敹鍐插嚮鍘嗗彶
 
-                // 璐告槗
+                // 贸易
                 merchantState: current.merchantState,
                 tradeRoutes: current.tradeRoutes,
                 tradeStats: current.tradeStats,
@@ -1194,14 +1194,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 鍙涗贡绯荤粺
                 rebellionStates: current.rebellionStates,
 
-                // 鎵ф斂鑱旂洘
+                // 执政联盟
                 rulingCoalition: current.rulingCoalition,
                 legitimacy: current.legitimacy,
 
                 // 闅惧害
                 difficulty: current.difficulty,
 
-                // 娓告垙閫熷害锛堝己鍒跺綊涓€鍖栵級
+                // 游戏速度（强制归一化）
                 gameSpeed: 1,
                 tick: current.daysElapsed || 0,
 
@@ -1362,17 +1362,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 let forcedSubsidyUnpaid = 0;
 
                 // 鎵ｉ櫎瀹樺憳钖按锛堝疄浠橈細鏈€澶氭墸鍒?锛?
-                // 濡傛灉钖按涓鸿礋鏁帮紝鍒欎粠瀹樺憳閭ｉ噷鏀跺彇璐圭敤锛堥渶瑕佸湪simulation涓鐞嗗畼鍛樿储瀵屾墸闄わ級
+                // 如果薪水为负数，则从官员那里收取费用（需要在simulation中处理官员财富扣除）
                 if (officialDailySalary > 0) {
                     const before = Number(adjustedResources.silver || 0);
                     const pay = Math.min(officialDailySalary, before);
                     adjustedResources.silver = before - pay;
                     officialSalaryPaid = pay;
                 } else if (officialDailySalary < 0) {
-                    // 璐熻柂閰細浠庡畼鍛橀偅閲屾敹閽卞埌鍥藉簱
+                    // 负薪酬：从官员那里收钱到国库
                     // 瀹為檯鏀跺埌鐨勯噾棰濅細鍦╯imulation涓牴鎹畼鍛樿储瀵岃绠?
-                    // 杩欓噷鍏堣褰曢鏈熸敹鍏ワ紙璐熸暟锛夛紝瀹為檯鏀跺叆浼氬湪simulation涓洿鏂?
-                    officialSalaryPaid = officialDailySalary; // 璐熸暟琛ㄧず棰勬湡鏀跺叆
+                    // 这里先记录预期收入（负数），实际收入会在simulation中更新
+                    officialSalaryPaid = officialDailySalary; // 负数表示预期收入
                 }
 
                 // 澶勭悊寮哄埗琛ヨ创鏁堟灉锛堟瘡鏃ヤ粠鍥藉簱鏀粯缁欐寚瀹氶樁灞傦級
@@ -1380,7 +1380,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     ? current.activeEventEffects.forcedSubsidy
                     : [];
 
-                // 璁＄畻琛ヨ创瀵瑰悇闃跺眰璐㈠瘜鐨勫鍔犻噺锛堢◢鍚庡悎骞跺埌 adjustedClassWealth锛?
+                // 计算补贴对各阶层财富的增加量（稍后合并到 adjustedClassWealth）
                 const subsidyWealthDelta = {};
                 if (forcedSubsidies.length > 0) {
                     forcedSubsidies.forEach(subsidy => {
@@ -1396,7 +1396,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             forcedSubsidyPaid += actualPayment;
                             forcedSubsidyUnpaid += Math.max(0, dailyAmount - actualPayment);
 
-                            // 璁板綍闃跺眰璐㈠瘜澧炲姞閲?
+                            // 记录阶层财富增加量
                             if (stratumKey && actualPayment > 0) {
                                 subsidyWealthDelta[stratumKey] = (subsidyWealthDelta[stratumKey] || 0) + actualPayment;
                             }
@@ -1417,15 +1417,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                 }
 
-                // === 璇︾粏璐㈡斂鏃ュ織 ===
-                // 璁板綍鎵€鏈夊奖鍝嶅浗搴撶殑鏀跺叆鍜屾敮鍑洪」
+                // === 详细财政日志 ===
+                // 记录所有影响国库的收入和支出项
                 const treasuryAfterDeductions = Number(adjustedResources.silver || 0);
                 const netTreasuryChange = treasuryAfterDeductions - treasuryAtTickStart;
 
-                // console.group('馃挵 [璐㈡斂璇︽儏] Tick ' + (current.daysElapsed || 0));
+                // console.group('💵 [财政详情] Tick ' + (current.daysElapsed || 0));
                 // console.log('馃彟 鍥藉簱璧峰浣欓:', treasuryAtTickStart.toFixed(2), '閾跺竵');
 
-                // 浠巗imulation杩斿洖鐨勭◣鏀舵暟鎹?
+                // 从simulation返回的税收数据
                 const taxes = result.taxes || {};
                 const breakdown = taxes.breakdown || {};
 
@@ -1435,7 +1435,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // console.log('  钀ヤ笟绋?', (breakdown.businessTax || 0).toFixed(2));
                 // console.log('  鍏崇◣:', (breakdown.tariff || 0).toFixed(2));
                 // if (breakdown.warIndemnity) console.log('  鎴樹簤璧旀鏀跺叆:', breakdown.warIndemnity.toFixed(2));
-                // if (breakdown.tradeRouteTax) console.log('  璐告槗璺嚎绋庢敹:', breakdown.tradeRouteTax.toFixed(2));
+                // if (breakdown.tradeRouteTax) console.log('  贸易路线税收:', breakdown.tradeRouteTax.toFixed(2));
                 // if (breakdown.policyIncome) console.log('  鏀夸护鏀剁泭:', breakdown.policyIncome.toFixed(2));
                 // if (breakdown.priceControlIncome) console.log('  浠锋牸绠″埗鏀跺叆:', breakdown.priceControlIncome.toFixed(2));
                 const effectiveFiscalIncome = typeof breakdown.totalFiscalIncome === 'number'
@@ -1458,7 +1458,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // console.group('馃搲 鏀嚭椤?);
 
                 // === 鍐涢槦鏀嚭锛堜娇鐢╯imulation杩斿洖鐨勭湡瀹炴暟鎹級===
-                // 娉ㄦ剰锛歴imulation.js涓凡缁忓鐞嗕簡璧勬簮璐拱銆佹椂浠ｅ姞鎴愩€佽妯℃儵缃氥€佸啗楗峰€嶇巼
+                // 注意：simulation.js中已经处理了资源购买、时代加成、规模惩罚、军饷倍率
                 const simulationArmyCost = result.dailyMilitaryExpense?.dailyExpense || 0;
 
                 if (simulationArmyCost > 0) {
@@ -1673,8 +1673,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                 }
 
-                // ========== 闄勫焊姣忔棩鏇存柊锛堟湞璐′笌鐙珛鍊惧悜锛?- 绉诲埌涓籹etResources涔嬪墠 ==========
-                // [FIX] 灏嗛檮搴告湞璐℃敹鍏ュ拰鎺у埗鎴愭湰鏁村悎鍒?adjustedResources 鍜?auditEntries 涓?
+                // ========== 附庸每日更新（朝贡与独立倾向）- 移到主setResources之前 ==========
+                // [FIX] 将附庸朝贡收入和控制成本整合到 adjustedResources 和 auditEntries 中
                 // 閬垮厤浜х敓宸ㄥぇ鐨?瀵硅处宸"
                 let vassalNationsUpdated = null;
                 const vassalLogs = [];
@@ -1715,42 +1715,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     );
 
                     if (vassalUpdateResult) {
-                        // 淇濆瓨鏇存柊鍚庣殑鍥藉鍒楄〃锛岀◢鍚庡簲鐢?
+                        // 保存更新后的国家列表（含independencePressure/satisfaction等附庸状态字段）
                         if (vassalUpdateResult.nations) {
                             vassalNationsUpdated = vassalUpdateResult.nations;
                         }
-
-                        // [FIX] 灏嗛檮搴告湞璐℃敹鍏ョ洿鎺ユ坊鍔犲埌 adjustedResources 鍜?auditEntries
-                        if (vassalUpdateResult.tributeIncome > 0) {
-                            adjustedResources.silver = (adjustedResources.silver || 0) + vassalUpdateResult.tributeIncome;
-                            auditEntries.push({
-                                amount: vassalUpdateResult.tributeIncome,
-                                reason: 'vassal_tribute_cash',
-                                meta: { source: 'vassal_system' },
-                            });
-                        }
-
-                        // [FIX] 灏嗚祫婧愭湞璐＄洿鎺ユ坊鍔犲埌 adjustedResources
-                        if (vassalUpdateResult.resourceTribute && Object.keys(vassalUpdateResult.resourceTribute).length > 0) {
-                            Object.entries(vassalUpdateResult.resourceTribute).forEach(([res, amount]) => {
-                                adjustedResources[res] = (adjustedResources[res] || 0) + amount;
-                            });
-                        }
-
-                        // [FIX] 灏嗛檮搴告帶鍒舵垚鏈洿鎺ヤ粠 adjustedResources 鎵ｉ櫎骞舵坊鍔犲埌 auditEntries
-                        if (vassalUpdateResult.totalControlCost > 0) {
-                            adjustedResources.silver = Math.max(0, (adjustedResources.silver || 0) - vassalUpdateResult.totalControlCost);
-                            auditEntries.push({
-                                amount: -vassalUpdateResult.totalControlCost,
-                                reason: 'vassal_control_cost',
-                                meta: { source: 'vassal_system' },
-                            });
-                            if (isDebugEnabled('diplomacy')) {
-                                console.log(`[Vassal] Deducted ${vassalUpdateResult.totalControlCost} silver for control measures.`);
-                            }
-                        }
-                    }
-                }
+                        // 朝贡财政结算（tributeIncome/resourceTribute/totalControlCost）
+                        // 由 simulation.js 中的 processVassalUpdates 统一处理，此处不重复结算
+                    }                }
 
                 const treasuryIncome = auditEntries.reduce((sum, entry) => {
                     const amount = Number(entry?.amount || 0);
@@ -1768,8 +1739,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
 
                 console.groupEnd();
-                // === 璐㈡斂鏃ュ織缁撴潫 ===
-                console.log('馃敶馃敶馃敶 [DEBUG-CHECKPOINT] 璐㈡斂鏃ュ織缁撴潫锛岀户缁墽琛?..');
+                // === 财政日志结束 ===
+                console.log('🔴🔴🔴 [DEBUG-CHECKPOINT] 财政日志结束，继续执行..');
 
                 // ========== 缁忔祹鎸囨爣璁＄畻 ==========
                 // 1. 鏇存柊浠锋牸鍘嗗彶锛堟瘡澶╋級
@@ -1865,9 +1836,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                 }
 
-                // 鍒涘缓闃跺眰璐㈠瘜瀵硅薄锛屽悎骞惰ˉ璐磋浆璐?
+                // 创建阶层财富对象，合并补贴转账
                 let adjustedClassWealth = { ...result.classWealth };
-                // 灏嗚ˉ璐村閲忔坊鍔犲埌闃跺眰璐㈠瘜
+                // 将补贴增量添加到阶层财富
                 Object.entries(subsidyWealthDelta).forEach(([key, delta]) => {
                     adjustedClassWealth[key] = (adjustedClassWealth[key] || 0) + delta;
                 });
@@ -2014,7 +1985,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         // 鏇存柊鎵规鐘舵€?
                         inboundInvestmentBatchRef.current.offset = nextOffset;
                         if (!hasMore) {
-                            // 鏈懆鏈熷鐞嗗畬姣曪紝娓呯┖ lastProcessDay
+                            // 本周期处理完毕，清空 lastProcessDay
                             debugLog('trade', '[INBOUND-CYCLE] 本周期处理完毕');
                             inboundInvestmentBatchRef.current.lastProcessDay = null;
                         }
@@ -2054,11 +2025,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }).catch(err => console.warn('AI investment error:', err));
                 }
 
-                // 鏉＄害缁存姢璐瑰凡鍦?simulation 鍐呯粺涓€鎵ｉ櫎骞惰璐︼紝閬垮厤涓荤嚎绋嬮噸澶嶆墸鍑忋€?
+                // 条约维护费已在 simulation 内统一扣除并记账，避免主线程重复扣减
 
-                // [MOVED] 闄勫焊姣忔棩鏇存柊宸茬Щ鑷充富 setResources 璋冪敤涔嬪墠锛岄伩鍏嶄骇鐢熷璐﹀樊棰?
+                // [MOVED] 附庸每日更新已移至主 setResources 调用之前，避免产生对账差额
 
-                // ========== 瀹樺憳鎴愰暱绯荤粺锛堟瘡鏃ョ粡楠屼笌鍗囩骇锛?==========
+                // ========== 官员成长系统（每日经验与升级）==========
                 let progressionChanges = [];
                 if (result.officials && result.officials.length > 0) {
                     const progressionResult = updateAllOfficialsDaily(result.officials, {
@@ -4221,8 +4192,8 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         classLivingStandard: result.classLivingStandard || {},
                         livingStandardStreaks: result.livingStandardStreaks || current.livingStandardStreaks || {},
                         epoch: current.epoch || 0,
-                        rulingCoalition: current.rulingCoalition || [], // 鎵ф斂鑱旂洘
-                        difficultyLevel: current.difficulty, // 娓告垙闅惧害
+                        rulingCoalition: current.rulingCoalition || [], // 执政联盟
+                        difficultyLevel: current.difficulty, // 游戏难度
                         organizationGrowthMod: result.modifiers?.officialEffects?.organizationGrowthMod || 0, // [NEW] 缁勭粐搴﹀闀夸慨姝?
                         // 娉ㄦ剰锛歝lassInfluence/totalInfluence 宸叉槸浣嶇疆鍙傛暟锛屾棤闇€鍦ㄦ閲嶅
                     }
@@ -4940,15 +4911,14 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         }
 
                         if (log.includes('AI_GIFT_EVENT:')) {
-                            return '馃挐 鏀跺埌涓€浠芥潵鑷鍥界殑澶栦氦绀肩墿閫氱煡';
+                            return '🎁 收到一份来自外国的外交礼物通知';
                         }
                         if (log.includes('AI_REQUEST_EVENT:')) {
-                            return '馃棧锔?鏀跺埌涓€浠芥潵鑷鍥界殑澶栦氦璇锋眰';
+                            return '📩 收到一份来自外国的外交请求';
                         }
-
                         // Merchant autonomous trade summary logs (from simulation)
                         // Gate behind showMerchantTradeLogs
-                        if (log.startsWith('馃洅 鍟嗕汉璐告槗瀹屾垚')) {
+                        if (log.startsWith('📦 商人贸易完成')) {
                             return shouldLogMerchantTrades ? log : null;
                         }
 
@@ -5449,7 +5419,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                                         totalPop = coalitionStrata.length;
                                                     }
 
-                                                    // 灏嗛挶鎸夋瘮渚嬭浆鍏ュ悇闃跺眰璐㈠瘜
+                                                    // 将钱按比例转入各阶层财富
                                                     const distributions = [];
                                                     setClassWealth(prev => {
                                                         const newWealth = { ...prev };
@@ -5491,7 +5461,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                                         totalPop = coalitionStrata.length;
                                                     }
 
-                                                    // 涓烘瘡涓樁灞傛坊鍔犺ˉ璐存晥鏋?
+                                                    // 为每个阶层添加补贴效果
                                                     const subsidyDescParts = [];
                                                     setActiveEventEffects(prev => {
                                                         debugLog('gameLoop', '[REBEL SUBSIDY] Previous state:', prev);
@@ -5870,20 +5840,20 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 }
                             }
 
-                            // 妫€娴婣I璐告槗浜嬩欢锛堣祫婧愬彉鍖栧凡鍦╯imulation涓鐞嗭紝杩欓噷鍙渶璁板綍鍜屾樉绀猴級
+                            // 检测AI贸易事件（资源变化已在simulation中处理，这里只需记录和显示）
                             if (log.includes('AI_TRADE_EVENT:')) {
                                 try {
                                     const jsonStr = log.replace('AI_TRADE_EVENT:', '');
                                     const eventData = JSON.parse(jsonStr);
                                     const resourceName = RESOURCES[eventData.resourceKey]?.name || eventData.resourceKey;
 
-                                    // 灏嗗叧绋庤鍏radeStats锛屾樉绀哄湪璐㈡斂闈㈡澘涓?
+                                    // 将关税记入tradeStats，显示在财政面板中
                                     if (eventData.tariff > 0) {
                                         setTradeStats(prev => ({ ...prev, tradeTax: (prev.tradeTax || 0) + eventData.tariff }));
                                     }
 
                                     // 鐢熸垚璇︾粏鐨勮锤鏄撴棩蹇楋紙鐜╁鏀垮簻鍙敹鍏崇◣锛?
-                                    // 杩欎簺灞炰簬鈥滆锤鏄撹矾绾?甯傚満璐告槗鈥濈被鏃ュ織锛屽彈 showTradeRouteLogs 鎺у埗
+                                    // 这些属于"贸易路线/市场贸易"类日志，受 showTradeRouteLogs 控制
                                     if (isDebugEnabled('trade')) {
                                         if (eventData.tradeType === 'export') {
                                             // 鐜╁鍑哄彛锛氳祫婧愬噺灏戯紝鍙敹鍏崇◣
@@ -6955,8 +6925,8 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 tickProcessingRef.current = false;
                 console.error('[GameLoop] Tick error:', err);
             }
-        }, tickInterval); // 鏍规嵁娓告垙閫熷害鍔ㄦ€佽皟鏁存墽琛岄鐜?
+        }, tickInterval); // 根据游戏速度动态调整执行频率
         return () => clearInterval(timer);
-    }, [gameSpeed, isPaused, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 渚濊禆娓告垙閫熷害銆佹殏鍋滅姸鎬佸拰搴嗗吀鐩稿叧鐘舵€?
+    }, [gameSpeed, isPaused, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 依赖游戏速度、暂停状态和庆典相关状态
 };
 

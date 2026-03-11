@@ -59,7 +59,7 @@ export const DemandsList = ({
             <div className="flex items-center gap-1.5">
                 <Icon name="Scroll" size={14} className="text-purple-400" />
                 <span className="text-xs font-bold text-gray-300">当前诉求</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-300">
+                <span className="text-xs px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-300">
                     {demands.length}
                 </span>
             </div>
@@ -93,7 +93,7 @@ export const DemandsList = ({
                                         <div className={`text-xs font-bold ${config.color || 'text-gray-300'}`}>
                                             {config.name || demand.type}
                                         </div>
-                                        <div className="text-[9px] text-gray-400">
+                                        <div className="text-xs text-gray-400">
                                             {config.description}
                                         </div>
                                     </div>
@@ -103,7 +103,7 @@ export const DemandsList = ({
                                         剩余 {remainingDays} 天
                                     </div>
                                     {urgency === 'critical' && (
-                                        <div className="text-[9px] text-red-400 flex items-center gap-0.5 justify-end">
+                                        <div className="text-xs text-red-400 flex items-center gap-0.5 justify-end">
                                             <Icon name="AlertTriangle" size={10} />
                                             紧急
                                         </div>
@@ -113,7 +113,7 @@ export const DemandsList = ({
 
                             {/* 要求说明 */}
                             <div className="bg-gray-900/40 rounded p-2 mb-2">
-                                <div className="text-[10px] text-gray-400">
+                                <div className="text-xs text-gray-400">
                                     <span className="font-bold text-gray-300">要求：</span>
                                     {demand.requirement || config.requirement}
                                 </div>
@@ -122,8 +122,8 @@ export const DemandsList = ({
                             {/* 进度条 */}
                             <div className="mb-2">
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="text-[9px] text-gray-400">完成进度</span>
-                                    <span className="text-[9px] text-gray-300">
+                                    <span className="text-xs text-gray-400">完成进度</span>
+                                    <span className="text-xs text-gray-300">
                                         {Math.round(progress * 100)}%
                                     </span>
                                 </div>
@@ -140,10 +140,10 @@ export const DemandsList = ({
                                 <div className="flex items-start gap-1.5">
                                     <Icon name="AlertOctagon" size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
                                     <div>
-                                        <div className="text-[9px] text-red-300 font-bold">
+                                        <div className="text-xs text-red-300 font-bold">
                                             失败后果
                                         </div>
-                                        <div className="text-[9px] text-red-400">
+                                        <div className="text-xs text-red-400">
                                             {demand.failurePenalty?.description || config.failurePenalty?.description}
                                         </div>
                                     </div>
@@ -153,12 +153,12 @@ export const DemandsList = ({
                             {/* 相关资源（物资诉求） */}
                             {demand.missingResources && demand.missingResources.length > 0 && (
                                 <div className="mt-2">
-                                    <div className="text-[9px] text-gray-400 mb-1">缺少的物资：</div>
+                                    <div className="text-xs text-gray-400 mb-1">缺少的物资：</div>
                                     <div className="flex flex-wrap gap-1">
                                         {demand.missingResources.map((resource, ridx) => (
                                             <span
                                                 key={ridx}
-                                                className="text-[9px] px-1.5 py-0.5 rounded bg-orange-900/30 text-orange-300 border border-orange-500/30"
+                                                className="text-xs px-1.5 py-0.5 rounded bg-orange-900/30 text-orange-300 border border-orange-500/30"
                                             >
                                                 {resource}
                                             </span>
@@ -169,7 +169,7 @@ export const DemandsList = ({
 
                             {/* 减税诉求进度 */}
                             {demand.type === 'tax_relief' && demand.daysMet !== undefined && (
-                                <div className="mt-2 text-[9px] text-gray-400">
+                                <div className="mt-2 text-xs text-gray-400">
                                     已保持低税率 {demand.daysMet}/{demand.daysRequired || 10} 天
                                 </div>
                             )}

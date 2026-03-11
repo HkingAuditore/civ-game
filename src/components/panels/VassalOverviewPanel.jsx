@@ -79,15 +79,15 @@ export const VassalOverviewPanel = memo(({
                 {/* 汇总统计 */}
                 <div className="grid grid-cols-3 gap-2">
                     <div className="bg-purple-900/30 rounded-lg p-3 border border-purple-700/40">
-                        <div className="text-[10px] text-purple-400 mb-1">附庸数</div>
+                        <div className="text-xs text-purple-400 mb-1">附庸数</div>
                         <div className="text-lg font-bold text-purple-200">{summary.count}</div>
                     </div>
                     <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-700/40">
-                        <div className="text-[10px] text-amber-400 mb-1">日朝贡</div>
+                        <div className="text-xs text-amber-400 mb-1">日朝贡</div>
                         <div className="text-lg font-bold text-amber-200">{formatNumberShortCN(summary.totalTribute / 30)}</div>
                     </div>
                     <div className={`rounded-lg p-3 border ${summary.atRiskCount > 0 ? 'bg-red-900/30 border-red-700/40' : 'bg-gray-800/50 border-gray-700/40'}`}>
-                        <div className="text-[10px] text-gray-400 mb-1">独立风险</div>
+                        <div className="text-xs text-gray-400 mb-1">独立风险</div>
                         <div className={`text-lg font-bold ${summary.atRiskCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
                             {summary.atRiskCount > 0 ? `${summary.atRiskCount}国` : '无'}
                         </div>
@@ -141,7 +141,7 @@ export const VassalOverviewPanel = memo(({
                                                     <Icon name="Flag" size={16} className="text-amber-400" />
                                                     <span className="font-semibold text-white">{vassal.name}</span>
                                                     {isAtRisk && (
-                                                        <span className="px-1.5 py-0.5 text-[9px] bg-red-600 text-white rounded">风险</span>
+                                                        <span className="px-1.5 py-0.5 text-xs bg-red-600 text-white rounded">风险</span>
                                                     )}
                                                 </div>
                                                 <div className="text-sm text-amber-400 font-semibold">
@@ -150,7 +150,7 @@ export const VassalOverviewPanel = memo(({
                                             </div>
 
                                             {/* 详细指标 */}
-                                            <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
                                                 <div>
                                                     <span className="text-gray-400">朝贡率:</span>
                                                     <span className="text-white ml-1">{Math.round((vassal.tributeRate || 0) * 100)}%</span>
@@ -166,7 +166,7 @@ export const VassalOverviewPanel = memo(({
                                             {/* 操作按钮 */}
                                             <div className="flex gap-2 mt-2">
                                                 <button
-                                                    className="flex-1 py-1.5 text-[10px] rounded bg-blue-900/50 text-blue-300 hover:bg-blue-800/50 border border-blue-700/40"
+                                                    className="flex-1 py-1.5 text-xs rounded bg-blue-900/50 text-blue-300 hover:bg-blue-800/50 border border-blue-700/40"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         onAdjustPolicy && onAdjustPolicy(vassal);
@@ -175,7 +175,7 @@ export const VassalOverviewPanel = memo(({
                                                     调整政策
                                                 </button>
                                                 <button
-                                                    className="flex-1 py-1.5 text-[10px] rounded bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/40"
+                                                    className="flex-1 py-1.5 text-xs rounded bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/40"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         onReleaseVassal && onReleaseVassal(vassal);
@@ -199,7 +199,7 @@ export const VassalOverviewPanel = memo(({
                 )}
 
                 {/* 提示 */}
-                <div className="text-[10px] text-gray-500 text-center pt-2 border-t border-gray-700/30">
+                <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-700/30">
                     💡 高独立倾向的附庸可能发动独立战争，需加强控制或提高满意度
                 </div>
             </div>

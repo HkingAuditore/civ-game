@@ -104,7 +104,7 @@ export const CardDetailModal = ({ show, onClose, title, description, icon, secti
                         <span>{resource?.name || key}</span>
                         <span className="font-mono">{value}</span>
                         {section.current && (
-                          <span className="text-[10px] opacity-70">({section.current[key] || 0})</span>
+                          <span className="text-xs opacity-70">({section.current[key] || 0})</span>
                         )}
                       </div>
                     );
@@ -123,7 +123,7 @@ export const CardDetailModal = ({ show, onClose, title, description, icon, secti
                           <div className="flex items-center gap-1">
                             {stratum?.icon && <Icon name={stratum.icon} size={12} className="text-gray-400" />}
                             <span className="text-xs text-gray-300">{stratum?.name || key}</span>
-                            <span className="text-[10px] text-gray-500">
+                            <span className="text-xs text-gray-500">
                               ({data.assigned}/{data.required})
                             </span>
                           </div>

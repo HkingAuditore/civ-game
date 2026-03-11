@@ -76,7 +76,7 @@ export const TechDetailSheet = ({
             {/* 特殊效果 */}
             {tech.effect && (
                 <div className="bg-blue-900/30 rounded p-2 border border-blue-500/30">
-                    <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+                    <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
                         <Icon name="Sparkles" size={12} className="text-blue-400" />
                         特殊效果
                     </h3>
@@ -87,7 +87,7 @@ export const TechDetailSheet = ({
             {/* 解锁建筑 */}
             {unlockedBuildings.length > 0 && (
                 <div className="bg-amber-900/30 rounded p-2 border border-amber-500/30">
-                    <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+                    <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
                         <Icon name="Building" size={12} className="text-amber-400" />
                         解锁建筑
                     </h3>
@@ -107,7 +107,7 @@ export const TechDetailSheet = ({
             {/* 研究成本 */}
             {!isUnlocked && (
                 <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                    <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+                    <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
                         <Icon name="Package" size={12} className="text-purple-400" />
                         研究成本
                     </h3>

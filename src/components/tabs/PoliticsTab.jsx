@@ -104,7 +104,7 @@ const ResourceTaxCard = ({
                         onDraftChange(resourceKey, String(newValue));
                         setTimeout(() => onCommit(resourceKey), 0);
                     }}
-                    className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                    className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
                     title="切换正负值（税收/补贴）"
                 >
                     ±
@@ -122,14 +122,14 @@ const ResourceTaxCard = ({
                             e.target.blur();
                         }
                     }}
-                    className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                    className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
                     placeholder="税率%"
                 />
             </div>
             <div className="mt-1.5 border-t border-gray-800/70 pt-1.5 space-y-1.5">
                 {/* 进口关税 */}
                 <div>
-                    <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
                         <span className="flex items-center gap-0.5">
                             <Icon name="ArrowDownLeft" size={10} className="text-blue-400" />
                             进口关税
@@ -142,7 +142,7 @@ const ResourceTaxCard = ({
                         <button
                             type="button"
                             onClick={() => onImportTariffToggleSign && onImportTariffToggleSign(resourceKey, draftImportTariff ?? currentImportTariff)}
-                            className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                            className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
                             title="切换正负值（关税/补贴）"
                         >
                             ±
@@ -160,14 +160,14 @@ const ResourceTaxCard = ({
                                     e.target.blur();
                                 }
                             }}
-                            className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                            className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
                             placeholder="进口关税%"
                         />
                     </div>
                 </div>
                 {/* 出口关税 */}
                 <div>
-                    <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
                         <span className="flex items-center gap-0.5">
                             <Icon name="ArrowUpRight" size={10} className="text-green-400" />
                             出口关税
@@ -180,7 +180,7 @@ const ResourceTaxCard = ({
                         <button
                             type="button"
                             onClick={() => onExportTariffToggleSign && onExportTariffToggleSign(resourceKey, draftExportTariff ?? currentExportTariff)}
-                            className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                            className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
                             title="切换正负值（关税/补贴）"
                         >
                             ±
@@ -198,12 +198,12 @@ const ResourceTaxCard = ({
                                     e.target.blur();
                                 }
                             }}
-                            className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-green-500 focus:border-green-500 text-center"
+                            className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-green-500 focus:border-green-500 text-center"
                             placeholder="出口关税%"
                         />
                     </div>
                 </div>
-                <p className="text-[9px] text-gray-500 mt-1">最终税率 = 交易税 + 关税（加法叠加）</p>
+                <p className="text-xs text-gray-500 mt-1">最终税率 = 交易税 + 关税（加法叠加）</p>
             </div>
         </div>
     );
@@ -235,7 +235,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                     <span className="font-semibold text-gray-300 text-xs flex-grow whitespace-nowrap overflow-hidden text-ellipsis">
                         {building.name}
                     </span>
-                    <span className="text-gray-500 text-[10px] font-mono">{buildingCount}</span>
+                    <span className="text-gray-500 text-xs font-mono">{buildingCount}</span>
                 </div>
 
                 {/* 状态栏：当前税率/补贴 */}
@@ -257,7 +257,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                     ) : (
                         <span className="text-gray-500 text-sm">无税收</span>
                     )}
-                    <div className="text-[10px] text-gray-500 mt-0">银币/建筑/次 (基{base.toFixed(2)})</div>
+                    <div className="text-xs text-gray-500 mt-0">银币/建筑/次 (基{base.toFixed(2)})</div>
                 </div>
             </div>
 
@@ -266,7 +266,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                 <button
                     type="button"
                     onClick={() => onToggleSign && onToggleSign(building.id, draftMultiplier ?? currentMultiplier)}
-                    className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                    className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
                     title="切换正负值（税收/补贴）"
                 >
                     ±
@@ -284,7 +284,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                             e.target.blur();
                         }
                     }}
-                    className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                    className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
                     placeholder="税率系数"
                 />
             </div>
@@ -510,9 +510,9 @@ const PoliticsTabComponent = ({
         return ordered;
     }, [unlockedResourceKeys]);
 
-    const taxableResources = orderedResourceKeys
+    const taxableResources = React.useMemo(() => orderedResourceKeys
         .map(key => [key, RESOURCES[key]])
-        .filter(([, info]) => info && (!info.type || (info.type !== 'virtual' && info.type !== 'currency')));
+        .filter(([, info]) => info && (!info.type || (info.type !== 'virtual' && info.type !== 'currency'))), [orderedResourceKeys]);
 
     // Buildings Logic
     const builtBuildings = React.useMemo(() => {
@@ -557,14 +557,14 @@ const PoliticsTabComponent = ({
                 <div className="flex items-center gap-1">
                     <Icon name={stratumInfo.icon || 'User'} size={14} className="text-gray-400" />
                     <span className="font-semibold text-gray-300 flex-grow">{stratumInfo.name || key}</span>
-                    <span className="text-gray-500 text-[10px] font-mono">{formatNumberShortCN(Math.round(population), { decimals: 0 })} 人</span>
+                    <span className="text-gray-500 text-xs font-mono">{formatNumberShortCN(Math.round(population), { decimals: 0 })} 人</span>
                 </div>
                 <div className="flex items-center justify-center gap-0.5">
                     {isSubsidy ? (
-                        <><Icon name="TrendingDown" size={12} className="text-green-400" /><span className="font-mono text-green-300 whitespace-nowrap text-[11px]">补贴 {Math.abs(finalRate).toFixed(3)}/人</span></>
+                        <><Icon name="TrendingDown" size={12} className="text-green-400" /><span className="font-mono text-green-300 whitespace-nowrap text-xs">补贴 {Math.abs(finalRate).toFixed(3)}/人</span></>
                     ) : isTax ? (
-                        <><Icon name="TrendingUp" size={12} className="text-yellow-400" /><span className="font-mono text-yellow-300 whitespace-nowrap text-[11px]">{finalRate.toFixed(3)}/人</span></>
-                    ) : (<span className="font-mono text-gray-500 whitespace-nowrap text-[11px]">无税收</span>)}
+                        <><Icon name="TrendingUp" size={12} className="text-yellow-400" /><span className="font-mono text-yellow-300 whitespace-nowrap text-xs">{finalRate.toFixed(3)}/人</span></>
+                    ) : (<span className="font-mono text-gray-500 whitespace-nowrap text-xs">无税收</span>)}
                 </div>
                 <div className="flex items-center gap-1">
                     <button type="button" onClick={() => {
@@ -573,8 +573,8 @@ const PoliticsTabComponent = ({
                         handleHeadDraftChange(key, String(newValue));
                         onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates || {}), [key]: newValue } }));
                         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
-                    }} className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors">±</button>
-                    <input type="text" inputMode="decimal" step="0.05" value={headDrafts[key] ?? (headRates[key] ?? 1)} onChange={(e) => handleHeadDraftChange(key, e.target.value)} onBlur={() => commitHeadDraft(key)} onKeyDown={(e) => { if (e.key === 'Enter') { commitHeadDraft(key); e.target.blur(); } }} className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" placeholder="系数" />
+                    }} className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors">±</button>
+                    <input type="text" inputMode="decimal" step="0.05" value={headDrafts[key] ?? (headRates[key] ?? 1)} onChange={(e) => handleHeadDraftChange(key, e.target.value)} onBlur={() => commitHeadDraft(key)} onKeyDown={(e) => { if (e.key === 'Enter') { commitHeadDraft(key); e.target.blur(); } }} className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" placeholder="系数" />
                 </div>
             </div>
         );
@@ -614,8 +614,8 @@ const PoliticsTabComponent = ({
         );
     };
 
-    // Group keys for filtering leftovers
-    const allGroupKeys = new Set(Object.values(STRATA_GROUPS).flatMap(g => g.keys));
+    // STRATA_GROUPS 是静态配置，只需计算一次
+    const allGroupKeys = React.useMemo(() => new Set(Object.values(STRATA_GROUPS).flatMap(g => g.keys)), []);
 
     return (
         <div className="space-y-4">
@@ -686,10 +686,10 @@ const PoliticsTabComponent = ({
 
                     {activeTaxTab === 'head' && (
                         <div className="space-y-3">
-                            <div className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-[11px] text-blue-100">
-                                <p className="flex items-center gap-2 mb-1"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">人头税说明</span></p>
-                                <p>对各阶层人口征收的税收。税率系数越高，税收越多，但可能影响阶层满意度。</p>
-                            </div>
+                            <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
+                                <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">人头税说明</span></summary>
+                                <p className="mt-1">税率越高税收越多，但影响满意度。</p>
+                            </details>
                             {Object.entries(STRATA_GROUPS).map(([groupKey, groupInfo]) => {
                                 const groupStrata = strataToDisplay.filter(key => groupInfo.keys.includes(key));
                                 if (groupStrata.length === 0) return null;
@@ -707,10 +707,10 @@ const PoliticsTabComponent = ({
 
                     {activeTaxTab === 'resource' && (
                         <div className="space-y-3">
-                            <div className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-[11px] text-blue-100">
-                                <p className="flex items-center gap-2 mb-1"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">交易税说明</span></p>
-                                <p>对市场交易的资源征收的税收。税率为正时征税，为负时作为补贴。仅对有市场供应的资源生效。</p>
-                            </div>
+                            <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
+                                <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">交易税说明</span></summary>
+                                <p className="mt-1">正值征税，负值补贴。仅对有供应的资源生效。</p>
+                            </details>
                             {Object.values(RESOURCE_GROUPS).map(group => renderResourceGroup(group, taxableResources))}
                             {taxableResources.filter(([key]) => !ALL_GROUPED_RESOURCES.has(key)).length > 0 && (
                                 <div>
@@ -746,10 +746,10 @@ const PoliticsTabComponent = ({
 
                     {activeTaxTab === 'business' && (
                         <div className="space-y-3">
-                            <div className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-[11px] text-blue-100">
-                                <p className="flex items-center gap-2 mb-1"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">营业税说明</span></p>
-                                <p>对建筑每次产出征收的税收。实际税额 = 基准税额 × 税率系数 × 生产效率。生产加成越高，税收越多。负数系数代表政府补贴。</p>
-                            </div>
+                            <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
+                                <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">营业税说明</span></summary>
+                                <p className="mt-1">税额 = 基准 × 系数 × 效率。负值为补贴。</p>
+                            </details>
                             {Object.entries(buildingsByCategory).map(([catKey, catInfo]) => {
                                 if (catInfo.buildings.length === 0) return null;
                                 return (

@@ -403,28 +403,7 @@ export const StratumDetailModal = ({
                 </div>
               )}
 
-              <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded">
-                <div className="flex items-start gap-3">
-                  <Icon name="Lightbulb" size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold text-blue-300 mb-2">管理建议</h4>
-                    <ul className="space-y-1 text-xs text-gray-300">
-                      {approval < 40 && (
-                        <li>• 该阶层好感度较低，建议增加资源供给或调整政策</li>
-                      )}
-                      {influence > totalInfluence * 0.3 && (
-                        <li>• 该阶层影响力较大，需要重点关注其需求</li>
-                      )}
-                      {population > totalPop * 0.4 && (
-                        <li>• 该阶层人口占比较高，是社会的主要组成部分</li>
-                      )}
-                      {approval >= 70 && (
-                        <li>• 该阶层满意度高，可以获得正面加成</li>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              </div>
+
             </div>
           )}
 
@@ -497,7 +476,7 @@ export const StratumDetailModal = ({
                       (stratum.wealthElasticity || 1.0) >= 0.7 ? 'text-green-400' :
                       'text-yellow-400'
                     }`}>{stratum.wealthElasticity || 1.0}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">收入转化消费速度</p>
+                    <p className="text-xs text-gray-500 mt-0.5">收入转化消费速度</p>
                   </div>
                 </div>
               </div>

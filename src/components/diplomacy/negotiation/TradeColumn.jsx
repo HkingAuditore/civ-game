@@ -66,7 +66,7 @@ const InlineSelect = ({ value, onChange, options, placeholder, themeColor = 'amb
                 ref={buttonRef}
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex-1 min-w-0 bg-black/30 text-[11px] px-1.5 py-1 outline-none cursor-pointer rounded border border-ancient-gold/20 hover:border-ancient-gold/40 transition-colors flex items-center justify-between gap-0.5"
+                className="flex-1 min-w-0 bg-black/30 text-xs px-1.5 py-1 outline-none cursor-pointer rounded border border-ancient-gold/20 hover:border-ancient-gold/40 transition-colors flex items-center justify-between gap-0.5"
             >
                 <span className={`truncate ${value ? 'text-ancient-parchment' : 'text-ancient-stone/40'}`}>
                     {displayText}
@@ -84,7 +84,7 @@ const InlineSelect = ({ value, onChange, options, placeholder, themeColor = 'amb
                         <div
                             key={opt.value || `opt-${i}`}
                             onClick={() => { onChange(opt.value); setIsOpen(false); }}
-                            className={`px-2 py-1 cursor-pointer text-[11px] transition-colors border-b border-white/5 last:border-0
+                            className={`px-2 py-1 cursor-pointer text-xs transition-colors border-b border-white/5 last:border-0
                                 ${opt.value === value ? `${colors.activeBg} ${colors.text}` : 'text-ancient-parchment hover:bg-white/5'}
                                 ${!opt.value ? 'text-ancient-stone/40 italic' : ''}
                             `}
@@ -120,7 +120,7 @@ const ResourceRow = ({ resource, index, onUpdate, onRemove, availableResources, 
                 onChange={(e) => !disabled && onUpdate(index, 'amount', Number(e.target.value) || 0)}
                 placeholder="0"
                 disabled={disabled}
-                className={`w-14 bg-black/30 text-[11px] px-1.5 py-1 rounded border border-ancient-gold/20 text-center font-mono text-cyan-300 outline-none ${
+                className={`w-14 bg-black/30 text-xs px-1.5 py-1 rounded border border-ancient-gold/20 text-center font-mono text-cyan-300 outline-none ${
                     disabled ? 'cursor-not-allowed' : 'hover:border-ancient-gold/40'
                 }`}
             />
@@ -194,14 +194,14 @@ const TradeColumn = ({
     return (
         <Card className={`p-2 space-y-2 ${borderColor} ${className}`}>
             {/* Header */}
-            <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${headerColor}`}>
+            <div className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1 ${headerColor}`}>
                 <Icon name={isOffer ? 'Gift' : 'Hand'} size={12} />
                 {isOffer ? t('negotiation.myOffer', '我方筹码 (OFFER)') : t('negotiation.myDemand', '我方索求 (DEMAND)')}
             </div>
 
             {/* Silver - single line */}
             <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-ancient-stone flex items-center gap-0.5 whitespace-nowrap">
+                <span className="text-xs text-ancient-stone flex items-center gap-0.5 whitespace-nowrap">
                     <Icon name="Coins" size={10} className={silverColor} />银币
                 </span>
                 <div className={`flex-1 flex items-center rounded overflow-hidden border border-ancient-gold/20 bg-black/20 ${
@@ -214,16 +214,16 @@ const TradeColumn = ({
                         onChange={(e) => !disabled && setDraft(prev => ({ ...prev, [silverKey]: Number(e.target.value) || 0 }))}
                         placeholder="0"
                         disabled={disabled}
-                        className={`flex-1 bg-transparent py-0.5 px-1.5 text-right font-mono text-[11px] font-bold outline-none ${silverColor} ${disabled ? 'cursor-not-allowed' : ''}`}
+                        className={`flex-1 bg-transparent py-0.5 px-1.5 text-right font-mono text-xs font-bold outline-none ${silverColor} ${disabled ? 'cursor-not-allowed' : ''}`}
                     />
-                    <span className="px-1 text-[9px] text-ancient-stone/50 bg-black/20 border-l border-white/5">Silver</span>
+                    <span className="px-1 text-xs text-ancient-stone/50 bg-black/20 border-l border-white/5">Silver</span>
                 </div>
             </div>
 
             {/* Resources - compact list */}
             <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-ancient-stone flex items-center gap-0.5">
+                    <span className="text-xs text-ancient-stone flex items-center gap-0.5">
                         <Icon name="Package" size={10} className="text-cyan-400" />资源
                         {currentResources.length > 0 && <span className="text-ancient-gold/40">({currentResources.length})</span>}
                     </span>
@@ -231,7 +231,7 @@ const TradeColumn = ({
                         <button
                             type="button"
                             onClick={handleAddResource}
-                            className={`text-[9px] px-1 py-0.5 rounded transition-colors flex items-center gap-0.5 ${addBtnClasses}`}
+                            className={`text-xs px-1 py-0.5 rounded transition-colors flex items-center gap-0.5 ${addBtnClasses}`}
                         >
                             <Icon name="Plus" size={9} />添加
                         </button>

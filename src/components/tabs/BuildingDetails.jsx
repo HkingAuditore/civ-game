@@ -272,7 +272,7 @@ const formatResourceAmount = (value) => {
 };
 
 const ResourceSummaryBadge = ({ label, amount, positive }) => (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${positive ? 'bg-emerald-900/30 border-emerald-600/40 text-emerald-200' : 'bg-rose-900/30 border-rose-600/40 text-rose-200'}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${positive ? 'bg-emerald-900/30 border-emerald-600/40 text-emerald-200' : 'bg-rose-900/30 border-rose-600/40 text-rose-200'}`}>
         <span>{label}</span>
         <span className="font-mono">
             {positive ? '+' : '-'}
@@ -283,7 +283,7 @@ const ResourceSummaryBadge = ({ label, amount, positive }) => (
 
 const StatCard = ({ label, icon, value, valueClass = 'text-white' }) => (
     <div className="bg-gray-900/50 rounded-lg border border-gray-700/80 px-3 py-2 flex flex-col gap-1">
-        <span className="text-[10px] uppercase tracking-wide text-gray-400 flex items-center gap-1">
+        <span className="text-xs uppercase tracking-wide text-gray-400 flex items-center gap-1">
             {icon && <Icon name={icon} size={11} className="text-gray-400" />}
             {label}
         </span>
@@ -944,7 +944,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 </h4>
                                 <div className="grid grid-cols-2 gap-2 items-center">
                                     <div>
-                                        <div className="text-[10px] text-gray-400 mb-0.5 leading-none">税率系数</div>
+                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">税率系数</div>
                                         <div className="flex items-center gap-1">
                                             <button
                                                 type="button"
@@ -959,7 +959,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                                     }));
                                                     setDraftMultiplier(null);
                                                 }}
-                                                className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[10px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                                                className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
                                                 title="切换正负值（税收/补贴）"
                                             >
                                                 ±
@@ -983,7 +983,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
+                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
                                         <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                                             <span className={`text-sm font-bold font-mono ${actualBusinessTax > 0 ? 'text-yellow-300' : actualBusinessTax < 0 ? 'text-green-300' : 'text-gray-400'
                                                 }`}>
@@ -997,9 +997,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-1.5">
-                                    实际税额 = 基准税额({businessTaxBase.toFixed(2)}) × 税率系数 × 生产效率。生产加成会增加实际征收的税额。负数系数代表补贴。
-                                </p>
+
                             </div>
                         );
                     })()}
@@ -1016,7 +1014,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                             <div>
-                                <div className="text-[10px] uppercase text-emerald-300 mb-1 tracking-wide flex items-center gap-1">
+                                <div className="text-xs uppercase text-emerald-300 mb-1 tracking-wide flex items-center gap-1">
                                     总产出
                                     {totalOutputs.some(([, , , hasBonus]) => hasBonus) && (
                                         <span className="text-amber-400" title="包含科技/事件加成">★</span>
@@ -1030,7 +1028,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         {totalOutputs.map(([resKey, amount, baseAmount, hasBonus, isReduced]) => (
                                             <span
                                                 key={`total-out-${resKey}`}
-                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${
+                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${
                                                     isReduced
                                                         ? 'bg-red-900/30 border-red-600/40 text-red-200'
                                                         : 'bg-emerald-900/30 border-emerald-600/40 text-emerald-200'
@@ -1046,11 +1044,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-[11px] text-gray-500">暂无产出</p>
+                                    <p className="text-xs text-gray-500">暂无产出</p>
                                 )}
                                 {/* 减产原因提示 */}
                                 {hasReduction && reductionReasons.length > 0 && (
-                                    <div className="mt-1.5 text-[9px] text-red-400 flex items-center gap-1 flex-wrap">
+                                    <div className="mt-1.5 text-xs text-red-400 flex items-center gap-1 flex-wrap">
                                         <Icon name="AlertTriangle" size={10} />
                                         <span>减产原因:</span>
                                         {reductionReasons.map((reason, idx) => (
@@ -1063,7 +1061,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 )}
                             </div>
                             <div>
-                                <div className="text-[10px] uppercase text-rose-300 mb-1 tracking-wide">总投入</div>
+                                <div className="text-xs uppercase text-rose-300 mb-1 tracking-wide">总投入</div>
                                 {totalInputs.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
                                         {totalInputs.map(([resKey, amount, baseAmount, hasBonus]) => (
@@ -1077,11 +1075,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-[11px] text-gray-500">无需额外投入</p>
+                                    <p className="text-xs text-gray-500">无需额外投入</p>
                                 )}
                                 {/* 原料成本修正提示 */}
                                 {hasInputCostMod && totalInputs.length > 0 && (
-                                    <div className="mt-1.5 text-[9px] text-amber-400 flex items-center gap-1">
+                                    <div className="mt-1.5 text-xs text-amber-400 flex items-center gap-1">
                                         <Icon name="Info" size={10} />
                                         原料成本修正: {inputCostMod > 0 ? '+' : ''}{(inputCostMod * 100).toFixed(0)}% (来自官员/政治立场)
                                     </div>
@@ -1092,7 +1090,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         {/* 生产加成明细 */}
                         {buildingModifiers.hasBonus && (
                             <div className="mb-3 p-2 rounded-lg bg-amber-900/10 border border-amber-600/30">
-                                <div className="text-[10px] uppercase text-amber-300/80 mb-1.5 tracking-wide flex items-center gap-1">
+                                <div className="text-xs uppercase text-amber-300/80 mb-1.5 tracking-wide flex items-center gap-1">
                                     <Icon name="Zap" size={10} className="text-amber-400" />
                                     生产加成明细
                                 </div>
@@ -1100,7 +1098,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                     {buildingModifiers.modList.map((mod, idx) => (
                                         <span
                                             key={idx}
-                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${mod.pct >= 0
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${mod.pct >= 0
                                                 ? 'bg-amber-900/30 border-amber-500/40 text-amber-200'
                                                 : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
                                                 }`}
@@ -1112,7 +1110,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         </span>
                                     ))}
                                     {buildingModifiers.modList.length > 0 && (
-                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${buildingModifiers.bonusSum >= 0
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${buildingModifiers.bonusSum >= 0
                                             ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
                                             : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
                                             }`}>
@@ -1127,21 +1125,21 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         )}
                         {jobBreakdown.length > 0 && (
                             <div className="space-y-3">
-                                <div className="text-[10px] uppercase text-gray-400 tracking-wide">岗位明细</div>
+                                <div className="text-xs uppercase text-gray-400 tracking-wide">岗位明细</div>
                                 {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualIncome, isOwner }) => (
                                     <div key={role} className="bg-gray-900/40 border border-gray-700/70 rounded-lg px-3 py-2">
                                         <div className="flex items-center justify-between text-xs text-gray-200">
                                             <span className="flex items-center gap-1">
                                                 {name}
                                                 {isOwner && (
-                                                    <span className="text-[9px] text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
+                                                    <span className="text-xs text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
                                                 )}
                                             </span>
                                             <span className="font-mono text-gray-300">
                                                 {Math.round(filled)}/{Math.round(required)}
                                             </span>
                                         </div>
-                                        <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                                        <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                                             <div>
                                                 <span className="mr-2">总岗位 {Math.round(required)}</span>
                                                 <span>实到 {Math.round(filled)}</span>
@@ -1159,7 +1157,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         </div>
                                     </div>
                                 ))}
-                                <p className="text-[9px] text-gray-600 mt-1">
+                                <p className="text-xs text-gray-600 mt-1">
                                     💡 默认显示本期实际人均收入（全局）；若无数据则按建筑估算：业主=(产出-投入-营业税-雇员工资)/岗位，雇员=市场工资
                                 </p>
                             </div>
@@ -1183,7 +1181,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                                 {stratumCount} 座
                                             </span>
                                         </div>
-                                        <div className="mt-1 text-[10px] text-gray-400">
+                                        <div className="mt-1 text-xs text-gray-400">
                                             由 {STRATA[building.owner]?.name || building.owner} 阶层经营，提供 {stratumCount * (building.jobs?.[building.owner] || 0)} 个业主岗位
                                         </div>
                                     </div>
@@ -1208,14 +1206,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                             {Object.entries(officialOwnership.owners).map(([name, ownedCount]) => (
                                                 <div
                                                     key={`official-owner-${name}`}
-                                                    className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-black/20"
+                                                    className="flex items-center justify-between text-xs px-2 py-1 rounded bg-black/20"
                                                 >
                                                     <span className="text-gray-300">{name}</span>
                                                     <span className={`font-mono ${officialColors.text}`}>{ownedCount} 座</span>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="mt-1 text-[10px] text-gray-500">
+                                        <div className="mt-1 text-xs text-gray-500">
                                             官员经营，不提供业主岗位
                                         </div>
                                     </div>
@@ -1240,14 +1238,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                             {Object.entries(foreignOwnership.owners).map(([name, ownedCount]) => (
                                                 <div
                                                     key={`foreign-owner-${name}`}
-                                                    className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-black/20"
+                                                    className="flex items-center justify-between text-xs px-2 py-1 rounded bg-black/20"
                                                 >
                                                     <span className="text-gray-300">{name}</span>
                                                     <span className={`font-mono ${foreignColors.text}`}>{ownedCount} 座</span>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="mt-1 text-[10px] text-gray-500">
+                                        <div className="mt-1 text-xs text-gray-500">
                                             外资经营，不提供业主岗位
                                         </div>
                                     </div>
@@ -1256,18 +1254,18 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
                             {/* 无业主时显示 */}
                             {count === 0 && (
-                                <div className="text-[11px] text-gray-500">暂无建筑</div>
+                                <div className="text-xs text-gray-500">暂无建筑</div>
                             )}
                         </DetailSection>
                     )}
 
                     <DetailSection title="建造成本" icon="ShoppingCart">
                         <div className="flex items-center justify-between mb-2">
-                            <p className="text-[11px] text-gray-400">
+                            <p className="text-xs text-gray-400">
                                 需要先采购/支付下列资源与资金才能建造：
                             </p>
                             {normalizedBuyCount > 1 && (
-                                <span className="text-[10px] text-green-300 font-semibold">
+                                <span className="text-xs text-green-300 font-semibold">
                                     x{normalizedBuyCount} 座
                                 </span>
                             )}
@@ -1299,7 +1297,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 </span>
                             </div>
                             {!canAffordNext && (
-                                <p className="text-[10px] text-gray-500 mt-1">
+                                <p className="text-xs text-gray-500 mt-1">
                                     当前库存或银币不足，需先从市场购入缺口资源。
                                 </p>
                             )}
@@ -1333,7 +1331,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 <Icon name="Plus" size={16} />
                                 <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
                                     <span className="tracking-wide">建造 {normalizedBuyCount > 1 ? `x${normalizedBuyCount}` : ''}</span>
-                                    <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
+                                    <span className="font-mono text-xs sm:text-sm opacity-90 flex items-center gap-0.5">
                                         <span className="inline-flex items-center gap-0.5 sm:hidden">
                                             <Icon name="Coins" size={10} className="text-yellow-300" />
                                             {compactSilverCost}

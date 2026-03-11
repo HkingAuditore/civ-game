@@ -37,7 +37,7 @@ const ResourceFlowBadge = ({ type, resource, amount }) => {
 
     // Using generic terms: "Local" vs "Cross-Border"
     return (
-        <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+        <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${
             isHome
                 ? 'bg-purple-900/40 border-purple-500/30 text-purple-300'
                 : 'bg-gray-800/60 border-gray-600/30 text-gray-400'
@@ -66,7 +66,7 @@ const FlowVisualizer = ({ building, decisions }) => {
                     <div key={res} className="flex items-center justify-end gap-1">
                          <ResourceFlowBadge type={decisions?.inputs?.[res] || 'local'} resource={res} amount={-amt} />
                     </div>
-                )) : <span className="text-[9px] text-gray-600 text-right px-2">无原料</span>}
+                )) : <span className="text-xs text-gray-600 text-right px-2">无原料</span>}
             </div>
 
             {/* Arrow */}
@@ -86,7 +86,7 @@ const FlowVisualizer = ({ building, decisions }) => {
                     <div key={res} className="flex items-center gap-1">
                         <ResourceFlowBadge type={decisions?.outputs?.[res] || 'local'} resource={res} amount={amt} />
                     </div>
-                )) : <span className="text-[9px] text-gray-600 px-2">无产出</span>}
+                )) : <span className="text-xs text-gray-600 px-2">无产出</span>}
             </div>
         </div>
     );
@@ -152,19 +152,19 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
              {/* Summary Cards */}
              <div className="grid grid-cols-3 gap-2">
                 <div className="bg-gradient-to-br from-amber-900/40 to-black/40 rounded-lg p-2.5 border border-amber-700/30 shadow-lg">
-                    <div className="text-[9px] text-amber-500 uppercase tracking-wider font-bold mb-0.5">总资产价值</div>
+                    <div className="text-xs text-amber-500 uppercase tracking-wider font-bold mb-0.5">总资产价值</div>
                     <div className="text-lg font-bold text-amber-200 font-mono">
                         {formatNumberShortCN(summary.totalValue)}
                     </div>
                 </div>
                 <div className="bg-gradient-to-br from-green-900/40 to-black/40 rounded-lg p-2.5 border border-green-700/30 shadow-lg">
-                    <div className="text-[9px] text-green-500 uppercase tracking-wider font-bold mb-0.5">日净汇回</div>
+                    <div className="text-xs text-green-500 uppercase tracking-wider font-bold mb-0.5">日净汇回</div>
                     <div className="text-lg font-bold text-green-300 font-mono">
                         +{formatNumberShortCN(summary.estimatedDailyProfit)}
                     </div>
                 </div>
                 <div className="bg-gradient-to-br from-blue-900/40 to-black/40 rounded-lg p-2.5 border border-blue-700/30 shadow-lg">
-                    <div className="text-[9px] text-blue-500 uppercase tracking-wider font-bold mb-0.5">运营项目</div>
+                    <div className="text-xs text-blue-500 uppercase tracking-wider font-bold mb-0.5">运营项目</div>
                     <div className="text-lg font-bold text-blue-200 font-mono">
                         {summary.count}
                     </div>
@@ -175,7 +175,7 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
             <div className="bg-gray-800/30 rounded-lg border border-white/5 overflow-hidden">
                 <div className="px-3 py-2 bg-white/5 border-b border-white/5 flex justify-between items-center">
                     <span className="text-xs font-bold text-gray-300">资产列表</span>
-                    <span className="text-[9px] text-gray-500">显示最近30天内的运营状态</span>
+                    <span className="text-xs text-gray-500">显示最近30天内的运营状态</span>
                 </div>
                 <div className="divide-y divide-white/5 max-h-[50vh] overflow-y-auto">
                     {activeInvestments.length > 0 ? activeInvestments.map(inv => (
@@ -188,16 +188,16 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
                                     <div>
                                         <div className="text-sm font-bold text-gray-200 flex items-center gap-2">
                                             {inv.buildingName}
-                                            <Badge variant="neutral" className="text-[9px] scale-90">
+                                            <Badge variant="neutral" className="text-xs scale-90">
                                                 {STRATUM_CONFIG[inv.ownerStratum]?.name || inv.ownerStratum}
                                             </Badge>
                                             {inv.count > 1 && (
-                                                <Badge variant="secondary" className="text-[9px] scale-90">
+                                                <Badge variant="secondary" className="text-xs scale-90">
                                                     ×{inv.count}
                                                 </Badge>
                                             )}
                                         </div>
-                                        <div className="text-[10px] text-gray-400 flex items-center gap-1">
+                                        <div className="text-xs text-gray-400 flex items-center gap-1">
                                             <Icon name="MapPin" size={10}/>
                                             <span className={inv.nationColor}>{inv.nationName}</span>
                                         </div>
@@ -207,12 +207,12 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
                                     <div className={`text-sm font-mono font-bold ${inv.repatriatedPerDay >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                         {inv.repatriatedPerDay >= 0 ? '+' : ''}{inv.repatriatedPerDay.toFixed(1)}/日
                                     </div>
-                                    <div className="text-[9px] text-gray-500">净汇回</div>
+                                    <div className="text-xs text-gray-500">净汇回</div>
                                 </div>
                             </div>
 
                             {/* Tax line */}
-                            <div className="flex justify-between items-center text-[9px] text-gray-500 mb-1">
+                            <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
                                 <span>外资利润税/汇回税</span>
                                 <span>
                                     <span className="text-gray-400">税率</span> <span className="text-amber-300 font-mono">{(inv.effectiveTaxRate * 100).toFixed(1)}%</span>
@@ -281,7 +281,7 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
             </div>
 
             {/* Note about tax source */}
-            <div className="text-[10px] text-gray-500 bg-gray-900/30 border border-gray-800/40 rounded-lg p-2">
+            <div className="text-xs text-gray-500 bg-gray-900/30 border border-gray-800/40 rounded-lg p-2">
                 外资利润税会在每日结算时自动扣除并计入国库（税率受条约/共同体等外交规则影响）。
             </div>
 
@@ -294,17 +294,17 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                              <div className="flex items-center gap-1.5">
                                 <Icon name="Flag" size={14} className={group.nationColor} />
                                 <span className="text-xs font-bold text-gray-200">{group.nationName}</span>
-                                <Badge variant="neutral" className="text-[10px]">
+                                <Badge variant="neutral" className="text-xs">
                                     {group.totalCount} 处资产
                                 </Badge>
                              </div>
-                             <div className="text-right text-[10px] text-gray-400">
+                             <div className="text-right text-xs text-gray-400">
                                 <div className="flex flex-col items-end">
                                     <div className="flex gap-2">
                                         <span>纳税: <span className="text-green-400">+{formatNumberShortCN(group.totalTax)}</span></span>
                                         <span>流出: <span className="text-red-400">-{formatNumberShortCN(group.totalProfit - group.totalTax)}</span></span>
                                     </div>
-                                    <div className="text-[9px] opacity-70">
+                                    <div className="text-xs opacity-70">
                                         实际税率: {group.totalProfit > 0 ? ((group.totalTax / group.totalProfit) * 100).toFixed(1) : 0}%
                                     </div>
                                 </div>
@@ -320,11 +320,11 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                                         <div className="flex justify-between mb-1">
                                             <div className="text-xs font-bold text-gray-300 flex items-center gap-2">
                                                 {building?.name || inv.buildingId}
-                                        <span className="text-[10px] font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
+                                        <span className="text-xs font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
                                             提供岗位: {inv.jobsProvided}
                                         </span>
                                         {(inv.count || 1) > 1 && (
-                                            <span className="text-[10px] font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
+                                            <span className="text-xs font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
                                                 ×{inv.count}
                                             </span>
                                         )}

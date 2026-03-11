@@ -58,14 +58,14 @@ export const RESOURCES = {
         color: "text-yellow-400",
         basePrice: 1.0,
         minPrice: 0.1,
-        maxPrice: 30,  // Essential: 20x cap for social stability
+        maxPrice: 150,  // Essential: 150x cap for social stability
         defaultOwner: 'peasant',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material'],
         // 粮食的差异化市场配置：作为基础必需品，价格波动更小，库存目标更高
         marketConfig: {
             supplyDemandWeight: 0.4,        // 供需对价格影响较小（必需品价格相对稳定）
-            inventoryTargetDays: 730.0,       // 目标库存天数更高（战略储备）
+            inventoryTargetDays: 146.0,       // 目标库存天数（战略储备）
             inventoryPriceImpact: 0.15,     // 库存对价格影响较小
             demandElasticity: 0.2,          // 需求弹性低（必需品，价格变化对需求影响小）
             outputVariation: 0.2,           // 产出浮动±20%
@@ -77,14 +77,14 @@ export const RESOURCES = {
         color: "text-emerald-400",
         basePrice: 2.0,
         minPrice: 0.02,
-        maxPrice: 60,  // Raw material: 30x cap
+        maxPrice: 300,  // Raw material: 150x cap
         defaultOwner: 'lumberjack',
         unlockEpoch: 0,
         tags: ['raw_material'],
         // Tier 1 基础原材料：极高稳定度配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小（基础资源价格稳定）
-            inventoryTargetDays: 550.0,       // 较高库存目标（建筑材料需要储备）
+            inventoryTargetDays: 110.0,       // 较高库存目标（建筑材料需要储备）
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性（建筑必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -96,14 +96,14 @@ export const RESOURCES = {
         color: "text-stone-400",
         basePrice: 3.0,
         minPrice: 0.03,
-        maxPrice: 90,  // Raw material: 30x cap
+        maxPrice: 450,  // Raw material: 150x cap
         defaultOwner: 'miner',
         unlockEpoch: 0,
         tags: ['raw_material'],
         // Tier 1 基础原材料：极高稳定度配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小
-            inventoryTargetDays: 550.0,       // 较高库存目标
+            inventoryTargetDays: 110.0,       // 较高库存目标
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -115,14 +115,14 @@ export const RESOURCES = {
         color: "text-indigo-300",
         basePrice: 1.5,
         minPrice: 0.015,
-        maxPrice: 65,  // Essential: 30x cap for social stability
+        maxPrice: 325,  // Essential: 217x cap for social stability
         defaultOwner: 'worker',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material', 'manufactured'],
         // 必需品制成品：中等稳定度
         marketConfig: {
             supplyDemandWeight: 0.8,        // 供需影响中等（必需品但有替代性）
-            inventoryTargetDays: 600.0,       // 必需品较高库存目标
+            inventoryTargetDays: 120.0,       // 必需品较高库存目标
             inventoryPriceImpact: 0.25,     // 库存影响中等
             demandElasticity: 0.4,          // 中低需求弹性（必需品）
             outputVariation: 0.2            // 产出浮动±20%
@@ -134,7 +134,7 @@ export const RESOURCES = {
         color: "text-red-400",
         basePrice: 6.0,
         minPrice: 0.06,
-        maxPrice: 300,  // Industrial: 50x cap
+        maxPrice: 1500,  // Industrial: 250x cap
         defaultOwner: 'artisan',
         unlockEpoch: 0,
         unlockTech: 'pottery',
@@ -142,7 +142,7 @@ export const RESOURCES = {
         // Tier 2 工业资源：标准平衡配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 270.0,       // 工业品标准库存目标
+            inventoryTargetDays: 54.0,       // 工业品标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -154,7 +154,7 @@ export const RESOURCES = {
         color: "text-blue-300",
         basePrice: 16.0,
         minPrice: 0.16,
-        maxPrice: 800,  // Industrial: 50x cap
+        maxPrice: 4000,  // Industrial: 250x cap
         defaultOwner: 'artisan',
         unlockEpoch: 0,
         unlockTech: 'tool_making',
@@ -162,7 +162,7 @@ export const RESOURCES = {
         // 工业品：较高波动性（生产工具，需求相对稳定但价格敏感）
         marketConfig: {
             supplyDemandWeight: 1.2,        // 供需影响较大
-            inventoryTargetDays: 300.0,       // 工业品较高库存目标（耐用品）
+            inventoryTargetDays: 60.0,       // 工业品较高库存目标（耐用品）
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.6,          // 中等需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -176,7 +176,7 @@ export const RESOURCES = {
         color: "text-amber-600",
         basePrice: 5.0,
         minPrice: 0.05,
-        maxPrice: 250,  // Industrial: 50x cap
+        maxPrice: 1250,  // Industrial: 250x cap
         defaultOwner: 'worker',
         unlockEpoch: 1,
         unlockTech: 'tools',
@@ -184,7 +184,7 @@ export const RESOURCES = {
         // 加工木材：标准工业品配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 240.0,       // 工业品标准库存目标
+            inventoryTargetDays: 48.0,       // 工业品标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -196,7 +196,7 @@ export const RESOURCES = {
         color: "text-orange-400",
         basePrice: 5.5,
         minPrice: 0.055,
-        maxPrice: 165,  // Raw material: 30x cap
+        maxPrice: 825,  // Raw material: 150x cap
         defaultOwner: 'miner',
         unlockEpoch: 1,
         unlockTech: 'copper_mining',
@@ -204,7 +204,7 @@ export const RESOURCES = {
         // 金属原材料：中等稳定度
         marketConfig: {
             supplyDemandWeight: 0.9,        // 供需影响较小（原材料）
-            inventoryTargetDays: 300.0,       // 工业品较高库存目标（战略资源）
+            inventoryTargetDays: 60.0,       // 工业品较高库存目标（战略资源）
             inventoryPriceImpact: 0.25,     // 库存影响中等
             demandElasticity: 0.4,          // 低需求弹性（工业必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -216,14 +216,14 @@ export const RESOURCES = {
         color: "text-pink-500",
         basePrice: 5.0,
         minPrice: 0.05,
-        maxPrice: 150,  // Raw material: 30x cap
+        maxPrice: 750,  // Raw material: 150x cap
         defaultOwner: 'artisan',
         unlockEpoch: 1,
         tags: ['industrial', 'raw_material'],
         // 工业原料：标准配置
         marketConfig: {
             supplyDemandWeight: 1.1,        // 供需影响略高（非必需品）
-            inventoryTargetDays: 200.0,       // 工业品较低库存目标
+            inventoryTargetDays: 40.0,       // 工业品较低库存目标
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.6,          // 中等需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -237,7 +237,7 @@ export const RESOURCES = {
         color: "text-lime-300",
         basePrice: 6.5,
         minPrice: 0.065,
-        maxPrice: 325,  // Industrial: 50x cap
+        maxPrice: 1625,  // Industrial: 250x cap
         defaultOwner: 'scribe',
         unlockEpoch: 2,
         unlockTech: 'papyrus_cultivation',
@@ -245,7 +245,7 @@ export const RESOURCES = {
         // 文化产品：中等波动性
         marketConfig: {
             supplyDemandWeight: 1.1,        // 供需影响略高
-            inventoryTargetDays: 240.0,       // 工业品标准库存目标
+            inventoryTargetDays: 48.0,       // 工业品标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -257,7 +257,7 @@ export const RESOURCES = {
         color: "text-rose-400",
         basePrice: 24,
         minPrice: 0.24,
-        maxPrice: 2400,  // Luxury: 100x cap
+        maxPrice: 12000,  // Luxury: 500x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
         unlockTech: 'culinary_arts',
@@ -265,7 +265,7 @@ export const RESOURCES = {
         // 奢侈品：高波动性
         marketConfig: {
             supplyDemandWeight: 1.5,        // 供需影响很大（奢侈品）
-            inventoryTargetDays: 90.0,        // 奢侈品低库存目标（易腐品）
+            inventoryTargetDays: 18.0,        // 奢侈品低库存目标（易腐品）
             inventoryPriceImpact: 0.45,     // 库存影响很大
             demandElasticity: 1.3,          // 高需求弹性（奢侈品）
             outputVariation: 0.2            // 产出浮动±20%
@@ -277,7 +277,7 @@ export const RESOURCES = {
         color: "text-amber-500",
         basePrice: 28,
         minPrice: 0.28,
-        maxPrice: 2800,  // Luxury: 100x cap
+        maxPrice: 14000,  // Luxury: 500x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
         unlockTech: 'carpentry',
@@ -285,7 +285,7 @@ export const RESOURCES = {
         // 家具的差异化市场配置：作为奢侈品，价格波动更大，库存目标较低
         marketConfig: {
             supplyDemandWeight: 1.5,        // 供需对价格影响更大（奢侈品价格弹性高）
-            inventoryTargetDays: 120.0,      // 奢侈品目标库存天数较低
+            inventoryTargetDays: 24.0,      // 奢侈品目标库存天数较低
             inventoryPriceImpact: 0.4,      // 库存对价格影响更大
             demandElasticity: 1.2,          // 需求弹性高（奢侈品，价格变化对需求影响大）
             outputVariation: 0.2,           // 产出浮动±20%
@@ -561,7 +561,7 @@ export const RESOURCES = {
         color: "text-red-600",
         basePrice: 60.0,
         minPrice: 0.6,
-        maxPrice: 1800,  // Military manufactured: 30x cap
+        maxPrice: 9000,  // Military manufactured: 150x cap
         defaultOwner: 'engineer',
         unlockEpoch: 6,
         unlockTech: 'military_industrialization',

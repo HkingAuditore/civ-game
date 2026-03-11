@@ -91,13 +91,13 @@ const PriceControlRow = ({ resourceKey, resourceDef, marketPrice, govBuyPrice, g
             <div className="flex-1 flex items-center gap-1.5">
                 {/* 市场价 */}
                 <div className="w-14 text-center">
-                    <span className="text-[10px] text-gray-500 block leading-none">市场</span>
+                    <span className="text-xs text-gray-500 block leading-none">市场</span>
                     <span className="text-xs text-gray-400 font-mono">{marketPrice.toFixed(2)}</span>
                 </div>
 
                 {/* 收购价输入 */}
                 <div className="flex-1">
-                    <span className="text-[9px] text-amber-400/70 block leading-none">收购价</span>
+                    <span className="text-xs text-amber-400/70 block leading-none">收购价</span>
                     <input
                         type="number"
                         step="0.1"
@@ -109,7 +109,7 @@ const PriceControlRow = ({ resourceKey, resourceDef, marketPrice, govBuyPrice, g
                         className="w-full px-1 py-0.5 text-xs bg-gray-900/50 border border-amber-900/30 rounded text-amber-300 font-mono placeholder-gray-600 disabled:opacity-50"
                     />
                     {govBuyPrice !== null && buyDiff !== 0 && (
-                        <span className={`text-[9px] ${buyDiff > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        <span className={`text-xs ${buyDiff > 0 ? 'text-red-400' : 'text-green-400'}`}>
                             {buyDiff > 0 ? '+' : ''}{buyDiff.toFixed(2)}
                         </span>
                     )}
@@ -117,7 +117,7 @@ const PriceControlRow = ({ resourceKey, resourceDef, marketPrice, govBuyPrice, g
 
                 {/* 出售价输入 */}
                 <div className="flex-1">
-                    <span className="text-[9px] text-blue-400/70 block leading-none">出售价</span>
+                    <span className="text-xs text-blue-400/70 block leading-none">出售价</span>
                     <input
                         type="number"
                         step="0.1"
@@ -129,7 +129,7 @@ const PriceControlRow = ({ resourceKey, resourceDef, marketPrice, govBuyPrice, g
                         className="w-full px-1 py-0.5 text-xs bg-gray-900/50 border border-blue-900/30 rounded text-blue-300 font-mono placeholder-gray-600 disabled:opacity-50"
                     />
                     {govSellPrice !== null && sellDiff !== 0 && (
-                        <span className={`text-[9px] ${sellDiff > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`text-xs ${sellDiff > 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {sellDiff > 0 ? '+' : ''}{sellDiff.toFixed(2)}
                         </span>
                     )}
@@ -296,7 +296,7 @@ export const PlannedEconomyPanel = ({
                         <Icon name="BarChart3" size={18} className="text-red-400" />
                         <span className="text-sm font-bold text-red-300">阶层配额</span>
                         {localQuotaControls.enabled && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-red-600/30 text-red-300 rounded">
+                            <span className="text-xs px-1.5 py-0.5 bg-red-600/30 text-red-300 rounded">
                                 已启用
                             </span>
                         )}
@@ -397,7 +397,7 @@ export const PlannedEconomyPanel = ({
                         <Icon name="Scale" size={18} className="text-amber-400" />
                         <span className="text-sm font-bold text-amber-300">价格管制</span>
                         {localPriceControls.enabled && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-600/30 text-amber-300 rounded">
+                            <span className="text-xs px-1.5 py-0.5 bg-amber-600/30 text-amber-300 rounded">
                                 已启用
                             </span>
                         )}
@@ -432,7 +432,7 @@ export const PlannedEconomyPanel = ({
                         </div>
 
                         {/* 说明 */}
-                        <p className="text-[10px] text-gray-500 mb-2">
+                        <p className="text-xs text-gray-500 mb-2">
                             设置政府收购价和出售价。收购价影响卖家收入，出售价影响买家支出。
                             差价由国库收支。交易税基于管制价格计算。
                         </p>

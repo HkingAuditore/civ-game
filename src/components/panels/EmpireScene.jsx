@@ -23,6 +23,16 @@ function EmpireSceneComponent({
     // 生成唯一ID前缀，防止页面上有多个SVG时渐变色ID冲突导致不显示
     const uid = useMemo(() => Math.random().toString(36).substr(2, 9), []);
 
+    // 预生成随机位置数组，避免每次渲染重新计算 Math.random()
+    const starPositions = useMemo(() =>
+        Array.from({ length: 15 }, (_, i) => ({ cx: Math.random() * 200, cy: Math.random() * 60, r: Math.random() * 0.6 + 0.2 })), []);
+    const rainDrops = useMemo(() =>
+        Array.from({ length: 50 }, () => ({ x: Math.random() * 240 - 20, dur: 0.4 + Math.random() * 0.3, delay: Math.random() })), []);
+    const snowFlakes = useMemo(() =>
+        Array.from({ length: 30 }, () => ({ cx: Math.random() * 240 - 20, cy: Math.random() * 120, r: Math.random() * 1.2 + 0.5, dur: 1 + Math.random(), delay: Math.random() })), []);
+    const wealthParticles = useMemo(() =>
+        Array.from({ length: 8 }, () => ({ cx1: 40 + Math.random() * 120, cx2: 40 + Math.random() * 120 })), []);
+
     // 地平线位置
     const HORIZON_Y = 85;
 
@@ -1350,10 +1360,10 @@ function EmpireSceneComponent({
                         {season === '冬季' && weatherRandom < 0.6 && [...Array(30)].map((_, i) => (
                             <circle key={`snow-${i}`} cx={(Math.random() * 240) - 20} cy={Math.random() * 120} r={Math.random() * 1.2 + 0.5} fill="#ffffff" opacity="0.8" className="rain-drop" style={{ animationDuration: `${1 + Math.random()}s`, animationDelay: `${Math.random()}s` }} />
                         ))}
-                        {wealth > 800 && !isStormy && [...Array(8)].map((_, i) => (
+                        {wealth > 800 && !isStormy && wealthParticles.map((p, i) => (
                             <g key={`wealth-${i}`}>
-                                <circle cx={40 + Math.random() * 120} cy={95} r="1" fill="#ffd700" className="smoke-particle" style={{ animationDelay: `${i * 0.3}s` }} />
-                                <circle cx={40 + Math.random() * 120} cy={95} r="0.5" fill="#ffeb3b" className="smoke-particle" style={{ animationDelay: `${i * 0.3 + 0.15}s` }} />
+                                <circle cx={p.cx1} cy={95} r="1" fill="#ffd700" className="smoke-particle" style={{ animationDelay: `${i * 0.3}s` }} />
+                                <circle cx={p.cx2} cy={95} r="0.5" fill="#ffeb3b" className="smoke-particle" style={{ animationDelay: `${i * 0.3 + 0.15}s` }} />
                             </g>
                         ))}
                         {isProsperity && dayProgress > 0.2 && dayProgress < 0.8 && (

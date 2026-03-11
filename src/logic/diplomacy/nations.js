@@ -789,33 +789,7 @@ export const updateNations = ({
         updatedNations = processMonthlyRelationDecay(updatedNations);
     }
 
-    // 处理附庸系统更新
-    const playerAtWar = updatedNations.some(n => n.isAtWar && !n.vassalOf);
-    const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
-    const vassalResult = processVassalUpdates({
-        nations: updatedNations,
-        daysElapsed: tick,
-        epoch,
-        playerMilitary: Math.max(0.5, playerMilitary),
-        playerStability: stabilityValue,
-        playerAtWar,
-        playerWealth: res.silver || 0,
-        playerPopulation: population || 1000000,
-        difficultyLevel,
-        logs,
-    });
-    updatedNations = vassalResult.nations;
-    vassalTributeIncome = vassalResult.tributeIncome;
-    applyTreasuryChange(res, vassalTributeIncome, 'vassal_tribute_income', onTreasuryChange);
-
-    // 处理附庸事件（独立战争等）
-    if (vassalResult.vassalEvents && vassalResult.vassalEvents.length > 0) {
-        vassalResult.vassalEvents.forEach(event => {
-            if (event.type === 'independence_war') {
-                logs.push(`VASSAL_INDEPENDENCE_WAR:${JSON.stringify(event)}`);
-            }
-        });
-    }
+    // 附庸系统更新由 simulation.js 统一调用 processVassalUpdates，此处不重复结算
 
     return {
         nations: updatedNations,
