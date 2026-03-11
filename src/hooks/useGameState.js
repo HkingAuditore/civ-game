@@ -1113,6 +1113,16 @@ export const useGameState = () => {
     const [techsUnlocked, setTechsUnlocked] = useState([]);
     const [epoch, setEpoch] = useState(0);
 
+    // ========== 理念系统状态 ==========
+    const [ideologyScore, setIdeologyScore] = useState(0);
+    const [ideologyScoreSpent, setIdeologyScoreSpent] = useState(0);
+    const [ideologyCollection, setIdeologyCollection] = useState([]); // [{ id, level }]
+    const [equippedIdeologies, setEquippedIdeologies] = useState([]); // string[]
+    const [ideologySlotCount, setIdeologySlotCount] = useState(3);
+    const [ideologyCooldowns, setIdeologyCooldowns] = useState({}); // { [id]: days }
+    const [ideologyMilestones, setIdeologyMilestones] = useState([]); // string[]
+    const [pendingIdeologyEmergence, setPendingIdeologyEmergence] = useState(null); // null | { candidates }
+
     // ========== 游戏控制状�?==========
     const [activeTab, setActiveTab] = useState('overview');
     const [gameSpeed, setGameSpeed] = useState(1);
@@ -1871,6 +1881,15 @@ export const useGameState = () => {
                 eventConfirmationEnabled,
                 updatedAt: timestamp,
                 saveSource: source,
+                // 理念系统
+                ideologyScore,
+                ideologyScoreSpent,
+                ideologyCollection,
+                equippedIdeologies,
+                ideologySlotCount,
+                ideologyCooldowns,
+                ideologyMilestones,
+                pendingIdeologyEmergence,
                 // AI balance version marker - increment to trigger re-migration of old saves
                 // v1: initial migration for too-strong/too-weak AI
                 // v2: fix missing economyTraits fields that prevent AI development
@@ -3509,6 +3528,25 @@ export const useGameState = () => {
         setTechsUnlocked,
         epoch,
         setEpoch,
+
+        // 理念系统
+        ideologyScore,
+        setIdeologyScore,
+        ideologyScoreSpent,
+        setIdeologyScoreSpent,
+        ideologyCollection,
+        setIdeologyCollection,
+        equippedIdeologies,
+        setEquippedIdeologies,
+        ideologySlotCount,
+        setIdeologySlotCount,
+        ideologyCooldowns,
+        setIdeologyCooldowns,
+        ideologyMilestones,
+        setIdeologyMilestones,
+        pendingIdeologyEmergence,
+        setPendingIdeologyEmergence,
+
         daysElapsed,
         setDaysElapsed,
 

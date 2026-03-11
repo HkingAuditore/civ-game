@@ -3,6 +3,7 @@
 
 import { EPOCHS, STRATA, RESOURCES, TECHS } from '../config';
 import { EVENTS, BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS, STATIC_DIPLOMATIC_EVENTS } from '../config/events';
+import { IDEOLOGIES } from '../config/ideologies';
 
 const EPOCH_ALIASES = {
     stone: 0,
@@ -203,6 +204,16 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
             console.log('  cheat.fireAllOfficials()             - 解雇所有官员');
             console.log('  cheat.clearCandidates()              - 清空候选人列表');
             console.log('  cheat.superOfficials()               - 生成5个超级官员');
+            console.log('');
+            console.log('%cIdeology:', 'color: #a855f7; font-weight: bold;');
+            console.log('  cheat.addIdeologyScore(amount)       - 增加理念分数（默认500）');
+            console.log('  cheat.triggerEmergence()             - 触发理念涌现（三选一）');
+            console.log('  cheat.unlockAllIdeology()            - 解锁所有理念（满级）');
+            console.log('  cheat.addIdeologySlot(amount)        - 增加理念卡槽');
+            console.log('  cheat.clearIdeologyCooldowns()       - 清除所有理念冷却');
+            console.log('  cheat.resetIdeology()                - 重置理念系统');
+            console.log('  cheat.ideologyStatus()               - 查看理念状态');
+            console.log('');
             console.log('  cheat.help()                - Show this help');
             console.log('');
             console.log('%c💡 Quick Fix:', 'color: #ff6600; font-size: 14px; font-weight: bold;');
@@ -1597,6 +1608,133 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
             addLog(`💱 作弊码：所有可交易资源税率统一为 ${r}`);
             console.log(`✅ All tradable resource taxes set to ${r}`);
         },
+
+        // ========== Ideology Cheat Commands ==========
+
+        /**
+         * 增加理念分数
+         */
+        addIdeologyScore: (amount = 500) => {
+            const value = Math.max(0, Number(amount) || 0);
+            if (!gameState.setIdeologyScore) {
+                console.log('❌ Ideology system is not available');
+                return;
+            }
+            gameState.setIdeologyScore(prev => (prev || 0) + value);
+            addLog(`💡 作弊码：获得 ${value} 理念分数`);
+            console.log(`✅ Added ${value} ideology score`);
+        },
+
+        /**
+         * 触发理念涌现（强制三选一）
+         */
+        triggerEmergence: () => {
+            if (!gameState.setIdeologyScore || !gameState.setPendingIdeologyEmergence) {
+                console.log('❌ Ideology system is not available');
+                return;
+            }
+            // 通过增加足够分数触发涌现
+            const owned = (gameState.ideologyCollection || []).length;
+            const threshold = 50 + owned * 30;
+            const currentNet = (gameState.ideologyScore || 0) - (gameState.ideologyScoreSpent || 0);
+            if (currentNet < threshold) {
+                gameState.setIdeologyScore(prev => (prev || 0) + (threshold - currentNet + 10));
+            }
+            addLog(`💡 作弊码：理念涌现即将触发（下次 tick 生效）`);
+            console.log(`✅ Ideology emergence will trigger on next tick (threshold: ${threshold})`);
+        },
+
+        /**
+         * 解锁所有理念（全部3级）
+         */
+        unlockAllIdeology: () => {
+            if (!gameState.setIdeologyCollection) {
+                console.log('❌ Ideology system is not available');
+                return;
+            }
+            try {
+                const allIdeologies = IDEOLOGIES.map(i => ({ id: i.id, level: 3 }));
+                gameState.setIdeologyCollection(allIdeologies);
+                addLog(`💡 作弊码：解锁所有理念（共 ${allIdeologies.length} 个，全部满级）`);
+                console.log(`✅ Unlocked all ${allIdeologies.length} ideologies at max level`);
+            } catch (e) {
+                console.log('❌ Failed to load ideology config:', e.message);
+            }
+        },
+
+        /**
+         * 增加理念卡槽
+         */
+        addIdeologySlot: (amount = 1) => {
+            if (!gameState.setIdeologySlotCount) {
+                console.log('❌ Ideology system is not available');
+                return;
+            }
+            const value = Math.max(1, Math.floor(Number(amount) || 1));
+            gameState.setIdeologySlotCount(prev => Math.min(10, (prev || 3) + value));
+            addLog(`💡 作弊码：增加 ${value} 个理念卡槽`);
+            console.log(`✅ Added ${value} ideology slot(s)`);
+        },
+
+        /**
+         * 清除所有理念冷却
+         */
+        clearIdeologyCooldowns: () => {
+            if (!gameState.setIdeologyCooldowns) {
+                console.log('❌ Ideology system is not available');
+                return;
+            }
+            gameState.setIdeologyCooldowns({});
+            addLog(`💡 作弊码：清除所有理念冷却`);
+            console.log(`✅ All ideology cooldowns cleared`);
+        },
+
+        /**
+         * 清空理念（重置理念系统）
+         */
+        resetIdeology: () => {
+            if (!gameState.setIdeologyCollection) {
+                console.log('❌ Ideology system is not available');
+                return;
+            }
+            gameState.setIdeologyScore(0);
+            gameState.setIdeologyScoreSpent(0);
+            gameState.setIdeologyCollection([]);
+            gameState.setEquippedIdeologies([]);
+            gameState.setIdeologySlotCount(3);
+            gameState.setIdeologyCooldowns({});
+            gameState.setIdeologyMilestones([]);
+            gameState.setPendingIdeologyEmergence(null);
+            addLog(`💡 作弊码：理念系统已重置`);
+            console.log(`✅ Ideology system reset`);
+        },
+
+        /**
+         * 查看理念状态
+         */
+        ideologyStatus: () => {
+            const score = gameState.ideologyScore || 0;
+            const spent = gameState.ideologyScoreSpent || 0;
+            const collection = gameState.ideologyCollection || [];
+            const equipped = gameState.equippedIdeologies || [];
+            const slots = gameState.ideologySlotCount || 3;
+            const cooldowns = gameState.ideologyCooldowns || {};
+            const net = score - spent;
+            const threshold = 50 + collection.length * 30;
+
+            console.log('%c💡 Ideology Status:', 'color: #a855f7; font-size: 16px; font-weight: bold;');
+            console.log(`  Score: ${score} (spent: ${spent}, net: ${net})`);
+            console.log(`  Next emergence at: ${threshold} (need ${Math.max(0, threshold - net)} more)`);
+            console.log(`  Collection: ${collection.length} ideologies`);
+            collection.forEach(i => console.log(`    - ${i.id} (Lv.${i.level})`));
+            console.log(`  Equipped: ${equipped.length}/${slots} slots`);
+            equipped.forEach(id => console.log(`    - ${id}`));
+            const cdKeys = Object.keys(cooldowns).filter(k => cooldowns[k] > 0);
+            if (cdKeys.length > 0) {
+                console.log(`  Cooldowns:`);
+                cdKeys.forEach(k => console.log(`    - ${k}: ${cooldowns[k]} days`));
+            }
+        },
     };
 
     // Display welcome message (commented out to reduce console spam)
@@ -1633,6 +1771,12 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
         'skipyear': () => window.cheat.skipYear(),
         'peaceall': () => window.cheat.makePeaceAll(),
         'peace': () => window.cheat.makePeaceAll(),
+        'addidea': () => window.cheat.addIdeologyScore(500),
+        'emergence': () => window.cheat.triggerEmergence(),
+        'unlockallidea': () => window.cheat.unlockAllIdeology(),
+        'addslot': () => window.cheat.addIdeologySlot(1),
+        'clearcd': () => window.cheat.clearIdeologyCooldowns(),
+        'resetidea': () => window.cheat.resetIdeology(),
         'vassal': () => console.log('%c👑 Use cheat.makeVassal("nation", "type") to make a nation your vassal', 'color: #ffff00;'),
         'listvassal': () => window.cheat.listVassals(),
     };

@@ -9,6 +9,8 @@ import { RESOURCES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getEpochTheme } from '../../config/epicTheme';
 import { getTechCostMultiplier } from '../../config/difficulty';
+import { IdeologyTab } from './IdeologyTab';
+import { TechTreeView } from './TechTreeView';
 
 const EPOCH_BONUS_LABELS = {
     gatherBonus: { label: '采集产出', type: 'percent' },
@@ -89,7 +91,7 @@ const applyAlpha = (color, alpha = 1) => {
 };
 
 /**
- * 科技悬浮提示框 (使用 Portal)
+ * 知识悬浮提示框 (使用 Portal)
  */
 const TechTooltip = ({ tech, status, resources, market, anchorElement, difficulty }) => {
     if (!tech || !anchorElement) return null;
@@ -168,7 +170,7 @@ const TechTooltip = ({ tech, status, resources, market, anchorElement, difficult
 /**
  * 科技标签页组件
  * 显示科技树和时代升级
- * @param {Array} techsUnlocked - 已解锁的科技数组
+ * @param {Array} techsUnlocked - 已解锁的知识数组
  * @param {number} epoch - 当前时代
  * @param {Object} resources - 资源对象
  * @param {number} population - 总人口
@@ -187,7 +189,18 @@ const TechTabComponent = ({
     market,
     onShowTechDetails, // 新增：显示科技详情回调
     difficulty,
+    // 理念系统 props
+    ideologyScore = 0,
+    ideologyScoreSpent = 0,
+    ideologyCollection = [],
+    equippedIdeologies = [],
+    ideologySlotCount = 3,
+    ideologyCooldowns = {},
+    setEquippedIdeologies,
+    setIdeologyCooldowns,
+    setIdeologySlotCount,
 }) => {
+    const [activeSection, setActiveSection] = useState('knowledge');
     const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
     // Check for both hover capability AND fine pointer (mouse/trackpad) to correctly exclude touch devices
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -207,6 +220,12 @@ const TechTabComponent = ({
 
         // 时代不足
         if (tech.epoch > epoch) return false;
+
+        // 检查前置知识
+        if (tech.prerequisites && tech.prerequisites.length > 0) {
+            const allPrereqsMet = tech.prerequisites.every(pid => techsUnlocked.includes(pid));
+            if (!allPrereqsMet) return false;
+        }
 
         // 资源不足
         const multiplier = getTechCostMultiplier(difficulty);
@@ -246,30 +265,7 @@ const TechTabComponent = ({
         }, {});
     }, []);
 
-    const [expandedEpochs, setExpandedEpochs] = useState(() => {
-        const defaults = new Set();
-        Object.keys(techsByEpoch).forEach((epochIdx) => {
-            const idx = parseInt(epochIdx, 10);
-            const techs = techsByEpoch[idx] || [];
-            const hasUnresearched = techs.some((tech) => !techsUnlocked.includes(tech.id));
-            if (idx === epoch || hasUnresearched) {
-                defaults.add(idx);
-            }
-        });
-        return defaults;
-    });
-
     const [showUnresearchedOnly, setShowUnresearchedOnly] = useState(false);
-
-    useEffect(() => {
-        // 自动展开新进入的时代
-        setExpandedEpochs((prev) => {
-            if (prev.has(epoch)) return prev;
-            const updated = new Set(prev);
-            updated.add(epoch);
-            return updated;
-        });
-    }, [epoch]);
 
     const visibleEpochIndices = useMemo(() => (
         Object.keys(techsByEpoch)
@@ -277,46 +273,6 @@ const TechTabComponent = ({
             .filter((idx) => idx <= epoch)
             .sort((a, b) => a - b)
     ), [techsByEpoch, epoch]);
-
-    const epochSummaries = useMemo(() => {
-        return visibleEpochIndices.reduce((acc, idx) => {
-            const techs = techsByEpoch[idx] || [];
-            const total = techs.length;
-            const researchedCount = techs.filter((tech) => techsUnlocked.includes(tech.id)).length;
-            const hasResearchable = techs.some((tech) => canResearch(tech));
-            acc[idx] = {
-                techs,
-                total,
-                researchedCount,
-                isCompleted: total > 0 && researchedCount === total,
-                hasResearchable,
-            };
-            return acc;
-        }, {});
-    }, [visibleEpochIndices, techsByEpoch, techsUnlocked, canResearch]);
-
-    const areAllVisibleExpanded = visibleEpochIndices.length > 0 && visibleEpochIndices.every((idx) => expandedEpochs.has(idx));
-
-    const toggleEpoch = (idx) => {
-        setExpandedEpochs((prev) => {
-            const updated = new Set(prev);
-            if (updated.has(idx)) {
-                updated.delete(idx);
-            } else {
-                updated.add(idx);
-            }
-            return updated;
-        });
-    };
-
-    const handleToggleAll = () => {
-        setExpandedEpochs(() => {
-            if (areAllVisibleExpanded) {
-                return new Set();
-            }
-            return new Set(visibleEpochIndices);
-        });
-    };
 
     const safeEpochIndex = typeof epoch === 'number' && epoch >= 0 && epoch < EPOCHS.length ? epoch : 0;
     const currentEpoch = EPOCHS[safeEpochIndex];
@@ -369,6 +325,57 @@ const TechTabComponent = ({
 
     return (
         <div className="space-y-4">
+            {/* 子Tab切换：科技树 / 理念 */}
+            <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
+                <button
+                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${
+                        activeSection === 'knowledge'
+                            ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
+                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
+                    }`}
+                    onClick={() => setActiveSection('knowledge')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="Lightbulb" size={14} />
+                        科技树
+                    </span>
+                </button>
+                <button
+                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${
+                        activeSection === 'ideology'
+                            ? 'bg-purple-900/40 border-purple-500/60 text-purple-100 shadow-metal-sm'
+                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
+                    }`}
+                    onClick={() => setActiveSection('ideology')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="Sparkles" size={14} />
+                        理念
+                        {ideologyCollection.length > 0 && (
+                            <span className="text-[10px] bg-purple-700/50 px-1.5 py-0.5 rounded-full text-purple-200">
+                                {ideologyCollection.length}
+                            </span>
+                        )}
+                    </span>
+                </button>
+            </div>
+
+            {activeSection === 'ideology' ? (
+                <IdeologyTab
+                    ideologyScore={ideologyScore}
+                    ideologyScoreSpent={ideologyScoreSpent}
+                    ideologyCollection={ideologyCollection}
+                    equippedIdeologies={equippedIdeologies}
+                    ideologySlotCount={ideologySlotCount}
+                    ideologyCooldowns={ideologyCooldowns}
+                    epoch={epoch}
+                    techsUnlocked={techsUnlocked}
+                    setEquippedIdeologies={setEquippedIdeologies}
+                    setIdeologyCooldowns={setIdeologyCooldowns}
+                    setIdeologySlotCount={setIdeologySlotCount}
+                />
+            ) : (
+            <>
             {/* 时代升级区域 */}
             <div
                 className="relative p-3 rounded-xl border-2 shadow-epic overflow-hidden transition-all"
@@ -515,7 +522,7 @@ const TechTabComponent = ({
                 )}
             </div>
 
-            {/* 科技树 */}
+            {/* 科技树 - 可视化依赖图 */}
             <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
                 <h3 className="font-bold mb-2 text-base flex items-center gap-1.5 text-gray-300 font-decorative">
                     <Icon name="Lightbulb" size={14} className="text-yellow-400" />
@@ -532,114 +539,21 @@ const TechTabComponent = ({
                         />
                         仅显示未研究
                     </label>
-                    <button
-                        onClick={handleToggleAll}
-                        className="text-xs px-3 py-1.5 rounded border border-ancient-gold/30 text-ancient-parchment hover:border-purple-400 hover:text-ancient transition-colors"
-                    >
-                        {areAllVisibleExpanded ? '全部折叠' : '全部展开'}
-                    </button>
                 </div>
 
-                {/* 按时代显示科技 */}
-                <div className="space-y-3">
-                    {visibleEpochIndices.map((epochIdx) => {
-                        const epochInfo = EPOCHS[epochIdx];
-                        const summary = epochSummaries[epochIdx];
-                        const isExpanded = expandedEpochs.has(epochIdx);
-                        const progressLabel = summary?.isCompleted
-                            ? '✓ 已完成'
-                            : `${summary?.researchedCount || 0}/${summary?.total || 0}`;
-                        const progressClass = summary?.isCompleted ? 'text-green-400' : 'text-gray-300';
-
-                        const techs = summary?.techs || [];
-                        const visibleTechs = showUnresearchedOnly
-                            ? techs.filter((tech) => !techsUnlocked.includes(tech.id))
-                            : techs;
-
-                        return (
-                            <div
-                                key={epochIdx}
-                                className={`border rounded-lg ${summary?.hasResearchable ? 'border-yellow-400/70' : 'border-gray-700'
-                                    } bg-gray-900/40`}
-                            >
-                                <button
-                                    type="button"
-                                    className="w-full flex items-center justify-between px-3 py-2 text-left text-sm text-purple-200"
-                                    onClick={() => toggleEpoch(epochIdx)}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <Icon name={isExpanded ? 'ArrowDown' : 'ArrowRight'} size={16} className="text-purple-300" />
-                                        <span className="font-bold text-[16px] font-decorative ">{epochInfo?.name}</span>
-                                        {summary?.hasResearchable && (
-                                            <span className="h-2 w-2 rounded-full bg-yellow-300 animate-pulse" />
-                                        )}
-                                    </div>
-                                    <div className={`text-xs font-semibold ${progressClass}`}>
-                                        {progressLabel}
-                                    </div>
-                                </button>
-                                {isExpanded && (
-                                    <div className="border-t border-gray-800 px-3 py-2">
-                                        {visibleTechs.length > 0 ? (
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                                                {visibleTechs.map((tech) => {
-                                                    const status = getTechStatus(tech);
-                                                    const multiplier = getTechCostMultiplier(difficulty);
-                                                    const adjustedCost = Object.fromEntries(Object.entries(tech.cost).map(([r, v]) => [r, Math.ceil(v * multiplier)]));
-                                                    const silverCost = calculateSilverCost(adjustedCost, market);
-                                                    const affordable = canResearch(tech);
-
-                                                    return (
-                                                        <div
-                                                            key={tech.id}
-                                                            onMouseEnter={(e) => handleMouseEnter(e, tech)}
-                                                            onMouseLeave={() => canHover && setHoveredTech({ tech: null, element: null })}
-                                                            onClick={() => onShowTechDetails && onShowTechDetails(tech, status)}
-                                                            className={`group flex flex-col items-center p-1.5 rounded-lg border transition-all cursor-pointer active:scale-[0.98] ${status === 'unlocked'
-                                                                ? 'glass-ancient border-green-600/60'
-                                                                : affordable
-                                                                    ? 'glass-ancient border-ancient-gold/30 hover:border-blue-400/70 hover:shadow-glow-gold'
-                                                                    : 'bg-gray-800/60 border-gray-600'
-                                                                }`}
-                                                        >
-                                                            <span className="text-[13px] text-white text-center leading-tight mb-0.5 line-clamp-1">{tech.name}</span>
-                                                            {status !== 'unlocked' && (
-                                                                <span className="text-xs text-cyan-300 font-mono mb-0.5 inline-flex items-center gap-1">
-                                                                    <Icon name={RESOURCES.science?.icon || 'Flask'} size={10} className="text-cyan-300" />
-                                                                    {adjustedCost?.science ?? 0}
-                                                                </span>
-                                                            )}
-                                                            {status === 'unlocked' ? (
-                                                                <span className="text-xs text-green-400">✓已研究</span>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
-                                                                    disabled={!affordable}
-                                                                    className={`w-full px-1 py-0.5 rounded text-xs font-semibold ${affordable
-                                                                        ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
-                                                                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                                                        }`}
-                                                                >
-                                                                    <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
-                                                                        {formatSilverCost(silverCost)}
-                                                                    </span>
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <p className="text-xs text-gray-400 text-center">
-                                                {showUnresearchedOnly ? '该时代暂无未研究科技。' : '该时代暂无科技。'}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+                <TechTreeView
+                    techsByEpoch={techsByEpoch}
+                    visibleEpochIndices={visibleEpochIndices}
+                    techsUnlocked={techsUnlocked}
+                    epoch={epoch}
+                    resources={resources}
+                    market={market}
+                    difficulty={difficulty}
+                    canResearch={canResearch}
+                    onResearch={onResearch}
+                    onShowTechDetails={onShowTechDetails}
+                    showUnresearchedOnly={showUnresearchedOnly}
+                />
             </div>
 
             {/* 悬浮提示框 Portal */}
@@ -651,6 +565,8 @@ const TechTabComponent = ({
                 market={market}
                 difficulty={difficulty}
             />
+            </>
+            )}
         </div>
     );
 };

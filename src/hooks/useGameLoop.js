@@ -18,6 +18,8 @@ import {
 } from '../config';
 import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
+import { IDEOLOGY_MAP } from '../config/ideologies';
+import { IDEOLOGY_SYNERGIES } from '../config/ideologySynergies';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
 import {
@@ -647,6 +649,23 @@ difficulty, // 游戏难度
         setForeignInvestments, // [FIX] Destructure setter
         corpsReplenishQueue,
         setCorpsReplenishQueue,
+        // 理念系统
+        ideologyScore,
+        setIdeologyScore,
+        ideologyScoreSpent,
+        setIdeologyScoreSpent,
+        ideologyCollection,
+        setIdeologyCollection,
+        equippedIdeologies,
+        setEquippedIdeologies,
+        ideologySlotCount,
+        setIdeologySlotCount,
+        ideologyCooldowns,
+        setIdeologyCooldowns,
+        ideologyMilestones,
+        setIdeologyMilestones,
+        pendingIdeologyEmergence,
+        setPendingIdeologyEmergence,
     } = gameState;
 
     // 浣跨敤ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
@@ -715,6 +734,14 @@ difficulty, // 游戏难度
         expansionSettings, // [NEW] Free Market settings
         priceControls, // [NEW] 浠锋牸绠″埗璁剧疆
         corpsReplenishQueue, // Corps replenish deficit queue
+        // 理念系统
+        equippedIdeologies,
+        ideologyCollection,
+        ideologyScore,
+        ideologyScoreSpent,
+        ideologyCooldowns,
+        ideologyMilestones,
+        pendingIdeologyEmergence,
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -854,8 +881,16 @@ difficulty, // 游戏难度
             activeFronts, // [NEW] 娲昏穬鎴樼嚎
             activeBattles, // [NEW] 杩涜涓殑鎴樻枟
             corpsReplenishQueue, // Corps replenish deficit queue
+            // 理念系统
+            equippedIdeologies,
+            ideologyCollection,
+            ideologyScore,
+            ideologyScoreSpent,
+            ideologyCooldowns,
+            ideologyMilestones,
+            pendingIdeologyEmergence,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
@@ -1232,6 +1267,20 @@ difficulty, // 游戏难度
                 generals: current.generals || [], // [NEW] Generals state
                 activeFronts: current.activeFronts || [], // [NEW] Active fronts
                 activeBattles: current.activeBattles || [], // [NEW] Active battles
+
+                // 理念系统
+                equippedIdeologies: (() => {
+                    // 将equippedIds解析为完整理念对象（含等级），供simulation中的applyIdeologyEffects使用
+                    const collection = current.ideologyCollection || [];
+                    const equipped = current.equippedIdeologies || [];
+                    // IDEOLOGY_MAP 已在文件顶部静态导入
+                    const collectionMap = {};
+                    for (const entry of collection) { collectionMap[entry.id] = entry; }
+                    return equipped
+                        .filter(id => IDEOLOGY_MAP[id] && collectionMap[id])
+                        .map(id => ({ ...IDEOLOGY_MAP[id], level: collectionMap[id].level || 1 }));
+                })(),
+                ideologySynergies: IDEOLOGY_SYNERGIES || [],
             };
 
             const perfEnabled = typeof window !== 'undefined'
@@ -1836,6 +1885,56 @@ difficulty, // 游戏难度
                             ...prev,
                             forcedSubsidy: updatedSubsidies
                         };
+                    });
+                }
+
+                // ========== 理念系统每日更新 ==========
+                // 1. 冷却减少
+                if (current.ideologyCooldowns && Object.keys(current.ideologyCooldowns).length > 0) {
+                    import('../logic/ideology/ideologySlots').then(({ tickCooldowns }) => {
+                        setIdeologyCooldowns(prev => tickCooldowns(prev));
+                    });
+                }
+
+                // 2. 理念分数检查（使用prevState对比）
+                {
+                    import('../logic/ideology/ideologyScoring').then(({ checkAndAwardIdeologyScore, checkEmergence, getEmergenceThreshold }) => {
+                        import('../logic/ideology/ideologyEmergence').then(({ generateEmergenceCandidates }) => {
+                            const prevState = {
+                                techsUnlocked: current.techsUnlocked || [],
+                                epoch: current.epoch || 0,
+                                stability: current.stability || 50,
+                            };
+                            const curState = {
+                                techsUnlocked: current.techsUnlocked || [],
+                                epoch: current.epoch || 0,
+                                stability: result.stability ?? current.stability ?? 50,
+                                population: result.population ?? current.population ?? 0,
+                                buildings: current.buildings || {},
+                                resources: adjustedResources,
+                                popStructure: result.popStructure || current.popStructure || {},
+                                classApproval: result.classApproval || current.classApproval || {},
+                                ideologyMilestones: current.ideologyMilestones || [],
+                            };
+                            const scoreResult = checkAndAwardIdeologyScore(curState, prevState);
+                            if (scoreResult.scoreGained > 0) {
+                                setIdeologyScore(prev => (prev || 0) + scoreResult.scoreGained);
+                                if (scoreResult.updatedMilestones) {
+                                    setIdeologyMilestones(scoreResult.updatedMilestones);
+                                }
+                            }
+
+                            // 3. 涌现检查
+                            const newScore = (current.ideologyScore || 0) + scoreResult.scoreGained;
+                            const newSpent = current.ideologyScoreSpent || 0;
+                            const ownedCount = (current.ideologyCollection || []).length;
+                            if (!current.pendingIdeologyEmergence && checkEmergence(newScore, newSpent, ownedCount)) {
+                                const candidates = generateEmergenceCandidates(curState, current.ideologyCollection || []);
+                                if (candidates.length > 0) {
+                                    setPendingIdeologyEmergence({ candidates });
+                                }
+                            }
+                        });
                     });
                 }
 

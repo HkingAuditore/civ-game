@@ -1,0 +1,148 @@
+/**
+ * 理念联动配置
+ * 定义理念之间的联动组合效果
+ * 当所有 required 理念都装备在卡槽中时激活联动效果
+ */
+export const IDEOLOGY_SYNERGIES = [
+    {
+        id: 'enlightenment_spirit',
+        name: '启蒙精神',
+        required: ['humanism', 'social_contract_ideology'],
+        desc: '人文关怀与契约精神的融合，开启理性的黄金时代。',
+        effects: { scienceBonus: 0.15, cultureBonus: 0.15, stability: 10 },
+    },
+    {
+        id: 'holy_war',
+        name: '圣战',
+        required: ['monotheism', 'militarism'],
+        desc: '以信仰之名征战四方，战士们坚信神明在注视着他们。',
+        effects: { militaryBonus: 0.25, stability: 15, cultureBonus: -0.10 },
+    },
+    {
+        id: 'golden_age',
+        name: '黄金时代',
+        required: ['impressionism', 'humanism'],
+        desc: '当人文精神遇上艺术创新，文化的辉煌绽放到极致。',
+        effects: { cultureBonus: 0.25, perPopPassive: { culture: 0.003 } },
+    },
+    {
+        id: 'iron_and_blood',
+        name: '铁血政策',
+        required: ['militarism', 'absolute_idealism'],
+        desc: '意志与力量的结合，不以演说和多数决定时代的重大问题。',
+        effects: { militaryBonus: 0.15, scienceBonus: 0.10, stability: -5 },
+    },
+    {
+        id: 'invisible_hand',
+        name: '无形之手',
+        required: ['laissez_faire', 'mercantilism'],
+        desc: '自由贸易与国家利益的微妙平衡，商业帝国的理论基石。',
+        effects: { incomePercent: 0.15, production: 0.08, stability: -8 },
+    },
+    {
+        id: 'total_mobilization',
+        name: '全面动员',
+        required: ['levee_en_masse', 'militarism'],
+        desc: '全民族投入战争洪流，和平时期的一切都是战争准备。',
+        effects: { militaryBonus: 0.10, maxPop: -0.03, production: -0.05 },
+    },
+    {
+        id: 'theocracy',
+        name: '政教合一',
+        required: ['monotheism', 'divine_right'],
+        desc: '宗教与王权合而为一，信仰即法律，神意即君命。',
+        effects: { stability: 20, cultureBonus: 0.05, scienceBonus: -0.10 },
+    },
+    {
+        id: 'peoples_republic',
+        name: '人民共和',
+        required: ['republicanism', 'egalitarianism'],
+        desc: '权力属于人民，法律面前人人平等。',
+        effects: { stability: 12, maxPop: 0.08, categories: { civic: 0.10 } },
+    },
+    {
+        id: 'scientific_revolution',
+        name: '科学革命',
+        required: ['empiricism', 'scientific_method'],
+        desc: '经验与方法的结合引爆了知识的连锁反应。',
+        effects: { scienceBonus: 0.20, production: 0.08, cultureBonus: 0.05 },
+    },
+    {
+        id: 'industrial_empire',
+        name: '工业帝国',
+        required: ['state_capitalism', 'tech_optimism'],
+        desc: '国家意志驱动技术革新，钢铁洪流铸就工业霸权。',
+        effects: { categories: { industry: 0.15 }, production: 0.10, stability: -5 },
+    },
+    {
+        id: 'agrarian_harmony',
+        name: '田园牧歌',
+        required: ['physiocracy', 'ancestor_worship'],
+        desc: '回归土地与先祖的智慧，在自然秩序中寻找和谐。',
+        effects: { categories: { gather: 0.12 }, stability: 12, maxPop: 0.05 },
+    },
+    {
+        id: 'cultural_renaissance',
+        name: '文艺复兴',
+        required: ['classicism', 'humanism'],
+        desc: '古典之美与人文精神的重逢，文明的伟大复兴。',
+        effects: { cultureBonus: 0.18, scienceBonus: 0.12, stability: 5 },
+    },
+    // ============ 扩充联动 ============
+    {
+        id: 'confucian_bureaucracy',
+        name: '科举治国',
+        required: ['confucianism', 'meritocracy'],
+        desc: '儒家德行与贤能选拔的结合，打造高效清廉的文官体系。',
+        effects: { categories: { civic: 0.12 }, scienceBonus: 0.08, stability: 10 },
+    },
+    {
+        id: 'spirit_of_capitalism',
+        name: '资本主义精神',
+        required: ['individualism', 'laissez_faire'],
+        desc: '个人自由与市场经济的完美结合，财富创造的黄金法则。',
+        effects: { incomePercent: 0.15, production: 0.10, stability: -8, maxPop: 0.03 },
+    },
+    {
+        id: 'workers_revolution',
+        name: '工人革命',
+        required: ['labor_movement', 'communism'],
+        desc: '无产者联合起来，推翻旧世界，建设新社会。',
+        effects: { production: 0.15, maxPop: 0.10, stability: -15, incomePercent: -0.10 },
+    },
+    {
+        id: 'manifest_destiny',
+        name: '天定命运',
+        required: ['nationalism', 'imperialism'],
+        desc: '民族使命与扩张野心的融合，不可阻挡的历史洪流。',
+        effects: { militaryBonus: 0.18, incomePercent: 0.08, stability: -5 },
+    },
+    {
+        id: 'ancient_wisdom',
+        name: '古代智慧',
+        required: ['ancestor_worship', 'confucianism'],
+        desc: '祖先崇拜与儒家伦理的融合，家族与国家的双重秩序。',
+        effects: { stability: 15, cultureBonus: 0.08, maxPop: 0.05 },
+    },
+    {
+        id: 'rational_science',
+        name: '理性科学',
+        required: ['rationalism', 'scientific_method'],
+        desc: '纯粹理性与实验方法的联姻，开启真正的科学时代。',
+        effects: { scienceBonus: 0.22, production: 0.08 },
+    },
+    {
+        id: 'pax_romana',
+        name: '罗马和平',
+        required: ['stoicism', 'republicanism'],
+        desc: '斯多葛的内心平静与共和的制度智慧，缔造持久的和平秩序。',
+        effects: { stability: 18, cultureBonus: 0.10, incomePercent: 0.05 },
+    },
+    {
+        id: 'blitzkrieg_doctrine',
+        name: '闪电战学说',
+        required: ['professional_army', 'mechanization'],
+        desc: '职业化军队与机械化思维的结合，以速度和火力实现决定性突破。',
+        effects: { militaryBonus: 0.20, categories: { industry: 0.08 }, stability: -3 },
+    },
+];

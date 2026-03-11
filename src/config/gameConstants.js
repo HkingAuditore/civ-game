@@ -903,7 +903,7 @@ export const RESOURCES = {
         // 货币不需要marketConfig
     },
     science: {
-        name: "科研",
+        name: "学识",
         icon: 'Cpu',
         color: "text-cyan-400",
         basePrice: 5,
