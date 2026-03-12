@@ -25,6 +25,7 @@ export const TechDetailSheet = ({
     onResearch,
     onClose,
     difficulty = 'normal',
+    techCostMod = 0, // V2: Ideology tech cost modifier
 }) => {
     if (!tech) {
         return (
@@ -36,7 +37,7 @@ export const TechDetailSheet = ({
     }
 
     // 获取难度调整后的成本
-    const techCostMultiplier = getTechCostMultiplier(difficulty);
+    const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
     const adjustedCost = {};
     Object.entries(tech.cost).forEach(([resource, cost]) => {
         adjustedCost[resource] = Math.ceil(cost * techCostMultiplier);

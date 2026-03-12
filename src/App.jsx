@@ -1383,6 +1383,7 @@ function GameApp({ gameState }) {
                                                 targetArmyComposition={gameState.targetArmyComposition}
                                                 onUpdateTargetComposition={gameState.setTargetArmyComposition}
                                                 militaryBonus={gameState.modifiers?.militaryBonus}
+                                                ideologyRuleMods={gameState.modifiers?.ideologyRuleMods}
                                                 // [FIX] Pass unified expense data (simulation preferred for consistency with StatusBar)
                                                 armyExpenseData={simulationMilitaryExpense || armyExpenseData}
                                                 difficulty={gameState.difficulty}
@@ -1429,6 +1430,7 @@ function GameApp({ gameState }) {
                                                 setEquippedIdeologies={gameState.setEquippedIdeologies}
                                                 setIdeologyCooldowns={gameState.setIdeologyCooldowns}
                                                 setIdeologySlotCount={gameState.setIdeologySlotCount}
+                                                techCostMod={gameState.modifiers?.ideologyRuleMods?.techCostMod || 0}
                                             />
                                         )}
 
@@ -1806,6 +1808,7 @@ function GameApp({ gameState }) {
                         resources={gameState.resources}
                         market={gameState.market}
                         difficulty={gameState.difficulty}
+                        techCostMod={gameState.modifiers?.ideologyRuleMods?.techCostMod || 0}
                         onResearch={actions.researchTech}
                         onClose={closeSheet}
                     />

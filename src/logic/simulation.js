@@ -1399,6 +1399,37 @@ export const simulateTick = ({
             activeAntiSynergies: antiSynergyResult.activeAntiSynergies,
         };
         ideologyRuleMods = applyRuleMods(equippedIdeologies);
+
+        // === V2: 将 ruleMods 中的全局修正注入 bonuses ===
+        // corruption_mod: 叠加到腐败率（负值=减少腐败）
+        const ideoCorruptionMod = ideologyRuleMods.corruption_mod?._global || 0;
+        if (ideoCorruptionMod) bonuses.corruption = Math.max(0, (bonuses.corruption || 0) + ideoCorruptionMod);
+        // trade_route_mod: 叠加到贸易加成
+        const ideoTradeMod = ideologyRuleMods.trade_route_mod?._global || 0;
+        if (ideoTradeMod) bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + ideoTradeMod;
+        // tech_cost_mod: 存到 bonuses 供 hooks 层消费
+        bonuses.ideoTechCostMod = ideologyRuleMods.tech_cost_mod?._global || 0;
+        // building_cost_mod: 按 scope 合并后存到 bonuses 供 hooks 层消费
+        bonuses.ideoBuildingCostMod = ideologyRuleMods.building_cost_mod || {};
+        // recruit_cost_mod: 按 scope 存到 bonuses 供 hooks 层消费
+        bonuses.ideoRecruitCostMod = ideologyRuleMods.recruit_cost_mod || {};
+        // maintenance_cost_mod: 按 scope 存到 bonuses 供军费计算
+        bonuses.ideoMaintenanceCostMod = ideologyRuleMods.maintenance_cost_mod || {};
+        // price_volatility_mod: 全局价格波动衰减
+        bonuses.ideoPriceVolatilityMod = ideologyRuleMods.price_volatility_mod?._global || 0;
+        // resource_price_mod: 按资源 scope 存储
+        bonuses.ideoResourcePriceMod = ideologyRuleMods.resource_price_mod || {};
+        // wages_mod: 按阶层 scope 存储
+        bonuses.ideoWagesMod = ideologyRuleMods.wages_mod || {};
+        // stratum_output_mod: 按阶层 scope 存储
+        bonuses.ideoStratumOutputMod = ideologyRuleMods.stratum_output_mod || {};
+        // building_input_mod: 按建筑分类 scope 存储
+        bonuses.ideoBuildingInputMod = ideologyRuleMods.building_input_mod || {};
+        // unit_attack_mod / unit_defense_mod: 按兵种 scope 存储
+        bonuses.ideoUnitAttackMod = ideologyRuleMods.unit_attack_mod || {};
+        bonuses.ideoUnitDefenseMod = ideologyRuleMods.unit_defense_mod || {};
+        // diplomatic_influence: 全局外交影响力
+        bonuses.ideoDiplomaticInfluence = ideologyRuleMods.diplomatic_influence?._global || 0;
     }
 
     // Apply Epoch bonuses
@@ -2356,6 +2387,14 @@ export const simulateTick = ({
             bonusSum += buildingBonus;
         }
 
+        // 6. V2: 理念阶层产出加成（stratum_output_mod）
+        // 按建筑 owner 阶层匹配，提升该阶层拥有建筑的产出
+        if (bonuses.ideoStratumOutputMod) {
+            const ownerMod = bonuses.ideoStratumOutputMod[primaryOwnerKey] || 0;
+            const globalMod = bonuses.ideoStratumOutputMod._global || 0;
+            if (ownerMod + globalMod !== 0) bonusSum += ownerMod + globalMod;
+        }
+
         // 应用加成：基础乘数 × (1 + 总加?
         multiplier *= (1 + bonusSum);
 
@@ -2429,14 +2468,17 @@ export const simulateTick = ({
                     const cached = roleExpectedWages[role] ?? getExpectedWage(role);
                     const livingFloor = getLivingCostFloor(role);
                     const adjustedWage = Math.max(cached, livingFloor);
-                    roleExpectedWages[role] = adjustedWage;
-                    expectedWageBillBase += roleFilled * adjustedWage;
+                    // V2: 理念工资修正（wages_mod，按阶层 scope）
+                    const ideoWageMod = (bonuses.ideoWagesMod?.[role] || 0) + (bonuses.ideoWagesMod?._global || 0);
+                    const finalWage = ideoWageMod !== 0 ? Math.max(livingFloor, adjustedWage * (1 + ideoWageMod)) : adjustedWage;
+                    roleExpectedWages[role] = finalWage;
+                    expectedWageBillBase += roleFilled * finalWage;
                     wagePlans.push({
                         role,
                         ownerKey: b.owner || 'state',
                         roleSlots: roleRequired,
                         filled: roleFilled,
-                        baseWage: adjustedWage,
+                        baseWage: finalWage,
                     });
                 }
             }
@@ -2487,7 +2529,9 @@ export const simulateTick = ({
             // 合并官员效果和政治立场效?
             const officialInputCostMod = bonuses.officialProductionInputCost?.[b.id] || 0;
             const stanceInputCostMod = bonuses.stanceProductionInputCost?.[b.id] || 0;
-            const totalInputCostMod = officialInputCostMod + stanceInputCostMod;
+            // V2: 理念建筑消耗修正（按建筑分类 scope）
+            const ideoInputCostMod = (bonuses.ideoBuildingInputMod?.[b.cat] || 0) + (bonuses.ideoBuildingInputMod?._global || 0);
+            const totalInputCostMod = officialInputCostMod + stanceInputCostMod + ideoInputCostMod;
 
             // 应用修正：正值增加消耗，负值减少消?
             if (totalInputCostMod !== 0) {
@@ -3442,6 +3486,30 @@ export const simulateTick = ({
         Object.entries(baseArmyMaintenance).forEach(([resource, amount]) => {
             armyMaintenance[resource] = isPlayerAtWar ? amount * WAR_MILITARY_MULTIPLIER : amount;
         });
+
+        // V2: 理念维护费修正（maintenance_cost_mod，按兵种分类或全局）
+        if (bonuses.ideoMaintenanceCostMod && Object.keys(bonuses.ideoMaintenanceCostMod).length > 0) {
+            const globalMaintMod = bonuses.ideoMaintenanceCostMod._global || 0;
+            // 按兵种分类计算加权修正
+            let totalUnits = 0;
+            let weightedMod = 0;
+            Object.entries(allMilitaryUnits).forEach(([unitId, count]) => {
+                if (count <= 0) return;
+                const unit = UNIT_TYPES?.[unitId];
+                if (!unit) return;
+                const catMod = bonuses.ideoMaintenanceCostMod[unit.category] || 0;
+                const unitMod = Math.max(-0.5, globalMaintMod + catMod); // cap at -50%
+                weightedMod += unitMod * count;
+                totalUnits += count;
+            });
+            if (totalUnits > 0) {
+                const avgMod = weightedMod / totalUnits;
+                const maintMultiplier = Math.max(0.5, 1 + avgMod);
+                Object.keys(armyMaintenance).forEach(key => {
+                    armyMaintenance[key] = Math.ceil(armyMaintenance[key] * maintMultiplier);
+                });
+            }
+        }
 
         // 2. 从市场购买维护资源（消耗资源、增加需求）
         let totalResourceCost = 0;
@@ -7080,13 +7148,29 @@ export const simulateTick = ({
             // 这样平滑处理会正确地向战争调整后的目标价格移动，避免价格卡在上限
             const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
 
+            // V2: 理念价格修正
+            let ideoAdjustedMarketPrice = warAdjustedMarketPrice;
+            // price_volatility_mod: 衰减价格波动（将价格拉向basePrice）
+            const volatilityMod = bonuses.ideoPriceVolatilityMod || 0;
+            if (volatilityMod !== 0) {
+                const baseP = getBasePrice(resource);
+                // 负值=减少波动（价格更稳定），正值=增加波动
+                const damping = Math.max(0, Math.min(1, -volatilityMod));
+                ideoAdjustedMarketPrice = ideoAdjustedMarketPrice * (1 - damping) + baseP * damping;
+            }
+            // resource_price_mod: 按资源 scope 修正（负值=降价）
+            const resPriceMod = (bonuses.ideoResourcePriceMod?.[resource] || 0) + (bonuses.ideoResourcePriceMod?._global || 0);
+            if (resPriceMod !== 0) {
+                ideoAdjustedMarketPrice *= Math.max(0.5, 1 + resPriceMod);
+            }
+
             // 平滑处理：向战争调整后的目标价格平滑移动
             // [FIX] 动态平滑系数：供需差距大时加快响应，避免价格反应迟钝
-            const prevPrice = priceMap[resource] || warAdjustedMarketPrice;
-            const priceGapRatio = prevPrice > 0 ? Math.abs(warAdjustedMarketPrice - prevPrice) / prevPrice : 0;
+            const prevPrice = priceMap[resource] || ideoAdjustedMarketPrice;
+            const priceGapRatio = prevPrice > 0 ? Math.abs(ideoAdjustedMarketPrice - prevPrice) / prevPrice : 0;
             // 基础平滑 0.1；差距超过 50% 时逐步加速到 0.4
             const dynamicSmoothing = Math.min(0.4, 0.1 + priceGapRatio * 0.3);
-            const smoothed = prevPrice + (warAdjustedMarketPrice - prevPrice) * dynamicSmoothing;
+            const smoothed = prevPrice + (ideoAdjustedMarketPrice - prevPrice) * dynamicSmoothing;
 
             // 应用价格限制
             const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
@@ -8233,6 +8317,12 @@ export const simulateTick = ({
         updatedDiplomaticReputation += monthlyTreatyBonus / 30;
     }
 
+    // V2: 理念外交影响力修正（diplomatic_influence）
+    if (bonuses.ideoDiplomaticInfluence) {
+        // 正值=声望向上偏移，负值=向下偏移（每日微量）
+        updatedDiplomaticReputation += bonuses.ideoDiplomaticInfluence / 30;
+    }
+
     // Apply natural recovery (towards 50)
     updatedDiplomaticReputation = calculateNaturalRecovery(updatedDiplomaticReputation);
 
@@ -8421,6 +8511,14 @@ export const simulateTick = ({
                 frontlineProductionPenalty: frontlineProductionPenalty || 0,
             },
             // 官员效果修饰符（供外部使用）
+            // V2: 理念 ruleMods 数据（供 hooks 层消费）
+            ideologyRuleMods: {
+                buildingCostMod: bonuses.ideoBuildingCostMod || {},
+                recruitCostMod: bonuses.ideoRecruitCostMod || {},
+                techCostMod: bonuses.ideoTechCostMod || 0,
+                unitAttackMod: bonuses.ideoUnitAttackMod || {},
+                unitDefenseMod: bonuses.ideoUnitDefenseMod || {},
+            },
             officialEffects: {
                 buildingCostMod: bonuses.buildingCostMod || 0,
                 militaryUpkeepMod: bonuses.militaryUpkeepMod || 0,

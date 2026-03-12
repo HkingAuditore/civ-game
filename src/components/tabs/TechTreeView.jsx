@@ -290,12 +290,13 @@ export const TechTreeView = React.memo(({
     resources,
     market,
     difficulty,
+    techCostMod = 0, // V2: Ideology tech cost modifier
     canResearch,
     onResearch,
     onShowTechDetails,
     showUnresearchedOnly,
 }) => {
-    const multiplier = getTechCostMultiplier(difficulty);
+    const multiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
     const containerRef = useRef(null);
 
     // 收集所有可见的科技节点（当前时代及以前的时代）

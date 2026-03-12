@@ -980,8 +980,11 @@ export const calculateArmyFoodNeed = (army = {}) => {
 
 // 战斗计算函数
 // soldierWage: 士兵阶层的平均工资，影响战斗力（默认50，上限加成+50%）
-export const calculateBattlePower = (army, epoch, militaryBuffs = 0, soldierWage = 50) => {
+export const calculateBattlePower = (army, epoch, militaryBuffs = 0, soldierWage = 50, ruleMods = {}) => {
     let totalPower = 0;
+    // V2: Extract ideology unit mods
+    const attackMods = ruleMods.unitAttackMod || {};
+    const defenseMods = ruleMods.unitDefenseMod || {};
 
     Object.entries(army).forEach(([unitId, count]) => {
         if (count <= 0) return;
@@ -989,8 +992,14 @@ export const calculateBattlePower = (army, epoch, militaryBuffs = 0, soldierWage
         const unit = UNIT_TYPES[unitId];
         if (!unit) return;
 
+        // V2: Apply per-category attack/defense mods from ideology
+        const catAtkMod = (attackMods[unit.category] || 0) + (attackMods._global || 0);
+        const catDefMod = (defenseMods[unit.category] || 0) + (defenseMods._global || 0);
+        const modifiedAttack = unit.attack * (1 + catAtkMod);
+        const modifiedDefense = unit.defense * (1 + catDefMod);
+
         // 基础战斗力 = (攻击力 + 防御力) * 数量
-        let unitPower = (unit.attack + unit.defense) * count;
+        let unitPower = (modifiedAttack + modifiedDefense) * count;
 
         // 时代差距计算
         const epochDiff = epoch - unit.epoch;
