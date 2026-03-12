@@ -17,9 +17,10 @@ import {
     PEACE_TREATY_TYPES
 } from '../config';
 import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
-import { getRandomFestivalEffects } from '../config/festivalEffects';
+import { buildAnnualReport } from '../utils/annualReport';
+
 import { IDEOLOGY_MAP } from '../config/ideologies';
-import { IDEOLOGY_SYNERGIES } from '../config/ideologySynergies';
+import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../config/ideologySynergies';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
 import {
@@ -106,9 +107,11 @@ import {
 import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic, processReinforcement, isBattleActive } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits, findBestReplenishTarget } from '../logic/diplomacy/corpsSystem';
 import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan, evaluateGeneralBattleProposal, allocateAICorpsToFronts, applyAICorpsAllocation } from '../logic/diplomacy/aiWar';
-import { applyMilitaryProcurementPressure, calculateWarPlunder } from '../logic/diplomacy/warEconomy';
+import { applyMilitaryProcurementPressure, calculateWarPlunder, calculateResourcePlunder } from '../logic/diplomacy/warEconomy';
+import { WAR_ECONOMY } from '../config/gameConstants';
 
 import { createBattleProposalEvent } from '../config/events/diplomaticEvents';
+import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
@@ -515,6 +518,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         gameSpeed,
         isPaused,
         setIsPaused,
+        setPausedBeforeEvent,
         nations,
         setNations,
         diplomaticReputation,
@@ -581,8 +585,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         classInfluenceShift,
         setClassInfluenceShift,
         setFestivalModal,
-        activeFestivalEffects,
-        setActiveFestivalEffects,
+        annualReportBaseline,
+        setAnnualReportBaseline,
         lastFestivalYear,
         setLastFestivalYear,
         setHistory,
@@ -698,7 +702,7 @@ difficulty, // 游戏难度
         militaryWageRatio,
         classApproval,
         daysElapsed,
-        activeFestivalEffects,
+        annualReportBaseline,
         lastFestivalYear,
         isPaused,
         autoSaveInterval,
@@ -837,7 +841,7 @@ difficulty, // 游戏难度
             militaryWageRatio,
             classApproval,
             daysElapsed,
-            activeFestivalEffects,
+            annualReportBaseline,
             lastFestivalYear,
             isPaused,
             autoSaveInterval,
@@ -890,7 +894,7 @@ difficulty, // 游戏难度
             ideologyMilestones,
             pendingIdeologyEmergence,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
@@ -1045,44 +1049,17 @@ difficulty, // 游戏难度
 
             // 濡傛灉褰撳墠骞翠唤澶т簬涓婃搴嗗吀骞翠唤锛屼笖鍗冲皢璺ㄨ秺鎴栧凡缁忚法瓒婃柊骞?
             if (currentCalendar.year > (current.lastFestivalYear || 0)) {
-                // 鏂扮殑涓€骞村紑濮嬶紝瑙﹀彂搴嗗吀
-                const festivalOptions = getRandomFestivalEffects(current.epoch);
-                if (festivalOptions.length > 0) {
-                    setFestivalModal({
-                        options: festivalOptions,
-                        year: currentCalendar.year
-                    });
-                    setLastFestivalYear(currentCalendar.year);
-                    setIsPaused(true);
-                }
-            }
-
-            // check activeFestivalEffects expiration
-            const currentFestivalEffects = current.activeFestivalEffects || [];
-            if (currentFestivalEffects.length > 0) {
-                const currentDay = current.daysElapsed || 0;
-                let hasChange = false;
-
-                const remainingEffects = currentFestivalEffects.filter(effect => {
-                    if (effect.type === 'permanent') return true;
-
-                    const duration = effect.duration || 360;
-                    const activatedAt = effect.activatedAt !== undefined ? effect.activatedAt : currentDay;
-                    const elapsed = currentDay - activatedAt;
-
-                    if (elapsed >= duration) {
-                        hasChange = true;
-                        addLog('庆典「' + effect.name + '」的影响已消退。');
-                        return false;
-                    }
-                    return true;
+                // Annual report: collect snapshot and compute report
+                const baseline = current.annualReportBaseline || null;
+                const reportData = buildAnnualReport(current, baseline);
+                setFestivalModal({
+                    reportData,
+                    year: currentCalendar.year,
                 });
-
-                if (hasChange) {
-                    setActiveFestivalEffects(remainingEffects);
-                    // Update local reference so current tick uses correct effects
-                    current.activeFestivalEffects = remainingEffects;
-                }
+                setLastFestivalYear(currentCalendar.year);
+                // Save paused state before forcing pause
+                setPausedBeforeEvent(current.isPaused);
+                setIsPaused(true);
             }
 
             // [NEW] 澶勭悊娉曚护杩囨湡
@@ -1217,7 +1194,6 @@ difficulty, // 游戏难度
 
                 // 鏃堕棿鍜岃妭鏃?
                 daysElapsed: current.daysElapsed,
-                activeFestivalEffects: current.activeFestivalEffects || [],
                 lastFestivalYear: current.lastFestivalYear,
 
                 // 琛屽姩鍐峰嵈
@@ -1281,6 +1257,7 @@ difficulty, // 游戏难度
                         .map(id => ({ ...IDEOLOGY_MAP[id], level: collectionMap[id].level || 1 }));
                 })(),
                 ideologySynergies: IDEOLOGY_SYNERGIES || [],
+                antiSynergies: ANTI_SYNERGIES || [],
             };
 
             const perfEnabled = typeof window !== 'undefined'
@@ -2875,6 +2852,16 @@ difficulty, // 游戏难度
                                 const loserName = winner === 'attacker' ? updatedBattle.defender.corpsName : updatedBattle.attacker.corpsName;
                                 battleLogs.push('[战斗] ' + updatedBattle.engagementName + ' 结束，' + winnerName + ' 击败 ' + loserName + '（' + reasonText + '，共' + updatedBattle.result.totalDays + '天）');
 
+                                // Ideology event: battle victory / defeat
+                                if (playerSide) {
+                                    const isPlayerWin = (winner === playerSide);
+                                    ideologyEventBus.emit(
+                                        isPlayerWin ? IDEOLOGY_EVENTS.ON_BATTLE_VICTORY : IDEOLOGY_EVENTS.ON_BATTLE_DEFEAT,
+                                        { engagementName: updatedBattle.engagementName, reason, durationDays: updatedBattle.result.totalDays || 0 },
+                                        current.daysElapsed || 0
+                                    );
+                                }
+
                                 // Sync survivors back to corps: support multi-corps battles
                                 // 多兵团模式：按各兵团初始兵力比例分配剩余兵力
                                 const distributeSurvivorsToCorps = (sideData, sideCorpsList) => {
@@ -3074,6 +3061,8 @@ difficulty, // 游戏难度
                         const buildingDestructionQueue = []; // { buildingId, count } for player buildings destroyed
                         const aiNationBuildingDestruction = []; // { nationId, buildingId, count } for AI buildings destroyed
                         const frictionPlunderQueue = []; // [NEW] 战线摩擦中的持续掠夺收集
+                        const reversePlunderQueue = []; // 反向掠夺：AI掠夺玩家的银币/资源
+                        const reverseNodePlunderQueue = []; // 反向资源节点掠夺
                         updatedFronts = updatedFronts.map(f => {
                             if (f.status !== 'active') return f;
                             const playerSide = getPlayerSide(f);
@@ -3198,6 +3187,26 @@ difficulty, // 游戏难度
                                 }
                             }
 
+                            // Reverse auto-plunder: AI plunders player resource node
+                            if (frictionResult.reverseAutoPlunderNodeId) {
+                                const enemySideForPlunder = playerSide === 'attacker' ? 'defender' : 'attacker';
+                                const revPlunderResult = plunderResourceNode(updatedFront, frictionResult.reverseAutoPlunderNodeId, enemySideForPlunder, 1.0);
+                                updatedFront = revPlunderResult.front;
+                                if (revPlunderResult.loot && Object.keys(revPlunderResult.loot).length > 0) {
+                                    reverseNodePlunderQueue.push({ loot: revPlunderResult.loot });
+                                }
+                                if (revPlunderResult.destruction) {
+                                    const { buildingId, ownerId } = revPlunderResult.destruction;
+                                    const buildingName = getBuildingDisplayName(buildingId);
+                                    if (ownerId === 'player') {
+                                        buildingDestructionQueue.push({ buildingId, count: 1 });
+                                    } else {
+                                        aiNationBuildingDestruction.push({ nationId: ownerId, buildingId, count: 1 });
+                                    }
+                                    frictionLog.push({ text: `敌军破袭摧毁了我方一处${buildingName}`, day: currentDay });
+                                }
+                            }
+
                             updatedFront = {
                                 ...updatedFront,
                                 lastResolvedFactors: (frictionResult.factors || []).slice(0, 4),
@@ -3220,7 +3229,7 @@ difficulty, // 游戏难度
                                 battleLogs.push(`战线摩擦：${frictionResult.events[0].text}（我方损失${frictionResult.casualties.player}，敌方损失${frictionResult.casualties.enemy}）`);
                             }
 
-                            // [NEW] 持续财富掠夺：用实际敌方财富计算
+                            // [NEW] 持续财富掠夺：用实际敌方财富计算（玩家→AI方向）
                             const enemyIdForPlunder = playerSide === 'attacker' ? f.defenderId : f.attackerId;
                             const enemyNationForPlunder = (current.nations || []).find(n => n.id === enemyIdForPlunder);
                             if (enemyNationForPlunder) {
@@ -3232,7 +3241,7 @@ difficulty, // 游戏难度
                                     targetWealth: enemyNationForPlunder.wealth || 0,
                                     linePosition: updatedFront.linePosition || f.linePosition || 50,
                                     side: playerSide === 'attacker' ? 'defender' : 'attacker',
-                                    raidMod: frictionResult.plunderResult?.raidMod || 1.0,
+                                    raidMod: 1.0,
                                     unitRatio: plunderUnitRatio,
                                 });
                                 if (actualPlunder.wealthPlundered > 0) {
@@ -3240,6 +3249,25 @@ difficulty, // 游戏难度
                                         enemyId: enemyIdForPlunder,
                                         wealthPlundered: actualPlunder.wealthPlundered,
                                         wealthGained: actualPlunder.wealthGained,
+                                    });
+                                }
+
+                                // [NEW] Reverse plunder: AI plunders player silver (defenderPlunder direction)
+                                const reverseUnitRatio = eTotal > 0 && pTotal > 0 ? eTotal / pTotal : (eTotal > 0 ? 5.0 : 0.2);
+                                const reversePlunder = calculateWarPlunder({
+                                    targetWealth: current.resources?.silver || 0,
+                                    linePosition: updatedFront.linePosition || f.linePosition || 50,
+                                    side: playerSide,
+                                    raidMod: 1.0,
+                                    unitRatio: reverseUnitRatio,
+                                    efficiencyOverride: WAR_ECONOMY.REVERSE_PLUNDER_EFFICIENCY,
+                                });
+                                if (reversePlunder.wealthPlundered > 0) {
+                                    reversePlunderQueue.push({
+                                        enemyId: enemyIdForPlunder,
+                                        silverPlundered: reversePlunder.wealthPlundered,
+                                        wealthGainedByEnemy: reversePlunder.wealthGained,
+                                        zoneType: reversePlunder.zoneType,
                                     });
                                 }
                             }
@@ -3294,6 +3322,91 @@ difficulty, // 游戏难度
                                     silver: (prev.silver || 0) + gain,
                                 }));
                                 battleLogs.push(`💰 从敌方经济区持续掠夺${gain}银币`);
+                            }
+                        }
+
+                        // --- [NEW] 消费反向掠夺：AI掠夺玩家银币和实物资源 ---
+                        if (reversePlunderQueue.length > 0) {
+                            let totalSilverLoss = 0;
+                            let totalWealthGainByEnemy = {};
+                            for (const { enemyId, silverPlundered, wealthGainedByEnemy, zoneType } of reversePlunderQueue) {
+                                totalSilverLoss += silverPlundered;
+                                totalWealthGainByEnemy[enemyId] = (totalWealthGainByEnemy[enemyId] || 0) + wealthGainedByEnemy;
+                            }
+
+                            // Apply silver floor protection
+                            const currentSilver = current.resources?.silver || 0;
+                            const silverFloor = currentSilver * WAR_ECONOMY.PLUNDER_SILVER_FLOOR_RATIO;
+                            const maxSilverLoss = Math.max(0, currentSilver - silverFloor);
+                            const actualSilverLoss = Math.min(totalSilverLoss, maxSilverLoss);
+                            const silverDeficit = totalSilverLoss - actualSilverLoss;
+
+                            if (actualSilverLoss > 1) {
+                                setResources(prev => ({
+                                    ...prev,
+                                    silver: Math.max(0, (prev.silver || 0) - Math.floor(actualSilverLoss)),
+                                }));
+                                battleLogs.push(`💸 敌军掠夺了我方 ${Math.floor(actualSilverLoss)} 银币`);
+                            }
+
+                            // If silver was insufficient, plunder physical resources instead
+                            if (silverDeficit > 0) {
+                                const bestZoneType = reversePlunderQueue.find(r => r.zoneType === 'capital')?.zoneType || 'economic';
+                                const resourceResult = calculateResourcePlunder({
+                                    resourceInventory: current.resources || {},
+                                    zoneType: bestZoneType,
+                                    efficiencyOverride: WAR_ECONOMY.REVERSE_PLUNDER_EFFICIENCY,
+                                    nationPrices: current.nationPrices || {},
+                                });
+                                if (Object.keys(resourceResult.resourcesPlundered).length > 0) {
+                                    setResources(prev => {
+                                        const next = { ...prev };
+                                        for (const [type, amount] of Object.entries(resourceResult.resourcesPlundered)) {
+                                            next[type] = Math.max(0, (next[type] || 0) - Math.floor(amount));
+                                        }
+                                        return next;
+                                    });
+                                    const lootDesc = Object.entries(resourceResult.resourcesPlundered)
+                                        .map(([type, amount]) => `${Math.floor(amount)} ${type}`)
+                                        .join('、');
+                                    battleLogs.push(`💸 敌军掠夺了我方 ${lootDesc}`);
+                                    // Add wealth equivalent to enemy AI
+                                    for (const enemyId of Object.keys(totalWealthGainByEnemy)) {
+                                        totalWealthGainByEnemy[enemyId] += resourceResult.totalWealthEquivalent * WAR_ECONOMY.PLUNDER_GAIN_RATIO / Object.keys(totalWealthGainByEnemy).length;
+                                    }
+                                }
+                            }
+
+                            // Increase enemy AI wealth
+                            if (Object.keys(totalWealthGainByEnemy).length > 0) {
+                                setNations(prev => prev.map(n => {
+                                    const gain = totalWealthGainByEnemy[n.id];
+                                    if (!gain) return n;
+                                    return { ...n, wealth: Math.round((n.wealth || 500) + gain) };
+                                }));
+                            }
+                        }
+
+                        // --- [NEW] 消费反向资源节点掠夺：AI掠夺玩家资源节点 ---
+                        if (reverseNodePlunderQueue.length > 0) {
+                            const totalLoot = {};
+                            for (const { loot } of reverseNodePlunderQueue) {
+                                for (const [type, amount] of Object.entries(loot)) {
+                                    totalLoot[type] = (totalLoot[type] || 0) + amount;
+                                }
+                            }
+                            if (Object.keys(totalLoot).length > 0) {
+                                setResources(prev => {
+                                    const next = { ...prev };
+                                    for (const [type, amount] of Object.entries(totalLoot)) {
+                                        next[type] = Math.max(0, (next[type] || 0) - Math.floor(amount));
+                                    }
+                                    return next;
+                                });
+                                const lootDesc = Object.entries(totalLoot)
+                                    .map(([type, amount]) => `${type} ×${Math.floor(amount)}`)
+                                    .join('、');
+                                battleLogs.push(`🏚️ 敌军掠夺了我方 ${lootDesc}`);
                             }
                         }
 
@@ -3580,7 +3693,7 @@ difficulty, // 游戏难度
                                 .filter(front => front.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player'))
                                 .map(front => (front.attackerId === 'player' ? front.defenderId : front.attackerId))
                         );
-                        const missingFrontWars = (current.nations || []).filter(n => n?.isAtWar === true && !n?.isRebelNation && !activeFrontEnemyIds.has(n.id));
+                        const missingFrontWars = (current.nations || []).filter(n => n?.isAtWar === true && !activeFrontEnemyIds.has(n.id));
                         if (missingFrontWars.length > 0) {
                             const playerEco = {
                                 resources: current.resources || {},
@@ -3813,6 +3926,27 @@ difficulty, // 游戏难度
                         // Log battle events
                         if (battleLogs.length > 0) {
                             battleLogs.forEach(log => addLog(log));
+                        }
+
+                        // Flush ideology event bus logs and effects
+                        const ideologyLogs = ideologyEventBus.flushLogs();
+                        if (ideologyLogs.length > 0) {
+                            ideologyLogs.forEach(log => addLog(log));
+                        }
+                        const ideologyEffects = ideologyEventBus.flushEffects();
+                        if (ideologyEffects.length > 0) {
+                            for (const eff of ideologyEffects) {
+                                const r = eff.result;
+                                if (r.action === 'addStability' && setStability) {
+                                    setStability(prev => Math.max(0, Math.min(100, prev + r.amount)));
+                                } else if (r.action === 'addResource' && r.resource) {
+                                    setResources(prev => ({
+                                        ...prev,
+                                        [r.resource]: Math.max(0, (prev[r.resource] || 0) + r.amount)
+                                    }), { reason: 'ideology_event_effect', ideologyId: eff.ideologyId, eventId: eff.eventId });
+                                }
+                                // addBuff, addIdeologyScore, modifyBonus handled by other systems
+                            }
                         }
                     }
 
@@ -4552,8 +4686,32 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             rebellionCallback
                                         );
                                         const coalitionNames = coalitionStrata.map(k => STRATA[k]?.name || k).join('、');
-                                        addLog(`馃敟馃敟馃敟 ${coalitionNames}绛夊涓樁灞傝仈鍚堝彂鍔ㄥ彌涔憋紒`);
-                                    }
+                                        addLog(`馃敟馃敟馃敟 ${coalitionNames}绛夊涓樁灞傝仈鍚堝彂鍔ㄥ彌涔憋紒`);
+                                        // 为联盟叛乱创建战线
+                                        if (typeof setActiveFronts === 'function') {
+                                            const playerEco = {
+                                                resources: current.resources || {},
+                                                buildings: current.buildings || {},
+                                                population: current.population || 0,
+                                                wealth: current.resources?.silver || 0,
+                                            };
+                                            const rebelEco = {
+                                                resources: {},
+                                                buildings: {},
+                                                population: rebelNation.population || 200,
+                                                wealth: rebelNation.wealth || 500,
+                                            };
+                                            const rebelFront = generateFront(rebelNation.id, 'player', current.epoch || 0, rebelEco, playerEco);
+                                            rebelFront.createdDay = current.daysElapsed || 0;
+                                            rebelFront.startDay = current.daysElapsed || 0;
+                                            setActiveFronts(prev => {
+                                                const existing = Array.isArray(prev) ? prev : [];
+                                                if (existing.some(f => f.status === 'active' && (f.warId === rebelFront.warId || f.warId === `player_vs_${rebelNation.id}`))) {
+                                                    return existing;
+                                                }
+                                                return [...existing, rebelFront];
+                                            });
+                                        }                                    }
 
                                     // 闄嶄綆鍙備笌闃跺眰缁勭粐搴?
                                     coalitionStrata.forEach(sKey => {
@@ -4620,6 +4778,31 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
 
                                         event = createActiveRebellionEvent(stratumKey, rebellionStateForEvent, hasMilitary, militaryIsRebelling, rebelNation, rebellionCallback);
                                         addLog(`馃敟馃敟馃敟 ${STRATA[stratumKey]?.name || stratumKey}闃跺眰缁勭粐搴﹁揪鍒?00%锛屽彂鍔ㄥ彌涔憋紒`);
+                                        // 为单阶层叛乱创建战线
+                                        if (typeof setActiveFronts === 'function') {
+                                            const playerEco = {
+                                                resources: current.resources || {},
+                                                buildings: current.buildings || {},
+                                                population: current.population || 0,
+                                                wealth: current.resources?.silver || 0,
+                                            };
+                                            const rebelEco = {
+                                                resources: {},
+                                                buildings: {},
+                                                population: rebelNation.population || 200,
+                                                wealth: rebelNation.wealth || 500,
+                                            };
+                                            const rebelFront = generateFront(rebelNation.id, 'player', current.epoch || 0, rebelEco, playerEco);
+                                            rebelFront.createdDay = current.daysElapsed || 0;
+                                            rebelFront.startDay = current.daysElapsed || 0;
+                                            setActiveFronts(prev => {
+                                                const existing = Array.isArray(prev) ? prev : [];
+                                                if (existing.some(f => f.status === 'active' && (f.warId === rebelFront.warId || f.warId === `player_vs_${rebelNation.id}`))) {
+                                                    return existing;
+                                                }
+                                                return [...existing, rebelFront];
+                                            });
+                                        }
                                     }
 
                                     updatedOrganizationStates[stratumKey] = {
@@ -4811,6 +4994,32 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 }));
                                 setPopulation(prev => Math.max(0, prev - rebelPopLoss));
 
+                                // 为叛乱创建战线
+                                if (typeof setActiveFronts === 'function') {
+                                    const playerEco = {
+                                        resources: current.resources || {},
+                                        buildings: current.buildings || {},
+                                        population: current.population || 0,
+                                        wealth: current.resources?.silver || 0,
+                                    };
+                                    const rebelEco = {
+                                        resources: {},
+                                        buildings: {},
+                                        population: rebelNation.population || 200,
+                                        wealth: rebelNation.wealth || 500,
+                                    };
+                                    const rebelFront = generateFront(rebelNation.id, 'player', current.epoch || 0, rebelEco, playerEco);
+                                    rebelFront.createdDay = current.daysElapsed || 0;
+                                    rebelFront.startDay = current.daysElapsed || 0;
+                                    setActiveFronts(prev => {
+                                        const existing = Array.isArray(prev) ? prev : [];
+                                        if (existing.some(f => f.status === 'active' && (f.warId === rebelFront.warId || f.warId === `player_vs_${rebelNation.id}`))) {
+                                            return existing;
+                                        }
+                                        return [...existing, rebelFront];
+                                    });
+                                }
+
                                 const rebellionCallback = (action, stratum, extraData) => {
                                     if (current.actions?.handleRebellionAction) {
                                         current.actions.handleRebellionAction(action, stratum, extraData);
@@ -4911,20 +5120,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     }
                 }
 
-                // 鏇存柊搴嗗吀鏁堟灉锛岀Щ闄よ繃鏈熺殑鐭湡鏁堟灉
-                if (activeFestivalEffects.length > 0) {
-                    const updatedEffects = activeFestivalEffects.filter(effect => {
-                        if (effect.type === 'permanent') return true;
-                        const elapsedSinceActivation = (current.daysElapsed || 0) - (effect.activatedAt || 0);
-                        return elapsedSinceActivation < (effect.duration || 360);
-                    });
-                    if (updatedEffects.length !== activeFestivalEffects.length) {
-                        setActiveFestivalEffects(updatedEffects);
-                    }
-                }
-
-                setClassInfluenceShift(prev => {
-                    if (!prev || Object.keys(prev).length === 0) return prev || {};
+                setClassInfluenceShift(prev => {                    if (!prev || Object.keys(prev).length === 0) return prev || {};
                     const next = {};
                     Object.entries(prev).forEach(([key, value]) => {
                         const decayed = value * 0.9;
@@ -5068,6 +5264,16 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                             } catch (e) {
                                 return '[宣战] 有国家对你宣战。';
                             }
+                        }
+
+                        // Ideology event: war start (AI declares war on player)
+                        if (log.includes('WAR_DECLARATION_EVENT:') && !log._ideologyWarStartEmitted) {
+                            try {
+                                const warJson = JSON.parse(log.replace('WAR_DECLARATION_EVENT:', ''));
+                                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_WAR_START, {
+                                    nationId: warJson.nationId, nationName: warJson.nationName
+                                }, current.daysElapsed || 0);
+                            } catch (_e) { /* ignore parse errors */ }
                         }
 
                         if (log.includes('AI_GIFT_EVENT:')) {
@@ -7165,6 +7371,6 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
             }
         }, tickInterval); // 根据游戏速度动态调整执行频率
         return () => clearInterval(timer);
-    }, [gameSpeed, isPaused, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 依赖游戏速度、暂停状态和庆典相关状态
+    }, [gameSpeed, isPaused, setFestivalModal, setLastFestivalYear, lastFestivalYear, setIsPaused]); // Dependencies: game speed, pause state, and annual report related state
 };
 

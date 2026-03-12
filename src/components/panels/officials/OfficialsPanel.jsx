@@ -80,6 +80,8 @@ export const OfficialsPanel = ({
     officialsPaid = true,  // 是否支付了全额薪水
     // [NEW] Generals for OfficialCard display
     generals = [],
+    // [NEW] 产业政策切换回调
+    onChangeOfficialPolicy,
 }) => {
 
     const centristDecrees = useMemo(() => getCentristCabinetDecrees(decrees), [decrees]);
@@ -881,6 +883,7 @@ export const OfficialsPanel = ({
                 taxPolicies={taxPolicies}
                 buildingCounts={buildingCounts}
                 buildingFinancialData={buildingFinancialData}
+                onChangePolicy={onChangeOfficialPolicy}
             />
 
         </div>

@@ -6,7 +6,7 @@
 import React, { useState, useMemo, memo, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
 import { IDEOLOGY_CATEGORIES, IDEOLOGY_MAP, IDEOLOGIES } from '../../config/ideologies';
-import { IDEOLOGY_SYNERGIES } from '../../config/ideologySynergies';
+import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../../config/ideologySynergies';
 import { getEmergenceThreshold } from '../../logic/ideology/ideologyScoring';
 import { getMaxSlots, equipIdeology, unequipIdeology, resolveEquippedIdeologies } from '../../logic/ideology/ideologySlots';
 import { IdeologyCard } from './IdeologyCard';
@@ -30,6 +30,36 @@ const SynergyBar = ({ synergy, isActive }) => (
         )}
     </div>
 );
+
+/**
+ * 反协同警告展示条
+ */
+const AntiSynergyBar = ({ antiSynergy, isActive }) => (
+    <div className={`flex items-center gap-2 px-2 py-1 rounded-lg border text-xs transition-all ${
+        isActive
+            ? 'border-red-500/50 bg-red-900/20 text-red-200'
+            : 'border-gray-700/30 bg-gray-900/30 text-gray-500'
+    }`}>
+        <Icon name={isActive ? 'AlertTriangle' : 'Link'} size={12} className={isActive ? 'text-red-400' : 'text-gray-600'} />
+        <span className="font-semibold">{antiSynergy.name}</span>
+        {isActive && <span className="text-red-400">⚠ 矛盾激活</span>}
+        {!isActive && (
+            <span className="text-gray-500">
+                冲突: {antiSynergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ')}
+            </span>
+        )}
+    </div>
+);
+
+/**
+ * 稀有度筛选配置
+ */
+const RARITY_FILTER_CONFIG = {
+    common:    { label: '普通', color: 'text-gray-400',  bgClass: 'bg-gray-700/40' },
+    uncommon:  { label: '稀有', color: 'text-green-400', bgClass: 'bg-green-900/40' },
+    rare:      { label: '史诗', color: 'text-blue-400',  bgClass: 'bg-blue-900/40' },
+    legendary: { label: '传奇', color: 'text-amber-400', bgClass: 'bg-amber-900/40' },
+};
 
 /**
  * 空卡槽占位
@@ -73,6 +103,7 @@ const IdeologyTabComponent = ({
     setIdeologySlotCount,
 }) => {
     const [categoryFilter, setCategoryFilter] = useState('all');
+    const [rarityFilter, setRarityFilter] = useState('all');
 
     // 计算最大卡槽数
     const maxSlots = useMemo(
@@ -118,7 +149,18 @@ const IdeologyTabComponent = ({
 
     const hasAnySynergy = activeSynergies.some(s => s.isActive);
 
-    // 未装备的理念库（按分类筛选）
+    // 反协同状态
+    const activeAntiSynergies = useMemo(() => {
+        if (!ANTI_SYNERGIES || ANTI_SYNERGIES.length === 0) return [];
+        return ANTI_SYNERGIES.map(a => ({
+            ...a,
+            isActive: a.required.every(id => equippedIdeologies.includes(id)),
+        }));
+    }, [equippedIdeologies]);
+
+    const hasAnyAntiSynergy = activeAntiSynergies.some(a => a.isActive);
+
+    // 未装备的理念库（按分类和稀有度筛选）
     const unequippedCollection = useMemo(() => {
         return ideologyCollection
             .filter(entry => !equippedIdeologies.includes(entry.id))
@@ -127,8 +169,9 @@ const IdeologyTabComponent = ({
                 config: IDEOLOGY_MAP[entry.id],
             }))
             .filter(entry => entry.config)
-            .filter(entry => categoryFilter === 'all' || entry.config.category === categoryFilter);
-    }, [ideologyCollection, equippedIdeologies, categoryFilter]);
+            .filter(entry => categoryFilter === 'all' || entry.config.category === categoryFilter)
+            .filter(entry => rarityFilter === 'all' || (entry.config.rarity || 'common') === rarityFilter);
+    }, [ideologyCollection, equippedIdeologies, categoryFilter, rarityFilter]);
 
     // 装备操作
     const handleEquip = useCallback((ideologyId) => {
@@ -230,6 +273,20 @@ const IdeologyTabComponent = ({
                         }
                     </div>
                 )}
+
+                {/* 反协同警告展示 */}
+                {activeAntiSynergies.filter(a => a.isActive || a.required.some(id => equippedIdeologies.includes(id))).length > 0 && (
+                    <div className="space-y-1 mt-2">
+                        <p className="text-[10px] text-red-400/70 mb-1">⚠ 理念矛盾</p>
+                        {activeAntiSynergies
+                            .filter(a => a.isActive || a.required.some(id => equippedIdeologies.includes(id)))
+                            .sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0))
+                            .map(a => (
+                                <AntiSynergyBar key={a.id} antiSynergy={a} isActive={a.isActive} />
+                            ))
+                        }
+                    </div>
+                )}
             </div>
 
             {/* 理念库 */}
@@ -270,6 +327,44 @@ const IdeologyTabComponent = ({
                                 {cat.name}
                                 {totalInCategory > 0 && (
                                     <span className="text-[9px] text-gray-400">({totalInCategory})</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* 稀有度筛选 */}
+                <div className="flex flex-wrap gap-1 mb-3">
+                    <button
+                        onClick={() => setRarityFilter('all')}
+                        className={`text-[11px] px-2 py-1 rounded-full border transition-all ${
+                            rarityFilter === 'all'
+                                ? 'bg-gray-600/50 border-gray-400 text-white'
+                                : 'border-gray-700 text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        全部品质
+                    </button>
+                    {Object.entries(RARITY_FILTER_CONFIG).map(([key, cfg]) => {
+                        const count = ideologyCollection.filter(e =>
+                            !equippedIdeologies.includes(e.id) &&
+                            (IDEOLOGY_MAP[e.id]?.rarity || 'common') === key &&
+                            (categoryFilter === 'all' || IDEOLOGY_MAP[e.id]?.category === categoryFilter)
+                        ).length;
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => setRarityFilter(key === rarityFilter ? 'all' : key)}
+                                className={`text-[11px] px-2 py-1 rounded-full border transition-all flex items-center gap-1 ${
+                                    rarityFilter === key
+                                        ? `${cfg.bgClass} border-gray-400 text-white`
+                                        : 'border-gray-700 text-gray-500 hover:text-gray-300'
+                                }`}
+                            >
+                                <span className={cfg.color}>◆</span>
+                                {cfg.label}
+                                {count > 0 && (
+                                    <span className="text-[9px] text-gray-400">({count})</span>
                                 )}
                             </button>
                         );

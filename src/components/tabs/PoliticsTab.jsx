@@ -370,6 +370,8 @@ const PoliticsTabComponent = ({
     onShowDecreeDetails,
     // [NEW] Generals for OfficialCard display
     generals = [],
+    // [NEW] 产业政策切换回调
+    changeOfficialPropertyPolicy,
 }) => {
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
@@ -830,6 +832,7 @@ const PoliticsTabComponent = ({
                         onToggleDecree={onToggleDecree}
                         onShowDecreeDetails={onShowDecreeDetails}
                         generals={generals}
+                        onChangeOfficialPolicy={changeOfficialPropertyPolicy}
                     />
                 ) : (
 <div className="glass-ancient p-4 rounded-lg border border-ancient-gold/30 text-center">

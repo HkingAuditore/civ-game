@@ -68,11 +68,13 @@ import {
     fireOfficial,
     isSelectionAvailable,
     disposeOfficial,
+    switchPropertyPolicy,
 } from '../logic/officials/manager';
 import { MINISTER_ROLES, MINISTER_LABELS, ECONOMIC_MINISTER_ROLES } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
+import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
 
 
 /**
@@ -1274,6 +1276,9 @@ export const useGameActions = (gameState, addLog) => {
         setEpoch(epoch + 1);
         addLog(`🎉 文明进入 ${nextEpoch.name}！`);
 
+        // Ideology event: epoch advance
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_EPOCH_ADVANCE, { newEpoch: epoch + 1, epochName: nextEpoch.name }, daysElapsed);
+
         // 播放升级音效
         try {
             const soundGenerator = generateSound(SOUND_TYPES.LEVEL_UP);
@@ -1342,6 +1347,12 @@ export const useGameActions = (gameState, addLog) => {
         setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
         addLog(`建造了 ${finalCount} 个 ${b.name}`);
+
+        // Ideology event: build
+        const totalBuildingsAfter = Object.values(buildings).reduce((s, v) => s + (v || 0), 0) + finalCount;
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_BUILD, {
+            buildingId: id, category: b.category, count: finalCount, totalBuildings: totalBuildingsAfter
+        }, daysElapsed);
 
         // 播放建造音效
         try {
@@ -1638,6 +1649,11 @@ export const useGameActions = (gameState, addLog) => {
 
         const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${nextLevel}`;
         addLog(`⬆️ ${building.name} 升级为 ${upgradeName}！（花费 ${Math.ceil(silverCost)} 银币）`);
+
+        // Ideology event: upgrade building
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_UPGRADE, {
+            buildingId, fromLevel, toLevel: nextLevel
+        }, daysElapsed);
 
         // 播放升级音效
         try {
@@ -2018,6 +2034,11 @@ export const useGameActions = (gameState, addLog) => {
         setTechsUnlocked(prev => [...prev, id]);
         addLog(`✓ 研究完成：${tech.name}`);
 
+        // Ideology event: tech unlock
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TECH_UNLOCK, {
+            techId: id, techCount: (techsUnlocked?.length || 0) + 1
+        }, daysElapsed);
+
         // 播放研究音效
         try {
             const soundGenerator = generateSound(SOUND_TYPES.RESEARCH);
@@ -2083,6 +2104,11 @@ export const useGameActions = (gameState, addLog) => {
         setOfficialCandidates(hireResult.newCandidates);
         addLog(`雇佣了官员 ${hiredOfficial.name}。`);
 
+        // Ideology event: hire official
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_HIRE_OFFICIAL, {
+            officialId, officialName: hiredOfficial.name, role: hiredOfficial.role
+        }, daysElapsed);
+
         // 更新人口结构：从来源阶层移动到官员阶层
         // 确保数据同步，防止出现"官员数量对不上"的问题
         setPopStructure(prev => {
@@ -2114,6 +2140,12 @@ export const useGameActions = (gameState, addLog) => {
         clearOfficialFromAssignments(officialId);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
+
+            // Ideology event: fire official
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_FIRE_OFFICIAL, {
+                officialId, officialName: official.name, role: official.role
+            }, daysElapsed);
+
             if (official.ownedProperties?.length) {
                 addLog(`官员产业已全部倒闭（${official.ownedProperties.length} 处）`);
             }
@@ -2208,6 +2240,53 @@ export const useGameActions = (gameState, addLog) => {
 
         // 记录日志
         addLog(result.logMessage);
+    };
+
+    /**
+     * 切换单个官员的产业政策
+     * @param {string} officialId - 目标官员ID
+     * @param {string} toPolicy - 目标政策 ('private' | 'high_salary' | 'state_managed')
+     * @param {string} confiscationMode - 没收模式 ('compensate' | 'force')，仅从私产制切换时有效
+     * @returns {Object} { success, error?, logMessages? }
+     */
+    const changeOfficialPropertyPolicy = (officialId, toPolicy, confiscationMode = 'compensate') => {
+        const targetOfficial = officials.find(o => o.id === officialId);
+        if (!targetOfficial) {
+            return { success: false, error: '找不到目标官员' };
+        }
+
+        const currentPolicy = targetOfficial.propertyPolicy || 'private';
+        const currentDay = daysElapsed || 0;
+
+        const result = switchPropertyPolicy(
+            currentPolicy,
+            toPolicy,
+            targetOfficial,
+            currentDay,
+            confiscationMode
+        );
+
+        if (!result.success) {
+            return { success: false, error: result.error };
+        }
+
+        // 更新目标官员
+        setOfficials(prev => prev.map(o =>
+            o.id === officialId ? result.updatedOfficial : o
+        ));
+
+        // 处理国库变动（补偿没收的花费）
+        if (result.treasuryChange !== 0) {
+            setResourcesWithReason(prev => ({
+                ...prev,
+                silver: Math.max(0, (prev.silver || 0) + result.treasuryChange)
+            }), 'policy_switch_treasury', { officialId, fromPolicy: currentPolicy, toPolicy });
+        }
+
+        // 记录日志
+        (result.logMessages || []).forEach(msg => addLog(msg));
+
+        return { success: true, logMessages: result.logMessages };
     };
 
     /**
@@ -3775,6 +3854,11 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
 
+                // Ideology event: declare war
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_DECLARE_WAR, {
+                    targetId: nationId, targetName: targetNation.name
+                }, daysElapsed);
+
                 // 主动宣战减少声誉（非违约宣战也会有轻微声誉损失）
                 if (!breachPenalty && setDiplomaticReputation) {
                     const { newReputation } = calculateReputationChange(
@@ -4210,6 +4294,11 @@ export const useGameActions = (gameState, addLog) => {
                         costInfo += `，每日维护费 ${finalMaintenancePerDay} 银币`;
                     }
                     addLog(`📜 ${targetNation.name} 同意了你的条约提案（${type}）${costInfo}。`);
+
+                    // Ideology event: treaty sign
+                    ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TREATY_SIGN, {
+                        targetId: nationId, targetName: targetNation.name, treatyType: type
+                    }, daysElapsed);
                 } else {
                     addLog(`📜 ${targetNation.name} 拒绝了你的条约提案。`);
                 }
@@ -4884,6 +4973,12 @@ export const useGameActions = (gameState, addLog) => {
                 }
 
                 addLog(`⚠️ 你撕毁了与 ${targetNation.name} 的 ${treatyType} 条约！`);
+
+                // Ideology event: treaty break
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TREATY_BREAK, {
+                    targetId: nationId, targetName: targetNation.name, treatyType
+                }, daysElapsed);
+
                 addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
                 addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
                 addLog(`  ⏳ ${breachPenalty.cooldownDays} 天内无法再次毁约`);
@@ -6091,6 +6186,12 @@ export const useGameActions = (gameState, addLog) => {
     };
     const endWarWithNation = (nationId, extraUpdates = {}, options = {}) => {
         const { cleanupRuntime = true, cleanupReason = 'peace_treaty' } = options;
+
+        // Ideology event: war victory (peace achieved)
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_WAR_VICTORY, {
+            nationId, reason: cleanupReason
+        }, daysElapsed);
+
         setNations(prev => prev.map(n => {
             if (n.id !== nationId) return n;
             return {
@@ -6632,6 +6733,7 @@ export const useGameActions = (gameState, addLog) => {
         assignMinister,
         clearMinisterRole,
         toggleMinisterAutoExpansion,
+        changeOfficialPropertyPolicy,
         // 叛乱系统
         handleRebellionAction,
         handleRebellionWarEnd,

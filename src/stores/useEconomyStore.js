@@ -33,13 +33,13 @@ export const useEconomyStore = create((set, get) => ({
     activeEventEffects: buildInitialEventEffects(),
     setActiveEventEffects: (v) => set({ activeEventEffects: typeof v === 'function' ? v(get().activeEventEffects) : v }),
 
-    // 庆典
+    // Annual report system (replaces old festival buff system)
     festivalModal: null,
     setFestivalModal: (v) => set({ festivalModal: typeof v === 'function' ? v(get().festivalModal) : v }),
-    activeFestivalEffects: [],
-    setActiveFestivalEffects: (v) => set({ activeFestivalEffects: typeof v === 'function' ? v(get().activeFestivalEffects) : v }),
     lastFestivalYear: 1,
     setLastFestivalYear: (v) => set({ lastFestivalYear: typeof v === 'function' ? v(get().lastFestivalYear) : v }),
+    annualReportBaseline: null,
+    setAnnualReportBaseline: (v) => set({ annualReportBaseline: typeof v === 'function' ? v(get().annualReportBaseline) : v }),
 
     // 价格管控
     priceControls: {
@@ -58,8 +58,8 @@ export const useEconomyStore = create((set, get) => ({
         eventEffectSettings: { ...DEFAULT_EVENT_EFFECT_SETTINGS },
         activeEventEffects: buildInitialEventEffects(),
         festivalModal: null,
-        activeFestivalEffects: [],
         lastFestivalYear: 1,
+        annualReportBaseline: null,
         priceControls: { enabled: false, governmentBuyPrices: {}, governmentSellPrices: {} },
         ...overrides,
     }),

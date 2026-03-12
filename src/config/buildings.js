@@ -1436,7 +1436,7 @@ export const BUILDINGS = [
         epoch: 7,
         cat: 'industry',
         requiresTech: 'electrical_wiring',
-        visual: { icon: 'Cable', color: 'bg-yellow-800', text: 'text-yellow-200' }
+        visual: { icon: 'Zap', color: 'bg-yellow-800', text: 'text-yellow-200' }
     },
     {
         id: 'machinery_plant',
@@ -1578,7 +1578,7 @@ export const BUILDINGS = [
         epoch: 8,
         cat: 'industry',
         requiresTech: 'polymer_chemistry',
-        visual: { icon: 'Box', color: 'bg-blue-800', text: 'text-blue-200' }
+        visual: { icon: 'Package', color: 'bg-blue-800', text: 'text-blue-200' }
     },
     {
         id: 'electronics_factory',
@@ -1606,7 +1606,7 @@ export const BUILDINGS = [
         epoch: 8,
         cat: 'industry',
         requiresTech: 'pharmaceutical_industry',
-        visual: { icon: 'Pill', color: 'bg-red-900', text: 'text-red-200' }
+        visual: { icon: 'Syringe', color: 'bg-red-900', text: 'text-red-200' }
     },
     {
         id: 'aluminum_smelter',
@@ -1776,7 +1776,7 @@ export const BUILDINGS = [
         epoch: 9,
         cat: 'industry',
         requiresTech: 'composite_materials',
-        visual: { icon: 'Hexagon', color: 'bg-indigo-900', text: 'text-indigo-200' }
+        visual: { icon: 'Layers', color: 'bg-indigo-900', text: 'text-indigo-200' }
     },
     {
         id: 'research_institute',

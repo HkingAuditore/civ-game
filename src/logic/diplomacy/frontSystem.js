@@ -17,6 +17,7 @@ import { RESOURCES } from '../../config';
 import { UNIT_TYPES, calculateArmyMaintenance } from '../../config/militaryUnits';
 import { getCorpsTotalUnits, getCorpsFrontTask } from './corpsSystem';
 import { calculateWarBuildingDamage, calculateWarPopulationLoss, calculateWarPlunder } from './warEconomy';
+import { WAR_ECONOMY } from '../../config/gameConstants';
 
 let frontIdCounter = 0;
 const FRONT_MIN_POSITION = 5;
@@ -1166,12 +1167,39 @@ export const calculateFrontEconomicImpact = (front, nationId, options = {}) => {
         + (territorialPressure ? territorialPenalty.incomePenaltyFromTax : 0);
     const sideState = side ? (normalizedFront.sideState?.[side] || buildEmptySideState(normalizedFront.epoch || 0)) : buildEmptySideState(normalizedFront.epoch || 0);
 
+    // Estimate daily plunder flow based on current linePosition
+    const plunderGainEstimate = calculateWarPlunder({
+        targetWealth: 1000, // Normalize to 1000 wealth for rate estimation
+        linePosition: normalizedFront.linePosition,
+        side: enemySide || 'defender',
+        raidMod: 1.0,
+        unitRatio: 1.0,
+    });
+    const plunderLossEstimate = calculateWarPlunder({
+        targetWealth: 1000,
+        linePosition: normalizedFront.linePosition,
+        side: side || 'attacker',
+        raidMod: 1.0,
+        unitRatio: 1.0,
+        efficiencyOverride: WAR_ECONOMY.REVERSE_PLUNDER_EFFICIENCY,
+    });
+    // Scale to daily estimate (friction tick ≈ every 4 days, so multiply by 0.25)
+    const frictionFreq = 0.25;
+    const playerDailyPlunderGain = (plunderGainEstimate.wealthGained / 1000) * frictionFreq;
+    const playerDailyPlunderLoss = (plunderLossEstimate.wealthPlundered / 1000) * frictionFreq;
+    const netPlunderFlow = playerDailyPlunderGain - playerDailyPlunderLoss;
+
     return {
         productionPenalty,
         incomePenalty,
         taxEfficiencyPenalty,
         supplyBonus,
         defenseBonus,
+        plunder: {
+            playerDailyPlunderGain,
+            playerDailyPlunderLoss,
+            netPlunderFlow,
+        },
         breakdown: {
             nodeProductionPenalty,
             zoneProductionPenalty: territorialPenalty.zoneProductionPenalty,
@@ -1279,6 +1307,7 @@ export const getFrontlineEconomicModifiers = (front, nationId, _currentDay = 0, 
         },
         cumulative: impact.cumulative,
         territory: impact.territory,
+        plunder: impact.plunder,
     };
 };
 
@@ -1446,11 +1475,15 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
 
     // Auto-plunder: when friction occurs in enemy zone, 30% chance to destroy a resource node
     let autoPlunderNodeId = null;
+    let reverseAutoPlunderNodeId = null; // AI plunders player resource node
     const currentZone = getZoneForPosition(front.linePosition || 50);
     const pSide = getPlayerSide(front);
     // Check if current zone belongs to the enemy
     const isInEnemyZone = (pSide === 'attacker' && currentZone.ownerSide === 'defender')
         || (pSide === 'defender' && currentZone.ownerSide === 'attacker');
+    // Check if current zone belongs to the player (AI in player territory)
+    const isInPlayerZone = (pSide === 'attacker' && currentZone.ownerSide === 'attacker')
+        || (pSide === 'defender' && currentZone.ownerSide === 'defender');
     if (isInEnemyZone && Math.random() < 0.3) {
         // Find an unplundered enemy resource node in current zone
         const zoneData = front.zones?.[currentZone.id];
@@ -1459,19 +1492,42 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
             autoPlunderNodeId = targetNode.id;
         }
     }
+    // Reverse: AI plunders player resource node when in player zone
+    if (isInPlayerZone && Math.random() < 0.3) {
+        const zoneData = front.zones?.[currentZone.id];
+        const targetNode = (zoneData?.resourceNodes || []).find(n => !n.plundered && n.owner === 'player');
+        if (targetNode) {
+            reverseAutoPlunderNodeId = targetNode.id;
+        }
+    }
 
-    // 战争经济：持续财富掠夺（经济区/核心区时生效）
+    // 战争经济：持续财富掠夺（经济区/核心区时生效）——双向掠夺
     const playerSideHere = getPlayerSide(front);
     const enemySide = playerSideHere === 'attacker' ? 'defender' : 'attacker';
     const playerPostureFriction = getFrontPostureIdForSide(normalizedFront, playerSideHere || 'attacker');
     const playerRaidModFriction = FRONT_POSTURES[playerPostureFriction]?.raidMod || 1.0;
-    const plunderResult = calculateWarPlunder({
+    const playerUnitRatio = playerTotal > 0 && enemyTotal > 0 ? playerTotal / enemyTotal : (playerTotal > 0 ? 5.0 : 0.2);
+    // Attacker plunder: player plunders enemy wealth
+    const attackerPlunder = calculateWarPlunder({
         targetWealth: 0, // 实际wealth由调用者传入并应用
         linePosition: normalizedFront.linePosition,
         side: enemySide,
         raidMod: playerRaidModFriction,
-        unitRatio: playerTotal > 0 && enemyTotal > 0 ? playerTotal / enemyTotal : (playerTotal > 0 ? 5.0 : 0.2),
+        unitRatio: playerUnitRatio,
     });
+    // Defender plunder: AI (enemy) plunders player wealth (reverse direction)
+    const enemyPostureFriction = getFrontPostureIdForSide(normalizedFront, enemySide || 'defender');
+    const enemyRaidModFriction = FRONT_POSTURES[enemyPostureFriction]?.raidMod || 1.0;
+    const enemyUnitRatio = enemyTotal > 0 && playerTotal > 0 ? enemyTotal / playerTotal : (enemyTotal > 0 ? 5.0 : 0.2);
+    const defenderPlunder = calculateWarPlunder({
+        targetWealth: 0, // 实际silver由调用者传入并应用
+        linePosition: normalizedFront.linePosition,
+        side: playerSideHere,
+        raidMod: enemyRaidModFriction,
+        unitRatio: enemyUnitRatio,
+        efficiencyOverride: WAR_ECONOMY.REVERSE_PLUNDER_EFFICIENCY,
+    });
+    const plunderResult = { attackerPlunder, defenderPlunder };
 
     return {
         events: [{ text: template.text, day }],
@@ -1482,7 +1538,8 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
         warScoreDelta,
         advanceDelta,
         autoPlunderNodeId,
-        plunderResult, // 财富掠夺计算结果（包含比率，实际金额由调用者应用）
+        reverseAutoPlunderNodeId, // AI plunders player resource node
+        plunderResult, // 双向财富掠夺计算结果 { attackerPlunder, defenderPlunder }
         factors: [
             buildFactor('边境摩擦', enemyCasualties > playerCasualties ? 0.6 : -0.6, enemyCasualties > playerCasualties ? 'positive' : enemyCasualties < playerCasualties ? 'negative' : 'neutral'),
             buildFactor('袭扰强度', raidPressure / 40, raidPressure > 0 ? 'positive' : 'neutral'),

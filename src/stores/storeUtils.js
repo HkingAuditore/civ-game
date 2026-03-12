@@ -108,8 +108,8 @@ export const getStoreSnapshot = () => {
         eventEffectSettings: eco.eventEffectSettings,
         activeEventEffects: eco.activeEventEffects,
         festivalModal: eco.festivalModal,
-        activeFestivalEffects: eco.activeFestivalEffects,
         lastFestivalYear: eco.lastFestivalYear,
+        annualReportBaseline: eco.annualReportBaseline,
         priceControls: eco.priceControls,
 
         // 军事
@@ -245,8 +245,8 @@ export const applyStoreSnapshot = (data) => {
     useEconomyStore.setState({
         ...(data.eventEffectSettings !== undefined && { eventEffectSettings: data.eventEffectSettings }),
         ...(data.activeEventEffects !== undefined && { activeEventEffects: data.activeEventEffects }),
-        ...(data.activeFestivalEffects !== undefined && { activeFestivalEffects: data.activeFestivalEffects }),
         ...(data.lastFestivalYear !== undefined && { lastFestivalYear: data.lastFestivalYear }),
+        ...(data.annualReportBaseline !== undefined && { annualReportBaseline: data.annualReportBaseline }),
         ...(data.priceControls !== undefined && { priceControls: data.priceControls }),
     });
 

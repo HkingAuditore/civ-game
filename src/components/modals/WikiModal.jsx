@@ -14,7 +14,6 @@ import {
     EPOCHS,
     BASE_EVENTS,
     EPOCH_EVENTS,
-    FESTIVAL_EFFECTS,
     STATIC_DIPLOMATIC_EVENTS,
 } from '../../config';
 import { POLITY_DEFINITIONS, formatPolityEffects } from '../../config/polityEffects';
@@ -529,7 +528,7 @@ const MECHANICS_GUIDES = [
                     if (b.cultureBonus) parts.push(`文化产出+${(b.cultureBonus * 100).toFixed(0)}%`);
                     if (b.scienceBonus) parts.push(`科研产出+${(b.scienceBonus * 100).toFixed(0)}%`);
                     if (b.industryBonus) parts.push(`工业产出+${(b.industryBonus * 100).toFixed(0)}%`);
-                    if (b.tradeBonus || b.incomePercent) parts.push(`经济收入+${((b.tradeBonus || b.incomePercent) * 100).toFixed(0)}%`);
+                    if (b.tradeBonus || b.taxIncome) parts.push(`税收加成+${((b.tradeBonus || b.taxIncome) * 100).toFixed(0)}%`);
                     if (b.maxPop) parts.push(`人口上限+${(b.maxPop * 100).toFixed(0)}%`);
                     if (b.stability) parts.push(`稳定度+${b.stability}`);
                     if (b.taxIncome) parts.push(`税收收入+${(b.taxIncome * 100).toFixed(0)}%`);
@@ -710,55 +709,49 @@ const MECHANICS_GUIDES = [
     },
     {
         id: 'mech_festivals',
-        name: '年度庆典系统',
-        icon: 'PartyPopper',
-        summary: '每年一次的庆典选择与效果',
+        name: '年度政府工作报告',
+        icon: 'FileText',
+        summary: '每年年末自动生成的国情总结报告',
         content: [
-            { type: 'h4', text: '1. 庆典触发' },
+            { type: 'h4', text: '1. 报告触发' },
             {
                 type: 'list', items: [
-                    '每年（游戏内时间）会触发一次年度庆典',
-                    '庆典会暂停游戏，要求你做出选择',
-                    '必须选择一个庆典效果才能继续游戏'
+                    '每年年末自动触发年度报告',
+                    '报告会暂停游戏，展示本年度国情总结',
+                    '阅读后点击"继续治理"恢复游戏'
                 ]
             },
-            { type: 'h4', text: '2. 庆典类型' },
-            { type: 'p', text: '每次庆典提供3个随机选项，分为两类：' },
+            { type: 'h4', text: '2. 报告内容' },
+            { type: 'p', text: '报告涵盖7大板块，全面总结一年施政成果：' },
             {
                 type: 'list', items: [
-                    '短期效果：持续1年，数值较高（如科研+50%）',
-                    '永久效果：永久生效，数值较低（如科研+10%）',
-                    '不同时代有不同的庆典选项'
+                    '📊 经济概况：国库、GDP、CPI/PPI、税收变化',
+                    '👥 人口民生：人口增减、阶层分布、满意度',
+                    '🏗️ 产业发展：建筑总量及各类别（采集/工业/民政/军事）',
+                    '⚔️ 军事力量：总兵力、军团数量',
+                    '📦 资源储备：主要资源变动情况',
+                    '🔬 科技文化：新解锁科技数、时代进度',
+                    '⚖️ 社会稳定：稳定度变化'
                 ]
             },
-            { type: 'h4', text: '3. 庆典效果' },
-            { type: 'p', text: '庆典可以提供各种加成：' },
+            { type: 'h4', text: '3. 评级系统' },
+            { type: 'p', text: '报告会根据各项指标给出S~F的综合评级：' },
             {
                 type: 'list', items: [
-                    '资源产出加成：采集、生产、科研、文化等',
-                    '军事加成：军事力量、招募速度等',
-                    '经济加成：贸易收益、税收等',
-                    '社会加成：稳定度、人口增长等'
+                    'S级 (90+)：繁荣盛世，国泰民安',
+                    'A级 (75+)：欣欣向荣，前途光明',
+                    'B级 (60+)：稳中有进，任重道远',
+                    'C级 (45+)：波澜不惊，尚待发展',
+                    'D级 (30+)：多事之秋，亟待改善',
+                    'F级 (<30)：内忧外患，国运堪忧'
                 ]
             },
-            { type: 'h4', text: '4. 选择策略' },
+            { type: 'h4', text: '4. 报告导出' },
             {
                 type: 'list', items: [
-                    '前期：选择资源产出加成快速发展',
-                    '中期：根据发展方向选择（军事/经济/文化）',
-                    '后期：优先选择永久效果累积优势',
-                    '短期效果适合应急（如准备战争时选军事加成）',
-                    '永久效果适合长期发展（如科研+10%永久）'
-                ]
-            },
-            { type: 'h4', text: '5. 庆典示例' },
-            {
-                type: 'list', items: [
-                    '丰收节：采集效率+30%（1年）',
-                    '黄金时代：全面提升20%（1年）',
-                    '科学博览会：科研+40%（1年）',
-                    '教育改革：科研+12%（永久）',
-                    '流水线革命：工业+15%（永久）'
+                    '点击"导出报告"可将报告复制到剪贴板',
+                    '导出格式为带Emoji的纯文本，方便分享',
+                    '包含所有板块的详细数据和评语'
                 ]
             }
         ]
@@ -1290,15 +1283,6 @@ function buildWikiData() {
                 iconColor: 'text-blue-400',
                 type: 'event',
                 data: { ...e, type: 'epoch' },
-            })),
-            ...Object.values(FESTIVAL_EFFECTS).flat().map(e => ({
-                id: e.id,
-                name: e.name,
-                summary: e.description,
-                icon: 'PartyPopper',
-                iconColor: 'text-purple-400',
-                type: 'event',
-                data: { ...e, type: 'festival', options: [] },
             })),
             ...(STATIC_DIPLOMATIC_EVENTS || []).map(e => ({
                 id: e.id,
@@ -2257,7 +2241,7 @@ const renderEventDetails = (data) => {
             label: '事件类型',
             value:
                 data.type === 'festival'
-                    ? '年度庆典'
+                    ? '年度报告'
                     : data.type === 'epoch'
                         ? '时代事件'
                         : data.type === 'diplomatic'

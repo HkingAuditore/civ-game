@@ -507,6 +507,11 @@ export const iconMap = {
   Beaker: FlaskConical, // 用 FlaskConical 替代
   Bird: Feather,        // 用 Feather 替代
   CircleSlash: XCircle, // 用 XCircle 替代
+  // 新增资源图标的 fallback
+  Box: Package,         // 用 Package 替代（塑料）
+  Pill: Syringe,        // 用 Syringe 替代（医药）
+  Hexagon: Layers,      // 用 Layers 替代（复合材料）
+  Cable: Zap,           // 用 Zap 替代（电缆）
 };
 
 export const getIcon = (name) => iconMap[name];

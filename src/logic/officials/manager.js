@@ -2,9 +2,9 @@
  * 官员系统核心逻辑
  * 处理选拔、雇佣、解雇及相关计算
  */
-import { generateRandomOfficial, LOYALTY_CONFIG } from '../../config/officials';
+import { generateRandomOfficial, LOYALTY_CONFIG, PROPERTY_POLICY_CONFIG, POLICY_TRANSITION_EFFECTS } from '../../config/officials';
 import { BUILDINGS } from '../../config/buildings';
-import { isStanceSatisfied } from '../../config/politicalStances';
+import { isStanceSatisfied, POLITICAL_STANCES } from '../../config/politicalStances';
 import { FINANCIAL_STATUS, generateInvestmentProfile } from './officialInvestment';
 import {
     calculateCabinetSynergy,
@@ -191,7 +191,7 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
         tradeBonus: 0,
         taxEfficiency: 0,
         buildingCostMod: 0,
-        incomePercentBonus: 0,
+        taxBonus: 0, // [MIGRATED] 原 incomePercentBonus → taxBonus
         passiveGains: {},
         passivePercentGains: {},
         corruption: 0,
@@ -264,8 +264,8 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
             case 'buildingCostMod':
                 aggregated.buildingCostMod += val;
                 break;
-            case 'incomePercent':
-                aggregated.incomePercentBonus += val;
+            case 'taxIncome':
+                aggregated.taxBonus += val;
                 break;
             case 'passive':
                 if (eff.target) {
@@ -617,7 +617,7 @@ export const getAggregatedStanceEffects = (officials, gameState) => {
 
         // 经济类
         taxEfficiency: 0,
-        incomePercentBonus: 0,
+        taxBonus: 0, // [MIGRATED] 原 incomePercentBonus → taxBonus
         buildingCostMod: 0,
         needsReduction: 0,
 
@@ -711,7 +711,7 @@ const EFFECT_WEIGHTS = {
     approval: 0.5,
     industryBonus: 10,
     gatherBonus: 8,
-    incomePercentBonus: 10,
+    taxBonus: 10, // [MIGRATED] 原 incomePercentBonus
     legitimacyBonus: 8,
     default: 8,
 };
@@ -967,6 +967,122 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
             finalLoyalty,
             wealthScore: (official.wealth || 0) + propertyTransferTotal,
         } : null,
+    };
+};
+
+// ========== 产业政策切换 ==========
+
+/**
+ * 切换单个官员的产业政策
+ * @param {string} fromPolicy - 当前政策 ('private' | 'high_salary' | 'state_managed')
+ * @param {string} toPolicy - 目标政策
+ * @param {Object} official - 目标官员对象
+ * @param {number} currentDay - 当前天数
+ * @param {string} confiscationMode - 没收模式 ('compensate' | 'force')，仅从私产制切换时有效
+ * @returns {Object} { success, updatedOfficial, treasuryChange, effects, logMessages, error }
+ */
+export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay, confiscationMode = 'compensate') => {
+    if (fromPolicy === toPolicy) {
+        return { success: false, error: '已经是当前政策' };
+    }
+
+    const fromConfig = PROPERTY_POLICY_CONFIG[fromPolicy];
+    const toConfig = PROPERTY_POLICY_CONFIG[toPolicy];
+    if (!fromConfig || !toConfig) {
+        return { success: false, error: '无效的政策类型' };
+    }
+
+    // 逐官员冷却检查
+    const cooldown = fromConfig.switchCooldown || 90;
+    const lastChangeDay = official.lastPolicyChangeDay ?? -999;
+    if (currentDay - lastChangeDay < cooldown) {
+        const remaining = cooldown - (currentDay - lastChangeDay);
+        return { success: false, error: `该官员政策切换冷却中，还需${remaining}天` };
+    }
+
+    const transitionKey = `from_${fromPolicy}`;
+    const transitionConfig = POLICY_TRANSITION_EFFECTS[transitionKey]?.[`to_${toPolicy}`] || {};
+
+    const logMessages = [];
+    let treasuryChange = 0;
+
+    // 计算忠诚度变化（仅影响当事官员）
+    let loyaltyChange = transitionConfig.loyaltyPenalty || 0;
+
+    // 左/右派额外惩罚
+    const stanceInfo = POLITICAL_STANCES[official.politicalStance];
+    if (stanceInfo) {
+        if (stanceInfo.spectrum === 'right' && transitionConfig.rightLoyaltyExtra) {
+            loyaltyChange += transitionConfig.rightLoyaltyExtra;
+        }
+        if (stanceInfo.spectrum === 'left' && transitionConfig.leftLoyaltyExtra) {
+            loyaltyChange += transitionConfig.leftLoyaltyExtra;
+        }
+    }
+
+    let newWealth = official.wealth || 0;
+    let newOwnedProperties = [...(official.ownedProperties || [])];
+    let newManagedBuildings = [...(official.managedBuildings || [])];
+
+    // 处理存量产业
+    if (fromPolicy === 'private' && newOwnedProperties.length > 0) {
+        if (toPolicy === 'high_salary') {
+            // 私产制 → 高薪养廉：没收产业
+            if (confiscationMode === 'compensate') {
+                const compensation = newOwnedProperties.reduce((sum, p) => sum + (p.purchaseCost || 0) * 0.5, 0);
+                newWealth += compensation;
+                treasuryChange -= compensation;
+                logMessages.push(`补偿${official.name}产业没收费 ${Math.ceil(compensation)} 银`);
+            } else {
+                loyaltyChange -= 15;
+                logMessages.push(`强制没收${official.name}的全部产业`);
+            }
+            newOwnedProperties = [];
+        } else if (toPolicy === 'state_managed') {
+            // 私产制 → 代经营制：产权转为国有，官员改为代管人
+            newManagedBuildings = newOwnedProperties.map(p => ({
+                ...p,
+                ownerType: 'state',
+                managedBy: official.id,
+            }));
+            newOwnedProperties = [];
+            logMessages.push(`${official.name}的${newManagedBuildings.length}处产业转为国有代管`);
+        }
+    }
+
+    // 从代经营制切换走：清除代管关系
+    if (fromPolicy === 'state_managed') {
+        if (toPolicy === 'private') {
+            newOwnedProperties = [
+                ...newOwnedProperties,
+                ...newManagedBuildings.map(b => ({ ...b, ownerType: 'official' }))
+            ];
+            newManagedBuildings = [];
+        } else {
+            newManagedBuildings = [];
+        }
+    }
+
+    const newLoyalty = Math.max(0, Math.min(100, (official.loyalty || 75) + loyaltyChange));
+
+    logMessages.unshift(`${official.name}的产业政策从「${fromConfig.name}」切换为「${toConfig.name}」`);
+
+    const updatedOfficial = {
+        ...official,
+        propertyPolicy: toPolicy,
+        lastPolicyChangeDay: currentDay,
+        loyalty: newLoyalty,
+        wealth: newWealth,
+        ownedProperties: newOwnedProperties,
+        managedBuildings: newManagedBuildings,
+    };
+
+    return {
+        success: true,
+        updatedOfficial,
+        treasuryChange,
+        effects: {},
+        logMessages,
     };
 };
 

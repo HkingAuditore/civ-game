@@ -20,8 +20,6 @@ export const computeLivingCosts = (
     headTaxRates = {},
     resourceTaxRates = {}
 ) => {
-    const headTaxImpactMax = 4;
-    const headTaxImpactCurve = 4;
     const breakdown = {};
     Object.entries(STRATA).forEach(([key, def]) => {
         let needsCost = 0;
@@ -38,10 +36,11 @@ export const computeLivingCosts = (
             needsCost += perCapita * price;
             taxCost += perCapita * price * taxRate;
         });
+        // [FIX] 使用与 collectHeadTax 一致的线性公式：headBase * headRate
+        // 之前用饱和曲线导致高税率时感知成本远低于实际征收，百姓"不知道税重"
         const headBase = Math.max(0, def.headTaxBase ?? 0);
         const headRate = Math.max(0, getHeadTaxRate(key, headTaxRates));
-        const headRateImpact = headTaxImpactMax * (headRate / (headRate + headTaxImpactCurve));
-        taxCost += headBase * headRateImpact;
+        taxCost += headBase * headRate;
         breakdown[key] = {
             needsCost: Number.isFinite(needsCost) ? needsCost : 0,
             taxCost: Number.isFinite(taxCost) ? taxCost : 0,
@@ -140,7 +139,6 @@ export const calculateWeightedAverageWage = (popStructure = {}, previousWages = 
  * @param {Object} roleExpense - Expenses by role
  * @param {Object} previousWages - Previous tick's wages
  * @param {number} wageSmoothing - Smoothing factor (0-1)
- * @param {Object} maxWageCaps - Optional max wage caps by role { role: maxWage }
  * @returns {Object} Updated wages by role
  */
 export const updateWages = (
@@ -150,7 +148,6 @@ export const updateWages = (
     roleExpense = {},
     previousWages = {},
     wageSmoothing = 0.35,
-    maxWageCaps = {}
 ) => {
     const updatedWages = {};
 
@@ -165,15 +162,17 @@ export const updateWages = (
             // Calculate raw signal
             let rawSignal = (income - expense) / pop;
             
-            // NEW: Dampen wage signal for roles with extremely high profit margins
+            // Dampen wage signal for roles with extremely high profit margins
             // This prevents runaway wage inflation for low-expense roles like serfs
             if (expense > 0 && rawSignal > 0) {
                 const profitRatio = rawSignal / expense;
                 // If profit is more than 10x expenses, dampen the signal
                 if (profitRatio > 10) {
-                    // Logarithmic dampening: reduces extreme signals
-                    const dampingFactor = Math.min(1, 2 / Math.log10(profitRatio + 1));
-                    rawSignal = expense * (1 + profitRatio * dampingFactor);
+                    // Logarithmic dampening: cap the effective profit ratio
+                    // dampingFactor 将 profitRatio 压缩到对数级别
+                    // 例如: profitRatio=100 → dampedRatio≈4.0, profitRatio=1000 → dampedRatio≈6.0
+                    const dampedRatio = 2 * Math.log10(profitRatio + 1);
+                    rawSignal = expense * (1 + dampedRatio);
                 }
             }
             
@@ -197,13 +196,7 @@ export const updateWages = (
             effectiveSmoothing = wageSmoothing * 0.5;
         }
         
-        let smoothed = prev + (currentSignal - prev) * effectiveSmoothing;
-
-        // NEW: Apply max wage cap if specified for this role
-        const maxCap = maxWageCaps[role];
-        if (Number.isFinite(maxCap) && maxCap > 0 && smoothed > maxCap) {
-            smoothed = maxCap;
-        }
+        const smoothed = prev + (currentSignal - prev) * effectiveSmoothing;
 
         updatedWages[role] = parseFloat(smoothed.toFixed(2));
     });

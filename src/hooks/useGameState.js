@@ -768,7 +768,7 @@ const buildMinimalAutoSavePayload = (payload) => {
         militaryWageRatio: undefined,
         lastBattleTargetId: undefined,
         lastBattleDay: undefined,
-        activeFestivalEffects: undefined,
+        annualReportBaseline: undefined,
         lastFestivalYear: undefined,
         showTutorial: undefined,
         currentEvent: undefined,
@@ -1154,6 +1154,7 @@ export const useGameState = () => {
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时�?
     const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
+    // 注意：产业政策已迁移为逐官员字段 official.propertyPolicy（默认 'private'）
     const [ministerAssignments, setMinisterAssignments] = useState(buildInitialMinisterAssignments());
     const [ministerAutoExpansion, setMinisterAutoExpansion] = useState(buildInitialMinisterAutoExpansion());
     const [lastMinisterExpansionDay, setLastMinisterExpansionDay] = useState(0);
@@ -1397,11 +1398,10 @@ export const useGameState = () => {
     const [pendingRepairs, setPendingRepairs] = useState([]); // 战后待修复建筑[{ buildingId, count, source }]
     const [corpsReplenishQueue, setCorpsReplenishQueue] = useState({}); // 军团补兵缺额队列 { [corpsId]: { [unitId]: deficitCount } }
 
-    // ========== 庆典系统状态 ==========
-    const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
-    const [activeFestivalEffects, setActiveFestivalEffects] = useState([]); // 激活的庆典效果
-    const [lastFestivalYear, setLastFestivalYear] = useState(1); // 上次庆典的年份（�?开始，避免�?年触发）
-
+    // ========== Annual report system ==========
+    const [festivalModal, setFestivalModal] = useState(null); // { reportData, year }
+    const [annualReportBaseline, setAnnualReportBaseline] = useState(null); // Year-start baseline snapshot
+    const [lastFestivalYear, setLastFestivalYear] = useState(1); // Last report year (starts at 1 to avoid year-1 trigger)
     // ========== 商人交易状�?==========
     const [merchantState, setMerchantState] = useState(buildInitialMerchantState); // 商人交易状态：买入-持有-卖出周期
 
@@ -1843,7 +1843,7 @@ export const useGameState = () => {
                 targetArmyComposition,
                 militaryWageRatio,
                 festivalModal,
-                activeFestivalEffects,
+                annualReportBaseline,
                 lastFestivalYear,
                 showTutorial,
                 currentEvent,
@@ -2221,7 +2221,7 @@ export const useGameState = () => {
             overseasAssets: Array.isArray(n.overseasAssets) ? n.overseasAssets : [],
             };
         }));
-        setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0));
+        setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0, data.officialPropertyPolicy));
         setOfficialsSimCursor(data.officialsSimCursor ?? 0);
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
@@ -2480,7 +2480,7 @@ export const useGameState = () => {
         setAutoRecruitEnabled(data.autoRecruitEnabled || false);
         setTargetArmyComposition(data.targetArmyComposition || {});
         setFestivalModal(data.festivalModal || null);
-        setActiveFestivalEffects(data.activeFestivalEffects || []);
+        setAnnualReportBaseline(data.annualReportBaseline || null);
         setLastFestivalYear(data.lastFestivalYear || 1);
         setShowTutorial(data.showTutorial ?? true);
         setCurrentEvent(data.currentEvent || null);
@@ -3714,11 +3714,11 @@ export const useGameState = () => {
         corpsReplenishQueue,
         setCorpsReplenishQueue,
 
-        // 庆典系统
+        // Annual report system
         festivalModal,
         setFestivalModal,
-        activeFestivalEffects,
-        setActiveFestivalEffects,
+        annualReportBaseline,
+        setAnnualReportBaseline,
         lastFestivalYear,
         setLastFestivalYear,
 
