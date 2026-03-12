@@ -144,8 +144,8 @@ export const useStoreSync = (gs) => {
             eventEffectSettings: gs.eventEffectSettings,
             activeEventEffects: gs.activeEventEffects,
             festivalModal: gs.festivalModal,
-            activeFestivalEffects: gs.activeFestivalEffects,
             lastFestivalYear: gs.lastFestivalYear,
+            annualReportBaseline: gs.annualReportBaseline,
             priceControls: gs.priceControls,
         });
 
@@ -285,7 +285,7 @@ export const syncAllStoresToSnapshot = (data) => {
 
     const ecoFields = pick([
         'eventEffectSettings', 'activeEventEffects',
-        'festivalModal', 'activeFestivalEffects', 'lastFestivalYear', 'priceControls',
+        'festivalModal', 'lastFestivalYear', 'annualReportBaseline', 'priceControls',
     ]);
     if (Object.keys(ecoFields).length > 0) useEconomyStore.setState(ecoFields);
 

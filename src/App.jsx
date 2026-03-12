@@ -41,7 +41,7 @@ import {
     StratumDetailModal,
     ResourceDetailModal,
     PopulationDetailModal,
-    AnnualFestivalModal,
+    AnnualReportModal,
     TutorialModal,
     WikiModal,
 } from './components';
@@ -56,6 +56,7 @@ import { SaveTransferModal } from './components/modals/SaveTransferModal';
 import { AchievementsModal } from './components/modals/AchievementsModal';
 import { IdeologyEmergenceModal } from './components/modals/IdeologyEmergenceModal';
 import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
+import { collectAnnualSnapshot, generateExportText } from './utils/annualReport';
 import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
@@ -193,43 +194,6 @@ function GameApp({ gameState }) {
         }
     }, [gameState]);
 
-    const formatFestivalEffects = (effects) => {
-        if (!effects) return '无特殊效果。';
-
-        const formatValue = (key, value) => {
-            const positive = value > 0 ? '+' : '';
-            if (['production', 'industry', 'cultureBonus', 'scienceBonus', 'taxIncome', 'militaryBonus', 'stability'].includes(key)) {
-                return `${positive}${(value * 100).toFixed(0)}%`;
-            }
-            return `${positive}${value}`;
-        };
-
-        const effectStrings = Object.entries(effects).map(([key, value]) => {
-            switch (key) {
-                case 'categories':
-                    return Object.entries(value).map(([cat, val]) => {
-                        const catName = BUILDINGS.find(b => b.category === cat)?.categoryName || cat;
-                        return `${catName}类建筑产出 ${formatValue(key, val)}`;
-                    }).join('，');
-                case 'maxPop':
-                    return `人口上限 ${formatValue(key, value)}`;
-                default:
-                    const label = {
-                        production: '全局生产',
-                        industry: '工业产出',
-                        cultureBonus: '文化产出',
-                        scienceBonus: '科研产出',
-                        taxIncome: '税收收入',
-                        militaryBonus: '军事力量',
-                        stability: '稳定度',
-                    }[key] || key;
-                    return `${label} ${formatValue(key, value)}`;
-            }
-        });
-
-        return effectStrings.join('；');
-    };
-
     // 现在 gameState 肯定存在，可以安全调用这些钩子
     const actions = useGameActions(gameState, addLog);
     useGameLoop(gameState, addLog, actions);
@@ -251,7 +215,6 @@ function GameApp({ gameState }) {
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [showDonateModal, setShowDonateModal] = useState(false);
     const [showEconomicDashboard, setShowEconomicDashboard] = useState(false); // 新增：控制经济数据看板
-    const [expandedFestival, setExpandedFestival] = useState(null);
 
     // 官员超编检测状态
     const [showOfficialOverstaffModal, setShowOfficialOverstaffModal] = useState(false);
@@ -454,30 +417,6 @@ function GameApp({ gameState }) {
         showEmpireScene
     ]);
 
-    // 处理庆典效果选择
-    const handleFestivalSelect = (selectedEffect) => {
-        if (!selectedEffect) return;
-
-        // 添加到激活的庆典效果列表
-        const effectWithTimestamp = {
-            ...selectedEffect,
-            activatedAt: gameState.daysElapsed || 0,
-        };
-
-        gameState.setActiveFestivalEffects(prev => [...prev, effectWithTimestamp]);
-
-        // 关闭模态框
-        gameState.setFestivalModal(null);
-
-        // 恢复事件触发前的暂停状态
-        gameState.setIsPaused(gameState.pausedBeforeEvent);
-
-        // 添加日志
-        const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
-        const effectsDetail = formatFestivalEffects(selectedEffect.effects);
-        addLog(`🎊 庆典「${selectedEffect.name}」(${effectType})激活：${effectsDetail}`);
-    };
-
     // 处理事件选项选择
     const handleEventOption = (eventId, option) => {
         const selectedOption = option || {};
@@ -501,6 +440,40 @@ function GameApp({ gameState }) {
             addLog(`📜 已执行事件选项「${optionText}」`);
         }
     };
+
+    // Handle annual report close: save baseline and resume
+    const handleReportClose = useCallback(() => {
+        const reportYear = gameState.festivalModal?.year;
+        // Save current snapshot as next year's baseline
+        const newBaseline = collectAnnualSnapshot(gameState);
+        gameState.setAnnualReportBaseline(newBaseline);
+        // Close modal
+        gameState.setFestivalModal(null);
+        // Restore pause state
+        gameState.setIsPaused(gameState.pausedBeforeEvent);
+        if (reportYear) {
+            addLog(`📋 第 ${reportYear} 年年度报告已阅。`);
+        }
+    }, [gameState, addLog]);
+
+    // Handle annual report export: copy text to clipboard
+    const handleReportExport = useCallback(async () => {
+        const modal = gameState.festivalModal;
+        if (!modal?.reportData) return;
+        const text = generateExportText(
+            modal.reportData,
+            gameState.empireName,
+            modal.year,
+            gameState.epoch
+        );
+        try {
+            await navigator.clipboard.writeText(text);
+            addLog('📋 年度报告已复制到剪贴板');
+        } catch {
+            // Fallback for environments without clipboard API
+            window.prompt('请手动复制以下报告文本：', text);
+        }
+    }, [gameState, addLog]);
 
     // 处理教程完成
     const handleTutorialComplete = () => {
@@ -1578,6 +1551,7 @@ function GameApp({ gameState }) {
                                                 decrees={gameState.decrees}
                                                 onToggleDecree={actions.toggleDecree}
                                                 generals={gameState.generals}
+                                                changeOfficialPropertyPolicy={actions.changeOfficialPropertyPolicy}
                                             />
                                         )}
 
@@ -1927,88 +1901,10 @@ function GameApp({ gameState }) {
                         />
                     </div>
 
-                    {/* 庆典历史列表 */}
-                    {gameState.activeFestivalEffects && gameState.activeFestivalEffects.length > 0 && (
-                        <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-ancient-gold/30 shadow-glass overflow-hidden">
-                            <div className="px-3 py-2 border-b border-ancient-gold/20 bg-gradient-to-r from-ancient-gold/10 to-transparent">
-                                <div className="flex items-center gap-2">
-                                    <Icon name="Sparkles" size={14} className="text-ancient-gold" />
-                                    <span className="text-sm font-bold text-ancient-gold">庆典历史</span>
-                                </div>
-                            </div>
-                            <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
-                                {[...gameState.activeFestivalEffects]
-                                    .sort((a, b) => (b.activatedAt || 0) - (a.activatedAt || 0))
-                                    .map((effect, index) => {
-                                        const activatedYear = Math.floor((effect.activatedAt || 0) / 360) + 1;
-                                        const isPermanent = effect.type === 'permanent';
-                                        const isExpired = !isPermanent && (gameState.daysElapsed - (effect.activatedAt || 0)) >= (effect.duration || 360);
-                                        const uniqueKey = `${effect.id}-${index}`;
-                                        const isExpanded = expandedFestival === uniqueKey;
-
-                                        return (
-                                            <div
-                                                key={uniqueKey}
-                                                className={`p-2 rounded-lg border transition-all ${isExpired
-                                                    ? 'bg-gray-800/40 border-gray-600/30 opacity-60'
-                                                    : isPermanent
-                                                        ? 'bg-purple-900/20 border-purple-500/30'
-                                                        : 'bg-yellow-900/20 border-yellow-500/30'
-                                                    }`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isPermanent ? 'bg-purple-500/20' : 'bg-yellow-500/20'
-                                                        }`}>
-                                                        <Icon name={effect.icon || 'Star'} size={14} className={isPermanent ? 'text-purple-400' : 'text-yellow-400'} />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-semibold text-ancient-parchment truncate">{effect.name}</span>
-                                                            <span className={`text-xs px-1.5 py-0.5 rounded ${isExpired
-                                                                ? 'bg-gray-600/30 text-gray-400'
-                                                                : isPermanent
-                                                                    ? 'bg-purple-500/30 text-purple-300'
-                                                                    : 'bg-yellow-500/30 text-yellow-300'
-                                                                }`}>
-                                                                {isExpired ? '已过期' : isPermanent ? '永久' : '短期'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-xs text-ancient-stone mt-0.5">
-                                                            第 {activatedYear} 年选择
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setExpandedFestival(isExpanded ? null : uniqueKey)}
-                                                        className="text-xs text-gray-400 hover:text-white transition-colors p-1 rounded-md"
-                                                    >
-                                                        <Icon name={isExpanded ? "ChevronUp" : "ChevronDown"} size={12} />
-                                                    </button>
-                                                </div>
-                                                {isExpanded && (
-                                                    <div className="mt-2 pt-2 border-t border-white/10 text-xs text-gray-300">
-                                                        <p><strong>效果：</strong>{formatFestivalEffects(effect.effects)}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 无庆典历史提示 */}
-                    {(!gameState.activeFestivalEffects || gameState.activeFestivalEffects.length === 0) && (
-                        <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-gray-700/30 shadow-glass p-4 text-center">
-                            <Icon name="Calendar" size={24} className="text-ancient-stone mx-auto mb-2 opacity-50" />
-                            <p className="text-xs text-ancient-stone">暂无庆典历史记录</p>
-                            <p className="text-xs text-gray-500 mt-1">每年年初会触发庆典选择</p>
-                        </div>
-                    )}
                 </div>
             </BottomSheet>
 
-            {/* 战斗通知（非阻断式，页面顶部提示） */}
-            <BattleNotification
+            {/* 战斗通知（非阻断式，页面顶部提示） */}            <BattleNotification
                 notifications={gameState.battleNotifications || []}
                 onViewDetail={(notification) => {
                     // 点击查看详情时，显示完整的战斗结果模态框
@@ -2112,13 +2008,18 @@ function GameApp({ gameState }) {
                 />
             )}
 
-            {/* 年度庆典模态框 */}
-            {gameState.festivalModal && (
-                <AnnualFestivalModal
-                    festivalOptions={gameState.festivalModal.options}
+            {/* 事件系统底部面板 */}
+
+            {/* Annual Report Modal */}
+            {gameState.festivalModal?.reportData && (
+                <AnnualReportModal
+                    reportData={gameState.festivalModal.reportData}
                     year={gameState.festivalModal.year}
                     epoch={gameState.epoch}
-                    onSelect={handleFestivalSelect}
+                    empireName={gameState.empireName}
+                    gameState={gameState}
+                    onClose={handleReportClose}
+                    onExport={handleReportExport}
                 />
             )}
 

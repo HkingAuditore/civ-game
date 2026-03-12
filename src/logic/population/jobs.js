@@ -21,11 +21,6 @@ import {
     UPGRADE_MIGRATION_BONUS,
     MIGRATION_COOLDOWN_TICKS,
     VACANCY_FILL_RATIO_PER_TICK,
-    // Survival migration constants
-    CRITICAL_SHORTAGE_THRESHOLD,
-    CRITICAL_RESOURCES,
-    SHORTAGE_MIGRATION_BONUS,
-    EMERGENCY_MIGRATION_RATIO,
     // Lucky promotion
     LUCKY_PROMOTION_CHANCE,
 } from '../utils/constants';
@@ -109,13 +104,15 @@ export const initializeExpenseTracking = () => {
 /**
  * Allocate population to jobs based on previous structure
  * @param {Object} params - Allocation parameters
+ * @param {Set} [params.protectedRoles] - Optional: roles that produce essential resources (food/cloth), get 50% layoff reduction
  * @returns {Object} Updated population structure
  */
 export const allocatePopulation = ({
     population,
     previousPopStructure,
     jobsAvailable,
-    wealth
+    wealth,
+    protectedRoles = null
 }) => {
     const hasPreviousPopStructure = previousPopStructure &&
         Object.keys(previousPopStructure).length > 0;
@@ -154,6 +151,7 @@ export const allocatePopulation = ({
             }
 
             // If still need reduction, proportionally from all roles
+            // [FIX] 受保护角色（自营粮食/布料生产者）裁员比例减半
             if (reductionNeeded > 0) {
                 const initialTotal = ROLE_PRIORITY.reduce(
                     (sum, role) => sum + (popStructure[role] || 0), 0
@@ -167,6 +165,10 @@ export const allocatePopulation = ({
                         const proportion = current / initialTotal;
                         let remove = Math.floor(proportion * baseReduction);
                         if (remove <= 0 && reductionNeeded > 0) remove = 1;
+                        // 受保护角色裁员量减半（50% 豁免）
+                        if (protectedRoles && protectedRoles.has(role)) {
+                            remove = Math.max(1, Math.floor(remove * 0.5));
+                        }
                         if (index === ROLE_PRIORITY.length - 1) {
                             remove = Math.min(current, reductionNeeded);
                         } else {
@@ -457,9 +459,6 @@ export const handleJobMigration = ({
     reserveBuildingVacancyForRole,
     logs,
     migrationCooldowns = {},  // Track cooldowns for each role
-    // New: resource shortage data for survival migration
-    supplyDemandRatio = {},   // { resource: supply/demand ratio }
-    roleProducesResource = {}, // { role: [resources it produces] }
     wealthChangeLog = null    // Optional: for tracking wealth changes
 }) => {
     if (JOB_MIGRATION_RATIO <= 0) return { popStructure, wealth, migrationCooldowns };
@@ -484,161 +483,7 @@ export const handleJobMigration = ({
     const totalPop = activeRoleMetrics.reduce((sum, r) => sum + r.pop, 0);
     const averagePotentialIncome = totalPop > 0 ? totalPotentialIncome / totalPop : 0;
 
-    // ============== SURVIVAL MIGRATION: Resource Shortage Emergency ==============
-    // When critical resources are severely short, trigger emergency migration
-    // This bypasses normal income comparison logic to ensure survival
-    const criticallyShortResources = CRITICAL_RESOURCES.filter(res => {
-        const ratio = supplyDemandRatio[res];
-        // If ratio exists and is below threshold, resource is critically short
-        return ratio !== undefined && ratio < CRITICAL_SHORTAGE_THRESHOLD;
-    });
-
-    // Find roles that produce critically short resources
-    const rolesProducingShortResources = new Set();
-    if (criticallyShortResources.length > 0) {
-        Object.entries(roleProducesResource).forEach(([role, resources]) => {
-            if (resources && Array.isArray(resources)) {
-                const producesShort = resources.some(r => criticallyShortResources.includes(r));
-                if (producesShort) {
-                    rolesProducingShortResources.add(role);
-                }
-            }
-        });
-    }
-
-    const hasResourceCrisis = criticallyShortResources.length > 0 && rolesProducingShortResources.size > 0;
-
-    // Helper: Check if a role produces critically short resources
-    const roleProducesShortResource = (role) => rolesProducingShortResources.has(role);
-
-    // Identify "vulnerable" resources - those not yet critical but low enough that we shouldn't steal workers from them
-    // This prevents ping-pong effects (e.g. stealing Peasants to fix Cloth, causing Food shortage, then stealing Workers to fix Food)
-    const EARLY_WARNING_THRESHOLD = 0.8;
-    const vulnerableResources = CRITICAL_RESOURCES.filter(res => {
-        const ratio = supplyDemandRatio[res];
-        return ratio !== undefined && ratio < EARLY_WARNING_THRESHOLD;
-    });
-
-    const rolesProducingVulnerableResources = new Set();
-    if (vulnerableResources.length > 0) {
-        Object.entries(roleProducesResource).forEach(([role, resources]) => {
-            if (resources && Array.isArray(resources)) {
-                const producesVulnerable = resources.some(r => vulnerableResources.includes(r));
-                if (producesVulnerable) {
-                    rolesProducingVulnerableResources.add(role);
-                }
-            }
-        });
-    }
-
-    const roleProducesVulnerableResource = (role) => rolesProducingVulnerableResources.has(role);
-
-    // ============== EMERGENCY MIGRATION (Survival Instinct) ==============
-    // When resources are critically short, attempt emergency migration FIRST
-    // This allows migration even when normal conditions aren't met
-    // [MOD] Temporarily disabled as requested by user to prevent ping-pong effect
-    if (false && hasResourceCrisis) {
-        // Find the best emergency source: any role with population that's NOT producing short resources
-        // Priority: unemployed > non-essential roles > roles with surplus
-        const emergencySource = activeRoleMetrics
-            .filter(r => {
-                if (r.pop <= 0 || r.role === 'soldier') return false;
-                // Don't migrate FROM roles that produce short resources (we need them!)
-                if (roleProducesShortResource(r.role)) return false;
-                
-                // [FIX] Also don't migrate from roles producing "vulnerable" resources (safety buffer)
-                // Unless the target crisis is MUCH worse? For simplicity, just protect them.
-                if (roleProducesVulnerableResource(r.role)) return false;
-                
-                // Skip roles on cooldown
-                if (updatedCooldowns[r.role] && updatedCooldowns[r.role] > 0) return false;
-                return true;
-            })
-            .reduce((best, curr) => {
-                if (!best) return curr;
-                // Prioritize unemployed
-                if (curr.role === 'unemployed') return curr;
-                if (best.role === 'unemployed') return best;
-                // Otherwise, choose role with lower income (less productive)
-                if (curr.potentialIncome < best.potentialIncome) return curr;
-                return best;
-            }, null);
-
-        if (emergencySource) {
-            // Find the best emergency target: role that produces short resources with vacancy
-            const emergencyTarget = activeRoleMetrics
-                .filter(r => {
-                    if (r.role === emergencySource.role || r.vacancy <= 0) return false;
-                    // Must produce short resources
-                    if (!roleProducesShortResource(r.role)) return false;
-                    // Must have building vacancy (except for special roles)
-                    if (r.role !== 'soldier' && !hasBuildingVacancyForRole(r.role)) return false;
-                    return true;
-                })
-                .reduce((best, curr) => {
-                    if (!best) return curr;
-                    // Prefer roles with more vacancy
-                    if (curr.vacancy > best.vacancy) return curr;
-                    return best;
-                }, null);
-
-            if (emergencyTarget) {
-                // Execute emergency migration with higher ratio
-                const emergencyMigrationRatio = EMERGENCY_MIGRATION_RATIO;
-                let migrants = Math.floor(emergencySource.pop * emergencyMigrationRatio);
-                if (migrants <= 0 && emergencySource.pop > 0) migrants = 1;
-                migrants = Math.min(migrants, emergencyTarget.vacancy);
-
-                if (migrants > 0) {
-                    let placementInfo = null;
-                    if (emergencyTarget.role === 'soldier') {
-                        placementInfo = { buildingId: null, buildingName: 'Barracks', count: migrants };
-                    } else {
-                        const placement = reserveBuildingVacancyForRole(emergencyTarget.role, migrants);
-                        if (!placement || placement.count <= 0) {
-                            migrants = 0;
-                        } else {
-                            migrants = placement.count;
-                            placementInfo = placement;
-                        }
-                    }
-
-                    if (migrants > 0) {
-                        // Transfer wealth
-                        const sourceWealth = wealth[emergencySource.role] || 0;
-                        const sourcePerCapWealth = emergencySource.pop > 0 ? sourceWealth / emergencySource.pop : 0;
-                        const migratingWealth = sourcePerCapWealth * migrants;
-
-                        if (migratingWealth > 0) {
-                            wealth[emergencySource.role] = Math.max(0, sourceWealth - migratingWealth);
-                            // [FIX] Apply safe wealth limit
-                            wealth[emergencyTarget.role] = safeWealth((wealth[emergencyTarget.role] || 0) + migratingWealth);
-                            trackWealthTransfer(wealthChangeLog, emergencySource.role, emergencyTarget.role, migratingWealth, 'emergency_migration');
-                        }
-
-                        // Transfer population
-                        popStructure[emergencySource.role] = Math.max(0, emergencySource.pop - migrants);
-                        popStructure[emergencyTarget.role] = (popStructure[emergencyTarget.role] || 0) + migrants;
-
-                        // Set cooldown for both roles
-                        updatedCooldowns[emergencySource.role] = MIGRATION_COOLDOWN_TICKS;
-                        updatedCooldowns[emergencyTarget.role] = MIGRATION_COOLDOWN_TICKS;
-
-                        // Log the emergency migration
-                        const shortResourceNames = criticallyShortResources.join('、');
-                        const sourceStratumName = STRATA[emergencySource.role]?.name || emergencySource.role;
-                        const targetStratumName = STRATA[emergencyTarget.role]?.name || emergencyTarget.role;
-                        logs.push(`⚠️ ${shortResourceNames}严重短缺！${migrants}名${sourceStratumName}紧急转职为${targetStratumName}以增加产量。`);
-
-                        // Return after emergency migration (one migration per tick)
-                        return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
-                    }
-                }
-            }
-        }
-    }
-
-    // ============== NORMAL MIGRATION LOGIC (Enhanced with shortage awareness) ==============
+    // ============== NORMAL MIGRATION LOGIC ==============
     // Calculate max potential income among roles with vacancies (Pull factor)
     const maxPotentialIncome = activeRoleMetrics
         .filter(r => hasBuildingVacancyForRole(r.role))

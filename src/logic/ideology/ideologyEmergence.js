@@ -40,7 +40,8 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = []) 
         let weight = 10; // 基础权重
 
         // 稀有度调整
-        if (ideology.rarity === 'rare') weight *= 0.5;
+        if (ideology.rarity === 'legendary') weight *= 0.25;
+        else if (ideology.rarity === 'rare') weight *= 0.5;
         else if (ideology.rarity === 'uncommon') weight *= 0.75;
 
         // 时代匹配加成

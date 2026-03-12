@@ -284,7 +284,7 @@ export const REFORM_DECREES = {
         cooldown: 360,
         cost: 0,
         effects: {
-            incomePercent: 0.10, // 收入增加
+            taxIncome: 0.10, // 收入增加
             approval: { cleric: 15, peasant: -10, merchant: -5 }, // 教士支持，平民不满
         },
         description: '财政收入 +10%，教士满意度提升，平民满意度下降',

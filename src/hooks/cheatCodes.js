@@ -330,7 +330,7 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
                     sourceStratum: 'merchant',
                     effects: {
                         tradeBonus: 0.35,
-                        incomePercent: 0.25,
+                        taxIncome: 0.25,
                         buildingCostMod: -0.20,
                     },
                     salary: 45,

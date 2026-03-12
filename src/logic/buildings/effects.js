@@ -22,7 +22,7 @@ export const initializeBonuses = () => ({
     passiveGains: {},
     passivePercentGains: {},     // NEW: Percentage-based passive resource modifiers
     perPopPassiveGains: {},      // NEW: { resource: amountPerPopulation }
-    incomePercentBonus: 0,       // NEW: percentage bonus to silver income
+    incomePercentBonus: 0,       // DEPRECATED: 已迁移到 taxBonus，保留字段以兼容旧存档
     decreeResourceDemandMod: {},
     decreeStratumDemandMod: {},
     decreeResourceSupplyMod: {},
@@ -194,9 +194,9 @@ export const applyEffects = (effects, bonuses) => {
         });
     }
 
-    // NEW: Income percentage bonus (percentage of total silver income)
-    if (typeof effects.incomePercent === 'number') {
-        bonuses.incomePercentBonus += effects.incomePercent;
+    // [MIGRATED] incomePercent → taxIncome，统一累加到 taxBonus
+    if (typeof effects.taxIncome === 'number') {
+        bonuses.taxBonus += effects.taxIncome;
     }
 };
 
@@ -232,19 +232,6 @@ export const applyDecreeEffects = (decrees, bonuses) => {
         }
 
         applyEffects(decree.modifiers, bonuses);
-    });
-};
-
-/**
- * Apply festival effects
- * @param {Array} activeFestivalEffects - List of active festival effects
- * @param {Object} bonuses - Bonus structures to modify
- */
-export const applyFestivalEffects = (activeFestivalEffects, bonuses) => {
-    if (!Array.isArray(activeFestivalEffects)) return;
-    activeFestivalEffects.forEach(festivalEffect => {
-        if (!festivalEffect || !festivalEffect.effects) return;
-        applyEffects(festivalEffect.effects, bonuses);
     });
 };
 

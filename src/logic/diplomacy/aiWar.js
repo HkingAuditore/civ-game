@@ -36,7 +36,8 @@ import {
     getNationTreasury,
 } from './economyUtils';
 import { getCheckpointsCrossed, CHECKPOINTS } from './frontSystem';
-import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile } from './warEconomy';
+import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile, calculateWarPlunder } from './warEconomy';
+import { WAR_ECONOMY } from '../../config/gameConstants';
 import { BUILDINGS } from '../../config/buildings';
 
 const AI_DOCTRINES = {
@@ -1814,6 +1815,38 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 enemy.foreignWars[nation.id].assignedEnemyCorpsIds = war.assignedCorpsIds;
             }
             const totalStr = nationEffStr + enemyEffStr;
+
+            // === [NEW] AI-AI 持续掠夺（每tick） ===
+            // nation 视角：linePos > 65 表示推入 enemy 经济区，> 85 核心区
+            // enemy 视角：linePos < 35 表示推入 nation 经济区，< 15 核心区
+            const nationPlunders = calculateWarPlunder({
+                targetWealth: enemy.wealth || 0,
+                linePosition: war.linePosition,
+                side: 'defender', // nation is attacker, plundering defender's territory
+                raidMod: 1.0,
+                unitRatio: nationEffStr > 0 && enemyEffStr > 0 ? nationEffStr / enemyEffStr : 1.0,
+                efficiencyOverride: WAR_ECONOMY.AI_AI_PLUNDER_EFFICIENCY,
+            });
+            const enemyPlunders = calculateWarPlunder({
+                targetWealth: nation.wealth || 0,
+                linePosition: war.linePosition,
+                side: 'attacker', // enemy is defender, plundering attacker's territory
+                raidMod: 1.0,
+                unitRatio: enemyEffStr > 0 && nationEffStr > 0 ? enemyEffStr / nationEffStr : 1.0,
+                efficiencyOverride: WAR_ECONOMY.AI_AI_PLUNDER_EFFICIENCY,
+            });
+            if (nationPlunders.wealthPlundered > 0) {
+                enemy.wealth = Math.max(100, (enemy.wealth || 500) - nationPlunders.wealthPlundered);
+                nation.wealth = (nation.wealth || 500) + nationPlunders.wealthGained;
+                nation.economyDirtyFlags = { ...(nation.economyDirtyFlags || {}), resourcesDirty: true };
+                enemy.economyDirtyFlags = { ...(enemy.economyDirtyFlags || {}), resourcesDirty: true };
+            }
+            if (enemyPlunders.wealthPlundered > 0) {
+                nation.wealth = Math.max(100, (nation.wealth || 500) - enemyPlunders.wealthPlundered);
+                enemy.wealth = (enemy.wealth || 500) + enemyPlunders.wealthGained;
+                nation.economyDirtyFlags = { ...(nation.economyDirtyFlags || {}), resourcesDirty: true };
+                enemy.economyDirtyFlags = { ...(enemy.economyDirtyFlags || {}), resourcesDirty: true };
+            }
 
             if (totalStr > 0) {
                 // advanceRate 基础值 0.3~0.6/tick，根据战争强度微调

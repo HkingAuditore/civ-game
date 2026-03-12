@@ -347,3 +347,146 @@ export const processOfficialBuildingUpgrade = (
     candidates.sort((a, b) => b.roi - a.roi);
     return candidates[0];
 };
+
+// ========== 产业政策：代经营制相关函数 ==========
+
+/**
+ * 根据官员属性计算经营效率加成
+ * @param {Object} official - 官员对象
+ * @returns {number} 效率加成系数 (1.0 ~ 1.40)
+ */
+export const calculateEfficiencyBonus = (official) => {
+    if (!official) return 1.0;
+    const adminBonus = (official.stats?.administrative || official.administrative || 0) / 500; // 0~0.20
+    const levelBonus = (official.level || 1) * 0.02; // 0.02~0.20
+    return 1.0 + adminBonus + levelBonus;
+};
+
+/**
+ * 计算官员管理费分成比例
+ * @param {Object} official - 官员对象
+ * @returns {number} 分成比例 (0.10 ~ 0.25)
+ */
+export const calculateManagementFee = (official) => {
+    if (!official) return 0.10;
+    const adminBonus = (official.stats?.administrative || official.administrative || 0) / 500;
+    const levelBonus = (official.level || 1) * 0.01;
+    return Math.min(0.25, 0.10 + adminBonus + levelBonus);
+};
+
+/**
+ * 计算腐败损耗率（代经营制下）
+ * @param {Object} official - 官员对象
+ * @returns {number} 腐败损耗率 (0 ~ 0.15)
+ */
+export const calculateCorruptionLoss = (official) => {
+    if (!official) return 0;
+    const greed = official.greed || 1.0;
+    return Math.min(0.15, greed * 0.05);
+};
+
+/**
+ * 代经营制下的投资决策（国库出资，官员选择经营目标）
+ * 与 processOfficialInvestment 类似，但使用国库资金
+ */
+export const processStateManagedInvestment = (
+    official,
+    currentDay,
+    market,
+    taxPolicies,
+    cabinetStatus,
+    buildingCounts,
+    difficultyLevel,
+    epoch = 0,
+    techsUnlocked = [],
+    treasuryBudget = 0
+) => {
+    if (!official?.investmentProfile) return null;
+
+    const profile = official.investmentProfile;
+    if (currentDay - profile.lastInvestmentDay < INVESTMENT_COOLDOWN) return null;
+    // 代经营制不要求官员个人财富，而是使用国库预算
+    if (treasuryBudget <= 0) return null;
+
+    // 行政能力影响投资决策的精准度
+    const adminSkill = (official.stats?.administrative || official.administrative || 50) / 100;
+    const investChance = 0.3 + adminSkill * 0.4; // 30%~70% 基础概率
+    if (Math.random() > investChance) return null;
+
+    const budget = Math.min(treasuryBudget * 0.3, treasuryBudget); // 单次最多用预算30%
+    if (budget <= 0) return null;
+
+    const candidates = BUILDINGS
+        .filter(b => {
+            if (!b.owner || !b.baseCost) return false;
+            const epochUnlocked = (b.epoch ?? 0) <= epoch;
+            if (!epochUnlocked) return false;
+            const techUnlocked = !b.requiresTech || techsUnlocked.includes(b.requiresTech);
+            if (!techUnlocked) return false;
+            const currentCount = buildingCounts?.[b.id] || 0;
+            if (currentCount <= 0) return false;
+            const hasEmployees = Object.keys(b.jobs || {}).some(jobStratum => jobStratum !== b.owner);
+            if (!hasEmployees) return false;
+            return true;
+        })
+        .map(b => {
+            const cost = calculateCostInSilver(b.baseCost, market);
+            const profit = calculateBuildingProfit(b, market, taxPolicies).profit;
+            const preferenceWeight = profile.preferredCategories.includes(b.cat) ? 2.0 : 1.0;
+            // 行政能力高的官员更擅长选择高利润建筑
+            const skillWeight = 1 + adminSkill * 0.5;
+            return {
+                building: b,
+                cost,
+                profit,
+                weight: Math.max(0.01, profit * preferenceWeight * skillWeight),
+            };
+        })
+        .filter(c => c.cost <= budget && c.profit > 0)
+        .sort((a, b) => b.weight - a.weight);
+
+    if (candidates.length === 0) return null;
+
+    const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
+    let pick = Math.random() * totalWeight;
+    for (const c of candidates) {
+        pick -= c.weight;
+        if (pick <= 0) {
+            return {
+                buildingId: c.building.id,
+                cost: c.cost,
+                profit: c.profit,
+                isStateManaged: true, // 标记为代经营
+            };
+        }
+    }
+
+    return null;
+};
+
+/**
+ * 计算代经营建筑的收益分配
+ * @param {number} rawProfit - 建筑原始利润
+ * @param {Object} official - 管理该建筑的官员
+ * @returns {Object} { toTreasury, toOfficial, corruptionLost, efficiencyMult }
+ */
+export const calculateStateManagedProfitSplit = (rawProfit, official) => {
+    const efficiencyMult = calculateEfficiencyBonus(official);
+    const adjustedProfit = rawProfit * efficiencyMult;
+
+    const feeRate = calculateManagementFee(official);
+    const corruptionRate = calculateCorruptionLoss(official);
+
+    const toOfficial = adjustedProfit * feeRate;
+    const corruptionLost = adjustedProfit * corruptionRate;
+    const toTreasury = adjustedProfit - toOfficial - corruptionLost;
+
+    return {
+        toTreasury: Math.max(0, toTreasury),
+        toOfficial: Math.max(0, toOfficial),
+        corruptionLost: Math.max(0, corruptionLost),
+        efficiencyMult,
+        feeRate,
+        corruptionRate,
+    };
+};

@@ -512,6 +512,24 @@ const FrontViewPanel = ({
                                     <SupplyNeedDisplay impact={ownEconomicImpact} priceSource={market} />
 
                                 </div>
+                                <EconomyDataRow
+                                    label="掠夺流"
+                                    value={(() => {
+                                        const net = Number(ownEconomicImpact?.plunder?.netPlunderFlow || 0);
+                                        const gain = Number(ownEconomicImpact?.plunder?.playerDailyPlunderGain || 0);
+                                        const loss = Number(ownEconomicImpact?.plunder?.playerDailyPlunderLoss || 0);
+                                        if (gain <= 0 && loss <= 0) return '0/天';
+                                        if (net > 0) return `+${(net * 100).toFixed(1)}%/天`;
+                                        if (net < 0) return `${(net * 100).toFixed(1)}%/天`;
+                                        return '0/天';
+                                    })()}
+                                    tone={(() => {
+                                        const net = Number(ownEconomicImpact?.plunder?.netPlunderFlow || 0);
+                                        if (net > 0.001) return 'text-emerald-300';
+                                        if (net < -0.001) return 'text-red-300';
+                                        return 'text-gray-400';
+                                    })()}
+                                />
                                 <EconomyDataRow label="累计掠夺" value={formatNumberShortCN(ownEconomicImpact?.cumulative?.lootGained || 0, { decimals: 1 })} tone="text-emerald-300" />
                                 <EconomyDataRow label="累计被掠夺" value={formatNumberShortCN(ownEconomicImpact?.cumulative?.lootLost || 0, { decimals: 1 })} tone="text-red-300" />
                                 <EconomyDataRow label="建筑破坏" value={`损失 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsLost || 0, { decimals: 0 })} / 摧毁 ${formatNumberShortCN(ownEconomicImpact?.cumulative?.buildingsDestroyed || 0, { decimals: 0 })}`} />

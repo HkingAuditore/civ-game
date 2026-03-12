@@ -77,12 +77,12 @@ export const calculateResourceCost = (
             }
 
             let laborCost = 0;
-            const isSelfOwned = primaryBuilding.owner && primaryBuilding.jobs && 
-                              primaryBuilding.jobs[primaryBuilding.owner];
-
-            if (primaryBuilding.jobs && !isSelfOwned) {
+            // 自营建筑：跳过业主自身的工资（业主靠利润驱动），但仍计入其他雇员的工资
+            if (primaryBuilding.jobs) {
                 Object.entries(primaryBuilding.jobs).forEach(([role, slots]) => {
                     if (!slots || slots <= 0) return;
+                    // 如果是业主岗位，跳过其工资（业主收入来自利润而非工资）
+                    if (primaryBuilding.owner && role === primaryBuilding.owner) return;
                     laborCost += slots * resolveWage(role);
                 });
             }
@@ -199,11 +199,13 @@ export const updateMarketPrices = ({
             }
 
             // Calculate labor cost
+            // 自营建筑：跳过业主自身的工资，但仍计入其他雇员的工资
             let laborCost = 0;
-            const isSelfOwned = building.owner && building.jobs && building.jobs[building.owner];
-            if (building.jobs && !isSelfOwned) {
+            if (building.jobs) {
                 Object.entries(building.jobs).forEach(([role, slots]) => {
                     if (!slots || slots <= 0) return;
+                    // 如果是业主岗位，跳过其工资（业主收入来自利润而非工资）
+                    if (building.owner && role === building.owner) return;
                     const wage = updatedWages[role] || 0;
                     laborCost += slots * wage;
                 });
@@ -268,8 +270,10 @@ export const updateMarketPrices = ({
             const targetPrice = minPrice * priceMultiplier;
 
             // Smooth price transition
+            // [FIX] 动态平滑系数：供需差距大时加快响应
             const currentPrice = priceMap[resource] || basePrice;
-            const smoothing = 0.2;
+            const gapRatio = currentPrice > 0 ? Math.abs(targetPrice - currentPrice) / currentPrice : 0;
+            const smoothing = Math.min(0.4, 0.2 + gapRatio * 0.2);
             updatedPrices[resource] = parseFloat(
                 (currentPrice + (targetPrice - currentPrice) * smoothing).toFixed(2)
             );

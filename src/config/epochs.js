@@ -93,7 +93,7 @@ export const EPOCHS = [
             cultureBonus: 0.40,
             scienceBonus: 0.50,
             industryBonus: 0.60,
-            incomePercent: 0.50 // +50% total income
+            taxIncome: 0.50 // +50% total income
         }
     },
     {
@@ -147,7 +147,7 @@ export const EPOCHS = [
             cultureBonus: 1.00,
             scienceBonus: 1.50,
             industryBonus: 2.50,
-            incomePercent: 0.30
+            taxIncome: 0.30
         }
     },
     {
@@ -165,7 +165,7 @@ export const EPOCHS = [
             cultureBonus: 1.30,
             scienceBonus: 2.50,
             industryBonus: 3.50,
-            incomePercent: 0.35
+            taxIncome: 0.35
         }
     },
     {
@@ -183,7 +183,7 @@ export const EPOCHS = [
             cultureBonus: 1.60,
             scienceBonus: 4.00,
             industryBonus: 5.00,
-            incomePercent: 0.40
+            taxIncome: 0.40
         }
     }
 ];

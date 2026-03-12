@@ -657,7 +657,7 @@ export const RESOURCES = {
     },
     wiring: {
         name: "电缆",
-        icon: 'Cable',
+        icon: 'Zap',
         color: "text-yellow-500",
         basePrice: 14.0,
         minPrice: 0.14,
@@ -736,7 +736,7 @@ export const RESOURCES = {
     // ============ 原子时代 (Epoch 8) 新增资源 ============
     plastics: {
         name: "塑料",
-        icon: 'Box',
+        icon: 'Package',
         color: "text-blue-300",
         basePrice: 15.0,
         minPrice: 0.15,
@@ -812,7 +812,7 @@ export const RESOURCES = {
     },
     medicine: {
         name: "医药",
-        icon: 'Pill',
+        icon: 'Syringe',
         color: "text-red-300",
         basePrice: 35.0,
         minPrice: 0.35,
@@ -871,7 +871,7 @@ export const RESOURCES = {
     },
     composites: {
         name: "复合材料",
-        icon: 'Hexagon',
+        icon: 'Layers',
         color: "text-indigo-300",
         basePrice: 45.0,
         minPrice: 0.45,
@@ -997,6 +997,14 @@ export const WAR_ECONOMY = {
 
     // AI战后恢复
     AI_POST_WAR_WEALTH_RECOVERY: 0.001,  // 战后每tick恢复wealth×0.1%
+
+    // 反向掠夺 & 多场景掠夺
+    REVERSE_PLUNDER_EFFICIENCY: 0.6,           // AI掠夺玩家的效率系数（玩家掠夺的60%）
+    AI_AI_PLUNDER_EFFICIENCY: 0.5,             // AI-AI间持续掠夺的效率系数
+    RESOURCE_PLUNDER_RATE_ECONOMIC: 0.02,      // 经济区实物资源掠夺率/tick
+    RESOURCE_PLUNDER_RATE_CAPITAL: 0.04,       // 核心区实物资源掠夺率/tick
+    MAX_RESOURCE_TYPES_PLUNDERED: 3,           // 每次摩擦最多掠夺的资源种类数
+    PLUNDER_SILVER_FLOOR_RATIO: 0.2,           // 玩家被掠夺后保留的最低银币比例
 };
 
 export const TAX_LIMITS = {

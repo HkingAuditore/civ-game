@@ -504,12 +504,15 @@ export const calculateWarPopulationLoss = ({
 
 /**
  * 每tick持续从被侵入方掠夺财富（经济区/核心区时生效）
+ * 支持双向掠夺：攻方/守方均可作为被掠夺目标
  * @param {Object} params
  * @param {number} params.targetWealth - 被侵入方的财富
  * @param {number} params.linePosition - 战线位置（0-100）
  * @param {string} params.side - 被掠夺方的side（'attacker' 或 'defender'）
  * @param {number} params.raidMod - 掠夺方的raidMod
- * @returns {Object} { wealthPlundered: number, wealthGained: number, narrative: string }
+ * @param {number} params.unitRatio - 兵力比
+ * @param {number} [params.efficiencyOverride] - 效率系数覆盖（用于反向掠夺/AI-AI掠夺场景）
+ * @returns {Object} { wealthPlundered, wealthGained, zoneType, narrative }
  */
 export const calculateWarPlunder = ({
     targetWealth = 0,
@@ -517,27 +520,38 @@ export const calculateWarPlunder = ({
     side = 'defender',
     raidMod = 1.0,
     unitRatio = 1.0,
+    efficiencyOverride = null,
 }) => {
     // 判断是否在被侵入方的经济区/核心区
     let plunderRate = 0;
+    let zoneType = 'none'; // 'none' | 'economic' | 'capital'
     if (side === 'attacker') {
         // attacker 的领土在 linePos 低端
         if (linePosition < 15) {
             plunderRate = WAR_ECONOMY.PLUNDER_RATE_CAPITAL;
+            zoneType = 'capital';
         } else if (linePosition < 35) {
             plunderRate = WAR_ECONOMY.PLUNDER_RATE_ECONOMIC;
+            zoneType = 'economic';
         }
     } else {
         // defender 的领土在 linePos 高端
         if (linePosition > 85) {
             plunderRate = WAR_ECONOMY.PLUNDER_RATE_CAPITAL;
+            zoneType = 'capital';
         } else if (linePosition > 65) {
             plunderRate = WAR_ECONOMY.PLUNDER_RATE_ECONOMIC;
+            zoneType = 'economic';
         }
     }
 
     if (plunderRate <= 0) {
-        return { wealthPlundered: 0, wealthGained: 0, narrative: '' };
+        return { wealthPlundered: 0, wealthGained: 0, zoneType: 'none', narrative: '' };
+    }
+
+    // Apply efficiency override for reverse/AI-AI plunder scenarios
+    if (efficiencyOverride != null && efficiencyOverride >= 0) {
+        plunderRate *= efficiencyOverride;
     }
 
     // Force ratio amplifies plunder: 1:1→×1, 3:1→×1.6, 10:1→×2.5, cap 3.0
@@ -549,10 +563,56 @@ export const calculateWarPlunder = ({
     return {
         wealthPlundered,
         wealthGained,
+        zoneType,
         narrative: wealthPlundered > 1
             ? `掠夺敌方财富${Math.floor(wealthPlundered)}银币`
             : '',
     };
+};
+
+// ========== 实物资源掠夺 ==========
+
+/**
+ * 计算实物资源掠夺（AI掠夺玩家时银币不足的补充掠夺）
+ * @param {Object} params
+ * @param {Object} params.resourceInventory - 玩家资源库存 { food: 100, wood: 50, ... }
+ * @param {string} params.zoneType - 区域类型 'economic' | 'capital'
+ * @param {number} [params.efficiencyOverride=1.0] - 效率系数
+ * @param {Object} [params.nationPrices={}] - 资源价格用于估价折算 { food: 2.5, wood: 3.0, ... }
+ * @returns {Object} { resourcesPlundered: { [type]: amount }, totalWealthEquivalent: number }
+ */
+export const calculateResourcePlunder = ({
+    resourceInventory = {},
+    zoneType = 'economic',
+    efficiencyOverride = 1.0,
+    nationPrices = {},
+}) => {
+    const baseRate = zoneType === 'capital'
+        ? WAR_ECONOMY.RESOURCE_PLUNDER_RATE_CAPITAL
+        : WAR_ECONOMY.RESOURCE_PLUNDER_RATE_ECONOMIC;
+    const rate = baseRate * efficiencyOverride;
+    const maxTypes = WAR_ECONOMY.MAX_RESOURCE_TYPES_PLUNDERED;
+
+    // Exclude currency/virtual/special resources
+    const EXCLUDED_RESOURCES = new Set(['silver', 'science', 'culture', 'maxPop', 'militaryCapacity']);
+    const candidates = Object.entries(resourceInventory)
+        .filter(([type, amount]) => amount > 0 && !EXCLUDED_RESOURCES.has(type))
+        .sort((a, b) => b[1] - a[1]) // descending by stock
+        .slice(0, maxTypes);
+
+    const resourcesPlundered = {};
+    let totalWealthEquivalent = 0;
+
+    for (const [type, stock] of candidates) {
+        const plundered = stock * rate;
+        if (plundered <= 0) continue;
+        resourcesPlundered[type] = plundered;
+        // Estimate wealth equivalent using nationPrices
+        const price = nationPrices[type] || (RESOURCES[type]?.basePrice ?? 1);
+        totalWealthEquivalent += plundered * price;
+    }
+
+    return { resourcesPlundered, totalWealthEquivalent };
 };
 
 // ========== 贸易中断 ==========
