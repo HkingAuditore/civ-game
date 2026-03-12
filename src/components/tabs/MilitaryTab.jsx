@@ -332,6 +332,7 @@ const MilitaryTabComponent = ({
     targetArmyComposition = {},
     onUpdateTargetComposition,
     militaryBonus = 0,
+    ideologyRuleMods = {}, // V2: Ideology unit attack/defense mods
     // [FIX] Receive unified expense data from parent
     armyExpenseData: propArmyExpenseData,
     difficulty = 'normal', // 新增：难度设置，用于计算AI军力倍数
@@ -563,7 +564,7 @@ const MilitaryTabComponent = ({
     ), [propArmyExpenseData, simulationMilitaryExpense, allMilitaryUnits, market?.prices, epoch, _population, militaryWageRatio]);
     const totalWage = armyExpenseData.dailyExpense;
     // [FIX] 战斗力计算包含军团内的单位
-    const playerPower = useMemo(() => calculateBattlePower(allMilitaryUnits, epoch, militaryBonus), [allMilitaryUnits, epoch, militaryBonus]);
+    const playerPower = useMemo(() => calculateBattlePower(allMilitaryUnits, epoch, militaryBonus, 50, ideologyRuleMods), [allMilitaryUnits, epoch, militaryBonus, ideologyRuleMods]);
     // 只显示可见且处于战争状态的国家
     const warringNations = useMemo(() => (nations || []).filter((nation) =>
         nation.isAtWar &&

@@ -1230,7 +1230,7 @@ export const useGameActions = (gameState, addLog) => {
 
         // 检查升级成本
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         for (let k in nextEpoch.cost) {
             const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
@@ -1257,7 +1257,7 @@ export const useGameActions = (gameState, addLog) => {
         const newRes = { ...resources };
 
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         // 计算银币成本
         const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
@@ -1307,6 +1307,10 @@ export const useGameActions = (gameState, addLog) => {
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
         const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
+        // V2: Ideology building cost mod (per category + global)
+        const ideoBCM = modifiers?.ideologyRuleMods?.buildingCostMod || {};
+        const ideoBuildCostMod = (ideoBCM[b.cat] || 0) + (ideoBCM._global || 0);
+        const combinedBuildCostMod = buildingCostMod + ideoBuildCostMod;
 
         let totalCost = {};
 
@@ -1314,7 +1318,7 @@ export const useGameActions = (gameState, addLog) => {
         for (let i = 0; i < finalCount; i++) {
             const thisBuildCount = currentCount + i;
             const rawCost = calculateBuildingCost(b.baseCost, thisBuildCount, growthFactor, baseMultiplier);
-            const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, b.baseCost);
+            const adjustedCost = applyBuildingCostModifier(rawCost, combinedBuildCostMod, b.baseCost);
 
             Object.entries(adjustedCost).forEach(([res, amount]) => {
                 totalCost[res] = (totalCost[res] || 0) + amount;
@@ -1994,7 +1998,7 @@ export const useGameActions = (gameState, addLog) => {
 
         // 检查资源
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         let canAfford = true;
         for (let resource in tech.cost) {
@@ -2423,6 +2427,16 @@ export const useGameActions = (gameState, addLog) => {
         const totalUnitCost = {};
         for (let resource in unit.recruitCost) {
             totalUnitCost[resource] = (unit.recruitCost[resource] || 0) * recruitCount;
+        }
+
+        // V2: Ideology recruit cost mod (per unit category + global)
+        const ideoRCM = modifiers?.ideologyRuleMods?.recruitCostMod || {};
+        const ideoRecruitMod = (ideoRCM[unit.category] || 0) + (ideoRCM._global || 0);
+        if (ideoRecruitMod !== 0) {
+            const recruitMultiplier = Math.max(0.5, 1 + ideoRecruitMod); // cap at -50%
+            for (let resource in totalUnitCost) {
+                totalUnitCost[resource] = Math.ceil(totalUnitCost[resource] * recruitMultiplier);
+            }
         }
 
         // 检查资源
@@ -3395,7 +3409,7 @@ export const useGameActions = (gameState, addLog) => {
 
             }
             case 'demand': {
-                const armyPower = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0);
+                const armyPower = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {});
                 const successChance = Math.max(0.1, (armyPower / (armyPower + 200)) * 0.6 + (targetNation.relation || 0) / 300);
                 if (Math.random() < successChance) {
                     const tribute = Math.min(targetNation.wealth || 0, Math.ceil(150 + armyPower * 0.25));
@@ -4482,7 +4496,7 @@ export const useGameActions = (gameState, addLog) => {
                     epoch,
                     stance,
                     daysElapsed,
-                    playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
+                    playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}),
                     targetPower: calculateNationBattlePower(targetNation, epoch, 1.0, getAIMilitaryStrengthMultiplier(gameState.difficulty || 'normal')),
 
                     playerWealth: resources?.silver || 0,
@@ -4841,7 +4855,7 @@ export const useGameActions = (gameState, addLog) => {
                         nation: targetNation,
                         round,
                         daysElapsed,
-                        playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
+                        playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}),
                         targetPower: calculateNationBattlePower(targetNation, epoch, 1.0, getAIMilitaryStrengthMultiplier(gameState.difficulty || 'normal')),
                         playerWealth: resources?.silver || 0,
                         targetWealth: targetNation?.wealth || 0,
@@ -6014,7 +6028,7 @@ export const useGameActions = (gameState, addLog) => {
         if (!stratumKey) return;
         const rebellionState = (rebellionStates && rebellionStates[stratumKey]) || {};
         const totalArmy = Object.values(army || {}).reduce((sum, count) => sum + (count || 0), 0);
-        const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0) / 100;
+        const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}) / 100;
         const result = processRebellionAction(action, stratumKey, rebellionState, army, militaryStrength);
         const resultCallback = () => { };
         if (result.updatedOrganization !== undefined || result.pauseDays) {

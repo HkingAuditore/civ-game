@@ -93,7 +93,7 @@ const applyAlpha = (color, alpha = 1) => {
 /**
  * 知识悬浮提示框 (使用 Portal)
  */
-const TechTooltip = ({ tech, status, resources, market, anchorElement, difficulty }) => {
+const TechTooltip = ({ tech, status, resources, market, anchorElement, difficulty, techCostMod = 0 }) => {
     if (!tech || !anchorElement) return null;
 
     const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -123,7 +123,7 @@ const TechTooltip = ({ tech, status, resources, market, anchorElement, difficult
         }
     }, [anchorElement, tech]);
 
-    const multiplier = getTechCostMultiplier(difficulty);
+        const multiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
     const adjustedCost = {};
     Object.entries(tech.cost).forEach(([res, val]) => {
         adjustedCost[res] = Math.ceil(val * multiplier);
@@ -199,6 +199,7 @@ const TechTabComponent = ({
     setEquippedIdeologies,
     setIdeologyCooldowns,
     setIdeologySlotCount,
+    techCostMod = 0, // V2: Ideology tech cost modifier
 }) => {
     const [activeSection, setActiveSection] = useState('knowledge');
     const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
@@ -228,7 +229,7 @@ const TechTabComponent = ({
         }
 
         // 资源不足
-        const multiplier = getTechCostMultiplier(difficulty);
+        const multiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
         for (let resource in tech.cost) {
             const cost = Math.ceil(tech.cost[resource] * multiplier);
             if ((resources[resource] || 0) < cost) return false;
@@ -243,7 +244,7 @@ const TechTabComponent = ({
         if ((resources.silver || 0) < silverCost) return false;
 
         return true;
-    }, [techsUnlocked, epoch, resources, market, difficulty]);
+    }, [techsUnlocked, epoch, resources, market, difficulty, techCostMod]);
 
     /**
      * 获取科技状态
@@ -278,7 +279,7 @@ const TechTabComponent = ({
     const currentEpoch = EPOCHS[safeEpochIndex];
     const nextEpochInfo = safeEpochIndex < EPOCHS.length - 1 ? EPOCHS[safeEpochIndex + 1] : null;
     // 应用难度系数到时代升级成本
-    const epochCostMultiplier = getTechCostMultiplier(difficulty);
+    const epochCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
     const adjustedEpochCost = useMemo(() => {
         if (!nextEpochInfo) return {};
         const adjusted = {};
@@ -549,6 +550,7 @@ const TechTabComponent = ({
                     resources={resources}
                     market={market}
                     difficulty={difficulty}
+                    techCostMod={techCostMod}
                     canResearch={canResearch}
                     onResearch={onResearch}
                     onShowTechDetails={onShowTechDetails}
@@ -564,6 +566,7 @@ const TechTabComponent = ({
                 resources={resources}
                 market={market}
                 difficulty={difficulty}
+                techCostMod={techCostMod}
             />
             </>
             )}
