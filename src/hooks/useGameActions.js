@@ -46,6 +46,7 @@ import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch, calculateProportionalLoot } from '../config/militaryActions';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost, INSTALLMENT_CONFIG } from '../utils/diplomaticUtils';
+import { applyWarRelationCap } from '../utils/diplomacyUtils';
 import { filterEventEffects } from '../utils/eventEffectFilter';
 import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
 import { generateFront } from '../logic/diplomacy/frontSystem';

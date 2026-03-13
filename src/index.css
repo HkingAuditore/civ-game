@@ -57,6 +57,13 @@
         --bottom-nav-height: 64px;
     }
 
+    html {
+        /* 锁定 rem 基准，避免真实移动端/WebView 文本自动缩放带动整套布局变大 */
+        font-size: 16px;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
     body {
         @apply antialiased;
         font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
@@ -1730,6 +1737,11 @@
 /* ==================== 移动端响应式优化 ==================== */
 
 @media (max-width: 640px) {
+
+    html {
+        /* 移动端整体缩小一档，统一压缩 rem 驱动的按钮、间距、标题与弹窗 */
+        font-size: 14px;
+    }
 
     /* 移动端基础优化 */
     body {
