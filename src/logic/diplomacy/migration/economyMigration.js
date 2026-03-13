@@ -10,25 +10,38 @@ import { calculateAITreasuryTargetRatio } from '../economyUtils.js';
 
 const sanitizeMigratedState = (state) => {
     const epoch = Math.max(0, Number(state.epoch || 0));
-    const epochPopulationCeiling = [80, 220, 600, 1800, 5200, 12000, 24000][Math.min(epoch, 6)];
+    const epochPopulationBaseline = [900, 1400, 2200, 3400, 5200, 7800, 11000][Math.min(epoch, 6)];
+    const basePopulationReference = Math.max(
+        Number(state.basePopulation || 0),
+        Number(state.population || 0),
+        epochPopulationBaseline
+    );
+    // 迁移只负责兜底与防止爆表，不应把正常 AI 压成“小村落”。
     const populationCap = Math.max(
-        epochPopulationCeiling,
-        Math.round((state.basePopulation || state.population || 100) * 1.2)
+        epochPopulationBaseline * 12,
+        Math.round(basePopulationReference * 8)
     );
 
     state.population = Math.min(Math.max(1, Math.round(state.population || 1)), populationCap);
-    state.basePopulation = Math.min(
-        Math.max(20, Math.round(state.basePopulation || state.population)),
-        populationCap
-    );
+    state.basePopulation = Math.max(20, Math.round(state.basePopulation || state.population));
 
     const perCapitaCap = getPerCapitaWealthCap(epoch);
     const targetPerCapita = getTargetPerCapitaWealth(epoch);
-    const wealthCap = Math.max(200, Math.round(state.population * perCapitaCap));
+    const baseWealthReference = Math.max(
+        Number(state.baseWealth || 0),
+        Number(state.wealth || 0),
+        Math.round(basePopulationReference * targetPerCapita)
+    );
+    const wealthCap = Math.max(
+        5000,
+        Math.round(state.population * perCapitaCap * 6),
+        Math.round(baseWealthReference * 6)
+    );
     state.wealth = Math.min(Math.max(100, Math.round(state.wealth || 100)), wealthCap);
-    state.baseWealth = Math.min(
-        Math.max(120, Math.round(state.baseWealth || state.wealth)),
-        Math.max(state.wealth, Math.round(state.population * targetPerCapita * 1.5))
+    state.baseWealth = Math.max(
+        120,
+        Math.round(state.baseWealth || state.wealth),
+        Math.round(state.population * targetPerCapita)
     );
     const treasuryTargetRatio = calculateAITreasuryTargetRatio({
         wealth: state.wealth,

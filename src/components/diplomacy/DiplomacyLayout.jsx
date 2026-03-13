@@ -218,7 +218,7 @@ const DiplomacyLayout = ({
                     <div className="md:hidden flex items-center mb-2 px-1 relative z-50">
                         <button
                             onClick={handleBackToList}
-                            className={`flex items-center gap-1 text-ancient-gold font-bold px-3 py-1.5 rounded-lg border border-ancient-gold/30 ${COLORS.background.glass}`}
+                            className={`flex items-center gap-1 text-ancient-gold font-bold px-3 py-2 rounded-lg border border-ancient-gold/30 ${COLORS.background.glass}`}
                         >
                             <Icon name="ArrowLeft" size={16} />
                             <span>返回列表</span>
@@ -226,18 +226,18 @@ const DiplomacyLayout = ({
                     </div>
                 )}
 
-                <div className="mb-2 rounded-lg border border-theme-border bg-theme-surface-trans px-2.5 py-1.5 flex flex-wrap items-center gap-1.5">
-                    <div className="text-xs uppercase tracking-wider text-theme-text opacity-70 font-bold">
+                <div className="mb-2 rounded-lg border border-theme-border bg-theme-surface-trans px-3 py-2 flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.5">
+                    <div className="text-xs uppercase tracking-wider text-theme-text opacity-70 font-bold sm:flex-none">
                         全局事务
                     </div>
-                    <div className="ml-auto flex flex-wrap gap-1.5">
-                        <Button size="sm" variant="secondary" onClick={onManageTrade}>
+                    <div className="grid grid-cols-1 gap-1.5 sm:ml-auto sm:flex sm:flex-wrap sm:justify-end">
+                        <Button size="sm" variant="secondary" onClick={onManageTrade} className="w-full sm:w-auto">
                             商人派驻
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={onManageInternationalEconomy}>
+                        <Button size="sm" variant="secondary" onClick={onManageInternationalEconomy} className="w-full sm:w-auto">
                             国际经济概览
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={handleOpenVassalOverview}>
+                        <Button size="sm" variant="secondary" onClick={handleOpenVassalOverview} className="w-full sm:w-auto">
                             <Icon name="Crown" size={14} className="mr-1" />
                             附庸管理
                         </Button>
