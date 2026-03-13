@@ -39,6 +39,7 @@ import { getCheckpointsCrossed, CHECKPOINTS } from './frontSystem';
 import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile, calculateWarPlunder } from './warEconomy';
 import { WAR_ECONOMY } from '../../config/gameConstants';
 import { BUILDINGS } from '../../config/buildings';
+import { clampPopulationAtFloor, reducePopulationWithFloor } from '../../utils/populationClamp';
 
 const AI_DOCTRINES = {
     line_breaker: {
@@ -1787,9 +1788,9 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             const nationWarExpense = Math.max(1, Math.round(getNationAnnualOutput(nation, 500) * 0.0009 * warIntensity));
             const enemyWarExpense = Math.max(1, Math.round(getNationAnnualOutput(enemy, 500) * 0.0009 * warIntensity));
             nation.wealth = Math.max(100, (nation.wealth || 500) * nationWealthDecay * nationMultiWarPenalty - nationWarExpense);
-            nation.population = Math.max(10, (nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
+            nation.population = clampPopulationAtFloor((nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
             enemy.wealth = Math.max(100, (enemy.wealth || 500) * enemyWealthDecay * enemyMultiWarPenalty - enemyWarExpense);
-            enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
+            enemy.population = clampPopulationAtFloor((enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
 
             // === linePosition 推进（每tick） ===
             // 基于分配到本战线的实际军团战力计算有效战力
@@ -1908,7 +1909,7 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
 
                     // 人口流失
                     const popLoss = calculateWarPopulationLoss({ population: victimNation.population || 100, zoneCategory });
-                    victimNation.population = Math.max(10, (victimNation.population || 100) - popLoss.populationLoss);
+                    victimNation.population = reducePopulationWithFloor((victimNation.population || 100), popLoss.populationLoss);
 
                     // 经济损伤：被侵入方 wealth 按区域类型损伤
                     const wealthDmgRate = zoneCategory === 'capital' ? 0.08 : zoneCategory === 'economic' ? 0.04 : 0.02;
@@ -2138,7 +2139,7 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
 
                     winner.population = (winner.population || 100) + populationTransfer;
                     winner.wealth = (winner.wealth || 500) + wealthTransfer;
-                    loser.population = Math.max(10, (loser.population || 100) - populationTransfer);
+                    loser.population = reducePopulationWithFloor((loser.population || 100), populationTransfer);
                     loser.wealth = Math.max(100, (loser.wealth || 500) - wealthTransfer);
 
                     // 检查吞并条件：压倒性胜利 + 败方人口<30 + 财富<300

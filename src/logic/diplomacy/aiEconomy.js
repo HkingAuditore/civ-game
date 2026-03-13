@@ -12,6 +12,7 @@ import { isTradableResource } from '../utils/helpers';
 import { getAIDevelopmentMultiplier } from '../../config/difficulty.js';
 import { calculateAILogisticGrowth } from '../population/logisticGrowth.js';
 import { calculateBuildingIntegrityModifiers } from './warEconomy';
+import { clampBootstrapPopulation } from '../../utils/populationClamp';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -24,6 +25,24 @@ const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     }
     return actual;
 };
+
+const getAIPlayerInfluenceFactor = (difficultyMultiplier = 1) => clamp(
+    0.12 + Math.max(0, difficultyMultiplier - 1) * 0.06,
+    0.10,
+    0.20
+);
+
+const getAIPopulationSoftCapBoost = (difficultyMultiplier = 1) => clamp(
+    1.15 + Math.max(0, difficultyMultiplier - 1) * 0.35,
+    1.10,
+    1.50
+);
+
+const getAIWarGrowthRetention = (difficultyMultiplier = 1) => clamp(
+    0.55 + Math.max(0, difficultyMultiplier - 1) * 0.08,
+    0.50,
+    0.72
+);
 
 /**
  * Update AI nation economy (resources, budget, inventory)
@@ -272,7 +291,7 @@ export const processAIIndependentGrowth = ({
     if (ticksSinceLastGrowth >= 10) {
         // [FIX v2] Growth should happen even during war, just at reduced rate
         // Old behavior completely blocked growth during war, causing stagnation
-        const warPenalty = next.isAtWar ? 0.3 : 1.0; // 70% reduction during war, not 100%
+        const warPenalty = next.isAtWar ? getAIWarGrowthRetention(multiplier) : 1.0;
         
         const currentPopulation = next.population || ownBasePopulation;
         
@@ -445,7 +464,7 @@ export const updateAIDevelopment = ({
     const aiOwnTargetWealth = (next.economyTraits?.ownBaseWealth || 1000) * eraGrowthFactor * wealthFactor * multiplier;
 
     // Blend with player reference (Reduced to 5% for independence)
-    const playerInfluenceFactor = 0.05;
+    const playerInfluenceFactor = getAIPlayerInfluenceFactor(multiplier);
     const playerTargetPopulation = playerPopulationBaseline * populationFactor * eraMomentum;
     const playerTargetWealth = playerWealthBaseline * wealthFactor * eraMomentum;
 
@@ -475,10 +494,11 @@ export const updateAIDevelopment = ({
     const desiredPopulationRaw = Math.max(3, blendedTargetPopulation * templatePopulationBoost * foodFactor);
     // [FIX] Significantly reduce soft cap to prevent early game population explosion
     // Initial population ~16, so soft cap starts at ~160, grows slowly with actual population
+    const softCapBoost = getAIPopulationSoftCapBoost(multiplier);
     const populationSoftCap = Math.max(
-        200,  // [FIX] Reduce base cap from 10000 to 200 for early game balance
-        playerPopulationBaseline * 0.8,  // [FIX] Reduce from 1.2x to 0.8x player population
-        (next.economyTraits?.ownBasePopulation || 16) * 10  // [FIX] Reduce from 300x to 10x base population
+        220 * softCapBoost,
+        playerPopulationBaseline * (0.95 + Math.max(0, multiplier - 1) * 0.12),
+        (next.economyTraits?.ownBasePopulation || 16) * (12 + softCapBoost * 8)
     );
     const populationOverage = Math.max(0, desiredPopulationRaw - populationSoftCap);
     const desiredPopulation = populationOverage > 0
@@ -508,7 +528,7 @@ export const updateAIDevelopment = ({
     // [FIX] Only apply war casualty, don't drift population towards target
     // Population growth is handled by logistic model in processAIIndependentGrowth
     if (next.isAtWar) {
-        const warCasualty = currentPopulation * 0.005 * tickScaleFactor;
+        const warCasualty = currentPopulation * (0.0032 / Math.max(1, 0.9 + Math.max(0, multiplier - 1) * 0.18)) * tickScaleFactor;
         next.population = Math.max(3, Math.round(currentPopulation - warCasualty));
     }
     
@@ -758,7 +778,7 @@ export const scaleNewlyUnlockedNation = ({
     // Scale population
     const originalPopulation = nation.population || 1000;
     const scaledPopulation = Math.floor(originalPopulation * populationScale);
-    nation.population = Math.max(100, scaledPopulation);
+    nation.population = clampBootstrapPopulation(scaledPopulation);
 
     // Scale wealth
     const originalWealth = nation.wealth || 800;

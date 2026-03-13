@@ -13,6 +13,7 @@ import { calculateAITreasuryTargetRatio } from '../logic/diplomacy/economyUtils'
 import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan } from '../logic/diplomacy/aiWar';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
 import { getScenarioById } from '../config/scenarios';
+import { clampBootstrapPopulation } from '../utils/populationClamp';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
@@ -2045,7 +2046,7 @@ export const useGameState = () => {
                     
                     // Population: 30-80% of player, with epoch bonus
                     const targetPopScale = 0.3 + Math.random() * 0.5; // 0.3 to 0.8
-                    const newPopulation = Math.max(100, Math.floor(playerPop * targetPopScale * epochBonus));
+                    const newPopulation = clampBootstrapPopulation(playerPop * targetPopScale * epochBonus);
                     
                     // Wealth: 20-60% of player, with epoch bonus, but capped by per-capita limit
                     const targetWealthScale = 0.2 + Math.random() * 0.4; // 0.2 to 0.6

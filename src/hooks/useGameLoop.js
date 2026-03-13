@@ -109,6 +109,9 @@ import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits, findBestReplenishT
 import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan, evaluateGeneralBattleProposal, allocateAICorpsToFronts, applyAICorpsAllocation } from '../logic/diplomacy/aiWar';
 import { applyMilitaryProcurementPressure, calculateWarPlunder, calculateResourcePlunder } from '../logic/diplomacy/warEconomy';
 import { WAR_ECONOMY } from '../config/gameConstants';
+import {
+    reducePopulationWithFloor,
+} from '../utils/populationClamp';
 
 import { createBattleProposalEvent } from '../config/events/diplomaticEvents';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
@@ -3657,7 +3660,7 @@ difficulty, // 游戏难度
                             if (popLossRate > 0) {
                                 const currentPop = current.population || 1000;
                                 const popLoss = Math.max(1, Math.floor(currentPop * popLossRate));
-                                setPopulation(prev => Math.max(100, prev - popLoss));
+                                setPopulation(prev => reducePopulationWithFloor(prev, popLoss));
                                 battleLogs.push(`💀 战火蔓延至我方核心区，平民伤亡 ${popLoss} 人`);
                             }
                             // Also apply pop loss to AI if we push into their core
@@ -3672,7 +3675,7 @@ difficulty, // 游戏难度
                                 setNations(prev => prev.map(n => {
                                     if (n.id !== enemyId) return n;
                                     const aiPopLoss = Math.max(1, Math.floor((n.population || 1000) * aiPopLossRate));
-                                    return { ...n, population: Math.max(100, (n.population || 1000) - aiPopLoss) };
+                                    return { ...n, population: reducePopulationWithFloor((n.population || 1000), aiPopLoss) };
                                 }));
                             }
                         });
@@ -3893,7 +3896,7 @@ difficulty, // 游戏难度
 
                             // 应用玩家人口流失
                             if (playerPopLoss > 0) {
-                                setPopulation(prev => Math.max(100, prev - playerPopLoss));
+                                setPopulation(prev => reducePopulationWithFloor(prev, playerPopLoss));
                                 battleLogs.push(`💀 战线推进造成平民伤亡，人口损失${playerPopLoss}`);
                             }
 
@@ -4876,7 +4879,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                         ...prev,
                                         [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - leaving),
                                     }));
-                                    setPopulation(prev => Math.max(0, prev - leaving));
+                                    setPopulation(prev => reducePopulationWithFloor(prev, leaving));
 
                                     // 鎵ｉ櫎甯﹁蛋鐨勮储瀵?
                                     if (fleeingCapital > 0) {
@@ -4941,7 +4944,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             });
                                             return updated;
                                         });
-                                        setPopulation(prev => Math.max(0, prev - totalLoss));
+                                        setPopulation(prev => reducePopulationWithFloor(prev, totalLoss));
                                         addLog('[联合叛乱] 更多人（' + totalLoss + '）加入了 ' + existingRebel.name + '。');
                                     } else {
                                         // 鍒涘缓鏂拌仈鍚堝彌鍐?
@@ -4963,7 +4966,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             });
                                             return updated;
                                         });
-                                        setPopulation(prev => Math.max(0, prev - totalLoss));
+                                        setPopulation(prev => reducePopulationWithFloor(prev, totalLoss));
                                         event = createCoalitionRebellionEvent(
                                             coalitionStrata,
                                             rebelNation,
@@ -5043,7 +5046,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             ...prev,
                                             [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
                                         }));
-                                        setPopulation(prev => Math.max(0, prev - rebelPopLoss));
+                                        setPopulation(prev => reducePopulationWithFloor(prev, rebelPopLoss));
                                         addLog('[叛军扩张] 更多' + (STRATA[stratumKey]?.name || stratumKey) + '（' + rebelPopLoss + '人）加入了 ' + existingRebelNation.name + '。');
                                     } else {
                                         const resourceLoot = { resources: current.resources || {}, marketPrices: current.market?.prices || {} };
@@ -5068,7 +5071,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             ...prev,
                                             [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
                                         }));
-                                        setPopulation(prev => Math.max(0, prev - rebelPopLoss));
+                                        setPopulation(prev => reducePopulationWithFloor(prev, rebelPopLoss));
 
                                         event = createActiveRebellionEvent(stratumKey, rebellionStateForEvent, hasMilitary, militaryIsRebelling, rebelNation, rebellionCallback);
                                         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_REBELLION_START, {
@@ -5293,7 +5296,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                     ...prev,
                                     [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
                                 }));
-                                setPopulation(prev => Math.max(0, prev - rebelPopLoss));
+                                setPopulation(prev => reducePopulationWithFloor(prev, rebelPopLoss));
 
                                 // 为叛乱创建战线
                                 if (typeof setActiveFronts === 'function') {
@@ -6052,7 +6055,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                                 if (eventData.demandType === 'massacre') {
                                                     // 灞犳潃锛氭墸闄や汉鍙ｅ拰浜哄彛涓婇檺
                                                     const popLoss = eventData.demandAmount || 0;
-                                                    setPopulation(prev => Math.max(10, prev - popLoss));
+                                                    setPopulation(prev => reducePopulationWithFloor(prev, popLoss));
                                                     setMaxPop(prev => Math.max(20, prev - popLoss));
                                                     addLog(`馃拃 鍙涘啗杩涜浜嗗ぇ灞犳潃锛屼綘澶卞幓浜?${popLoss} 浜哄彛鍜屼汉鍙ｄ笂闄愶紒`);
 
@@ -6607,7 +6610,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                                         addLog('[投降失败] 人口不足（需要 ' + amount + '，当前 ' + Math.floor(currentPop) + '），无法接受投降条件。');
                                                         return;
                                                     }
-                                                    setPopulation(prev => Math.max(10, prev - amount));
+                                                    setPopulation(prev => reducePopulationWithFloor(prev, amount));
                                                     // [FIX] Sync popStructure: remove population proportionally from all strata
                                                     setPopStructure(prev => {
                                                         const totalPop = Object.values(prev).reduce((sum, v) => sum + (v || 0), 0);

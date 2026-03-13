@@ -392,6 +392,12 @@ export const calculateWarBuildingDamage = ({
     const destroyChance = Math.min(0.92, baseProbability * raidMod * ratioBonus);
     // Destruction cap: base + units bonus, max 12
     const maxDestroy = Math.min(12, WAR_ECONOMY.MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT + unitsBonus);
+    const effectiveDestroyChance = isPlayerNation
+        ? Math.min(0.65, destroyChance * 0.55)
+        : destroyChance;
+    const effectiveMaxDestroy = isPlayerNation
+        ? Math.max(1, Math.min(5, Math.ceil(maxDestroy * 0.5)))
+        : maxDestroy;
 
     const allowedCats = zoneCategory === 'capital'
         ? ['gather', 'industry', 'civic', 'military']
@@ -404,8 +410,17 @@ export const calculateWarBuildingDamage = ({
         if (count <= 0) continue;
         const bDef = BUILDINGS.find(b => b.id === bId);
         if (!bDef || !allowedCats.includes(bDef.cat)) continue;
-        // Capital zone: allow destroying all buildings; other zones: keep at least 1
-        const minKeep = zoneCategory === 'capital' ? 0 : 1;
+        const isHousingBuilding = Number(bDef.output?.maxPop || 0) > 0;
+        let minKeep = zoneCategory === 'capital' ? 0 : 1;
+
+        // 玩家侧保护：避免战线几次推进就把整城住房和基础建筑瞬间清空。
+        if (isPlayerNation) {
+            minKeep = Math.max(minKeep, 1);
+            if (isHousingBuilding) {
+                minKeep = Math.max(minKeep, Math.ceil(count * 0.5));
+            }
+        }
+
         if (count <= minKeep) continue;
         candidates.push({ id: bId, name: bDef.name, available: count - minKeep });
     }
@@ -419,8 +434,8 @@ export const calculateWarBuildingDamage = ({
         let destroyCount = 0;
         const narratives = [];
 
-        for (let i = 0; i < maxDestroy && candidates.length > 0; i++) {
-            if (Math.random() > destroyChance) continue;
+        for (let i = 0; i < effectiveMaxDestroy && candidates.length > 0; i++) {
+            if (Math.random() > effectiveDestroyChance) continue;
             const idx = Math.floor(Math.random() * candidates.length);
             const target = candidates[idx];
             result.destroyedBuildings[target.id] = (result.destroyedBuildings[target.id] || 0) + 1;
@@ -445,8 +460,8 @@ export const calculateWarBuildingDamage = ({
             : 0;
         const narratives = [];
 
-        for (let i = 0; i < maxDestroy && candidates.length > 0; i++) {
-            if (Math.random() > destroyChance) continue;
+        for (let i = 0; i < effectiveMaxDestroy && candidates.length > 0; i++) {
+            if (Math.random() > effectiveDestroyChance) continue;
             const idx = Math.floor(Math.random() * candidates.length);
             const target = candidates[idx];
             result.destroyedBuildings[target.id] = (result.destroyedBuildings[target.id] || 0) + 1;

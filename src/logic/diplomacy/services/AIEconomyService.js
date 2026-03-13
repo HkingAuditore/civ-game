@@ -120,6 +120,8 @@ export class AIEconomyService {
                 state,
                 tick,
                 epoch,
+                difficulty,
+                playerPopulation,
                 ticksSinceUpdate: ticksSinceLastUpdate,
                 allowHeavyUpdate,
                 cachedVirtualLabor: virtualState.virtualLabor,

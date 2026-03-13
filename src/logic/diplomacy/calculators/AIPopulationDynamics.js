@@ -5,6 +5,18 @@ const safeNumber = (value, fallback = 0) => {
 
 const clamp = (value, min = 0, max = Infinity) => Math.min(max, Math.max(min, value));
 
+const getPlayerReferenceWeight = (difficultyMultiplier = 1) => clamp(
+    0.12 + Math.max(0, difficultyMultiplier - 1) * 0.06,
+    0.10,
+    0.20
+);
+
+const getPopulationSoftCapBoost = (difficultyMultiplier = 1) => clamp(
+    1.15 + Math.max(0, difficultyMultiplier - 1) * 0.35,
+    1.10,
+    1.50
+);
+
 const getLaborParticipationRate = (nation = {}, epoch = 0) => {
     const developmentRate = safeNumber(nation.economyTraits?.developmentRate ?? nation.developmentRate, 1);
     const laborPolicy = nation?.vassalPolicy?.labor || 'standard';
@@ -24,6 +36,8 @@ export const calculateAIPopulationDynamics = ({
     epoch = 0,
     ticksSinceUpdate = 10,
     capacityState = {},
+    playerPopulation = 0,
+    difficultyMultiplier = 1,
 }) => {
     const population = Math.max(1, Math.round(safeNumber(state.population ?? nation.population, 1)));
     const wealth = Math.max(0, safeNumber(state.wealth ?? nation.wealth, 0));
@@ -41,9 +55,22 @@ export const calculateAIPopulationDynamics = ({
     const civicCapacity = safeNumber(capacityState.civicSupport, 0) * 3.4;
     const wealthCapacity = Math.sqrt(Math.max(0, wealth)) * (7 + epoch * 0.7);
     const epochFloor = [40, 90, 180, 320, 520, 850, 1300, 1800][Math.min(7, Math.max(0, epoch))] || 1800;
+    const playerReferenceWeight = getPlayerReferenceWeight(difficultyMultiplier);
+    const populationSoftCapBoost = getPopulationSoftCapBoost(difficultyMultiplier);
+    const ownBasePopulation = Math.max(
+        1,
+        safeNumber(state.basePopulation ?? nation.economyTraits?.ownBasePopulation, population)
+    );
+    const playerPopulationFloor = Math.max(0, safeNumber(playerPopulation, 0) * playerReferenceWeight);
+    const capacityFloor = Math.max(
+        220 * populationSoftCapBoost,
+        ownBasePopulation * (12 + populationSoftCapBoost * 8),
+        playerPopulationFloor * populationSoftCapBoost
+    );
     const carryingCapacity = Math.max(
         epochFloor,
-        Math.round(foodCapacity + civicCapacity + wealthCapacity)
+        Math.round(foodCapacity + civicCapacity + wealthCapacity),
+        Math.round(capacityFloor)
     );
 
     const foodNeed = Math.max(25, population * 0.18);
@@ -54,7 +81,9 @@ export const calculateAIPopulationDynamics = ({
     const wealthFactor = clamp(0.65 + Math.min(2, wealthPerCapita / 60) * 0.24, 0.55, 1.15);
     const unemploymentRate = laborPool > 0 ? unemployment / laborPool : 0;
     const employmentFactor = clamp(1.02 - unemploymentRate * 0.45, 0.7, 1.05);
-    const warFactor = nation.isAtWar ? 0.72 : 1;
+    const warFactor = nation.isAtWar
+        ? clamp(0.82 + Math.max(0, difficultyMultiplier - 1) * 0.08, 0.78, 0.92)
+        : 1;
     const capacityRatio = population / Math.max(1, carryingCapacity);
     const crowdingFactor = capacityRatio <= 1
         ? clamp(1.08 - capacityRatio * 0.28, 0.72, 1.1)
