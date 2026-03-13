@@ -173,6 +173,23 @@ const formatCompactCost = (value) => {
     return formatNumberShortCN(value, { decimals: 1 });
 };
 
+const shallowEqualJobRows = (prevRows = [], nextRows = []) => {
+    if (prevRows === nextRows) return true;
+    if (prevRows.length !== nextRows.length) return false;
+
+    for (let i = 0; i < prevRows.length; i++) {
+        if (
+            prevRows[i]?.job !== nextRows[i]?.job ||
+            prevRows[i]?.assigned !== nextRows[i]?.assigned ||
+            prevRows[i]?.required !== nextRows[i]?.required
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
 const CompactBuildingCard = ({
     building,
     count,
@@ -187,7 +204,7 @@ const CompactBuildingCard = ({
     onMouseLeave,
     epoch,
     techsUnlocked,
-    jobFill,
+    jobRows = [],
     resources,
     hasUpgrades,
     unlockedOutput = {},
@@ -237,15 +254,9 @@ const CompactBuildingCard = ({
             {count > 0 && (
                 <div className="space-y-0.5 text-xs my-1">
                     {/* 岗位饱和度 - 只显示进度条，不显示标签 */}
-                    {building.jobs && Object.keys(building.jobs).length > 0 && (
+                    {jobRows.length > 0 && (
                         <div className="bg-gray-900/40 rounded px-1 py-0.5">
-                            {Object.entries(building.jobs).map(([job, perBuilding]) => {
-                                // 优化：业主岗位使用预计算的值，避免在每个卡片中重复计算
-                                let required = perBuilding * count;
-                                if (building.owner && job === building.owner) {
-                                    required = ownerJobsRequired;
-                                }
-                                const assigned = jobFill?.[building.id]?.[job] ?? 0;
+                            {jobRows.map(({ job, assigned, required }) => {
                                 const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
                                 return (
                                     <div key={job} className="flex items-center gap-0.5" title={`${STRATA[job]?.name}: ${Math.round(assigned)}/${Math.round(required)}`}>
@@ -349,6 +360,10 @@ const MemoCompactBuildingCard = memo(CompactBuildingCard, (prevProps, nextProps)
     if (!shallowEqual(prevProps.unlockedOutput, nextProps.unlockedOutput)) {
         return false;
     }
+
+    if (!shallowEqualJobRows(prevProps.jobRows, nextProps.jobRows)) {
+        return false;
+    }
     
     return true;
 });
@@ -381,11 +396,11 @@ const BuildTabComponent = ({
     difficulty,
     buildingCostMod = 0,
 }) => {
-    // 高频数据使用 deferred 版本，降低 UI 卡顿
+    // 资源和市场价格仍可延迟，岗位数据显示必须保持实时，否则会出现卡片与详情不一致
     const deferredResources = useDeferredValue(resources);
-    const deferredJobFill = useDeferredValue(jobFill);
     const deferredMarket = useDeferredValue(market);
-    const deferredBuildingFinancialData = useDeferredValue(buildingFinancialData);
+    const liveJobFill = jobFill;
+    const liveBuildingFinancialData = buildingFinancialData;
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     const [viewport, setViewport] = useState(() => {
         if (typeof window === 'undefined') return { scrollY: 0, height: 0, width: 0 };
@@ -491,7 +506,7 @@ const BuildTabComponent = ({
         if (count === 0) return 0;
 
         // Prefer real simulation stats when available
-        const finance = deferredBuildingFinancialData?.[building.id];
+        const finance = liveBuildingFinancialData?.[building.id];
         if (finance) {
             const ownerSlots = building.jobs?.[building.owner] || 1;
             const profitPerBuilding =
@@ -504,13 +519,13 @@ const BuildTabComponent = ({
 
         // Fallback: heuristic estimate using working ratio + market wages
         const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
-        const totalAssigned = Object.values(deferredJobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
+        const totalAssigned = Object.values(liveJobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
         const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
 
         const actualOutputValue = Object.entries(building.output || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
         const actualInputValue = Object.entries(building.input || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
 
-        const actualWageCost = Object.entries(jobFill?.[building.id] || {}).reduce((sum, [job, assignedCount]) => {
+        const actualWageCost = Object.entries(liveJobFill?.[building.id] || {}).reduce((sum, [job, assignedCount]) => {
             const wage = deferredMarket?.wages?.[job] ?? 0;
             return sum + wage * (assignedCount / count);
         }, 0);
@@ -521,7 +536,7 @@ const BuildTabComponent = ({
     };
 
     const getJobIncomePerBuilding = (building, ownerIncome) => {
-        const finance = deferredBuildingFinancialData?.[building.id];
+        const finance = liveBuildingFinancialData?.[building.id];
 
         const jobEntries = Object.keys(building.jobs || {}).map(job => {
             const realPerCapita = finance?.paidWagePerWorkerByRole?.[job];
@@ -721,15 +736,15 @@ const BuildTabComponent = ({
             const totalRequired = requiredMap
                 ? Object.values(requiredMap).reduce((sum, per) => sum + (per || 0), 0)
                 : Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
-            const filledByRole = deferredBuildingFinancialData?.[building.id]?.filledByRole;
+            const filledByRole = liveBuildingFinancialData?.[building.id]?.filledByRole;
             const totalAssigned = filledByRole
                 ? Object.values(filledByRole).reduce((sum, num) => sum + (num || 0), 0)
-                : Object.values(deferredJobFill?.[building.id] || {}).reduce((sum, num) => sum + (num || 0), 0);
+                : Object.values(liveJobFill?.[building.id] || {}).reduce((sum, num) => sum + (num || 0), 0);
             const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
             stats[building.id] = { totalRequired, totalAssigned, workingRatio };
         });
         return stats;
-    }, [buildingStatsById, buildingJobsRequired, deferredBuildingFinancialData, deferredJobFill]);
+    }, [buildingStatsById, buildingJobsRequired, liveBuildingFinancialData, liveJobFill]);
 
     const categoryWorkersByKey = useMemo(() => {
         const workers = {};
@@ -754,7 +769,7 @@ const BuildTabComponent = ({
             const cost = stats.cost || calculateCost(building);
             const upgradeOptions = stats.upgradeOptions || [];
             const jobStats = buildingJobStatsById[building.id] || {};
-            const finance = deferredBuildingFinancialData?.[building.id];
+            const finance = liveBuildingFinancialData?.[building.id];
             // 优化：减少 Object.entries 调用次数
             let canUpgradeAny = false;
             for (const upgradeCost of upgradeOptions) {
@@ -786,6 +801,20 @@ const BuildTabComponent = ({
             const affordable = hasMaterials && hasSilver;
             const unlockedOutput = filterUnlockedResources(averageBuilding.output, epoch, techsUnlocked);
             const actualOutputByRes = {};
+            const requiredMap = buildingJobsRequired?.[building.id] || null;
+            const filledByRole = finance?.filledByRole || liveJobFill?.[building.id] || {};
+            const jobRows = Object.keys(averageBuilding.jobs || {}).map((job) => {
+                const fallbackRequired = (averageBuilding.jobs?.[job] || 0) * count;
+                const required = requiredMap?.[job]
+                    ?? (building.owner && job === building.owner
+                        ? (ownerJobsCorrections[building.id] ?? fallbackRequired)
+                        : fallbackRequired);
+                return {
+                    job,
+                    assigned: filledByRole[job] || 0,
+                    required,
+                };
+            });
             const productionEfficiency = finance?.productionEfficiency;
             const workingRatio = jobStats.workingRatio ?? 0;
             const outputMultiplier = Number.isFinite(productionEfficiency) ? productionEfficiency : workingRatio;
@@ -802,11 +831,12 @@ const BuildTabComponent = ({
                 affordable,
                 unlockedOutput,
                 actualOutputByRes,
+                jobRows,
                 // 移除 actualIncome 计算，因为 CompactBuildingCard 不再使用它
             };
         });
         return data;
-    }, [buildingStatsById, buildingJobStatsById, deferredBuildingFinancialData, epoch, techsUnlocked, deferredMarket, deferredResources, buildingCostMod]);
+    }, [buildingStatsById, buildingJobStatsById, liveBuildingFinancialData, liveJobFill, buildingJobsRequired, ownerJobsCorrections, epoch, techsUnlocked, deferredMarket, deferredResources, buildingCostMod]);
 
     // 建筑链展开状态
     const [expandedChains, setExpandedChains] = useState(new Set());
@@ -882,6 +912,7 @@ const BuildTabComponent = ({
             affordable,
             unlockedOutput,
             actualOutputByRes,
+            jobRows,
         } = cardData;
 
         // 获取预计算的业主岗位数
@@ -901,7 +932,7 @@ const BuildTabComponent = ({
                 onMouseLeave={handleMouseLeave}
                 epoch={epoch}
                 techsUnlocked={techsUnlocked}
-                jobFill={deferredJobFill}
+                jobRows={jobRows}
                 resources={deferredResources}
                 onShowDetails={onShowDetails}
                 hasUpgrades={canUpgradeAny}
@@ -910,7 +941,7 @@ const BuildTabComponent = ({
                 actualOutputByRes={actualOutputByRes}
             />
         );
-    }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredJobFill, deferredResources, onShowDetails]);
+    }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredResources, onShowDetails]);
 
     const renderChainTopCard = useCallback((chainId, topBuilding, otherBuildings) => {
         const topCardData = cardDataById[topBuilding.id];
@@ -929,6 +960,7 @@ const BuildTabComponent = ({
             affordable,
             unlockedOutput,
             actualOutputByRes,
+            jobRows,
         } = topCardData;
 
         return (
@@ -945,7 +977,7 @@ const BuildTabComponent = ({
                     onMouseLeave={handleMouseLeave}
                     epoch={epoch}
                     techsUnlocked={techsUnlocked}
-                    jobFill={deferredJobFill}
+                    jobRows={jobRows}
                     resources={deferredResources}
                     onShowDetails={onShowDetails}
                     hasUpgrades={canUpgradeAny}
@@ -973,7 +1005,7 @@ const BuildTabComponent = ({
                 )}
             </div>
         );
-    }, [cardDataById, expandedChains, ownerJobsCorrections, toggleChainExpand, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredJobFill, deferredResources, onShowDetails]);
+    }, [cardDataById, expandedChains, ownerJobsCorrections, toggleChainExpand, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredResources, onShowDetails]);
 
     const flatItemsByCategory = useMemo(() => {
         const result = {};
@@ -1220,7 +1252,7 @@ const BuildTabComponent = ({
                 count={hoveredBuilding.building ? (buildings[hoveredBuilding.building.id] || 0) : 0}
                 epoch={epoch}
                 techsUnlocked={techsUnlocked}
-                jobFill={deferredJobFill}
+                jobFill={liveJobFill}
                 cost={hoveredBuilding.cost}
                 resources={deferredResources}
                 ownerJobsRequired={hoveredBuilding.building ? ownerJobsCorrections[hoveredBuilding.building.id] : undefined}
