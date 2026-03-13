@@ -1288,7 +1288,14 @@ export const simulateTick = ({
     // Apply active buffs (Strata bonuses)
     if (Array.isArray(productionBuffs)) {
         productionBuffs.forEach(buff => {
-            applyEffects(buff, bonuses);
+            // Ideology-sourced buffs: route taxIncome to virtualTaxIncome (phantom silver)
+            if (buff.source === 'ideology' && typeof buff.taxIncome === 'number') {
+                const { taxIncome: taxVal, ...restBuff } = buff;
+                applyEffects(restBuff, bonuses);
+                bonuses.virtualTaxIncome = (bonuses.virtualTaxIncome || 0) + taxVal;
+            } else {
+                applyEffects(buff, bonuses);
+            }
         });
     }
 
@@ -5106,7 +5113,14 @@ export const simulateTick = ({
         // Tax Burden Logic
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-        const taxPerCapita = Math.max(0, (roleHeadTaxPaid[key] || 0) / Math.max(1, count));
+        const headTaxPerCapitaBurden = Math.max(0, (roleHeadTaxPaid[key] || 0) / Math.max(1, count));
+        // [NEW] Include business tax (owners) and tariff (merchants) in tax burden
+        const businessTaxPerCapitaBurden = Math.max(0, (roleBusinessTaxPaid[key] || 0) / Math.max(1, count));
+        // Tariff is paid exclusively by merchants; distribute total tariff across merchant population
+        const tariffPerCapitaBurden = key === 'merchant'
+            ? Math.max(0, (taxBreakdown.tariff || 0) / Math.max(1, count))
+            : 0;
+        const taxPerCapita = headTaxPerCapitaBurden + businessTaxPerCapitaBurden + tariffPerCapitaBurden;
         const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
         const wealthPerCapita = (wealth[key] || 0) / Math.max(1, count);
 
@@ -5115,17 +5129,19 @@ export const simulateTick = ({
 
         if (taxBurdenFromIncome && !canAffordFromWealth) {
             targetApproval = Math.min(targetApproval, 40); // Tax burden cap
-        } else if (headRate < 0.6) {
-            targetApproval += 5; // Tax relief bonus
+        } else if (headRate < 0.6 && businessTaxPerCapitaBurden < 0.01 && tariffPerCapitaBurden < 0.01) {
+            targetApproval += 5; // Tax relief bonus (only if ALL tax types are low)
         }
 
-        // 税收冲击：当人头税占存款比例过高时，产生反感
-        // [FIX] 使用税前存款计算税收冲击，避?榨干后无惩罚"的漏?
+        // 税收冲击：当综合税负占存款比例过高时，产生反感
+        // [FIX] 使用税前存款计算税收冲击，避免"榨干后无惩罚"的漏洞
+        // [ENHANCED] 纳入产业税（业主）和关税（商人），不再只看人头税
         const headTaxPaidPerCapita = (roleHeadTaxPaid[key] || 0) / Math.max(1, count);
+        const totalTaxPaidPerCapita = headTaxPaidPerCapita + businessTaxPerCapitaBurden + tariffPerCapitaBurden;
         // 税前人均存款用于TaxShock计算
         const preTaxWealthPerCapita = (preTaxWealth[key] || 0) / Math.max(1, count);
-        // 税收占存款的比例（每天税?/ 税前人均存款?
-        const taxToWealthRatio = preTaxWealthPerCapita > 0.01 ? headTaxPaidPerCapita / preTaxWealthPerCapita : 0;
+        // 综合税收占存款的比例（每天总税负 / 税前人均存款）
+        const taxToWealthRatio = preTaxWealthPerCapita > 0.01 ? totalTaxPaidPerCapita / preTaxWealthPerCapita : 0;
         // 当税收超过存款的5%时开始产生冲击，超过20%时达到最大惩?
         // [ENHANCED] 最大惩罚从25提升?0，更严厉惩罚压榨行为
         // 5%以下无惩罚，5%-20%线性增长到25?0%-100%继续增长?0
@@ -5133,7 +5149,7 @@ export const simulateTick = ({
         const taxShockMaxRatio = 0.20;  // 20%达到中等惩罚
         const taxShockExtremeRatio = 1.0; // 100%达到最大惩?
         let instantTaxShock = 0;
-        if (taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0) {
+        if (taxToWealthRatio > taxShockThreshold && totalTaxPaidPerCapita > 0) {
             if (taxToWealthRatio <= taxShockMaxRatio) {
                 // 5%-20%: 0-25分线性增?
                 instantTaxShock = ((taxToWealthRatio - taxShockThreshold) / (taxShockMaxRatio - taxShockThreshold)) * 25;
@@ -8176,6 +8192,17 @@ export const simulateTick = ({
 
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
+
+    // 8. Virtual tax income from ideologies (phantom silver, not taken from any stratum)
+    const virtualTaxRate = bonuses.virtualTaxIncome || 0;
+    let virtualTaxIncome = 0;
+    if (virtualTaxRate > 0 && totalCollectedTax > 0) {
+        // Virtual tax = percentage of actual collected tax, as phantom extra income
+        virtualTaxIncome = totalCollectedTax * virtualTaxRate;
+        applySilverChange(virtualTaxIncome, 'income_ideology_virtual_tax');
+        rates.silver = (rates.silver || 0) + virtualTaxIncome;
+    }
+    taxBreakdown.virtualTaxIncome = virtualTaxIncome;
 
     // [FIX] totalFiscalIncome 不应该乘?incomePercentMultiplier
     // 因为税收和战争赔款都已经是实际入库金?

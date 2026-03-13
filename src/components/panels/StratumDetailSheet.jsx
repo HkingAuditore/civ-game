@@ -1007,6 +1007,7 @@ const StratumDetailSheetComponent = ({
                                             classExpense,
                                             classWealth,
                                             approvalBreakdown,
+                                            classFinancialData, // [NEW] For business tax / tariff burden analysis
 
                                             // Match simulation semantics (legitimacy affects effective head tax)
                                             effectiveTaxModifier: legitimacyTaxModifier ?? 1,

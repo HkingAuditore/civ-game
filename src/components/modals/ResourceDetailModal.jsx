@@ -6,10 +6,11 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { SimpleLineChart } from '../common/SimpleLineChart';
-import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES, INDUSTRY_CHAINS } from '../../config';
+import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES } from '../../config';
 import { calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
 import { isResourceUnlocked } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import { getSimpleSupplyChain } from '../../utils/resourceGraph';
 
 const formatAmount = (value) => {
     if (!Number.isFinite(value) || value === 0) return '0';
@@ -167,391 +168,754 @@ const TAB_OPTIONS = [
     { id: 'chain', label: '产业链', description: '完整的生产与消费链路' },
 ];
 
-// --- 产业链可视化组件 (新版) ---
+// --- 产业链可视化组件 (链条主体版) ---
 
-// 流向标记
-const FlowBadge = ({ label, direction = 'right' }) => (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ancient-gold/30 bg-ancient-ink/50 px-2 py-0.5 text-xs text-ancient-parchment">
-        <Icon name={direction === 'right' ? 'ArrowRight' : 'ArrowLeft'} size={10} className="text-ancient-gold" />
-        {label}
-    </span>
-);
+// 资源标签映射
+const TAG_MAP = {
+    'essential': '生活必需', 'raw_material': '原材料', 'industrial': '工业资材',
+    'manufactured': '制成品', 'luxury': '奢侈品', 'currency': '货币',
+    'special': '特殊资源', 'basic_need': '基本需求', 'luxury_need': '奢侈需求',
+    'construction': '建材', 'military': '军用', 'strategic': '战略',
+    'refined': '加工品', 'raw': '原材料', 'food': '食物',
+    'intermediate': '中间品', 'energy': '能源',
+};
 
-// 生产节点组件 (建筑)
-const ProductionNode = ({ buildingId, building, role, currentResource, count = 0 }) => {
-    if (!building) return null;
+// --- 新版产业链视图：以资源为锚点的上下游卡片 ---
 
-    const isProducer = role === 'producer';
+/** 角色标签配置 */
+const ROLE_CONFIG = {
+    source: { label: '原材料', color: 'text-emerald-400', bg: 'bg-emerald-950/40', border: 'border-emerald-500/25', icon: 'Pickaxe' },
+    intermediate: { label: '中间品', color: 'text-sky-400', bg: 'bg-sky-950/40', border: 'border-sky-500/25', icon: 'Cog' },
+    product: { label: '产出品', color: 'text-amber-400', bg: 'bg-amber-950/40', border: 'border-amber-500/25', icon: 'Package' },
+    consumed: { label: '被消费', color: 'text-rose-400', bg: 'bg-rose-950/40', border: 'border-rose-500/25', icon: 'Users' },
+};
 
-    let ratioNode = null;
-    if (isProducer) {
-        const outputAmount = building.output?.[currentResource] || 0;
-        const inputs = Object.entries(building.input || {}).map(([key, amount]) => ({
-            key,
-            name: RESOURCES[key]?.name || key,
-            ratio: outputAmount ? (amount / outputAmount).toFixed(2) : '?'
-        }));
+/** 分析资源在单条产业链中的角色 */
+const getResourceRole = (chain, resourceKey) => {
+    let isSource = false, isIntermediate = false, isProduct = false, isConsumed = false;
+    for (const stage of chain.stages) {
+        const inputs = ensureArray(stage.input);
+        const outputs = ensureArray(stage.output);
+        const inInput = inputs.includes(resourceKey);
+        const inOutput = outputs.includes(resourceKey);
+        if (inOutput && (stage.stage === 'extraction' || stage.stage === 'primitive')) isSource = true;
+        if (inOutput && (stage.stage === 'processing' || stage.stage === 'advanced')) isProduct = true;
+        if (inInput && stage.stage === 'consumption') isConsumed = true;
+        if (inInput && stage.stage !== 'consumption') isIntermediate = true;
+    }
+    // 优先级: source > intermediate > product > consumed
+    if (isSource) return 'source';
+    if (isIntermediate) return 'intermediate';
+    if (isProduct) return 'product';
+    if (isConsumed) return 'consumed';
+    return 'intermediate';
+};
 
-        ratioNode = (
-            <div className="mt-1.5 space-y-0.5">
-                {inputs.length > 0 ? inputs.map(input => (
-                    <div key={input.key} className="text-xs text-ancient-stone flex justify-between">
-                        <span>{input.name}</span>
-                        <span className="text-ancient-stone/80">x{input.ratio}</span>
-                    </div>
-                )) : (
-                    <div className="text-xs text-ancient-stone/80">基础采集/生产</div>
-                )}
-            </div>
-        );
-    } else {
-        const inputAmount = building.input?.[currentResource] || 0;
-        const outputs = Object.entries(building.output || {}).map(([key, amount]) => ({
-            key,
-            name: RESOURCES[key]?.name || key,
-            ratio: inputAmount ? (amount / inputAmount).toFixed(2) : '?'
-        }));
+/** 渲染资源小标签（带图标和名称） */
+const ResourceChip = ({ rk, isCurrent = false, tiny = false }) => {
+    const rd = RESOURCES[rk];
+    if (!rd) return <span className="text-[10px] text-gray-500">{rk}</span>;
+    if (isCurrent) return null; // 当前资源不在上下游中重复显示
+    return (
+        <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 border
+            ${tiny ? 'text-[10px]' : 'text-[11px]'}
+            bg-gray-900/60 border-white/8 text-ancient-parchment/90`}>
+            <Icon name={rd.icon || 'Package'} size={tiny ? 11 : 13} className={rd.color || 'text-white'} />
+            {rd.name}
+        </span>
+    );
+};
 
-        ratioNode = (
-            <div className="mt-1.5 space-y-0.5">
-                {outputs.length > 0 ? outputs.map(output => (
-                    <div key={output.key} className="text-xs text-ancient-stone flex justify-between">
-                        <span>→ {output.name}</span>
-                        <span className="text-ancient-stone/80">x{output.ratio}</span>
-                    </div>
-                )) : (
-                    <div className="text-xs text-ancient-stone/80">作为终端消费</div>
-                )}
+/** 格式化建筑 ID 为友好名称（去下划线、首字母大写） */
+const formatBuildingId = (bid) => {
+    return bid.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+};
+
+/** 渲染建筑标签 */
+const BuildingChip = ({ bid, count = 0 }) => {
+    const bDef = BUILDINGS.find(b => b.id === bid);
+    const name = bDef?.name || formatBuildingId(bid);
+    const isUnknown = !bDef;
+    return (
+        <span className={`inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded border
+            ${isUnknown
+                ? 'border-red-700/30 text-red-400/70 bg-red-950/20'
+                : count > 0
+                    ? 'border-emerald-700/30 text-emerald-400/90 bg-emerald-950/30'
+                    : 'border-gray-700/30 text-gray-500 bg-gray-900/30'}`}>
+            <Icon name="Factory" size={10} className={isUnknown ? 'text-red-500/60' : count > 0 ? 'text-emerald-400/70' : 'text-gray-600'} />
+            {name}{isUnknown && ' ⚠'}{count > 0 ? ` ×${count | 0}` : ''}
+        </span>
+    );
+};
+
+// --- 产业链流程图组件 ---
+
+/** 构建产业链流程图的有向图结构 */
+const buildChainFlowGraph = (chain, resourceKey, epoch) => {
+    const stages = chain.stages;
+    const nodes = [];
+    const edges = [];
+    // 收集所有涉及的资源（作为节点）
+    const resourceSet = new Set();
+    // 建立 stageIndex -> stage 映射
+    const stageNodes = [];
+
+    // 第一步：提取所有 stage 节点和涉及的资源
+    stages.forEach((stage, idx) => {
+        const inputs = ensureArray(stage.input);
+        const outputs = ensureArray(stage.output);
+        const inEpoch = !stage.epochRange || (epoch >= stage.epochRange[0] && epoch <= stage.epochRange[1]);
+        const stageId = `stage_${idx}`;
+        stageNodes.push({
+            id: stageId,
+            type: 'stage',
+            data: stage,
+            inEpoch,
+            inputs,
+            outputs,
+        });
+        inputs.forEach(r => resourceSet.add(r));
+        outputs.forEach(r => resourceSet.add(r));
+    });
+
+    // 第二步：为每个资源创建资源节点
+    const resourceNodes = {};
+    resourceSet.forEach(rk => {
+        const rd = RESOURCES[rk];
+        const nodeId = `res_${rk}`;
+        resourceNodes[rk] = {
+            id: nodeId,
+            type: 'resource',
+            resourceKey: rk,
+            data: rd,
+            isCurrent: rk === resourceKey,
+        };
+    });
+
+    // 第三步：建立边关系 (resource -> stage, stage -> resource)
+    stageNodes.forEach(sn => {
+        // 输入资源 → stage
+        sn.inputs.forEach(rk => {
+            if (resourceNodes[rk]) {
+                edges.push({ from: resourceNodes[rk].id, to: sn.id });
+            }
+        });
+        // stage → 输出资源
+        sn.outputs.forEach(rk => {
+            if (resourceNodes[rk]) {
+                edges.push({ from: sn.id, to: resourceNodes[rk].id });
+            }
+        });
+    });
+
+    // 第四步：拓扑排序分配列
+    const allNodes = [
+        ...Object.values(resourceNodes),
+        ...stageNodes.map(sn => ({ id: sn.id, type: sn.type, data: sn.data, inEpoch: sn.inEpoch, inputs: sn.inputs, outputs: sn.outputs })),
+    ];
+    const nodeMap = {};
+    allNodes.forEach(n => { nodeMap[n.id] = { ...n, column: 0, row: 0 }; });
+
+    // 计算入度和邻接表
+    const inDegree = {};
+    const adj = {};
+    allNodes.forEach(n => { inDegree[n.id] = 0; adj[n.id] = []; });
+    edges.forEach(e => {
+        if (inDegree[e.to] !== undefined) inDegree[e.to]++;
+        if (adj[e.from]) adj[e.from].push(e.to);
+    });
+
+    // BFS拓扑排序
+    const queue = Object.keys(inDegree).filter(id => inDegree[id] === 0);
+    const order = [];
+    const visited = new Set();
+    while (queue.length > 0) {
+        const curr = queue.shift();
+        if (visited.has(curr)) continue;
+        visited.add(curr);
+        order.push(curr);
+        (adj[curr] || []).forEach(next => {
+            if (nodeMap[next]) {
+                nodeMap[next].column = Math.max(nodeMap[next].column, (nodeMap[curr]?.column || 0) + 1);
+            }
+            inDegree[next]--;
+            if (inDegree[next] <= 0 && !visited.has(next)) queue.push(next);
+        });
+    }
+    // 处理未访问到的节点（循环依赖等边缘情况）
+    allNodes.forEach(n => {
+        if (!visited.has(n.id)) {
+            nodeMap[n.id].column = 0;
+        }
+    });
+
+    // ── 路径裁剪：只保留经过当前资源的上下游路径 ──
+    const currentNodeId = `res_${resourceKey}`;
+    if (nodeMap[currentNodeId]) {
+        // 构建反向邻接表
+        const reverseAdj = {};
+        allNodes.forEach(n => { reverseAdj[n.id] = []; });
+        edges.forEach(e => {
+            if (reverseAdj[e.to]) reverseAdj[e.to].push(e.from);
+        });
+
+        // BFS 向下游（正向）收集可达节点
+        const downstream = new Set();
+        const dQueue = [currentNodeId];
+        while (dQueue.length > 0) {
+            const cur = dQueue.shift();
+            if (downstream.has(cur)) continue;
+            downstream.add(cur);
+            (adj[cur] || []).forEach(next => {
+                if (!downstream.has(next)) dQueue.push(next);
+            });
+        }
+
+        // BFS 向上游（反向）收集可达节点
+        const upstream = new Set();
+        const uQueue = [currentNodeId];
+        while (uQueue.length > 0) {
+            const cur = uQueue.shift();
+            if (upstream.has(cur)) continue;
+            upstream.add(cur);
+            (reverseAdj[cur] || []).forEach(prev => {
+                if (!upstream.has(prev)) uQueue.push(prev);
+            });
+        }
+
+        // 合并：只保留上游 ∪ 下游 中的节点
+        const reachable = new Set([...upstream, ...downstream]);
+
+        // 移除不可达节点
+        Object.keys(nodeMap).forEach(id => {
+            if (!reachable.has(id)) delete nodeMap[id];
+        });
+
+        // 过滤不可达边
+        for (let i = edges.length - 1; i >= 0; i--) {
+            if (!reachable.has(edges[i].from) || !reachable.has(edges[i].to)) {
+                edges.splice(i, 1);
+            }
+        }
+    }
+
+    // 第五步：重新紧凑化列号（裁剪后可能有空列）
+    const usedCols = new Set(Object.values(nodeMap).map(n => n.column));
+    const sortedCols = [...usedCols].sort((a, b) => a - b);
+    const colRemap = {};
+    sortedCols.forEach((col, idx) => { colRemap[col] = idx; });
+    Object.values(nodeMap).forEach(n => { n.column = colRemap[n.column] ?? n.column; });
+
+    // 第六步：按列分配行
+    const columnGroups = {};
+    Object.values(nodeMap).forEach(n => {
+        if (!columnGroups[n.column]) columnGroups[n.column] = [];
+        columnGroups[n.column].push(n);
+    });
+    Object.values(columnGroups).forEach(group => {
+        // 当前资源节点排在前面
+        group.sort((a, b) => {
+            if (a.isCurrent) return -1;
+            if (b.isCurrent) return 1;
+            return 0;
+        });
+        group.forEach((n, idx) => { n.row = idx; });
+    });
+
+    const maxCol = Math.max(0, ...Object.values(nodeMap).map(n => n.column));
+    const maxRow = Math.max(0, ...Object.values(nodeMap).map(n => n.row));
+
+    return {
+        nodes: Object.values(nodeMap),
+        edges,
+        maxCol,
+        maxRow,
+        resourceNodes,
+        stageNodes: stageNodes.map(sn => nodeMap[sn.id]).filter(Boolean),
+    };
+};
+
+/** 消费者/用途标签中文映射（非阶层类 consumer 值） */
+const CONSUMER_LABEL_MAP = {
+    all_classes: '全民消费',
+    military: '军事', buildings: '建筑', machinery: '机械',
+    ships: '船舶', tools: '工具',
+    defense: '防御', conquest: '征伐', patrol: '巡逻',
+    education: '教育', research: '研究',
+    industry: '工业', civic: '民用', consumer: '消费品',
+    agriculture: '农业',
+};
+
+/** 将 consumer ID 转为中文显示 */
+const getConsumerLabel = (c) => CONSUMER_LABEL_MAP[c] || STRATA[c]?.name || formatBuildingId(c);
+
+/** 将资源 ID 转为中文友好名（兜底 RESOURCES 中找不到的虚拟资源） */
+const RESOURCE_ALIAS = {
+    military_power: '军事力量',
+};
+const getResourceName = (rk, rd) => rd?.name || RESOURCE_ALIAS[rk] || formatBuildingId(rk);
+
+/** 流程图节点组件 */
+const FlowNode = ({ node, buildingCounts = {}, compact = false }) => {
+    if (node.type === 'resource') {
+        // 资源节点：圆形
+        const rd = node.data;
+        const isCurrent = node.isCurrent;
+        return (
+            <div className={`flex ${compact ? 'flex-row gap-1.5 px-1.5 py-1' : 'flex-col gap-1 p-1.5'} items-center rounded-xl border transition-all
+                hover:brightness-110 hover:border-ancient-gold/40
+                ${isCurrent
+                    ? 'border-ancient-gold/50 bg-ancient-gold/10 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                    : 'border-white/10 bg-gray-900/50'}`}
+                style={{ minWidth: compact ? '56px' : '72px' }}>
+                <div className={`${compact ? 'w-6 h-6' : 'w-9 h-9'} rounded-full flex items-center justify-center flex-shrink-0
+                    ${isCurrent
+                        ? 'bg-ancient-ink border-2 border-ancient-gold/60'
+                        : 'bg-gray-800 border border-white/15'}`}>
+                    <Icon name={rd?.icon || 'Package'} size={compact ? 12 : 18} className={rd?.color || 'text-white'} />
+                </div>
+                <span className={`${compact ? 'text-[9px]' : 'text-[10px]'} font-medium text-center leading-tight
+                    ${isCurrent ? 'text-ancient-gold' : 'text-ancient-parchment/80'}`}>
+                    {getResourceName(node.resourceKey, rd)}
+                </span>
             </div>
         );
     }
 
+    // 阶段节点：精简标签样式，辅助信息悬浮显示
+    const stage = node.data;
+    const inEpoch = node.inEpoch;
+    const buildings = stage?.buildings || [];
+    const consumers = stage?.consumers;
+    // 获取建筑信息用于 tooltip
+    const buildingDefs = buildings.map(bid => BUILDINGS.find(b => b.id === bid)).filter(Boolean);
+    const hasTooltipContent = consumers || buildingDefs.length > 0;
+
+    const [showTip, setShowTip] = React.useState(false);
+
     return (
-        <div className="relative group w-full min-w-[180px] rounded-xl border border-ancient-gold/20 bg-gray-900/70 p-3 shadow-metal-sm transition-colors hover:border-ancient-gold/40">
-            <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                    <div className={`p-1.5 rounded-lg ${building.visual?.color || 'bg-gray-800'} border border-white/10`}>
-                        <Icon name={building.visual?.icon || 'Home'} size={14} className="text-white" />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-xs font-bold text-ancient-parchment truncate">{building.name}</p>
-                        <p className="text-xs text-ancient-stone">
-                            {count > 0 ? `已建 ${count | 0} 座` : '未建造'}
-                        </p>
-                    </div>
+        <div
+            className={`relative flex flex-col items-center gap-0.5 ${compact ? 'px-2 py-1' : 'px-2.5 py-1.5'} rounded-lg border transition-all
+            ${hasTooltipContent ? 'cursor-pointer' : ''}
+            hover:brightness-110 hover:border-ancient-gold/40
+            ${!inEpoch ? 'opacity-40 border-white/5 bg-gray-900/20' : 'border-white/10 bg-gray-900/50'}`}
+            style={{ minWidth: compact ? '50px' : '64px', maxWidth: compact ? '100px' : '120px' }}
+            onClick={() => hasTooltipContent && setShowTip(v => !v)}
+            onMouseEnter={() => hasTooltipContent && setShowTip(true)}
+            onMouseLeave={() => setShowTip(false)}
+        >
+            <span className={`${compact ? 'text-[10px]' : 'text-[11px]'} font-medium text-ancient-parchment leading-tight text-center`}>{stage?.name}</span>
+            {!inEpoch && stage?.epochRange && (
+                <span className="text-[9px] text-gray-500">时代 {stage.epochRange[0]}-{stage.epochRange[1]}</span>
+            )}
+            {/* 悬浮/点击 tooltip */}
+            {showTip && hasTooltipContent && (
+                <div className="absolute z-30 left-1/2 -translate-x-1/2 top-full mt-1 min-w-[90px] max-w-[160px]
+                    rounded-lg border border-ancient-gold/25 bg-gray-900/95 backdrop-blur-sm shadow-lg p-1.5
+                    pointer-events-none animate-in fade-in duration-150">
+                    {buildingDefs.length > 0 && (
+                        <div className="flex flex-col gap-0.5">
+                            {buildingDefs.map(bd => (
+                                <span key={bd.id} className="text-[9px] text-gray-400 leading-tight flex items-center gap-0.5">
+                                    <Icon name="Factory" size={8} className="text-gray-500 flex-shrink-0" />
+                                    {bd.name}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    {consumers && (
+                        <span className="text-[9px] text-rose-300/70 leading-tight flex items-center gap-0.5 mt-0.5">
+                            <Icon name="Users" size={8} className="text-rose-400/60 flex-shrink-0" />
+                            {consumers.includes('all_classes') ? '全民消费' : consumers.map(c => getConsumerLabel(c)).join('、')}
+                        </span>
+                    )}
                 </div>
-                <FlowBadge label={isProducer ? '产出' : '消耗'} direction={isProducer ? 'right' : 'left'} />
-            </div>
-            <div className="h-px bg-ancient-gold/10 w-full mb-1.5"></div>
-            {ratioNode}
-            <div className="mt-2 pt-1 border-t border-ancient-gold/10 flex justify-between items-center">
-                <span className="text-xs text-ancient-stone">{isProducer ? '产出' : '消耗'}/座</span>
-                <span className={`text-xs font-mono font-bold ${isProducer ? 'text-emerald-300' : 'text-rose-300'}`}>
-                    {isProducer
-                        ? building.output?.[currentResource]
-                        : building.input?.[currentResource]}
-                </span>
-            </div>
+            )}
         </div>
     );
 };
 
-// 动态产业链视图
-const DynamicChainView = ({ resourceKey, buildings = {} }) => {
-    const { producers, consumers } = useMemo(() => {
-        const prods = [];
-        const cons = [];
-
-        BUILDINGS.forEach(b => {
-            if (b.output?.[resourceKey] > 0) prods.push(b);
-            if (b.input?.[resourceKey] > 0) cons.push(b);
-        });
-
-        return { producers: prods, consumers: cons };
-    }, [resourceKey]);
-
-    const relevantChain = useMemo(() => {
-        return Object.values(INDUSTRY_CHAINS).find(chain => {
-            return chain.stages.some(s =>
-                ensureArray(s.input).includes(resourceKey) ||
-                ensureArray(s.output).includes(resourceKey)
-            );
-        });
-    }, [resourceKey]);
-
-    const resourceDef = RESOURCES[resourceKey];
+/** 流程图连接箭头 SVG（含边上建筑名标签） */
+const FlowArrows = ({ edges, nodePositions, containerRef, vertical = false, edgeBuildingMap = {} }) => {
+    // 使用 SVG overlay 绘制连接线
+    if (!containerRef?.current || !nodePositions || Object.keys(nodePositions).length === 0) return null;
 
     return (
-        <div className="space-y-4">
-            <div className="glass-ancient rounded-xl lg:rounded-xl border border-ancient-gold/20 p-4 lg:p-4">
-                <div className="lg:hidden space-y-4">
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-300">
-                                来源 / 生产
-                            </span>
-                            <span className="text-xs text-ancient-stone">上游</span>
-                        </div>
-                        <p className="text-xs text-ancient-stone">
-                            将原料生产为 <span className="text-ancient-parchment font-semibold">{resourceDef?.name}</span>。
-                        </p>
-                        {producers.length > 0 ? (
-                            <div className="space-y-2">
-                                {producers.map(b => (
-                                    <ProductionNode
-                                        key={b.id}
-                                        buildingId={b.id}
-                                        building={b}
-                                        role="producer"
-                                        currentResource={resourceKey}
-                                        count={buildings[b.id]}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
-                                无本地生产来源（可能为基础资源或仅靠进口）
-                            </div>
-                        )}
-                    </div>
+        <svg
+            className="absolute inset-0 pointer-events-none"
+            style={{ width: '100%', height: '100%', overflow: 'visible' }}
+        >
+            <defs>
+                <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="rgba(212,175,55,0.4)" />
+                </marker>
+            </defs>
+            {edges.map((edge, idx) => {
+                const fromPos = nodePositions[edge.from];
+                const toPos = nodePositions[edge.to];
+                if (!fromPos || !toPos) return null;
 
-                    <div className="flex items-center justify-center gap-2 text-xs text-ancient-stone">
-                        <Icon name="ArrowDown" size={14} className="text-ancient-gold" />
-                        进入核心资源
-                    </div>
+                // 查找边上的建筑名
+                const edgeKey = `${edge.from}->${edge.to}`;
+                const buildingNames = edgeBuildingMap[edgeKey] || (edge.buildings || []).map(b => b.name).filter(Boolean);
+                // 最多显示2个建筑名，多余的用+N表示
+                const displayNames = buildingNames.slice(0, 2);
+                const extraCount = buildingNames.length - 2;
+                const labelText = displayNames.length > 0
+                    ? displayNames.join('、') + (extraCount > 0 ? ` +${extraCount}` : '')
+                    : '';
 
-                    <div className="relative p-5 rounded-2xl border-2 border-ancient-gold/40 bg-ancient-ink/60 shadow-[0_0_30px_-5px_rgba(212,175,55,0.25)] backdrop-blur-sm">
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-ancient-ink border border-ancient-gold/40 rounded-full">
-                            <span className="text-xs font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-3">
-                            <div className="w-12 h-12 rounded-lg bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
-                                <Icon name={resourceDef?.icon || 'Package'} size={30} className={resourceDef?.color || 'text-white'} />
-                            </div>
-                            <div className="text-center">
-                                <h3 className="text-lg font-bold text-ancient-parchment">{resourceDef?.name}</h3>
-                                <p className="text-xs text-ancient-stone mt-1">
-                                    {(resourceDef?.tags || []).map(tag => {
-                                        const tagMap = {
-                                            'essential': '生活必需',
-                                            'raw_material': '原材料',
-                                            'industrial': '工业资材',
-                                            'manufactured': '制成品',
-                                            'luxury': '奢侈品',
-                                            'currency': '货币',
-                                            'special': '特殊资源',
-                                            'basic_need': '基本需求',
-                                            'luxury_need': '奢侈需求',
-                                            'construction': '建材',
-                                            'military': '军用',
-                                            'strategic': '战略',
-                                            'refined': '加工品',
-                                            'raw': '原材料',
-                                            'food': '食物'
-                                        };
-                                        return tagMap[tag] || tag;
-                                    }).join(' · ') || '资源'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                if (vertical) {
+                    const x1 = fromPos.centerX;
+                    const y1 = fromPos.bottom;
+                    const x2 = toPos.centerX;
+                    const y2 = toPos.top;
+                    const midY = (y1 + y2) / 2;
+                    const midX = (x1 + x2) / 2;
 
-                    <div className="flex items-center justify-center gap-2 text-xs text-ancient-stone">
-                        <Icon name="ArrowDown" size={14} className="text-ancient-gold" />
-                        进入下游用途
-                    </div>
+                    return (
+                        <g key={idx}>
+                            <path
+                                d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
+                                stroke="rgba(212,175,55,0.25)"
+                                strokeWidth="1.5"
+                                fill="none"
+                                markerEnd="url(#arrowhead)"
+                            />
+                            {labelText && (
+                                <text
+                                    x={midX}
+                                    y={midY - 4}
+                                    fill="rgba(212,175,55,0.5)"
+                                    fontSize="8"
+                                    textAnchor="middle"
+                                    dominantBaseline="auto"
+                                >
+                                    {labelText}
+                                </text>
+                            )}
+                        </g>
+                    );
+                } else {
+                    const x1 = fromPos.right;
+                    const y1 = fromPos.centerY;
+                    const x2 = toPos.left;
+                    const y2 = toPos.centerY;
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2;
 
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-xs text-rose-300">
-                                用途 / 消耗
-                            </span>
-                            <span className="text-xs text-ancient-stone">下游</span>
-                        </div>
-                        <p className="text-xs text-ancient-stone">
-                            作为生产材料或终端消费进入产业链。
-                        </p>
-                        {consumers.length > 0 ? (
-                            <div className="space-y-2">
-                                {consumers.map(b => (
-                                    <ProductionNode
-                                        key={b.id}
-                                        buildingId={b.id}
-                                        building={b}
-                                        role="consumer"
-                                        currentResource={resourceKey}
-                                        count={buildings[b.id]}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
-                                无工业消耗用途（直接消费品/终端产品）
-                            </div>
-                        )}
+                    return (
+                        <g key={idx}>
+                            <path
+                                d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                                stroke="rgba(212,175,55,0.25)"
+                                strokeWidth="1.5"
+                                fill="none"
+                                markerEnd="url(#arrowhead)"
+                            />
+                            {labelText && (
+                                <text
+                                    x={midX}
+                                    y={midY - 5}
+                                    fill="rgba(212,175,55,0.5)"
+                                    fontSize="8"
+                                    textAnchor="middle"
+                                    dominantBaseline="auto"
+                                >
+                                    {labelText}
+                                </text>
+                            )}
+                        </g>
+                    );
+                }
+            })}
+        </svg>
+    );
+};
+
+/** 横向/纵向自适应流程图容器组件 (自动生成版) */
+const AutoChainFlowGraph = ({ graph, resourceKey, buildingCounts = {} }) => {
+    const containerRef = React.useRef(null);
+    const [nodePositions, setNodePositions] = React.useState({});
+    const nodeRefs = React.useRef({});
+    const [isVertical, setIsVertical] = React.useState(false);
+
+    // Detect narrow viewport for vertical layout
+    React.useEffect(() => {
+        const mq = window.matchMedia('(max-width: 640px)');
+        const handler = (e) => setIsVertical(e.matches);
+        handler(mq); // init
+        mq.addEventListener('change', handler);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
+
+    // 渲染完成后测量节点位置
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            if (!containerRef.current) return;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const positions = {};
+            Object.entries(nodeRefs.current).forEach(([nodeId, el]) => {
+                if (!el) return;
+                const rect = el.getBoundingClientRect();
+                positions[nodeId] = {
+                    left: rect.left - containerRect.left,
+                    right: rect.right - containerRect.left,
+                    top: rect.top - containerRect.top,
+                    bottom: rect.bottom - containerRect.top,
+                    centerX: (rect.left + rect.right) / 2 - containerRect.left,
+                    centerY: (rect.top + rect.bottom) / 2 - containerRect.top,
+                };
+            });
+            setNodePositions(positions);
+        }, 80);
+        return () => clearTimeout(timer);
+    }, [graph, isVertical]);
+
+    // 按列分组
+    const columns = useMemo(() => {
+        const cols = {};
+        graph.nodes.forEach(n => {
+            if (!cols[n.column]) cols[n.column] = [];
+            cols[n.column].push(n);
+        });
+        Object.values(cols).forEach(col => col.sort((a, b) => a.row - b.row));
+        return cols;
+    }, [graph]);
+
+    // 构建边上建筑名称查找表
+    const edgeBuildingMap = useMemo(() => {
+        const map = {};
+        graph.edges.forEach(e => {
+            const key = `${e.from}->${e.to}`;
+            map[key] = (e.buildings || []).map(b => b.name).filter(Boolean);
+        });
+        return map;
+    }, [graph]);
+
+    const colCount = graph.maxCol + 1;
+
+    if (!graph.nodes.length) return null;
+
+    return (
+        <div className="rounded-xl border border-ancient-gold/12 bg-gray-950/50 overflow-hidden">
+            {/* 流程图区域 */}
+            {isVertical ? (
+                /* ── 纵向布局（移动端）── */
+                <div ref={containerRef} className="relative p-3 pt-4">
+                    <FlowArrows edges={graph.edges} nodePositions={nodePositions} containerRef={containerRef} vertical edgeBuildingMap={edgeBuildingMap} />
+                    <div className="flex flex-col gap-3">
+                        {Array.from({ length: colCount }, (_, colIdx) => {
+                            const nodesInCol = columns[colIdx] || [];
+                            if (!nodesInCol.length) return null;
+                            return (
+                                <div key={colIdx} className="flex flex-wrap items-start gap-2 justify-center">
+                                    {nodesInCol.map(node => (
+                                        <div
+                                            key={node.id}
+                                            ref={el => { nodeRefs.current[node.id] = el; }}
+                                        >
+                                            <FlowNode node={node} buildingCounts={buildingCounts} compact />
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
-
-                <div className="hidden lg:grid grid-cols-[1fr_auto_1fr] gap-4 items-start">
-                    {/* 上游：来源 */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-300">
-                                来源 / 生产
-                            </span>
-                            <span className="text-xs text-ancient-stone">上游</span>
+            ) : (
+                /* ── 横向布局（桌面端）── */
+                <div className="relative">
+                    <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-gray-950/80 to-transparent z-10 pointer-events-none" />
+                    <div
+                        ref={containerRef}
+                        className="relative overflow-x-auto p-3"
+                        style={{ minWidth: `${Math.max(320, colCount * 130)}px` }}
+                    >
+                        <FlowArrows edges={graph.edges} nodePositions={nodePositions} containerRef={containerRef} edgeBuildingMap={edgeBuildingMap} />
+                        <div className="flex items-start gap-3" style={{ minWidth: 'fit-content' }}>
+                            {Array.from({ length: colCount }, (_, colIdx) => (
+                                <div key={colIdx} className="flex flex-col items-center gap-2 flex-shrink-0">
+                                    {(columns[colIdx] || []).map(node => (
+                                        <div
+                                            key={node.id}
+                                            ref={el => { nodeRefs.current[node.id] = el; }}
+                                        >
+                                            <FlowNode node={node} buildingCounts={buildingCounts} />
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
                         </div>
-                        {producers.length > 0 ? (
-                            <div className="space-y-3">
-                                {producers.map(b => (
-                                    <ProductionNode
-                                        key={b.id}
-                                        buildingId={b.id}
-                                        building={b}
-                                        role="producer"
-                                        currentResource={resourceKey}
-                                        count={buildings[b.id]}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
-                                无本地生产来源（可能为基础资源或仅靠进口）
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 核心：当前资源 */}
-                    <div className="flex flex-col justify-center items-center">
-                        <div className="relative p-5 rounded-2xl border-2 border-ancient-gold/40 bg-ancient-ink/60 shadow-[0_0_30px_-5px_rgba(212,175,55,0.25)] backdrop-blur-sm">
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-ancient-ink border border-ancient-gold/40 rounded-full">
-                                <span className="text-xs font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-3">
-                                <div className="w-12 h-12 rounded-lg bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
-                                    <Icon name={resourceDef?.icon || 'Package'} size={30} className={resourceDef?.color || 'text-white'} />
-                                </div>
-                                <div className="text-center">
-                                    <h3 className="text-lg font-bold text-ancient-parchment">{resourceDef?.name}</h3>
-                                    <p className="text-xs text-ancient-stone mt-1">
-                                        {(resourceDef?.tags || []).map(tag => {
-                                            const tagMap = {
-                                                'essential': '生活必需',
-                                                'raw_material': '原材料',
-                                                'industrial': '工业资材',
-                                                'manufactured': '制成品',
-                                                'luxury': '奢侈品',
-                                                'currency': '货币',
-                                                'special': '特殊资源',
-                                                'basic_need': '基本需求',
-                                                'luxury_need': '奢侈需求',
-                                                'construction': '建材',
-                                                'military': '军用',
-                                                'strategic': '战略',
-                                                'refined': '加工品',
-                                                'raw': '原材料',
-                                                'food': '食物'
-                                            };
-                                            return tagMap[tag] || tag;
-                                        }).join(' · ') || '资源'}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 下游：去向 */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-xs text-rose-300">
-                                用途 / 消耗
-                            </span>
-                            <span className="text-xs text-ancient-stone">下游</span>
-                        </div>
-                        {consumers.length > 0 ? (
-                            <div className="space-y-3">
-                                {consumers.map(b => (
-                                    <ProductionNode
-                                        key={b.id}
-                                        buildingId={b.id}
-                                        building={b}
-                                        role="consumer"
-                                        currentResource={resourceKey}
-                                        count={buildings[b.id]}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
-                                无工业消耗用途（直接消费品/终端产品）
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {relevantChain && relevantChain.upgrades && (
-                <div className="rounded-xl border border-ancient-gold/20 bg-gray-950/40 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <Icon name="Zap" size={16} className="text-purple-300" />
-                        <h4 className="text-sm font-bold text-purple-100">产业链升级 ({relevantChain.name})</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {relevantChain.upgrades.map(upgrade => (
-                            <div key={upgrade.id} className="p-3 rounded-lg border border-purple-500/10 bg-purple-500/5 hover:bg-purple-500/10 transition-colors">
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="text-xs font-bold text-purple-200">{upgrade.name}</span>
-                                    <span className="text-xs text-gray-500">时代 {upgrade.unlockEpoch}</span>
-                                </div>
-                                <div className="text-xs text-gray-400 space-y-0.5">
-                                    {Object.entries(upgrade.bonus || {}).map(([k, v]) => {
-                                        const bonusMap = {
-                                            'efficiency': '效率',
-                                            'output': '产出',
-                                            'input': '消耗减免',
-                                            'capacity': '容量',
-                                            'defense': '防御',
-                                            'attack': '攻击',
-                                            'preservation': '保存率',
-                                            'approval': '支持度',
-                                            'stability': '稳定度',
-                                            'sustainability': '可持续性',
-                                            'workers': '劳力优化',
-                                            'processing': '加工效率',
-                                            'waste': '损耗',
-                                            'cloth_output': '布料产出',
-                                            'dye_output': '染料产出',
-                                            'culture': '文化产出',
-                                            'extraction': '开采效率',
-                                            'depth': '矿井深度',
-                                            'science': '科研产出',
-                                            'spread': '传播效率',
-                                            'access': '普及率',
-                                            'price': '价格优化',
-                                            'profit': '利润',
-                                            'influence': '影响力',
-                                            'cost': '成本',
-                                            'supply': '补给效率',
-                                            'mobility': '机动性',
-                                            'production': '生产力',
-                                            'quality': '质量'
-                                        };
-                                        const label = bonusMap[k] || k;
-                                        return (
-                                            <div key={k}>
-                                                {label}: <span className="text-emerald-400">+{v * 100}%</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
                     </div>
                 </div>
             )}
         </div>
     );
 };
+
+/** Building IO card — shows a building's inputs→outputs with the current resource highlighted */
+const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side = 'producer' }) => {
+    const rd = RESOURCES[resourceKey];
+    const isProducer = side === 'producer';
+    // The "other" resources: for a producer, show its inputs; for a consumer, show its outputs
+    const otherKeys = isProducer
+        ? building.inputs.filter(rk => rk !== resourceKey)
+        : building.outputs.filter(rk => rk !== resourceKey);
+    // Resources on the "same side" as current resource
+    const sameKeys = isProducer
+        ? building.outputs.filter(rk => rk !== resourceKey)
+        : building.inputs.filter(rk => rk !== resourceKey);
+
+    const isUnlocked = currentBuildingCount > 0;
+
+    return (
+        <div className={`rounded-lg border p-2 transition-all ${
+            isUnlocked
+                ? 'border-ancient-gold/20 bg-gray-900/60'
+                : 'border-white/5 bg-gray-950/40 opacity-60'
+        }`}>
+            {/* Building name + count */}
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <Icon name="Factory" size={11} className={isUnlocked ? 'text-ancient-gold/70' : 'text-gray-600'} />
+                    <span className={`text-[11px] font-medium truncate ${
+                        isUnlocked ? 'text-ancient-parchment' : 'text-gray-500'
+                    }`}>
+                        {building.name}
+                    </span>
+                </div>
+                {currentBuildingCount > 0 && (
+                    <span className="text-[9px] text-emerald-400/80 bg-emerald-950/40 px-1 py-0.5 rounded flex-shrink-0">
+                        ×{currentBuildingCount}
+                    </span>
+                )}
+            </div>
+            {/* IO flow: inputs → [building] → outputs */}
+            <div className="flex items-center gap-1">
+                {/* Other side resources (inputs for producer, outputs for consumer) */}
+                {otherKeys.length > 0 && (
+                    <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
+                        {otherKeys.map(rk => (
+                            <ResourceChip key={rk} rk={rk} tiny />
+                        ))}
+                    </div>
+                )}
+                {otherKeys.length > 0 && (
+                    <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
+                )}
+                {/* Current resource (highlighted) */}
+                <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
+                    bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
+                    <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
+                    {rd?.name || resourceKey}
+                </span>
+                {/* Same side co-products/co-inputs */}
+                {sameKeys.length > 0 && (
+                    <>
+                        <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
+                        <div className="flex flex-wrap gap-0.5">
+                            {sameKeys.slice(0, 3).map(rk => (
+                                <ResourceChip key={rk} rk={rk} tiny />
+                            ))}
+                            {sameKeys.length > 3 && (
+                                <span className="text-[9px] text-gray-500">+{sameKeys.length - 3}</span>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+/** 产业链主视图 — 简化版：直接展示上下游建筑 */
+const DynamicChainView = ({ resourceKey, buildings = {}, epoch = 0 }) => {
+    const resourceDef = RESOURCES[resourceKey];
+
+    // Directly query which buildings produce/consume this resource
+    const { producers, consumers } = useMemo(() => {
+        return getSimpleSupplyChain(resourceKey);
+    }, [resourceKey]);
+
+    const hasRelations = producers.length > 0 || consumers.length > 0;
+
+    return (
+        <div className="space-y-3">
+            {/* Resource header */}
+            <div className="flex items-center gap-3 px-1">
+                <div className="w-9 h-9 rounded-lg bg-ancient-ink border border-ancient-gold/40 flex items-center justify-center shadow-[0_0_10px_-3px_rgba(212,175,55,0.25)]">
+                    <Icon name={resourceDef?.icon || 'Package'} size={20} className={resourceDef?.color || 'text-white'} />
+                </div>
+                <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-ancient-gold truncate">{resourceDef?.name} 的产业链</h3>
+                    <p className="text-[10px] text-ancient-stone truncate">
+                        {(resourceDef?.tags || []).map(t => TAG_MAP[t] || t).join(' · ') || '资源'}
+                        {hasRelations && (
+                            <span className="ml-2 text-gray-500">
+                                | {producers.length} 种生产 · {consumers.length} 种消耗
+                            </span>
+                        )}
+                    </p>
+                </div>
+            </div>
+
+            {hasRelations ? (
+                <div className="space-y-3">
+                    {/* Producers — buildings that OUTPUT this resource */}
+                    {producers.length > 0 && (
+                        <div className="rounded-xl border border-ancient-gold/12 bg-gray-950/50 overflow-hidden">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-950/30 border-b border-emerald-500/10">
+                                <Icon name="ArrowDownToLine" size={12} className="text-emerald-400/70" />
+                                <span className="text-[11px] font-bold text-emerald-300/90">生产来源</span>
+                                <span className="text-[10px] text-gray-500">哪些建筑产出此资源</span>
+                            </div>
+                            <div className="p-2 space-y-1.5">
+                                {producers.map(b => (
+                                    <BuildingIOCard
+                                        key={b.id}
+                                        building={b}
+                                        resourceKey={resourceKey}
+                                        currentBuildingCount={buildings[b.id] || 0}
+                                        side="producer"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Consumers — buildings that INPUT this resource */}
+                    {consumers.length > 0 && (
+                        <div className="rounded-xl border border-ancient-gold/12 bg-gray-950/50 overflow-hidden">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-950/30 border-b border-amber-500/10">
+                                <Icon name="ArrowUpFromLine" size={12} className="text-amber-400/70" />
+                                <span className="text-[11px] font-bold text-amber-300/90">消耗去向</span>
+                                <span className="text-[10px] text-gray-500">哪些建筑消耗此资源</span>
+                            </div>
+                            <div className="p-2 space-y-1.5">
+                                {consumers.map(b => (
+                                    <BuildingIOCard
+                                        key={b.id}
+                                        building={b}
+                                        resourceKey={resourceKey}
+                                        currentBuildingCount={buildings[b.id] || 0}
+                                        side="consumer"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-4 text-xs text-gray-500 italic text-center">
+                    暂无相关建筑产出或消耗此资源
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 const ResourceDetailContent = ({
     resourceKey,
@@ -1958,7 +2322,7 @@ const ResourceDetailContent = ({
                                 )}
 
                                 {activeTab === 'chain' && (
-                                    <DynamicChainView resourceKey={resourceKey} buildings={buildings} />
+                                    <DynamicChainView resourceKey={resourceKey} buildings={buildings} epoch={epoch} />
                                 )}
                             </div>
                         </div>

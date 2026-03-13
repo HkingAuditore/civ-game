@@ -28,8 +28,17 @@ export function applyIdeologyEffects(equippedIdeologies, bonuses) {
         const levelEffects = ideology.effects.levels[levelIndex];
         if (!levelEffects) continue;
 
-        // 复用现有 applyEffects 处理基础数值字段
-        applyEffects(levelEffects, bonuses);
+        // Intercept taxIncome: ideology tax goes to virtualTaxIncome (phantom silver)
+        // instead of taxBonus (which increases real tax burden on strata)
+        if (typeof levelEffects.taxIncome === 'number') {
+            const taxVal = levelEffects.taxIncome;
+            // Create a shallow copy without taxIncome for applyEffects
+            const { taxIncome: _, ...restEffects } = levelEffects;
+            applyEffects(restEffects, bonuses);
+            bonuses.virtualTaxIncome = (bonuses.virtualTaxIncome || 0) + taxVal;
+        } else {
+            applyEffects(levelEffects, bonuses);
+        }
     }
 }
 
@@ -286,7 +295,8 @@ function _applyResourceThreshold(trigger, gameState, bonuses, levelScale) {
 }
 
 /**
- * 建筑计数型：根据指定类别建筑数量提供加成
+ * 建筑计数型：根据指定类别建筑数量提供加成（对数缩放）
+ * 后期建筑上万时仍能提供有感的递增加成，但增速递减避免爆炸
  * 例: { type: 'building_count_bonus', category: 'military', per: 10, bonus: { categories: { gather: 0.05 } } }
  */
 function _applyBuildingCountBonus(trigger, gameState, bonuses, levelScale) {
@@ -301,10 +311,13 @@ function _applyBuildingCountBonus(trigger, gameState, bonuses, levelScale) {
     const normalizedBonus = _normalizeBonusObject(trigger.bonus, trigger.target);
     if (!normalizedBonus) return;
 
-    // 上限：最多20组计入
-    const cappedSets = Math.min(sets, 20);
-    for (let i = 0; i < cappedSets; i++) {
-        _applyScaledEffects(normalizedBonus, bonuses, levelScale);
+    // Logarithmic scaling: effective = sets * (1 + ln(1 + sets/10)) / (1 + sets/10)
+    // Early game (~10 sets): near-linear; Late game (1000+ sets): ~6-7x multiplier with diminishing returns
+    const effectiveSets = _logScaleSets(sets);
+
+    for (const [key, value] of Object.entries(normalizedBonus)) {
+        const total = value * effectiveSets * levelScale;
+        _addToBonusField(bonuses, key, total);
     }
 }
 
@@ -513,6 +526,7 @@ function _applyApprovalThresholdBonus(trigger, gameState, bonuses, levelScale) {
 
 /**
  * V2: Building-specific bonus — bonus per N instances of a specific building (by ID, not category).
+ * Uses logarithmic scaling so late-game 10k+ buildings still provide meaningful but diminishing returns.
  * { type: 'building_specific_bonus', buildingId: 'large_estate', per: 1, bonus: { production: 0.02 }, cap: 0.10, target?: string }
  */
 function _applyBuildingSpecificBonus(trigger, gameState, bonuses, levelScale) {
@@ -521,12 +535,13 @@ function _applyBuildingSpecificBonus(trigger, gameState, bonuses, levelScale) {
     const per = trigger.per || 1;
     const sets = Math.floor(count / per);
     if (sets <= 0) return;
-    const cap = trigger.cap || 0.20;
-    // Apply bonus per set, capped
+
+    // Logarithmic scaling: same formula as building_count_bonus
+    const effectiveSets = _logScaleSets(sets);
+
     for (const [key, value] of Object.entries(trigger.bonus)) {
-        const total = value * sets * levelScale;
-        const capped = Math.sign(total) * Math.min(Math.abs(total), cap);
-        _addToBonusField(bonuses, key, capped);
+        const total = value * effectiveSets * levelScale;
+        _addToBonusField(bonuses, key, total);
     }
 }
 
@@ -1012,6 +1027,21 @@ function _applyScaledEffects(effectObj, bonuses, scale) {
 }
 
 /**
+ * Logarithmic scaling for building sets.
+ * Formula: effectiveSets = sets * (1 + ln(1 + sets / 10)) / (1 + sets / 10)
+ * At 10 sets: ~1.1x linear (near-linear early)
+ * At 100 sets: ~3.3x effective from 100 raw
+ * At 1000 sets: ~7.0x effective from 1000 raw
+ * At 10000 sets: ~9.2x effective from 10000 raw
+ * This ensures late-game bonuses can reach +100%~+200% without hard caps.
+ */
+function _logScaleSets(rawSets) {
+    if (rawSets <= 0) return 0;
+    const ratio = rawSets / 10;
+    return rawSets * (1 + Math.log(1 + ratio)) / (1 + ratio);
+}
+
+/**
  * 将值添加到 bonuses 的指定字段
  */
 function _addToBonusField(bonuses, key, value) {
@@ -1031,12 +1061,13 @@ function _addToBonusField(bonuses, key, value) {
         case 'stability':
             bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + value;
             break;
-        // [FIX] incomePercent 已全部迁移为 taxIncome，由下方 case 'taxIncome' 处理
         case 'maxPop':
             bonuses.maxPopPercent = (bonuses.maxPopPercent || 0) + value;
             break;
         case 'taxIncome':
-            bonuses.taxBonus = (bonuses.taxBonus || 0) + value;
+            // Virtual tax: ideology tax bonuses generate phantom silver income,
+            // not multiplying actual tax burden on strata
+            bonuses.virtualTaxIncome = (bonuses.virtualTaxIncome || 0) + value;
             break;
         case 'organizationGrowthMod':
         case 'organizationDecay':

@@ -220,8 +220,16 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         }
     }
 
-    // 3. 总税负 = 人头税 + 交易税
-    const totalTaxPerCapita = headTaxPerCapita + tradeTaxPerCapita;
+    // 2b. [NEW] 产业税（业主阶层）和关税（商人阶层）
+    // Read actual paid amounts from classFinancialData (provided by Ledger)
+    const finData = context.classFinancialData?.[stratumKey];
+    const businessTaxTotal = finData?.expense?.businessTax || 0;
+    const businessTaxPerCapita = businessTaxTotal / Math.max(1, count) / safeDayScale;
+    const tariffTotal = finData?.expense?.tariffs || 0;
+    const tariffPerCapita = tariffTotal / Math.max(1, count) / safeDayScale;
+
+    // 3. 总税负 = 人头税 + 交易税 + 产业税 + 关税
+    const totalTaxPerCapita = headTaxPerCapita + tradeTaxPerCapita + businessTaxPerCapita + tariffPerCapita;
 
     // 4. 税负占收入的比例
     const taxBurdenRatio = incomePerCapita > 0 ? totalTaxPerCapita / incomePerCapita : 0;
@@ -235,7 +243,11 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
 
     if (isTaxBurdenHigh) {
         const contribution = Math.min(2, taxBurdenRatio * 3);
-        const detailText = `税负占收入 ${Math.round(taxBurdenRatio * 100)}%（人头税: ${headTaxPerCapita.toFixed(1)}，交易税: ${tradeTaxPerCapita.toFixed(1)}；计划人头税: ${plannedHeadTaxPerCapita.toFixed(1)}；可承受上限: ${maxPerCapitaTax.toFixed(1)}）`;
+        // Build detail text with all tax components
+        const taxParts = [`人头税: ${headTaxPerCapita.toFixed(1)}`, `交易税: ${tradeTaxPerCapita.toFixed(1)}`];
+        if (businessTaxPerCapita > 0.01) taxParts.push(`产业税: ${businessTaxPerCapita.toFixed(1)}`);
+        if (tariffPerCapita > 0.01) taxParts.push(`关税: ${tariffPerCapita.toFixed(1)}`);
+        const detailText = `税负占收入 ${Math.round(taxBurdenRatio * 100)}%（${taxParts.join('，')}）`;
         sources.push({
             type: 'tax',
             icon: 'Percent',

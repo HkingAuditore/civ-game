@@ -546,6 +546,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setMaxPop,
         maxPopBonus,
         setRates,
+        taxes,
         setTaxes,
         setClassApproval,
         classApproval,
@@ -655,6 +656,7 @@ difficulty, // 游戏难度
         ministerAutoExpansion,
         lastMinisterExpansionDay,
         setLastMinisterExpansionDay,
+        fiscalActual, // [FIX] Add value for annual report snapshot
         setFiscalActual, // [NEW] realized fiscal numbers per tick
         setDailyMilitaryExpense, // [NEW] store simulation military expense for UI
         overseasInvestments, // 娴峰鎶曡祫鍒楄〃
@@ -715,6 +717,10 @@ difficulty, // 游戏难度
         daysElapsed,
         annualReportBaseline,
         lastFestivalYear,
+        // [FIX] Add economic data for annual report snapshot
+        economicIndicators,
+        taxes,
+        fiscalActual,
         isPaused,
         autoSaveInterval,
         isAutoSaveEnabled,
@@ -877,6 +883,10 @@ difficulty, // 游戏难度
             daysElapsed,
             annualReportBaseline,
             lastFestivalYear,
+            // [FIX] Add economic data for annual report snapshot
+            economicIndicators,
+            taxes,
+            fiscalActual,
             isPaused,
             autoSaveInterval,
             isAutoSaveEnabled,
@@ -928,7 +938,7 @@ difficulty, // 游戏难度
             ideologyMilestones,
             pendingIdeologyEmergence,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
