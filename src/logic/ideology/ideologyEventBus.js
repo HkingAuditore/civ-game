@@ -106,7 +106,7 @@ const EFFECT_CAPS = {
  * This function only computes what SHOULD happen and enforces caps.
  * 
  * @param {Object} effect - { action, resource?, amount?, buffId?, duration?, bonusKey?, ... }
- * @param {number} levelScale - level multiplier (1.0 / 1.5 / 2.0)
+ * @param {number} levelScale - retained for compatibility; ideology stages no longer use linear multipliers
  * @returns {Object|null} effect result descriptor or null if invalid
  */
 function executeEffect(effect, levelScale = 1.0) {
@@ -144,7 +144,13 @@ function executeEffect(effect, levelScale = 1.0) {
         case 'modifyBonus': {
             const amount = scaled(effect.amount || 0);
             const capped = Math.min(Math.abs(amount), EFFECT_CAPS.modifyBonus) * Math.sign(amount);
-            return { action: 'modifyBonus', bonusKey: effect.bonusKey, amount: capped };
+            return {
+                action: 'modifyBonus',
+                bonusKey: effect.bonusKey,
+                amount: capped,
+                duration: Math.round(Math.min(effect.duration || effect.durationDays || 60, EFFECT_CAPS.addBuff.maxDuration)),
+                name: effect.name || '理念修正',
+            };
         }
         default:
             return null;
@@ -245,7 +251,7 @@ class IdeologyEventBus {
             if (handler.condition && !_matchCondition(handler.condition, eventData)) continue;
 
             // Execute effect
-            const levelScale = _getLevelScale(handler.level || 1);
+            const levelScale = 1;
             const result = executeEffect(handler.effect, levelScale);
             if (!result) continue;
 
@@ -376,23 +382,13 @@ function _matchCondition(condition, eventData) {
 }
 
 /**
- * Level scale factor: L1=1.0, L2=1.5, L3=2.0
- */
-function _getLevelScale(level) {
-    if (level <= 1) return 1.0;
-    if (level === 2) return 1.5;
-    return 2.0;
-}
-
-/**
  * Generate human-readable description for an effect result.
  */
 function _describeEffect(result) {
     if (!result) return '';
     switch (result.action) {
         case 'addResource': {
-            const sign = result.amount >= 0 ? '+' : '';
-            return `${sign}${result.amount} ${result.resource || '资源'}`;
+            return `获得${result.resource || '资源'}奖励`;
         }
         case 'addStability': {
             const sign = result.amount >= 0 ? '+' : '';

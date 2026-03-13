@@ -74,7 +74,22 @@ import { MINISTER_ROLES, MINISTER_LABELS, ECONOMIC_MINISTER_ROLES } from '../log
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
+import { BUILDING_CHAINS } from '../config/buildingChains';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
+
+const getCompletedChainIds = (buildingState = {}) => {
+    if (!BUILDING_CHAINS || typeof BUILDING_CHAINS !== 'object') return [];
+    return Object.entries(BUILDING_CHAINS)
+        .filter(([, chain]) => Array.isArray(chain?.buildings) && chain.buildings.length > 0)
+        .filter(([, chain]) => chain.buildings.every((buildingId) => (buildingState?.[buildingId] || 0) > 0))
+        .map(([chainId]) => chainId);
+};
+
+const applyCooldownModifier = (baseDays, modifier = 0) => {
+    if (!Number.isFinite(baseDays) || baseDays <= 0) return baseDays;
+    const normalizedModifier = Number.isFinite(modifier) ? modifier : 0;
+    return Math.max(1, Math.round(baseDays * (1 + normalizedModifier)));
+};
 
 
 /**
@@ -1353,10 +1368,21 @@ export const useGameActions = (gameState, addLog) => {
         addLog(`建造了 ${finalCount} 个 ${b.name}`);
 
         // Ideology event: build
+        const nextBuildings = { ...buildings, [id]: (buildings[id] || 0) + finalCount };
         const totalBuildingsAfter = Object.values(buildings).reduce((s, v) => s + (v || 0), 0) + finalCount;
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_BUILD, {
             buildingId: id, category: b.category, count: finalCount, totalBuildings: totalBuildingsAfter
         }, daysElapsed);
+        const completedChainsBefore = new Set(getCompletedChainIds(buildings));
+        getCompletedChainIds(nextBuildings).forEach((chainId) => {
+            if (completedChainsBefore.has(chainId)) return;
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_CHAIN_COMPLETE, {
+                chainId,
+                chainName: BUILDING_CHAINS?.[chainId]?.name || chainId,
+                completedChains: completedChainsBefore.size + 1,
+            }, daysElapsed);
+            completedChainsBefore.add(chainId);
+        });
 
         // 播放建造音效
         try {
@@ -2661,9 +2687,11 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 检查针对该目标的军事行动冷却
-        const cooldownKey = `military_${nationId}_${missionId}`;
         const lastActionDay = targetNation.lastMilitaryActionDay?.[missionId] || 0;
-        const cooldownDays = mission.cooldownDays || 5;
+        const cooldownDays = applyCooldownModifier(
+            mission.cooldownDays || 5,
+            modifiers?.ideologyRuleMods?.cooldownMod || 0
+        );
         const daysSinceLastAction = daysElapsed - lastActionDay;
 
         if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
@@ -3035,10 +3063,10 @@ export const useGameActions = (gameState, addLog) => {
 
         // 检查外交动作冷却时间
         const cooldownDays = DIPLOMATIC_COOLDOWNS[action];
-        const cooldownModifier = modifiers?.officialEffects?.diplomaticCooldown || 0;
-        const adjustedCooldownDays = cooldownDays && cooldownDays > 0
-            ? Math.max(1, Math.round(cooldownDays * (1 + cooldownModifier)))
-            : cooldownDays;
+        const cooldownModifier =
+            (modifiers?.officialEffects?.diplomaticCooldown || 0)
+            + (modifiers?.ideologyRuleMods?.cooldownMod || 0);
+        const adjustedCooldownDays = applyCooldownModifier(cooldownDays, cooldownModifier);
         const skipCooldownCheck = action === 'negotiate_treaty' && payload?.ignoreCooldown === true;
         if (!skipCooldownCheck && adjustedCooldownDays && adjustedCooldownDays > 0) {
             const lastActionDay = targetNation.lastDiplomaticActionDay?.[action] || 0;
@@ -3930,9 +3958,13 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 // 检查冷却
                 const lastInterventionDay = targetNation.lastDiplomaticActionDay?.intervention || 0;
-
-                if (daysElapsed - lastInterventionDay < 30) {
-                    addLog(`最近已对 ${targetNation.name} 进行过干预，请等待 ${30 - (daysElapsed - lastInterventionDay)} 天。`);
+                const interventionCooldownDays = applyCooldownModifier(
+                    30,
+                    (modifiers?.officialEffects?.diplomaticCooldown || 0)
+                    + (modifiers?.ideologyRuleMods?.cooldownMod || 0)
+                );
+                if (daysElapsed - lastInterventionDay < interventionCooldownDays) {
+                    addLog(`最近已对 ${targetNation.name} 进行过干预，请等待 ${interventionCooldownDays - (daysElapsed - lastInterventionDay)} 天。`);
                     return;
                 }
                 // 检查前置条件
@@ -4116,7 +4148,11 @@ export const useGameActions = (gameState, addLog) => {
                     return;
                 }
                 // Cooldown (MVP)
-                const COOLDOWN_DAYS = 120;
+                const COOLDOWN_DAYS = applyCooldownModifier(
+                    120,
+                    (modifiers?.officialEffects?.diplomaticCooldown || 0)
+                    + (modifiers?.ideologyRuleMods?.cooldownMod || 0)
+                );
                 const lastActionDay = targetNation.lastDiplomaticActionDay?.propose_treaty || 0;
                 const daysSince = daysElapsed - lastActionDay;
                 if (lastActionDay > 0 && daysSince < COOLDOWN_DAYS) {

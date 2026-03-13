@@ -46,7 +46,7 @@ const IdeologyEmergenceModalComponent = ({
 
                     {/* 内容区域 */}
                     <motion.div
-                        className="relative w-full max-w-4xl flex flex-col items-center"
+                        className="relative w-full max-w-[1400px] max-h-[88vh] overflow-y-auto flex flex-col items-center px-1"
                         initial={{ opacity: 0, scale: 0.9, y: 30 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 30 }}
@@ -73,7 +73,7 @@ const IdeologyEmergenceModalComponent = ({
                         </div>
 
                         {/* 三张卡牌 */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 md:grid-cols-2 gap-4 w-full mb-6">
                             {candidates.map((candidate, index) => (
                                 <motion.div
                                     key={candidate.id}
@@ -98,6 +98,7 @@ const IdeologyEmergenceModalComponent = ({
                                         isSelected={selectedId === candidate.id}
                                         onSelect={handleSelect}
                                         equippedIds={equippedIds}
+                                        showProgressionPreview={true}
                                     />
                                 </motion.div>
                             ))}

@@ -5,6 +5,11 @@
  */
 
 import { applyEffects } from '../buildings/effects.js';
+import {
+    scaleLegacyFlatPopulation,
+    scaleLegacyResourceAmount,
+    scaleLegacyResourceThreshold,
+} from './ideologyScaling.js';
 
 // ============ 基础数值效果 ============
 
@@ -63,14 +68,15 @@ export function evaluateTriggerEffects(equippedIdeologies, gameState, bonuses) {
     }
 
     for (const ideology of equippedIdeologies) {
-        if (!ideology || !ideology.effects || !ideology.effects.triggerEffects) continue;
-        const level = ideology.level || 1;
+        if (!ideology?.effects?.levels) continue;
+        const unlockedTriggers = _collectUnlockedTriggerEffects(ideology);
+        if (unlockedTriggers.length === 0) continue;
 
-        for (const trigger of ideology.effects.triggerEffects) {
+        for (const trigger of unlockedTriggers) {
             if (!trigger || !trigger.type) continue;
 
-            // 等级缩放系数：1级=1.0, 2级=1.5, 3级=2.0
-            const levelScale = level === 1 ? 1.0 : level === 2 ? 1.5 : 2.0;
+            // 等级改为阶段解锁，不再用 1.0 / 1.5 / 2.0 线性放大。
+            const levelScale = 1;
 
             switch (trigger.type) {
                 case 'stratum_bonus':
@@ -198,16 +204,18 @@ function _applyPopRatioBonus(trigger, gameState, bonuses, levelScale) {
  * 例: { type: 'chain_count_bonus', countType: 'complete', perCount: { militaryBonus: 0.10 } }
  */
 function _applyChainCountBonus(trigger, gameState, bonuses, levelScale) {
-    if (!trigger.perCount) return;
+    const perCount = trigger.perCount || trigger.bonus;
+    if (!perCount || typeof perCount !== 'object') return;
     // 完整产业链数量由 gameState.completedChains 提供
     const chainCount = gameState.completedChains || 0;
     if (chainCount <= 0) return;
 
     // 上限：最多10条产业链计入
     const cappedCount = Math.min(chainCount, 10);
-    for (const [key, value] of Object.entries(trigger.perCount)) {
+    const divisor = Number.isFinite(trigger.per) && trigger.per > 0 ? trigger.per : 1;
+    for (const [key, value] of Object.entries(perCount)) {
         const total = value * cappedCount * levelScale;
-        _addToBonusField(bonuses, key, total);
+        _addToBonusField(bonuses, key, total / divisor);
     }
 }
 
@@ -216,15 +224,16 @@ function _applyChainCountBonus(trigger, gameState, bonuses, levelScale) {
  * 例: { type: 'tech_count_bonus', perTech: { flatPop: 10 } }
  */
 function _applyTechCountBonus(trigger, gameState, bonuses, oneTimeEffects, levelScale) {
-    if (!trigger.perTech) return;
+    const perTech = _resolvePerTechBonus(trigger);
+    if (!perTech) return;
     const techCount = gameState.techsUnlocked ? gameState.techsUnlocked.length : 0;
     if (techCount <= 0) return;
 
-    for (const [key, value] of Object.entries(trigger.perTech)) {
+    for (const [key, value] of Object.entries(perTech)) {
         const total = value * techCount * levelScale;
         if (key === 'flatPop') {
-            // flatPop 是持续计算效果，存入 oneTimeEffects 供外部使用
-            oneTimeEffects.flatPop = (oneTimeEffects.flatPop || 0) + total;
+            const scaledFlatPop = scaleLegacyFlatPopulation(total, gameState.ideologyScaling);
+            oneTimeEffects.flatPop = (oneTimeEffects.flatPop || 0) + scaledFlatPop;
         } else {
             _addToBonusField(bonuses, key, total);
         }
@@ -236,14 +245,44 @@ function _applyTechCountBonus(trigger, gameState, bonuses, oneTimeEffects, level
  * 例: { type: 'resource_threshold', resource: 'silver', threshold: 10000, bonus: { production: 0.05 } }
  */
 function _applyResourceThreshold(trigger, gameState, bonuses, levelScale) {
-    if (!trigger.resource || !trigger.threshold || !trigger.bonus) return;
+    if (!trigger.resource) return;
     const { resources } = gameState;
     if (!resources) return;
 
     const currentAmount = resources[trigger.resource] || 0;
-    if (currentAmount < trigger.threshold) return; // 阈值未达到
 
-    _applyScaledEffects(trigger.bonus, bonuses, levelScale);
+    if (trigger.threshold != null && trigger.bonus) {
+        const scaledThreshold = scaleLegacyResourceThreshold({
+            threshold: trigger.threshold,
+            resource: trigger.resource,
+            context: gameState.ideologyScaling,
+        });
+        if (currentAmount < scaledThreshold) return;
+        _applyScaledEffects(trigger.bonus, bonuses, levelScale);
+        return;
+    }
+
+    // 兼容 legacy 写法：{ above: { threshold, bonus }, below: { threshold, bonus } }
+    if (trigger.above?.threshold != null && trigger.above?.bonus) {
+        const scaledAboveThreshold = scaleLegacyResourceThreshold({
+            threshold: trigger.above.threshold,
+            resource: trigger.resource,
+            context: gameState.ideologyScaling,
+        });
+        if (currentAmount >= scaledAboveThreshold) {
+            _applyScaledEffects(trigger.above.bonus, bonuses, levelScale);
+        }
+    }
+    if (trigger.below?.threshold != null && trigger.below?.bonus) {
+        const scaledBelowThreshold = scaleLegacyResourceThreshold({
+            threshold: trigger.below.threshold,
+            resource: trigger.resource,
+            context: gameState.ideologyScaling,
+        });
+        if (currentAmount <= scaledBelowThreshold) {
+            _applyScaledEffects(trigger.below.bonus, bonuses, levelScale);
+        }
+    }
 }
 
 /**
@@ -259,10 +298,13 @@ function _applyBuildingCountBonus(trigger, gameState, bonuses, levelScale) {
     const sets = Math.floor(count / trigger.per);
     if (sets <= 0) return;
 
+    const normalizedBonus = _normalizeBonusObject(trigger.bonus, trigger.target);
+    if (!normalizedBonus) return;
+
     // 上限：最多20组计入
     const cappedSets = Math.min(sets, 20);
     for (let i = 0; i < cappedSets; i++) {
-        _applyScaledEffects(trigger.bonus, bonuses, levelScale);
+        _applyScaledEffects(normalizedBonus, bonuses, levelScale);
     }
 }
 
@@ -291,29 +333,7 @@ function _applyInverseScaling(trigger, gameState, bonuses, levelScale) {
     if (!trigger.source || trigger.threshold == null) return;
 
     // 读取源指标值
-    let sourceVal = 0;
-    switch (trigger.source) {
-        case 'stability':
-            sourceVal = gameState.stability || 0;
-            break;
-        case 'population':
-            sourceVal = gameState.population || 0;
-            break;
-        case 'epoch':
-            sourceVal = gameState.epoch || 0;
-            break;
-        case 'treasury':
-            sourceVal = gameState.treasury || 0;
-            break;
-        case 'militaryBonus':
-            // 军事加成是累积的百分比值，从bonuses中读取当前累计值
-            sourceVal = bonuses.militaryBonus || 0;
-            break;
-        default:
-            // 尝试从resources中读取
-            sourceVal = gameState.resources?.[trigger.source] || 0;
-            break;
-    }
+    const sourceVal = _readTriggerSource(trigger.source, gameState, bonuses);
 
     const diff = sourceVal - trigger.threshold;
     const cap = trigger.cap || 0.15;
@@ -393,7 +413,17 @@ function _applyConditionalFlip(trigger, gameState, bonuses, levelScale) {
     if (!trigger.condition) return;
 
     let conditionMet = false;
-    const threshold = trigger.threshold ?? 0;
+    let threshold = trigger.threshold ?? 0;
+
+    if (trigger.condition === 'population_above') {
+        threshold = scaleLegacyFlatPopulation(threshold, gameState.ideologyScaling);
+    } else if (trigger.condition === 'treasury_below') {
+        threshold = scaleLegacyResourceThreshold({
+            threshold,
+            resource: 'silver',
+            context: gameState.ideologyScaling,
+        });
+    }
 
     switch (trigger.condition) {
         case 'isAtWar':
@@ -436,7 +466,12 @@ function _applyConditionalFlip(trigger, gameState, bonuses, levelScale) {
 function _applyResourceDrain(trigger, gameState, bonuses, oneTimeEffects, levelScale) {
     if (!trigger.resource) return;
 
-    const drain = (trigger.drainPerTick || 0) * levelScale;
+    const drain = scaleLegacyResourceAmount({
+        amount: (trigger.drainPerTick || 0) * levelScale,
+        resource: trigger.resource,
+        context: gameState.ideologyScaling,
+        mode: 'drain',
+    });
     const available = gameState.resources?.[trigger.resource] || 0;
 
     if (available >= drain) {
@@ -653,6 +688,7 @@ function _emptyMechanicEffects() {
         resourceEchoes: [],    // { sourceResource, echoResource, ratio }
         crisisImmunities: [],  // { immuneTo }
         epochRush: 0,          // total cost reduction
+        ruleMods: [],          // 可转入主规则修正管道的 mechanicEffect
     };
 }
 
@@ -682,6 +718,29 @@ function _collectMechanicEffect(me, target) {
             break;
         case 'epoch_rush':
             target.epochRush += (me.costReduction || 0);
+            break;
+        case 'building_cost_mod':
+        case 'official_bonus':
+        case 'tax_modifier':
+        case 'cooldown_mod':
+        case 'price_volatility_mod':
+        case 'tech_cost_mod':
+        case 'stratum_output_mod':
+        case 'building_input_mod':
+        case 'unit_attack_mod':
+        case 'unit_defense_mod':
+        case 'recruit_cost_mod':
+        case 'maintenance_cost_mod':
+        case 'corruption_mod':
+        case 'wages_mod':
+        case 'trade_route_mod':
+        case 'resource_price_mod':
+        case 'diplomatic_influence':
+            target.ruleMods.push({
+                type: me.type,
+                scope: me.scope,
+                value: me.value || 0,
+            });
             break;
         default:
             break;
@@ -783,7 +842,7 @@ export function applyConverters(equippedIdeologies, triggerState, bonuses) {
         const levelEffects = ideology.effects.levels[levelIndex];
         if (!levelEffects?.converters) continue;
 
-        const levelScale = level === 1 ? 1.0 : level === 2 ? 1.5 : 2.0;
+        const levelScale = 1;
 
         for (const converter of levelEffects.converters) {
             if (!converter?.source || !converter?.sourceType || !converter?.target) continue;
@@ -861,7 +920,7 @@ export function applyRuleMods(equippedIdeologies) {
         const levelEffects = ideology.effects.levels[levelIndex];
         if (!levelEffects?.ruleMods) continue;
 
-        const levelScale = level === 1 ? 1.0 : level === 2 ? 1.5 : 2.0;
+        const levelScale = 1;
 
         for (const mod of levelEffects.ruleMods) {
             if (!mod?.type || mod.value == null) continue;
@@ -877,6 +936,28 @@ export function applyRuleMods(equippedIdeologies) {
     return activeRuleMods;
 }
 
+/**
+ * 将联动产生的 ruleMods 合并入现有 ideologyRuleMods。
+ * 联动与理念本体共享同一规则修正 DSL，避免维护双轨语义。
+ */
+export function mergeRuleMods(baseRuleMods, extraRuleMods = []) {
+    const merged = {
+        ...baseRuleMods,
+    };
+
+    Object.keys(merged).forEach((key) => {
+        merged[key] = { ...(merged[key] || {}) };
+    });
+
+    for (const mod of extraRuleMods) {
+        if (!mod?.type || mod.value == null || !merged[mod.type]) continue;
+        const scope = mod.scope || '_global';
+        merged[mod.type][scope] = (merged[mod.type][scope] || 0) + mod.value;
+    }
+
+    return merged;
+}
+
 // ============ 缓存管理 ============
 
 /**
@@ -889,6 +970,21 @@ export function invalidateIdeologyCache() {
 }
 
 // ============ 内部工具函数 ============
+
+function _collectUnlockedTriggerEffects(ideology) {
+    if (!ideology?.effects?.levels) return [];
+    const level = Math.max(1, ideology.level || 1);
+    const unlocked = [];
+
+    for (let index = 0; index < Math.min(level, ideology.effects.levels.length); index++) {
+        const levelEffects = ideology.effects.levels[index];
+        if (Array.isArray(levelEffects?.triggerEffects)) {
+            unlocked.push(...levelEffects.triggerEffects);
+        }
+    }
+
+    return unlocked;
+}
 
 /**
  * 将缩放后的效果应用到 bonuses
@@ -942,6 +1038,10 @@ function _addToBonusField(bonuses, key, value) {
         case 'taxIncome':
             bonuses.taxBonus = (bonuses.taxBonus || 0) + value;
             break;
+        case 'organizationGrowthMod':
+        case 'organizationDecay':
+            bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + value;
+            break;
         default:
             // 对于未知字段，尝试直接累加
             if (typeof bonuses[key] === 'number') {
@@ -949,4 +1049,62 @@ function _addToBonusField(bonuses, key, value) {
             }
             break;
     }
+}
+
+function _normalizeBonusObject(bonus, target) {
+    if (bonus && typeof bonus === 'object') {
+        return bonus;
+    }
+    if (typeof bonus === 'number' && target) {
+        return { [target]: bonus };
+    }
+    return null;
+}
+
+function _resolvePerTechBonus(trigger) {
+    if (trigger.perTech && typeof trigger.perTech === 'object') {
+        return trigger.perTech;
+    }
+    if (trigger.bonus && typeof trigger.bonus === 'object') {
+        const divisor = Number.isFinite(trigger.per) && trigger.per > 0 ? trigger.per : 1;
+        const perTech = {};
+        for (const [key, value] of Object.entries(trigger.bonus)) {
+            if (typeof value === 'number') {
+                perTech[key] = value / divisor;
+            }
+        }
+        return perTech;
+    }
+    return null;
+}
+
+function _readTriggerSource(source, gameState, bonuses) {
+    switch (source) {
+        case 'stability':
+            return gameState.stability || 0;
+        case 'population':
+            return gameState.population || 0;
+        case 'epoch':
+            return gameState.epoch || 0;
+        case 'treasury':
+            return gameState.treasury || 0;
+        case 'militaryBonus':
+            return bonuses.militaryBonus || 0;
+        case 'totalBuildings':
+            return gameState.totalBuildings || 0;
+        default:
+            break;
+    }
+
+    if (typeof source === 'string' && source.includes('.')) {
+        const path = source.split('.');
+        let current = gameState;
+        for (const segment of path) {
+            if (current == null) return 0;
+            current = current[segment];
+        }
+        return typeof current === 'number' ? current : 0;
+    }
+
+    return gameState.resources?.[source] || 0;
 }

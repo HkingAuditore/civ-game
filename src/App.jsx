@@ -1575,7 +1575,10 @@ function GameApp({ gameState }) {
                                                 jobsAvailable={gameState.jobsAvailable}
                                                 popStructure={gameState.popStructure}
                                                 taxPolicies={gameState.taxPolicies}
-                                                diplomaticCooldownMod={gameState.modifiers?.officialEffects?.diplomaticCooldown || 0}
+                                                diplomaticCooldownMod={
+                                                    (gameState.modifiers?.officialEffects?.diplomaticCooldown || 0)
+                                                    + (gameState.modifiers?.ideologyRuleMods?.cooldownMod || 0)
+                                                }
                                                 diplomacyOrganizations={gameState.diplomacyOrganizations}
                                                 overseasInvestments={gameState.overseasInvestments}
                                                 classWealth={gameState.classWealth}

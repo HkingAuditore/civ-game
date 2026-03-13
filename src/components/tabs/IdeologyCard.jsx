@@ -33,12 +33,7 @@ const LevelStars = ({ level = 1, maxLevel = 3 }) => (
 const ABSOLUTE_VALUE_KEYS = new Set(['stability', 'flatPop']);
 
 const EffectTag = ({ label, value, positive = true, effectKey }) => {
-    const isAbsolute = ABSOLUTE_VALUE_KEYS.has(effectKey);
-    const formatted = typeof value === 'number'
-        ? isAbsolute
-            ? `${value > 0 ? '+' : ''}${value}`
-            : `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
-        : value;
+    const formatted = typeof value === 'number' ? formatEffectValue(effectKey, value) : value;
     return (
         <span className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded ${
             positive ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'
@@ -59,6 +54,9 @@ const EFFECT_LABELS = {
     taxIncome: '税收加成',
     maxPop: '人口上限',
     production: '采集/市政产出',
+    needsReduction: '需求减免',
+    organizationGrowthMod: '组织度增长',
+    organizationDecay: '组织度增长',
     flatPop: '人口',
     culture: '文化',
     science: '科研',
@@ -99,8 +97,8 @@ function getStratumName(key) {
 
 const RULE_MOD_LABELS = {
     building_cost_mod: '建筑费用',
-    official_bonus: '官员加成',
-    tax_modifier: '税率修正',
+    official_bonus: '官员体系效率',
+    tax_modifier: '总体税率',
     cooldown_mod: '冷却时间',
     price_volatility_mod: '价格波动',
     tech_cost_mod: '科技费用',
@@ -152,6 +150,7 @@ const CONVERTER_SOURCE_NAME_LABELS = {
     stability: '稳定度',
     population: '人口',
     official: '官员',
+    officialCount: '官员',
 };
 
 const MECHANIC_EFFECT_LABELS = {
@@ -178,24 +177,12 @@ function renderOnEvents(onEvents) {
     if (!onEvents?.length) return null;
     return onEvents.map((oe, i) => {
         const eventName = EVENT_DISPLAY_NAMES[oe.event] || oe.event;
-        let effectDesc = '';
-        if (oe.effect?.action === 'addResource') {
-            const resName = RESOURCE_LABELS[oe.effect.resource] || oe.effect.resource;
-            effectDesc = `+${oe.effect.amount} ${resName}`;
-        } else if (oe.effect?.action === 'addStability') {
-            effectDesc = `+${oe.effect.amount} 稳定度`;
-        } else if (oe.effect?.action === 'addBuff') {
-            effectDesc = `获得「${oe.effect.name}」${oe.effect.duration}天`;
-        } else if (oe.effect?.action === 'addIdeologyScore') {
-            effectDesc = `+${oe.effect.amount} 理念分数`;
-        } else if (oe.effect?.action === 'modifyBonus') {
-            effectDesc = `修改加成`;
-        }
-        const cooldownInfo = oe.cooldownDays ? `(冷却: ${oe.cooldownDays}天)` : '';
-        const maxInfo = oe.maxTriggers ? `(上限: ${oe.maxTriggers}次)` : '';
+        const effectDesc = describeEventEffect(oe.effect);
+        const cooldownInfo = oe.cooldownDays ? `；冷却${formatDuration(oe.cooldownDays)}` : '';
+        const maxInfo = oe.maxTriggers ? `；最多触发${oe.maxTriggers}次` : '';
         return (
             <p key={i} className="text-[10px] text-amber-300 leading-tight">
-                ⚡ 每次{eventName}: {effectDesc} {cooldownInfo}{maxInfo}
+                ⚡ 每次{eventName}：{effectDesc}{cooldownInfo}{maxInfo}
             </p>
         );
     });
@@ -207,14 +194,9 @@ function renderOnEvents(onEvents) {
 function renderConverters(converters) {
     if (!converters?.length) return null;
     return converters.map((c, i) => {
-        const srcTypeName = CONVERTER_SOURCE_LABELS[c.sourceType] || c.sourceType;
-        const srcName = CONVERTER_SOURCE_NAME_LABELS[c.source] || c.source;
-        const targetLabel = EFFECT_LABELS[c.target] || RESOURCE_LABELS[c.target] || c.target;
-        const ratio = c.ratio;
-        const capInfo = c.cap ? `(上限${(c.cap * 100).toFixed(0)}%)` : '';
         return (
             <p key={i} className="text-[10px] text-blue-300 leading-tight">
-                🔄 {srcName}{srcTypeName !== '资源' && srcTypeName !== '稳定度' && srcTypeName !== '人口' ? `(${srcTypeName})` : ''} ×{ratio} → {targetLabel} {capInfo}
+                🔄 {describeConverter(c)}
             </p>
         );
     });
@@ -227,7 +209,9 @@ function renderRuleMods(ruleMods) {
     if (!ruleMods?.length) return null;
     return ruleMods.map((rm, i) => {
         const label = RULE_MOD_LABELS[rm.type] || rm.type;
-        const scopeName = rm.scope ? (CATEGORY_LABELS[rm.scope] || RESOURCE_LABELS[rm.scope] || rm.scope) : '';
+        const scopeName = rm.scope && rm.scope !== '_global'
+            ? (CATEGORY_LABELS[rm.scope] || RESOURCE_LABELS[rm.scope] || rm.scope)
+            : '';
         const scopeText = scopeName ? `(${scopeName})` : '';
         const valText = rm.value > 0 ? `+${(rm.value * 100).toFixed(0)}%` : `${(rm.value * 100).toFixed(0)}%`;
         return (
@@ -271,12 +255,226 @@ function effectsToTags(effects) {
             }
             continue;
         }
+        if (key === 'approval' && typeof value === 'object') {
+            for (const [stratum, approvalValue] of Object.entries(value)) {
+                if (typeof approvalValue === 'number' && approvalValue !== 0) {
+                    tags.push({
+                        label: `${getStratumName(stratum)}满意度`,
+                        value: approvalValue,
+                        positive: approvalValue > 0,
+                        effectKey: `approval_${stratum}`,
+                    });
+                }
+            }
+            continue;
+        }
         const label = EFFECT_LABELS[key];
         if (label && typeof value === 'number' && value !== 0) {
             tags.push({ label, value, positive: value > 0, effectKey: key });
         }
     }
     return tags;
+}
+
+const LEVEL_STAGE_LABELS = ['1级', '2级', '3级'];
+
+function isAbsoluteEffectKey(effectKey) {
+    return ABSOLUTE_VALUE_KEYS.has(effectKey) || effectKey?.startsWith('approval_');
+}
+
+function formatEffectValue(effectKey, value) {
+    if (typeof value !== 'number') return value;
+    if (isAbsoluteEffectKey(effectKey)) {
+        return `${value > 0 ? '+' : ''}${Number(value.toFixed(2))}`;
+    }
+    return `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
+}
+
+function formatSignedPercent(value) {
+    return `${value > 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
+}
+
+function formatSignedFlat(value) {
+    return `${value > 0 ? '+' : ''}${Number(value.toFixed(2))}`;
+}
+
+function formatDuration(days) {
+    if (!Number.isFinite(days) || days <= 0) return '';
+    if (days >= 360 && days % 360 === 0) return `${days / 360}年`;
+    return `${days}天`;
+}
+
+function describeEffectsInline(effects = {}) {
+    const tags = effectsToTags(effects);
+    if (tags.length === 0) return '';
+    return tags.map((tag) => `${tag.label}${formatEffectValue(tag.effectKey, tag.value)}`).join('、');
+}
+
+function getConverterStepOptions(sourceType) {
+    switch (sourceType) {
+        case 'resource':
+            return [1, 5, 10, 20, 50, 100, 500];
+        case 'population':
+        case 'unemployment':
+        case 'militarySize':
+            return [10, 50, 100, 500, 1000];
+        case 'tradeVolume':
+            return [10, 50, 100, 500, 1000];
+        case 'stability':
+        case 'avgApproval':
+        case 'legitimacy':
+            return [1, 5, 10, 20];
+        default:
+            return [1, 2, 5, 10];
+    }
+}
+
+function getConverterDisplayStep(converter) {
+    const ratio = Math.abs(converter?.ratio || 0);
+    const steps = getConverterStepOptions(converter?.sourceType);
+    if (ratio <= 0) return 1;
+    return steps.find((step) => ratio * step >= 0.01) || steps[steps.length - 1];
+}
+
+function getConverterSourcePhrase(converter, step) {
+    const sourceName = CONVERTER_SOURCE_NAME_LABELS[converter.source] || RESOURCE_LABELS[converter.source] || converter.source;
+    switch (converter.sourceType) {
+        case 'resource':
+            return `每${step}单位${sourceName}储备`;
+        case 'buildingCount':
+            return `每${step}座${sourceName}`;
+        case 'specificBuilding':
+            return `每${step}座${sourceName}`;
+        case 'officialCount':
+            return `每${step}名官员`;
+        case 'population':
+            return `每${step}人口`;
+        case 'stability':
+            return `每${step}点稳定度`;
+        case 'warCount':
+            return `每${step}场战争`;
+        case 'friendlyCount':
+            return `每${step}个友好国家`;
+        case 'vassalCount':
+            return `每${step}个附庸`;
+        case 'tradeVolume':
+            return `每${step}点贸易额`;
+        case 'unemployment':
+            return `每${step}失业人口`;
+        case 'legitimacy':
+            return `每${step}点合法性`;
+        case 'avgApproval':
+            return `每${step}点平均满意度`;
+        case 'militarySize':
+            return `每${step}军队规模`;
+        case 'wealthyPop':
+            return `每${step}富裕人口`;
+        case 'poorPop':
+            return `每${step}贫困人口`;
+        case 'unitCategory':
+            return `每${step}个${sourceName}`;
+        default:
+            return `每${step}${sourceName}`;
+    }
+}
+
+function describeConverter(converter) {
+    const step = getConverterDisplayStep(converter);
+    const targetLabel = EFFECT_LABELS[converter.target] || RESOURCE_LABELS[converter.target] || converter.target;
+    const deltaValue = (converter.ratio || 0) * step;
+    const deltaText = isAbsoluteEffectKey(converter.target)
+        ? formatSignedFlat(deltaValue)
+        : formatSignedPercent(deltaValue);
+    const capText = converter.cap != null
+        ? `（上限${isAbsoluteEffectKey(converter.target) ? formatSignedFlat(converter.cap) : `${(converter.cap * 100).toFixed(0)}%`}）`
+        : '';
+    return `${getConverterSourcePhrase(converter, step)}: ${targetLabel}${deltaText}${capText}`;
+}
+
+function describeEventEffect(effect = {}) {
+    if (!effect?.action) return '';
+    if (effect.action === 'addResource') {
+        const resourceName = RESOURCE_LABELS[effect.resource] || effect.resource;
+        return `获得${resourceName}${formatSignedFlat(effect.amount || 0)}`;
+    }
+    if (effect.action === 'addStability') {
+        return `稳定度${formatSignedFlat(effect.amount || 0)}`;
+    }
+    if (effect.action === 'addBuff') {
+        const durationText = formatDuration(effect.duration || 0);
+        const effectText = describeEffectsInline(effect.effects || {});
+        return `获得「${effect.name || '理念效果'}」${durationText}${effectText ? `：${effectText}` : ''}`;
+    }
+    if (effect.action === 'addIdeologyScore') {
+        return `理念分数${formatSignedFlat(effect.amount || 0)}`;
+    }
+    if (effect.action === 'modifyBonus') {
+        const targetLabel = EFFECT_LABELS[effect.bonusKey] || RULE_MOD_LABELS[effect.bonusKey] || effect.bonusKey || '效果';
+        return `${targetLabel}${formatSignedPercent(effect.amount || 0)}`;
+    }
+    return effect.action;
+}
+
+function getNewArrayItems(currentItems = [], previousItems = []) {
+    const previousSet = new Set(previousItems.map(item => JSON.stringify(item)));
+    return currentItems.filter(item => !previousSet.has(JSON.stringify(item)));
+}
+
+function getLevelIncrementalEffects(levels = [], index = 0) {
+    const currentEffects = levels[index] || {};
+    if (index === 0) return currentEffects;
+
+    const previousEffects = levels[index - 1] || {};
+    const delta = {};
+
+    for (const [key, value] of Object.entries(currentEffects)) {
+        if (key === 'categories' && typeof value === 'object') {
+            const categoryDelta = {};
+            const previousCategories = previousEffects.categories || {};
+            for (const [category, amount] of Object.entries(value)) {
+                const diff = amount - (previousCategories[category] || 0);
+                if (diff !== 0) {
+                    categoryDelta[category] = diff;
+                }
+            }
+            if (Object.keys(categoryDelta).length > 0) {
+                delta.categories = categoryDelta;
+            }
+            continue;
+        }
+
+        if (key === 'approval' && typeof value === 'object') {
+            const approvalDelta = {};
+            const previousApproval = previousEffects.approval || {};
+            for (const [stratum, amount] of Object.entries(value)) {
+                const diff = amount - (previousApproval[stratum] || 0);
+                if (diff !== 0) {
+                    approvalDelta[stratum] = diff;
+                }
+            }
+            if (Object.keys(approvalDelta).length > 0) {
+                delta.approval = approvalDelta;
+            }
+            continue;
+        }
+
+        if (key === 'onEvents' || key === 'converters' || key === 'ruleMods') {
+            const newItems = getNewArrayItems(value || [], previousEffects[key] || []);
+            if (newItems.length > 0) {
+                delta[key] = newItems;
+            }
+            continue;
+        }
+
+        if (typeof value === 'number') {
+            const diff = value - (previousEffects[key] || 0);
+            if (diff !== 0) {
+                delta[key] = diff;
+            }
+        }
+    }
+
+    return delta;
 }
 
 /**
@@ -308,6 +506,7 @@ const IdeologyCardComponent = ({
     isCandidate = false, // 是否是涌现候选（三选一模式）
     isSelected = false,  // 是否被选中（三选一模式）
     onSelect,          // 候选选择回调
+    showProgressionPreview = false,
 }) => {
     const [expanded, setExpanded] = useState(false);
 
@@ -321,6 +520,8 @@ const IdeologyCardComponent = ({
     const tags = effectsToTags(currentEffects);
     const synergies = findRelevantSynergies(ideology.id, equippedIds);
     const hasCooldown = cooldownRemaining > 0;
+    const showDetails = (expanded || showProgressionPreview) && !compact && !isCandidate;
+    const showCandidateProgress = showProgressionPreview && isCandidate;
 
     // 候选模式下的点击
     const handleClick = () => {
@@ -354,20 +555,36 @@ const IdeologyCardComponent = ({
                  style={{ opacity: 0.8 }} />
 
             {/* 头部：图标 + 名称 + 星级 */}
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-start gap-2 mb-1">
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${category.bgClass || 'bg-gray-800'}`}>
                     <Icon name={ideology.icon || 'Circle'} size={14} className={category.color || 'text-gray-300'} />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-bold text-white truncate">{ideology.name}</span>
-                        <LevelStars level={level} />
-                        {/* 稀有度标签（非普通时显示） */}
-                        {ideology.rarity && ideology.rarity !== 'common' && (
-                            <span className={`text-[9px] px-1 py-0 rounded ${rarity.bgBadge} ${rarity.color} border ${rarity.borderColor}/40 font-semibold`}>
-                                {rarity.label}
-                            </span>
-                        )}
+                    <div className="flex items-start justify-between gap-2">
+                        <span className="text-sm font-bold text-white leading-tight break-words whitespace-normal line-clamp-2">
+                            {ideology.name}
+                        </span>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            <div className="flex items-center gap-1">
+                                <LevelStars level={level} />
+                                {/* 稀有度标签（非普通时显示） */}
+                                {ideology.rarity && ideology.rarity !== 'common' && (
+                                    <span className={`text-[9px] px-1 py-0 rounded ${rarity.bgBadge} ${rarity.color} border ${rarity.borderColor}/40 font-semibold`}>
+                                        {rarity.label}
+                                    </span>
+                                )}
+                            </div>
+                            {isEquipped && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-900/50 text-green-300 border border-green-700/50">
+                                    装备中
+                                </span>
+                            )}
+                            {hasCooldown && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-900/50 text-orange-300 border border-orange-700/50">
+                                    冷却 {cooldownRemaining}天
+                                </span>
+                            )}
+                        </div>
                     </div>
                     {!compact && (
                         <span className={`text-[10px] ${category.color || 'text-gray-400'}`}>
@@ -375,16 +592,6 @@ const IdeologyCardComponent = ({
                         </span>
                     )}
                 </div>
-                {isEquipped && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-900/50 text-green-300 border border-green-700/50">
-                        装备中
-                    </span>
-                )}
-                {hasCooldown && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-900/50 text-orange-300 border border-orange-700/50">
-                        冷却 {cooldownRemaining}天
-                    </span>
-                )}
             </div>
 
             {/* 描述 */}
@@ -480,7 +687,7 @@ const IdeologyCardComponent = ({
             )}
 
             {/* 展开详情 */}
-            {expanded && !compact && !isCandidate && (
+            {showDetails && (
                 <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-2 animate-fade-in">
                     {/* 史实背景 */}
                     {ideology.lore && (
@@ -494,21 +701,30 @@ const IdeologyCardComponent = ({
                     <div className="bg-gray-900/60 rounded p-2">
                         <p className="text-[10px] text-gray-400 mb-1">效果递进</p>
                         {ideology.effects?.levels?.map((lvlEffect, i) => {
-                            const lvlTags = effectsToTags(lvlEffect);
+                            const levelDiff = getLevelIncrementalEffects(ideology.effects.levels, i);
+                            const lvlTags = effectsToTags(levelDiff);
                             return (
                                 <div key={i} className={`mb-1.5 ${i + 1 === level ? 'opacity-100' : 'opacity-50'}`}>
                                     <div className="flex items-start gap-1.5">
-                                        <LevelStars level={i + 1} />
+                                        <div className="flex items-center gap-1.5 min-w-[74px]">
+                                            <LevelStars level={i + 1} />
+                                            <span className="text-[10px] text-gray-500">
+                                                {LEVEL_STAGE_LABELS[i] || `${i + 1}级`}
+                                            </span>
+                                        </div>
                                         <div className="flex flex-wrap gap-1">
                                             {lvlTags.map((tag, j) => <EffectTag key={j} {...tag} />)}
+                                            {lvlTags.length === 0 && !(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
+                                                <span className="text-[10px] text-gray-500">无新增数值</span>
+                                            )}
                                         </div>
                                     </div>
                                     {/* New effect types for this level */}
-                                    {(lvlEffect.onEvents?.length > 0 || lvlEffect.converters?.length > 0 || lvlEffect.ruleMods?.length > 0) && (
+                                    {(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
                                         <div className="ml-6 mt-0.5 space-y-0.5">
-                                            {renderOnEvents(lvlEffect.onEvents)}
-                                            {renderConverters(lvlEffect.converters)}
-                                            {renderRuleMods(lvlEffect.ruleMods)}
+                                            {renderOnEvents(levelDiff.onEvents)}
+                                            {renderConverters(levelDiff.converters)}
+                                            {renderRuleMods(levelDiff.ruleMods)}
                                         </div>
                                     )}
                                 </div>
@@ -527,6 +743,34 @@ const IdeologyCardComponent = ({
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+
+            {showCandidateProgress && (
+                <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-1.5">
+                    <p className="text-[10px] text-gray-400">成长路线</p>
+                    {ideology.effects?.levels?.map((_, i) => {
+                        const levelDiff = getLevelIncrementalEffects(ideology.effects.levels, i);
+                        const lvlTags = effectsToTags(levelDiff);
+                        return (
+                            <div key={i} className="rounded-lg bg-black/25 px-2 py-1.5">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <LevelStars level={i + 1} />
+                                    <span className="text-[10px] text-gray-400">{LEVEL_STAGE_LABELS[i] || `${i + 1}级`}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                    {lvlTags.map((tag, j) => <EffectTag key={j} {...tag} />)}
+                                </div>
+                                {(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
+                                    <div className="mt-1 space-y-0.5">
+                                        {renderOnEvents(levelDiff.onEvents)}
+                                        {renderConverters(levelDiff.converters)}
+                                        {renderRuleMods(levelDiff.ruleMods)}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
@@ -559,6 +803,10 @@ function describeBonusDetail(bonusObj) {
             for (const [resKey, amount] of Object.entries(val)) {
                 const resName = RESOURCE_LABELS[resKey] || EFFECT_LABELS[resKey] || resKey;
                 parts.push(`每人口+${amount} ${resName}`);
+            }
+        } else if (key === 'approval' && typeof val === 'object') {
+            for (const [stratumKey, amount] of Object.entries(val)) {
+                parts.push(`${getStratumName(stratumKey)}满意度${formatSignedFlat(amount)}`);
             }
         } else if (key === 'flatPop') {
             parts.push(`人口${val > 0 ? '+' : ''}${val}`);
