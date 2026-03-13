@@ -693,7 +693,7 @@ const IdeologyCardComponent = ({
                     {/* 史实背景 */}
                     {ideology.lore && (
                         <div className="bg-gray-900/60 rounded p-2">
-                            <p className="text-[10px] text-gray-400 mb-0.5">史实背景</p>
+                            {/* <p className="text-[10px] text-gray-400 mb-0.5">史实背景</p> */}
                             <p className="text-xs text-gray-300 italic">{ideology.lore}</p>
                         </div>
                     )}

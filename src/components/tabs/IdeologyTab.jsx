@@ -10,6 +10,7 @@ import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../../config/ideologySynergi
 import { getEmergenceThreshold } from '../../logic/ideology/ideologyScoring';
 import { getMaxSlots, equipIdeology, unequipIdeology, resolveEquippedIdeologies } from '../../logic/ideology/ideologySlots';
 import { IdeologyCard } from './IdeologyCard';
+import { useDevicePerformance } from '../../hooks';
 
 /**
  * 联动效果展示条
@@ -65,7 +66,7 @@ const RARITY_FILTER_CONFIG = {
  * 空卡槽占位
  */
 const EmptySlot = ({ isLocked = false, unlockHint = '' }) => (
-    <div className={`flex flex-col items-center justify-center min-h-[280px] rounded-xl border-2 border-dashed transition-all ${
+    <div className={`flex flex-col items-center justify-center min-h-[100px] rounded-xl border-2 border-dashed transition-all ${
         isLocked
             ? 'border-gray-700/40 bg-gray-900/30'
             : 'border-gray-600/50 bg-gray-800/20 hover:border-gray-500/60'
@@ -104,6 +105,10 @@ const IdeologyTabComponent = ({
 }) => {
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [rarityFilter, setRarityFilter] = useState('all');
+
+    // 移动端检测
+    const { isLowPerformanceMode } = useDevicePerformance();
+    const isMobile = isLowPerformanceMode; // 低性能模式通常是移动端
 
     // 计算最大卡槽数
     const maxSlots = useMemo(
@@ -236,7 +241,7 @@ const IdeologyTabComponent = ({
                 </div>
 
                 {/* 卡槽网格 */}
-                <div className="grid [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))] gap-3 mb-3">
+                <div className="grid [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))] gap-3 mb-3">
                     {/* 已装备的卡牌 */}
                     {resolvedEquipped.map(ideology => (
                         <IdeologyCard
@@ -247,7 +252,7 @@ const IdeologyTabComponent = ({
                             equippedIds={equippedIdeologies}
                             cooldownRemaining={ideologyCooldowns[ideology.id] || 0}
                             onUnequip={handleUnequip}
-                            compact={false}
+                            compact={isMobile}
                         />
                     ))}
                     {/* 空卡槽 */}
@@ -373,7 +378,7 @@ const IdeologyTabComponent = ({
 
                 {/* 卡牌网格 */}
                 {unequippedCollection.length > 0 ? (
-                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] gap-3">
+                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] gap-3">
                         {unequippedCollection.map(entry => (
                             <IdeologyCard
                                 key={entry.id}
