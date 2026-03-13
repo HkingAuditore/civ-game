@@ -163,37 +163,37 @@ const NationDetailView = ({
             : '开启战争！这将导致声誉受损和贸易中断。';
 
     return (
-        <div className="flex flex-col h-full bg-theme-surface-trans">
+        <div className="flex flex-col h-full min-h-0 bg-theme-surface-trans overflow-hidden">
             <div
 className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                 style={{ background: 'linear-gradient(to bottom, var(--theme-surface), transparent)' }}
             >
                 {/* Header Section */}
-                <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+                    <div className="flex items-start gap-3 md:gap-4 min-w-0">
                         <div
-                            className={`w-12 h-10 md:w-16 md:h-12 flex items-center justify-center bg-black/50 rounded-lg border-2 ${nation.color ? nation.color.replace('text-', 'border-') : 'border-gray-600'} shadow-lg`}
+                            className={`w-11 h-11 md:w-16 md:h-12 flex items-center justify-center bg-black/50 rounded-lg border-2 shrink-0 ${nation.color ? nation.color.replace('text-', 'border-') : 'border-gray-600'} shadow-lg`}
                         >
-                            <Icon name="Flag" size={24} className={`${nation.color || 'text-gray-400'} md:w-8 md:h-8`} />
+                            <Icon name="Flag" size={22} className={`${nation.color || 'text-gray-400'} md:w-8 md:h-8`} />
                         </div>
-                        <div>
-<h2 className="text-xl md:text-2xl font-bold text-theme-accent tracking-wide font-decorative shadow-black drop-shadow-md">
+                        <div className="min-w-0 flex-1">
+<h2 className="text-2xl md:text-2xl font-bold text-theme-accent tracking-wide font-decorative shadow-black drop-shadow-md leading-tight break-words">
                                 {nation.name}
                             </h2>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
                                 <span
-                                    className={`flex items-center gap-1 text-sm font-bold px-2 py-0.5 rounded border bg-black/40 ${relation.value >= 50 ? 'text-green-400 border-green-800' : relation.value <= 20 ? 'text-red-400 border-red-800' : 'text-ancient-stone border-ancient-stone/40'}`}
+                                    className={`inline-flex max-w-full items-center gap-1 text-sm font-bold px-2 py-0.5 rounded border bg-black/40 ${relation.value >= 50 ? 'text-green-400 border-green-800' : relation.value <= 20 ? 'text-red-400 border-red-800' : 'text-ancient-stone border-ancient-stone/40'}`}
                                 >
                                     <Icon name={relation.value >= 50 ? 'Smile' : relation.value <= 20 ? 'Frown' : 'Meh'} size={14} />
                                     {getRelationLabel(relation.value)} ({Math.round(relation.value)})
                                 </span>
                                 {nation.type && (
-                                    <Badge variant="neutral" className="capitalize">
+                                    <Badge variant="neutral" className="capitalize max-w-full whitespace-normal break-words">
                                         {nation.type}
                                     </Badge>
                                 )}
                                 {nation.isAtWar && (
-                                    <Badge variant="danger" className="animate-pulse">
+                                    <Badge variant="danger" className="animate-pulse max-w-full whitespace-normal break-words">
                                         战争状态
                                     </Badge>
                                 )}
@@ -203,7 +203,7 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                 </div>
 
                 {/* Key Stats Grid */}
-                <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mt-4">
+                <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 mt-4">
                     <StatCard
                         icon="Users"
                         label="人口"
@@ -253,24 +253,27 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                     <summary className="text-xs text-theme-text opacity-50 cursor-pointer hover:opacity-80">
                         📊 资产明细
                     </summary>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 mt-2 text-xs bg-theme-surface-trans border border-theme-border rounded-lg p-2">
-                        <div className="flex justify-between"><span className="text-amber-300">💰 财富</span><span className="font-mono">{formatStat(wealthStock)}</span></div>
-                        <div className="flex justify-between"><span className="text-yellow-200">💵 流动</span><span className="font-mono">{formatStat(liquidWealth)}</span></div>
-                        <div className="flex justify-between"><span className="text-lime-300">📦 库存</span><span className="font-mono">{formatStat(inventoryAssetValue)}</span></div>
-                        <div className="flex justify-between"><span className="text-orange-300">🏗️ 建筑</span><span className="font-mono">{formatStat(capitalAssetValue)}</span></div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 mt-2 text-xs bg-theme-surface-trans border border-theme-border rounded-lg p-2">
+                        <div className="flex justify-between gap-2"><span className="text-amber-300 shrink-0">💰 财富</span><span className="font-mono text-right break-all">{formatStat(wealthStock)}</span></div>
+                        <div className="flex justify-between gap-2"><span className="text-yellow-200 shrink-0">💵 流动</span><span className="font-mono text-right break-all">{formatStat(liquidWealth)}</span></div>
+                        <div className="flex justify-between gap-2"><span className="text-lime-300 shrink-0">📦 库存</span><span className="font-mono text-right break-all">{formatStat(inventoryAssetValue)}</span></div>
+                        <div className="flex justify-between gap-2"><span className="text-orange-300 shrink-0">🏗️ 建筑</span><span className="font-mono text-right break-all">{formatStat(capitalAssetValue)}</span></div>
                     </div>
                 </details>
             </div>
 
-            <div className="px-4 md:px-6 border-b border-theme-border bg-theme-surface-trans">
-                <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} variant="underline" />
+            <div className="px-3 md:px-6 border-b border-theme-border bg-theme-surface-trans">
+                <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} className="pr-4" />
             </div>
 
-<div className="flex-1 overflow-y-auto p-3 md:p-4 scrollbar-thin scrollbar-thumb-ancient-gold/20 hover:scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/10">
+<div
+                className="flex-1 overflow-y-auto px-3 pt-3 md:p-4 scrollbar-thin scrollbar-thumb-ancient-gold/20 hover:scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/10"
+                style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
+            >
                 {activeTab === 'overview' && (
 <div className="space-y-4">
                         {nation.desc && (
-                            <div className="p-4 bg-ancient-ink/40 rounded-lg border border-ancient-gold/10 text-ancient-parchment italic font-serif leading-relaxed relative">
+                            <div className="p-3 md:p-4 bg-ancient-ink/40 rounded-lg border border-ancient-gold/10 text-ancient-parchment italic font-serif leading-relaxed relative text-sm md:text-base">
                                 <Icon name="Quote" size={16} className="absolute top-2 left-2 text-ancient-gold/20" />
                                 <div className="pl-4">"{nation.desc}"</div>
                             </div>
@@ -1254,15 +1257,15 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
 );
 
 const StatCard = ({ icon, label, value, color, subtitle = null }) => (
-    <div className="bg-theme-surface-trans border border-theme-border px-2.5 py-2 rounded-lg flex items-center gap-2 min-w-0">
-        <div className={`p-1.5 rounded bg-black/30 shrink-0 ${color}`}>
+    <div className="bg-theme-surface-trans border border-theme-border px-2.5 py-2 rounded-lg flex items-start md:items-center gap-2 min-w-0">
+        <div className={`p-1.5 rounded bg-black/30 shrink-0 mt-0.5 md:mt-0 ${color}`}>
             <Icon name={icon} size={16} />
         </div>
         <div className="min-w-0 flex-1">
-            <div className="text-[10px] text-theme-text opacity-60 font-bold whitespace-nowrap">{label}</div>
-            <div className={`text-sm font-bold font-mono ${color} whitespace-nowrap truncate`}>{value}</div>
+            <div className="text-[10px] text-theme-text opacity-60 font-bold leading-tight">{label}</div>
+            <div className={`text-sm font-bold font-mono ${color} leading-tight break-all md:break-normal md:truncate`}>{value}</div>
             {subtitle && (
-                <div className="text-[10px] text-theme-text opacity-50 whitespace-nowrap truncate">{subtitle}</div>
+                <div className="text-[10px] text-theme-text opacity-50 leading-tight break-words line-clamp-2">{subtitle}</div>
             )}
         </div>
     </div>

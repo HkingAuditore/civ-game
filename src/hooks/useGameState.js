@@ -965,27 +965,22 @@ const buildInitialNations = (playerState = null) => {
 
     return COUNTRIES.map(nation => {
         const appearEpoch = nation.appearEpoch ?? 0;
+        const epochPopulationBaseline = 1 + appearEpoch * 0.3;
+        const epochWealthBaseline = 1 + appearEpoch * 0.2;
         
         // 计算缩放因子：基于玩家当前发展水平和国家出现时代
-        let populationScale = 1.0;
-        let wealthScale = 1.0;
+        let populationScale = epochPopulationBaseline;
+        let wealthScale = epochWealthBaseline;
         
         if (playerState && appearEpoch > 0) {
             // 如果国家出现时代晚于当前时代，说明是后期解锁的国�?
             // 需要根据玩家当前实力进行缩�?
             if (appearEpoch <= currentEpoch) {
-                // 人口缩放：基于玩家当前人口，但有上下�?
-                // 新国家人口应该是玩家�?0%-80%之间
-                populationScale = Math.max(0.3, Math.min(0.8, playerPopulation / 5000));
-                
-                // 财富缩放：基于玩家当前财富，但有上下�?
-                // 新国家财富应该是玩家�?0%-60%之间
-                wealthScale = Math.max(0.2, Math.min(0.6, playerWealth / 50000));
-                
-                // 时代加成：每个时代额外增�?0%
-                const epochBonus = 1 + (appearEpoch * 0.2);
-                populationScale *= epochBonus;
-                wealthScale *= epochBonus;
+                // 不再把 AI 缩到玩家的 20%-30%，否则后期解锁国家会像“几十人口小村落”。
+                const playerPopulationScale = Math.max(0.75, Math.min(1.35, 0.75 + playerPopulation / 6000));
+                const playerWealthScale = Math.max(0.7, Math.min(1.3, 0.7 + playerWealth / 60000));
+                populationScale *= playerPopulationScale;
+                wealthScale *= playerWealthScale;
             }
         }
         
@@ -2006,7 +2001,7 @@ export const useGameState = () => {
         let migratedNations = loadedNations;
         // [FIX v2] Check if save version is outdated (missing OR less than current version)
         // This ensures old saves that were saved after partial fixes still get updated
-        const CURRENT_AI_BALANCE_VERSION = 6;
+        const CURRENT_AI_BALANCE_VERSION = 7;
         const saveAIVersion = data.aiBalanceVersion || 0;
         const needsMigration = saveAIVersion < CURRENT_AI_BALANCE_VERSION;
         
@@ -2048,25 +2043,28 @@ export const useGameState = () => {
                     
                     
                     // Calculate reasonable values based on player's current development
-                    // AI nations should be at 30-80% of player's level, scaled by their appear epoch
+                    // 同时给每个时代设置独立地板，避免玩家自己还很小的时候把 AI 也重置成 100 人村庄
                     const appearEpoch = n.appearEpoch ?? 0;
                     const epochBonus = 1 + Math.min(appearEpoch, currentEpoch) * 0.2;
+                    const epochPopulationFloor = [900, 1400, 2200, 3400, 5200, 7800, 11000][Math.min(appearEpoch, 6)];
+                    const epochWealthFloor = [1200, 2200, 4200, 7600, 13000, 22000, 36000][Math.min(appearEpoch, 6)];
                     
                     // Population: 30-80% of player, with epoch bonus
                     const targetPopScale = 0.3 + Math.random() * 0.5; // 0.3 to 0.8
-                    const newPopulation = clampBootstrapPopulation(playerPop * targetPopScale * epochBonus);
+                    const scaledPopulation = clampBootstrapPopulation(playerPop * targetPopScale * epochBonus);
+                    const newPopulation = Math.max(scaledPopulation, epochPopulationFloor);
                     
                     // Wealth: 20-60% of player, with epoch bonus, but capped by per-capita limit
                     const targetWealthScale = 0.2 + Math.random() * 0.4; // 0.2 to 0.6
                     const rawNewWealth = Math.floor(playerWealth * targetWealthScale * epochBonus);
-                    // Ensure per-capita wealth doesn't exceed cap (use 50% of cap for safety margin)
-                    const maxWealthByPerCapita = newPopulation * perCapitaWealthCap * 0.5;
-                    const newWealth = Math.max(500, Math.min(rawNewWealth, maxWealthByPerCapita));
+                    // Ensure per-capita wealth doesn't exceed cap, but keep a sensible epoch floor.
+                    const maxWealthByPerCapita = newPopulation * perCapitaWealthCap * 0.75;
+                    const newWealth = Math.max(epochWealthFloor, Math.min(Math.max(500, rawNewWealth), maxWealthByPerCapita));
                     
                     // Reset economy traits
                     const newEconomyTraits = {
                         ...(n.economyTraits || {}),
-                        ownBasePopulation: Math.max(5, Math.floor(newPopulation / 10)),
+                        ownBasePopulation: Math.max(100, Math.floor(newPopulation * 0.7)),
                         ownBaseWealth: newWealth,
                         basePopulation: newPopulation,
                         baseWealth: newWealth,
