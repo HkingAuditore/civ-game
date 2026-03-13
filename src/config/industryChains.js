@@ -748,7 +748,7 @@ export const INDUSTRY_CHAINS = {
   power_chain: {
     id: 'power_chain',
     name: "电力产业链",
-    desc: "从煤炭采掘到电力发电和传输的能源体系",
+    desc: "从煤炭采掘到发电，再到工业与城市即时用电的能源体系",
     unlockEpoch: 7,
     stages: [
       {
@@ -770,17 +770,17 @@ export const INDUSTRY_CHAINS = {
       },
       {
         stage: 'advanced',
-        name: "电力传输",
+        name: "电气设备制造",
         buildings: ['wiring_factory'],
-        input: ['copper', 'rubber'],
+        input: ['copper', 'rubber', 'electricity'],
         output: 'wiring',
         efficiency: 1.0,
         workers: ['worker', 'artisan', 'engineer'],
       },
       {
         stage: 'consumption',
-        name: "工业消费",
-        consumers: ['industry', 'civic'],
+        name: "工业与城市消费",
+        consumers: ['industry', 'civic', 'population'],
         input: 'electricity',
       },
       {
@@ -797,22 +797,14 @@ export const INDUSTRY_CHAINS = {
         stage: 'processing',
         name: "太阳能发电",
         buildings: ['solar_power_plant'],
-        input: ['stone', 'aluminum'],
+        input: ['stone', 'aluminum', 'composites'],
         output: 'electricity',
         efficiency: 1.5,
         workers: ['technician', 'engineer', 'scientist'],
         epochRange: [9, 9],
       }
     ],
-    upgrades: [
-      {
-        id: 'high_voltage_transmission',
-        name: "高压输电",
-        unlockEpoch: 7,
-        cost: { wiring: 100, steel: 80, silver: 500 },
-        bonus: { efficiency: 0.25, transmission: 0.3 },
-      },
-    ],
+    upgrades: [],
   },
 
   petrochemical_chain: {
@@ -1363,21 +1355,21 @@ export const CHAIN_DEVELOPMENT_PATHS = {
         name: "化石能源主导",
         desc: "大力发展火力发电，产量高但对煤炭需求巨大。",
         requirements: { epoch: 7, buildings: { coal_power_plant: 3 } },
-        effects: { electricity_output: 0.4, efficiency: 0.2 },
+        effects: { coal_power_plant: 0.15, efficiency: 0.1 },
       },
       {
         id: 'nuclear_program',
         name: "核能计划",
         desc: "发展核电，电力产出极高但需要铀矿支撑。",
         requirements: { epoch: 8, buildings: { nuclear_power_plant: 1, uranium_mine: 2 }, tech: ['nuclear_power'] },
-        effects: { electricity_output: 0.6, efficiency: 0.3 },
+        effects: { nuclear_power_plant: 0.2, efficiency: 0.15 },
       },
       {
         id: 'green_energy',
         name: "绿色能源",
         desc: "发展太阳能等可再生能源，可持续但前期投入大。",
         requirements: { epoch: 9, buildings: { solar_power_plant: 2 }, tech: ['solar_energy'] },
-        effects: { electricity_output: 0.35, sustainability: 0.5, approval: 0.1 },
+        effects: { solar_power_plant: 0.15, sustainability: 0.5, approval: 0.1 },
       },
     ],
   },

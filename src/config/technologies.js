@@ -1026,14 +1026,13 @@ export const TECHS = [
         effects: {
             buildings: {
                 coal_power_plant: 0.15,
-                oil_refinery: 0.10,
                 wiring_factory: 0.10,
                 machinery_plant: 0.10,
                 automobile_factory: 0.10,
-                synthetic_fiber_plant: 0.10,
+                advanced_copper_mine: 0.10,
+                broadcast_station: 0.10,
                 electric_textile_mill: 0.10,
-                factory: 0.15,
-                steel_works: 0.10
+                factory: 0.10
             }
         },
     },
@@ -1059,7 +1058,11 @@ export const TECHS = [
         cost: { science: 32000 },
         epoch: 8,
         prerequisites: ['electrification'],
-        effects: {},
+        effects: {
+            buildings: {
+                nuclear_power_plant: 0.10
+            }
+        },
     },
     {
         id: 'polymer_chemistry',
@@ -1172,6 +1175,9 @@ export const TECHS = [
         effects: {
             buildings: {
                 electronics_factory: 0.15,
+                appliance_factory: 0.10,
+                automobile_factory: 0.10,
+                data_center: 0.10,
                 plastics_factory: 0.10,
                 synthetic_textile_mill: 0.10,
                 coal_power_plant: 0.10,
@@ -1191,7 +1197,11 @@ export const TECHS = [
         cost: { science: 55000 },
         epoch: 9,
         prerequisites: ['integrated_circuits'],
-        effects: {},
+        effects: {
+            buildings: {
+                solar_power_plant: 0.12
+            }
+        },
     },
     {
         id: 'semiconductor_manufacturing',

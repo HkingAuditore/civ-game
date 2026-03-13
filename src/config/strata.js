@@ -135,9 +135,9 @@ export const STRATA = {
             4.0: { fine_clothes: 0.05, delicacies: 0.07, stone: 0.02 }, // 华服，珍馐，石材
             5.0: { steel: 0.02, copper: 0.015, culture: 0.08 }, // 钢，铜器，大量文化
             6.5: { delicacies: 0.06, fine_clothes: 0.04, brick: 0.03, culture: 0.07 }, // 工业城市体面化
-            8.0: { papyrus: 0.035, furniture: 0.02 }, // 报刊与城市生活
+            8.0: { papyrus: 0.035, furniture: 0.02, electricity: 0.015 }, // 报刊、照明与城市生活
             10.0: { coffee: 0.04, spice: 0.04, furniture: 0.04, culture: 0.07, automobile: 0.015 }, // 工人暴富后的体面社交 + 汽车
-            12.0: { delicacies: 0.08, fine_clothes: 0.05, culture: 0.10, rubber: 0.01, machinery: 0.005, electronics: 0.01 } // "买自行车/缝纫机" + 顶格仍低于上层 + 家电
+            12.0: { delicacies: 0.08, fine_clothes: 0.05, culture: 0.10, rubber: 0.01, machinery: 0.005, electronics: 0.01, electricity: 0.03 } // "买自行车/缝纫机" + 顶格仍低于上层 + 家电
         },        buffs: {
             satisfied: { desc: "工人积极", industryBonus: 0.15 },
             dissatisfied: { desc: "工人罢工", industryBonus: -0.25 }
@@ -167,9 +167,9 @@ export const STRATA = {
             2.5: { coffee: 0.04, fine_clothes: 0.035, brick: 0.04, culture: 0.09 }, // 咖啡，华服，砖块，更多文化
             3.5: { delicacies: 0.09, stone: 0.035, dye: 0.025 }, // 珍馐，石材，染料
             4.5: { steel: 0.015, iron: 0.02, culture: 0.12 }, // 技艺升级的"烧钱"
-            6.0: { tools: 0.06, copper: 0.03, furniture: 0.04, culture: 0.10 }, // 升级工坊+体面生活
+            6.0: { tools: 0.06, copper: 0.03, furniture: 0.04, culture: 0.10, electricity: 0.015 }, // 升级工坊+体面生活
             8.0: { papyrus: 0.05, furniture: 0.03 }, // 报刊与室内陈设
-            10.0: { coffee: 0.05, fine_clothes: 0.05, dye: 0.03, culture: 0.13, rubber: 0.015, machinery: 0.008, automobile: 0.02, electronics: 0.015 }, // 体面社交 + "买工具机" + 汽车 + 家电
+            10.0: { coffee: 0.05, fine_clothes: 0.05, dye: 0.03, culture: 0.13, rubber: 0.015, machinery: 0.008, automobile: 0.02, electronics: 0.015, electricity: 0.03 }, // 体面社交 + "买工具机" + 汽车 + 家电
             12.0: { delicacies: 0.10, culture: 0.18, spice: 0.04 } // 顶格仍低于商人/贵族，但明显更能花钱
         },        buffs: {
             satisfied: { desc: "坊市繁盛", production: 0.1 },
@@ -228,10 +228,10 @@ export const STRATA = {
             1.5: { coffee: 0.14 },         // 咖啡，华服
             2.0: { delicacies: 0.35, plank: 0.12, brick: 0.05, culture: 0.20 }, // 珍馐，板材，大量文化
             3.0: { steel: 0.05, coal: 0.03 }, // 家具，钢，衣物
-            5.0: { papyrus: 0.08, copper: 0.06, stone: 0.05, culture: 0.30 }, // 纸张，铜器，巨量文化
+            5.0: { papyrus: 0.08, copper: 0.06, stone: 0.05, culture: 0.30, electricity: 0.02 }, // 纸张，铜器，巨量文化
             8.0: { coffee: 0.10, spice: 0.18, fine_clothes: 0.10, culture: 0.20, machinery: 0.015 }, // 越富越讲排场 + “商用设备”
             12.0: { delicacies: 0.35, furniture: 0.10, culture: 0.35, dye: 0.03 }, // 体面挥霍（仍低于贵族）
-            18.0: { delicacies: 0.45, fine_clothes: 0.14, culture: 0.45, papyrus: 0.08, electronics: 0.015, software: 0.02, automobile: 0.02 } // 贸易暴富后的“皇耀性消费” + 电子通讯/商业软件
+            18.0: { delicacies: 0.45, fine_clothes: 0.14, culture: 0.45, papyrus: 0.08, electronics: 0.015, software: 0.02, automobile: 0.02, electricity: 0.05 } // 贸易暴富后的“皇耀性消费” + 电子通讯/商业软件
         },
         buffs: {
             satisfied: { desc: "商贸兴隆", taxIncome: 0.15, gatherBonus: 0.05 },
@@ -298,9 +298,9 @@ export const STRATA = {
             1.5: { coffee: 0.07 },         // 咖啡，纸张
             2.0: { fine_clothes: 0.05, plank: 0.025, culture: 0.15, science: 0.01 },  // 华服，板材，大量文化，基础科研材料
             3.0: { delicacies: 0.09, spice: 0.05 },       // 珍馐，香料
-            5.0: { copper: 0.035, brick: 0.025, culture: 0.20, science: 0.03 }, // 铜器，砖块，巨量文化，进阶科研
+            5.0: { copper: 0.035, brick: 0.025, culture: 0.20, science: 0.03, electricity: 0.015 }, // 铜器，砖块，巨量文化，进阶科研
             7.0: { papyrus: 0.08, coffee: 0.05, culture: 0.12 }, // 学者继续投入纸张/咖啡
-            10.0: { stone: 0.04 }, // 珍馐，香料，石材，板材
+            10.0: { stone: 0.04, electricity: 0.03 }, // 珍馐，香料，石材，板材
             14.0: { cloth: 0.07 }, // 纸张，衣物，铜器
             18.0: { steel: 0.015 } // 钢，家具，华服
         },
@@ -394,10 +394,10 @@ export const STRATA = {
             1.8: { delicacies: 0.30, spice: 0.12, plank: 0.08, brick: 0.06 },  // 珍馐，香料，板材，砖块
             2.0: { culture: 0.25 }, // 大量文化需求
             2.5: { steel: 0.04, iron: 0.03, coal: 0.03 }, // 家具，钢，衣物
-            4.0: { papyrus: 0.08, copper: 0.04, stone: 0.04, culture: 0.35, science: 0.02 },       // 纸张，铜器，巨量文化，行政管理学
+            4.0: { papyrus: 0.08, copper: 0.04, stone: 0.04, culture: 0.35, science: 0.02, electricity: 0.02 },       // 纸张，铜器，巨量文化，行政管理学
             6.0: { fine_clothes: 0.15 }, // 珍馋，华服，钢
-            9.0: { delicacies: 0.35, coffee: 0.10, culture: 0.40, science: 0.04, electronics: 0.02, software: 0.02, automobile: 0.015 }, // 更奢宴饮，高级政务 + 电子/行政软件 + 汽车
-            14.0: { delicacies: 0.45, fine_clothes: 0.12, papyrus: 0.08, culture: 0.55 }, // 体面与铺张继续攀升
+            9.0: { delicacies: 0.35, coffee: 0.10, culture: 0.40, science: 0.04, electronics: 0.02, software: 0.02, automobile: 0.015, electricity: 0.05 }, // 更奢宴饮，高级政务 + 电子/行政软件 + 汽车
+            14.0: { delicacies: 0.45, fine_clothes: 0.12, papyrus: 0.08, culture: 0.55, electricity: 0.06 }, // 体面与铺张继续攀升
             20.0: { delicacies: 0.60, spice: 0.18, furniture: 0.10, culture: 0.70 } // 极端挥霍
         },
         buffs: {
@@ -427,9 +427,9 @@ export const STRATA = {
             1.8: { spice: 0.20, coffee: 0.10, stone: 0.08 },  // 香料，咖啡，家具，石材
             2.5: { plank: 0.12, steel: 0.04, brick: 0.08, culture: 0.35 }, // 板材，钢，巨量文化
             4.0: { copper: 0.06, papyrus: 0.04 },         // 衣物，铜器，纸张
-            6.0: { delicacies: 0.50, fine_clothes: 0.12, culture: 0.35, electronics: 0.01, automobile: 0.01 }, // 庄园宴饮与体面 + 家电 + 汽车
+            6.0: { delicacies: 0.50, fine_clothes: 0.12, culture: 0.35, electronics: 0.01, automobile: 0.01, electricity: 0.015 }, // 庄园宴饮与体面 + 家电 + 汽车
             9.0: { delicacies: 0.65, coffee: 0.14, furniture: 0.12, culture: 0.45 }, // 更奢华的庄园生活
-            14.0: { delicacies: 0.85, spice: 0.22, fine_clothes: 0.18, culture: 0.60 }, // 贵族挥霍加速
+            14.0: { delicacies: 0.85, spice: 0.22, fine_clothes: 0.18, culture: 0.60, electricity: 0.05 }, // 贵族挥霍加速
             20.0: { delicacies: 1.10, fine_clothes: 0.22, furniture: 0.16, culture: 0.80 } // 极端挥霍
         },
         buffs: {
@@ -458,11 +458,11 @@ export const STRATA = {
             1.5: { culture: 0.30 },  // 大量文化需求
             1.8: { delicacies: 0.30, spice: 0.15, brick: 0.08 },  // 珍馐，香料，砖块
             2.5: { stone: 0.06, plank: 0.10, coal: 0.04, iron: 0.03, culture: 0.45 }, // 石材，板材，巨量文化
-            4.0: { copper: 0.08, papyrus: 0.06, science: 0.03 },       // 铜器，纸张，衣物，市场调研
+            4.0: { copper: 0.08, papyrus: 0.06, science: 0.03, electricity: 0.025 },       // 铜器，纸张，衣物，市场调研
             6.0: { steel: 0.10, coal: 0.06, tools: 0.06, culture: 0.40 }, // 设备更新式挥霍
-            10.0: { delicacies: 0.55, coffee: 0.18, fine_clothes: 0.16, culture: 0.60, science: 0.06, machinery: 0.03, electronics: 0.03, automobile: 0.025 }, // 社交宴饮与璇耀，技术投资 + 机械/电子设备 + 汽车
+            10.0: { delicacies: 0.55, coffee: 0.18, fine_clothes: 0.16, culture: 0.60, science: 0.06, machinery: 0.03, electronics: 0.03, automobile: 0.025, electricity: 0.06 }, // 社交宴饮与璇耀，技术投资 + 机械/电子设备 + 汽车
             15.0: { steel: 0.14, coal: 0.10, copper: 0.10, culture: 0.75, composites: 0.02 }, // “烧钱”升级机器与排场 + 复合材料
-            22.0: { delicacies: 0.85, spice: 0.25, furniture: 0.18, culture: 1.00, software: 0.04 } // 极端挥霍 + 企业软件
+            22.0: { delicacies: 0.85, spice: 0.25, furniture: 0.18, culture: 1.00, software: 0.04, electricity: 0.10 } // 极端挥霍 + 企业软件
         },
         buffs: {
             satisfied: { desc: "资本繁荣", industryBonus: 0.25, scienceBonus: 0.15 },
@@ -490,10 +490,10 @@ export const STRATA = {
             1.8: { delicacies: 0.15, spice: 0.08, tools: 0.06 },  // 珍馐，香料，工具
             2.0: { culture: 0.20, science: 0.02 },       // 大量知识文化，基础工程学
             2.5: { plank: 0.08, copper: 0.04, stone: 0.04 },       // 板材，铜器，石材
-            4.0: { papyrus: 0.06, brick: 0.06, steel: 0.04, coal: 0.05, iron: 0.03, culture: 0.25 },        // 纸张，砖块，巨量文化
+            4.0: { papyrus: 0.06, brick: 0.06, steel: 0.04, coal: 0.05, iron: 0.03, culture: 0.25, electricity: 0.025 },        // 纸张，砖块，巨量文化
             6.0: { steel: 0.10, coal: 0.06, tools: 0.06, culture: 0.40, machinery: 0.03 }, // 设备更新式挥霍 + “精密仪器”
-            10.0: { coffee: 0.12, fine_clothes: 0.10, culture: 0.45, delicacies: 0.25, electronics: 0.03, automobile: 0.02 },    // 体面社交与宴饮 + 电子设备 + 汽车
-            15.0: { steel: 0.12, copper: 0.08, coal: 0.12, culture: 0.60, composites: 0.01 },    // “烧钱”维护设备 + 先进材料
+            10.0: { coffee: 0.12, fine_clothes: 0.10, culture: 0.45, delicacies: 0.25, electronics: 0.03, automobile: 0.02, electricity: 0.05 },    // 体面社交与宴饮 + 电子设备 + 汽车
+            15.0: { steel: 0.12, copper: 0.08, coal: 0.12, culture: 0.60, composites: 0.01, electricity: 0.07 },    // “烧钱”维护设备 + 先进材料
             22.0: { delicacies: 0.60, spice: 0.20, furniture: 0.14, culture: 0.75 } // 极端挥霍
         },
         buffs: {
@@ -522,9 +522,9 @@ export const STRATA = {
             1.0: { tools: 0.06, ale: 0.06, culture: 0.04 },
             1.5: { coffee: 0.05, furniture: 0.04 },
             2.0: { spice: 0.03, fine_clothes: 0.03, culture: 0.08 },
-            3.0: { delicacies: 0.06, medicine: 0.02, culture: 0.10 },
+            3.0: { delicacies: 0.06, medicine: 0.02, culture: 0.10, electricity: 0.02 },
             5.0: { copper: 0.02, steel: 0.02, culture: 0.12 },
-            8.0: { coffee: 0.06, fine_clothes: 0.04, culture: 0.15, electronics: 0.025, automobile: 0.012 }, // + 电子设备 + 汽车
+            8.0: { coffee: 0.06, fine_clothes: 0.04, culture: 0.15, electronics: 0.025, automobile: 0.012, electricity: 0.04 }, // + 电子设备 + 汽车
             12.0: { delicacies: 0.08, furniture: 0.04, culture: 0.18, medicine: 0.01 }
         },
         buffs: {
@@ -552,9 +552,9 @@ export const STRATA = {
         luxuryNeeds: {
             1.0: { coffee: 0.10, papyrus: 0.08, culture: 0.10 },
             1.5: { furniture: 0.06, fine_clothes: 0.05 },
-            2.0: { delicacies: 0.08, medicine: 0.03, culture: 0.15, science: 0.02 },
+            2.0: { delicacies: 0.08, medicine: 0.03, culture: 0.15, science: 0.02, electricity: 0.025 },
             3.0: { spice: 0.04, electronics: 0.02, culture: 0.20 }, // + 计算设备
-            5.0: { software: 0.03, delicacies: 0.10, culture: 0.25, composites: 0.01 }, // + 软件/复合材料
+            5.0: { software: 0.03, delicacies: 0.10, culture: 0.25, composites: 0.01, electricity: 0.05 }, // + 软件/复合材料
             8.0: { coffee: 0.08, fine_clothes: 0.06, culture: 0.30, electronics: 0.02, automobile: 0.015 },
             12.0: { delicacies: 0.12, furniture: 0.06, culture: 0.35, software: 0.02, automobile: 0.01 }
         },

@@ -8,6 +8,9 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { IdeologyCard } from '../tabs/IdeologyCard';
+import { useDevicePerformance } from '../../hooks/useDevicePerformance';
+
+const MotionDiv = motion.div;
 
 const IdeologyEmergenceModalComponent = ({
     show = false,
@@ -16,6 +19,19 @@ const IdeologyEmergenceModalComponent = ({
     equippedIds = [],   // 当前已装备的理念id
 }) => {
     const [selectedId, setSelectedId] = useState(null);
+    const { isLowPerformanceMode } = useDevicePerformance();
+
+    const overlayClassName = 'absolute inset-0 bg-black/85 backdrop-blur-sm';
+    const containerClassName = isLowPerformanceMode
+        ? 'fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4'
+        : 'fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4';
+    const shellClassName = 'relative w-full max-w-[1200px] flex flex-col items-center px-1';
+    const titleWrapClassName = 'text-center mb-2 sm:mb-4 shrink-0';
+    const gridViewportClassName = 'overflow-y-auto flex-1 min-h-0 w-full mb-2';
+    const gridViewportStyle = isLowPerformanceMode
+        ? { overflowX: 'clip', WebkitOverflowScrolling: 'touch', padding: '12px' }
+        : { overflowX: 'clip', WebkitOverflowScrolling: 'touch', padding: '6px 12px' };
+    const buttonWrapClassName = 'text-center shrink-0 pt-1 pb-1';
 
     const handleSelect = useCallback((id) => {
         setSelectedId(id);
@@ -31,19 +47,27 @@ const IdeologyEmergenceModalComponent = ({
     return createPortal(
         <AnimatePresence>
             {show && candidates.length > 0 && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4" style={{ overflow: 'clip' }}>
+                <div
+                    className={containerClassName}
+                    style={{
+                        overflow: 'clip',
+                        backgroundColor: isLowPerformanceMode ? 'rgba(0, 0, 0, 0.96)' : undefined,
+                    }}
+                >
                     {/* 遮罩层 */}
-                    <motion.div
-                        className="absolute inset-0 bg-black/85 backdrop-blur-sm"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.4 }}
-                    />
+                    {!isLowPerformanceMode && (
+                        <MotionDiv
+                            className={overlayClassName}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.4 }}
+                        />
+                    )}
 
                     {/* 内容区域 — overflow-hidden prevents scaled cards from causing page-level scrollbars */}
-                    <motion.div
-                        className="relative w-full max-w-[1200px] flex flex-col items-center px-1"
+                    <MotionDiv
+                        className={shellClassName}
                         style={{ maxHeight: '88vh', overflow: 'visible' }}
                         initial={{ opacity: 0, scale: 0.92, y: 24 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -51,8 +75,8 @@ const IdeologyEmergenceModalComponent = ({
                         transition={{ type: "spring", damping: 28, stiffness: 320 }}
                     >
                         {/* 标题 - shrink-0 to prevent compression */}
-                        <div className="text-center mb-2 sm:mb-4 shrink-0">
-                            <motion.div
+                        <div className={titleWrapClassName}>
+                            <MotionDiv
                                 initial={{ opacity: 0, y: -20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.2 }}
@@ -67,17 +91,17 @@ const IdeologyEmergenceModalComponent = ({
                                 <p className="text-xs sm:text-sm text-gray-400">
                                     文明的思想之光闪耀，请选择一个理念加入你的收藏
                                 </p>
-                            </motion.div>
+                            </MotionDiv>
                         </div>
 
                         {/* 三张卡牌 — py/px 留出足够缓冲防止阴影/边框被裁切 */}
                         <div
-                            className="overflow-y-auto flex-1 min-h-0 w-full mb-2"
-                            style={{ overflowX: 'clip', WebkitOverflowScrolling: 'touch', padding: '6px 12px' }}
+                            className={gridViewportClassName}
+                            style={gridViewportStyle}
                         >
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 w-full">
                                 {candidates.map((candidate, index) => (
-                                    <motion.div
+                                    <MotionDiv
                                         key={candidate.id}
                                         initial={{ opacity: 0, y: 40, rotateY: -90 }}
                                         animate={{
@@ -101,16 +125,16 @@ const IdeologyEmergenceModalComponent = ({
                                             equippedIds={equippedIds}
                                             showProgressionPreview={true}
                                         />
-                                    </motion.div>
+                                    </MotionDiv>
                                 ))}
                             </div>
                         </div>
 
                         {/* 确认按钮 - sticky at bottom */}
-                        <motion.div
+                        <MotionDiv
                             initial={{ opacity: 0 }}
                             animate={{ opacity: selectedId ? 1 : 0.3 }}
-                            className="text-center shrink-0 pt-1 pb-1"
+                            className={buttonWrapClassName}
                         >
                             <button
                                 onClick={handleConfirm}
@@ -126,8 +150,8 @@ const IdeologyEmergenceModalComponent = ({
                                     确认选择
                                 </span>
                             </button>
-                        </motion.div>
-                    </motion.div>
+                        </MotionDiv>
+                    </MotionDiv>
                 </div>
             )}
         </AnimatePresence>,

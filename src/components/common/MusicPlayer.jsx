@@ -366,7 +366,7 @@ export const MusicPlayer = () => {
     const playerKey = `${musicId}-${musicType}`;
 
     return (
-        <div className={`fixed z-[100] transition-all duration-300 pointer-events-none ${isLandscape
+        <div className={`fixed z-30 transition-all duration-300 pointer-events-none ${isLandscape
                 ? 'top-2 left-4'  // 横屏模式：左上角定位
                 : isMobile
                     ? 'bottom-20 left-4'

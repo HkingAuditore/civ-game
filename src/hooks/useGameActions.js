@@ -81,6 +81,7 @@ import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
 import { BUILDING_CHAINS } from '../config/buildingChains';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
+import { getEpochTechRequirementStatus } from '../utils/epochUpgrade';
 
 const getCompletedChainIds = (buildingState = {}) => {
     if (!BUILDING_CHAINS || typeof BUILDING_CHAINS !== 'object') return [];
@@ -1242,11 +1243,13 @@ export const useGameActions = (gameState, addLog) => {
     const canUpgradeEpoch = () => {
         if (epoch >= EPOCHS.length - 1) return false;
         const nextEpoch = EPOCHS[epoch + 1];
+        const techRequirement = getEpochTechRequirementStatus(epoch, techsUnlocked);
 
         // 检查升级要求
         if (nextEpoch.req.science && resources.science < nextEpoch.req.science) return false;
         if (nextEpoch.req.population && population < nextEpoch.req.population) return false;
         if (nextEpoch.req.culture && resources.culture < nextEpoch.req.culture) return false;
+        if (!techRequirement.isTechRequirementMet) return false;
 
         // 检查升级成本
         const difficulty = gameState.difficulty || 'normal';
@@ -1271,6 +1274,11 @@ export const useGameActions = (gameState, addLog) => {
      * 升级时代
      */
     const upgradeEpoch = () => {
+        const techRequirement = getEpochTechRequirementStatus(epoch, techsUnlocked);
+        if (!techRequirement.isTechRequirementMet) {
+            addLog(`⚠️ 需要先完成本时代科技：已研发 ${techRequirement.currentEpochResearched}/${techRequirement.currentEpochTechTotal}，至少需要 ${techRequirement.requiredTechCount} 项。`);
+            return;
+        }
         if (!canUpgradeEpoch()) return;
 
         const nextEpoch = EPOCHS[epoch + 1];

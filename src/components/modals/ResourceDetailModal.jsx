@@ -1509,6 +1509,7 @@ const ResourceDetailContent = ({
     const inventory = resources[resourceKey] || 0;
     const marketSupply = market?.supply?.[resourceKey] || 0;
     const marketDemand = market?.demand?.[resourceKey] || 0;
+    const marketLoss = market?.resourceLossBreakdown?.[resourceKey] || 0;
     const marketPrice = market?.prices?.[resourceKey] ?? resourceDef.basePrice ?? 0;
     const priceTrend =
         priceHistoryData.length >= 2
@@ -1517,7 +1518,9 @@ const ResourceDetailContent = ({
 
     const latestSupply = supplyHistoryData[supplyHistoryData.length - 1] ?? marketSupply;
     const latestDemand = demandHistoryData[demandHistoryData.length - 1] ?? marketDemand;
+    const latestLoss = marketLoss;
     const activeTabMeta = TAB_OPTIONS.find(tab => tab.id === activeTab);
+    const isElectricity = resourceKey === 'electricity';
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center status-bar-safe-area pt-2">
@@ -1802,6 +1805,34 @@ const ResourceDetailContent = ({
                                 )}
                             </div>
                             <div className="flex-1 space-y-2 lg:space-y-3 p-2 lg:p-3 overflow-y-auto">
+                                {isElectricity && (
+                                    <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3">
+                                        <div className="flex items-start gap-2">
+                                            <Icon name="Zap" size={16} className="mt-0.5 text-yellow-300" />
+                                            <div className="space-y-2">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-yellow-100">即时供能资源</p>
+                                                    <p className="text-xs text-yellow-100/80">电力会在国内市场即时结算，库存上限很低，无法长期囤积，也不会参与对外贸易。</p>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 p-2 text-center">
+                                                        <p className="text-xs text-emerald-300/80">发电</p>
+                                                        <p className="text-sm font-bold text-emerald-200">{formatAmount(latestSupply)}</p>
+                                                    </div>
+                                                    <div className="rounded-lg border border-rose-500/20 bg-rose-950/20 p-2 text-center">
+                                                        <p className="text-xs text-rose-300/80">用电</p>
+                                                        <p className="text-sm font-bold text-rose-200">{formatAmount(latestDemand)}</p>
+                                                    </div>
+                                                    <div className="rounded-lg border border-amber-500/20 bg-amber-950/20 p-2 text-center">
+                                                        <p className="text-xs text-amber-300/80">溢出损耗</p>
+                                                        <p className="text-sm font-bold text-amber-200">{formatAmount(latestLoss)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* 交易税调整 - 非银币资源 */}
                                 {!isSilver && onUpdateTaxPolicies && (
                                     <div className="rounded-xl lg:rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-2.5 lg:p-4">
@@ -2006,6 +2037,12 @@ const ResourceDetailContent = ({
                                                         <p className="text-xs lg:text-xs text-gray-500">净供需</p>
                                                         <p className="text-sm lg:text-base font-bold text-white">{formatAmount((latestSupply || 0) - (latestDemand || 0))}</p>
                                                     </div>
+                                                    {isElectricity && (
+                                                        <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
+                                                            <p className="text-xs lg:text-xs text-gray-500">损耗</p>
+                                                            <p className="text-sm lg:text-base font-bold text-amber-300">{formatAmount(latestLoss)}</p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

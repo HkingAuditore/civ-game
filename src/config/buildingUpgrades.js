@@ -1223,20 +1223,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // coal_power_plant: base output electricity: 1.5, base input coal: 0.8, owner: engineer, base jobs: worker:6, engineer:2
+    // coal_power_plant: base output electricity: 1.4, base input coal:1.0, owner: engineer, base jobs: worker:6, engineer:2
     coal_power_plant: [
         {
             name: "高压锅炉",
             cost: { silver: 3500, steel: 40, brick: 40, science: 150 },
-            input: { coal: 1.04 },
-            output: { electricity: 1.95 }, // 1.3x
+            input: { coal: 1.15 },
+            output: { electricity: 1.80 },
             jobs: { worker: 7, engineer: 2 },
         },
         {
             name: "超临界机组",
             cost: { silver: 7000, steel: 80, brick: 60, science: 300 },
-            input: { coal: 1.80 },
-            output: { electricity: 3.375 }, // 2.25x
+            input: { coal: 1.35 },
+            output: { electricity: 2.40 },
             jobs: { worker: 8, engineer: 3 },
         },
     ],
@@ -1259,55 +1259,55 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // wiring_factory: base output wiring: 0.5, base input copper:0.8 rubber:0.3, owner: engineer, base jobs: worker:6, artisan:2, engineer:1
+    // wiring_factory: base output wiring: 0.5, base input copper:0.8 rubber:0.3 electricity:0.08, owner: engineer, base jobs: worker:6, artisan:2, engineer:1
     wiring_factory: [
         {
             name: "连续拉丝机",
             cost: { silver: 2500, steel: 15, tools: 12, science: 120 },
-            input: { copper: 1.04, rubber: 0.39 },
+            input: { copper: 1.04, rubber: 0.39, electricity: 0.104 },
             output: { wiring: 0.65 }, // 1.3x
             jobs: { worker: 7, artisan: 2, engineer: 1 },
         },
         {
             name: "多芯线自动化",
             cost: { silver: 5000, steel: 30, tools: 20, science: 250 },
-            input: { copper: 1.80, rubber: 0.675 },
+            input: { copper: 1.80, rubber: 0.675, electricity: 0.18 },
             output: { wiring: 1.125 }, // 2.25x
             jobs: { worker: 8, artisan: 3, engineer: 1 },
         },
     ],
 
-    // machinery_plant: base output machinery: 0.4, base input steel:0.3 iron:0.4 tools:0.2, owner: engineer, base jobs: worker:8, artisan:2, engineer:2
+    // machinery_plant: base output machinery: 0.4, base input steel:0.3 iron:0.4 tools:0.2 electricity:0.1, owner: engineer, base jobs: worker:8, artisan:2, engineer:2
     machinery_plant: [
         {
             name: "精密车床",
             cost: { silver: 3500, steel: 45, iron: 30, tools: 15, science: 160 },
-            input: { steel: 0.39, iron: 0.52, tools: 0.26 },
+            input: { steel: 0.39, iron: 0.52, tools: 0.26, electricity: 0.13 },
             output: { machinery: 0.52 }, // 1.3x
             jobs: { worker: 9, artisan: 2, engineer: 2 },
         },
         {
             name: "数控加工",
             cost: { silver: 7000, steel: 80, iron: 50, tools: 30, science: 350 },
-            input: { steel: 0.675, iron: 0.90, tools: 0.45 },
+            input: { steel: 0.675, iron: 0.90, tools: 0.45, electricity: 0.225 },
             output: { machinery: 0.90 }, // 2.25x
             jobs: { worker: 10, artisan: 3, engineer: 2 },
         },
     ],
 
-    // automobile_factory: base output automobile:0.25, base input steel:0.4 rubber:0.3 machinery:0.3, owner: capitalist
+    // automobile_factory: base output automobile:0.25, base input steel:0.4 rubber:0.3 machinery:0.3 electricity:0.15, owner: capitalist
     automobile_factory: [
         {
             name: "改进流水线",
             cost: { silver: 6000, steel: 75, machinery: 15, science: 200 },
-            input: { steel: 0.52, rubber: 0.39, machinery: 0.39 },
+            input: { steel: 0.52, rubber: 0.39, machinery: 0.39, electricity: 0.195 },
             output: { automobile: 0.325 }, // 1.3x
             jobs: { worker: 12, artisan: 3, engineer: 2, capitalist: 1 },
         },
         {
             name: "全自动组装",
             cost: { silver: 12000, steel: 120, machinery: 25, science: 400 },
-            input: { steel: 0.90, rubber: 0.675, machinery: 0.675 },
+            input: { steel: 0.90, rubber: 0.675, machinery: 0.675, electricity: 0.3375 },
             output: { automobile: 0.5625 }, // 2.25x
             jobs: { worker: 14, artisan: 4, engineer: 3, capitalist: 1 },
         },
@@ -1385,19 +1385,19 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // electric_textile_mill: base output cloth:18.0 fine_clothes:3.0, base input cotton:3.0 coal:0.8 dye:0.5, owner: capitalist
+    // electric_textile_mill: base output cloth:18.0 fine_clothes:3.0, base input cotton:3.0 coal:0.3 dye:0.5 electricity:0.35, owner: capitalist
     electric_textile_mill: [
         {
             name: "高速织机",
             cost: { steel: 500, brick: 400, tools: 200, silver: 2500, science: 300 },
-            input: { cotton: 3.90, coal: 1.04, dye: 0.65 },
+            input: { cotton: 3.90, coal: 0.39, dye: 0.65, electricity: 0.455 },
             output: { cloth: 23.40, fine_clothes: 3.90 }, // 1.3x
             jobs: { worker: 22, engineer: 3, capitalist: 1 },
         },
         {
             name: "全自动印染",
             cost: { steel: 800, brick: 600, tools: 350, silver: 5000, science: 600 },
-            input: { cotton: 6.75, coal: 1.80, dye: 1.125 },
+            input: { cotton: 6.75, coal: 0.675, dye: 1.125, electricity: 0.7875 },
             output: { cloth: 40.50, fine_clothes: 6.75 }, // 2.25x
             jobs: { worker: 25, engineer: 4, capitalist: 2 },
         },
@@ -1422,20 +1422,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // nuclear_power_plant: base output electricity: 4.0, base input uranium:0.2 steel:0.1 stone:0.1, owner: official
+    // nuclear_power_plant: base output electricity: 4.5, base input uranium:0.18 steel:0.12 stone:0.08, owner: official
     nuclear_power_plant: [
         {
             name: "沸水反应堆",
             cost: { silver: 12000, steel: 120, stone: 150, brick: 70, science: 400 },
-            input: { uranium: 0.26, steel: 0.13, stone: 0.13 },
-            output: { electricity: 5.20 }, // 1.3x
+            input: { uranium: 0.22, steel: 0.14, stone: 0.10 },
+            output: { electricity: 5.20 },
             jobs: { technician: 7, engineer: 3, official: 1 },
         },
         {
             name: "快中子堆",
             cost: { silver: 25000, steel: 200, stone: 250, brick: 120, science: 800 },
-            input: { uranium: 0.45, steel: 0.225, stone: 0.225 },
-            output: { electricity: 9.00 }, // 2.25x
+            input: { uranium: 0.28, steel: 0.18, stone: 0.12 },
+            output: { electricity: 7.20 },
             jobs: { technician: 8, engineer: 4, official: 1 },
         },
     ],
@@ -1458,19 +1458,19 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // electronics_factory: base output electronics: 0.3, base input copper:0.3 wiring:0.3 chemicals:0.2 stone:0.2, owner: engineer
+    // electronics_factory: base output electronics: 0.3, base input copper:0.3 wiring:0.3 chemicals:0.2 stone:0.2 electricity:0.12, owner: engineer
     electronics_factory: [
         {
             name: "洁净车间",
             cost: { silver: 6500, steel: 35, wiring: 20, chemicals: 15, science: 250 },
-            input: { copper: 0.39, wiring: 0.39, chemicals: 0.26, stone: 0.26 },
+            input: { copper: 0.39, wiring: 0.39, chemicals: 0.26, stone: 0.26, electricity: 0.156 },
             output: { electronics: 0.39 }, // 1.3x
             jobs: { technician: 6, worker: 4, engineer: 2 },
         },
         {
             name: "微米级工艺",
             cost: { silver: 13000, steel: 70, wiring: 40, chemicals: 30, science: 500 },
-            input: { copper: 0.675, wiring: 0.675, chemicals: 0.45, stone: 0.45 },
+            input: { copper: 0.675, wiring: 0.675, chemicals: 0.45, stone: 0.45, electricity: 0.27 },
             output: { electronics: 0.675 }, // 2.25x
             jobs: { technician: 7, worker: 5, engineer: 3 },
         },
@@ -1512,19 +1512,19 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // appliance_factory: base output electronics:0.5, base input electronics:0.2 plastics:0.2 steel:0.1, owner: capitalist
+    // appliance_factory: base output electronics:0.5, base input electronics:0.2 plastics:0.2 steel:0.1 electricity:0.2, owner: capitalist
     appliance_factory: [
         {
             name: "模块化组装",
             cost: { silver: 8000, steel: 45, electronics: 8, science: 250 },
-            input: { electronics: 0.26, plastics: 0.26, steel: 0.13 },
+            input: { electronics: 0.26, plastics: 0.26, steel: 0.13, electricity: 0.26 },
             output: { electronics: 0.65 }, // 1.3x
             jobs: { worker: 9, technician: 3, capitalist: 1 },
         },
         {
             name: "智能家电",
             cost: { silver: 16000, steel: 80, electronics: 15, science: 500 },
-            input: { electronics: 0.45, plastics: 0.45, steel: 0.225 },
+            input: { electronics: 0.45, plastics: 0.45, steel: 0.225, electricity: 0.45 },
             output: { electronics: 1.125 }, // 2.25x
             jobs: { worker: 10, technician: 4, capitalist: 1 },
         },
@@ -1548,37 +1548,37 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // high_rise_apartment: base output maxPop:120, no input, owner: capitalist
+    // high_rise_apartment: base output maxPop:120, base input electricity:0.08, owner: capitalist
     high_rise_apartment: [
         {
             name: "电梯公寓",
             cost: { silver: 5000, steel: 60, brick: 70, stone: 40, science: 150 },
-            input: {},
+            input: { electricity: 0.12 },
             output: { maxPop: 156 }, // 1.3x
             jobs: { worker: 2 },
         },
         {
             name: "豪华公寓",
             cost: { silver: 10000, steel: 100, brick: 120, stone: 70, science: 300 },
-            input: {},
+            input: { electricity: 0.18 },
             output: { maxPop: 270 }, // 2.25x
             jobs: { worker: 3 },
         },
     ],
 
-    // military_industrial_complex: base output ordnance:0.3, base input electronics:0.15 steel:0.2 chemicals:0.1, owner: official
+    // military_industrial_complex: base output ordnance:0.3, base input electronics:0.15 steel:0.2 chemicals:0.1 electricity:0.15, owner: official
     military_industrial_complex: [
         {
             name: "精确制造",
             cost: { silver: 9000, steel: 70, electronics: 15, chemicals: 20, science: 300 },
-            input: { electronics: 0.195, steel: 0.26, chemicals: 0.13 },
+            input: { electronics: 0.195, steel: 0.26, chemicals: 0.13, electricity: 0.195 },
             output: { ordnance: 0.39 }, // 1.3x
             jobs: { worker: 7, technician: 3, engineer: 2, official: 1 },
         },
         {
             name: "模块化军工",
             cost: { silver: 18000, steel: 120, electronics: 30, chemicals: 40, science: 600 },
-            input: { electronics: 0.3375, steel: 0.45, chemicals: 0.225 },
+            input: { electronics: 0.3375, steel: 0.45, chemicals: 0.225, electricity: 0.3375 },
             output: { ordnance: 0.675 }, // 2.25x
             jobs: { worker: 8, technician: 4, engineer: 3, official: 1 },
         },
@@ -1603,19 +1603,19 @@ export const BUILDING_UPGRADES = {
     ],
 
     // ============ 信息时代 (Epoch 9) 建筑升级 ============
-    // semiconductor_fab: base output semiconductors:0.15, base input electronics:0.3 chemicals:0.2 copper:0.2 stone:0.1 composites:0.02, owner: capitalist
+    // semiconductor_fab: base output semiconductors:0.15, base input electronics:0.3 chemicals:0.2 copper:0.2 stone:0.1 composites:0.02 electricity:0.25, owner: capitalist
     semiconductor_fab: [
         {
             name: "14nm工艺",
             cost: { silver: 18000, steel: 80, electronics: 30, chemicals: 20, science: 500 },
-            input: { electronics: 0.39, chemicals: 0.26, copper: 0.26, stone: 0.13, composites: 0.026 },
+            input: { electronics: 0.39, chemicals: 0.26, copper: 0.26, stone: 0.13, composites: 0.026, electricity: 0.325 },
             output: { semiconductors: 0.195 }, // 1.3x
             jobs: { technician: 7, scientist: 3, engineer: 2 },
         },
         {
             name: "3nm工艺",
             cost: { silver: 35000, steel: 150, electronics: 60, chemicals: 40, science: 1000 },
-            input: { electronics: 0.675, chemicals: 0.45, copper: 0.45, stone: 0.225, composites: 0.045 },
+            input: { electronics: 0.675, chemicals: 0.45, copper: 0.45, stone: 0.225, composites: 0.045, electricity: 0.5625 },
             output: { semiconductors: 0.3375 }, // 2.25x
             jobs: { technician: 8, scientist: 4, engineer: 3 },
         },
@@ -1675,20 +1675,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // solar_power_plant: base output electricity:3.0, base input stone:0.1 aluminum:0.05 composites:0.05, owner: engineer
+    // solar_power_plant: base output electricity:2.6, base input stone:0.08 aluminum:0.06 composites:0.04, owner: engineer
     solar_power_plant: [
         {
             name: "高效单晶硅",
             cost: { silver: 8000, semiconductors: 12, aluminum: 20, steel: 30, science: 250 },
-            input: { stone: 0.13, aluminum: 0.065, composites: 0.065 },
-            output: { electricity: 3.90 }, // 1.3x
+            input: { stone: 0.10, aluminum: 0.075, composites: 0.05 },
+            output: { electricity: 3.40 },
             jobs: { technician: 5, engineer: 2 },
         },
         {
             name: "钙钛矿串联",
             cost: { silver: 16000, semiconductors: 25, aluminum: 40, steel: 50, science: 500 },
-            input: { stone: 0.225, aluminum: 0.1125, composites: 0.1125 },
-            output: { electricity: 6.75 }, // 2.25x
+            input: { stone: 0.13, aluminum: 0.095, composites: 0.065 },
+            output: { electricity: 4.60 },
             jobs: { technician: 6, engineer: 3 },
         },
     ],

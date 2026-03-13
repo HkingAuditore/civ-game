@@ -685,10 +685,14 @@ export const RESOURCES = {
         unlockEpoch: 7,
         unlockTech: 'power_generation',
         tags: ['industrial', 'energy'],
-        // 电力是普通可贸易资源，有库存、有价格
+        storageMode: 'volatile',
+        maxInventoryDays: 0.75,
+        minOperationalBuffer: 1,
+        allowForeignTrade: false,
+        // 电力仍走国内市场，但更接近即时供能资源
         marketConfig: {
             supplyDemandWeight: 0.8,
-            inventoryTargetDays: 200.0,
+            inventoryTargetDays: 0.35,
             inventoryPriceImpact: 0.2,
             demandElasticity: 0.3,
             outputVariation: 0.15
