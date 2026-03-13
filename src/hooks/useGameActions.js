@@ -48,6 +48,10 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost, INSTALLMENT_CONFIG } from '../utils/diplomaticUtils';
 import { applyWarRelationCap } from '../utils/diplomacyUtils';
 import { filterEventEffects } from '../utils/eventEffectFilter';
+import {
+    clampPopulationAtFloor,
+    reducePopulationWithFloor,
+} from '../utils/populationClamp';
 import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
 import { generateFront } from '../logic/diplomacy/frontSystem';
 // 外交叛乱干预系统
@@ -2894,7 +2898,7 @@ export const useGameActions = (gameState, addLog) => {
             const currentStrength = n.militaryStrength ?? 1.0;
             const newStrength = Math.max(0.2, currentStrength - militaryStrengthDamage); // 最低保持20%实力
             const currentPopulation = n.population ?? 1000;
-            const newPopulation = Math.max(100, currentPopulation - populationLoss); // 最低保持100人口
+            const newPopulation = reducePopulationWithFloor(currentPopulation, populationLoss);
 
             // 计算新的掠夺储备 - 扣除本次掠夺的价值
             const initialLootReserve = (n.wealth || 500) * 1.5;
@@ -3361,7 +3365,7 @@ export const useGameActions = (gameState, addLog) => {
                             // Player loses pop
                             const populationLoss = Math.floor(value || 0);
                             if (populationLoss > 0) {
-                                setPopulation(prev => Math.max(0, prev - populationLoss));
+                                setPopulation(prev => reducePopulationWithFloor(prev, populationLoss));
                                 // Reduce from unemployed first, then proportionally from other strata
                                 setPopStructure(prev => {
                                     const updated = { ...prev };
@@ -3420,7 +3424,7 @@ export const useGameActions = (gameState, addLog) => {
                             peaceTreatyUntil: daysElapsed + 365,
                             relation: Math.min(100, Math.max(0, (n.relation || 0) + relationChange)),
                             wealth: Math.max(0, (n.wealth || 0) + silverChange),
-                            population: Math.max(100, (n.population || 1000) + popChange),
+                            population: clampPopulationAtFloor((n.population || 1000) + popChange),
 
                             lootReserve: Math.max(0, (n.lootReserve || 0) - lootReserveChange),
                             ...vassalUpdates
@@ -6364,7 +6368,7 @@ export const useGameActions = (gameState, addLog) => {
                 setMaxPopBonus(prev => prev + transferPopulation);
             }
             endWarWithNation(nationId, {
-                population: Math.max(10, basePopulation - transferPopulation),
+                population: reducePopulationWithFloor(basePopulation, transferPopulation),
             });
             addLog(`${targetNation.name} ceded ${transferPopulation} population.`);
             return;
@@ -6566,7 +6570,7 @@ export const useGameActions = (gameState, addLog) => {
 
             }
             endWarWithNation(nationId, {
-                population: Math.max(10, basePopulation - transferPopulation),
+                population: reducePopulationWithFloor(basePopulation, transferPopulation),
             });
             addLog(`${targetNation.name} ceded ${transferPopulation} population.`);
             return;
@@ -6663,7 +6667,7 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         if (proposalType === 'offer_population') {
-            setPopulation(prev => Math.max(10, prev - paymentAmount));
+            setPopulation(prev => reducePopulationWithFloor(prev, paymentAmount));
             // [FIX] Sync popStructure: remove population proportionally from all strata
             setPopStructure(prev => {
                 const totalPop = Object.values(prev).reduce((sum, v) => sum + (v || 0), 0);

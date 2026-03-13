@@ -23,6 +23,7 @@ import {
     calculateNationLocalPrice,
     getNationInventoryBaseline,
 } from './warEconomy.js';
+import { MIN_RUNTIME_POPULATION } from '../../utils/populationClamp';
 import {
     AI_ECONOMY_CONFIG,
     getSocialStructureTemplate,
@@ -661,7 +662,7 @@ export const updateNations = ({
     let vassalTributeIncome = 0;
 
     // Calculate player baselines for AI scaling
-    const playerPopulationBaseline = Math.max(10, population);
+    const playerPopulationBaseline = Math.max(MIN_RUNTIME_POPULATION, Number(population) || 0);
     const playerWealthBaseline = Math.max(500, (res.food || 0) + (res.silver || 0) + (res.wood || 0));
 
     let updatedNations = (nations || []).map(nationInput => {

@@ -1,4 +1,5 @@
 import { RESOURCES } from '../../../config/index.js';
+import { getAIDevelopmentMultiplier } from '../../../config/difficulty.js';
 import { getConfig, getPerCapitaWealthCap } from '../config/aiEconomyConfig.js';
 import { calculateDevelopmentCapacity } from '../calculators/DevelopmentCapacityCalculator.js';
 import { calculateAIPopulationDynamics } from '../calculators/AIPopulationDynamics.js';
@@ -42,7 +43,7 @@ const buildCachedCapacityState = (nation = {}) => {
     };
 };
 
-const calculateAISavingsRate = ({ nation = {}, state = {}, epoch = 0, populationDynamics = {} }) => {
+const calculateAISavingsRate = ({ nation = {}, state = {}, epoch = 0, populationDynamics = {}, difficultyMultiplier = 1 }) => {
     const foodSecurity = safeNumber(populationDynamics.foodSecurity, 1);
     const employmentRate = safeNumber(populationDynamics.employmentRate, 0.5);
     const developmentRate = safeNumber(state.developmentRate ?? nation.economyTraits?.developmentRate, 1);
@@ -53,6 +54,7 @@ const calculateAISavingsRate = ({ nation = {}, state = {}, epoch = 0, population
     rate += Math.max(0, foodSecurity - 0.9) * 0.08;
     rate += Math.max(0, employmentRate - 0.55) * 0.18;
     rate += Math.max(0, developmentRate - 1) * 0.06;
+    rate += Math.max(0, difficultyMultiplier - 1) * 0.04;
     rate += epoch <= 1 ? 0.04 : 0;
     rate += wealthPerCapita < 16 ? 0.04 : 0;
     rate -= volatility * 0.08;
@@ -98,11 +100,14 @@ export class AIDevelopmentService {
         state,
         tick,
         epoch,
+        difficulty = 'normal',
+        playerPopulation = 0,
         ticksSinceUpdate = 10,
         allowHeavyUpdate = true,
         cachedVirtualLabor = null,
         cachedVirtualEconomy = null,
     }) {
+        const difficultyMultiplier = getAIDevelopmentMultiplier(difficulty);
         const hasCachedEconomy = Boolean(nation.aiDevelopment && cachedVirtualLabor && cachedVirtualEconomy);
         const shouldUseHeavyUpdate = allowHeavyUpdate || !hasCachedEconomy;
         const capacityState = shouldUseHeavyUpdate
@@ -119,6 +124,8 @@ export class AIDevelopmentService {
             epoch,
             ticksSinceUpdate,
             capacityState,
+            playerPopulation,
+            difficultyMultiplier,
         });
 
         const currentPopulation = Math.max(1, Math.round(safeNumber(state.population ?? nation.population, 1)));
@@ -198,6 +205,7 @@ export class AIDevelopmentService {
             state,
             epoch,
             populationDynamics,
+            difficultyMultiplier,
         });
         const resourceSurplusMonetization = calculateResourceSurplusMonetization({
             nation,

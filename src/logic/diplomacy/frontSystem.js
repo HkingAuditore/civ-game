@@ -1651,7 +1651,8 @@ export const processFrontAdvance = (front, attackerCorps = [], defenderCorps = [
 
     const battleMomentum = (battleDelta || 0) * 0.35;
     const rawDelta = ratioDelta * 1.2 + postureDelta + naturalDrift + pressureDelta + supplyPenalty + entrenchmentDelta + battleMomentum;
-    const clampedDelta = clamp(rawDelta, -0.9, 0.9);
+    // Reduce per-tick front swing so wars do not jump from border to economic/core zones in just a few days.
+    const clampedDelta = clamp(rawDelta, -0.45, 0.45);
     const oldPosition = normalizedFront.linePosition;
     const linePosition = clamp(oldPosition + clampedDelta, FRONT_MIN_POSITION, FRONT_MAX_POSITION);
     const lineVelocity = linePosition - oldPosition;
