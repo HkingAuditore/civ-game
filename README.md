@@ -32,3 +32,7 @@ npm run build
 ## 游戏说明
 
 详细的游戏指南请查看 `/ai_reports` 目录下的文档。
+
+## 参考资料
+
+- [vibe-collab](https://pypi.org/project/vibe-collab/) - AI 辅助协作开发工具
