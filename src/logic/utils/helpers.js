@@ -52,6 +52,17 @@ export const isTradableResource = (key) => {
 };
 
 /**
+ * Check if a resource can be traded with foreign/manual routes.
+ * @param {string} key - Resource key
+ * @returns {boolean} Whether foreign trade is allowed
+ */
+export const canForeignTradeResource = (key) => {
+    if (!isTradableResource(key)) return false;
+    const def = RESOURCES[key];
+    return def?.allowForeignTrade !== false;
+};
+
+/**
  * Get base price for a resource
  * @param {string} resource - Resource key
  * @returns {number} Base price
@@ -112,10 +123,9 @@ export const computePriceMultiplier = (ratio, supplyDemandWeight = 1) => {
  * Calculate minimum profit margin based on cost and inventory
  * @param {number} costPrice - Cost price
  * @param {number} basePrice - Base market price
- * @param {number} inventoryRatio - Current inventory ratio
  * @returns {number} Minimum profit margin
  */
-export const calculateMinProfitMargin = (costPrice, basePrice, inventoryRatio) => {
+export const calculateMinProfitMargin = (costPrice, basePrice) => {
     const costToBasePriceRatio = costPrice / basePrice;
 
     if (costToBasePriceRatio < 0.3) {

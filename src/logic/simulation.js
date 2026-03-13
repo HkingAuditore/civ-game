@@ -30,6 +30,7 @@ import { WAR_ECONOMY } from '../config/gameConstants';
 import { applyIdeologyEffects, evaluateTriggerEffects, evaluateSynergyEffects, evaluateAntiSynergyEffects, applyConverters, applyRuleMods, mergeRuleMods } from './ideology/ideologyEffects';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from './ideology/ideologyEventBus';
 import { buildIdeologyScalingContext, scaleLegacyMilestoneThreshold } from './ideology/ideologyScaling.js';
+import { canForeignTradeResource } from './utils/helpers';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
@@ -714,6 +715,7 @@ export const simulateTick = ({
     let investmentLogs = [];
     // NEW: Track supply source breakdown
     const supplyBreakdown = {};
+    const resourceLossBreakdown = {};
 
     // NEW: Detailed financial tracking
     const classFinancialData = {};
@@ -1367,7 +1369,7 @@ export const simulateTick = ({
         const unitCategoryCounts = {};
         if (army && typeof army === 'object') {
             for (const [unitId, count] of Object.entries(army)) {
-                const unitDef = UNIT_TYPES?.find(u => u.id === unitId);
+                const unitDef = UNIT_TYPES?.[unitId];
                 if (unitDef?.category && count > 0) {
                     unitCategoryCounts[unitDef.category] = (unitCategoryCounts[unitDef.category] || 0) + count;
                 }
@@ -2853,16 +2855,17 @@ export const simulateTick = ({
             reductionReasons.push({ type: 'staffing', label: '人员不足', factor: staffingRatio });
         }
         if (resourceLimit < 1) {
-            reductionReasons.push({ type: 'resource', label: '原料不足', factor: resourceLimit });
+            const shortageLabel = effectiveOps.input?.electricity ? '电力不足' : '原料不足';
+            reductionReasons.push({ type: 'resource', label: shortageLabel, factor: resourceLimit });
         }
         if (debugMarginRatio !== null && debugMarginRatio < 1) {
             reductionReasons.push({ type: 'margin', label: '利润不足', factor: debugMarginRatio });
         }
         if (debugData?.affordableMultiplier !== undefined && debugData.affordableMultiplier < targetMultiplier) {
-            reductionReasons.push({ type: 'cashflow', label: 'cashflow_low', factor: debugData.affordableMultiplier / targetMultiplier });
+            reductionReasons.push({ type: 'cashflow', label: '现金流不足', factor: debugData.affordableMultiplier / targetMultiplier });
         }
         if (approvalMultiplier < 1) {
-            reductionReasons.push({ type: 'approval', label: 'approval_low', factor: approvalMultiplier });
+            reductionReasons.push({ type: 'approval', label: '满意度不足', factor: approvalMultiplier });
         }
         buildingFinancialData[b.id].reductionReasons = reductionReasons;
 
@@ -3370,7 +3373,7 @@ export const simulateTick = ({
                 } else {
                     const surpluses = [];
                     Object.entries(res).forEach(([resKey, amount]) => {
-                        if (!isTradableResource(resKey) || resKey === 'silver') return;
+                        if (!canForeignTradeResource(resKey) || resKey === 'silver') return;
                         if ((amount || 0) <= 300) return;
                         if ((rates[resKey] || 0) < 0) return;
 
@@ -3381,7 +3384,7 @@ export const simulateTick = ({
                     if (surpluses.length > 0) {
                         const shortageTargets = [];
                         Object.keys(RESOURCES).forEach(resourceKey => {
-                            if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
+                            if (!canForeignTradeResource(resourceKey) || resourceKey === 'silver') return;
                             const stock = res[resourceKey] || 0;
                             const netRate = rates[resourceKey] || 0;
                             const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
@@ -7005,6 +7008,20 @@ export const simulateTick = ({
             const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
             const adjustedDemand = dem + virtualDemandBaseline;
 
+            if (resourceDef?.storageMode === 'volatile') {
+                const maxInventoryDays = Math.max(0, resourceDef.maxInventoryDays ?? 0);
+                const minOperationalBuffer = Math.max(0, resourceDef.minOperationalBuffer ?? 0);
+                const allowedStock = Math.max(minOperationalBuffer, adjustedDemand * maxInventoryDays);
+                const currentStock = res[resource] || 0;
+                const overflow = Math.max(0, currentStock - allowedStock);
+
+                if (overflow > 0) {
+                    res[resource] = currentStock - overflow;
+                    rates[resource] = (rates[resource] || 0) - overflow;
+                    resourceLossBreakdown[resource] = (resourceLossBreakdown[resource] || 0) + overflow;
+                }
+            }
+
 
             // 计算当前库存可以支撑多少?
             const dailyDemand = adjustedDemand;
@@ -8645,6 +8662,7 @@ export const simulateTick = ({
             stratumConsumption, // NEW: Return actual consumption breakdown
             supplyBreakdown,    // NEW: Return supply breakdown
             demandBreakdown,    // NEW: Return demand breakdown
+            resourceLossBreakdown,
         },
         classIncome: roleWagePayout,
         classExpense: roleExpense,

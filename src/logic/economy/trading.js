@@ -5,7 +5,7 @@
 
 import { STRATA, RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } from '../../utils/foreignTrade';
-import { isTradableResource } from '../utils/helpers';
+import { isTradableResource, canForeignTradeResource } from '../utils/helpers';
 import { debugLog } from '../../utils/debugFlags';
 import { getTreatyEffects } from '../diplomacy/treatyEffects';
 import { TRANSACTION_CATEGORIES } from './ledger';
@@ -215,7 +215,7 @@ const buildProfitBasedAssignments = ({
 
         // Check all tradable resources
         Object.keys(RESOURCES).forEach(resourceKey => {
-            if (!isTradableResource(resourceKey)) return;
+            if (!canForeignTradeResource(resourceKey)) return;
 
             // Score import opportunity
             const importScore = scoreImportCandidate({
@@ -458,7 +458,7 @@ export const analyzeTradeOpportunities = ({
         return baseTaxRate + tariffRate;
     };
 
-    const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
+    const tradableKeys = Object.keys(RESOURCES).filter(key => canForeignTradeResource(key));
     const allExports = [];
     const allImports = [];
 
@@ -701,7 +701,7 @@ export const simulateMerchantTrade = ({
     }
 
     const tradableKeys = Object.keys(RESOURCES)
-        .filter(key => isTradableResource(key))
+        .filter(key => canForeignTradeResource(key))
         .filter(key => !potentialResources || potentialResources.has(key));
 
     // --- Trade 2.0: determine which partners are actively assigned this tick

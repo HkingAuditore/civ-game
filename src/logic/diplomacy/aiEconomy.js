@@ -8,7 +8,7 @@ import { RESOURCES, EPOCHS } from '../../config';
 import { WAR_ECONOMY } from '../../config/gameConstants';
 import { clamp } from '../utils';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
-import { isTradableResource } from '../utils/helpers';
+import { canForeignTradeResource } from '../utils/helpers';
 import { getAIDevelopmentMultiplier } from '../../config/difficulty.js';
 import { calculateAILogisticGrowth } from '../population/logisticGrowth.js';
 import { calculateBuildingIntegrityModifiers } from './warEconomy';
@@ -71,7 +71,7 @@ export const updateAINationInventory = ({
 
     // Simulate resource production and consumption
     const resourceBiasMap = next.economyTraits?.resourceBias || {};
-    const foreignResourceKeys = Object.keys(RESOURCES).filter(isTradableResource);
+    const foreignResourceKeys = Object.keys(RESOURCES).filter(canForeignTradeResource);
 
     if (foreignResourceKeys.length > 0) {
         const isInAnyWar = next.isAtWar || (next.foreignWars && Object.values(next.foreignWars).some(w => w?.isAtWar));

@@ -3,6 +3,7 @@ import { RESOURCES, ORGANIZATION_EFFECTS } from '../../config';
 import { VASSAL_TYPE_CONFIGS, TRADE_POLICY_DEFINITIONS } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { getTreatyEffects } from '../diplomacy/treatyEffects';
+import { canForeignTradeResource } from '../utils/helpers.js';
 
 /**
  * Process manual trade routes logic
@@ -126,6 +127,12 @@ export const processManualTradeRoutes = ({
 
         // Pause if at war
         if (nation.isAtWar) {
+            return;
+        }
+
+        if (!canForeignTradeResource(resource)) {
+            routesToRemove.push(route);
+            tradeLog.push(`⚡ ${RESOURCES[resource]?.name || resource} 仅允许国内即时调配，贸易路线已自动取消。`);
             return;
         }
 

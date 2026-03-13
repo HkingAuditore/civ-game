@@ -730,6 +730,14 @@ const buildMinimalAutoSavePayload = (payload) => {
         officials: payload.officials,
         ministerAssignments: payload.ministerAssignments,
         activeDecrees: payload.activeDecrees || [],
+        ideologyScore: payload.ideologyScore ?? 0,
+        ideologyScoreSpent: payload.ideologyScoreSpent ?? 0,
+        ideologyCollection: Array.isArray(payload.ideologyCollection) ? payload.ideologyCollection : [],
+        equippedIdeologies: Array.isArray(payload.equippedIdeologies) ? payload.equippedIdeologies : [],
+        ideologySlotCount: payload.ideologySlotCount ?? 3,
+        ideologyCooldowns: payload.ideologyCooldowns || {},
+        ideologyMilestones: Array.isArray(payload.ideologyMilestones) ? payload.ideologyMilestones : [],
+        pendingIdeologyEmergence: payload.pendingIdeologyEmergence ?? null,
         autoSaveInterval: payload.autoSaveInterval,
         isAutoSaveEnabled: payload.isAutoSaveEnabled,
         difficulty: payload.difficulty,
@@ -2565,6 +2573,14 @@ export const useGameState = () => {
         const loadedCoalition = data.rulingCoalition;
         setRulingCoalition(Array.isArray(loadedCoalition) && loadedCoalition.length > 0 ? loadedCoalition : ['peasant']);
         setLegitimacy(data.legitimacy || 0);
+        setIdeologyScore(data.ideologyScore ?? 0);
+        setIdeologyScoreSpent(data.ideologyScoreSpent ?? 0);
+        setIdeologyCollection(Array.isArray(data.ideologyCollection) ? data.ideologyCollection : []);
+        setEquippedIdeologies(Array.isArray(data.equippedIdeologies) ? data.equippedIdeologies : []);
+        setIdeologySlotCount(data.ideologySlotCount ?? 3);
+        setIdeologyCooldowns(data.ideologyCooldowns || {});
+        setIdeologyMilestones(Array.isArray(data.ideologyMilestones) ? data.ideologyMilestones : []);
+        setPendingIdeologyEmergence(data.pendingIdeologyEmergence ?? null);
         setActionCooldowns(data.actionCooldowns || {});
         setActionUsage(data.actionUsage || {});
         setPromiseTasks(data.promiseTasks || []);

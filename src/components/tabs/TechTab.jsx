@@ -7,6 +7,7 @@ import { Icon } from '../common/UIComponents';
 import { TECHS, EPOCHS, BUILDINGS } from '../../config';
 import { RESOURCES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { getEpochTechRequirementStatus } from '../../utils/epochUpgrade';
 import { getEpochTheme } from '../../config/epicTheme';
 import { getTechCostMultiplier } from '../../config/difficulty';
 import { IdeologyTab } from './IdeologyTab';
@@ -279,6 +280,10 @@ const TechTabComponent = ({
     const safeEpochIndex = typeof epoch === 'number' && epoch >= 0 && epoch < EPOCHS.length ? epoch : 0;
     const currentEpoch = EPOCHS[safeEpochIndex];
     const nextEpochInfo = safeEpochIndex < EPOCHS.length - 1 ? EPOCHS[safeEpochIndex + 1] : null;
+    const epochTechRequirement = useMemo(
+        () => getEpochTechRequirementStatus(safeEpochIndex, techsUnlocked),
+        [safeEpochIndex, techsUnlocked]
+    );
     // 应用难度系数到时代升级成本
     const epochCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
     const adjustedEpochCost = useMemo(() => {
@@ -469,6 +474,14 @@ const TechTabComponent = ({
                                         {RESOURCES.culture?.name || '文化'}: {(resources.culture || 0).toFixed(0)} / {nextEpochInfo.req.culture}
                                     </span>
                                 )}
+                                <span
+                                    className={`text-xs px-2 py-1 rounded ${epochTechRequirement.isTechRequirementMet
+                                        ? 'bg-green-900/30 text-green-400'
+                                        : 'bg-red-900/30 text-red-400'
+                                        }`}
+                                >
+                                    本时代科技：已研发 {epochTechRequirement.currentEpochResearched} / {epochTechRequirement.currentEpochTechTotal}（需至少 {epochTechRequirement.requiredTechCount} 项）
+                                </span>
                             </div>
                         </div>
 
@@ -513,6 +526,11 @@ const TechTabComponent = ({
                                 '条件不足'
                             )}
                         </button>
+                        {!epochTechRequirement.isTechRequirementMet && (
+                            <p className="mt-2 text-xs text-red-400">
+                                需要先完成本时代科技：已研发 {epochTechRequirement.currentEpochResearched}/{epochTechRequirement.currentEpochTechTotal}，至少需要 {epochTechRequirement.requiredTechCount} 项。
+                            </p>
+                        )}
                     </div>
                 )}
 

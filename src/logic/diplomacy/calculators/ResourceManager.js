@@ -4,7 +4,7 @@
  */
 
 import { RESOURCES } from '../../../config/index.js';
-import { isTradableResource } from '../../utils/helpers.js';
+import { canForeignTradeResource } from '../../utils/helpers.js';
 import { getConfig } from '../config/aiEconomyConfig.js';
 import { calculateBuildingIntegrityModifiers } from '../warEconomy.js';
 
@@ -25,7 +25,7 @@ export class ResourceManager {
         nation = null,
     }) {
         const updatedInventory = { ...inventory };
-        const foreignResourceKeys = Object.keys(RESOURCES).filter(isTradableResource);
+        const foreignResourceKeys = Object.keys(RESOURCES).filter(canForeignTradeResource);
         
         // Epoch multiplier
         const epochMultiplier = 1 + epoch * 0.5 + Math.pow(epoch, 1.3) * 0.1;
