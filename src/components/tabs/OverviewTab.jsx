@@ -13,7 +13,7 @@ import { Icon } from '../common/UIComponents';
  * 整合阶层、市场、日志信息，作为移动端初始视图
  * 使用与PC端相同的组件，保持显示一致性
  */
-export const OverviewTab = ({
+export const OverviewTab = React.memo(({
     // 阶层相关
     popStructure = {},
     classApproval = {},
@@ -56,7 +56,7 @@ export const OverviewTab = ({
                             size={10}
                             className={stability >= 70 ? 'text-green-400' : stability >= 40 ? 'text-yellow-400' : 'text-red-400'}
                         />
-                        <span className={`text-[9px] font-bold ${stability >= 70 ? 'text-green-400' : stability >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <span className={`text-xs font-bold ${stability >= 70 ? 'text-green-400' : stability >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
                             {stability.toFixed(0)}%
                         </span>
                     </div>
@@ -113,11 +113,11 @@ export const OverviewTab = ({
                         <Icon name="ScrollText" size={12} className="text-cyan-400" />
                         <span className="text-xs font-bold text-cyan-400 font-decorative">事件日志</span>
                     </div>
-                    <span className="text-[9px] text-ancient-stone">{logs.length} 条</span>
+                    <span className="text-xs text-ancient-stone">{logs.length} 条</span>
                 </div>
                 <LogPanel logs={logs} hideContainer={true} maxHeight={160} />
             </section>
         </div>
     );
-};
+});
 

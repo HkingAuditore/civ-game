@@ -108,16 +108,16 @@ const OrganizationDetailsModal = ({
                 {/* Header Info */}
                 <div className="bg-ancient-ink/40 p-2.5 rounded-lg border border-ancient-gold/20 flex justify-between items-start gap-3">
                     <div className="flex-1 min-w-0">
-                        <div className="text-ancient-stone text-[9px] uppercase tracking-wider">组织类型</div>
+                        <div className="text-ancient-stone text-xs uppercase tracking-wider">组织类型</div>
                         <div className="text-ancient-parchment font-bold text-sm">{config?.name || organization.type}</div>
                         <div className="text-ancient-stone text-xs mt-0.5 leading-snug">{config?.description}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                        <div className="text-ancient-stone text-[9px] uppercase tracking-wider">创始人</div>
+                        <div className="text-ancient-stone text-xs uppercase tracking-wider">创始人</div>
                         <div className="text-ancient-gold font-bold text-sm">
                             {founderName}
                         </div>
-                        <div className="text-ancient-stone text-[10px] mt-0.5">
+                        <div className="text-ancient-stone text-xs mt-0.5">
                             成立已 {Math.max(0, Math.floor(daysElapsed - (organization.createdDay || 0)))} 天
                         </div>
                     </div>
@@ -125,7 +125,7 @@ const OrganizationDetailsModal = ({
 
                 {/* Effects Section - Redesigned as compact list */}
                 <div>
-                    <h3 className="text-ancient-parchment font-bold text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <h3 className="text-ancient-parchment font-bold text-xs uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                         <Icon name="Sparkles" size={14} className="text-ancient-gold" />
                         组织效力
                     </h3>
@@ -146,7 +146,7 @@ const OrganizationDetailsModal = ({
                 {/* Members Section */}
                 <div>
                     <div className="flex justify-between items-end mb-1.5">
-                        <h3 className="text-ancient-parchment font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+                        <h3 className="text-ancient-parchment font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
                             <Icon name="Users" size={14} className="text-ancient-gold" />
                             成员国 ({memberList.length}/{getOrganizationMaxMembers(organization.type, epoch)})
                         </h3>
@@ -161,7 +161,7 @@ const OrganizationDetailsModal = ({
                                     ${member.isPlayer ? 'bg-ancient-gold/10 border-ancient-gold/40' : 'bg-ancient-ink/20 border-white/5'}
                                 `}>
                                     <div className="flex items-center gap-1.5">
-                                        <div className="w-5 h-5 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 text-[10px] font-bold text-ancient-parchment">
+                                        <div className="w-5 h-5 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 text-xs font-bold text-ancient-parchment">
                                             {member.name.charAt(0)}
                                         </div>
                                         <div>
@@ -171,7 +171,7 @@ const OrganizationDetailsModal = ({
                                                     <Icon name="Crown" size={12} className="text-amber-400" />
                                                 )}
                                                 {member.isPlayer && (
-                                                    <span className="text-[10px] bg-ancient-gold/20 text-ancient-gold px-1 rounded ml-1">你</span>
+                                                    <span className="text-xs bg-ancient-gold/20 text-ancient-gold px-1 rounded ml-1">你</span>
                                                 )}
                                             </div>
                                         </div>

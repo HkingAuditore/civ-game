@@ -1,12 +1,14 @@
 import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
+import { BUILDING_CHAINS } from '../config/buildingChains';
 import { buildOwnershipListFromLegacy, providesOwnerJobs, OWNER_TYPES } from '../config/ownerTypes';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
-import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier } from '../utils/livingStandard';
+import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier, calculatePriceAwareLivingStandardThresholds, getPriceAwareLivingStandardLevel } from '../utils/livingStandard';
+
 import { calculateLivingStandards } from './population/needs';
 import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinetSynergy';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
@@ -23,12 +25,95 @@ import {
 } from './rulingCoalition';
 import { getPolityEffects } from '../config/polityEffects';
 import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateVassalPolicyReputationChange } from '../config/reputationSystem';
+import { aggregateWarDamagedBuildings, calculateMilitaryIndustryBoost, calculateWartimeTradeDisruption } from './diplomacy/warEconomy';
+import { WAR_ECONOMY } from '../config/gameConstants';
+import { applyIdeologyEffects, evaluateTriggerEffects, evaluateSynergyEffects, evaluateAntiSynergyEffects, applyConverters, applyRuleMods, mergeRuleMods } from './ideology/ideologyEffects';
+import { ideologyEventBus, IDEOLOGY_EVENTS } from './ideology/ideologyEventBus';
+import { buildIdeologyScalingContext, scaleLegacyMilestoneThreshold } from './ideology/ideologyScaling.js';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
 
 let cachedPotentialResourcesKey = null;
 let cachedPotentialResourcesSet = null;
+
+const mergeInvestmentByKey = (investments = [], incoming, getKey) => {
+    if (!incoming) return investments;
+    const next = [...investments];
+    const incomingKey = getKey(incoming);
+    const index = next.findIndex(inv => inv?.status === 'operating' && getKey(inv) === incomingKey);
+    if (index === -1) {
+        next.push(incoming);
+        return next;
+    }
+
+    const current = next[index];
+    next[index] = {
+        ...current,
+        count: (current.count || 1) + (incoming.count || 1),
+        investmentAmount: (current.investmentAmount || 0) + (incoming.investmentAmount || 0),
+        dailyProfit: (current.dailyProfit || 0) + (incoming.dailyProfit || 0),
+        jobsProvided: (current.jobsProvided || 0) + (incoming.jobsProvided || 0),
+        createdDay: Math.min(current.createdDay || incoming.createdDay || 0, incoming.createdDay || 0),
+        operatingData: {
+            ...(current.operatingData || {}),
+            ...(incoming.operatingData || {}),
+            profit: (current.operatingData?.profit || 0) + (incoming.operatingData?.profit || 0),
+            profitRepatriated: (current.operatingData?.profitRepatriated || 0) + (incoming.operatingData?.profitRepatriated || 0),
+            taxPaid: (current.operatingData?.taxPaid || 0) + (incoming.operatingData?.taxPaid || 0),
+        },
+    };
+    return next;
+};
+
+const migrateAnnexedNationCapital = ({
+    nations = [],
+    overseasInvestments = [],
+    foreignInvestments = [],
+    tick = 0,
+    logs = [],
+}) => {
+    const annexedThisTick = (nations || []).filter(n => n?.isAnnexed && n?.annexedBy && n?.annexedAt === tick);
+    if (annexedThisTick.length === 0) {
+        return { overseasInvestments, foreignInvestments };
+    }
+
+    const annexedMap = new Map(annexedThisTick.map(n => [n.id, n.annexedBy]));
+    let nextOverseasInvestments = [];
+    (overseasInvestments || []).forEach(investment => {
+        const successorNationId = annexedMap.get(investment?.targetNationId);
+        if (!successorNationId || investment?.status !== 'operating') {
+            nextOverseasInvestments.push(investment);
+            return;
+        }
+        nextOverseasInvestments = mergeInvestmentByKey(nextOverseasInvestments, {
+            ...investment,
+            targetNationId: successorNationId,
+            id: `oi_${successorNationId}_${investment.buildingId}_${investment.createdDay || tick}`,
+        }, getOverseasInvestmentGroupKey);
+        logs.push(`💼 ${investment.targetNationId} 被吞并后，你在该国的 ${investment.buildingId} 投资已转移至 ${successorNationId}。`);
+    });
+
+    let nextForeignInvestments = [];
+    (foreignInvestments || []).forEach(investment => {
+        const successorNationId = annexedMap.get(investment?.ownerNationId);
+        if (!successorNationId || investment?.status !== 'operating') {
+            nextForeignInvestments.push(investment);
+            return;
+        }
+        nextForeignInvestments = mergeInvestmentByKey(nextForeignInvestments, {
+            ...investment,
+            ownerNationId: successorNationId,
+            id: `fi_${successorNationId}_${investment.buildingId}_${investment.createdDay || tick}`,
+        }, getForeignInvestmentGroupKey);
+        logs.push(`🏦 ${investment.ownerNationId} 被吞并后，其在我国的 ${investment.buildingId} 外资权益已转移至 ${successorNationId}。`);
+    });
+
+    return {
+        overseasInvestments: nextOverseasInvestments,
+        foreignInvestments: nextForeignInvestments,
+    };
+};
 
 const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange, playerWealth }) => {
     const treaties = Array.isArray(nation.treaties) ? nation.treaties : [];
@@ -66,14 +151,14 @@ const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange
                     nation.wealth || 0
                 );
 
-                // 如果条约中有玩家自定义的维护费
+                // 如果条约中有玩家自定义的维护?
                 if (Number.isFinite(treaty.maintenancePerDay) && treaty.maintenancePerDay > 0) {
                     // 检查是否在合理范围内（不超过新公式计算值的10倍）
-                    // 如果超过，说明是旧版本的异常值，需要重新计算
+                    // 如果超过，说明是旧版本的异常值，需要重新计?
                     const maxReasonable = Math.max(recalculatedMaintenance * 10, 10000);
 
                     if (treaty.maintenancePerDay <= maxReasonable) {
-                        // 在合理范围内，使用玩家自定义的值
+                        // 在合理范围内，使用玩家自定义的?
                         dailyMaintenance = treaty.maintenancePerDay;
                     } else {
                         // 超出合理范围，使用新公式重新计算
@@ -204,7 +289,6 @@ import {
     applyEffects,
     applyTechEffects,
     applyDecreeEffects,
-    applyFestivalEffects,
     applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
@@ -247,9 +331,12 @@ import {
     calculateOfficialPropertyProfit,
     processOfficialBuildingUpgrade,
     processOfficialInvestment,
+    processStateManagedInvestment,
+    calculateStateManagedProfitSplit,
+    calculateEfficiencyBonus,
     FINANCIAL_STATUS,
 } from './officials/officialInvestment';
-import { LOYALTY_CONFIG } from '../config/officials';
+import { LOYALTY_CONFIG, PROPERTY_POLICY_CONFIG } from '../config/officials';
 import { isStanceSatisfied } from '../config/politicalStances';
 import { migrateOfficialForInvestment } from './officials/migration';
 import { calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
@@ -317,9 +404,45 @@ import {
     // Rebellion System functions
     processRebellionSystemDaily,
     getRebellionRiskAssessment,
+    // War Economy functions
+    generateAIBuildingProfile,
+    processAIBuildingRecovery,
 } from './diplomacy';
-import { calculateOverseasInvestmentSummary, processOverseasInvestments, processForeignInvestments, processOverseasInvestmentUpgrades, processForeignInvestmentUpgrades } from './diplomacy/overseasInvestment';
+import { calculateAITreasuryTargetRatio } from './diplomacy/economyUtils';
+import {
+    calculateOverseasInvestmentSummary,
+    processOverseasInvestments,
+    processForeignInvestments,
+    processOverseasInvestmentUpgrades,
+    processForeignInvestmentUpgrades,
+    getOverseasInvestmentGroupKey,
+    getForeignInvestmentGroupKey,
+} from './diplomacy/overseasInvestment';
+import { getFrontlineEconomicModifiers } from './diplomacy/frontSystem';
 import { processManualTradeRoutes } from './economy/manualTrade';
+
+// V2: Helper — compute average approval across all strata
+function _calcAvgApproval(classApproval) {
+    if (!classApproval || typeof classApproval !== 'object') return 50;
+    const values = Object.values(classApproval).filter(v => typeof v === 'number');
+    return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 50;
+}
+
+const PLAYER_CIVILIAN_WEALTH_BASELINE_WEIGHT = 0.35;
+const calculatePlayerComparableWealth = (resources = {}, classWealth = {}) => {
+    const treasury = Number(resources?.silver || 0);
+    const civilianWealth = Object.values(classWealth || {}).reduce((sum, value) => {
+        return sum + Math.max(0, Number(value) || 0);
+    }, 0);
+
+    // AI national wealth is a macro stock, not a 1:1 mirror of every private holding.
+    // Blend treasury with a conservative slice of civilian wealth so foreign economies
+    // can keep pace with the player's real economic maturity without exploding upward.
+    return Math.max(
+        100,
+        Math.round(treasury + civilianWealth * PLAYER_CIVILIAN_WEALTH_BASELINE_WEIGHT)
+    );
+};
 
 export const simulateTick = ({
     resources,
@@ -343,7 +466,6 @@ export const simulateTick = ({
     diplomacyOrganizations = null,
     tick = 0,
     techsUnlocked = [],
-    activeFestivalEffects = [],
     classWealthHistory,
     classNeedsHistory,
     merchantState = { pendingTrades: [], lastTradeTime: 0 },
@@ -357,10 +479,10 @@ export const simulateTick = ({
     eventStratumDemandModifiers = {},    // { stratumKey: percentModifier }
     eventBuildingProductionModifiers = {}, // { buildingIdOrCat: percentModifier }
     livingStandardStreaks = {},
-    buildingUpgrades = {}, // 建筑升级状态
+    buildingUpgrades = {}, // 建筑升级状?
     rulingCoalition = [], // 执政联盟成员阶层
     previousLegitimacy = 0, // 上一tick的合法性值，用于计算税收修正
-    migrationCooldowns = {}, // 阶层迁移冷却状态
+    migrationCooldowns = {}, // 阶层迁移冷却状?
 
     difficulty, // 游戏难度设置
     officials = [], // 官员列表
@@ -374,7 +496,7 @@ export const simulateTick = ({
     expansionSettings = {}, // [NEW] Expansion settings for Right Dominance
     cabinetStatus = {}, // [NEW] Cabinet status for synergy/dominance
     priceControls = null, // [NEW] 政府价格管制设置
-    previousTaxShock = {}, // [NEW] 上一tick各阶层的累积税收冲击值，用于防止"快速抬税后降税"的漏洞
+    previousTaxShock = {}, // [NEW] 上一tick各阶层的累积税收冲击值，用于防止"快速抬税后降税"的漏?
     eventEffectSettings = {}, // [NEW] Event effect settings including log visibility
     foreignInvestments = [], // [NEW] Foreign investments for profit calculation
     overseasInvestments = [], // [NEW] Overseas investments for processing
@@ -382,6 +504,16 @@ export const simulateTick = ({
     foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
     diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
+    // [NEW] Military corps & battle system (pass-through for state preservation)
+    militaryCorps = [],
+    generals = [],
+    activeFronts = [],
+    activeBattles = [],
+    // 理念系统
+    equippedIdeologies = [],  // 已装备的理念对象列表 [{ id, level, effects, ... }]
+    ideologySynergies = [],   // 联动配置数组
+    antiSynergies = [],       // 反协同配置数组
+    ideologyMetrics = null,
 }) => {
     if (!Number.isFinite(tick)) {
         const parsedTick = Number(tick);
@@ -464,10 +596,10 @@ export const simulateTick = ({
 
     // === 资源变化追踪系统 ===
     // Silver change log (aggregated for performance)
-    // 使用 Map 聚合：每个 reason 只维护一个累加值，而不是记录每一条
+    // 使用 Map 聚合：每?reason 只维护一个累加值，而不是记录每一?
     const silverChangeTotals = new Map();
     const silverChangeLog = {
-        // 记录方法：累加到对应的 key
+        // 记录方法：累加到对应?key
         record: (amount, reason) => {
             if (!Number.isFinite(amount) || amount === 0) return;
             const key = reason || 'unknown';
@@ -484,7 +616,7 @@ export const simulateTick = ({
             amount,
             reason,
         })),
-        // 兼容数组的 length 属性
+        // 兼容数组?length 属?
         get length() { return silverChangeTotals.size; },
     };
     const trackSilverChange = (amount, reason) => {
@@ -614,12 +746,12 @@ export const simulateTick = ({
                     luxuryNeeds: {},     // 奢侈需求消费 { resource: cost }
                     decay: 0,
                     productionCosts: 0,
-                    wages: 0,  // 工资支出（业主支付给工人）
+                    wages: 0,  // 工资支出（业主支付给工人?
                     tradeExportPurchase: 0, // 贸易出口购买成本
                     transportCost: 0, // 海外投资运输成本
-                    capitalFlight: 0, // 资本外逃
-                    buildingCost: 0, // 建筑建造/升级成本
-                    layoffTransfer: 0 // 裁员时随人口转移的财富
+                    capitalFlight: 0, // 资本外?
+                    buildingCost: 0, // 建筑建?升级成本
+                    layoffTransfer: 0 // 裁员时随人口转移的财?
                 }
             };
         });
@@ -643,8 +775,8 @@ export const simulateTick = ({
         livingCostBreakdown,
         ECONOMIC_INFLUENCE?.wage || {}
     );
-    // 注意：不再在此处全局解构 market 参数，而是在价格计算循环中动态获取
-    // 这样可以支持每个资源使用不同的经济参数配置
+    // 注意：不再在此处全局解构 market 参数，而是在价格计算循环中动态获?
+    // 这样可以支持每个资源使用不同的经济参数配?
     const previousWages = market?.wages || {};
     const getLivingCostFloor = (role) => {
         const base = wageLivingCosts?.[role];
@@ -676,18 +808,18 @@ export const simulateTick = ({
     // But we need to update the 'wealth' object (which is the working copy) with the profits.
     // Let's move the Overseas Investment execution AFTER wealth init?
     // Yes, cleaner.
-    // [FIX] 添加缺失的 getHeadTaxRate 本地包装函数
+    // [FIX] 添加缺失?getHeadTaxRate 本地包装函数
     const getHeadTaxRate = (key) => getHeadTaxRateFromModule(key, headTaxRates);
 
     const getResourceTaxRate = (resource) => {
         const rate = resourceTaxRates[resource];
-        if (typeof rate === 'number') return rate; // 允许负税率
+        if (typeof rate === 'number') return rate; // 允许负税?
         return 0;
     };
     const getBusinessTaxRate = (buildingId) => {
         const rate = businessTaxRates[buildingId];
-        if (typeof rate === 'number') return rate; // 允许负税率（补贴）
-        return 1; // 默认税率系数为1，与UI显示一致
+        if (typeof rate === 'number') return rate; // 允许负税率（补贴?
+        return 1; // 默认税率系数?，与UI显示一?
     };
     // REFACTORED: Use imported function from ./economy/taxes
     const taxBreakdown = initializeTaxBreakdown();
@@ -707,14 +839,13 @@ export const simulateTick = ({
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
 
-    // [DEBUG] Track incomePercentBonus accumulation
+    // [DEBUG] Track taxBonus accumulation (migrated from incomePercentBonus)
     const bonusDebug = {
-        afterInit: bonuses.incomePercentBonus || 0,
+        afterInit: bonuses.taxBonus || 0,
         afterOfficials: 0,
         afterStance: 0,
         afterTechs: 0,
         afterDecrees: 0,
-        afterFestivals: 0,
     };
 
     // === Execute Investment Logic (Now that Wealth/Ledger is ready) ===
@@ -750,7 +881,7 @@ export const simulateTick = ({
         if (oiResult.costsByStratum) {
             Object.entries(oiResult.costsByStratum).forEach(([stratum, costs]) => {
                 if (classFinancialData[stratum]) {
-                    // 记录销售收入（outputValue）
+                    // 记录销售收入（outputValue?
                     classFinancialData[stratum].income.ownerRevenue = (classFinancialData[stratum].income.ownerRevenue || 0) + costs.outputValue;
                     // 记录各项成本
                     classFinancialData[stratum].expense.productionCosts = (classFinancialData[stratum].expense.productionCosts || 0) + costs.inputCost;
@@ -791,12 +922,12 @@ export const simulateTick = ({
             });
         }
 
-        // [NEW] 将投资效果传递到附庸国对象，用于动态阶层经济计算
+        // [NEW] 将投资效果传递到附庸国对象，用于动态阶层经济计?
         if (oiResult.nationInvestmentEffects) {
             Object.entries(oiResult.nationInvestmentEffects).forEach(([nationId, effects]) => {
                 const nation = nations.find(n => n.id === nationId);
                 if (nation) {
-                    // 存储投资效果供 updateSocialClasses 使用
+                    // 存储投资效果?updateSocialClasses 使用
                     nation._investmentEffects = effects;
                 }
             });
@@ -880,8 +1011,32 @@ export const simulateTick = ({
         applyEffects(cabinetStatus.decreeEffects, bonuses);
     }
 
-    // === 应用官员效果（含薪水不足减益） ===
-    const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
+    const baseIdeologyRuleMods = equippedIdeologies?.length ? applyRuleMods(equippedIdeologies) : {};
+    const ideologyOfficialBonusMod = baseIdeologyRuleMods.official_bonus?._global || 0;
+    const scaleOfficialEffects = (effects, modifier) => {
+        if (!modifier) return effects;
+        const multiplier = Math.max(0, 1 + modifier);
+        const scaleValue = (value) => {
+            if (typeof value === 'number') return value * multiplier;
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+            const scaled = {};
+            Object.entries(value).forEach(([key, nested]) => {
+                scaled[key] = typeof nested === 'number' ? nested * multiplier : nested;
+            });
+            return scaled;
+        };
+        const scaledEffects = {};
+        Object.entries(effects || {}).forEach(([key, value]) => {
+            scaledEffects[key] = scaleValue(value);
+        });
+        return scaledEffects;
+    };
+
+    // === 应用官员效果（含薪水不足减益?===
+    const activeOfficialEffects = scaleOfficialEffects(
+        getAggregatedOfficialEffects(officials, officialsPaid),
+        ideologyOfficialBonusMod
+    );
     const officialEffectsForBonuses = {
         ...activeOfficialEffects,
         passive: activeOfficialEffects.passiveGains,
@@ -889,67 +1044,67 @@ export const simulateTick = ({
         resourceDemandMod: activeOfficialEffects.decreeResourceDemandMod,
         stratumDemandMod: activeOfficialEffects.decreeStratumDemandMod,
         maxPop: activeOfficialEffects.extraMaxPop,
-        incomePercent: activeOfficialEffects.incomePercentBonus,
+        taxIncome: activeOfficialEffects.taxBonus, // [MIGRATED] 原 incomePercent → taxIncome
     };
     applyEffects(officialEffectsForBonuses, bonuses);
 
     // [DEBUG] Track after officials
-    bonusDebug.afterOfficials = bonuses.incomePercentBonus || 0;
-    // === 应用官员专属效果到 bonuses ===
-    // 科研速度 → scienceBonus
+    bonusDebug.afterOfficials = bonuses.taxBonus || 0;
+    // === 应用官员专属效果?bonuses ===
+    // 科研速度 ?scienceBonus
     if (activeOfficialEffects.researchSpeed) {
         bonuses.scienceBonus = (bonuses.scienceBonus || 0) + activeOfficialEffects.researchSpeed;
     }
-    // 税收效率 → 存储供税收计算使用
+    // 税收效率 ?存储供税收计算使?
     bonuses.taxEfficiencyBonus = activeOfficialEffects.taxEfficiency || 0;
-    // 腐败 → 存储供税收计算使用 (负面效果)
+    // 腐败 存储供税收计算使用(负面效果)
     bonuses.corruption = activeOfficialEffects.corruption || 0;
-    // 收入百分比 → 存储供财政计算使用
-    if (activeOfficialEffects.incomePercentBonus) {
-        bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + activeOfficialEffects.incomePercentBonus;
+    // 税收加成 存储供财政计算使用 [MIGRATED] 原 incomePercentBonus → taxBonus
+    if (activeOfficialEffects.taxBonus) {
+        bonuses.taxBonus = (bonuses.taxBonus || 0) + activeOfficialEffects.taxBonus;
     }
-    // 人口增长 → 存储供人口计算使用
+    // 人口增长 ?存储供人口计算使?
     bonuses.populationGrowthBonus = activeOfficialEffects.populationGrowth || 0;
-    // 军费降低 → 存储供军费计算使用
+    // 军费降低 ?存储供军费计算使?
     bonuses.militaryUpkeepMod = activeOfficialEffects.militaryUpkeep || 0;
-    // 军队战力加成 → 存储供战斗力计算使用
+    // 军队战力加成 ?存储供战斗力计算使用
     if (activeOfficialEffects.militaryBonus) {
         bonuses.militaryBonus = (bonuses.militaryBonus || 0) + activeOfficialEffects.militaryBonus;
     }
-    // 贸易加成 → 存储供贸易计算使用
+    // 贸易加成 ?存储供贸易计算使?
     bonuses.tradeBonusMod = activeOfficialEffects.tradeBonus || 0;
-    // 建筑成本 → 存储供建筑购买使用
+    // 建筑成本 ?存储供建筑购买使?
     bonuses.buildingCostMod = activeOfficialEffects.buildingCostMod || 0;
-    // 战时生产加成 → 存储供生产计算使用
+    // 战时生产加成 ?存储供生产计算使?
     bonuses.wartimeProduction = activeOfficialEffects.wartimeProduction || 0;
-    // 资源浪费 → 存储供需求/生产消耗使用
+    // 资源浪费 ?存储供需?生产消耗使?
     bonuses.resourceWaste = activeOfficialEffects.resourceWaste || {};
-    // 联盟满意度 → 存储供满意度计算使用
+    // 联盟满意度 存储供满意度计算使用
     bonuses.coalitionApproval = activeOfficialEffects.coalitionApproval || 0;
-    // 合法性加成 → 存储供合法性修正使用
+    // 合法性加成 存储供合法性修正使用
     bonuses.legitimacyBonus = activeOfficialEffects.legitimacyBonus || 0;
     // 组织度增长修正（负值降低增长）
     bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + (activeOfficialEffects.organizationDecay || 0);
-    // 派系冲突 → 稳定度惩罚
+    // 派系冲突 ?稳定度惩?
     bonuses.factionConflict = (bonuses.factionConflict || 0) + (activeOfficialEffects.factionConflict || 0);
     // 外交冷却修正
     bonuses.diplomaticCooldown = activeOfficialEffects.diplomaticCooldown || 0;
     // 外交关系衰减
     bonuses.diplomaticIncident = activeOfficialEffects.diplomaticIncident || 0;
-    // 外交加成 → 存储供外交关系计算使用
+    // 外交加成 ?存储供外交关系计算使?
     bonuses.diplomaticBonus = activeOfficialEffects.diplomaticBonus || 0;
-    // 生产原料成本修正 → 存储供建筑生产计算使用
+    // 生产原料成本修正 ?存储供建筑生产计算使?
     bonuses.officialProductionInputCost = activeOfficialEffects.productionInputCost || {};
 
     // === 应用政治立场效果 ===
-    // 构建简化的游戏状态用于条件检查
+    // 构建简化的游戏状态用于条件检?
     const stanceCheckState = {
         classApproval: previousApproval,
         classInfluence: market?.classInfluence || {},
         totalInfluence: market?.totalInfluence || 1,
         classLivingStandard: market?.classLivingStandard || {},
         classIncome: market?.classIncome || {},
-        stability: currentStability / 100, // 转换为0-1
+        stability: currentStability / 100, // 转换?-1
         legitimacy: previousLegitimacy,
         taxPolicies: policies,
         rulingCoalition,
@@ -961,7 +1116,7 @@ export const simulateTick = ({
     const stanceResult = getAggregatedStanceEffects(officials, stanceCheckState);
     const stanceEffects = stanceResult.aggregatedEffects;
 
-    // 应用立场效果到 bonuses
+    // 应用立场效果?bonuses
     if (stanceEffects.stability) {
         bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + stanceEffects.stability;
     }
@@ -983,12 +1138,12 @@ export const simulateTick = ({
     if (stanceEffects.taxEfficiency) {
         bonuses.taxEfficiencyBonus = (bonuses.taxEfficiencyBonus || 0) + stanceEffects.taxEfficiency;
     }
-    if (stanceEffects.incomePercentBonus) {
-        bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + stanceEffects.incomePercentBonus;
+    if (stanceEffects.taxBonus) {
+        bonuses.taxBonus = (bonuses.taxBonus || 0) + stanceEffects.taxBonus;
     }
 
     // [DEBUG] Track after stance
-    bonusDebug.afterStance = bonuses.incomePercentBonus || 0;
+    bonusDebug.afterStance = bonuses.taxBonus || 0;
 
     if (stanceEffects.buildingCostMod) {
         bonuses.buildingCostMod = (bonuses.buildingCostMod || 0) + stanceEffects.buildingCostMod;
@@ -1013,7 +1168,7 @@ export const simulateTick = ({
     }
     // 立场满意度效果存储供后续使用
     bonuses.stanceApprovalEffects = stanceEffects.approval || {};
-    // 立场生产成本效果存储供后续使用
+    // 立场生产成本效果存储供后续使?
     bonuses.stanceProductionInputCost = stanceEffects.productionInputCost || {};
 
     // === 部长任命加成 ===
@@ -1091,16 +1246,16 @@ export const simulateTick = ({
 
     const boostBuilding = (id, percent) => {
         if (!id || typeof percent !== 'number') return;
-        const factor = 1 + percent;
-        if (!Number.isFinite(factor) || factor <= 0) return;
-        buildingBonuses[id] = (buildingBonuses[id] || 1) * factor;
+        if (!Number.isFinite(percent)) return;
+        // 加法模式：与 applyEffects 和生产循环一致（0 = 无加成，0.12 = +12%）
+        buildingBonuses[id] = (buildingBonuses[id] || 0) + percent;
     };
 
     const boostCategory = (category, percent) => {
         if (!category || typeof percent !== 'number') return;
-        const factor = 1 + percent;
-        if (!Number.isFinite(factor) || factor <= 0) return;
-        categoryBonuses[category] = (categoryBonuses[category] || 1) * factor;
+        if (!Number.isFinite(percent)) return;
+        // 加法模式：与 applyEffects 和生产循环一致（0 = 无加成，0.25 = +25%）
+        categoryBonuses[category] = (categoryBonuses[category] || 0) + percent;
     };
 
     const addPassiveGain = (resource, amount) => {
@@ -1111,7 +1266,7 @@ export const simulateTick = ({
     // Apply effects using imported module functions
     // Apply tech effects using module function
     applyTechEffects(techsUnlocked, bonuses);
-    bonusDebug.afterTechs = bonuses.incomePercentBonus || 0;
+    bonusDebug.afterTechs = bonuses.taxBonus || 0;
 
     // Apply decree effects using module function
     // Timed reform decrees are sourced from `activeDecrees`.
@@ -1130,14 +1285,17 @@ export const simulateTick = ({
     applyDecreeEffects([...decreesFromActive, ...permanentDecrees], bonuses);
     bonusDebug.afterDecrees = bonuses.incomePercentBonus || 0;
 
-    // Apply festival effects using module function
-    applyFestivalEffects(activeFestivalEffects, bonuses);
-    bonusDebug.afterFestivals = bonuses.incomePercentBonus || 0;
-
     // Apply active buffs (Strata bonuses)
     if (Array.isArray(productionBuffs)) {
         productionBuffs.forEach(buff => {
-            applyEffects(buff, bonuses);
+            // Ideology-sourced buffs: route taxIncome to virtualTaxIncome (phantom silver)
+            if (buff.source === 'ideology' && typeof buff.taxIncome === 'number') {
+                const { taxIncome: taxVal, ...restBuff } = buff;
+                applyEffects(restBuff, bonuses);
+                bonuses.virtualTaxIncome = (bonuses.virtualTaxIncome || 0) + taxVal;
+            } else {
+                applyEffects(buff, bonuses);
+            }
         });
     }
 
@@ -1163,7 +1321,165 @@ export const simulateTick = ({
             influenceData.totalInfluence
         );
         currentPolityEffects = getPolityEffects(currentPolity.name);
-        applyPolityEffects(currentPolityEffects, bonuses);
+    applyPolityEffects(currentPolityEffects, bonuses);
+    }
+
+    // Apply Ideology effects（理念效果：基础数值 + 条件触发 + 联动 + 转化引擎 + 规则修改）
+    let ideologySynergyResult = null;
+    let ideologyRuleMods = {};
+    if (equippedIdeologies && equippedIdeologies.length > 0) {
+        applyIdeologyEffects(equippedIdeologies, bonuses);
+
+        // Compute buildingCategoryCounts: count buildings by category (gather/industry/civic/military)
+        const buildingCategoryCounts = {};
+        for (const b of BUILDINGS) {
+            const count = buildings[b.id] || 0;
+            if (count > 0 && b.cat) {
+                buildingCategoryCounts[b.cat] = (buildingCategoryCounts[b.cat] || 0) + count;
+            }
+        }
+
+        // Compute completedChains: count building chains where all buildings have at least 1 built
+        let completedChains = 0;
+        if (typeof BUILDING_CHAINS === 'object' && BUILDING_CHAINS) {
+            for (const chain of Object.values(BUILDING_CHAINS)) {
+                if (chain.buildings && chain.buildings.length > 0) {
+                    const allBuilt = chain.buildings.every(bId => (buildings[bId] || 0) > 0);
+                    if (allBuilt) completedChains++;
+                }
+            }
+        }
+
+        // Compute totalBuildings for converter source
+        let totalBuildings = 0;
+        for (const b of BUILDINGS) {
+            totalBuildings += (buildings[b.id] || 0);
+        }
+
+        // --- V2: per-building-id counts for building_specific_bonus trigger ---
+        const buildingCounts = {};
+        for (const b of BUILDINGS) {
+            const cnt = buildings[b.id] || 0;
+            if (cnt > 0) buildingCounts[b.id] = cnt;
+        }
+
+        // --- V2: unit category counts for unit_count_bonus trigger ---
+        const unitCategoryCounts = {};
+        if (army && typeof army === 'object') {
+            for (const [unitId, count] of Object.entries(army)) {
+                const unitDef = UNIT_TYPES?.find(u => u.id === unitId);
+                if (unitDef?.category && count > 0) {
+                    unitCategoryCounts[unitDef.category] = (unitCategoryCounts[unitDef.category] || 0) + count;
+                }
+            }
+        }
+
+        // --- V2: trade volume estimation from trade routes ---
+        const tradeVolume = (tradeRoutes?.routes || []).reduce((sum, r) => sum + (r.value || r.amount || 0), 0);
+
+        const ideologyTriggerState = {
+            popStructure: previousPopStructure,
+            epoch,
+            techsUnlocked,
+            resources,
+            completedChains,
+            buildingCategoryCounts,
+            // New fields for converters and event-driven effects
+            officialCount: Array.isArray(officials) ? officials.filter(o => o.hired).length : 0,
+            isAtWar: nations.some(n => n.isAtWar),
+            warScore: nations.find(n => n.isAtWar)?.warScore || 0,
+            totalBuildings,
+            stability: currentStability || 50,
+            population: population || 0,
+            treasury: resources?.silver || 0,
+            // === V2: extended state fields ===
+            warCount: (nations || []).filter(n => n.isAtWar).length,
+            friendlyCount: (nations || []).filter(n => !n.isAnnexed && !n.isAtWar && (n.relation || 0) >= 50).length,
+            vassalCount: (nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+            tradeVolume,
+            unemployment: previousPopStructure?.unemployed || 0,
+            legitimacy: previousLegitimacy ?? 50,
+            avgApproval: _calcAvgApproval(previousApproval),
+            militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
+            buildingCounts,
+            unitCategoryCounts,
+            classLivingStandard: market?.classLivingStandard || {},
+            classApproval: previousApproval || {},
+            officials: officials || [],
+            rulingCoalition: rulingCoalition || [],
+            ideologyScaling: buildIdeologyScalingContext({
+                epoch,
+                ideologyMetrics,
+                population,
+                totalBuildings,
+                militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
+                vassalCount: (nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+            }),
+        };
+
+        // Pipeline: base effects → converters → trigger effects → synergy effects → rule mods
+        applyConverters(equippedIdeologies, ideologyTriggerState, bonuses);
+        const ideologyOneTimeEffects = evaluateTriggerEffects(equippedIdeologies, ideologyTriggerState, bonuses);
+        // 处理理念资源消耗（resource_drain 类型）
+        if (ideologyOneTimeEffects.resourceDrains) {
+            for (const [resKey, amount] of Object.entries(ideologyOneTimeEffects.resourceDrains)) {
+                if (resources[resKey] != null) {
+                    resources[resKey] = Math.max(0, resources[resKey] - amount);
+                }
+            }
+        }
+        // 处理理念人口加成（flatPop）
+        if (ideologyOneTimeEffects.flatPop) {
+            bonuses.extraMaxPop = (bonuses.extraMaxPop || 0) + ideologyOneTimeEffects.flatPop;
+        }
+        const equippedIds = equippedIdeologies.map(i => i.id);
+        const synergyResult = evaluateSynergyEffects(equippedIds, ideologySynergies, bonuses);
+        const antiSynergyResult = evaluateAntiSynergyEffects(equippedIds, antiSynergies, bonuses);
+        ideologySynergyResult = {
+            ...synergyResult,
+            activeAntiSynergies: antiSynergyResult.activeAntiSynergies,
+        };
+        ideologyRuleMods = mergeRuleMods(
+            applyRuleMods(equippedIdeologies),
+            synergyResult.mechanicEffects?.ruleMods || []
+        );
+
+        // === V2: 将 ruleMods 中的全局修正注入 bonuses ===
+        // corruption_mod: 叠加到腐败率（负值=减少腐败）
+        const ideoCorruptionMod = ideologyRuleMods.corruption_mod?._global || 0;
+        if (ideoCorruptionMod) bonuses.corruption = Math.max(0, (bonuses.corruption || 0) + ideoCorruptionMod);
+        // official_bonus: 作为官员体系整体强度修正，供 UI/后续系统消费
+        bonuses.ideoOfficialBonusMod = ideologyRuleMods.official_bonus?._global || 0;
+        // tax_modifier: 作用于整体征税倍率，和 taxIncome 区分开
+        bonuses.ideoTaxModifier = ideologyRuleMods.tax_modifier?._global || 0;
+        // cooldown_mod: 供外交/军事/策略行动统一读取
+        bonuses.ideoCooldownMod = ideologyRuleMods.cooldown_mod?._global || 0;
+        // trade_route_mod: 叠加到贸易加成
+        const ideoTradeMod = ideologyRuleMods.trade_route_mod?._global || 0;
+        if (ideoTradeMod) bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + ideoTradeMod;
+        // tech_cost_mod: 存到 bonuses 供 hooks 层消费
+        bonuses.ideoTechCostMod = ideologyRuleMods.tech_cost_mod?._global || 0;
+        // building_cost_mod: 按 scope 合并后存到 bonuses 供 hooks 层消费
+        bonuses.ideoBuildingCostMod = ideologyRuleMods.building_cost_mod || {};
+        // recruit_cost_mod: 按 scope 存到 bonuses 供 hooks 层消费
+        bonuses.ideoRecruitCostMod = ideologyRuleMods.recruit_cost_mod || {};
+        // maintenance_cost_mod: 按 scope 存到 bonuses 供军费计算
+        bonuses.ideoMaintenanceCostMod = ideologyRuleMods.maintenance_cost_mod || {};
+        // price_volatility_mod: 全局价格波动衰减
+        bonuses.ideoPriceVolatilityMod = ideologyRuleMods.price_volatility_mod?._global || 0;
+        // resource_price_mod: 按资源 scope 存储
+        bonuses.ideoResourcePriceMod = ideologyRuleMods.resource_price_mod || {};
+        // wages_mod: 按阶层 scope 存储
+        bonuses.ideoWagesMod = ideologyRuleMods.wages_mod || {};
+        // stratum_output_mod: 按阶层 scope 存储
+        bonuses.ideoStratumOutputMod = ideologyRuleMods.stratum_output_mod || {};
+        // building_input_mod: 按建筑分类 scope 存储
+        bonuses.ideoBuildingInputMod = ideologyRuleMods.building_input_mod || {};
+        // unit_attack_mod / unit_defense_mod: 按兵种 scope 存储
+        bonuses.ideoUnitAttackMod = ideologyRuleMods.unit_attack_mod || {};
+        bonuses.ideoUnitDefenseMod = ideologyRuleMods.unit_defense_mod || {};
+        // diplomatic_influence: 全局外交影响力
+        bonuses.ideoDiplomaticInfluence = ideologyRuleMods.diplomatic_influence?._global || 0;
     }
 
     // Apply Epoch bonuses
@@ -1181,20 +1497,8 @@ export const simulateTick = ({
     industryBonus = bonuses.industryBonus;
     taxBonus = bonuses.taxBonus;
     needsReduction = bonuses.needsReduction;
-    const incomePercentBonus = bonuses.incomePercentBonus || 0; // NEW: income percentage bonus
-
-    // [DEBUG] Log incomePercentBonus accumulation if abnormal
-    if (Math.abs(incomePercentBonus) > 0.5) {
-        console.warn('[INCOME BONUS ACCUMULATION]', {
-            tick,
-            final: incomePercentBonus.toFixed(4),
-            breakdown: bonusDebug,
-            officialsCount: officials.length,
-            activeDecreesCount: activeDecrees ? Object.keys(activeDecrees).length : 0,
-            techsCount: techsUnlocked.length,
-            festivalsCount: activeFestivalEffects.length,
-        });
-    }
+    // [MIGRATED] incomePercentBonus 已全部迁移到 taxBonus，通过 effectiveTaxModifier 在征收阶段生效
+    const incomePercentBonus = 0; // 保留变量以兼容后续引用，但值恒为0
 
     // computePriceMultiplier is imported from ./utils/helpers
 
@@ -1210,7 +1514,7 @@ export const simulateTick = ({
     let currentBuildingId = null;
 
     const sellProduction = (resource, amount, ownerKey) => {
-        // 特殊处理银币产出：直接作为所有者收入，不进入国库，不交税
+        // 特殊处理银币产出：直接作为所有者收入，不进入国库，不交?
         if (resource === 'silver' && amount > 0) {
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + amount;
             // 使用 Ledger 记录收入
@@ -1224,7 +1528,7 @@ export const simulateTick = ({
             const marketPrice = getPrice(resource);
 
             // [NEW] 价格管制检查（出售侧）：政府保底收购或收超额利润税
-            // 只有左派主导且启用时才生效
+            // 只有左派主导且启用时才生?
             const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
             const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentBuyPrices?.[resource] !== undefined;
 
@@ -1247,7 +1551,7 @@ export const simulateTick = ({
             const grossIncome = effectivePrice * amount;
             const netIncome = grossIncome;
 
-            // 记录owner的净销售收入 (本地追踪)
+            // 记录owner的净销售收?(本地追踪)
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
 
             // 使用 Ledger 记录收入
@@ -1258,20 +1562,56 @@ export const simulateTick = ({
     perfStart('preProduction');
     const rates = {};
     const builds = buildings;
-    const producedResources = new Set();
+
+    // ========== 战争经济：建筑现已真实销毁，直接使用 builds ==========
+    const playerActiveFrontsForDamage = (activeFronts || []).filter(front =>
+        front?.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player')
+    );
+    // 统计战损（仅用于UI显示，不再用于虚拟扣减）
+    const warDamagedBuildings = aggregateWarDamagedBuildings(playerActiveFrontsForDamage, 'player');
+    // effectiveBuilds 现在等于 builds（建筑已在战线推进时真实销毁）
+    const effectiveBuilds = { ...builds };
+
+    // 战时军工繁荣和贸易中?
+    const activeWarCount = playerActiveFrontsForDamage.length;
+    const { militaryBoost: warMilitaryBoost, miningBoost: warMiningBoost } = calculateMilitaryIndustryBoost(isPlayerAtWar);
+    const { tradeDisruptionPenalty: warTradeDisruption } = calculateWartimeTradeDisruption(activeWarCount);
+
+    let frontlineProductionPenalty = 0;
+    let frontlineTaxEfficiencyPenalty = 0; // 方案A：收集税收效率惩?
+    if (playerActiveFrontsForDamage.length > 0) {
+        const silverIncomeEstimate = Object.values(res || {}).reduce((sum, value) => sum + Number(value || 0), 0) * 0.1;
+        playerActiveFrontsForDamage.forEach((front) => {
+            const playerSide = front.attackerId === 'player' ? 'attacker' : front.defenderId === 'player' ? 'defender' : null;
+            const deployedUnits = playerSide
+                ? (front.assignedCorps?.[playerSide] || []).reduce((sum, corpsId) => {
+                    const corps = (militaryCorps || []).find((item) => item?.id === corpsId);
+                    if (!corps) return sum;
+                    return sum + Object.values(corps.units || {}).reduce((unitSum, count) => unitSum + Number(count || 0), 0);
+                }, 0)
+                : 0;
+            const modifiers = getFrontlineEconomicModifiers(front, 'player', tick, deployedUnits, silverIncomeEstimate, res);
+            frontlineProductionPenalty += Number(modifiers.productionPenalty || 0);
+            frontlineTaxEfficiencyPenalty += Number(modifiers.taxEfficiencyPenalty || 0);
+        });
+        frontlineProductionPenalty = Math.min(0.80, frontlineProductionPenalty);
+        frontlineTaxEfficiencyPenalty = Math.min(0.80, frontlineTaxEfficiencyPenalty);
+    }
+    const frontlineProductionFactor = Math.max(0, 1 - frontlineProductionPenalty);
+
     const jobsAvailable = {};
     const roleWageStats = {};
     const roleWagePayout = {};
     const directIncomeApplied = {};
     const roleVacancyTargets = {};
     let totalMaxPop = 5;
-    let militaryCapacity = 0; // 新增：军事容量
+    let militaryCapacity = 0; // 新增：军事容?
     totalMaxPop += extraMaxPop;
     totalMaxPop += maxPopBonus;
     const armyPopulationDemand = calculateArmyPopulation(army);
     const armyFoodNeed = calculateArmyFoodNeed(army);
 
-    // 计算当前军队数量（只包括已完成训练的）
+    // 计算当前军队数量（只包括已完成训练的?
     const currentArmyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
     // 训练队列数量将在后面单独处理
     const totalArmyCount = currentArmyCount;
@@ -1334,19 +1674,17 @@ export const simulateTick = ({
                 const config = getBuildingEffectiveConfig(b, level);
 
                 // Apply building-specific and category bonuses
-                // Note: buildingBonuses and categoryBonuses use additive mode (0 = no bonus, 0.12 = +12%)
-                let buildingBonus = 1 + (buildingBonuses[b.id] || 0);
-                const catBonus = 1 + (categoryBonuses[b.cat] || 0);
-                buildingBonus *= catBonus;
+                // 加法模式：与生产循环一致（bonusSum = buildingBonus + catBonus）
+                const totalBonus = 1 + (buildingBonuses[b.id] || 0) + (categoryBonuses[b.cat] || 0);
 
-                // maxPop - 乘以该等级建筑数量
+                // maxPop - 乘以该等级建筑数
                 if (config.output?.maxPop) {
-                    totalMaxPop += (config.output.maxPop * buildingBonus * lvlCount);
+                    totalMaxPop += (config.output.maxPop * totalBonus * lvlCount);
                 }
 
-                // militaryCapacity - 乘以该等级建筑数量
+                // militaryCapacity - 乘以该等级建筑数
                 if (config.output?.militaryCapacity) {
-                    militaryCapacity += (config.output.militaryCapacity * buildingBonus * lvlCount);
+                    militaryCapacity += (config.output.militaryCapacity * totalBonus * lvlCount);
                 }
 
                 // jobs - 使用升级后的配置，乘以该等级建筑数量
@@ -1355,27 +1693,17 @@ export const simulateTick = ({
                         jobsAvailable[role] = (jobsAvailable[role] || 0) + config.jobs[role] * lvlCount;
                     }
                 }
-
-                // 记录已生产的资源类型
-                if (config.output) {
-                    Object.entries(config.output).forEach(([resKey, amount]) => {
-                        if (!RESOURCES[resKey]) return;
-                        if ((amount || 0) > 0) {
-                            producedResources.add(resKey);
-                        }
-                    });
-                }
             });
         }
     });
     // console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity); // Commented for performance
 
-    // ========== 统一业主系统：修正非阶层业主的建筑岗位 ==========
+    // ========== 统一业主系统：修正非阶层业主的建筑岗?==========
     // 使用 buildOwnershipListFromLegacy 从分散数据源构建业主信息
     // 然后根据业主类型调整 jobsAvailable
-    // 核心逻辑：只有阶层业主(STRATUM)才提供业主岗位，其他类型(官员/外资/国企)不提供
+    // 核心逻辑：只有阶层业?STRATUM)才提供业主岗位，其他类型(官员/外资/国企)不提?
 
-    // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
+    // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位?
     perfStart('ownerJobsAdjust');
     const buildingJobsRequired = {};
 
@@ -1476,8 +1804,8 @@ export const simulateTick = ({
     }
     totalMaxPop = Math.floor(totalMaxPop);
 
-    // 军人岗位包括：已有军队 + 等待人员的岗位 + 训练中的岗位
-    // 计算已有军队的人口需求
+    // 军人岗位包括：已有军?+ 等待人员的岗?+ 训练中的岗位
+    // 计算已有军队的人口需?
     let currentArmyPopNeeded = 0;
     Object.entries(army).forEach(([unitId, count]) => {
         if (!count || count <= 0) return;
@@ -1486,7 +1814,7 @@ export const simulateTick = ({
         currentArmyPopNeeded += count * popCost;
     });
 
-    // 计算队列中的人口需求
+    // 计算队列中的人口需?
     const queuePopNeeded = (militaryQueue || []).reduce((sum, item) => {
         if (item.status === 'waiting' || item.status === 'training') {
             const unit = UNIT_TYPES[item.unitId];
@@ -1496,7 +1824,7 @@ export const simulateTick = ({
         return sum;
     }, 0);
 
-    // 总岗位需求 = 现有军队人口 + 队列所需人口
+    // 总岗位需?= 现有军队人口 + 队列所需人口
     const soldierJobsNeeded = currentArmyPopNeeded + queuePopNeeded;
     // console.log('[TICK] Adding soldier jobs. currentArmyPop:', currentArmyPopNeeded, 'queuePop:', queuePopNeeded, 'total:', soldierJobsNeeded); // Commented for performance
     if (soldierJobsNeeded > 0) {
@@ -1513,8 +1841,8 @@ export const simulateTick = ({
     let diff = 0;
 
     if (!hasPreviousPopStructure) {
-        // 首次运行：按岗位需求进行一次性初始分配
-        // 这能确保例如军队/训练队列产生的 `soldier` 岗位在开局就能拿到人
+        // 首次运行：按岗位需求进行一次性初始分?
+        // 这能确保例如军队/训练队列产生?`soldier` 岗位在开局就能拿到?
         let remainingPop = population;
         ROLE_PRIORITY.forEach(role => {
             const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -1524,22 +1852,22 @@ export const simulateTick = ({
         });
         popStructure.unemployed = Math.max(0, remainingPop);
     } else {
-        // 继承上一帧状态
+        // 继承上一帧状?
         ROLE_PRIORITY.forEach(role => {
             const prevCount = (previousPopStructure[role] || 0);
             popStructure[role] = Math.max(0, prevCount);
         });
         popStructure.unemployed = Math.max(0, (previousPopStructure.unemployed || 0));
 
-        // 处理人口变化（增长或减少）
+        // 处理人口变化（增长或减少?
         const assignedPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0) + (popStructure.unemployed || 0);
         diff = population - assignedPop;
 
         if (diff > 0) {
-            // 人口增长：新人加入失业者
+            // 人口增长：新人加入失业?
             popStructure.unemployed = (popStructure.unemployed || 0) + diff;
         } else if (diff < 0) {
-            // 人口减少：仅从失业者中扣除，不自动从各职业扣除（防止人口被吸走）
+            // 人口减少：仅从失业者中扣除，不自动从各职业扣除（防止人口被吸走?
             let reductionNeeded = -diff;
             const unemployedReduction = Math.min(popStructure.unemployed || 0, reductionNeeded);
             if (unemployedReduction > 0) {
@@ -1552,7 +1880,25 @@ export const simulateTick = ({
             if (reductionNeeded > 0) {
                 const initialTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0);
                 if (initialTotal > 0) {
+                    // [FIX] 自营粮食/布料生产者部分豁免：
+                    // 构建"受保护角色"集合——产出关键资源（food/cloth）的自营建筑的业主角色
+                    const CRITICAL_SURVIVAL_RESOURCES = ['food', 'cloth'];
+                    const protectedRoles = new Set();
+                    BUILDINGS.forEach(building => {
+                        const count = buildings[building.id] || 0;
+                        if (count <= 0 || !building.owner || !building.output) return;
+                        // 自营建筑（owner 也在 jobs 中）
+                        if (!building.jobs || !building.jobs[building.owner]) return;
+                        const producesEssential = Object.keys(building.output).some(
+                            res => CRITICAL_SURVIVAL_RESOURCES.includes(res)
+                        );
+                        if (producesEssential) {
+                            protectedRoles.add(building.owner);
+                        }
+                    });
+
                     const baseReduction = reductionNeeded;
+                    // 第一轮：按比例裁减，受保护角色减半
                     ROLE_PRIORITY.forEach((role, index) => {
                         if (reductionNeeded <= 0) return;
                         const current = popStructure[role] || 0;
@@ -1560,6 +1906,10 @@ export const simulateTick = ({
                         const proportion = current / initialTotal;
                         let remove = Math.floor(proportion * baseReduction);
                         if (remove <= 0 && reductionNeeded > 0) remove = 1;
+                        // 受保护角色裁员量减半（50% 豁免）
+                        if (protectedRoles.has(role)) {
+                            remove = Math.max(1, Math.floor(remove * 0.5));
+                        }
                         if (index === ROLE_PRIORITY.length - 1) {
                             remove = Math.min(current, reductionNeeded);
                         } else {
@@ -1590,7 +1940,7 @@ export const simulateTick = ({
     const defaultWageEstimate = calculateWeightedAverageWage(popStructure, previousWages);
 
     // 处理岗位上限（裁员）：如果职业人数超过岗位数，将多出的人转为失业
-    // 注意：official 阶层不参与自由流动，人数由雇佣的官员数决定
+    // 注意：official 阶层不参与自由流动，人数由雇佣的官员数决?
     ROLE_PRIORITY.forEach(role => {
         if (role === 'official') return; // 官员不参与普通裁员逻辑
 
@@ -1601,7 +1951,7 @@ export const simulateTick = ({
             const roleWealth = wealth[role] || 0;
             const perCapWealth = current > 0 ? roleWealth / current : 0;
 
-            // 裁员：人口移至失业，并携带财富
+            // 裁员：人口移至失业，并携带财?
             popStructure[role] = slots;
             popStructure.unemployed = (popStructure.unemployed || 0) + layoffs;
 
@@ -1614,12 +1964,12 @@ export const simulateTick = ({
     });
 
     // === 官员阶层特殊处理 ===
-    // 官员人数 = min(建筑提供的岗位, 雇佣的官员数)
+    // 官员人数 = min(建筑提供的岗? 雇佣的官员数)
     const officialJobs = jobsAvailable.official || 0;
     const hiredOfficialCount = Array.isArray(officials) ? officials.length : 0;
     const actualOfficialCount = hiredOfficialCount; // Allow all hired officials to be counted, even if exceeding jobs
     popStructure.official = actualOfficialCount;
-    // 官员财富由每位官员独立持有，不计入 wealth.official（清零以避免重复）
+    // 官员财富由每位官员独立持有，不计?wealth.official（清零以避免重复?
     wealth.official = 0;
 
     let taxModifier = 1.0;
@@ -1627,20 +1977,23 @@ export const simulateTick = ({
     // 执政联盟合法性计算（初步，待影响力计算后会精确计算）
     // 此处使用上一tick的数据估算，避免循环依赖
     let coalitionLegitimacy = 0;
-    // 使用上一tick的合法性计算税收修正（避免循环依赖）
+    // 使用上一tick的合法性计算税收修正（避免循环依赖?
     let legitimacyTaxModifier = getLegitimacyTaxModifier(previousLegitimacy);
 
-    // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正中
-    // bonuses.taxBonus 是来自 effects.taxIncome 的累加值（如庆典效果、政令效果等）
-    const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
+    // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正?
+    // bonuses.taxBonus 是来?effects.taxIncome 的累加值（如庆典效果、政令效果等?
+    const effectiveTaxModifier = Math.max(
+        0,
+        taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0) + (bonuses.ideoTaxModifier || 0))
+    );
 
     // [FIX] 提前定义空岗位收入预估函数，用于 fillVacancies 时的智能工资判断
-    // 逻辑与 simulation 尾部的 estimateVacantRoleIncome 类似，但只能使用上一 tick 的数据 (market.wages)
+    // 逻辑?simulation 尾部?estimateVacantRoleIncome 类似，但只能使用上一 tick 的数?(market.wages)
     const estimatePotentialIncomeForVacancy = (role) => {
         const VACANT_BONUS = 1.2;
 
-        // [FIX] 计算税收效率，用于补贴计算
-        // 注意：此时 efficiency 尚未计算，使用 currentStability 估算
+        // [FIX] 计算税收效率，用于补贴计?
+        // 注意：此?efficiency 尚未计算，使?currentStability 估算
         const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
         const estimatedEfficiency = estimatedStabilityFactor;
         const rawEfficiency = estimatedEfficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
@@ -1663,7 +2016,7 @@ export const simulateTick = ({
             const isOwner = building.owner === role;
 
             if (isOwner) {
-                // 业主预估：产出 - 成本 - 雇员工资 - 税
+                // 业主预估：产?- 成本 - 雇员工资 - ?
                 let outputValue = 0;
                 if (config.output) {
                     Object.entries(config.output).forEach(([resource, amount]) => {
@@ -1683,7 +2036,7 @@ export const simulateTick = ({
                 let wageCost = 0;
                 Object.entries(jobs).forEach(([jobRole, slots]) => {
                     if (jobRole === role || !slots || slots <= 0) return;
-                    // 使用上一 tick 的工资作为参考
+                    // 使用上一 tick 的工资作为参?
                     const avgPaidWage = market?.wages?.[jobRole] ?? getExpectedWage(jobRole);
                     wageCost += avgPaidWage * slots;
                 });
@@ -1694,9 +2047,9 @@ export const simulateTick = ({
                 const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
                 // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
-                // 如果是补贴（负数），实际到账金额受税收效率影响
+                // 如果是补贴（负数），实际到账金额受税收效率影?
                 const effectiveBusinessTaxCost = businessTaxCost < 0
-                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影响
+                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影?
                     : businessTaxCost;                        // 正税全额支付
 
                 const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
@@ -1705,16 +2058,47 @@ export const simulateTick = ({
                 ownerIncome += profitPerOwner * roleSlots * count;
                 ownerSlots += roleSlots * count;
             } else {
-                // 雇员预估：使用上一 tick 市场工资，如果为 0 则尝试从 building 属性推断
-                // 注意：这里是一个关键点，如果没有历史工资，我们应该相信 building 的 wagePressure 吗？
-                // simulation 尾部的逻辑是直接取 market.wages，但这里正是因为 market.wages 低才导致没人来
-                // 既然是雇员，主要看"期望工资" + "空缺加成"
-                // 但如果该岗位是高利润行业的工人，应该能给得起高工资。
-                // 简单起见，我们对雇员也应用 VACANT_BONUS 到 getExpectedWage 上
+                // 雇员预估：使用上一 tick 市场工资，如果为 0 则尝试从 building 属性推导
+                // [FIX] 冷启动修复：当历史工资极低时，基于建筑利润反推合理工资预期
+                // 计算建筑的潜在利润来推测雇员应得的合理工资
                 const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
+                
+                // 计算建筑利润以推断合理的雇员工资（解决新行业冷启动问题）
+                let estimatedWage = avgPaidWage;
+                const baseExpected = getExpectedWage(role);
+                
+                // 如果历史工资明显偏低（低于基础预期的 50%），尝试用利润反推
+                if (avgPaidWage < baseExpected * 0.5) {
+                    let buildingOutputValue = 0;
+                    if (config.output) {
+                        Object.entries(config.output).forEach(([resource, amount]) => {
+                            if (!RESOURCES[resource]) return;
+                            const price = priceMap[resource] || getBasePrice(resource);
+                            buildingOutputValue += amount * price;
+                        });
+                    }
+                    let buildingInputCost = 0;
+                    if (config.input) {
+                        Object.entries(config.input).forEach(([resource, amount]) => {
+                            const price = priceMap[resource] || getBasePrice(resource);
+                            buildingInputCost += amount * price;
+                        });
+                    }
+                    const buildingProfit = buildingOutputValue - buildingInputCost;
+                    
+                    // 如果建筑有利润，将 40% 的利润分配给所有雇员作为合理工资预期
+                    if (buildingProfit > 0) {
+                        const totalEmployeeSlots = Object.entries(jobs)
+                            .filter(([r]) => r !== building.owner)
+                            .reduce((sum, [, s]) => sum + (s || 0), 0);
+                        if (totalEmployeeSlots > 0) {
+                            const profitSharePerSlot = (buildingProfit * 0.4) / totalEmployeeSlots;
+                            estimatedWage = Math.max(avgPaidWage, profitSharePerSlot, baseExpected);
+                        }
+                    }
+                }
 
-                // 计算税后（虽然这里只算工资部分，统一后面处理）
-                employeeWage += avgPaidWage * roleSlots * count;
+                employeeWage += estimatedWage * roleSlots * count;
                 employeeSlots += roleSlots * count;
             }
         });
@@ -1722,24 +2106,25 @@ export const simulateTick = ({
         const totalSlots = ownerSlots + employeeSlots;
         if (totalSlots <= 0) return getExpectedWage(role);
 
-        // 如果是纯雇员岗位且历史工资极低，尝试根据行业利润反推？
-        // 目前暂不搞太复杂，先仅对"有产出但没工资"的情况做兜底
-        // 但对于 worker 这种纯雇员，如果 market.wages 是 0，这里算出来还是 0
-        // 需要一个机制让"空的高利润工厂"广播高工资
-        // 在 building production loop 中我们有 wagePressure，但这里还是 start of tick
+        // 如果是纯雇员岗位且历史工资极低，尝试根据行业利润反推?
+        // 目前暂不搞太复杂，先仅对"有产出但没工?的情况做兜底
+        // 但对?worker 这种纯雇员，如果 market.wages ?0，这里算出来还是 0
+        // 需要一个机制让"空的高利润工?广播高工?
+        // ?building production loop 中我们有 wagePressure，但这里还是 start of tick
 
-        // 改进：如果是雇员，且计算出的 employeeWage 很低，但所在的工厂很赚钱...
-        // 这太复杂了。目前先复用原有逻辑，依赖 VACANT_BONUS 提升吸引力
+        // 改进：如果是雇员，且计算出的 employeeWage 很低，但所在的工厂很赚?..
+        // 这太复杂了。目前先复用原有逻辑，依?VACANT_BONUS 提升吸引?
         const totalIncome = ownerIncome + employeeWage;
         const averageIncome = totalIncome / totalSlots;
         return Math.max(getExpectedWage(role), averageIncome * VACANT_BONUS);
     };
 
-    // [FIX] 智能工资获取器
+    // [FIX] 智能工资获取：当岗位人数少时，用预估潜力代替历史工资吸引人
     const getSmartExpectedWage = (role) => {
         const currentPop = popStructure[role] || 0;
-        // 如果没人干这个活，或者人很少，就使用"画饼"模式（预估潜力）来吸引人
-        if (currentPop <= 5) {
+        // 当人数低于 LOW_POP_THRESHOLD 时，使用"画饼"模式（预估潜力）来吸引人
+        // 这对新行业冷启动至关重要
+        if (currentPop <= LOW_POP_THRESHOLD) {
             const potential = estimatePotentialIncomeForVacancy(role);
             const standard = getExpectedWage(role);
             return Math.max(potential, standard);
@@ -1747,7 +2132,7 @@ export const simulateTick = ({
         return getExpectedWage(role);
     };
 
-    // 自动填补（招工）：使用 job.js 中的 fillVacancies 函数，支持阶层流动
+    // 自动填补（招工）：使?job.js 中的 fillVacancies 函数，支持阶层流?
     const filledResult = fillVacancies({
         popStructure,
         jobsAvailable,
@@ -1760,9 +2145,9 @@ export const simulateTick = ({
 
     // 重新赋值更新后的人口结构和财富
     // 注意：fillVacancies 会直接修改传入的对象引用，但在 React/Redux 模式下通常建议返回新对象
-    // 这里 fillVacancies 返回了 { popStructure, wealth }，我们将其解构回来确保引用正确
-    // (虽然 simulation.js 中 popStructure 和 wealth 是局部变量，可以直接修改)
-    // 保持代码清晰：
+    // 这里 fillVacancies 返回的 { popStructure, wealth }，我们将其解构回来确保引用正确
+    // (虽然 simulation.js 的 popStructure 和 wealth 是局部变量，可以直接修改)
+    // 保持代码清晰性
     // const { popStructure: updatedPop, wealth: updatedWealth } = filledResult;
 
     const classApproval = {};
@@ -1846,12 +2231,12 @@ export const simulateTick = ({
     });
 
     const zeroApprovalClasses = {};
-    // 允许负的 needsReduction (即增加需求)，下限设为 -2 (需求翻3倍)，上限 0.95
+    // 允许负的 needsReduction (即增加需?，下限设?-2 (需求翻3?，上?0.95
     const effectiveNeedsReduction = Math.max(-2, Math.min(0.95, needsReduction || 0));
     const needsRequirementMultiplier = 1 - effectiveNeedsReduction;
 
     // [FIX] 保存税前存款快照，用于后续TaxShock计算
-    // 这样即使税收榨干了存款，也能正确计算税收占比来触发惩罚
+    // 这样即使税收榨干了存款，也能正确计算税收占比来触发惩?
     const preTaxWealth = {};
     Object.keys(STRATA).forEach(key => {
         preTaxWealth[key] = wealth[key] || 0;
@@ -1876,7 +2261,7 @@ export const simulateTick = ({
             : plannedPerCapitaTax;
         const due = count * effectivePerCapitaTax;
 
-        // [DEBUG] 人头税征收调试日志
+        // [DEBUG] 人头税征收调试日?
         // if (Math.abs(headRate) > 5) { // 只在税率异常高时输出
         //     console.log(`[HEAD TAX DEBUG] ${key}:`, {
         //         人口: count,
@@ -1887,7 +2272,7 @@ export const simulateTick = ({
         //         实际人均税额: effectivePerCapitaTax.toFixed(2),
         //         应缴总额: due.toFixed(2),
         //         实际支付: Math.min(available, due).toFixed(2),
-        //         是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '是' : '否'
+        //         是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '? : '?
         //     });
         // }
 
@@ -1895,7 +2280,7 @@ export const simulateTick = ({
             if (due > 0) {
                 const paid = Math.min(available, due);
                 ledger.transfer(key, 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
-                // 记录人头税支出 (本地追踪用于逻辑判断)
+                // 记录人头税支?(本地追踪用于逻辑判断)
                 roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
                 roleExpense[key] = (roleExpense[key] || 0) + paid;
                 roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid;
@@ -1922,10 +2307,11 @@ export const simulateTick = ({
     // console.log('[TICK] Starting production loop...'); // Commented for performance
     perfStart('productionLoop');
     BUILDINGS.forEach(b => {
-        const count = builds[b.id] || 0;
+        // 使用有效建筑数（扣除战争损毁后）用于产出计算
+        const count = effectiveBuilds[b.id] || 0;
         if (count === 0) return;
 
-        // --- 计算升级加成后的基础数值 ---
+        // --- 计算升级加成后的基础数?---
         const { fullLevelCounts: levelCounts, level0Count, hasUpgrades } = getBuildingLevelDistribution(
             tick,
             b.id,
@@ -1949,20 +2335,20 @@ export const simulateTick = ({
             ownerLevelGroups[ownerKey].totalCount += lvlCount;
         });
 
-        // 初始化所有涉及的 owner 的财富
+        // 初始化所有涉及的 owner 的财?
         Object.keys(ownerLevelGroups).forEach(ownerKey => {
             if (wealth[ownerKey] === undefined) {
                 wealth[ownerKey] = STRATA[ownerKey]?.startingWealth || 0;
             }
         });
 
-        // 获取主要 owner（用于向后兼容现有逻辑中的部分判断）
+        // 获取主要 owner（用于向后兼容现有逻辑中的部分判断?
         const primaryOwnerKey = b.owner || 'state';
 
         let multiplier = 1.0;
 
         if (!hasUpgrades && level0Count === count) {
-            // 无升级快速路径
+            // 无升级快速路?
             if (b.input) for (const [k, v] of Object.entries(b.input)) effectiveOps.input[k] = v * count;
             if (b.output) for (const [k, v] of Object.entries(b.output)) effectiveOps.output[k] = v * count;
             if (b.jobs) for (const [k, v] of Object.entries(b.jobs)) effectiveOps.jobs[k] = v * count;
@@ -1981,7 +2367,7 @@ export const simulateTick = ({
         const currentEpoch = EPOCHS[epoch];
 
         // ========== 加法叠加模式 ==========
-        // 收集所有加成百分比，最后统一计算 multiplier = 1 + 所有加成之和
+        // 收集所有加成百分比，最后统一计算 multiplier = 1 + 所有加成之?
         let bonusSum = 0;
 
         // 1. 时代加成
@@ -1994,7 +2380,7 @@ export const simulateTick = ({
             }
         }
 
-        // 2. 全局生产/工业 modifier（来自 buff/debuff）
+        // 2. 全局生产/工业 modifier（来?buff/debuff?
         let productionBonusSum = 0;
         let industryBonusSum = 0;
         productionBuffs.forEach(buff => {
@@ -2016,12 +2402,27 @@ export const simulateTick = ({
             bonusSum += industryBonusSum;
         }
 
-        // 2.5 战时产出加成（仅在战争中生效）
+        // 2.5 战时产出加成（仅在战争中生效?
         if (isPlayerAtWar && bonuses.wartimeProduction) {
             bonusSum += bonuses.wartimeProduction;
         }
 
-        // 3. 类别加成（categoryBonuses 现在直接存储加成百分比，如 0.25 = +25%）
+        // 2.6 战争经济：军工繁荣加成（军事?20%，采矿类+10%?
+        if (isPlayerAtWar) {
+            if (b.cat === 'military' && warMilitaryBoost > 0) {
+                bonusSum += warMilitaryBoost;
+            }
+            // 采矿类建筑（gather中产出iron/copper/coal/stone的建筑）
+            if (b.cat === 'gather' && warMiningBoost > 0) {
+                const miningOutputs = ['iron', 'copper', 'coal', 'stone'];
+                const isMiningBuilding = b.output && Object.keys(b.output).some(k => miningOutputs.includes(k));
+                if (isMiningBuilding) {
+                    bonusSum += warMiningBoost;
+                }
+            }
+        }
+
+        // 3. 类别加成（categoryBonuses 现在直接存储加成百分比，?0.25 = +25%?
         const categoryBonus = categoryBonuses[b.cat];
         if (categoryBonus && categoryBonus !== 0) {
             bonusSum += categoryBonus;
@@ -2033,13 +2434,21 @@ export const simulateTick = ({
         const buildingAllMod = eventBuildingProductionModifiers['all'] || 0;
         bonusSum += buildingSpecificMod + buildingCategoryMod + buildingAllMod;
 
-        // 5. 建筑特定科技加成（buildingBonuses 现在直接存储加成百分比，如 0.25 = +25%）
+        // 5. 建筑特定科技加成（buildingBonuses 现在直接存储加成百分比，?0.25 = +25%?
         const buildingBonus = buildingBonuses[b.id];
         if (buildingBonus && buildingBonus !== 0) {
             bonusSum += buildingBonus;
         }
 
-        // 应用加成：基础乘数 × (1 + 总加成)
+        // 6. V2: 理念阶层产出加成（stratum_output_mod）
+        // 按建筑 owner 阶层匹配，提升该阶层拥有建筑的产出
+        if (bonuses.ideoStratumOutputMod) {
+            const ownerMod = bonuses.ideoStratumOutputMod[primaryOwnerKey] || 0;
+            const globalMod = bonuses.ideoStratumOutputMod._global || 0;
+            if (ownerMod + globalMod !== 0) bonusSum += ownerMod + globalMod;
+        }
+
+        // 应用加成：基础乘数 × (1 + 总加?
         multiplier *= (1 + bonusSum);
 
         // Init per-building realized financial stats container
@@ -2067,9 +2476,9 @@ export const simulateTick = ({
         if (Object.keys(jobRequirements).length > 0) {
             buildingJobFill[b.id] = buildingJobFill[b.id] || {};
 
-            // [CRITICAL FIX] 使用瓶颈法则计算到岗率
+            // [CRITICAL FIX] 使用瓶颈法则计算到岗?
             // 生产受限于最低的非业主角色填充率（工人是生产的瓶颈）
-            // 业主可以管理但不能替代工人生产
+            // 业主可以管理但不能替代工人生?
             let minNonOwnerFillRate = Infinity;
             let hasNonOwnerRole = false;
 
@@ -2112,26 +2521,29 @@ export const simulateTick = ({
                     const cached = roleExpectedWages[role] ?? getExpectedWage(role);
                     const livingFloor = getLivingCostFloor(role);
                     const adjustedWage = Math.max(cached, livingFloor);
-                    roleExpectedWages[role] = adjustedWage;
-                    expectedWageBillBase += roleFilled * adjustedWage;
+                    // V2: 理念工资修正（wages_mod，按阶层 scope）
+                    const ideoWageMod = (bonuses.ideoWagesMod?.[role] || 0) + (bonuses.ideoWagesMod?._global || 0);
+                    const finalWage = ideoWageMod !== 0 ? Math.max(livingFloor, adjustedWage * (1 + ideoWageMod)) : adjustedWage;
+                    roleExpectedWages[role] = finalWage;
+                    expectedWageBillBase += roleFilled * finalWage;
                     wagePlans.push({
                         role,
                         ownerKey: b.owner || 'state',
                         roleSlots: roleRequired,
                         filled: roleFilled,
-                        baseWage: adjustedWage,
+                        baseWage: finalWage,
                     });
                 }
             }
 
             // [CRITICAL FIX] 到岗率计算使用瓶颈法则：
             // - 如果有非业主角色（工人），使用最低工人填充率作为生产上限
-            // - 如果只有业主角色（如农场只有peasant），使用平均填充率
+            // - 如果只有业主角色（如农场只有peasant），使用平均填充?
             if (hasNonOwnerRole) {
                 // 有工人角色时，生产受最低工人填充率限制
                 staffingRatio = minNonOwnerFillRate === Infinity ? 0 : minNonOwnerFillRate;
             } else if (totalSlots > 0) {
-                // 只有业主角色时（自营建筑），使用普通平均
+                // 只有业主角色时（自营建筑），使用普通平?
                 staffingRatio = filledSlots / totalSlots;
             }
 
@@ -2162,27 +2574,29 @@ export const simulateTick = ({
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
 
-        // === 应用生产成本修正（官员效果 + 政治立场效果） ===
-        // 只对有 input 且有 output 的建筑生效（加工类建筑）
+        // === 应用生产成本修正（官员效?+ 政治立场效果?===
+        // 只对?input 且有 output 的建筑生效（加工类建筑）
         const hasInput = Object.keys(effectiveOps.input).length > 0;
         const hasOutput = Object.keys(effectiveOps.output).some(k => k !== 'maxPop' && k !== 'militaryCapacity');
         if (hasInput && hasOutput) {
-            // 合并官员效果和政治立场效果
+            // 合并官员效果和政治立场效?
             const officialInputCostMod = bonuses.officialProductionInputCost?.[b.id] || 0;
             const stanceInputCostMod = bonuses.stanceProductionInputCost?.[b.id] || 0;
-            const totalInputCostMod = officialInputCostMod + stanceInputCostMod;
+            // V2: 理念建筑消耗修正（按建筑分类 scope）
+            const ideoInputCostMod = (bonuses.ideoBuildingInputMod?.[b.cat] || 0) + (bonuses.ideoBuildingInputMod?._global || 0);
+            const totalInputCostMod = officialInputCostMod + stanceInputCostMod + ideoInputCostMod;
 
-            // 应用修正：正值增加消耗，负值减少消耗
+            // 应用修正：正值增加消耗，负值减少消?
             if (totalInputCostMod !== 0) {
                 const inputModMultiplier = 1 + totalInputCostMod;
-                // 确保修正后的消耗不低于原始的 20%
+                // 确保修正后的消耗不低于原始?20%
                 const safeMultiplier = Math.max(0.2, inputModMultiplier);
                 for (const [resKey, amount] of Object.entries(effectiveOps.input)) {
                     effectiveOps.input[resKey] = amount * safeMultiplier;
                 }
             }
 
-            // 资源浪费：对投入资源增加额外消耗
+            // 资源浪费：对投入资源增加额外消?
             if (bonuses.resourceWaste) {
                 for (const [resKey, amount] of Object.entries(effectiveOps.input)) {
                     const wasteMod = bonuses.resourceWaste?.[resKey] || 0;
@@ -2218,22 +2632,22 @@ export const simulateTick = ({
             }
         }
 
-        // 防死锁机制：采集类建筑在缺少输入原料时进入低效模式
-        let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+        // 防死锁机制：采集类建筑在缺少输入原料时进入低效模?
+        let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit)) * frontlineProductionFactor;
         // Potential target multiplier (if staffed)
-        let simTargetMultiplier = simBaseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+        let simTargetMultiplier = simBaseMultiplier * Math.max(0, Math.min(1, resourceLimit)) * frontlineProductionFactor;
 
         if (b.cat === 'gather' && resourceLimit === 0 && Object.keys(effectiveOps.input).length > 0) {
-            // 进入低效模式：20%效率，不消耗原料
+            // 进入低效模式?0%效率，不消耗原?
             targetMultiplier = baseMultiplier * 0.2;
             simTargetMultiplier = simBaseMultiplier * 0.2;
             isInLowEfficiencyMode = true;
             inputCostPerMultiplier = 0; // 低效模式下不消耗原料，因此成本为0
 
             // 添加日志提示（每个建筑类型只提示一次，避免刷屏）
-            const inputNames = Object.keys(effectiveOps.input).map(k => RESOURCES[k]?.name || k).join('、');
+            const inputNames = Object.keys(effectiveOps.input).map(k => RESOURCES[k]?.name || k).join(', ');
             if (tick % 30 === 0) { // 每30个tick提示一次
-                recordAggregatedLog(`?? ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
+                recordAggregatedLog(`⚠️ ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
             }
         }
 
@@ -2247,7 +2661,7 @@ export const simulateTick = ({
                 const perMultiplierAmount = totalAmount;
                 const grossValue = perMultiplierAmount * getPrice(resKey);
                 // 修正：生产者只获得商品的基础市场价值，消费税或补贴发生在消费端
-                // 之前的逻辑错误地认为生产者获得补贴，或承担税收
+                // 之前的逻辑错误地认为生产者获得补贴，或承担税?
                 const netValue = grossValue;
                 outputValuePerMultiplier += netValue;
             }
@@ -2270,18 +2684,18 @@ export const simulateTick = ({
         const wageCostPerMultiplier = baseWageCostPerMultiplier * wagePressure;
         const estimatedWageCost = wageCostPerMultiplier * simTargetMultiplier;
 
-        // 预估营业税成本
+        // 预估营业税成?
         // 军事类建筑不收营业税
         // 居住类建筑（无owner且产出maxPop的civic建筑）不收营业税
         const isHousingBuilding = b.cat === 'civic' && !b.owner && b.output?.maxPop > 0;
         const isMilitaryBuilding = b.cat === 'military';
         // 营业税额 = 建筑基准税额 × 税率系数
-        // businessTaxBase 默认为 0.1，税率系数由玩家设置（默认1）
+        // businessTaxBase 默认为0.1，税率系数由玩家设置（默认1）
         const businessTaxBase = b.businessTaxBase ?? 0.1;
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
-        // [FIX] 营业税只与建筑是否在运营相关（有工人在岗），与产量无关
-        // 使用 staffingRatio 确保预估和实际征收逻辑一致
+        // [FIX] 营业税只与建筑是否在运营相关（有工人在岗），与产量无?
+        // 使用 staffingRatio 确保预估和实际征收逻辑一?
         const effectiveStaffingRatio = staffingRatio || 0;
         const estimatedBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
 
@@ -2295,31 +2709,31 @@ export const simulateTick = ({
         let debugData = null;
 
         // BUG FIX: 实际可支付的工资不能超过 (收入 - 原料成本)
-        // 如果市场工资过高，建筑只会支付它能支付的部分，而不是削减产量
-        // 这避免了工资通胀导致的产量崩溃
+        // 如果市场工资过高，建筑只会支付它能支付的部分，而不是削减产?
+        // 这避免了工资通胀导致的产量崩?
         const actualPayableWageCost = Math.min(estimatedWageCost, valueAvailableForLabor);
-        // 计算实际每单位乘数的工资成本（用于affordableMultiplier计算）
+        // 计算实际每单位乘数的工资成本（用于affordableMultiplier计算?
         const actualWageCostPerMultiplier = targetMultiplier > 0 ? actualPayableWageCost / targetMultiplier : 0;
-        // 实际运营成本 = 原料成本 + 实际可支付工资成本
+        // 实际运营成本 = 原料成本 + 实际可支付工资成?
         const actualOperatingCostPerMultiplier = inputCostPerMultiplier + actualWageCostPerMultiplier;
 
         if (producesTradableOutput) {
 
-            // [FIX] 使用边际成本分析而非总成本分析
+            // [FIX] 使用边际成本分析而非总成本分?
             // 工资是固定成本（已经承诺支付），不应影响产量决策
-            // 只有可变成本（原料+税费）应该影响产量决策
+            // 只有可变成本（原?税费）应该影响产量决?
             // 
             // 经济学原理：
-            // - 如果边际收益（产出 - 原料 - 税费）> 0，应该生产
-            // - 即使总成本（含工资）> 总收入，只要边际收益 > 0，生产可以减少亏损
-            // - 只有当边际收益 < 0 时，才应该停产
+            // - 如果边际收益（产?- 原料 - 税费? 0，应该生?
+            // - 即使总成本（含工资）> 总收入，只要边际收益 > 0，生产可以减少亏?
+            // - 只有当边际收?< 0 时，才应该停?
 
             // 可变成本 = 原料成本 + 营业税（补贴为负，减少成本）
             const variableCost = estimatedInputCost + estimatedBusinessTax;
-            // 边际收益 = 产出价值 - 可变成本
+            // 边际收益 = 产出价?- 可变成本
             const marginalRevenue = estimatedRevenue - variableCost;
 
-            // 总成本（用于调试和UI显示）
+            // 总成本（用于调试和UI显示?
             const estimatedCost = estimatedInputCost + actualPayableWageCost + estimatedBusinessTax;
 
             if (estimatedRevenue <= 0) {
@@ -2332,16 +2746,16 @@ export const simulateTick = ({
                 debugMarginRatio = 0;
             } else if (marginalRevenue < actualPayableWageCost * 0.5) {
                 // 边际收益太低，无法覆盖一半的工资成本
-                // 按比例减产（边际收益 / 工资成本）
+                // 按比例减产（边际收益 / 工资成本?
                 const marginRatio = Math.max(0, Math.min(1, marginalRevenue / actualPayableWageCost));
                 debugMarginRatio = marginRatio;
                 actualMultiplier = targetMultiplier * marginRatio;
                 simActualMultiplier = simTargetMultiplier * marginRatio;
             } else {
-                // 边际收益为正且足够，满负荷生产
+                // 边际收益为正且足够，满负荷生?
                 debugMarginRatio = estimatedCost > 0 ? estimatedRevenue / estimatedCost : null;
             }
-            // DEBUG: 存储调试数据到局部变量
+            // DEBUG: 存储调试数据到局部变?
             debugData = {
                 baseMultiplier,
                 resourceLimit,
@@ -2349,9 +2763,9 @@ export const simulateTick = ({
                 estimatedRevenue,
                 estimatedInputCost,
                 estimatedWageCost,
-                actualPayableWageCost, // 新增：实际可支付的工资成本
+                actualPayableWageCost, // 新增：实际可支付的工资成?
                 actualWageCostPerMultiplier, // 新增：实际每单位工资成本
-                actualOperatingCostPerMultiplier, // 新增：实际运营成本
+                actualOperatingCostPerMultiplier, // 新增：实际运营成?
                 estimatedBusinessTax,
                 estimatedCost,
                 marginRatio: debugMarginRatio,
@@ -2371,7 +2785,7 @@ export const simulateTick = ({
             };
         }
         if (actualOperatingCostPerMultiplier > 0) {
-            // 检查所有 owner 的财富是否足够支付运营成本
+            // 检查所?owner 的财富是否足够支付运营成?
             // BUG FIX: 使用实际可支付的运营成本，而不是基于市场工资的成本
             let minAffordableMultiplier = Infinity;
             const ownerDetails = [];
@@ -2397,7 +2811,7 @@ export const simulateTick = ({
                 debugData.ownerDetails = ownerDetails;
             }
         }
-        // 存储调试数据到 buildingDebugData
+        // 存储调试数据?buildingDebugData
         if (debugData) {
             buildingDebugData[b.id] = debugData;
         }
@@ -2408,7 +2822,7 @@ export const simulateTick = ({
 
         const zeroApprovalFactor = 0.3;
         let approvalMultiplier = 1;
-        // 检查所有 owner 的满意度
+        // 检查所?owner 的满意度
         Object.keys(ownerLevelGroups).forEach(oKey => {
             if (zeroApprovalClasses[oKey]) {
                 approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
@@ -2445,18 +2859,18 @@ export const simulateTick = ({
             reductionReasons.push({ type: 'margin', label: '利润不足', factor: debugMarginRatio });
         }
         if (debugData?.affordableMultiplier !== undefined && debugData.affordableMultiplier < targetMultiplier) {
-            reductionReasons.push({ type: 'cashflow', label: '现金流不足', factor: debugData.affordableMultiplier / targetMultiplier });
+            reductionReasons.push({ type: 'cashflow', label: 'cashflow_low', factor: debugData.affordableMultiplier / targetMultiplier });
         }
         if (approvalMultiplier < 1) {
-            reductionReasons.push({ type: 'approval', label: '满意度过低', factor: approvalMultiplier });
+            reductionReasons.push({ type: 'approval', label: 'approval_low', factor: approvalMultiplier });
         }
         buildingFinancialData[b.id].reductionReasons = reductionReasons;
 
         let plannedWageBill = 0;
 
-        // 低效模式下不消耗输入原料（徒手采集）
+        // 低效模式下不消耗输入原料（徒手采集?
         if (Object.keys(effectiveOps.input).length > 0 && !isInLowEfficiencyMode) {
-            // === 按等级精确计算每个等级的资源需求 ===
+            // === 按等级精确计算每个等级的资源需?===
             // 构建 levelInputNeeds: { lvl: { resKey: amount } }
             const levelInputNeeds = {};
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -2466,12 +2880,12 @@ export const simulateTick = ({
                 if (!config.input || Object.keys(config.input).length === 0) return;
                 levelInputNeeds[lvl] = {};
                 Object.entries(config.input).forEach(([resKey, perBuildingAmount]) => {
-                    // 该等级的总需求 = 单建筑需求 × 建筑数量 × 实际效率
+                    // 该等级的总需?= 单建筑需?× 建筑数量 × 实际效率
                     levelInputNeeds[lvl][resKey] = perBuildingAmount * lvlCount * actualMultiplier;
                 });
             });
 
-            // 遍历每个资源，按等级比例分配实际消费量
+            // 遍历每个资源，按等级比例分配实际消费?
             for (const [resKey, totalAmount] of Object.entries(effectiveOps.input)) {
                 if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) continue;
 
@@ -2485,7 +2899,7 @@ export const simulateTick = ({
                     const price = getPrice(resKey);
                     const taxRate = getResourceTaxRate(resKey);
 
-                    // === 按等级精确分配成本 ===
+                    // === 按等级精确分配成?===
                     Object.entries(levelInputNeeds).forEach(([lvlStr, resNeeds]) => {
                         const lvl = parseInt(lvlStr);
                         const levelNeed = resNeeds[resKey] || 0;
@@ -2543,14 +2957,14 @@ export const simulateTick = ({
             });
         }
 
-        // === 按等级分别计算工资压力因子 ===
+        // === 按等级分别计算工资压力因?===
         // 每个等级可能有不同的产出价值，因此 wagePressure 应该不同
         const levelWagePressures = {};
         Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
             const lvl = parseInt(lvlStr);
             const config = getBuildingEffectiveConfig(b, lvl);
 
-            // 计算该等级的产出价值
+            // 计算该等级的产出价?
             let levelOutputValue = 0;
             if (config.output) {
                 Object.entries(config.output).forEach(([resKey, amount]) => {
@@ -2558,7 +2972,7 @@ export const simulateTick = ({
                     if (!isTradableResource(resKey)) return;
                     const perBuildingAmount = amount;
                     const grossValue = perBuildingAmount * getPrice(resKey);
-                    // 修正：生产者只获得商品的基础市场价值
+                    // 修正：生产者只获得商品的基础市场价?
                     levelOutputValue += grossValue;
                 });
             }
@@ -2574,7 +2988,7 @@ export const simulateTick = ({
                 });
             }
 
-            // 计算该等级的工资成本（使用基础工资估算）
+            // 计算该等级的工资成本（使用基础工资估算?
             let levelWageCost = 0;
             const levelOwnerKey = config.owner || 'state';
             if (config.jobs) {
@@ -2599,7 +3013,7 @@ export const simulateTick = ({
             levelWagePressures[lvl] = levelWagePressure;
         });
 
-        // 计算整体加权平均的 wagePressure（用于向后兼容）
+        // 计算整体加权平均?wagePressure（用于向后兼容）
         let totalWeightedPressure = 0;
         let totalWeight = 0;
         Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -2621,10 +3035,10 @@ export const simulateTick = ({
             // Prefer plan.ownerKey if already provided; fallback to building's default owner.
             const planOwnerKey = plan.ownerKey || b.owner || 'state';
 
-            // 根据角色在各等级的分布，计算加权平均的工资压力因子
+            // 根据角色在各等级的分布，计算加权平均的工资压力因?
             let planWagePressure = avgWagePressure;
 
-            // 如果有多个等级，按比例计算该角色的平均工资压力
+            // 如果有多个等级，按比例计算该角色的平均工资压?
             if (Object.keys(levelCounts).length > 1) {
                 let roleWeightedPressure = 0;
                 let roleWeight = 0;
@@ -2676,7 +3090,7 @@ export const simulateTick = ({
         buildingFinancialData[b.id].wagePaidRatioByOwner = ownerPaidRatio;
 
         if (plannedWageBill > 0) {
-            // === 按等级精确计算每个 owner 的工资责任 ===
+            // === 按等级精确计算每?owner 的工资责?===
             // 构建 ownerWageBills: { ownerKey: totalWageBill }
             const ownerWageBills = {};
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -2708,7 +3122,7 @@ export const simulateTick = ({
                 }
             });
 
-            // 按每个 owner 的实际工资责任支付（并记录每个 owner 的支付比例）
+            // 按每?owner 的实际工资责任支付（并记录每?owner 的支付比例）
             Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
                 if (ownerBill <= 0) {
                     ownerPaidRatio[oKey] = 0;
@@ -2772,7 +3186,7 @@ export const simulateTick = ({
         });
 
         if (Object.keys(effectiveOps.output).length > 0) {
-            // === 按等级精确计算产出收入分配 ===
+            // === 按等级精确计算产出收入分?===
             // 构建 levelOutputAmounts: { lvl: { resKey: amount } }
             const levelOutputAmounts = {};
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -2790,7 +3204,7 @@ export const simulateTick = ({
                 let amount = totalAmount * actualMultiplier;
                 if (!amount || amount <= 0) continue;
 
-                // 为可交易资源添加产出浮动（80%-120%）
+                // 为可交易资源添加产出浮动?0%-120%?
                 let variationFactor = 1;
                 if (isTradableResource(resKey) && resKey !== 'silver') {
                     const resourceDef = RESOURCES[resKey];
@@ -2818,13 +3232,13 @@ export const simulateTick = ({
 
                 if (resKey === 'maxPop') continue;
                 if (isTradableResource(resKey)) {
-                    // === 按等级精确分配产出收入 ===
+                    // === 按等级精确分配产出收?===
                     Object.entries(levelOutputAmounts).forEach(([lvlStr, resOutputs]) => {
                         const lvl = parseInt(lvlStr);
                         const levelBaseOutput = resOutputs[resKey] || 0;
                         if (levelBaseOutput <= 0) return;
 
-                        // 该等级实际产出 = 基础产出 × 浮动因子 × 各种加成
+                        // 该等级实际产?= 基础产出 × 浮动因子 × 各种加成
                         // 计算该等级占总产出的比例
                         const baseTotal = totalAmount * actualMultiplier;
                         const proportion = baseTotal > 0 ? levelBaseOutput / baseTotal : 0;
@@ -2850,7 +3264,7 @@ export const simulateTick = ({
                             const levelBaseOutput = resOutputs[resKey] || 0;
                             if (levelBaseOutput <= 0) return;
 
-                            // 计算该等级(即该owner)应得的份额
+                            // 计算该等?即该owner)应得的份?
                             const baseTotal = totalAmount * actualMultiplier;
                             const proportion = baseTotal > 0 ? levelBaseOutput / baseTotal : 0;
                             const levelAmount = amount * proportion;
@@ -2863,7 +3277,7 @@ export const simulateTick = ({
                             if (ownerKey === 'state') {
                                 applyResourceChange(resKey, levelAmount, 'building_production_direct');
                             } else {
-                                // 私有建筑产出的银币直接进入业主口袋
+                                // 私有建筑产出的银币直接进入业主口?
                                 ledger.transfer('void', ownerKey, levelAmount, 'building_production_direct', 'building_production_direct', { buildingId: b.id });
                             }
                         });
@@ -2874,17 +3288,17 @@ export const simulateTick = ({
             }
         }
 
-        // 营业税收取：每次建筑产出时收取固定银币值
-        // businessTaxPerBuilding 已在上面声明，直接使用
-        // 营业税只与建筑是否在运营相关（有工人在岗），与产量无关
-        // 使用 staffingRatio 确保只对有工人的建筑征税/发补贴
+        // 营业税收取：每次建筑产出时收取固定银币?
+        // businessTaxPerBuilding 已在上面声明，直接使?
+        // 营业税只与建筑是否在运营相关（有工人在岗），与产量无?
+        // 使用 staffingRatio 确保只对有工人的建筑征税/发补?
         // 空置建筑（staffingRatio=0）不产生税收/补贴
         if (businessTaxPerBuilding !== 0 && count > 0) {
             const effectiveStaffingRatio = staffingRatio || 0;
             const totalBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
 
             if (totalBusinessTax > 0) {
-                // 正值：按 owner 比例收税
+                // 正值：?owner 比例收税
                 Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                     const proportion = group.totalCount / count;
                     const ownerTax = totalBusinessTax * proportion;
@@ -2894,19 +3308,19 @@ export const simulateTick = ({
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
-                        recordAggregatedLog(`?? ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
+                        recordAggregatedLog(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }
                 });
-                // taxBreakdown 由 Ledger 自动更新
+                // taxBreakdown ?Ledger 自动更新
             } else if (totalBusinessTax < 0) {
-                // [FIX] 负值：按 owner 比例发放补贴
-                // 补贴也应该受税收效率影响（腐败官员会贪污补贴）
-                // 注意：此时 efficiency 尚未计算，使用 currentStability 估算
+                // [FIX] 负值：?owner 比例发放补贴
+                // 补贴也应该受税收效率影响（腐败官员会贪污补贴?
+                // 注意：此?efficiency 尚未计算，使?currentStability 估算
                 // 实际到账金额 = 补贴金额 × 效率
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
 
-                // 计算实际发放金额（考虑税收效率）
+                // 计算实际发放金额（考虑税收效率?
                 // 使用与税收相同的效率计算逻辑
                 const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
                 const estimatedEfficiency = estimatedStabilityFactor;
@@ -2915,18 +3329,18 @@ export const simulateTick = ({
                 const actualSubsidyAmount = subsidyAmount * effectiveEfficiency;
 
                 if (treasury >= subsidyAmount) {
-                    // 从国库扣除全额补贴
+                    // 从国库扣除全额补?
                     Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                         const proportion = group.totalCount / count;
                         const ownerSubsidyFull = subsidyAmount * proportion;
                         const ownerSubsidyActual = actualSubsidyAmount * proportion;
 
-                        // 业主只收到效率%的补贴
+                        // 业主只收到效?的补?
                         ledger.transfer('state', oKey, ownerSubsidyActual, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                         roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidyActual;
 
-                        // 剩余部分被腐败官员贪污（在后续腐败处理阶段统一分配）
-                        // 这里只记录补贴总额，腐败损失会在税收汇总阶段处理
+                        // 剩余部分被腐败官员贪污（在后续腐败处理阶段统一分配?
+                        // 这里只记录补贴总额，腐败损失会在税收汇总阶段处?
                     });
 
                     // 记录补贴支出（用于后续腐败计算）
@@ -2934,7 +3348,7 @@ export const simulateTick = ({
 
                     if (effectiveEfficiency < 1 && tick % 30 === 0) {
                         const lossPercent = ((1 - effectiveEfficiency) * 100).toFixed(1);
-                        recordAggregatedLog(`💸 ${b.name} 补贴因腐败损失 ${lossPercent}%`);
+                        recordAggregatedLog(`💸 ${b.name} 补贴因腐败损失${lossPercent}%`);
                     }
                 } else {
                     if (tick % 30 === 0) {
@@ -3051,7 +3465,7 @@ export const simulateTick = ({
                                     if (importCost > logThreshold) {
                                         const fromName = RESOURCES[sourceResource]?.name || sourceResource;
                                         const toName = RESOURCES[target.resource]?.name || target.resource;
-                                        // logs.push(`?? 市场：商人动用自有资金 ${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换回 ${importAmount.toFixed(1)} ${toName}。`);
+                                        // logs.push(`⚠️ 市场：商人动用自有资金${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换取${importAmount.toFixed(1)} ${toName}。`);
                                     }
                                 }
                             });
@@ -3061,14 +3475,14 @@ export const simulateTick = ({
             }
         }
 
-        // NOTE: 工资支付已在 produceBuilding 的 preparedWagePlans.forEach 中处理
-        // 这里只需要统计总岗位数，不能重复支付工资（之前的 BUG）
+        // NOTE: 工资支付已在 produceBuilding ?preparedWagePlans.forEach 中处?
+        // 这里只需要统计总岗位数，不能重复支付工资（之前?BUG?
         if (b.jobs) {
             Object.entries(b.jobs).forEach(([role, perBuilding]) => {
                 const roleSlots = perBuilding * count;
                 if (roleSlots <= 0) return;
-                // 只统计岗位数，不再重复支付工资
-                // roleWageStats[role].totalSlots 已在 produceBuilding 中更新
+                // 只统计岗位数，不再重复支付工?
+                // roleWageStats[role].totalSlots 已在 produceBuilding 中更?
             });
         }
     });
@@ -3076,8 +3490,20 @@ export const simulateTick = ({
     perfEnd('passiveGains');
     perfEnd('productionLoop');
 
-    // === 新军费计算系统 ===
-    const hasArmyUnits = army && Object.values(army).some(count => count > 0);
+    // === 新军费计算系?===
+    // [FIX] 合并散兵(army)和军?militaryCorps)内的所有单位，统一计算军饷
+    const allMilitaryUnits = { ...(army || {}) };
+    if (Array.isArray(militaryCorps)) {
+        for (const corps of militaryCorps) {
+            if (corps?.isAI) continue; // 跳过AI军团
+            for (const [unitId, count] of Object.entries(corps?.units || {})) {
+                if (count > 0) {
+                    allMilitaryUnits[unitId] = (allMilitaryUnits[unitId] || 0) + count;
+                }
+            }
+        }
+    }
+    const hasArmyUnits = Object.values(allMilitaryUnits).some(count => count > 0);
     const hasArmyQueue = Array.isArray(militaryQueue) && militaryQueue.some(item => item.status === 'waiting' || item.status === 'training');
     const epochMultiplier = 1 + epoch * 0.1;
     const effectiveWageMultiplier = Math.max(0.5, militaryWageRatio ?? 1);
@@ -3099,9 +3525,10 @@ export const simulateTick = ({
     };
 
     if (hasArmyUnits || hasArmyQueue) {
-        // 1. 获取军队资源维护需求
+        // 1. 获取军队资源维护需?
         const armyMaintenanceMultiplier = getArmyMaintenanceMultiplier(difficulty);
-        const baseArmyMaintenance = calculateArmyMaintenance(army);
+        // [FIX] 使用合并后的 allMilitaryUnits 计算维护费（包含军团内的单位?
+        const baseArmyMaintenance = calculateArmyMaintenance(allMilitaryUnits);
         // Apply difficulty multiplier
         Object.keys(baseArmyMaintenance).forEach(key => {
             baseArmyMaintenance[key] = Math.ceil((baseArmyMaintenance[key] || 0) * armyMaintenanceMultiplier);
@@ -3112,6 +3539,30 @@ export const simulateTick = ({
         Object.entries(baseArmyMaintenance).forEach(([resource, amount]) => {
             armyMaintenance[resource] = isPlayerAtWar ? amount * WAR_MILITARY_MULTIPLIER : amount;
         });
+
+        // V2: 理念维护费修正（maintenance_cost_mod，按兵种分类或全局）
+        if (bonuses.ideoMaintenanceCostMod && Object.keys(bonuses.ideoMaintenanceCostMod).length > 0) {
+            const globalMaintMod = bonuses.ideoMaintenanceCostMod._global || 0;
+            // 按兵种分类计算加权修正
+            let totalUnits = 0;
+            let weightedMod = 0;
+            Object.entries(allMilitaryUnits).forEach(([unitId, count]) => {
+                if (count <= 0) return;
+                const unit = UNIT_TYPES?.[unitId];
+                if (!unit) return;
+                const catMod = bonuses.ideoMaintenanceCostMod[unit.category] || 0;
+                const unitMod = Math.max(-0.5, globalMaintMod + catMod); // cap at -50%
+                weightedMod += unitMod * count;
+                totalUnits += count;
+            });
+            if (totalUnits > 0) {
+                const avgMod = weightedMod / totalUnits;
+                const maintMultiplier = Math.max(0.5, 1 + avgMod);
+                Object.keys(armyMaintenance).forEach(key => {
+                    armyMaintenance[key] = Math.ceil(armyMaintenance[key] * maintMultiplier);
+                });
+            }
+        }
 
         // 2. 从市场购买维护资源（消耗资源、增加需求）
         let totalResourceCost = 0;
@@ -3125,7 +3576,7 @@ export const simulateTick = ({
                 return;
             }
 
-            // 从市场购买：消耗库存资源
+            // 从市场购买：消耗库存资?
             const available = res[resource] || 0;
             const consumed = Math.min(available, needed);
 
@@ -3134,7 +3585,7 @@ export const simulateTick = ({
                 rates[resource] = (rates[resource] || 0) - consumed;
                 armyResourceConsumption[resource] = consumed;
 
-                // 增加市场需求（影响价格）
+                // 增加市场需求（影响价格?
                 demand[resource] = (demand[resource] || 0) + needed;
             }
 
@@ -3161,16 +3612,17 @@ export const simulateTick = ({
             // 如果资源不足，记录日志
             if (consumed < needed && tick % 30 === 0) {
                 const shortage = needed - consumed;
-                recordAggregatedLog(`?? 军队维护资源不足：缺少 ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
+                recordAggregatedLog(`⚠️ 军队维护资源不足：缺少${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
             }
         });
 
         perfStart('armyMaintenance');
-        // 3. 计算时代加成和规模惩罚
-        const armyPopulation = calculateArmyPopulation(army);
+        // 3. 计算时代加成和规模惩?
+        // [FIX] 使用合并后的 allMilitaryUnits 计算军队人口（含军团内单位）
+        const armyPopulation = calculateArmyPopulation(allMilitaryUnits);
         const scalePenalty = calculateArmyScalePenalty(armyPopulation, population);
 
-        // 4. 总军费 = 资源成本 × 时代加成 × 规模惩罚 × 军饷倍率
+        // 4. 总军?= 资源成本 × 时代加成 × 规模惩罚 × 军饷倍率
         const totalArmyCost = totalResourceCost * epochMultiplier * scalePenalty * effectiveWageMultiplier;
 
         // 记录军费数据（用于战争赔款计算）
@@ -3206,7 +3658,7 @@ export const simulateTick = ({
                 rates.silver = (rates.silver || 0) - totalArmyCost;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
                 roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
-                // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
+                // [FIX] 同步?classFinancialData 以保持概览和财务面板数据一?
                 if (classFinancialData.soldier) {
                     classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
                 }
@@ -3215,21 +3667,28 @@ export const simulateTick = ({
                 const logLast = silverChangeLog.toArray().pop(); // .toArray() returns copy, get last
                 militaryDebug.logEntryFound = logLast && logLast.reason === TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE;
                 militaryDebug.logSizeAfter = silverChangeLog.length;
+
+                // [FIX Bug5] 标记军饷支付状?
+                armyExpenseResult.isUnderPaid = false;
+                armyExpenseResult.payRatio = 1;
             } else if (totalArmyCost > 0) {
                 // 部分支付
-                const partialPay = available * 0.9; // 留10%底
+                const partialPay = available * 0.9; // ?0%?
                 if (partialPay > 0) {
                     // [FIX] Use Ledger for partial payment too
                     ledger.transfer('state', 'soldier', partialPay, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
 
                     rates.silver = (rates.silver || 0) - partialPay;
                     roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
-                    // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
+                    // [FIX] 同步?classFinancialData 以保持概览和财务面板数据一?
                     if (classFinancialData.soldier) {
                         classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + partialPay;
                     }
                 }
-                logs.push(`?? 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
+                // [FIX Bug5] 标记欠饷状态及支付比例
+                armyExpenseResult.isUnderPaid = true;
+                armyExpenseResult.payRatio = totalArmyCost > 0 ? partialPay / totalArmyCost : 0;
+                logs.push(`⚠️ 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
             }
         }
         perfEnd('armyMaintenance');
@@ -3245,9 +3704,9 @@ export const simulateTick = ({
     perfStart('socialEconomy');
     const needsReport = {};
     const classShortages = {};
-    // 收集各阶层的财富乘数（用于UI显示"谁吃到了buff"）
+    // 收集各阶层的财富乘数（用于UI显示"谁吃到了buff"?
     const stratumWealthMultipliers = {};
-    // [FIX] 添加缺失的 stratumConsumption 初始化，用于追踪各阶层消费
+    // [FIX] 添加缺失?stratumConsumption 初始化，用于追踪各阶层消?
     const stratumConsumption = {};
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') {
@@ -3265,7 +3724,7 @@ export const simulateTick = ({
 
         let satisfactionSum = 0;
         let tracked = 0;
-        const shortages = []; // 改为对象数组，记录短缺原因
+        const shortages = []; // 改为对象数组，记录短缺原?
 
         // Calculate wealth ratio for this stratum (used for luxury needs unlock)
         const startingWealthForLuxury = def.startingWealth || 1;
@@ -3338,7 +3797,7 @@ export const simulateTick = ({
                 continue;
             }
             if (!potentialResources.has(resKey)) {
-                // 只有已解锁建筑能产出的资源才会产生需求
+                // 只有已解锁建筑能产出的资源才会产生需?
                 continue;
             }
 
@@ -3372,14 +3831,14 @@ export const simulateTick = ({
                 requirement *= WAR_MILITARY_MULTIPLIER;
             }
 
-            // 新增：计算官员平均贪婪度（仅在计算官员阶层需求时生效）
+            // 新增：计算官员平均贪婪度（仅在计算官员阶层需求时生效?
             let officialGreedModifier = 1.0;
             if (key === 'official' && officials && officials.length > 0) {
                 const totalGreed = officials.reduce((sum, off) => sum + (off.greed || 1.0), 0);
                 officialGreedModifier = totalGreed / officials.length;
             }
 
-            // 应用需求弹性调整
+            // 应用需求弹性调?
             if (isTradableResource(resKey)) {
                 const resourceMarketConfig = resourceInfo?.marketConfig || {};
                 const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
@@ -3387,7 +3846,7 @@ export const simulateTick = ({
                     ? resourceMarketConfig.demandElasticity
                     : (defaultMarketInfluence.demandElasticity || 0.5);
 
-                // 1. 财富影响：阶层财富相对于起始财富的变化
+                // 1. 财富影响：阶层财富相对于起始财富的变?
                 const startingWealth = def.startingWealth || 1;
                 const currentWealth = (wealth[key] || 0) / Math.max(1, count);
 
@@ -3398,8 +3857,8 @@ export const simulateTick = ({
 
                 const wealthRatio = effectiveWealth / startingWealth;
                 // 2024-12更新：使用统一的calculateWealthMultiplier函数
-                // 该函数现在支持高财富比率补偿低收入
-                // incomeRatio在这里使用wealthRatio近似（因为高财富意味着历史上收入高）
+                // 该函数现在支持高财富比率补偿低收?
+                // incomeRatio在这里使用wealthRatio近似（因为高财富意味着历史上收入高?
                 let wealthElasticity = def.wealthElasticity || 1.0;
 
                 // 应用官员贪婪度修正：贪婪度直接放大财富弹性，意味着越有钱越想通过消费展示
@@ -3409,28 +3868,28 @@ export const simulateTick = ({
 
                 const maxMultiplier = Math.max(1, (def.maxConsumptionMultiplier || 6) + getMaxConsumptionMultiplierBonus(difficulty));
                 const wealthMultiplier = calculateWealthMultiplier(wealthRatio, wealthRatio, wealthElasticity, maxMultiplier);
-                // 记录财富乘数（取最后一次计算的值，用于UI显示）
+                // 记录财富乘数（取最后一次计算的值，用于UI显示?
                 if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
                     stratumWealthMultipliers[key] = wealthMultiplier;
                 }
 
-                // 2. 价格影响：当前价格相对于基础价格的变化
+                // 2. 价格影响：当前价格相对于基础价格的变?
                 const currentPrice = getPrice(resKey);
                 const basePrice = resourceInfo.basePrice || 1;
                 const priceRatio = currentPrice / basePrice;
-                // 价格变化对需求的影响：价格上涨→需求下降，价格下跌→需求上涨
+                // 价格变化对需求的影响：价格上涨→需求下降，价格下跌→需求上?
                 // 使用需求弹性：价格变化1%，需求反向变化elasticity%
                 const priceMultiplier = Math.pow(priceRatio, -demandElasticity);
 
-                // 3. 每日随机浮动（80%-120%）
+                // 3. 每日随机浮动?0%-120%?
                 const dailyVariation = 0.8 + Math.random() * 0.4;
 
-                // 综合调整需求
+                // 综合调整需?
                 requirement *= wealthMultiplier * priceMultiplier * dailyVariation;
 
                 // 确保需求不会变成负数或过大
                 requirement = Math.max(0, requirement);
-                requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 8); // 最多8倍（配合更低的财富乘数上限）
+                requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 8); // 最?倍（配合更低的财富乘数上限）
             }
             const available = res[resKey] || 0;
             let satisfied = 0;
@@ -3438,7 +3897,7 @@ export const simulateTick = ({
             if (isTradableResource(resKey)) {
                 const marketPrice = getPrice(resKey);
 
-                // [NEW] 价格管制检查：只有左派主导且启用时才生效
+                // [NEW] 价格管制检查：只有左派主导且启用时才生?
                 const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
                 const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined && priceControls.governmentSellPrices[resKey] !== null;
 
@@ -3454,7 +3913,7 @@ export const simulateTick = ({
                 const affordable = priceWithTax > 0 ? Math.min(requirement, (wealth[key] || 0) / priceWithTax) : requirement;
                 const amount = Math.min(requirement, available, affordable);
 
-                // 先不统计需求，等实际消费后再统计
+                // 先不统计需求，等实际消费后再统?
                 if (amount > 0) {
                     res[resKey] = available - amount;
                     rates[resKey] = (rates[resKey] || 0) - amount;
@@ -3557,7 +4016,7 @@ export const simulateTick = ({
         classShortages[key] = shortages;
     });
 
-    // 计算劳动效率，特别关注食物和布料的基础需求
+    // 计算劳动效率，特别关注食物和布料的基础需?
     let workforceNeedWeighted = 0;
     let workforceTotal = 0;
     let basicNeedsDeficit = 0; // 基础需求缺失的严重程度
@@ -3569,7 +4028,7 @@ export const simulateTick = ({
         const needLevel = needsReport[key]?.satisfactionRatio ?? 1;
         workforceNeedWeighted += needLevel * count;
 
-        // 检查食物和布料的基础需求满足情况
+        // 检查食物和布料的基础需求满足情?
         const def = STRATA[key];
         if (def && def.needs) {
             const shortages = classShortages[key] || [];
@@ -3588,7 +4047,7 @@ export const simulateTick = ({
     // 如果有基础需求缺失，额外降低效率
     if (basicNeedsDeficit > 0 && workforceTotal > 0) {
         const basicDeficitRatio = basicNeedsDeficit / workforceTotal;
-        // 基础需求缺失导致额外的效率惩罚：最多额外降低40%效率
+        // 基础需求缺失导致额外的效率惩罚：最多额外降?0%效率
         const basicPenalty = basicDeficitRatio * 0.4;
         laborEfficiencyFactor = Math.max(0.1, laborEfficiencyFactor - basicPenalty);
 
@@ -3607,7 +4066,7 @@ export const simulateTick = ({
                 res[resKey] = Math.max(0, (res[resKey] || 0) - reduction);
             }
         });
-        // logs.push('劳动力因需求未满足而效率下降。');
+        // logs.push('劳动力因需求未满足而效率下降');
     }
     perfEnd('needsConsumption');
 
@@ -3702,7 +4161,7 @@ export const simulateTick = ({
     let newBuildingsCount = { ...buildings };
     // [DEBUG] 临时调试信息 - 追踪自由市场机制问题
     const _freeMarketDebug = {
-        // 传入的 cabinetStatus
+        // 传入?cabinetStatus
         cabinetStatusReceived: {
             hasCabinetStatus: !!cabinetStatus,
             hasDominance: !!cabinetStatus?.dominance,
@@ -3710,7 +4169,7 @@ export const simulateTick = ({
             synergy: cabinetStatus?.synergy,
             level: cabinetStatus?.level,
         },
-        // expansionSettings 检查
+        // expansionSettings 检?
         expansionSettings: {
             hasSettings: !!expansionSettings,
             settingsKeys: expansionSettings ? Object.keys(expansionSettings) : [],
@@ -3718,7 +4177,7 @@ export const simulateTick = ({
                 ? Object.values(expansionSettings).filter(s => s?.allowed).length
                 : 0,
         },
-        // 最终条件判断
+        // 最终条件判?
         conditionCheck: {
             isDominanceRight: cabinetStatus?.dominance?.faction === 'right',
             hasExpansionSettings: !!expansionSettings,
@@ -3727,7 +4186,7 @@ export const simulateTick = ({
         epochParam: epoch,
     };
 
-    // [NEW DEBUG] 详细输出传入的参数
+    // [NEW DEBUG] 详细输出传入的参?
     // console.log('[FREE MARKET SIMULATION DEBUG]', {
     //     dominanceCheck: {
     //         hasDominance: !!cabinetStatus?.dominance,
@@ -3748,7 +4207,7 @@ export const simulateTick = ({
     // });
 
     if (cabinetStatus.dominance?.faction === 'right' && expansionSettings) {
-        // 构造 market 对象，包含 prices 和 wages 用于利润计算
+        // 构?market 对象，包?prices ?wages 用于利润计算
         const marketForExpansion = {
             prices: priceMap,
             wages: market?.wages || {}
@@ -3805,18 +4264,18 @@ export const simulateTick = ({
 
     const officialList = Array.isArray(officials) ? officials : [];
     const officialCount = officialList.length;
-    // [OPTIMIZATION REMOVED] 移除批处理机制，所有官员每个Tick都进行完整计算
-    // 原因：
-    // 1. 建筑生产、工资发放、盈利都是每个Tick更新的
+    // [OPTIMIZATION REMOVED] 移除批处理机制，所有官员每个Tick都进行完整计?
+    // 原因?
+    // 1. 建筑生产、工资发放、盈利都是每个Tick更新?
     // 2. 官员的收入（薪水、产业收益）和支出（消费、税收）应该实时计算
     // 3. 投资决策已有内置冷却时间（INVESTMENT_COOLDOWN=90, UPGRADE_COOLDOWN=60），不会造成性能问题
     const updatedOfficials = officialCount === 0 ? [] : officialList.map((official, index) => {
         if (!official) return official;
         const normalizedOfficial = migrateOfficialForInvestment(official, tick);
 
-        // 初始化 wealth（向后兼容：旧存档可能没有 wealth）
-        // [FIX] 添加安全检查：财富上限1兆（1e12），防止极大数值导致系统崩溃
-        const MAX_WEALTH = 1e12; // 最大财富：1兆
+        // 初始?wealth（向后兼容：旧存档可能没?wealth?
+        // [FIX] 添加安全检查：财富上限1兆（1e12），防止极大数值导致系统崩?
+        const MAX_WEALTH = 1e12; // 最大财富：1?
         let rawWealth = typeof normalizedOfficial.wealth === 'number' ? normalizedOfficial.wealth : 400;
         // 检查是否为有效数值，无效则重置为400
         if (!Number.isFinite(rawWealth) || rawWealth < 0) {
@@ -3836,31 +4295,38 @@ export const simulateTick = ({
         let headTaxPaid = 0;
         let investmentCost = 0;
         let upgradeCost = 0;
+        let managementFeeIncome = 0; // 代经营管理费收入
+
+        // 产业政策薪资倍率（逐官员设置，高薪养廉模式下薪资 x1.6）
+        const officialPolicy = normalizedOfficial.propertyPolicy || 'private';
+        const policyConfig = PROPERTY_POLICY_CONFIG[officialPolicy] || PROPERTY_POLICY_CONFIG.private;
+        const policySalaryMultiplier = policyConfig.salaryMultiplier || 1.0;
 
         // 收入：如果足额支付薪水，获得薪水
         // 负薪酬：官员需要向国库缴纳费用
         if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
-            if (normalizedOfficial.salary > 0) {
+            const effectiveSalary = Math.round(normalizedOfficial.salary * policySalaryMultiplier);
+            if (effectiveSalary > 0) {
                 // 正常薪酬：国库支付给官员
-                currentWealth += normalizedOfficial.salary;
-                totalOfficialIncome += normalizedOfficial.salary;
-                totalOfficialLaborIncome += normalizedOfficial.salary; // Add to labor income
+                currentWealth += effectiveSalary;
+                totalOfficialIncome += effectiveSalary;
+                totalOfficialLaborIncome += effectiveSalary; // Add to labor income
                 // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
-                // 记录俸禄到财务数据
+                // 记录俸禄到财务数?
                 if (classFinancialData.official) {
-                    classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + normalizedOfficial.salary;
+                    classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + effectiveSalary;
                 }
             } else if (normalizedOfficial.salary < 0) {
-                // 负薪酬：官员向国库缴纳费用（最多扣到官员财富为0）
+                // 负薪酬：官员向国库缴纳费用（最多扣到官员财富为0?
                 const requiredPayment = Math.abs(normalizedOfficial.salary);
                 const actualPayment = Math.min(requiredPayment, currentWealth);
                 currentWealth = Math.max(0, currentWealth - actualPayment);
 
-                // 记录负薪酬收入到国库（通过ledger系统）
+                // 记录负薪酬收入到国库（通过ledger系统?
                 if (actualPayment > 0) {
                     ledger.transfer('official', 'state', actualPayment, 'NEGATIVE_SALARY', 'NEGATIVE_SALARY');
-                    // 记录到官员支出
-                    headTaxPaid += actualPayment; // 暂时归入headTaxPaid统计（或可以新增字段）
+                    // 记录到官员支?
+                    headTaxPaid += actualPayment; // 暂时归入headTaxPaid统计（或可以新增字段?
                 }
 
                 // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Negative salary! Required: ${requiredPayment}, Paid: ${actualPayment}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
@@ -3869,7 +4335,7 @@ export const simulateTick = ({
             // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: NO SALARY! officialsPaid=${officialsPaid}, salary=${normalizedOfficial.salary}, wealth=${currentWealth}`);
         }
 
-        // 支出：官员独立购买商品，更新市场供需与税收
+        // 支出：官员独立购买商品，更新市场供需与税?
         const expenseBreakdown = {};
         // Soft cap: limit luxury spending per tick to reduce extreme wealth swings.
         const LUXURY_SPEND_CAP_RATIO = 0.05;
@@ -3965,7 +4431,7 @@ export const simulateTick = ({
                 if (!stratumConsumption.official) stratumConsumption.official = {};
                 stratumConsumption.official[resource] = (stratumConsumption.official[resource] || 0) + amount;
 
-                // 使用 Ledger 记录支出 (更新 classFinancialData 和 aggregate wealth)
+                // 使用 Ledger 记录支出 (更新 classFinancialData ?aggregate wealth)
                 const expenseCat = isLuxury ? TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION;
                 ledger.transfer('official', 'void', totalCost, expenseCat, expenseCat, { resource, quantity: amount, price });
             } else {
@@ -3984,13 +4450,13 @@ export const simulateTick = ({
             consumeOfficialResource(resource, baseAmount, false);
         });
 
-        // 基于财富水平的奢侈需求
-        // [FIX] 限制wealthRatio上限防止数值溢出（极大财富值会导致后续计算爆炸）
+        // 基于财富水平的奢侈需?
+        // [FIX] 限制wealthRatio上限防止数值溢出（极大财富值会导致后续计算爆炸?
         const rawWealthRatio = currentWealth / 400; // 相对于初始财富的比例
-        const wealthRatio = Math.min(rawWealthRatio, 1e9); // 上限10亿倍
+        const wealthRatio = Math.min(rawWealthRatio, 1e9); // 上限10亿?
         if (wealthRatio >= 1.0 && officialLuxuryNeeds) {
             const wealthBase = Math.max(1, Math.min(currentWealth / 400, 1e9));
-            // [FIX] 限制消费乘数上限为100倍，防止极大财富导致的消费爆炸
+            // [FIX] 限制消费乘数上限?00倍，防止极大财富导致的消费爆?
             const rawConsumptionMultiplier = 1.0 + Math.log10(wealthBase) * 1.6;
             const consumptionMultiplier = Math.min(100.0, Number.isFinite(rawConsumptionMultiplier) ? rawConsumptionMultiplier : 1.0);
             const salaryBase = Math.max(1, Math.min((normalizedOfficial.salary || 0) / 400, 1e9));
@@ -4013,7 +4479,7 @@ export const simulateTick = ({
         // [DEBUG] 追踪财富变化 - 商品消费后（人头税之前）
         const debugAfterGoodsConsumption = currentWealth;
 
-        // 人头税：官员拥有独立财富，因此在此单独结算
+        // 人头税：官员拥有独立财富，因此在此单独结?
         const headRate = getHeadTaxRate('official');
         const headBase = STRATA.official?.headTaxBase ?? 0.01;
         const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
@@ -4040,18 +4506,23 @@ export const simulateTick = ({
 
         // [BUG FIX] 移除重复扣支出的代码
         // dailyExpense 已在 consumeOfficialResource 中实时从 currentWealth 扣除（第2948行）
-        // 这里不应该再扣一次，否则会导致官员财富被双重扣减，存款无法积累
+        // 这里不应该再扣一次，否则会导致官员财富被双重扣减，存款无法积?
 
         // [DEBUG] 追踪财富变化 - 人头税后
         const debugAfterConsumption = currentWealth;
         const debugPlannedHeadTax = plannedPerCapitaTax;
 
+        // 官员产业收益结算（根据该官员的产业政策模式分流）
+        const isPrivatePolicy = officialPolicy === 'private';
+        const isHighSalaryPolicy = officialPolicy === 'high_salary';
+        const isStateManagedPolicy = officialPolicy === 'state_managed';
+
         // 官员产业收益结算（独立核算）
         let totalPropertyIncome = 0;
-        let totalOfficialProductionCosts = 0; // 官员建筑的生产成本
-        let totalOfficialWages = 0; // 官员建筑的工资支出
+        let totalOfficialProductionCosts = 0; // 官员建筑的生产成?
+        let totalOfficialWages = 0; // 官员建筑的工资支?
         let totalOfficialBusinessTax = 0; // 官员建筑的营业税
-        let totalOfficialOwnerRevenue = 0; // 官员建筑的业主收入
+        let totalOfficialOwnerRevenue = 0; // 官员建筑的业主收?
         const actualProfitCache = {};
         const getActualProfitPerBuilding = (buildingId) => {
             if (actualProfitCache[buildingId] !== undefined) return actualProfitCache[buildingId];
@@ -4112,12 +4583,12 @@ export const simulateTick = ({
                 totalPropertyIncome += perBuildingProfit * count;
             }
             
-            // [FIX] 记录官员建筑的成本和收入到财务统计
+            // [FIX] 记录官员建筑的成本和收入到财务统?
             const finance = buildingFinancialData?.[buildingId];
             if (finance) {
                 const totalCount = builds?.[buildingId] || 0;
                 if (totalCount > 0) {
-                    // 按比例分摊：官员拥有的建筑数量 / 总建筑数量
+                    // 按比例分摊：官员拥有的建筑数?/ 总建筑数?
                     const ownerShare = count / totalCount;
                     totalOfficialOwnerRevenue += (finance.ownerRevenue || 0) * ownerShare;
                     totalOfficialProductionCosts += (finance.productionCosts || 0) * ownerShare;
@@ -4129,10 +4600,24 @@ export const simulateTick = ({
             }
         });
         if (totalPropertyIncome !== 0) {
-            currentWealth = Math.max(0, currentWealth + totalPropertyIncome);
-            totalOfficialIncome += totalPropertyIncome;
-            if (totalPropertyIncome > 0) {
-                ledger.transfer('void', 'official', totalPropertyIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
+            if (isStateManagedPolicy && totalPropertyIncome > 0) {
+                // 代经营制：利润按比例分配给国库和官员管理费
+                const profitSplit = calculateStateManagedProfitSplit(totalPropertyIncome, normalizedOfficial);
+                managementFeeIncome = profitSplit.toOfficial;
+                currentWealth = Math.max(0, currentWealth + managementFeeIncome);
+                totalOfficialIncome += managementFeeIncome;
+                // 国库收到的部分由上层处理（通过减少利润归属）
+                if (managementFeeIncome > 0) {
+                    ledger.transfer('void', 'official', managementFeeIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, 'MANAGEMENT_FEE');
+                }
+                // 腐败损耗不入任何人口袋
+            } else {
+                // 私产制或高薪养廉（高薪制不应有产业，但兼容遗留数据）
+                currentWealth = Math.max(0, currentWealth + totalPropertyIncome);
+                totalOfficialIncome += totalPropertyIncome;
+                if (totalPropertyIncome > 0) {
+                    ledger.transfer('void', 'official', totalPropertyIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
+                }
             }
         }
         
@@ -4144,10 +4629,10 @@ export const simulateTick = ({
             classFinancialData.official.expense.businessTax = (classFinancialData.official.expense.businessTax || 0) + totalOfficialBusinessTax;
         }
 
-        // [DEBUG] 追踪财富变化 - 产业收益后
+        // [DEBUG] 追踪财富变化 - 产业收益?
         const debugAfterProperty = currentWealth;
 
-        // 计算财务满意度
+        // 计算财务满意?
         const totalIncomeForSatisfaction = (normalizedOfficial.salary || 0) + totalPropertyIncome;
         const financialSatisfaction = calculateFinancialStatus(
             { ...normalizedOfficial, wealth: currentWealth },
@@ -4173,7 +4658,7 @@ export const simulateTick = ({
         if (financialSatisfaction === 'satisfied') {
             combinedSatisfaction = 'satisfied';
         } else {
-            // 财务状况不佳时，取两者中更差的
+            // 财务状况不佳时，取两者中更差?
             const finalSatisfactionIndex = Math.max(
                 satisfactionOrder.indexOf(financialSatisfaction),
                 satisfactionOrder.indexOf(salarySatisfaction)
@@ -4181,18 +4666,41 @@ export const simulateTick = ({
             combinedSatisfaction = satisfactionOrder[finalSatisfactionIndex] || financialSatisfaction;
         }
 
-        // 产业投资决策
-        const investmentDecision = processOfficialInvestment(
-            { ...normalizedOfficial, wealth: currentWealth },
-            tick,
-            officialMarketSnapshot,
-            taxPolicies,
-            cabinetStatus,
-            builds,
-            difficulty,
-            epoch,
-            techsUnlocked
-        );
+        // 产业投资决策（根据产业政策模式分流）
+        let investmentDecision = null;
+        if (isHighSalaryPolicy) {
+            // 高薪养廉：完全禁止投资
+            investmentDecision = null;
+        } else if (isStateManagedPolicy) {
+            // 代经营制：国库出资，官员选择经营目标
+            // 预算为国库可分配金额的一部分（简化处理：使用当前资源中的白银）
+            const treasuryBudget = (res.silver || 0) * 0.02; // 每次最多用国库2%
+            investmentDecision = processStateManagedInvestment(
+                { ...normalizedOfficial, wealth: currentWealth },
+                tick,
+                officialMarketSnapshot,
+                taxPolicies,
+                cabinetStatus,
+                builds,
+                difficulty,
+                epoch,
+                techsUnlocked,
+                treasuryBudget
+            );
+        } else {
+            // 私产制：官员用个人财富投资
+            investmentDecision = processOfficialInvestment(
+                { ...normalizedOfficial, wealth: currentWealth },
+                tick,
+                officialMarketSnapshot,
+                taxPolicies,
+                cabinetStatus,
+                builds,
+                difficulty,
+                epoch,
+                techsUnlocked
+            );
+        }
 
         const ownedProperties = Array.isArray(normalizedOfficial.ownedProperties)
             ? [...normalizedOfficial.ownedProperties]
@@ -4205,10 +4713,24 @@ export const simulateTick = ({
         const investmentProfile = { ...normalizedOfficial.investmentProfile };
 
         const MAX_INVEST_SPEND_RATIO = 0.25;
-        const investBudget = currentWealth * MAX_INVEST_SPEND_RATIO;
-        if (investmentDecision && investmentDecision.cost <= investBudget && currentWealth >= investmentDecision.cost) {
-            currentWealth = Math.max(0, currentWealth - investmentDecision.cost);
-            investmentCost = investmentDecision.cost;
+        const investBudget = isStateManagedPolicy
+            ? (res.silver || 0) * 0.02  // 代经营制：使用国库预算
+            : currentWealth * MAX_INVEST_SPEND_RATIO; // 私产制：使用个人财富
+        if (investmentDecision && investmentDecision.cost <= investBudget) {
+            if (isStateManagedPolicy) {
+                // 代经营制：从国库扣费，建筑记录到 managedBuildings
+                res.silver = Math.max(0, (res.silver || 0) - investmentDecision.cost);
+                investmentCost = investmentDecision.cost;
+            } else {
+                // 私产制：从个人财富扣费
+                if (currentWealth < investmentDecision.cost) {
+                    // 财富不足，跳过
+                } else {
+                    currentWealth = Math.max(0, currentWealth - investmentDecision.cost);
+                    investmentCost = investmentDecision.cost;
+                }
+            }
+            if (investmentCost > 0) {
             const instanceId = `${investmentDecision.buildingId}_off_${normalizedOfficial.id}_${tick}_${Math.floor(Math.random() * 1000)}`;
             ownedProperties.push({
                 buildingId: investmentDecision.buildingId,
@@ -4232,12 +4754,15 @@ export const simulateTick = ({
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
             if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
                 // Log investment
-                logs.push(`🏗️ 官员${normalizedOfficial.name}投资了 ${investmentDecision.buildingId}（花费 ${Math.ceil(investmentDecision.cost)} 银）`);
+                const investLogPrefix = isStateManagedPolicy ? '🏛️ 国有' : '🏗️ 官员';
+                const investLogSuffix = isStateManagedPolicy ? '（国库出资）' : `（花费${Math.ceil(investmentDecision.cost)} 银）`;
+                logs.push(`${investLogPrefix}${normalizedOfficial.name}投资了${investmentDecision.buildingId}${investLogSuffix}`);
             }
+            } // end if (investmentCost > 0)
         }
 
-        // 产业升级决策
-        const upgradeDecision = processOfficialBuildingUpgrade(
+        // 产业升级决策（高薪养廉模式下跳过）
+        const upgradeDecision = isHighSalaryPolicy ? null : processOfficialBuildingUpgrade(
             { ...normalizedOfficial, wealth: currentWealth, ownedProperties, investmentProfile },
             tick,
             officialMarketSnapshot,
@@ -4278,7 +4803,7 @@ export const simulateTick = ({
             }
         }
 
-        // [DEBUG] 追踪财富变化 - 投资/升级后
+        // [DEBUG] 追踪财富变化 - 投资/升级?
         const debugAfterInvestment = currentWealth;
         const debugInvestmentCost = investmentDecision?.cost || 0;
         const debugUpgradeCost = upgradeDecision?.cost || 0;
@@ -4286,23 +4811,23 @@ export const simulateTick = ({
         totalOfficialWealth += currentWealth;
         totalOfficialExpense += dailyExpense;
 
-        // ========== 忠诚度更新 ==========
+        // ========== 忠诚度更?==========
         let newLoyalty = normalizedOfficial.loyalty ?? 75; // 默认值兼容旧存档
         let newLowLoyaltyDays = normalizedOfficial.lowLoyaltyDays ?? 0;
 
         // 政治诉求满足程度
-        // 注意：politicalStance 可能是字符串（stanceId）或对象，需要兼容两种情况
+        // 注意：politicalStance 可能是字符串（stanceId）或对象，需要兼容两种情?
         const stanceId = typeof normalizedOfficial.politicalStance === 'string'
             ? normalizedOfficial.politicalStance
             : normalizedOfficial.politicalStance?.stanceId;
-        // conditionParams 存储在单独字段 stanceConditionParams 中
+        // conditionParams 存储在单独字?stanceConditionParams ?
         const conditionParams = normalizedOfficial.stanceConditionParams || [];
 
-        // 计算总影响力（从classInfluence对象累加）
+        // 计算总影响力（从classInfluence对象累加?
         const computedTotalInfluence = Object.values(classInfluence || {}).reduce((sum, v) => sum + (v || 0), 0);
 
         // [FIX] 构建 classIncome 时，由于 roleWagePayout.official 在循环结束后才设置，
-        // 这里需要为官员阶层使用当前官员的薪资作为预估收入
+        // 这里需要为官员阶层使用当前官员的薪资作为预估收?
         const estimatedClassIncome = {
             ...roleWagePayout,
             // 官员收入使用当前官员的薪资（如果有支付的话）加上产业收入预估
@@ -4312,7 +4837,7 @@ export const simulateTick = ({
         const stanceGameState = {
             classApproval: classApproval,
             classInfluence: classInfluence,
-            classIncome: estimatedClassIncome,  // [FIX] 使用包含官员收入预估的数据
+            classIncome: estimatedClassIncome,  // [FIX] 使用包含官员收入预估的数?
             totalInfluence: computedTotalInfluence,
             stability: (currentStability ?? 50) / 100,
             rulingCoalition: rulingCoalition,
@@ -4329,10 +4854,10 @@ export const simulateTick = ({
             conditionParams
         );
 
-        // 应用忠诚度变化
+        // 应用忠诚度变?
         const { DAILY_CHANGES, COUP_THRESHOLD, MAX, MIN } = LOYALTY_CONFIG;
 
-        // 记录各个因素的贡献值
+        // 记录各个因素的贡献?
         const loyaltyChangeFactors = [];
         let totalLoyaltyChange = 0;
 
@@ -4364,7 +4889,7 @@ export const simulateTick = ({
         totalLoyaltyChange += financialChange;
 
         // 国家稳定度
-        const stabilityValue = (currentStability ?? 50) / 100; // currentStability是0-100，转为0-1
+        const stabilityValue = (currentStability ?? 50) / 100; // currentStability为0-100，转为0-1
         let stabilityChange = 0;
         if (stabilityValue > 0.7) {
             stabilityChange = DAILY_CHANGES.stabilityHigh;
@@ -4398,14 +4923,15 @@ export const simulateTick = ({
 
         return {
             ...normalizedOfficial,
-            // [FIX] 确保返回的财富值在安全范围内
+            // [FIX] 确保返回的财富值在安全范围?
             wealth: Math.min(MAX_WEALTH, Number.isFinite(currentWealth) ? Math.max(0, currentWealth) : 400),
             lastDayExpense: dailyExpense,
             lastDayHeadTaxPaid: headTaxPaid,
             financialSatisfaction: combinedSatisfaction,
             ownedProperties,
             investmentProfile,
-            lastDayPropertyIncome: totalPropertyIncome,
+            lastDayPropertyIncome: isStateManagedPolicy ? managementFeeIncome : totalPropertyIncome,
+            lastDayManagementFee: managementFeeIncome,
             lastDayExpenseBreakdown: expenseBreakdown,
             lastDayLuxuryExpense: luxuryExpense,
             lastDayEssentialExpense: essentialExpense,
@@ -4419,7 +4945,7 @@ export const simulateTick = ({
                 byBuildingLevel: { ...(nextPropertySummary.byBuildingLevel || {}) },
                 totalCount: nextPropertySummary.totalCount ?? ownedProperties.length,
             } : propertySummary,
-            // 忠诚度系统
+            // 忠诚度系?
             loyalty: newLoyalty,
             lowLoyaltyDays: newLowLoyaltyDays,
             isStanceSatisfied: isStanceMet,
@@ -4461,28 +4987,49 @@ export const simulateTick = ({
         popStructure: { ...popStructure, official: 0 }, // Exclude official to prevent double count/deduction
         wealth,
         classIncome: roleWagePayout,
-        classExpense: roleExpense, // 新增：支出数据
+        classExpense: roleExpense, // 新增：支出数?
         classShortages,
         epoch,
         techsUnlocked,
-        priceMap: getPrice, // 传递价格获取函数
-        livingStandardStreaks
+        priceMap: getPrice, // 传递价格获取函?
+        livingStandardStreaks,
+        needsRequirementMultiplier,
+        potentialResources,
     });
+
 
     // Manually inject official stats (derived from independent simulation)
     const updatedOfficialCount = updatedOfficials.length;
     if (updatedOfficialCount > 0) {
         const avgWealth = totalOfficialWealth / updatedOfficialCount;
-        let pLevel = '赤贫';
-        let pCap = 30;
+        const officialDef = STRATA.official || {};
+        const officialThresholds = calculatePriceAwareLivingStandardThresholds({
+            baseNeeds: officialDef.needs || {},
+            luxuryNeeds: officialDef.luxuryNeeds || {},
+            priceMap: getPrice,
+            epoch,
+            techsUnlocked,
+            needsRequirementMultiplier,
+            potentialResources,
+        });
 
-        if (avgWealth > 300) { pLevel = '奢华'; pCap = 95; }
-        else if (avgWealth > 100) { pLevel = '富裕'; pCap = 85; }
-        else if (avgWealth > 50) { pLevel = '小康'; pCap = 75; }
-        else if (avgWealth > 20) { pLevel = '温饱'; pCap = 60; }
-        else { pLevel = '贫困'; pCap = 45; }
-
-        const wealthRatio = avgWealth / 400;
+        const pLevel = getPriceAwareLivingStandardLevel(avgWealth, officialThresholds.thresholds, '贫困');
+        const approvalCapMap = {
+            '贫困': 45,
+            '温饱': 60,
+            '小康': 75,
+            '富裕': 85,
+            '奢华': 95,
+        };
+        const scoreMap = {
+            '贫困': 25,
+            '温饱': 45,
+            '小康': 60,
+            '富裕': 75,
+            '奢华': 90,
+        };
+        const referenceThreshold = officialThresholds.referenceThreshold || officialDef.startingWealth || 400;
+        const wealthRatio = referenceThreshold > 0 ? avgWealth / referenceThreshold : 0;
         const styleMap = {
             '奢华': { icon: 'Crown', color: 'text-purple-400' },
             '富裕': { icon: 'Gem', color: 'text-blue-400' },
@@ -4491,22 +5038,27 @@ export const simulateTick = ({
             '贫困': { icon: 'AlertTriangle', color: 'text-orange-400' },
             '赤贫': { icon: 'Skull', color: 'text-red-500' }
         };
-        const style = styleMap[pLevel] || styleMap['赤贫'];
+        const style = styleMap[pLevel] || styleMap['贫困'];
 
         livingStandardsResult.classLivingStandard.official = {
             level: pLevel,
             satisfaction: 1.0,
             satisfactionRate: 1.0,
-            approvalCap: pCap,
+            approvalCap: approvalCapMap[pLevel] || 45,
             needsMet: 1.0,
             wealthRatio: wealthRatio,
-            wealthPerCapita: avgWealth, // 修复：添加人均财富字段
-            wealthMultiplier: Math.min(6, 1 + Math.log(Math.max(1, avgWealth / 100)) * 0.5), // 基于收入的消费能力
+            wealthPerCapita: avgWealth,
+            wealthReference: referenceThreshold,
+            wealthMultiplier: Math.min(6, 1 + Math.log(Math.max(1, wealthRatio)) * 0.5),
+
             icon: style.icon,
             color: style.color,
             bgColor: style.color.replace('text-', 'bg-').replace('-400', '-900/20'),
             borderColor: style.color.replace('text-', 'border-').replace('-400', '-500/30'),
-            score: avgWealth > 300 ? 90 : avgWealth > 100 ? 75 : avgWealth > 50 ? 60 : avgWealth > 20 ? 45 : 25,
+            score: scoreMap[pLevel] || 25,
+            basketDailyCosts: officialThresholds.dailyCosts,
+            basketThresholds: officialThresholds.thresholds,
+            basketBufferDays: officialThresholds.bufferDays,
         };
 
         // Update streaks
@@ -4518,11 +5070,12 @@ export const simulateTick = ({
         };
     }
 
+
     const classLivingStandard = livingStandardsResult.classLivingStandard;
     const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
     perfEnd('livingStandards');
 
-    // [NEW] 累积税收冲击值：用于防止"快速抬税后降税"的漏洞
+    // [NEW] 累积税收冲击值：用于防止"快速抬税后降税"的漏?
     // 当税率降低后，累积冲击会缓慢衰减，而非立即消失
     perfStart('approvalCalc');
     const updatedTaxShock = {};
@@ -4533,7 +5086,7 @@ export const simulateTick = ({
         const satisfactionInfo = needsReport[key];
         const satisfaction = satisfactionInfo?.satisfactionRatio ?? 1;
 
-        // 获取生活水平对满意度的上限影响
+        // 获取生活水平对满意度的上限影?
         const livingStandard = classLivingStandard[key];
         let livingStandardApprovalCap = livingStandard?.approvalCap ?? 100;
 
@@ -4560,7 +5113,14 @@ export const simulateTick = ({
         // Tax Burden Logic
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-        const taxPerCapita = Math.max(0, (roleHeadTaxPaid[key] || 0) / Math.max(1, count));
+        const headTaxPerCapitaBurden = Math.max(0, (roleHeadTaxPaid[key] || 0) / Math.max(1, count));
+        // [NEW] Include business tax (owners) and tariff (merchants) in tax burden
+        const businessTaxPerCapitaBurden = Math.max(0, (roleBusinessTaxPaid[key] || 0) / Math.max(1, count));
+        // Tariff is paid exclusively by merchants; distribute total tariff across merchant population
+        const tariffPerCapitaBurden = key === 'merchant'
+            ? Math.max(0, (taxBreakdown.tariff || 0) / Math.max(1, count))
+            : 0;
+        const taxPerCapita = headTaxPerCapitaBurden + businessTaxPerCapitaBurden + tariffPerCapitaBurden;
         const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
         const wealthPerCapita = (wealth[key] || 0) / Math.max(1, count);
 
@@ -4569,74 +5129,76 @@ export const simulateTick = ({
 
         if (taxBurdenFromIncome && !canAffordFromWealth) {
             targetApproval = Math.min(targetApproval, 40); // Tax burden cap
-        } else if (headRate < 0.6) {
-            targetApproval += 5; // Tax relief bonus
+        } else if (headRate < 0.6 && businessTaxPerCapitaBurden < 0.01 && tariffPerCapitaBurden < 0.01) {
+            targetApproval += 5; // Tax relief bonus (only if ALL tax types are low)
         }
 
-        // 税收冲击：当人头税占存款比例过高时，产生反感
+        // 税收冲击：当综合税负占存款比例过高时，产生反感
         // [FIX] 使用税前存款计算税收冲击，避免"榨干后无惩罚"的漏洞
+        // [ENHANCED] 纳入产业税（业主）和关税（商人），不再只看人头税
         const headTaxPaidPerCapita = (roleHeadTaxPaid[key] || 0) / Math.max(1, count);
+        const totalTaxPaidPerCapita = headTaxPaidPerCapita + businessTaxPerCapitaBurden + tariffPerCapitaBurden;
         // 税前人均存款用于TaxShock计算
         const preTaxWealthPerCapita = (preTaxWealth[key] || 0) / Math.max(1, count);
-        // 税收占存款的比例（每天税收 / 税前人均存款）
-        const taxToWealthRatio = preTaxWealthPerCapita > 0.01 ? headTaxPaidPerCapita / preTaxWealthPerCapita : 0;
-        // 当税收超过存款的5%时开始产生冲击，超过20%时达到最大惩罚
-        // [ENHANCED] 最大惩罚从25提升到50，更严厉惩罚压榨行为
-        // 5%以下无惩罚，5%-20%线性增长到25，20%-100%继续增长到50
-        const taxShockThreshold = 0.05; // 5%阈值
+        // 综合税收占存款的比例（每天总税负 / 税前人均存款）
+        const taxToWealthRatio = preTaxWealthPerCapita > 0.01 ? totalTaxPaidPerCapita / preTaxWealthPerCapita : 0;
+        // 当税收超过存款的5%时开始产生冲击，超过20%时达到最大惩?
+        // [ENHANCED] 最大惩罚从25提升?0，更严厉惩罚压榨行为
+        // 5%以下无惩罚，5%-20%线性增长到25?0%-100%继续增长?0
+        const taxShockThreshold = 0.05; // 5%阈?
         const taxShockMaxRatio = 0.20;  // 20%达到中等惩罚
-        const taxShockExtremeRatio = 1.0; // 100%达到最大惩罚
+        const taxShockExtremeRatio = 1.0; // 100%达到最大惩?
         let instantTaxShock = 0;
-        if (taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0) {
+        if (taxToWealthRatio > taxShockThreshold && totalTaxPaidPerCapita > 0) {
             if (taxToWealthRatio <= taxShockMaxRatio) {
-                // 5%-20%: 0-25分线性增长
+                // 5%-20%: 0-25分线性增?
                 instantTaxShock = ((taxToWealthRatio - taxShockThreshold) / (taxShockMaxRatio - taxShockThreshold)) * 25;
             } else {
-                // 20%-100%: 25-50分线性增长
+                // 20%-100%: 25-50分线性增?
                 instantTaxShock = 25 + Math.min(25, ((taxToWealthRatio - taxShockMaxRatio) / (taxShockExtremeRatio - taxShockMaxRatio)) * 25);
             }
         }
 
-        // [NEW] 累积税收冲击机制：防止"快速抬税后降税"的漏洞
-        // 原理：民众对被剥削的记忆不会因税率降低而立即消失
-        // - 当前冲击会累加到历史累积值
-        // - 历史累积值每tick衰减一定比例（模拟愤怒逐渐平息）
-        // - 最终惩罚取当前冲击和累积冲击的较大值
+        // [NEW] 累积税收冲击机制：防?快速抬税后降税"的漏?
+        // 原理：民众对被剥削的记忆不会因税率降低而立即消?
+        // - 当前冲击会累加到历史累积?
+        // - 历史累积值每tick衰减一定比例（模拟愤怒逐渐平息?
+        // - 最终惩罚取当前冲击和累积冲击的较大?
         const prevAccumulatedShock = previousTaxShock[key] || 0;
-        const taxShockDecayRate = 0.03; // 每tick衰减3%（约需23天衰减50%）
-        const taxShockAccumulationRate = 0.5; // 当前冲击的50%会累加到历史值
+        const taxShockDecayRate = 0.03; // 每tick衰减3%（约需23天衰?0%?
+        const taxShockAccumulationRate = 0.5; // 当前冲击?0%会累加到历史?
 
-        // 累积公式：旧累积 * (1 - 衰减率) + 新冲击 * 累积率
+        // 累积公式：旧累积 * (1 - 衰减? + 新冲?* 累积?
         const newAccumulatedShock = Math.max(0,
             prevAccumulatedShock * (1 - taxShockDecayRate) + instantTaxShock * taxShockAccumulationRate
         );
         updatedTaxShock[key] = newAccumulatedShock;
 
-        // 最终惩罚：取即时冲击和累积冲击的较大值
-        // 这确保了：
+        // 最终惩罚：取即时冲击和累积冲击的较大?
+        // 这确保了?
         // 1. 高税期间：即时冲击占主导
         // 2. 降税后：累积冲击继续生效，逐渐衰减
         const taxShockPenalty = Math.max(instantTaxShock, newAccumulatedShock);
 
-        // Resource Shortage Logic - 区分基础需求和奢侈需求短缺
+        // Resource Shortage Logic - 区分基础需求和奢侈需求短?
         const shortages = classShortages[key] || [];
         const basicShortages = shortages.filter(s => s.isBasic);
         const luxuryShortages = shortages.filter(s => !s.isBasic);
         const totalNeeds = satisfactionInfo?.totalTrackedNeeds ?? 0;
 
-        // 基础需求短缺 - 严重惩罚
+        // 基础需求短?- 严重惩罚
         if (basicShortages.length > 0 && totalNeeds > 0) {
             if (basicShortages.length >= Object.keys(STRATA[key]?.needs || {}).length) {
-                // 所有基础需求都短缺 → 上限0
+                // 所有基础需求都短缺 ?上限0
                 targetApproval = Math.min(targetApproval, 0);
             } else {
-                // 部分基础需求短缺 → 上限30
+                // 部分基础需求短缺 上限30
                 targetApproval = Math.min(targetApproval, 30);
             }
         }
 
         // 奢侈需求短缺 - 较轻惩罚，与缺少数量相关
-        // 每缺少1种奢侈品，惩罚-3，最多惩罚-15
+        // 每缺一种奢侈品，惩罚3，最多惩罚15
         if (luxuryShortages.length > 0) {
             const luxuryPenalty = Math.min(15, luxuryShortages.length * 3);
             targetApproval -= luxuryPenalty;
@@ -4717,6 +5279,8 @@ export const simulateTick = ({
             unemployedPenalty: 0,
             eventBonus: 0,
             decreeBonus: 0,
+            stanceTargetBonus: 0,
+            ideologyTargetBonus: 0,
             officialTargetBonus: 0,
             legitimacyPenalty: 0,  // [NEW] 非法政府惩罚
             taxShockPenalty: 0,
@@ -4789,24 +5353,42 @@ export const simulateTick = ({
             approvalBreakdown[key].decreeBonus = decreeBonus;
         }
 
+        const stanceApprovalBonus = bonuses.stanceApprovalEffects?.[key] || 0;
+        if (stanceApprovalBonus) {
+            targetApproval += stanceApprovalBonus;
+            approvalBreakdown[key].stanceTargetBonus = stanceApprovalBonus;
+        }
+
+        const ideologyApprovalBonus = bonuses.approvalEffects?.[key] || 0;
+        if (ideologyApprovalBonus) {
+            targetApproval += ideologyApprovalBonus;
+            approvalBreakdown[key].ideologyTargetBonus = ideologyApprovalBonus;
+        }
+
         const officialBonus = activeOfficialEffects?.approval?.[key] || 0;
-        if (officialBonus > 0) {
+        if (officialBonus) {
             targetApproval += officialBonus;
             approvalBreakdown[key].officialTargetBonus = officialBonus;
         }
 
-        // [FIX] 非法政府惩罚：使用上一tick的合法性来影响目标满意度
-        // 而不是在惯性计算之后直接扣除当前好感度（这会导致无限下降的BUG）
+        // [FIX] 非法政府惩罚：使用上一tick的合法性来影响目标满意?
+        // 而不是在惯性计算之后直接扣除当前好感度（这会导致无限下降的BUG?
         const prevLegitimacyModifier = getLegitimacyApprovalModifier(previousLegitimacy);
         if (prevLegitimacyModifier < 0) {
-            targetApproval += prevLegitimacyModifier;  // 应用到目标，通过惯性缓慢影响
+            targetApproval += prevLegitimacyModifier;  // 应用到目标，通过惯性缓慢影?
             approvalBreakdown[key].legitimacyPenalty = prevLegitimacyModifier;
         }
 
         // Effective cap (negative official bonus reduces cap)
         let effectiveApprovalCap = livingStandardApprovalCap;
+        if (stanceApprovalBonus < 0) {
+            effectiveApprovalCap = Math.max(0, effectiveApprovalCap + stanceApprovalBonus);
+        }
+        if (ideologyApprovalBonus < 0) {
+            effectiveApprovalCap = Math.max(0, effectiveApprovalCap + ideologyApprovalBonus);
+        }
         if (officialBonus < 0) {
-            effectiveApprovalCap = Math.max(0, livingStandardApprovalCap + officialBonus);
+            effectiveApprovalCap = Math.max(0, effectiveApprovalCap + officialBonus);
         }
         approvalBreakdown[key].effectiveApprovalCap = effectiveApprovalCap;
 
@@ -4819,7 +5401,7 @@ export const simulateTick = ({
             currentApproval = Math.max(0, currentApproval - taxShockPenalty);
             approvalBreakdown[key].taxShockPenalty = -taxShockPenalty;
 
-            // [ENHANCED] 冲击越大上限越低，最低可到0（极端压榨将引发彻底反感）
+            // [ENHANCED] 冲击越大上限越低，最低可?（极端压榨将引发彻底反感?
             if (taxShockPenalty > 5) {
                 const shockCap = Math.max(0, 70 - taxShockPenalty * 2);
                 approvalBreakdown[key].shockCapApplied = shockCap;
@@ -4880,7 +5462,7 @@ export const simulateTick = ({
             }
 
             // Calculate per-capita wealth and apply decay rate
-            // 根据生活水平档位设置不同的挥霍率，刚进入小康时挥霍很少
+            // 根据生活水平档位设置不同的挥霍率，刚进入小康时挥霍很?
             const perCapitaWealth = currentWealth / population;
             const wealthRatio = WEALTH_BASELINE > 0 ? perCapitaWealth / WEALTH_BASELINE : 0;
 
@@ -4894,9 +5476,9 @@ export const simulateTick = ({
             if (level === '小康') {
                 decayRate = 0.001; // 0.1% - 刚进入小康，挥霍很少
             } else if (level === '富裕') {
-                decayRate = 0.003; // 0.3% - 开始享受生活
+                decayRate = 0.003; // 0.3% - 开始享受生?
             }
-            // '奢华' 保持默认的0.5%
+            // '奢华' 保持默认?.5%
 
             const perCapitaDecay = perCapitaWealth * decayRate;
             // Removed Math.max(1, floor(...)) to allow fractional decay and prevent subsidy waste
@@ -4958,7 +5540,7 @@ export const simulateTick = ({
 
     let totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
 
-    // 执政联盟合法性精确计算（影响力已计算完成）
+    // 执政联盟合法性精确计算（影响力已计算完成?
     const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
     coalitionLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
     if (bonuses.legitimacyBonus) {
@@ -4969,10 +5551,10 @@ export const simulateTick = ({
     perfEnd('influenceCalc');
 
     // [FIX BUG] 非法政府满意度惩罚的应用方式已改变：
-    // 之前的 BUG: 每个 tick 都直接从当前好感度扣除 -15，导致无限下降
-    // 修复: 惩罚已在上方惯性计算循环中应用到 targetApproval，这里不再重复应用
-    // 保留此处代码注释以说明设计意图
-    // NOTE: legitimacyApprovalModifier 现在应该在 approvalBreakdown 中体现（需要在上方循环添加）
+    // 之前?BUG: 每个 tick 都直接从当前好感度扣?-15，导致无限下?
+    // 修复: 惩罚已在上方惯性计算循环中应用?targetApproval，这里不再重复应?
+    // 保留此处代码注释以说明设计意?
+    // NOTE: legitimacyApprovalModifier 现在应该?approvalBreakdown 中体现（需要在上方循环添加?
 
     perfStart('exodusAndPenalties');
     let exodusPopulationLoss = 0;
@@ -5003,13 +5585,13 @@ export const simulateTick = ({
                     ledger.transfer(key, 'void', fleeingCapital, TRANSACTION_CATEGORIES.EXPENSE.CAPITAL_FLIGHT, TRANSACTION_CATEGORIES.EXPENSE.CAPITAL_FLIGHT);
                 }
 
-                // [FIX] 同步更新popStructure，确保人口真正从该阶层移除
+                // [FIX] 同步更新popStructure，确保人口真正从该阶层移?
                 // 这样房屋/岗位才能空出来被新人填补
                 popStructure[key] = Math.max(0, count - leaving);
             }
             exodusPopulationLoss += leaving;
 
-            // 生成详细的短缺原因日志
+            // 生成详细的短缺原因日?
             const shortageDetails = (classShortages[key] || []).map(shortage => {
                 const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
                 const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
@@ -5023,10 +5605,10 @@ export const simulateTick = ({
                     return `${resName}(缺货且买不起)`;
                 }
                 return resName;
-            }).join('、');
+            }).join(', ');
 
             const shortageMsg = shortageDetails ? `，短缺资源：${shortageDetails}` : '';
-            logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家，带走了 ${(leaving * (wealth[key] || 0) / Math.max(1, count)).toFixed(1)} 银币${shortageMsg}。`);
+            logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家，带走${(leaving * (wealth[key] || 0) / Math.max(1, count)).toFixed(1)} 银币${shortageMsg}。`);
         } else if (influenceShare >= 0.12) {
             const penalty = Math.min(0.2, 0.05 + influenceShare * 0.15);
             extraStabilityPenalty += penalty;
@@ -5045,7 +5627,7 @@ export const simulateTick = ({
                     return `${resName}(缺货且买不起)`;
                 }
                 return resName;
-            }).join('、');
+            }).join(', ');
 
             const shortageMsg = shortageDetails ? `（短缺：${shortageDetails}）` : '';
             logs.push(`${className} 阶层的愤怒正在削弱社会稳定${shortageMsg}。`);
@@ -5056,6 +5638,18 @@ export const simulateTick = ({
     perfStart('buffsDebuffs');
     const newActiveBuffs = [];
     const newActiveDebuffs = [];
+
+    // 保留外部注入的限时 buff（如理念事件），并在每日结算后递减持续时间
+    (productionBuffs || []).forEach((buff) => {
+        if (!buff || !Number.isFinite(buff.duration)) return;
+        const nextDuration = Math.floor(buff.duration) - 1;
+        if (nextDuration > 0) {
+            newActiveBuffs.push({
+                ...buff,
+                duration: nextDuration,
+            });
+        }
+    });
 
     Object.keys(STRATA).forEach(key => {
         const def = STRATA[key];
@@ -5107,10 +5701,10 @@ export const simulateTick = ({
     perfEnd('stabilityCalc');
 
     const visibleEpoch = epoch;
-    // 记录本回合来自战争赔款（含分期）的财政收入
+    // 记录本回合来自战争赔款（含分期）的财政收?
     let warIndemnityIncome = 0;
     const playerPopulationBaseline = Math.max(5, population || 5);
-    const playerWealthBaseline = Math.max(100, (res.silver ?? resources?.silver ?? 0));
+    const playerWealthBaseline = calculatePlayerComparableWealth(res, classWealth);
 
     // Track global peace request cooldown - find the most recent peace request across all nations
     // This prevents multiple AI nations from spamming peace requests simultaneously
@@ -5251,19 +5845,29 @@ export const simulateTick = ({
             initializeRebelEconomy(next);
 
             // REFACTORED: Using module function for rebel war actions
+            // 如果该叛军与玩家之间已有活跃战线，则由战线系统处理掠夺，跳过旧突袭逻辑
             if (next.isAtWar) {
-                const rebelResult = processRebelWarActions({
-                    nation: next,
-                    tick,
-                    epoch,
-                    resources: res,
-                    population,
-                    army,
-                    logs,
-                    onTreasuryChange: trackSilverChange,
-                    onResourceChange: onResourceChangeCallback,
-                });
-                raidPopulationLoss += rebelResult.raidPopulationLoss;
+                const rebelFronts = (activeFronts || []).filter(f =>
+                    f?.status === 'active' && (f.attackerId === next.id || f.defenderId === next.id)
+                );
+                if (rebelFronts.length > 0) {
+                    // 将战线战争分数同步到 nation.warScore
+                    const totalFrontWarScore = rebelFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    next.warScore = totalFrontWarScore;
+                } else {
+                    const rebelResult = processRebelWarActions({
+                        nation: next,
+                        tick,
+                        epoch,
+                        resources: res,
+                        population,
+                        army,
+                        logs,
+                        onTreasuryChange: trackSilverChange,
+                        onResourceChange: onResourceChangeCallback,
+                    });
+                    raidPopulationLoss += rebelResult.raidPopulationLoss;
+                }
             }
 
             // REFACTORED: Using module function for rebel surrender check
@@ -5346,7 +5950,15 @@ export const simulateTick = ({
             const baseWealthInit = Math.max(100, Math.round(playerWealthBaseline * wealthFactor));
             next.population = basePopInit;
             next.wealth = baseWealthInit;
-            next.budget = Math.max(50, baseWealthInit * 0.5);
+            next.budget = Math.max(50, baseWealthInit * calculateAITreasuryTargetRatio({
+                wealth: baseWealthInit,
+                population: basePopInit,
+                epoch: next.epoch || visibleEpoch || 0,
+                isAtWar: false,
+                aggression: next.aggression || 0.3,
+                capacityUsage: 0.55,
+                developmentRate: next.economyTraits?.developmentRate || 1.0,
+            }));
             next.economyTraits = {
                 ...(next.economyTraits || {}),
                 basePopulation: basePopInit,
@@ -5364,33 +5976,35 @@ export const simulateTick = ({
             }
         }
 
-        if (!shouldProcessAIForNation) {
-            return next;
+        // 为和平期/未参战的国家补建一次常规建筑画像，避免外交面板只能看到外资建筑?
+        if (!isExpiredNation && !next.isRebelNation && (!next.virtualBuildings || Object.keys(next.virtualBuildings).length === 0)) {
+            generateAIBuildingProfile(next, next.epoch || visibleEpoch || epoch || 0, {
+                overseasInvestments: updatedOverseasInvestments,
+            });
         }
 
-        // REFACTORED: Using new AI economy system
-        // Each function has its own internal tick-based checks, so they can safely run every slice.
-        // [NOTE] These run only for sliced nations (1/3 per tick with aiNationUpdateSlices=3)
-        // The slice check above ensures nations take turns being processed.
-        // Save loading timestamp fix in useGameState.js ensures proper initialization.
-        // [FIX] Exclude vassals here - they are processed separately in VASSAL SYSTEM DAILY UPDATE
-        const isVassal = next.vassalOf === 'player';
-        if (!isExpiredNation && !next.isRebelNation && !isVassal) {
-            // Migrate nation data if needed (automatic, transparent)
+        if (!isExpiredNation && !next.isRebelNation) {
             const migratedNation = migrateNationEconomy(next);
-
-            // Use unified economy service (handles growth, resources, budget)
             const updatedNation = AIEconomyService.update({
                 nation: migratedNation,
                 tick,
                 epoch: migratedNation.epoch || 0,
                 difficulty,
                 playerPopulation: playerPopulationBaseline,
+                playerWealth: playerWealthBaseline,
                 gameSpeed,
+                allowHeavyUpdate: shouldProcessAIForNation,
             });
-
-            // Apply updates to next
             Object.assign(next, updatedNation);
+        }
+
+        if (!shouldProcessAIForNation) {
+            return next;
+        }
+
+        if (!isExpiredNation && !next.isRebelNation) {
+            // AI building peacetime recovery (every 30 days, only for nations with virtualBuildings)
+            processAIBuildingRecovery(next, next.epoch || epoch, tick);
 
             // Check for epoch progression
             checkAIEpochProgression(next, logs, tick);
@@ -5404,34 +6018,45 @@ export const simulateTick = ({
             next.warTotalExpense = (next.warTotalExpense || 0) + dailyExpenseShare;
 
             if (visibleEpoch >= 1 && shouldUpdateAI) {
-                // REFACTORED: Using module function for AI military action
-                const militaryResult = processAIMilitaryAction({
-                    nation: next,
-                    tick,
-                    epoch,
-                    resources: res,
-                    army,
-                    logs,
-                    difficultyLevel: difficulty,
-                    onTreasuryChange: trackSilverChange,
-                    onResourceChange: onResourceChangeCallback,
-                });
-                raidPopulationLoss += militaryResult.raidPopulationLoss;
+                // 如果该国与玩家之间已有活跃战线，则由战线系统处理，跳过旧突袭逻辑
+                const nationFronts = (activeFronts || []).filter(f =>
+                    f?.status === 'active' && (f.attackerId === next.id || f.defenderId === next.id)
+                );
+                if (nationFronts.length > 0) {
+                    // 将战线战争分数同步到 nation.warScore（取所有战线的加权和）
+                    // 战线 warScore 正?玩家优势，与 nation.warScore 方向一?
+                    const totalFrontWarScore = nationFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    next.warScore = totalFrontWarScore;
+                } else {
+                    // REFACTORED: Using module function for AI military action
+                    const militaryResult = processAIMilitaryAction({
+                        nation: next,
+                        tick,
+                        epoch,
+                        resources: res,
+                        army,
+                        logs,
+                        difficultyLevel: difficulty,
+                        onTreasuryChange: trackSilverChange,
+                        onResourceChange: onResourceChangeCallback,
+                    });
+                    raidPopulationLoss += militaryResult.raidPopulationLoss;
+                }
             }
             // REFACTORED: Using module function for AI peace request check
             // Pass global cooldown to prevent multiple nations from requesting peace simultaneously
             if (shouldUpdateAI) {
-                const peaceRequested = checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs });
+                const peaceRequested = checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs, activeFronts });
                 if (peaceRequested) {
                     lastGlobalPeaceRequest = tick; // Update global cooldown for subsequent nations
                 }
 
                 // REFACTORED: Using module function for AI surrender demand check
-                // 传入玩家财富，使赔款计算与玩家主动求和时一致
-                checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
+                // 传入玩家财富，使赔款计算与玩家主动求和时一?
+                checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs, activeFronts });
 
                 // Check if AI should offer unconditional peace when player is in desperate situation
-                checkMercyPeace({ nation: next, tick, population, playerWealth: playerWealthBaseline, resources: res, logs });
+                checkMercyPeace({ nation: next, tick, population, playerWealth: playerWealthBaseline, resources: res, logs, activeFronts });
             }
         } else if (next.warDuration) {
             next.warDuration = 0;
@@ -5452,7 +6077,7 @@ export const simulateTick = ({
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) - dailyPenalty));
         }
 
-        // 应用官员和政治立场的外交加成到玩家与AI的关系
+        // 应用官员和政治立场的外交加成到玩家与AI的关?
         if (!isExpiredNation && bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
             // On hard: improving is harder
             const dailyBonus = (bonuses.diplomaticBonus / 30) * relationMultipliers.good;
@@ -5526,7 +6151,8 @@ export const simulateTick = ({
     const isMonthTick = tick % 30 === 0;
     if (isMonthTick && shouldUpdateDiplomacy) {
         perfStart('monthlyRelationDecay');
-        updatedNations = processMonthlyRelationDecay(updatedNations, difficulty);
+        // [FIX Bug10] 传入组织信息，确保组织盟友也享受关系衰减保护
+        updatedNations = processMonthlyRelationDecay(updatedNations, difficulty, { organizations: updatedOrganizations });
         perfEnd('monthlyRelationDecay');
     }
 
@@ -5567,7 +6193,7 @@ export const simulateTick = ({
             daysElapsed: tick,
         });
 
-        // 扣除组织成员费
+        // 扣除组织成员?
         if (organizationUpdateResult.fees.player > 0) {
             const feeToDeduct = Math.min(res.silver || 0, organizationUpdateResult.fees.player);
             if (feeToDeduct > 0) {
@@ -5575,7 +6201,7 @@ export const simulateTick = ({
             }
         }
 
-        // 更新AI国家的费用
+        // 更新AI国家的费?
         if (organizationUpdateResult.fees.ai) {
             for (const [nationId, fee] of Object.entries(organizationUpdateResult.fees.ai)) {
                 const nation = updatedNations.find(n => n.id === nationId);
@@ -5660,7 +6286,7 @@ export const simulateTick = ({
                     logs.push(`⚔️ ${event.nationName} 爆发内战！反对派势力与政府军交战中...`);
                 } else if (event.type === 'civil_war_ended') {
                     if (event.winner === 'rebels') {
-                        logs.push(`🏴 ${event.nationName} 的叛军取得胜利，政权更迭为${event.newGovernment || '新政府'}！`);
+                        logs.push(`🏴 ${event.nationName} 的叛军取得胜利，政权更迭！${event.newGovernment || '新政权'}！`);
                     } else {
                         logs.push(`🏛️ ${event.nationName} 的政府军平定叛乱，恢复秩序。`);
                     }
@@ -5686,56 +6312,13 @@ export const simulateTick = ({
         suzereainMilitary: playerMilitary,
         suzereainAtWar: playerAtWar,
         suzereainReputation: diplomaticReputation ?? 50, // Use actual reputation value
-        hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势力
+        hasIndependenceSupport: false,  // TODO: 可以检查是否有支持独立的势?
     };
 
-    // [FIX] Apply population and wealth growth to vassals BEFORE updateNationEconomyData
-    // This ensures that the growth values are preserved when creating new objects
     const vassalSliceCount = Math.max(1, RATE_LIMIT_CONFIG.vassalUpdateSlices || 1);
     const vassalNations = updatedNations.filter(n => n.vassalOf === 'player');
     const vassalTargets = getSlice(vassalNations, vassalSliceCount);
     const vassalTargetIds = vassalTargets.map(v => v.id);
-
-    // Apply growth to sliced vassals FIRST
-    updatedNations = updatedNations.map(nation => {
-        if (nation.vassalOf !== 'player' || !vassalTargetIds.includes(nation.id)) return nation;
-
-        // [DEBUG] Log vassal growth processing
-        const beforePop = nation.population;
-        const beforeWealth = nation.wealth;
-        const hasEconomyTraits = !!nation.economyTraits;
-        const lastGrowthTick = nation.economyTraits?.lastGrowthTick;
-
-        // Migrate nation data if needed (automatic, transparent)
-        const migratedNation = migrateNationEconomy(nation);
-
-        // Use unified economy service (handles growth, resources, budget)
-        const resultNation = AIEconomyService.update({
-            nation: migratedNation,
-            tick,
-            epoch: migratedNation.epoch || epoch,
-            difficulty,
-            playerPopulation: playerPopulationBaseline,
-            gameSpeed,
-        });
-
-        // [DEBUG] Log growth results
-        const afterPop = resultNation.population;
-        const afterWealth = resultNation.wealth;
-        const ticksSinceGrowth = tick - (lastGrowthTick || 0);
-
-        if (beforePop !== afterPop || beforeWealth !== afterWealth) {
-            console.log(`[Vassal Growth] ${resultNation.name}: pop ${beforePop}→${afterPop}, wealth ${beforeWealth}→${afterWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
-        } else if (tick % 100 === 0) {
-            // Log every 100 ticks even if no growth
-            console.log(`[Vassal No Growth] ${resultNation.name}: pop=${beforePop}, wealth=${beforeWealth}, ticks since last: ${ticksSinceGrowth}, had traits: ${hasEconomyTraits}`);
-        }
-
-        // [DEBUG] Log the returned nation object
-        // console.log(`[Vassal After Growth Return] ${resultNation.name}: pop=${resultNation.population}, wealth=${resultNation.wealth}`);
-
-        return resultNation;
-    });
 
     // Now update economy data with the grown population/wealth values
     // [FIX] Only process vassals in vassalTargetIds to match the growth logic
@@ -5751,7 +6334,7 @@ export const simulateTick = ({
 
         // // [DEBUG] Log population after updateNationEconomyData
         // if (tick % 10 === 0 && nation.name) {
-        //     console.log(`[After EconomyData] ${nation.name}: pop ${nation.population}→${result.population}`);
+        //     console.log(`[After EconomyData] ${nation.name}: pop ${nation.population}->${result.population}`);
         // }
 
         return result;
@@ -5788,7 +6371,7 @@ export const simulateTick = ({
             const before = updatedNations.find(n => n.id === vassalId);
             const after = vassalResult.nations.find(n => n.id === vassalId);
             if (before && after && (before.wealth !== after.wealth || before.population !== after.population)) {
-                console.log(`[Vassal After Process] ${after.name}: pop ${before.population}→${after.population}, wealth ${before.wealth}→${after.wealth}`);
+                console.log(`[Vassal After Process] ${after.name}: pop ${before.population}->${after.population}, wealth ${before.wealth}->${after.wealth}`);
             }
         });
     }
@@ -5872,7 +6455,7 @@ export const simulateTick = ({
         epoch >= (n.appearEpoch ?? 0)
         && (n.expireEpoch == null || epoch <= n.expireEpoch)
         && !n.isRebelNation
-        && !n.isAnnexed // 排除已被吞并的国家
+        && !n.isAnnexed // 排除已被吞并的国?
     );
     const diplomacySliceCount = Math.max(1, RATE_LIMIT_CONFIG.diplomacyUpdateSlices || 1);
     const diplomacyTargets = getSlice(visibleNations, diplomacySliceCount);
@@ -5985,7 +6568,7 @@ export const simulateTick = ({
                                 ...org,
                                 members: org.members.filter(m => m !== req.nationId),
                                 isActive: false,
-                                disbandReason: '创始国退出',
+                                disbandReason: 'founder_left',
                             };
                             logs.push(`🏛️ "${org.name}" 因创始国退出而解散。`);
                         } else {
@@ -6017,7 +6600,7 @@ export const simulateTick = ({
                 organizationUpdatesOccurred = true;
                 const removedCount = originalMemberCount - cleanedMembers.length;
                 if (removedCount > 0) {
-                    logs.push(`🏛️ "${org.name}" 清理了 ${removedCount} 个已消失的成员国。`);
+                    logs.push(`🏛️ "${org.name}" 清理了${removedCount} 个已消失的成员国。`);
                 }
             }
 
@@ -6035,7 +6618,7 @@ export const simulateTick = ({
             if (org.isActive === false && !keepSoloPlayerOrg) {
                 const reason = org.disbandReason || '未知原因';
                 // Only log if not already logged
-                if (reason !== '创始国退出') {
+                if (reason !== 'founder_left') {
                     logs.push(`🏛️ "${org.name}" 因${reason}而解散。`);
                 }
                 organizationUpdatesOccurred = true;
@@ -6087,7 +6670,7 @@ export const simulateTick = ({
 
             if (cleanedTreaties.length < originalTreatyCount) {
                 const removedCount = originalTreatyCount - cleanedTreaties.length;
-                logs.push(`📜 ${nation.name} 因条约对方消亡，清理了 ${removedCount} 个条约。`);
+                logs.push(`📜 ${nation.name} 因条约对方消亡，清理了${removedCount} 个条约。`);
             }
 
             return {
@@ -6109,7 +6692,16 @@ export const simulateTick = ({
             { organizations: updatedOrganizations },
             vassalDiplomacyRequests,
         );
-        processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests);
+        processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests, epoch, militaryCorps, generals);
+        const annexedCapitalMigration = migrateAnnexedNationCapital({
+            nations: updatedNations,
+            overseasInvestments: updatedOverseasInvestments,
+            foreignInvestments: updatedForeignInvestments,
+            tick,
+            logs,
+        });
+        updatedOverseasInvestments = annexedCapitalMigration.overseasInvestments;
+        updatedForeignInvestments = annexedCapitalMigration.foreignInvestments;
     }
     perfEnd('diplomacyAI');
 
@@ -6173,14 +6765,14 @@ export const simulateTick = ({
             if ((popStructure.unemployed || 0) > 0) {
                 popStructure.unemployed = popStructure.unemployed - 1;
             } else {
-                // 如果没有失业者，随机从一个有人的阶层扣
+                // 如果没有失业者，随机从一个有人的阶层?
                 const rolesWithPop = ROLE_PRIORITY.filter(r => (popStructure[r] || 0) > 0);
                 if (rolesWithPop.length > 0) {
                     const randomRole = rolesWithPop[Math.floor(Math.random() * rolesWithPop.length)];
                     popStructure[randomRole] = Math.max(0, (popStructure[randomRole] || 0) - 1);
                 }
             }
-            logs.push("饥荒导致人口减少！");
+            logs.push("Population reduced by famine.");
         }
     }
 
@@ -6196,7 +6788,7 @@ export const simulateTick = ({
         const def = STRATA[key];
         if (!def || !def.needs) return;
 
-        // 检查食物和布料需求是否满足
+        // 检查食物和布料需求是否满?
         const shortages = classShortages[key] || [];
         const lackingFood = shortages.some(s => (typeof s === 'string' ? s : s.resource) === 'food');
         const lackingCloth = shortages.some(s => (typeof s === 'string' ? s : s.resource) === 'cloth');
@@ -6204,7 +6796,7 @@ export const simulateTick = ({
         // 检查历史记录，判断是否长期缺乏
         const needsHistory = (classNeedsHistory || {})[key];
         if (needsHistory && needsHistory.length >= 5) {
-            // 检查最近5个tick的需求满足情况
+            // 检查最?个tick的需求满足情?
             const recentHistory = needsHistory.slice(-5);
             const avgSatisfaction = recentHistory.reduce((a, b) => a + b, 0) / recentHistory.length;
 
@@ -6231,8 +6823,8 @@ export const simulateTick = ({
                     popStructure[key] = Math.max(0, count - deaths);
                     starvationDeaths += deaths;
 
-                    const reason = lackingFood && lackingCloth ? '食物和布料' : (lackingFood ? '食物' : '布料');
-                    recordAggregatedLog(`${className} 阶层因长期缺乏${reason}，${deaths} 人死亡！`);
+                    const reason = lackingFood && lackingCloth ? '粮食和布料' : (lackingFood ? '粮食' : '布料');
+                    recordAggregatedLog(`${className} 因长期缺少${reason}导致${deaths}人死亡。`);
                 }
             }
         }
@@ -6244,7 +6836,7 @@ export const simulateTick = ({
     const popStructureTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0)
         + (popStructure.unemployed || 0);
 
-    // raidPopulationLoss 如果存在，且未在popStructure中扣减，则单独处理
+    // raidPopulationLoss 如果存在，且未在popStructure中扣减，则单独处?
     if (raidPopulationLoss > 0) {
         // 从失业者中优先扣减raid损失
         let raidReduction = raidPopulationLoss;
@@ -6270,7 +6862,7 @@ export const simulateTick = ({
         }
     }
 
-    // 最终人口 = popStructure的总和
+    // 最终人?= popStructure的总和
     nextPopulation = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0)
         + (popStructure.unemployed || 0);
     nextPopulation = Math.max(0, Math.floor(nextPopulation));
@@ -6365,18 +6957,23 @@ export const simulateTick = ({
             updatedWages[role] = parseFloat(smoothed.toFixed(2));
 
         });
-
-
-
         const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
+        // 战争税收debuff已在税收征收环节按百分比扣减（方案A），此处不再直接扣减银币
+
+        // 战争经济：贸易中断惩罚（减少所有供给的一部分，模拟贸易路线中断）
+        if (warTradeDisruption > 0) {
+            Object.keys(supply || {}).forEach(resourceKey => {
+                supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) * (1 - warTradeDisruption));
+            });
+        }
 
         // calculateMinProfitMargin is imported from ./utils/helpers
 
-        // 获取全局默认的市场参数（作为 fallback）
+        // 获取全局默认的市场参数（作为 fallback?
         const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
         const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
         const defaultVirtualDemandPerPop = Math.max(0, defaultMarketInfluence.virtualDemandPerPop || 0);
-        // 应用难度乘数到库存目标天数（低难度=更多缓冲=更稳定经济，高难度=更少缓冲=更波动经济）
+        // 应用难度乘数到库存目标天数（低难?更多缓冲=更稳定经济，高难?更少缓冲=更波动经济）
         const inventoryMultiplier = getInventoryTargetDaysMultiplier(difficulty);
         const defaultInventoryTargetDays = Math.max(0.1, (defaultMarketInfluence.inventoryTargetDays ?? 1.5) * inventoryMultiplier);
         const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
@@ -6388,7 +6985,7 @@ export const simulateTick = ({
             const resourceDef = RESOURCES[resource];
             const resourceMarketConfig = resourceDef?.marketConfig || {};
 
-            // 获取资源的经济参数
+            // 获取资源的经济参?
             const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined
                 ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
                 : defaultSupplyDemandWeight;
@@ -6409,16 +7006,16 @@ export const simulateTick = ({
             const adjustedDemand = dem + virtualDemandBaseline;
 
 
-            // 计算当前库存可以支撑多少天
+            // 计算当前库存可以支撑多少?
             const dailyDemand = adjustedDemand;
             const inventoryStock = res[resource] || 0;
             // 当库存为0时，无论需求如何都应该触发短缺价格（返回极低天数）
-            // 当库存>0但需求=0时，库存充足，返回目标天数
+            // 当库?0但需?0时，库存充足，返回目标天?
             const inventoryDays = inventoryStock <= 0
-                ? 0.01  // 库存为0时，视为极度短缺，触发最大涨价
+                ? 0.01  // 库存?时，视为极度短缺，触发最大涨?
                 : (dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays);
 
-            // DEBUG: 价格计算调试日志（每5个tick输出一次，避免刷屏）
+            // DEBUG: 价格计算调试日志（每5个tick输出一次，避免刷屏?
             // if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
             //     console.log(`[价格调试] ${RESOURCES[resource]?.name || resource}:`, {
             //         tick,
@@ -6434,7 +7031,7 @@ export const simulateTick = ({
             // }
 
 
-            // 收集所有生产该资源的建筑及其出售价格
+            // 收集所有生产该资源的建筑及其出售价?
             const buildingPrices = [];
             let totalOutput = 0;
 
@@ -6450,7 +7047,7 @@ export const simulateTick = ({
                     buildingCount
                 );
 
-                // 按等级分组计算
+                // 按等级分组计?
                 Object.entries(levelCounts).forEach(([levelStr, count]) => {
                     const level = parseInt(levelStr);
                     const config = getBuildingEffectiveConfig(building, level);
@@ -6458,7 +7055,7 @@ export const simulateTick = ({
                     const outputAmount = config.output?.[resource];
                     if (!outputAmount || outputAmount <= 0) return;
 
-                    // 使用基础建筑的 marketConfig（升级配置可以覆盖，否则沿用基础）
+                    // 使用基础建筑?marketConfig（升级配置可以覆盖，否则沿用基础?
                     const buildingMarketConfig = building.marketConfig || {};
                     const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
                     const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
@@ -6472,7 +7069,7 @@ export const simulateTick = ({
                         buildingWageWeights
                     );
 
-                    // 计算原材料成本（含税）- 使用升级后的 input
+                    // 计算原材料成本（含税? 使用升级后的 input
                     let inputCost = 0;
                     if (config.input) {
                         Object.entries(config.input).forEach(([inputKey, amount]) => {
@@ -6480,7 +7077,7 @@ export const simulateTick = ({
                             const inputPrice = priceMap[inputKey] || getBasePrice(inputKey);
                             const inputTaxRate = getResourceTaxRate(inputKey);
 
-                            // 原材料成本 = 价格 × 数量 × (1 + 税率)
+                            // 原材料成?= 价格 × 数量 × (1 + 税率)
                             // 如果税率为负（补贴），则成本降低
                             const baseCost = amount * inputPrice;
                             const taxCost = baseCost * inputTaxRate;
@@ -6489,31 +7086,33 @@ export const simulateTick = ({
                     }
 
                     // 计算工资成本 - 使用升级后的 jobs，但 owner 从基础建筑获取
+                    // [FIX] 自营建筑：只跳过业主自身工资，其他雇员工资仍计入成本
                     let laborCost = 0;
                     const ownerKey = building.owner;
                     const effectiveJobs = config.jobs || {};
-                    const isSelfOwned = ownerKey && effectiveJobs[ownerKey];
-                    if (Object.keys(effectiveJobs).length > 0 && !isSelfOwned) {
+                    if (Object.keys(effectiveJobs).length > 0) {
                         Object.entries(effectiveJobs).forEach(([role, slots]) => {
                             if (!slots || slots <= 0) return;
+                            // 跳过业主岗位的工资（业主收入来自利润而非工资）
+                            if (ownerKey && role === ownerKey) return;
                             const wage = updatedWages[role] || getExpectedWage(role);
                             laborCost += slots * wage;
                         });
                     }
 
-                    // 计算营业税成本
+                    // 计算营业税成?
                     const businessTaxMultiplier = policies?.businessTaxRates?.[building.id] ?? 1;
                     const businessTaxBase = building.businessTaxBase ?? 0.1;
                     const businessTaxCost = businessTaxBase * businessTaxMultiplier;
 
-                    // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
+                    // 计算业主生活需求成?- 使用升级后的 jobs 中的 owner 数量
                     let ownerLivingCost = 0;
                     if (ownerKey) {
                         const ownerLivingCostBase = resourceSpecificWageLivingCosts[ownerKey] || 0;
                         ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
                     }
 
-                    // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本 + 业主生活需求成本) / 产出数量
+                    // 成本?= (原材料成本含?+ 工资成本 + 营业税成?+ 业主生活需求成? / 产出数量
                     const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
                     const costPrice = totalCost / outputAmount;
 
@@ -6524,36 +7123,36 @@ export const simulateTick = ({
 
                     if (inventoryRatio < 0.1) {
                         // [ENHANCED] 极度稀缺：库存接近0时，价格暴涨
-                        priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10倍
-                        priceMultiplier = Math.min(10.0, priceMultiplier); // 最高10倍
+                        priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10?
+                        priceMultiplier = Math.min(10.0, priceMultiplier); // 最?0?
                     } else if (inventoryRatio < 0.5) {
-                        // 库存紧张，大幅涨价
-                        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
+                        // 库存紧张，大幅涨?
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最??
                     } else if (inventoryRatio < 1.0) {
                         // 库存偏低，适度涨价
-                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0?
                     } else if (inventoryRatio > 2.0) {
-                        // 库存积压，大幅降价
-                        // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯性
-                        priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+                        // 库存积压，大幅降?
+                        // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯?
+                        priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最?.1?
                         priceMultiplier = Math.max(0.1, priceMultiplier);
                     } else if (inventoryRatio > 1.0) {
                         // 库存充足，适度降价
-                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
+                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0?
                     }
 
-                    // 2. 获取基础价格（市场认可的合理价格）
+                    // 2. 获取基础价格（市场认可的合理价格?
                     const basePrice = getBasePrice(resource);
 
-                    // 3. 计算市场价格（基于basePrice和供需关系）
+                    // 3. 计算市场价格（基于basePrice和供需关系?
                     let marketBasedPrice = basePrice * priceMultiplier;
 
-                    // 4. 最终价格 = 市场价格（允许低于成本价）
+                    // 4. 最终价?= 市场价格（允许低于成本价?
                     // 当供过于求时，价格可能低于成本，生产者会亏损
-                    // 这会促使生产者减产或转行，实现市场自我调节
+                    // 这会促使生产者减产或转行，实现市场自我调?
                     let sellingPrice = marketBasedPrice;
 
-                    // 不超过物价限额
+                    // 不超过物价限?
                     const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
                     const maxPrice = resourceDef.maxPrice;
                     sellingPrice = Math.max(sellingPrice, minPrice);
@@ -6561,7 +7160,7 @@ export const simulateTick = ({
                         sellingPrice = Math.min(sellingPrice, maxPrice);
                     }
 
-                    // 记录该建筑等级的出售价格和产量
+                    // 记录该建筑等级的出售价格和产?
                     const levelOutput = outputAmount * count;
                     totalOutput += levelOutput;
                     buildingPrices.push({
@@ -6587,22 +7186,22 @@ export const simulateTick = ({
 
                 if (inventoryRatio < 0.1) {
                     // [极度稀缺] 库存接近0时，价格暴涨
-                    priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10倍
+                    priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10?
                     priceMultiplier = Math.min(10.0, priceMultiplier);
                 } else if (inventoryRatio < 0.5) {
-                    // 库存紧张，大幅涨价
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
+                    // 库存紧张，大幅涨?
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最??
                 } else if (inventoryRatio < 1.0) {
                     // 库存偏低，适度涨价
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0?
                 } else if (inventoryRatio > 2.0) {
-                    // 库存积压，大幅降价
-                    // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯性
-                    priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+                    // 库存积压，大幅降?
+                    // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯?
+                    priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最?.1?
                     priceMultiplier = Math.max(0.1, priceMultiplier);
                 } else if (inventoryRatio > 1.0) {
                     // 库存充足，适度降价
-                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
+                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0?
                 }
 
                 marketPrice = basePrice * priceMultiplier;
@@ -6617,7 +7216,7 @@ export const simulateTick = ({
             }
 
 
-            // 战争物价上涨：计算与玩家直接交战的敌对国家数量
+            // 战争物价上涨：计算与玩家直接交战的敌对国家数?
             // 注意：统计与玩家交战的AI国家（nation.isAtWar表示该AI与玩家交战）
             let warCount = 0;
             updatedNations.forEach(n => {
@@ -6634,18 +7233,38 @@ export const simulateTick = ({
                     });
                 }
             });
-            foreignWarCount = Math.floor(foreignWarCount / 2); // 每场战争被计算两次，需要除以2
+            foreignWarCount = Math.floor(foreignWarCount / 2); // 每场战争被计算两次，需要除?
 
-            // 战争物价系数：每场与玩家的战争增加2.5%物价，每场AI间战争增加1%物价
+            // 战争物价系数：每场与玩家的战争增?.5%物价，每场AI间战争增?%物价
             const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
 
             // 【修复】将战争乘数应用到目标价格（marketPrice），而非平滑后的价格
             // 这样平滑处理会正确地向战争调整后的目标价格移动，避免价格卡在上限
             const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
 
+            // V2: 理念价格修正
+            let ideoAdjustedMarketPrice = warAdjustedMarketPrice;
+            // price_volatility_mod: 衰减价格波动（将价格拉向basePrice）
+            const volatilityMod = bonuses.ideoPriceVolatilityMod || 0;
+            if (volatilityMod !== 0) {
+                const baseP = getBasePrice(resource);
+                // 负值=减少波动（价格更稳定），正值=增加波动
+                const damping = Math.max(0, Math.min(1, -volatilityMod));
+                ideoAdjustedMarketPrice = ideoAdjustedMarketPrice * (1 - damping) + baseP * damping;
+            }
+            // resource_price_mod: 按资源 scope 修正（负值=降价）
+            const resPriceMod = (bonuses.ideoResourcePriceMod?.[resource] || 0) + (bonuses.ideoResourcePriceMod?._global || 0);
+            if (resPriceMod !== 0) {
+                ideoAdjustedMarketPrice *= Math.max(0.5, 1 + resPriceMod);
+            }
+
             // 平滑处理：向战争调整后的目标价格平滑移动
-            const prevPrice = priceMap[resource] || warAdjustedMarketPrice;
-            const smoothed = prevPrice + (warAdjustedMarketPrice - prevPrice) * 0.1;
+            // [FIX] 动态平滑系数：供需差距大时加快响应，避免价格反应迟钝
+            const prevPrice = priceMap[resource] || ideoAdjustedMarketPrice;
+            const priceGapRatio = prevPrice > 0 ? Math.abs(ideoAdjustedMarketPrice - prevPrice) / prevPrice : 0;
+            // 基础平滑 0.1；差距超过 50% 时逐步加速到 0.4
+            const dynamicSmoothing = Math.min(0.4, 0.1 + priceGapRatio * 0.3);
+            const smoothed = prevPrice + (ideoAdjustedMarketPrice - prevPrice) * dynamicSmoothing;
 
             // 应用价格限制
             const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
@@ -6785,7 +7404,7 @@ export const simulateTick = ({
             tradeSummary[trade.type][key].profit += trade.profit;
             totalProfit += trade.profit;
 
-            // 按伙伴国家分组
+            // 按伙伴国家分?
             const partnerId = trade.partnerId || 'unknown';
             if (!partnerSummary[partnerId]) {
                 const partnerNation = updatedNations.find(n => n?.id === partnerId);
@@ -6807,20 +7426,20 @@ export const simulateTick = ({
         const partnerParts = [];
         Object.values(partnerSummary).forEach(p => {
             const items = [];
-            if (p.exports.length > 0) items.push(`出口${p.exports.join(',')}`);
-            if (p.imports.length > 0) items.push(`进口${p.imports.join(',')}`);
+            if (p.exports.length > 0) items.push('??' + p.exports.join(', '));
+            if (p.imports.length > 0) items.push('??' + p.imports.join(', '));
             if (items.length > 0) {
-                partnerParts.push(`${p.name}(${items.join(', ')})`);
+                partnerParts.push(p.name + '(' + items.join(', ') + ')');
             }
         });
 
         if (partnerParts.length > 0 && updatedMerchantState.shouldLogMerchantTrades) {
             const profitText = totalProfit >= 0 ? `盈利${totalProfit.toFixed(1)}` : `亏损${Math.abs(totalProfit).toFixed(1)}`;
-            logs.push(`📦 商人贸易完成: ${partnerParts.join('; ')}，${profitText}银币`);
+            logs.push('??????: ' + partnerParts.join(', ') + '?' + profitText + '??');
         }
 
 
-        // 应用官员贸易加成到商人财富
+        // 应用官员贸易加成到商人财?
         if (bonuses.tradeBonusMod && totalProfit > 0) {
             const tradeBonus = totalProfit * bonuses.tradeBonusMod;
             wealth.merchant = (wealth.merchant || 0) + tradeBonus;
@@ -6834,7 +7453,7 @@ export const simulateTick = ({
         delete updatedMerchantState.completedTrades;
     }
 
-    // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流动
+    // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流?
     const roleVacancies = {};
     ROLE_PRIORITY.forEach(role => {
         roleVacancies[role] = Math.max(0, (jobsAvailable[role] || 0) - (popStructure[role] || 0));
@@ -6856,10 +7475,10 @@ export const simulateTick = ({
     const vacantRoleIncomeCache = tickCache.getOrCompute(tick, 'vacantRoleIncomeCache', () => new Map());
 
     /**
-     * 为空岗位预估收入（区分业主和雇员）
-     * 解决恶性循环：无人工作 → 收入为0 → 更无人愿意去
+     * 为空岗位预估收入（区分业主和雇员?
+     * 解决恶性循环：无人工作 ?收入? ?更无人愿意去
      * @param {string} role - 角色key
-     * @returns {number} 预估的人均收入
+     * @returns {number} 预估的人均收?
      */
     const estimateVacantRoleIncome = (role) => {
         if (vacantRoleIncomeCache.has(role)) {
@@ -6868,7 +7487,7 @@ export const simulateTick = ({
         // 空岗位吸引力加成系数
         const VACANT_BONUS = 1.2;
 
-        // [FIX] 计算税收效率，用于补贴计算
+        // [FIX] 计算税收效率，用于补贴计?
         const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
         const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
 
@@ -6890,18 +7509,18 @@ export const simulateTick = ({
 
             if (isOwner) {
                 // ===== 业主收入预估 =====
-                // 计算建筑产出价值
+                // 计算建筑产出价?
                 let outputValue = 0;
                 if (config.output) {
                     Object.entries(config.output).forEach(([resource, amount]) => {
                         if (!amount || amount <= 0) return;
-                        if (!RESOURCES[resource]) return; // 跳过 maxPop, militaryCapacity 等
+                        if (!RESOURCES[resource]) return; // 跳过 maxPop, militaryCapacity ?
                         const price = priceMap[resource] || getBasePrice(resource);
                         outputValue += amount * price;
                     });
                 }
 
-                // 计算原材料成本
+                // 计算原材料成?
                 let inputCost = 0;
                 if (config.input) {
                     Object.entries(config.input).forEach(([resource, amount]) => {
@@ -6911,8 +7530,8 @@ export const simulateTick = ({
                     });
                 }
 
-                // 计算雇员工资支出（除业主外的其他岗位）
-                // 使用“实际发出的平均工资”（market.wages / updatedWages），而不是理论预期工资
+                // 计算雇员工资支出（除业主外的其他岗位?
+                // 使用“实际发出的平均工资”（market.wages / updatedWages），而不是理论预期工?
                 let wageCost = 0;
                 Object.entries(jobs).forEach(([jobRole, slots]) => {
                     if (jobRole === role || !slots || slots <= 0) return;
@@ -6920,19 +7539,19 @@ export const simulateTick = ({
                     wageCost += avgPaidWage * slots;
                 });
 
-                // 计算税费成本（人头税 + 营业税/补贴）
+                // 计算税费成本（人头税 + 营业?补贴?
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
                 const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
                 // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
-                // 如果是补贴（负数），实际到账金额受税收效率影响
+                // 如果是补贴（负数），实际到账金额受税收效率影?
                 const effectiveBusinessTaxCost = businessTaxCost < 0
-                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影响
+                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影?
                     : businessTaxCost;                        // 正税全额支付
 
-                // 业主净收入 = 产出 - 原材料 - 雇员工资 - 税费（补贴为负，增加收入）
+                // 业主净收入 = 产出 - 原材?- 雇员工资 - 税费（补贴为负，增加收入?
                 const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
 
@@ -6945,10 +7564,43 @@ export const simulateTick = ({
                 // otherwise vacancy signals can be wildly optimistic/pessimistic.
                 const avgPaidWage = updatedWages?.[role] ?? market?.wages?.[role] ?? getExpectedWage(role);
 
+                // [FIX] 冷启动修复：当历史工资极低时，基于建筑利润反推合理工资
+                let estimatedWage = avgPaidWage;
+                const baseExpected = getExpectedWage(role);
+                
+                if (avgPaidWage < baseExpected * 0.5) {
+                    let bOutputValue = 0;
+                    if (config.output) {
+                        Object.entries(config.output).forEach(([resource, amount]) => {
+                            if (!amount || amount <= 0 || !RESOURCES[resource]) return;
+                            const price = priceMap[resource] || getBasePrice(resource);
+                            bOutputValue += amount * price;
+                        });
+                    }
+                    let bInputCost = 0;
+                    if (config.input) {
+                        Object.entries(config.input).forEach(([resource, amount]) => {
+                            if (!amount || amount <= 0) return;
+                            const price = priceMap[resource] || getBasePrice(resource);
+                            bInputCost += amount * price;
+                        });
+                    }
+                    const bProfit = bOutputValue - bInputCost;
+                    if (bProfit > 0) {
+                        const totalEmpSlots = Object.entries(jobs)
+                            .filter(([r]) => r !== building.owner)
+                            .reduce((sum, [, s]) => sum + (s || 0), 0);
+                        if (totalEmpSlots > 0) {
+                            const profitShare = (bProfit * 0.4) / totalEmpSlots;
+                            estimatedWage = Math.max(avgPaidWage, profitShare, baseExpected);
+                        }
+                    }
+                }
+
                 // 计算税后工资
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
-                const netWage = avgPaidWage - taxCost;
+                const netWage = estimatedWage - taxCost;
 
                 employeeWage += netWage * roleSlots * count;
                 employeeSlots += roleSlots * count;
@@ -6958,7 +7610,7 @@ export const simulateTick = ({
         // 计算加权平均收入
         const totalSlots = ownerSlots + employeeSlots;
         if (totalSlots <= 0) {
-            // 没有建筑提供这个岗位：也使用“岗位发出工资的平均数”作为信号
+            // 没有建筑提供这个岗位：也使用“岗位发出工资的平均数”作为信?
             const avgPaidWage = updatedWages?.[role] ?? market?.wages?.[role] ?? getExpectedWage(role);
             const fallback = avgPaidWage * VACANT_BONUS;
             vacantRoleIncomeCache.set(role, fallback);
@@ -6968,7 +7620,7 @@ export const simulateTick = ({
         const totalIncome = ownerIncome + employeeWage;
         const averageIncome = totalIncome / totalSlots;
 
-        // 应用吸引力加成
+        // 应用吸引力加?
         const result = Math.max(0, averageIncome * VACANT_BONUS);
         vacantRoleIncomeCache.set(role, result);
         return result;
@@ -6997,13 +7649,13 @@ export const simulateTick = ({
         const fallbackIncome = netIncomePerCapita !== 0 ? netIncomePerCapita : disposableWage;
 
         // 【空岗位预估收入】当该行业无人工作时，使用基于建筑产出的预估收入
-        // 解决恶性循环：无人工作 → 收入为0 → 更无人愿意去
+        // 解决恶性循环：无人工作 ?收入? ?更无人愿意去
         let incomeSignal;
         if (pop === 0) {
-            // 无人工作时，使用预估收入（区分业主和雇员）
+            // 无人工作时，使用预估收入（区分业主和雇员?
             incomeSignal = estimateVacantRoleIncome(role);
         } else if (role === 'merchant' || historicalIncomePerCapita !== 0) {
-            // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波动
+            // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波?
             incomeSignal = role === 'merchant' ? fallbackIncome : historicalIncomePerCapita;
         } else {
             incomeSignal = fallbackIncome;
@@ -7023,7 +7675,7 @@ export const simulateTick = ({
         };
     });
 
-    // 过滤掉 'official' 阶层，防止其参与自动转职（官员只能通过任命产生）
+    // 过滤?'official' 阶层，防止其参与自动转职（官员只能通过任命产生?
     const migrationRoles = activeRoleMetrics.filter(r => r.role !== 'official');
 
     const totalMigratablePop = migrationRoles.reduce((sum, r) => r.pop > 0 ? sum + r.pop : sum, 0);
@@ -7031,7 +7683,7 @@ export const simulateTick = ({
         ? migrationRoles.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
         : 0;
 
-    // 计算平均人均财富，用于判断富裕阶层的转职阈值
+    // 计算平均人均财富，用于判断富裕阶层的转职阈?
     const averagePerCapWealth = totalMigratablePop > 0
         ? migrationRoles.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
         : 0;
@@ -7046,47 +7698,6 @@ export const simulateTick = ({
         supplyDemandRatio[resKey] = d > 0 ? s / d : (s > 0 ? 999 : 1);
     });
 
-    // Build roleProducesResource: which roles produce which resources
-    // Based on building outputs and their owner/worker roles
-    const roleProducesResource = {};
-    BUILDINGS.forEach(building => {
-        const count = builds[building.id] || 0;
-        if (count <= 0) return;
-
-        const config = getBuildingEffectiveConfig(building, 0);
-        const outputs = config.output || {};
-        const jobs = config.jobs || {};
-
-        // Get resources this building produces
-        const producedResources = Object.keys(outputs).filter(r => RESOURCES[r]);
-
-        if (producedResources.length === 0) return;
-
-        // Add these resources to all roles that work at this building
-        Object.keys(jobs).forEach(role => {
-            if (!roleProducesResource[role]) {
-                roleProducesResource[role] = [];
-            }
-            producedResources.forEach(res => {
-                if (!roleProducesResource[role].includes(res)) {
-                    roleProducesResource[role].push(res);
-                }
-            });
-        });
-
-        // Also add to owner role
-        if (building.owner && !roleProducesResource[building.owner]) {
-            roleProducesResource[building.owner] = [];
-        }
-        if (building.owner) {
-            producedResources.forEach(res => {
-                if (!roleProducesResource[building.owner].includes(res)) {
-                    roleProducesResource[building.owner].push(res);
-                }
-            });
-        }
-    });
-
     // 使用handleJobMigration处理阶层迁移（包含tier阻力系数和冷却机制）
     const migrationResult = handleJobMigration({
         popStructure,
@@ -7096,16 +7707,13 @@ export const simulateTick = ({
         reserveBuildingVacancyForRole,
         logs,
         migrationCooldowns,
-        // New: resource shortage data for survival migration
-        supplyDemandRatio,
-        roleProducesResource
     });
-    // 更新迁移后的状态
+    // 更新迁移后的状?
     Object.assign(popStructure, migrationResult.popStructure);
     Object.assign(wealth, migrationResult.wealth);
     const updatedMigrationCooldowns = migrationResult.migrationCooldowns;
 
-    // 商人交易已在转职逻辑前执行，这里只需应用收入到财富
+    // 商人交易已在转职逻辑前执行，这里只需应用收入到财?
     applyRoleIncomeToWealth();
 
     // Sync classWealthResult and totalWealth to include income for all classes
@@ -7115,10 +7723,10 @@ export const simulateTick = ({
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
     // [FIX] 同步更新 classLivingStandard 中的 wealthPerCapita
-    // 因为 calculateLivingStandards 在 wealth 完全更新前调用，导致 wealthPerCapita 可能滞后
-    // 注意：跳过官员阶层，因为官员财富使用独立管理机制（在第 3306-3320 行已正确设置）
+    // 因为 calculateLivingStandards ?wealth 完全更新前调用，导致 wealthPerCapita 可能滞后
+    // 注意：跳过官员阶层，因为官员财富使用独立管理机制（在?3306-3320 行已正确设置?
     Object.keys(STRATA).forEach(key => {
-        // 跳过官员阶层，官员的 wealthPerCapita 在官员模拟循环后已正确设置
+        // 跳过官员阶层，官员的 wealthPerCapita 在官员模拟循环后已正确设?
         if (key === 'official') return;
         if (classLivingStandard[key]) {
             const count = popStructure[key] || 0;
@@ -7216,7 +7824,7 @@ export const simulateTick = ({
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
             nextLastMinisterExpansionDay = tick;
-            logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了 ${bestCandidate.building.name}（花费 ${Math.ceil(bestCandidate.silverCost)} 银币）`);
+            logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
         }
     }
 
@@ -7351,7 +7959,7 @@ export const simulateTick = ({
             // 4. Log the upgrade
             const ownerName = STRATA[ownerKey]?.name || ownerKey;
             const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
-            // logs.push(`??? ${ownerName}自发投资了自己的产业 ${b.name} → ${upgradeName}（花费 ${Math.ceil(totalSilverCost)} 银币）`);
+            // logs.push(`⚠️ ${ownerName}自发投资了自己的产业 ${b.name} 到${upgradeName}（花费${Math.ceil(totalSilverCost)} 银币）`);
 
             // Only upgrade one building per type per tick to avoid rapid changes
             break;
@@ -7381,7 +7989,7 @@ export const simulateTick = ({
                 delete updatedBuildingUpgrades[buildingId];
             }
 
-            // logs.push(`??? 官员${officialName}升级了 ${buildingId}（花费 ${Math.ceil(cost)} 银）`);
+            // logs.push(`⚠️ 官员${officialName}升级了${buildingId}（花费${Math.ceil(cost)} 银）`);
         });
     }
 
@@ -7391,37 +7999,52 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
-    // 税收效率：在“入库口径”为实际支付的前提下，税收效率应在征收环节就影响“实际入库”。
-    // 目前 Ledger 的 taxBreakdown.xxx 代表真实转入国库的税额（实际支付），因此这里不再二次扣除“效率损失”。
-    // 依然保留税收效率用于 UI 展示与后续系统（如需要可在征收处注入效率）。
+    // 税收效率：在“入库口径”为实际支付的前提下，税收效率应在征收环节就影响“实际入库”?
+    // 目前 Ledger ?taxBreakdown.xxx 代表真实转入国库的税额（实际支付），因此这里不再二次扣除“效率损失”?
+    // 依然保留税收效率用于 UI 展示与后续系统（如需要可在征收处注入效率）?
     const rawTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
     const effectiveTaxEfficiency = Math.max(0, Math.min(1, rawTaxEfficiency));
 
     // ============================================================================
-    // 税收汇总与腐败处理（方案B）
+    // 税收汇总与腐败处理（方案B?
     // ============================================================================
-    // 【税收流程说明】
-    // 1. 征收阶段（第1760-1830行，第2760-2810行）：
+    // 【税收流程说明?
+    // 1. 征收阶段（第1760-1830行，?760-2810行）?
     //    - 阶层支付全额税款（已应用 effectiveTaxModifier，包含所有税收加成）
     //    - 税款通过 ledger.transfer() 转入国库
     //    - taxBreakdown 记录实际入库金额
     //
-    // 2. 腐败处理阶段（本段代码）：
+    // 2. 腐败处理阶段（本段代码）?
     //    - 计算腐败损失 = 税基 × (理论效率 - 实际效率)
-    //    - 从国库扣除腐败损失，分配给贪污官员
-    //    - 国库最终收入 = 阶层支付 - 腐败损失
+    //    - 从国库扣除腐败损失，分配给贪污官?
+    //    - 国库最终收?= 阶层支付 - 腐败损失
     //
-    // 3. 结果：
-    //    - 阶层：支付 100% 税款（按 effectiveTaxModifier 计算）
-    //    - 国库：收到 效率% 的税款（扣除腐败后）
-    //    - 官员：获得 (1-效率)% 的贪污收入
+    // 3. 结果?
+    //    - 阶层：支?100% 税款（按 effectiveTaxModifier 计算?
+    //    - 国库：收?效率% 的税款（扣除腐败后）
+    //    - 官员：获?(1-效率)% 的贪污收?
     // ============================================================================
 
-    // 由于 taxBreakdown 现在是"实际入库"，collectedXxx 直接等于 taxBreakdown.xxx。
-    const collectedHeadTax = taxBreakdown.headTax;
-    const collectedIndustryTax = taxBreakdown.industryTax;
-    const collectedBusinessTax = taxBreakdown.businessTax;
-    const collectedTariff = (taxBreakdown.tariff || 0); // 关税收入
+    // 由于 taxBreakdown 现在?实际入库"，collectedXxx 直接等于 taxBreakdown.xxx?
+    let collectedHeadTax = taxBreakdown.headTax;
+    let collectedIndustryTax = taxBreakdown.industryTax;
+    let collectedBusinessTax = taxBreakdown.businessTax;
+    let collectedTariff = (taxBreakdown.tariff || 0); // 关税收入
+
+    // 方案A：战争税收效率惩??按百分比扣减所有税收，在征收环节就体现
+    const warTaxFactor = Math.max(0, 1 - frontlineTaxEfficiencyPenalty);
+    if (frontlineTaxEfficiencyPenalty > 0.001) {
+        const preLossTotal = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
+        collectedHeadTax *= warTaxFactor;
+        collectedIndustryTax *= warTaxFactor;
+        collectedBusinessTax *= warTaxFactor;
+        collectedTariff *= warTaxFactor;
+        const postLossTotal = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
+        const taxEfficiencyLoss = preLossTotal - postLossTotal;
+        if (taxEfficiencyLoss > 0) {
+            applySilverChange(-taxEfficiencyLoss, 'tax_efficiency_loss');
+        }
+    }
 
     const taxBaseForCorruption = taxBreakdown.headTax + taxBreakdown.industryTax + taxBreakdown.businessTax + (taxBreakdown.tariff || 0);
     const efficiencyNoCorruption = Math.max(0, Math.min(1, efficiency * (1 + (bonuses.taxEfficiencyBonus || 0))));
@@ -7435,9 +8058,9 @@ export const simulateTick = ({
     //     officialsCount: updatedOfficials.length
     // });
 
-    // 腐败分配逻辑：将部分税收收入视为被贪污挪走（真实从国库扣除），并按权重分配给官员财富。
+    // 腐败分配逻辑：将部分税收收入视为被贪污挪走（真实从国库扣除），并按权重分配给官员财富?
     // 腐败损失 = 税基 × (理论效率 - 实际效率)
-    // 例如：税基1000，理论效率100%，实际效率70% → 腐败损失 = 1000 × (1.0 - 0.7) = 300
+    // 例如：税?000，理论效?00%，实际效?0% ?腐败损失 = 1000 × (1.0 - 0.7) = 300
     const corruptionLoss = Math.max(0, taxBaseForCorruption * (efficiencyNoCorruption - effectiveTaxEfficiency));
     if (corruptionLoss > 0 && updatedOfficials.length > 0) {
         const paidMultiplier = officialsPaid ? 1 : 0.5;
@@ -7494,7 +8117,7 @@ export const simulateTick = ({
     const clampedIncomePercentBonus = Math.max(-0.5, Math.min(MAX_INCOME_BONUS, rawIncomePercentBonus));
     const incomePercentMultiplier = Math.max(0, 1 + clampedIncomePercentBonus);
 
-    // [DEBUG] 税收汇总调试 - 增强版
+    // [DEBUG] 税收汇总调?- 增强?
     // if (Math.abs(rawIncomePercentBonus) > 0.01 || incomePercentMultiplier > 1.5) {
     //     console.log('[TAX INCOME BONUS DEBUG]', {
     //         'tick': tick,
@@ -7516,34 +8139,34 @@ export const simulateTick = ({
     //     'finalHeadTax（最终显示）': (collectedHeadTax * incomePercentMultiplier).toFixed(2)
     // });
 
-    // 将税收与战争赔款一并视为财政收入
+    // 将税收与战争赔款一并视为财政收?
     const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
 
     // 税收处理
     // 注意：Ledger 已将税收 (taxBreakdown.xxx) 添加到国库并记录日志
-    // 税收效率损失已通过腐败分配给官员（第 6082-6105 行）
-    // 这里只需要处理收入倍率加成（如果 incomePercentMultiplier > 1）
+    // 税收效率损失已通过腐败分配给官员（?6082-6105 行）
+    // 这里只需要处理收入倍率加成（如?incomePercentMultiplier > 1?
 
     // [FIX] 方案B：税收效率只影响国库收入，不凭空增加银币
-    // 阶层已支付全额税款（在征收环节），国库收到的是扣除腐败后的金额
-    // incomePercentMultiplier 不应该凭空增加银币，而应该在征收时就体现在 effectiveTaxModifier 中
+    // 阶层已支付全额税款（在征收环节），国库收到的是扣除腐败后的金?
+    // incomePercentMultiplier 不应该凭空增加银币，而应该在征收时就体现?effectiveTaxModifier ?
 
-    // 计算最终税额（用于 rates 显示）
-    // 注意：这里不再乘以 incomePercentMultiplier，因为：
-    // 1. 阶层已经按照 effectiveTaxModifier（包含所有加成）支付了税款
-    // 2. 国库收到的是扣除腐败后的金额（已经通过 corruptionLoss 处理）
-    // 3. 不应该凭空增加银币
+    // 计算最终税额（用于 rates 显示?
+    // 注意：这里不再乘?incomePercentMultiplier，因为：
+    // 1. 阶层已经按照 effectiveTaxModifier（包含所有加成）支付了税?
+    // 2. 国库收到的是扣除腐败后的金额（已经通过 corruptionLoss 处理?
+    // 3. 不应该凭空增加银?
     const finalHeadTax = collectedHeadTax;
     const finalIndustryTax = collectedIndustryTax;
     const finalBusinessTax = collectedBusinessTax;
     const finalTariff = collectedTariff;
 
-    // 更新 rates（用于 UI 显示）
+    // 更新 rates（用?UI 显示?
     rates.silver = (rates.silver || 0) + finalHeadTax + finalIndustryTax + finalBusinessTax + finalTariff;
 
     // 5. 战争赔款加成部分
     // NOTE: processInstallmentPayment() already recorded the base amount with 'installment_payment_income'
-    // [FIX] 方案B：战争赔款也不应该凭空增加银币
+    // [FIX] 方案B：战争赔款也不应该凭空增加银?
     // processInstallmentPayment() 已经记录了基础金额
     // 不应该再通过 incomePercentMultiplier 凭空增加
 
@@ -7558,7 +8181,7 @@ export const simulateTick = ({
         rates.silver = (rates.silver || 0) + decreeSilverIncome;
     }
 
-    // 7. 政令支出 (此前未扣除，现修正)
+    // 7. 政令支出 (此前未扣除，现修?
     if (decreeSilverExpense > 0) {
         const expense = Math.min(res.silver || 0, decreeSilverExpense);
         if (expense > 0) {
@@ -7570,8 +8193,19 @@ export const simulateTick = ({
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
 
-    // [FIX] totalFiscalIncome 不应该乘以 incomePercentMultiplier
-    // 因为税收和战争赔款都已经是实际入库金额
+    // 8. Virtual tax income from ideologies (phantom silver, not taken from any stratum)
+    const virtualTaxRate = bonuses.virtualTaxIncome || 0;
+    let virtualTaxIncome = 0;
+    if (virtualTaxRate > 0 && totalCollectedTax > 0) {
+        // Virtual tax = percentage of actual collected tax, as phantom extra income
+        virtualTaxIncome = totalCollectedTax * virtualTaxRate;
+        applySilverChange(virtualTaxIncome, 'income_ideology_virtual_tax');
+        rates.silver = (rates.silver || 0) + virtualTaxIncome;
+    }
+    taxBreakdown.virtualTaxIncome = virtualTaxIncome;
+
+    // [FIX] totalFiscalIncome 不应该乘?incomePercentMultiplier
+    // 因为税收和战争赔款都已经是实际入库金?
     const totalFiscalIncome = totalCollectedTax + warIndemnityIncome;
 
     const priceControlIncome = taxBreakdown.priceControlIncome || 0;
@@ -7605,8 +8239,8 @@ export const simulateTick = ({
             headTax: collectedHeadTax,
             industryTax: collectedIndustryTax,
             businessTax: collectedBusinessTax,
-            tariff: collectedTariff, // 新增：关税收入
-            tariffSubsidy, // 新增：关税补贴支出
+            tariff: collectedTariff, // 新增：关税收?
+            tariffSubsidy, // 新增：关税补贴支?
             subsidy: taxBreakdown.subsidy,
             warIndemnity: warIndemnityIncome,
             policyIncome: decreeSilverIncome,
@@ -7788,11 +8422,184 @@ export const simulateTick = ({
         updatedDiplomaticReputation += monthlyTreatyBonus / 30;
     }
 
+    // V2: 理念外交影响力修正（diplomatic_influence）
+    if (bonuses.ideoDiplomaticInfluence) {
+        // 正值=声望向上偏移，负值=向下偏移（每日微量）
+        updatedDiplomaticReputation += bonuses.ideoDiplomaticInfluence / 30;
+    }
+
     // Apply natural recovery (towards 50)
     updatedDiplomaticReputation = calculateNaturalRecovery(updatedDiplomaticReputation);
 
     // Clamp to valid range
     updatedDiplomaticReputation = Math.max(0, Math.min(100, updatedDiplomaticReputation));
+
+    // ============ Ideology Event Bus: C~G class batch emits ============
+    // Emit economy/population/stability/time events based on current tick state.
+    // Uses a single block at tick end to avoid scattering emits throughout the 8000+ line file.
+    {
+        const _t = tick;
+        const _livingLevelOrder = ['赤贫', '贫困', '温饱', '小康', '富裕', '奢华'];
+        const _getLivingLevelRank = (level) => {
+            const index = _livingLevelOrder.indexOf(level);
+            return index >= 0 ? index : -1;
+        };
+        // G. Time / Cycle
+        if (_t > 0 && _t % 360 === 0) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_YEAR_END, { year: Math.floor(_t / 360) }, _t);
+        }
+        if (_t > 0 && _t % 90 === 0) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_SEASON_CHANGE, { season: Math.floor((_t % 360) / 90) }, _t);
+        }
+
+        // C. Economy / Trade
+        const _completedTrades = updatedMerchantState?.completedTrades || [];
+        if (_completedTrades.length > 0) {
+            const _totalProfit = _completedTrades.reduce((s, t) => s + (t.profit || 0), 0);
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TRADE_COMPLETE, {
+                tradeCount: _completedTrades.length, totalProfit: _totalProfit
+            }, _t);
+        }
+        // Tax collection (emit once per 30 days to avoid spam)
+        if (_t > 0 && _t % 30 === 0 && taxes) {
+            const _totalTax = Object.values(taxes).reduce((s, v) => s + (v || 0), 0);
+            if (_totalTax > 0) {
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TAX_COLLECT, { totalTax: _totalTax, taxes }, _t);
+            }
+            const _totalSubsidy = Math.max(0, taxes?.breakdown?.subsidy || 0);
+            if (_totalSubsidy > 0) {
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_SUBSIDY_PAID, { totalSubsidy: _totalSubsidy }, _t);
+            }
+        }
+        // Treasury milestones (every 5000 silver threshold)
+        const _prevSilver = resources?.silver || 0;
+        const _curSilver = res?.silver || 0;
+        const _treasuryMilestoneStep = scaleLegacyMilestoneThreshold({
+            threshold: 5000,
+            type: 'treasury',
+            context: buildIdeologyScalingContext({
+                epoch,
+                ideologyMetrics,
+                population: nextPopulation || population || 0,
+                totalBuildings: Object.values(buildings || {}).reduce((sum, count) => sum + (count || 0), 0),
+                militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
+                vassalCount: (nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+            }),
+        });
+        const _prevMilestone = Math.floor(_prevSilver / _treasuryMilestoneStep);
+        const _curMilestone = Math.floor(_curSilver / _treasuryMilestoneStep);
+        if (_curMilestone > _prevMilestone && _curSilver > 0) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TREASURY_MILESTONE, {
+                treasury: _curSilver, milestone: _curMilestone * _treasuryMilestoneStep
+            }, _t);
+        }
+
+        // D. Population / Society
+        // Population milestones (every 100 pop)
+        const _populationMilestoneStep = scaleLegacyMilestoneThreshold({
+            threshold: 100,
+            type: 'population',
+            context: buildIdeologyScalingContext({
+                epoch,
+                ideologyMetrics,
+                population: nextPopulation || population || 0,
+                totalBuildings: Object.values(buildings || {}).reduce((sum, count) => sum + (count || 0), 0),
+                militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
+                vassalCount: (nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+            }),
+        });
+        const _prevPopMilestone = Math.floor((population || 0) / _populationMilestoneStep);
+        const _curPopMilestone = Math.floor((nextPopulation || 0) / _populationMilestoneStep);
+        if (_curPopMilestone > _prevPopMilestone && nextPopulation > 0) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_POP_MILESTONE, {
+                population: nextPopulation, milestone: _curPopMilestone * _populationMilestoneStep
+            }, _t);
+        }
+        if (starvationDeaths > 0) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STARVATION, {
+                deaths: starvationDeaths,
+                severity: starvationDeaths >= Math.max(10, Math.floor((nextPopulation || 0) * 0.02)) ? 'severe' : 'minor',
+            }, _t);
+        }
+        const _previousLivingStandards = market?.classLivingStandard || {};
+        const _allLivingStrata = new Set([
+            ...Object.keys(_previousLivingStandards),
+            ...Object.keys(classLivingStandard || {}),
+        ]);
+        _allLivingStrata.forEach((stratumKey) => {
+            const fromLevel = _previousLivingStandards?.[stratumKey]?.level;
+            const toLevel = classLivingStandard?.[stratumKey]?.level;
+            if (!fromLevel || !toLevel || fromLevel === toLevel) return;
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_LIVING_STANDARD_CHANGE, {
+                stratumKey,
+                fromLevel,
+                toLevel,
+                direction: _getLivingLevelRank(toLevel) >= _getLivingLevelRank(fromLevel) ? 'up' : 'down',
+            }, _t);
+        });
+        Object.entries(classApproval || {}).forEach(([stratumKey, approval]) => {
+            const previousValue = previousApproval?.[stratumKey] ?? 100;
+            if (previousValue >= 40 && approval < 40) {
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_CLASS_APPROVAL_LOW, {
+                    stratumKey,
+                    approval,
+                    previousApproval: previousValue,
+                }, _t);
+            }
+        });
+
+        // E. Stability / Politics
+        // Stability crisis (dropped below 25) or high stability (above 75)
+        if (stabilityValue <= 25 && currentStability > 25) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STABILITY_CRISIS, { stability: stabilityValue }, _t);
+        }
+        if (stabilityValue >= 75 && currentStability < 75) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STABILITY_HIGH, { stability: stabilityValue }, _t);
+        }
+        const _previousLegitimacy = previousLegitimacy ?? coalitionLegitimacy ?? 50;
+        const _currentLegitimacy = coalitionLegitimacy ?? _previousLegitimacy;
+        if (Math.abs(_currentLegitimacy - _previousLegitimacy) >= 5) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_LEGITIMACY_CHANGE, {
+                legitimacy: _currentLegitimacy,
+                previousLegitimacy: _previousLegitimacy,
+                delta: _currentLegitimacy - _previousLegitimacy,
+            }, _t);
+        }
+
+        // F. Diplomacy / International
+        const _previousNationMap = new Map((nations || []).map(nation => [nation.id, nation]));
+        const _previousVassals = new Set(
+            (nations || [])
+                .filter(nation => nation?.id && nation.vassalOf === 'player')
+                .map(nation => nation.id)
+        );
+        (updatedNations || []).forEach((nation) => {
+            if (!nation?.id || nation.id === 'player') return;
+            const previousNation = _previousNationMap.get(nation.id);
+            if (previousNation) {
+                const relationDelta = (nation.relation || 0) - (previousNation.relation || 0);
+                if (relationDelta >= 10) {
+                    ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_RELATION_IMPROVE, {
+                        nationId: nation.id,
+                        relation: nation.relation || 0,
+                        delta: relationDelta,
+                    }, _t);
+                } else if (relationDelta <= -10) {
+                    ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_RELATION_HOSTILE, {
+                        nationId: nation.id,
+                        relation: nation.relation || 0,
+                        delta: relationDelta,
+                    }, _t);
+                }
+            }
+            if (!_previousVassals.has(nation.id) && nation.vassalOf === 'player') {
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_VASSAL_GAIN, {
+                    nationId: nation.id,
+                    relation: nation.relation || 0,
+                }, _t);
+            }
+        });
+    }
 
     const perfTotalMs = perfTime() - perfStartAll;
     // [OPTIMIZATION REMOVED] 移除游标递增逻辑，不再需要批处理
@@ -7812,20 +8619,20 @@ export const simulateTick = ({
         rates,
         popStructure,
         maxPop: totalMaxPop,
-        militaryCapacity, // 新增：军事容量
+        militaryCapacity, // 新增：军事容?
         population: nextPopulation,
         birthAccumulator,
         classApproval,
         approvalBreakdown,
         classInfluence,
         classWealth: classWealthResult,
-        classLivingStandard, // 各阶层生活水平数据
+        classLivingStandard, // 各阶层生活水平数?
         totalInfluence,
         totalWealth,
         activeBuffs: newActiveBuffs,
         activeDebuffs: newActiveDebuffs,
         stability: stabilityValue,
-        legitimacy: coalitionLegitimacy, // 执政联盟合法性
+        legitimacy: coalitionLegitimacy, // 执政联盟合法?
         legitimacyTaxModifier, // 税收修正系数
         logs,
         vassalDiplomacyRequests,
@@ -7843,27 +8650,28 @@ export const simulateTick = ({
         classExpense: roleExpense,
         jobFill: buildingJobFill,
         jobsAvailable,
-        buildingJobsRequired, // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
+        buildingJobsRequired, // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位?
         taxes,
         classFinancialData, // NEW: Return detailed financial data
         buildingFinancialData, // NEW: Per-building realized financial stats for UI
         buildingDebugData,  // DEBUG: Building production debug data
-        dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算）
-        dailyInvestment: ledger.dailyInvestment || 0, // 新增：当日投资额（建筑建造+升级）
-        dailyOwnerRevenue: ledger.dailyOwnerRevenue || 0, // 新增：当日建筑产出收入（用于存货变动计算）
+        dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算?
+        dailyInvestment: ledger.dailyInvestment || 0, // 新增：当日投资额（建筑建?升级?
+        dailyOwnerRevenue: ledger.dailyOwnerRevenue || 0, // 新增：当日建筑产出收入（用于存货变动计算?
         needsShortages: classShortages,
         needsReport,
+        starvationDeaths,
         livingStandardStreaks: updatedLivingStandardStreaks,
         nations: updatedNations,
         merchantState: updatedMerchantState,
         buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
-        migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
-        migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
+        migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状?
+        migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状?
         diplomacyOrganizations: {
             ...diplomacyState,
             organizations: updatedOrganizations,
         },
-        taxShock: updatedTaxShock, // [NEW] 各阶层累积税收冲击值
+        taxShock: updatedTaxShock, // [NEW] 各阶层累积税收冲击?
         // 加成修饰符数据，供UI显示"谁吃到了buff"
         modifiers: {
             // 需求修饰符
@@ -7877,12 +8685,12 @@ export const simulateTick = ({
                     Object.entries(eventStratumDemandModifiers).map(([k, v]) => [k, (decreeStratumDemandMod[k] || 0) + v])
                 )
             },
-            // 供给修饰符
+            // 供给修饰?
             resourceSupply: decreeResourceSupplyMod,
-            // 建筑产出修饰符
+            // 建筑产出修饰?
             buildingProduction: { ...buildingBonuses, ...eventBuildingProductionModifiers },
             categoryProduction: categoryBonuses,
-            // 来源分解（用于显示哪些是政令/事件加成）
+            // 来源分解（用于显示哪些是政令/事件加成?
             sources: {
                 decreeResourceDemand: decreeResourceDemandMod,
                 decreeStratumDemand: decreeStratumDemandMod,
@@ -7892,7 +8700,7 @@ export const simulateTick = ({
                 eventBuildingProduction: eventBuildingProductionModifiers,
                 techBuildingBonus: buildingBonuses,
                 techCategoryBonus: categoryBonuses,
-                // 全局生产加成（来自政令和节日）
+                // 全局生产加成（来自政令和节日?
                 productionBonus: productionBonus,
                 industryBonus: industryBonus,
                 // 军事加成
@@ -7905,15 +8713,29 @@ export const simulateTick = ({
                     const merged = {};
                     const official = bonuses.officialProductionInputCost || {};
                     const stance = bonuses.stanceProductionInputCost || {};
-                    // 合并所有 key
+                    // 合并所?key
                     const allKeys = new Set([...Object.keys(official), ...Object.keys(stance)]);
                     allKeys.forEach(key => {
                         merged[key] = (official[key] || 0) + (stance[key] || 0);
                     });
                     return merged;
                 })(),
+                // 战争经济：建筑战损统计和前线产出惩罚
+                warDamagedBuildings: warDamagedBuildings || {},
+                frontlineProductionPenalty: frontlineProductionPenalty || 0,
             },
             // 官员效果修饰符（供外部使用）
+            // V2: 理念 ruleMods 数据（供 hooks 层消费）
+            ideologyRuleMods: {
+                buildingCostMod: bonuses.ideoBuildingCostMod || {},
+                recruitCostMod: bonuses.ideoRecruitCostMod || {},
+                techCostMod: bonuses.ideoTechCostMod || 0,
+                taxModifier: bonuses.ideoTaxModifier || 0,
+                cooldownMod: bonuses.ideoCooldownMod || 0,
+                officialBonus: bonuses.ideoOfficialBonusMod || 0,
+                unitAttackMod: bonuses.ideoUnitAttackMod || {},
+                unitDefenseMod: bonuses.ideoUnitDefenseMod || {},
+            },
             officialEffects: {
                 buildingCostMod: bonuses.buildingCostMod || 0,
                 militaryUpkeepMod: bonuses.militaryUpkeepMod || 0,
@@ -7939,9 +8761,16 @@ export const simulateTick = ({
             },
         },
         foreignInvestmentStats: foreignStats, // [NEW] Return calculated foreign stats
+        // Ideology engine results
+        activeRuleMods: ideologyRuleMods,
+        mechanicEffects: ideologySynergyResult?.mechanicEffects || {},
         army, // 确保返回army状态，以便保存战斗损失
-        officials: updatedOfficials, // 更新后的官员列表（含财务数据）
-        // 计算有效官员容量（基于时代、政体和科技）
+        militaryCorps, // [NEW] 军团状?
+        generals, // [NEW] 将领状?
+        activeFronts, // [NEW] 活跃战线
+        activeBattles, // [NEW] 进行中的战斗
+        officials: updatedOfficials, // 更新后的官员列表（含财务数据?
+        // 计算有效官员容量（基于时代、政体和科技?
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
@@ -7957,9 +8786,13 @@ export const simulateTick = ({
                 return logArray;
             })(),
             classWealthChangeLog, // 阶层财富变化追踪日志
-            startingSilver,  // tick开始时的银币
+            startingSilver,  // tick开始时的银?
             endingSilver: res.silver || 0, // tick结束时的银币
             militaryDebugInfo: militaryDebug // [DEBUG] Pass explicit debug info
         },
     };
 };
+
+
+
+

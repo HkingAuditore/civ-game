@@ -15,7 +15,7 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
  * @param {number} epoch - 当前时代
  * @param {Function} onDetailClick - 点击详情回调
  */
-export const ResourcePanel = ({
+export const ResourcePanel = React.memo(({
     resources,
     rates,
     market,
@@ -74,7 +74,7 @@ export const ResourcePanel = ({
                             <Icon name="Package" size={12} className="text-ancient-gold" />
                         </div>
                         {title && (
-                            <span className="text-[10px] font-bold text-ancient tracking-wide uppercase font-decorative">
+                            <span className="text-xs font-bold text-ancient tracking-wide uppercase font-decorative">
                                 {title}
                             </span>
                         )}
@@ -130,7 +130,7 @@ export const ResourcePanel = ({
                                             <div className={`icon-epic-frame icon-frame-xs ${getIconFrameClass(key)}`}>
                                                 <Icon name={info.icon} size={12} className={info.color || 'text-ancient-parchment'} />
                                             </div>
-                                            <span className="text-[10px] font-semibold text-ancient-parchment truncate max-w-[50px]">
+                                            <span className="text-xs font-semibold text-ancient-parchment truncate max-w-[80px]">
                                                 {info.name}
                                             </span>
                                         </div>
@@ -143,7 +143,7 @@ export const ResourcePanel = ({
                                     </div>
 
                                     {/* 第三行：价格 + 变化 */}
-                                    <div className="flex items-center justify-between gap-1 mt-1 font-bold text-[11px] min-w-0">
+                                    <div className="flex items-center justify-between gap-1 mt-1 font-bold text-xs min-w-0">
                                         <span className="text-ancient-stone flex items-center gap-0.5 min-w-0 truncate">
                                             <Icon name="Coins" size={8} className="text-ancient-gold/70" />
                                             {price.toFixed(1)}
@@ -164,7 +164,7 @@ export const ResourcePanel = ({
                 <div className="space-y-0.5 row-compact">
                     {showDetailedMobile ? (
                         <>
-                            <div className="grid grid-cols-[20px_1fr_auto_auto_auto] items-center gap-x-2 text-[10px] text-ancient-stone px-1 pb-0.5 opacity-70">
+                            <div className="grid grid-cols-[20px_1fr_auto_auto_auto] items-center gap-x-2 text-xs text-ancient-stone px-1 pb-0.5 opacity-70">
                                 <span></span>
                                 <span>资源</span>
                                 <span className="text-right w-16">库存</span>
@@ -196,15 +196,15 @@ export const ResourcePanel = ({
                                             {info.name}
                                         </span>
 
-                                        <span className="font-mono font-bold text-ancient-parchment text-right text-[11px] w-16">
+                                        <span className="font-mono font-bold text-ancient-parchment text-right text-xs w-16">
                                             {formatCompactNumber(amount)}
                                         </span>
 
-                                        <span className="font-mono text-ancient-stone font-bold text-[11px] text-right w-12">
+                                        <span className="font-mono text-ancient-stone font-bold text-xs text-right w-12">
                                             {price.toFixed(1)}
                                         </span>
 
-                                        <span className={`font-mono text-right text-[11px] w-16 ${rateColorClass}`}>
+                                        <span className={`font-mono text-right text-xs w-16 ${rateColorClass}`}>
                                             {rateDisplay}
                                         </span>
                                     </button>
@@ -251,16 +251,16 @@ export const ResourcePanel = ({
                                             </span>
                                         </div>
 
-                                        <span className="font-mono font-bold text-ancient-parchment text-right relative z-10 group-hover:text-ancient text-[11px] whitespace-nowrap truncate tracking-tight">
+                                        <span className="font-mono font-bold text-ancient-parchment text-right relative z-10 group-hover:text-ancient text-xs whitespace-nowrap truncate tracking-tight">
                                             {formatCompactNumber(amount)}
                                         </span>
 
-                                        <div className="flex items-center justify-end gap-0.5 font-mono text-ancient-parchment text-[11px] relative z-10 group-hover:text-ancient-gold whitespace-nowrap overflow-hidden">
+                                        <div className="flex items-center justify-end gap-0.5 font-mono text-ancient-parchment text-xs relative z-10 group-hover:text-ancient-gold whitespace-nowrap overflow-hidden">
                                             <span>{price.toFixed(1)}</span>
                                             <Icon name="Coins" size={8} className="text-ancient-gold/70 flex-shrink-0" />
                                         </div>
 
-                                        <span className={`hidden xl:block font-mono text-right relative z-10 transition-colors text-[10px] truncate ${rateColorClass}`}>
+                                        <span className={`hidden xl:block font-mono text-right relative z-10 transition-colors text-xs truncate ${rateColorClass}`}>
                                             {rateDisplay}
                                         </span>
                                     </button>
@@ -272,7 +272,7 @@ export const ResourcePanel = ({
             )}
             {/* 底部汇总 */}
             <div className="epic-divider" />
-            <div className="flex items-center justify-between text-[9px] text-ancient-stone px-1">
+            <div className="flex items-center justify-between text-xs text-ancient-stone px-1">
                 <span className="flex items-center gap-1">
                     <Icon name="Info" size={10} className="text-ancient-gold/70" />
                     点击资源查看详情
@@ -281,4 +281,4 @@ export const ResourcePanel = ({
             </div>
         </div>
     );
-};
+});

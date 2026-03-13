@@ -4,7 +4,33 @@
 import React, { useMemo, useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES } from '../../config';
+import { BUILDINGS, RESOURCES } from '../../config';
+
+const RESOURCE_NAME_MAP = Object.fromEntries(
+    Object.entries(RESOURCES || {}).map(([key, config]) => [key, config?.name || key])
+);
+
+const BUILDING_NAME_MAP = Object.fromEntries(
+    (BUILDINGS || []).map((building) => [building.id, building.name || building.id])
+);
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const humanizeTechnicalIds = (text) => {
+    if (typeof text !== 'string' || !text) return text;
+
+    let normalized = text;
+
+    Object.entries(RESOURCE_NAME_MAP).forEach(([key, name]) => {
+        normalized = normalized.replace(new RegExp(`\\b${escapeRegex(key)}\\b`, 'g'), name);
+    });
+
+    Object.entries(BUILDING_NAME_MAP).forEach(([key, name]) => {
+        normalized = normalized.replace(new RegExp(`\\b${escapeRegex(key)}\\b`, 'g'), name);
+    });
+
+    return normalized;
+};
 
 /**
  * Transform technical logs to human-readable format
@@ -104,13 +130,13 @@ const transformLog = (log) => {
         }
     }
 
-    return log;
+    return humanizeTechnicalIds(log);
 };
 
 // 单个日志项组件 - 使用 React.memo 避免不必要的重渲染
 const LogItem = React.memo(({ log, index }) => (
     <div className="text-xs text-ancient-parchment glass-ancient border border-ancient-gold/10 rounded-lg px-2 py-1.5 mb-1.5 hover:border-ancient-gold/30 transition-all">
-        <span className="text-ancient-gold/60 font-mono text-[10px] mr-2">#{index + 1}</span>
+        <span className="text-ancient-gold/60 font-mono text-xs mr-2">#{index + 1}</span>
         {log}
     </div>
 ));
@@ -122,7 +148,7 @@ LogItem.displayName = 'LogItem';
  * @param {boolean} hideContainer - 是否隐藏外层容器和标题
  * @param {number} maxHeight - 当hideContainer为true时的最大高度
  */
-export const LogPanel = ({ logs, hideContainer = false, maxHeight = 300 }) => {
+export const LogPanel = React.memo(({ logs, hideContainer = false, maxHeight = 300 }) => {
     const MAX_LOGS = 500;
     const parentRef = useRef(null);
 
@@ -237,7 +263,7 @@ export const LogPanel = ({ logs, hideContainer = false, maxHeight = 300 }) => {
                         <Icon name="ScrollText" size={16} className="text-ancient-gold" />
                         事件日志
                     </h3>
-                    <span className="text-[11px] text-ancient-stone opacity-80">
+                    <span className="text-xs text-ancient-stone opacity-80">
                         共 {totalCount} 条{totalCount > MAX_LOGS && ` (显示最近 ${MAX_LOGS} 条)`}
                     </span>
                 </div>
@@ -246,4 +272,4 @@ export const LogPanel = ({ logs, hideContainer = false, maxHeight = 300 }) => {
             </div>
         </div>
     );
-};
+});

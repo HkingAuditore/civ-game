@@ -121,9 +121,6 @@ export {
     SYSTEM_TRIGGERED_EVENTS
 } from './systemSynergies.js';
 
-// 庆典效果配置
-export { FESTIVAL_EFFECTS } from './festivalEffects.js';
-
 // 官员系统
 export {
     OFFICIAL_EFFECT_TYPES,
@@ -142,5 +139,7 @@ export {
     calculateEffectiveJobs,
     buildOwnershipListFromLegacy,
     getOwnerTypeIcon,
-    getOwnerTypeColors
+    getOwnerTypeColors,
+    getStateManagedBuildingStats,
+    getOwnershipSummary
 } from './ownerTypes.js';

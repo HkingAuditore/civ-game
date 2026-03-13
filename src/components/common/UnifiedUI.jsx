@@ -273,7 +273,7 @@ export const InfoCard = ({
           </div>
         )}
         <div className="flex-1">
-          <div className="text-[10px] text-ancient-stone mb-0.5">{title}</div>
+          <div className="text-xs text-ancient-stone mb-0.5">{title}</div>
           <div className="text-xl font-bold text-ancient-gold">{value}</div>
         </div>
       </div>

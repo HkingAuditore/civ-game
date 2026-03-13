@@ -76,17 +76,17 @@ const AssignmentRow = ({
                         <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                         <div className="min-w-0">
                             <div className="font-medium text-gray-200 truncate" title={nation.name}>{nation.name}</div>
-                            <div className="text-[10px] text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
+                            <div className="text-xs text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
                         </div>
                     </div>
-                    <div className="text-right text-[10px] text-gray-400 flex-shrink-0">
+                    <div className="text-right text-xs text-gray-400 flex-shrink-0">
                         {nation.isAtWar ? '交战中' : (maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`)}
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
                     <button
                         onClick={() => toggleNationRouteMode(nation.id, 'dumping')}
-                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.dumping
+                        className={`px-1.5 py-0.5 rounded text-xs border transition-colors ${mode.dumping
                             ? 'bg-red-500/20 text-red-300 border-red-500/30'
                             : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
                             }`}
@@ -95,7 +95,7 @@ const AssignmentRow = ({
                     </button>
                     <button
                         onClick={() => toggleNationRouteMode(nation.id, 'forceBuy')}
-                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.forceBuy
+                        className={`px-1.5 py-0.5 rounded text-xs border transition-colors ${mode.forceBuy
                             ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
                             : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
                             }`}
@@ -145,7 +145,7 @@ const AssignmentRow = ({
                 <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                 <div className="min-w-0">
                     <div className="font-medium text-gray-200 truncate" title={nation.name}>{nation.name}</div>
-                    <div className="text-[10px] text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
+                    <div className="text-xs text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
                 </div>
             </div>
 
@@ -153,7 +153,7 @@ const AssignmentRow = ({
             <div className="col-span-3 flex items-center justify-center gap-1">
                 <button
                     onClick={() => toggleNationRouteMode(nation.id, 'dumping')}
-                    className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.dumping
+                    className={`px-1.5 py-0.5 rounded text-xs border transition-colors ${mode.dumping
                         ? 'bg-red-500/20 text-red-300 border-red-500/30'
                         : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
                         }`}
@@ -163,7 +163,7 @@ const AssignmentRow = ({
                 </button>
                 <button
                     onClick={() => toggleNationRouteMode(nation.id, 'forceBuy')}
-                    className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.forceBuy
+                    className={`px-1.5 py-0.5 rounded text-xs border transition-colors ${mode.forceBuy
                         ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
                         : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
                         }`}
@@ -178,9 +178,9 @@ const AssignmentRow = ({
                 {/* Limit */}
                 <div className="text-right text-xs text-gray-400 flex-shrink-0">
                     {nation.isAtWar ? (
-                        <span className="text-red-400 text-[10px]">交战中</span>
+                        <span className="text-red-400 text-xs">交战中</span>
                     ) : (
-                        <span className={maxWithNation >= 999 ? 'text-green-400 text-[10px]' : 'text-gray-500 text-[10px]'}>
+                        <span className={maxWithNation >= 999 ? 'text-green-400 text-xs' : 'text-gray-500 text-xs'}>
                             {maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`}
                         </span>
                     )}
@@ -643,7 +643,7 @@ const TradeRoutesModal = ({
                 {/* Rank */}
                 {showRank && (
                     <div className="col-span-1 text-center">
-                        <span className={`inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded text-[10px] sm:text-xs font-bold ${index === 0 ? 'bg-yellow-500/30 text-yellow-300' :
+                        <span className={`inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded text-xs sm:text-xs font-bold ${index === 0 ? 'bg-yellow-500/30 text-yellow-300' :
                             index === 1 ? 'bg-gray-400/30 text-gray-300' :
                                 index === 2 ? 'bg-amber-700/30 text-amber-400' :
                                     'bg-gray-700/30 text-gray-500'
@@ -666,14 +666,14 @@ const TradeRoutesModal = ({
                 {/* Price Info */}
                 <div className="col-span-3 text-right">
                     <div className="flex flex-col items-end">
-                        <span className={`font-mono text-[10px] sm:text-xs ${opp.priceDiff > 0 ? 'text-green-400' : opp.priceDiff < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                        <span className={`font-mono text-xs sm:text-xs ${opp.priceDiff > 0 ? 'text-green-400' : opp.priceDiff < 0 ? 'text-red-400' : 'text-gray-400'}`}>
                             {isExport ? (
                                 <>外价: {opp.foreignPrice.toFixed(1)} ({opp.priceDiff > 0 ? '+' : ''}{opp.priceDiff.toFixed(1)})</>
                             ) : (
                                 <>利润: {opp.priceDiff.toFixed(1)}/u ({((opp.priceDiff / opp.localPrice) * 100).toFixed(0)}%)</>
                             )}
                         </span>
-                        <span className="text-[9px] sm:text-[10px] text-gray-500">
+                        <span className="text-xs sm:text-xs text-gray-500">
                             本地: {opp.localPrice.toFixed(1)}
                         </span>
                     </div>
@@ -681,11 +681,11 @@ const TradeRoutesModal = ({
 
                 {/* Status / Volume */}
                 <div className="col-span-2 text-center">
-                    <span className={`text-[10px] sm:text-xs ${opp.statusClass}`}>
+                    <span className={`text-xs sm:text-xs ${opp.statusClass}`}>
                         {opp.status}
                     </span>
                     {opp.possibleVolume > 0.1 && (
-                        <div className="text-[9px] text-gray-500">
+                        <div className="text-xs text-gray-500">
                             {formatCompactNumber(opp.possibleVolume)}/天
                         </div>
                     )}
@@ -693,7 +693,7 @@ const TradeRoutesModal = ({
 
                 {/* Action - Just an indicator that it's available */}
                 <div className="col-span-2 flex justify-center">
-                    <span className="text-[10px] text-green-400/50 border border-green-500/20 px-1 rounded">机会</span>
+                    <span className="text-xs text-green-400/50 border border-green-500/20 px-1 rounded">机会</span>
                 </div>
             </div>
         );
@@ -716,7 +716,7 @@ const TradeRoutesModal = ({
                         </div>
                         <div>
                             <h2 className="text-base sm:text-xl font-bold text-amber-100">贸易路线分析</h2>
-                            <p className="text-[10px] sm:text-xs text-gray-400 hidden sm:block">发现最佳贸易机会</p>
+                            <p className="text-xs sm:text-xs text-gray-400 hidden sm:block">发现最佳贸易机会</p>
                         </div>
                     </div>
                     <button
@@ -742,7 +742,7 @@ const TradeRoutesModal = ({
                             {/* Show short label on narrow screens, full label on wider screens */}
                             <span className="sm:hidden">{tab.shortLabel}</span>
                             <span className="hidden sm:inline">{tab.label}</span>
-                            <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${activeTab === tab.id ? 'bg-amber-500/20 text-amber-200' : 'bg-gray-700 text-gray-400'
+                            <span className={`px-1 sm:px-1.5 py-0.5 rounded text-xs sm:text-xs ${activeTab === tab.id ? 'bg-amber-500/20 text-amber-200' : 'bg-gray-700 text-gray-400'
                                 }`}>
                                 {tab.count}
                             </span>
@@ -760,7 +760,7 @@ const TradeRoutesModal = ({
                                         <Icon name="Users" size={14} className="text-amber-300" />
                                         <span className="font-semibold text-amber-100">商人派驻</span>
                                     </div>
-                                    <div className="font-mono text-[11px]">
+                                    <div className="font-mono text-xs">
                                         总商人: <span className="text-amber-300">{merchantCount}</span>
                                         <span className="text-gray-500"> / </span>
                                         已派驻: <span className="text-blue-300">{assignedTotal}</span>
@@ -768,16 +768,16 @@ const TradeRoutesModal = ({
                                         剩余: <span className={remainingMerchants > 0 ? 'text-green-400' : 'text-red-400'}>{remainingMerchants}</span>
                                     </div>
                                 </div>
-                                <div className="mt-1 text-[10px] text-gray-400">
+                                <div className="mt-1 text-xs text-gray-400">
                                     派驻到某国的商人越多，每回合越倾向在该国寻找最赚钱且最能修复供需缺口的交易。交战国自动无法贸易。
                                 </div>
                                 {assignedTotal <= 0 && merchantCount > 0 && (
-                                    <div className="mt-1 text-[10px] text-amber-200/90">
+                                    <div className="mt-1 text-xs text-amber-200/90">
                                         未派驻将使用自由贸易，无法针对特定国家做偏好优化。
                                     </div>
                                 )}
                                 {/* Explainer: dumping/force-buy pricing modifiers are applied in trade settlement */}
-                                <div className="mt-2 text-[10px] text-gray-400 space-y-0.5">
+                                <div className="mt-2 text-xs text-gray-400 space-y-0.5">
                                     <div>
                                         <span className="text-red-300 font-semibold">倾销</span>：出口时允许无视对方需求；结算时对外售价按<span className="font-mono">外价×0.6</span>（折价），通常会造成外交关系下降。
                                     </div>
@@ -799,7 +799,7 @@ const TradeRoutesModal = ({
                                         <Icon name="Target" size={14} className="text-amber-300" />
                                         <span className="font-semibold text-gray-100">贸易偏好</span>
                                     </div>
-                                    <div className="text-[10px] text-gray-500">多选 · 影响商人选品权重</div>
+                                    <div className="text-xs text-gray-500">多选 · 影响商人选品权重</div>
                                 </div>
 
                                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -811,7 +811,7 @@ const TradeRoutesModal = ({
                                                 进口优先
                                             </div>
                                             <button
-                                                className="text-[10px] px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700 text-gray-200"
+                                                className="text-xs px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700 text-gray-200"
                                                 onClick={() => {
                                                     if (!onUpdateMerchantTradePreferences) return;
                                                     onUpdateMerchantTradePreferences({
@@ -833,7 +833,7 @@ const TradeRoutesModal = ({
                                                 return (
                                                     <button
                                                         key={`imp-${resourceKey}`}
-                                                        className={`px-2 py-1 rounded border text-[10px] transition-colors ${isSelected
+                                                        className={`px-2 py-1 rounded border text-xs transition-colors ${isSelected
                                                             ? 'bg-blue-500/15 border-blue-400/30 text-blue-200'
                                                             : 'bg-gray-800/30 border-white/5 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
                                                             }`}
@@ -868,7 +868,7 @@ const TradeRoutesModal = ({
                                                 出口优先
                                             </div>
                                             <button
-                                                className="text-[10px] px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700 text-gray-200"
+                                                className="text-xs px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700 text-gray-200"
                                                 onClick={() => {
                                                     if (!onUpdateMerchantTradePreferences) return;
                                                     onUpdateMerchantTradePreferences({
@@ -890,7 +890,7 @@ const TradeRoutesModal = ({
                                                 return (
                                                     <button
                                                         key={`exp-${resourceKey}`}
-                                                        className={`px-2 py-1 rounded border text-[10px] transition-colors ${isSelected
+                                                        className={`px-2 py-1 rounded border text-xs transition-colors ${isSelected
                                                             ? 'bg-green-500/15 border-green-400/30 text-green-200'
                                                             : 'bg-gray-800/30 border-white/5 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
                                                             }`}
@@ -918,13 +918,13 @@ const TradeRoutesModal = ({
                                     </div>
                                 </div>
 
-                                <div className="mt-2 text-[10px] text-gray-500">
+                                <div className="mt-2 text-xs text-gray-500">
                                     提示：偏好会把该资源的候选分数乘以倍率（范围 0.1～5）。可以同时偏好多个商品。
                                 </div>
                             </div>
 
                             {/* Assignments list header */}
-                            <div className="hidden sm:grid grid-cols-12 gap-2 items-center px-3 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
+                            <div className="hidden sm:grid grid-cols-12 gap-2 items-center px-3 py-2 bg-white/5 text-xs sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
                                 <div className="col-span-4">国家</div>
                                 <div className="col-span-3 text-center">政策</div>
                                 <div className="col-span-2 text-right">限制</div>
@@ -966,11 +966,11 @@ const TradeRoutesModal = ({
                                         <Icon name="Loader" size={14} className="text-amber-300 animate-spin" />
                                         <span className="font-semibold text-amber-100">进行中贸易</span>
                                     </div>
-                                    <div className="font-mono text-[11px]">
+                                    <div className="font-mono text-xs">
                                         共 <span className="text-amber-300">{pendingTrades.length}</span> 笔交易运输中
                                     </div>
                                 </div>
-                                <div className="mt-1 text-[10px] text-gray-400">
+                                <div className="mt-1 text-xs text-gray-400">
                                     商人发起贸易后需要一定时间完成运输，完成后才会结算收益。
                                 </div>
                             </div>
@@ -989,7 +989,7 @@ const TradeRoutesModal = ({
                                             <Icon name="Bug" size={14} className="text-red-400" />
                                             <span className="font-semibold text-red-300">诊断信息</span>
                                         </div>
-                                        <div className="mt-2 pt-2 border-t border-red-500/20 text-[10px] text-gray-400">
+                                        <div className="mt-2 pt-2 border-t border-red-500/20 text-xs text-gray-400">
                                             <p>可能原因分析:</p>
                                             <ul className="list-disc list-inside mt-1 space-y-0.5">
                                                 {merchantCount <= 0 && <li className="text-red-300">商人数量为0</li>}
@@ -1004,7 +1004,7 @@ const TradeRoutesModal = ({
                             ) : (
                                 <div className="space-y-2">
                                     {/* Summary info */}
-                                    {/* <div className="p-2 rounded-lg bg-gray-800/30 border border-white/5 text-[10px] text-gray-400">
+                                    {/* <div className="p-2 rounded-lg bg-gray-800/30 border border-white/5 text-xs text-gray-400">
                                         原始交易记录: <span className="text-amber-300">{pendingTrades.length}</span> 笔
                                         <span className="text-gray-600 mx-1">·</span>
                                         合并后显示: <span className="text-green-300">{mergedPendingTrades.length}</span> 条
@@ -1013,7 +1013,7 @@ const TradeRoutesModal = ({
                                     </div> */}
 
                                     {/* Header */}
-                                    <div className="grid grid-cols-12 gap-1 sm:gap-2 px-1 sm:px-2 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
+                                    <div className="grid grid-cols-12 gap-1 sm:gap-2 px-1 sm:px-2 py-2 bg-white/5 text-xs sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
                                         <div className="col-span-2">类型</div>
                                         <div className="col-span-3">商品</div>
                                         <div className="col-span-2 text-right">数量</div>
@@ -1044,14 +1044,14 @@ const TradeRoutesModal = ({
                                             >
                                                 {/* Type */}
                                                 <div className="col-span-2">
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isExport
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${isExport
                                                         ? 'bg-green-500/20 text-green-300'
                                                         : 'bg-blue-500/20 text-blue-300'
                                                         }`}>
                                                         {isExport ? '出口' : '进口'}
                                                     </span>
                                                     {isMerged && (
-                                                        <div className="text-[9px] text-amber-300 mt-0.5">
+                                                        <div className="text-xs text-amber-300 mt-0.5">
                                                             ×{trade.count}
                                                         </div>
                                                     )}
@@ -1076,7 +1076,7 @@ const TradeRoutesModal = ({
 
                                                 {/* Remaining days */}
                                                 <div className="col-span-2 text-right">
-                                                    <span className="px-2 py-0.5 rounded bg-gray-700/50 text-amber-300 font-mono text-[10px]">
+                                                    <span className="px-2 py-0.5 rounded bg-gray-700/50 text-amber-300 font-mono text-xs">
                                                         {trade.daysRemaining || 0}天
                                                     </span>
                                                 </div>
@@ -1096,7 +1096,7 @@ const TradeRoutesModal = ({
                                         <Icon name="BarChart2" size={14} className="text-blue-300" />
                                         <span className="font-semibold text-gray-100">物价对比</span>
                                     </div>
-                                    <div className="text-[10px] text-gray-500">筛选资源 → 查看各国相对本地价差</div>
+                                    <div className="text-xs text-gray-500">筛选资源 → 查看各国相对本地价差</div>
                                 </div>
 
                                 <div className="mt-2 flex items-center gap-2">
@@ -1131,7 +1131,7 @@ const TradeRoutesModal = ({
                                         return (
                                             <button
                                                 key={`res-${resourceKey}`}
-                                                className={`px-2 py-1 rounded border text-[10px] transition-colors ${isSelected
+                                                className={`px-2 py-1 rounded border text-xs transition-colors ${isSelected
                                                     ? 'bg-amber-500/15 border-amber-400/30 text-amber-200'
                                                     : 'bg-gray-800/30 border-white/5 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
                                                     }`}
@@ -1145,7 +1145,7 @@ const TradeRoutesModal = ({
                                 </div>
 
                                 {selectedResource && (
-                                    <div className="mt-2 text-[10px] text-gray-400">
+                                    <div className="mt-2 text-xs text-gray-400">
                                         当前资源：<span className="text-amber-200 font-semibold">{selectedResourceDef?.name || selectedResource}</span>
                                         <span className="text-gray-600"> · </span>
                                         本地价：<span className="text-white font-mono">{Number(localSelectedPrice ?? 0).toFixed(1)}</span>
@@ -1169,7 +1169,7 @@ const TradeRoutesModal = ({
                                 </div>
                             ) : (
                                 <div className="rounded-lg border border-white/5 overflow-hidden">
-                                    <div className="grid grid-cols-12 gap-2 px-2 py-2 bg-white/5 text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">
+                                    <div className="grid grid-cols-12 gap-2 px-2 py-2 bg-white/5 text-xs font-bold text-gray-400 uppercase tracking-wider select-none">
                                         <div className="col-span-4">国家</div>
 
                                         <button
@@ -1217,7 +1217,7 @@ const TradeRoutesModal = ({
                                                     : 'text-gray-300';
                                             const sign = row.diff > 0 ? '+' : '';
                                             return (
-                                                <div key={row.nationId} className="grid grid-cols-12 gap-2 px-2 py-2 text-[11px] hover:bg-white/5">
+                                                <div key={row.nationId} className="grid grid-cols-12 gap-2 px-2 py-2 text-xs hover:bg-white/5">
                                                     <div className="col-span-4 flex items-center gap-2 min-w-0">
                                                         <Icon name="Flag" size={12} className={row.nationColor || 'text-gray-300'} />
                                                         <span className="truncate text-gray-200" title={row.nationName}>{row.nationName}</span>
@@ -1236,7 +1236,7 @@ const TradeRoutesModal = ({
                 </div>
 
                 {/* Footer */}
-                <div className="p-2 sm:p-4 border-t border-white/5 bg-gray-900/50 flex justify-between items-center text-[10px] sm:text-xs text-gray-500 flex-shrink-0">
+                <div className="p-2 sm:p-4 border-t border-white/5 bg-gray-900/50 flex justify-between items-center text-xs sm:text-xs text-gray-500 flex-shrink-0">
                     <div className="flex gap-2 sm:gap-4">
                         <span>已派驻: <span className="text-blue-300">{assignedTotal}</span></span>
                     </div>

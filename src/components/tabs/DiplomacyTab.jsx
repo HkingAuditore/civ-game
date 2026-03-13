@@ -16,6 +16,7 @@ import {
     isDiplomacyUnlocked,
 } from '../../config';
 import { calculateNegotiationAcceptChance } from '../../logic/diplomacy/negotiation';
+import { getEffectiveRelationValue } from '../../utils/diplomacyUtils';
 
 // Constants
 const NEGOTIATION_MAX_ROUNDS = 3;
@@ -118,14 +119,15 @@ const DiplomacyTabComponent = ({
 
     const getNationRelationInfo = (nation) => {
         if (!nation) return { value: 0, ...relationInfo(0, false) };
-        const relationValue = Number.isFinite(nation.relation) ? nation.relation : 0;
-        const isAllied = nation.alliedWithPlayer === true;
+        const relationValue = getEffectiveRelationValue(nation.relation, nation);
+        const isAllied = nation.alliedWithPlayer === true && nation.isAtWar !== true;
         return {
             value: relationValue,
             isAllied,
             ...relationInfo(relationValue, isAllied),
         };
     };
+
 
     // --- Helpers & Logic ---
 

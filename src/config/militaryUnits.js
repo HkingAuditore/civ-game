@@ -1,5 +1,8 @@
 // 军事单位配置文件
 
+import { RESOURCES } from './gameConstants';
+import { WAR_ECONOMY } from './gameConstants';
+
 /**
  * 兵种克制关系说明:
  * - 步兵(infantry) 克制 骑兵(cavalry) - 长矛阵/刺刀阵克制骑兵冲锋
@@ -167,7 +170,7 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 1,
 
-        recruitCost: { food: 500, copper: 200, iron: 100, silver: 250 },
+        recruitCost: { food: 500, copper: 200, iron: 100, swords: 8, silver: 250 },
         maintenanceCost: { food: 3.75, silver: 2.75, iron: 0.4 },
         trainingTime: 6,
 
@@ -194,7 +197,7 @@ export const UNIT_TYPES = {
         speed: 4,
         range: 5,
 
-        recruitCost: { food: 425, wood: 250, copper: 125, silver: 225 },
+        recruitCost: { food: 425, wood: 250, copper: 125, swords: 5, silver: 225 },
         maintenanceCost: { food: 3.5, silver: 2.5, wood: 1.25, copper: 0.25 },
         trainingTime: 6,
 
@@ -221,7 +224,7 @@ export const UNIT_TYPES = {
         speed: 8,
         range: 1,
 
-        recruitCost: { food: 600, silver: 300, iron: 125 },
+        recruitCost: { food: 600, silver: 300, iron: 125, swords: 6 },
         maintenanceCost: { food: 6, silver: 4, iron: 0.3 },
         trainingTime: 7,
 
@@ -248,7 +251,7 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 1,
 
-        recruitCost: { food: 750, wood: 1000, iron: 250, silver: 400 },
+        recruitCost: { food: 750, wood: 1000, iron: 250, swords: 4, silver: 400 },
         maintenanceCost: { food: 6, silver: 4, wood: 2.5, iron: 0.5 },
         trainingTime: 10,
 
@@ -276,7 +279,7 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 1,
 
-        recruitCost: { food: 700, iron: 300, silver: 400 },
+        recruitCost: { food: 700, iron: 300, swords: 10, plate_armor: 6, silver: 400 },
         maintenanceCost: { food: 4.5, silver: 3.5, iron: 0.6, cloth: 0.2 },
         trainingTime: 8,
 
@@ -303,7 +306,7 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 5,
 
-        recruitCost: { food: 550, wood: 350, iron: 225, silver: 275 },
+        recruitCost: { food: 550, wood: 350, iron: 225, swords: 6, silver: 275 },
         maintenanceCost: { food: 4, silver: 3, wood: 0.75, iron: 0.5 },
         trainingTime: 7,
 
@@ -330,7 +333,7 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 1250, iron: 500, copper: 150, silver: 800 },
+        recruitCost: { food: 1250, iron: 500, copper: 150, swords: 12, plate_armor: 10, silver: 800 },
         maintenanceCost: { food: 9, silver: 6.5, iron: 0.8, copper: 0.3 },
         trainingTime: 10,
 
@@ -357,7 +360,7 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 1000, wood: 1000, plank: 400, iron: 400, silver: 750 },
+        recruitCost: { food: 1000, wood: 1000, plank: 400, iron: 400, swords: 6, silver: 750 },
         maintenanceCost: { food: 7.5, silver: 6, plank: 1.5, iron: 0.6, stone: 1.2 },
         trainingTime: 12,
 
@@ -385,7 +388,7 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 2,
 
-        recruitCost: { food: 800, wood: 300, iron: 350, silver: 450 },
+        recruitCost: { food: 800, wood: 300, iron: 350, swords: 8, plate_armor: 5, silver: 450 },
         maintenanceCost: { food: 5, silver: 4, iron: 0.5 },
         trainingTime: 8,
 
@@ -412,8 +415,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 4,
 
-        recruitCost: { food: 700, iron: 300, tools: 200, copper: 80, silver: 500 },
-        maintenanceCost: { food: 4.5, silver: 4, iron: 0.35, tools: 0.9, copper: 0.15 },
+        recruitCost: { food: 700, iron: 300, muskets: 10, silver: 500 },
+        maintenanceCost: { food: 4.5, silver: 4, iron: 0.35, gunpowder: 0.8 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -439,7 +442,7 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 1500, iron: 600, silver: 1000 },
+        recruitCost: { food: 1500, iron: 600, plate_armor: 10, silver: 1000 },
         maintenanceCost: { food: 10, silver: 7.5, iron: 1.25 },
         trainingTime: 11,
 
@@ -466,8 +469,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 1250, iron: 600, copper: 250, tools: 350, silver: 1000 },
-        maintenanceCost: { food: 9, silver: 7.5, iron: 1.2, copper: 0.4, tools: 1.5 },
+        recruitCost: { food: 1250, iron: 600, muskets: 8, copper: 250, silver: 1000 },
+        maintenanceCost: { food: 9, silver: 7.5, iron: 1.2, gunpowder: 1.2, copper: 0.4 },
         trainingTime: 14,
 
         populationCost: 3,
@@ -494,8 +497,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 3,
 
-        recruitCost: { food: 900, iron: 350, tools: 250, silver: 550 },
-        maintenanceCost: { food: 5.5, silver: 5, iron: 0.45, tools: 1.0, cloth: 0.15 },
+        recruitCost: { food: 900, iron: 350, rifles: 10, silver: 550 },
+        maintenanceCost: { food: 5.5, silver: 5, iron: 0.45, ammunition: 0.8, cloth: 0.15 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -521,8 +524,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 5,
 
-        recruitCost: { food: 1000, iron: 400, tools: 300, silver: 650 },
-        maintenanceCost: { food: 6, silver: 5.5, iron: 0.5, tools: 1.3 },
+        recruitCost: { food: 1000, iron: 400, rifles: 12, silver: 650 },
+        maintenanceCost: { food: 6, silver: 5.5, iron: 0.5, ammunition: 1.0 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -548,8 +551,8 @@ export const UNIT_TYPES = {
         speed: 7,
         range: 2,
 
-        recruitCost: { food: 1400, iron: 450, tools: 225, silver: 900 },
-        maintenanceCost: { food: 10, silver: 7.5, iron: 0.75, tools: 1 },
+        recruitCost: { food: 1400, iron: 450, rifles: 8, silver: 900 },
+        maintenanceCost: { food: 10, silver: 7.5, iron: 0.75, ammunition: 0.6 },
         trainingTime: 12,
 
         populationCost: 1,
@@ -575,8 +578,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 7,
 
-        recruitCost: { food: 1500, iron: 700, copper: 300, tools: 450, silver: 1250 },
-        maintenanceCost: { food: 10, silver: 9, iron: 1.4, copper: 0.5, tools: 2.0 },
+        recruitCost: { food: 1500, iron: 700, rifles: 6, copper: 300, silver: 1250 },
+        maintenanceCost: { food: 10, silver: 9, iron: 1.4, ammunition: 1.5, copper: 0.5 },
         trainingTime: 15,
 
         populationCost: 3,
@@ -603,8 +606,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 4,
 
-        recruitCost: { food: 1250, steel: 150, tools: 200, silver: 800 },
-        maintenanceCost: { food: 7, silver: 6.5, steel: 0.3, coal: 0.15 },
+        recruitCost: { food: 1250, steel: 150, ordnance: 10, silver: 800 },
+        maintenanceCost: { food: 7, silver: 6.5, steel: 0.3, ammunition: 1.0, coal: 0.15 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -630,8 +633,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 5,
 
-        recruitCost: { food: 1500, steel: 300, tools: 350, coal: 200, silver: 1250 },
-        maintenanceCost: { food: 8, silver: 9, steel: 0.6, coal: 0.8 },
+        recruitCost: { food: 1500, steel: 300, ordnance: 15, coal: 200, silver: 1250 },
+        maintenanceCost: { food: 8, silver: 9, steel: 0.6, ammunition: 2.0, coal: 0.8 },
         trainingTime: 12,
 
         populationCost: 2,
@@ -657,8 +660,8 @@ export const UNIT_TYPES = {
         speed: 8,
         range: 1,
 
-        recruitCost: { food: 1600, steel: 120, tools: 180, silver: 1000 },
-        maintenanceCost: { food: 11, silver: 8, steel: 0.25, iron: 0.4 },
+        recruitCost: { food: 1600, steel: 120, ordnance: 8, silver: 1000 },
+        maintenanceCost: { food: 11, silver: 8, steel: 0.25, ammunition: 0.5, iron: 0.4 },
         trainingTime: 11,
 
         populationCost: 1,
@@ -684,8 +687,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 8,
 
-        recruitCost: { food: 2000, steel: 500, coal: 400, tools: 300, silver: 1750 },
-        maintenanceCost: { food: 10, silver: 11, steel: 1.2, coal: 1.5 },
+        recruitCost: { food: 2000, steel: 500, ordnance: 12, coal: 400, silver: 1750 },
+        maintenanceCost: { food: 10, silver: 11, steel: 1.2, ammunition: 2.5, coal: 1.5 },
         trainingTime: 18,
 
         populationCost: 4,
@@ -694,6 +697,252 @@ export const UNIT_TYPES = {
 
         counters: { infantry: 2.0, gunpowder: 1.8, siege: 1.5 },
         weakAgainst: ['cavalry'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    // ============ 电气时代 (Epoch 7) ============
+    machine_gun_squad: {
+        id: 'machine_gun_squad',
+        name: '机枪队',
+        desc: '装备重机枪的步兵小队，强大的防守火力。',
+        epoch: 7,
+        icon: 'Zap',
+        category: 'infantry',
+
+        attack: 55,
+        defense: 75,
+        speed: 3,
+        range: 5,
+
+        recruitCost: { food: 1500, ordnance: 3, ammunition: 5, steel: 2, silver: 250 },
+        maintenanceCost: { food: 8, silver: 12, steel: 0.5, ammunition: 1.4 },
+        trainingTime: 10,
+
+        populationCost: 2,
+
+        abilities: ['火器', '压制火力', '防守优势'],
+
+        counters: { infantry: 2.2, cavalry: 2.0 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    armored_car: {
+        id: 'armored_car',
+        name: '装甲车',
+        desc: '安装机枪的装甲汽车，快速机动的突击力量。',
+        epoch: 7,
+        icon: 'Truck',
+        category: 'cavalry',
+
+        attack: 65,
+        defense: 60,
+        speed: 8,
+        range: 3,
+
+        recruitCost: { food: 1800, machinery: 3, steel: 5, oil: 3, silver: 400 },
+        maintenanceCost: { food: 10, silver: 18, oil: 0.5, steel: 0.3, ammunition: 0.6 },
+        trainingTime: 12,
+
+        populationCost: 2,
+
+        abilities: ['装甲', '快速移动', '火器'],
+
+        counters: { archer: 2.0, gunpowder: 1.8 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    heavy_artillery: {
+        id: 'heavy_artillery',
+        name: '重炮',
+        desc: '大口径远程火炮，攻城利器。',
+        epoch: 7,
+        icon: 'Bomb',
+        category: 'siege',
+
+        attack: 100,
+        defense: 20,
+        speed: 1,
+        range: 10,
+
+        recruitCost: { food: 2500, ordnance: 5, steel: 8, chemicals: 2, silver: 500 },
+        maintenanceCost: { food: 12, silver: 22, ammunition: 1, steel: 0.8, coal: 1.0 },
+        trainingTime: 18,
+
+        populationCost: 4,
+
+        abilities: ['攻城', '范围伤害', '精确打击', '火器'],
+
+        counters: { infantry: 2.2, gunpowder: 2.0, siege: 1.8 },
+        weakAgainst: ['cavalry'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    // ============ 原子时代 (Epoch 8) ============
+    tank: {
+        id: 'tank',
+        name: '坦克',
+        desc: '钢铁洪流，地面战场的绝对王者。',
+        epoch: 8,
+        icon: 'Shield',
+        category: 'cavalry',
+
+        attack: 85,
+        defense: 80,
+        speed: 6,
+        range: 4,
+
+        recruitCost: { food: 2500, machinery: 5, steel: 10, oil: 5, ordnance: 3, silver: 800 },
+        maintenanceCost: { food: 12, silver: 30, oil: 1.0, steel: 0.5, ammunition: 1.0 },
+        trainingTime: 15,
+
+        populationCost: 3,
+
+        abilities: ['装甲', '火器', '碾压'],
+
+        counters: { infantry: 2.5, gunpowder: 2.0 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    fighter_plane: {
+        id: 'fighter_plane',
+        name: '战斗机',
+        desc: '制空权的象征，现代战争的关键力量。',
+        epoch: 8,
+        icon: 'Plane',
+        category: 'cavalry',
+
+        attack: 90,
+        defense: 40,
+        speed: 12,
+        range: 6,
+
+        recruitCost: { food: 2000, aluminum: 8, oil: 5, electronics: 2, silver: 1200 },
+        maintenanceCost: { food: 10, silver: 40, oil: 1.5, ammunition: 0.8 },
+        trainingTime: 16,
+
+        populationCost: 2,
+
+        abilities: ['火器', '快速移动', '空中打击'],
+
+        counters: { cavalry: 2.0, infantry: 1.8 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    rocket_artillery: {
+        id: 'rocket_artillery',
+        name: '火箭炮',
+        desc: '多管火箭齐射，面积覆盖的毁灭性武器。',
+        epoch: 8,
+        icon: 'Rocket',
+        category: 'siege',
+
+        attack: 95,
+        defense: 20,
+        speed: 3,
+        range: 12,
+
+        recruitCost: { food: 2200, chemicals: 5, electronics: 2, steel: 5, silver: 700 },
+        maintenanceCost: { food: 10, silver: 25, ammunition: 2.0, chemicals: 0.5 },
+        trainingTime: 16,
+
+        populationCost: 3,
+
+        abilities: ['攻城', '范围伤害', '火器'],
+
+        counters: { infantry: 2.2, gunpowder: 2.0, siege: 1.8 },
+        weakAgainst: ['cavalry'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    // ============ 信息时代 (Epoch 9) ============
+    drone: {
+        id: 'drone',
+        name: '无人机',
+        desc: '远程遥控的精确打击武器，零伤亡作战。',
+        epoch: 9,
+        icon: 'Crosshair',
+        category: 'cavalry',
+
+        attack: 100,
+        defense: 30,
+        speed: 15,
+        range: 8,
+
+        recruitCost: { food: 1500, electronics: 5, semiconductors: 2, composites: 3, silver: 1500 },
+        maintenanceCost: { food: 5, silver: 35, electricity: 0.5 },
+        trainingTime: 10,
+
+        populationCost: 1,
+
+        abilities: ['火器', '快速移动', '精确打击', '空中打击'],
+
+        counters: { infantry: 2.5, cavalry: 2.0 },
+        weakAgainst: ['siege'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    guided_missile: {
+        id: 'guided_missile',
+        name: '精确制导导弹',
+        desc: '卫星制导的远程精确打击武器，改变战争形态。',
+        epoch: 9,
+        icon: 'Target',
+        category: 'siege',
+
+        attack: 120,
+        defense: 10,
+        speed: 20,
+        range: 15,
+
+        recruitCost: { food: 2000, semiconductors: 3, electronics: 3, chemicals: 5, silver: 2000 },
+        maintenanceCost: { food: 8, silver: 50 },
+        trainingTime: 14,
+
+        populationCost: 2,
+
+        abilities: ['攻城', '精确打击', '火器'],
+
+        counters: { infantry: 2.5, siege: 2.0, gunpowder: 2.0 },
+        weakAgainst: ['cavalry'],
+
+        obsoleteAfterEpochs: 3
+    },
+
+    cyber_unit: {
+        id: 'cyber_unit',
+        name: '网络战部队',
+        desc: '在数字战场上作战的精英部队，瘫痪敌方基础设施。',
+        epoch: 9,
+        icon: 'Wifi',
+        category: 'infantry',
+
+        attack: 70,
+        defense: 90,
+        speed: 20,
+        range: 10,
+
+        recruitCost: { food: 1500, software: 3, electronics: 2, silver: 1000 },
+        maintenanceCost: { food: 8, silver: 30, electricity: 0.3 },
+        trainingTime: 12,
+
+        populationCost: 2,
+
+        abilities: ['压制火力', '防守优势', '精确打击'],
+
+        counters: { siege: 1.8 },
+        weakAgainst: ['cavalry', 'infantry'],
 
         obsoleteAfterEpochs: 3
     }
@@ -731,8 +980,11 @@ export const calculateArmyFoodNeed = (army = {}) => {
 
 // 战斗计算函数
 // soldierWage: 士兵阶层的平均工资，影响战斗力（默认50，上限加成+50%）
-export const calculateBattlePower = (army, epoch, militaryBuffs = 0, soldierWage = 50) => {
+export const calculateBattlePower = (army, epoch, militaryBuffs = 0, soldierWage = 50, ruleMods = {}) => {
     let totalPower = 0;
+    // V2: Extract ideology unit mods
+    const attackMods = ruleMods.unitAttackMod || {};
+    const defenseMods = ruleMods.unitDefenseMod || {};
 
     Object.entries(army).forEach(([unitId, count]) => {
         if (count <= 0) return;
@@ -740,8 +992,14 @@ export const calculateBattlePower = (army, epoch, militaryBuffs = 0, soldierWage
         const unit = UNIT_TYPES[unitId];
         if (!unit) return;
 
+        // V2: Apply per-category attack/defense mods from ideology
+        const catAtkMod = (attackMods[unit.category] || 0) + (attackMods._global || 0);
+        const catDefMod = (defenseMods[unit.category] || 0) + (defenseMods._global || 0);
+        const modifiedAttack = unit.attack * (1 + catAtkMod);
+        const modifiedDefense = unit.defense * (1 + catDefMod);
+
         // 基础战斗力 = (攻击力 + 防御力) * 数量
-        let unitPower = (unit.attack + unit.defense) * count;
+        let unitPower = (modifiedAttack + modifiedDefense) * count;
 
         // 时代差距计算
         const epochDiff = epoch - unit.epoch;
@@ -795,8 +1053,31 @@ const getAvailableUnitsForEpoch = (epoch) => {
 };
 
 /**
+ * 计算一个兵种的实际银币造价（基于当地物价）
+ * @param {string} unitId - 兵种ID
+ * @param {Object} prices - 当地物价 { resource: price }
+ * @returns {number} 实际银币总造价
+ */
+export const calculateUnitCost = (unitId, prices = {}) => {
+    const unit = UNIT_TYPES[unitId];
+    if (!unit?.recruitCost) return Infinity;
+    let totalCost = 0;
+    Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
+        // silver=1（货币本身）；没有价格数据时用basePrice
+        const price = resource === 'silver'
+            ? 1
+            : (prices[resource] ?? RESOURCES?.[resource]?.basePrice ?? 1);
+        totalCost += amount * price;
+    });
+    return totalCost;
+};
+
+/**
  * 为AI国家生成虚拟军队组成
- * 每次战斗临时生成，数量基于人口、militaryStrength和时代
+ * 【军费预算制】：军队规模和装备由真实造价决定
+ * - 军费预算 = wealth × 军费比例（和平15%/战时25%）
+ * - 兵种选择 = 每类别内按epoch降序、在预算约束内选最先进能负担的
+ * - 兵力 = min(人口上限, 预算 ÷ 单兵加权成本)
  * @param {Object} nation - 国家对象
  * @param {number} epoch - 当前时代
  * @param {number} deploymentRatio - 派遣比例 (0-1)，默认1.0表示全部派遣
@@ -805,57 +1086,33 @@ const getAvailableUnitsForEpoch = (epoch) => {
  */
 export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficultyMultiplier = 1.0) => {
     const population = nation?.population || 100;
-    const militaryStrength = nation?.militaryStrength ?? 1.0;
+    const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
     const aggression = nation?.aggression || 0.3;
-
-    // [FIX] 添加财富约束：军队需要经济支撑
     const wealth = nation?.wealth || 500;
-    const wealthPerCapita = wealth / Math.max(1, population);
-    
-    // 财富约束系数：基于人均财富
-    // 人均财富 < 0.5: 极度贫困，军队规模削减到5%以下
-    // 人均财富 0.5-5: 贫困，军队规模10%-50%
-    // 人均财富 5-20: 正常，军队规模50%-100%
-    // 人均财富 > 20: 富裕，军队规模100%
-    let wealthConstraint = 1.0;
-    if (wealthPerCapita < 0.5) {
-        // 极度贫困：几乎无法维持军队
-        wealthConstraint = Math.max(0.05, wealthPerCapita * 0.1);
-    } else if (wealthPerCapita < 5) {
-        // 贫困：军队规模受限
-        wealthConstraint = 0.05 + (wealthPerCapita - 0.5) / 4.5 * 0.45;  // 5%-50%
-    } else if (wealthPerCapita < 20) {
-        // 正常：逐渐恢复到正常规模
-        wealthConstraint = 0.5 + (wealthPerCapita - 5) / 15 * 0.5;  // 50%-100%
-    }
-    // else: wealthPerCapita >= 20, wealthConstraint = 1.0 (无约束)
 
-    // 基础军队规模 = 人口 × 军事强度 × 基础比例(0.6%) × 时代系数 × 难度倍数 × 财富约束
-    // Note: population is in units of 10,000 (万), so 0.6% gives reasonable army size
-    // E.g. 3679万 × 1.0 × 0.006 × 1.15 × 1.0 × 1.0 ≈ 25,000 troops
-    const epochFactor = 1 + epoch * 0.15;
-    const baseArmySize = Math.floor(population * militaryStrength * 0.006 * epochFactor * difficultyMultiplier * wealthConstraint);
+    // 1. 军费预算 = wealth × 军费比例
+    const warBudgetRatio = nation?.isAtWar
+        ? (WAR_ECONOMY?.WAR_BUDGET_RATIO || 0.25)
+        : (WAR_ECONOMY?.PEACE_BUDGET_RATIO || 0.15);
+    const militaryBudget = wealth * warBudgetRatio * difficultyMultiplier;
 
-    // 应用派遣比例
-    const deployedSize = Math.max(1, Math.floor(baseArmySize * deploymentRatio));
+    // 2. 人口上限（保留现有动员率逻辑）
+    const wartimeMobilizationBonus = nation?.isAtWar ? 0.008 : 0;
+    const manpowerRatio = Math.min(0.026, 0.008 + epoch * 0.0015 + wartimeMobilizationBonus);
+    const sizeQualityFactor = 0.9 + (militaryQuality - 1) * 0.2;
+    const maxManpower = Math.floor(population * manpowerRatio * sizeQualityFactor);
 
-    // 获取当前时代可用兵种
+    // 3. 获取当地物价（AI用nationPrices，否则用默认basePrice）
+    const localPrices = nation?.nationPrices || {};
+
+    // 4. 获取当前时代可用兵种
     const availableUnits = getAvailableUnitsForEpoch(epoch);
     if (availableUnits.length === 0) {
-        return { militia: deployedSize };
+        const minFloor = WAR_ECONOMY?.MIN_ARMY_FLOOR || 10;
+        return { militia: Math.max(minFloor, Math.min(maxManpower, Math.floor(militaryBudget / 200))) };
     }
 
-    // 按类别分配军队（根据国家侵略性调整比例）
-    const army = {};
-    let remaining = deployedSize;
-
-    // 侵略性高的国家更多进攻型单位
-    const infantryRatio = 0.35 + (1 - aggression) * 0.15;  // 35-50%
-    const rangedRatio = 0.25 + aggression * 0.1;           // 25-35%
-    const cavalryRatio = 0.20 + aggression * 0.1;          // 20-30%
-    const siegeRatio = 0.05;                                // 5%
-
-    // 过滤可用兵种按类别
+    // 5. 按类别分组
     const infantryUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'infantry');
     const rangedUnits = availableUnits.filter(id =>
         UNIT_TYPES[id]?.category === 'archer' || UNIT_TYPES[id]?.category === 'gunpowder'
@@ -863,44 +1120,114 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
     const cavalryUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'cavalry');
     const siegeUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'siege');
 
-    // 分配步兵
-    if (infantryUnits.length > 0) {
-        const count = Math.floor(remaining * infantryRatio);
-        const unitId = infantryUnits[Math.floor(Math.random() * infantryUnits.length)];
-        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
-        remaining -= count;
-    }
+    // 6. 兵种选择函数：每类别内按epoch降序选预算内最先进的
+    const selectBestAffordableUnit = (categoryUnits, budgetForCategory, minCount) => {
+        if (categoryUnits.length === 0) return null; // 当前时代该类别无兵种，不出兵
 
-    // 分配远程
-    if (rangedUnits.length > 0 && remaining > 0) {
-        const count = Math.floor(deployedSize * rangedRatio);
-        const unitId = rangedUnits[Math.floor(Math.random() * rangedUnits.length)];
-        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
-        remaining -= count;
-    }
+        const sorted = [...categoryUnits].sort((a, b) =>
+            (UNIT_TYPES[b]?.epoch || 0) - (UNIT_TYPES[a]?.epoch || 0)
+        );
+        for (const unitId of sorted) {
+            const cost = calculateUnitCost(unitId, localPrices);
+            if (budgetForCategory / cost >= minCount) {
+                return { unitId, cost };
+            }
+        }
+        // 都太贵？选该类别内最便宜的（不会跨类别凑）
+        let cheapestId = sorted[sorted.length - 1];
+        let cheapestCost = Infinity;
+        for (const id of sorted) {
+            const c = calculateUnitCost(id, localPrices);
+            if (c < cheapestCost) {
+                cheapestCost = c;
+                cheapestId = id;
+            }
+        }
+        return { unitId: cheapestId, cost: cheapestCost };
+    };
 
-    // 分配骑兵
-    if (cavalryUnits.length > 0 && remaining > 0) {
-        const count = Math.floor(deployedSize * cavalryRatio);
-        const unitId = cavalryUnits[Math.floor(Math.random() * cavalryUnits.length)];
-        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
-        remaining -= count;
-    }
+    // 7. 预算分配比例（根据侵略性调整）
+    const budgetRatios = {
+        infantry: 0.35 + (1 - aggression) * 0.15,  // 35-50%
+        ranged: 0.25 + aggression * 0.1,            // 25-35%
+        cavalry: 0.20 + aggression * 0.1,           // 20-30%
+        siege: 0.05,                                 // 5%
+    };
 
-    // 分配攻城
-    if (siegeUnits.length > 0 && remaining > 2) {
-        const count = Math.floor(deployedSize * siegeRatio);
-        if (count > 0) {
-            const unitId = siegeUnits[Math.floor(Math.random() * siegeUnits.length)];
-            army[unitId] = (army[unitId] || 0) + count;
-            remaining -= count;
+    // 8. 两轮分配：第一轮按比例，第二轮回收无兵种类别的预算
+    const categories = [
+        { key: 'infantry', units: infantryUnits, ratio: budgetRatios.infantry },
+        { key: 'ranged', units: rangedUnits, ratio: budgetRatios.ranged },
+        { key: 'cavalry', units: cavalryUnits, ratio: budgetRatios.cavalry },
+        { key: 'siege', units: siegeUnits, ratio: budgetRatios.siege },
+    ];
+
+    // 第一轮：标记哪些类别有兵种
+    let recycleBudget = 0;
+    let activeTotalRatio = 0;
+    for (const cat of categories) {
+        if (cat.units.length === 0) {
+            recycleBudget += militaryBudget * cat.ratio;
+            cat.active = false;
+        } else {
+            cat.active = true;
+            activeTotalRatio += cat.ratio;
         }
     }
 
-    // 剩余分配给步兵
-    if (remaining > 0 && infantryUnits.length > 0) {
-        const unitId = infantryUnits[0];
-        army[unitId] = (army[unitId] || 0) + remaining;
+    // 第二轮：回收预算按比例分配给有兵种的类别
+    const army = {};
+    let totalRecruited = 0;
+    const minCountPerCategory = 3; // 每类别至少能招到3人才选先进兵种
+
+    for (const cat of categories) {
+        if (!cat.active) continue;
+
+        // 基础预算 + 回收预算（按比例）
+        const baseBudget = militaryBudget * cat.ratio;
+        const recyclePortion = activeTotalRatio > 0
+            ? recycleBudget * (cat.ratio / activeTotalRatio)
+            : 0;
+        const categoryBudget = baseBudget + recyclePortion;
+
+        const selection = selectBestAffordableUnit(cat.units, categoryBudget, minCountPerCategory);
+        if (!selection) continue;
+
+        const count = Math.floor(categoryBudget / selection.cost);
+        if (count > 0) {
+            army[selection.unitId] = (army[selection.unitId] || 0) + count;
+            totalRecruited += count;
+        }
+    }
+
+    // 9. 应用人口上限
+    if (totalRecruited > maxManpower && maxManpower > 0) {
+        const scaleFactor = maxManpower / totalRecruited;
+        for (const unitId of Object.keys(army)) {
+            army[unitId] = Math.max(1, Math.floor(army[unitId] * scaleFactor));
+        }
+        totalRecruited = Object.values(army).reduce((s, c) => s + c, 0);
+    }
+
+    // 10. 保底：极端情况下至少有MIN_ARMY_FLOOR人步兵
+    const minFloor = WAR_ECONOMY?.MIN_ARMY_FLOOR || 10;
+    if (totalRecruited < minFloor) {
+        // 选当前时代最便宜的步兵
+        const fallbackInfantry = infantryUnits.length > 0
+            ? infantryUnits.reduce((best, id) => {
+                const c = calculateUnitCost(id, localPrices);
+                return c < (best.cost || Infinity) ? { id, cost: c } : best;
+            }, { id: infantryUnits[0], cost: Infinity })
+            : { id: 'militia' };
+        const needed = minFloor - totalRecruited;
+        army[fallbackInfantry.id] = (army[fallbackInfantry.id] || 0) + needed;
+    }
+
+    // 11. 应用派遣比例
+    if (deploymentRatio < 1.0) {
+        for (const unitId of Object.keys(army)) {
+            army[unitId] = Math.max(1, Math.floor(army[unitId] * deploymentRatio));
+        }
     }
 
     return army;
@@ -917,9 +1244,12 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
 export const calculateNationBattlePower = (nation, epoch, deploymentRatio = 1.0, difficultyMultiplier = 1.0) => {
     const army = generateNationArmy(nation, epoch, deploymentRatio, difficultyMultiplier);
     const aggression = nation?.aggression || 0.3;
+    const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
 
-    // 侵略性作为军事buff（0.3侵略性 = 0军事buff，0.6侵略性 = +15%）
-    const militaryBuffs = Math.max(0, (aggression - 0.3) * 0.5);
+    // 侵略性影响进攻意愿，质量影响军队执行力。
+    const aggressionBuff = Math.max(0, (aggression - 0.3) * 0.35);
+    const qualityBuff = (militaryQuality - 1) * 0.25;
+    const militaryBuffs = aggressionBuff + qualityBuff;
 
     return calculateBattlePower(army, epoch, militaryBuffs);
 };
@@ -1548,7 +1878,14 @@ const DEFAULT_RESOURCE_PRICES = {
     iron: 3,
     tools: 5,
     coal: 2,
-    steel: 8
+    steel: 8,
+    swords: 20,
+    plate_armor: 35,
+    gunpowder: 18,
+    muskets: 30,
+    rifles: 45,
+    ammunition: 15,
+    ordnance: 60
 };
 
 /**

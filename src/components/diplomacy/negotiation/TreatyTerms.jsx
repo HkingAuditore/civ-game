@@ -90,7 +90,7 @@ const FloatingTooltip = ({ children, content, disabled }) => {
                         maxWidth: '320px',
                         minWidth: '240px',
                     }}
-                    className="p-2 bg-[#0a0a14] border border-ancient-gold/40 rounded shadow-2xl text-[10px] text-ancient-stone pointer-events-none"
+                    className="p-2 bg-[#0a0a14] border border-ancient-gold/40 rounded shadow-2xl text-xs text-ancient-stone pointer-events-none"
                 >
                     {content}
                 </div>,
@@ -190,7 +190,7 @@ const TreatyTerms = ({
         <div className="flex flex-col gap-2 lg:gap-4 h-full">
             {/* Treaty Type Selector */}
             <div className="space-y-1 lg:space-y-2">
-                <label className="text-[10px] lg:text-xs font-bold text-ancient-gold uppercase tracking-wider flex items-center justify-center gap-2">
+                <label className="text-xs lg:text-xs font-bold text-ancient-gold uppercase tracking-wider flex items-center justify-center gap-2">
                     <Icon name="FileText" size={14} />
                     {t('negotiation.treatyType', '条约类型')}
                 </label>
@@ -246,9 +246,9 @@ const TreatyTerms = ({
                                         }
                                     `}
                                 >
-                                    <div className="text-[9px] lg:text-xs font-bold text-ancient-parchment truncate w-full">{label}</div>
+                                    <div className="text-xs lg:text-xs font-bold text-ancient-parchment truncate w-full">{label}</div>
                                     {locked && (
-                                        <div className="hidden lg:flex text-[8px] lg:text-[9px] text-red-400 mt-0.5 lg:mt-1 items-center gap-1">
+                                        <div className="hidden lg:flex text-xs lg:text-xs text-red-400 mt-0.5 lg:mt-1 items-center gap-1">
                                             <Icon name="Lock" size={8} />
                                             {getTreatyUnlockEraName(type)}
                                         </div>
@@ -263,7 +263,7 @@ const TreatyTerms = ({
             {/* Organization Selector - Only shown for military_alliance and economic_bloc */}
             {isOrganizationType && (
                 <Card className="p-2 lg:p-3 bg-ancient-ink/30 border-ancient-gold/20 space-y-2">
-                    <label className="text-[10px] lg:text-xs font-bold text-ancient-gold uppercase tracking-wider flex items-center gap-2">
+                    <label className="text-xs lg:text-xs font-bold text-ancient-gold uppercase tracking-wider flex items-center gap-2">
                         <Icon name="Users" size={14} />
                         {t('negotiation.selectOrganization', '选择组织')}
                     </label>
@@ -271,7 +271,7 @@ const TreatyTerms = ({
                     {/* Kick Member Option - for shared organizations */}
                     {sharedOrganizations.length > 0 && (
                         <div className="space-y-1">
-                            <div className="text-[9px] lg:text-[10px] text-ancient-stone flex items-center gap-1">
+                            <div className="text-xs lg:text-xs text-ancient-stone flex items-center gap-1">
                                 <Icon name="UserMinus" size={10} className="text-red-400" />
                                 {t('negotiation.kickMember', '将对方移除出组织')}
                             </div>
@@ -301,15 +301,15 @@ const TreatyTerms = ({
                                                         size={14} 
                                                         className={isSelected ? 'text-red-400' : 'text-ancient-stone'} 
                                                     />
-                                                    <span className="text-[10px] lg:text-xs font-medium text-ancient-parchment">
+                                                    <span className="text-xs lg:text-xs font-medium text-ancient-parchment">
                                                         {org.name}
                                                     </span>
                                                 </div>
-                                                <span className="text-[9px] text-ancient-stone">
+                                                <span className="text-xs text-ancient-stone">
                                                     {memberCount} {t('common.members', '成员')}
                                                 </span>
                                             </div>
-                                            <div className="text-[9px] text-red-300 mt-1">
+                                            <div className="text-xs text-red-300 mt-1">
                                                 {t('negotiation.kickWarning', '移除后关系将大幅下降')}
                                             </div>
                                         </button>
@@ -322,7 +322,7 @@ const TreatyTerms = ({
                     {/* Player's Organizations - Invite target to join */}
                     {playerOrganizations.length > 0 && (
                         <div className="space-y-1">
-                            <div className="text-[9px] lg:text-[10px] text-ancient-stone flex items-center gap-1">
+                            <div className="text-xs lg:text-xs text-ancient-stone flex items-center gap-1">
                                 <Icon name="UserPlus" size={10} className="text-green-400" />
                                 {t('negotiation.inviteToJoin', '邀请对方加入你的组织')}
                             </div>
@@ -360,21 +360,21 @@ const TreatyTerms = ({
                                                         size={14} 
                                                         className={isSelected ? 'text-green-400' : 'text-ancient-stone'} 
                                                     />
-                                                    <span className="text-[10px] lg:text-xs font-medium text-ancient-parchment">
+                                                    <span className="text-xs lg:text-xs font-medium text-ancient-parchment">
                                                         {org.name}
                                                     </span>
                                                 </div>
-                                                <span className="text-[9px] text-ancient-stone">
+                                                <span className="text-xs text-ancient-stone">
                                                     {memberCount}/{maxMembers} {t('common.members', '成员')}
                                                 </span>
                                             </div>
                                             {alreadyMember && (
-                                                <div className="text-[9px] text-amber-400 mt-1">
+                                                <div className="text-xs text-amber-400 mt-1">
                                                     {t('negotiation.alreadyMember', '对方已是成员')}
                                                 </div>
                                             )}
                                             {isFull && !alreadyMember && (
-                                                <div className="text-[9px] text-red-400 mt-1">
+                                                <div className="text-xs text-red-400 mt-1">
                                                     {t('negotiation.organizationFull', '组织已满员')}
                                                 </div>
                                             )}
@@ -388,7 +388,7 @@ const TreatyTerms = ({
                     {/* Target Nation's Organizations - Apply to join */}
                     {targetOrganizations.length > 0 && (
                         <div className="space-y-1">
-                            <div className="text-[9px] lg:text-[10px] text-ancient-stone flex items-center gap-1">
+                            <div className="text-xs lg:text-xs text-ancient-stone flex items-center gap-1">
                                 <Icon name="LogIn" size={10} className="text-blue-400" />
                                 {t('negotiation.applyToJoin', '申请加入对方的组织')}
                             </div>
@@ -424,19 +424,19 @@ const TreatyTerms = ({
                                                         size={14} 
                                                         className={isSelected ? 'text-blue-400' : 'text-ancient-stone'} 
                                                     />
-                                                    <span className="text-[10px] lg:text-xs font-medium text-ancient-parchment">
+                                                    <span className="text-xs lg:text-xs font-medium text-ancient-parchment">
                                                         {org.name}
                                                     </span>
                                                 </div>
-                                                <span className="text-[9px] text-ancient-stone">
+                                                <span className="text-xs text-ancient-stone">
                                                     {memberCount}/{maxMembers} {t('common.members', '成员')}
                                                 </span>
                                             </div>
-                                            <div className="text-[9px] text-ancient-stone mt-1">
+                                            <div className="text-xs text-ancient-stone mt-1">
                                                 {t('common.founder', '创始国')}: {getNationName(org.founderId)}
                                             </div>
                                             {isFull && (
-                                                <div className="text-[9px] text-red-400 mt-1">
+                                                <div className="text-xs text-red-400 mt-1">
                                                     {t('negotiation.organizationFull', '组织已满员')}
                                                 </div>
                                             )}
@@ -450,10 +450,10 @@ const TreatyTerms = ({
                     {/* No organizations available - show hint */}
                     {playerOrganizations.length === 0 && targetOrganizations.length === 0 && sharedOrganizations.length === 0 && (
                         <div className="text-center py-3 px-2">
-                            <div className="text-[10px] text-ancient-stone mb-2">
+                            <div className="text-xs text-ancient-stone mb-2">
                                 {t('negotiation.noOrganizations', '双方都没有可操作的组织')}
                             </div>
-                            <div className="text-[9px] text-amber-400/80 bg-amber-900/20 border border-amber-500/20 rounded p-2">
+                            <div className="text-xs text-amber-400/80 bg-amber-900/20 border border-amber-500/20 rounded p-2">
                                 <Icon name="Info" size={12} className="inline mr-1" />
                                 {t('negotiation.createOrgHint', '如需创建新组织，请前往「国际组织」面板')}
                             </div>
@@ -463,7 +463,7 @@ const TreatyTerms = ({
                     {/* Selected Organization Summary */}
                     {draft.targetOrganizationId && draft.targetOrganizationId !== 'new' && (
                         <div className={`mt-2 p-2 rounded border ${draft.organizationMode === 'kick' ? 'bg-red-900/10 border-red-500/20' : 'bg-ancient-gold/5 border-ancient-gold/20'}`}>
-                            <div className={`text-[9px] lg:text-[10px] flex items-center gap-1 ${draft.organizationMode === 'kick' ? 'text-red-400' : 'text-ancient-gold'}`}>
+                            <div className={`text-xs lg:text-xs flex items-center gap-1 ${draft.organizationMode === 'kick' ? 'text-red-400' : 'text-ancient-gold'}`}>
                                 <Icon name={draft.organizationMode === 'kick' ? 'AlertTriangle' : 'CheckCircle'} size={12} />
                                 {draft.organizationMode === 'invite' && t('negotiation.willInvite', '将邀请对方加入组织')}
                                 {draft.organizationMode === 'join' && t('negotiation.willApply', '将申请加入对方组织')}
@@ -476,10 +476,10 @@ const TreatyTerms = ({
 
             {/* Terms Details */}
             <Card className="p-2 lg:p-3 bg-ancient-ink/20 border-ancient-gold/10 space-y-2 lg:space-y-3">
-                <div className="flex justify-between items-center text-[10px] lg:text-xs border-b border-ancient-gold/10 pb-1 lg:pb-2">
+                <div className="flex justify-between items-center text-xs lg:text-xs border-b border-ancient-gold/10 pb-1 lg:pb-2">
                     <span className="text-ancient-stone">{t('negotiation.signingCost', '签约成本')}</span>
                     <div className="flex items-center gap-1">
-                        <span className={`font-mono text-[10px] lg:text-xs font-bold ${
+                        <span className={`font-mono text-xs lg:text-xs font-bold ${
                             canAffordSigningCost ? 'text-green-400' : 'text-red-400'
                         }`}>
                             {formatNumberShortCN(signingCost)}
@@ -488,7 +488,7 @@ const TreatyTerms = ({
                     </div>
                 </div>
 
-                <div className="flex justify-between items-center text-[10px] lg:text-xs border-b border-ancient-gold/10 pb-1 lg:pb-2">
+                <div className="flex justify-between items-center text-xs lg:text-xs border-b border-ancient-gold/10 pb-1 lg:pb-2">
                     <span className="text-ancient-stone">{t('negotiation.duration', '持续时间')}</span>
                     <div className="flex items-center gap-1">
                         <Input
@@ -497,25 +497,25 @@ const TreatyTerms = ({
                             value={draft.durationDays}
                             onChange={(e) => !disabled && setDraft(prev => ({ ...prev, durationDays: Number(e.target.value) }))}
                             disabled={disabled}
-                            className={`w-12 lg:w-16 h-5 lg:h-6 text-right font-mono text-[10px] lg:text-xs py-0 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`w-12 lg:w-16 h-5 lg:h-6 text-right font-mono text-xs lg:text-xs py-0 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                         />
-                        <span className="text-ancient-stone text-[9px] lg:text-[10px]">{t('common.days', '天')}</span>
+                        <span className="text-ancient-stone text-xs lg:text-xs">{t('common.days', '天')}</span>
                     </div>
                 </div>
 
-                <div className="flex justify-between items-center text-[10px] lg:text-xs">
+                <div className="flex justify-between items-center text-xs lg:text-xs">
                     <span className="text-ancient-stone">{t('negotiation.maintenance', '每日维护')}</span>
                     <div className="flex items-center gap-1">
-                        <span className="font-mono text-[10px] lg:text-xs text-amber-400">{formatNumberShortCN(draft.maintenancePerDay)}</span>
+                        <span className="font-mono text-xs lg:text-xs text-amber-400">{formatNumberShortCN(draft.maintenancePerDay)}</span>
                         <Icon name="Coins" size={10} className="text-amber-500" />
-                        <span className="text-ancient-stone text-[9px] lg:text-[10px]">{t('common.perDay', '/日')}</span>
+                        <span className="text-ancient-stone text-xs lg:text-xs">{t('common.perDay', '/日')}</span>
                     </div>
                 </div>
             </Card>
 
             {/* Stance Selector */}
             <div className="mt-auto pt-1 lg:pt-2">
-                <label className="text-[9px] lg:text-[10px] font-bold text-ancient-stone uppercase tracking-wider mb-1 lg:mb-2 block text-center">
+                <label className="text-xs lg:text-xs font-bold text-ancient-stone uppercase tracking-wider mb-1 lg:mb-2 block text-center">
                     {t('negotiation.stance', '谈判姿态')}
                 </label>
                 <div className="flex gap-1 bg-black/30 p-1 rounded-lg">
@@ -559,23 +559,23 @@ const TreatyTerms = ({
                             content={
                                 <div className="space-y-2.5 min-w-[240px]">
                                     <div className={`font-bold text-sm ${color} pb-1 border-b border-ancient-stone/30`}>{label}</div>
-                                    <div className="text-[11px] text-ancient-parchment leading-relaxed">{desc}</div>
+                                    <div className="text-xs text-ancient-parchment leading-relaxed">{desc}</div>
                                     <div className="pt-2 border-t border-ancient-stone/20 space-y-2">
                                         <div className="flex items-start gap-2">
-                                            <span className="text-[11px]">💰</span>
+                                            <span className="text-xs">💰</span>
                                             <div className="flex-1">
-                                                <div className="text-[9px] text-ancient-stone/80 mb-0.5">预先成本:</div>
-                                                <div className={`text-[10px] font-semibold ${cost === '无成本' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                                <div className="text-xs text-ancient-stone/80 mb-0.5">预先成本:</div>
+                                                <div className={`text-xs font-semibold ${cost === '无成本' ? 'text-green-400' : 'text-yellow-400'}`}>
                                                     {cost}
                                                 </div>
                                             </div>
                                         </div>
                                         {guaranteed && (
                                             <div className="flex items-start gap-2">
-                                                <span className="text-[11px]">📋</span>
+                                                <span className="text-xs">📋</span>
                                                 <div className="flex-1">
-                                                    <div className="text-[9px] text-ancient-stone/80 mb-0.5">确定后果:</div>
-                                                    <div className="text-[10px] text-blue-400 font-semibold leading-relaxed">
+                                                    <div className="text-xs text-ancient-stone/80 mb-0.5">确定后果:</div>
+                                                    <div className="text-xs text-blue-400 font-semibold leading-relaxed">
                                                         {guaranteed}
                                                     </div>
                                                 </div>
@@ -583,10 +583,10 @@ const TreatyTerms = ({
                                         )}
                                         {risk && (
                                             <div className="flex items-start gap-2">
-                                                <span className="text-[11px]">⚡</span>
+                                                <span className="text-xs">⚡</span>
                                                 <div className="flex-1">
-                                                    <div className="text-[9px] text-ancient-stone/80 mb-0.5">危险后果:</div>
-                                                    <div className="text-[10px] text-red-400 font-semibold leading-relaxed">
+                                                    <div className="text-xs text-ancient-stone/80 mb-0.5">危险后果:</div>
+                                                    <div className="text-xs text-red-400 font-semibold leading-relaxed">
                                                         {risk}
                                                     </div>
                                                 </div>
@@ -610,9 +610,9 @@ const TreatyTerms = ({
                             >
                                 <Icon name={icon} size={16} className="lg:hidden" />
                                 <Icon name={icon} size={18} className="hidden lg:block" />
-                                <span className="text-[9px] lg:text-[10px] font-bold whitespace-nowrap">{label}</span>
+                                <span className="text-xs lg:text-xs font-bold whitespace-nowrap">{label}</span>
                                 {cost !== '无成本' && (
-                                    <span className={`text-[7px] lg:text-[8px] font-semibold ${draft.stance === key ? 'text-yellow-300' : 'text-yellow-500/60'}`}>
+                                    <span className={`text-xs lg:text-xs font-semibold ${draft.stance === key ? 'text-yellow-300' : 'text-yellow-500/60'}`}>
                                         {cost}
                                     </span>
                                 )}

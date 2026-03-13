@@ -439,7 +439,7 @@ export const EpicPanelTitle = ({ icon, title, subtitle, className = '', actions 
                 )}
                 <div>
                     <h3 className="text-xs sm:text-sm font-bold text-ancient tracking-wide font-decorative">{title}</h3>
-                    {subtitle && <p className="text-[9px] text-ancient-stone">{subtitle}</p>}
+                    {subtitle && <p className="text-xs text-ancient-stone">{subtitle}</p>}
                 </div>
             </div>
             {actions && <div className="flex items-center gap-1">{actions}</div>}
@@ -479,7 +479,7 @@ export const EpicProgressBar = ({
     return (
         <div className={`w-full ${className}`}>
             {showLabel && (
-                <div className="flex justify-between text-[9px] mb-0.5">
+                <div className="flex justify-between text-xs mb-0.5">
                     <span className="text-ancient-stone">{label}</span>
                     <span className="text-ancient-parchment font-mono">{percentage.toFixed(0)}%</span>
                 </div>
@@ -515,9 +515,9 @@ export const EpicBadge = ({
     };
 
     const sizes = {
-        xs: 'text-[8px] px-1 py-0.5',
-        sm: 'text-[9px] px-1.5 py-0.5',
-        md: 'text-[10px] px-2 py-1',
+        xs: 'text-xs px-1 py-0.5',
+        sm: 'text-xs px-1.5 py-0.5',
+        md: 'text-xs px-2 py-1',
         lg: 'text-xs px-2.5 py-1',
     };
 
@@ -564,11 +564,11 @@ export const EpicInfoCard = ({
                 </div>
             )}
             <div className="flex-1 min-w-0">
-                <div className="text-[9px] text-ancient-stone truncate">{label}</div>
+                <div className="text-xs text-ancient-stone truncate">{label}</div>
                 <div className="flex items-center gap-1">
                     <span className="text-sm font-bold font-mono text-ancient">{value}</span>
                     {(trend !== undefined && trend !== null) && (
-                        <span className={`text-[9px] font-mono flex items-center ${getTrendColor()}`}>
+                        <span className={`text-xs font-mono flex items-center ${getTrendColor()}`}>
                             {trendIcon}
                             {trend > 0 ? '+' : ''}{trend}
                         </span>

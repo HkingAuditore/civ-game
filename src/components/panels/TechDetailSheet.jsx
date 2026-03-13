@@ -4,7 +4,7 @@ import { RESOURCES, BUILDINGS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getTechCostMultiplier } from '../../config/difficulty';
 
-// 科技解锁的建筑列表
+// 知识解锁的建筑列表
 const TECH_BUILDING_UNLOCKS = BUILDINGS.reduce((acc, building) => {
     if (!building.requiresTech) return acc;
     const techId = building.requiresTech;
@@ -14,8 +14,8 @@ const TECH_BUILDING_UNLOCKS = BUILDINGS.reduce((acc, building) => {
 }, {});
 
 /**
- * 科技详情底部面板组件
- * 在BottomSheet中显示科技的详细信息
+ * 知识详情底部面板组件
+ * 在BottomSheet中显示知识的详细信息
  */
 export const TechDetailSheet = ({
     tech,
@@ -25,18 +25,19 @@ export const TechDetailSheet = ({
     onResearch,
     onClose,
     difficulty = 'normal',
+    techCostMod = 0, // V2: Ideology tech cost modifier
 }) => {
     if (!tech) {
         return (
             <div className="text-center text-gray-400 py-8">
                 <Icon name="AlertCircle" size={32} className="mx-auto mb-2" />
-                <p>未找到该科技信息</p>
+<p>未找到该知识信息</p>
             </div>
         );
     }
 
     // 获取难度调整后的成本
-    const techCostMultiplier = getTechCostMultiplier(difficulty);
+    const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
     const adjustedCost = {};
     Object.entries(tech.cost).forEach(([resource, cost]) => {
         adjustedCost[resource] = Math.ceil(cost * techCostMultiplier);
@@ -53,7 +54,7 @@ export const TechDetailSheet = ({
 
     return (
         <div className="space-y-2 pb-6">
-            {/* 头部：科技名称和图标 */}
+{/* 头部：知识名称和图标 */}
             <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
                 <div className="w-10 h-10 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
                     {isUnlocked ? (
@@ -76,7 +77,7 @@ export const TechDetailSheet = ({
             {/* 特殊效果 */}
             {tech.effect && (
                 <div className="bg-blue-900/30 rounded p-2 border border-blue-500/30">
-                    <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+                    <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
                         <Icon name="Sparkles" size={12} className="text-blue-400" />
                         特殊效果
                     </h3>
@@ -87,7 +88,7 @@ export const TechDetailSheet = ({
             {/* 解锁建筑 */}
             {unlockedBuildings.length > 0 && (
                 <div className="bg-amber-900/30 rounded p-2 border border-amber-500/30">
-                    <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+                    <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
                         <Icon name="Building" size={12} className="text-amber-400" />
                         解锁建筑
                     </h3>
@@ -107,7 +108,7 @@ export const TechDetailSheet = ({
             {/* 研究成本 */}
             {!isUnlocked && (
                 <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                    <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+                    <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
                         <Icon name="Package" size={12} className="text-purple-400" />
                         研究成本
                     </h3>
@@ -148,8 +149,8 @@ export const TechDetailSheet = ({
             {isUnlocked && (
                 <div className="bg-green-900/20 border border-green-500/30 rounded p-3 text-center">
                     <Icon name="CheckCircle" size={32} className="text-green-400 mx-auto mb-2" />
-                    <p className="text-sm font-bold text-green-300">该科技已研究完成</p>
-                    <p className="text-xs text-gray-400 mt-1">科技效果已永久生效</p>
+<p className="text-sm font-bold text-green-300">该知识已研究完成</p>
+                    <p className="text-xs text-gray-400 mt-1">知识效果已永久生效</p>
                 </div>
             )}
 
@@ -170,7 +171,7 @@ export const TechDetailSheet = ({
                             }`}
                     >
                         <Icon name="Lightbulb" size={18} />
-                        <span>研究科技</span>
+<span>研究知识</span>
                     </button>
                 </div>
             )}

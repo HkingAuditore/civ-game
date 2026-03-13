@@ -311,7 +311,7 @@ export const BuildingUpgradePanel = ({
 
     // 渲染资源标签
     const ResourceTag = ({ icon, value, name, color = 'gray', size = 'sm' }) => {
-        const sizeClass = size === 'sm' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-1';
+        const sizeClass = size === 'sm' ? 'text-xs px-1.5 py-0.5' : 'text-xs px-2 py-1';
         const colorClasses = {
             green: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50',
             red: 'bg-rose-900/40 text-rose-300 border-rose-700/50',
@@ -344,7 +344,7 @@ export const BuildingUpgradePanel = ({
             <div className="space-y-2">
                 {hasOutput && (
                     <div>
-                        <div className="text-[10px] text-emerald-300 uppercase tracking-wider mb-0.5">产出</div>
+                        <div className="text-xs text-emerald-300 uppercase tracking-wider mb-0.5">产出</div>
                         <div className="flex flex-wrap gap-1.5">
                             {Object.entries(config.output || {}).map(([key, val]) => (
                                 <ResourceTag
@@ -360,7 +360,7 @@ export const BuildingUpgradePanel = ({
                 )}
                 {hasInput && (
                     <div>
-                        <div className="text-[10px] text-rose-300 uppercase tracking-wider mb-0.5">输入/消耗</div>
+                        <div className="text-xs text-rose-300 uppercase tracking-wider mb-0.5">输入/消耗</div>
                         <div className="flex flex-wrap gap-1.5">
                             {Object.entries(config.input || {}).map(([key, val]) => (
                                 <ResourceTag
@@ -376,7 +376,7 @@ export const BuildingUpgradePanel = ({
                 )}
                 {hasJobs && (
                     <div>
-                        <div className="text-[10px] text-sky-300 uppercase tracking-wider mb-0.5">岗位</div>
+                        <div className="text-xs text-sky-300 uppercase tracking-wider mb-0.5">岗位</div>
                         <div className="space-y-1">
                             {jobEntries.map(([key, val]) => {
                                 const incomeInfo = incomeEstimates[key];
@@ -386,13 +386,13 @@ export const BuildingUpgradePanel = ({
                                 return (
                                     <div
                                         key={`job-${key}`}
-                                        className="flex items-center justify-between text-[11px] rounded border border-sky-800/50 bg-sky-900/30 px-2 py-1"
+                                        className="flex items-center justify-between text-xs rounded border border-sky-800/50 bg-sky-900/30 px-2 py-1"
                                     >
                                         <div className="flex items-center gap-1 text-sky-100">
                                             <Icon name={STRATA[key]?.icon || 'User'} size={12} />
                                             <span>{STRATA[key]?.name || key}</span>
                                             {isOwner && (
-                                                <span className="text-[9px] text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
+                                                <span className="text-xs text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -410,7 +410,7 @@ export const BuildingUpgradePanel = ({
                     </div>
                 )}
                 {!hasOutput && !hasInput && !hasJobs && (
-                    <span className="text-[10px] text-gray-500">基础效果</span>
+                    <span className="text-xs text-gray-500">基础效果</span>
                 )}
             </div>
         );
@@ -450,15 +450,15 @@ export const BuildingUpgradePanel = ({
 
         return (
             <div className="space-y-2">
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider">升级所需资源</div>
-                <p className="text-[10px] text-gray-500">
+                <div className="text-xs text-gray-400 uppercase tracking-wider">升级所需资源</div>
+                <p className="text-xs text-gray-500">
                     需要一次性采购下列资源并支付银币，才能完成该档升级。
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                     {costBreakdown.map(({ resource, amount, currentAmount, available }) => (
                         <span
                             key={resource}
-                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] border ${available
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs border ${available
                                 ? 'bg-gray-800/60 text-gray-300 border-gray-600/50'
                                 : 'bg-red-900/40 text-red-300 border-red-700/50'
                                 }`}
@@ -467,13 +467,13 @@ export const BuildingUpgradePanel = ({
                             <Icon name={RESOURCES[resource]?.icon || 'Box'} size={10} />
                             <span className="opacity-90">{RESOURCES[resource]?.name || resource}</span>
                             <span className="font-mono ml-0.5">{formatAmount(amount)}</span>
-                            <span className="font-mono text-[9px] opacity-70 ml-0.5">
+                            <span className="font-mono text-xs opacity-70 ml-0.5">
                                 ({formatAmount(Math.floor(currentAmount))}/{formatAmount(amount)})
                             </span>
                         </span>
                     ))}
                 </div>
-                <div className="flex items-center justify-between text-[11px]">
+                <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1 text-gray-300">
                         <Icon name="Coins" size={12} className="text-yellow-400" />
                         银币合计
@@ -483,7 +483,7 @@ export const BuildingUpgradePanel = ({
                     </span>
                 </div>
                 {!canAfford && (
-                    <p className="text-[10px] text-red-300">
+                    <p className="text-xs text-red-300">
                         库存或银币不足。
                     </p>
                 )}
@@ -514,7 +514,7 @@ export const BuildingUpgradePanel = ({
             <h4 className="text-xs font-semibold text-gray-300 mb-3 flex items-center gap-1.5 font-decorative">
                 <Icon name="ArrowUpCircle" size={16} />
                 建筑升级
-                <span className="ml-auto text-[10px] text-gray-500 font-normal">共 {count} 座 · 长按批量</span>
+                <span className="ml-auto text-xs text-gray-500 font-normal">共 {count} 座 · 长按批量</span>
             </h4>
 
             {/* 等级列表 */}
@@ -552,12 +552,12 @@ export const BuildingUpgradePanel = ({
                                     {renderLevelIndicator(levelNum)}
                                     <span className="text-xs font-medium text-gray-200">{levelName}</span>
                                     {levelCount > 0 && (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-amber-400 bg-amber-900/40">
+                                        <span className="px-1.5 py-0.5 rounded text-xs font-bold text-amber-400 bg-amber-900/40">
                                             ×{levelCount}
                                         </span>
                                     )}
                                     {levelCount === 0 && (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-blue-300 bg-blue-900/30 border border-blue-700/40">
+                                        <span className="px-1.5 py-0.5 rounded text-xs font-bold text-blue-300 bg-blue-900/30 border border-blue-700/40">
                                             预览
                                         </span>
                                     )}

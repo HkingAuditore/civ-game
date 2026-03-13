@@ -449,7 +449,7 @@ export const MusicPlayer = () => {
                             <div className="p-3 space-y-3">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                        <div className="text-[10px] uppercase tracking-wider text-ancient-gold/70">
+                                        <div className="text-xs uppercase tracking-wider text-ancient-gold/70">
                                             Now Playing
                                         </div>
                                         <div className="text-xs text-ancient-parchment/95 truncate">
@@ -457,7 +457,7 @@ export const MusicPlayer = () => {
                                                 ? giteeTracks[currentGiteeIndex].name
                                                 : '未开始播放'}
                                         </div>
-                                        <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                        <div className="text-xs text-gray-500 font-mono mt-0.5">
                                             {giteeTracks.length > 0
                                                 ? `${currentGiteeIndex >= 0 ? currentGiteeIndex + 1 : 0}/${giteeTracks.length}`
                                                 : '0/0'}
@@ -511,13 +511,13 @@ export const MusicPlayer = () => {
                                         className="flex-1 accent-ancient-gold h-1"
                                         aria-label="Volume"
                                     />
-                                    <div className="w-10 text-right text-[10px] text-gray-500 font-mono tabular-nums">
+                                    <div className="w-10 text-right text-xs text-gray-500 font-mono tabular-nums">
                                         {Math.round((giteeMuted ? 0 : giteeVolume) * 100)}%
                                     </div>
                                 </div>
 
                                 {giteeError && (
-                                    <div className="text-[10px] text-red-300/90 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1">
+                                    <div className="text-xs text-red-300/90 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1">
                                         {giteeError}
                                     </div>
                                 )}
@@ -557,7 +557,7 @@ export const MusicPlayer = () => {
                     {/* Input Area */}
                     <div className="p-3 space-y-2 border-t border-white/10">
                         <div className="flex items-center justify-between">
-                            <div className="flex gap-1 text-[10px]">
+                            <div className="flex gap-1 text-xs">
                                 <button
                                     onClick={() => setMode('netease')}
                                     className={`px-2 py-1 rounded border transition-colors ${mode === 'netease'
@@ -601,7 +601,7 @@ export const MusicPlayer = () => {
                                         重新加载
                                     </button>
                                 </div>
-                                <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
+                                <div className="flex justify-between items-center text-xs text-gray-500 px-1">
                                     <span>
                                         默认曲库: jsDelivr (GitHub CDN) tracks.json（已内置）
                                     </span>
@@ -625,7 +625,7 @@ export const MusicPlayer = () => {
                                         加载
                                     </button>
                                 </div>
-                                <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
+                                <div className="flex justify-between items-center text-xs text-gray-500 px-1">
                                     <span>
                                         {isRadio ? "注: 电台仅支持官方播放器" : "APlayer 已启用 (支持随机)"}
                                     </span>

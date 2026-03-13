@@ -21,6 +21,12 @@ import {
     buildVassalDiplomacyRequest,
 } from './vassalSystem';
 import { ORGANIZATION_TYPE_CONFIGS, getOrganizationMaxMembers } from './organizationDiplomacy';
+import {
+    getNationAnnualOutput,
+    getNationEconomicScale,
+    getNationTreasury,
+} from './economyUtils';
+import { applyWarRelationCap } from '../../utils/diplomacyUtils';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -140,9 +146,10 @@ export const processAIGiftDiplomacy = (visibleNations, logs) => {
         if (Math.random() > 0.02) return; // 2% chance
 
         const aggression = nation.aggression ?? 0.3;
-        const wealth = nation.wealth || 500;
+        const economicScale = getNationEconomicScale(nation, 500);
+        const treasury = getNationTreasury(nation, 200);
 
-        if (aggression > 0.6 || wealth < 300) return;
+        if (aggression > 0.6 || treasury < 150 || economicScale < 400) return;
 
         const potentialTargets = visibleNations.filter(n => {
             if (n.id === nation.id) return false;
@@ -155,8 +162,9 @@ export const processAIGiftDiplomacy = (visibleNations, logs) => {
 
         const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
 
-        const giftCost = calculateAIGiftAmount(wealth, target.wealth);
-        if (wealth > giftCost * 3) {
+        const targetScale = getNationEconomicScale(target, 400);
+        const giftCost = calculateAIGiftAmount(economicScale, targetScale);
+        if (treasury > giftCost * 1.5 && (nation.wealth || 0) > giftCost * 2) {
             nation.wealth = Math.max(0, (nation.wealth || 0) - giftCost);
             target.wealth = (target.wealth || 0) + giftCost;
 
@@ -212,8 +220,9 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
             return; // Skip - this vassal cannot trade independently
         }
 
-        const wealth = nation.wealth || 500;
-        if (wealth < 300) return;
+        const annualOutput = getNationAnnualOutput(nation, 500);
+        const treasury = getNationTreasury(nation, 200);
+        if (annualOutput < 250 || treasury < 120) return;
 
         const tradeCandidates = visibleNations.filter(n => {
             if (n.id === nation.id) return false;
@@ -294,8 +303,9 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
         if (nation.isAtWar) return;
         if ((nation.relation ?? 50) < 40) return;
 
-        const aiWealth = nation.wealth || 500;
-        if (aiWealth < 400) return;
+        const aiEconomyScale = getNationEconomicScale(nation, 500);
+        const aiTreasury = getNationTreasury(nation, 200);
+        if (aiTreasury < 180 || aiEconomyScale < 450) return;
 
         const isOpenMarket = nation.openMarketUntil && tick < nation.openMarketUntil;
 
@@ -361,7 +371,7 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
             const aiRevenue = baseValue - tariff;
             if (aiRevenue <= aiCost) return;
 
-            if (aiWealth >= baseValue * 0.6) {
+            if (aiTreasury >= baseValue * 0.6 || aiEconomyScale >= baseValue) {
                 res[resourceKey] = (res[resourceKey] || 0) + quantity;
                 applyTreasuryChange(res, tariff, 'ai_trade_tariff', onTreasuryChange);
                 nation.wealth = (nation.wealth || 0) + baseValue - tariff;
@@ -422,7 +432,8 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, al
     let giftGivenThisTick = false;
 
     visibleNations.forEach(nation => {
-        const wealth = nation.wealth || 500;
+        const aiEconomyScale = getNationEconomicScale(nation, 500);
+        const aiTreasury = getNationTreasury(nation, 200);
         const aggression = nation.aggression ?? 0.3;
         const playerRelation = nation.relation || 0;
         const isAtWarWithPlayer = nation.isAtWar === true;
@@ -471,9 +482,9 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, al
         const canGift = canGiftGlobally && (tick - lastGiftDay) >= giftCooldown;
 
         // Significantly reduced base chance and wealth influence
-        const giftChance = 0.000015 + (playerRelation / 1500000) + (wealth / 150000000);
-        if (canGift && wealth > 1000 && playerRelation >= 70 && aggression < 0.4 && Math.random() < giftChance) {
-            const giftAmount = calculateAIGiftAmount(wealth);
+        const giftChance = 0.000015 + (playerRelation / 1500000) + (aiEconomyScale / 180000000);
+        if (canGift && aiTreasury > 300 && playerRelation >= 70 && aggression < 0.4 && Math.random() < giftChance) {
+            const giftAmount = calculateAIGiftAmount(aiEconomyScale);
             nation.wealth = Math.max(0, nation.wealth - giftAmount);
             nation.lastGiftToPlayerDay = tick;
             // [FIX] Mark that a gift was given this tick to prevent any more gifts
@@ -492,8 +503,8 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, al
 
         // AI request from player
         // AI request from player
-        const demandChance = 0.00005 + Math.max(0, (400 - wealth) / 1000000);
-        if (epoch >= 1 && wealth < 400 && Math.random() < demandChance) {
+        const demandChance = 0.00005 + Math.max(0, (450 - aiEconomyScale) / 1000000);
+        if (epoch >= 1 && aiTreasury < 180 && Math.random() < demandChance) {
             const requestAmount = Math.floor(80 + Math.random() * 120);
             logs.push(`AI_REQUEST_EVENT:${JSON.stringify({
                 nationId: nation.id,
@@ -509,7 +520,7 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs, al
         const lastAllianceRequestDay = nation.lastAllianceRequestDay || 0;
         const allianceRequestCooldown = 1095; // Increased to 3 years (was 1 year)
         const canRequestAlliance = (tick - lastAllianceRequestDay) >= allianceRequestCooldown;
-        const allianceChance = 0.00005 + (playerRelation - 70) / 100000;
+        const allianceChance = 0.00005 + (playerRelation - 70) / 100000 + Math.min(0.00004, aiEconomyScale / 250000000);
         if (canRequestAlliance && !isAlreadyAllied && playerRelation >= 70 && aggression < 0.5 && Math.random() < allianceChance) {
             nation.lastAllianceRequestDay = tick;
             logs.push(`AI_ALLIANCE_REQUEST:${JSON.stringify({
@@ -608,7 +619,9 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
 
         // ===== 创建门槛检查 =====
         // 1. 财富门槛：需要有较高经济实力
-        if ((nation.wealth || 0) < 150000) return; // 经济共同体需要更高的经济实力
+        const nationOutput = getNationAnnualOutput(nation, 1000);
+        const nationTreasury = getNationTreasury(nation, 300);
+        if (nationOutput < 1500 || nationTreasury < 300) return;
         
         // 2. 贸易活跃度：需要有一定的贸易基础
         const tradeVolume = (nation.exports?.length || 0) + (nation.imports?.length || 0);
@@ -637,7 +650,9 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
         const potentialPartners = visibleNations.filter(other => {
             if (other.id === nation.id) return false;
             // Wealth check for partner
-            if ((other.wealth || 0) < 150000) return false;
+            const otherOutput = getNationAnnualOutput(other, 1000);
+            const otherTreasury = getNationTreasury(other, 300);
+            if (otherOutput < 1200 || otherTreasury < 250) return false;
 
             // Check restriction
             const otherDiplomacy = canVassalPerformDiplomacy(other, 'alliance'); // Re-use alliance restriction or similar
@@ -809,11 +824,13 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
         
         // ===== 创建门槛检查 =====
         // 1. 财富门槛：需要有一定经济实力
-        if ((nation.wealth || 0) < 100000) return;
-        
+        const allianceOutput = getNationAnnualOutput(nation, 1000);
+        const allianceTreasury = getNationTreasury(nation, 300);
+        if (allianceOutput < 1200 || allianceTreasury < 250) return;
+
         // 2. 军事力量门槛：需要有一定军事实力
-        const militaryStrength = nation.militaryStrength || 0;
-        if (militaryStrength < 500) return;
+        const militaryPower = (nation.militaryStrength || 0.8) * Math.max(30, nation.population || 30);
+        if (militaryPower < 45) return;
         
         // 3. 关系门槛：至少与2个国家关系良好（≥60）
         const goodRelations = visibleNations.filter(other => {
@@ -1239,26 +1256,38 @@ export const processNationRelationDecay = (nation, difficultyLevel = 'normal') =
     const multipliers = getRelationChangeMultipliers(difficultyLevel);
     const baseDrift = getRelationDailyDriftRate(difficultyLevel);
 
-    if (relation > 50) {
-        // relation worsening (toward 50)
-        relationChange = -baseDrift * multipliers.bad;
-    } else if (relation < 50) {
-        // relation improving (toward 50)
-        relationChange = baseDrift * multipliers.good;
-    }
+    if (nation.isAtWar) {
+        nation.relation = applyWarRelationCap(relation, true);
+    } else {
+        if (relation > 50) {
+            // relation worsening (toward 50)
+            relationChange = -baseDrift * multipliers.bad;
+        } else if (relation < 50) {
+            // relation improving (toward 50)
+            relationChange = baseDrift * multipliers.good;
+        }
 
-    nation.relation = Math.max(0, Math.min(100, relation + relationChange));
+        nation.relation = Math.max(0, Math.min(100, relation + relationChange));
+    }
 
     // AI-AI relation decay
     if (nation.foreignRelations) {
         Object.keys(nation.foreignRelations).forEach(otherId => {
-            let r = nation.foreignRelations[otherId] ?? 50;
+            const relationValue = nation.foreignRelations[otherId] ?? 50;
+            const isAtForeignWar = nation.foreignWars?.[otherId]?.isAtWar === true;
+            if (isAtForeignWar) {
+                nation.foreignRelations[otherId] = applyWarRelationCap(relationValue, true);
+                return;
+            }
+
+            let r = relationValue;
             if (r > 50) r -= baseDrift * multipliers.bad;
             else if (r < 50) r += baseDrift * multipliers.good;
             nation.foreignRelations[otherId] = Math.max(0, Math.min(100, r));
         });
     }
 };
+
 
 /**
  * AI 海外投资决策逻辑

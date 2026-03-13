@@ -523,12 +523,12 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                         style={{ width: `${independence}%` }}
                     />
                 </div>
-                <div className="text-[10px] text-gray-500 mt-1">
+                <div className="text-xs text-gray-500 mt-1">
                     {independence > 80 ? '即将独立!' : independence > 60 ? '有独立意向' : independence > 30 ? '轻微不满' : '忠诚'}
                 </div>
                 {/* 每日变化显示（移除目标值概念） */}
                 {independenceBreakdown && independenceBreakdown.dailyChange !== undefined && (
-                    <div className="text-[10px] mt-1 space-y-0.5">
+                    <div className="text-xs mt-1 space-y-0.5">
                         <div className={`font-mono ${independenceBreakdown.dailyChange > 0 ? 'text-red-400' : independenceBreakdown.dailyChange < 0 ? 'text-green-400' : 'text-gray-400'}`}>
                             每日: {independenceBreakdown.dailyChange > 0 ? '+' : ''}{(independenceBreakdown.dailyChange || 0).toFixed(2)}%
                         </div>
@@ -554,7 +554,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                         <div className={`text-sm font-mono ${(independenceBreakdown.dailyChange || 0) > 0 ? 'text-red-400' : (independenceBreakdown.dailyChange || 0) < 0 ? 'text-green-400' : 'text-gray-400'}`}>
                             每日: {(independenceBreakdown.dailyChange || 0) > 0 ? '+' : ''}{(independenceBreakdown.dailyChange || 0).toFixed(2)}%
                         </div>
-                        <div className="text-[10px] text-gray-400 font-mono">
+                        <div className="text-xs text-gray-400 font-mono">
                             {(independenceBreakdown.dailyChange || 0) > 0.01 && independenceBreakdown.daysToMax
                                 ? `约${independenceBreakdown.daysToMax}天达上限`
                                 : (independenceBreakdown.dailyChange || 0) < -0.01 && independenceBreakdown.daysToZero
@@ -567,7 +567,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 {/* 增长因素 */}
                 {independenceBreakdown.increaseFactors && independenceBreakdown.increaseFactors.length > 0 && (
                     <div className="mb-3">
-                        <div className="text-[10px] text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <div className="text-xs text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                             <Icon name="ArrowUp" size={10} />
                             增长因素 (+{((independenceBreakdown.adjustedIncrease || independenceBreakdown.totalIncrease) || 0).toFixed(3)}%/天)
                         </div>
@@ -577,7 +577,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                                 const multiplier = independenceBreakdown.difficultyMultiplier || 1;
                                 const adjustedValue = factor.value * multiplier;
                                 return (
-                                    <div key={idx} className="flex items-center justify-between text-[10px]">
+                                    <div key={idx} className="flex items-center justify-between text-xs">
                                         <span className="text-gray-400">
                                             {factor.name}
                                             {factor.description && (
@@ -597,13 +597,13 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 {/* 减少因素 */}
                 {independenceBreakdown.decreaseFactors && independenceBreakdown.decreaseFactors.length > 0 && (
                     <div>
-                        <div className="text-[10px] text-green-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <div className="text-xs text-green-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                             <Icon name="ArrowDown" size={10} />
                             抑制因素 (-{(independenceBreakdown.totalDecrease || 0).toFixed(3)}%/天)
                         </div>
                         <div className="space-y-1">
                             {independenceBreakdown.decreaseFactors.map((reduction, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-[10px]">
+                                <div key={idx} className="flex items-center justify-between text-xs">
                                     <span className="text-gray-400">
                                         {reduction.name}
                                         {reduction.description && (
@@ -621,7 +621,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
 
                 {/* 无减少因素时的提示 */}
                 {(!independenceBreakdown.decreaseFactors || independenceBreakdown.decreaseFactors.length === 0) && (independenceBreakdown.dailyChange || 0) > 0 && (
-                    <div className="text-[10px] text-yellow-400/70 flex items-center gap-1">
+                    <div className="text-xs text-yellow-400/70 flex items-center gap-1">
                         <Icon name="AlertTriangle" size={10} />
                         未启用任何控制措施，独立倾向持续上升中！
                     </div>
@@ -796,7 +796,7 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, i
                 <div className="text-xs text-red-300">
                     ⚠️ 该附庸国独立倾向过高，可能随时发动独立战争！
                 </div>
-                <div className="text-[10px] text-red-400/70 mt-1">
+                <div className="text-xs text-red-400/70 mt-1">
                     建议：降低朝贡率或加强控制手段
                 </div>
             </div>
@@ -1188,7 +1188,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
                     <Icon name="Users" size={14} className="text-orange-400" />
                     劳工政策
-                    <span className="text-[10px] text-gray-500 ml-1">（影响海外投资工资成本）</span>
+                    <span className="text-xs text-gray-500 ml-1">（影响海外投资工资成本）</span>
                 </h3>
                 <div className="space-y-2">
                     {LABOR_POLICY_OPTIONS.map(option => (
@@ -1211,7 +1211,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
                     <Icon name="Briefcase" size={14} className="text-blue-400" />
                     投资政策
-                    <span className="text-[10px] text-gray-500 ml-1">（影响附庸对宗主国投资的态度）</span>
+                    <span className="text-xs text-gray-500 ml-1">（影响附庸对宗主国投资的态度）</span>
                 </h3>
                 <div className="space-y-2">
                     {INVESTMENT_POLICY_OPTIONS.map(option => (
@@ -1234,7 +1234,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
                     <Icon name="Building" size={14} className="text-purple-400" />
                     治理政策
-                    <span className="text-[10px] text-gray-500 ml-1">（影响附庸的行政管理方式）</span>
+                    <span className="text-xs text-gray-500 ml-1">（影响附庸的行政管理方式）</span>
                 </h3>
                 <div className="space-y-2">
                     {GOVERNANCE_POLICY_OPTIONS.map(option => {
@@ -1265,7 +1265,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
                     <Icon name="Swords" size={14} className="text-red-400" />
                     军事政策
-                    <span className="text-[10px] text-gray-500 ml-1">（影响附庸是否自动参战）</span>
+                    <span className="text-xs text-gray-500 ml-1">（影响附庸是否自动参战）</span>
                 </h3>
                 <div className="space-y-2">
                     {MILITARY_POLICY_OPTIONS.map(option => (
@@ -1342,7 +1342,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                         </span>
                     )}
                 </h3>
-                <p className="text-[10px] text-gray-500 mb-2">
+                <p className="text-xs text-gray-500 mb-2">
                     成本基于附庸GDP动态计算
                 </p>
                 <div className="space-y-2">
@@ -1397,7 +1397,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                             </span>
                                             {/* 状态标签 */}
                                             <span className={`
-                                                px-2 py-0.5 text-[10px] rounded-full font-medium
+                                                px-2 py-0.5 text-xs rounded-full font-medium
                                                 ${isActive
                                                     ? 'bg-green-600/80 text-green-100'
                                                     : 'bg-gray-600/80 text-gray-300'
@@ -1420,10 +1420,10 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                             )}
                                         </div>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mb-1">{measure.description}</p>
-                                    <p className={`text-[11px] font-medium ${measure.effectColor}`}>{dynamicEffects}</p>
+                                    <p className="text-xs text-gray-400 mb-1">{measure.description}</p>
+                                    <p className={`text-xs font-medium ${measure.effectColor}`}>{dynamicEffects}</p>
                                     {showCostDebug && (
-                                        <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                        <div className="text-xs text-gray-500 font-mono mt-0.5">
                                             GDP={Math.round(vassalGDP)}
                                             {' '}| base={measureConfig.baseCost ?? 0}
                                             {' '}| scale={measureConfig.wealthScalingFactor ?? 0}
@@ -1432,12 +1432,12 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                         </div>
                                     )}
                                     {measure.id === 'garrison' && (
-                                        <div className="text-[10px] text-gray-500 mt-0.5">
+                                        <div className="text-xs text-gray-500 mt-0.5">
                                             占用军力：{garrisonCommitment.toFixed(1)}（附庸军力 {vassalMilitary.toFixed(1)} × {garrisonCommitmentFactor}）
                                         </div>
                                     )}
                                     {dynamicMechanics && (
-                                        <div className="mt-1 space-y-0.5 text-[10px] text-gray-500">
+                                        <div className="mt-1 space-y-0.5 text-xs text-gray-500">
                                             {dynamicMechanics.map((line) => (
                                                 <div key={line} className="flex items-center gap-1">
                                                     <Icon name="Info" size={10} />
@@ -1448,7 +1448,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                     )}
                                     {/* 非总督的点击提示 */}
                                     {!isGovernor && !isActive && (
-                                        <p className="text-[10px] text-gray-500 mt-1.5 flex items-center gap-1">
+                                        <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                                             <Icon name="MousePointer" size={10} />
                                             点击此处启用
                                         </p>
@@ -1460,7 +1460,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                     <div className="px-3 pb-3 space-y-2 border-t border-gray-700/50">
                                         {/* Official Selector */}
                                         <div className="pt-2">
-                                            <label className="text-[10px] text-gray-400 mb-1 block">指派官员:</label>
+                                            <label className="text-xs text-gray-400 mb-1 block">指派官员:</label>
                                             <div className="relative">
                                                 <button
                                                     onClick={() => setIsGovernorSelectorOpen(!isGovernorSelectorOpen)}
@@ -1520,7 +1520,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                         {/* Mandate Selector */}
                                         {controlMeasures.governor?.officialId && (
                                             <div className="space-y-1">
-                                                <div className="text-[10px] text-gray-400 flex items-center gap-1">
+                                                <div className="text-xs text-gray-400 flex items-center gap-1">
                                                     <Icon name="Scroll" size={10} />
                                                     施政纲领
                                                 </div>
@@ -1530,7 +1530,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                                             key={mandateId}
                                                             onClick={() => setGovernorMandate(mandateId)}
                                                             className={`
-                                                                px-2 py-1.5 rounded text-[10px] text-left border transition-all
+                                                                px-2 py-1.5 rounded text-xs text-left border transition-all
                                                                 ${controlMeasures.governor?.mandate === mandateId
                                                                     ? 'bg-blue-900/50 border-blue-500 text-white'
                                                                     : 'bg-gray-800/50 border-gray-600/50 text-gray-400 hover:bg-gray-700/50'
@@ -1538,7 +1538,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                                             `}
                                                         >
                                                             <div className="font-bold">{mandate.name}</div>
-                                                            <div className="text-[9px] opacity-70 truncate">{mandate.desc}</div>
+                                                            <div className="text-xs opacity-70 truncate">{mandate.desc}</div>
                                                         </button>
                                                     ))}
                                                 </div>
@@ -1546,13 +1546,13 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                         )}
 
                                         {officials.length === 0 && (
-                                            <div className="text-[10px] text-yellow-400 flex items-center gap-1">
+                                            <div className="text-xs text-yellow-400 flex items-center gap-1">
                                                 <Icon name="AlertCircle" size={10} />
                                                 没有可用官员，请先招募官员
                                             </div>
                                         )}
                                         {governorEffectiveness && (
-                                            <div className="text-[10px] space-y-0.5 mt-1 p-2 bg-gray-800/50 rounded">
+                                            <div className="text-xs space-y-0.5 mt-1 p-2 bg-gray-800/50 rounded">
                                                 <div className="text-gray-400">
                                                     <span className="text-white">{governorEffectiveness.officialName}</span>
                                                     {' '}(威望:{governorEffectiveness.stats.prestige} 行政:{governorEffectiveness.stats.admin} 军事:{governorEffectiveness.stats.military})
@@ -1572,7 +1572,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
 
                                 {/* Garrison: Military Check */}
                                 {measure.id === 'garrison' && isActive && (
-                                    <div className={`px-3 pb-3 text-[11px] ${garrisonCheck.isEffective ? 'text-green-400' : 'text-red-400'}`}>
+                                    <div className={`px-3 pb-3 text-xs ${garrisonCheck.isEffective ? 'text-green-400' : 'text-red-400'}`}>
                                         {garrisonCheck.isEffective
                                             ? `✓ 军力充足 (需${garrisonCheck.requiredStrength.toFixed(1)}, 有${playerMilitary.toFixed(1)})`
                                             : `✗ 军力不足 (需${garrisonCheck.requiredStrength.toFixed(1)}, 有${playerMilitary.toFixed(1)}) - 仅20%效果`
@@ -1588,7 +1588,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
             {/* 底部操作按钮（Sticky） */}
             <div className="sticky bottom-0 -mx-1 px-1 pt-2 pb-1 border-t border-gray-700 bg-gradient-to-t from-gray-950/95 via-gray-950/80 to-transparent backdrop-blur">
                 <div className="flex items-center justify-between">
-                    <div className="text-[10px] text-gray-500">
+                    <div className="text-xs text-gray-500">
                         政策将自动生效
                     </div>
                     <button
@@ -1770,7 +1770,7 @@ const DiplomacyTab = memo(({
                             diplomaticControl === 'puppet' ? '傀儡外交' : '引导外交'}
                     </span>
                 </div>
-                <div className="text-[10px] mt-1 opacity-70">
+                <div className="text-xs mt-1 opacity-70">
                     {diplomaticControl === 'autonomous'
                         ? '附庸可自主进行外交，无需审批，您也无法下达指令'
                         : diplomaticControl === 'puppet'
@@ -1794,7 +1794,7 @@ const DiplomacyTab = memo(({
                                     <div className="text-sm font-semibold text-white">
                                         {ACTION_LABELS[item.actionType] || item.actionType}
                                     </div>
-                                    <div className="text-[10px] text-gray-400">
+                                    <div className="text-xs text-gray-400">
                                         {item.expiresAt != null ? `剩余 ${Math.max(0, item.expiresAt - currentDay)} 天` : '长期有效'}
                                     </div>
                                 </div>
@@ -1826,7 +1826,7 @@ const DiplomacyTab = memo(({
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                         <div>
-                            <div className="text-[10px] text-gray-500 mb-1">指令类型</div>
+                            <div className="text-xs text-gray-500 mb-1">指令类型</div>
                             <select
                                 value={selectedAction}
                                 onChange={(e) => {
@@ -1841,7 +1841,7 @@ const DiplomacyTab = memo(({
                             </select>
                         </div>
                         <div>
-                            <div className="text-[10px] text-gray-500 mb-1">
+                            <div className="text-xs text-gray-500 mb-1">
                                 {targetType === 'organization' ? '目标组织' : '目标国家'}
                             </div>
                             {targetType === 'none' ? (
@@ -1894,7 +1894,7 @@ const DiplomacyTab = memo(({
                         {relatedHistory.map(item => (
                             <div key={item.id} className="flex items-center justify-between">
                                 <span>{ACTION_LABELS[item.actionType] || item.actionType}</span>
-                                <span className={`text-[10px] ${item.status === 'approved' ? 'text-green-400' :
+                                <span className={`text-xs ${item.status === 'approved' ? 'text-green-400' :
                                     item.status === 'rejected' ? 'text-red-400' :
                                         item.status === 'ordered' ? 'text-blue-400' :
                                             item.status === 'expired' ? 'text-yellow-400' : 'text-gray-500'
@@ -2021,7 +2021,7 @@ export const VassalManagementSheet = memo(({
                             <Icon name={tab.icon} size={16} />
                             {tab.label}
                             {tab.badge && (
-                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
                                     {tab.badge}
                                 </span>
                             )}

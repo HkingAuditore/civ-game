@@ -127,12 +127,12 @@ const NotificationItem = ({ notification, onView, onDismiss, autoDismissDelay = 
                         {result.isRaid ? (result.victory ? `${result.actionName || '突袭'}击退` : `遭受${result.actionName || '突袭'}`) : (result.victory ? '战斗胜利' : '战斗失利')}
                     </span>
                     {!result.isRaid && typeof result.score === 'number' && (
-                        <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-ancient-ink/50 text-ancient-parchment">
+                        <span className="px-1.5 py-0.5 text-xs rounded-full bg-ancient-ink/50 text-ancient-parchment">
                             评分 {result.score.toFixed(0)}
                         </span>
                     )}
                 </div>
-                <p className="text-[11px] text-gray-200 truncate leading-tight mt-0.5">
+                <p className="text-xs text-gray-200 truncate leading-tight mt-0.5">
                     {getSummaryText()}
                 </p>
             </div>
@@ -183,7 +183,7 @@ export const BattleNotification = ({ notifications = [], onViewDetail, onDismiss
             {/* 显示队列中等待的通知数量 */}
             {queuedCount > 0 && (
                 <div className="pointer-events-auto flex justify-center">
-                    <span className="px-2 py-0.5 text-[10px] text-gray-400 bg-gray-800/60 rounded-full border border-gray-600/30">
+                    <span className="px-2 py-0.5 text-xs text-gray-400 bg-gray-800/60 rounded-full border border-gray-600/30">
                         还有 {queuedCount} 条通知等待显示
                     </span>
                 </div>
@@ -208,7 +208,7 @@ export const BattleNotification = ({ notifications = [], onViewDetail, onDismiss
                 <div className="pointer-events-auto flex justify-center pt-1">
                     <button
                         onClick={onDismissAll}
-                        className="px-3 py-1 text-[10px] text-gray-400 hover:text-white bg-gray-800/80 hover:bg-gray-700/80 rounded-full border border-gray-600/40 transition-colors"
+                        className="px-3 py-1 text-xs text-gray-400 hover:text-white bg-gray-800/80 hover:bg-gray-700/80 rounded-full border border-gray-600/40 transition-colors"
                     >
                         全部关闭 ({notifications.length})
                     </button>
@@ -219,4 +219,4 @@ export const BattleNotification = ({ notifications = [], onViewDetail, onDismiss
     );
 };
 
-export default BattleNotification;
+export default React.memo(BattleNotification);

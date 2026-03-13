@@ -43,7 +43,6 @@ export const applyBuildingCostModifier = (cost = {}, modifier = 0, baseCost = nu
 
     const adjusted = {};
     Object.entries(cost || {}).forEach(([key, totalAmount]) => {
-        // 如果提供了基础成本，只减免超出基础成本的部分（数量惩罚）
         if (baseCost && typeof baseCost[key] === 'number') {
             const baseAmount = baseCost[key];
             // 当减免达到100%时，锁定到基础成本，不再随数量增长
@@ -54,8 +53,11 @@ export const applyBuildingCostModifier = (cost = {}, modifier = 0, baseCost = nu
             const penalty = Math.max(0, totalAmount - baseAmount);
             // 对数量惩罚部分应用减免，确保不低于0
             const adjustedPenalty = Math.max(0, penalty * (1 + modifier));
-            // 最终成本 = 基础成本 + 调整后的惩罚
-            adjusted[key] = baseAmount + adjustedPenalty;
+            // [FIX] 确保高额减免时仍保留至少30%的数量惩罚梯度，
+            // 防止成本退化为常数（修正前 penalty 被完全抵消 → 成本=baseAmount）
+            const minPenalty = penalty * 0.3;
+            const finalPenalty = Math.max(minPenalty, adjustedPenalty);
+            adjusted[key] = baseAmount + finalPenalty;
         } else {
             // 兼容旧逻辑：没有基础成本时，直接应用但最低保留20%
             const multiplier = Math.max(0.2, 1 + modifier);

@@ -11,12 +11,12 @@ export const AI_ECONOMY_CONFIG = {
         
         // Minimum growth guarantee (used by AIEconomyService)
         minimumGrowth: {
-            verySmall: { threshold: 50, minGrowth: 5 },
-            small: { threshold: 100, minGrowth: 3 },
-            medium: { threshold: 500, minGrowth: 2 },
-            large: { threshold: 1000, minGrowth: 5 },
-            veryLarge: { threshold: 5000, minGrowth: 10 },
-            huge: { threshold: 10000, minGrowth: 20 },
+            verySmall: { threshold: 50, minGrowth: 1 },
+            small: { threshold: 100, minGrowth: 1 },
+            medium: { threshold: 500, minGrowth: 0 },
+            large: { threshold: 1000, minGrowth: 0 },
+            veryLarge: { threshold: 5000, minGrowth: 0 },
+            huge: { threshold: 10000, minGrowth: 0 },
         },
         
         // War penalty
@@ -30,40 +30,40 @@ export const AI_ECONOMY_CONFIG = {
     wealth: {
         // Per capita wealth caps (by epoch)
         perCapitaCaps: {
-            0: 2000,   // Stone Age
-            1: 4000,   // Bronze Age
-            2: 8000,   // Classical Age
-            3: 16000,  // Medieval Age
-            4: 32000,  // Renaissance Age
-            5: 64000,  // Industrial Age
-            6: 128000, // Modern Age
+            0: 120,    // Stone Age
+            1: 180,    // Bronze Age
+            2: 280,    // Classical Age
+            3: 420,    // Medieval Age
+            4: 640,    // Renaissance Age
+            5: 960,    // Industrial Age
+            6: 1440,   // Modern Age
         },
         
         // Target per capita wealth (reasonable baseline by epoch)
         targetPerCapita: {
-            0: 0.5,    // Stone Age: 0.5 wealth per capita
-            1: 1.0,    // Bronze Age: 1.0 wealth per capita
-            2: 2.0,    // Classical Age
-            3: 4.0,    // Medieval Age
-            4: 8.0,    // Renaissance Age
-            5: 16.0,   // Industrial Age
-            6: 32.0,   // Modern Age
+            0: 12,     // Stone Age
+            1: 18,     // Bronze Age
+            2: 28,     // Classical Age
+            3: 42,     // Medieval Age
+            4: 64,     // Renaissance Age
+            5: 96,     // Industrial Age
+            6: 144,    // Modern Age
         },
         
         // Wealth growth rate
-        baseGrowthRate: 0.01,   // 1% base wealth growth
-        developmentBonus: 0.01, // 1% development bonus
-        maxGrowthRate: 0.05,    // 5% max growth rate
+        baseGrowthRate: 0.004,  // 0.4% base wealth growth
+        developmentBonus: 0.005, // Development should be visible but still controlled
+        maxGrowthRate: 0.025,   // 2.5% max growth rate per update
         
         // Resource abundance bonus
         resourceAbundanceBonus: {
             enabled: true,
-            maxBonus: 0.5,        // Max +50% growth from resources
+            maxBonus: 0.05,       // Resources can slightly help, but should not print money
             optimalRatio: 1.0,    // Optimal inventory/target ratio
         },
         
         // Budget ratio
-        budgetRatio: 0.5,
+        budgetRatio: 0.22,
         budgetRecoveryRate: 0.02,
     },
     

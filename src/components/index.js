@@ -81,7 +81,7 @@ export { BattleResultModal } from './modals/BattleResultModal';
 export { StratumDetailModal } from './modals/StratumDetailModal';
 export { ResourceDetailModal } from './modals/ResourceDetailModal';
 export { PopulationDetailModal } from './modals/PopulationDetailModal';
-export { AnnualFestivalModal } from './modals/AnnualFestivalModal';
+export { AnnualReportModal } from './modals/AnnualReportModal';
 export { TutorialModal } from './modals/TutorialModal';
 export { WikiModal } from './modals/WikiModal';
 export { CardDetailModal } from './modals/CardDetailModal';

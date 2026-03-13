@@ -75,12 +75,12 @@ export const BattleResultModal = ({ result, onClose }) => {
                                         <h2 className="text-base font-bold text-ancient leading-tight flex items-center gap-2">
                                             {result.victory ? '战斗胜利' : '战斗失利…'}
                                             {typeof result.score === 'number' && (
-                                                <span className="px-2 py-0.5 text-[10px] rounded-full border border-ancient-gold/30 text-ancient-parchment bg-ancient-ink/40">
+                                                <span className="px-2 py-0.5 text-xs rounded-full border border-ancient-gold/30 text-ancient-parchment bg-ancient-ink/40">
                                                     评分 {result.score.toFixed(0)}
                                                 </span>
                                             )}
                                         </h2>
-                                        <p className="text-[11px] text-ancient-parchment opacity-80 leading-tight truncate">
+                                        <p className="text-xs text-ancient-parchment opacity-80 leading-tight truncate">
                                             {result.missionName || '未知任务'}
                                             {result.missionDifficulty && ` · 难度${result.missionDifficulty}`}
                                             {result.nationName && ` · 对手：${result.nationName}`}
@@ -94,7 +94,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                     </button>
                                 </div>
                                 {result.missionDesc && (
-                                    <p className="text-[11px] text-ancient-stone mt-2 leading-snug">{result.missionDesc}</p>
+                                    <p className="text-xs text-ancient-stone mt-2 leading-snug">{result.missionDesc}</p>
                                 )}
                             </div>
 
@@ -106,25 +106,25 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 {/* 战斗统计 */}
                                 {(!result.isRaid || (result.isRaid && result.ourPower > 0)) && (
                                     <div className="glass-ancient rounded-xl border border-ancient-gold/20 p-3 shadow-ancient">
-                                        <h3 className="text-[11px] font-bold mb-2 flex items-center gap-1 text-ancient-parchment">
+                                        <h3 className="text-xs font-bold mb-2 flex items-center gap-1 text-ancient-parchment">
                                             <Icon name="BarChart" size={14} className="text-ancient-gold" />
                                             战斗统计
                                         </h3>
                                         <div className="grid grid-cols-2 gap-2">
                                             <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
-                                                <p className="text-[10px] text-ancient-stone mb-1 leading-none">我方战力</p>
+                                                <p className="text-xs text-ancient-stone mb-1 leading-none">我方战力</p>
                                                 <p className="text-base font-bold text-ancient font-mono leading-none">
                                                     {formatNumberShortCN(result.ourPower || 0, { decimals: 1 })}
                                                 </p>
                                             </div>
                                             <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
-                                                <p className="text-[10px] text-ancient-stone mb-1 leading-none">敌方战力</p>
+                                                <p className="text-xs text-ancient-stone mb-1 leading-none">敌方战力</p>
                                                 <p className="text-base font-bold text-red-400 font-mono leading-none">
                                                     {formatNumberShortCN(result.enemyPower || 0, { decimals: 1 })}
                                                 </p>
                                             </div>
                                             <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
-                                                <p className="text-[10px] text-ancient-stone mb-1 leading-none">战力优势</p>
+                                                <p className="text-xs text-ancient-stone mb-1 leading-none">战力优势</p>
                                                 <p
                                                     className={`text-base font-bold font-mono leading-none ${result.powerRatio > 1 ? 'text-green-400' : 'text-red-400'
                                                         }`}
@@ -133,7 +133,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                 </p>
                                             </div>
                                             <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
-                                                <p className="text-[10px] text-ancient-stone mb-1 leading-none">战斗评分</p>
+                                                <p className="text-xs text-ancient-stone mb-1 leading-none">战斗评分</p>
                                                 <p className="text-base font-bold text-purple-400 font-mono leading-none">
                                                     {result.score?.toFixed(0) || 0}
                                                 </p>
@@ -143,44 +143,44 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 )}
                                 {(ourArmy || enemyArmy) && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                                        <h3 className="text-[11px] font-bold mb-2 flex items-center gap-1 text-white">
+                                        <h3 className="text-xs font-bold mb-2 flex items-center gap-1 text-white">
                                             <Icon name="Users" size={12} className="text-blue-400" />
                                             参战部队
                                         </h3>
                                         <div className="grid grid-cols-2 gap-3">
                                             {/* 我方部队 */}
                                             <div className="space-y-1">
-                                                <div className="text-[10px] text-gray-400 border-b border-gray-600 pb-1 mb-1">我方</div>
+                                                <div className="text-xs text-gray-400 border-b border-gray-600 pb-1 mb-1">我方</div>
                                                 {Object.entries(ourArmy || {}).map(([unitId, count]) => {
                                                     const unit = UNIT_TYPES[unitId];
                                                     if (!unit || count === 0) return null;
                                                     return (
                                                         <div key={unitId} className="flex items-center justify-between">
-                                                            <span className="text-[10px] text-gray-300">{unit.name}</span>
-                                                            <span className="text-[10px] font-mono text-gray-200">{formatNumberShortCN(count, { decimals: 1 })}</span>
+                                                            <span className="text-xs text-gray-300">{unit.name}</span>
+                                                            <span className="text-xs font-mono text-gray-200">{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                         </div>
                                                     );
                                                 })}
                                                 {Object.keys(ourArmy || {}).length === 0 && (
-                                                    <div className="text-[10px] text-gray-500 italic">无数据</div>
+                                                    <div className="text-xs text-gray-500 italic">无数据</div>
                                                 )}
                                             </div>
 
                                             {/* 敌方部队 */}
                                             <div className="space-y-1">
-                                                <div className="text-[10px] text-gray-400 border-b border-gray-600 pb-1 mb-1">敌方</div>
+                                                <div className="text-xs text-gray-400 border-b border-gray-600 pb-1 mb-1">敌方</div>
                                                 {Object.entries(enemyArmy || {}).map(([unitId, count]) => {
                                                     const unit = UNIT_TYPES[unitId];
                                                     if (!unit || count === 0) return null;
                                                     return (
                                                         <div key={unitId} className="flex items-center justify-between">
-                                                            <span className="text-[10px] text-gray-300">{unit.name}</span>
-                                                            <span className="text-[10px] font-mono text-red-300">{formatNumberShortCN(count, { decimals: 1 })}</span>
+                                                            <span className="text-xs text-gray-300">{unit.name}</span>
+                                                            <span className="text-xs font-mono text-red-300">{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                         </div>
                                                     );
                                                 })}
                                                 {Object.keys(enemyArmy || {}).length === 0 && (
-                                                    <div className="text-[10px] text-gray-500 italic">无数据</div>
+                                                    <div className="text-xs text-gray-500 italic">无数据</div>
                                                 )}
                                             </div>
                                         </div>
@@ -190,7 +190,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 {/* 我方损失 - 使用 result.losses（对应玩家作为攻击方的损失） */}
                                 {(!result.isRaid || (result.isRaid && Object.keys(result.losses || {}).length > 0)) && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                                        <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                                        <h3 className="text-xs font-bold mb-1.5 flex items-center gap-1 text-white">
                                             <Icon name="Heart" size={12} className="text-red-400" />
                                             我方损失
                                         </h3>
@@ -206,9 +206,9 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                         >
                                                             <div className="flex items-center gap-1.5">
                                                                 <Icon name="User" size={12} className="text-red-400" />
-                                                                <span className="text-[10px] text-white leading-none">{unit.name}</span>
+                                                                <span className="text-xs text-white leading-none">{unit.name}</span>
                                                             </div>
-                                                            <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(count, { decimals: 1 })}</span>
+                                                            <span className="text-xs font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -216,7 +216,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                         ) : (
                                             <div className="text-center py-2 bg-green-900/20 border border-green-600/30 rounded">
                                                 <Icon name="Check" size={16} className="text-green-400 mx-auto mb-1" />
-                                                <p className="text-[10px] text-green-300 leading-tight">无损失！完美胜利！</p>
+                                                <p className="text-xs text-green-300 leading-tight">无损失！完美胜利！</p>
                                             </div>
                                         )}
                                     </div>
@@ -225,7 +225,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 {/* 敌方损失 - 使用 result.enemyLosses（对应敌人作为防守方的损失） */}
                                 {result.enemyLosses && Object.keys(result.enemyLosses).length > 0 && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                                        <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                                        <h3 className="text-xs font-bold mb-1.5 flex items-center gap-1 text-white">
                                             <Icon name="Skull" size={12} className="text-gray-400" />
                                             敌方损失
                                         </h3>
@@ -240,9 +240,9 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                     >
                                                         <div className="flex items-center gap-1.5">
                                                             <Icon name="User" size={12} className="text-gray-400" />
-                                                            <span className="text-[10px] text-white leading-none">{unit?.name || unitId}</span>
+                                                            <span className="text-xs text-white leading-none">{unit?.name || unitId}</span>
                                                         </div>
-                                                        <span className="text-[10px] font-bold text-gray-400 font-mono leading-none">-{formatNumberShortCN(count, { decimals: 1 })}</span>
+                                                        <span className="text-xs font-bold text-gray-400 font-mono leading-none">-{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                     </div>
                                                 );
                                             })}
@@ -253,21 +253,21 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 {/* 资源损失（突袭事件） */}
                                 {result.isRaid && (result.foodLoss > 0 || result.silverLoss > 0) && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                                        <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                                        <h3 className="text-xs font-bold mb-1.5 flex items-center gap-1 text-white">
                                             <Icon name="AlertTriangle" size={12} className="text-red-400" />
                                             资源损失
                                         </h3>
                                         <div className="grid grid-cols-2 gap-1.5">
                                             {result.foodLoss > 0 && (
                                                 <div className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded">
-                                                    <span className="text-[10px] text-gray-300 leading-none">粮食</span>
-                                                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.foodLoss || 0, { decimals: 1 })}</span>
+                                                    <span className="text-xs text-gray-300 leading-none">粮食</span>
+                                                    <span className="text-xs font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.foodLoss || 0, { decimals: 1 })}</span>
                                                 </div>
                                             )}
                                             {result.silverLoss > 0 && (
                                                 <div className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded">
-                                                    <span className="text-[10px] text-gray-300 leading-none">银币</span>
-                                                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.silverLoss || 0, { decimals: 1 })}</span>
+                                                    <span className="text-xs text-gray-300 leading-none">银币</span>
+                                                    <span className="text-xs font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.silverLoss || 0, { decimals: 1 })}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -277,14 +277,14 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 {/* 人口损失（突袭事件） */}
                                 {result.isRaid && result.popLoss > 0 && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                                        <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                                        <h3 className="text-xs font-bold mb-1.5 flex items-center gap-1 text-white">
                                             <Icon name="Users" size={12} className="text-red-400" />
                                             人口损失
                                         </h3>
                                         <div className="bg-red-900/20 border border-red-600/30 p-1.5 rounded">
                                             <div className="flex items-center justify-between">
-                                                <span className="text-[10px] text-gray-300 leading-none">总人口</span>
-                                                <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.popLoss || 0, { decimals: 1 })}</span>
+                                                <span className="text-xs text-gray-300 leading-none">总人口</span>
+                                                <span className="text-xs font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.popLoss || 0, { decimals: 1 })}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -293,7 +293,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 {/* 战利品 */}
                                 {result.victory && result.resourcesGained && Object.keys(result.resourcesGained).length > 0 && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                                        <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                                        <h3 className="text-xs font-bold mb-1.5 flex items-center gap-1 text-white">
                                             <Icon name="Gift" size={12} className="text-yellow-400" />
                                             战利品
                                         </h3>
@@ -303,8 +303,8 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                     key={resource}
                                                     className="flex items-center justify-between bg-yellow-900/20 border border-yellow-600/30 p-1.5 rounded"
                                                 >
-                                                    <span className="text-[10px] text-gray-300 leading-none">{RESOURCES[resource]?.name || resource}</span>
-                                                    <span className="text-[10px] font-bold text-yellow-400 font-mono leading-none">+{formatNumberShortCN(amount, { decimals: 1 })}</span>
+                                                    <span className="text-xs text-gray-300 leading-none">{RESOURCES[resource]?.name || resource}</span>
+                                                    <span className="text-xs font-bold text-yellow-400 font-mono leading-none">+{formatNumberShortCN(amount, { decimals: 1 })}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -314,7 +314,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 {/* 战斗描述 */}
                                 {/*result.description && (
                 <div className="bg-gray-700/30 p-2 rounded border border-gray-600">
-                  <p className="text-[10px] text-gray-300 leading-relaxed">
+                  <p className="text-xs text-gray-300 leading-relaxed">
                     {result.description}
                   </p>
                 </div>

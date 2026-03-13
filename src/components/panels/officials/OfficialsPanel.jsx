@@ -78,6 +78,10 @@ export const OfficialsPanel = ({
     // [NEW] 忠诚度系统相关
     stability = 50,        // 当前国家稳定度 (0-100)
     officialsPaid = true,  // 是否支付了全额薪水
+    // [NEW] Generals for OfficialCard display
+    generals = [],
+    // [NEW] 产业政策切换回调
+    onChangeOfficialPolicy,
 }) => {
 
     const centristDecrees = useMemo(() => getCentristCabinetDecrees(decrees), [decrees]);
@@ -284,18 +288,18 @@ export const OfficialsPanel = ({
                             <Icon name="Users" size={16} className="text-purple-400" />
                             官员管理
                         </h3>
-                        <p className="text-[11px] text-gray-400 mt-0.5 max-w-md leading-snug">
+                        <p className="text-xs text-gray-400 mt-0.5 max-w-md leading-snug">
                             任命官员来管理你的国家事务。高级官员可提供显著加成，但需要支付每日薪俸。
                         </p>
                     </div>
 
                     <div className="flex items-center gap-3 bg-gray-800/50 p-1.5 rounded-lg border border-gray-700/30">
                         <div className="text-center px-1.5">
-                            <div className="text-[9px] text-gray-500 uppercase tracking-wider">编制 (生效中)</div>
+                            <div className="text-xs text-gray-500 uppercase tracking-wider">编制 (生效中)</div>
                             <div className={`text-base font-mono font-bold ${isAtCapacity ? 'text-yellow-400' : 'text-gray-200'}`}>
                                 {currentCount} <span className="text-gray-500 text-xs">/ {capacity}</span>
                             </div>
-                            <div className="text-[8px] text-gray-400 flex items-center justify-center gap-1.5">
+                            <div className="text-xs text-gray-400 flex items-center justify-center gap-1.5">
                                 <span title="当前可用职位数">岗位量:{jobCapacity}</span>
                                 <span className="text-gray-600">|</span>
                                 <span title="官僚机构最大承载力">上限:{maxCapacity}</span>
@@ -303,7 +307,7 @@ export const OfficialsPanel = ({
                         </div>
                         <div className="w-px h-7 bg-gray-700/50"></div>
                         <div className="text-center px-1.5">
-                            <div className="text-[9px] text-gray-500 uppercase tracking-wider">每日开支</div>
+                            <div className="text-xs text-gray-500 uppercase tracking-wider">每日开支</div>
                             <div className={`text-base font-mono font-bold flex items-center gap-1 ${canAffordSalaries ? 'text-gray-200' : 'text-red-400'}`}>
                                 {formatNumberShortCN(totalDailySalary, { decimals: 1 })} <Icon name="Coins" size={12} className="text-yellow-500" />
                             </div>
@@ -316,39 +320,39 @@ export const OfficialsPanel = ({
             {officials.length > 0 && (
                 <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/40">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <div className="text-[10px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
                             <Icon name="BarChart" size={12} className="text-emerald-400" />
                             官员数据概览
                         </div>
                         {overviewStats.lowLoyaltyCount > 0 && (
-                            <div className="text-[10px] px-2 py-1 rounded bg-red-900/40 border border-red-700/40 text-red-300">
+                            <div className="text-xs px-2 py-1 rounded bg-red-900/40 border border-red-700/40 text-red-300">
                                 忠诚低人数: {overviewStats.lowLoyaltyCount}
                             </div>
                         )}
                     </div>
                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
                         <div className="bg-gray-900/60 border border-gray-700/40 rounded p-1.5">
-                            <div className="text-[8px] text-gray-500">平均忠诚</div>
+                            <div className="text-xs text-gray-500">平均忠诚</div>
                             <div className="text-xs font-mono text-emerald-300">{overviewStats.avgLoyalty.toFixed(0)}</div>
                         </div>
                         <div className="bg-gray-900/60 border border-gray-700/40 rounded p-1.5">
-                            <div className="text-[8px] text-gray-500">平均行政</div>
+                            <div className="text-xs text-gray-500">平均行政</div>
                             <div className="text-xs font-mono text-blue-300">{overviewStats.avgAdmin.toFixed(0)}</div>
                         </div>
                         <div className="bg-gray-900/60 border border-gray-700/40 rounded p-1.5">
-                            <div className="text-[8px] text-gray-500">平均军事</div>
+                            <div className="text-xs text-gray-500">平均军事</div>
                             <div className="text-xs font-mono text-red-300">{overviewStats.avgMilitary.toFixed(0)}</div>
                         </div>
                         <div className="bg-gray-900/60 border border-gray-700/40 rounded p-1.5">
-                            <div className="text-[8px] text-gray-500">平均外交</div>
+                            <div className="text-xs text-gray-500">平均外交</div>
                             <div className="text-xs font-mono text-green-300">{overviewStats.avgDiplomacy.toFixed(0)}</div>
                         </div>
                         <div className="bg-gray-900/60 border border-gray-700/40 rounded p-1.5">
-                            <div className="text-[8px] text-gray-500">平均威望</div>
+                            <div className="text-xs text-gray-500">平均威望</div>
                             <div className="text-xs font-mono text-purple-300">{overviewStats.avgPrestige.toFixed(0)}</div>
                         </div>
                         <div className="bg-gray-900/60 border border-gray-700/40 rounded p-1.5">
-                            <div className="text-[8px] text-gray-500">总薪俸/日</div>
+                            <div className="text-xs text-gray-500">总薪俸/日</div>
                             <div className="text-xs font-mono text-yellow-300">
                                 {formatNumberShortCN(totalDailySalary, { decimals: 1 })}
                             </div>
@@ -360,7 +364,7 @@ export const OfficialsPanel = ({
             {officials.length > 0 && (
                 <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/40">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <div className="text-[10px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
                             <Icon name="Briefcase" size={12} className="text-amber-400" />
                             部长任命
                         </div>
@@ -416,13 +420,13 @@ export const OfficialsPanel = ({
                                         {assigned && (
                                             <button
                                                 onClick={() => onClearMinister && onClearMinister(role)}
-                                                className="text-[10px] text-gray-400 hover:text-gray-200"
+                                                className="text-xs text-gray-400 hover:text-gray-200"
                                             >
                                                 撤换
                                             </button>
                                         )}
                                     </div>
-                                    <div className="text-[10px] text-gray-500 mb-1">
+                                    <div className="text-xs text-gray-500 mb-1">
                                         {statsDisplay}
                                     </div>
                                     <select
@@ -436,7 +440,7 @@ export const OfficialsPanel = ({
                                             }
                                             onAssignMinister(role, nextId);
                                         }}
-                                        className="w-full bg-gray-900/70 border border-gray-700/60 rounded px-2 py-1 text-[11px] text-gray-200"
+                                        className="w-full bg-gray-900/70 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200"
                                     >
                                         <option value="">未任命</option>
                                         {officials.map((official) => {
@@ -452,7 +456,7 @@ export const OfficialsPanel = ({
                                             );
                                         })}
                                     </select>
-                                    <div className="mt-1 min-h-[12px] text-[9px] text-emerald-300">
+                                    <div className="mt-1 min-h-[12px] text-xs text-emerald-300">
                                         {bonusLines.length > 0 ? bonusLines.join(' · ') : (assigned ? '暂无加成' : '')}
                                     </div>
                                     {isEconomic && assigned && (
@@ -468,7 +472,7 @@ export const OfficialsPanel = ({
                                                     }}
                                                     className="w-3 h-3 rounded border-gray-600 bg-gray-800 text-emerald-500 focus:ring-emerald-500/50"
                                                 />
-                                                <span className="text-[10px] text-gray-400">
+                                                <span className="text-xs text-gray-400">
                                                     允许自动扩建
                                                 </span>
                                             </label>
@@ -609,7 +613,7 @@ export const OfficialsPanel = ({
             {/* 5. 候选人列表 */}
             {candidates.length > 0 && (
                 <div>
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-400 display-inline-block"></span>
                         待选候选人
                     </h4>
@@ -624,6 +628,7 @@ export const OfficialsPanel = ({
                                 actionDisabled={isAtCapacity}
                                 compact={true}
                                 onViewDetail={setSelectedOfficial}
+                                generals={generals}
                             />
                         ))}
                     </div>
@@ -632,7 +637,7 @@ export const OfficialsPanel = ({
 
             {/* 6. 在任官员列表 */}
             <div>
-                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 display-inline-block"></span>
                     在任官员
                 </h4>
@@ -683,7 +688,7 @@ export const OfficialsPanel = ({
                         >
                             {showFilterPanel ? '收起筛选' : '筛选'}
                         </button>
-                        <div className="ml-auto text-[10px] text-gray-500">
+                        <div className="ml-auto text-xs text-gray-500">
                             {filteredOfficials.length} / {officials.length}
                         </div>
                     </div>
@@ -749,6 +754,7 @@ export const OfficialsPanel = ({
                                     compact={true}
                                     currentDay={currentTick}
                                     isStanceSatisfied={official.politicalStance ? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams) : null}
+                                    generals={generals}
                                 />
                             ))}
                         </div>
@@ -761,7 +767,7 @@ export const OfficialsPanel = ({
                             >
                                 上一页
                             </button>
-                            <div className="text-[10px] text-gray-500">
+                            <div className="text-xs text-gray-500">
                                 第 {safePage} / {totalPages} 页
                             </div>
                             <button
@@ -877,6 +883,7 @@ export const OfficialsPanel = ({
                 taxPolicies={taxPolicies}
                 buildingCounts={buildingCounts}
                 buildingFinancialData={buildingFinancialData}
+                onChangePolicy={onChangeOfficialPolicy}
             />
 
         </div>

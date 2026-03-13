@@ -13,7 +13,7 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
  * 顶部状态栏组件 - 史诗风格
  * 紧凑设计，减少高度，优化信息密度
  */
-export const StatusBar = ({
+export const StatusBar = React.memo(({
     gameState,
     taxes,
     netSilverPerDay,
@@ -119,7 +119,7 @@ export const StatusBar = ({
         autonomous_investment_return: '投资回报',
         trade_route_transaction: '贸易结算',
         overseas_investment_return: '海外投资收益',
-        tax_efficiency_loss: '征税效率损失',
+        tax_efficiency_loss: '战争税收损失',
         build_purchase: '购买建筑',
         corruption: '腐败',
     };
@@ -458,8 +458,8 @@ export const StatusBar = ({
 
                         {/* 时代标识 */}
                         <div className="hidden sm:flex flex-col">
-                            <span className="text-[11px] font-bold text-ancient-stone uppercase tracking-wider font-decorative">哈耶克的文明</span>
-                            <span className="text-[10px] font-bold text-ancient flex items-center gap-1 font-decorative">
+                            <span className="text-xs font-bold text-ancient-stone uppercase tracking-wider font-decorative">哈耶克的文明</span>
+                            <span className="text-xs font-bold text-ancient flex items-center gap-1 font-decorative">
                                 <span>{currentEpoch.icon || '🏛️'}</span>
                                 {currentEpoch.name}
                             </span>
@@ -468,7 +468,7 @@ export const StatusBar = ({
                         {/* 移动端时代简化显示 */}
                         <div className="sm:hidden flex items-center gap-1">
                             <span className="text-sm">{currentEpoch.icon || '🏛️'}</span>
-                            <span className="text-[10px] font-bold text-ancient-gold">{currentEpoch.name}</span>
+                            <span className="text-xs font-bold text-ancient-gold">{currentEpoch.name}</span>
                         </div>
 
                         {/* 日期按钮 - 可点击展开帝国场景 */}
@@ -481,7 +481,7 @@ export const StatusBar = ({
                             className="relative group flex items-center gap-1.5 glass-ancient px-2 py-1 rounded-lg border border-ancient-gold/20 hover:border-ancient-gold/40 hover:shadow-glow-gold transition-all touch-feedback"
                         >
                             <Icon name={seasonInfo.icon} size={12} className={seasonInfo.color} />
-                            <div className="text-[9px] sm:text-[10px] leading-tight">
+                            <div className="text-xs sm:text-xs leading-tight">
                                 <span className="font-bold text-ancient-parchment font-decorative">
                                     {calendar.year}年 · {calendar.season}
                                 </span>
@@ -505,12 +505,12 @@ export const StatusBar = ({
                                     <div className="icon-epic-frame icon-frame-xs resource-icon-gold">
                                         <Icon name="Coins" size={10} className="text-ancient-gold" />
                                     </div>
-                                    <span className="font-mono text-[11px] sm:text-xs font-bold text-ancient">
+                                    <span className="font-mono text-xs sm:text-xs font-bold text-ancient">
                                         <RollingNumber value={gameState.resources.silver || 0} format={formatSilverStable} fixedWidth />
                                     </span>
                                 </div>
                                 {/* 净收入指示 */}
-                                <div className={`flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded ${displayNetSilver >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
+                                <div className={`flex items-center gap-0.5 text-xs px-1 py-0.5 rounded ${displayNetSilver >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
                                     <Icon name={displayNetSilver >= 0 ? 'TrendingUp' : 'TrendingDown'} size={9} className={netSilverClass} />
                                     <span className={`font-mono ${netSilverClass}`}>
                                         {displayNetSilver >= 0 ? '+' : '-'}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
@@ -540,7 +540,7 @@ export const StatusBar = ({
                                                 onMouseEnter={() => handleTaxHoverChange(true)}
                                                 onMouseLeave={() => handleTaxHoverChange(false)}
                                             >
-                                                <div className="flex items-center justify-between text-[11px] text-ancient-parchment mb-2">
+                                                <div className="flex items-center justify-between text-xs text-ancient-parchment mb-2">
                                                     <span className="font-bold flex items-center gap-1.5">
                                                         <Icon name="BarChart" size={12} className="text-ancient-gold" />
                                                         {fiscalTitle}
@@ -549,7 +549,7 @@ export const StatusBar = ({
                                                         <Icon name="X" size={14} className="text-ancient-stone hover:text-white" />
                                                     </button>
                                                 </div>
-                                                <div className="text-[10px] space-y-1.5">
+                                                <div className="text-xs space-y-1.5">
                                                     {hasActualFiscal ? (
                                                         <>
                                                             {actualFiscalSummary.incomeItems.map((item) => (
@@ -636,7 +636,7 @@ export const StatusBar = ({
                                                                 </div>
                                                             )}
                                                             {officialSalaryPerDay > 0 && actualOfficialSalaryPaid !== officialSalaryPerDay && (
-                                                                <div className="text-[10px] text-amber-400/90 leading-tight">
+                                                                <div className="text-xs text-amber-400/90 leading-tight">
                                                                     应付 {formatNumberShortCN(officialSalaryPerDay, { decimals: 1 })}（国库不足）
                                                                 </div>
                                                             )}
@@ -678,7 +678,7 @@ export const StatusBar = ({
                                                                         <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(actualForcedSubsidyPaid || 0), { decimals: 1 })}</span>
                                                                     </div>
                                                                     {actualForcedSubsidyUnpaid > 0 && (
-                                                                        <div className="text-[10px] text-amber-400/90 leading-tight">
+                                                                        <div className="text-xs text-amber-400/90 leading-tight">
                                                                             欠付 {formatNumberShortCN(actualForcedSubsidyUnpaid, { decimals: 1 })}（国库不足）
                                                                         </div>
                                                                     )}
@@ -717,7 +717,7 @@ export const StatusBar = ({
                                 <span className="font-mono text-[13px] font-bold text-blue-200">
                                     <RollingNumber value={gameState.population} format={formatNumber} />
                                 </span>
-                                <span className="text-[11px] font-bold text-ancient-gold">
+                                <span className="text-xs font-bold text-ancient-gold">
                                     /{formatNumber(gameState.maxPop)}
                                 </span>
                             </div>
@@ -733,7 +733,7 @@ export const StatusBar = ({
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-purple-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <Icon name="Crown" size={12} className="text-purple-300 relative z-10" />
-                                <span className="text-[9px] text-purple-200 font-semibold relative z-10">阶层</span>
+                                <span className="text-xs text-purple-200 font-semibold relative z-10">阶层</span>
                             </button>
 
                             {/* 国内市场按钮 */}
@@ -744,7 +744,7 @@ export const StatusBar = ({
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <Icon name="Package" size={12} className="text-amber-300 relative z-10" />
-                                <span className="text-[9px] text-amber-200 font-semibold relative z-10">市场</span>
+                                <span className="text-xs text-amber-200 font-semibold relative z-10">市场</span>
                             </button>
                         </div>
                     </div>
@@ -759,4 +759,4 @@ export const StatusBar = ({
             </div>
         </header>
     );
-};
+});

@@ -38,7 +38,7 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                                 <h2 className="text-base font-bold text-red-200 leading-tight">
                                     宣战确认
                                 </h2>
-                                <p className="text-[11px] text-gray-300 leading-tight">
+                                <p className="text-xs text-gray-300 leading-tight">
                                     向 {targetNation.name} 宣战
                                 </p>
                             </div>
@@ -58,12 +58,12 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                             <div className="flex items-center gap-2 mb-2">
                                 <Icon name="Flag" size={14} className={targetNation.color || 'text-gray-300'} />
                                 <span className="text-sm font-bold text-white">{targetNation.name}</span>
-                                <span className="px-1.5 py-0.5 text-[9px] rounded bg-gray-700 text-gray-300">
+                                <span className="px-1.5 py-0.5 text-xs rounded bg-gray-700 text-gray-300">
                                     关系: {Math.round(targetNation.relation) || 0}
                                 </span>
                             </div>
                             {targetNation.desc && (
-                                <p className="text-[10px] text-gray-400 leading-relaxed">{targetNation.desc}</p>
+                                <p className="text-xs text-gray-400 leading-relaxed">{targetNation.desc}</p>
                             )}
                         </div>
 
@@ -74,7 +74,7 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                                     <Icon name="AlertTriangle" size={16} className="text-orange-400" />
                                     <span className="text-sm font-bold text-orange-200">军事组织警告</span>
                                 </div>
-                                <p className="text-[11px] text-orange-100 mb-3 leading-relaxed">
+                                <p className="text-xs text-orange-100 mb-3 leading-relaxed">
                                     {targetNation.name} 拥有 <span className="font-bold text-orange-300">{militaryOrgs.length}</span> 个军事组织盟友。
                                     向其宣战将同时与这些国家进入战争状态！
                                 </p>
@@ -85,7 +85,7 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                                             <div className="flex items-center gap-2 px-2 py-1.5 bg-orange-900/50 rounded border border-orange-600/40">
                                                 <Icon name="Flag" size={12} className="text-orange-300" />
                                                 <span className="text-xs font-bold text-orange-200">{org.name}</span>
-                                                <span className="ml-auto text-[10px] text-orange-300">
+                                                <span className="ml-auto text-xs text-orange-300">
                                                     成员: {org.members?.length || 0}
                                                 </span>
                                             </div>
@@ -98,9 +98,9 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                                                     >
                                                         <div className="flex items-center gap-2">
                                                             <Icon name="Flag" size={10} className={member.color || 'text-orange-300'} />
-                                                            <span className="text-[11px] text-orange-100">{member.name}</span>
+                                                            <span className="text-xs text-orange-100">{member.name}</span>
                                                         </div>
-                                                        <span className="text-[9px] text-orange-300">
+                                                        <span className="text-xs text-orange-300">
                                                             军事组织成员
                                                         </span>
                                                     </div>
@@ -126,7 +126,7 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
 
                         {/* 警告提示 */}
                         <div className="p-2 bg-red-900/20 rounded border border-red-600/30">
-                            <p className="text-[10px] text-red-200 text-center">
+                            <p className="text-xs text-red-200 text-center">
                                 ⚠️ 战争将持续到一方求和为止，请确保有足够的军事力量！
                             </p>
                         </div>

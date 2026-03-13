@@ -48,6 +48,7 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost, INSTALLMENT_CONFIG } from '../utils/diplomaticUtils';
 import { filterEventEffects } from '../utils/eventEffectFilter';
 import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
+import { generateFront } from '../logic/diplomacy/frontSystem';
 // 外交叛乱干预系统
 import { executeIntervention, INTERVENTION_OPTIONS } from '../logic/diplomacy/rebellionSystem';
 // 内部叛乱系统
@@ -67,11 +68,28 @@ import {
     fireOfficial,
     isSelectionAvailable,
     disposeOfficial,
+    switchPropertyPolicy,
 } from '../logic/officials/manager';
 import { MINISTER_ROLES, MINISTER_LABELS, ECONOMIC_MINISTER_ROLES } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
+import { BUILDING_CHAINS } from '../config/buildingChains';
+import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
+
+const getCompletedChainIds = (buildingState = {}) => {
+    if (!BUILDING_CHAINS || typeof BUILDING_CHAINS !== 'object') return [];
+    return Object.entries(BUILDING_CHAINS)
+        .filter(([, chain]) => Array.isArray(chain?.buildings) && chain.buildings.length > 0)
+        .filter(([, chain]) => chain.buildings.every((buildingId) => (buildingState?.[buildingId] || 0) > 0))
+        .map(([chainId]) => chainId);
+};
+
+const applyCooldownModifier = (baseDays, modifier = 0) => {
+    if (!Number.isFinite(baseDays) || baseDays <= 0) return baseDays;
+    const normalizedModifier = Number.isFinite(modifier) ? modifier : 0;
+    return Math.max(1, Math.round(baseDays * (1 + normalizedModifier)));
+};
 
 
 /**
@@ -145,6 +163,9 @@ export const useGameActions = (gameState, addLog) => {
         autoRecruitEnabled,
         modifiers,
         productionPerDay,
+        militaryCorps, // [FIX Bug9] 读取军团状态用于兵力统计
+        setMilitaryCorps,
+        setActiveBattles,
         // Cabinet policy decrees (permanent)
         decrees,
         setDecrees,
@@ -171,6 +192,12 @@ export const useGameActions = (gameState, addLog) => {
         // Diplomatic reputation
         diplomaticReputation,
         setDiplomaticReputation,
+        // Front system
+        activeFronts,
+        setActiveFronts,
+        // Corps replenish queue
+        corpsReplenishQueue,
+        setCorpsReplenishQueue,
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
@@ -197,6 +224,36 @@ export const useGameActions = (gameState, addLog) => {
             const current = prev && typeof prev === 'object' ? prev : { organizations: [] };
             const nextOrgs = updater(Array.isArray(current.organizations) ? current.organizations : []);
             return { ...current, organizations: nextOrgs };
+        });
+    };
+
+    // Helper: create a front when war starts between player and a nation
+    const createFrontForWar = (attackerId, defenderId, targetNation) => {
+        if (typeof setActiveFronts !== 'function') return;
+        const playerEco = {
+            resources: resources || {},
+            buildings: buildings || {},
+            population: population || 0,
+            wealth: (resources?.silver || 0),
+        };
+        const enemyEco = {
+            resources: {},
+            buildings: {},
+            population: targetNation?.population || targetNation?.militaryPower || 200,
+            wealth: targetNation?.wealth || 500,
+        };
+        const front = generateFront(attackerId, defenderId, epoch, playerEco, enemyEco);
+        front.createdDay = daysElapsed;
+        front.startDay = daysElapsed;
+        setActiveFronts(prev => {
+            const existing = Array.isArray(prev) ? prev : [];
+            // Avoid duplicate fronts for the same war
+            const warId = front.warId;
+            const altWarId = `${defenderId}_vs_${attackerId}`;
+            if (existing.some(f => f.status === 'active' && (f.warId === warId || f.warId === altWarId))) {
+                return existing;
+            }
+            return [...existing, front];
         });
     };
 
@@ -496,6 +553,103 @@ export const useGameActions = (gameState, addLog) => {
 
     const triggerDiplomaticEvent = (event) => {
         launchDiplomaticEvent(event);
+    };
+
+    const collectWarFrontIdsForNation = (nationId, fronts = activeFronts) => {
+        if (!nationId || !Array.isArray(fronts)) return [];
+        return fronts
+            .filter(f => f && (
+                (f.attackerId === nationId && f.defenderId === 'player')
+                || (f.attackerId === 'player' && f.defenderId === nationId)
+            ))
+            .map(f => f.id);
+    };
+
+    const cleanupWarRuntimeState = (nationId, reason = 'peace_treaty') => {
+        if (!nationId) return;
+        const frontIds = collectWarFrontIdsForNation(nationId, activeFronts || []);
+
+        if (typeof setActiveFronts === 'function') {
+            setActiveFronts(prev => {
+                if (!Array.isArray(prev)) return prev;
+                return prev.map(front => {
+                    if (!front || front.status !== 'active') return front;
+                    const involves = (
+                        (front.attackerId === nationId && front.defenderId === 'player')
+                        || (front.attackerId === 'player' && front.defenderId === nationId)
+                    );
+                    return involves ? { ...front, status: 'collapsed' } : front;
+                });
+            });
+        }
+
+        if (typeof setActiveBattles === 'function') {
+            setActiveBattles(prev => {
+                if (!Array.isArray(prev)) return prev;
+                return prev.map(battle => {
+                    if (!battle || battle.status !== 'active') return battle;
+                    if (!frontIds.includes(battle.frontId)) return battle;
+                    return {
+                        ...battle,
+                        status: 'ended',
+                        result: {
+                            ...(battle.result || {}),
+                            reason,
+                            finalized: true,
+                            winner: battle.result?.winner || 'attacker',
+                            totalRounds: battle.result?.totalRounds || battle.currentRound || 0,
+                        },
+                    };
+                });
+            });
+        }
+
+        if (typeof setMilitaryCorps === 'function') {
+            setMilitaryCorps(prev => {
+                if (!Array.isArray(prev)) return prev;
+                return prev.map(corps => {
+                    if (!corps || corps.isAI) return corps;
+                    const isOnEndedWarFront = frontIds.includes(corps.assignedFrontId);
+                    const isOrphanDeployed = corps.status === 'deployed' && !corps.assignedFrontId;
+                    if (!isOnEndedWarFront && !isOrphanDeployed) return corps;
+                    return {
+                        ...corps,
+                        status: 'idle',
+                        assignedFrontId: null,
+                    };
+                });
+            });
+        }
+    };
+
+    const startWarAgainstPlayer = (aggressorId, meta = {}) => {
+        const aggressor = (nations || []).find(n => n.id === aggressorId);
+        if (!aggressor) return null;
+
+        setNations(prev => prev.map(n => {
+            if (n.id !== aggressorId) return n;
+            return {
+                ...n,
+                isAtWar: true,
+                warStartDay: daysElapsed,
+                warDuration: 0,
+                warScore: n.warScore ?? 0,
+                warReason: meta.reason || n.warReason || 'normal',
+                lastMilitaryActionDay: undefined,
+            };
+        }));
+
+        createFrontForWar(aggressorId, 'player', aggressor);
+
+        if (meta.showEvent !== false) {
+            const event = createWarDeclarationEvent(aggressor, () => { }, { reason: meta.reason || 'normal', ...meta });
+            triggerDiplomaticEvent(event);
+        }
+
+        if (meta.logMessage) {
+            addLog(meta.logMessage);
+        }
+        return aggressor;
     };
 
     const buildEventGameState = () => ({
@@ -798,14 +952,10 @@ export const useGameActions = (gameState, addLog) => {
             if (triggerWarTarget) {
                 const targetNation = selectNationBySelector(triggerWarTarget, visible);
                 if (targetNation) {
-                    setNations(prev => prev.map(n => n.id === targetNation.id ? {
-                        ...n,
-                        isAtWar: true,
-                        warStartDay: daysElapsed,
-                        warDuration: 0,
-                        warScore: n.warScore || 0,
-                        lastMilitaryActionDay: undefined,
-                    } : n));
+                    startWarAgainstPlayer(targetNation.id, {
+                        reason: 'event',
+                        logMessage: `⚔️ ${targetNation.name} 对你宣战！`,
+                    });
                 }
             }
 
@@ -813,13 +963,12 @@ export const useGameActions = (gameState, addLog) => {
             if (triggerPeaceTarget) {
                 const targetNation = selectNationBySelector(triggerPeaceTarget, visible);
                 if (targetNation) {
-                    setNations(prev => prev.map(n => n.id === targetNation.id ? {
-                        ...n,
-                        isAtWar: false,
-                        warDuration: 0,
-                        warScore: 0,
+                    endWarWithNation(targetNation.id, {
                         peaceTreatyUntil: daysElapsed + 365,
-                    } : n));
+                    }, {
+                        cleanupRuntime: true,
+                        cleanupReason: 'event_peace',
+                    });
                 }
             }
         }
@@ -904,15 +1053,39 @@ export const useGameActions = (gameState, addLog) => {
         return capacity;
     };
 
+    // [FIX Bug9] 统计所有军事单位：散兵 + 训练队列 + 军团内单位
     const getTotalArmyCount = (armyState = army, queueState = militaryQueue) => {
         const armyCount = Object.values(armyState || {}).reduce((sum, count) => sum + (count || 0), 0);
         const queueCount = Array.isArray(queueState) ? queueState.length : 0;
-        return armyCount + queueCount;
+        let corpsCount = 0;
+        if (Array.isArray(militaryCorps)) {
+            for (const corps of militaryCorps) {
+                if (corps?.isAI) continue;
+                corpsCount += Object.values(corps?.units || {}).reduce((sum, c) => sum + (c || 0), 0);
+            }
+        }
+        return armyCount + queueCount + corpsCount;
     };
 
     const handleAutoReplenishLosses = (losses = {}, options = {}) => {
         if (!autoRecruitEnabled) return;
         if (!losses || Object.keys(losses).length === 0) return;
+
+        // If corpsLosses provided, write to corpsReplenishQueue
+        if (options.corpsLosses && typeof setCorpsReplenishQueue === 'function') {
+            setCorpsReplenishQueue(prev => {
+                const next = { ...prev };
+                for (const [corpsId, unitLosses] of Object.entries(options.corpsLosses)) {
+                    if (!next[corpsId]) next[corpsId] = {};
+                    for (const [unitId, loss] of Object.entries(unitLosses)) {
+                        if (loss > 0) {
+                            next[corpsId][unitId] = (next[corpsId][unitId] || 0) + loss;
+                        }
+                    }
+                }
+                return next;
+            });
+        }
 
         const capacity = getMilitaryCapacity();
 
@@ -1072,7 +1245,7 @@ export const useGameActions = (gameState, addLog) => {
 
         // 检查升级成本
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         for (let k in nextEpoch.cost) {
             const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
@@ -1099,7 +1272,7 @@ export const useGameActions = (gameState, addLog) => {
         const newRes = { ...resources };
 
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         // 计算银币成本
         const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
@@ -1117,6 +1290,9 @@ export const useGameActions = (gameState, addLog) => {
         setResourcesWithReason(newRes, 'upgrade_epoch');
         setEpoch(epoch + 1);
         addLog(`🎉 文明进入 ${nextEpoch.name}！`);
+
+        // Ideology event: epoch advance
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_EPOCH_ADVANCE, { newEpoch: epoch + 1, epochName: nextEpoch.name }, daysElapsed);
 
         // 播放升级音效
         try {
@@ -1146,6 +1322,10 @@ export const useGameActions = (gameState, addLog) => {
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
         const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
+        // V2: Ideology building cost mod (per category + global)
+        const ideoBCM = modifiers?.ideologyRuleMods?.buildingCostMod || {};
+        const ideoBuildCostMod = (ideoBCM[b.cat] || 0) + (ideoBCM._global || 0);
+        const combinedBuildCostMod = buildingCostMod + ideoBuildCostMod;
 
         let totalCost = {};
 
@@ -1153,7 +1333,7 @@ export const useGameActions = (gameState, addLog) => {
         for (let i = 0; i < finalCount; i++) {
             const thisBuildCount = currentCount + i;
             const rawCost = calculateBuildingCost(b.baseCost, thisBuildCount, growthFactor, baseMultiplier);
-            const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, b.baseCost);
+            const adjustedCost = applyBuildingCostModifier(rawCost, combinedBuildCostMod, b.baseCost);
 
             Object.entries(adjustedCost).forEach(([res, amount]) => {
                 totalCost[res] = (totalCost[res] || 0) + amount;
@@ -1186,6 +1366,23 @@ export const useGameActions = (gameState, addLog) => {
         setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
         addLog(`建造了 ${finalCount} 个 ${b.name}`);
+
+        // Ideology event: build
+        const nextBuildings = { ...buildings, [id]: (buildings[id] || 0) + finalCount };
+        const totalBuildingsAfter = Object.values(buildings).reduce((s, v) => s + (v || 0), 0) + finalCount;
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_BUILD, {
+            buildingId: id, category: b.category, count: finalCount, totalBuildings: totalBuildingsAfter
+        }, daysElapsed);
+        const completedChainsBefore = new Set(getCompletedChainIds(buildings));
+        getCompletedChainIds(nextBuildings).forEach((chainId) => {
+            if (completedChainsBefore.has(chainId)) return;
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_CHAIN_COMPLETE, {
+                chainId,
+                chainName: BUILDING_CHAINS?.[chainId]?.name || chainId,
+                completedChains: completedChainsBefore.size + 1,
+            }, daysElapsed);
+            completedChainsBefore.add(chainId);
+        });
 
         // 播放建造音效
         try {
@@ -1482,6 +1679,11 @@ export const useGameActions = (gameState, addLog) => {
 
         const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${nextLevel}`;
         addLog(`⬆️ ${building.name} 升级为 ${upgradeName}！（花费 ${Math.ceil(silverCost)} 银币）`);
+
+        // Ideology event: upgrade building
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_UPGRADE, {
+            buildingId, fromLevel, toLevel: nextLevel
+        }, daysElapsed);
 
         // 播放升级音效
         try {
@@ -1807,9 +2009,22 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
+        // 检查前置知识
+        if (tech.prerequisites && tech.prerequisites.length > 0) {
+            const missingPrereqs = tech.prerequisites.filter(pid => !techsUnlocked.includes(pid));
+            if (missingPrereqs.length > 0) {
+                const missingNames = missingPrereqs.map(pid => {
+                    const pt = TECHS.find(t => t.id === pid);
+                    return pt ? pt.name : pid;
+                }).join('、');
+                addLog(`需要先研究 ${missingNames} 才能研究 ${tech.name}`);
+                return;
+            }
+        }
+
         // 检查资源
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         let canAfford = true;
         for (let resource in tech.cost) {
@@ -1848,6 +2063,11 @@ export const useGameActions = (gameState, addLog) => {
         setResourcesWithReason(newRes, 'tech_research', { techId: id });
         setTechsUnlocked(prev => [...prev, id]);
         addLog(`✓ 研究完成：${tech.name}`);
+
+        // Ideology event: tech unlock
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TECH_UNLOCK, {
+            techId: id, techCount: (techsUnlocked?.length || 0) + 1
+        }, daysElapsed);
 
         // 播放研究音效
         try {
@@ -1914,6 +2134,11 @@ export const useGameActions = (gameState, addLog) => {
         setOfficialCandidates(hireResult.newCandidates);
         addLog(`雇佣了官员 ${hiredOfficial.name}。`);
 
+        // Ideology event: hire official
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_HIRE_OFFICIAL, {
+            officialId, officialName: hiredOfficial.name, role: hiredOfficial.role
+        }, daysElapsed);
+
         // 更新人口结构：从来源阶层移动到官员阶层
         // 确保数据同步，防止出现"官员数量对不上"的问题
         setPopStructure(prev => {
@@ -1945,6 +2170,12 @@ export const useGameActions = (gameState, addLog) => {
         clearOfficialFromAssignments(officialId);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
+
+            // Ideology event: fire official
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_FIRE_OFFICIAL, {
+                officialId, officialName: official.name, role: official.role
+            }, daysElapsed);
+
             if (official.ownedProperties?.length) {
                 addLog(`官员产业已全部倒闭（${official.ownedProperties.length} 处）`);
             }
@@ -2039,6 +2270,53 @@ export const useGameActions = (gameState, addLog) => {
 
         // 记录日志
         addLog(result.logMessage);
+    };
+
+    /**
+     * 切换单个官员的产业政策
+     * @param {string} officialId - 目标官员ID
+     * @param {string} toPolicy - 目标政策 ('private' | 'high_salary' | 'state_managed')
+     * @param {string} confiscationMode - 没收模式 ('compensate' | 'force')，仅从私产制切换时有效
+     * @returns {Object} { success, error?, logMessages? }
+     */
+    const changeOfficialPropertyPolicy = (officialId, toPolicy, confiscationMode = 'compensate') => {
+        const targetOfficial = officials.find(o => o.id === officialId);
+        if (!targetOfficial) {
+            return { success: false, error: '找不到目标官员' };
+        }
+
+        const currentPolicy = targetOfficial.propertyPolicy || 'private';
+        const currentDay = daysElapsed || 0;
+
+        const result = switchPropertyPolicy(
+            currentPolicy,
+            toPolicy,
+            targetOfficial,
+            currentDay,
+            confiscationMode
+        );
+
+        if (!result.success) {
+            return { success: false, error: result.error };
+        }
+
+        // 更新目标官员
+        setOfficials(prev => prev.map(o =>
+            o.id === officialId ? result.updatedOfficial : o
+        ));
+
+        // 处理国库变动（补偿没收的花费）
+        if (result.treasuryChange !== 0) {
+            setResourcesWithReason(prev => ({
+                ...prev,
+                silver: Math.max(0, (prev.silver || 0) + result.treasuryChange)
+            }), 'policy_switch_treasury', { officialId, fromPolicy: currentPolicy, toPolicy });
+        }
+
+        // 记录日志
+        (result.logMessages || []).forEach(msg => addLog(msg));
+
+        return { success: true, logMessages: result.logMessages };
     };
 
     /**
@@ -2175,6 +2453,16 @@ export const useGameActions = (gameState, addLog) => {
         const totalUnitCost = {};
         for (let resource in unit.recruitCost) {
             totalUnitCost[resource] = (unit.recruitCost[resource] || 0) * recruitCount;
+        }
+
+        // V2: Ideology recruit cost mod (per unit category + global)
+        const ideoRCM = modifiers?.ideologyRuleMods?.recruitCostMod || {};
+        const ideoRecruitMod = (ideoRCM[unit.category] || 0) + (ideoRCM._global || 0);
+        if (ideoRecruitMod !== 0) {
+            const recruitMultiplier = Math.max(0.5, 1 + ideoRecruitMod); // cap at -50%
+            for (let resource in totalUnitCost) {
+                totalUnitCost[resource] = Math.ceil(totalUnitCost[resource] * recruitMultiplier);
+            }
         }
 
         // 检查资源
@@ -2399,9 +2687,11 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 检查针对该目标的军事行动冷却
-        const cooldownKey = `military_${nationId}_${missionId}`;
         const lastActionDay = targetNation.lastMilitaryActionDay?.[missionId] || 0;
-        const cooldownDays = mission.cooldownDays || 5;
+        const cooldownDays = applyCooldownModifier(
+            mission.cooldownDays || 5,
+            modifiers?.ideologyRuleMods?.cooldownMod || 0
+        );
         const daysSinceLastAction = daysElapsed - lastActionDay;
 
         if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
@@ -2773,10 +3063,10 @@ export const useGameActions = (gameState, addLog) => {
 
         // 检查外交动作冷却时间
         const cooldownDays = DIPLOMATIC_COOLDOWNS[action];
-        const cooldownModifier = modifiers?.officialEffects?.diplomaticCooldown || 0;
-        const adjustedCooldownDays = cooldownDays && cooldownDays > 0
-            ? Math.max(1, Math.round(cooldownDays * (1 + cooldownModifier)))
-            : cooldownDays;
+        const cooldownModifier =
+            (modifiers?.officialEffects?.diplomaticCooldown || 0)
+            + (modifiers?.ideologyRuleMods?.cooldownMod || 0);
+        const adjustedCooldownDays = applyCooldownModifier(cooldownDays, cooldownModifier);
         const skipCooldownCheck = action === 'negotiate_treaty' && payload?.ignoreCooldown === true;
         if (!skipCooldownCheck && adjustedCooldownDays && adjustedCooldownDays > 0) {
             const lastActionDay = targetNation.lastDiplomaticActionDay?.[action] || 0;
@@ -3140,11 +3430,14 @@ export const useGameActions = (gameState, addLog) => {
 
                 }));
                 addLog(`与 ${targetNation.name} 达成和平协议。`);
+
+                cleanupWarRuntimeState(nationId, 'peace_treaty');
+
                 break;
 
             }
             case 'demand': {
-                const armyPower = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0);
+                const armyPower = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {});
                 const successChance = Math.max(0.1, (armyPower / (armyPower + 200)) * 0.6 + (targetNation.relation || 0) / 300);
                 if (Math.random() < successChance) {
                     const tribute = Math.min(targetNation.wealth || 0, Math.ceil(150 + armyPower * 0.25));
@@ -3502,9 +3795,10 @@ export const useGameActions = (gameState, addLog) => {
                                 const initialLootReserve = (n.wealth || 500) * 1.5;
                                 return {
                                     ...n,
-                                    relation: Math.max(0, (n.relation || 50) - 40), // 关系大幅恶化
+                                    relation: applyWarRelationCap((n.relation || 50) - 40, true),
                                     isAtWar: true,
                                     warScore: 0,
+
 
                                     warStartDay: daysElapsed,
                                     warDuration: 0,
@@ -3602,6 +3896,11 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
 
+                // Ideology event: declare war
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_DECLARE_WAR, {
+                    targetId: nationId, targetName: targetNation.name
+                }, daysElapsed);
+
                 // 主动宣战减少声誉（非违约宣战也会有轻微声誉损失）
                 if (!breachPenalty && setDiplomaticReputation) {
                     const { newReputation } = calculateReputationChange(
@@ -3628,6 +3927,14 @@ export const useGameActions = (gameState, addLog) => {
                         addLog(`⚖️ ${ally.name} 同时是你和 ${targetNation.name} 的盟友，选择保持中立。`);
                     });
                 }
+
+                // Generate fronts for the new war(s)
+                createFrontForWar('player', nationId, targetNation);
+                // Also create fronts for allied enemies
+                targetAllies.forEach(ally => {
+                    createFrontForWar('player', ally.id, ally);
+                });
+
                 break;
             }
             // ========================================================================
@@ -3651,9 +3958,13 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 // 检查冷却
                 const lastInterventionDay = targetNation.lastDiplomaticActionDay?.intervention || 0;
-
-                if (daysElapsed - lastInterventionDay < 30) {
-                    addLog(`最近已对 ${targetNation.name} 进行过干预，请等待 ${30 - (daysElapsed - lastInterventionDay)} 天。`);
+                const interventionCooldownDays = applyCooldownModifier(
+                    30,
+                    (modifiers?.officialEffects?.diplomaticCooldown || 0)
+                    + (modifiers?.ideologyRuleMods?.cooldownMod || 0)
+                );
+                if (daysElapsed - lastInterventionDay < interventionCooldownDays) {
+                    addLog(`最近已对 ${targetNation.name} 进行过干预，请等待 ${interventionCooldownDays - (daysElapsed - lastInterventionDay)} 天。`);
                     return;
                 }
                 // 检查前置条件
@@ -3837,7 +4148,11 @@ export const useGameActions = (gameState, addLog) => {
                     return;
                 }
                 // Cooldown (MVP)
-                const COOLDOWN_DAYS = 120;
+                const COOLDOWN_DAYS = applyCooldownModifier(
+                    120,
+                    (modifiers?.officialEffects?.diplomaticCooldown || 0)
+                    + (modifiers?.ideologyRuleMods?.cooldownMod || 0)
+                );
                 const lastActionDay = targetNation.lastDiplomaticActionDay?.propose_treaty || 0;
                 const daysSince = daysElapsed - lastActionDay;
                 if (lastActionDay > 0 && daysSince < COOLDOWN_DAYS) {
@@ -4029,6 +4344,11 @@ export const useGameActions = (gameState, addLog) => {
                         costInfo += `，每日维护费 ${finalMaintenancePerDay} 银币`;
                     }
                     addLog(`📜 ${targetNation.name} 同意了你的条约提案（${type}）${costInfo}。`);
+
+                    // Ideology event: treaty sign
+                    ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TREATY_SIGN, {
+                        targetId: nationId, targetName: targetNation.name, treatyType: type
+                    }, daysElapsed);
                 } else {
                     addLog(`📜 ${targetNation.name} 拒绝了你的条约提案。`);
                 }
@@ -4212,7 +4532,7 @@ export const useGameActions = (gameState, addLog) => {
                     epoch,
                     stance,
                     daysElapsed,
-                    playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
+                    playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}),
                     targetPower: calculateNationBattlePower(targetNation, epoch, 1.0, getAIMilitaryStrengthMultiplier(gameState.difficulty || 'normal')),
 
                     playerWealth: resources?.silver || 0,
@@ -4571,7 +4891,7 @@ export const useGameActions = (gameState, addLog) => {
                         nation: targetNation,
                         round,
                         daysElapsed,
-                        playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
+                        playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}),
                         targetPower: calculateNationBattlePower(targetNation, epoch, 1.0, getAIMilitaryStrengthMultiplier(gameState.difficulty || 'normal')),
                         playerWealth: resources?.silver || 0,
                         targetWealth: targetNation?.wealth || 0,
@@ -4703,6 +5023,12 @@ export const useGameActions = (gameState, addLog) => {
                 }
 
                 addLog(`⚠️ 你撕毁了与 ${targetNation.name} 的 ${treatyType} 条约！`);
+
+                // Ideology event: treaty break
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TREATY_BREAK, {
+                    targetId: nationId, targetName: targetNation.name, treatyType
+                }, daysElapsed);
+
                 addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
                 addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
                 addLog(`  ⏳ ${breachPenalty.cooldownDays} 天内无法再次毁约`);
@@ -5738,7 +6064,7 @@ export const useGameActions = (gameState, addLog) => {
         if (!stratumKey) return;
         const rebellionState = (rebellionStates && rebellionStates[stratumKey]) || {};
         const totalArmy = Object.values(army || {}).reduce((sum, count) => sum + (count || 0), 0);
-        const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0) / 100;
+        const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}) / 100;
         const result = processRebellionAction(action, stratumKey, rebellionState, army, militaryStrength);
         const resultCallback = () => { };
         if (result.updatedOrganization !== undefined || result.pauseDays) {
@@ -5908,7 +6234,14 @@ export const useGameActions = (gameState, addLog) => {
             launchDiplomaticEvent(endEvent);
         }, 200);
     };
-    const endWarWithNation = (nationId, extraUpdates = {}) => {
+    const endWarWithNation = (nationId, extraUpdates = {}, options = {}) => {
+        const { cleanupRuntime = true, cleanupReason = 'peace_treaty' } = options;
+
+        // Ideology event: war victory (peace achieved)
+        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_WAR_VICTORY, {
+            nationId, reason: cleanupReason
+        }, daysElapsed);
+
         setNations(prev => prev.map(n => {
             if (n.id !== nationId) return n;
             return {
@@ -5922,7 +6255,41 @@ export const useGameActions = (gameState, addLog) => {
 
             };
         }));
+
+        if (cleanupRuntime) {
+            cleanupWarRuntimeState(nationId, cleanupReason);
+        }
     };
+    const annexNationIntoPlayer = (nationId, nationToAnnex) => {
+            const annexPopulation = Math.max(0, Math.floor(nationToAnnex?.population || 0));
+            const annexedBuildings = { ...(nationToAnnex?.virtualBuildings || {}) };
+
+            if (annexPopulation > 0) {
+                setPopulation(prev => prev + annexPopulation);
+                setPopStructure(prev => ({
+                    ...prev,
+                    unemployed: (prev.unemployed || 0) + annexPopulation,
+                }));
+                setMaxPopBonus(prev => prev + annexPopulation);
+            }
+
+            if (Object.keys(annexedBuildings).length > 0) {
+                setBuildings(prev => {
+                    const next = { ...prev };
+                    Object.entries(annexedBuildings).forEach(([buildingId, count]) => {
+                        const numericCount = Math.max(0, Math.floor(Number(count) || 0));
+                        if (numericCount <= 0) return;
+                        next[buildingId] = (next[buildingId] || 0) + numericCount;
+                    });
+                    return next;
+                });
+            }
+
+            setOverseasInvestments(prev => prev.filter(inv => inv.targetNationId !== nationId));
+            setForeignInvestments(prev => prev.filter(inv => inv.ownerNationId !== nationId));
+
+            return annexPopulation;
+        };
     const handleEnemyPeaceAccept = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
@@ -5942,17 +6309,7 @@ export const useGameActions = (gameState, addLog) => {
         const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
         const paymentAmount = Math.max(0, Math.floor(amount || 0));
         if (proposalType === 'annex') {
-            const populationGain = transferPopulation;
-
-            if (populationGain > 0) {
-                setPopulation(prev => prev + populationGain);
-                // [FIX] Sync popStructure: new population joins as unemployed
-                setPopStructure(prev => ({
-                    ...prev,
-                    unemployed: (prev.unemployed || 0) + populationGain,
-                }));
-                setMaxPopBonus(prev => prev + populationGain);
-            }
+            const populationGain = annexNationIntoPlayer(nationId, targetNation);
 
             // Annexation causes reputation loss
             if (setDiplomaticReputation) {
@@ -5967,10 +6324,19 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 isAnnexed: true,
                 annexedBy: 'player',
-
                 annexedAt: daysElapsed,
                 population: 0,
                 wealth: 0,
+                virtualBuildings: {},
+                virtualBuildingsBaseline: {},
+                virtualBuildingsForeign: {},
+                economyDirtyFlags: {
+                    buildingsDirty: true,
+                    laborDirty: true,
+                    resourcesDirty: true,
+                    warDirty: true,
+                    investmentDirty: true,
+                },
             });
             const annexEvent = createNationAnnexedEvent(
 
@@ -6154,24 +6520,23 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
         if (proposalType === 'demand_annex') {
-            const basePopulation = targetNation.population || 0;
-            const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
-            if (transferPopulation > 0) {
-                setPopulation(prev => prev + transferPopulation);
-                // [FIX] Sync popStructure: new population joins as unemployed
-                setPopStructure(prev => ({
-                    ...prev,
-                    unemployed: (prev.unemployed || 0) + transferPopulation,
-                }));
-                setMaxPopBonus(prev => prev + transferPopulation);
-            }
+            const transferPopulation = annexNationIntoPlayer(nationId, targetNation);
             endWarWithNation(nationId, {
                 isAnnexed: true,
                 annexedBy: 'player',
-
                 annexedAt: daysElapsed,
                 population: 0,
                 wealth: 0,
+                virtualBuildings: {},
+                virtualBuildingsBaseline: {},
+                virtualBuildingsForeign: {},
+                economyDirtyFlags: {
+                    buildingsDirty: true,
+                    laborDirty: true,
+                    resourcesDirty: true,
+                    warDirty: true,
+                    investmentDirty: true,
+                },
             });
             const annexEvent = createNationAnnexedEvent(
                 targetNation,
@@ -6368,6 +6733,8 @@ export const useGameActions = (gameState, addLog) => {
         cancelTraining,
         cancelAllTraining,
         launchBattle,
+        startWarAgainstPlayer,
+        cleanupWarRuntimeState,
         // 外交
         handleDiplomaticAction,
         handleEnemyPeaceAccept,
@@ -6416,6 +6783,7 @@ export const useGameActions = (gameState, addLog) => {
         assignMinister,
         clearMinisterRole,
         toggleMinisterAutoExpansion,
+        changeOfficialPropertyPolicy,
         // 叛乱系统
         handleRebellionAction,
         handleRebellionWarEnd,

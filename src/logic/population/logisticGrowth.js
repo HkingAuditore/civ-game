@@ -202,6 +202,77 @@ export const calculateLogisticGrowth = ({
  * @param {Object} params - AI growth parameters
  * @returns {number} New population
  */
+export const calculateAINationCapacity = ({
+    nation,
+    epoch,
+    difficulty,
+    playerPopulation = 100,
+}) => {
+    const currentPopulation = nation.population || 16;
+    const ownBasePopulation = nation.economyTraits?.ownBasePopulation || nation.population || 16;
+    const developmentRate = nation.economyTraits?.developmentRate || 1.0;
+    const wealth = nation.wealth || 1000;
+    const wealthTemplate = nation.wealthTemplate || wealth || 800;
+    const inventory = nation.inventory || {};
+
+    const epochMinimumCap = [40, 120, 400, 1200, 3600, 9000, 18000][Math.min(epoch, 6)];
+    const templatePopulation = Math.max(
+        epochMinimumCap,
+        Math.round((wealthTemplate / 800) * (18 + epoch * 10))
+    );
+    const structuralBasePopulation = Math.min(
+        Math.max(epochMinimumCap, ownBasePopulation || templatePopulation),
+        templatePopulation * 4
+    );
+    const playerReferenceCap = Math.max(epochMinimumCap, playerPopulation * 0.2);
+
+    // Stronger AI nations can get closer to the upper bound, but not ignore domestic scale.
+    const developmentModifier = 0.8 + developmentRate * 0.25;
+    const epochModifier = 1 + epoch * 0.12;
+
+    // Resource availability modifier (based on food stock)
+    const foodStock = inventory.food || 0;
+    const estimatedFoodNeeded = Math.max(40, currentPopulation * 0.08);
+    const foodRatio = Math.min(2, (foodStock + 80) / Math.max(1, estimatedFoodNeeded));
+    const foodModifier = 0.7 + foodRatio * 0.2;
+    
+    // Nation power modifier (from foreignPower settings)
+    const populationFactor = nation.foreignPower?.populationFactor || 1.0;
+
+    // Higher difficulty can widen AI headroom, but should not dominate the cap.
+    const difficultyCapMap = {
+        'veryEasy': 0.85,
+        'easy': 0.92,
+        'normal': 1.0,
+        'hard': 1.08,
+        'veryHard': 1.15,
+        'impossible': 1.22,
+        'extreme': 1.22
+    };
+    const difficultyCapMultiplier = difficultyCapMap[difficulty] || 1.0;
+    
+    // === FINAL CARRYING CAPACITY ===
+    const domesticCapacity = structuralBasePopulation * developmentModifier * epochModifier;
+    const blendedBaseCapacity = domesticCapacity * 0.85 + playerReferenceCap * 0.15;
+    const carryingCapacity = Math.floor(
+        blendedBaseCapacity
+        * foodModifier 
+        * populationFactor
+        * difficultyCapMultiplier
+    );
+    
+    const epochMinimumFinal = [60, 180, 500, 1500, 4500, 10000, 20000][Math.min(epoch, 6)];
+    return {
+        carryingCapacity: Math.max(epochMinimumFinal, carryingCapacity),
+        structuralBasePopulation,
+        domesticCapacity,
+        playerReferenceCap,
+        foodModifier,
+        populationFactor,
+        difficultyCapMultiplier,
+    };
+};
+
 export const calculateAILogisticGrowth = ({
     nation,
     epoch,
@@ -210,82 +281,17 @@ export const calculateAILogisticGrowth = ({
     ticksSinceLastUpdate = 10
 }) => {
     const currentPopulation = nation.population || 16;
-    const ownBasePopulation = nation.economyTraits?.ownBasePopulation || 16;
     const isAtWar = nation.isAtWar || false;
     const developmentRate = nation.economyTraits?.developmentRate || 1.0;
     const wealth = nation.wealth || 1000;
     const inventory = nation.inventory || {};
-    
-    // === CARRYING CAPACITY CALCULATION ===
-    // 
-    // KEY DESIGN: AI population limit is based on PLAYER population × 50
-    // This ensures AI scales with player development, creating fair challenge
-    //
-    
-    // 1. Primary cap: Player population × 50 (the main reference)
-    // IMPORTANT: Set a reasonable minimum based on EPOCH to avoid early game stagnation
-    // - Stone Age (0): minimum 500 (small tribes can still grow)
-    // - Classical (1): minimum 2,000
-    // - Medieval (2): minimum 10,000
-    // - Industrial (3): minimum 50,000
-    // - Modern (4+): minimum 200,000
-    const epochMinimumCap = [500, 2000, 10000, 50000, 200000][Math.min(epoch, 4)];
-    const playerBasedCap = Math.max(epochMinimumCap, playerPopulation * 50);
-    
-    // 2. Development modifier (0.5x - 1.5x based on AI's own development)
-    // Stronger AI nations can get closer to the cap
-    const developmentModifier = 0.5 + developmentRate * 0.5; // 0.5 at rate 0, 1.0 at rate 1, 1.5 at rate 2
-    
-    // 3. Epoch modifier (AI benefits from technological progress)
-    // Each epoch allows slightly higher population density
-    const epochModifier = 1 + epoch * 0.1; // +10% per epoch
-    
-    // 4. Resource availability modifier (based on food stock)
-    const foodStock = inventory.food || 0;
-    const foodBias = nation.economyTraits?.resourceBias?.food || 1.0;
-    // Food modifier: 0.6x (starving) to 1.2x (abundant)
-    const estimatedFoodNeeded = currentPopulation * 10; // rough estimate
-    const foodRatio = Math.min(2, (foodStock + 100) / Math.max(1, estimatedFoodNeeded));
-    const foodModifier = 0.6 + foodRatio * 0.3; // 0.6 to 1.2
-    
-    // 5. Nation power modifier (from foreignPower settings)
-    const populationFactor = nation.foreignPower?.populationFactor || 1.0;
-    
-    // 6. Difficulty modifier for carrying capacity
-    // Higher difficulty = AI can sustain larger populations
-    const difficultyCapMap = {
-        'veryEasy': 0.5,   // AI cap is 50% of player×50
-        'easy': 0.7,       // AI cap is 70% of player×50
-        'normal': 1.0,     // AI cap is 100% of player×50
-        'hard': 1.3,       // AI cap is 130% of player×50
-        'veryHard': 1.6,   // AI cap is 160% of player×50
-        'extreme': 2.0     // AI cap is 200% of player×50
-    };
-    const difficultyCapMultiplier = difficultyCapMap[difficulty] || 1.0;
-    
-    // === FINAL CARRYING CAPACITY ===
-    // Base = player pop × 50, then modified by all factors
-    const carryingCapacity = Math.floor(
-        playerBasedCap 
-        * developmentModifier 
-        * epochModifier 
-        * foodModifier 
-        * populationFactor
-        * difficultyCapMultiplier
-    );
-    
-    // Ensure minimum carrying capacity (based on epoch)
-    // This prevents early game stagnation
-    // [FIX v2] Increased minimums significantly for early eras to prevent stagnation
-    // Old saves often have very small populations that get stuck because capacity was too low
-    const epochMinimumFinal = [1000, 5000, 20000, 100000, 500000][Math.min(epoch, 4)];
-    
-    // [FIX v3] REMOVED populationBasedMinimum - it created infinite growth loop!
-    // Old logic: capacity = max(epoch_min, current_pop * 10, calculated_cap)
-    // Problem: As population grows, capacity grows with it (current_pop * 10)
-    // Result: Population NEVER reaches capacity limit, grows infinitely!
-    // Solution: Only use epoch minimum and calculated capacity
-    const finalCarryingCapacity = Math.max(epochMinimumFinal, carryingCapacity);
+    const capacityInfo = calculateAINationCapacity({
+        nation,
+        epoch,
+        difficulty,
+        playerPopulation,
+    });
+    const finalCarryingCapacity = capacityInfo.carryingCapacity;
     
     // === RESOURCE FACTOR CALCULATION ===
     // Simplified: since carrying capacity already considers resources,
@@ -340,26 +346,18 @@ export const calculateAILogisticGrowth = ({
     // Use centralized config
     const difficultyGrowthMultiplier = DIFFICULTY_GROWTH_MULTIPLIERS[difficulty] || 1.0;
     
-    // [FIX v4] SMALL NATION GROWTH ACCELERATION
-    // Problem: Small nations (< 10000 pop) grow too slowly because:
-    // 1. They have very low absolute population (e.g., 75)
-    // 2. Even with high growth rate (5%), absolute growth is tiny (75 × 0.05 = 3.75)
-    // 3. Large nations benefit from compound growth, small nations don't
-    // Solution: Apply a MASSIVE growth multiplier for small nations
-    // This multiplier decreases as population grows, ensuring smooth transition
+    // Small nations need some help to avoid getting stuck, but the multiplier
+    // should only offset integer rounding, not create artificial booms.
     let smallNationBonus = 1.0;
     if (currentPopulation < 100) {
-        smallNationBonus = 5.0;   // 5x growth for tiny nations (< 100) [Reduced from 20x]
+        smallNationBonus = 1.8;
     } else if (currentPopulation < 500) {
-        smallNationBonus = 3.0;   // 3x growth for very small nations (100-500) [Reduced from 10x]
+        smallNationBonus = 1.4;
     } else if (currentPopulation < 2000) {
-        smallNationBonus = 2.0;   // 2x growth for small nations (500-2000) [Reduced from 5x]
+        smallNationBonus = 1.15;
     } else if (currentPopulation < 5000) {
-        smallNationBonus = 1.5;   // 1.5x growth for medium-small nations (2000-5000) [Reduced from 3x]
-    } else if (currentPopulation < 10000) {
-        smallNationBonus = 1.2;   // 1.2x growth for medium nations (5000-10000) [Reduced from 2x]
+        smallNationBonus = 1.05;
     }
-    // Nations >= 10000: no bonus (1.0x)
     
     // Final growth rate
     const effectiveGrowthRate = intrinsicGrowthRate 

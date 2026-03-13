@@ -748,7 +748,7 @@ const VassalPolicyModalComponent = ({
                                             {getControlMeasureEffectsText(measure.id) || measure.effects}
                                         </p>
                                         {showCostDebug && (
-                                            <div className="text-[10px] text-gray-500 font-mono">
+                                            <div className="text-xs text-gray-500 font-mono">
                                                 GDP={Math.round(vassalGDP)}
                                                 {' '}| base={measureConfig.baseCost ?? 0}
                                                 {' '}| scale={measureConfig.wealthScalingFactor ?? 0}

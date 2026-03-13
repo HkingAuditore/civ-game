@@ -76,12 +76,12 @@ export const StrategicActionButton = ({
                                 {action.name}
                             </span>
                             {action.cooldown > 0 && (
-                                <span className="text-[8px] px-1 py-0.5 rounded bg-gray-700 text-gray-400">
+                                <span className="text-xs px-1 py-0.5 rounded bg-gray-700 text-gray-400">
                                     {action.cooldown}天 冷却
                                 </span>
                             )}
                         </div>
-                        <p className="text-[9px] text-gray-400 truncate">{action.description}</p>
+                        <p className="text-xs text-gray-400 truncate">{action.description}</p>
                     </div>
                     <Icon name="ChevronRight" size={14} className="text-gray-500" />
                 </div>
@@ -105,7 +105,7 @@ export const StrategicActionButton = ({
                             </div>
                             <div className="flex-1">
                                 <h3 className="text-sm font-bold text-white">{action.name}</h3>
-                                <p className="text-[10px] text-gray-400">对 {stratumName}</p>
+                                <p className="text-xs text-gray-400">对 {stratumName}</p>
                             </div>
                             <button
                                 onClick={() => setShowModal(false)}
@@ -118,7 +118,7 @@ export const StrategicActionButton = ({
                         <div className="p-4 space-y-3">
                             {/* 效果预览 */}
                             <div className="bg-gray-900/50 rounded-lg p-3">
-                                <div className="text-[10px] text-gray-400 mb-2">效果</div>
+                                <div className="text-xs text-gray-400 mb-2">效果</div>
                                 <div className="grid grid-cols-2 gap-2">
                                     {action.effectPreview && Object.entries(action.effectPreview).map(([key, effect]) => (
                                         <div key={key} className="flex items-center gap-1">
@@ -127,7 +127,7 @@ export const StrategicActionButton = ({
                                                 }`}>
                                                 {effect.value > 0 ? '+' : ''}{effect.value}{effect.unit || ''}
                                             </span>
-                                            <span className="text-[9px] text-gray-500">{effect.label}</span>
+                                            <span className="text-xs text-gray-500">{effect.label}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -135,21 +135,21 @@ export const StrategicActionButton = ({
 
                             {/* 分化行动的对立阶层提示 */}
                             {action.id === 'divide' && rivalName && (
-                                <div className="text-[10px] text-purple-300 bg-purple-900/20 rounded p-2">
+                                <div className="text-xs text-purple-300 bg-purple-900/20 rounded p-2">
                                     <Icon name="GitBranch" size={10} className="inline mr-1" />
                                     对立阶层：{rivalName}
                                 </div>
                             )}
 
                             {/* 消耗 */}
-                            <div className="flex items-center justify-between text-[10px]">
+                            <div className="flex items-center justify-between text-xs">
                                 <span className="text-gray-400">消耗</span>
                                 <span className="text-yellow-300 font-medium">{getCostText()}</span>
                             </div>
 
                             {/* 副作用警告 */}
                             {action.sideEffects && action.sideEffects.length > 0 && (
-                                <div className="text-[9px] text-orange-300/80 flex items-start gap-1">
+                                <div className="text-xs text-orange-300/80 flex items-start gap-1">
                                     <Icon name="AlertTriangle" size={10} className="mt-0.5 flex-shrink-0" />
                                     <span>{action.sideEffects.map(e => e.text).join('；')}</span>
                                 </div>
@@ -157,7 +157,7 @@ export const StrategicActionButton = ({
 
                             {/* 不可用原因 */}
                             {disabled && unavailableReason && (
-                                <div className="text-[10px] text-red-400 bg-red-900/20 rounded p-2 flex items-center gap-1">
+                                <div className="text-xs text-red-400 bg-red-900/20 rounded p-2 flex items-center gap-1">
                                     <Icon name="XCircle" size={12} />
                                     {unavailableReason}
                                 </div>

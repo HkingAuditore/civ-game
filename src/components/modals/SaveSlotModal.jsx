@@ -162,7 +162,7 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                             {slot.name}
                         </span>
                         {isAuto && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-600/30 text-amber-300 font-medium">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-600/30 text-amber-300 font-medium">
                                 自动
                             </span>
                         )}
@@ -226,7 +226,7 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                         </div>
 
                         {/* 保存时间 */}
-                        <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-1">
+                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                             <Icon name="Clock" size={10} />
                             <span>{formatDate(slot.updatedAt)}</span>
                         </div>
@@ -270,7 +270,7 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                                         {title}
                                     </h2>
                                 </div>
-                                <p className="text-[10px] text-gray-400">
+                                <p className="text-xs text-gray-400">
                                     {subtitle}
                                 </p>
                             </div>
@@ -280,7 +280,7 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                         <div className="flex-1 overflow-y-auto p-3 space-y-2">
                             {/* 手动存档槽位 */}
                             <div className="space-y-2">
-                                <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold px-1">
+                                <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold px-1">
                                     手动存档
                                 </p>
                                 {manualSlots.map(slot => renderSlotCard(slot))}
@@ -289,7 +289,7 @@ export const SaveSlotModal = ({ isOpen, mode = 'save', onSelect, onCancel }) => 
                             {/* 自动存档（仅加载模式显示） */}
                             {!isSaveMode && autoSlot && (
                                 <div className="space-y-2 pt-2 border-t border-gray-700/50">
-                                    <p className="text-[10px] text-amber-500/80 uppercase tracking-wide font-semibold px-1">
+                                    <p className="text-xs text-amber-500/80 uppercase tracking-wide font-semibold px-1">
                                         自动存档
                                     </p>
                                     {renderSlotCard(autoSlot, true)}

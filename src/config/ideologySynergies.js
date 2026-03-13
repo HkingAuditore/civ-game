@@ -1,0 +1,466 @@
+import { normalizeSynergyDefinitions, reportIdeologyDslIssues } from './ideologyDsl.js';
+
+/**
+ * 理念联动配置
+ * 定义理念之间的联动组合效果
+ * 当所有 required 理念都装备在卡槽中时激活联动效果
+ */
+export const IDEOLOGY_SYNERGIES = [
+    {
+        id: 'enlightenment_spirit',
+        name: '启蒙精神',
+        required: ['humanism', 'social_contract_ideology'],
+        desc: '人文关怀与契约精神的融合，开启理性的黄金时代。',
+        effects: { scienceBonus: 0.15, cultureBonus: 0.15, stability: 10, militaryBonus: -0.05 },
+    },
+    {
+        id: 'holy_war',
+        name: '圣战',
+        required: ['monotheism', 'militarism'],
+        desc: '以信仰之名征战四方，战士们坚信神明在注视着他们。',
+        effects: { militaryBonus: 0.25, stability: 10, cultureBonus: -0.10 },
+        mechanicEffect: { type: 'crisis_immunity', immuneTo: 'on_stability_crisis' },
+    },
+    {
+        id: 'golden_age',
+        name: '黄金时代',
+        required: ['impressionism', 'humanism'],
+        desc: '当人文精神遇上艺术创新，文化的辉煌绽放到极致。',
+        effects: { cultureBonus: 0.25, perPopPassive: { culture: 0.003 }, militaryBonus: -0.08, stability: -3 },
+    },
+    {
+        id: 'iron_and_blood',
+        name: '铁血政策',
+        required: ['militarism', 'absolute_idealism'],
+        desc: '意志与力量的结合，不以演说和多数决定时代的重大问题。',
+        effects: { militaryBonus: 0.15, scienceBonus: 0.10, stability: -5 },
+    },
+    {
+        id: 'invisible_hand',
+        name: '无形之手',
+        required: ['laissez_faire', 'mercantilism'],
+        desc: '自由贸易与国家利益的微妙平衡，商业帝国的理论基石。',
+        effects: { taxIncome: 0.15, production: 0.08, stability: -8 },
+        mechanicEffect: { type: 'resource_echo', sourceResource: 'silver', echoResource: 'culture', ratio: 0.001 },
+    },
+    {
+        id: 'total_mobilization',
+        name: '全面动员',
+        required: ['levee_en_masse', 'militarism'],
+        desc: '全民族投入战争洪流，和平时期的一切都是战争准备。',
+        effects: { militaryBonus: 0.10, maxPop: -0.03, production: -0.05 },
+        mechanicEffect: { type: 'auto_build', buildingId: 'barracks', intervalDays: 120 },
+    },
+    {
+        id: 'theocracy',
+        name: '政教合一',
+        required: ['monotheism', 'divine_right'],
+        desc: '宗教与王权合而为一，信仰即法律，神意即君命。',
+        effects: { stability: 15, cultureBonus: 0.05, scienceBonus: -0.10 },
+    },
+    {
+        id: 'peoples_republic',
+        name: '人民共和',
+        required: ['republicanism', 'egalitarianism'],
+        desc: '权力属于人民，法律面前人人平等。',
+        effects: { stability: 12, maxPop: 0.08, categories: { civic: 0.10 }, taxIncome: -0.05, militaryBonus: -0.03 },
+    },
+    {
+        id: 'scientific_revolution',
+        name: '科学革命',
+        required: ['empiricism', 'scientific_method'],
+        desc: '经验与方法的结合引爆了知识的连锁反应。',
+        effects: { scienceBonus: 0.20, production: 0.08, cultureBonus: -0.05, stability: -3 },
+        mechanicEffect: { type: 'epoch_rush', costReduction: 0.15 },
+    },
+    {
+        id: 'industrial_empire',
+        name: '工业帝国',
+        required: ['state_capitalism', 'tech_optimism'],
+        desc: '国家意志驱动技术革新，钢铁洪流铸就工业霸权。',
+        effects: { categories: { industry: 0.15 }, production: 0.10, stability: -5 },
+        mechanicEffect: { type: 'auto_build', buildingId: 'workshop', intervalDays: 90 },
+    },
+    {
+        id: 'agrarian_harmony',
+        name: '田园牧歌',
+        required: ['physiocracy', 'ancestor_worship'],
+        desc: '回归土地与先祖的智慧，在自然秩序中寻找和谐。',
+        effects: { categories: { gather: 0.12, industry: -0.05 }, stability: 12, maxPop: 0.05, scienceBonus: -0.05 },
+    },
+    {
+        id: 'cultural_renaissance',
+        name: '文艺复兴',
+        required: ['classicism', 'humanism'],
+        desc: '古典之美与人文精神的重逢，文明的伟大复兴。',
+        effects: { cultureBonus: 0.18, scienceBonus: 0.12, stability: 5, militaryBonus: -0.05 },
+    },
+    // ============ 扩充联动 ============
+    {
+        id: 'confucian_bureaucracy',
+        name: '科举治国',
+        required: ['confucianism', 'meritocracy'],
+        desc: '儒家德行与贤能选拔的结合，打造高效清廉的文官体系。',
+        effects: { categories: { civic: 0.12 }, scienceBonus: 0.08, stability: 10, militaryBonus: -0.05 },
+    },
+    {
+        id: 'spirit_of_capitalism',
+        name: '资本主义精神',
+        required: ['individualism', 'laissez_faire'],
+        desc: '个人自由与市场经济的完美结合，财富创造的黄金法则。',
+        effects: { taxIncome: 0.15, production: 0.10, stability: -8, maxPop: 0.03 },
+    },
+    {
+        id: 'workers_revolution',
+        name: '工人革命',
+        required: ['labor_movement', 'communism'],
+        desc: '无产者联合起来，推翻旧世界，建设新社会。',
+        effects: { production: 0.15, maxPop: 0.10, stability: -10, taxIncome: -0.10 },
+    },
+    {
+        id: 'manifest_destiny',
+        name: '天定命运',
+        required: ['nationalism', 'imperialism'],
+        desc: '民族使命与扩张野心的融合，不可阻挡的历史洪流。',
+        effects: { militaryBonus: 0.18, taxIncome: 0.08, stability: -5 },
+    },
+    {
+        id: 'ancient_wisdom',
+        name: '古代智慧',
+        required: ['ancestor_worship', 'confucianism'],
+        desc: '祖先崇拜与儒家伦理的融合，家族与国家的双重秩序。',
+        effects: { stability: 10, cultureBonus: 0.08, maxPop: 0.05, scienceBonus: -0.05, categories: { industry: -0.03 } },
+    },
+    {
+        id: 'rational_science',
+        name: '理性科学',
+        required: ['rationalism', 'scientific_method'],
+        desc: '纯粹理性与实验方法的联姻，开启真正的科学时代。',
+        effects: { scienceBonus: 0.22, production: 0.08, stability: -3, cultureBonus: -0.05 },
+    },
+    {
+        id: 'pax_romana',
+        name: '罗马和平',
+        required: ['stoicism', 'republicanism'],
+        desc: '斯多葛的内心平静与共和的制度智慧，缔造持久的和平秩序。',
+        effects: { stability: 12, cultureBonus: 0.10, taxIncome: 0.05, militaryBonus: -0.05 },
+    },
+    {
+        id: 'blitzkrieg_doctrine',
+        name: '闪电战学说',
+        required: ['professional_army', 'mechanization'],
+        desc: '职业化军队与机械化思维的结合，以速度和火力实现决定性突破。',
+        effects: { militaryBonus: 0.20, categories: { industry: 0.08 }, stability: -3 },
+    },
+    // ============ V2: 18组新增正向联动 ============
+    {
+        id: 'crusade',
+        name: '十字军东征',
+        required: ['jihad_doctrine', 'chivalry'],
+        desc: '以信仰之名骑士出征，圣战与骑士道在十字军旗下合为一体。',
+        effects: { militaryBonus: 0.15, cultureBonus: 0.08 },
+        mechanicEffect: { type: 'unit_attack_mod', scope: 'cavalry', value: 0.10 },
+    },
+    {
+        id: 'industrial_revolution',
+        name: '工业革命',
+        required: ['mechanization', 'materials_science'],
+        desc: '机械化生产与材料突破的结合点燃了工业革命的熊熊烈火。',
+        effects: { industryBonus: 0.15, scienceBonus: 0.10 },
+        mechanicEffect: { type: 'stratum_output_mod', scope: 'worker', value: 0.12 },
+    },
+    {
+        id: 'magna_carta',
+        name: '大宪章',
+        required: ['federalism', 'social_contract_ideology'],
+        desc: '联邦自治与契约精神的交汇，催生了限制王权的大宪章。',
+        effects: { stability: 12 },
+        mechanicEffect: { type: 'crisis_immunity', immuneTo: 'legitimacy_crisis' },
+    },
+    {
+        id: 'silk_road',
+        name: '丝绸之路',
+        required: ['maritime_trade', 'balance_of_power'],
+        desc: '海上贸易路线与外交均势的共鸣，缔造了跨越大陆的商路网络。',
+        effects: { taxIncome: 0.12, cultureBonus: 0.08 },
+    },
+    {
+        id: 'golden_age_v2',
+        name: '黄金时代',
+        required: ['renaissance', 'humanism'],
+        desc: '文艺复兴遇上人文主义，文化的辉煌照亮整个时代。',
+        effects: { cultureBonus: 0.15, scienceBonus: 0.10, stability: 5 },
+    },
+    {
+        id: 'iron_curtain',
+        name: '铁幕',
+        required: ['planned_economy', 'totalitarianism'],
+        desc: '计划经济与极权控制的铁幕落下，高效但封闭。',
+        effects: { industryBonus: 0.18, militaryBonus: 0.10 },
+    },
+    {
+        id: 'welfare_capitalism',
+        name: '福利资本主义',
+        required: ['finance_capitalism', 'welfare_state'],
+        desc: '金融资本与社会福利的妥协，在增长与公平间寻求平衡。',
+        effects: { taxIncome: 0.10, stability: 8 },
+    },
+    {
+        id: 'unity_of_knowledge_action',
+        name: '知行合一',
+        required: ['confucianism', 'calligraphy'],
+        desc: '儒学治世之道与书法传承之美，文化自信的双重源泉。',
+        effects: { cultureBonus: 0.12, stability: 8, scienceBonus: 0.05 },
+        mechanicEffect: { type: 'stratum_output_mod', scope: 'scholar', value: 0.15 },
+    },
+    {
+        id: 'eternal_peace',
+        name: '永续和平',
+        required: ['pacifism', 'buddhism'],
+        desc: '和平主义与佛法的交融，以无为治国，以慈悲安民。',
+        effects: { stability: 15, cultureBonus: 0.10, militaryBonus: -0.10 },
+        mechanicEffect: { type: 'crisis_immunity', immuneTo: 'class_rebellion' },
+    },
+    {
+        id: 'blitz_storm',
+        name: '闪击风暴',
+        required: ['blitzkrieg', 'military_industrial_complex'],
+        desc: '闪电战术遇上军工复合体，钢铁洪流势不可挡。',
+        effects: { militaryBonus: 0.12, industryBonus: 0.08 },
+        mechanicEffect: { type: 'recruit_cost_mod', scope: 'cavalry', value: -0.25 },
+    },
+    {
+        id: 'peoples_mobilization',
+        name: '全民动员',
+        required: ['peoples_war', 'cooperative_movement'],
+        desc: '人民战争与合作社运动的结合，全民皆兵全民生产。',
+        effects: { militaryBonus: 0.10, production: 0.08, stability: 5 },
+        mechanicEffect: { type: 'recruit_cost_mod', scope: 'infantry', value: -0.20 },
+    },
+    {
+        id: 'twin_stars_of_enlightenment',
+        name: '启蒙双星',
+        required: ['deism', 'natural_history'],
+        desc: '自然神论的理性信仰与博物学的求知精神交相辉映。',
+        effects: { scienceBonus: 0.12, cultureBonus: 0.08 },
+    },
+    {
+        id: 'flowers_of_nihilism',
+        name: '虚无之花',
+        required: ['nihilism', 'deconstructionism'],
+        desc: '虚无主义与解构主义在废墟上绽放出诡异的花朵。',
+        effects: { cultureBonus: 0.15, stability: -8 },
+        mechanicEffect: { type: 'corruption_mod', value: -0.20 },
+    },
+    {
+        id: 'evolution_theory',
+        name: '进化论',
+        required: ['social_darwinism', 'natural_history'],
+        desc: '社会达尔文主义与博物学的碰撞，适者生存从自然到社会。',
+        effects: { scienceBonus: 0.08, industryBonus: 0.08 },
+        mechanicEffect: { type: 'wages_mod', scope: 'worker', value: -0.10 },
+    },
+    {
+        id: 'digital_utopia',
+        name: '数字乌托邦',
+        required: ['information_theory', 'cypherpunk'],
+        desc: '信息论与密码朋克的终极融合，在数字空间构建理想国。',
+        effects: { scienceBonus: 0.20, cultureBonus: 0.10, stability: -10 },
+        mechanicEffect: { type: 'tech_cost_mod', value: -0.15 },
+    },
+    {
+        id: 'republic_of_plato',
+        name: '理想国',
+        required: ['philosopher_king', 'rationalism'],
+        desc: '哲人王与理性主义的联姻，柏拉图的理想国终于实现。',
+        effects: { scienceBonus: 0.15, stability: 8 },
+    },
+    {
+        id: 'maritime_silk_road',
+        name: '海上丝路',
+        required: ['thalassocracy', 'maritime_trade'],
+        desc: '海洋霸权为贸易保驾护航，海上丝路连接东西方。',
+        effects: { taxIncome: 0.15, militaryBonus: 0.08 },
+    },
+    {
+        id: 'age_of_discovery',
+        name: '地图大发现',
+        required: ['cartography', 'thalassocracy'],
+        desc: '制图学与海洋霸权的联手，开启了地理大发现的壮阔时代。',
+        effects: { scienceBonus: 0.10, cultureBonus: 0.10 },
+    },
+];
+
+/**
+ * 反协同配置
+ * 某些理念组合在思想上存在根本矛盾，同时装备会产生负面效果
+ * 与 mutual_exclusion (单理念层面的一对一互斥) 不同，
+ * 反协同是系统层面的组合惩罚，可以包含两个以上理念，且效果通常更严重
+ * 
+ * 设计原则：
+ * 1. 每对反协同都有明确的历史/逻辑依据
+ * 2. 惩罚力度适中（约等于一个中等正向联动的反面）
+ * 3. 不与 mutual_exclusion 重复（那些已有一对一互斥的不再设反协同）
+ * 注意：军国主义↔和平主义、种姓↔平等、自由放任↔共产、君权↔共和、集体↔个人
+ * 这5对已在 ideologies.js 中通过 mutual_exclusion 处理，此处不重复
+ */
+export const ANTI_SYNERGIES = [
+    {
+        id: 'faith_reason_clash',
+        name: '信仰与理性之争',
+        required: ['monotheism', 'rationalism'],
+        desc: '一神教的绝对信仰与理性主义的怀疑精神水火不容，社会在两种世界观之间撕裂。',
+        effects: { stability: -8, scienceBonus: -0.05, cultureBonus: -0.05 },
+    },
+    {
+        id: 'tradition_progress_clash',
+        name: '守旧与革新之争',
+        required: ['ancestor_worship', 'tech_optimism'],
+        desc: '对祖先智慧的虔诚崇拜与对技术未来的狂热追求产生剧烈的文化冲突。',
+        effects: { stability: -6, cultureBonus: -0.05, production: -0.03 },
+    },
+    {
+        id: 'asceticism_luxury_clash',
+        name: '苦行与奢靡之争',
+        required: ['stoicism', 'baroque'],
+        desc: '斯多葛的克己自制与巴洛克的极尽奢华形成荒谬的对照，社会价值观混乱。',
+        effects: { stability: -7, taxIncome: -0.05, cultureBonus: -0.03 },
+    },
+    {
+        id: 'war_welfare_clash',
+        name: '穷兵黩武与社会福利之争',
+        required: ['militarism', 'welfare_state'],
+        desc: '庞大的军费开支与完善的福利体系争夺有限的财政资源，两者难以兼得。',
+        effects: { taxIncome: -0.08, stability: -5, production: -0.03 },
+    },
+    {
+        id: 'feudal_republic_clash',
+        name: '封建与共和之争',
+        required: ['feudalism_ideology', 'republicanism'],
+        desc: '封建领主的世袭特权与共和制的公民平等理念根本对立。',
+        effects: { stability: -10, categories: { civic: -0.08 } },
+    },
+    {
+        id: 'legalism_anarchism_clash',
+        name: '法治与无治之争',
+        required: ['legalism', 'anarchism'],
+        desc: '法家的严刑峻法与无政府主义的废除一切权威产生极端矛盾。',
+        effects: { stability: -12, production: -0.05 },
+    },
+    {
+        id: 'confucian_egalitarian_clash',
+        name: '等级与平等之争',
+        required: ['confucianism', 'egalitarianism'],
+        desc: '儒家的纲常伦理等级秩序与平等主义的人人平等理念难以调和。',
+        effects: { stability: -7, cultureBonus: -0.05 },
+    },
+    {
+        id: 'imperialism_pacifism_clash',
+        name: '帝国扩张与和平理想之争',
+        required: ['imperialism', 'pacifism'],
+        desc: '帝国主义的扩张野心与和平主义的反战信念产生不可调和的矛盾。',
+        effects: { stability: -8, militaryBonus: -0.05, cultureBonus: -0.05 },
+    },
+    {
+        id: 'guild_laissez_clash',
+        name: '行会垄断与自由市场之争',
+        required: ['guild_economy', 'laissez_faire'],
+        desc: '行会的垄断保护与自由放任的开放竞争直接冲突。',
+        effects: { taxIncome: -0.06, production: -0.04 },
+    },
+    {
+        id: 'classical_avant_clash',
+        name: '古典传统与先锋反叛之争',
+        required: ['classicism', 'avant_garde'],
+        desc: '古典主义对完美形式的追求与先锋派对一切规则的颠覆势同水火。',
+        effects: { cultureBonus: -0.08, stability: -5 },
+    },
+    // ============ V2: 10组新增反向联动 ============
+    {
+        id: 'liberty_plan_clash',
+        name: '自由与计划之争',
+        required: ['laissez_faire', 'planned_economy'],
+        desc: '自由放任的市场与国家计划的经济势如水火。',
+        effects: { industryBonus: -0.08, stability: -5 },
+    },
+    {
+        id: 'war_peace_clash',
+        name: '战争与和平之争',
+        required: ['blitzkrieg', 'pacifism'],
+        desc: '闪电战的进攻哲学与和平主义的不战理念根本对立。',
+        effects: { militaryBonus: -0.08, stability: -5 },
+    },
+    {
+        id: 'progress_tradition_v2_clash',
+        name: '进步与传统之争',
+        required: ['cypherpunk', 'oral_tradition'],
+        desc: '密码朋克的数字革命与口头传统的古老智慧难以共存。',
+        effects: { cultureBonus: -0.08, scienceBonus: -0.05 },
+    },
+    {
+        id: 'central_federal_clash',
+        name: '集权与联邦之争',
+        required: ['totalitarianism', 'federalism'],
+        desc: '极权集中与联邦分权是治理理念上的根本矛盾。',
+        effects: { stability: -8, taxIncome: -0.05 },
+    },
+    {
+        id: 'material_spirit_clash',
+        name: '物质与精神之争',
+        required: ['finance_capitalism', 'buddhism'],
+        desc: '金融资本的贪婪与佛法的清净在价值观上水火不容。',
+        effects: { stability: -5, cultureBonus: -0.05 },
+    },
+    {
+        id: 'segregation_equality_clash',
+        name: '隔离与平等之争',
+        required: ['apartheid', 'egalitarianism'],
+        desc: '种族隔离与平等主义是人类最深刻的道德分歧。',
+        effects: { stability: -10, cultureBonus: -0.08 },
+    },
+    {
+        id: 'green_military_clash',
+        name: '环保与工业之争',
+        required: ['environmentalism', 'military_industrial_complex'],
+        desc: '环境保护与军事工业复合体对资源的使用理念截然相反。',
+        effects: { industryBonus: -0.05, stability: -5 },
+    },
+    {
+        id: 'dogma_pragma_clash',
+        name: '教条与实用之争',
+        required: ['eschatology', 'pragmatism'],
+        desc: '末世论的狂热信仰与实用主义的冷静理性形成尖锐矛盾。',
+        effects: { scienceBonus: -0.05, stability: -5 },
+    },
+    {
+        id: 'philosopher_tyrant_clash',
+        name: '哲人与暴君之争',
+        required: ['philosopher_king', 'totalitarianism'],
+        desc: '哲人王的理性治理与极权暴政在统治哲学上势同水火。',
+        effects: { scienceBonus: -0.08, stability: -5 },
+    },
+    {
+        id: 'explore_isolate_clash',
+        name: '探索与孤立之争',
+        required: ['cartography', 'planned_economy'],
+        desc: '制图学的全球视野与计划经济的封闭体系相互矛盾。',
+        effects: { scienceBonus: -0.05, taxIncome: -0.05 },
+    },
+];
+
+const synergyDslResult = normalizeSynergyDefinitions(IDEOLOGY_SYNERGIES, 'synergy');
+if (synergyDslResult.issues.length > 0) {
+    reportIdeologyDslIssues('synergies', synergyDslResult.issues);
+}
+IDEOLOGY_SYNERGIES.splice(0, IDEOLOGY_SYNERGIES.length, ...synergyDslResult.entries);
+
+const antiSynergyDslResult = normalizeSynergyDefinitions(ANTI_SYNERGIES, 'anti_synergy');
+if (antiSynergyDslResult.issues.length > 0) {
+    reportIdeologyDslIssues('anti_synergies', antiSynergyDslResult.issues);
+}
+ANTI_SYNERGIES.splice(0, ANTI_SYNERGIES.length, ...antiSynergyDslResult.entries);
+
+export const IDEOLOGY_SYNERGY_DSL_ISSUES = [
+    ...synergyDslResult.issues,
+    ...antiSynergyDslResult.issues,
+];
