@@ -1295,38 +1295,38 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // automobile_factory: base output silver:2.0 culture:0.05, base input steel:0.4 rubber:0.3 machinery:0.3, owner: capitalist
+    // automobile_factory: base output automobile:0.25, base input steel:0.4 rubber:0.3 machinery:0.3, owner: capitalist
     automobile_factory: [
         {
             name: "改进流水线",
             cost: { silver: 6000, steel: 75, machinery: 15, science: 200 },
             input: { steel: 0.52, rubber: 0.39, machinery: 0.39 },
-            output: { silver: 2.60, culture: 0.065 }, // 1.3x
+            output: { automobile: 0.325 }, // 1.3x
             jobs: { worker: 12, artisan: 3, engineer: 2, capitalist: 1 },
         },
         {
             name: "全自动组装",
             cost: { silver: 12000, steel: 120, machinery: 25, science: 400 },
             input: { steel: 0.90, rubber: 0.675, machinery: 0.675 },
-            output: { silver: 4.50, culture: 0.1125 }, // 2.25x
+            output: { automobile: 0.5625 }, // 2.25x
             jobs: { worker: 14, artisan: 4, engineer: 3, capitalist: 1 },
         },
     ],
 
-    // fertilizer_plant: base output food: 3.0, base input chemicals:0.25 coal:0.15, owner: engineer
+    // fertilizer_plant: base output fertilizer:0.8, base input chemicals:0.25 coal:0.15, owner: engineer
     fertilizer_plant: [
         {
             name: "高压合成",
             cost: { silver: 2200, steel: 12, brick: 15, science: 100 },
             input: { chemicals: 0.325, coal: 0.195 },
-            output: { food: 3.9 }, // 1.3x
+            output: { fertilizer: 1.04 }, // 1.3x
             jobs: { worker: 5, engineer: 1 },
         },
         {
             name: "缓释配方",
             cost: { silver: 4500, steel: 25, brick: 30, science: 200 },
             input: { chemicals: 0.5625, coal: 0.3375 },
-            output: { food: 6.75 }, // 2.25x
+            output: { fertilizer: 1.8 }, // 2.25x
             jobs: { worker: 6, engineer: 2 },
         },
     ],
@@ -1512,20 +1512,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // appliance_factory: base output silver:3.0 culture:0.08, base input electronics:0.2 plastics:0.2 steel:0.1, owner: capitalist
+    // appliance_factory: base output electronics:0.5, base input electronics:0.2 plastics:0.2 steel:0.1, owner: capitalist
     appliance_factory: [
         {
             name: "模块化组装",
             cost: { silver: 8000, steel: 45, electronics: 8, science: 250 },
             input: { electronics: 0.26, plastics: 0.26, steel: 0.13 },
-            output: { silver: 3.90, culture: 0.104 }, // 1.3x
+            output: { electronics: 0.65 }, // 1.3x
             jobs: { worker: 9, technician: 3, capitalist: 1 },
         },
         {
             name: "智能家电",
             cost: { silver: 16000, steel: 80, electronics: 15, science: 500 },
             input: { electronics: 0.45, plastics: 0.45, steel: 0.225 },
-            output: { silver: 6.75, culture: 0.18 }, // 2.25x
+            output: { electronics: 1.125 }, // 2.25x
             jobs: { worker: 10, technician: 4, capitalist: 1 },
         },
     ],

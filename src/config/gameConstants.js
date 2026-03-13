@@ -732,6 +732,44 @@ export const RESOURCES = {
             outputVariation: 0.2
         }
     },
+    fertilizer: {
+        name: "化肥",
+        icon: 'Sprout',
+        color: "text-green-400",
+        basePrice: 15.0,
+        minPrice: 0.15,
+        maxPrice: 2250,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'synthetic_fertilizer',
+        tags: ['industrial', 'agricultural'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 90.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    automobile: {
+        name: "汽车",
+        icon: 'Car',
+        color: "text-blue-400",
+        basePrice: 150.0,
+        minPrice: 1.5,
+        maxPrice: 15000,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 7,
+        unlockTech: 'automobile_manufacturing',
+        tags: ['luxury', 'manufactured', 'transportation'],
+        marketConfig: {
+            supplyDemandWeight: 1.4,
+            inventoryTargetDays: 30.0,
+            inventoryPriceImpact: 0.4,
+            demandElasticity: 1.2,
+            outputVariation: 0.2
+        }
+    },
 
     // ============ 原子时代 (Epoch 8) 新增资源 ============
     plastics: {

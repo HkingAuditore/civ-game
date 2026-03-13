@@ -8,7 +8,7 @@ import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, EPOCHS, TECHS } from '../../config';
 import { TECH_MAP } from '../../config/technologies';
-import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { calculateSilverCost, formatSilverCost, formatSilverCostCompact } from '../../utils/economy';
 import { getTechCostMultiplier } from '../../config/difficulty';
 
 // --- Dynamic layout: compute params from actual container width ---
@@ -38,8 +38,8 @@ function getLayoutParams(containerWidth) {
         nodeW = 110; gapX = 28; nodeH = 56; gapY = 56; epochSepGap = 12;
         fontSize = '10px'; btnFontSize = '9px';
     } else {
-        // Small / mobile
-        nodeW = 80; gapX = 12; nodeH = 52; gapY = 44; epochSepGap = 8;
+        // Small / mobile - 增加节点高度以容纳名称和按钮
+        nodeW = 80; gapX = 12; nodeH = 64; gapY = 44; epochSepGap = 8;
         fontSize = '10px'; btnFontSize = '9px';
     }
 
@@ -267,6 +267,9 @@ const TechNode = React.memo(({
                 ? 'glass-ancient border-ancient-gold/30 hover:border-blue-400/70 hover:shadow-glow-gold'
                 : 'bg-gray-800/60 border-gray-600/50';
 
+    // 判断是否为小屏幕（节点宽度小于100px）
+    const isSmallScreen = nodeW < 100;
+
     return (
         <div
             className={`absolute rounded-lg border transition-all cursor-pointer active:scale-[0.96] overflow-hidden ${nodeClass}`}
@@ -278,19 +281,24 @@ const TechNode = React.memo(({
             }}
             onClick={() => onShowDetails && onShowDetails(tech, status)}
         >
-            <div className="flex flex-col items-center justify-center h-full px-1 py-0.5">
-                <span className="text-white text-center leading-tight line-clamp-2 font-medium" style={{ fontSize }}>
+            <div className={`flex flex-col items-center h-full px-1 ${isSmallScreen ? 'py-1 justify-between' : 'py-0.5 justify-center'}`}>
+                <span 
+                    className={`text-white text-center leading-tight font-medium ${isSmallScreen ? 'line-clamp-1 mt-0.5' : 'line-clamp-2'}`} 
+                    style={{ fontSize }}
+                >
                     {tech.name}
                 </span>
                 {status === 'unlocked' ? (
-                    <span className="text-green-400 mt-0.5" style={{ fontSize: btnFontSize }}>✓</span>
+                    <span className={`text-green-400 ${isSmallScreen ? 'mb-0.5' : 'mt-0.5'}`} style={{ fontSize: btnFontSize }}>✓</span>
                 ) : isLocked ? (
-                    <span className="text-gray-500 mt-0.5" style={{ fontSize: btnFontSize }}>🔒</span>
+                    <span className={`text-gray-500 ${isSmallScreen ? 'mb-0.5' : 'mt-0.5'}`} style={{ fontSize: btnFontSize }}>🔒</span>
                 ) : (
                     <button
                         onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
                         disabled={!affordable}
-                        className={`mt-0.5 w-[92%] px-1 py-0.5 rounded font-semibold ${
+                        className={`w-[92%] px-1 rounded font-semibold ${
+                            isSmallScreen ? 'py-0.5 mb-0.5' : 'py-0.5 mt-0.5'
+                        } ${
                             affordable
                                 ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
@@ -298,7 +306,7 @@ const TechNode = React.memo(({
                         style={{ fontSize: btnFontSize }}
                     >
                         <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
-                            {formatSilverCost(silverCost)}
+                            {isSmallScreen ? formatSilverCostCompact(silverCost) : formatSilverCost(silverCost)}
                         </span>
                     </button>
                 )}

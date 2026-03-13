@@ -794,35 +794,70 @@ const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side 
             </div>
             {/* IO flow: inputs → [building] → outputs */}
             <div className="flex items-center gap-1">
-                {/* Other side resources (inputs for producer, outputs for consumer) */}
-                {otherKeys.length > 0 && (
-                    <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
-                        {otherKeys.map(rk => (
-                            <ResourceChip key={rk} rk={rk} tiny />
-                        ))}
-                    </div>
-                )}
-                {otherKeys.length > 0 && (
-                    <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
-                )}
-                {/* Current resource (highlighted) */}
-                <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
-                    bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
-                    <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
-                    {rd?.name || resourceKey}
-                </span>
-                {/* Same side co-products/co-inputs */}
-                {sameKeys.length > 0 && (
+                {isProducer ? (
                     <>
-                        <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
-                        <div className="flex flex-wrap gap-0.5">
-                            {sameKeys.slice(0, 3).map(rk => (
+                        {/* Producer: inputs → current resource → co-outputs */}
+                        {otherKeys.length > 0 && (
+                            <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
+                                {otherKeys.map(rk => (
+                                    <ResourceChip key={rk} rk={rk} tiny />
+                                ))}
+                            </div>
+                        )}
+                        {otherKeys.length > 0 && (
+                            <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
+                        )}
+                        {/* Current resource (highlighted) */}
+                        <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
+                            bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
+                            <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
+                            {rd?.name || resourceKey}
+                        </span>
+                        {/* Co-outputs */}
+                        {sameKeys.length > 0 && (
+                            <>
+                                <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
+                                <div className="flex flex-wrap gap-0.5">
+                                    {sameKeys.slice(0, 3).map(rk => (
+                                        <ResourceChip key={rk} rk={rk} tiny />
+                                    ))}
+                                    {sameKeys.length > 3 && (
+                                        <span className="text-[9px] text-gray-500">+{sameKeys.length - 3}</span>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        {/* Consumer: current resource → outputs (co-inputs shown on right) */}
+                        {/* Current resource (highlighted) */}
+                        <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
+                            bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
+                            <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
+                            {rd?.name || resourceKey}
+                        </span>
+                        <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
+                        {/* Outputs */}
+                        <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
+                            {otherKeys.map(rk => (
                                 <ResourceChip key={rk} rk={rk} tiny />
                             ))}
-                            {sameKeys.length > 3 && (
-                                <span className="text-[9px] text-gray-500">+{sameKeys.length - 3}</span>
-                            )}
                         </div>
+                        {/* Co-inputs */}
+                        {sameKeys.length > 0 && (
+                            <>
+                                <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
+                                <div className="flex flex-wrap gap-0.5">
+                                    {sameKeys.slice(0, 3).map(rk => (
+                                        <ResourceChip key={rk} rk={rk} tiny />
+                                    ))}
+                                    {sameKeys.length > 3 && (
+                                        <span className="text-[9px] text-gray-500">+{sameKeys.length - 3}</span>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </>
                 )}
             </div>
@@ -836,8 +871,8 @@ const DynamicChainView = ({ resourceKey, buildings = {}, epoch = 0 }) => {
 
     // Directly query which buildings produce/consume this resource
     const { producers, consumers } = useMemo(() => {
-        return getSimpleSupplyChain(resourceKey);
-    }, [resourceKey]);
+        return getSimpleSupplyChain(resourceKey, epoch);
+    }, [resourceKey, epoch]);
 
     const hasRelations = producers.length > 0 || consumers.length > 0;
 

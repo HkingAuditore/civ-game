@@ -1431,6 +1431,7 @@ function GameApp({ gameState }) {
                                                 setIdeologyCooldowns={gameState.setIdeologyCooldowns}
                                                 setIdeologySlotCount={gameState.setIdeologySlotCount}
                                                 techCostMod={gameState.modifiers?.ideologyRuleMods?.techCostMod || 0}
+                                                activeBuffs={gameState.activeBuffs || []}
                                             />
                                         )}
 

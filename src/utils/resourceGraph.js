@@ -584,43 +584,50 @@ export const splitSubgraphIntoChains = (layoutResult, currentResourceKey) => {
  * This is the simplified "direct building IO" approach — no BFS, no graph traversal.
  * 
  * @param {string} resourceKey - The resource to query
+ * @param {number} epoch - Current epoch for filtering (default: 99 to show all)
  * @returns {Object} { producers: [{id, name, epoch, inputs, outputs}], consumers: [{id, name, epoch, inputs, outputs}] }
  *   - producers: buildings whose output includes this resource
  *   - consumers: buildings whose input includes this resource
  *   - Each entry includes ALL inputs/outputs of that building (for context display)
  */
-export const getSimpleSupplyChain = (resourceKey) => {
+export const getSimpleSupplyChain = (resourceKey, epoch = 99) => {
     const graph = getResourceGraph();
     const node = graph.resourceNodes[resourceKey];
     if (!node) return { producers: [], consumers: [] };
 
-    const producers = [...node.producers].map(bid => {
-        const bInfo = graph.buildingIndex[bid];
-        if (!bInfo) return null;
-        const bDef = BUILDINGS.find(b => b.id === bid);
-        return {
-            id: bid,
-            name: bInfo.name,
-            epoch: bInfo.epoch,
-            inputs: bInfo.inputs, // all resource keys this building consumes
-            outputs: bInfo.outputs, // all resource keys this building produces
-            bDef, // full building definition for extra info
-        };
-    }).filter(Boolean);
+    const producers = [...node.producers]
+        .map(bid => {
+            const bInfo = graph.buildingIndex[bid];
+            if (!bInfo) return null;
+            // Filter by epoch - only show buildings available in current or earlier epochs
+            if (bInfo.epoch > epoch) return null;
+            const bDef = BUILDINGS.find(b => b.id === bid);
+            return {
+                id: bid,
+                name: bInfo.name,
+                epoch: bInfo.epoch,
+                inputs: bInfo.inputs, // all resource keys this building consumes
+                outputs: bInfo.outputs, // all resource keys this building produces
+                bDef, // full building definition for extra info
+            };
+        }).filter(Boolean);
 
-    const consumers = [...node.consumers].map(bid => {
-        const bInfo = graph.buildingIndex[bid];
-        if (!bInfo) return null;
-        const bDef = BUILDINGS.find(b => b.id === bid);
-        return {
-            id: bid,
-            name: bInfo.name,
-            epoch: bInfo.epoch,
-            inputs: bInfo.inputs,
-            outputs: bInfo.outputs,
-            bDef,
-        };
-    }).filter(Boolean);
+    const consumers = [...node.consumers]
+        .map(bid => {
+            const bInfo = graph.buildingIndex[bid];
+            if (!bInfo) return null;
+            // Filter by epoch - only show buildings available in current or earlier epochs
+            if (bInfo.epoch > epoch) return null;
+            const bDef = BUILDINGS.find(b => b.id === bid);
+            return {
+                id: bid,
+                name: bInfo.name,
+                epoch: bInfo.epoch,
+                inputs: bInfo.inputs,
+                outputs: bInfo.outputs,
+                bDef,
+            };
+        }).filter(Boolean);
 
     // Sort: lower epoch first, then alphabetical
     const sorter = (a, b) => (a.epoch - b.epoch) || a.name.localeCompare(b.name);
