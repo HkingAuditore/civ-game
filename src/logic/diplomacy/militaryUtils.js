@@ -15,8 +15,18 @@ export const getEstimatedMilitaryStrength = (nation, epoch, daysElapsed, difficu
     // Default relation to 0 if missing
     const relation = nation.relation || 0;
 
-    // Calculate real power with difficulty multiplier
-    const realPower = calculateNationBattlePower(nation, epoch, 1.0, difficultyMultiplier);
+    // Prefer runtime military state when available so UI matches actual corps readiness.
+    const readyUnits = Number(nation?.military?.forcePool?.readyUnits || 0);
+    const fieldedPower = Number(nation?.military?.fieldedPower || 0);
+    const militaryQuality = Math.max(0.7, Math.min(1.8, Number(nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0)));
+    const runtimeReadyPower = readyUnits > 0
+        ? Math.round(readyUnits * (0.7 + militaryQuality * 0.55) * (1 + epoch * 0.08))
+        : 0;
+    const realPower = fieldedPower > 0
+        ? fieldedPower
+        : runtimeReadyPower > 0
+            ? runtimeReadyPower
+            : calculateNationBattlePower(nation, epoch, 1.0, difficultyMultiplier);
 
     // Calculate accuracy based on relation (higher relation = more accurate)
     // Relation 0 => 0.1 accuracy (huge error range)

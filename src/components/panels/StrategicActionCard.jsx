@@ -128,12 +128,12 @@ export const StrategicActionCard = ({
                                 {action.name}
                             </span>
                             {action.cooldown > 0 && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
                                     冷却 {action.cooldown}天
                                 </span>
                             )}
                         </div>
-                        <p className={`text-[10px] leading-tight mt-0.5 ${disabled ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <p className={`text-xs leading-tight mt-0.5 ${disabled ? 'text-gray-500' : 'text-gray-400'}`}>
                             {action.description}
                         </p>
 
@@ -141,21 +141,21 @@ export const StrategicActionCard = ({
                         {costInfo.items.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
                                 {costInfo.items.map((item, idx) => (
-                                    <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded bg-gray-700/70 text-yellow-300">
+                                    <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-gray-700/70 text-yellow-300">
                                         {item.amount} {item.label}
                                     </span>
                                 ))}
                             </div>
                         )}
                         {action.cost === null && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-900/30 text-green-300 mt-1.5 inline-block">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-green-900/30 text-green-300 mt-1.5 inline-block">
                                 无消耗
                             </span>
                         )}
 
                         {/* 不可用原因 */}
                         {disabled && unavailableReason && (
-                            <div className="text-[10px] text-red-400 mt-1 flex items-center gap-1">
+                            <div className="text-xs text-red-400 mt-1 flex items-center gap-1">
                                 <Icon name="XCircle" size={10} />
                                 {unavailableReason}
                             </div>
@@ -176,17 +176,11 @@ export const StrategicActionCard = ({
             {/* 展开内容：详细信息 */}
             {expanded && !disabled && (
                 <div className="px-3 pb-3 space-y-3 border-t border-gray-600/50 pt-3">
-                    {/* 详细描述 */}
+                    {/* 行动描述 */}
                     {action.detailedDescription && (
-                        <div className="bg-gray-800/50 rounded p-2">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <Icon name="FileText" size={12} className="text-blue-400" />
-                                <span className="text-[10px] font-bold text-gray-300">详细说明</span>
-                            </div>
-                            <p className="text-[10px] text-gray-400 leading-relaxed">
-                                {action.detailedDescription}
-                            </p>
-                        </div>
+                        <p className="text-xs text-gray-400 leading-relaxed">
+                            {action.detailedDescription}
+                        </p>
                     )}
 
                     {/* 对立阶层提示（分化专用） */}
@@ -194,7 +188,7 @@ export const StrategicActionCard = ({
                         <div className="bg-purple-900/20 rounded p-2 border border-purple-500/30">
                             <div className="flex items-center gap-1.5">
                                 <Icon name="GitBranch" size={12} className="text-purple-400" />
-                                <span className="text-[10px] text-purple-300">
+                                <span className="text-xs text-purple-300">
                                     {stratumName}的对立阶层是「{rivalName}」
                                 </span>
                             </div>
@@ -206,18 +200,18 @@ export const StrategicActionCard = ({
                         <div className="bg-gray-800/50 rounded p-2">
                             <div className="flex items-center gap-1.5 mb-2">
                                 <Icon name="Zap" size={12} className="text-yellow-400" />
-                                <span className="text-[10px] font-bold text-gray-300">效果预览</span>
+                                <span className="text-xs font-bold text-gray-300">效果预览</span>
                             </div>
                             <div className="grid grid-cols-2 gap-1.5">
                                 {Object.entries(action.effectPreview).map(([key, effect]) => (
                                     <div key={key} className="bg-gray-900/50 rounded px-2 py-1">
-                                        <div className="text-[9px] text-gray-400">{effect.label || key}</div>
+                                        <div className="text-xs text-gray-400">{effect.label || key}</div>
                                         <div className={`text-xs font-bold ${effect.value > 0 ? 'text-green-400' :
                                             effect.value < 0 ? 'text-red-400' : 'text-blue-400'
                                             }`}>
                                             {effect.value > 0 ? '+' : ''}{effect.value}{effect.unit || ''}
                                             {effect.duration && (
-                                                <span className="text-[8px] text-gray-500 ml-1">({effect.duration})</span>
+                                                <span className="text-xs text-gray-500 ml-1">({effect.duration})</span>
                                             )}
                                         </div>
                                     </div>
@@ -231,12 +225,12 @@ export const StrategicActionCard = ({
                         <div className="space-y-1">
                             <div className="flex items-center gap-1.5">
                                 <Icon name="AlertTriangle" size={12} className="text-orange-400" />
-                                <span className="text-[10px] font-bold text-gray-300">副作用</span>
+                                <span className="text-xs font-bold text-gray-300">副作用</span>
                             </div>
                             {action.sideEffects.map((effect, idx) => (
                                 <div
                                     key={idx}
-                                    className={`rounded px-2 py-1.5 border text-[10px] flex items-center gap-1.5 ${getSeverityStyles(effect.severity)}`}
+                                    className={`rounded px-2 py-1.5 border text-xs flex items-center gap-1.5 ${getSeverityStyles(effect.severity)}`}
                                 >
                                     {effect.icon && <Icon name={effect.icon} size={12} />}
                                     {effect.text}
@@ -250,7 +244,7 @@ export const StrategicActionCard = ({
                         <div className="bg-blue-900/20 rounded p-2 border border-blue-500/30">
                             <div className="flex items-start gap-1.5">
                                 <Icon name="Lightbulb" size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                                <p className="text-[10px] text-blue-300 leading-relaxed">
+                                <p className="text-xs text-blue-300 leading-relaxed">
                                     <span className="font-bold">使用建议：</span>{action.usageHint}
                                 </p>
                             </div>
@@ -260,10 +254,10 @@ export const StrategicActionCard = ({
                     {/* 适用阶段 */}
                     {action.applicableStagesNames && (
                         <div className="flex items-center gap-2">
-                            <span className="text-[9px] text-gray-400">适用阶段：</span>
+                            <span className="text-xs text-gray-400">适用阶段：</span>
                             <div className="flex flex-wrap gap-1">
                                 {action.applicableStagesNames.map((stage, idx) => (
-                                    <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">
+                                    <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">
                                         {stage}
                                     </span>
                                 ))}

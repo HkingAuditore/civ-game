@@ -61,7 +61,7 @@ export const OverseasBuildingCard = memo(({
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold text-white truncate">{building.name}</div>
-                            <div className="flex items-center gap-2 text-[10px]">
+                            <div className="flex items-center gap-2 text-xs">
                                 <span className={stratum.color}>{stratum.icon} {stratum.name}</span>
                                 <span className={`${mode.color} ${mode.bgColor} px-1.5 py-0.5 rounded`}>
                                     {mode.icon} {mode.name}
@@ -75,7 +75,7 @@ export const OverseasBuildingCard = memo(({
                         <div className={`text-sm font-bold ${dailyProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(1)}/日
                         </div>
-                        <div className="text-[10px] text-gray-400">
+                        <div className="text-xs text-gray-400">
                             月利: {formatNumberShortCN(monthlyProfit)}
                         </div>
                     </div>
@@ -86,7 +86,7 @@ export const OverseasBuildingCard = memo(({
             {isExpanded && (
                 <div className="border-t border-gray-700/50 p-3 space-y-3">
                     {/* 运营数据 */}
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="bg-gray-900/40 rounded p-2">
                             <div className="text-gray-400">产出价值</div>
                             <div className="text-green-400 font-semibold">{(operatingData.outputValue || 0).toFixed(1)}/日</div>
@@ -106,7 +106,7 @@ export const OverseasBuildingCard = memo(({
                     </div>
 
                     {/* 建筑投入产出 */}
-                    <div className="text-[10px] bg-gray-900/30 rounded p-2">
+                    <div className="text-xs bg-gray-900/30 rounded p-2">
                         {building.input && Object.keys(building.input).length > 0 && (
                             <div className="flex items-center gap-1 mb-1">
                                 <span className="text-red-400">投入:</span>
@@ -130,12 +130,12 @@ export const OverseasBuildingCard = memo(({
 
                     {/* 运营模式切换 */}
                     <div>
-                        <div className="text-[10px] text-gray-400 mb-1">切换运营模式:</div>
+                        <div className="text-xs text-gray-400 mb-1">切换运营模式:</div>
                         <div className="flex gap-1">
                             {Object.entries(OPERATING_MODE_CONFIG).map(([modeId, config]) => (
                                 <button
                                     key={modeId}
-                                    className={`flex-1 px-2 py-1.5 rounded text-[10px] transition-all ${investment.operatingMode === modeId
+                                    className={`flex-1 px-2 py-1.5 rounded text-xs transition-all ${investment.operatingMode === modeId
                                             ? `${config.bgColor} ${config.color} border border-current`
                                             : 'bg-gray-700/50 text-gray-400 hover:bg-gray-600/50'
                                         }`}
@@ -155,7 +155,7 @@ export const OverseasBuildingCard = memo(({
                     {/* 操作按钮 */}
                     <div className="flex gap-2">
                         <button
-                            className="flex-1 px-3 py-1.5 rounded text-[11px] bg-red-900/50 text-red-300 hover:bg-red-800/50 border border-red-700/50"
+                            className="flex-1 px-3 py-1.5 rounded text-xs bg-red-900/50 text-red-300 hover:bg-red-800/50 border border-red-700/50"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (onWithdraw) onWithdraw(investment.id);

@@ -4,8 +4,9 @@
  * Extracted from simulation.js for better code organization
  */
 
-import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits';
+import { simulateBattle, UNIT_TYPES, generateNationArmy, calculateBattlePower, calculateArmyMaintenance } from '../../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
+import { getCorpsTotalUnits, getCorpsGeneral, calculateCorpsCombatPower } from './corpsSystem';
 import {
     calculateAIPeaceTribute,
     calculateAISurrenderDemand
@@ -29,6 +30,60 @@ import {
 } from '../../config/difficulty';
 import { VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 import { requiresVassalDiplomacyApproval, buildVassalDiplomacyRequest } from './vassalSystem';
+import {
+    getNationAnnualOutput,
+    getNationEconomicScale,
+    getNationTreasury,
+} from './economyUtils';
+import { getCheckpointsCrossed, CHECKPOINTS } from './frontSystem';
+import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile, calculateWarPlunder } from './warEconomy';
+import { WAR_ECONOMY } from '../../config/gameConstants';
+import { BUILDINGS } from '../../config/buildings';
+
+const AI_DOCTRINES = {
+    line_breaker: {
+        id: 'line_breaker',
+        name: '突破学说',
+        preferredPosture: 'offensive',
+        preferredTasks: ['assault', 'assault', 'reserve', 'raid'],
+        techTags: ['冷兵器训练', '参谋组织'],
+    },
+    siege_attrition: {
+        id: 'siege_attrition',
+        name: '消耗学说',
+        preferredPosture: 'attrition',
+        preferredTasks: ['guard', 'guard', 'reserve', 'raid'],
+        techTags: ['工兵筑垒', '辎重体系'],
+    },
+    deep_raid: {
+        id: 'deep_raid',
+        name: '破袭学说',
+        preferredPosture: 'raid',
+        preferredTasks: ['raid', 'assault', 'reserve', 'guard'],
+        techTags: ['机动侦察', '补给破坏'],
+    },
+    balanced_command: {
+        id: 'balanced_command',
+        name: '均衡学说',
+        preferredPosture: 'balanced',
+        preferredTasks: ['assault', 'guard', 'reserve', 'raid'],
+        techTags: ['参谋组织'],
+    },
+};
+
+const getMaterielResourceForEpoch = (epoch = 0) => {
+    if (epoch >= 5) return 'ammunition';
+    if (epoch >= 4) return 'gunpowder';
+    return 'wood';
+};
+
+const pickDoctrine = (nation, epoch = 0) => {
+    const aggression = nation?.aggression ?? 0.3;
+    if (epoch >= 5 && aggression > 0.7) return AI_DOCTRINES.line_breaker;
+    if (aggression < 0.25) return AI_DOCTRINES.siege_attrition;
+    if (aggression > 0.6) return AI_DOCTRINES.deep_raid;
+    return AI_DOCTRINES.balanced_command;
+};
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -613,11 +668,86 @@ export const processAIMilitaryAction = ({
  * @param {Array} params.logs - Log array (mutable)
  * @returns {boolean} - Whether a peace request was made (for tracking global cooldown)
  */
+const getNationFrontPeaceContext = (nationId, fronts = []) => {
+    const relevantFronts = (fronts || []).filter((front) => front?.status === 'active' && (front.attackerId === nationId || front.defenderId === nationId));
+    if (relevantFronts.length === 0) {
+        return {
+            frontCount: 0,
+            isPressingPlayerCore: false,
+            isAdvancing: false,
+            favorableFrontCount: 0,
+            pressureFrontCount: 0,
+            averageRelativePosition: 50,
+            strengthRatio: 1,
+        };
+    }
+
+    let favorableFrontCount = 0;
+    let pressureFrontCount = 0;
+    let totalRelativePosition = 0;
+    let ownUnits = 0;
+    let enemyUnits = 0;
+
+    relevantFronts.forEach((front) => {
+        const side = front.attackerId === nationId ? 'attacker' : 'defender';
+        const enemySide = side === 'attacker' ? 'defender' : 'attacker';
+        const relativePosition = side === 'attacker'
+            ? Number(front.linePosition || 50)
+            : 100 - Number(front.linePosition || 50);
+        totalRelativePosition += relativePosition;
+        if (relativePosition >= 65) favorableFrontCount += 1;
+        if (relativePosition <= 35) pressureFrontCount += 1;
+        ownUnits += Number(front.sideState?.[side]?.deployedUnits || 0);
+        enemyUnits += Number(front.sideState?.[enemySide]?.deployedUnits || 0);
+    });
+
+    return {
+        frontCount: relevantFronts.length,
+        isPressingPlayerCore: favorableFrontCount > 0 && relevantFronts.some((front) => {
+            const side = front.attackerId === nationId ? 'attacker' : 'defender';
+            const relativePosition = side === 'attacker'
+                ? Number(front.linePosition || 50)
+                : 100 - Number(front.linePosition || 50);
+            return relativePosition >= 65;
+        }),
+        isAdvancing: favorableFrontCount > pressureFrontCount,
+        favorableFrontCount,
+        pressureFrontCount,
+        averageRelativePosition: totalRelativePosition / Math.max(1, relevantFronts.length),
+        strengthRatio: ownUnits / Math.max(1, enemyUnits),
+    };
+};
+
+const getNationNegotiationContext = (nation, activeFronts = []) => {
+    const frontContext = getNationFrontPeaceContext(nation?.id, activeFronts);
+    const playerAdvantageScore = Number(nation?.warScore || 0);
+    const aiAdvantageScore = -playerAdvantageScore;
+    const aiDominantOnFront = frontContext.frontCount > 0 && (
+        frontContext.isPressingPlayerCore
+        || frontContext.averageRelativePosition >= 58
+        || (frontContext.averageRelativePosition >= 54 && frontContext.strengthRatio >= 1.15)
+    );
+    const aiUnderFrontPressure = frontContext.frontCount > 0 && (
+        frontContext.averageRelativePosition <= 42
+        || frontContext.pressureFrontCount > frontContext.favorableFrontCount
+        || frontContext.strengthRatio <= 0.9
+    );
+
+    return {
+        frontContext,
+        playerAdvantageScore,
+        aiAdvantageScore,
+        aiDominantOnFront,
+        aiUnderFrontPressure,
+    };
+};
+
 export const checkAIPeaceRequest = ({
     nation,
     tick,
     lastGlobalPeaceRequest = -Infinity,
     logs,
+    activeFronts = [], // [NEW] Active war fronts for damage assessment
 }) => {
     const next = nation;
 
@@ -637,11 +767,35 @@ export const checkAIPeaceRequest = ({
     const globalCooldown = GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS;
     const globalReady = (tick - lastGlobalPeaceRequest) >= globalCooldown;
 
-    if ((next.warScore || 0) > 12 && canRequestPeace && globalReady) {
-        const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+    const negotiationContext = getNationNegotiationContext(next, activeFronts);
 
-        if (Math.random() < willingness) {
-            const warScore = next.warScore || 0;
+    if (negotiationContext.playerAdvantageScore > 12 && canRequestPeace && globalReady) {
+        const { frontContext, aiDominantOnFront } = negotiationContext;
+        if (aiDominantOnFront) {
+            return false;
+        }
+
+        const willingness = Math.min(0.5, 0.03 + negotiationContext.playerAdvantageScore / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+
+        let frontDamageBonus = 0;
+        if (activeFronts && activeFronts.length > 0) {
+            for (const front of activeFronts) {
+                if (front.attackerId !== next.id && front.defenderId !== next.id) continue;
+                const ownInfra = (front.infrastructure || []).filter(i => i.owner === next.id);
+                const destroyedCount = ownInfra.filter(i => i.destroyed).length;
+                const ownNodes = (front.resourceNodes || []).filter(n => n.owner === next.id);
+                const plunderedCount = ownNodes.filter(n => n.plundered).length;
+                frontDamageBonus += destroyedCount * 0.04 + plunderedCount * 0.03;
+            }
+        }
+
+        const currentFrontPenalty = frontContext.frontCount > 0
+            ? Math.max(0, (frontContext.averageRelativePosition - 50) / 18) + Math.max(0, (frontContext.strengthRatio - 1) * 0.12)
+            : 0;
+        const effectivePeaceChance = Math.max(0, willingness + frontDamageBonus - currentFrontPenalty);
+
+        if (Math.random() < effectivePeaceChance) {
+            const warScore = Math.abs(next.warScore || 0);
             const enemyLosses = next.enemyLosses || 0;
             const warDuration = next.warDuration || 0;
             const availableWealth = Math.max(0, next.wealth || 0);
@@ -672,6 +826,7 @@ export const checkAISurrenderDemand = ({
     population,
     playerWealth,
     logs,
+    activeFronts = [],
 }) => {
     const next = nation;
 
@@ -680,9 +835,10 @@ export const checkAISurrenderDemand = ({
         return;
     }
 
-    const aiWarScore = -(next.warScore || 0);
+    const negotiationContext = getNationNegotiationContext(next, activeFronts);
+    const aiWarScore = negotiationContext.aiAdvantageScore;
 
-    if (aiWarScore > 25 && (next.warDuration || 0) > 30) {
+    if (aiWarScore > 25 && (next.warDuration || 0) > 30 && !negotiationContext.aiUnderFrontPressure) {
         const lastDemandDay = next.lastSurrenderDemandDay || 0;
         if (tick - lastDemandDay >= 60 && Math.random() < 0.03) {
             next.lastSurrenderDemandDay = tick;
@@ -729,9 +885,11 @@ export const checkMercyPeace = ({
     playerWealth,
     resources,
     logs,
+    activeFronts = [],
 }) => {
     const next = nation;
-    const warScore = next.warScore || 0;
+    const negotiationContext = getNationNegotiationContext(next, activeFronts);
+    const warScore = negotiationContext.playerAdvantageScore;
 
     // Only check if at war and not already requesting peace
     if (!next.isAtWar || next.isPeaceRequesting) {
@@ -775,6 +933,10 @@ export const checkMercyPeace = ({
         return;
     }
 
+    if (negotiationContext.aiUnderFrontPressure) {
+        return;
+    }
+
     // AI's willingness to offer mercy peace depends on:
     // 1. How long the war has lasted (longer = more likely)
     // 2. AI's aggression (less aggressive = more likely)
@@ -790,7 +952,13 @@ export const checkMercyPeace = ({
     // Base chance increases with war duration and desperation, decreases with aggression
     const baseChance = 0.05 + (warDuration / 500) + (desperationFactor * 0.3);
     const aggressionPenalty = aggression * 0.15;
-    const mercyChance = Math.min(0.5, Math.max(0.1, baseChance - aggressionPenalty));
+    let mercyChance = Math.min(0.5, Math.max(0.1, baseChance - aggressionPenalty));
+    if (negotiationContext.aiDominantOnFront) {
+        mercyChance += 0.08;
+    }
+    if (negotiationContext.aiAdvantageScore >= 80 && negotiationContext.frontContext.isPressingPlayerCore) {
+        mercyChance = Math.max(0.05, mercyChance - 0.2);
+    }
 
     // Check if AI decides to offer mercy peace
     if (Math.random() < mercyChance) {
@@ -881,10 +1049,33 @@ export const checkWarDeclaration = ({
 
     declarationChance *= warCountPenalty;
 
+    // [NEW] Military industry chain deterrence
+    // AI is less likely to attack nations with strong military industry
+    if (res && epoch >= 2) {
+        const militaryResources = ['swords', 'plate_armor', 'gunpowder', 'muskets', 'rifles', 'ammunition', 'ordnance'];
+        const availableTypes = militaryResources.filter(r => (res[r] || 0) > 10);
+        // Each type of military resource in stock reduces war chance
+        const industryDeterrence = Math.min(0.6, availableTypes.length * 0.08);
+        declarationChance *= (1 - industryDeterrence);
+    }
+
     // Check conditions
     const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
     // Fixed: Use formal alliance status instead of relation-based check
     const isPlayerAlly = areNationsAllied(next.id, 'player', diplomacyOrganizations?.organizations);
+
+    // [NEW] 军团余量权衡：没有空闲军团时大幅降低宣战意愿
+    const forcePool = next.military?.forcePool;
+    const totalCorps = forcePool?.targetCorps || 1;
+    const activeCorps = forcePool?.activeCorps || 0;
+    const idleCorps = Math.max(0, totalCorps - activeCorps);
+    if (idleCorps === 0 && totalCorps > 0) {
+        // 所有军团已部署，几乎不会再开新战
+        declarationChance *= 0.05;
+    } else if (idleCorps <= 1) {
+        // 仅剩1个空闲军团，谨慎开战
+        declarationChance *= 0.3;
+    }
 
     const canDeclareWar = !next.isAtWar &&
         !hasPeaceTreaty &&
@@ -979,20 +1170,22 @@ export const checkWarDeclaration = ({
 
     // Wealth-based war check (also respects minWarEpoch from difficulty)
     const playerWealth = (res.food || 0) + (res.silver || 0) + (res.wood || 0);
-    const aiWealth = next.wealth || 500;
+    const aiEconomicScale = getNationEconomicScale(next, 500);
+    const aiTreasury = getNationTreasury(next, 200);
     const aiMilitaryStrength = next.militaryStrength ?? 1.0;
 
     if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
         next.vassalOf !== 'player' && // [FIX] Vassals cannot declare regular wealth wars on overlord
         epoch >= minWarEpoch &&
-        playerWealth > aiWealth * 2 &&
+        playerWealth > aiEconomicScale * 1.6 &&
+        aiTreasury > 180 &&
         aiMilitaryStrength > 0.8 &&
         relation < 50 &&
         aggression > 0.4 &&
         currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
         !recentWarDeclarations) {
 
-        let wealthWarChance = 0.001 * aggression * (playerWealth / aiWealth - 1);
+        let wealthWarChance = 0.001 * aggression * (playerWealth / Math.max(1, aiEconomicScale) - 1);
         // Apply difficulty modifier
         wealthWarChance = applyWarDeclarationModifier(wealthWarChance, difficultyLevel);
         if (Math.random() < wealthWarChance) {
@@ -1162,8 +1355,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             if (currentWarCount >= maxWarsAllowed) return;
 
             const myPopulation = nation.population || 100;
-            const myWealth = nation.wealth || 500;
-            if (myPopulation < 30 || myWealth < 300) return;
+            const myEconomyScale = getNationEconomicScale(nation, 500);
+            const myTreasury = getNationTreasury(nation, 200);
+            if (myPopulation < 30 || myTreasury < 180 || myEconomyScale < 350) return;
 
             const calculateNationPower = (n) => (n.militaryStrength ?? 1.0) * (n.population || 100) * (1 + (n.aggression || 0.3));
 
@@ -1238,10 +1432,10 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
 
                 warChance += opportunityBonus * 0.5;
 
-                const targetWealth = otherNation.wealth || 500;
-                if (targetWealth > myWealth * 1.5 && strengthRatio > 0.8) {
-                    const wealthWarBonus = 0.003 * aggression * (targetWealth / myWealth - 1);
-                    warChance += wealthWarBonus;
+                const targetEconomyScale = getNationEconomicScale(otherNation, 500);
+                if (targetEconomyScale > myEconomyScale * 1.3 && strengthRatio > 0.8) {
+                    const economicWarBonus = 0.002 * aggression * (targetEconomyScale / Math.max(1, myEconomyScale) - 1);
+                    warChance += economicWarBonus;
                 }
 
                 warChance = Math.min(0.003, warChance);
@@ -1412,9 +1606,98 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
  */
-export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null) => {
+/**
+ * 计算多线战争兵力折减系数
+ * @param {Object} nation - AI国家对象
+ * @param {Array} allNations - 所有国家列表（用于检查极端战线）
+ * @returns {{ ratio: number, activeWarCount: number, hasExtremeAIFront: boolean }}
+ */
+export const getMultiWarStrengthRatio = (nation, allNations = []) => {
+    const activeWars = Object.entries(nation.foreignWars || {}).filter(([, w]) => w?.isAtWar);
+    const activeWarCount = activeWars.length;
+    if (activeWarCount <= 1) return { ratio: 1.0, activeWarCount, hasExtremeAIFront: false };
+
+    // 基础折减: 1 / sqrt(activeWarCount)
+    const ratio = 1 / Math.sqrt(activeWarCount);
+
+    // 检查是否有极端AI-AI战线（linePosition <=15 或 >=85，从对方视角看）
+    let hasExtremeAIFront = false;
+    for (const [enemyId, w] of activeWars) {
+        if (enemyId === 'player') continue; // 玩家战线不算AI-AI
+        const lp = w.linePosition;
+        if (lp != null && (lp <= 15 || lp >= 85)) {
+            hasExtremeAIFront = true;
+            break;
+        }
+    }
+
+    return { ratio, activeWarCount, hasExtremeAIFront };
+};
+
+export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null, epoch = null, militaryCorps = [], generals = []) => {
     // Create a set of visible nation IDs for quick lookup
     const visibleNationIds = new Set(visibleNations.map(n => n.id));
+
+    // === AI-AI 战争军团分配：每个国家的有限军团按战线优先级分配到各场战争 ===
+    // Map<nationId, Map<enemyId, Set<corpsId>>>
+    const aiWarCorpsAlloc = new Map();
+    for (const nation of visibleNations) {
+        if (!nation?.foreignWars) continue;
+        const nationId = nation.id;
+        const activeEnemyIds = Object.entries(nation.foreignWars)
+            .filter(([eid, w]) => w?.isAtWar && eid !== nationId)
+            .map(([eid]) => eid);
+        if (activeEnemyIds.length === 0) continue;
+
+        // 获取该国所有可用AI军团（按兵力降序）
+        const availCorps = (militaryCorps || [])
+            .filter(c => c?.isAI && c.nationId === nationId && getCorpsTotalUnits(c) > 0)
+            .sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
+        if (availCorps.length === 0) continue;
+
+        // 为每场战争评分（基于战线位置威胁程度）
+        const scoredWars = activeEnemyIds.map(eid => {
+            const war = nation.foreignWars[eid];
+            const linePos = Number(war?.linePosition ?? 50);
+            // linePos < 50 表示被敌人推进，越低越危险
+            const threat = Math.max(0, (50 - linePos) / 50) * 3;
+            // 基础优先级1.0 + 威胁分
+            const priority = 1.0 + threat;
+            return { enemyId: eid, priority };
+        }).sort((a, b) => b.priority - a.priority);
+
+        const allocMap = new Map();
+        for (const sw of scoredWars) allocMap.set(sw.enemyId, new Set());
+
+        // 第一轮：每场战争至少分1个军团
+        let corpIdx = 0;
+        for (const sw of scoredWars) {
+            if (corpIdx >= availCorps.length) break;
+            allocMap.get(sw.enemyId).add(availCorps[corpIdx].id);
+            corpIdx++;
+        }
+        // 第二轮：剩余军团按优先级权重分配
+        while (corpIdx < availCorps.length) {
+            let bestEid = scoredWars[0]?.enemyId;
+            let minWeighted = Infinity;
+            for (const sw of scoredWars) {
+                const count = allocMap.get(sw.enemyId).size;
+                const weighted = count - sw.priority * 0.5;
+                if (weighted < minWeighted) {
+                    minWeighted = weighted;
+                    bestEid = sw.enemyId;
+                }
+            }
+            if (!bestEid) break;
+            allocMap.get(bestEid).add(availCorps[corpIdx].id);
+            corpIdx++;
+        }
+
+        aiWarCorpsAlloc.set(nationId, allocMap);
+    }
+
+    // [FIX] Deduplicate war pairs — each A↔B war should only be processed once per tick
+    const processedPairs = new Set();
 
     visibleNations.forEach(nation => {
         Object.keys(nation.foreignWars || {}).forEach(enemyId => {
@@ -1424,6 +1707,11 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 delete nation.foreignWars[enemyId];
                 return;
             }
+
+            // [FIX] Skip if this war pair was already processed from the other side
+            const pairKey = [nation.id, enemyId].sort().join('|');
+            if (processedPairs.has(pairKey)) return;
+            processedPairs.add(pairKey);
 
             const war = nation.foreignWars[enemyId];
             if (!war?.isAtWar) return;
@@ -1440,69 +1728,326 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 return;
             }
 
+            // 修复 warStartDay 缺失：旧存档可能没有设置，回退为当前tick而非0
+            if (!war.warStartDay) {
+                war.warStartDay = tick;
+            }
+
             if (!enemy.foreignWars) enemy.foreignWars = {};
             if (!enemy.foreignWars[nation.id]) {
                 enemy.foreignWars[nation.id] = {
                     isAtWar: true,
                     warStartDay: war.warStartDay || tick,
-                    warScore: -(war.warScore || 0)
+                    warScore: -(war.warScore || 0),
+                    linePosition: 50,
+                    lastCheckpointDay: war.warStartDay || tick,
+                    destroyedBuildings: {},
                 };
+            }
+
+            // 旧存档容错：补充缺失的战线字段
+            if (war.linePosition == null) {
+                war.linePosition = 50;
+                war.lastCheckpointDay = war.warStartDay || tick;
+                war.destroyedBuildings = war.destroyedBuildings || {};
+            }
+
+            // 初始化分数明细和战事日志（兼容旧存档）
+            if (!war.warScoreBreakdown) {
+                war.warScoreBreakdown = { checkpoint: 0, bonus: 0, occupation: 0 };
+            }
+            if (!war.warEvents) {
+                war.warEvents = [];
+            }
+            const enemyWar = enemy.foreignWars[nation.id];
+            if (enemyWar && enemyWar.linePosition == null) {
+                enemyWar.linePosition = 50;
+                enemyWar.lastCheckpointDay = enemyWar.warStartDay || tick;
+                enemyWar.destroyedBuildings = enemyWar.destroyedBuildings || {};
             }
 
             const warDuration = tick - (war.warStartDay || tick);
             const warIntensity = Math.min(2.0, 1.0 + warDuration / 500);
 
-            const wealthDecayRate = 0.995 - (warIntensity * 0.003);
+            // === 经济衰减（极端战线时翻倍） ===
+            let nationWealthDecay = 0.997 - (warIntensity * 0.0015);
+            let enemyWealthDecay = 0.997 - (warIntensity * 0.0015);
             const populationDecayRate = 0.998 - (warIntensity * 0.002);
+
+            // 极端战线衰减加速：linePosition <=8 表示 nation 被深入，>=92 表示 enemy 被深入
+            const lp = war.linePosition;
+            if (lp <= 8) nationWealthDecay *= 0.997; // 翻倍衰减
+            if (lp >= 92) enemyWealthDecay *= 0.997;
 
             const nationWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
             const enemyWarCount = Object.values(enemy.foreignWars || {}).filter(w => w?.isAtWar).length;
             const nationMultiWarPenalty = Math.pow(0.998, nationWarCount - 1);
             const enemyMultiWarPenalty = Math.pow(0.998, enemyWarCount - 1);
 
-            nation.wealth = Math.max(100, (nation.wealth || 500) * wealthDecayRate * nationMultiWarPenalty);
+            const nationWarExpense = Math.max(1, Math.round(getNationAnnualOutput(nation, 500) * 0.0009 * warIntensity));
+            const enemyWarExpense = Math.max(1, Math.round(getNationAnnualOutput(enemy, 500) * 0.0009 * warIntensity));
+            nation.wealth = Math.max(100, (nation.wealth || 500) * nationWealthDecay * nationMultiWarPenalty - nationWarExpense);
             nation.population = Math.max(10, (nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
-            enemy.wealth = Math.max(100, (enemy.wealth || 500) * wealthDecayRate * enemyMultiWarPenalty);
+            enemy.wealth = Math.max(100, (enemy.wealth || 500) * enemyWealthDecay * enemyMultiWarPenalty - enemyWarExpense);
             enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
 
-            if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
-                const nationStrength = (nation.militaryStrength ?? 1.0) * (nation.population || 100) * (1 + (nation.aggression || 0.3));
-                const enemyStrength = (enemy.militaryStrength ?? 1.0) * (enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+            // === linePosition 推进（每tick） ===
+            // 基于分配到本战线的实际军团战力计算有效战力
+            const nationAllocCorps = aiWarCorpsAlloc.get(nation.id)?.get(enemyId);
+            const enemyAllocCorps = aiWarCorpsAlloc.get(enemy.id)?.get(nation.id);
+            const nationCorpsOnFront = nationAllocCorps
+                ? (militaryCorps || []).filter(c => nationAllocCorps.has(c.id))
+                : [];
+            const enemyCorpsOnFront = enemyAllocCorps
+                ? (militaryCorps || []).filter(c => enemyAllocCorps.has(c.id))
+                : [];
+            const nationCorpsPower = nationCorpsOnFront.reduce((s, c) => s + calculateCorpsCombatPower(c, getCorpsGeneral(generals, c.id), epoch), 0);
+            const enemyCorpsPower = enemyCorpsOnFront.reduce((s, c) => s + calculateCorpsCombatPower(c, getCorpsGeneral(generals, c.id), epoch), 0);
+            // 使用本战线实际军团战力；无军团数据时回退到国家宏观公式
+            const nationEffStr = nationCorpsPower > 0 ? nationCorpsPower : (nation.militaryStrength ?? 1.0) * Math.sqrt(nation.population || 100) * (1 + (nation.aggression || 0.3));
+            const enemyEffStr = enemyCorpsPower > 0 ? enemyCorpsPower : (enemy.militaryStrength ?? 1.0) * Math.sqrt(enemy.population || 100) * (1 + (enemy.aggression || 0.3));
 
-                const totalStrength = nationStrength + enemyStrength;
-                const nationWinChance = nationStrength / totalStrength;
+            // 存储分配到本战线的军团ID列表供UI显示
+            war.assignedCorpsIds = nationAllocCorps ? [...nationAllocCorps] : [];
+            war.assignedEnemyCorpsIds = enemyAllocCorps ? [...enemyAllocCorps] : [];
+            if (enemy.foreignWars[nation.id]) {
+                enemy.foreignWars[nation.id].assignedCorpsIds = war.assignedEnemyCorpsIds;
+                enemy.foreignWars[nation.id].assignedEnemyCorpsIds = war.assignedCorpsIds;
+            }
+            const totalStr = nationEffStr + enemyEffStr;
 
-                const battleCasualty = 0.02 + Math.random() * 0.03;
-                nation.population = Math.max(10, (nation.population || 100) * (1 - battleCasualty * (1 - nationWinChance)));
-                enemy.population = Math.max(10, (enemy.population || 100) * (1 - battleCasualty * nationWinChance));
+            // === [NEW] AI-AI 持续掠夺（每tick） ===
+            // nation 视角：linePos > 65 表示推入 enemy 经济区，> 85 核心区
+            // enemy 视角：linePos < 35 表示推入 nation 经济区，< 15 核心区
+            const nationPlunders = calculateWarPlunder({
+                targetWealth: enemy.wealth || 0,
+                linePosition: war.linePosition,
+                side: 'defender', // nation is attacker, plundering defender's territory
+                raidMod: 1.0,
+                unitRatio: nationEffStr > 0 && enemyEffStr > 0 ? nationEffStr / enemyEffStr : 1.0,
+                efficiencyOverride: WAR_ECONOMY.AI_AI_PLUNDER_EFFICIENCY,
+            });
+            const enemyPlunders = calculateWarPlunder({
+                targetWealth: nation.wealth || 0,
+                linePosition: war.linePosition,
+                side: 'attacker', // enemy is defender, plundering attacker's territory
+                raidMod: 1.0,
+                unitRatio: enemyEffStr > 0 && nationEffStr > 0 ? enemyEffStr / nationEffStr : 1.0,
+                efficiencyOverride: WAR_ECONOMY.AI_AI_PLUNDER_EFFICIENCY,
+            });
+            if (nationPlunders.wealthPlundered > 0) {
+                enemy.wealth = Math.max(100, (enemy.wealth || 500) - nationPlunders.wealthPlundered);
+                nation.wealth = (nation.wealth || 500) + nationPlunders.wealthGained;
+                nation.economyDirtyFlags = { ...(nation.economyDirtyFlags || {}), resourcesDirty: true };
+                enemy.economyDirtyFlags = { ...(enemy.economyDirtyFlags || {}), resourcesDirty: true };
+            }
+            if (enemyPlunders.wealthPlundered > 0) {
+                nation.wealth = Math.max(100, (nation.wealth || 500) - enemyPlunders.wealthPlundered);
+                enemy.wealth = (enemy.wealth || 500) + enemyPlunders.wealthGained;
+                nation.economyDirtyFlags = { ...(nation.economyDirtyFlags || {}), resourcesDirty: true };
+                enemy.economyDirtyFlags = { ...(enemy.economyDirtyFlags || {}), resourcesDirty: true };
+            }
 
-                if (Math.random() < nationWinChance) {
-                    war.warScore = (war.warScore || 0) + 5;
-                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) - 5;
-                    const loot = Math.floor((enemy.wealth || 500) * 0.08);
-                    nation.wealth = (nation.wealth || 500) + loot;
-                    enemy.wealth = Math.max(100, (enemy.wealth || 500) - loot);
-                } else {
-                    war.warScore = (war.warScore || 0) - 5;
-                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) + 5;
-                    const loot = Math.floor((nation.wealth || 500) * 0.08);
-                    enemy.wealth = (enemy.wealth || 500) + loot;
-                    nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
+            if (totalStr > 0) {
+                // advanceRate 基础值 0.3~0.6/tick，根据战争强度微调
+                const advanceRate = 0.3 + warIntensity * 0.15;
+                const delta = ((nationEffStr - enemyEffStr) / totalStr) * advanceRate;
+                const oldLinePos = war.linePosition;
+                // linePosition > 50 表示 nation 占优（推入 enemy 领土），< 50 表示 enemy 占优
+                war.linePosition = clamp(war.linePosition + delta, 5, 95);
+                // 同步对方镜像（enemy 视角的 linePosition = 100 - nation 视角）
+                if (enemy.foreignWars[nation.id]) {
+                    enemy.foreignWars[nation.id].linePosition = 100 - war.linePosition;
                 }
 
-                // 获取或生成本场战争的结束分数阈值（存储在war对象中，避免每次重新随机）
+                // === checkpoint crossing 事件 ===
+                const crossings = getCheckpointsCrossed(oldLinePos, war.linePosition);
+                for (const { checkpoint, direction } of crossings) {
+                    // 确定被侵入的区域类型
+                    let zoneCategory = 'frontier';
+                    let victimNation = null;
+                    let attackerNation = null;
+                    let scoreChange = 5; // 边境区默认
+                    if (direction === 'forward') {
+                        // nation 推进 → 进入 enemy 的区域
+                        victimNation = enemy;
+                        attackerNation = nation;
+                        if (checkpoint >= 85) { zoneCategory = 'capital'; scoreChange = 15; }
+                        else if (checkpoint >= 65) { zoneCategory = 'economic'; scoreChange = 10; }
+                    } else {
+                        // enemy 反推 → 进入 nation 的区域
+                        victimNation = nation;
+                        attackerNation = enemy;
+                        if (checkpoint <= 15) { zoneCategory = 'capital'; scoreChange = 15; }
+                        else if (checkpoint <= 35) { zoneCategory = 'economic'; scoreChange = 10; }
+                    }
+
+                    // warScore 增量（nation 视角正值=nation 优势）
+                    const scoreDir = direction === 'forward' ? 1 : -1;
+                    war.warScore = (war.warScore || 0) + scoreChange * scoreDir;
+                    war.warScoreBreakdown.checkpoint = (war.warScoreBreakdown.checkpoint || 0) + scoreChange * scoreDir;
+                    if (enemy.foreignWars[nation.id]) {
+                        enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                    }
+
+                    // 额外 checkpoint crossing 奖分：根据双方实力差产生 1~3 额外分
+                    const strDiff = Math.abs(nationEffStr - enemyEffStr) / Math.max(1, totalStr);
+                    const bonusScore = Math.round(clamp(strDiff * 8, 1, 3));
+                    war.warScore = (war.warScore || 0) + bonusScore * scoreDir;
+                    war.warScoreBreakdown.bonus = (war.warScoreBreakdown.bonus || 0) + bonusScore * scoreDir;
+                    if (enemy.foreignWars[nation.id]) {
+                        enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                    }
+
+                    // 记录战事日志
+                    const zoneName = zoneCategory === 'capital' ? '核心区' : zoneCategory === 'economic' ? '经济区' : '边境';
+                    const eventText = direction === 'forward'
+                        ? `${nation.name}推进至${enemy.name}的${zoneName}（+${scoreChange + bonusScore}分）`
+                        : `${enemy.name}反推至${nation.name}的${zoneName}（${-(scoreChange + bonusScore)}分）`;
+                    war.warEvents = [...(war.warEvents || []), { day: tick, text: eventText, score: (scoreChange + bonusScore) * scoreDir }].slice(-15);
+
+                    // 人口流失
+                    const popLoss = calculateWarPopulationLoss({ population: victimNation.population || 100, zoneCategory });
+                    victimNation.population = Math.max(10, (victimNation.population || 100) - popLoss.populationLoss);
+
+                    // 经济损伤：被侵入方 wealth 按区域类型损伤
+                    const wealthDmgRate = zoneCategory === 'capital' ? 0.08 : zoneCategory === 'economic' ? 0.04 : 0.02;
+                    const wealthDmg = Math.floor((victimNation.wealth || 500) * wealthDmgRate);
+                    victimNation.wealth = Math.max(100, (victimNation.wealth || 500) - wealthDmg);
+                    // 攻方获得部分掠夺
+                    attackerNation.wealth = (attackerNation.wealth || 500) + Math.floor(wealthDmg * 0.4);
+
+                    // 按需生成虚拟建筑画像（仅在首次需要时生成）
+                    if (!victimNation.virtualBuildings || Object.keys(victimNation.virtualBuildings).length === 0) {
+                        // 优先使用传入的 epoch，其次使用 nation 自身的 epoch，最后回退到人口估算
+                        const buildingEpoch = epoch != null ? epoch : (victimNation.epoch ?? Math.min(6, Math.floor((victimNation.population || 100) / 80)));
+                        generateAIBuildingProfile(victimNation, buildingEpoch);
+                    }
+                    if (victimNation.virtualBuildings && Object.keys(victimNation.virtualBuildings).length > 0) {
+                        const attackerStr = attackerNation === nation ? nationEffStr : enemyEffStr;
+                        const victimStr = victimNation === nation ? nationEffStr : enemyEffStr;
+                        const unitRatio = victimStr > 0 ? attackerStr / victimStr : 2.0;
+                        const bldgDmg = calculateWarBuildingDamage({
+                            targetNationId: victimNation.id,
+                            isPlayerNation: false,
+                            buildings: victimNation.virtualBuildings,
+                            zoneCategory,
+                            raidMod: 1.0,
+                            existingDestroyed: war.destroyedBuildings?.[victimNation.id] || {},
+                            nationWealth: victimNation.wealth || 500,
+                            nationMilitaryStrength: victimNation.militaryStrength ?? 1.0,
+                            enemyUnits: Math.round(attackerStr * 100),
+                            unitRatio,
+                        });
+                        // 从 virtualBuildings 中真实扣减
+                        for (const [bId, cnt] of Object.entries(bldgDmg.destroyedBuildings)) {
+                            victimNation.virtualBuildings[bId] = Math.max(0, (victimNation.virtualBuildings[bId] || 0) - cnt);
+                        }
+                        victimNation.economyDirtyFlags = {
+                            ...(victimNation.economyDirtyFlags || {}),
+                            buildingsDirty: true,
+                            laborDirty: true,
+                            resourcesDirty: true,
+                            warDirty: true,
+                        };
+                        // 同步处理外资建筑破坏：被破坏的建筑可能命中外资部分
+                        const foreignDamaged = {};
+                        if (victimNation.virtualBuildingsForeign) {
+                            for (const [bId, cnt] of Object.entries(bldgDmg.destroyedBuildings)) {
+                                const foreignCount = victimNation.virtualBuildingsForeign[bId] || 0;
+                                if (foreignCount > 0) {
+                                    // 外资建筑和本地建筑被破坏概率相同，按比例分配
+                                    const totalBefore = (victimNation.virtualBuildings[bId] || 0) + cnt; // 破坏前总量
+                                    const foreignRatio = foreignCount / Math.max(1, totalBefore);
+                                    const foreignDmg = Math.min(foreignCount, Math.round(cnt * foreignRatio));
+                                    if (foreignDmg > 0) {
+                                        victimNation.virtualBuildingsForeign[bId] = Math.max(0, foreignCount - foreignDmg);
+                                        foreignDamaged[bId] = (foreignDamaged[bId] || 0) + foreignDmg;
+                                    }
+                                }
+                            }
+                        }
+                        // 记录外资破坏到 war 日志（供战后结算用）
+                        if (Object.keys(foreignDamaged).length > 0) {
+                            if (!war.foreignBuildingsDamaged) war.foreignBuildingsDamaged = {};
+                            if (!war.foreignBuildingsDamaged[victimNation.id]) war.foreignBuildingsDamaged[victimNation.id] = {};
+                            for (const [bId, cnt] of Object.entries(foreignDamaged)) {
+                                war.foreignBuildingsDamaged[victimNation.id][bId] = (war.foreignBuildingsDamaged[victimNation.id][bId] || 0) + cnt;
+                            }
+                        }
+                        // 累计到 war.destroyedBuildings
+                        if (!war.destroyedBuildings[victimNation.id]) war.destroyedBuildings[victimNation.id] = {};
+                        for (const [bId, cnt] of Object.entries(bldgDmg.destroyedBuildings)) {
+                            war.destroyedBuildings[victimNation.id][bId] = (war.destroyedBuildings[victimNation.id][bId] || 0) + cnt;
+                        }
+                        // 同步对方 war 的 destroyedBuildings
+                        if (enemy.foreignWars[nation.id]) {
+                            enemy.foreignWars[nation.id].destroyedBuildings = { ...war.destroyedBuildings };
+                        }
+                        // 建筑产出价值折算 wealth 损失
+                        victimNation.wealth = Math.max(100, (victimNation.wealth || 500) - bldgDmg.wealthLoss);
+                    }
+
+                    // 日志（zoneName已在前面声明）
+                    logs.push(`⚔️ ${attackerNation.name} 战线推进至 ${victimNation.name} 的${zoneName}（战线位置: ${Math.round(war.linePosition)}）`);
+                    war.lastCheckpointDay = tick;
+                }
+            }
+
+            // === 持续占领 warScore（每5天根据战线位置累积） ===
+            if (warDuration > 0 && warDuration % 5 === 0) {
+                const posOffset = war.linePosition - 50; // >0 nation优势, <0 enemy优势
+                if (Math.abs(posOffset) > 5) {
+                    // 偏离中线越远，每5天积累越多分数（1~4分）
+                    const occupationScore = Math.round(clamp(Math.abs(posOffset) / 12, 1, 4));
+                    const occupationDir = posOffset > 0 ? 1 : -1;
+                    war.warScore = (war.warScore || 0) + occupationScore * occupationDir;
+                    war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + occupationScore * occupationDir;
+                    if (enemy.foreignWars[nation.id]) {
+                        enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                    }
+                }
+            }
+
+            // === 同步分数明细和战事日志到对方 ===
+            if (enemy.foreignWars[nation.id]) {
+                // 对方视角的分数明细取反
+                enemy.foreignWars[nation.id].warScoreBreakdown = {
+                    checkpoint: -(war.warScoreBreakdown?.checkpoint || 0),
+                    bonus: -(war.warScoreBreakdown?.bonus || 0),
+                    occupation: -(war.warScoreBreakdown?.occupation || 0),
+                };
+                enemy.foreignWars[nation.id].warEvents = war.warEvents || [];
+            }
+
+            // === 存储双方有效战力供UI显示 ===
+            war.nationEffStr = Math.round(nationEffStr);
+            war.enemyEffStr = Math.round(enemyEffStr);
+            war.warIntensity = Math.round(warIntensity * 100) / 100;
+            war.warDuration = warDuration;
+            if (enemy.foreignWars[nation.id]) {
+                enemy.foreignWars[nation.id].nationEffStr = Math.round(enemyEffStr);
+                enemy.foreignWars[nation.id].enemyEffStr = Math.round(nationEffStr);
+                enemy.foreignWars[nation.id].warIntensity = war.warIntensity;
+                enemy.foreignWars[nation.id].warDuration = warDuration;
+            }
+
+            // === 战争结束判定（每10天检查一次） ===
+            if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
                 if (!war.endScoreThreshold) {
                     war.endScoreThreshold = 25 + Math.floor(Math.random() * 56); // 25~80
                 }
 
                 const absoluteWarScore = Math.abs(war.warScore || 0);
-                const nationExhausted = (nation.population || 100) < 30 || (nation.wealth || 500) < 200;
-                const enemyExhausted = (enemy.population || 100) < 30 || (enemy.wealth || 500) < 200;
+                const nationExhausted = (nation.population || 100) < 30 || getNationTreasury(nation, 0) < Math.max(120, getNationAnnualOutput(nation, 500) * 0.01);
+                const enemyExhausted = (enemy.population || 100) < 30 || getNationTreasury(enemy, 0) < Math.max(120, getNationAnnualOutput(enemy, 500) * 0.01);
+                // 极端战线位置也可触发结束
+                const extremePosition = war.linePosition <= 8 || war.linePosition >= 92;
 
-                // 大幅降低随机结束概率
-                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 : 0.005;
+                // 战争疲劳因子：持续越久结束概率越高（100天后开始递增，上限15%）
+                const fatigueFactor = clamp((warDuration - 100) / 2000, 0, 0.15);
+                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 + fatigueFactor : extremePosition ? 0.02 + fatigueFactor : 0.005 + fatigueFactor;
 
-                // 战争结束条件：达到阈值 或 小概率随机结束
                 if (absoluteWarScore >= war.endScoreThreshold || Math.random() < exhaustionEndChance) {
                     const needsApproval = requiresVassalDiplomacyApproval(nation) || requiresVassalDiplomacyApproval(enemy);
                     if (needsApproval && Array.isArray(vassalDiplomacyRequests)) {
@@ -1571,6 +2116,22 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                     }
                     // finalScore < 25 保持 draw，无赔偿
 
+                    // linePosition 覆盖胜负等级：极端战线位置可提升胜利等级
+                    const winnerLinePos = winner.id === nation.id ? war.linePosition : (100 - war.linePosition);
+                    if (winnerLinePos >= 90 && victoryTier !== 'overwhelming') {
+                        victoryTier = 'major';
+                        populationTransferRate = Math.max(populationTransferRate, 0.15);
+                        wealthTransferRate = Math.max(wealthTransferRate, 0.25);
+                        peaceDuration = Math.max(peaceDuration, Math.floor(365 * 2.5));
+                        tierName = '大胜';
+                    } else if (winnerLinePos >= 80 && (victoryTier === 'draw' || victoryTier === 'pyrrhic')) {
+                        victoryTier = 'minor';
+                        populationTransferRate = Math.max(populationTransferRate, 0.08);
+                        wealthTransferRate = Math.max(wealthTransferRate, 0.12);
+                        peaceDuration = Math.max(peaceDuration, 365 * 2);
+                        tierName = '小胜';
+                    }
+
                     // 执行赔偿转移
                     const populationTransfer = Math.floor((loser.population || 100) * populationTransferRate);
                     const wealthTransfer = Math.floor((loser.wealth || 500) * wealthTransferRate);
@@ -1588,11 +2149,62 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                         // 执行吞并：获胜方获得败方全部资源
                         winner.population = (winner.population || 100) + (loser.population || 0);
                         winner.wealth = (winner.wealth || 500) + (loser.wealth || 0);
+                        const loserBuildings = loser.virtualBuildings || {};
+                        const loserForeignBuildings = loser.virtualBuildingsForeign || {};
+                        const winnerBuildings = winner.virtualBuildings || {};
+                        const winnerForeignBuildings = winner.virtualBuildingsForeign || {};
+                        const winnerBaseline = winner.virtualBuildingsBaseline || winnerBuildings;
+
+                        Object.entries(loserBuildings).forEach(([buildingId, count]) => {
+                            const totalCount = Math.max(0, Number(count) || 0);
+                            if (totalCount <= 0) return;
+                            const foreignCount = Math.max(0, Number(loserForeignBuildings[buildingId]) || 0);
+                            const localCount = Math.max(0, totalCount - foreignCount);
+                            if (localCount > 0) {
+                                winnerBuildings[buildingId] = (winnerBuildings[buildingId] || 0) + localCount;
+                            }
+                            if (foreignCount > 0) {
+                                winnerForeignBuildings[buildingId] = (winnerForeignBuildings[buildingId] || 0) + foreignCount;
+                            }
+                        });
+
+                        winner.virtualBuildings = { ...winnerBuildings };
+                        winner.virtualBuildingsForeign = { ...winnerForeignBuildings };
+                        winner.virtualBuildingsBaseline = Object.keys(winnerBaseline).length > 0
+                            ? {
+                                ...winnerBaseline,
+                                ...Object.fromEntries(
+                                    Object.entries(winner.virtualBuildings).map(([buildingId, count]) => [
+                                        buildingId,
+                                        Math.max(Number(winnerBaseline[buildingId]) || 0, Number(count) || 0),
+                                    ])
+                                ),
+                            }
+                            : { ...winner.virtualBuildings };
+                        winner.economyDirtyFlags = {
+                            ...(winner.economyDirtyFlags || {}),
+                            buildingsDirty: true,
+                            laborDirty: true,
+                            resourcesDirty: true,
+                            warDirty: true,
+                            investmentDirty: Object.keys(winnerForeignBuildings).length > 0,
+                        };
                         loser.isAnnexed = true;
                         loser.annexedBy = winner.id;
                         loser.annexedAt = tick;
                         loser.population = 0;
                         loser.wealth = 0;
+                        // 清除虚拟建筑数据
+                        delete loser.virtualBuildings;
+                        delete loser.virtualBuildingsBaseline;
+                        delete loser.virtualBuildingsForeign;
+                        loser.economyDirtyFlags = {
+                            ...(loser.economyDirtyFlags || {}),
+                            buildingsDirty: true,
+                            laborDirty: true,
+                            resourcesDirty: true,
+                            warDirty: true,
+                        };
                         isAnnexed = true;
                     }
 
@@ -1615,6 +2227,18 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                         logs.push(`📢 国际新闻：${nation.name} 与 ${enemy.name} 经过${warDurationDays}天的战争后握手言和。`);
                     } else {
                         logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中取得${tierName}！`);
+                    }
+
+                    // 外资建筑被破坏通知（供 simulation.js 消费同步到 overseasInvestments）
+                    const allForeignDamaged = war.foreignBuildingsDamaged || {};
+                    for (const [victimId, damages] of Object.entries(allForeignDamaged)) {
+                        const victimName = victimId === nation.id ? nation.name : enemy.name;
+                        for (const [bId, cnt] of Object.entries(damages)) {
+                            if (cnt > 0) {
+                                const bDef = BUILDINGS.find(b => b.id === bId);
+                                logs.push(`💼 你在 ${victimName} 的 ${bDef?.name || bId} ×${cnt} 在战争中被摧毁`);
+                            }
+                        }
                     }
                 }
             }
@@ -1677,4 +2301,655 @@ export const makeVassalsPeaceAfterSuzerain = (enemyNationId, nations, logs) => {
 
     return peacedVassals;
 };
+
+// ========== AI Military Corps & Front Integration ==========
+
+/**
+ * Generate an AI corps from a nation's simulated military
+ * AI nations don't have detailed army compositions; we generate one based on their stats
+ * @param {Object} nation - AI nation object
+ * @param {number} epoch - Current epoch
+ * @returns {Object} A pseudo-corps object compatible with battleSystem
+ */
+export const generateAICorps = (nation, epoch) => {
+    const targetCorps = Math.max(1, Number(nation?.military?.forcePool?.targetCorps || 1));
+    const units = generateNationArmy(nation, epoch, 1 / targetCorps, 1.0);
+    const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
+
+    return {
+        id: `ai_corps_${nation.id}_${Date.now()}`,
+        name: `${nation.name}远征军`,
+        units,
+        generalId: null,
+        assignedFrontId: null,
+        frontTask: 'assault',
+        status: 'deployed',
+        morale: 68 + Math.floor(militaryQuality * 20),
+        isAI: true,
+        nationId: nation.id,
+    };
+};
+
+export const ensureAIMilitaryState = (nation, epoch = 0) => {
+    if (!nation) return nation;
+    const doctrine = pickDoctrine(nation, epoch);
+    const organizationBase = 40 + epoch * 6 + Math.round((nation.militaryStrength || 0.8) * 18);
+    const techLevel = Math.max(1, epoch + Math.round(getNationAnnualOutput(nation, 0) / 6000));
+    const materielResource = getMaterielResourceForEpoch(epoch);
+    const military = {
+        organization: clamp(nation.military?.organization ?? organizationBase, 20, 100),
+        doctrine: nation.military?.doctrine || doctrine.id,
+        techLevel: nation.military?.techLevel || techLevel,
+        techTags: Array.isArray(nation.military?.techTags) && nation.military.techTags.length > 0 ? nation.military.techTags : doctrine.techTags,
+        forcePool: {
+            targetCorps: Math.max(1, Math.min(5, Math.round((nation.population || 80) / 180) + (nation.isAtWar ? 1 : 0))),
+            reserveRatio: nation.isAtWar ? 0.35 : 0.55,
+            ...(nation.military?.forcePool || {}),
+        },
+        corpsTemplates: Array.isArray(nation.military?.corpsTemplates) ? nation.military.corpsTemplates : [],
+        logistics: {
+            throughput: clamp(nation.military?.logistics?.throughput ?? (0.8 + epoch * 0.08), 0.6, 2.5),
+            flexibility: clamp(nation.military?.logistics?.flexibility ?? (0.9 + (nation.aggression || 0.3) * 0.4), 0.7, 1.6),
+            supplyDiscipline: clamp(nation.military?.logistics?.supplyDiscipline ?? (0.8 + (organizationBase / 100) * 0.4), 0.7, 1.5),
+            ...(nation.military?.logistics || {}),
+        },
+        frontPlans: nation.military?.frontPlans || {},
+        budgetShare: clamp(nation.military?.budgetShare ?? (nation.isAtWar ? 0.22 : 0.14), 0.08, 0.35),
+        stockpile: {
+            food: Math.max(0, Math.round(nation.military?.stockpile?.food ?? ((nation.population || 100) * 0.9))),
+            silver: Math.max(0, Math.round(nation.military?.stockpile?.silver ?? (getNationTreasury(nation, 300) * 0.75))),
+            [materielResource]: Math.max(0, Math.round(nation.military?.stockpile?.[materielResource] ?? ((nation.population || 100) * 0.12 + epoch * 8))),
+            // 军队维护所需的次要资源——根据时代自动补充合理储备
+            wood: Math.max(0, Math.round(nation.military?.stockpile?.wood ?? ((nation.population || 100) * 0.2 + epoch * 5))),
+            iron: Math.max(0, Math.round(nation.military?.stockpile?.iron ?? (epoch >= 2 ? (nation.population || 100) * 0.08 + epoch * 4 : 0))),
+            copper: Math.max(0, Math.round(nation.military?.stockpile?.copper ?? (epoch >= 1 ? (nation.population || 100) * 0.06 + epoch * 3 : 0))),
+            stone: Math.max(0, Math.round(nation.military?.stockpile?.stone ?? ((nation.population || 100) * 0.1 + epoch * 2))),
+            cloth: Math.max(0, Math.round(nation.military?.stockpile?.cloth ?? (epoch >= 3 ? (nation.population || 100) * 0.04 + epoch * 2 : 0))),
+            plank: Math.max(0, Math.round(nation.military?.stockpile?.plank ?? (epoch >= 3 ? (nation.population || 100) * 0.05 + epoch * 3 : 0))),
+            gunpowder: Math.max(0, Math.round(nation.military?.stockpile?.gunpowder ?? (epoch >= 4 ? (nation.population || 100) * 0.03 + epoch * 4 : 0))),
+            ammunition: Math.max(0, Math.round(nation.military?.stockpile?.ammunition ?? (epoch >= 5 ? (nation.population || 100) * 0.04 + epoch * 5 : 0))),
+            steel: Math.max(0, Math.round(nation.military?.stockpile?.steel ?? (epoch >= 5 ? (nation.population || 100) * 0.03 + epoch * 3 : 0))),
+            coal: Math.max(0, Math.round(nation.military?.stockpile?.coal ?? (epoch >= 5 ? (nation.population || 100) * 0.02 + epoch * 2 : 0))),
+            ...(nation.military?.stockpile || {}),
+        },
+    };
+
+    return {
+        ...nation,
+        military,
+    };
+};
+
+export const syncAINationMilitary = ({
+    nation,
+    epoch = 0,
+    currentDay = 0,
+    militaryCorps = [],
+    generals = [],
+}) => {
+    const nextNation = ensureAIMilitaryState(nation, epoch);
+    const doctrine = AI_DOCTRINES[nextNation.military?.doctrine] || pickDoctrine(nextNation, epoch);
+    const nationCorps = (militaryCorps || [])
+        .filter((corps) => corps?.isAI && corps.nationId === nextNation.id)
+        .filter((corps) => getCorpsTotalUnits(corps) > 0);
+    const nationGenerals = (generals || []).filter((general) => nationCorps.some((corps) => corps.generalId === general.id));
+    const targetCorps = Math.max(1, Number(nextNation.military?.forcePool?.targetCorps || 1));
+    const baseIncomePulse = Math.max(
+        1,
+        Math.round(getNationAnnualOutput(nextNation, 0) * (nextNation.military?.budgetShare || 0.12) * 0.0025)
+    );
+    const baseFoodPulse = Math.max(1, Math.round((nextNation.population || 0) * 0.03));
+    const materielKey = getMaterielResourceForEpoch(epoch);
+    // 计算 AI 军队实际维护需求，按需补充各类资源
+    const nationArmyUnits = nationCorps.reduce((army, corps) => {
+        Object.entries(corps?.units || {}).forEach(([unitId, count]) => {
+            if (count > 0) army[unitId] = (army[unitId] || 0) + count;
+        });
+        return army;
+    }, {});
+    const armyMaintenance = calculateArmyMaintenance(nationArmyUnits);
+    // [FIX] 食物和银币的补充也需要覆盖军队维护需求，否则大军补给率会降为 0
+    // 补充量 = max(基础人口/经济脉冲, 军队维护需求 × 1.2)，确保 AI 储备足以覆盖前线补给
+    const foodPulse = Math.max(baseFoodPulse, Math.round((armyMaintenance.food || 0) * 1.2));
+    const incomePulse = Math.max(baseIncomePulse, Math.round((armyMaintenance.silver || 0) * 1.2));
+    // 所有资源统一用军队维护需求的 1.2 倍作为最低补充量
+    const allResourcePulse = {};
+    Object.entries(armyMaintenance).forEach(([resource, amount]) => {
+        allResourcePulse[resource] = Math.max(1, Math.round(amount * 1.2));
+    });
+    const stockpileUpdate = {
+        ...nextNation.military.stockpile,
+        food: Math.max(0, Number(nextNation.military.stockpile?.food || 0) + foodPulse),
+        silver: Math.max(0, Number(nextNation.military.stockpile?.silver || 0) + incomePulse),
+        [materielKey]: Math.max(0, Number(nextNation.military.stockpile?.[materielKey] || 0) + Math.max(1, Math.round(incomePulse * 0.15))),
+    };
+    // 补充所有维护资源（含次要资源）
+    Object.entries(allResourcePulse).forEach(([resource, pulse]) => {
+        // food 和 silver 已在上面设置，此处补充其余（含 materielKey）
+        if (resource !== 'food' && resource !== 'silver') {
+            stockpileUpdate[resource] = Math.max(0, Number(stockpileUpdate[resource] || 0) + pulse);
+        }
+    });
+    const updatedNation = {
+        ...nextNation,
+        military: {
+            ...nextNation.military,
+            stockpile: stockpileUpdate,
+        },
+    };
+
+    const updatedCorps = nationCorps.map((corps, index) => {
+        const baseMorale = Number.isFinite(Number(corps.morale)) ? Number(corps.morale) : 80;
+        const standbyRecovery = !corps.assignedFrontId && baseMorale < 90 ? 1 : 0;
+        return {
+            ...corps,
+            name: corps.name || `${nation.name}第${index + 1}军团`,
+            frontTask: corps.frontTask || doctrine.preferredTasks[index % doctrine.preferredTasks.length] || 'assault',
+            status: corps.assignedFrontId ? corps.status : 'idle',
+            morale: clamp(Math.round(baseMorale + standbyRecovery), 20, 100),
+            isAI: true,
+            nationId: nation.id,
+        };
+    });
+
+
+    const newCorps = [];
+    const newGenerals = [];
+    if (updatedCorps.length < targetCorps) {
+        const missing = targetCorps - updatedCorps.length;
+        for (let i = 0; i < missing; i += 1) {
+            const corps = generateAICorps(updatedNation, epoch);
+            corps.id = `ai_corps_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
+            corps.name = `${updatedNation.name}第${updatedCorps.length + i + 1}军团`;
+            corps.frontTask = doctrine.preferredTasks[(updatedCorps.length + i) % doctrine.preferredTasks.length] || 'assault';
+            corps.status = 'idle';
+            corps.isAI = true;
+            corps.nationId = updatedNation.id;
+
+            const general = generateAIGeneral(updatedNation, epoch);
+            general.id = `ai_gen_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
+            general.assignedCorpsId = corps.id;
+            corps.generalId = general.id;
+
+            newCorps.push(corps);
+            newGenerals.push(general);
+        }
+    }
+
+    const allNationCorps = [...updatedCorps, ...newCorps];
+    const fieldedArmy = allNationCorps.reduce((army, corps) => {
+        Object.entries(corps.units || {}).forEach(([unitId, count]) => {
+            if (count > 0) {
+                army[unitId] = (army[unitId] || 0) + count;
+            }
+        });
+        return army;
+    }, {});
+    const totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+
+    // [FIX] Enforce population-based army cap: armies can't exceed what population can sustain
+    const population = updatedNation.population || 100;
+    const wartimeMobilizationBonus = updatedNation.isAtWar ? 0.008 : 0;
+    const manpowerRatio = Math.min(0.026, 0.008 + (epoch || 0) * 0.0015 + wartimeMobilizationBonus);
+    const maxManpower = Math.floor(population * manpowerRatio * 1.1); // 1.1x slight buffer
+    if (totalUnits > maxManpower && maxManpower > 0) {
+        const shrinkRatio = maxManpower / totalUnits;
+        allNationCorps.forEach(corps => {
+            if (corps.units) {
+                Object.keys(corps.units).forEach(unitId => {
+                    corps.units[unitId] = Math.max(1, Math.floor((corps.units[unitId] || 0) * shrinkRatio));
+                });
+            }
+        });
+    }
+
+    const orgFactor = 0.7 + Number(updatedNation.military?.organization || 50) / 100 * 0.6;
+    const techFactor = 0.8 + Number(updatedNation.military?.techLevel || 1) * 0.08;
+    const supplyFactor = Math.min(1.3, 0.7 + Number(updatedNation.military?.logistics?.throughput || 1) * 0.35);
+    const sustainableArmy = Math.max(
+        10,
+        Object.values(generateNationArmy(updatedNation, epoch, 1.0, 1.0)).reduce((sum, count) => sum + (count || 0), 0)
+    );
+    const mobilizationFactor = totalUnits / sustainableArmy;
+    updatedNation.militaryQuality = clamp(orgFactor * techFactor * supplyFactor, 0.7, 1.8);
+    updatedNation.militaryStrength = clamp(mobilizationFactor * updatedNation.militaryQuality, 0.25, 2.4);
+
+    // 多线战争信息记录（不再强制折减兵力，AI可自行决定兵力分配）
+    const multiWar = getMultiWarStrengthRatio(updatedNation);
+    if (multiWar.activeWarCount > 1) {
+        // 仅保存信息供UI显示，不影响militaryStrength
+        updatedNation._multiWarDeployment = { activeWarCount: multiWar.activeWarCount, hasExtremeAIFront: multiWar.hasExtremeAIFront };
+    } else {
+        updatedNation._multiWarDeployment = null;
+    }
+
+    updatedNation.military = {
+        ...updatedNation.military,
+        forcePool: {
+            ...updatedNation.military.forcePool,
+            readyUnits: totalUnits,
+            activeCorps: allNationCorps.filter((corps) => corps.assignedFrontId).length,
+        },
+        fieldedPower: Math.max(0, Math.round(calculateBattlePower(fieldedArmy, epoch, (updatedNation.militaryQuality - 1) * 0.2))),
+    };
+
+    return {
+        nation: updatedNation,
+        corps: [...allNationCorps],
+        generals: [...nationGenerals, ...newGenerals],
+    };
+};
+
+export const evaluateAIFrontPlan = ({
+    nation,
+    front,
+    ownCorps = [],
+    enemyCorps = [],
+}) => {
+    const doctrine = AI_DOCTRINES[nation?.military?.doctrine] || pickDoctrine(nation, front?.epoch || 0);
+    const ownUnits = ownCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    const enemyUnits = enemyCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    const side = nation?.id === front?.attackerId ? 'attacker' : 'defender';
+    const sideState = front?.sideState?.[side] || {};
+    const linePosition = Number(front?.linePosition || 50);
+    const underCorePressure = side === 'attacker' ? linePosition < 15 : linePosition > 85;
+    const supplyRatio = Number(sideState.supplyRatio ?? 1);
+    const unitRatio = ownUnits / Math.max(1, enemyUnits || 1);
+
+    let posture = doctrine.preferredPosture;
+    if (underCorePressure || supplyRatio < 0.7) posture = 'attrition';
+    else if (unitRatio > 1.25 && supplyRatio >= 0.9) posture = 'offensive';
+    else if (unitRatio < 0.85 && supplyRatio >= 0.8) posture = 'raid';
+    else posture = 'balanced';
+
+    const desiredCorps = clamp(
+        Math.round((nation?.military?.forcePool?.targetCorps || 1) * (underCorePressure ? 0.8 : posture === 'offensive' ? 0.75 : 0.6)),
+        1,
+        Math.max(1, nation?.military?.forcePool?.targetCorps || 1)
+    );
+
+    const sortedCorps = [...ownCorps].sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
+    const taskBlueprint = posture === 'offensive'
+        ? ['assault', 'assault', 'reserve', 'raid']
+        : posture === 'attrition'
+            ? ['guard', 'guard', 'reserve', 'raid']
+            : posture === 'raid'
+                ? ['raid', 'assault', 'reserve', 'guard']
+                : doctrine.preferredTasks;
+
+    const taskAssignments = {};
+    sortedCorps.forEach((corps, index) => {
+        taskAssignments[corps.id] = taskBlueprint[index] || taskBlueprint[taskBlueprint.length - 1] || 'assault';
+    });
+
+    return {
+        side,
+        posture,
+        desiredCorps,
+        shouldAttack: supplyRatio >= 0.7 && ownUnits > 0 && enemyUnits > 0 && (unitRatio >= 0.95 || posture === 'raid'),
+        taskAssignments,
+        frontlineCorpsOrder: sortedCorps.map((corps) => corps.id),
+        summary: {
+            ownUnits,
+            enemyUnits,
+            supplyRatio,
+            unitRatio: Number(unitRatio.toFixed(2)),
+            underCorePressure,
+        },
+    };
+};
+
+/**
+ * Generate an AI general for a nation
+ * @param {Object} nation - AI nation object
+ * @param {number} epoch - Current epoch
+ * @returns {Object} A pseudo-general object compatible with corpsSystem
+ */
+export const generateAIGeneral = (nation, epoch) => {
+    const GENERAL_TRAIT_IDS = ['aggressive', 'defensive', 'swift', 'inspiring', 'cunning', 'veteran', 'logistics', 'siege_master'];
+    const aggression = nation.aggression ?? 0.3;
+
+    // Trait selection biased by nation personality
+    const traits = [];
+    if (aggression > 0.6) traits.push('aggressive');
+    else if (aggression < 0.3) traits.push('defensive');
+    else traits.push(GENERAL_TRAIT_IDS[Math.floor(Math.random() * GENERAL_TRAIT_IDS.length)]);
+
+    // Maybe add a second trait
+    if (Math.random() < 0.3) {
+        const remaining = GENERAL_TRAIT_IDS.filter(t => !traits.includes(t));
+        traits.push(remaining[Math.floor(Math.random() * remaining.length)]);
+    }
+
+    const baseLevel = 1 + Math.floor(epoch * 0.3) + Math.floor((nation.militaryStrength ?? 1.0) * 2);
+
+    return {
+        id: `ai_gen_${nation.id}_${Date.now()}`,
+        name: `${nation.name}将军`,
+        level: Math.min(baseLevel, 6),
+        experience: 0,
+        traits,
+        assignedCorpsId: null,
+    };
+};
+
+/**
+ * 将领会战提议评估
+ * 将军根据自身特质、军团状态、战线态势综合评估是否提议发起会战
+ * @param {Object} params
+ * @returns {{ shouldPropose: boolean, engagementType: string, confidence: number, reason: string, riskLevel: string }}
+ */
+export const evaluateGeneralBattleProposal = ({
+    general,
+    corps,
+    front,
+    allCorps = [],
+    generals = [],
+    epoch = 0,
+    currentDay = 0,
+}) => {
+    const NO_PROPOSAL = { shouldPropose: false, engagementType: 'probe', confidence: 0, reason: '', riskLevel: 'low' };
+    if (!general || !corps || !front) return NO_PROPOSAL;
+
+    // 冷却检查：将军个人冷却（增大间隔避免频繁提议）
+    const lastProposalDay = general.lastBattleProposalDay || 0;
+    const extraCooldown = general.proposalCooldownDays || 0;
+    const traitIds = general.traits || [];
+    const isAggressive = traitIds.includes('aggressive');
+    const isDefensive = traitIds.includes('defensive');
+    const baseCooldown = isAggressive ? 54 : isDefensive ? 120 : 75;
+    if (currentDay - lastProposalDay < baseCooldown + extraCooldown) return NO_PROPOSAL;
+
+    // 战线全局冷却
+    const lastBattleEndDay = front.lastBattleEndDay || 0;
+    if (currentDay - lastBattleEndDay < 60) return NO_PROPOSAL;
+
+    // 条件门槛
+    const totalUnits = Object.values(corps.units || {}).reduce((s, c) => s + c, 0);
+    if (totalUnits <= 0) return NO_PROPOSAL;
+    const morale = corps.morale ?? 100;
+    if (morale < 40) return NO_PROPOSAL;
+    // 补给检查
+    const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
+    const sideState = front.sideState?.[playerSide] || {};
+    const supplyRatio = sideState.supplyRatio ?? 1;
+    if (supplyRatio < 0.65) return NO_PROPOSAL;
+    // 已有活跃会战
+    if (front.activeBattleId) return NO_PROPOSAL;
+
+    // 敌方兵力估算
+    const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
+    const enemyUnits = front.sideState?.[enemySide]?.deployedUnits || 1;
+
+    // 决策权重计算
+    let weight = 0;
+    // 将军特质加成
+    if (isAggressive) weight += 0.3;
+    if (traitIds.includes('cunning')) weight += 0.15;
+    if (traitIds.includes('swift')) weight += 0.1;
+    if (traitIds.includes('veteran')) weight += 0.05;
+    if (isDefensive) weight -= 0.2;
+    // 兵力比优势
+    const forceRatio = totalUnits / Math.max(1, enemyUnits);
+    weight += (forceRatio - 1) * 0.4;
+    // 补给充裕度
+    weight += (supplyRatio - 0.8) * 0.5;
+    // 士气加成
+    weight += (morale - 60) / 200;
+    // 战线位置（深入敌境更激进）
+    const linePosition = front.linePosition ?? 50;
+    const penetration = playerSide === 'attacker'
+        ? Math.max(0, linePosition - 50) / 50
+        : Math.max(0, 50 - linePosition) / 50;
+    weight += penetration * 0.15;
+
+    // 提议阈值
+    if (weight < 0.3) return NO_PROPOSAL;
+
+    // 交战类型选择
+    let engagementType = 'probe';
+    if (traitIds.includes('siege_master') && penetration > 0.3) {
+        engagementType = 'siege';
+    } else if (isAggressive || forceRatio > 1.5) {
+        engagementType = 'assault';
+    } else if (weight > 0.6) {
+        engagementType = 'assault';
+    }
+
+    // 风险评级
+    let riskLevel = 'low';
+    if (forceRatio < 0.8) riskLevel = 'extreme';
+    else if (forceRatio < 1.0) riskLevel = 'high';
+    else if (supplyRatio < 0.8 || morale < 60) riskLevel = 'medium';
+
+    // 信心
+    const confidence = Math.min(1, Math.max(0, weight));
+
+    // 提议理由
+    const reason = weight > 0.6
+        ? `${general.name}将军强烈建议发起${engagementType === 'siege' ? '攻坚战' : engagementType === 'assault' ? '主力决战' : '试探进攻'}，兵力比${forceRatio.toFixed(1)}:1，补给率${Math.round(supplyRatio * 100)}%。`
+        : `${general.name}将军认为可以尝试${engagementType === 'siege' ? '围城' : engagementType === 'assault' ? '进攻' : '试探'}，但局面仍有不确定性。`;
+
+    return {
+        shouldPropose: true,
+        engagementType,
+        confidence,
+        reason,
+        riskLevel,
+        generalId: general.id,
+        corpsId: corps.id,
+        frontId: front.id,
+        forceRatio: Number(forceRatio.toFixed(2)),
+        supplyRatio: Number(supplyRatio.toFixed(2)),
+    };
+};
+
+/**
+ * Determine what tactic an AI should use based on battle state
+ * @param {Object} battle - Current battle state
+ * @param {'attacker'|'defender'} side - Which side the AI is
+ * @param {Object} nation - AI nation object
+ * @returns {string} Tactic ID
+ */
+export const determineAITactic = (battle, side, nation) => {
+    const sideData = battle[side];
+    const aggression = nation?.aggression ?? 0.3;
+
+    // If morale is very low, consider retreating
+    if (sideData.morale < 25) {
+        return Math.random() < 0.6 ? 'retreat' : 'defensive';
+    }
+
+    // If momentum is heavily against us, go defensive
+    const momentum = battle.momentum;
+    const isAttacker = side === 'attacker';
+    const favorableMomentum = isAttacker ? momentum > 55 : momentum < 45;
+    const unfavorableMomentum = isAttacker ? momentum < 35 : momentum > 65;
+
+    if (unfavorableMomentum) {
+        if (aggression > 0.7) return 'focus_attack'; // Aggressive AI fights harder when losing
+        return 'defensive';
+    }
+
+    if (favorableMomentum && aggression > 0.5) {
+        return 'focus_attack'; // Press the advantage
+    }
+
+    // Default: normal combat
+    return 'normal';
+};
+
+// ========== AI军团多战线调度器 ==========
+
+/**
+ * 将AI国家的有限军团按优先级分配到各活跃战线
+ * 核心理念：多战线劣势不通过debuff实现，而是通过"有限军团在多条战线间分配"自然产生
+ * 
+ * @param {Object} params
+ * @param {Object} params.nation - AI国家对象
+ * @param {Array} params.allCorps - 全部军团数组（含AI和玩家）
+ * @param {Array} params.activeFronts - 所有活跃战线数组
+ * @param {number} params.epoch - 当前时代
+ * @returns {Object} { allocations: { frontId: corpsIds[] }, unallocatedCorps: string[] }
+ */
+export const allocateAICorpsToFronts = ({
+    nation,
+    allCorps = [],
+    activeFronts = [],
+    epoch = 0,
+}) => {
+    if (!nation?.id) return { allocations: {}, unallocatedCorps: [] };
+
+    const nationId = nation.id;
+    const doctrine = AI_DOCTRINES[nation.military?.doctrine] || pickDoctrine(nation, epoch);
+
+    // 1. 获取该AI国家所有可用军团（有兵力且属于该国）
+    const availableCorps = allCorps
+        .filter(c => c?.isAI && c.nationId === nationId && getCorpsTotalUnits(c) > 0)
+        .sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a)); // 按战力降序
+
+    // 2. 获取该AI参与的所有活跃战线
+    const relevantFronts = activeFronts.filter(f =>
+        f?.status === 'active' &&
+        (f.attackerId === nationId || f.defenderId === nationId)
+    );
+
+    if (relevantFronts.length === 0 || availableCorps.length === 0) {
+        return {
+            allocations: {},
+            unallocatedCorps: availableCorps.map(c => c.id),
+        };
+    }
+
+    // 3. 为每条战线评分（优先级）
+    const scoredFronts = relevantFronts.map(front => {
+        const side = front.attackerId === nationId ? 'attacker' : 'defender';
+        const linePos = Number(front.linePosition ?? 50);
+
+        // 核心区威胁权重 ×3
+        let coreThreated = 0;
+        if (side === 'attacker' && linePos < 15) coreThreated = 3;
+        else if (side === 'defender' && linePos > 85) coreThreated = 3;
+
+        // 经济区威胁权重 ×2
+        let econThreated = 0;
+        if (side === 'attacker' && linePos < 35 && linePos >= 15) econThreated = 2;
+        else if (side === 'defender' && linePos > 65 && linePos <= 85) econThreated = 2;
+
+        // 战线得分差权重 ×1（战线偏向敌方越多，我方越安全，优先级越低）
+        const positionScore = side === 'attacker'
+            ? (50 - linePos) / 50  // attacker: linePos越低越危险，得分越高
+            : (linePos - 50) / 50; // defender: linePos越高越危险，得分越高
+
+        // 学说偏好修正
+        let doctrineMod = 0;
+        if (doctrine.id === 'line_breaker' && positionScore < 0) doctrineMod = 0.3; // 突破学说：主动进攻偏好
+        if (doctrine.id === 'siege_attrition' && coreThreated > 0) doctrineMod = 0.5; // 消耗学说：核心受威胁时更重视防守
+
+        const priority = coreThreated + econThreated + Math.max(0, positionScore) + doctrineMod;
+
+        return {
+            frontId: front.id,
+            side,
+            priority,
+            linePos,
+        };
+    });
+
+    // 按优先级降序排列
+    scoredFronts.sort((a, b) => b.priority - a.priority);
+
+    // 4. 分配军团到战线
+    const allocations = {};
+    const assignedCorpsIds = new Set();
+
+    // 第一轮：每条战线至少分1个军团（如果有足够军团）
+    let corpIndex = 0;
+    for (const sf of scoredFronts) {
+        if (corpIndex >= availableCorps.length) break;
+        allocations[sf.frontId] = [availableCorps[corpIndex].id];
+        assignedCorpsIds.add(availableCorps[corpIndex].id);
+        corpIndex++;
+    }
+
+    // 第二轮：剩余军团按优先级分配给高优先级战线
+    while (corpIndex < availableCorps.length) {
+        // 找到当前军团最少的高优先级战线
+        let bestFrontId = scoredFronts[0]?.frontId;
+        let minCorps = Infinity;
+        for (const sf of scoredFronts) {
+            const count = (allocations[sf.frontId] || []).length;
+            // 优先级加权：高优先级战线更容易获得额外军团
+            const weightedCount = count - sf.priority * 0.5;
+            if (weightedCount < minCorps) {
+                minCorps = weightedCount;
+                bestFrontId = sf.frontId;
+            }
+        }
+        if (!bestFrontId) break;
+        if (!allocations[bestFrontId]) allocations[bestFrontId] = [];
+        allocations[bestFrontId].push(availableCorps[corpIndex].id);
+        assignedCorpsIds.add(availableCorps[corpIndex].id);
+        corpIndex++;
+    }
+
+    // 未分配的军团（理论上不应该有，除非没有活跃战线）
+    const unallocatedCorps = availableCorps
+        .filter(c => !assignedCorpsIds.has(c.id))
+        .map(c => c.id);
+
+    return { allocations, unallocatedCorps };
+};
+
+/**
+ * 执行AI军团调度结果：更新军团的 assignedFrontId 和 frontTask
+ * @param {Object} params
+ * @param {Object} params.allocations - allocateAICorpsToFronts 的返回结果
+ * @param {Array} params.allCorps - 全部军团数组（将被修改）
+ * @param {Object} params.nation - AI国家对象
+ * @param {number} params.epoch - 当前时代
+ * @returns {Array} 更新后的军团数组
+ */
+export const applyAICorpsAllocation = ({
+    allocations = {},
+    allCorps = [],
+    nation,
+    epoch = 0,
+}) => {
+    const nationId = nation?.id;
+    if (!nationId) return allCorps;
+
+    const doctrine = AI_DOCTRINES[nation.military?.doctrine] || pickDoctrine(nation, epoch);
+
+    // 构建 corpsId -> frontId 的反向映射
+    const corpsToFront = {};
+    for (const [frontId, corpsIds] of Object.entries(allocations)) {
+        (corpsIds || []).forEach((cId, idx) => {
+            corpsToFront[cId] = { frontId, taskIndex: idx };
+        });
+    }
+
+    return allCorps.map(corps => {
+        if (!corps?.isAI || corps.nationId !== nationId) return corps;
+
+        const assignment = corpsToFront[corps.id];
+        if (assignment) {
+            return {
+                ...corps,
+                assignedFrontId: assignment.frontId,
+                frontTask: doctrine.preferredTasks[assignment.taskIndex % doctrine.preferredTasks.length] || 'assault',
+                status: 'deployed',
+            };
+        } else {
+            // 未被分配的军团设为idle
+            return {
+                ...corps,
+                assignedFrontId: null,
+                frontTask: 'reserve',
+                status: 'idle',
+            };
+        }
+    });
+};
+
 

@@ -77,7 +77,7 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h2 className="text-base font-bold text-white leading-tight font-decorative">{currentStepData.title}</h2>
-                                    <p className="text-[10px] text-gray-400 leading-tight font-sans">
+                                    <p className="text-xs text-gray-400 leading-tight font-sans">
                                         步骤 {currentStep + 1} / {tutorialSteps.length}
                                     </p>
                                 </div>
@@ -206,7 +206,7 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
 
             {step.wikiPrompt && (
                 <div className="bg-indigo-900/30 border border-indigo-500/40 p-2 rounded-lg space-y-2">
-                    <p className="text-indigo-200 flex items-center gap-1.5 text-[10px] leading-tight">
+                    <p className="text-indigo-200 flex items-center gap-1.5 text-xs leading-tight">
                         <Icon name="BookOpen" size={14} className="text-indigo-300" />
                         {step.wikiPrompt.text}
                     </p>
@@ -214,7 +214,7 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
                         <button
                             type="button"
                             onClick={onOpenWiki}
-                            className="px-3 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500/50 text-[10px] font-semibold text-indigo-100 hover:bg-indigo-600/50 transition-colors flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500/50 text-xs font-semibold text-indigo-100 hover:bg-indigo-600/50 transition-colors flex items-center gap-1.5"
                         >
                             <Icon name="Book" size={14} />
                             {step.wikiPrompt.buttonLabel || '查看百科'}

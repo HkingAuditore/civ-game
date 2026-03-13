@@ -14,6 +14,7 @@ import { debugLog } from '../../utils/debugFlags.js';
 import { getMaxUpgradeLevel, getUpgradeCost, getBuildingEffectiveConfig } from '../../config/buildingUpgrades.js';
 import { VASSAL_TYPE_CONFIGS, TRADE_POLICY_DEFINITIONS, getLaborWageMultiplier } from '../../config/diplomacy.js';
 import { getTreatyEffects } from './treatyEffects.js';
+import { BUILDING_CATEGORY_INDEX } from './foreignEconomy.js';
 
 // ===== 配置常量 =====
 
@@ -681,6 +682,11 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 
     const strategy = investment.strategy || 'PROFIT_MAX';
     const transportRate = OVERSEAS_INVESTMENT_CONFIGS.config.transportCostRate;
+    const buildingCategory = BUILDING_CATEGORY_INDEX[building.id] || building.cat || 'industry';
+    const staffingFactor = Math.max(0.2, Math.min(1, Number(targetNation?.virtualEconomy?.staffingFactorByCategory?.[buildingCategory] ?? targetNation?.virtualLabor?.employmentRate ?? 1)));
+    const inputFactor = Math.max(0.25, Math.min(1, Number(targetNation?.virtualEconomy?.inputFactorByCategory?.[buildingCategory] ?? 1)));
+    const warFactor = Math.max(0.35, Math.min(1, Number(targetNation?.virtualEconomy?.warFactorByCategory?.[buildingCategory] ?? 1)));
+    const operatingFactor = Math.max(0.15, Math.min(1, staffingFactor * inputFactor * warFactor));
     const {
         taxPolicies = {},
         organizations = [],
@@ -735,10 +741,11 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 
     // 1. 计算投入成本 & 自动决策来源
     Object.entries(building.input || {}).forEach(([res, amount]) => {
+        const effectiveAmount = amount * operatingFactor;
         const localPrice = getNationPrice(res);
         const homePrice = getHomePrice(res);
         const importTariffType = playerIsHome ? 'export' : 'import';
-        const importTariff = getTariffCost(res, amount, homePrice, importTariffType);
+        const importTariff = getTariffCost(res, effectiveAmount, homePrice, importTariffType);
         const importCost = homePrice * (1 + transportRate) + importTariff;
 
         let useLocal = true;
@@ -758,21 +765,21 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 
         if (useLocal) {
             // 当地采购
-            const localInventory = getNationInventory(res, amount);
-            if (localInventory < amount) inputAvailable = false;
+            const localInventory = getNationInventory(res, effectiveAmount);
+            if (localInventory < effectiveAmount) inputAvailable = false;
 
-            inputCost += amount * localPrice;
+            inputCost += effectiveAmount * localPrice;
 
             if (inputAvailable) {
-                localResourceChanges[res] = (localResourceChanges[res] || 0) - amount;
+                localResourceChanges[res] = (localResourceChanges[res] || 0) - effectiveAmount;
             }
         } else {
             // 国内进口
-            const baseInput = amount * homePrice;
+            const baseInput = effectiveAmount * homePrice;
             inputCost += baseInput;
             transportCost += baseInput * transportRate; // 运费
             recordTariff(importTariff);
-            playerResourceChanges[res] = (playerResourceChanges[res] || 0) - amount;
+            playerResourceChanges[res] = (playerResourceChanges[res] || 0) - effectiveAmount;
         }
     });
 
@@ -784,11 +791,12 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     let outputValue = 0;
     Object.entries(building.output || {}).forEach(([res, amount]) => {
         if (res === 'maxPop' || res === 'militaryCapacity') return;
+        const effectiveAmount = amount * operatingFactor;
 
         const localPrice = getNationPrice(res);
         const homePrice = getHomePrice(res);
         const exportTariffType = playerIsHome ? 'import' : 'export';
-        const exportTariff = getTariffCost(res, amount, localPrice, exportTariffType);
+        const exportTariff = getTariffCost(res, effectiveAmount, localPrice, exportTariffType);
         const exportNetValue = homePrice * (1 - transportRate) - exportTariff;
 
         let sellLocal = true;
@@ -808,22 +816,22 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 
         if (sellLocal) {
             // 当地销售
-            outputValue += amount * localPrice;
-            localResourceChanges[res] = (localResourceChanges[res] || 0) + amount;
+            outputValue += effectiveAmount * localPrice;
+            localResourceChanges[res] = (localResourceChanges[res] || 0) + effectiveAmount;
         } else {
             // 运回国内
-            const grossValue = amount * homePrice;
+            const grossValue = effectiveAmount * homePrice;
             const transport = grossValue * transportRate;
 
             outputValue += (grossValue - transport); // 净收入
             transportCost += transport;
             recordTariff(exportTariff);
-            playerResourceChanges[res] = (playerResourceChanges[res] || 0) + amount;
+            playerResourceChanges[res] = (playerResourceChanges[res] || 0) + effectiveAmount;
         }
     });
 
     // 3. 计算工资
-    const { total: wageCost, breakdown: wageBreakdown } = calculateVassalWageCost(building, targetNation);
+    const { total: wageCost, breakdown: wageBreakdown } = calculateVassalWageCost(building, targetNation, operatingFactor);
 
     // 4. [FIX] 计算营业税成本（与 simulation.js 保持一致）
     // 外资企业也需要向当地政府缴纳营业税，和国内业主一样
@@ -847,6 +855,10 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
         tariffRevenue,
         tariffSubsidy,
         profit,
+        staffingFactor,
+        inputFactor,
+        warFactor,
+        operatingFactor,
         inputAvailable: true,
         localResourceChanges,
         playerResourceChanges,
@@ -875,13 +887,15 @@ const STRATUM_EXPECTATIONS = {
  * @param {Object} nation - 目标国家
  * @returns {Object} - { total: 工资成本, breakdown: 明细 }
  */
-function calculateVassalWageCost(building, nation) {
+function calculateVassalWageCost(building, nation, operatingFactor = 1) {
     if (!building.jobs) return { total: 0, breakdown: [] };
 
     // 从附庸政策获取劳工工资修正
     const laborPolicy = nation?.vassalPolicy?.labor || 'standard';
     // Use centralized config for wage multiplier
     const laborWageMultiplier = getLaborWageMultiplier(laborPolicy);
+    const wagePressure = Math.max(0.75, Math.min(1.45, Number(nation?.virtualLabor?.wagePressure ?? 1)));
+    const employmentRate = Math.max(0.2, Math.min(1, Number(nation?.virtualLabor?.employmentRate ?? 0.7)));
 
     let totalWage = 0;
     const wageBreakdown = [];
@@ -938,8 +952,8 @@ function calculateVassalWageCost(building, nation) {
 
         // 4. 综合计算单人日工资
         // Final Wage = Base * Supply * Policy
-        const wagePerWorker = baseWage * supplyFactor * laborWageMultiplier;
-        const totalStratumWage = count * wagePerWorker;
+        const wagePerWorker = baseWage * supplyFactor * laborWageMultiplier * wagePressure * (0.92 + employmentRate * 0.16);
+        const totalStratumWage = count * Math.max(0.15, operatingFactor) * wagePerWorker;
 
         totalWage += totalStratumWage;
         wageBreakdown.push({

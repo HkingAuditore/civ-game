@@ -100,7 +100,7 @@ export const OFFICIAL_EFFECT_TYPES = {
 
     // 税收收入加成
     income_percent: {
-        type: 'incomePercent',
+        type: 'taxIncome',
         category: 'economy',
         valueRange: [0.06, 0.22], // 大幅提升
         weight: 12,
@@ -1252,7 +1252,7 @@ const PERCENT_EFFECT_TYPES = new Set([
     'taxEfficiency',
     'buildingCostMod',
     'productionInputCost',
-    'incomePercent',
+    'taxIncome',
     'passivePercent',
     'stratumDemandMod',
     'resourceDemandMod',
@@ -1283,7 +1283,7 @@ const VALUE_SCALE_BASELINE = 180;
 const GLOBAL_VALUE_SCALE_BASELINE = 320;
 
 const GLOBAL_VALUE_SCALE_TYPES = new Set([
-    'incomePercent',
+    'taxIncome',
     'taxEfficiency',
     'tradeBonus',
     'buildingCostMod',
@@ -1297,7 +1297,7 @@ const GLOBAL_VALUE_SCALE_TYPES = new Set([
 // 效果类型权重：调整为更均衡的数值，避免某些效果估值过高
 const EFFECT_TYPE_WEIGHTS = {
     // 经济类：高价值但不要太极端
-    incomePercent: 1.4,      // 降低：税收收入
+    taxIncome: 1.4,      // 降低：税收收入
     taxEfficiency: 1.3,      // 降低：税收效率
     tradeBonus: 1.2,         // 降低：贸易利润
 
@@ -1414,7 +1414,7 @@ const normalizeEffectScore = (effect, market, rates) => {
     // valueScale：只对全局性效果应用，且影响更小
     if (rates) {
         // 只对真正的全局经济效果应用 valueScale
-        if (effect.type === 'incomePercent' || effect.type === 'taxEfficiency' ||
+        if (effect.type === 'taxIncome' || effect.type === 'taxEfficiency' ||
             effect.type === 'tradeBonus' || effect.type === 'categories') {
             const silverRate = Math.abs(rates.silver || 0);
             valueScale = getValueScale(silverRate, GLOBAL_VALUE_SCALE_BASELINE);
@@ -1682,7 +1682,88 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         stanceConditionText: stanceResult.conditionText,
         stanceActiveEffects: stanceResult.activeEffects,
         stanceUnsatisfiedPenalty: stanceResult.unsatisfiedPenalty,
+        // 逐官员产业政策（默认私产制）
+        propertyPolicy: 'private',
+        lastPolicyChangeDay: -999,
     };
+};
+
+// ========== 产业政策配置 ==========
+// 逐官员产业管理模式：每个官员可独立设置为以下三种之一
+// 通过 official.propertyPolicy 字段指定（默认 'private'）
+export const PROPERTY_POLICY_CONFIG = {
+    private: {
+        id: 'private',
+        name: '私产制',
+        description: '官员可自由置办产业，利润归个人所有',
+        salaryMultiplier: 1.0,      // 薪资倍率
+        investmentAllowed: true,     // 是否允许投资
+        profitToState: 0,           // 利润归国比例
+        corruptionBase: 0,          // 基础腐败率（通过FINANCIAL_STATUS现有机制）
+        loyaltyMod: { financialWeight: 1.5 },  // 财务因素对忠诚度影响加权
+        switchCooldown: 90,         // 该官员切换政策后的冷却天数
+    },
+    high_salary: {
+        id: 'high_salary',
+        name: '高薪养廉',
+        description: '禁止官员置办产业，以高薪补偿',
+        salaryMultiplier: 1.6,
+        investmentAllowed: false,
+        profitToState: 0,
+        corruptionBase: -0.02,      // 降低腐败
+        loyaltyMod: { salaryWeight: 2.0 },
+        switchCooldown: 90,
+    },
+    state_managed: {
+        id: 'state_managed',
+        name: '代经营制',
+        description: '官员代为经营国有产业，按能力获取管理费',
+        salaryMultiplier: 1.0,
+        investmentAllowed: true,    // 国库出资，官员经营
+        profitToState: 1.0,        // 利润全归国库（减去管理费和腐败）
+        corruptionBase: 0.02,      // 代经营有基础腐败
+        loyaltyMod: { administrativeWeight: 1.5 },
+        switchCooldown: 90,
+    },
+};
+
+// 单个官员产业政策切换时的政治后果配置
+// loyaltyPenalty 仅影响当事官员本人
+export const POLICY_TRANSITION_EFFECTS = {
+    // 从私产制切换到其他模式
+    from_private: {
+        to_high_salary: {
+            loyaltyPenalty: -15,      // 当事官员忠诚度惩罚
+            rightLoyaltyExtra: -10,   // 右派官员额外惩罚
+            confiscationOptions: ['compensate', 'force'], // 没收方式
+            compensateRate: 0.5,      // 补偿价格 = 购入价 * 50%
+        },
+        to_state_managed: {
+            loyaltyPenalty: -8,
+            rightLoyaltyExtra: -5,
+            // 产业产权转为STATE，官员改为代管人
+        },
+    },
+    // 从高薪养廉切换
+    from_high_salary: {
+        to_private: {
+            loyaltyPenalty: -5,
+            leftLoyaltyExtra: -10,    // 左派官员额外惩罚
+        },
+        to_state_managed: {
+            loyaltyPenalty: -3,
+        },
+    },
+    // 从代经营制切换
+    from_state_managed: {
+        to_private: {
+            loyaltyPenalty: -8,
+            leftLoyaltyExtra: -8,
+        },
+        to_high_salary: {
+            loyaltyPenalty: -5,
+        },
+    },
 };
 
 /**

@@ -75,7 +75,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                 <p className="text-xs text-gray-300 mb-2">{building.desc}</p>
 
                 {building.owner && (
-                    <div className="text-[10px] text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded px-2 py-1 mb-2 inline-flex items-center gap-1">
+                    <div className="text-xs text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded px-2 py-1 mb-2 inline-flex items-center gap-1">
                         <Icon name="User" size={10} className="text-yellow-300" />
                         业主: {STRATA[building.owner]?.name || building.owner}
                     </div>
@@ -83,7 +83,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
 
                 {cost && Object.keys(cost).length > 0 && (
                     <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
-                        <div className="text-[10px] text-gray-300 mb-1">下一个建造成本</div>
+                        <div className="text-xs text-gray-300 mb-1">下一个建造成本</div>
                         {Object.entries(cost).map(([res, val]) => {
                             const hasEnough = (resources[res] || 0) >= val;
                             const displayVal = Number.isFinite(val)
@@ -107,7 +107,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                     if (Object.keys(unlockedOutput).length === 0 && Object.keys(unlockedInput).length === 0) return null;
                     return (
                         <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
-                            <div className="text-[10px] text-gray-300 mb-1">资源流/个</div>
+                            <div className="text-xs text-gray-300 mb-1">资源流/个</div>
                             {Object.entries(unlockedOutput).map(([res, val]) => (
                                 <div key={`out-${res}`} className="flex justify-between">
                                     <span className="text-gray-200">{RESOURCES[res]?.name || res}</span>
@@ -126,7 +126,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
 
                 {building.jobs && (
                     <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
-                        <div className="text-[10px] text-gray-300 mb-1">岗位</div>
+                        <div className="text-xs text-gray-300 mb-1">岗位</div>
                         {Object.entries(building.jobs).map(([job, perBuilding]) => {
                             // 优化：业主岗位使用预计算的值，避免重复遍历
                             let required = perBuilding * count;
@@ -137,11 +137,11 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                             const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
                             return (
                                 <div key={job} className="mb-1.5">
-                                    <div className="flex justify-between text-[11px] text-gray-300">
+                                    <div className="flex justify-between text-xs text-gray-300">
                                         <span className="text-gray-200 font-semibold">{STRATA[job]?.name || job}</span>
                                         <span className="font-mono text-gray-200">{Math.round(assigned)}/{Math.round(required)}</span>
                                     </div>
-                                    <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                                    <div className="flex justify-between text-xs text-gray-500 mb-0.5">
                                         <span>每栋 {perBuilding}</span>
                                         <span>总计 {Math.round(required)}</span>
                                     </div>
@@ -150,7 +150,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                         })}
                     </div>
                 )}
-                <div className="text-[10px] text-center text-gray-400 pt-1 border-t border-gray-700">点击查看完整数据与交互</div>
+                <div className="text-xs text-center text-gray-400 pt-1 border-t border-gray-700">点击查看完整数据与交互</div>
             </div>
         </div>,
         document.body
@@ -228,14 +228,14 @@ const CompactBuildingCard = ({
                     <VisualIcon name={building.visual.icon} size={14} className={`${building.visual.text} icon-metal`} />
                 </div>
                 <div className="flex flex-col items-center">
-                    <h4 className="text-[12px] font-bold text-ancient-parchment leading-tight truncate max-w-[70px]">{building.name}</h4>
-                    {count > 0 && <p className="text-[10px] font-bold text-ancient-gold">×{formatNumberShortCN(count, { decimals: 0 })}</p>}
+                    <h4 className="text-[12px] font-bold text-ancient-parchment leading-tight truncate max-w-[100px]">{building.name}</h4>
+                    {count > 0 && <p className="text-xs font-bold text-ancient-gold">×{formatNumberShortCN(count, { decimals: 0 })}</p>}
                 </div>
             </div>
 
             {/* 岗位饱和度与资源总览 - 仅在有建筑时显示，且更紧凑 */}
             {count > 0 && (
-                <div className="space-y-0.5 text-[9px] my-1">
+                <div className="space-y-0.5 text-xs my-1">
                     {/* 岗位饱和度 - 只显示进度条，不显示标签 */}
                     {building.jobs && Object.keys(building.jobs).length > 0 && (
                         <div className="bg-gray-900/40 rounded px-1 py-0.5">
@@ -253,7 +253,7 @@ const CompactBuildingCard = ({
                                         <div className="flex-1 bg-gray-700 rounded-full h-1">
                                             <div className="h-1 rounded-full bg-green-500" style={{ width: `${fillPercent}%` }}></div>
                                         </div>
-                                        <span className="font-mono text-[8px] text-gray-300 whitespace-nowrap">{formatNumberShortCN(assigned, { decimals: 0 })}/{formatNumberShortCN(required, { decimals: 0 })}</span>
+                                        <span className="font-mono text-xs text-gray-300 whitespace-nowrap">{formatNumberShortCN(assigned, { decimals: 0 })}/{formatNumberShortCN(required, { decimals: 0 })}</span>
                                     </div>
                                 );
                             })}
@@ -270,7 +270,7 @@ const CompactBuildingCard = ({
                                         return (
                                             <div key={res} className="flex items-center gap-0.5 text-green-300" title={`${RESOURCES[res]?.name} - 单个产出: ${val} / 实际总产出: ${actualTotalOutput.toFixed(1)}`}>
                                                 <Icon name={RESOURCES[res]?.icon || 'Box'} size={8} />
-                                                <span className="font-mono text-[9px]">+{formatNumberShortCN(actualTotalOutput, { decimals: 0 })}</span>
+                                                <span className="font-mono text-xs">+{formatNumberShortCN(actualTotalOutput, { decimals: 0 })}</span>
                                             </div>
                                         );
                                     })}
@@ -286,7 +286,7 @@ const CompactBuildingCard = ({
                 <button
                     onClick={(e) => { e.stopPropagation(); onBuy(building.id); }}
                     disabled={!affordable}
-                    className={`w-full px-1 py-0.5 rounded text-[10px] font-semibold transition-all ${affordable
+                    className={`w-full px-1 py-0.5 rounded text-xs font-semibold transition-all ${affordable
                         ? 'bg-green-600/80 hover:bg-green-500 text-white'
                         : 'bg-gray-700/60 text-gray-400 cursor-not-allowed'
                         } flex items-center justify-center gap-0.5`}
@@ -300,7 +300,7 @@ const CompactBuildingCard = ({
                 {count > 0 && (
                     <button
                         onClick={(e) => { e.stopPropagation(); onSell(building.id); }}
-                        className="w-full px-1 py-0.5 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] font-semibold transition-all flex items-center justify-center gap-0.5"
+                        className="w-full px-1 py-0.5 bg-red-600/80 hover:bg-red-500 text-white rounded text-xs font-semibold transition-all flex items-center justify-center gap-0.5"
                         title="拆除"
                     >
                         <Icon name="Minus" size={8} />
@@ -961,7 +961,7 @@ const BuildTabComponent = ({
                             e.stopPropagation();
                             toggleChainExpand(chainId);
                         }}
-                        className={`absolute top-[7%] -right-2 z-30 flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[9px] font-bold transition-all border shadow-md ${isExpanded
+                        className={`absolute top-[7%] -right-2 z-30 flex items-center gap-0.5 px-1.5 py-1 rounded-full text-xs font-bold transition-all border shadow-md ${isExpanded
                             ? 'bg-ancient-gold text-gray-900 border-ancient-gold'
                             : 'bg-gray-800 text-ancient-gold border-ancient-gold/50 hover:bg-gray-700'
                             }`}
@@ -1162,7 +1162,7 @@ const BuildTabComponent = ({
                         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name={catInfo.icon} size={16} className={catInfo.color} />
                             {catInfo.name}
-                            <span className="inline-flex items-center gap-1 text-[11px] font-normal text-gray-400">
+                            <span className="inline-flex items-center gap-1 text-xs font-normal text-gray-400">
                                 <Icon name="Users" size={12} className="text-gray-400" />
                                 {formatNumberShortCN(Math.round(categoryWorkers), { decimals: 1 })}
                             </span>

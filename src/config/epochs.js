@@ -93,7 +93,7 @@ export const EPOCHS = [
             cultureBonus: 0.40,
             scienceBonus: 0.50,
             industryBonus: 0.60,
-            incomePercent: 0.50 // +50% total income
+            taxIncome: 0.50 // +50% total income
         }
     },
     {
@@ -134,20 +134,56 @@ export const EPOCHS = [
     },
     {
         id: 7,
-        name: "信息时代",
-        color: "text-green-400",
-        bg: "bg-green-950",
-        tileColor: "bg-green-800",
-        req: { science: 35000, population: 1000, culture: 8000 },
-        cost: { food: 2000000, tools: 300000, silver: 250000, spice: 80000, papyrus: 100000, science: 35000 },
+        name: "电气时代",
+        color: "text-sky-400",
+        bg: "bg-sky-950",
+        tileColor: "bg-sky-800",
+        req: { science: 30000, population: 800, culture: 6000 },
+        cost: { silver: 5000, steel: 50, coal: 100 },
         bonuses: {
-            desc: "数字革命改变世界，知识和信息成为核心生产力。",
-            gatherBonus: 3.00,
+            desc: "电力驱动的第二次工业革命。石油化工、电力传输、汽车制造标志着新纪元的到来。",
+            gatherBonus: 2.20,
+            militaryBonus: 0.70,
+            cultureBonus: 1.00,
+            scienceBonus: 1.50,
+            industryBonus: 2.50,
+            taxIncome: 0.30
+        }
+    },
+    {
+        id: 8,
+        name: "原子时代",
+        color: "text-violet-400",
+        bg: "bg-violet-950",
+        tileColor: "bg-violet-800",
+        req: { science: 50000, population: 1200, culture: 12000 },
+        cost: { silver: 10000, oil: 80, wiring: 30, chemicals: 20 },
+        bonuses: {
+            desc: "核能释放、电子革命、塑料帝国。人类文明进入超级工业化阶段。",
+            gatherBonus: 2.80,
             militaryBonus: 0.80,
-            cultureBonus: 1.50,
-            scienceBonus: 3.00,
-            industryBonus: 3.00,
-            incomePercent: 0.40  // [FIX] 从1.00降低到0.40，防止税收异常翻倍（原值导致2倍税收）
+            cultureBonus: 1.30,
+            scienceBonus: 2.50,
+            industryBonus: 3.50,
+            taxIncome: 0.35
+        }
+    },
+    {
+        id: 9,
+        name: "信息时代",
+        color: "text-cyan-400",
+        bg: "bg-cyan-950",
+        tileColor: "bg-cyan-800",
+        req: { science: 80000, population: 1800, culture: 22000 },
+        cost: { silver: 20000, electronics: 15, plastics: 20, aluminum: 10 },
+        bonuses: {
+            desc: "硅片上的文明。半导体、互联网和可再生能源重塑人类社会。",
+            gatherBonus: 3.50,
+            militaryBonus: 0.90,
+            cultureBonus: 1.60,
+            scienceBonus: 4.00,
+            industryBonus: 5.00,
+            taxIncome: 0.40
         }
     }
 ];

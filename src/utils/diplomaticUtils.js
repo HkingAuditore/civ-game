@@ -85,9 +85,10 @@ export function calculateProvokeCost(playerWealth, targetNationWealth) {
  * @param {number} targetWealth - 目标国家财富
  * @param {'demanding'|'offering'} mode - 索赔还是求和
  * @param {number} playerTotalWarExpense - 玩家战争期间总军费支出（可选）
+ * @param {number} frontDamageScore - [NEW] 战线设施破坏评分（0~1），越高赔款越多
  * @returns {Object} { high, standard, low } 三档赔款金额
  */
-export function calculatePeacePayment(warScore, enemyLosses, warDuration, targetWealth, mode = 'demanding', playerTotalWarExpense = 0) {
+export function calculatePeacePayment(warScore, enemyLosses, warDuration, targetWealth, mode = 'demanding', playerTotalWarExpense = 0, frontDamageScore = 0) {
     const absScore = Math.abs(warScore || 0);
     const losses = enemyLosses || 0;
     const duration = warDuration || 0;
@@ -108,13 +109,15 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
     const durationComponent = duration * 25;
     // 军费贡献：战争期间总军费的30%可以作为赔款索取
     const expenseComponent = warExpense * 0.3;
+    // [NEW] 战线设施破坏贡献：破坏程度越高，赔款越多（最多增加30%）
+    const frontDamageMod = 1 + Math.min(0.3, frontDamageScore * 0.3);
 
-    const rawHigh = Math.ceil(scoreComponent + lossComponent + durationComponent + expenseComponent);
+    const rawHigh = Math.ceil((scoreComponent + lossComponent + durationComponent + expenseComponent) * frontDamageMod);
     const rawStandard = Math.ceil(
-        absScore * coef.standard + losses * 50 + duration * 18 + warExpense * 0.2
+        (absScore * coef.standard + losses * 50 + duration * 18 + warExpense * 0.2) * frontDamageMod
     );
     const rawLow = Math.ceil(
-        absScore * coef.low + losses * 35 + duration * 12 + warExpense * 0.1
+        (absScore * coef.low + losses * 35 + duration * 12 + warExpense * 0.1) * frontDamageMod
     );
 
     // 添加基于敌方财富的保底赔款 - [NERFED] 降低比例以防止银币溢出

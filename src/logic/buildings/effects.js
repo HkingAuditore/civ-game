@@ -22,7 +22,7 @@ export const initializeBonuses = () => ({
     passiveGains: {},
     passivePercentGains: {},     // NEW: Percentage-based passive resource modifiers
     perPopPassiveGains: {},      // NEW: { resource: amountPerPopulation }
-    incomePercentBonus: 0,       // NEW: percentage bonus to silver income
+    incomePercentBonus: 0,       // DEPRECATED: 已迁移到 taxBonus，保留字段以兼容旧存档
     decreeResourceDemandMod: {},
     decreeStratumDemandMod: {},
     decreeResourceSupplyMod: {},
@@ -34,11 +34,14 @@ export const initializeBonuses = () => ({
     industryBonus: 0,
     taxBonus: 0,
     needsReduction: 0,
+    approvalEffects: {},
+    organizationGrowthMod: 0,
     // 新增：庆典/科技/政令的特殊加成
     stabilityBonus: 0,      // 稳定度加成
     scienceBonus: 0,        // 科研产出加成
     cultureBonus: 0,        // 文化产出加成
-    militaryBonus: 0        // 军事力量加成
+    militaryBonus: 0,        // 军事力量加成
+    virtualTaxIncome: 0,     // Virtual tax income from ideologies (phantom silver)
 });
 
 /**
@@ -133,6 +136,18 @@ export const applyEffects = (effects, bonuses) => {
     if (effects.needsReduction) {
         bonuses.needsReduction += effects.needsReduction;
     }
+    if (effects.approval) {
+        Object.entries(effects.approval).forEach(([stratumKey, amount]) => {
+            if (typeof amount !== 'number') return;
+            bonuses.approvalEffects[stratumKey] = (bonuses.approvalEffects[stratumKey] || 0) + amount;
+        });
+    }
+    if (typeof effects.organizationGrowthMod === 'number') {
+        bonuses.organizationGrowthMod += effects.organizationGrowthMod;
+    }
+    if (typeof effects.organizationDecay === 'number') {
+        bonuses.organizationGrowthMod += effects.organizationDecay;
+    }
     // 新增：处理庆典的特殊加成效果
     if (effects.stability) {
         bonuses.stabilityBonus += effects.stability;
@@ -194,9 +209,9 @@ export const applyEffects = (effects, bonuses) => {
         });
     }
 
-    // NEW: Income percentage bonus (percentage of total silver income)
-    if (typeof effects.incomePercent === 'number') {
-        bonuses.incomePercentBonus += effects.incomePercent;
+    // [MIGRATED] incomePercent → taxIncome，统一累加到 taxBonus
+    if (typeof effects.taxIncome === 'number') {
+        bonuses.taxBonus += effects.taxIncome;
     }
 };
 
@@ -232,19 +247,6 @@ export const applyDecreeEffects = (decrees, bonuses) => {
         }
 
         applyEffects(decree.modifiers, bonuses);
-    });
-};
-
-/**
- * Apply festival effects
- * @param {Array} activeFestivalEffects - List of active festival effects
- * @param {Object} bonuses - Bonus structures to modify
- */
-export const applyFestivalEffects = (activeFestivalEffects, bonuses) => {
-    if (!Array.isArray(activeFestivalEffects)) return;
-    activeFestivalEffects.forEach(festivalEffect => {
-        if (!festivalEffect || !festivalEffect.effects) return;
-        applyEffects(festivalEffect.effects, bonuses);
     });
 };
 

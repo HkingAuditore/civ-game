@@ -50,7 +50,7 @@ const calculateCoalitionChangeCost = (currentSilver) => {
 /**
  * 执政联盟面板
  */
-export const CoalitionPanel = ({
+export const CoalitionPanel = React.memo(({
     rulingCoalition = [],
     onUpdateCoalition,
     classInfluence = {},
@@ -190,7 +190,7 @@ export const CoalitionPanel = ({
                 )}
                 {disabledReason && (
                     <div className="absolute top-1 right-1">
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-gray-800/80 text-gray-400">
+                        <span className="text-xs px-1 py-0.5 rounded bg-gray-800/80 text-gray-400">
                             {disabledReason}
                         </span>
                     </div>
@@ -201,7 +201,7 @@ export const CoalitionPanel = ({
                         {stratum.name}
                     </span>
                 </div>
-                <div className="flex justify-between text-[10px] text-gray-500">
+                <div className="flex justify-between text-xs text-gray-500">
                     <span>影响力 {influenceShare}%</span>
                     <span>{formatNumberShortCN(Math.round(population), { decimals: 0 })}人</span>
                 </div>
@@ -215,7 +215,7 @@ export const CoalitionPanel = ({
 
         return (
             <div key={groupKey} className="mb-3">
-                <h5 className="text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                <h5 className="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
                     {group.name}
                 </h5>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
@@ -273,7 +273,7 @@ export const CoalitionPanel = ({
                         </button>
                     </div>
                     {!canAffordChange && (
-                        <div className="mt-1 text-[10px] text-red-400">
+                        <div className="mt-1 text-xs text-red-400">
                             银币不足！需要至少 {formatNumberShortCN(changeCost, { decimals: 1 })} 银币
                         </div>
                     )}
@@ -309,7 +309,7 @@ export const CoalitionPanel = ({
                         </div>
                     </div>
                     {!hasChanges && (
-                        <div className="mt-1 text-[10px] text-gray-400">
+                        <div className="mt-1 text-xs text-gray-400">
                             点击下方阶层卡片来添加或移除联盟成员
                         </div>
                     )}
@@ -327,24 +327,24 @@ export const CoalitionPanel = ({
                                 <span className="ml-2 text-xs text-amber-400 font-normal">(预览)</span>
                             )}
                         </div>
-                        <div className="text-[10px] text-gray-500">
+                        <div className="text-xs text-gray-500">
                             {governmentType.description}
                         </div>
                     </div>
                     {displayCoalition.length > 0 && (
-                        <div className="text-[10px] text-gray-500 bg-gray-900/50 px-1.5 py-0.5 rounded">
+                        <div className="text-xs text-gray-500 bg-gray-900/50 px-1.5 py-0.5 rounded">
                             {displayCoalition.length}个阶层
                         </div>
                     )}
                 </div>
                 {polityEffects.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-gray-700/50">
-                        <div className="text-[9px] text-gray-500 mb-1">政体效果</div>
+                        <div className="text-xs text-gray-500 mb-1">政体效果</div>
                         <div className="flex flex-wrap gap-1">
                             {polityEffects.map((effect, idx) => (
                                 <div
                                     key={idx}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded ${effect.positive
+                                    className={`text-xs px-1.5 py-0.5 rounded ${effect.positive
                                         ? 'bg-green-900/30 text-green-400 border border-green-700/30'
                                         : 'bg-red-900/30 text-red-400 border border-red-700/30'
                                         }`}
@@ -360,7 +360,7 @@ export const CoalitionPanel = ({
             {/* 合法性说明 */}
             <div className="mb-2 p-2 bg-gray-900/30 rounded-lg">
                 <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[11px] text-gray-400">联盟影响力</span>
+                    <span className="text-xs text-gray-400">联盟影响力</span>
                     <span className={`text-sm font-bold ${coalitionInfluenceShare >= LEGITIMACY_THRESHOLD ? 'text-green-400' : 'text-red-400'}`}>
                         {(coalitionInfluenceShare * 100).toFixed(1)}%
                         {isEditMode && hasChanges && <span className="ml-1 text-amber-400 text-xs font-normal">(预览)</span>}
@@ -376,7 +376,7 @@ export const CoalitionPanel = ({
                         style={{ left: `${LEGITIMACY_THRESHOLD * 100}%` }}
                     />
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                     {legitimacyInfo.description}
                 </p>
                 <div className="mt-1.5 pt-1.5 border-t border-gray-700/50">
@@ -389,9 +389,9 @@ export const CoalitionPanel = ({
                     </div>
                     {displayCoalition.length > 0 && (
                         <div className="mb-2">
-                            <div className="text-[9px] text-gray-500 mb-1">数据</div>
+                            <div className="text-xs text-gray-500 mb-1">数据</div>
                             <div className="flex items-center py-0.5">
-                                <span className="text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
+                                <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
                                     <Icon name="Heart" size={10} className="text-pink-400" />联盟满意度
                                 </span>
                                 <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
@@ -401,7 +401,7 @@ export const CoalitionPanel = ({
                             </div>
                             {approvalLegitimacyFactor < 1 && (
                                 <div className="flex items-center py-0.5">
-                                    <span className="text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
+                                    <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
                                         <Icon name="TrendingDown" size={10} className="text-red-400" />满意度对合法性的影响
                                     </span>
                                     <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
@@ -413,9 +413,9 @@ export const CoalitionPanel = ({
                         </div>
                     )}
                     <div>
-                        <div className="text-[9px] text-gray-500 mb-1">效果</div>
+                        <div className="text-xs text-gray-500 mb-1">效果</div>
                         <div className="flex items-center py-0.5">
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
+                            <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
                                 <Icon name="Coins" size={10} className="text-yellow-400" />税收效率
                             </span>
                             <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
@@ -424,7 +424,7 @@ export const CoalitionPanel = ({
                             </span>
                         </div>
                         <div className="flex items-center py-0.5">
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
+                            <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
                                 <Icon name="Users" size={10} className="text-orange-400" />在野阶层组织度增长倍率
                             </span>
                             <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
@@ -434,7 +434,7 @@ export const CoalitionPanel = ({
                         </div>
                         {approvalModifier !== 0 && (
                             <div className="flex items-center py-0.5">
-                                <span className="text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
+                                <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
                                     <Icon name="Frown" size={10} className="text-red-400" />全民满意度
                                 </span>
                                 <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
@@ -457,20 +457,20 @@ export const CoalitionPanel = ({
                 <div className="mt-2 p-2 bg-amber-900/20 rounded-lg border border-amber-700/30">
                     <div className="flex items-start gap-2">
                         <Icon name="AlertTriangle" size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
-                        <div className="text-[10px] text-amber-300/80">
-                            <p className="font-semibold mb-1">联盟代价：</p>
-                            <ul className="list-disc list-inside space-y-0.5 text-amber-300/70">
-                                <li>提高叛乱组织度增速：<span className="text-red-400">+50%</span></li>
-                                <li>降低叛乱门槛：<span className="text-red-400">无视低影响力限制</span></li>
-                                <li>税负不满阈值：{(COALITION_SENSITIVITY.TAX_THRESHOLD_NORMAL * 100).toFixed(0)}% → <span className="text-red-400">{(COALITION_SENSITIVITY.TAX_THRESHOLD_COALITION * 100).toFixed(0)}%</span></li>
-                                <li>预期收入倍数：×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_NORMAL.toFixed(2)} → <span className="text-red-400">×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_COALITION.toFixed(2)}</span></li>
-                                <li>基础物资短缺不满：{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_NORMAL}/项 → <span className="text-red-400">{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_COALITION}/项</span></li>
-                                <li>奢侈品短缺不满：{COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_NORMAL}/项 → <span className="text-red-400">{COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_COALITION}/项</span></li>
+                        <details className="text-xs text-amber-300/80">
+                            <summary className="font-semibold cursor-pointer">联盟代价 ⚠️</summary>
+                            <ul className="list-disc list-inside space-y-0.5 text-amber-300/70 mt-1">
+                                <li>叛乱增速 <span className="text-red-400">+50%</span></li>
+                                <li>叛乱门槛 <span className="text-red-400">降低</span></li>
+                                <li>税负阈值 {(COALITION_SENSITIVITY.TAX_THRESHOLD_NORMAL * 100).toFixed(0)}% → <span className="text-red-400">{(COALITION_SENSITIVITY.TAX_THRESHOLD_COALITION * 100).toFixed(0)}%</span></li>
+                                <li>收入期望 ×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_NORMAL.toFixed(2)} → <span className="text-red-400">×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_COALITION.toFixed(2)}</span></li>
+                                <li>物资不满 {COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_NORMAL} → <span className="text-red-400">{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_COALITION}/项</span></li>
+                                <li>奢侈不满 {COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_NORMAL} → <span className="text-red-400">{COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_COALITION}/项</span></li>
                             </ul>
-                        </div>
+                        </details>
                     </div>
                 </div>
             )}
         </div>
     );
-};
+});

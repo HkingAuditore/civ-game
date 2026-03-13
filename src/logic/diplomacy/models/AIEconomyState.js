@@ -16,7 +16,7 @@ export class AIEconomyState {
         
         // === Resource System ===
         this.inventory = initialData.inventory || {};
-        this.budget = initialData.budget || this.wealth * 0.5;
+        this.budget = initialData.budget || this.wealth * 0.22;
         this.prices = initialData.prices || {};
         
         // === Growth Parameters ===
@@ -35,6 +35,7 @@ export class AIEconomyState {
         // === Traits ===
         this.traits = initialData.traits || {};
         this.resourceBias = initialData.resourceBias || {};
+        this.growthRemainders = initialData.growthRemainders || { population: 0, wealth: 0 };
     }
     
     /**
@@ -91,6 +92,7 @@ export class AIEconomyState {
                 developmentRate: this.developmentRate,
                 lastGrowthTick: this.lastGrowthTick,
                 resourceBias: { ...this.resourceBias },
+                growthRemainders: { ...(this.growthRemainders || { population: 0, wealth: 0 }) },
             },
             _lastEpochUpgradeTick: this.lastEpochUpgradeTick,
         };
@@ -112,6 +114,7 @@ export class AIEconomyState {
             lastGrowthTick: nation.economyTraits?.lastGrowthTick,
             lastEpochUpgradeTick: nation._lastEpochUpgradeTick,
             resourceBias: nation.economyTraits?.resourceBias,
+            growthRemainders: nation.economyTraits?.growthRemainders,
             isAtWar: nation.isAtWar,
             isVassal: !!nation.vassalOf,
         });

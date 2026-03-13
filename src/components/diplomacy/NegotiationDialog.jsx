@@ -388,7 +388,7 @@ const NegotiationDialog = ({
                                         <div className="flex items-center gap-1">
                                             <span className="text-amber-400 font-mono">{formatNumberShortCN(negotiationCounter.maintenancePerDay || 0)}</span>
                                             <Icon name="Coins" size={12} className="text-amber-500" />
-                                            <span className="text-ancient-stone text-[10px]">{t('common.perDay', '/日')}</span>
+                                            <span className="text-ancient-stone text-xs">{t('common.perDay', '/日')}</span>
                                         </div>
                                     </div>
                                 </div>

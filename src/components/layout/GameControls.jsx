@@ -12,7 +12,7 @@ import { cn } from '../../config/unifiedStyles';
  * 游戏控制面板组件 - 史诗风格
  * 紧凑设计，减少空间占用
  */
-export const GameControls = ({
+export const GameControls = React.memo(({
     isPaused,
     gameSpeed,
     onPauseToggle,
@@ -137,7 +137,7 @@ export const GameControls = ({
                         onPauseToggle();
                     }}
                     className={cn(
-                        'appearance-none bg-transparent h-full px-1.5 sm:px-2 transition-all flex items-center justify-center gap-1 text-[9px] sm:text-[10px] font-bold touch-feedback',
+                        'appearance-none bg-transparent h-full px-1.5 sm:px-2 transition-all flex items-center justify-center gap-1 text-xs sm:text-xs font-bold touch-feedback',
                         isPaused
                             ? 'bg-green-500/10 border-r border-green-500/30 text-green-300 hover:bg-green-500/20'
                             : 'bg-orange-500/10 border-r border-orange-500/30 text-orange-300 hover:bg-orange-500/20'
@@ -153,7 +153,7 @@ export const GameControls = ({
                     {/* 窄屏幕：单个循环切换按钮 */}
                     <button
                         className={cn(
-                            'appearance-none bg-transparent sm:hidden h-full px-2 text-[9px] font-bold transition-all flex items-center justify-center touch-feedback',
+                            'appearance-none bg-transparent sm:hidden h-full px-2 text-xs font-bold transition-all flex items-center justify-center touch-feedback',
                             isPaused
                                 ? 'text-ancient-stone/40 cursor-not-allowed'
                                 : 'bg-gradient-to-b from-ancient-gold/25 to-ancient-bronze/15 text-ancient-gold hover:bg-ancient-gold/10'
@@ -182,7 +182,7 @@ export const GameControls = ({
                             }}
                             disabled={isPaused}
                             className={cn(
-                                'appearance-none bg-transparent hidden sm:flex h-full px-2 text-[10px] font-bold transition-all items-center justify-center touch-feedback',
+                                'appearance-none bg-transparent hidden sm:flex h-full px-2 text-xs font-bold transition-all items-center justify-center touch-feedback',
                                 idx > 0 && 'border-l border-ancient-gold/10',
                                 isPaused
                                     ? 'text-ancient-stone/40 cursor-not-allowed'
@@ -231,7 +231,7 @@ export const GameControls = ({
                                 >
                                     <button
                                         onClick={() => { onSave(); setIsGameMenuOpen(false); }}
-                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Save" size={12} />
                                         <span className="ml-2">保存进度</span>
@@ -239,7 +239,7 @@ export const GameControls = ({
 
                                     <button
                                         onClick={() => { onLoad(); setIsGameMenuOpen(false); }}
-                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Upload" size={12} />
                                         <span className="ml-2">读取存档</span>
@@ -252,7 +252,7 @@ export const GameControls = ({
                                         }}
                                         disabled={!onSaveTransfer}
                                         className={cn(
-                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold transition-colors rounded touch-feedback',
                                             onSaveTransfer ? 'text-cyan-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
                                         )}
                                     >
@@ -267,7 +267,7 @@ export const GameControls = ({
                                         }}
                                         disabled={!onAchievements}
                                         className={cn(
-                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold transition-colors rounded touch-feedback',
                                             onAchievements ? 'text-amber-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
                                         )}
                                     >
@@ -277,7 +277,7 @@ export const GameControls = ({
 
                                     <button
                                         onClick={() => { onSettings(); setIsGameMenuOpen(false); }}
-                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Settings" size={12} />
                                         <span className="ml-2">设置</span>
@@ -290,7 +290,7 @@ export const GameControls = ({
                                         }}
                                         disabled={!onDonate}
                                         className={cn(
-                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold transition-colors rounded touch-feedback',
                                             onDonate ? 'text-pink-300 hover:bg-pink-500/10' : 'text-ancient-stone/40 cursor-not-allowed'
                                         )}
                                     >
@@ -305,7 +305,7 @@ export const GameControls = ({
                                             onReset();
                                             setIsGameMenuOpen(false);
                                         }}
-                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="RefreshCw" size={12} />
                                         <span className="ml-2">另开新档</span>
@@ -348,14 +348,14 @@ export const GameControls = ({
                                 >
                                     <button
                                         onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}
-                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="BookOpen" size={10} />
                                         <span className="ml-2">新手教程</span>
                                     </button>
                                     <button
                                         onClick={() => { onWiki(); setIsHelpMenuOpen(false); }}
-                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Book" size={10} />
                                         <span className="ml-2">文明百科</span>
@@ -370,7 +370,7 @@ export const GameControls = ({
                                             });
                                             setIsHelpMenuOpen(false);
                                         }}
-                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-sky-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Users" size={10} />
                                         <span className="ml-2">QQ群：546526159</span>
@@ -383,4 +383,4 @@ export const GameControls = ({
             </div>
         </div>
     );
-};
+});

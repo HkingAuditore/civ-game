@@ -26,7 +26,7 @@ const EFFECT_LABELS = {
     passivePercent: '被动收益',
     needsReduction: '全民消耗',
     maxPop: '人口上限',
-    incomePercent: '财政收入加成',
+    taxIncome: '税收加成',
     stability: '稳定度',
     militaryBonus: '军队战力',
     approval: '满意度',
@@ -61,7 +61,7 @@ const PERCENT_EFFECTS = new Set([
     'passivePercent',
     'needsReduction',
     'maxPop',
-    'incomePercent',
+    'taxIncome',
     'stability',
     'militaryBonus',
     'tradeBonus',
@@ -242,17 +242,17 @@ const OfficialOverstaffModal = ({
                                             {stratumInfo?.name || official.sourceStratum} · 俸禄 {official.salary}/日
                                         </p>
                                         <div className="mt-2 flex flex-wrap gap-2">
-                                            <span className={`px-2 py-0.5 text-[11px] border rounded-full ${spectrumStyle}`}>
+                                            <span className={`px-2 py-0.5 text-xs border rounded-full ${spectrumStyle}`}>
                                                 {spectrumLabel}
                                             </span>
-                                            <span className="px-2 py-0.5 text-[11px] border rounded-full border-gray-700 text-gray-300">
+                                            <span className="px-2 py-0.5 text-xs border rounded-full border-gray-700 text-gray-300">
                                                 {stanceInfo?.name || '未知立场'}
                                             </span>
                                             {shownEffects.length > 0 ? (
                                                 shownEffects.map(effect => (
                                                     <span
                                                         key={`${official.id}-${effect.type}-${effect.target || 'base'}`}
-                                                        className={`px-2 py-0.5 text-[11px] border rounded-full ${effect.value >= 0
+                                                        className={`px-2 py-0.5 text-xs border rounded-full ${effect.value >= 0
                                                             ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                                                             : 'bg-red-500/15 text-red-300 border-red-500/30'
                                                             }`}
@@ -261,12 +261,12 @@ const OfficialOverstaffModal = ({
                                                     </span>
                                                 ))
                                             ) : (
-                                                <span className="px-2 py-0.5 text-[11px] border rounded-full border-gray-700 text-gray-400">
+                                                <span className="px-2 py-0.5 text-xs border rounded-full border-gray-700 text-gray-400">
                                                     无明显加成
                                                 </span>
                                             )}
                                             {hiddenEffectCount > 0 && (
-                                                <span className="px-2 py-0.5 text-[11px] border rounded-full border-gray-700 text-gray-400">
+                                                <span className="px-2 py-0.5 text-xs border rounded-full border-gray-700 text-gray-400">
                                                     另有 {hiddenEffectCount} 项
                                                 </span>
                                             )}

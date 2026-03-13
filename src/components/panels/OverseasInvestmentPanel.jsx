@@ -191,7 +191,7 @@ export const OverseasInvestmentPanel = memo(({
                         <div className="text-center py-4 text-gray-400 bg-gray-800/30 rounded-lg border border-gray-700/40">
                             <Icon name="Building2" size={28} className="mx-auto mb-1.5 opacity-50" />
                             <div className="text-xs">暂无海外投资</div>
-                            <div className="text-[10px] mt-0.5">点击下方按钮新建投资</div>
+                            <div className="text-xs mt-0.5">点击下方按钮新建投资</div>
                         </div>
                     )}
                 </div>

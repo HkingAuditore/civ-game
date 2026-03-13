@@ -1215,7 +1215,7 @@ export const COUNTRIES = [
     // ========== 信息时代国家（新增，用于补充后期贸易对象） ==========
     {
         id: 'pacific_federation',
-        name: "环太平洋共同防务与贸易体",
+        name: "太平洋联邦",
         type: "议会-军工复合体",
         color: "text-sky-300",
         desc: "集装箱是细胞，航线是血管。在这个名为‘自由贸易’的庞大机器中，国家不过是一个大型港口服务区。只要你是供应链的一环，你就在保护伞下；否则，你就是等待被清除的贸易壁垒。",
@@ -1246,7 +1246,7 @@ export const COUNTRIES = [
     },
     {
         id: 'digital_sultanate',
-        name: "石油基金会托管苏丹国",
+        name: "沙漠苏丹国",
         type: "家族资本君主",
         color: "text-emerald-300",
         desc: "石油是旧时代的黑金，数据是新时代的石油。在这个赛博绿洲里，王子们在云端监控着臣民的心跳，主权财富基金买下了半个世界的未来。稳定是最高的算法，而异见是系统无法识别的乱码。",
@@ -1276,7 +1276,7 @@ export const COUNTRIES = [
     },
     {
         id: 'silicon_commons',
-        name: "算法委员会辖区",
+        name: "硅谷共和国",
         type: "平台治理共同体",
         color: "text-cyan-300",
         desc: "代码即法律，平台即国家。这里没有国界，只有用户协议。他们在云端构建乌托邦，用推荐算法喂养灵魂。你以为你在浏览世界，其实你只是在他们精心设计的鱼缸里，做着自由的梦。",
@@ -1306,7 +1306,7 @@ export const COUNTRIES = [
     },
     {
         id: 'northern_energy_union',
-        name: "北境管道共和国",
+        name: "北极联邦",
         type: "国家资本寡头",
         color: "text-slate-200",
         desc: "管道是这片冻土的脐带。他们在永夜中燃烧着地底的骨血，为温暖的世界输送光热，也输送着地缘政治的寒意。这不是生意，这是生存；当你拧开阀门，你就在与那头北极熊共舞。",
@@ -1336,7 +1336,7 @@ export const COUNTRIES = [
     },
     {
         id: 'free_city_network',
-        name: "离岸自由港共同体",
+        name: "自由港联盟",
         type: "自由贸易委员会",
         color: "text-teal-200",
         desc: "避税天堂的群岛，资本流动的尽头。这里没有国籍，只有账户等级。洗钱与慈善只是一枚硬币的两面，黑与白在离岸的迷雾中融为一体，构成了全球经济最灰色的底色。",
@@ -1367,7 +1367,7 @@ export const COUNTRIES = [
     },
     {
         id: 'southern_agri_bloc',
-        name: "南方民生保障阵线",
+        name: "南方农业联盟",
         type: "临时联合政府",
         color: "text-lime-300",
         desc: "在这个饥饿的世界，手中有粮，心中不慌。他们是全球的粮仓，也是这种植园经济的囚徒。每一粒出口的小麦都浸透了汗水与农药，为了换取那些永远不够用的工业零件。",
@@ -1398,7 +1398,7 @@ export const COUNTRIES = [
     },
     {
         id: 'highland_mining_consortium',
-        name: "资源开发与秩序恢复委员会",
+        name: "高原矿业国",
         type: "治安军政府",
         color: "text-zinc-300",
         desc: "秩序是建立在刺刀和矿镐之上的。军政府的通告和开采许可证一样冷酷。在这高原的废墟上，他们用铁腕恢复生产，因为在这个崩坏的时代，只有挖出来的矿石，才是唯一的硬通货。",
@@ -1428,7 +1428,7 @@ export const COUNTRIES = [
     },
     {
         id: 'river_delta_metropolis',
-        name: "河口关税总署同盟",
+        name: "三角洲商业国",
         type: "通商口岸督署",
         color: "text-blue-200",
         desc: "在拥挤的三角洲，每一寸土地都标好了价格。所有东西都是为了转手，所有人都是过客。繁荣的表象下是空心化的实业，他们靠吸食全球贸易的血肉为生，把自己变成了那个最臃肿的中间人。",
@@ -1459,7 +1459,7 @@ export const COUNTRIES = [
     },
     {
         id: 'equatorial_spice_union',
-        name: "赤道海峡保护协定",
+        name: "赤道香料群岛",
         type: "种植园董事会",
         color: "text-amber-300",
         desc: "赤道的阳光不仅催熟了咖啡豆，也催生了垄断。控制了海峡，就控制了时间。这不仅仅是种植园主的游戏，而是关于谁有权决定你的下午茶要付多少钱的地缘政治勒索。",
@@ -1490,7 +1490,7 @@ export const COUNTRIES = [
     },
     {
         id: 'continental_rail_republic',
-        name: "全国交通统筹共和国",
+        name: "铁路共和国",
         type: "铁路与口粮委员会",
         color: "text-orange-200",
         desc: "列车从不晚点，因为晚点意味着饥荒。在这个铁轨铺就的国家，一切都像时刻表一样精密而无情。个人被简化为载重吨位，生活被压缩进车厢，我们要么在轰鸣中前进，要么在停摆中死亡。",
@@ -1521,7 +1521,7 @@ export const COUNTRIES = [
     },
     {
         id: 'academy_principalities',
-        name: "智库基金会保护国",
+        name: "学术邦联",
         type: "学术寡头邦联",
         color: "text-fuchsia-300",
         desc: "象牙塔变成了堡垒，论文变成了教条。知识不再是为了真理，而是为了基金会的拨款。这些智库的国王们在研讨会上划分世界，用术语和模型编织出一张看似理性实则傲慢的网。",
@@ -1552,7 +1552,7 @@ export const COUNTRIES = [
     },
     {
         id: 'artisan_luxury_cartel',
-        name: "轻奢与审美输出联合体",
+        name: "工艺品卡特尔",
         type: "品牌寡头理事会",
         color: "text-rose-300",
         desc: "为了那样东西，你愿意付出多少溢价？他们贩卖的不是商品，是阶级，是幻觉。在这个精致的卡特尔里，审美是最高的门槛，将世界无情地划分为‘有品位的’和‘买不起的’。",
@@ -1583,7 +1583,7 @@ export const COUNTRIES = [
     },
     {
         id: 'global_agro_logistics',
-        name: "国际保供与配给署",
+        name: "粮食保障联盟",
         type: "特别事务署",
         color: "text-green-200",
         desc: "如果你控制了食物，你就控制了人口。这个庞然大物披着人道主义的外衣，手里却握着饥饿的开关。在他们的报表里，那不是苍生，那是待分配的卡路里配额。",

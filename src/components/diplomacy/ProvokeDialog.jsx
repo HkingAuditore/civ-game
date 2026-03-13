@@ -96,11 +96,11 @@ const ProvokeDialog = ({
                                 <div className="flex items-center gap-2">
                                     <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                                     <span className="text-sm text-white font-body">{nation.name}</span>
-                                    <span className={`text-[10px] px-1 py-0.5 rounded ${nationRelation.bg} ${nationRelation.color}`}>
+                                    <span className={`text-xs px-1 py-0.5 rounded ${nationRelation.bg} ${nationRelation.color}`}>
                                         与你:{nationRelation.label}
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-1 text-[10px]">
+                                <div className="flex items-center gap-1 text-xs">
                                     <span className="text-gray-400">两国关系:</span>
                                     <span className={foreignRelationInfo.color}>{foreignRelationInfo.label}</span>
                                     <span className="text-gray-500">({Math.round(foreignRelation)})</span>

@@ -58,14 +58,14 @@ export const RESOURCES = {
         color: "text-yellow-400",
         basePrice: 1.0,
         minPrice: 0.1,
-        maxPrice: 30,  // Essential: 20x cap for social stability
+        maxPrice: 150,  // Essential: 150x cap for social stability
         defaultOwner: 'peasant',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material'],
         // 粮食的差异化市场配置：作为基础必需品，价格波动更小，库存目标更高
         marketConfig: {
             supplyDemandWeight: 0.4,        // 供需对价格影响较小（必需品价格相对稳定）
-            inventoryTargetDays: 730.0,       // 目标库存天数更高（战略储备）
+            inventoryTargetDays: 146.0,       // 目标库存天数（战略储备）
             inventoryPriceImpact: 0.15,     // 库存对价格影响较小
             demandElasticity: 0.2,          // 需求弹性低（必需品，价格变化对需求影响小）
             outputVariation: 0.2,           // 产出浮动±20%
@@ -77,14 +77,14 @@ export const RESOURCES = {
         color: "text-emerald-400",
         basePrice: 2.0,
         minPrice: 0.02,
-        maxPrice: 60,  // Raw material: 30x cap
+        maxPrice: 300,  // Raw material: 150x cap
         defaultOwner: 'lumberjack',
         unlockEpoch: 0,
         tags: ['raw_material'],
         // Tier 1 基础原材料：极高稳定度配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小（基础资源价格稳定）
-            inventoryTargetDays: 550.0,       // 较高库存目标（建筑材料需要储备）
+            inventoryTargetDays: 110.0,       // 较高库存目标（建筑材料需要储备）
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性（建筑必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -96,14 +96,14 @@ export const RESOURCES = {
         color: "text-stone-400",
         basePrice: 3.0,
         minPrice: 0.03,
-        maxPrice: 90,  // Raw material: 30x cap
+        maxPrice: 450,  // Raw material: 150x cap
         defaultOwner: 'miner',
         unlockEpoch: 0,
         tags: ['raw_material'],
         // Tier 1 基础原材料：极高稳定度配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小
-            inventoryTargetDays: 550.0,       // 较高库存目标
+            inventoryTargetDays: 110.0,       // 较高库存目标
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -115,14 +115,14 @@ export const RESOURCES = {
         color: "text-indigo-300",
         basePrice: 1.5,
         minPrice: 0.015,
-        maxPrice: 65,  // Essential: 30x cap for social stability
+        maxPrice: 325,  // Essential: 217x cap for social stability
         defaultOwner: 'worker',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material', 'manufactured'],
         // 必需品制成品：中等稳定度
         marketConfig: {
             supplyDemandWeight: 0.8,        // 供需影响中等（必需品但有替代性）
-            inventoryTargetDays: 600.0,       // 必需品较高库存目标
+            inventoryTargetDays: 120.0,       // 必需品较高库存目标
             inventoryPriceImpact: 0.25,     // 库存影响中等
             demandElasticity: 0.4,          // 中低需求弹性（必需品）
             outputVariation: 0.2            // 产出浮动±20%
@@ -134,7 +134,7 @@ export const RESOURCES = {
         color: "text-red-400",
         basePrice: 6.0,
         minPrice: 0.06,
-        maxPrice: 300,  // Industrial: 50x cap
+        maxPrice: 1500,  // Industrial: 250x cap
         defaultOwner: 'artisan',
         unlockEpoch: 0,
         unlockTech: 'pottery',
@@ -142,7 +142,7 @@ export const RESOURCES = {
         // Tier 2 工业资源：标准平衡配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 270.0,       // 工业品标准库存目标
+            inventoryTargetDays: 54.0,       // 工业品标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -154,7 +154,7 @@ export const RESOURCES = {
         color: "text-blue-300",
         basePrice: 16.0,
         minPrice: 0.16,
-        maxPrice: 800,  // Industrial: 50x cap
+        maxPrice: 4000,  // Industrial: 250x cap
         defaultOwner: 'artisan',
         unlockEpoch: 0,
         unlockTech: 'tool_making',
@@ -162,7 +162,7 @@ export const RESOURCES = {
         // 工业品：较高波动性（生产工具，需求相对稳定但价格敏感）
         marketConfig: {
             supplyDemandWeight: 1.2,        // 供需影响较大
-            inventoryTargetDays: 300.0,       // 工业品较高库存目标（耐用品）
+            inventoryTargetDays: 60.0,       // 工业品较高库存目标（耐用品）
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.6,          // 中等需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -176,7 +176,7 @@ export const RESOURCES = {
         color: "text-amber-600",
         basePrice: 5.0,
         minPrice: 0.05,
-        maxPrice: 250,  // Industrial: 50x cap
+        maxPrice: 1250,  // Industrial: 250x cap
         defaultOwner: 'worker',
         unlockEpoch: 1,
         unlockTech: 'tools',
@@ -184,7 +184,7 @@ export const RESOURCES = {
         // 加工木材：标准工业品配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 240.0,       // 工业品标准库存目标
+            inventoryTargetDays: 48.0,       // 工业品标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -196,7 +196,7 @@ export const RESOURCES = {
         color: "text-orange-400",
         basePrice: 5.5,
         minPrice: 0.055,
-        maxPrice: 165,  // Raw material: 30x cap
+        maxPrice: 825,  // Raw material: 150x cap
         defaultOwner: 'miner',
         unlockEpoch: 1,
         unlockTech: 'copper_mining',
@@ -204,7 +204,7 @@ export const RESOURCES = {
         // 金属原材料：中等稳定度
         marketConfig: {
             supplyDemandWeight: 0.9,        // 供需影响较小（原材料）
-            inventoryTargetDays: 300.0,       // 工业品较高库存目标（战略资源）
+            inventoryTargetDays: 60.0,       // 工业品较高库存目标（战略资源）
             inventoryPriceImpact: 0.25,     // 库存影响中等
             demandElasticity: 0.4,          // 低需求弹性（工业必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -216,14 +216,14 @@ export const RESOURCES = {
         color: "text-pink-500",
         basePrice: 5.0,
         minPrice: 0.05,
-        maxPrice: 150,  // Raw material: 30x cap
+        maxPrice: 750,  // Raw material: 150x cap
         defaultOwner: 'artisan',
         unlockEpoch: 1,
         tags: ['industrial', 'raw_material'],
         // 工业原料：标准配置
         marketConfig: {
             supplyDemandWeight: 1.1,        // 供需影响略高（非必需品）
-            inventoryTargetDays: 200.0,       // 工业品较低库存目标
+            inventoryTargetDays: 40.0,       // 工业品较低库存目标
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.6,          // 中等需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -237,7 +237,7 @@ export const RESOURCES = {
         color: "text-lime-300",
         basePrice: 6.5,
         minPrice: 0.065,
-        maxPrice: 325,  // Industrial: 50x cap
+        maxPrice: 1625,  // Industrial: 250x cap
         defaultOwner: 'scribe',
         unlockEpoch: 2,
         unlockTech: 'papyrus_cultivation',
@@ -245,7 +245,7 @@ export const RESOURCES = {
         // 文化产品：中等波动性
         marketConfig: {
             supplyDemandWeight: 1.1,        // 供需影响略高
-            inventoryTargetDays: 240.0,       // 工业品标准库存目标
+            inventoryTargetDays: 48.0,       // 工业品标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -257,7 +257,7 @@ export const RESOURCES = {
         color: "text-rose-400",
         basePrice: 24,
         minPrice: 0.24,
-        maxPrice: 2400,  // Luxury: 100x cap
+        maxPrice: 12000,  // Luxury: 500x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
         unlockTech: 'culinary_arts',
@@ -265,7 +265,7 @@ export const RESOURCES = {
         // 奢侈品：高波动性
         marketConfig: {
             supplyDemandWeight: 1.5,        // 供需影响很大（奢侈品）
-            inventoryTargetDays: 90.0,        // 奢侈品低库存目标（易腐品）
+            inventoryTargetDays: 18.0,        // 奢侈品低库存目标（易腐品）
             inventoryPriceImpact: 0.45,     // 库存影响很大
             demandElasticity: 1.3,          // 高需求弹性（奢侈品）
             outputVariation: 0.2            // 产出浮动±20%
@@ -277,7 +277,7 @@ export const RESOURCES = {
         color: "text-amber-500",
         basePrice: 28,
         minPrice: 0.28,
-        maxPrice: 2800,  // Luxury: 100x cap
+        maxPrice: 14000,  // Luxury: 500x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
         unlockTech: 'carpentry',
@@ -285,7 +285,7 @@ export const RESOURCES = {
         // 家具的差异化市场配置：作为奢侈品，价格波动更大，库存目标较低
         marketConfig: {
             supplyDemandWeight: 1.5,        // 供需对价格影响更大（奢侈品价格弹性高）
-            inventoryTargetDays: 120.0,      // 奢侈品目标库存天数较低
+            inventoryTargetDays: 24.0,      // 奢侈品目标库存天数较低
             inventoryPriceImpact: 0.4,      // 库存对价格影响更大
             demandElasticity: 1.2,          // 需求弹性高（奢侈品，价格变化对需求影响大）
             outputVariation: 0.2,           // 产出浮动±20%
@@ -340,6 +340,50 @@ export const RESOURCES = {
         }
     },
 
+    // Military resources - Classical Era (Epoch 2)
+    swords: {
+        name: "刀剑",
+        icon: 'Swords',
+        color: "text-slate-300",
+        basePrice: 20.0,
+        minPrice: 0.2,
+        maxPrice: 600,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 2,
+        unlockTech: 'swordsmithing',
+        tags: ['military', 'manufactured'],
+        // Military equipment: moderate stability, strategic demand
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 300.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
+    // Military resources - Feudal Era (Epoch 3)
+    plate_armor: {
+        name: "铠甲",
+        icon: 'Shield',
+        color: "text-zinc-300",
+        basePrice: 35.0,
+        minPrice: 0.35,
+        maxPrice: 1050,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 3,
+        unlockTech: 'armor_forging',
+        tags: ['military', 'manufactured'],
+        // Heavy armor: high value, moderate stability
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 270.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
     // 探索时代
     spice: {
         name: "香料",
@@ -362,6 +406,48 @@ export const RESOURCES = {
         }
     },
 
+    // Military resources - Exploration Era (Epoch 4)
+    gunpowder: {
+        name: "火药",
+        icon: 'Flame',
+        color: "text-orange-500",
+        basePrice: 18.0,
+        minPrice: 0.18,
+        maxPrice: 540,  // Military consumable: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 4,
+        unlockTech: 'gunpowder_formula',
+        tags: ['military', 'manufactured'],
+        // Consumable military resource: moderate-high demand during war
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 240.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+    muskets: {
+        name: "火枪",
+        icon: 'Crosshair',
+        color: "text-amber-600",
+        basePrice: 30.0,
+        minPrice: 0.3,
+        maxPrice: 900,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 4,
+        unlockTech: 'musket_manufacturing',
+        tags: ['military', 'manufactured'],
+        // Early firearms: high value, moderate stability
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 270.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
     // 启蒙时代
     coffee: {
         name: "咖啡",
@@ -381,6 +467,48 @@ export const RESOURCES = {
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.8,          // 较高需求弹性
             outputVariation: 0.2            // 产出浮动±20%
+        }
+    },
+
+    // Military resources - Enlightenment Era (Epoch 5)
+    rifles: {
+        name: "步枪",
+        icon: 'Target',
+        color: "text-gray-400",
+        basePrice: 45.0,
+        minPrice: 0.45,
+        maxPrice: 1350,  // Military manufactured: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 5,
+        unlockTech: 'rifle_engineering',
+        tags: ['military', 'manufactured'],
+        // Precision firearms: high value, strategic importance
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 270.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+    ammunition: {
+        name: "弹药",
+        icon: 'Bomb',
+        color: "text-red-500",
+        basePrice: 15.0,
+        minPrice: 0.15,
+        maxPrice: 450,  // Military consumable: 30x cap
+        defaultOwner: 'artisan',
+        unlockEpoch: 5,
+        unlockTech: 'rifle_engineering',
+        tags: ['military', 'manufactured'],
+        // Standardized ammo: high consumption, moderate stability
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 240.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
         }
     },
 
@@ -426,6 +554,379 @@ export const RESOURCES = {
         }
     },
 
+    // Military resources - Industrial Era (Epoch 6)
+    ordnance: {
+        name: "制式军火",
+        icon: 'Bomb',
+        color: "text-red-600",
+        basePrice: 60.0,
+        minPrice: 0.6,
+        maxPrice: 9000,  // Military manufactured: 150x cap
+        defaultOwner: 'engineer',
+        unlockEpoch: 6,
+        unlockTech: 'military_industrialization',
+        tags: ['military', 'manufactured'],
+        // Industrial-era weapons: highest tier military resource
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 300.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
+    // ============ 探索时代 (Epoch 4) 新增资源 ============
+    cotton: {
+        name: "棉花",
+        icon: 'Flower2',
+        color: "text-amber-100",
+        basePrice: 4.0,
+        minPrice: 0.04,
+        maxPrice: 200,
+        defaultOwner: 'merchant',
+        unlockEpoch: 4,
+        unlockTech: 'cotton_cultivation',
+        tags: ['raw_material'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 100.0,
+            inventoryPriceImpact: 0.25,
+            demandElasticity: 0.4,
+            outputVariation: 0.2
+        }
+    },
+
+    // ============ 电气时代 (Epoch 7) 新增资源 ============
+    oil: {
+        name: "石油",
+        icon: 'Droplet',
+        color: "text-amber-900",
+        basePrice: 8.0,
+        minPrice: 0.08,
+        maxPrice: 400,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 7,
+        unlockTech: 'oil_drilling',
+        tags: ['raw_material', 'energy'],
+        marketConfig: {
+            supplyDemandWeight: 0.9,
+            inventoryTargetDays: 150.0,
+            inventoryPriceImpact: 0.25,
+            demandElasticity: 0.35,
+            outputVariation: 0.2
+        }
+    },
+    rubber: {
+        name: "橡胶",
+        icon: 'Circle',
+        color: "text-gray-600",
+        basePrice: 6.0,
+        minPrice: 0.06,
+        maxPrice: 300,
+        defaultOwner: 'merchant',
+        unlockEpoch: 7,
+        unlockTech: 'rubber_vulcanization',
+        tags: ['raw_material', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 100.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.45,
+            outputVariation: 0.2
+        }
+    },
+    chemicals: {
+        name: "化学品",
+        icon: 'Beaker',
+        color: "text-green-400",
+        basePrice: 18.0,
+        minPrice: 0.18,
+        maxPrice: 1800,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'organic_chemistry',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 90.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    wiring: {
+        name: "电缆",
+        icon: 'Zap',
+        color: "text-yellow-500",
+        basePrice: 14.0,
+        minPrice: 0.14,
+        maxPrice: 1400,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'electrical_wiring',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    electricity: {
+        name: "电力",
+        icon: 'Zap',
+        color: "text-yellow-300",
+        basePrice: 10.0,
+        minPrice: 0.1,
+        maxPrice: 500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'power_generation',
+        tags: ['industrial', 'energy'],
+        // 电力是普通可贸易资源，有库存、有价格
+        marketConfig: {
+            supplyDemandWeight: 0.8,
+            inventoryTargetDays: 200.0,
+            inventoryPriceImpact: 0.2,
+            demandElasticity: 0.3,
+            outputVariation: 0.15
+        }
+    },
+    machinery: {
+        name: "机械",
+        icon: 'Cog',
+        color: "text-zinc-400",
+        basePrice: 25.0,
+        minPrice: 0.25,
+        maxPrice: 2500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'mechanical_engineering',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    synthetic_fiber: {
+        name: "化纤",
+        icon: 'Layers',
+        color: "text-purple-400",
+        basePrice: 18.0,
+        minPrice: 0.18,
+        maxPrice: 1800,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 7,
+        unlockTech: 'synthetic_chemistry',
+        tags: ['industrial', 'manufactured'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    fertilizer: {
+        name: "化肥",
+        icon: 'Sprout',
+        color: "text-green-400",
+        basePrice: 15.0,
+        minPrice: 0.15,
+        maxPrice: 2250,
+        defaultOwner: 'engineer',
+        unlockEpoch: 7,
+        unlockTech: 'synthetic_fertilizer',
+        tags: ['industrial', 'agricultural'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 90.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    automobile: {
+        name: "汽车",
+        icon: 'Car',
+        color: "text-blue-400",
+        basePrice: 150.0,
+        minPrice: 1.5,
+        maxPrice: 15000,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 7,
+        unlockTech: 'automobile_manufacturing',
+        tags: ['luxury', 'manufactured', 'transportation'],
+        marketConfig: {
+            supplyDemandWeight: 1.4,
+            inventoryTargetDays: 30.0,
+            inventoryPriceImpact: 0.4,
+            demandElasticity: 1.2,
+            outputVariation: 0.2
+        }
+    },
+
+    // ============ 原子时代 (Epoch 8) 新增资源 ============
+    plastics: {
+        name: "塑料",
+        icon: 'Package',
+        color: "text-blue-300",
+        basePrice: 15.0,
+        minPrice: 0.15,
+        maxPrice: 1500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'polymer_chemistry',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 90.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    electronics: {
+        name: "电子元件",
+        icon: 'Cpu',
+        color: "text-emerald-300",
+        basePrice: 40.0,
+        minPrice: 0.4,
+        maxPrice: 4000,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'integrated_circuits',
+        tags: ['intermediate', 'manufactured'],
+        marketConfig: {
+            supplyDemandWeight: 1.2,
+            inventoryTargetDays: 60.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.6,
+            outputVariation: 0.2
+        }
+    },
+    uranium: {
+        name: "铀矿",
+        icon: 'Atom',
+        color: "text-lime-400",
+        basePrice: 12.0,
+        minPrice: 0.12,
+        maxPrice: 1200,
+        defaultOwner: 'official',
+        unlockEpoch: 8,
+        unlockTech: 'nuclear_physics',
+        tags: ['raw_material', 'strategic'],
+        marketConfig: {
+            supplyDemandWeight: 0.8,
+            inventoryTargetDays: 180.0,
+            inventoryPriceImpact: 0.2,
+            demandElasticity: 0.3,
+            outputVariation: 0.15
+        }
+    },
+    aluminum: {
+        name: "铝材",
+        icon: 'Layers',
+        color: "text-slate-300",
+        basePrice: 22.0,
+        minPrice: 0.22,
+        maxPrice: 2200,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'aluminum_smelting',
+        tags: ['intermediate', 'industrial'],
+        marketConfig: {
+            supplyDemandWeight: 1.0,
+            inventoryTargetDays: 80.0,
+            inventoryPriceImpact: 0.3,
+            demandElasticity: 0.5,
+            outputVariation: 0.2
+        }
+    },
+    medicine: {
+        name: "医药",
+        icon: 'Syringe',
+        color: "text-red-300",
+        basePrice: 35.0,
+        minPrice: 0.35,
+        maxPrice: 3500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 8,
+        unlockTech: 'pharmaceutical_industry',
+        tags: ['manufactured', 'consumer'],
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 60.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.7,
+            outputVariation: 0.2
+        }
+    },
+
+    // ============ 信息时代 (Epoch 9) 新增资源 ============
+    semiconductors: {
+        name: "半导体",
+        icon: 'Cpu',
+        color: "text-teal-300",
+        basePrice: 80.0,
+        minPrice: 0.8,
+        maxPrice: 8000,
+        defaultOwner: 'engineer',
+        unlockEpoch: 9,
+        unlockTech: 'semiconductor_manufacturing',
+        tags: ['manufactured', 'high_tech'],
+        marketConfig: {
+            supplyDemandWeight: 1.3,
+            inventoryTargetDays: 40.0,
+            inventoryPriceImpact: 0.4,
+            demandElasticity: 0.7,
+            outputVariation: 0.2
+        }
+    },
+    software: {
+        name: "软件",
+        icon: 'Code',
+        color: "text-blue-400",
+        basePrice: 50.0,
+        minPrice: 0.5,
+        maxPrice: 5000,
+        defaultOwner: 'capitalist',
+        unlockEpoch: 9,
+        unlockTech: 'software_engineering',
+        tags: ['manufactured', 'high_tech'],
+        marketConfig: {
+            supplyDemandWeight: 1.2,
+            inventoryTargetDays: 50.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.8,
+            outputVariation: 0.15
+        }
+    },
+    composites: {
+        name: "复合材料",
+        icon: 'Layers',
+        color: "text-indigo-300",
+        basePrice: 45.0,
+        minPrice: 0.45,
+        maxPrice: 4500,
+        defaultOwner: 'engineer',
+        unlockEpoch: 9,
+        unlockTech: 'composite_materials',
+        tags: ['manufactured', 'high_tech'],
+        marketConfig: {
+            supplyDemandWeight: 1.1,
+            inventoryTargetDays: 50.0,
+            inventoryPriceImpact: 0.35,
+            demandElasticity: 0.6,
+            outputVariation: 0.2
+        }
+    },
+
     // 特殊资源
     silver: {
         name: "银币",
@@ -440,7 +941,7 @@ export const RESOURCES = {
         // 货币不需要marketConfig
     },
     science: {
-        name: "科研",
+        name: "学识",
         icon: 'Cpu',
         color: "text-cyan-400",
         basePrice: 5,
@@ -490,6 +991,60 @@ export const RESOURCES = {
 /**
  * 税收上限限制
  */
+/**
+ * 战争经济联动常量
+ * 控制战争对经济的影响程度
+ */
+export const WAR_ECONOMY = {
+    // 建筑破坏
+    BUILDING_DESTROY_BASE_PROBABILITY: 0.35,    // 基础35%每次checkpoint crossing
+    MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT: 4,  // 单次最多破坏4座建筑
+
+    // AI侧经济损伤（替代建筑破坏）
+    AI_WEALTH_LOSS_ECONOMIC: 0.04,   // 经济区每次checkpoint扣减wealth×4%
+    AI_WEALTH_LOSS_CAPITAL: 0.08,    // 核心区每次checkpoint扣减wealth×8%
+    AI_MILSTR_LOSS_CAPITAL: 0.08,    // 核心区每次扣减militaryStrength 0.08
+
+    // 人口流失（每次checkpoint crossing）
+    POP_LOSS_FRONTIER: 0.02,     // 前沿：2%
+    POP_LOSS_ECONOMIC: 0.04,     // 经济区：4%
+    POP_LOSS_CAPITAL: 0.06,      // 核心区：6%
+
+    // 财富掠夺（每tick）
+    PLUNDER_RATE_ECONOMIC: 0.05,    // 经济区：wealth×5%/tick
+    PLUNDER_RATE_CAPITAL: 0.10,     // 核心区：wealth×10%/tick
+    PLUNDER_GAIN_RATIO: 0.6,       // 入侵方获得掠夺的60%
+
+    // 贸易中断
+    TRADE_DISRUPTION_PER_WAR: 0.15, // 每场战争减少15%贸易量
+    TRADE_DISRUPTION_MAX: 0.45,     // 最高45%
+
+    // 军工繁荣
+    MILITARY_INDUSTRY_BOOST: 0.20,  // 战时军事类建筑产出+20%
+    MINING_INDUSTRY_BOOST: 0.10,    // 战时采矿类建筑产出+10%
+
+    // 腹地沦陷惩罚（linePos<=8 或 >=92）
+    HINTERLAND_EXTRA_PRODUCTION_PENALTY: 0.20,   // 额外+20%产出惩罚
+    HINTERLAND_EXTRA_INCOME_PENALTY_RATIO: 0.30, // 额外+30%银币收入惩罚
+    MAX_PRODUCTION_PENALTY: 0.55,                 // 总产出惩罚上限从0.35提到0.55
+
+    // 军费预算制
+    WAR_BUDGET_RATIO: 0.25,     // 战时军费预算占wealth比例
+    PEACE_BUDGET_RATIO: 0.15,   // 和平时军费预算占wealth比例
+    MIN_ARMY_FLOOR: 10,         // 极端情况保底兵力
+
+    // AI战后恢复
+    AI_POST_WAR_WEALTH_RECOVERY: 0.001,  // 战后每tick恢复wealth×0.1%
+
+    // 反向掠夺 & 多场景掠夺
+    REVERSE_PLUNDER_EFFICIENCY: 0.6,           // AI掠夺玩家的效率系数（玩家掠夺的60%）
+    AI_AI_PLUNDER_EFFICIENCY: 0.5,             // AI-AI间持续掠夺的效率系数
+    RESOURCE_PLUNDER_RATE_ECONOMIC: 0.02,      // 经济区实物资源掠夺率/tick
+    RESOURCE_PLUNDER_RATE_CAPITAL: 0.04,       // 核心区实物资源掠夺率/tick
+    MAX_RESOURCE_TYPES_PLUNDERED: 3,           // 每次摩擦最多掠夺的资源种类数
+    PLUNDER_SILVER_FLOOR_RATIO: 0.2,           // 玩家被掠夺后保留的最低银币比例
+};
+
 export const TAX_LIMITS = {
     MAX_HEAD_TAX: 1000000,      // 人头税系数上限
     MAX_RESOURCE_TAX: 5.0,    // 交易税率上限 (500%)

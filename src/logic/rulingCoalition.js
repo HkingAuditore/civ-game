@@ -309,30 +309,30 @@ export const STRATA_CATEGORIES = {
     // 资产阶级
     bourgeoisie: ['capitalist', 'merchant', 'engineer'],
     // 工农阶级
-    proletariat: ['worker', 'miner', 'peasant', 'serf', 'lumberjack'],
+    proletariat: ['worker', 'miner', 'peasant', 'serf', 'lumberjack', 'technician'],
     // 军事阶层
     military: ['soldier'],
     // 宗教阶层
     clerical: ['cleric'],
     // 知识阶层
-    intellectual: ['scribe', 'engineer'],
+    intellectual: ['scribe', 'engineer', 'scientist'],
     // 商业阶层
     commercial: ['merchant', 'navigator'],
     // 农业阶层
     agrarian: ['peasant', 'serf', 'landowner', 'lumberjack'],
     // 工业阶层
-    industrial: ['worker', 'artisan', 'capitalist', 'engineer', 'miner'],
+    industrial: ['worker', 'artisan', 'capitalist', 'engineer', 'miner', 'technician'],
 };
 
 // 阶层分组，用于UI显示
 export const STRATA_GROUPS = {
     upper: {
         name: '上流阶级',
-        keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer'],
+        keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer', 'scientist'],
     },
     middle: {
         name: '中产阶级',
-        keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator'],
+        keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator', 'technician'],
     },
     lower: {
         name: '下层阶级',

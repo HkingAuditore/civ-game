@@ -142,7 +142,7 @@ const NationList = ({
                             >
                                 外交概览
                             </span>
-                            <span className="text-[10px] text-ancient-stone/60">
+                            <span className="text-xs text-ancient-stone/60">
                                 查看全球局势
                             </span>
                         </div>
@@ -197,7 +197,7 @@ const NationList = ({
                                             {nation.name.charAt(0)}
                                             {hasRequest && (
                                                 <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full border border-gray-900 flex items-center justify-center shadow-glow-red animate-pulse z-10">
-                                                    <span className="text-[9px] font-bold text-white">{pendingCount}</span>
+                                                    <span className="text-xs font-bold text-white">{pendingCount}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -214,7 +214,7 @@ const NationList = ({
                                                 <span className={`text-xs font-mono font-bold ${relColor}`}>
                                                     {rel.value > 0 ? '+' : ''}{Math.round(rel.value)}
                                                 </span>
-                                                <span className="text-[10px] text-ancient-stone/60">
+                                                <span className="text-xs text-ancient-stone/60">
                                                     {getRelationLabel(rel.value)}
                                                 </span>
                                             </div>
@@ -223,13 +223,13 @@ const NationList = ({
 
                                     <div className="flex flex-col items-end gap-1">
                                         {hasRequest && (
-                                            <Badge variant="danger" className="text-[9px] px-1.5 py-0.5 shadow-depth-sm animate-pulse flex items-center gap-1">
+                                            <Badge variant="danger" className="text-xs px-1.5 py-0.5 shadow-depth-sm animate-pulse flex items-center gap-1">
                                                 <Icon name="AlertCircle" size={10} />
                                                 审批
                                             </Badge>
                                         )}
                                         {nation.isAtWar && (
-                                            <Badge variant="danger" className="text-[9px] px-1 py-0 shadow-depth-sm animate-pulse">
+                                            <Badge variant="danger" className="text-xs px-1 py-0 shadow-depth-sm animate-pulse">
                                                 交战中
                                             </Badge>
                                         )}
@@ -257,4 +257,4 @@ const NationList = ({
     );
 };
 
-export default NationList;
+export default React.memo(NationList);

@@ -143,26 +143,26 @@ export const TreatyNegotiationModal = memo(({
                 {/* 条约参数 */}
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-gray-800/50 rounded-lg p-2.5 border border-gray-700/40">
-                        <div className="text-[10px] text-gray-400 mb-0.5">有效期</div>
+                        <div className="text-xs text-gray-400 mb-0.5">有效期</div>
                         <div className="text-base font-bold text-white">
                             {treatyDetails.durationYears}年
                             <span className="text-xs text-gray-500 ml-1">({treatyDetails.duration}天)</span>
                         </div>
                     </div>
                     <div className="bg-gray-800/50 rounded-lg p-2.5 border border-gray-700/40">
-                        <div className="text-[10px] text-gray-400 mb-0.5">解锁时代</div>
+                        <div className="text-xs text-gray-400 mb-0.5">解锁时代</div>
                         <div className={`text-base font-bold ${treatyDetails.isUnlocked ? 'text-green-400' : 'text-red-400'}`}>
                             {treatyDetails.isUnlocked ? '✓ 已解锁' : `Era ${treatyDetails.unlockEra}`}
                         </div>
                     </div>
                     <div className="bg-amber-900/30 rounded-lg p-2.5 border border-amber-700/40">
-                        <div className="text-[10px] text-amber-400 mb-0.5">签约成本</div>
+                        <div className="text-xs text-amber-400 mb-0.5">签约成本</div>
                         <div className="text-base font-bold text-amber-200">
                             {formatNumberShortCN(treatyDetails.signingCost)} 银
                         </div>
                     </div>
                     <div className="bg-gray-800/50 rounded-lg p-2.5 border border-gray-700/40">
-                        <div className="text-[10px] text-gray-400 mb-0.5">月维护费</div>
+                        <div className="text-xs text-gray-400 mb-0.5">月维护费</div>
                         <div className="text-base font-bold text-gray-200">
                             {treatyDetails.monthlyMaintenance > 0 ? `${treatyDetails.monthlyMaintenance} 银/月` : '无'}
                         </div>
@@ -222,7 +222,7 @@ export const TreatyNegotiationModal = memo(({
                 </div>
 
                 {/* 提示 */}
-                <div className="text-[10px] text-gray-500 text-center">
+                <div className="text-xs text-gray-500 text-center">
                     💡 签约需双方同意，AI国家将基于关系和利益评估决定是否接受
                 </div>
             </div>

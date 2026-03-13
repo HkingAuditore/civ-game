@@ -416,11 +416,11 @@ const DashboardCard = ({ title, value, subValue, icon, color, borderColor = 'bor
         title={tooltip}
     >
         <div className="min-w-0 flex-1">
-            <div className="text-[9px] md:text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-70 text-ancient-stone truncate">
+            <div className="text-xs md:text-xs uppercase font-bold tracking-wider mb-0.5 opacity-70 text-ancient-stone truncate">
                 {title}
             </div>
             <div className={`text-xl md:text-2xl font-bold ${color} font-epic shadow-black drop-shadow-md leading-tight`}>{value}</div>
-            {subValue && <div className="text-[9px] md:text-[10px] text-ancient-stone mt-0.5 truncate">{subValue}</div>}
+            {subValue && <div className="text-xs md:text-xs text-ancient-stone mt-0.5 truncate">{subValue}</div>}
         </div>
         <div className={`p-2 rounded-full bg-black/20 border border-white/5 ${color} group-hover:scale-110 transition-transform flex-shrink-0 ml-2`}>
             <Icon name={icon} size={18} />
@@ -430,7 +430,7 @@ const DashboardCard = ({ title, value, subValue, icon, color, borderColor = 'bor
 
 const MarketSignalList = ({ title, tone, items }) => (
     <div className="space-y-1">
-        <div className={`text-[10px] font-bold uppercase tracking-wider ${tone} mb-1 opacity-80`}>{title}</div>
+        <div className={`text-xs font-bold uppercase tracking-wider ${tone} mb-1 opacity-80`}>{title}</div>
         {items.length === 0 ? (
             <div className="text-xs text-ancient-stone/60 italic p-1">暂无明显信号</div>
         ) : (
@@ -448,7 +448,7 @@ const MarketSignalList = ({ title, tone, items }) => (
 
 const TradeOpportunityList = ({ title, tone, items }) => (
     <div className="space-y-1">
-        <div className={`text-[10px] font-bold uppercase tracking-wider ${tone} mb-1 opacity-80`}>{title}</div>
+        <div className={`text-xs font-bold uppercase tracking-wider ${tone} mb-1 opacity-80`}>{title}</div>
         {items.length === 0 ? (
             <div className="text-xs text-ancient-stone/60 italic p-1">暂无明显机会</div>
         ) : (
@@ -457,7 +457,7 @@ const TradeOpportunityList = ({ title, tone, items }) => (
                     <div key={`${item.nationId}-${index}`} className="flex items-center justify-between text-xs bg-black/30 rounded px-2 py-1.5 border border-white/5">
                         <div className="flex flex-col">
                             <span className="text-ancient-parchment font-medium">{item.resourceName}</span>
-                            <span className="text-[10px] text-ancient-stone/70">{item.nationName}</span>
+                            <span className="text-xs text-ancient-stone/70">{item.nationName}</span>
                         </div>
                         <span className="text-ancient-stone font-mono">+{item.diff.toFixed(1)}</span>
                     </div>
@@ -467,4 +467,4 @@ const TradeOpportunityList = ({ title, tone, items }) => (
     </div>
 );
 
-export default DiplomacyDashboard;
+export default React.memo(DiplomacyDashboard);

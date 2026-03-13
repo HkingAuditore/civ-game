@@ -99,7 +99,7 @@ export const VassalDiplomacyPanel = memo(({
                                         <div className="text-sm font-semibold text-white">
                                             {item.vassalName || '附庸国'} · {ACTION_LABELS[item.actionType] || item.actionType}
                                         </div>
-                                        <div className="text-[10px] text-gray-400">
+                                        <div className="text-xs text-gray-400">
                                             {item.expiresAt != null ? `剩余 ${Math.max(0, item.expiresAt - currentDay)} 天` : '长期有效'}
                                         </div>
                                     </div>
@@ -129,7 +129,7 @@ export const VassalDiplomacyPanel = memo(({
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                         <div>
-                            <div className="text-[10px] text-gray-500 mb-1">附庸国</div>
+                            <div className="text-xs text-gray-500 mb-1">附庸国</div>
                             <select
                                 value={selectedVassalId}
                                 onChange={(e) => setSelectedVassalId(e.target.value)}
@@ -142,7 +142,7 @@ export const VassalDiplomacyPanel = memo(({
                             </select>
                         </div>
                         <div>
-                            <div className="text-[10px] text-gray-500 mb-1">指令类型</div>
+                            <div className="text-xs text-gray-500 mb-1">指令类型</div>
                             <select
                                 value={selectedAction}
                                 onChange={(e) => setSelectedAction(e.target.value)}
@@ -154,7 +154,7 @@ export const VassalDiplomacyPanel = memo(({
                             </select>
                         </div>
                         <div>
-                            <div className="text-[10px] text-gray-500 mb-1">目标国家</div>
+                            <div className="text-xs text-gray-500 mb-1">目标国家</div>
                             <select
                                 value={selectedTargetId}
                                 onChange={(e) => setSelectedTargetId(e.target.value)}
@@ -184,7 +184,7 @@ export const VassalDiplomacyPanel = memo(({
                             {history.slice(0, 5).map(item => (
                                 <div key={item.id} className="flex items-center justify-between">
                                     <span>{item.vassalName || '附庸国'} · {ACTION_LABELS[item.actionType] || item.actionType}</span>
-                                    <span className="text-[10px] text-gray-500">{item.status}</span>
+                                    <span className="text-xs text-gray-500">{item.status}</span>
                                 </div>
                             ))}
                         </div>

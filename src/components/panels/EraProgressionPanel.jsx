@@ -54,7 +54,7 @@ const EffectCard = ({ type, name, value, effect }) => {
             </div>
             <div className="text-base font-medium text-green-400">{value}</div>
             
-            <div className="mt-1.5 text-[10px] text-gray-500 space-y-0.5">
+            <div className="mt-1.5 text-xs text-gray-500 space-y-0.5">
                 {type === 'merchantEfficiency' && effect.multiplier && (
                     <div>商人贸易效率 ×{effect.multiplier.toFixed(2)}</div>
                 )}
@@ -114,7 +114,7 @@ const EraProgressionPanel = ({ currentEra = 0 }) => {
                     {eraName}
                 </span>
                 {eraAdvantage > 0 && (
-                    <span className="text-[10px] text-gray-500">
+                    <span className="text-xs text-gray-500">
                         时代优势: +{eraAdvantage} 级
                     </span>
                 )}
@@ -143,10 +143,10 @@ const EraProgressionPanel = ({ currentEra = 0 }) => {
             {/* 下一时代预览 */}
             {currentEra < 8 && (
                 <div className="p-2.5 border-t border-gray-700/50 bg-gray-800/30">
-                    <div className="text-[10px] text-gray-400 mb-1.5">
+                    <div className="text-xs text-gray-400 mb-1.5">
                         下一时代 ({ERA_NAMES[currentEra + 1]}) 新增效果:
                     </div>
-                    <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                    <div className="grid grid-cols-3 gap-1.5 text-xs">
                         <div className="text-gray-500">
                             <span className="text-yellow-400">🏪</span> 商人 +10%
                         </div>

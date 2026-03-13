@@ -1,0 +1,724 @@
+/**
+ * CorpsManagementPanel - Military Corps & Generals management UI
+ * Shows corps list, general assignment, unit allocation
+ */
+import React, { useState, useMemo, useRef, useCallback, memo } from 'react';
+import { Icon } from '../common/UIComponents';
+import { UNIT_TYPES } from '../../config';
+import {
+    createCorps,
+    assignUnitsToCorps,
+    removeUnitsFromCorps,
+    disbandCorps,
+    assignGeneralToCorps,
+    removeGeneralFromCorps,
+    getCorpsTotalUnits,
+    getCorpsGeneral,
+    getTraitDetails,
+    getGeneralBonuses,
+    MAX_CORPS_PER_PLAYER,
+    createGeneralFromOfficial,
+} from '../../logic/diplomacy/corpsSystem';
+import { formatNumberShortCN } from '../../utils/numberFormat';
+
+/**
+ * 数量步进器组件 — 带 +/- 按钮和长按加速
+ * 长按策略：前300ms单步，之后每80ms步进，800ms后加速到每40ms步进5
+ */
+const QuantityStepper = memo(({ value, min = 0, max, onChange, unitName }) => {
+    const longPressRef = useRef(null);
+
+    // 清除长按定时器
+    const clearLongPress = useCallback(() => {
+        if (longPressRef.current) {
+            clearTimeout(longPressRef.current.timeout);
+            clearInterval(longPressRef.current.interval);
+            longPressRef.current = null;
+        }
+    }, []);
+
+    // 开始长按
+    const startLongPress = useCallback((direction) => {
+        clearLongPress();
+        const step = direction === 'inc' ? 1 : -1;
+        const startTime = Date.now();
+
+        // 先执行一次立即步进
+        onChange(prev => Math.min(max, Math.max(min, prev + step)));
+
+        // 300ms 后开始连续步进（递归 setTimeout 实现变速加速）
+        const timeout = setTimeout(() => {
+            const tick = () => {
+                const elapsed = Date.now() - startTime;
+                // 800ms后步进5; 2000ms后步进20; 4000ms后步进100
+                let stepSize = 1;
+                if (elapsed > 4000) stepSize = 100;
+                else if (elapsed > 2000) stepSize = 20;
+                else if (elapsed > 800) stepSize = 5;
+                const delay = elapsed > 2000 ? 30 : 60;
+
+                onChange(prev => {
+                    const next = prev + step * stepSize;
+                    return Math.min(max, Math.max(min, next));
+                });
+
+                if (longPressRef.current) {
+                    longPressRef.current.interval = setTimeout(tick, delay);
+                }
+            };
+            if (longPressRef.current) {
+                longPressRef.current.interval = setTimeout(tick, 60);
+            }
+        }, 300);
+
+        longPressRef.current = { timeout, interval: null };
+    }, [min, max, onChange, clearLongPress]);
+
+    const handleMax = useCallback((e) => {
+        e.stopPropagation();
+        onChange(() => max);
+    }, [max, onChange]);
+
+    const handleClear = useCallback((e) => {
+        e.stopPropagation();
+        onChange(() => 0);
+    }, [onChange]);
+
+    return (
+        <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+            {/* 清零按钮 */}
+            <button
+                className="w-5 h-6 flex items-center justify-center text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 rounded transition-colors"
+                onClick={handleClear}
+                title="清零"
+            >
+                0
+            </button>
+            {/* 减按钮 */}
+            <button
+                className="w-7 h-7 flex items-center justify-center bg-gray-700/60 hover:bg-red-900/50 border border-gray-600 hover:border-red-500/40 rounded-l text-red-300 text-sm font-bold select-none transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={value <= min}
+                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startLongPress('dec'); }}
+                onPointerUp={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onContextMenu={e => e.preventDefault()}
+            >
+                −
+            </button>
+            {/* 数值显示 */}
+            <div className="w-12 h-7 flex items-center justify-center bg-gray-900/80 border-y border-gray-600 text-xs font-mono text-white tabular-nums select-none">
+                {value}
+            </div>
+            {/* 加按钮 */}
+            <button
+                className="w-7 h-7 flex items-center justify-center bg-gray-700/60 hover:bg-green-900/50 border border-gray-600 hover:border-green-500/40 rounded-r text-green-300 text-sm font-bold select-none transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={value >= max}
+                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startLongPress('inc'); }}
+                onPointerUp={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onContextMenu={e => e.preventDefault()}
+            >
+                +
+            </button>
+            {/* 全部按钮 */}
+            <button
+                className="h-6 px-1.5 flex items-center justify-center text-xs text-ancient-gold/70 hover:text-ancient-gold hover:bg-ancient-gold/10 rounded transition-colors"
+                onClick={handleMax}
+                title={`全部 (${max})`}
+            >
+                全部
+            </button>
+        </div>
+    );
+});
+
+const CorpsManagementPanel = ({
+    army = {},
+    militaryCorps = [],
+    generals = [],
+    officials = [],
+    activeFronts = [],
+    epoch = 0,
+    onUpdateCorps,
+    onUpdateGenerals,
+    onUpdateArmy,
+    corpsReplenishQueue = {},
+    onUpdateCorpsReplenishQueue,
+    autoRecruitEnabled = false,
+}) => {
+    const [selectedCorpsId, setSelectedCorpsId] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [newCorpsName, setNewCorpsName] = useState('');
+    const [assignMode, setAssignMode] = useState(null); // null | 'assign' | 'remove'
+    const [assignAmounts, setAssignAmounts] = useState({});
+    const [showOfficialPicker, setShowOfficialPicker] = useState(false);
+
+    const selectedCorps = useMemo(() =>
+        militaryCorps.find(c => c.id === selectedCorpsId),
+        [militaryCorps, selectedCorpsId]
+    );
+
+    // Player-only corps and generals (filter out AI entities)
+    const playerCorps = useMemo(() => militaryCorps.filter(c => !c.isAI), [militaryCorps]);
+    const playerGenerals = useMemo(() => generals.filter(g => !g.id?.startsWith('ai_gen_') && !g.isAI), [generals]);
+
+    // [FIX] Unassigned army = army state itself
+    // assignUnitsToCorps already physically removes units from global army,
+    // so army IS the unassigned pool. No need to subtract corps units again (was causing double-deduction).
+    const unassignedArmy = useMemo(() => {
+        const result = {};
+        for (const [unitId, count] of Object.entries(army || {})) {
+            if (count > 0) result[unitId] = count;
+        }
+        return result;
+    }, [army]);
+
+    const totalUnassigned = Object.values(unassignedArmy).reduce((s, c) => s + c, 0);
+
+    // ========== Handlers ==========
+
+    const handleCreateCorps = () => {
+        if (playerCorps.length >= MAX_CORPS_PER_PLAYER) return;
+        const name = newCorpsName.trim() || `第${playerCorps.length + 1}军团`;
+        const newCorps = createCorps(name);
+        onUpdateCorps([...militaryCorps, newCorps]);
+        setSelectedCorpsId(newCorps.id);
+        setShowCreateModal(false);
+        setNewCorpsName('');
+    };
+
+    // 一键编组：自动创建一个军团并将所有未编入的单位分配进去
+    const handleAutoGroup = () => {
+        if (playerCorps.length >= MAX_CORPS_PER_PLAYER || totalUnassigned <= 0) return;
+        const name = `第${playerCorps.length + 1}军团`;
+        const newCorps = createCorps(name);
+        const { corps: updatedCorps, army: updatedArmy } = assignUnitsToCorps(newCorps, army, { ...unassignedArmy });
+        onUpdateCorps([...militaryCorps, updatedCorps]);
+        onUpdateArmy(updatedArmy);
+        setSelectedCorpsId(updatedCorps.id);
+    };
+
+    const handleDisbandCorps = (corpsId) => {
+        const corps = militaryCorps.find(c => c.id === corpsId);
+        if (!corps) return;
+        // Prevent disbanding corps in combat or deployed to front
+        if (corps.status === 'in_combat') {
+            alert('该军团正在战斗中，无法解散，请等待战斗结束。');
+            return;
+        }
+        const assignedActiveFront = activeFronts.find(f => f?.status === 'active' && f.id === corps.assignedFrontId);
+        if (assignedActiveFront) {
+            alert('该军团已部署到战线，请先从战线撤回后再解散。');
+            return;
+        }
+        const updatedArmy = disbandCorps(corps, army);
+        const updatedCorps = militaryCorps.filter(c => c.id !== corpsId);
+        // Unassign general
+        const updatedGenerals = generals.map(g =>
+            g.assignedCorpsId === corpsId ? { ...g, assignedCorpsId: null } : g
+        );
+        onUpdateArmy(updatedArmy);
+        onUpdateCorps(updatedCorps);
+        onUpdateGenerals(updatedGenerals);
+        // Clear replenish queue for disbanded corps
+        if (onUpdateCorpsReplenishQueue) {
+            onUpdateCorpsReplenishQueue(prev => {
+                const next = { ...prev };
+                delete next[corpsId];
+                return next;
+            });
+        }
+        if (selectedCorpsId === corpsId) setSelectedCorpsId(null);
+    };
+
+    const handleAssignUnits = () => {
+        if (!selectedCorps) return;
+        const { corps: updatedCorps, army: updatedArmy } = assignUnitsToCorps(selectedCorps, army, assignAmounts);
+        const updatedList = militaryCorps.map(c => c.id === updatedCorps.id ? updatedCorps : c);
+        onUpdateCorps(updatedList);
+        onUpdateArmy(updatedArmy);
+        // Reduce replenish deficit when units are manually assigned to a corps
+        if (onUpdateCorpsReplenishQueue && corpsReplenishQueue[selectedCorps.id]) {
+            onUpdateCorpsReplenishQueue(prev => {
+                const next = { ...prev };
+                if (!next[selectedCorps.id]) return next;
+                for (const [unitId, count] of Object.entries(assignAmounts)) {
+                    if (next[selectedCorps.id]?.[unitId]) {
+                        next[selectedCorps.id][unitId] = Math.max(0, next[selectedCorps.id][unitId] - count);
+                        if (next[selectedCorps.id][unitId] <= 0) {
+                            delete next[selectedCorps.id][unitId];
+                        }
+                    }
+                }
+                if (Object.keys(next[selectedCorps.id] || {}).length === 0) {
+                    delete next[selectedCorps.id];
+                }
+                return next;
+            });
+        }
+        setAssignAmounts({});
+        setAssignMode(null);
+    };
+
+    const handleRemoveUnits = () => {
+        if (!selectedCorps) return;
+        const { corps: updatedCorps, army: updatedArmy } = removeUnitsFromCorps(selectedCorps, army, assignAmounts);
+        const updatedList = militaryCorps.map(c => c.id === updatedCorps.id ? updatedCorps : c);
+        onUpdateCorps(updatedList);
+        onUpdateArmy(updatedArmy);
+        setAssignAmounts({});
+        setAssignMode(null);
+    };
+
+    const handleRecruitGeneral = () => {
+        setShowOfficialPicker(true);
+    };
+
+    const handleSelectOfficialAsGeneral = (official) => {
+        const newGen = createGeneralFromOfficial(official, epoch);
+        if (newGen) {
+            onUpdateGenerals([...generals, newGen]);
+        }
+        setShowOfficialPicker(false);
+    };
+
+    const handleAssignGeneral = (generalId, corpsId) => {
+        const updated = assignGeneralToCorps(generals, generalId, corpsId);
+        const updatedCorps = militaryCorps.map(c => {
+            if (c.id === corpsId) return { ...c, generalId };
+            // Remove general from old corps
+            const oldGeneral = generals.find(g => g.id === generalId);
+            if (oldGeneral?.assignedCorpsId === c.id) return { ...c, generalId: null };
+            return c;
+        });
+        onUpdateGenerals(updated);
+        onUpdateCorps(updatedCorps);
+    };
+
+    const handleUnassignGeneral = (generalId) => {
+        const updated = removeGeneralFromCorps(generals, generalId);
+        const gen = generals.find(g => g.id === generalId);
+        if (gen?.assignedCorpsId) {
+            const updatedCorps = militaryCorps.map(c =>
+                c.id === gen.assignedCorpsId ? { ...c, generalId: null } : c
+            );
+            onUpdateCorps(updatedCorps);
+        }
+        onUpdateGenerals(updated);
+    };
+
+    // ========== Render ==========
+
+    return (
+        <div className="space-y-3">
+            {/* Header */}
+            <div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
+                        <Icon name="Shield" size={16} className="text-ancient-gold" />
+                        军团管理
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">
+                            {playerCorps.length}/{MAX_CORPS_PER_PLAYER} 军团
+                        </span>
+                        {totalUnassigned > 0 && playerCorps.length < MAX_CORPS_PER_PLAYER && (
+                            <button
+                                className="px-2 py-1 text-xs bg-emerald-900/30 border border-emerald-500/30 rounded hover:bg-emerald-900/50 text-emerald-300"
+                                onClick={handleAutoGroup}
+                            >
+                                一键编组 ({totalUnassigned})
+                            </button>
+                        )}
+                        <button
+                            className="px-2 py-1 text-xs bg-ancient-gold/20 border border-ancient-gold/40 rounded hover:bg-ancient-gold/30 text-ancient-parchment disabled:opacity-50"
+                            onClick={() => setShowCreateModal(true)}
+                            disabled={playerCorps.length >= MAX_CORPS_PER_PLAYER}
+                        >
+                            + 创建军团
+                        </button>
+                    </div>
+                </div>
+
+                {/* Unassigned pool info */}
+                <div className="text-xs text-gray-400 bg-gray-900/30 rounded px-2 py-1">
+                    未编入军团: <span className="text-ancient-parchment">{totalUnassigned}</span> 单位
+                </div>
+            </div>
+
+            {/* Corps List */}
+            {playerCorps.length === 0 ? (
+                <div className="glass-ancient p-4 rounded-lg border border-ancient-gold/20 text-center text-sm text-gray-400">
+                    <Icon name="Shield" size={32} className="mx-auto mb-2 text-gray-600" />
+                    <p>尚未创建任何军团</p>
+                    <p className="text-xs mt-1">军团用于编组部队并部署到战线</p>
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    {playerCorps.map(corps => {
+                        const general = getCorpsGeneral(generals, corps.id);
+                        const unitCount = getCorpsTotalUnits(corps);
+                        const isSelected = corps.id === selectedCorpsId;
+                        const front = activeFronts.find(f =>
+                            f?.status === 'active' && (
+                                f.assignedCorps?.attacker?.includes(corps.id) ||
+                                f.assignedCorps?.defender?.includes(corps.id)
+                            )
+                        );
+
+                        return (
+                            <div
+                                key={corps.id}
+                                className={`glass-ancient p-3 rounded-lg border cursor-pointer transition-all ${isSelected
+                                    ? 'border-ancient-gold/60 bg-ancient-gold/10'
+                                    : 'border-ancient-gold/20 hover:border-ancient-gold/40'}`}
+                                onClick={() => setSelectedCorpsId(isSelected ? null : corps.id)}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="Shield" size={14} className="text-ancient-gold" />
+                                        <span className="text-sm font-bold text-ancient-parchment">{corps.name}</span>
+                                        <span className="text-xs text-gray-400">({unitCount} 单位)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {front && (
+                                            <span className="text-xs px-1.5 py-0.5 bg-red-900/40 border border-red-500/30 rounded text-red-300">
+                                                已部署
+                                            </span>
+                                        )}
+                                        {corps.status === 'in_combat' && (
+                                            <span className="text-xs px-1.5 py-0.5 bg-orange-900/40 border border-orange-500/30 rounded text-orange-300 animate-pulse">
+                                                战斗中
+                                            </span>
+                                        )}
+                                        <span className="text-xs text-gray-500">
+                                            士气: <span className={corps.morale > 70 ? 'text-green-400' : corps.morale > 40 ? 'text-yellow-400' : 'text-red-400'}>{Math.round(corps.morale)}</span>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* General info */}
+                                <div className="mt-1 text-xs text-gray-400">
+                                    {general ? (
+                                        <span className="flex items-center gap-1">
+                                            <Icon name="Star" size={10} className="text-yellow-400" />
+                                            将领: <span className="text-ancient-parchment">{general.name}</span>
+                                            <span className="text-gray-500">(Lv.{general.level})</span>
+                            {general.traits?.map(t => {
+                                const detail = getTraitDetails([t])[0];
+                                return detail ? (
+                                    <span key={t} className="px-1 py-0.5 bg-gray-800 rounded text-gray-300">
+                                        {detail.name}
+                                        <span className="ml-0.5 text-gray-500 text-xs">{detail.desc}</span>
+                                    </span>
+                                ) : null;
+                            })}
+                                        </span>
+                                    ) : (
+                                        <span className="text-gray-500 italic">无将领（-15%战力）</span>
+                                    )}
+                                </div>
+
+                                {/* Unit composition (brief) */}
+                                {unitCount > 0 && (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                        {Object.entries(corps.units).map(([uid, count]) => (
+                                            <span key={uid} className="text-xs px-1.5 py-0.5 bg-gray-800/60 rounded text-gray-300">
+                                                {UNIT_TYPES[uid]?.name || uid} ×{count}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Expanded details */}
+                                {isSelected && (
+                                    <div className="mt-3 pt-3 border-t border-gray-700 space-y-2">
+                                        {/* Actions */}
+                                        <div className="flex gap-2">
+                                            <button
+                                                className="px-2 py-1 text-xs bg-blue-900/30 border border-blue-500/30 rounded hover:bg-blue-900/50 text-blue-300"
+                                                onClick={(e) => { e.stopPropagation(); setAssignMode('assign'); setAssignAmounts({}); }}
+                                            >
+                                                编入部队
+                                            </button>
+                                            <button
+                                                className="px-2 py-1 text-xs bg-yellow-900/30 border border-yellow-500/30 rounded hover:bg-yellow-900/50 text-yellow-300"
+                                                onClick={(e) => { e.stopPropagation(); setAssignMode('remove'); setAssignAmounts({}); }}
+                                            >
+                                                撤出部队
+                                            </button>
+                                            <button
+                                                className="px-2 py-1 text-xs bg-red-900/30 border border-red-500/30 rounded hover:bg-red-900/50 text-red-300"
+                                                onClick={(e) => { e.stopPropagation(); handleDisbandCorps(corps.id); }}
+                                            >
+                                                解散军团
+                                            </button>
+                                        </div>
+
+                                        {/* Auto-replenish toggle for this corps */}
+                                        <div className="flex items-center gap-2 text-xs">
+                                            <span className="text-gray-400">自动补兵:</span>
+                                            <button
+                                                className={`px-2 py-0.5 rounded border text-xs transition-colors ${
+                                                    !autoRecruitEnabled
+                                                        ? 'bg-gray-800/50 border-gray-600 text-gray-500 cursor-not-allowed'
+                                                        : corps.autoReplenish !== false
+                                                            ? 'bg-green-900/30 border-green-500/40 text-green-300 hover:bg-green-900/50'
+                                                            : 'bg-gray-800/50 border-gray-600 text-gray-400 hover:bg-gray-700/50'
+                                                }`}
+                                                disabled={!autoRecruitEnabled}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const newValue = !(corps.autoReplenish !== false);
+                                                    const updatedList = militaryCorps.map(c =>
+                                                        c.id === corps.id ? { ...c, autoReplenish: newValue } : c
+                                                    );
+                                                    onUpdateCorps(updatedList);
+                                                }}
+                                            >
+                                                {!autoRecruitEnabled ? '全局已关闭' : (corps.autoReplenish !== false ? '开启' : '关闭')}
+                                            </button>
+                                            {/* Show deficit info */}
+                                            {(() => {
+                                                const deficits = corpsReplenishQueue[corps.id];
+                                                if (!deficits || Object.keys(deficits).length === 0) return null;
+                                                const totalDeficit = Object.values(deficits).reduce((s, c) => s + (c || 0), 0);
+                                                return (
+                                                    <span className="text-amber-400/80 ml-1">
+                                                        待补 {totalDeficit} 人
+                                                    </span>
+                                                );
+                                            })()}
+                                        </div>
+
+                                        {/* Unit assignment interface */}
+                                        {assignMode && (
+                                            <div className="bg-gray-900/50 rounded p-2 space-y-2">
+                                                <p className="text-xs text-gray-400">
+                                                    {assignMode === 'assign' ? '选择要编入的部队:' : '选择要撤出的部队:'}
+                                                </p>
+                                                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                                    {Object.entries(assignMode === 'assign' ? unassignedArmy : (corps.units || {}))
+                                                        .filter(([, count]) => count > 0)
+                                                        .map(([uid, available]) => (
+                                                            <div key={uid} className="flex items-center justify-between text-xs gap-2">
+                                                                <span className="text-gray-300 whitespace-nowrap">{UNIT_TYPES[uid]?.name || uid} <span className="text-gray-500">({available})</span></span>
+                                                                <QuantityStepper
+                                                                    value={assignAmounts[uid] || 0}
+                                                                    min={0}
+                                                                    max={available}
+                                                                    unitName={UNIT_TYPES[uid]?.name || uid}
+                                                                    onChange={(updater) => {
+                                                                        setAssignAmounts(prev => {
+                                                                            const oldVal = prev[uid] || 0;
+                                                                            const newVal = typeof updater === 'function' ? updater(oldVal) : updater;
+                                                                            return { ...prev, [uid]: newVal };
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        className="px-2 py-1 text-xs bg-green-900/30 border border-green-500/30 rounded hover:bg-green-900/50 text-green-300"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            assignMode === 'assign' ? handleAssignUnits() : handleRemoveUnits();
+                                                        }}
+                                                    >
+                                                        确认
+                                                    </button>
+                                                    <button
+                                                        className="px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 text-gray-300"
+                                                        onClick={(e) => { e.stopPropagation(); setAssignMode(null); }}
+                                                    >
+                                                        取消
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* General assignment */}
+                                        <div className="bg-gray-900/50 rounded p-2">
+                                            <p className="text-xs text-gray-400 mb-1">将领管理:</p>
+                                            {general ? (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-ancient-parchment">{general.name} (Lv.{general.level})</span>
+                                                    <button
+                                                        className="px-2 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-300"
+                                                        onClick={(e) => { e.stopPropagation(); handleUnassignGeneral(general.id); }}
+                                                    >
+                                                        卸任
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-1">
+                                    {playerGenerals.filter(g => !g.assignedCorpsId).map(g => (
+                                        <div key={g.id} className="flex items-center justify-between text-xs">
+                                            <span className="text-gray-300">{g.name} (Lv.{g.level})</span>
+                                            <button
+                                                className="px-2 py-0.5 text-xs bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment"
+                                                onClick={(e) => { e.stopPropagation(); handleAssignGeneral(g.id, corps.id); }}
+                                            >
+                                                指派
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {playerGenerals.filter(g => !g.assignedCorpsId).length === 0 && (
+                                        <span className="text-xs text-gray-500">无可用将领</span>
+                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Generals section */}
+            <div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
+                        <Icon name="Star" size={16} className="text-yellow-400" />
+                        将领
+                    </h3>
+                    <button
+                        className="px-2 py-1 text-xs bg-ancient-gold/20 border border-ancient-gold/40 rounded hover:bg-ancient-gold/30 text-ancient-parchment"
+                        onClick={handleRecruitGeneral}
+                    >
+                        从官员中选拔
+                    </button>
+                </div>
+                {/* Official picker for selecting general from officials */}
+                {showOfficialPicker && (
+                    <div className="bg-gray-900/50 rounded p-2 mb-2 border border-ancient-gold/20">
+                        <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs text-gray-400">选择一位官员担任将领</p>
+                            <button
+                                className="text-xs text-gray-500 hover:text-gray-300"
+                                onClick={() => setShowOfficialPicker(false)}
+                            >
+                                取消
+                            </button>
+                        </div>
+                        {(() => {
+                            const seen = new Set();
+                            const availableOfficials = (officials || []).filter(o => {
+                                if (!o || !o.id) return false;
+                                if (seen.has(o.id)) return false; // Deduplicate by id
+                                seen.add(o.id);
+                                return !generals.some(g => g.officialId === o.id);
+                            });
+                            if (availableOfficials.length === 0) {
+                                return (
+                                    <p className="text-xs text-yellow-400 text-center py-2">
+                                        没有合适官员可担任将领。建议先在行政面板录用具备军事能力的官员。
+                                    </p>
+                                );
+                            }
+                            return (
+                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                    {availableOfficials.map(o => {
+                                        const milStat = o.stats?.military || o.military || 30;
+                                        const milBonus = o.effects?.militaryBonus || 0;
+                                        return (
+                                            <div key={o.id} className="flex items-center justify-between bg-gray-800/50 rounded px-2 py-1">
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="text-ancient-parchment font-bold">{o.name}</span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {o.sourceStratum || '未知'}出身
+                                                    </span>
+                                                    <span className="text-xs text-blue-300" title="军事属性">
+                                                        军{milStat}
+                                                    </span>
+                                                    {milBonus > 0 && (
+                                                        <span className="text-xs text-green-400">
+                                                            军事+{(milBonus * 100).toFixed(0)}%
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    className="px-2 py-0.5 text-xs bg-ancient-gold/20 border border-ancient-gold/30 rounded text-ancient-parchment hover:bg-ancient-gold/30"
+                                                    onClick={() => handleSelectOfficialAsGeneral(o)}
+                                                >
+                                                    选拔
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                )}
+                {playerGenerals.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-2">尚无将领，点击“从官员中选拔”</p>
+                ) : (
+                    <div className="space-y-1">
+                        {playerGenerals.map(gen => {
+                            const traits = getTraitDetails(gen.traits);
+                            const bonuses = getGeneralBonuses(gen);
+                            const assignedCorps = militaryCorps.find(c => c.id === gen.assignedCorpsId);
+                            return (
+                                <div key={gen.id} className="flex items-center justify-between bg-gray-900/30 rounded px-2 py-1.5">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="Star" size={12} className="text-yellow-400" />
+                                        <span className="text-xs text-ancient-parchment font-bold">{gen.name}</span>
+                                        <span className="text-xs text-gray-400">Lv.{gen.level}</span>
+                                        {traits.map(t => (
+                                            <span key={t.id} className="text-xs px-1 py-0.5 bg-gray-800 rounded text-gray-300">
+                                                {t.name}
+                                                <span className="ml-0.5 text-gray-500 text-xs">{t.desc}</span>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        {assignedCorps ? `指派至: ${assignedCorps.name}` : '待命'}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Create Corps Modal */}
+            {showCreateModal && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
+                    <div className="bg-gray-800 border border-ancient-gold/40 rounded-lg p-4 w-72" onClick={e => e.stopPropagation()}>
+                        <h4 className="text-sm font-bold text-ancient-parchment mb-3">创建军团</h4>
+                        <input
+                            type="text"
+                            value={newCorpsName}
+                            onChange={e => setNewCorpsName(e.target.value)}
+                            placeholder={`第${playerCorps.length + 1}军团`}
+                            className="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-white mb-3"
+                            autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') handleCreateCorps(); }}
+                        />
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                className="px-3 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-300"
+                                onClick={() => setShowCreateModal(false)}
+                            >
+                                取消
+                            </button>
+                            <button
+                                className="px-3 py-1 text-xs bg-ancient-gold/20 border border-ancient-gold/40 rounded text-ancient-parchment"
+                                onClick={handleCreateCorps}
+                            >
+                                创建
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default memo(CorpsManagementPanel);

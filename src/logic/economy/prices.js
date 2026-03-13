@@ -77,12 +77,12 @@ export const calculateResourceCost = (
             }
 
             let laborCost = 0;
-            const isSelfOwned = primaryBuilding.owner && primaryBuilding.jobs && 
-                              primaryBuilding.jobs[primaryBuilding.owner];
-
-            if (primaryBuilding.jobs && !isSelfOwned) {
+            // 自营建筑：跳过业主自身的工资（业主靠利润驱动），但仍计入其他雇员的工资
+            if (primaryBuilding.jobs) {
                 Object.entries(primaryBuilding.jobs).forEach(([role, slots]) => {
                     if (!slots || slots <= 0) return;
+                    // 如果是业主岗位，跳过其工资（业主收入来自利润而非工资）
+                    if (primaryBuilding.owner && role === primaryBuilding.owner) return;
                     laborCost += slots * resolveWage(role);
                 });
             }
@@ -145,6 +145,11 @@ export const updateMarketPrices = ({
             ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
             : defaultInventoryPriceImpact;
 
+        // Get resource-specific supplyDemandWeight
+        const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined
+            ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
+            : Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
+
         const sup = supply[resource] || 0;
         const dem = demand[resource] || 0;
         const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
@@ -194,11 +199,13 @@ export const updateMarketPrices = ({
             }
 
             // Calculate labor cost
+            // 自营建筑：跳过业主自身的工资，但仍计入其他雇员的工资
             let laborCost = 0;
-            const isSelfOwned = building.owner && building.jobs && building.jobs[building.owner];
-            if (building.jobs && !isSelfOwned) {
+            if (building.jobs) {
                 Object.entries(building.jobs).forEach(([role, slots]) => {
                     if (!slots || slots <= 0) return;
+                    // 如果是业主岗位，跳过其工资（业主收入来自利润而非工资）
+                    if (building.owner && role === building.owner) return;
                     const wage = updatedWages[role] || 0;
                     laborCost += slots * wage;
                 });
@@ -228,15 +235,34 @@ export const updateMarketPrices = ({
 
             const basePrice = getBasePrice(resource);
             const inventoryRatio = inventoryDays / inventoryTargetDays;
-            
-            // Price adjustment based on inventory
+            // Max multiplier driven by maxPrice config
+            const maxMultiplier = (resourceDef.maxPrice != null && basePrice > 0)
+                ? resourceDef.maxPrice / basePrice
+                : 50.0;
+
+            // Price adjustment based on inventory - continuous piecewise function
             let priceMultiplier = 1.0;
-            if (inventoryRatio < 0.5) {
-                // Low inventory - price increases
-                priceMultiplier = 1 + (0.5 - inventoryRatio) * inventoryPriceImpact * 2;
+            if (inventoryRatio < 0.1) {
+                // Extreme shortage: steep increase, continuous at ratio=0.1 (value=5.0)
+                priceMultiplier = 5.0 + (0.1 - inventoryRatio) * 40.0;
+                priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
+            } else if (inventoryRatio < 0.5) {
+                // Low inventory: moderate increase, continuous at ratio=0.1 (value=5.0) and ratio=0.5 (value=1.0)
+                priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 10.0;
             } else if (inventoryRatio > 2.0) {
                 // High inventory - price decreases
                 priceMultiplier = 1 - Math.min(0.5, (inventoryRatio - 2.0) * inventoryPriceImpact * 0.5);
+            }
+
+            // Apply supplyDemandWeight: scales how much supply/demand moves price away from 1.0
+            priceMultiplier = 1.0 + (priceMultiplier - 1.0) * supplyDemandWeight;
+
+            // [NEW] Military resource epoch obsolescence decay
+            // Old-era military resources lose value as newer alternatives become available
+            if (resourceDef?.tags?.includes('military') && resourceDef.unlockEpoch != null && epoch > resourceDef.unlockEpoch + 2) {
+                const eraGap = epoch - resourceDef.unlockEpoch - 2;
+                const obsolescenceDecay = Math.max(0.4, 1 - eraGap * 0.12); // Min 40% of original value
+                priceMultiplier *= obsolescenceDecay;
             }
 
             // Final price = max(cost * margin, base price) * inventory adjustment
@@ -244,8 +270,10 @@ export const updateMarketPrices = ({
             const targetPrice = minPrice * priceMultiplier;
 
             // Smooth price transition
+            // [FIX] 动态平滑系数：供需差距大时加快响应
             const currentPrice = priceMap[resource] || basePrice;
-            const smoothing = 0.1;
+            const gapRatio = currentPrice > 0 ? Math.abs(targetPrice - currentPrice) / currentPrice : 0;
+            const smoothing = Math.min(0.4, 0.2 + gapRatio * 0.2);
             updatedPrices[resource] = parseFloat(
                 (currentPrice + (targetPrice - currentPrice) * smoothing).toFixed(2)
             );

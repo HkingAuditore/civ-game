@@ -107,7 +107,7 @@ export const DecreeDetailSheet = ({
       {/* 正面效果 */}
       {filteredEffects && filteredEffects.length > 0 && (
         <div className="bg-green-900/20 border border-green-500/30 rounded p-2">
-          <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+          <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
             <Icon name="TrendingUp" size={12} className="text-green-400" />
             正面效果
           </h3>
@@ -125,7 +125,7 @@ export const DecreeDetailSheet = ({
       {/* 负面效果 */}
       {filteredDrawbacks && filteredDrawbacks.length > 0 && (
         <div className="bg-red-900/20 border border-red-500/30 rounded p-2">
-          <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+          <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
             <Icon name="TrendingDown" size={12} className="text-red-400" />
             负面效果
           </h3>
@@ -155,7 +155,7 @@ export const DecreeDetailSheet = ({
       {/* 供需修正效果 */}
       {decree.modifiers && (decree.modifiers.resourceDemandMod || decree.modifiers.stratumDemandMod || decree.modifiers.resourceSupplyMod) && (
         <div className="bg-blue-900/20 border border-blue-500/30 rounded p-2">
-          <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
+          <h3 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1 font-decorative">
             <Icon name="BarChart3" size={12} className="text-blue-400" />
             供需修正
           </h3>
@@ -163,12 +163,12 @@ export const DecreeDetailSheet = ({
             {/* 资源需求修正 */}
             {decree.modifiers.resourceDemandMod && Object.keys(decree.modifiers.resourceDemandMod).length > 0 && (
               <div className="space-y-1">
-                <div className="text-[10px] text-gray-400">资源需求</div>
+                <div className="text-xs text-gray-400">资源需求</div>
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(decree.modifiers.resourceDemandMod).map(([resKey, value]) => (
                     <span 
                       key={resKey} 
-                      className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      className={`text-xs px-1.5 py-0.5 rounded ${
                         value > 0 ? 'bg-orange-900/30 text-orange-300' : 'bg-cyan-900/30 text-cyan-300'
                       }`}
                     >
@@ -182,12 +182,12 @@ export const DecreeDetailSheet = ({
             {/* 资源供应修正 */}
             {decree.modifiers.resourceSupplyMod && Object.keys(decree.modifiers.resourceSupplyMod).length > 0 && (
               <div className="space-y-1">
-                <div className="text-[10px] text-gray-400">资源供应</div>
+                <div className="text-xs text-gray-400">资源供应</div>
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(decree.modifiers.resourceSupplyMod).map(([resKey, value]) => (
                     <span 
                       key={resKey} 
-                      className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      className={`text-xs px-1.5 py-0.5 rounded ${
                         value > 0 ? 'bg-green-900/30 text-green-300' : 'bg-red-900/30 text-red-300'
                       }`}
                     >
@@ -201,12 +201,12 @@ export const DecreeDetailSheet = ({
             {/* 阶层需求修正 */}
             {decree.modifiers.stratumDemandMod && Object.keys(decree.modifiers.stratumDemandMod).length > 0 && (
               <div className="space-y-1">
-                <div className="text-[10px] text-gray-400">阶层消费</div>
+                <div className="text-xs text-gray-400">阶层消费</div>
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(decree.modifiers.stratumDemandMod).map(([stratumKey, value]) => (
                     <span 
                       key={stratumKey} 
-                      className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      className={`text-xs px-1.5 py-0.5 rounded ${
                         value > 0 ? 'bg-purple-900/30 text-purple-300' : 'bg-teal-900/30 text-teal-300'
                       }`}
                     >
@@ -220,28 +220,21 @@ export const DecreeDetailSheet = ({
         </div>
       )}
 
-      {/* 状态说明 */}
-      <div className={`rounded p-2.5 border ${
+      {/* 状态标签 */}
+      <div className={`flex items-center gap-2 rounded px-3 py-2 border ${
         isActive 
           ? 'bg-green-900/20 border-green-500/30' 
           : 'bg-gray-700/50 border-gray-600'
       }`}>
-        <div className="flex items-center gap-2 mb-1.5">
           <Icon 
             name={isActive ? "CheckCircle" : "Circle"} 
-            size={16} 
+            size={14} 
             className={isActive ? "text-green-400" : "text-gray-400"} 
           />
-          <span className={`text-xs font-bold ${isActive ? 'text-green-300' : 'text-gray-300'}`}>
-            {isActive ? '该政策当前生效中' : '该政策当前未启用'}
+          <span className={`text-xs font-bold ${isActive ? 'text-green-300' : 'text-gray-400'}`}>
+            {isActive ? '生效中' : '未启用'}
           </span>
-        </div>
-        <p className="text-xs text-gray-400 leading-relaxed">
-          {isActive 
-            ? '政策效果正在影响你的国家。你可以随时废除该政策。'
-            : '点击"颁布"按钮即可激活该政策。激活后政策效果将立即生效。'
-          }
-        </p>      </div>
+      </div>
     </div>
   );
 };

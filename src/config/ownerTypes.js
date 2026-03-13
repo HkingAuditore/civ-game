@@ -108,7 +108,29 @@ export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, 
         });
     }
     
-    // 2. 统计外资数量
+    // 2. 统计代经营（国有）建筑数量
+    // 逐官员模式：只要官员有 managedBuildings 就统计（不依赖全局策略标志）
+    let stateCount = 0;
+    const stateManagedBy = {}; // { officialId: count } 哪个官员代管多少
+    (officials || []).forEach(official => {
+        (official.managedBuildings || []).forEach(mb => {
+            if (mb.buildingId === buildingId) {
+                stateCount += 1;
+                const managerId = official.id || official.name || 'unknown';
+                stateManagedBy[managerId] = (stateManagedBy[managerId] || 0) + 1;
+            }
+        });
+    });
+
+    if (stateCount > 0) {
+        ownershipList.push({
+            ownerType: OWNER_TYPES.STATE,
+            count: stateCount,
+            details: stateManagedBy, // 详细信息：哪个官员代管多少
+        });
+    }
+    
+    // 3. 统计外资数量
     let foreignCount = 0;
     const foreignOwners = {}; // { nationId: count }
     (foreignInvestments || []).forEach(inv => {
@@ -127,8 +149,8 @@ export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, 
         });
     }
     
-    // 3. 剩余为阶层业主
-    const stratumCount = Math.max(0, totalCount - officialCount - foreignCount);
+    // 4. 剩余为阶层业主
+    const stratumCount = Math.max(0, totalCount - officialCount - stateCount - foreignCount);
     if (stratumCount > 0) {
         ownershipList.push({
             ownerType: OWNER_TYPES.STRATUM,
@@ -198,4 +220,67 @@ export function getOwnerTypeColors(ownerType) {
                 text: 'text-gray-200',
             };
     }
+}
+
+/**
+ * 统计所有代经营建筑数据
+ * @param {Array} officials - 官员列表
+ * @returns {Object} { totalCount, byBuilding: { buildingId: { count, managers: [...] } } }
+ */
+export function getStateManagedBuildingStats(officials) {
+    const stats = { totalCount: 0, byBuilding: {} };
+    (officials || []).forEach(official => {
+        (official.managedBuildings || []).forEach(mb => {
+            const bid = mb.buildingId;
+            if (!stats.byBuilding[bid]) {
+                stats.byBuilding[bid] = { count: 0, managers: [] };
+            }
+            stats.byBuilding[bid].count += 1;
+            stats.byBuilding[bid].managers.push({
+                officialId: official.id || official.name,
+                officialName: official.name,
+            });
+            stats.totalCount += 1;
+        });
+    });
+    return stats;
+}
+
+/**
+ * 获取所有建筑的所有权汇总信息
+ * 用于全局统计面板展示
+ * @param {Object} buildings - 建筑计数 { buildingId: count }
+ * @param {Array} officials - 官员列表
+ * @param {Array} foreignInvestments - 外资投资列表
+ * @param {Object} buildingConfigs - 建筑配置映射 { buildingId: buildingConfig }
+ * @returns {Object} { stratum: totalCount, official: totalCount, state: totalCount, foreign: totalCount }
+ */
+export function getOwnershipSummary(buildings, officials, foreignInvestments, buildingConfigs) {
+    const summary = { stratum: 0, official: 0, state: 0, foreign: 0 };
+    
+    Object.entries(buildings || {}).forEach(([buildingId, totalCount]) => {
+        if (!totalCount || totalCount <= 0) return;
+        const building = buildingConfigs?.[buildingId] || null;
+        const ownershipList = buildOwnershipListFromLegacy(
+            buildingId, totalCount, officials, foreignInvestments, building
+        );
+        ownershipList.forEach(entry => {
+            switch (entry.ownerType) {
+                case OWNER_TYPES.STRATUM:
+                    summary.stratum += entry.count;
+                    break;
+                case OWNER_TYPES.OFFICIAL:
+                    summary.official += entry.count;
+                    break;
+                case OWNER_TYPES.STATE:
+                    summary.state += entry.count;
+                    break;
+                case OWNER_TYPES.FOREIGN:
+                    summary.foreign += entry.count;
+                    break;
+            }
+        });
+    });
+    
+    return summary;
 }

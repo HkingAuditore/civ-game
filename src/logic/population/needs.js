@@ -6,8 +6,9 @@
 import { STRATA, RESOURCES } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
-import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
+import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard, calculatePriceAwareLivingStandardThresholds } from '../../utils/livingStandard';
 import { applyBuyPriceControl } from '../officials/cabinetSynergy';
+
 import { getResourceConsumptionMultiplier, getMaxConsumptionMultiplierBonus } from '../../config/difficulty';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
@@ -325,8 +326,11 @@ export const calculateLivingStandards = ({
     epoch,
     techsUnlocked,
     priceMap = {},
-    livingStandardStreaks = {}
+    livingStandardStreaks = {},
+    needsRequirementMultiplier = 1,
+    potentialResources = null,
 }) => {
+
     const classLivingStandard = {};
     const updatedLivingStandardStreaks = {};
 
@@ -373,8 +377,19 @@ export const calculateLivingStandards = ({
         // Calculate effective needs count and luxury tiers
         const luxuryNeeds = def.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
+        const priceAwareThresholds = calculatePriceAwareLivingStandardThresholds({
+            baseNeeds: def.needs || {},
+            luxuryNeeds,
+            priceMap: getPrice,
+            epoch,
+            techsUnlocked,
+            needsRequirementMultiplier,
+            potentialResources,
+        });
+
 
         // 计算消费能力（用于奢侈需求解锁判断）
+
         const wealthElasticity = def.wealthElasticity || 1.0;
         const incomePerCapita = count > 0 ? incomeValue / count : 0;
         const essentialCostPerCapita = count > 0 ? essentialCost / count : 0;
@@ -424,6 +439,8 @@ export const calculateLivingStandards = ({
             expense: expenseValue,
             wealthValue,
             startingWealth,
+            wealthReference: priceAwareThresholds.referenceThreshold || startingWealth,
+            wealthThresholds: priceAwareThresholds.thresholds,
             essentialCost,
             shortagesCount,
             effectiveNeedsCount,
@@ -436,8 +453,17 @@ export const calculateLivingStandards = ({
             greedy: def.greedy, // Pass greedy flag from stratum config
         });
 
+
+
+        if (classLivingStandard[key]) {
+            classLivingStandard[key].basketDailyCosts = priceAwareThresholds.dailyCosts;
+            classLivingStandard[key].basketThresholds = priceAwareThresholds.thresholds;
+            classLivingStandard[key].basketBufferDays = priceAwareThresholds.bufferDays;
+        }
+
         // Update streak
         const prevStreak = prevTracker.streak || 0;
+
         const currentLevel = classLivingStandard[key]?.level || null;
         const currentScore = classLivingStandard[key]?.score ?? null;
         let nextStreak = prevStreak;

@@ -7,6 +7,7 @@ import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
 import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS } from './hooks';
+import { useStoreSync } from './stores/useStoreSync';
 import { useTutorialSystem } from './hooks/useTutorialSystem';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
 import {
@@ -40,7 +41,7 @@ import {
     StratumDetailModal,
     ResourceDetailModal,
     PopulationDetailModal,
-    AnnualFestivalModal,
+    AnnualReportModal,
     TutorialModal,
     WikiModal,
 } from './components';
@@ -53,12 +54,18 @@ import { DifficultySelectionModal } from './components/modals/DifficultySelectio
 import { SaveSlotModal } from './components/modals/SaveSlotModal';
 import { SaveTransferModal } from './components/modals/SaveTransferModal';
 import { AchievementsModal } from './components/modals/AchievementsModal';
+import { IdeologyEmergenceModal } from './components/modals/IdeologyEmergenceModal';
 import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
+import { collectAnnualSnapshot, generateExportText } from './utils/annualReport';
 import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
+import { assignCorpsToFront, removeCorpsFromFront, getPlayerSide } from './logic/diplomacy/frontSystem';
+import { setTacticOrder, createBattle, processReinforcement, isBattleActive } from './logic/diplomacy/battleSystem';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
+import { selectIdeology } from './logic/ideology/ideologyEmergence';
+import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
 
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
@@ -112,7 +119,7 @@ const PerfOverlay = () => {
         : [];
 
     return (
-        <div className="fixed right-2 top-16 z-[9999] bg-black/70 text-green-300 border border-green-600/40 rounded px-2 py-1 text-[10px] font-mono pointer-events-auto">
+        <div className="fixed right-2 top-16 z-[9999] bg-black/70 text-green-300 border border-green-600/40 rounded px-2 py-1 text-xs font-mono pointer-events-auto">
             <div className="flex items-center justify-between gap-2">
                 <span>PERF</span>
                 <button
@@ -177,49 +184,15 @@ function GameApp({ gameState }) {
     // 初始化设备性能检测（自动启用低端设备优化）
     useDevicePerformance();
 
+    // 将 gameState 同步到 Zustand stores（渐进迁移桥接层）
+    useStoreSync(gameState);
+
     // 添加日志函数 - memoized to prevent unnecessary re-renders
     const addLog = useCallback((msg) => {
         if (gameState?.setLogs) {
             gameState.setLogs(prev => [msg, ...prev].slice(0, LOG_STORAGE_LIMIT));
         }
     }, [gameState]);
-
-    const formatFestivalEffects = (effects) => {
-        if (!effects) return '无特殊效果。';
-
-        const formatValue = (key, value) => {
-            const positive = value > 0 ? '+' : '';
-            if (['production', 'industry', 'cultureBonus', 'scienceBonus', 'taxIncome', 'militaryBonus', 'stability'].includes(key)) {
-                return `${positive}${(value * 100).toFixed(0)}%`;
-            }
-            return `${positive}${value}`;
-        };
-
-        const effectStrings = Object.entries(effects).map(([key, value]) => {
-            switch (key) {
-                case 'categories':
-                    return Object.entries(value).map(([cat, val]) => {
-                        const catName = BUILDINGS.find(b => b.category === cat)?.categoryName || cat;
-                        return `${catName}类建筑产出 ${formatValue(key, val)}`;
-                    }).join('，');
-                case 'maxPop':
-                    return `人口上限 ${formatValue(key, value)}`;
-                default:
-                    const label = {
-                        production: '全局生产',
-                        industry: '工业产出',
-                        cultureBonus: '文化产出',
-                        scienceBonus: '科研产出',
-                        taxIncome: '税收收入',
-                        militaryBonus: '军事力量',
-                        stability: '稳定度',
-                    }[key] || key;
-                    return `${label} ${formatValue(key, value)}`;
-            }
-        });
-
-        return effectStrings.join('；');
-    };
 
     // 现在 gameState 肯定存在，可以安全调用这些钩子
     const actions = useGameActions(gameState, addLog);
@@ -242,7 +215,6 @@ function GameApp({ gameState }) {
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [showDonateModal, setShowDonateModal] = useState(false);
     const [showEconomicDashboard, setShowEconomicDashboard] = useState(false); // 新增：控制经济数据看板
-    const [expandedFestival, setExpandedFestival] = useState(null);
 
     // 官员超编检测状态
     const [showOfficialOverstaffModal, setShowOfficialOverstaffModal] = useState(false);
@@ -445,30 +417,6 @@ function GameApp({ gameState }) {
         showEmpireScene
     ]);
 
-    // 处理庆典效果选择
-    const handleFestivalSelect = (selectedEffect) => {
-        if (!selectedEffect) return;
-
-        // 添加到激活的庆典效果列表
-        const effectWithTimestamp = {
-            ...selectedEffect,
-            activatedAt: gameState.daysElapsed || 0,
-        };
-
-        gameState.setActiveFestivalEffects(prev => [...prev, effectWithTimestamp]);
-
-        // 关闭模态框
-        gameState.setFestivalModal(null);
-
-        // 恢复事件触发前的暂停状态
-        gameState.setIsPaused(gameState.pausedBeforeEvent);
-
-        // 添加日志
-        const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
-        const effectsDetail = formatFestivalEffects(selectedEffect.effects);
-        addLog(`🎊 庆典「${selectedEffect.name}」(${effectType})激活：${effectsDetail}`);
-    };
-
     // 处理事件选项选择
     const handleEventOption = (eventId, option) => {
         const selectedOption = option || {};
@@ -492,6 +440,40 @@ function GameApp({ gameState }) {
             addLog(`📜 已执行事件选项「${optionText}」`);
         }
     };
+
+    // Handle annual report close: save baseline and resume
+    const handleReportClose = useCallback(() => {
+        const reportYear = gameState.festivalModal?.year;
+        // Save current snapshot as next year's baseline
+        const newBaseline = collectAnnualSnapshot(gameState);
+        gameState.setAnnualReportBaseline(newBaseline);
+        // Close modal
+        gameState.setFestivalModal(null);
+        // Restore pause state
+        gameState.setIsPaused(gameState.pausedBeforeEvent);
+        if (reportYear) {
+            addLog(`📋 第 ${reportYear} 年年度报告已阅。`);
+        }
+    }, [gameState, addLog]);
+
+    // Handle annual report export: copy text to clipboard
+    const handleReportExport = useCallback(async () => {
+        const modal = gameState.festivalModal;
+        if (!modal?.reportData) return;
+        const text = generateExportText(
+            modal.reportData,
+            gameState.empireName,
+            modal.year,
+            gameState.epoch
+        );
+        try {
+            await navigator.clipboard.writeText(text);
+            addLog('📋 年度报告已复制到剪贴板');
+        } catch {
+            // Fallback for environments without clipboard API
+            window.prompt('请手动复制以下报告文本：', text);
+        }
+    }, [gameState, addLog]);
 
     // 处理教程完成
     const handleTutorialComplete = () => {
@@ -563,6 +545,97 @@ function GameApp({ gameState }) {
     const handleShowDecreeDetails = useCallback((decree) => {
         setActiveSheet({ type: 'decree', data: decree });
     }, []);
+
+    // === Military front/battle callbacks ===
+
+    // Assign a corps to a front (update front.assignedCorps + corps.status)
+    // If there's an active battle on the front, the corps joins as reinforcement
+    const handleAssignCorpsToFront = useCallback((frontId, corpsId) => {
+        const fronts = gameState.activeFronts || [];
+        const front = fronts.find(f => f.id === frontId);
+        if (!front) return;
+
+        const playerSide = getPlayerSide(front);
+        if (!playerSide) return;
+
+        const updatedFront = assignCorpsToFront(front, corpsId, playerSide);
+        gameState.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
+
+        // Check if there's an active battle on this front
+        const activeBattles = gameState.activeBattles || [];
+        const frontBattle = activeBattles.find(b => b.frontId === frontId && isBattleActive(b));
+        const corps = (gameState.militaryCorps || []).find(c => c.id === corpsId);
+
+        if (frontBattle && corps) {
+            // Reinforce the ongoing battle with the new corps' units
+            const reinforcedBattle = processReinforcement(frontBattle, playerSide, corps.units || {}, corps);
+            gameState.setActiveBattles(prev => prev.map(b =>
+                b.id === frontBattle.id ? reinforcedBattle : b
+            ));
+            // Mark corps as in_combat since it's now part of the battle
+            gameState.setMilitaryCorps(prev => prev.map(c =>
+                c.id === corpsId ? { ...c, status: 'in_combat', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
+            ));
+        } else {
+            // No active battle: just deploy normally
+            gameState.setMilitaryCorps(prev => prev.map(c =>
+                c.id === corpsId ? { ...c, status: 'deployed', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
+            ));
+        }
+    }, [gameState]);
+
+    // Remove a corps from a front (restore to idle)
+    const handleRemoveCorpsFromFront = useCallback((frontId, corpsId) => {
+        const fronts = gameState.activeFronts || [];
+        const front = fronts.find(f => f.id === frontId);
+        if (!front) return;
+
+        const playerSide = getPlayerSide(front);
+        if (!playerSide) return;
+
+        const updatedFront = removeCorpsFromFront(front, corpsId, playerSide);
+        gameState.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
+
+        // Restore corps status to 'idle'
+        gameState.setMilitaryCorps(prev => prev.map(c =>
+            c.id === corpsId ? { ...c, status: 'idle', assignedFrontId: null } : c
+        ));
+    }, [gameState]);
+
+    // Set battle tactic for the player side
+    const handleSetBattleTactic = useCallback((battleId, side, tacticId) => {
+        gameState.setActiveBattles(prev => prev.map(b => {
+            if (b.id !== battleId) return b;
+            return setTacticOrder(b, side, tacticId);
+        }));
+    }, [gameState]);
+
+    // Create a new battle on a front
+    const handleCreateBattle = useCallback((battleParams) => {
+        if (!battleParams?.attackerCorps || !battleParams?.defenderCorps) return;
+        const battle = createBattle(battleParams);
+        if (!battle) return;
+        gameState.setActiveBattles(prev => [...prev, battle]);
+        if (battleParams.front?.id) {
+            gameState.setActiveFronts(prev => prev.map(front =>
+                front.id === battleParams.front.id ? { ...front, activeBattleId: battle.id } : front
+            ));
+        }
+        // Mark participating corps as in combat
+        const corpsIds = [battleParams.attackerCorps?.id, battleParams.defenderCorps?.id].filter(Boolean);
+        if (corpsIds.length > 0) {
+            gameState.setMilitaryCorps(prev => prev.map(c =>
+                corpsIds.includes(c.id) ? { ...c, status: 'in_combat' } : c
+            ));
+        }
+    }, [gameState]);
+
+    // Set tactical posture for a front
+    const handleSetPosture = useCallback((frontId, posture) => {
+        gameState.setActiveFronts(prev => prev.map(f =>
+            f.id === frontId ? { ...f, posture } : f
+        ));
+    }, [gameState]);
 
     const estimateMilitaryPower = () => {
         const army = gameState.army || {};
@@ -761,11 +834,22 @@ function GameApp({ gameState }) {
     // 计算税收和军队相关数据
     const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
     const dayScale = 1; // 收入计算已不受gameSpeed影响，固定为1
-    const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
+    // [FIX] Merge loose army + corps units for unified food/expense calculations
+    const allPlayerMilitaryUnits = useMemo(() => {
+        const merged = { ...(gameState.army || {}) };
+        for (const corps of (gameState.militaryCorps || [])) {
+            if (corps?.isAI) continue;
+            for (const [unitId, count] of Object.entries(corps?.units || {})) {
+                if (count > 0) merged[unitId] = (merged[unitId] || 0) + count;
+            }
+        }
+        return merged;
+    }, [gameState.army, gameState.militaryCorps]);
+    const armyFoodNeed = calculateArmyFoodNeed(allPlayerMilitaryUnits);
     const wageRatio = gameState.militaryWageRatio || 1;
     // 新军费计算系统：使用完整的维护成本计算（包含规模惩罚和时代加成）
     const armyExpenseData = calculateTotalArmyExpense(
-        gameState.army || {},
+        allPlayerMilitaryUnits,
         gameState.market?.prices || {},
         gameState.epoch || 0,
         gameState.population || 100,
@@ -1133,7 +1217,7 @@ function GameApp({ gameState }) {
 
                     {/* 标签 */}
                     <span
-                        className="relative z-10 text-[10px] font-bold tab-title"
+                        className="relative z-10 text-xs font-bold tab-title"
                         style={{
                             color: gameState.activeTab === 'overview'
                                 ? 'var(--theme-text)'
@@ -1210,7 +1294,7 @@ function GameApp({ gameState }) {
                                 {[
                                     { id: 'build', label: '建设', icon: 'Hammer' },
                                     { id: 'military', label: '军事', icon: 'Swords' },
-                                    { id: 'tech', label: '科技', icon: 'Cpu' },
+                                    { id: 'tech', label: '知识', icon: 'Cpu' },
                                     { id: 'politics', label: '行政', icon: 'Gavel' },
                                     { id: 'diplo', label: '外交', icon: 'Globe' },
                                 ].map(tab => (
@@ -1299,9 +1383,27 @@ function GameApp({ gameState }) {
                                                 targetArmyComposition={gameState.targetArmyComposition}
                                                 onUpdateTargetComposition={gameState.setTargetArmyComposition}
                                                 militaryBonus={gameState.modifiers?.militaryBonus}
+                                                ideologyRuleMods={gameState.modifiers?.ideologyRuleMods}
                                                 // [FIX] Pass unified expense data (simulation preferred for consistency with StatusBar)
                                                 armyExpenseData={simulationMilitaryExpense || armyExpenseData}
                                                 difficulty={gameState.difficulty}
+                                                // [NEW] Military corps & front system props
+                                                militaryCorps={gameState.militaryCorps}
+                                                generals={gameState.generals}
+                                                activeFronts={gameState.activeFronts}
+                                                activeBattles={gameState.activeBattles}
+                                                onUpdateCorps={gameState.setMilitaryCorps}
+                                                onUpdateGenerals={gameState.setGenerals}
+                                                onUpdateArmy={gameState.setArmy}
+                                                onAssignCorpsToFront={handleAssignCorpsToFront}
+                                                onRemoveCorpsFromFront={handleRemoveCorpsFromFront}
+                                                onSetBattleTactic={handleSetBattleTactic}
+                                                onCreateBattle={handleCreateBattle}
+                                                onSetPosture={handleSetPosture}
+                                                officials={gameState.officials}
+                                                corpsReplenishQueue={gameState.corpsReplenishQueue}
+                                                onUpdateCorpsReplenishQueue={gameState.setCorpsReplenishQueue}
+                                                autoRecruitEnabled={gameState.autoRecruitEnabled}
                                             />
                                         )}
 
@@ -1318,6 +1420,18 @@ function GameApp({ gameState }) {
                                                 market={gameState.market}
                                                 onShowTechDetails={handleShowTechDetails}
                                                 difficulty={gameState.difficulty}
+                                                // 理念系统 props
+                                                ideologyScore={gameState.ideologyScore}
+                                                ideologyScoreSpent={gameState.ideologyScoreSpent}
+                                                ideologyCollection={gameState.ideologyCollection}
+                                                equippedIdeologies={gameState.equippedIdeologies}
+                                                ideologySlotCount={gameState.ideologySlotCount}
+                                                ideologyCooldowns={gameState.ideologyCooldowns}
+                                                setEquippedIdeologies={gameState.setEquippedIdeologies}
+                                                setIdeologyCooldowns={gameState.setIdeologyCooldowns}
+                                                setIdeologySlotCount={gameState.setIdeologySlotCount}
+                                                techCostMod={gameState.modifiers?.ideologyRuleMods?.techCostMod || 0}
+                                                activeBuffs={gameState.activeBuffs || []}
                                             />
                                         )}
 
@@ -1439,6 +1553,8 @@ function GameApp({ gameState }) {
                                                 // [NEW] Permanent policy decrees (legacy)
                                                 decrees={gameState.decrees}
                                                 onToggleDecree={actions.toggleDecree}
+                                                generals={gameState.generals}
+                                                changeOfficialPropertyPolicy={actions.changeOfficialPropertyPolicy}
                                             />
                                         )}
 
@@ -1460,7 +1576,10 @@ function GameApp({ gameState }) {
                                                 jobsAvailable={gameState.jobsAvailable}
                                                 popStructure={gameState.popStructure}
                                                 taxPolicies={gameState.taxPolicies}
-                                                diplomaticCooldownMod={gameState.modifiers?.officialEffects?.diplomaticCooldown || 0}
+                                                diplomaticCooldownMod={
+                                                    (gameState.modifiers?.officialEffects?.diplomaticCooldown || 0)
+                                                    + (gameState.modifiers?.ideologyRuleMods?.cooldownMod || 0)
+                                                }
                                                 diplomacyOrganizations={gameState.diplomacyOrganizations}
                                                 overseasInvestments={gameState.overseasInvestments}
                                                 classWealth={gameState.classWealth}
@@ -1547,7 +1666,7 @@ function GameApp({ gameState }) {
                                     </span>
                                     <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
                                 </summary>
-                                <div className="px-3 pb-3 text-[10px] text-gray-300 space-y-1.5">
+                                <div className="px-3 pb-3 text-xs text-gray-300 space-y-1.5">
                                     <p>• <span className="text-white">市场是经济核心</span>：供需关系决定价格，影响税收。</p>
                                     <p>• <span className="text-white">国库与库存</span>：银币是命脉，资源不足会自动购买。</p>
                                     <p>• <span className="text-white">三大税收</span>：人头税、交易税、营业税各有作用。</p>
@@ -1562,7 +1681,7 @@ function GameApp({ gameState }) {
                                     </span>
                                     <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
                                 </summary>
-                                <div className="px-3 pb-3 text-[10px] text-gray-200 space-y-1.5">
+                                <div className="px-3 pb-3 text-xs text-gray-200 space-y-1.5">
                                     <p><span className="text-white font-semibold">1.</span> 确保银币正增长</p>
                                     <p><span className="text-white font-semibold">2.</span> 在政令面板调整税率</p>
                                     <p><span className="text-white font-semibold">3.</span> 建设工业赚取税收</p>
@@ -1693,6 +1812,7 @@ function GameApp({ gameState }) {
                         resources={gameState.resources}
                         market={gameState.market}
                         difficulty={gameState.difficulty}
+                        techCostMod={gameState.modifiers?.ideologyRuleMods?.techCostMod || 0}
                         onResearch={actions.researchTech}
                         onClose={closeSheet}
                     />
@@ -1788,88 +1908,10 @@ function GameApp({ gameState }) {
                         />
                     </div>
 
-                    {/* 庆典历史列表 */}
-                    {gameState.activeFestivalEffects && gameState.activeFestivalEffects.length > 0 && (
-                        <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-ancient-gold/30 shadow-glass overflow-hidden">
-                            <div className="px-3 py-2 border-b border-ancient-gold/20 bg-gradient-to-r from-ancient-gold/10 to-transparent">
-                                <div className="flex items-center gap-2">
-                                    <Icon name="Sparkles" size={14} className="text-ancient-gold" />
-                                    <span className="text-sm font-bold text-ancient-gold">庆典历史</span>
-                                </div>
-                            </div>
-                            <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
-                                {[...gameState.activeFestivalEffects]
-                                    .sort((a, b) => (b.activatedAt || 0) - (a.activatedAt || 0))
-                                    .map((effect, index) => {
-                                        const activatedYear = Math.floor((effect.activatedAt || 0) / 360) + 1;
-                                        const isPermanent = effect.type === 'permanent';
-                                        const isExpired = !isPermanent && (gameState.daysElapsed - (effect.activatedAt || 0)) >= (effect.duration || 360);
-                                        const uniqueKey = `${effect.id}-${index}`;
-                                        const isExpanded = expandedFestival === uniqueKey;
-
-                                        return (
-                                            <div
-                                                key={uniqueKey}
-                                                className={`p-2 rounded-lg border transition-all ${isExpired
-                                                    ? 'bg-gray-800/40 border-gray-600/30 opacity-60'
-                                                    : isPermanent
-                                                        ? 'bg-purple-900/20 border-purple-500/30'
-                                                        : 'bg-yellow-900/20 border-yellow-500/30'
-                                                    }`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isPermanent ? 'bg-purple-500/20' : 'bg-yellow-500/20'
-                                                        }`}>
-                                                        <Icon name={effect.icon || 'Star'} size={14} className={isPermanent ? 'text-purple-400' : 'text-yellow-400'} />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-semibold text-ancient-parchment truncate">{effect.name}</span>
-                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${isExpired
-                                                                ? 'bg-gray-600/30 text-gray-400'
-                                                                : isPermanent
-                                                                    ? 'bg-purple-500/30 text-purple-300'
-                                                                    : 'bg-yellow-500/30 text-yellow-300'
-                                                                }`}>
-                                                                {isExpired ? '已过期' : isPermanent ? '永久' : '短期'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-[10px] text-ancient-stone mt-0.5">
-                                                            第 {activatedYear} 年选择
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setExpandedFestival(isExpanded ? null : uniqueKey)}
-                                                        className="text-[10px] text-gray-400 hover:text-white transition-colors p-1 rounded-md"
-                                                    >
-                                                        <Icon name={isExpanded ? "ChevronUp" : "ChevronDown"} size={12} />
-                                                    </button>
-                                                </div>
-                                                {isExpanded && (
-                                                    <div className="mt-2 pt-2 border-t border-white/10 text-xs text-gray-300">
-                                                        <p><strong>效果：</strong>{formatFestivalEffects(effect.effects)}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 无庆典历史提示 */}
-                    {(!gameState.activeFestivalEffects || gameState.activeFestivalEffects.length === 0) && (
-                        <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-gray-700/30 shadow-glass p-4 text-center">
-                            <Icon name="Calendar" size={24} className="text-ancient-stone mx-auto mb-2 opacity-50" />
-                            <p className="text-xs text-ancient-stone">暂无庆典历史记录</p>
-                            <p className="text-[10px] text-gray-500 mt-1">每年年初会触发庆典选择</p>
-                        </div>
-                    )}
                 </div>
             </BottomSheet>
 
-            {/* 战斗通知（非阻断式，页面顶部提示） */}
-            <BattleNotification
+            {/* 战斗通知（非阻断式，页面顶部提示） */}            <BattleNotification
                 notifications={gameState.battleNotifications || []}
                 onViewDetail={(notification) => {
                     // 点击查看详情时，显示完整的战斗结果模态框
@@ -1973,13 +2015,18 @@ function GameApp({ gameState }) {
                 />
             )}
 
-            {/* 年度庆典模态框 */}
-            {gameState.festivalModal && (
-                <AnnualFestivalModal
-                    festivalOptions={gameState.festivalModal.options}
+            {/* 事件系统底部面板 */}
+
+            {/* Annual Report Modal */}
+            {gameState.festivalModal?.reportData && (
+                <AnnualReportModal
+                    reportData={gameState.festivalModal.reportData}
                     year={gameState.festivalModal.year}
                     epoch={gameState.epoch}
-                    onSelect={handleFestivalSelect}
+                    empireName={gameState.empireName}
+                    gameState={gameState}
+                    onClose={handleReportClose}
+                    onExport={handleReportExport}
                 />
             )}
 
@@ -2136,6 +2183,23 @@ function GameApp({ gameState }) {
             <DonateModal
                 isOpen={showDonateModal}
                 onClose={() => setShowDonateModal(false)}
+            />
+
+            {/* 理念涌现弹窗 */}
+            <IdeologyEmergenceModal
+                show={!!gameState.pendingIdeologyEmergence}
+                candidates={gameState.pendingIdeologyEmergence?.candidates || []}
+                equippedIds={gameState.equippedIdeologies || []}
+                onSelect={(ideologyId) => {
+                    // 处理涌现选择
+                    const result = selectIdeology(ideologyId, gameState.ideologyCollection || []);
+                    gameState.setIdeologyCollection(result.updatedCollection);
+                    // 消耗分数
+                    const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
+                    gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
+                    // 清除涌现事件
+                    gameState.setPendingIdeologyEmergence(null);
+                }}
             />
         </div>
     );

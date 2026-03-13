@@ -636,7 +636,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_income_above', 'stratum_influence_above', 'resource_price_above', 'inflation_above'],
         preferredStrata: ['merchant', 'capitalist'],
         stratumWeights: { merchant: 3.0, capitalist: 2.0 },
-        activeEffects: { tradeBonus: 0.18, incomePercentBonus: 0.08 },
+        activeEffects: { tradeBonus: 0.18, taxBonus: 0.08 },
         unsatisfiedPenalty: { approval: { merchant: -4 } },
     },
 
@@ -701,7 +701,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['avg_tax_below', 'stratum_approval_above', 'price_stability', 'deflation_below'],
         preferredStrata: ['merchant', 'capitalist', 'artisan'],
         stratumWeights: { merchant: 2.0, capitalist: 2.5, artisan: 1.5 },
-        activeEffects: { incomePercentBonus: 0.12, populationGrowth: 0.08 },
+        activeEffects: { taxBonus: 0.12, populationGrowth: 0.08 },
         unsatisfiedPenalty: { approval: { merchant: -4, capitalist: -4 } },
     },
 
@@ -853,7 +853,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_income_above', 'avg_tax_below', 'resource_price_above', 'inflation_above'],
         preferredStrata: ['capitalist', 'merchant'],
         stratumWeights: { capitalist: 4.0, merchant: 2.0 },
-        activeEffects: { incomePercentBonus: 0.18, tradeBonus: 0.12 },
+        activeEffects: { taxBonus: 0.18, tradeBonus: 0.12 },
         unsatisfiedPenalty: { approval: { capitalist: -6 } },
     },
 

@@ -25,7 +25,7 @@ const PerformanceModeSection = () => {
                 <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
                     <Icon name="Zap" size={14} /> 性能模式
                 </h4>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
+            <p className="text-xs text-gray-400 leading-relaxed">
                 手机默认使用流畅模式，如需高画质请手动切换。
             </p>
 
@@ -41,19 +41,19 @@ const PerformanceModeSection = () => {
                             }`}
                     >
                         <div className="font-medium">{opt.label}</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{opt.desc}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{opt.desc}</div>
                     </button>
                 ))}
             </div>
 
-            <div className="text-[11px] text-gray-400 flex items-center gap-2">
+            <div className="text-xs text-gray-400 flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${isLowPerformanceMode ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                 当前状态：{isLowPerformanceMode ? '流畅模式（特效已禁用）' : '高品质模式'}
             </div>
 
             {/* Mobile performance tips */}
             <div className="mt-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <p className="text-[10px] text-gray-400 leading-relaxed">
+                <p className="text-xs text-gray-400 leading-relaxed">
                     <span className="text-amber-400 font-medium">📱 移动端默认流畅模式</span>
                     <br />
                     • 减少发热和耗电，体验更稳定
@@ -83,7 +83,7 @@ const DifficultySectionComponent = ({ currentDifficulty }) => {
             <div className="border-t border-gray-700 pt-3 space-y-2">
                 <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
                     <Icon name="Target" size={14} /> 游戏难度
-                <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-gray-700 text-gray-400 flex items-center gap-1">
+                <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400 flex items-center gap-1">
                     <Icon name="Lock" size={10} /> 游戏中不可更改
                 </span>
             </h4>
@@ -115,7 +115,7 @@ const DifficultySectionComponent = ({ currentDifficulty }) => {
                 </div>
             </div>
 
-            <p className="text-[11px] text-gray-500 text-center">
+            <p className="text-xs text-gray-500 text-center">
                 如需更改难度，请回到主菜单开始新游戏
             </p>
         </div>
@@ -228,7 +228,7 @@ export const SettingsPanel = ({
                 </h3>
                 <div className="flex items-center gap-2">
                     {isSaving && (
-                        <div className="flex items-center gap-1 text-emerald-300 text-[11px]">
+                        <div className="flex items-center gap-1 text-emerald-300 text-xs">
                             <Icon name="Activity" size={12} className="animate-spin" />
                             <span>保存中</span>
                         </div>
@@ -279,10 +279,10 @@ export const SettingsPanel = ({
                     onChange={(e) => onIntervalChange(Number(e.target.value))}
                     className="w-full accent-emerald-500"
                 />
-                <p className="text-[11px] text-gray-400">最短 60 秒，最长 5 分钟。</p>
+                <p className="text-xs text-gray-400">最短 60 秒，最长 5 分钟。</p>
             </div>
 
-            <div className="text-[11px] text-gray-400 flex items-center gap-2">
+            <div className="text-xs text-gray-400 flex items-center gap-2">
                 <Icon name="Clock" size={12} className="text-gray-500" />
                 <span>上次自动存档：{renderLastAutoSave()}</span>
             </div>
@@ -305,7 +305,7 @@ export const SettingsPanel = ({
                     <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
                     <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${eventConfirmationEnabled ? 'translate-x-5' : ''}`} />
                 </label>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
+                <p className="text-xs text-gray-400 leading-relaxed">
                     开启后，选择事件选项时需要再次点击确认按钮，防止误触。
                 </p>
             </div>
@@ -330,7 +330,7 @@ export const SettingsPanel = ({
                             <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
                             <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${(showMerchantTradeLogs ?? true) ? 'translate-x-5' : ''}`} />
                         </label>
-                        <p className="text-[11px] text-gray-400 leading-relaxed">
+                        <p className="text-xs text-gray-400 leading-relaxed">
                             关闭后，事件日志将不再显示商人自动交易明细与贸易路线交易明细。
                         </p>
                     </div>
@@ -353,7 +353,7 @@ export const SettingsPanel = ({
                             <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
                             <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${(showOfficialLogs ?? true) ? 'translate-x-5' : ''}`} />
                         </label>
-                        <p className="text-[11px] text-gray-400 leading-relaxed">
+                        <p className="text-xs text-gray-400 leading-relaxed">
                             关闭后，将不再显示官员投资、升级与政策提案相关的日志通知。
                         </p>
                     </div>
@@ -366,7 +366,7 @@ export const SettingsPanel = ({
                 <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
                     <Icon name="HardDrive" size={14} /> 跨设备备份
                 </h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
+                <p className="text-xs text-gray-400 leading-relaxed">
                     导出二进制存档文件（.cgsave）即可复制到其他设备；在此导入可立即恢复进度。
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -404,7 +404,7 @@ export const SettingsPanel = ({
                     </button>
                 </div>
                 {(backupMessage || backupError) && (
-                    <div className={`text-[11px] ${backupError ? 'text-red-300' : 'text-emerald-300'}`}>
+                    <div className={`text-xs ${backupError ? 'text-red-300' : 'text-emerald-300'}`}>
                         {backupError || backupMessage}
                     </div>
                 )}
@@ -421,7 +421,7 @@ export const SettingsPanel = ({
         <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
           <Icon name="Clock" size={16} /> 时间设置
         </h4>
-        <p className="text-[11px] text-gray-400">
+        <p className="text-xs text-gray-400">
           调整事件奖励的持续时间与消退速度，确保阶层好感度与稳定度不会在一个 Tick 内立即归零。
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-gray-300">
@@ -494,7 +494,7 @@ export const SettingsPanel = ({
                 <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
                     <Icon name="Code" size={14} /> Debug选项
                 </h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
+                <p className="text-xs text-gray-400 leading-relaxed">
                     开发者调试选项，用于显示性能监控信息。
                 </p>
 
@@ -533,7 +533,7 @@ export const SettingsPanel = ({
                                 : ''
                         }`} />
                     </label>
-                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                    <p className="text-xs text-gray-400 leading-relaxed">
                         开启后，右上角将显示游戏性能监控面板，包括帧时间、模拟时间等信息。
                     </p>
                 </div>
