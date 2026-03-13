@@ -31,3 +31,15 @@ export const calculateSilverCost = (requirements = {}, market) => {
 };
 
 export const formatSilverCost = (value) => `${Math.ceil(value)} 银币`;
+
+/**
+ * 格式化银币成本为紧凑形式（用于小屏幕）
+ * 例如: 13804 -> "1.4万银币" 或 6500 -> "6500银币"
+ */
+export const formatSilverCostCompact = (value) => {
+    const num = Math.ceil(value);
+    if (num >= 10000) {
+        return `${(num / 10000).toFixed(1).replace(/\.0$/, '')}万银币`;
+    }
+    return `${num}银币`;
+};

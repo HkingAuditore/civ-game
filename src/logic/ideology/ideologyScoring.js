@@ -16,15 +16,27 @@ export function getEmergenceThreshold(ownedCount) {
 
 /**
  * 检查是否应该触发涌现事件
- * @param {number} currentScore - 当前理念分数
- * @param {number} spentScore - 已消耗的理念分数
- * @param {number} ownedCount - 已拥有理念数
- * @returns {boolean}
  */
 export function checkEmergence(currentScore, spentScore, ownedCount) {
     const availableScore = currentScore - spentScore;
     const threshold = getEmergenceThreshold(ownedCount);
     return availableScore >= threshold;
+}
+
+/**
+ * 建筑里程碑公式：第 n 个（0-indexed）里程碑的阈值
+ * 50 → 150 → 450 → 1350 → 4050 → 12150 … （每次 ×3）
+ */
+export function getBuildingMilestone(index) {
+    return Math.round(50 * Math.pow(3, index));
+}
+
+/**
+ * 人口里程碑公式：第 n 个（0-indexed）里程碑的阈值
+ * 100 → 400 → 1600 → 6400 → 25600 → 102400 … （每次 ×4）
+ */
+export function getPopMilestone(index) {
+    return Math.round(100 * Math.pow(4, index));
 }
 
 /**
@@ -57,61 +69,30 @@ export function checkAndAwardIdeologyScore(gameState, prevState) {
         reasons.push({ type: 'epoch_advance', amount, desc: `进入第${gameState.epoch}时代` });
     }
 
-    // 3. 建筑里程碑
+    // 3. 建筑里程碑（公式化，指数递增，无上限）
     const totalBuildings = _countTotalBuildings(gameState.buildings);
-    const buildingMilestones = IDEOLOGY_SCORE_TRIGGERS.building_milestone.milestones;
-    for (const milestone of buildingMilestones) {
-        const key = `building_${milestone}`;
-        if (totalBuildings >= milestone && !milestones.includes(key)) {
-            milestones.push(key);
-            scoreGained += IDEOLOGY_SCORE_TRIGGERS.building_milestone.base;
-            reasons.push({ type: 'building_milestone', amount: IDEOLOGY_SCORE_TRIGGERS.building_milestone.base, desc: `建筑数达到${milestone}` });
-        }
+    const { base: buildingBase } = IDEOLOGY_SCORE_TRIGGERS.building_milestone;
+    // 找出当前已达成的最高里程碑 index
+    let buildingIdx = 0;
+    while (milestones.includes(`building_idx_${buildingIdx}`)) buildingIdx++;
+    // 检查是否达到下一个里程碑
+    while (totalBuildings >= getBuildingMilestone(buildingIdx)) {
+        milestones.push(`building_idx_${buildingIdx}`);
+        scoreGained += buildingBase;
+        reasons.push({ type: 'building_milestone', amount: buildingBase, desc: `建筑数达到${getBuildingMilestone(buildingIdx)}` });
+        buildingIdx++;
     }
 
-    // 4. 人口里程碑
+    // 4. 人口里程碑（公式化，指数递增，无上限）
     const pop = gameState.population || 0;
-    const popMilestones = IDEOLOGY_SCORE_TRIGGERS.pop_milestone.milestones;
-    for (const milestone of popMilestones) {
-        const key = `pop_${milestone}`;
-        if (pop >= milestone && !milestones.includes(key)) {
-            milestones.push(key);
-            scoreGained += IDEOLOGY_SCORE_TRIGGERS.pop_milestone.base;
-            reasons.push({ type: 'pop_milestone', amount: IDEOLOGY_SCORE_TRIGGERS.pop_milestone.base, desc: `人口达到${milestone}` });
-        }
-    }
-
-    // 5. 文化里程碑
-    const culture = gameState.resources?.culture || 0;
-    const cultureMilestones = IDEOLOGY_SCORE_TRIGGERS.culture_milestone.milestones;
-    for (const milestone of cultureMilestones) {
-        const key = `culture_${milestone}`;
-        if (culture >= milestone && !milestones.includes(key)) {
-            milestones.push(key);
-            scoreGained += IDEOLOGY_SCORE_TRIGGERS.culture_milestone.base;
-            reasons.push({ type: 'culture_milestone', amount: IDEOLOGY_SCORE_TRIGGERS.culture_milestone.base, desc: `文化积累达到${milestone}` });
-        }
-    }
-
-    // 6. 阶层和谐（所有阶层满意度>70）
-    if (gameState.classApproval && !milestones.includes('class_harmony_first')) {
-        const { threshold } = IDEOLOGY_SCORE_TRIGGERS.class_harmony;
-        const allHappy = Object.values(gameState.classApproval).every(v => v >= threshold);
-        if (allHappy) {
-            milestones.push('class_harmony_first');
-            scoreGained += IDEOLOGY_SCORE_TRIGGERS.class_harmony.base;
-            reasons.push({ type: 'class_harmony', amount: IDEOLOGY_SCORE_TRIGGERS.class_harmony.base, desc: '所有阶层满意度达标' });
-        }
-    }
-
-    // 7. 危机存活（稳定度曾跌到<20后回升到>50）
-    const { lowThreshold } = IDEOLOGY_SCORE_TRIGGERS.crisis_survived;
-    const stability = gameState.stability || gameState.currentStability || 50;
-    const prevStability = prevState.stability || prevState.currentStability || 50;
-    if (prevStability < lowThreshold && stability >= 50 && !milestones.includes('crisis_survived_first')) {
-        milestones.push('crisis_survived_first');
-        scoreGained += IDEOLOGY_SCORE_TRIGGERS.crisis_survived.base;
-        reasons.push({ type: 'crisis_survived', amount: IDEOLOGY_SCORE_TRIGGERS.crisis_survived.base, desc: '危机中幸存' });
+    const { base: popBase } = IDEOLOGY_SCORE_TRIGGERS.pop_milestone;
+    let popIdx = 0;
+    while (milestones.includes(`pop_idx_${popIdx}`)) popIdx++;
+    while (pop >= getPopMilestone(popIdx)) {
+        milestones.push(`pop_idx_${popIdx}`);
+        scoreGained += popBase;
+        reasons.push({ type: 'pop_milestone', amount: popBase, desc: `人口达到${getPopMilestone(popIdx)}` });
+        popIdx++;
     }
 
     return {

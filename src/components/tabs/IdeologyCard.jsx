@@ -95,6 +95,36 @@ function getStratumName(key) {
     return STRATA[key]?.name || key;
 }
 
+/** 兵种类别翻译 */
+const UNIT_CATEGORY_LABELS = {
+    infantry: '步兵',
+    cavalry: '骑兵',
+    naval: '海军',
+    artillery: '炮兵',
+    archer: '弓兵',
+    siege: '攻城器械',
+    all: '全兵种',
+};
+
+/** 特定建筑ID翻译 */
+const BUILDING_ID_LABELS = {
+    temple: '寺庙',
+    shrine: '神庙',
+    ancestral_hall: '祠堂',
+    harbor: '港口',
+    farm: '农场',
+    laboratory: '实验室',
+    factory: '工厂',
+    barracks: '兵营',
+    market: '市场',
+    library: '图书馆',
+    mine: '矿山',
+    workshop: '工坊',
+    granary: '粮仓',
+    fortress: '要塞',
+    palace: '宫殿',
+};
+
 const RULE_MOD_LABELS = {
     building_cost_mod: '建筑费用',
     official_bonus: '官员体系效率',
@@ -143,7 +173,7 @@ const CONVERTER_SOURCE_NAME_LABELS = {
     gather: '采集类建筑',
     civic: '市政类建筑',
     industry: '工业类建筑',
-    silver: '银币',
+    silver: '銀币',
     culture: '文化',
     science: '科研',
     food: '粮食',
@@ -151,8 +181,11 @@ const CONVERTER_SOURCE_NAME_LABELS = {
     population: '人口',
     official: '官员',
     officialCount: '官员',
+    chain: '完整产业链',
+    naval: '海军单位',
+    infantry: '步兵单位',
+    cavalry: '骑兵单位',
 };
-
 const MECHANIC_EFFECT_LABELS = {
     auto_build: '自动建造',
     resource_echo: '资源回声',
@@ -210,7 +243,7 @@ function renderRuleMods(ruleMods) {
     return ruleMods.map((rm, i) => {
         const label = RULE_MOD_LABELS[rm.type] || rm.type;
         const scopeName = rm.scope && rm.scope !== '_global'
-            ? (CATEGORY_LABELS[rm.scope] || RESOURCE_LABELS[rm.scope] || rm.scope)
+            ? (CATEGORY_LABELS[rm.scope] || RESOURCE_LABELS[rm.scope] || UNIT_CATEGORY_LABELS[rm.scope] || rm.scope)
             : '';
         const scopeText = scopeName ? `(${scopeName})` : '';
         const valText = rm.value > 0 ? `+${(rm.value * 100).toFixed(0)}%` : `${(rm.value * 100).toFixed(0)}%`;
@@ -313,19 +346,30 @@ function describeEffectsInline(effects = {}) {
 function getConverterStepOptions(sourceType) {
     switch (sourceType) {
         case 'resource':
-            return [1, 5, 10, 20, 50, 100, 500];
+            // 资源储备后期可达上亿，步长从10000起
+            return [10000, 50000, 100000, 500000, 1000000];
         case 'population':
+        case 'wealthyPop':
+        case 'poorPop':
+            // 人口后期可达上亿，步长从10000起
+            return [10000, 50000, 100000, 500000, 1000000];
         case 'unemployment':
         case 'militarySize':
-            return [10, 50, 100, 500, 1000];
+            return [1000, 5000, 10000, 50000, 100000];
         case 'tradeVolume':
-            return [10, 50, 100, 500, 1000];
+            return [1000, 5000, 10000, 50000, 100000];
+        case 'buildingCount':
+        case 'specificBuilding':
+            // 建筑数量，步长从10起，避免"每1座"
+            return [10, 20, 50, 100, 200];
+        case 'officialCount':
+            return [1, 5, 10, 20, 50];
         case 'stability':
         case 'avgApproval':
         case 'legitimacy':
             return [1, 5, 10, 20];
         default:
-            return [1, 2, 5, 10];
+            return [5, 10, 20, 50];
     }
 }
 
@@ -371,6 +415,8 @@ function getConverterSourcePhrase(converter, step) {
             return `每${step}富裕人口`;
         case 'poorPop':
             return `每${step}贫困人口`;
+        case 'chainCount':
+            return `每${step}条完整产业链`;
         case 'unitCategory':
             return `每${step}个${sourceName}`;
         default:
@@ -500,6 +546,7 @@ const IdeologyCardComponent = ({
     isInCollection = true, // 是否在收藏中
     cooldownRemaining = 0, // 冷却剩余天数
     equippedIds = [],  // 所有已装备理念ID
+    activeBuffs = [],  // 当前激活的限时buff列表
     onEquip,           // 装备回调
     onUnequip,         // 卸下回调
     compact = false,   // 紧凑模式（用于卡槽展示）
@@ -523,6 +570,9 @@ const IdeologyCardComponent = ({
     const hasCooldown = cooldownRemaining > 0;
     const showDetails = (expanded || showProgressionPreview) && !compact && !isCandidate;
     const showCandidateProgress = showProgressionPreview && isCandidate;
+
+    // 查找该理念当前激活的限时buff
+    const myActiveBuffs = activeBuffs.filter(b => b.ideologyId === ideology.id);
 
     // 候选模式下的点击
     const handleClick = () => {
@@ -612,6 +662,19 @@ const IdeologyCardComponent = ({
                 </div>
             )}
 
+            {/* 当前激活的限时buff标记 */}
+            {!compact && myActiveBuffs.length > 0 && (
+                <div className="mb-1.5 space-y-0.5">
+                    {myActiveBuffs.map((buff, i) => (
+                        <div key={buff.buffId || i} className="flex items-center gap-1.5 px-1.5 py-1 rounded bg-amber-900/30 border border-amber-500/40">
+                            <Icon name="Sparkles" size={10} className="text-amber-400 flex-shrink-0" />
+                            <span className="text-[10px] text-amber-200 font-semibold flex-1">{buff.name} 生效中</span>
+                            <span className="text-[10px] text-amber-400">剩{buff.duration}天</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* 特殊效果摘要 — 始终显示（非紧凑模式） */}
             {!compact && (currentEffects.onEvents?.length > 0 || currentEffects.converters?.length > 0 || currentEffects.ruleMods?.length > 0) && (
                 <div className="mb-1.5 space-y-0.5">
@@ -648,7 +711,7 @@ const IdeologyCardComponent = ({
                             <Icon name={s.isActive ? 'Zap' : 'Link'} size={10} className="mt-0.5 flex-shrink-0" />
                             <div>
                                 <span>{s.name}</span>
-                                {!s.isActive && <span>(差{s.missingCount}个)</span>}
+                                {/* {!s.isActive && <span>(差{s.missingCount}个)</span>} */}
                                 {s.isActive && s.mechanicEffect && renderMechanicEffect(s.mechanicEffect)}
                             </div>
                         </div>
@@ -941,12 +1004,12 @@ function describeTriggerEffect(te) {
         }
         case 'building_specific_bonus': {
             const bonusDetail = describeBonusDetail(te.bonus);
-            const bName = te.buildingId || '建筑';
+            const bName = BUILDING_ID_LABELS[te.buildingId] || te.buildingId || '建筑';
             return `每${te.per || 1}座${bName}: ${bonusDetail || '额外加成'}`;
         }
         case 'unit_count_bonus': {
             const bonusDetail = describeBonusDetail(te.bonus);
-            const catName = te.category || '兵种';
+            const catName = UNIT_CATEGORY_LABELS[te.category] || te.category || '兵种';
             return `每${te.per || 1}个${catName}: ${bonusDetail || '额外加成'}`;
         }
         case 'coalition_diversity_bonus': {

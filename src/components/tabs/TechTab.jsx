@@ -200,6 +200,7 @@ const TechTabComponent = ({
     setIdeologyCooldowns,
     setIdeologySlotCount,
     techCostMod = 0, // V2: Ideology tech cost modifier
+    activeBuffs = [], // 当前激活的限时buff
 }) => {
     const [activeSection, setActiveSection] = useState('knowledge');
     const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
@@ -371,6 +372,7 @@ const TechTabComponent = ({
                     ideologyCooldowns={ideologyCooldowns}
                     epoch={epoch}
                     techsUnlocked={techsUnlocked}
+                    activeBuffs={activeBuffs}
                     setEquippedIdeologies={setEquippedIdeologies}
                     setIdeologyCooldowns={setIdeologyCooldowns}
                     setIdeologySlotCount={setIdeologySlotCount}

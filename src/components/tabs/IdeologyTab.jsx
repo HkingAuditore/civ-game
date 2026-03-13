@@ -12,45 +12,138 @@ import { getMaxSlots, equipIdeology, unequipIdeology, resolveEquippedIdeologies 
 import { IdeologyCard } from './IdeologyCard';
 import { useDevicePerformance } from '../../hooks';
 
+/** 效果键的中文标签（与IdeologyCard保持一致） */
+const EFFECT_LABELS = {
+    stability: '稳定度',
+    cultureBonus: '文化产出',
+    scienceBonus: '科研产出',
+    militaryBonus: '全军战力',
+    taxIncome: '税收加成',
+    maxPop: '人口上限',
+    production: '采集/市政产出',
+    industryBonus: '工业产出',
+    categories: null, // 特殊处理
+};
+
+const CATEGORY_LABELS = {
+    gather: '采集类',
+    civic: '市政类',
+    industry: '工业类',
+    military: '军事类',
+};
+
+const ABSOLUTE_KEYS = new Set(['stability', 'flatPop']);
+
+/** 将 effects 对象格式化为简短描述字符串 */
+function formatSynergyEffects(effects = {}) {
+    if (!effects) return '';
+    const parts = [];
+    for (const [key, value] of Object.entries(effects)) {
+        if (key === 'categories' && typeof value === 'object') {
+            for (const [cat, cv] of Object.entries(value)) {
+                if (typeof cv === 'number' && cv !== 0) {
+                    const catName = CATEGORY_LABELS[cat] || cat;
+                    const sign = cv > 0 ? '+' : '';
+                    parts.push(`${catName}产出${sign}${(cv * 100).toFixed(0)}%`);
+                }
+            }
+            continue;
+        }
+        if (key === 'perPopPassive' && typeof value === 'object') continue; // 太复杂，跳过
+        const label = EFFECT_LABELS[key];
+        if (label && typeof value === 'number' && value !== 0) {
+            const sign = value > 0 ? '+' : '';
+            const formatted = ABSOLUTE_KEYS.has(key)
+                ? `${sign}${value}`
+                : `${sign}${(value * 100).toFixed(0)}%`;
+            parts.push(`${label}${formatted}`);
+        }
+    }
+    return parts.join(' / ');
+}
+
 /**
  * 联动效果展示条
  */
-const SynergyBar = ({ synergy, isActive }) => (
-    <div className={`flex items-center gap-2 px-2 py-1 rounded-lg border text-xs transition-all ${
-        isActive
-            ? 'border-yellow-500/50 bg-yellow-900/20 text-yellow-200'
-            : 'border-gray-700/30 bg-gray-900/30 text-gray-500'
-    }`}>
-        <Icon name={isActive ? 'Zap' : 'Link'} size={12} className={isActive ? 'text-yellow-400' : 'text-gray-600'} />
-        <span className="font-semibold">{synergy.name}</span>
-        {isActive && <span className="text-yellow-400">✓ 已激活</span>}
-        {!isActive && (
-            <span className="text-gray-500">
-                需要: {synergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ')}
-            </span>
-        )}
-    </div>
-);
+const SynergyBar = ({ synergy, isActive }) => {
+    const effectText = formatSynergyEffects(synergy.effects);
+    const requiredNames = synergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ');
+    return (
+        <div className={`px-2 py-1.5 rounded-lg border text-xs transition-all ${
+            isActive
+                ? 'border-yellow-500/50 bg-yellow-900/20 text-yellow-200'
+                : 'border-gray-700/30 bg-gray-900/30 text-gray-500'
+        }`}>
+            <div className="flex items-center gap-2">
+                <Icon name={isActive ? 'Zap' : 'Link'} size={12} className={isActive ? 'text-yellow-400' : 'text-gray-600'} />
+                <span className="font-semibold">{synergy.name}</span>
+                {isActive
+                    ? <span className="text-yellow-400 text-[10px]">✓ 已激活</span>
+                    : <span className="text-gray-500 text-[10px]">需要: {requiredNames}</span>
+                }
+            </div>
+            {/* 效果详情 */}
+            {effectText && (
+                <div className={`mt-0.5 ml-5 text-[10px] ${
+                    isActive ? 'text-yellow-300/80' : 'text-gray-600'
+                }`}>
+                    {effectText}
+                </div>
+            )}
+        </div>
+    );
+};
 
 /**
  * 反协同警告展示条
  */
-const AntiSynergyBar = ({ antiSynergy, isActive }) => (
-    <div className={`flex items-center gap-2 px-2 py-1 rounded-lg border text-xs transition-all ${
-        isActive
-            ? 'border-red-500/50 bg-red-900/20 text-red-200'
-            : 'border-gray-700/30 bg-gray-900/30 text-gray-500'
-    }`}>
-        <Icon name={isActive ? 'AlertTriangle' : 'Link'} size={12} className={isActive ? 'text-red-400' : 'text-gray-600'} />
-        <span className="font-semibold">{antiSynergy.name}</span>
-        {isActive && <span className="text-red-400">⚠ 矛盾激活</span>}
-        {!isActive && (
-            <span className="text-gray-500">
-                冲突: {antiSynergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ')}
-            </span>
-        )}
-    </div>
-);
+const AntiSynergyBar = ({ antiSynergy, isActive }) => {
+    const effectText = formatSynergyEffects(antiSynergy.effects);
+    const requiredNames = antiSynergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ');
+    return (
+        <div className={`px-2 py-1.5 rounded-lg border text-xs transition-all ${
+            isActive
+                ? 'border-red-500/50 bg-red-900/20 text-red-200'
+                : 'border-gray-700/30 bg-gray-900/30 text-gray-500'
+        }`}>
+            <div className="flex items-center gap-2">
+                <Icon name={isActive ? 'AlertTriangle' : 'Link'} size={12} className={isActive ? 'text-red-400' : 'text-gray-600'} />
+                <span className="font-semibold">{antiSynergy.name}</span>
+                {isActive
+                    ? <span className="text-red-400 text-[10px]">⚠ 矛盾激活</span>
+                    : <span className="text-gray-500 text-[10px]">冲突: {requiredNames}</span>
+                }
+            </div>
+            {/* 惩罚效果详情 */}
+            {effectText && (
+                <div className={`mt-0.5 ml-5 text-[10px] ${
+                    isActive ? 'text-red-300/80' : 'text-gray-600'
+                }`}>
+                    {effectText}
+                </div>
+            )}
+        </div>
+    );
+};
+
+/**
+ * 激活中的限时Buff展示条
+ */
+const ActiveBuffBar = ({ buff }) => {
+    const remaining = buff.remainingDays ?? buff.duration ?? 0;
+    return (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-amber-500/40 bg-amber-900/20 text-xs">
+            <Icon name="Sparkles" size={12} className="text-amber-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+                <span className="font-semibold text-amber-200">{buff.name || buff.buffId}</span>
+                {buff.source && (
+                    <span className="text-amber-400/60 ml-1 text-[10px]">({buff.source})</span>
+                )}
+            </div>
+            <span className="text-amber-300 text-[10px] flex-shrink-0">剩余{remaining}天</span>
+        </div>
+    );
+};
 
 /**
  * 稀有度筛选配置
@@ -98,6 +191,7 @@ const IdeologyTabComponent = ({
     ideologyCooldowns = {},
     epoch = 0,
     techsUnlocked = [],
+    activeBuffs = [],       // 当前激活的限时buff列表
     // setter
     setEquippedIdeologies,
     setIdeologyCooldowns,
@@ -226,6 +320,17 @@ const IdeologyTabComponent = ({
                     <span>已拥有 {ownedCount} 个理念</span>
                     <span>总计获得 {Math.floor(ideologyScore)} 分</span>
                 </div>
+                {/* 获取途径说明 */}
+                <div className="mt-2 pt-2 border-t border-gray-700/40">
+                    <p className="text-[10px] text-gray-500 mb-1">获取途径：</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
+                        <span>⚗ 研发知识 +5~+20/项</span>
+                        <span>🏛 进入新时代 +30~+80</span>
+                        <span>🏗 建筑里程碑 +15（50→150→450→…×3）</span>
+                        <span>👥 人口里程碑 +20（100→400→1600→…×4）</span>
+                        <span>⚡ 部分理念触发事件奖励</span>
+                    </div>
+                </div>
             </div>
 
             {/* 卡槽区域 */}
@@ -251,6 +356,7 @@ const IdeologyTabComponent = ({
                             isEquipped={true}
                             equippedIds={equippedIdeologies}
                             cooldownRemaining={ideologyCooldowns[ideology.id] || 0}
+                            activeBuffs={activeBuffs}
                             onUnequip={handleUnequip}
                             compact={isMobile}
                         />
@@ -264,6 +370,19 @@ const IdeologyTabComponent = ({
                         <EmptySlot isLocked unlockHint={`时代${epoch + 1}解锁`} />
                     )}
                 </div>
+
+                {/* 激活中的限时Buff */}
+                {activeBuffs.filter(b => b.source === 'ideology' || b.ideologyId).length > 0 && (
+                    <div className="space-y-1 mt-2">
+                        <p className="text-[10px] text-amber-400/80 mb-1">⚡ 理念限时效果</p>
+                        {activeBuffs
+                            .filter(b => b.source === 'ideology' || b.ideologyId)
+                            .map((buff, i) => (
+                                <ActiveBuffBar key={buff.buffId || i} buff={buff} />
+                            ))
+                        }
+                    </div>
+                )}
 
                 {/* 联动效果展示 */}
                 {activeSynergies.filter(s => s.isActive || s.required.some(id => equippedIdeologies.includes(id))).length > 0 && (
