@@ -40,7 +40,8 @@ export const initializeBonuses = () => ({
     stabilityBonus: 0,      // 稳定度加成
     scienceBonus: 0,        // 科研产出加成
     cultureBonus: 0,        // 文化产出加成
-    militaryBonus: 0        // 军事力量加成
+    militaryBonus: 0,        // 军事力量加成
+    virtualTaxIncome: 0,     // Virtual tax income from ideologies (phantom silver)
 });
 
 /**

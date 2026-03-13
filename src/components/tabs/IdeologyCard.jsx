@@ -509,6 +509,7 @@ const IdeologyCardComponent = ({
     showProgressionPreview = false,
 }) => {
     const [expanded, setExpanded] = useState(false);
+    const [candidateExpanded, setCandidateExpanded] = useState(false);
 
     if (!ideology) return null;
 
@@ -538,7 +539,7 @@ const IdeologyCardComponent = ({
             className={`relative rounded-xl border transition-all cursor-pointer overflow-hidden ${
                 isCandidate
                     ? isSelected
-                        ? 'border-yellow-400 shadow-glow-gold scale-[1.03] ring-2 ring-yellow-400/50'
+                        ? 'border-yellow-400 shadow-[0_0_0_2px_rgba(250,204,21,0.5),0_0_24px_rgba(250,204,21,0.35)] ring-2 ring-yellow-400/40'
                         : `${rarity.borderColor} hover:border-gray-400 hover:shadow-lg ${rarity.glowClass}`
                     : isEquipped
                         ? 'border-green-500/60 shadow-glow-gold'
@@ -623,22 +624,22 @@ const IdeologyCardComponent = ({
             {/* 条件触发效果摘要 — 始终显示 */}
             {ideology.effects?.triggerEffects?.length > 0 && (
                 <div className="mb-1.5">
-                    {ideology.effects.triggerEffects.slice(0, compact ? 1 : 3).map((te, i) => (
+                    {ideology.effects.triggerEffects.slice(0, compact ? 1 : isCandidate ? 2 : 3).map((te, i) => (
                         <p key={i} className="text-[10px] text-purple-300 leading-tight">
                             <Icon name="Zap" size={9} className="inline text-purple-400 mr-0.5" />
                             {describeTriggerEffect(te)}
                         </p>
                     ))}
-                    {ideology.effects.triggerEffects.length > (compact ? 1 : 3) && (
+                    {ideology.effects.triggerEffects.length > (compact ? 1 : isCandidate ? 2 : 3) && (
                         <p className="text-[10px] text-gray-500 leading-tight">
-                            +{ideology.effects.triggerEffects.length - (compact ? 1 : 3)} 个特殊效果
+                            +{ideology.effects.triggerEffects.length - (compact ? 1 : isCandidate ? 2 : 3)} 个特殊效果
                         </p>
                     )}
                 </div>
             )}
 
-            {/* 联动提示 */}
-            {!compact && synergies.length > 0 && (
+            {/* 联动提示 — hide in candidate mode */}
+            {!compact && !isCandidate && synergies.length > 0 && (
                 <div className="mb-1.5">
                     {synergies.map(s => (
                         <div key={s.id} className={`flex items-start gap-1 text-[10px] ${
@@ -747,30 +748,40 @@ const IdeologyCardComponent = ({
             )}
 
             {showCandidateProgress && (
-                <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-1.5">
-                    <p className="text-[10px] text-gray-400">成长路线</p>
-                    {ideology.effects?.levels?.map((_, i) => {
-                        const levelDiff = getLevelIncrementalEffects(ideology.effects.levels, i);
-                        const lvlTags = effectsToTags(levelDiff);
-                        return (
-                            <div key={i} className="rounded-lg bg-black/25 px-2 py-1.5">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <LevelStars level={i + 1} />
-                                    <span className="text-[10px] text-gray-400">{LEVEL_STAGE_LABELS[i] || `${i + 1}级`}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                    {lvlTags.map((tag, j) => <EffectTag key={j} {...tag} />)}
-                                </div>
-                                {(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
-                                    <div className="mt-1 space-y-0.5">
-                                        {renderOnEvents(levelDiff.onEvents)}
-                                        {renderConverters(levelDiff.converters)}
-                                        {renderRuleMods(levelDiff.ruleMods)}
+                <div className="mt-2 pt-2 border-t border-gray-700/50">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setCandidateExpanded(prev => !prev); }}
+                        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 transition-colors w-full"
+                    >
+                        <span>成长路线</span>
+                        <Icon name={candidateExpanded ? 'ChevronUp' : 'ChevronDown'} size={12} className="text-gray-500" />
+                    </button>
+                    {candidateExpanded && (
+                        <div className="mt-1.5 space-y-1.5">
+                            {ideology.effects?.levels?.map((_, i) => {
+                                const levelDiff = getLevelIncrementalEffects(ideology.effects.levels, i);
+                                const lvlTags = effectsToTags(levelDiff);
+                                return (
+                                    <div key={i} className="rounded-lg bg-black/25 px-2 py-1.5">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <LevelStars level={i + 1} />
+                                            <span className="text-[10px] text-gray-400">{LEVEL_STAGE_LABELS[i] || `${i + 1}级`}</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {lvlTags.map((tag, j) => <EffectTag key={j} {...tag} />)}
+                                        </div>
+                                        {(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
+                                            <div className="mt-1 space-y-0.5">
+                                                {renderOnEvents(levelDiff.onEvents)}
+                                                {renderConverters(levelDiff.converters)}
+                                                {renderRuleMods(levelDiff.ruleMods)}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -850,8 +861,22 @@ function describeTriggerEffect(te) {
             return `每项已研发科技: ${detail || '额外加成'}`;
         }
         case 'resource_threshold': {
-            const detail = describeBonusDetail(te.bonus);
             const resName = RESOURCE_LABELS[te.resource] || te.resource;
+            // Handle above/below dual-threshold format
+            if (te.above || te.below) {
+                const parts = [];
+                if (te.above) {
+                    const aboveDetail = describeBonusDetail(te.above.bonus);
+                    parts.push(`${resName}≥${te.above.threshold}: ${aboveDetail}`);
+                }
+                if (te.below) {
+                    const belowDetail = describeBonusDetail(te.below.bonus);
+                    parts.push(`${resName}≤${te.below.threshold}: ${belowDetail}`);
+                }
+                return parts.join('；') || '资源阈值效果';
+            }
+            // Single threshold format
+            const detail = describeBonusDetail(te.bonus);
             return `${resName}达到${te.threshold}时: ${detail || '触发额外效果'}`;
         }
         case 'building_count_bonus': {

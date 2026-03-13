@@ -230,7 +230,7 @@ export const IDEOLOGY_SYNERGIES = [
         mechanicEffect: { type: 'recruit_cost_mod', scope: 'cavalry', value: -0.25 },
     },
     {
-        id: 'total_mobilization',
+        id: 'peoples_mobilization',
         name: '全民动员',
         required: ['peoples_war', 'cooperative_movement'],
         desc: '人民战争与合作社运动的结合，全民皆兵全民生产。',

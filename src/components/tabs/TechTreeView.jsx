@@ -11,27 +11,63 @@ import { TECH_MAP } from '../../config/technologies';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getTechCostMultiplier } from '../../config/difficulty';
 
-// 节点尺寸常量（紧凑版适配手机竖屏）
-const NODE_W = 80;
-const NODE_H = 52;
-const GAP_X = 12;       // 同层节点间水平间距
-const GAP_Y = 44;       // 层与层之间垂直间距
-const PADDING = 12;     // 画布内边距
-const MAX_COLS = 4;     // 每层最大列数（控制宽度）
-const EPOCH_SEPARATOR_H = 28; // 时代分隔带高度
-const EPOCH_SEPARATOR_GAP = 8; // 分隔带上下间距
+// --- Dynamic layout: compute params from actual container width ---
+const EPOCH_SEPARATOR_H = 28;
+
+/**
+ * Compute all layout parameters dynamically from actual container width.
+ * Ensures tech tree fills whatever space is available.
+ */
+function getLayoutParams(containerWidth) {
+    if (!containerWidth || containerWidth < 200) containerWidth = 320;
+
+    // Determine sensible padding based on width
+    const padding = containerWidth >= 900 ? 32 : containerWidth >= 600 ? 24 : 12;
+    const availableWidth = containerWidth - padding * 2;
+
+    // Determine ideal node width and gap based on screen class
+    // We try to fit as many columns as possible while keeping nodes readable
+    let nodeW, gapX, nodeH, gapY, epochSepGap, fontSize, btnFontSize;
+
+    if (containerWidth >= 900) {
+        // Large: bigger nodes
+        nodeW = 130; gapX = 40; nodeH = 60; gapY = 64; epochSepGap = 12;
+        fontSize = '12px'; btnFontSize = '11px';
+    } else if (containerWidth >= 600) {
+        // Medium
+        nodeW = 110; gapX = 28; nodeH = 56; gapY = 56; epochSepGap = 12;
+        fontSize = '10px'; btnFontSize = '9px';
+    } else {
+        // Small / mobile
+        nodeW = 80; gapX = 12; nodeH = 52; gapY = 44; epochSepGap = 8;
+        fontSize = '10px'; btnFontSize = '9px';
+    }
+
+    // Calculate max columns that fit in available width
+    // Formula: maxCols * nodeW + (maxCols - 1) * gapX <= availableWidth
+    let maxCols = Math.max(1, Math.floor((availableWidth + gapX) / (nodeW + gapX)));
+
+    // Clamp to reasonable range
+    maxCols = Math.min(maxCols, 8);
+    maxCols = Math.max(maxCols, 2);
+
+    return { nodeW, nodeH, gapX, gapY, padding, maxCols, epochSepGap, fontSize, btnFontSize };
+}
 
 /**
  * 统一树布局：将所有可见时代的科技作为一棵完整树布局
  * 主排序维度：时代（epoch），保证严格按时代从上到下排列
  * 次排序维度：时代内按拓扑深度（prerequisites链长度）分层
- * 每层最多 MAX_COLS 个节点，超出则分为多行
+ * 每层最多 maxCols 个节点，超出则分为多行
  *
  * @param {Array} allTechs - 所有可见的科技节点
  * @param {number} currentEpoch - 当前时代（决定未来时代锁定状态）
+ * @param {Object} params - Dynamic layout parameters from getLayoutParams
  * @returns {{ nodePositions, epochSeparators, width, height, rows }}
  */
-function layoutUnifiedTree(allTechs, currentEpoch) {
+function layoutUnifiedTree(allTechs, currentEpoch, params) {
+    const { nodeW, nodeH, gapX, gapY, padding, maxCols, epochSepGap } = params;
+
     if (!allTechs || allTechs.length === 0) {
         return { nodePositions: new Map(), epochSeparators: [], width: 0, height: 0, rows: [] };
     }
@@ -47,8 +83,7 @@ function layoutUnifiedTree(allTechs, currentEpoch) {
     // 时代索引排序
     const sortedEpochs = Array.from(epochGroups.keys()).sort((a, b) => a - b);
 
-    // 在每个时代内部计算拓扑深度（只考虑同时代内的前置关系来分层）
-    // 跨时代的前置关系用连线展示，但不影响层级排列
+    // 在每个时代内部计算拓扑深度
     function getIntraEpochDepth(tech, epochTechIds, cache) {
         if (cache.has(tech.id)) return cache.get(tech.id);
         const prereqs = (tech.prerequisites || []).filter(pid => epochTechIds.has(pid));
@@ -68,30 +103,28 @@ function layoutUnifiedTree(allTechs, currentEpoch) {
         return d;
     }
 
-    // 构建行列表：时代 → 时代内按深度分层 → 每层拆分为 MAX_COLS 子行
-    const rows = []; // { techs: [], epoch: number }
+    // 构建行列表
+    const rows = [];
     for (const ep of sortedEpochs) {
         const epochTechs = epochGroups.get(ep);
         const epochTechIds = new Set(epochTechs.map(t => t.id));
         const depthCache = new Map();
         epochTechs.forEach(t => getIntraEpochDepth(t, epochTechIds, depthCache));
 
-        // 按深度分层
         const maxDepth = Math.max(0, ...Array.from(depthCache.values()));
         for (let d = 0; d <= maxDepth; d++) {
             const nodesAtDepth = epochTechs.filter(t => depthCache.get(t.id) === d);
             if (nodesAtDepth.length === 0) continue;
-            // 拆分为 MAX_COLS 子行
-            for (let i = 0; i < nodesAtDepth.length; i += MAX_COLS) {
-                rows.push({ techs: nodesAtDepth.slice(i, i + MAX_COLS), epoch: ep });
+            for (let i = 0; i < nodesAtDepth.length; i += maxCols) {
+                rows.push({ techs: nodesAtDepth.slice(i, i + maxCols), epoch: ep });
             }
         }
     }
 
-    // 计算节点坐标，在时代切换处插入分隔带
+    // 计算节点坐标
     const nodePositions = new Map();
-    const epochSeparators = []; // { y, epochIdx, label }
-    const maxRowWidth = MAX_COLS * NODE_W + (MAX_COLS - 1) * GAP_X;
+    const epochSeparators = [];
+    const maxRowWidth = maxCols * nodeW + (maxCols - 1) * gapX;
 
     let cursorY = 0;
     let lastEpoch = -1;
@@ -100,41 +133,37 @@ function layoutUnifiedTree(allTechs, currentEpoch) {
         const row = rows[rowIdx];
         const rowEpoch = row.epoch;
 
-        // 如果时代发生了切换，插入分隔带
         if (rowEpoch !== lastEpoch && lastEpoch !== -1) {
-            cursorY += EPOCH_SEPARATOR_GAP;
+            cursorY += epochSepGap;
             epochSeparators.push({
                 y: cursorY,
                 epochIdx: rowEpoch,
                 label: EPOCHS[rowEpoch]?.name || `时代 ${rowEpoch}`,
             });
-            cursorY += EPOCH_SEPARATOR_H + EPOCH_SEPARATOR_GAP;
+            cursorY += EPOCH_SEPARATOR_H + epochSepGap;
         } else if (lastEpoch === -1) {
-            // 第一个时代也插入分隔带
             epochSeparators.push({
                 y: cursorY,
                 epochIdx: rowEpoch,
                 label: EPOCHS[rowEpoch]?.name || `时代 ${rowEpoch}`,
             });
-            cursorY += EPOCH_SEPARATOR_H + EPOCH_SEPARATOR_GAP;
+            cursorY += EPOCH_SEPARATOR_H + epochSepGap;
         }
         lastEpoch = rowEpoch;
 
-        // 计算本行节点的水平布局（居中）
-        const layerWidth = row.techs.length * NODE_W + (row.techs.length - 1) * GAP_X;
+        const layerWidth = row.techs.length * nodeW + (row.techs.length - 1) * gapX;
         const startX = (maxRowWidth - layerWidth) / 2;
 
         for (let colIdx = 0; colIdx < row.techs.length; colIdx++) {
             const tech = row.techs[colIdx];
-            const x = startX + colIdx * (NODE_W + GAP_X);
+            const x = startX + colIdx * (nodeW + gapX);
             nodePositions.set(tech.id, { x, y: cursorY });
         }
 
-        cursorY += NODE_H + GAP_Y;
+        cursorY += nodeH + gapY;
     }
 
-    // 最终画布尺寸
-    const height = cursorY - GAP_Y + PADDING; // 去掉最后一行多余的 GAP_Y
+    const height = cursorY - gapY + padding;
     const width = maxRowWidth;
 
     return { nodePositions, epochSeparators, width, height, rows };
@@ -143,7 +172,7 @@ function layoutUnifiedTree(allTechs, currentEpoch) {
 /**
  * 统一连线组件：SVG 贝塞尔曲线（支持跨时代连线）
  */
-const UnifiedTreeEdges = React.memo(({ allTechs, nodePositions, techsUnlocked }) => {
+const UnifiedTreeEdges = React.memo(({ allTechs, nodePositions, techsUnlocked, nodeW, nodeH }) => {
     const edges = [];
 
     allTechs.forEach(tech => {
@@ -160,10 +189,9 @@ const UnifiedTreeEdges = React.memo(({ allTechs, nodePositions, techsUnlocked })
             const fromTech = TECH_MAP[prereqId];
             const isCrossEpoch = fromTech && fromTech.epoch !== tech.epoch;
 
-            // 从父节点底部中心 → 子节点顶部中心
-            const x1 = fromPos.x + NODE_W / 2;
-            const y1 = fromPos.y + NODE_H;
-            const x2 = toPos.x + NODE_W / 2;
+            const x1 = fromPos.x + nodeW / 2;
+            const y1 = fromPos.y + nodeH;
+            const x2 = toPos.x + nodeW / 2;
             const y2 = toPos.y;
 
             const midY = (y1 + y2) / 2;
@@ -180,7 +208,6 @@ const UnifiedTreeEdges = React.memo(({ allTechs, nodePositions, techsUnlocked })
                 />
             );
 
-            // 箭头
             if (isCompleted || isAvailable) {
                 const arrowSize = 3.5;
                 const arrowColor = isCompleted ? '#22c55e' : '#eab308';
@@ -229,7 +256,8 @@ const EpochSeparator = React.memo(({ separator, width }) => {
  */
 const TechNode = React.memo(({
     tech, status, affordable, pos, silverCost,
-    onResearch, onShowDetails, resources, isLocked
+    onResearch, onShowDetails, resources, isLocked,
+    nodeW, nodeH, fontSize, btnFontSize
 }) => {
     const nodeClass = status === 'unlocked'
         ? 'glass-ancient border-green-600/60'
@@ -245,28 +273,29 @@ const TechNode = React.memo(({
             style={{
                 left: pos.x,
                 top: pos.y,
-                width: NODE_W,
-                height: NODE_H,
+                width: nodeW,
+                height: nodeH,
             }}
             onClick={() => onShowDetails && onShowDetails(tech, status)}
         >
             <div className="flex flex-col items-center justify-center h-full px-1 py-0.5">
-                <span className="text-[10px] text-white text-center leading-tight line-clamp-2 font-medium">
+                <span className="text-white text-center leading-tight line-clamp-2 font-medium" style={{ fontSize }}>
                     {tech.name}
                 </span>
                 {status === 'unlocked' ? (
-                    <span className="text-[9px] text-green-400 mt-0.5">✓</span>
+                    <span className="text-green-400 mt-0.5" style={{ fontSize: btnFontSize }}>✓</span>
                 ) : isLocked ? (
-                    <span className="text-[9px] text-gray-500 mt-0.5">🔒</span>
+                    <span className="text-gray-500 mt-0.5" style={{ fontSize: btnFontSize }}>🔒</span>
                 ) : (
                     <button
                         onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
                         disabled={!affordable}
-                        className={`mt-0.5 w-[92%] px-1 py-0.5 rounded text-[9px] font-semibold ${
+                        className={`mt-0.5 w-[92%] px-1 py-0.5 rounded font-semibold ${
                             affordable
                                 ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         }`}
+                        style={{ fontSize: btnFontSize }}
                     >
                         <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
                             {formatSilverCost(silverCost)}
@@ -290,7 +319,7 @@ export const TechTreeView = React.memo(({
     resources,
     market,
     difficulty,
-    techCostMod = 0, // V2: Ideology tech cost modifier
+    techCostMod = 0,
     canResearch,
     onResearch,
     onShowTechDetails,
@@ -299,7 +328,27 @@ export const TechTreeView = React.memo(({
     const multiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
     const containerRef = useRef(null);
 
-    // 收集所有可见的科技节点（当前时代及以前的时代）
+    // Track container width via ResizeObserver for fully responsive layout
+    const [containerWidth, setContainerWidth] = useState(0);
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        // Initial measurement
+        setContainerWidth(el.clientWidth);
+        const ro = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                const w = entry.contentBoxSize?.[0]?.inlineSize ?? entry.contentRect.width;
+                setContainerWidth(w);
+            }
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    // Compute layout params dynamically from actual container width
+    const layoutParams = useMemo(() => getLayoutParams(containerWidth), [containerWidth]);
+
+    // 收集所有可见的科技节点
     const allVisibleTechs = useMemo(() => {
         let techs = [];
         for (const epochIdx of visibleEpochIndices) {
@@ -320,10 +369,10 @@ export const TechTreeView = React.memo(({
         return techs;
     }, [visibleEpochIndices, techsByEpoch, techsUnlocked, showUnresearchedOnly]);
 
-    // 统一树布局
+    // 统一树布局 — now depends on dynamic layoutParams
     const layout = useMemo(() => {
-        return layoutUnifiedTree(allVisibleTechs, epoch);
-    }, [allVisibleTechs, epoch]);
+        return layoutUnifiedTree(allVisibleTechs, epoch, layoutParams);
+    }, [allVisibleTechs, epoch, layoutParams]);
 
     // 统计各时代研究进度
     const epochProgress = useMemo(() => {
@@ -337,10 +386,11 @@ export const TechTreeView = React.memo(({
         return progress;
     }, [visibleEpochIndices, techsByEpoch, techsUnlocked]);
 
-    // 画布尺寸
-    const canvasWidth = layout.width + PADDING * 2;
-    const canvasHeight = layout.height + PADDING * 2;
-    const displayWidth = Math.max(canvasWidth, 320);
+    // 画布尺寸 — use dynamic padding
+    const canvasWidth = layout.width + layoutParams.padding * 2;
+    const canvasHeight = layout.height + layoutParams.padding * 2;
+    // Canvas fills container naturally; use max to avoid collapsing
+    const displayWidth = Math.max(canvasWidth, containerWidth || 320);
 
     if (allVisibleTechs.length === 0) {
         return (
@@ -383,12 +433,12 @@ export const TechTreeView = React.memo(({
                 className="overflow-x-auto overflow-y-auto border border-gray-700 rounded-lg bg-gray-900/40"
                 style={{ maxHeight: '70vh', WebkitOverflowScrolling: 'touch' }}
             >
+                {containerWidth > 0 && (
                 <div
-                    className="relative"
+                    className="relative mx-auto"
                     style={{
                         width: displayWidth,
                         height: canvasHeight,
-                        minWidth: '100%',
                     }}
                 >
                     {/* SVG 连线层 */}
@@ -398,11 +448,13 @@ export const TechTreeView = React.memo(({
                         height={canvasHeight}
                         style={{ overflow: 'visible' }}
                     >
-                        <g transform={`translate(${PADDING + (displayWidth - canvasWidth) / 2}, ${PADDING})`}>
+                        <g transform={`translate(${layoutParams.padding + (displayWidth - canvasWidth) / 2}, ${layoutParams.padding})`}>
                             <UnifiedTreeEdges
                                 allTechs={allVisibleTechs}
                                 nodePositions={layout.nodePositions}
                                 techsUnlocked={techsUnlocked}
+                                nodeW={layoutParams.nodeW}
+                                nodeH={layoutParams.nodeH}
                             />
                         </g>
                     </svg>
@@ -411,8 +463,8 @@ export const TechTreeView = React.memo(({
                     <div
                         className="absolute pointer-events-none"
                         style={{
-                            left: PADDING + (displayWidth - canvasWidth) / 2,
-                            top: PADDING,
+                            left: layoutParams.padding + (displayWidth - canvasWidth) / 2,
+                            top: layoutParams.padding,
                             width: layout.width,
                             height: layout.height,
                         }}
@@ -430,8 +482,8 @@ export const TechTreeView = React.memo(({
                     <div
                         className="absolute"
                         style={{
-                            left: PADDING + (displayWidth - canvasWidth) / 2,
-                            top: PADDING,
+                            left: layoutParams.padding + (displayWidth - canvasWidth) / 2,
+                            top: layoutParams.padding,
                             width: layout.width,
                             height: layout.height,
                         }}
@@ -461,11 +513,16 @@ export const TechTreeView = React.memo(({
                                     onShowDetails={onShowTechDetails}
                                     resources={resources}
                                     isLocked={isLocked}
+                                    nodeW={layoutParams.nodeW}
+                                    nodeH={layoutParams.nodeH}
+                                    fontSize={layoutParams.fontSize}
+                                    btnFontSize={layoutParams.btnFontSize}
                                 />
                             );
                         })}
                     </div>
                 </div>
+                )}
             </div>
         </div>
     );

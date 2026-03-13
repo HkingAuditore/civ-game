@@ -119,7 +119,7 @@ function normalizeTriggerEffect(trigger, ideologyId, index, issues) {
     }
 
     if (normalized.type === 'resource_threshold' && (isPlainObject(normalized.above) || isPlainObject(normalized.below))) {
-        issues.push(`${issuePrefix} 使用 legacy above/below 阈值写法，运行时兼容处理`);
+        // above/below format is fully supported at runtime, no issue needed
     }
 
     return normalized;

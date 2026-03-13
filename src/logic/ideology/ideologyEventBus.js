@@ -95,7 +95,7 @@ export const EVENT_DISPLAY_NAMES = {
 const EFFECT_CAPS = {
     addResource: { silver: 1000, default: 100 },
     addStability: 20,
-    addBuff: { maxDuration: 360 },  // V2: raised from 180 to support L3 strategic buffs
+    addBuff: { maxDuration: 720 },  // V2: raised to 720 for late-game strategic buffs (2 years max)
     addIdeologyScore: 50,
     modifyBonus: 0.5, // max 50% per single trigger
 };

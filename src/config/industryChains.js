@@ -322,7 +322,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'processing',
         name: "初级冶炼",
-        buildings: ['smelter', 'forge'],
+        buildings: ['bronze_foundry', 'iron_tool_workshop'],
         input: ['copper', 'iron', 'coal'],
         output: ['tools', 'steel'],
         efficiency: 1.0,
@@ -331,7 +331,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'advanced',
         name: "精密制造",
-        buildings: ['factory', 'steel_mill'],
+        buildings: ['factory', 'steel_foundry', 'steel_works'],
         input: ['iron', 'coal', 'tools'],
         output: 'steel',
         efficiency: 1.0,
@@ -416,7 +416,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'processing',
         name: "知识记录",
-        buildings: ['library', 'scriptorium'],
+        buildings: ['library'],
         input: 'papyrus',
         output: 'culture',
         efficiency: 1.0,
@@ -505,7 +505,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'extraction',
         name: "原料采集",
-        buildings: ['spice_market', 'coffee_plantation'],
+        buildings: ['dockyard', 'coffee_plantation'],
         output: ['spice', 'coffee'],
         efficiency: 1.0,
         workers: ['merchant', 'serf'],
@@ -1273,7 +1273,7 @@ export const CHAIN_DEVELOPMENT_PATHS = {
         id: 'heavy_industry',
         name: "重工业化",
         desc: "发展大规模工业生产",
-        requirements: { epoch: 6, buildings: { factory: 5, steel_mill: 3 } },
+        requirements: { epoch: 6, buildings: { factory: 5, steel_works: 3 } },
         effects: { output: 0.5, efficiency: 0.3, pollution: 0.4 },
       },
       {
