@@ -27,8 +27,9 @@ import { getPolityEffects } from '../config/polityEffects';
 import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateVassalPolicyReputationChange } from '../config/reputationSystem';
 import { aggregateWarDamagedBuildings, calculateMilitaryIndustryBoost, calculateWartimeTradeDisruption } from './diplomacy/warEconomy';
 import { WAR_ECONOMY } from '../config/gameConstants';
-import { applyIdeologyEffects, evaluateTriggerEffects, evaluateSynergyEffects, evaluateAntiSynergyEffects, applyConverters, applyRuleMods } from './ideology/ideologyEffects';
+import { applyIdeologyEffects, evaluateTriggerEffects, evaluateSynergyEffects, evaluateAntiSynergyEffects, applyConverters, applyRuleMods, mergeRuleMods } from './ideology/ideologyEffects';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from './ideology/ideologyEventBus';
+import { buildIdeologyScalingContext, scaleLegacyMilestoneThreshold } from './ideology/ideologyScaling.js';
 
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
@@ -512,6 +513,7 @@ export const simulateTick = ({
     equippedIdeologies = [],  // 已装备的理念对象列表 [{ id, level, effects, ... }]
     ideologySynergies = [],   // 联动配置数组
     antiSynergies = [],       // 反协同配置数组
+    ideologyMetrics = null,
 }) => {
     if (!Number.isFinite(tick)) {
         const parsedTick = Number(tick);
@@ -1009,8 +1011,32 @@ export const simulateTick = ({
         applyEffects(cabinetStatus.decreeEffects, bonuses);
     }
 
+    const baseIdeologyRuleMods = equippedIdeologies?.length ? applyRuleMods(equippedIdeologies) : {};
+    const ideologyOfficialBonusMod = baseIdeologyRuleMods.official_bonus?._global || 0;
+    const scaleOfficialEffects = (effects, modifier) => {
+        if (!modifier) return effects;
+        const multiplier = Math.max(0, 1 + modifier);
+        const scaleValue = (value) => {
+            if (typeof value === 'number') return value * multiplier;
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+            const scaled = {};
+            Object.entries(value).forEach(([key, nested]) => {
+                scaled[key] = typeof nested === 'number' ? nested * multiplier : nested;
+            });
+            return scaled;
+        };
+        const scaledEffects = {};
+        Object.entries(effects || {}).forEach(([key, value]) => {
+            scaledEffects[key] = scaleValue(value);
+        });
+        return scaledEffects;
+    };
+
     // === 应用官员效果（含薪水不足减益?===
-    const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
+    const activeOfficialEffects = scaleOfficialEffects(
+        getAggregatedOfficialEffects(officials, officialsPaid),
+        ideologyOfficialBonusMod
+    );
     const officialEffectsForBonuses = {
         ...activeOfficialEffects,
         passive: activeOfficialEffects.passiveGains,
@@ -1374,6 +1400,14 @@ export const simulateTick = ({
             classApproval: previousApproval || {},
             officials: officials || [],
             rulingCoalition: rulingCoalition || [],
+            ideologyScaling: buildIdeologyScalingContext({
+                epoch,
+                ideologyMetrics,
+                population,
+                totalBuildings,
+                militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
+                vassalCount: (nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+            }),
         };
 
         // Pipeline: base effects → converters → trigger effects → synergy effects → rule mods
@@ -1398,12 +1432,21 @@ export const simulateTick = ({
             ...synergyResult,
             activeAntiSynergies: antiSynergyResult.activeAntiSynergies,
         };
-        ideologyRuleMods = applyRuleMods(equippedIdeologies);
+        ideologyRuleMods = mergeRuleMods(
+            applyRuleMods(equippedIdeologies),
+            synergyResult.mechanicEffects?.ruleMods || []
+        );
 
         // === V2: 将 ruleMods 中的全局修正注入 bonuses ===
         // corruption_mod: 叠加到腐败率（负值=减少腐败）
         const ideoCorruptionMod = ideologyRuleMods.corruption_mod?._global || 0;
         if (ideoCorruptionMod) bonuses.corruption = Math.max(0, (bonuses.corruption || 0) + ideoCorruptionMod);
+        // official_bonus: 作为官员体系整体强度修正，供 UI/后续系统消费
+        bonuses.ideoOfficialBonusMod = ideologyRuleMods.official_bonus?._global || 0;
+        // tax_modifier: 作用于整体征税倍率，和 taxIncome 区分开
+        bonuses.ideoTaxModifier = ideologyRuleMods.tax_modifier?._global || 0;
+        // cooldown_mod: 供外交/军事/策略行动统一读取
+        bonuses.ideoCooldownMod = ideologyRuleMods.cooldown_mod?._global || 0;
         // trade_route_mod: 叠加到贸易加成
         const ideoTradeMod = ideologyRuleMods.trade_route_mod?._global || 0;
         if (ideoTradeMod) bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + ideoTradeMod;
@@ -1932,7 +1975,10 @@ export const simulateTick = ({
 
     // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正?
     // bonuses.taxBonus 是来?effects.taxIncome 的累加值（如庆典效果、政令效果等?
-    const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
+    const effectiveTaxModifier = Math.max(
+        0,
+        taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0) + (bonuses.ideoTaxModifier || 0))
+    );
 
     // [FIX] 提前定义空岗位收入预估函数，用于 fillVacancies 时的智能工资判断
     // 逻辑?simulation 尾部?estimateVacantRoleIncome 类似，但只能使用上一 tick 的数?(market.wages)
@@ -5217,6 +5263,8 @@ export const simulateTick = ({
             unemployedPenalty: 0,
             eventBonus: 0,
             decreeBonus: 0,
+            stanceTargetBonus: 0,
+            ideologyTargetBonus: 0,
             officialTargetBonus: 0,
             legitimacyPenalty: 0,  // [NEW] 非法政府惩罚
             taxShockPenalty: 0,
@@ -5289,8 +5337,20 @@ export const simulateTick = ({
             approvalBreakdown[key].decreeBonus = decreeBonus;
         }
 
+        const stanceApprovalBonus = bonuses.stanceApprovalEffects?.[key] || 0;
+        if (stanceApprovalBonus) {
+            targetApproval += stanceApprovalBonus;
+            approvalBreakdown[key].stanceTargetBonus = stanceApprovalBonus;
+        }
+
+        const ideologyApprovalBonus = bonuses.approvalEffects?.[key] || 0;
+        if (ideologyApprovalBonus) {
+            targetApproval += ideologyApprovalBonus;
+            approvalBreakdown[key].ideologyTargetBonus = ideologyApprovalBonus;
+        }
+
         const officialBonus = activeOfficialEffects?.approval?.[key] || 0;
-        if (officialBonus > 0) {
+        if (officialBonus) {
             targetApproval += officialBonus;
             approvalBreakdown[key].officialTargetBonus = officialBonus;
         }
@@ -5305,8 +5365,14 @@ export const simulateTick = ({
 
         // Effective cap (negative official bonus reduces cap)
         let effectiveApprovalCap = livingStandardApprovalCap;
+        if (stanceApprovalBonus < 0) {
+            effectiveApprovalCap = Math.max(0, effectiveApprovalCap + stanceApprovalBonus);
+        }
+        if (ideologyApprovalBonus < 0) {
+            effectiveApprovalCap = Math.max(0, effectiveApprovalCap + ideologyApprovalBonus);
+        }
         if (officialBonus < 0) {
-            effectiveApprovalCap = Math.max(0, livingStandardApprovalCap + officialBonus);
+            effectiveApprovalCap = Math.max(0, effectiveApprovalCap + officialBonus);
         }
         approvalBreakdown[key].effectiveApprovalCap = effectiveApprovalCap;
 
@@ -5556,6 +5622,18 @@ export const simulateTick = ({
     perfStart('buffsDebuffs');
     const newActiveBuffs = [];
     const newActiveDebuffs = [];
+
+    // 保留外部注入的限时 buff（如理念事件），并在每日结算后递减持续时间
+    (productionBuffs || []).forEach((buff) => {
+        if (!buff || !Number.isFinite(buff.duration)) return;
+        const nextDuration = Math.floor(buff.duration) - 1;
+        if (nextDuration > 0) {
+            newActiveBuffs.push({
+                ...buff,
+                duration: nextDuration,
+            });
+        }
+    });
 
     Object.keys(STRATA).forEach(key => {
         const def = STRATA[key];
@@ -8334,6 +8412,11 @@ export const simulateTick = ({
     // Uses a single block at tick end to avoid scattering emits throughout the 8000+ line file.
     {
         const _t = tick;
+        const _livingLevelOrder = ['赤贫', '贫困', '温饱', '小康', '富裕', '奢华'];
+        const _getLivingLevelRank = (level) => {
+            const index = _livingLevelOrder.indexOf(level);
+            return index >= 0 ? index : -1;
+        };
         // G. Time / Cycle
         if (_t > 0 && _t % 360 === 0) {
             ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_YEAR_END, { year: Math.floor(_t / 360) }, _t);
@@ -8356,27 +8439,87 @@ export const simulateTick = ({
             if (_totalTax > 0) {
                 ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TAX_COLLECT, { totalTax: _totalTax, taxes }, _t);
             }
+            const _totalSubsidy = Math.max(0, taxes?.breakdown?.subsidy || 0);
+            if (_totalSubsidy > 0) {
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_SUBSIDY_PAID, { totalSubsidy: _totalSubsidy }, _t);
+            }
         }
         // Treasury milestones (every 5000 silver threshold)
         const _prevSilver = resources?.silver || 0;
         const _curSilver = res?.silver || 0;
-        const _prevMilestone = Math.floor(_prevSilver / 5000);
-        const _curMilestone = Math.floor(_curSilver / 5000);
+        const _treasuryMilestoneStep = scaleLegacyMilestoneThreshold({
+            threshold: 5000,
+            type: 'treasury',
+            context: buildIdeologyScalingContext({
+                epoch,
+                ideologyMetrics,
+                population: nextPopulation || population || 0,
+                totalBuildings: Object.values(buildings || {}).reduce((sum, count) => sum + (count || 0), 0),
+                militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
+                vassalCount: (nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+            }),
+        });
+        const _prevMilestone = Math.floor(_prevSilver / _treasuryMilestoneStep);
+        const _curMilestone = Math.floor(_curSilver / _treasuryMilestoneStep);
         if (_curMilestone > _prevMilestone && _curSilver > 0) {
             ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TREASURY_MILESTONE, {
-                treasury: _curSilver, milestone: _curMilestone * 5000
+                treasury: _curSilver, milestone: _curMilestone * _treasuryMilestoneStep
             }, _t);
         }
 
         // D. Population / Society
         // Population milestones (every 100 pop)
-        const _prevPopMilestone = Math.floor((population || 0) / 100);
-        const _curPopMilestone = Math.floor((nextPopulation || 0) / 100);
+        const _populationMilestoneStep = scaleLegacyMilestoneThreshold({
+            threshold: 100,
+            type: 'population',
+            context: buildIdeologyScalingContext({
+                epoch,
+                ideologyMetrics,
+                population: nextPopulation || population || 0,
+                totalBuildings: Object.values(buildings || {}).reduce((sum, count) => sum + (count || 0), 0),
+                militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
+                vassalCount: (nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+            }),
+        });
+        const _prevPopMilestone = Math.floor((population || 0) / _populationMilestoneStep);
+        const _curPopMilestone = Math.floor((nextPopulation || 0) / _populationMilestoneStep);
         if (_curPopMilestone > _prevPopMilestone && nextPopulation > 0) {
             ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_POP_MILESTONE, {
-                population: nextPopulation, milestone: _curPopMilestone * 100
+                population: nextPopulation, milestone: _curPopMilestone * _populationMilestoneStep
             }, _t);
         }
+        if (starvationDeaths > 0) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STARVATION, {
+                deaths: starvationDeaths,
+                severity: starvationDeaths >= Math.max(10, Math.floor((nextPopulation || 0) * 0.02)) ? 'severe' : 'minor',
+            }, _t);
+        }
+        const _previousLivingStandards = market?.classLivingStandard || {};
+        const _allLivingStrata = new Set([
+            ...Object.keys(_previousLivingStandards),
+            ...Object.keys(classLivingStandard || {}),
+        ]);
+        _allLivingStrata.forEach((stratumKey) => {
+            const fromLevel = _previousLivingStandards?.[stratumKey]?.level;
+            const toLevel = classLivingStandard?.[stratumKey]?.level;
+            if (!fromLevel || !toLevel || fromLevel === toLevel) return;
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_LIVING_STANDARD_CHANGE, {
+                stratumKey,
+                fromLevel,
+                toLevel,
+                direction: _getLivingLevelRank(toLevel) >= _getLivingLevelRank(fromLevel) ? 'up' : 'down',
+            }, _t);
+        });
+        Object.entries(classApproval || {}).forEach(([stratumKey, approval]) => {
+            const previousValue = previousApproval?.[stratumKey] ?? 100;
+            if (previousValue >= 40 && approval < 40) {
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_CLASS_APPROVAL_LOW, {
+                    stratumKey,
+                    approval,
+                    previousApproval: previousValue,
+                }, _t);
+            }
+        });
 
         // E. Stability / Politics
         // Stability crisis (dropped below 25) or high stability (above 75)
@@ -8386,6 +8529,49 @@ export const simulateTick = ({
         if (stabilityValue >= 75 && currentStability < 75) {
             ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STABILITY_HIGH, { stability: stabilityValue }, _t);
         }
+        const _previousLegitimacy = previousLegitimacy ?? coalitionLegitimacy ?? 50;
+        const _currentLegitimacy = coalitionLegitimacy ?? _previousLegitimacy;
+        if (Math.abs(_currentLegitimacy - _previousLegitimacy) >= 5) {
+            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_LEGITIMACY_CHANGE, {
+                legitimacy: _currentLegitimacy,
+                previousLegitimacy: _previousLegitimacy,
+                delta: _currentLegitimacy - _previousLegitimacy,
+            }, _t);
+        }
+
+        // F. Diplomacy / International
+        const _previousNationMap = new Map((nations || []).map(nation => [nation.id, nation]));
+        const _previousVassals = new Set(
+            (nations || [])
+                .filter(nation => nation?.id && nation.vassalOf === 'player')
+                .map(nation => nation.id)
+        );
+        (updatedNations || []).forEach((nation) => {
+            if (!nation?.id || nation.id === 'player') return;
+            const previousNation = _previousNationMap.get(nation.id);
+            if (previousNation) {
+                const relationDelta = (nation.relation || 0) - (previousNation.relation || 0);
+                if (relationDelta >= 10) {
+                    ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_RELATION_IMPROVE, {
+                        nationId: nation.id,
+                        relation: nation.relation || 0,
+                        delta: relationDelta,
+                    }, _t);
+                } else if (relationDelta <= -10) {
+                    ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_RELATION_HOSTILE, {
+                        nationId: nation.id,
+                        relation: nation.relation || 0,
+                        delta: relationDelta,
+                    }, _t);
+                }
+            }
+            if (!_previousVassals.has(nation.id) && nation.vassalOf === 'player') {
+                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_VASSAL_GAIN, {
+                    nationId: nation.id,
+                    relation: nation.relation || 0,
+                }, _t);
+            }
+        });
     }
 
     const perfTotalMs = perfTime() - perfStartAll;
@@ -8447,6 +8633,7 @@ export const simulateTick = ({
         dailyOwnerRevenue: ledger.dailyOwnerRevenue || 0, // 新增：当日建筑产出收入（用于存货变动计算?
         needsShortages: classShortages,
         needsReport,
+        starvationDeaths,
         livingStandardStreaks: updatedLivingStandardStreaks,
         nations: updatedNations,
         merchantState: updatedMerchantState,
@@ -8516,6 +8703,9 @@ export const simulateTick = ({
                 buildingCostMod: bonuses.ideoBuildingCostMod || {},
                 recruitCostMod: bonuses.ideoRecruitCostMod || {},
                 techCostMod: bonuses.ideoTechCostMod || 0,
+                taxModifier: bonuses.ideoTaxModifier || 0,
+                cooldownMod: bonuses.ideoCooldownMod || 0,
+                officialBonus: bonuses.ideoOfficialBonusMod || 0,
                 unitAttackMod: bonuses.ideoUnitAttackMod || {},
                 unitDefenseMod: bonuses.ideoUnitDefenseMod || {},
             },

@@ -512,6 +512,13 @@ export const iconMap = {
   Pill: Syringe,        // 用 Syringe 替代（医药）
   Hexagon: Layers,      // 用 Layers 替代（复合材料）
   Cable: Zap,           // 用 Zap 替代（电缆）
+  // 建筑图标兼容映射
+  Car: Truck,           // 汽车厂
+  Scissors: Shirt,      // 棉纺织坊
+  Refrigerator: Monitor, // 家电厂
+  Tv: Monitor,          // 电视台
+  Server: Database,     // 数据中心
+  HardDrive: Database,  // 自动化矿场
 };
 
 export const getIcon = (name) => iconMap[name];

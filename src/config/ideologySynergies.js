@@ -1,3 +1,5 @@
+import { normalizeSynergyDefinitions, reportIdeologyDslIssues } from './ideologyDsl.js';
+
 /**
  * 理念联动配置
  * 定义理念之间的联动组合效果
@@ -444,4 +446,21 @@ export const ANTI_SYNERGIES = [
         desc: '制图学的全球视野与计划经济的封闭体系相互矛盾。',
         effects: { scienceBonus: -0.05, taxIncome: -0.05 },
     },
+];
+
+const synergyDslResult = normalizeSynergyDefinitions(IDEOLOGY_SYNERGIES, 'synergy');
+if (synergyDslResult.issues.length > 0) {
+    reportIdeologyDslIssues('synergies', synergyDslResult.issues);
+}
+IDEOLOGY_SYNERGIES.splice(0, IDEOLOGY_SYNERGIES.length, ...synergyDslResult.entries);
+
+const antiSynergyDslResult = normalizeSynergyDefinitions(ANTI_SYNERGIES, 'anti_synergy');
+if (antiSynergyDslResult.issues.length > 0) {
+    reportIdeologyDslIssues('anti_synergies', antiSynergyDslResult.issues);
+}
+ANTI_SYNERGIES.splice(0, ANTI_SYNERGIES.length, ...antiSynergyDslResult.entries);
+
+export const IDEOLOGY_SYNERGY_DSL_ISSUES = [
+    ...synergyDslResult.issues,
+    ...antiSynergyDslResult.issues,
 ];

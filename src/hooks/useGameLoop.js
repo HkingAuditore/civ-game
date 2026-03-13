@@ -112,6 +112,13 @@ import { WAR_ECONOMY } from '../config/gameConstants';
 
 import { createBattleProposalEvent } from '../config/events/diplomaticEvents';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
+import {
+    buildIdeologyScalingContext,
+    createEmptyIdeologyMetrics,
+    scaleLegacyResourceAmount,
+    scaleLegacyMilestoneThreshold,
+    updateIdeologyMetrics,
+} from '../logic/ideology/ideologyScaling.js';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
@@ -135,6 +142,10 @@ const getMilitaryCapacity = (buildingState = {}) => {
     });
     return capacity;
 };
+
+const getTotalBuildingCount = (buildingState = {}) => (
+    Object.values(buildingState || {}).reduce((sum, count) => sum + (count || 0), 0)
+);
 
 // [FIX Bug8/9] 统计所有军事单位：散兵 + 训练队列 + 军团内单位
 const getTotalArmyCount = (armyState = {}, queueState = [], corpsState = []) => {
@@ -764,6 +775,28 @@ difficulty, // 游戏难度
         overseasInvestmentsRef.current = overseasInvestments;
     }, [overseasInvestments]);
 
+    useEffect(() => {
+        const collectionMap = {};
+        (ideologyCollection || []).forEach((entry) => {
+            if (entry?.id) {
+                collectionMap[entry.id] = entry;
+            }
+        });
+
+        const resolvedEquippedIdeologies = (equippedIdeologies || [])
+            .filter((id) => IDEOLOGY_MAP[id] && collectionMap[id])
+            .map((id) => ({
+                ...IDEOLOGY_MAP[id],
+                level: collectionMap[id].level || 1,
+            }));
+
+        ideologyEventBus.registerIdeologyEvents(resolvedEquippedIdeologies);
+
+        return () => {
+            ideologyEventBus.clearAllHandlers();
+        };
+    }, [equippedIdeologies, ideologyCollection]);
+
     // [NEW] 娴峰鎶曡祫鍒嗘壒澶勭悊鐘舵€佽拷韪?
     const outboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null });
     const inboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null }); // [NEW] 澶栧浗瀵规垜鍥芥姇璧?
@@ -803,8 +836,9 @@ difficulty, // 游戏难度
     // 姣?HISTORY_UPDATE_INTERVAL 涓?tick 鎵嶆洿鏂颁竴娆″巻鍙叉暟鎹?State
     const historyUpdateCounterRef = useRef(0);
     const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick同步一次历史数据到UI
+    const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
 
-    const { runSimulation } = useSimulationWorker();
+    const { runSimulation, isUsingWorker } = useSimulationWorker();
 
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
@@ -894,7 +928,7 @@ difficulty, // 游戏难度
             ideologyMilestones,
             pendingIdeologyEmergence,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
@@ -1183,6 +1217,7 @@ difficulty, // 游戏难度
                 tradeRoutes: current.tradeRoutes,
                 tradeStats: current.tradeStats,
                 tradeRouteTax: current.tradeStats?.tradeRouteTax || 0, // Pass last tick's value for continuity, but worker re-calculates
+                ideologyMetrics: ideologyMetricsRef.current,
 
                 // Buff/Debuff
                 activeBuffs: current.activeBuffs,
@@ -2450,6 +2485,193 @@ difficulty, // 游戏难度
                         });
                         nextHistory.class = classHistory;
                         return nextHistory;
+                    });
+                }
+
+                ideologyMetricsRef.current = updateIdeologyMetrics(ideologyMetricsRef.current, {
+                    tax: result.taxes?.breakdown?.totalFiscalIncome
+                        ?? (
+                            (result.taxes?.breakdown?.headTax || 0)
+                            + (result.taxes?.breakdown?.industryTax || 0)
+                            + (result.taxes?.breakdown?.businessTax || 0)
+                            + (result.taxes?.breakdown?.policyIncome || 0)
+                            + (result.taxes?.breakdown?.warIndemnity || 0)
+                        ),
+                    trade: Math.max(
+                        ((result.tradeRoutes?.routes || current.tradeRoutes?.routes || []).reduce((sum, route) => (
+                            sum + (route?.value || route?.amount || 0)
+                        ), 0)),
+                        (result.taxes?.breakdown?.tariff || 0) + (result.taxes?.breakdown?.tradeRouteTax || 0)
+                    ),
+                    science: Math.max(0, result.rates?.science || 0),
+                    culture: Math.max(0, result.rates?.culture || 0),
+                });
+
+                if (isUsingWorker) {
+                    const ideologyTick = (current.daysElapsed || 0) + 1;
+                    const livingLevelOrder = ['赤贫', '贫困', '温饱', '小康', '富裕', '奢华'];
+                    const getLivingLevelRank = (level) => {
+                        const index = livingLevelOrder.indexOf(level);
+                        return index >= 0 ? index : -1;
+                    };
+                    const ideologyScaling = buildIdeologyScalingContext({
+                        epoch: current.epoch || 0,
+                        ideologyMetrics: ideologyMetricsRef.current,
+                        population: result.population || current.population || 0,
+                        totalBuildings: getTotalBuildingCount(current.buildings),
+                        militarySize: getTotalArmyCount(current.army, current.militaryQueue, current.militaryCorps),
+                        vassalCount: (nextNations || current.nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+                    });
+                    if (ideologyTick > 0 && ideologyTick % 360 === 0) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_YEAR_END, {
+                            year: Math.floor(ideologyTick / 360),
+                        }, ideologyTick);
+                    }
+                    if (ideologyTick > 0 && ideologyTick % 90 === 0) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_SEASON_CHANGE, {
+                            season: Math.floor((ideologyTick % 360) / 90),
+                        }, ideologyTick);
+                    }
+                    const completedTrades = result.merchantState?.completedTrades || [];
+                    if (completedTrades.length > 0) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TRADE_COMPLETE, {
+                            tradeCount: completedTrades.length,
+                            totalProfit: completedTrades.reduce((sum, trade) => sum + (trade.profit || 0), 0),
+                        }, ideologyTick);
+                    }
+                    if (ideologyTick > 0 && ideologyTick % 30 === 0) {
+                        const totalTax = result.taxes?.breakdown?.totalFiscalIncome
+                            ?? (
+                                (result.taxes?.breakdown?.headTax || 0)
+                                + (result.taxes?.breakdown?.industryTax || 0)
+                                + (result.taxes?.breakdown?.businessTax || 0)
+                                + (result.taxes?.breakdown?.policyIncome || 0)
+                                + (result.taxes?.breakdown?.warIndemnity || 0)
+                            );
+                        if (totalTax > 0) {
+                            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TAX_COLLECT, {
+                                totalTax,
+                                taxes: result.taxes,
+                            }, ideologyTick);
+                        }
+                        const totalSubsidy = Math.max(0, result.taxes?.breakdown?.subsidy || 0);
+                        if (totalSubsidy > 0) {
+                            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_SUBSIDY_PAID, {
+                                totalSubsidy,
+                            }, ideologyTick);
+                        }
+                    }
+                    const treasuryMilestoneStep = scaleLegacyMilestoneThreshold({
+                        threshold: 5000,
+                        type: 'treasury',
+                        context: ideologyScaling,
+                    });
+                    const previousTreasuryMilestone = Math.floor((current.resources?.silver || 0) / treasuryMilestoneStep);
+                    const nextTreasuryMilestone = Math.floor((result.resources?.silver || 0) / treasuryMilestoneStep);
+                    if (nextTreasuryMilestone > previousTreasuryMilestone && (result.resources?.silver || 0) > 0) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TREASURY_MILESTONE, {
+                            treasury: result.resources?.silver || 0,
+                            milestone: nextTreasuryMilestone * treasuryMilestoneStep,
+                        }, ideologyTick);
+                    }
+                    const populationMilestoneStep = scaleLegacyMilestoneThreshold({
+                        threshold: 100,
+                        type: 'population',
+                        context: ideologyScaling,
+                    });
+                    const previousPopulationMilestone = Math.floor((current.population || 0) / populationMilestoneStep);
+                    const nextPopulationMilestone = Math.floor((result.population || 0) / populationMilestoneStep);
+                    if (nextPopulationMilestone > previousPopulationMilestone && (result.population || 0) > 0) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_POP_MILESTONE, {
+                            population: result.population || 0,
+                            milestone: nextPopulationMilestone * populationMilestoneStep,
+                        }, ideologyTick);
+                    }
+                    const previousLivingStandards = current.market?.classLivingStandard || {};
+                    const nextLivingStandards = result.classLivingStandard || {};
+                    const livingStrata = new Set([
+                        ...Object.keys(previousLivingStandards),
+                        ...Object.keys(nextLivingStandards),
+                    ]);
+                    livingStrata.forEach((stratumKey) => {
+                        const fromLevel = previousLivingStandards?.[stratumKey]?.level;
+                        const toLevel = nextLivingStandards?.[stratumKey]?.level;
+                        if (!fromLevel || !toLevel || fromLevel === toLevel) return;
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_LIVING_STANDARD_CHANGE, {
+                            stratumKey,
+                            fromLevel,
+                            toLevel,
+                            direction: getLivingLevelRank(toLevel) >= getLivingLevelRank(fromLevel) ? 'up' : 'down',
+                        }, ideologyTick);
+                    });
+                    Object.entries(result.classApproval || {}).forEach(([stratumKey, approval]) => {
+                        const previousApproval = current.classApproval?.[stratumKey] ?? 100;
+                        if (previousApproval >= 40 && approval < 40) {
+                            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_CLASS_APPROVAL_LOW, {
+                                stratumKey,
+                                approval,
+                                previousApproval,
+                            }, ideologyTick);
+                        }
+                    });
+                    if ((result.starvationDeaths || 0) > 0) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STARVATION, {
+                            deaths: result.starvationDeaths,
+                            severity: result.starvationDeaths >= Math.max(10, Math.floor((result.population || current.population || 0) * 0.02)) ? 'severe' : 'minor',
+                        }, ideologyTick);
+                    }
+                    const previousLegitimacy = current.legitimacy ?? result.legitimacy ?? 50;
+                    const nextLegitimacy = result.legitimacy ?? previousLegitimacy;
+                    if (Math.abs(nextLegitimacy - previousLegitimacy) >= 5) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_LEGITIMACY_CHANGE, {
+                            legitimacy: nextLegitimacy,
+                            previousLegitimacy,
+                            delta: nextLegitimacy - previousLegitimacy,
+                        }, ideologyTick);
+                    }
+                    const previousStability = current.stability ?? result.stability ?? 50;
+                    const nextStability = result.stability ?? previousStability;
+                    if (previousStability > 25 && nextStability <= 25) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STABILITY_CRISIS, {
+                            stability: nextStability,
+                        }, ideologyTick);
+                    }
+                    if (previousStability < 75 && nextStability >= 75) {
+                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_STABILITY_HIGH, {
+                            stability: nextStability,
+                        }, ideologyTick);
+                    }
+                    const previousNationMap = new Map((current.nations || []).map((nation) => [nation.id, nation]));
+                    const previousVassals = new Set(
+                        (current.nations || [])
+                            .filter((nation) => nation?.id && nation.vassalOf === 'player')
+                            .map((nation) => nation.id)
+                    );
+                    (nextNations || []).forEach((nation) => {
+                        if (!nation?.id || nation.id === 'player') return;
+                        const previousNation = previousNationMap.get(nation.id);
+                        if (previousNation) {
+                            const relationDelta = (nation.relation || 0) - (previousNation.relation || 0);
+                            if (relationDelta >= 10) {
+                                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_RELATION_IMPROVE, {
+                                    nationId: nation.id,
+                                    relation: nation.relation || 0,
+                                    delta: relationDelta,
+                                }, ideologyTick);
+                            } else if (relationDelta <= -10) {
+                                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_RELATION_HOSTILE, {
+                                    nationId: nation.id,
+                                    relation: nation.relation || 0,
+                                    delta: relationDelta,
+                                }, ideologyTick);
+                            }
+                        }
+                        if (!previousVassals.has(nation.id) && nation.vassalOf === 'player') {
+                            ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_VASSAL_GAIN, {
+                                nationId: nation.id,
+                                relation: nation.relation || 0,
+                            }, ideologyTick);
+                        }
                     });
                 }
 
@@ -3935,17 +4157,72 @@ difficulty, // 游戏难度
                         }
                         const ideologyEffects = ideologyEventBus.flushEffects();
                         if (ideologyEffects.length > 0) {
+                            const ideologyScaling = buildIdeologyScalingContext({
+                                epoch: current.epoch || 0,
+                                ideologyMetrics: ideologyMetricsRef.current,
+                                population: current.population || 0,
+                                totalBuildings: getTotalBuildingCount(current.buildings),
+                                militarySize: getTotalArmyCount(current.army, current.militaryQueue, current.militaryCorps),
+                                vassalCount: (current.nations || []).filter(n => n.vassalOf === 'player' || n.isAnnexed).length,
+                            });
                             for (const eff of ideologyEffects) {
                                 const r = eff.result;
                                 if (r.action === 'addStability' && setStability) {
                                     setStability(prev => Math.max(0, Math.min(100, prev + r.amount)));
                                 } else if (r.action === 'addResource' && r.resource) {
+                                    const scaledAmount = scaleLegacyResourceAmount({
+                                        amount: r.amount,
+                                        resource: r.resource,
+                                        context: ideologyScaling,
+                                        mode: 'reward',
+                                    });
                                     setResources(prev => ({
                                         ...prev,
-                                        [r.resource]: Math.max(0, (prev[r.resource] || 0) + r.amount)
+                                        [r.resource]: Math.max(0, (prev[r.resource] || 0) + scaledAmount)
                                     }), { reason: 'ideology_event_effect', ideologyId: eff.ideologyId, eventId: eff.eventId });
+                                } else if (r.action === 'addBuff' && setActiveBuffs) {
+                                    setActiveBuffs(prev => {
+                                        const next = Array.isArray(prev) ? [...prev] : [];
+                                        const buffId = r.buffId || `ideology_buff_${eff.ideologyId}_${eff.tick}`;
+                                        const existingIndex = next.findIndex(buff => buff?.buffId === buffId);
+                                        const payload = {
+                                            buffId,
+                                            name: r.name || '理念效果',
+                                            duration: Math.max(1, Math.floor(r.duration || 1)),
+                                            source: 'ideology',
+                                            ideologyId: eff.ideologyId,
+                                            ...(r.effects || {}),
+                                        };
+                                        if (existingIndex >= 0) {
+                                            next[existingIndex] = payload;
+                                        } else {
+                                            next.push(payload);
+                                        }
+                                        return next;
+                                    });
+                                } else if (r.action === 'modifyBonus' && setActiveBuffs && r.bonusKey) {
+                                    setActiveBuffs(prev => {
+                                        const next = Array.isArray(prev) ? [...prev] : [];
+                                        const buffId = `ideology_modifier_${eff.ideologyId}_${r.bonusKey}`;
+                                        const existingIndex = next.findIndex(buff => buff?.buffId === buffId);
+                                        const payload = {
+                                            buffId,
+                                            name: r.name || '理念修正',
+                                            duration: Math.max(1, Math.floor(r.duration || 1)),
+                                            source: 'ideology',
+                                            ideologyId: eff.ideologyId,
+                                            [r.bonusKey]: r.amount,
+                                        };
+                                        if (existingIndex >= 0) {
+                                            next[existingIndex] = payload;
+                                        } else {
+                                            next.push(payload);
+                                        }
+                                        return next;
+                                    });
+                                } else if (r.action === 'addIdeologyScore' && setIdeologyScore) {
+                                    setIdeologyScore(prev => (prev || 0) + r.amount);
                                 }
-                                // addBuff, addIdeologyScore, modifyBonus handled by other systems
                             }
                         }
                     }
@@ -4685,6 +4962,13 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             details,
                                             rebellionCallback
                                         );
+                                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_REBELLION_START, {
+                                            rebelNationId: rebelNation.id,
+                                            isCoalition: true,
+                                            coalitionStrata,
+                                            hasMilitary,
+                                            militaryIsRebelling,
+                                        }, current.daysElapsed || 0);
                                         const coalitionNames = coalitionStrata.map(k => STRATA[k]?.name || k).join('、');
                                         addLog(`馃敟馃敟馃敟 ${coalitionNames}绛夊涓樁灞傝仈鍚堝彂鍔ㄥ彌涔憋紒`);
                                         // 为联盟叛乱创建战线
@@ -4777,6 +5061,13 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                         setPopulation(prev => Math.max(0, prev - rebelPopLoss));
 
                                         event = createActiveRebellionEvent(stratumKey, rebellionStateForEvent, hasMilitary, militaryIsRebelling, rebelNation, rebellionCallback);
+                                        ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_REBELLION_START, {
+                                            rebelNationId: rebelNation.id,
+                                            isCoalition: false,
+                                            stratumKey,
+                                            hasMilitary,
+                                            militaryIsRebelling,
+                                        }, current.daysElapsed || 0);
                                         addLog(`馃敟馃敟馃敟 ${STRATA[stratumKey]?.name || stratumKey}闃跺眰缁勭粐搴﹁揪鍒?00%锛屽彂鍔ㄥ彌涔憋紒`);
                                         // 为单阶层叛乱创建战线
                                         if (typeof setActiveFronts === 'function') {
@@ -5034,6 +5325,13 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                     rebelNation,
                                     rebellionCallback
                                 );
+                                ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_REBELLION_START, {
+                                    rebelNationId: rebelNation.id,
+                                    isCoalition: false,
+                                    stratumKey,
+                                    hasMilitary,
+                                    militaryIsRebelling,
+                                }, current.daysElapsed || 0);
                                 addLog(`馃敟馃敟馃敟 ${STRATA[stratumKey]?.name || stratumKey}鍥犳壙璇鸿繚鑳岋紝缁勭粐搴﹁揪鍒?00%锛屽彂鍔ㄥ彌涔憋紒`);
                                 current.actions.triggerDiplomaticEvent(event);
                                 setIsPaused(true);

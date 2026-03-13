@@ -34,6 +34,8 @@ export const initializeBonuses = () => ({
     industryBonus: 0,
     taxBonus: 0,
     needsReduction: 0,
+    approvalEffects: {},
+    organizationGrowthMod: 0,
     // 新增：庆典/科技/政令的特殊加成
     stabilityBonus: 0,      // 稳定度加成
     scienceBonus: 0,        // 科研产出加成
@@ -132,6 +134,18 @@ export const applyEffects = (effects, bonuses) => {
     }
     if (effects.needsReduction) {
         bonuses.needsReduction += effects.needsReduction;
+    }
+    if (effects.approval) {
+        Object.entries(effects.approval).forEach(([stratumKey, amount]) => {
+            if (typeof amount !== 'number') return;
+            bonuses.approvalEffects[stratumKey] = (bonuses.approvalEffects[stratumKey] || 0) + amount;
+        });
+    }
+    if (typeof effects.organizationGrowthMod === 'number') {
+        bonuses.organizationGrowthMod += effects.organizationGrowthMod;
+    }
+    if (typeof effects.organizationDecay === 'number') {
+        bonuses.organizationGrowthMod += effects.organizationDecay;
     }
     // 新增：处理庆典的特殊加成效果
     if (effects.stability) {

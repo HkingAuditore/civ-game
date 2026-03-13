@@ -70,7 +70,10 @@ const NationDetailView = ({
     const currentDay = gameState?.day || daysElapsed || 0;
     const getCooldownInfo = (actionType) => {
         const lastActionDay = nation?.lastDiplomaticActionDay?.[actionType] || 0;
-        const cooldownDays = DIPLOMATIC_COOLDOWNS[actionType] || 0;
+        const baseCooldownDays = DIPLOMATIC_COOLDOWNS[actionType] || 0;
+        const cooldownDays = baseCooldownDays > 0
+            ? Math.max(1, Math.round(baseCooldownDays * (1 + (diplomaticCooldownMod || 0))))
+            : baseCooldownDays;
         const daysSinceLastAction = currentDay - lastActionDay;
         const isOnCooldown = lastActionDay > 0 && daysSinceLastAction < cooldownDays;
         const remainingDays = isOnCooldown ? cooldownDays - daysSinceLastAction : 0;
