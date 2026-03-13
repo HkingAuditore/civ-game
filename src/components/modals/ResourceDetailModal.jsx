@@ -759,14 +759,14 @@ const AutoChainFlowGraph = ({ graph, resourceKey, buildingCounts = {} }) => {
 const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side = 'producer' }) => {
     const rd = RESOURCES[resourceKey];
     const isProducer = side === 'producer';
-    // The "other" resources: for a producer, show its inputs; for a consumer, show its outputs
+    // The "other" resources: for a producer, show its inputs; for a consumer, show its other inputs (co-inputs)
     const otherKeys = isProducer
         ? building.inputs.filter(rk => rk !== resourceKey)
-        : building.outputs.filter(rk => rk !== resourceKey);
-    // Resources on the "same side" as current resource
+        : building.inputs.filter(rk => rk !== resourceKey);
+    // Resources on the "same side" as current resource: for a producer, show co-outputs; for a consumer, show outputs
     const sameKeys = isProducer
         ? building.outputs.filter(rk => rk !== resourceKey)
-        : building.inputs.filter(rk => rk !== resourceKey);
+        : building.outputs.filter(rk => rk !== resourceKey);
 
     const isUnlocked = currentBuildingCount > 0;
 
@@ -797,67 +797,68 @@ const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side 
                 {isProducer ? (
                     <>
                         {/* Producer: inputs → current resource → co-outputs */}
-                        {otherKeys.length > 0 && (
-                            <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
-                                {otherKeys.map(rk => (
-                                    <ResourceChip key={rk} rk={rk} tiny />
-                                ))}
-                            </div>
-                        )}
-                        {otherKeys.length > 0 && (
-                            <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
-                        )}
-                        {/* Current resource (highlighted) */}
-                        <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
-                            bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
-                            <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
-                            {rd?.name || resourceKey}
-                        </span>
-                        {/* Co-outputs */}
-                        {sameKeys.length > 0 && (
-                            <>
-                                <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
-                                <div className="flex flex-wrap gap-0.5">
-                                    {sameKeys.slice(0, 3).map(rk => (
-                                        <ResourceChip key={rk} rk={rk} tiny />
-                                    ))}
-                                    {sameKeys.length > 3 && (
-                                        <span className="text-[9px] text-gray-500">+{sameKeys.length - 3}</span>
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </>
-                ) : (
-                    <>
-                        {/* Consumer: current resource → outputs (co-inputs shown on right) */}
-                        {/* Current resource (highlighted) */}
-                        <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
-                            bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
-                            <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
-                            {rd?.name || resourceKey}
-                        </span>
-                        <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
-                        {/* Outputs */}
+                        {/* Left side: inputs */}
                         <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
                             {otherKeys.map(rk => (
                                 <ResourceChip key={rk} rk={rk} tiny />
                             ))}
                         </div>
-                        {/* Co-inputs */}
-                        {sameKeys.length > 0 && (
-                            <>
-                                <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
-                                <div className="flex flex-wrap gap-0.5">
+                        {/* Arrow */}
+                        <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
+                        {/* Right side: current resource + co-outputs */}
+                        <div className="flex flex-wrap gap-0.5 flex-1 min-w-0 items-center justify-end">
+                            {/* Current resource (highlighted) */}
+                            <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
+                                bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
+                                <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
+                                {rd?.name || resourceKey}
+                            </span>
+                            {/* Co-outputs */}
+                            {sameKeys.length > 0 && (
+                                <>
+                                    <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
                                     {sameKeys.slice(0, 3).map(rk => (
                                         <ResourceChip key={rk} rk={rk} tiny />
                                     ))}
                                     {sameKeys.length > 3 && (
                                         <span className="text-[9px] text-gray-500">+{sameKeys.length - 3}</span>
                                     )}
-                                </div>
-                            </>
-                        )}
+                                </>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        {/* Consumer: current resource + co-inputs → outputs */}
+                        {/* Left side: current resource + co-inputs */}
+                        <div className="flex flex-wrap gap-0.5 flex-1 min-w-0 items-center">
+                            {/* Current resource (highlighted) - being consumed */}
+                            <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 border text-[10px]
+                                bg-ancient-gold/10 border-ancient-gold/30 text-ancient-gold flex-shrink-0">
+                                <Icon name={rd?.icon || 'Package'} size={11} className={rd?.color || 'text-ancient-gold'} />
+                                {rd?.name || resourceKey}
+                            </span>
+                            {/* Co-inputs (other inputs besides current resource) */}
+                            {otherKeys.length > 0 && (
+                                <>
+                                    <span className="text-[9px] text-gray-600 flex-shrink-0">+</span>
+                                    {otherKeys.slice(0, 3).map(rk => (
+                                        <ResourceChip key={rk} rk={rk} tiny />
+                                    ))}
+                                    {otherKeys.length > 3 && (
+                                        <span className="text-[9px] text-gray-500">+{otherKeys.length - 3}</span>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                        {/* Arrow */}
+                        <Icon name="ArrowRight" size={10} className="text-gray-600 flex-shrink-0" />
+                        {/* Right side: outputs */}
+                        <div className="flex flex-wrap gap-0.5 flex-1 min-w-0 justify-end">
+                            {sameKeys.map(rk => (
+                                <ResourceChip key={rk} rk={rk} tiny />
+                            ))}
+                        </div>
                     </>
                 )}
             </div>
