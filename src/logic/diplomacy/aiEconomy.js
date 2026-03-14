@@ -5,7 +5,7 @@
  */
 
 import { RESOURCES, EPOCHS } from '../../config';
-import { WAR_ECONOMY } from '../../config/gameConstants';
+import { WAR_ECONOMY, AI_EPOCH_PROGRESSION } from '../../config/gameConstants';
 import { clamp } from '../utils';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { canForeignTradeResource } from '../utils/helpers';
@@ -662,6 +662,7 @@ export const processInstallmentPayment = ({
 
 /**
  * Check and process AI nation epoch progression
+ * 改造后的时代升级机制：基于科技/文化累积 + 人口/财富门槛
  * @param {Object} nation - AI nation object (mutable)
  * @param {Array} logs - Log array (mutable)
  * @param {number} tick - Current game tick (optional, for cooldown)
@@ -669,49 +670,79 @@ export const processInstallmentPayment = ({
 export const checkAIEpochProgression = (nation, logs, tick = 0) => {
     if (!nation || nation.isRebelNation) return;
 
-    // Safety check
     const currentEpochId = nation.epoch || 0;
-    if (currentEpochId >= EPOCHS.length - 1) return; // Max epoch reached
+    if (currentEpochId >= EPOCHS.length - 1) return; // 已达最高时代
 
-    // [FIX] Add cooldown to prevent rapid epoch progression
-    // AI can only advance one epoch every 200 ticks (about 2 seasons/50 days)
-    const EPOCH_COOLDOWN = 200;
+    // 冷却检查：防止连续快速升级
+    const EPOCH_COOLDOWN = AI_EPOCH_PROGRESSION.EPOCH_COOLDOWN;
     const lastEpochTick = nation._lastEpochUpgradeTick || 0;
     if (tick > 0 && (tick - lastEpochTick) < EPOCH_COOLDOWN) {
-        return; // Still on cooldown
+        return;
     }
 
     const nextEpochId = currentEpochId + 1;
     const nextEpochData = EPOCHS.find(e => e.id === nextEpochId);
-
     if (!nextEpochData) return;
 
-    // Requirements - progressive scaling: later epochs have exponentially higher requirements
-    // Base multiplier starts at 100x for early eras, scaling up to 800x+ for later eras
-    // This creates a more realistic and challenging progression curve for AI nations
-    const epochMultipliers = {
-        1: 100,   // Bronze Age: 100x
-        2: 150,   // Classical Age: 150x
-        3: 200,   // Feudal Age: 200x
-        4: 300,   // Exploration Age: 300x
-        5: 400,   // Enlightenment Age: 400x
-        6: 600,   // Industrial Age: 600x
-        7: 800,   // Information Age: 800x
-    };
-    const epochMult = epochMultipliers[nextEpochId] || 100;
-    
-    const reqPop = (nextEpochData.req?.population || 0) * epochMult;
-    const reqWealth = (nextEpochData.cost?.silver || 1000) * epochMult;
+    // === 存档兼容：初始化科技/文化累积值 ===
+    if (nation._scienceAccum === undefined || nation._scienceAccum === null) {
+        // 对已处于高时代的 AI，按当前时代反推累积值
+        if (currentEpochId > 0) {
+            const currentEpochData = EPOCHS.find(e => e.id === currentEpochId);
+            const sciScale = AI_EPOCH_PROGRESSION.SCIENCE_SCALE_BY_EPOCH[currentEpochId] || 0.30;
+            const culScale = AI_EPOCH_PROGRESSION.CULTURE_SCALE_BY_EPOCH[currentEpochId] || 0.30;
+            nation._scienceAccum = (currentEpochData?.req?.science || 0) * sciScale * 1.1;
+            nation._cultureAccum = (currentEpochData?.req?.culture || 0) * culScale * 1.1;
+        } else {
+            nation._scienceAccum = 0;
+            nation._cultureAccum = 0;
+        }
+    }
 
-    if ((nation.population || 0) >= reqPop && (nation.wealth || 0) >= reqWealth) {
-        // Upgrade!
+    // === 计算各维度门槛与进度 ===
+    const sciScale = AI_EPOCH_PROGRESSION.SCIENCE_SCALE_BY_EPOCH[nextEpochId] || 0.30;
+    const culScale = AI_EPOCH_PROGRESSION.CULTURE_SCALE_BY_EPOCH[nextEpochId] || 0.30;
+
+    const scienceReq = (nextEpochData.req?.science || 0) * sciScale;
+    const cultureReq = (nextEpochData.req?.culture || 0) * culScale;
+    const popReq = nextEpochData.req?.population || 0;
+    // 财富门槛：使用 cost.silver × 2 作为基准（与旧逻辑一致，但不再乘以巨大的 epochMult）
+    const wealthReq = (nextEpochData.cost?.silver || 1000) * 2;
+
+    const scienceAccum = nation._scienceAccum || 0;
+    const cultureAccum = nation._cultureAccum || 0;
+    const population = nation.population || 0;
+    const wealth = nation.wealth || 0;
+
+    const scienceReady = scienceReq <= 0 || scienceAccum >= scienceReq;
+    const cultureReady = cultureReq <= 0 || cultureAccum >= cultureReq;
+    const popReady = population >= popReq;
+    const wealthReady = wealth >= wealthReq;
+
+    // === 计算准备度（用最小值加权，避免单一维度遮盖瓶颈）===
+    const scienceProgress = scienceReq > 0 ? clamp(scienceAccum / scienceReq, 0, 1) : 1;
+    const cultureProgress = cultureReq > 0 ? clamp(cultureAccum / cultureReq, 0, 1) : 1;
+    const popProgress = popReq > 0 ? clamp(population / popReq, 0, 1) : 1;
+    const wealthProgress = wealthReq > 0 ? clamp(wealth / wealthReq, 0, 1) : 1;
+
+    const minProgress = Math.min(scienceProgress, cultureProgress, popProgress, wealthProgress);
+    const avgProgress = (scienceProgress + cultureProgress + popProgress + wealthProgress) / 4;
+    // 60% 看瓶颈维度，40% 看均值
+    nation._epochReadiness = clamp(minProgress * 0.6 + avgProgress * 0.4, 0, 1);
+
+    // === 升级判定 ===
+    if (scienceReady && cultureReady && popReady && wealthReady) {
+        // 消耗累积值
+        nation._scienceAccum = Math.max(0, scienceAccum - scienceReq);
+        nation._cultureAccum = Math.max(0, cultureAccum - cultureReq);
+        // 消耗财富
+        const cost = nextEpochData.cost?.silver || 0;
+        nation.wealth = Math.max(0, wealth - cost);
+        // 升级
         nation.epoch = nextEpochId;
-        // Deduct cost (abstracted simulation of upgrading infrastructure)
-        // [FIX] Double the cost deduction to slow down wealth accumulation
-        const cost = (nextEpochData.cost?.silver || 0) * 2;
-        nation.wealth = Math.max(0, (nation.wealth || 0) - cost);
-        // [FIX] Record cooldown timestamp
         nation._lastEpochUpgradeTick = tick;
+        // 触发建筑重规划
+        nation._needsBuildingReplan = true;
 
         logs.push(`🚀 ${nation.name} 迈入了新的时代：${nextEpochData.name}！`);
     }
