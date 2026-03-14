@@ -8,6 +8,7 @@ import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } 
 import { isTradableResource, canForeignTradeResource } from '../utils/helpers';
 import { debugLog } from '../../utils/debugFlags';
 import { getTreatyEffects } from '../diplomacy/treatyEffects';
+import { calculateNationLocalPrice } from '../diplomacy/warEconomy';
 import { TRANSACTION_CATEGORIES } from './ledger';
 
 /**
@@ -62,6 +63,25 @@ const pickTopN = (items = [], n = 10) => {
     if (!Array.isArray(items) || items.length === 0) return [];
     const sorted = [...items].sort((a, b) => (b?.score || 0) - (a?.score || 0));
     return sorted.slice(0, Math.max(0, n));
+};
+
+const syncPartnerNationTradeState = (partner, resourceKey, nextAmount, marketPrices = null, shock = 0) => {
+    if (!partner || !resourceKey) return;
+    const safeAmount = Math.max(0, Number(nextAmount || 0));
+    partner.inventory = { ...(partner.inventory || {}) };
+    partner.inventory[resourceKey] = safeAmount;
+    partner.nationInventories = { ...(partner.nationInventories || {}) };
+    partner.nationInventories[resourceKey] = safeAmount;
+    partner.nationPrices = { ...(partner.nationPrices || {}) };
+    partner.nationPrices[resourceKey] = calculateNationLocalPrice({
+        resourceKey,
+        nation: partner,
+        marketPrice: marketPrices?.[resourceKey],
+        currentPrice: partner.nationPrices?.[resourceKey],
+        inventoryOverride: safeAmount,
+        wealthOverride: partner.wealth,
+        shock,
+    });
 };
 
 /**
@@ -632,9 +652,14 @@ export const simulateMerchantTrade = ({
                 if (trade.partnerId && Array.isArray(nations)) {
                     const partner = nations.find(n => n?.id === trade.partnerId);
                     if (partner) {
-                        if (!partner.inventory) partner.inventory = {};
-                        const cur = partner.inventory[trade.resource] || 0;
-                        partner.inventory[trade.resource] = Math.max(0, cur - trade.amount);
+                        const cur = partner.inventory?.[trade.resource] || 0;
+                        syncPartnerNationTradeState(
+                            partner,
+                            trade.resource,
+                            Math.max(0, cur - trade.amount),
+                            market?.prices,
+                            0.02
+                        );
                     }
                 }
             } else if (trade.type === 'export') {
@@ -642,9 +667,14 @@ export const simulateMerchantTrade = ({
                 if (trade.partnerId && Array.isArray(nations)) {
                     const partner = nations.find(n => n?.id === trade.partnerId);
                     if (partner) {
-                        if (!partner.inventory) partner.inventory = {};
-                        const cur = partner.inventory[trade.resource] || 0;
-                        partner.inventory[trade.resource] = Math.max(0, cur + trade.amount);
+                        const cur = partner.inventory?.[trade.resource] || 0;
+                        syncPartnerNationTradeState(
+                            partner,
+                            trade.resource,
+                            Math.max(0, cur + trade.amount),
+                            market?.prices,
+                            0.02
+                        );
                     }
                 }
             }
