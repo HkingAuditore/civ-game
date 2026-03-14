@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { IdeologyCard } from '../tabs/IdeologyCard';
+import { IdeologyDetailSheet } from '../tabs/IdeologyDetailSheet';
 import { useDevicePerformance } from '../../hooks/useDevicePerformance';
 import { IDEOLOGY_MAP } from '../../config/ideologies';
 
@@ -25,6 +26,7 @@ const IdeologyEmergenceModalComponent = ({
     const [selectedId, setSelectedId] = useState(null);
     const [step, setStep] = useState(1); // 1=选择新理念, 2=选择放弃哪个
     const [discardId, setDiscardId] = useState(null);
+    const [detailEntry, setDetailEntry] = useState(null);
     const { isLowPerformanceMode } = useDevicePerformance();
 
     const overlayClassName = 'absolute inset-0 bg-black/85 backdrop-blur-sm';
@@ -53,6 +55,7 @@ const IdeologyEmergenceModalComponent = ({
             setSelectedId(null);
             setStep(1);
             setDiscardId(null);
+            setDetailEntry(null);
         }
     }, [selectedId, collectionFull, isUpgrade, onSelect]);
 
@@ -63,17 +66,20 @@ const IdeologyEmergenceModalComponent = ({
         setSelectedId(null);
         setStep(1);
         setDiscardId(null);
+        setDetailEntry(null);
     }, [selectedId, discardId, onSelect]);
 
     const handleBack = useCallback(() => {
         setStep(1);
         setDiscardId(null);
+        setDetailEntry(null);
     }, []);
 
     return createPortal(
         <AnimatePresence>
             {show && candidates.length > 0 && (
                 <div
+                    key="ideology-emergence-modal"
                     className={containerClassName}
                     style={{
                         overflow: 'clip',
@@ -197,6 +203,7 @@ const IdeologyEmergenceModalComponent = ({
                                         {collectionList.map((entry, index) => (
                                             <MotionDiv
                                                 key={entry.id}
+                                                className={discardId === entry.id ? 'ring-2 ring-red-400/50 rounded-xl' : ''}
                                                 initial={{ opacity: 0, y: 20 }}
                                                 animate={{
                                                     opacity: discardId && discardId !== entry.id ? 0.4 : 1,
@@ -209,9 +216,17 @@ const IdeologyEmergenceModalComponent = ({
                                                     level={entry.level || 1}
                                                     isEquipped={false}
                                                     equippedIds={equippedIds}
-                                                    isSelected={discardId === entry.id}
-                                                    onSelect={(id) => setDiscardId(id)}
-                                                    compact={true}
+                                                    compact={false}
+                                                    onCardClick={() => setDetailEntry(entry)}
+                                                    showCollectionActions={false}
+                                                    customAction={{
+                                                        label: discardId === entry.id ? '已选中放弃目标' : '放弃这个理念',
+                                                        disabled: discardId === entry.id,
+                                                        className: discardId === entry.id
+                                                            ? 'bg-red-950/40 text-red-200 border border-red-500/50'
+                                                            : 'bg-red-900/40 hover:bg-red-800/60 text-red-200 border border-red-600/40',
+                                                        onClick: () => setDiscardId(entry.id),
+                                                    }}
                                                 />
                                             </MotionDiv>
                                         ))}
@@ -252,6 +267,22 @@ const IdeologyEmergenceModalComponent = ({
                     </MotionDiv>
                 </div>
             )}
+            <IdeologyDetailSheet
+                key="ideology-emergence-detail-sheet"
+                ideology={detailEntry?.config || null}
+                level={detailEntry?.level || 1}
+                isEquipped={false}
+                equippedIds={equippedIds}
+                primaryAction={step === 2 && detailEntry ? {
+                    label: discardId === detailEntry.id ? '已选中放弃目标' : '选择放弃这个理念',
+                    icon: 'Trash2',
+                    disabled: discardId === detailEntry.id,
+                    className: 'border-red-500/50 text-red-200 bg-red-900/20 hover:bg-red-900/40',
+                    onClick: () => setDiscardId(detailEntry.id),
+                } : null}
+                zIndex={130}
+                onClose={() => setDetailEntry(null)}
+            />
         </AnimatePresence>,
         document.body
     );

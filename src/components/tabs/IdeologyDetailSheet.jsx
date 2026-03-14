@@ -22,6 +22,8 @@ const IdeologyDetailSheetComponent = ({
     onEquip,            // 装备回调 (id) => void
     onUnequip,          // 卸下回调 (id) => void
     onClose,            // 关闭回调
+    primaryAction = null, // 自定义主操作 { label, icon, onClick, disabled, className }
+    zIndex = 100,
 }) => {
     const { isLowPerformanceMode } = useDevicePerformance();
     const touchStartY = useRef(null);
@@ -57,13 +59,20 @@ const IdeologyDetailSheetComponent = ({
         onClose?.();
     }, [onUnequip, onClose, ideology]);
 
+    const handlePrimaryAction = useCallback(() => {
+        if (primaryAction?.disabled) return;
+        primaryAction?.onClick?.(ideology?.id);
+        onClose?.();
+    }, [primaryAction, ideology, onClose]);
+
     const show = !!ideology;
 
     return createPortal(
         <AnimatePresence>
             {show && (
                 <div
-                    className="fixed inset-0 z-[100] flex items-end justify-center"
+                    className="fixed inset-0 flex items-end justify-center"
+                    style={{ zIndex }}
                     onClick={handleOverlayClick}
                 >
                     {/* 半透明遮罩 */}
@@ -120,7 +129,20 @@ const IdeologyDetailSheetComponent = ({
 
                         {/* 底部操作按钮 */}
                         <div className="px-4 py-3 border-t border-gray-800 flex gap-3">
-                            {isEquipped ? (
+                            {primaryAction ? (
+                                <button
+                                    onClick={handlePrimaryAction}
+                                    disabled={primaryAction.disabled}
+                                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${
+                                        primaryAction.disabled
+                                            ? 'border-gray-700 text-gray-500 cursor-not-allowed'
+                                            : (primaryAction.className || 'border-purple-500/50 text-purple-200 bg-purple-900/20 hover:bg-purple-900/40')
+                                    }`}
+                                >
+                                    <Icon name={primaryAction.icon || 'Check'} size={16} />
+                                    {primaryAction.label || '确认'}
+                                </button>
+                            ) : isEquipped ? (
                                 <button
                                     onClick={handleUnequip}
                                     className="flex-1 py-2.5 rounded-xl text-sm font-bold border-2 border-orange-500/50 text-orange-300 bg-orange-900/20 hover:bg-orange-900/40 transition-all flex items-center justify-center gap-2"
