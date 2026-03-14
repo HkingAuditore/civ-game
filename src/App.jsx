@@ -2190,9 +2190,18 @@ function GameApp({ gameState }) {
                 show={!!gameState.pendingIdeologyEmergence}
                 candidates={gameState.pendingIdeologyEmergence?.candidates || []}
                 equippedIds={gameState.equippedIdeologies || []}
-                onSelect={(ideologyId) => {
+                collectionFull={(gameState.ideologyCollection || []).filter(e => !(gameState.equippedIdeologies || []).includes(e.id)).length >= 10}
+                collectionList={(gameState.ideologyCollection || [])
+                    .filter(e => !(gameState.equippedIdeologies || []).includes(e.id))
+                    .map(e => ({ ...e, config: e }))}
+                onSelect={(ideologyId, discardId) => {
+                    // 若有放弃的理念，先从收藏中移除
+                    let collection = gameState.ideologyCollection || [];
+                    if (discardId) {
+                        collection = collection.filter(e => e.id !== discardId);
+                    }
                     // 处理涌现选择
-                    const result = selectIdeology(ideologyId, gameState.ideologyCollection || []);
+                    const result = selectIdeology(ideologyId, collection);
                     gameState.setIdeologyCollection(result.updatedCollection);
                     // 消耗分数
                     const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);

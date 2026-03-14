@@ -846,6 +846,8 @@ difficulty, // 游戏难度
     const historyUpdateCounterRef = useRef(0);
     const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick同步一次历史数据到UI
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
+    // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
+    const prevWarNationsRef = useRef([]);
 
     const { runSimulation, isUsingWorker } = useSimulationWorker();
 
@@ -1925,10 +1927,19 @@ difficulty, // 游戏难度
                 {
                     import('../logic/ideology/ideologyScoring').then(({ checkAndAwardIdeologyScore, checkEmergence, getEmergenceThreshold }) => {
                         import('../logic/ideology/ideologyEmergence').then(({ generateEmergenceCandidates }) => {
+                            // 计算当前贸易量（贸易路线价值之和）
+                            const _tradeVolume = (current.tradeRoutes?.routes || []).reduce((sum, r) => sum + (r.value || r.amount || 0), 0);
+                            // 构建当前在战国家列表（用于检测战争结束）
+                            const _curWarNations = (current.nations || [])
+                                .filter(n => n.isAtWar && !n.isRebelNation)
+                                .map(n => ({ id: n.id, warScore: n.warScore || 0, eventId: `${n.id}_${n.warStartDay || 0}` }));
                             const prevState = {
                                 techsUnlocked: current.techsUnlocked || [],
                                 epoch: current.epoch || 0,
                                 stability: current.stability || 50,
+                                completedChains: current.completedChains || 0,
+                                // 上一tick的在战国家列表（用于检测战争结束）
+                                warNations: prevWarNationsRef.current,
                             };
                             const curState = {
                                 techsUnlocked: current.techsUnlocked || [],
@@ -1940,7 +1951,12 @@ difficulty, // 游戏难度
                                 popStructure: result.popStructure || current.popStructure || {},
                                 classApproval: result.classApproval || current.classApproval || {},
                                 ideologyMilestones: current.ideologyMilestones || [],
+                                completedChains: result.completedChains ?? current.completedChains ?? 0,
+                                tradeVolume: _tradeVolume,
+                                warNations: _curWarNations,
                             };
+                            // 更新上一tick的在战国家列表（供下一tick使用）
+                            prevWarNationsRef.current = _curWarNations;
                             const scoreResult = checkAndAwardIdeologyScore(curState, prevState);
                             if (scoreResult.scoreGained > 0) {
                                 setIdeologyScore(prev => (prev || 0) + scoreResult.scoreGained);
