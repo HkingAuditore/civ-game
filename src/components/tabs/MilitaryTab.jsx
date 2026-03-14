@@ -352,6 +352,7 @@ const MilitaryTabComponent = ({
     officials = [], // [NEW] Officials list for general selection
     corpsReplenishQueue = {},
     onUpdateCorpsReplenishQueue,
+    warfrontFocusRequest = null,
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
@@ -595,6 +596,17 @@ const MilitaryTabComponent = ({
     }, [activeNation, warringNations, onSelectTarget]);
 
     React.useEffect(() => {
+        if (!warfrontFocusRequest?.token) return;
+        setActiveSection('warfront');
+        if (warfrontFocusRequest.frontId) {
+            setSelectedFrontId(warfrontFocusRequest.frontId);
+            if (isMobileWarfrontLayout) {
+                setIsFrontDetailSheetOpen(true);
+            }
+        }
+    }, [isMobileWarfrontLayout, warfrontFocusRequest]);
+
+    React.useEffect(() => {
         if (activeSection !== 'warfront') return;
         if (playerActiveFronts.length === 0) {
             setSelectedFrontId(null);
@@ -680,10 +692,6 @@ const MilitaryTabComponent = ({
         ? nations.find((nation) => nation.id === selectedFrontEnemyId) || null
         : activeNation;
     const selectedFrontEnemyName = selectedFrontEnemyNation?.name || selectedFrontEnemyId || activeNation?.name || '战区';
-    const selectedEnemyProcurement = selectedFrontEnemyNation?.warEconomy?.procurement || selectedFrontEnemyNation?.military?.procurement || {};
-    const selectedEnemyFulfillment = Math.max(0, Math.min(1, Number(selectedEnemyProcurement.fulfillmentRatio ?? 1)));
-    const selectedEnemyDomesticPressure = Math.max(0, Number(selectedFrontEnemyNation?.warEconomy?.domesticPressure || 0));
-    const selectedEnemyProcurementCost = Number(selectedEnemyProcurement.totalCost || 0);
     const handleSelectFront = (frontId) => {
 
         setSelectedFrontId(frontId);
@@ -1212,36 +1220,6 @@ const MilitaryTabComponent = ({
                                         <p className="text-purple-200 font-bold text-sm">{(activeBattles || []).filter((battle) => battle?.status === 'active').length}</p>
                                     </div>
                                 </div>
-                                {selectedFrontEnemyNation && (selectedEnemyProcurementCost > 0 || selectedEnemyDomesticPressure > 0.01 || Number(selectedEnemyProcurement.totalDemand || 0) > 0) && (
-                                    <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/15 p-3">
-                                        <div className="mb-2 flex items-center justify-between gap-3">
-                                            <p className="text-xs font-semibold text-red-100">敌国战争采购快照 · {selectedFrontEnemyName}</p>
-                                            <p className="text-xs text-gray-400">按当前选中战区对应国家汇总</p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3 text-center text-xs md:grid-cols-4">
-                                            <div>
-                                                <p className="text-gray-400">采购履约</p>
-                                                <p className={`font-bold text-sm ${selectedEnemyFulfillment >= 0.95 ? 'text-emerald-300' : selectedEnemyFulfillment >= 0.75 ? 'text-yellow-300' : 'text-red-300'}`}>
-                                                    {Math.round(selectedEnemyFulfillment * 100)}%
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-gray-400">当日军购</p>
-                                                <p className="text-yellow-300 font-bold text-sm">{formatNumberShortCN(selectedEnemyProcurementCost, { decimals: 1 })}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-gray-400">国内库存压力</p>
-                                                <p className={`font-bold text-sm ${selectedEnemyDomesticPressure >= 0.7 ? 'text-red-300' : selectedEnemyDomesticPressure >= 0.4 ? 'text-yellow-300' : 'text-emerald-300'}`}>
-                                                    {Math.round(selectedEnemyDomesticPressure * 100)}%
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-gray-400">剩余国家财富</p>
-                                                <p className="text-cyan-200 font-bold text-sm">{formatNumberShortCN(selectedFrontEnemyNation?.wealth || 0, { decimals: 1 })}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             <div className={`grid gap-3 ${isMobileWarfrontLayout ? 'grid-cols-1' : 'xl:grid-cols-[0.82fr_1.18fr]'}`}>
