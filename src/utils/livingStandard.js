@@ -1,5 +1,5 @@
 import { RESOURCES } from '../config';
-import { isResourceUnlocked } from './resources';
+import { isResourceDemandActive } from './resources';
 
 /**
  * 生活水平计算工具函数
@@ -74,6 +74,7 @@ export function calculateLivingStandardBasketDailyCost({
     epoch = 0,
     techsUnlocked = [],
     needsRequirementMultiplier = 1,
+    availableResources = null,
     potentialResources = null,
 }) {
     const unlockCap = LIVING_STANDARD_BASKET_UNLOCK_CAPS[livingStandardLevel] ?? 0;
@@ -84,10 +85,8 @@ export function calculateLivingStandardBasketDailyCost({
         if (!resourceKey || !Number.isFinite(amount) || amount <= 0) {
             return;
         }
-        if (!isResourceUnlocked(resourceKey, epoch, techsUnlocked)) {
-            return;
-        }
-        if (potentialResources && !potentialResources.has(resourceKey)) {
+        const activeResources = availableResources || potentialResources;
+        if (!isResourceDemandActive(resourceKey, epoch, techsUnlocked, activeResources)) {
             return;
         }
         const categoryMultiplier = category === 'luxury'
@@ -139,6 +138,7 @@ export function calculatePriceAwareLivingStandardThresholds({
     epoch = 0,
     techsUnlocked = [],
     needsRequirementMultiplier = 1,
+    availableResources = null,
     potentialResources = null,
     bufferDays = LIVING_STANDARD_BUFFER_DAYS,
     livingLevels = ['贫困', '温饱', '小康', '富裕', '奢华'],
@@ -157,7 +157,7 @@ export function calculatePriceAwareLivingStandardThresholds({
             epoch,
             techsUnlocked,
             needsRequirementMultiplier,
-            potentialResources,
+            availableResources: availableResources || potentialResources,
         });
         const levelBufferDays = typeof bufferDays === 'number'
             ? bufferDays
