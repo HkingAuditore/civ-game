@@ -859,7 +859,7 @@ export const processVassalUpdates = ({
             }
 
             if (tribute.silver > 0) {
-                logs.push(`📜 ${updated.name}（${vassalConfig.name}）本月朝贡 ${tribute.silver} 银币`);
+                logs.push(`📜 ${updated.name}（${vassalConfig.name}）本月朝贡约 ${tribute.silver * 30} 银币`);
             }
         }
 
