@@ -12,6 +12,7 @@ import { calculateAIVirtualEconomy, calculateAIVirtualLabor, ensureForeignEconom
 import { AIDevelopmentService } from './AIDevelopmentService.js';
 import { debugLog } from '../../../utils/debugFlags.js';
 import { RESOURCES } from '../../../config/index.js';
+import { AI_EPOCH_PROGRESSION } from '../../../config/gameConstants.js';
 
 const safeNumber = (value, fallback = 0) => {
     const numeric = Number(value);
@@ -244,6 +245,11 @@ export class AIEconomyService {
             lastUpdateTick: tick,
         };
 
+        // === 科技/文化累积器：从虚拟建筑的 supply 中提取 science 和 culture ===
+        this._accumulateScienceCulture(nation, virtualEconomy, {
+            allowHeavyUpdate,
+        });
+
         const economyMetrics = this._buildEconomyMetrics(state, nation, {
             epoch,
             difficulty,
@@ -300,6 +306,32 @@ export class AIEconomyService {
             aggression,
             nation,
         });
+    }
+
+    /**
+     * 科技/文化累积器：从虚拟经济的建筑供给中提取 science 和 culture，
+     * 累积到 nation._scienceAccum / _cultureAccum 上
+     */
+    static _accumulateScienceCulture(nation, virtualEconomy, { allowHeavyUpdate }) {
+        // 只在 heavy update 时累积（约每 10 tick），避免频繁小额累积
+        if (!allowHeavyUpdate) return;
+
+        const supply = virtualEconomy?.buildingSupplyByResource || {};
+        const scienceSupply = safeNumber(supply.science, 0);
+        const cultureSupply = safeNumber(supply.culture, 0);
+
+        if (scienceSupply <= 0 && cultureSupply <= 0) return;
+
+        const tickScale = AI_EPOCH_PROGRESSION.ACCUM_TICK_SCALE;
+        // 战时累积打折
+        const warSciPenalty = nation.isAtWar ? (1 - AI_EPOCH_PROGRESSION.WAR_SCIENCE_PENALTY) : 1;
+        const warCulPenalty = nation.isAtWar ? (1 - AI_EPOCH_PROGRESSION.WAR_CULTURE_PENALTY) : 1;
+
+        const scienceDelta = scienceSupply * tickScale * warSciPenalty;
+        const cultureDelta = cultureSupply * tickScale * warCulPenalty;
+
+        nation._scienceAccum = safeNumber(nation._scienceAccum, 0) + scienceDelta;
+        nation._cultureAccum = safeNumber(nation._cultureAccum, 0) + cultureDelta;
     }
 
     static _normalizeLegacyOutliers(state, nation, { epoch, difficulty, playerPopulation }) {
