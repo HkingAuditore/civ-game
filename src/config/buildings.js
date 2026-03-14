@@ -73,10 +73,6 @@ export const BUILDINGS = [
             wage: {
                 livingCostWeight: 0.05,
                 taxCostWeight: 0.05,
-                // Feudal wage system: wages are capped at 1.5x living costs (subsistence level)
-                // This replaces market-based wages with cost-of-living based wages
-                wageMode: 'subsistence',      // Use living-cost based wage calculation
-                subsistenceMultiplier: 1.5,   // Wage = living costs × 1.5 (bare subsistence + small buffer)
             },
         }
     },
@@ -310,8 +306,6 @@ export const BUILDINGS = [
             wage: {
                 livingCostWeight: 0.05,
                 taxCostWeight: 0.05,
-                wageMode: 'subsistence',      // Use living-cost based wage calculation
-                subsistenceMultiplier: 1.3,   // Colonial exploitation: even lower wages (1.3x living costs)
             },
         }
     }, {
@@ -474,8 +468,6 @@ export const BUILDINGS = [
             wage: {
                 livingCostWeight: 0.08,
                 taxCostWeight: 0.08,
-                wageMode: 'subsistence',      // Use living-cost based wage calculation
-                subsistenceMultiplier: 1.8,   // Workshop labor: slightly better (1.8x living costs)
             },
         }
     },
