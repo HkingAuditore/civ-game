@@ -2348,10 +2348,19 @@ export const useGameState = () => {
             return front;
         });
         const initialFrontIdSet = new Set(reconciledFronts.map((front) => front.id));
+        const validOfficialIdSet = new Set((data.officials || []).filter(Boolean).map((official) => official.id));
+        loadedGenerals = loadedGenerals.filter((general) => (
+            general?.isAI === true
+            || !general?.officialId
+            || validOfficialIdSet.has(general.officialId)
+        ));
+        const validGeneralIdSet = new Set(loadedGenerals.map((general) => general.id));
+
         loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => {
             const assignedFrontId = initialFrontIdSet.has(corps.assignedFrontId) ? corps.assignedFrontId : null;
             return {
                 ...corps,
+                generalId: validGeneralIdSet.has(corps.generalId) ? corps.generalId : null,
                 assignedFrontId,
                 status: assignedFrontId ? 'deployed' : 'idle',
             };

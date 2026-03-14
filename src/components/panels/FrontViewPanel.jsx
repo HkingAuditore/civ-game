@@ -121,50 +121,6 @@ const SupplyNeedDisplay = ({ impact = {}, priceSource = {} }) => {
     );
 };
 
-const ProcurementStatusCard = ({ procurement = {}, domesticPressure = 0, remainingWealth = 0 }) => {
-    const fulfillmentRatio = Math.max(0, Math.min(1, Number(procurement.fulfillmentRatio ?? 1)));
-    const totalCost = Number(procurement.totalCost || 0);
-    const shortfalls = Object.entries(procurement.shortfall || {})
-        .filter(([, amount]) => Number(amount || 0) > 0.05)
-        .sort(([, leftAmount], [, rightAmount]) => Number(rightAmount || 0) - Number(leftAmount || 0))
-        .slice(0, 2);
-
-    if (totalCost <= 0 && shortfalls.length === 0 && domesticPressure <= 0.01) {
-        return null;
-    }
-
-    const fulfillmentTone = fulfillmentRatio >= 0.95
-        ? 'text-emerald-300'
-        : fulfillmentRatio >= 0.75
-            ? 'text-yellow-300'
-            : 'text-red-300';
-    const pressureTone = domesticPressure >= 0.7
-        ? 'text-red-300'
-        : domesticPressure >= 0.4
-            ? 'text-yellow-300'
-            : 'text-emerald-300';
-
-    return (
-        <div className="space-y-2 rounded-lg border border-gray-800/80 bg-black/20 px-2 py-2">
-            <div className="flex items-center gap-2">
-                <Icon name="Wallet" size={12} className="text-yellow-300" />
-                <span className="text-xs font-semibold text-white">AI 战争采购</span>
-            </div>
-            <div className="grid gap-2">
-                <EconomyDataRow label="采购履约" value={`${Math.round(fulfillmentRatio * 100)}%`} tone={fulfillmentTone} />
-                <EconomyDataRow label="当日军购" value={`${formatNumberShortCN(totalCost, { decimals: 1 })} 银`} tone="text-yellow-300" />
-                <EconomyDataRow label="国内库存压力" value={`${Math.round(Number(domesticPressure || 0) * 100)}%`} tone={pressureTone} />
-                <EconomyDataRow label="剩余国家财富" value={`${formatNumberShortCN(remainingWealth || 0, { decimals: 1 })} 银`} tone="text-cyan-300" />
-            </div>
-            {shortfalls.length > 0 && (
-                <div className="rounded border border-red-900/40 bg-red-950/10 px-2 py-1 text-xs text-red-200">
-                    紧缺：{shortfalls.map(([resourceKey, amount]) => `${RESOURCES[resourceKey]?.name || resourceKey} -${formatNumberShortCN(amount, { decimals: 1 })}`).join('、')}
-                </div>
-            )}
-        </div>
-    );
-};
-
 const getEconomicPressureHint = (impact = {}) => {
 
     const relativePosition = Number(impact.territory?.relativePosition || 50);
@@ -549,11 +505,6 @@ const FrontViewPanel = ({
                                     <span className="text-xs text-gray-500">日前线补给</span>
                                     <SupplyNeedDisplay impact={enemyEconomicImpact} priceSource={enemyNation?.nationPrices || enemyNation?.market || {}} />
                                 </div>
-                                <ProcurementStatusCard
-                                    procurement={enemyNation?.warEconomy?.procurement || enemyNation?.military?.procurement || {}}
-                                    domesticPressure={enemyNation?.warEconomy?.domesticPressure || 0}
-                                    remainingWealth={enemyNation?.wealth || 0}
-                                />
                                 <EconomyDataRow label="累计掠夺" value={formatNumberShortCN(enemyEconomicImpact?.cumulative?.lootGained || 0, { decimals: 1 })} tone="text-emerald-300" />
                                 <EconomyDataRow label="累计被掠夺" value={formatNumberShortCN(enemyEconomicImpact?.cumulative?.lootLost || 0, { decimals: 1 })} tone="text-red-300" />
                                 <EconomyDataRow label="建筑破坏" value={`损失 ${formatNumberShortCN(enemyEconomicImpact?.cumulative?.buildingsLost || 0, { decimals: 0 })} / 摧毁 ${formatNumberShortCN(enemyEconomicImpact?.cumulative?.buildingsDestroyed || 0, { decimals: 0 })}`} />

@@ -4,6 +4,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 宣战确认模态框
@@ -12,11 +13,19 @@ import { Icon } from '../common/UIComponents';
  * @param {Function} onConfirm - 确认宣战回调
  * @param {Function} onCancel - 取消回调
  */
-export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, onCancel }) => {
+export const DeclareWarModal = ({
+    targetNation,
+    militaryOrgs = [],
+    recommendedCorps = null,
+    availableCorps = [],
+    onConfirm,
+    onCancel,
+}) => {
     if (!targetNation) return null;
 
     const hasAllies = militaryOrgs.length > 0;
     const totalAlliesCount = militaryOrgs.reduce((sum, org) => sum + (org.members?.length || 0), 0);
+    const hasAvailableCorps = availableCorps.length > 0;
 
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -130,10 +139,43 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                                 ⚠️ 战争将持续到一方求和为止，请确保有足够的军事力量！
                             </p>
                         </div>
+
+                        <div className={`p-3 rounded-lg border ${hasAvailableCorps ? 'bg-cyan-950/25 border-cyan-500/30' : 'bg-gray-800/40 border-gray-600/40'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="Shield" size={16} className={hasAvailableCorps ? 'text-cyan-300' : 'text-gray-400'} />
+                                <span className={`text-sm font-bold ${hasAvailableCorps ? 'text-cyan-100' : 'text-gray-200'}`}>
+                                    开战后前线部署
+                                </span>
+                            </div>
+                            {recommendedCorps ? (
+                                <>
+                                    <p className="text-xs text-cyan-100 leading-relaxed">
+                                        推荐直接派遣 <span className="font-bold text-cyan-300">{recommendedCorps.name}</span>
+                                        ，可避免开战后忘记把军团送上前线。
+                                    </p>
+                                    <div className="mt-2 rounded border border-cyan-700/30 bg-black/20 px-2 py-2 text-xs text-gray-300">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <span>兵力</span>
+                                            <span className="font-semibold text-white">
+                                                {formatNumberShortCN(recommendedCorps.totalUnits || 0, { decimals: 0 })}
+                                            </span>
+                                        </div>
+                                        <div className="mt-1 flex items-center justify-between gap-3">
+                                            <span>士气</span>
+                                            <span className="font-semibold text-white">{Math.round(recommendedCorps.morale || 100)}</span>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="text-xs text-gray-300 leading-relaxed">
+                                    当前没有空闲军团可直接派往新战线。你仍可先宣战，随后去“军事 → 战局”手动部署，或先从其他战线撤回军团。
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     {/* 底部按钮 */}
-                    <div className="p-3 border-t border-gray-700/50 bg-gray-900/50 flex gap-3">
+                    <div className="p-3 border-t border-gray-700/50 bg-gray-900/50 flex flex-col gap-3">
                         <button
                             onClick={onCancel}
                             className="flex-1 px-4 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-bold transition-colors"
@@ -141,11 +183,24 @@ export const DeclareWarModal = ({ targetNation, militaryOrgs = [], onConfirm, on
                             取消
                         </button>
                         <button
-                            onClick={onConfirm}
+                            onClick={() => onConfirm?.({ autoDeployCorpsId: null })}
                             className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2"
                         >
                             <Icon name="Swords" size={14} />
                             {hasAllies ? `宣战 (${totalAlliesCount + 1}国)` : '确认宣战'}
+                        </button>
+                        <button
+                            onClick={() => onConfirm?.({ autoDeployCorpsId: recommendedCorps?.id || null })}
+                            disabled={!recommendedCorps}
+                            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
+                                recommendedCorps
+                                    ? 'bg-cyan-700 hover:bg-cyan-600 text-white'
+                                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                            }`}
+                            title={recommendedCorps ? `宣战后自动派遣 ${recommendedCorps.name}` : '当前没有可自动派遣的空闲军团'}
+                        >
+                            <Icon name="Shield" size={14} />
+                            {recommendedCorps ? `宣战并派遣 ${recommendedCorps.name}` : '暂无空闲军团可派遣'}
                         </button>
                     </div>
                 </div>
