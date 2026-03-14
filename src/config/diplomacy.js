@@ -664,9 +664,9 @@ export const getTreatyDailyMaintenance = (treatyType, playerWealth = 0, targetWe
  */
 export const TRIBUTE_CONFIG = {
     // 基础朝贡计算参数
-    baseAmount: 100,                    // 固定基数（保底，降低以减少对穷国的负担）
+    baseAmount: 20,                     // 固定保底，避免极小附庸完全没有现金朝贡
     // playerWealthRate Removed: Tribute should not depend on overlord wealth
-    vassalGDPRate: 0.00025,              // 基于附庸GDP/财富的比例 (降低到0.1%，避免朝贡过高掏空附庸)
+    vassalGDPRate: 0.25,                // 以附庸经济体量为主导，确保朝贡会随发展明显变化
 
     // 附庸规模系数
     sizeMultipliers: {
