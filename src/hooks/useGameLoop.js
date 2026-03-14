@@ -2036,6 +2036,7 @@ difficulty, // 游戏难度
                             if (!current.pendingIdeologyEmergence && checkEmergence(newScore, newSpent, ownedCount)) {
                                 const candidates = generateEmergenceCandidates(curState, current.ideologyCollection || []);
                                 if (candidates.length > 0) {
+                                    setIsPaused(true);
                                     setPendingIdeologyEmergence({ candidates });
                                 }
                             }

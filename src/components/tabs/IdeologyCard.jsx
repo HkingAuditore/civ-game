@@ -8,7 +8,7 @@ import { Icon } from '../common/UIComponents';
 import { IDEOLOGY_CATEGORIES, IDEOLOGY_MAP } from '../../config/ideologies';
 import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../../config/ideologySynergies';
 import { STRATA } from '../../config/strata';
-import { ideologyEventBus, EVENT_DISPLAY_NAMES } from '../../logic/ideology/ideologyEventBus';
+import { EVENT_DISPLAY_NAMES } from '../../logic/ideology/ideologyEventBus';
 
 /**
  * 星级渲染
@@ -554,6 +554,9 @@ const IdeologyCardComponent = ({
     isSelected = false,  // 是否被选中（三选一模式）
     onSelect,          // 候选选择回调
     showProgressionPreview = false,
+    onCardClick = null,
+    showCollectionActions = true,
+    customAction = null,
 }) => {
     const [expanded, setExpanded] = useState(false);
     const [candidateExpanded, setCandidateExpanded] = useState(false);
@@ -576,6 +579,10 @@ const IdeologyCardComponent = ({
 
     // 候选模式下的点击
     const handleClick = () => {
+        if (onCardClick) {
+            onCardClick(ideology);
+            return;
+        }
         if (isCandidate && onSelect) {
             onSelect(ideology.id);
         } else if (!compact) {
@@ -720,31 +727,51 @@ const IdeologyCardComponent = ({
             )}
 
             {/* 操作按钮 */}
-            {!isCandidate && isInCollection && (
+            {!isCandidate && (isInCollection || customAction) && (showCollectionActions || customAction) && (
                 <div className="flex gap-1.5 mt-1">
-                    {isEquipped ? (
+                    {showCollectionActions && (
+                        isEquipped ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onUnequip?.(ideology.id); }}
+                                disabled={hasCooldown}
+                                className={`flex-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+                                    hasCooldown
+                                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                        : 'bg-red-800/60 hover:bg-red-700/80 text-red-200 border border-red-600/40'
+                                }`}
+                            >
+                                卸下
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onEquip?.(ideology.id); }}
+                                disabled={hasCooldown}
+                                className={`flex-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+                                    hasCooldown
+                                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                        : 'bg-blue-800/60 hover:bg-blue-700/80 text-blue-200 border border-blue-600/40'
+                                }`}
+                            >
+                                装备
+                            </button>
+                        )
+                    )}
+                    {customAction && (
                         <button
-                            onClick={(e) => { e.stopPropagation(); onUnequip?.(ideology.id); }}
-                            disabled={hasCooldown}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (!customAction.disabled) {
+                                    customAction.onClick?.(ideology.id);
+                                }
+                            }}
+                            disabled={customAction.disabled}
                             className={`flex-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
-                                hasCooldown
+                                customAction.disabled
                                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                    : 'bg-red-800/60 hover:bg-red-700/80 text-red-200 border border-red-600/40'
+                                    : (customAction.className || 'bg-purple-800/60 hover:bg-purple-700/80 text-purple-100 border border-purple-600/40')
                             }`}
                         >
-                            卸下
-                        </button>
-                    ) : (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onEquip?.(ideology.id); }}
-                            disabled={hasCooldown}
-                            className={`flex-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
-                                hasCooldown
-                                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                    : 'bg-blue-800/60 hover:bg-blue-700/80 text-blue-200 border border-blue-600/40'
-                            }`}
-                        >
-                            装备
+                            {customAction.label || '确认'}
                         </button>
                     )}
                 </div>

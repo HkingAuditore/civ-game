@@ -20,14 +20,14 @@ export const IDEOLOGY_CATEGORIES = {
  * 每种行为类型的基础分数和计算公式
  */
 export const IDEOLOGY_SCORE_TRIGGERS = {
-    research_tech:     { base: 5,  epochScale: 3,   desc: '研发知识' },
-    epoch_advance:     { base: 30, epochScale: 10,  desc: '进入新时代' },
+    research_tech:     { base: 6,  epochScale: 4,   desc: '研发知识' },
+    epoch_advance:     { base: 36, epochScale: 12,  desc: '进入新时代' },
     achievement:       { base: 10, maxBase: 30,     desc: '达成成就' },
-    building_milestone:{ base: 15, desc: '建筑里程碑（指数递增：50→150→450→…×3）' },
-    pop_milestone:     { base: 20, desc: '人口里程碑（指数递增：100→400→1600→…×4）' },
-    war_result:        { baseWin: 20, baseLose: 15,  desc: '战争结果' },
-    chain_complete:    { base: 20, desc: '产业链完成' },
-    trade_milestone:   { base: 10, milestones: [1000, 5000, 20000, 100000], desc: '贸易里程碑' },
+    building_milestone:{ base: 20, desc: '建筑里程碑（指数递增：50→150→450→…×3）' },
+    pop_milestone:     { base: 26, desc: '人口里程碑（指数递增：100→400→1600→…×4）' },
+    war_result:        { baseWin: 26, baseLose: 18,  desc: '战争结果' },
+    chain_complete:    { base: 26, desc: '产业链完成' },
+    trade_milestone:   { base: 14, milestones: [1000, 5000, 20000, 100000], desc: '贸易里程碑' },
 };
 
 /**
