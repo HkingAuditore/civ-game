@@ -180,7 +180,7 @@ const EmptySlot = ({ isLocked = false, unlockHint = '' }) => (
 );
 
 /** 未装备理念收藏上限 */
-const MAX_COLLECTION_SIZE = 10;
+const MAX_COLLECTION_SIZE = 9;
 
 /**
  * 理念Tab主组件
@@ -527,12 +527,13 @@ const IdeologyTabComponent = ({
                                 onClick={() => setSheetEntry(entry)}
                                 className="cursor-pointer"
                             >
-                                <IdeologyCard
+                            <IdeologyCard
                                     ideology={entry.config}
                                     level={entry.level || 1}
                                     isEquipped={false}
                                     equippedIds={equippedIdeologies}
                                     cooldownRemaining={ideologyCooldowns[entry.id] || 0}
+                                    onEquip={handleEquip}
                                     compact={true}
                                 />
                             </div>

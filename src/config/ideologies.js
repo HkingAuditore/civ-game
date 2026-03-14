@@ -3092,7 +3092,7 @@ export const IDEOLOGIES = [
                 { taxIncome: 0.04, needsReduction: 0.03,
                     converters: [
                         { source: 'population', sourceType: 'population', ratio: 0.0000005, target: 'taxIncome', cap: 0.45 },
-{ source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.01, target: 'stability', cap: 6 },
+{ source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0001, target: 'stability', cap: 6 },
                     ] },
             ],
         },
@@ -3145,11 +3145,11 @@ export const IDEOLOGIES = [
                 { industryBonus: 0.05, stability: -2 },
                 { industryBonus: 0.08, stability: -2,
                     converters: [
-                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.0005, target: 'production', cap: 0.35 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000005, target: 'production', cap: 0.35 },
                     ] },
                 { industryBonus: 0.12, stability: -2, militaryBonus: 0.08,
                     converters: [
-                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.0005, target: 'production', cap: 0.35 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000005, target: 'production', cap: 0.35 },
                     ],
                     ruleMods: [
                         { type: 'wages_mod', scope: 'worker', value: -0.15 },
@@ -3558,11 +3558,11 @@ export const IDEOLOGIES = [
                 { stability: 3, taxIncome: -0.03, approval: { peasant: 5, unemployed: 4 } },
                 { stability: 3, taxIncome: -0.03, approval: { peasant: 7, unemployed: 5 }, organizationGrowthMod: 0.08,
                     converters: [
-{ source: 'poorPop', sourceType: 'poorPop', ratio: 0.005, target: 'stability', cap: 5 },
+{ source: 'poorPop', sourceType: 'poorPop', ratio: 0.00005, target: 'stability', cap: 5 },
                     ] },
                 { stability: 3, taxIncome: -0.03, approval: { peasant: 9, unemployed: 7 }, organizationGrowthMod: 0.12,
                     converters: [
-                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.005, target: 'stability', cap: 5 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.00005, target: 'stability', cap: 5 },
                     ],
                     ruleMods: [
                         { type: 'wages_mod', scope: 'peasant', value: 0.1 },
@@ -4328,7 +4328,7 @@ export const IDEOLOGIES = [
                         { type: 'wages_mod', scope: 'worker', value: -0.22 },
                     ],
                     converters: [
-                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.0005, target: 'industryBonus', cap: 0.35 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000005, target: 'industryBonus', cap: 0.35 },
                     ] },
             ],
         },
@@ -4414,11 +4414,11 @@ export const IDEOLOGIES = [
                 { maxPop: 0.05, stability: 2 },
                 { maxPop: 0.05, stability: 2, needsReduction: 0.05,
                     converters: [
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0005, target: 'production', cap: 0.60 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000005, target: 'production', cap: 0.60 },
                     ] },
                 { maxPop: 0.05, stability: 2, needsReduction: 0.05,
                     converters: [
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0005, target: 'production', cap: 0.60 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000005, target: 'production', cap: 0.60 },
                         { source: 'population', sourceType: 'population', ratio: 0.0000004, target: 'maxPop', cap: 0.45 },
                     ],
                     ruleMods: [

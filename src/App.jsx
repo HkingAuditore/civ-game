@@ -67,6 +67,7 @@ import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSys
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 import { selectIdeology } from './logic/ideology/ideologyEmergence';
 import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
+import { IDEOLOGY_MAP } from './config/ideologies';
 
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
@@ -2341,10 +2342,10 @@ function GameApp({ gameState }) {
                 show={!!gameState.pendingIdeologyEmergence}
                 candidates={gameState.pendingIdeologyEmergence?.candidates || []}
                 equippedIds={gameState.equippedIdeologies || []}
-                collectionFull={(gameState.ideologyCollection || []).filter(e => !(gameState.equippedIdeologies || []).includes(e.id)).length >= 10}
+                collectionFull={(gameState.ideologyCollection || []).filter(e => !(gameState.equippedIdeologies || []).includes(e.id)).length >= 9}
                 collectionList={(gameState.ideologyCollection || [])
                     .filter(e => !(gameState.equippedIdeologies || []).includes(e.id))
-                    .map(e => ({ ...e, config: e }))}
+                    .map(e => ({ ...e, config: IDEOLOGY_MAP[e.id] || e }))}
                 onSelect={(ideologyId, discardId) => {
                     // 若有放弃的理念，先从收藏中移除
                     let collection = gameState.ideologyCollection || [];
