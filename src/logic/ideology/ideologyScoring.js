@@ -95,6 +95,55 @@ export function checkAndAwardIdeologyScore(gameState, prevState) {
         popIdx++;
     }
 
+    // 5. 贸易里程碑（累计贸易量达到节点）
+    const tradeVolume = gameState.tradeVolume || 0;
+    if (tradeVolume > 0) {
+        const { base: tradeBase, milestones: tradeMilestones } = IDEOLOGY_SCORE_TRIGGERS.trade_milestone;
+        for (let i = 0; i < tradeMilestones.length; i++) {
+            const key = `trade_vol_${i}`;
+            if (!milestones.includes(key) && tradeVolume >= tradeMilestones[i]) {
+                milestones.push(key);
+                scoreGained += tradeBase;
+                reasons.push({ type: 'trade_milestone', amount: tradeBase, desc: `贸易量达到${tradeMilestones[i]}` });
+            }
+        }
+    }
+
+    // 6. 战争结果（检测战争结束：上一tick有战争，本tick战争结束）
+    const prevWarNations = prevState.warNations || [];
+    const curWarNations = gameState.warNations || [];
+    if (prevWarNations.length > 0) {
+        const { baseWin, baseLose } = IDEOLOGY_SCORE_TRIGGERS.war_result;
+        // 找出本tick结束的战争（上一tick在战，本tick不在战）
+        for (const warEntry of prevWarNations) {
+            const { id: nationId, warScore: prevWarScore, eventId } = warEntry;
+            const stillAtWar = curWarNations.some(n => n.id === nationId);
+            if (!stillAtWar) {
+                // 战争结束，用 eventId 防止重复计分
+                const key = `war_result_${eventId || nationId}`;
+                if (!milestones.includes(key)) {
+                    milestones.push(key);
+                    // warScore > 0 表示玩家占优（胜），< 0 表示劣势（败）
+                    const isWin = (prevWarScore || 0) >= 0;
+                    const amount = isWin ? baseWin : baseLose;
+                    scoreGained += amount;
+                    reasons.push({ type: 'war_result', amount, desc: isWin ? '赢得战争' : '战争结束' });
+                }
+            }
+        }
+    }
+
+    // 7. 产业链完成（检测 completedChains 数量增加）
+    const prevChains = prevState.completedChains || 0;
+    const curChains = gameState.completedChains || 0;
+    if (curChains > prevChains) {
+        const { base: chainBase } = IDEOLOGY_SCORE_TRIGGERS.chain_complete;
+        const newChains = curChains - prevChains;
+        const amount = newChains * chainBase;
+        scoreGained += amount;
+        reasons.push({ type: 'chain_complete', amount, desc: `完成${newChains}条产业链` });
+    }
+
     return {
         scoreGained,
         reasons,

@@ -10,6 +10,7 @@ import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../../config/ideologySynergi
 import { getEmergenceThreshold } from '../../logic/ideology/ideologyScoring';
 import { getMaxSlots, equipIdeology, unequipIdeology, resolveEquippedIdeologies } from '../../logic/ideology/ideologySlots';
 import { IdeologyCard } from './IdeologyCard';
+import { IdeologyDetailSheet } from './IdeologyDetailSheet';
 import { useDevicePerformance } from '../../hooks';
 
 /** 效果键的中文标签（与IdeologyCard保持一致） */
@@ -178,6 +179,9 @@ const EmptySlot = ({ isLocked = false, unlockHint = '' }) => (
     </div>
 );
 
+/** 未装备理念收藏上限 */
+const MAX_COLLECTION_SIZE = 10;
+
 /**
  * 理念Tab主组件
  */
@@ -220,6 +224,13 @@ const IdeologyTabComponent = ({
     // 涌现阈值
     const ownedCount = ideologyCollection.length;
     const availableScore = ideologyScore - ideologyScoreSpent;
+
+    // 未装备理念数量（用于收藏上限提示）
+    const unequippedCount = ideologyCollection.filter(e => !equippedIdeologies.includes(e.id)).length;
+    const collectionFull = unequippedCount >= MAX_COLLECTION_SIZE;
+
+    // 详情BottomSheet状态
+    const [sheetEntry, setSheetEntry] = useState(null); // { config, level, isEquipped }
     const threshold = getEmergenceThreshold(ownedCount);
     const progressPercent = Math.min((availableScore / threshold) * 100, 100);
 
@@ -298,6 +309,7 @@ const IdeologyTabComponent = ({
     }, [equippedIdeologies, ideologyCooldowns, setEquippedIdeologies, setIdeologyCooldowns]);
 
     return (
+        <>
         <div className="space-y-4">
             {/* 理念分数进度条 */}
             <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
@@ -328,6 +340,9 @@ const IdeologyTabComponent = ({
                         <span>🏛 进入新时代 +30~+80</span>
                         <span>🏗 建筑里程碑 +15（50→150→450→…×3）</span>
                         <span>👥 人口里程碑 +20（100→400→1600→…×4）</span>
+                        <span>🚢 贸易里程碑 +10（1000→5000→20000→100000）</span>
+                        <span>⚔ 战争结果 +15~+20</span>
+                        <span>🏭 完成产业链 +20/条</span>
                         <span>⚡ 部分理念触发事件奖励</span>
                     </div>
                 </div>
@@ -420,6 +435,14 @@ const IdeologyTabComponent = ({
                         <Icon name="BookOpen" size={14} className="text-indigo-400" />
                         理念库
                     </h3>
+                    {/* 收藏上限计数器 */}
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                        collectionFull
+                            ? 'text-red-400 border-red-500/50 bg-red-900/20'
+                            : 'text-gray-400 border-gray-700/50 bg-gray-800/30'
+                    }`}>
+                        {collectionFull ? '已满 ' : ''}{unequippedCount}/{MAX_COLLECTION_SIZE}
+                    </span>
                 </div>
 
                 {/* 分类筛选 */}
@@ -495,19 +518,24 @@ const IdeologyTabComponent = ({
                     })}
                 </div>
 
-                {/* 卡牌网格 */}
+                {/* 卡牌网格 — compact模式，点击打开BottomSheet */}
                 {unequippedCollection.length > 0 ? (
-                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] gap-3">
+                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] gap-2">
                         {unequippedCollection.map(entry => (
-                            <IdeologyCard
+                            <div
                                 key={entry.id}
-                                ideology={entry.config}
-                                level={entry.level || 1}
-                                isEquipped={false}
-                                equippedIds={equippedIdeologies}
-                                cooldownRemaining={ideologyCooldowns[entry.id] || 0}
-                                onEquip={handleEquip}
-                            />
+                                onClick={() => setSheetEntry(entry)}
+                                className="cursor-pointer"
+                            >
+                                <IdeologyCard
+                                    ideology={entry.config}
+                                    level={entry.level || 1}
+                                    isEquipped={false}
+                                    equippedIds={equippedIdeologies}
+                                    cooldownRemaining={ideologyCooldowns[entry.id] || 0}
+                                    compact={true}
+                                />
+                            </div>
                         ))}
                     </div>
                 ) : (
@@ -525,6 +553,26 @@ const IdeologyTabComponent = ({
                 )}
             </div>
         </div>
+
+        {/* 理念详情BottomSheet */}
+        <IdeologyDetailSheet
+            ideology={sheetEntry?.config || null}
+            level={sheetEntry?.level || 1}
+            isEquipped={false}
+            equippedIds={equippedIdeologies}
+            activeBuffs={activeBuffs}
+            cooldownRemaining={sheetEntry ? (ideologyCooldowns[sheetEntry.id] || 0) : 0}
+            onEquip={(id) => {
+                handleEquip(id);
+                setSheetEntry(null);
+            }}
+            onUnequip={(id) => {
+                handleUnequip(id);
+                setSheetEntry(null);
+            }}
+            onClose={() => setSheetEntry(null)}
+        />
+        </>
     );
 };
 

@@ -1,6 +1,7 @@
 /**
  * 理念涌现弹窗 — 三选一
  * 当理念分数达到阈值时弹出，展示3张候选理念卡牌
+ * 若收藏已满（非升级），进入第二步"替换"流程
  */
 
 import React, { useState, useCallback, memo } from 'react';
@@ -9,40 +10,65 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { IdeologyCard } from '../tabs/IdeologyCard';
 import { useDevicePerformance } from '../../hooks/useDevicePerformance';
+import { IDEOLOGY_MAP } from '../../config/ideologies';
 
 const MotionDiv = motion.div;
 
 const IdeologyEmergenceModalComponent = ({
     show = false,
     candidates = [],   // 3个候选理念对象
-    onSelect,           // (ideologyId) => void
+    onSelect,           // (ideologyId, discardId?) => void
     equippedIds = [],   // 当前已装备的理念id
+    collectionFull = false,   // 未装备收藏是否已满（>=10）
+    collectionList = [],      // 当前未装备的理念列表 [{id, level, config}]
 }) => {
     const [selectedId, setSelectedId] = useState(null);
+    const [step, setStep] = useState(1); // 1=选择新理念, 2=选择放弃哪个
+    const [discardId, setDiscardId] = useState(null);
     const { isLowPerformanceMode } = useDevicePerformance();
 
     const overlayClassName = 'absolute inset-0 bg-black/85 backdrop-blur-sm';
-    const containerClassName = isLowPerformanceMode
-        ? 'fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4'
-        : 'fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4';
+    const containerClassName = 'fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4';
     const shellClassName = 'relative w-full max-w-[1200px] flex flex-col items-center px-1';
-    const titleWrapClassName = 'text-center mb-2 sm:mb-4 shrink-0';
-    const gridViewportClassName = 'overflow-y-auto flex-1 min-h-0 w-full mb-2';
     const gridViewportStyle = isLowPerformanceMode
         ? { overflowX: 'clip', WebkitOverflowScrolling: 'touch', padding: '12px' }
         : { overflowX: 'clip', WebkitOverflowScrolling: 'touch', padding: '6px 12px' };
-    const buttonWrapClassName = 'text-center shrink-0 pt-1 pb-1';
 
     const handleSelect = useCallback((id) => {
         setSelectedId(id);
     }, []);
 
-    const handleConfirm = useCallback(() => {
-        if (selectedId && onSelect) {
-            onSelect(selectedId);
+    // 判断选中的候选理念是否是已有理念的升级（同ID）
+    const isUpgrade = selectedId
+        ? candidates.find(c => c.id === selectedId)?.isUpgrade === true
+        : false;
+
+    // 第一步确认：若收藏满且非升级，进入第二步；否则直接完成
+    const handleStep1Confirm = useCallback(() => {
+        if (!selectedId) return;
+        if (collectionFull && !isUpgrade) {
+            setStep(2);
+        } else {
+            onSelect?.(selectedId);
             setSelectedId(null);
+            setStep(1);
+            setDiscardId(null);
         }
-    }, [selectedId, onSelect]);
+    }, [selectedId, collectionFull, isUpgrade, onSelect]);
+
+    // 第二步确认：选择放弃的理念后完成
+    const handleStep2Confirm = useCallback(() => {
+        if (!discardId) return;
+        onSelect?.(selectedId, discardId);
+        setSelectedId(null);
+        setStep(1);
+        setDiscardId(null);
+    }, [selectedId, discardId, onSelect]);
+
+    const handleBack = useCallback(() => {
+        setStep(1);
+        setDiscardId(null);
+    }, []);
 
     return createPortal(
         <AnimatePresence>
@@ -65,7 +91,6 @@ const IdeologyEmergenceModalComponent = ({
                         />
                     )}
 
-                    {/* 内容区域 — overflow-hidden prevents scaled cards from causing page-level scrollbars */}
                     <MotionDiv
                         className={shellClassName}
                         style={{ maxHeight: '88vh', overflow: 'visible' }}
@@ -74,83 +99,156 @@ const IdeologyEmergenceModalComponent = ({
                         exit={{ opacity: 0, scale: 0.92, y: 24 }}
                         transition={{ type: "spring", damping: 28, stiffness: 320 }}
                     >
-                        {/* 标题 - shrink-0 to prevent compression */}
-                        <div className={titleWrapClassName}>
-                            <MotionDiv
-                                initial={{ opacity: 0, y: -20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.2 }}
-                            >
-                                <div className="flex items-center justify-center gap-2 mb-1">
-                                    <Icon name="Sparkles" size={20} className="text-purple-400" />
-                                    <h2 className="text-lg sm:text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-cyan-400 font-decorative">
-                                        理念涌现
-                                    </h2>
-                                    <Icon name="Sparkles" size={20} className="text-cyan-400" />
-                                </div>
-                                <p className="text-xs sm:text-sm text-gray-400">
-                                    文明的思想之光闪耀，请选择一个理念加入你的收藏
-                                </p>
-                            </MotionDiv>
-                        </div>
-
-                        {/* 三张卡牌 — py/px 留出足够缓冲防止阴影/边框被裁切 */}
-                        <div
-                            className={gridViewportClassName}
-                            style={gridViewportStyle}
-                        >
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 w-full">
-                                {candidates.map((candidate, index) => (
-                                    <MotionDiv
-                                        key={candidate.id}
-                                        initial={{ opacity: 0, y: 40, rotateY: -90 }}
-                                        animate={{
-                                            opacity: selectedId && selectedId !== candidate.id ? 0.4 : 1,
-                                            y: 0,
-                                            rotateY: 0,
-                                        }}
-                                        transition={{
-                                            delay: 0.3 + index * 0.15,
-                                            type: "spring",
-                                            damping: 20,
-                                            stiffness: 200,
-                                        }}
-                                    >
-                                        <IdeologyCard
-                                            ideology={candidate}
-                                            level={candidate.isUpgrade ? candidate.currentLevel : 0}
-                                            isCandidate={true}
-                                            isSelected={selectedId === candidate.id}
-                                            onSelect={handleSelect}
-                                            equippedIds={equippedIds}
-                                            showProgressionPreview={true}
-                                        />
+                        {step === 1 ? (
+                            <>
+                                {/* 第一步：选择新理念 */}
+                                <div className="text-center mb-2 sm:mb-4 shrink-0">
+                                    <MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                                        <div className="flex items-center justify-center gap-2 mb-1">
+                                            <Icon name="Sparkles" size={20} className="text-purple-400" />
+                                            <h2 className="text-lg sm:text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-cyan-400 font-decorative">
+                                                理念涌现
+                                            </h2>
+                                            <Icon name="Sparkles" size={20} className="text-cyan-400" />
+                                        </div>
+                                        <p className="text-xs sm:text-sm text-gray-400">
+                                            文明的思想之光闪耀，请选择一个理念加入你的收藏
+                                        </p>
+                                        {/* 收藏满提示 */}
+                                        {collectionFull && (
+                                            <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-900/30 border border-red-500/40 text-xs text-red-300">
+                                                <Icon name="AlertTriangle" size={12} className="text-red-400" />
+                                                收藏已满（10/10），选择后需放弃一个旧理念
+                                            </div>
+                                        )}
                                     </MotionDiv>
-                                ))}
-                            </div>
-                        </div>
+                                </div>
 
-                        {/* 确认按钮 - sticky at bottom */}
-                        <MotionDiv
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: selectedId ? 1 : 0.3 }}
-                            className={buttonWrapClassName}
-                        >
-                            <button
-                                onClick={handleConfirm}
-                                disabled={!selectedId}
-                                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${
-                                    selectedId
-                                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400/50 text-white shadow-lg hover:shadow-purple-500/30 hover:scale-105'
-                                        : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed'
-                                }`}
-                            >
-                                <span className="flex items-center gap-2">
-                                    <Icon name="Check" size={16} />
-                                    确认选择
-                                </span>
-                            </button>
-                        </MotionDiv>
+                                <div className="overflow-y-auto flex-1 min-h-0 w-full mb-2" style={gridViewportStyle}>
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 w-full">
+                                        {candidates.map((candidate, index) => (
+                                            <MotionDiv
+                                                key={candidate.id}
+                                                initial={{ opacity: 0, y: 40, rotateY: -90 }}
+                                                animate={{
+                                                    opacity: selectedId && selectedId !== candidate.id ? 0.4 : 1,
+                                                    y: 0,
+                                                    rotateY: 0,
+                                                }}
+                                                transition={{ delay: 0.3 + index * 0.15, type: "spring", damping: 20, stiffness: 200 }}
+                                            >
+                                                <IdeologyCard
+                                                    ideology={candidate}
+                                                    level={candidate.isUpgrade ? candidate.currentLevel : 0}
+                                                    isCandidate={true}
+                                                    isSelected={selectedId === candidate.id}
+                                                    onSelect={handleSelect}
+                                                    equippedIds={equippedIds}
+                                                    showProgressionPreview={true}
+                                                />
+                                            </MotionDiv>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <MotionDiv
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: selectedId ? 1 : 0.3 }}
+                                    className="text-center shrink-0 pt-1 pb-1"
+                                >
+                                    <button
+                                        onClick={handleStep1Confirm}
+                                        disabled={!selectedId}
+                                        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${
+                                            selectedId
+                                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400/50 text-white shadow-lg hover:shadow-purple-500/30 hover:scale-105'
+                                                : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        <span className="flex items-center gap-2">
+                                            <Icon name={collectionFull && !isUpgrade ? 'ArrowRight' : 'Check'} size={16} />
+                                            {collectionFull && !isUpgrade ? '下一步：选择放弃' : '确认选择'}
+                                        </span>
+                                    </button>
+                                </MotionDiv>
+                            </>
+                        ) : (
+                            <>
+                                {/* 第二步：选择放弃哪个旧理念 */}
+                                <div className="text-center mb-2 sm:mb-4 shrink-0">
+                                    <MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+                                        <div className="flex items-center justify-center gap-2 mb-1">
+                                            <Icon name="Trash2" size={20} className="text-red-400" />
+                                            <h2 className="text-lg sm:text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-orange-300 to-yellow-400 font-decorative">
+                                                选择放弃的理念
+                                            </h2>
+                                        </div>
+                                        <p className="text-xs sm:text-sm text-gray-400">
+                                            收藏已满，请选择一个未装备的理念放弃，以获得
+                                            <span className="text-purple-300 font-semibold mx-1">
+                                                {IDEOLOGY_MAP[selectedId]?.name || selectedId}
+                                            </span>
+                                        </p>
+                                    </MotionDiv>
+                                </div>
+
+                                <div className="overflow-y-auto flex-1 min-h-0 w-full mb-2" style={gridViewportStyle}>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
+                                        {collectionList.map((entry, index) => (
+                                            <MotionDiv
+                                                key={entry.id}
+                                                initial={{ opacity: 0, y: 20 }}
+                                                animate={{
+                                                    opacity: discardId && discardId !== entry.id ? 0.4 : 1,
+                                                    y: 0,
+                                                }}
+                                                transition={{ delay: index * 0.05 }}
+                                            >
+                                                <IdeologyCard
+                                                    ideology={entry.config || IDEOLOGY_MAP[entry.id]}
+                                                    level={entry.level || 1}
+                                                    isEquipped={false}
+                                                    equippedIds={equippedIds}
+                                                    isSelected={discardId === entry.id}
+                                                    onSelect={(id) => setDiscardId(id)}
+                                                    compact={true}
+                                                />
+                                            </MotionDiv>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 shrink-0 pt-1 pb-1">
+                                    <button
+                                        onClick={handleBack}
+                                        className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-600 text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-all"
+                                    >
+                                        <span className="flex items-center gap-2">
+                                            <Icon name="ArrowLeft" size={16} />
+                                            返回
+                                        </span>
+                                    </button>
+                                    <MotionDiv
+                                        animate={{ opacity: discardId ? 1 : 0.3 }}
+                                    >
+                                        <button
+                                            onClick={handleStep2Confirm}
+                                            disabled={!discardId}
+                                            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${
+                                                discardId
+                                                    ? 'bg-gradient-to-r from-red-700 to-orange-600 border-red-400/50 text-white shadow-lg hover:scale-105'
+                                                    : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed'
+                                            }`}
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Icon name="Check" size={16} />
+                                                确认替换
+                                            </span>
+                                        </button>
+                                    </MotionDiv>
+                                </div>
+                            </>
+                        )}
                     </MotionDiv>
                 </div>
             )}
