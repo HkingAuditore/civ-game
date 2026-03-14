@@ -365,6 +365,7 @@ import {
     checkWarDeclaration,
     processCollectiveAttackWarmonger,
     processAIAIWarDeclaration,
+    processAIWarPreparations,
     processAIAIWarProgression,
     // AI Diplomacy functions
     initializeForeignRelations,
@@ -6011,6 +6012,14 @@ export const simulateTick = ({
 
             // Check for epoch progression
             checkAIEpochProgression(next, logs, tick);
+
+            // 时代升级后重新规划建筑配比
+            if (next._needsBuildingReplan) {
+                generateAIBuildingProfile(next, next.epoch || visibleEpoch || epoch || 0, {
+                    overseasInvestments: updatedOverseasInvestments,
+                });
+                delete next._needsBuildingReplan;
+            }
         }
         if (next.isAtWar && !isExpiredNation) {
             next.warDuration = (next.warDuration || 0) + 1;
@@ -6687,6 +6696,7 @@ export const simulateTick = ({
     // REFACTORED: Using module functions for AI-AI war system
     if (shouldUpdateAI) {
         processCollectiveAttackWarmonger(diplomacyTargets, tick, logs, { organizations: updatedOrganizations });
+        processAIWarPreparations(diplomacyTargets, tick, logs);
         processAIAIWarDeclaration(
             diplomacyTargets,
             updatedNations,

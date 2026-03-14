@@ -1049,6 +1049,76 @@ export const WAR_ECONOMY = {
     PLUNDER_SILVER_FLOOR_RATIO: 0.2,           // 玩家被掠夺后保留的最低银币比例
 };
 
+/**
+ * AI 时代演进常量
+ * 控制 AI 国家科技/文化累积速度与时代升级门槛
+ */
+export const AI_EPOCH_PROGRESSION = {
+    // 分时代科技需求缩放系数（AI 需要的科技点 = 玩家需求 × 此系数）
+    // 早期较高防止秒升，晚期较低保持合理进度
+    SCIENCE_SCALE_BY_EPOCH: {
+        1: 0.50,  // 青铜时代
+        2: 0.45,  // 古典时代
+        3: 0.40,  // 封建时代
+        4: 0.35,  // 探索时代
+        5: 0.30,  // 启蒙时代
+        6: 0.25,  // 工业时代
+        7: 0.22,  // 电气时代
+        8: 0.20,  // 原子时代
+        9: 0.18,  // 信息时代
+    },
+    // 文化需求缩放系数（文化增长较慢，系数略高于科技）
+    CULTURE_SCALE_BY_EPOCH: {
+        1: 0.00,  // 青铜时代无文化需求
+        2: 0.55,  // 古典时代
+        3: 0.50,  // 封建时代
+        4: 0.45,  // 探索时代
+        5: 0.40,  // 启蒙时代
+        6: 0.35,  // 工业时代
+        7: 0.30,  // 电气时代
+        8: 0.28,  // 原子时代
+        9: 0.25,  // 信息时代
+    },
+    // 时代升级冷却（tick 数）
+    EPOCH_COOLDOWN: 200,
+    // 科技/文化累积的 tick 缩放因子（每个 heavy update 周期约 10 tick）
+    ACCUM_TICK_SCALE: 1.0,
+    // 战时科技累积惩罚（战争中科技积累速率 = 1 - 此值）
+    WAR_SCIENCE_PENALTY: 0.4,
+    // 战时文化累积惩罚
+    WAR_CULTURE_PENALTY: 0.3,
+};
+
+/**
+ * AI 战争决策常量
+ * 控制 AI 战争目标、备战期和战争疲劳
+ */
+export const AI_WAR_DECISION = {
+    // 战争目标类型及其最低军力优势比
+    WAR_GOALS: {
+        tribute:      { id: 'tribute',      minPowerRatio: 1.3, fatigueThreshold: 0.4 },
+        vassal:       { id: 'vassal',       minPowerRatio: 1.8, fatigueThreshold: 0.65 },
+        annex_border: { id: 'annex_border', minPowerRatio: 1.5, fatigueThreshold: 0.6 },
+        preemptive:   { id: 'preemptive',   minPowerRatio: 1.0, fatigueThreshold: 0.5 },
+        revenge:      { id: 'revenge',      minPowerRatio: 0.8, fatigueThreshold: 0.8 },
+        defense:      { id: 'defense',      minPowerRatio: 0,   fatigueThreshold: 0.7 },
+    },
+    // 备战期基础长度（tick）
+    PREPARATION_BASE_TICKS: 80,
+    // 备战期侵略性缩放（低侵略性 → 更长备战期）
+    PREPARATION_AGGRESSION_SCALE: 120,
+    // 备战期军事建筑配比加成
+    PREPARATION_MILITARY_BOOST: 0.4,
+    // 备战期食物库存目标加成
+    PREPARATION_FOOD_STOCKPILE_BOOST: 0.5,
+    // 战争疲劳累积速率 - 军力损失维度
+    FATIGUE_MILITARY_LOSS_RATE: 0.1,
+    // 战争疲劳累积速率 - 财富损失维度
+    FATIGUE_WEALTH_LOSS_RATE: 0.05,
+    // 备战取消条件：军力比低于目标的此比例时取消备战
+    PREPARATION_CANCEL_RATIO: 0.7,
+};
+
 export const TAX_LIMITS = {
     MAX_HEAD_TAX: 1000000,      // 人头税系数上限
     MAX_RESOURCE_TAX: 5.0,    // 交易税率上限 (500%)

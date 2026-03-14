@@ -209,7 +209,127 @@ const getSharedOrganizationEffects = (organizationState, nationId, partnerId) =>
     );
 };
 
+/**
+ * 更新 AI 国家的贸易需求信号
+ * 分析 inventory 的短缺与盈余，生成 tradeNeeds
+ */
+const TRADE_RESOURCES = Object.keys(RESOURCES).filter(key => {
+    const def = RESOURCES[key];
+    if (!def) return false;
+    if (def.allowForeignTrade === false) return false;
+    if (['science', 'culture', 'knowledge', 'faith'].includes(key)) return false;
+    return true;
+});
+
+const updateNationTradeNeeds = (nation) => {
+    const inv = nation.inventory || {};
+    const wants = [];
+    const offers = [];
+    let urgency = 0;
+
+    for (const key of TRADE_RESOURCES) {
+        const amount = inv[key] || 0;
+        const cap = 1000; // 简化：使用统一上限参考
+        const ratio = amount / Math.max(1, cap);
+
+        if (ratio < 0.15) {
+            wants.push(key);
+            urgency = Math.max(urgency, 1 - ratio * 5); // 越少越急
+        } else if (ratio > 0.6) {
+            offers.push(key);
+        }
+    }
+
+    // 食物特殊处理：人口与食物比
+    const foodAmount = inv.food || 0;
+    const popNeed = (nation.population || 50) * 0.5;
+    if (foodAmount < popNeed * 3 && !wants.includes('food')) {
+        wants.unshift('food');
+        urgency = Math.max(urgency, 0.8);
+    }
+
+    nation.tradeNeeds = { wants, offers, urgency: clamp(urgency, 0, 1) };
+};
+
 export const processAITrade = (visibleNations, logs, diplomacyOrganizations = null, vassalDiplomacyRequests = null, tick = 0) => {
+    // === 每 30 tick 更新贸易需求信号 ===
+    if (tick % 30 === 0) {
+        for (const nation of visibleNations) {
+            if (!nation.isAnnexed) updateNationTradeNeeds(nation);
+        }
+    }
+
+    // === 每 50 tick 执行供需驱动的贸易撮合 ===
+    if (tick % 50 === 0) {
+        // 构建供需匹配表
+        const wantMap = {};  // resource → [{nation, urgency}]
+        const offerMap = {}; // resource → [nation]
+
+        for (const nation of visibleNations) {
+            if (nation.isAnnexed || nation.isAtWar) continue;
+            const vassalCheck = canVassalPerformDiplomacy(nation, 'trade');
+            if (!vassalCheck.allowed) continue;
+            const needs = nation.tradeNeeds;
+            if (!needs) continue;
+
+            for (const key of needs.wants) {
+                if (!wantMap[key]) wantMap[key] = [];
+                wantMap[key].push({ nation, urgency: needs.urgency });
+            }
+            for (const key of needs.offers) {
+                if (!offerMap[key]) offerMap[key] = [];
+                offerMap[key].push(nation);
+            }
+        }
+
+        // 撮合贸易
+        for (const [resource, buyers] of Object.entries(wantMap)) {
+            const sellers = offerMap[resource];
+            if (!sellers || sellers.length === 0) continue;
+
+            // 按需求紧急度排序
+            buyers.sort((a, b) => b.urgency - a.urgency);
+
+            for (const { nation: buyer } of buyers.slice(0, 3)) {
+                // 选择关系最好的卖家
+                const seller = sellers
+                    .filter(s => s.id !== buyer.id && !buyer.foreignWars?.[s.id]?.isAtWar)
+                    .sort((a, b) => (buyer.foreignRelations?.[b.id] ?? 50) - (buyer.foreignRelations?.[a.id] ?? 50))[0];
+                if (!seller) continue;
+
+                const sellerInv = seller.inventory || {};
+                const buyerInv = buyer.inventory || {};
+                const available = sellerInv[resource] || 0;
+                const tradeAmount = Math.min(available * 0.3, 50 + Math.random() * 100);
+                if (tradeAmount < 5) continue;
+
+                // 执行资源转移
+                seller.inventory[resource] = Math.max(0, (sellerInv[resource] || 0) - tradeAmount);
+                buyer.inventory[resource] = (buyerInv[resource] || 0) + tradeAmount;
+
+                // 以财富结算（简化价格 = 1 银/单位）
+                const price = tradeAmount * 1.0;
+                buyer.wealth = Math.max(0, (buyer.wealth || 0) - price);
+                seller.wealth = (seller.wealth || 0) + price;
+
+                // 关系提升
+                if (!buyer.foreignRelations) buyer.foreignRelations = {};
+                if (!seller.foreignRelations) seller.foreignRelations = {};
+                const sharedEffects = getSharedOrganizationEffects(diplomacyOrganizations, buyer.id, seller.id);
+                const relationBoost = 2 + Math.floor(Math.random() * 4) + (sharedEffects.relationBonus || 0);
+                buyer.foreignRelations[seller.id] = Math.min(100, (buyer.foreignRelations[seller.id] || 50) + relationBoost);
+                seller.foreignRelations[buyer.id] = Math.min(100, (seller.foreignRelations[buyer.id] || 50) + relationBoost);
+
+                // 移除已匹配的卖家可用量（防止超卖）
+                const sellerIdx = sellers.indexOf(seller);
+                if (sellerIdx >= 0 && (seller.inventory[resource] || 0) < 10) {
+                    sellers.splice(sellerIdx, 1);
+                }
+            }
+        }
+    }
+
+    // === 原有的随机小额贸易（保留，降频） ===
     visibleNations.forEach(nation => {
         if (Math.random() > 0.02) return;
         if (nation.isAtWar) return;
@@ -789,6 +909,70 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
     return result;
 };
 
+/**
+ * 结盟评分模型：基于共同敌人、贸易互补、时代差距、关系值等多维度评分
+ * @returns {number} 评分（> 60 才应发出结盟请求）
+ */
+const evaluateAllianceScore = (nation, target, allNations) => {
+    let score = 0;
+
+    // 1. 共同敌人（最强动机）
+    const myEnemies = new Set(
+        Object.entries(nation.foreignWars || {})
+            .filter(([, w]) => w?.isAtWar)
+            .map(([id]) => id)
+    );
+    const targetEnemies = new Set(
+        Object.entries(target.foreignWars || {})
+            .filter(([, w]) => w?.isAtWar)
+            .map(([id]) => id)
+    );
+    let commonEnemyCount = 0;
+    for (const eid of myEnemies) {
+        if (targetEnemies.has(eid)) commonEnemyCount++;
+    }
+    // 对同一个敌人都有敌意（关系 < 25）也算潜在共同敌人
+    for (const n of allNations) {
+        if (n.id === nation.id || n.id === target.id) continue;
+        const myRel = nation.foreignRelations?.[n.id] ?? 50;
+        const targetRel = target.foreignRelations?.[n.id] ?? 50;
+        if (myRel < 25 && targetRel < 25) commonEnemyCount += 0.5;
+    }
+    score += commonEnemyCount * 25;
+
+    // 2. 贸易互补性
+    const myNeeds = nation.tradeNeeds;
+    const targetNeeds = target.tradeNeeds;
+    if (myNeeds && targetNeeds) {
+        const myWantSet = new Set(myNeeds.wants);
+        const targetWantSet = new Set(targetNeeds.wants);
+        const complementary = (targetNeeds.offers || []).filter(r => myWantSet.has(r)).length
+            + (myNeeds.offers || []).filter(r => targetWantSet.has(r)).length;
+        score += clamp(complementary / 4, 0, 1) * 20; // 最多 20 分
+    }
+
+    // 3. 时代差距（太落后结盟没意义）
+    const epochGap = Math.abs((nation.epoch || 0) - (target.epoch || 0));
+    score -= epochGap * 10;
+
+    // 4. 关系值基础
+    const relation = nation.foreignRelations?.[target.id] ?? 50;
+    score += relation * 0.4; // 50 → 20 分, 100 → 40 分
+
+    // 5. 对方盟友过多（扩散成本）
+    const targetAllyCount = Object.entries(target.foreignWars || {})
+        .filter(([, w]) => !w?.isAtWar).length; // 非战争关系作为盟友估计（简化）
+    // 真实盟友数需要检查组织，这里用组织成员作为代理
+    score -= clamp(targetAllyCount, 0, 5) * 3;
+
+    // 6. 自身被威胁时更需要盟友
+    if (nation.warPreparation || Object.values(nation.foreignWars || {}).some(w => w?.isAtWar)) {
+        score += 15;
+    }
+
+    return score;
+};
+
 export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch, vassalDiplomacyRequests = null) => {
     if (!isDiplomacyUnlocked('organizations', 'military_alliance', epoch)) {
         return { createdOrganizations: [], memberJoinRequests: [] };
@@ -867,7 +1051,15 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
 
         if (potentialAllies.length === 0) return;
 
-        const ally = potentialAllies[Math.floor(Math.random() * potentialAllies.length)];
+        // 评分驱动：选择得分最高的盟友候选
+        const scoredAllies = potentialAllies.map(a => ({
+            nation: a,
+            score: evaluateAllianceScore(nation, a, visibleNations),
+        })).filter(a => a.score >= 60) // 评分 ≥ 60 才考虑
+            .sort((a, b) => b.score - a.score);
+
+        if (scoredAllies.length === 0) return;
+        const ally = scoredAllies[0].nation;
 
         // Check if ally is in an alliance
         const allyAlliance = existingOrgs.find(org =>

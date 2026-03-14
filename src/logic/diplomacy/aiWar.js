@@ -37,7 +37,7 @@ import {
 } from './economyUtils';
 import { getCheckpointsCrossed, CHECKPOINTS } from './frontSystem';
 import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile, calculateWarPlunder } from './warEconomy';
-import { WAR_ECONOMY } from '../../config/gameConstants';
+import { WAR_ECONOMY, AI_WAR_DECISION } from '../../config/gameConstants';
 import { BUILDINGS } from '../../config/buildings';
 import { clampPopulationAtFloor, reducePopulationWithFloor } from '../../utils/populationClamp';
 
@@ -1312,6 +1312,81 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs, dip
 };
 
 /**
+ * 评估战争目标：根据军力比、关系值和当前状态选择最合适的战争目标
+ * @returns {Object|null} 战争目标对象（含 id），或 null 表示没有合适目标
+ */
+const evaluateWarGoal = (nation, target, strengthRatio, relation) => {
+    const goals = AI_WAR_DECISION.WAR_GOALS;
+
+    // 复仇：关系极差（<15），不论军力比
+    if (relation < 15 && strengthRatio >= goals.revenge.minPowerRatio) {
+        return goals.revenge;
+    }
+    // 附庸化：军力压倒性优势
+    if (strengthRatio >= goals.vassal.minPowerRatio && (target.population || 50) < (nation.population || 100) * 0.6) {
+        return goals.vassal;
+    }
+    // 割地：中高军力优势 + 有领土争端动机（关系差）
+    if (strengthRatio >= goals.annex_border.minPowerRatio && relation < 40) {
+        return goals.annex_border;
+    }
+    // 索贡：有一定优势，最温和的目标
+    if (strengthRatio >= goals.tribute.minPowerRatio) {
+        return goals.tribute;
+    }
+    // 先发制人：对方正在备战对我、或对方正在和别人打仗
+    const targetPrep = target.warPreparation;
+    const targetBusy = Object.values(target.foreignWars || {}).filter(w => w?.isAtWar).length > 0;
+    if ((targetPrep?.targetId === nation.id || targetBusy) && strengthRatio >= goals.preemptive.minPowerRatio) {
+        return goals.preemptive;
+    }
+
+    return null; // 没有合适的战争目标
+};
+
+/**
+ * 处理所有 AI 国家的备战状态（每 tick 调用）
+ * - 检查备战取消条件（军力下降）
+ * - 备战期到期后交由 processAIAIWarDeclaration 执行实际宣战
+ * @param {Array} visibleNations
+ * @param {number} tick
+ * @param {Array} logs
+ */
+export const processAIWarPreparations = (visibleNations, tick, logs) => {
+    for (const nation of visibleNations) {
+        if (!nation.warPreparation) continue;
+        const prep = nation.warPreparation;
+
+        // 找到目标国
+        const target = visibleNations.find(n => n.id === prep.targetId);
+        if (!target || target.isAnnexed) {
+            // 目标不存在或已灭亡，取消备战
+            delete nation.warPreparation;
+            continue;
+        }
+
+        // 计算当前军力比
+        const myPower = (nation.militaryStrength ?? 1.0) * (nation.population || 100);
+        const targetPower = (target.militaryStrength ?? 1.0) * (target.population || 100);
+        const currentRatio = myPower / Math.max(1, targetPower);
+
+        // 获取战争目标要求的最低军力比
+        const goalConfig = AI_WAR_DECISION.WAR_GOALS[prep.warGoal];
+        const minRequired = (goalConfig?.minPowerRatio || 1.0) * AI_WAR_DECISION.PREPARATION_CANCEL_RATIO;
+
+        // 军力比跌到目标的 70% 以下 → 取消备战
+        if (currentRatio < minRequired && prep.warGoal !== 'revenge') {
+            delete nation.warPreparation;
+            logs.push(`📉 ${nation.name} 取消了军事动员（实力不足）`);
+            continue;
+        }
+
+        // 备战期间效果：提升军事配比标记（在 AIEconomyService 中读取）
+        nation._isPreparingWar = true;
+    }
+};
+
+/**
  * Process AI-AI war declarations
  * @param {Array} visibleNations - Array of visible nations
  * @param {Array} updatedNations - Full nations array
@@ -1445,6 +1520,34 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                 warChance *= vassalProtectionPenalty;
 
                 if (Math.random() < warChance) {
+                    // === 战争目标评估 ===
+                    const warGoal = evaluateWarGoal(nation, otherNation, strengthRatio, relation);
+                    if (!warGoal) return; // 没有合适的战争目标
+
+                    // === 备战阶段：先进入备战，到期后才宣战 ===
+                    if (!nation.warPreparation) {
+                        // 进入备战阶段
+                        const aggr = nation.aggression ?? 0.3;
+                        const prepTicks = AI_WAR_DECISION.PREPARATION_BASE_TICKS
+                            + Math.floor((1 - aggr) * AI_WAR_DECISION.PREPARATION_AGGRESSION_SCALE);
+                        nation.warPreparation = {
+                            targetId: otherNation.id,
+                            warGoal: warGoal.id,
+                            startTick: tick,
+                            readyTick: tick + prepTicks,
+                        };
+                        logs.push(`🔔 情报：${nation.name} 似乎在进行军事动员...`);
+                        return; // 不立即宣战，进入备战期
+                    }
+
+                    // 已在备战中：检查是否到期且目标一致
+                    if (nation.warPreparation.targetId !== otherNation.id) return;
+                    if (tick < nation.warPreparation.readyTick) return;
+
+                    // 备战到期，清除备战状态，执行宣战
+                    const declaredWarGoal = nation.warPreparation.warGoal;
+                    delete nation.warPreparation;
+
                     if (requiresVassalDiplomacyApproval(nation) && Array.isArray(vassalDiplomacyRequests)) {
                         // Check if vassal is allowed to declare war
                         const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
@@ -1461,7 +1564,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         }));
                         return;
                     }
-                    nation.foreignWars[otherNation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                    nation.foreignWars[otherNation.id] = { isAtWar: true, warStartDay: tick, warScore: 0, warGoal: declaredWarGoal };
                     if (!otherNation.foreignWars) otherNation.foreignWars = {};
                     otherNation.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
 
@@ -2033,6 +2136,27 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 enemy.foreignWars[nation.id].warDuration = warDuration;
             }
 
+            // === 战争疲劳累积（每 tick）===
+            {
+                const milLossRate = AI_WAR_DECISION.FATIGUE_MILITARY_LOSS_RATE;
+                const wealthLossRate = AI_WAR_DECISION.FATIGUE_WEALTH_LOSS_RATE;
+                // 用战争强度和 warScore 劣势来估算疲劳
+                const nationMilRatio = clamp(1 - (nation.militaryStrength ?? 1) / Math.max(0.01, war.nationEffStr / 100), 0, 1);
+                const nationWealthRatio = clamp(1 - getNationTreasury(nation, 100) / Math.max(1, getNationAnnualOutput(nation, 500) * 0.5), 0, 1);
+                const scorePenalty = (war.warScore || 0) < -20 ? 0.002 : 0; // 劣势方额外疲劳
+                const fatigueDelta = nationMilRatio * milLossRate + nationWealthRatio * wealthLossRate + scorePenalty;
+                war.warFatigue = clamp((war.warFatigue || 0) + fatigueDelta, 0, 1);
+
+                // 同步给敌方视角
+                if (enemy.foreignWars[nation.id]) {
+                    const enemyMilRatio = clamp(1 - (enemy.militaryStrength ?? 1) / Math.max(0.01, war.enemyEffStr / 100), 0, 1);
+                    const enemyWealthRatio = clamp(1 - getNationTreasury(enemy, 100) / Math.max(1, getNationAnnualOutput(enemy, 500) * 0.5), 0, 1);
+                    const enemyScorePenalty = (war.warScore || 0) > 20 ? 0.002 : 0;
+                    const enemyFatigueDelta = enemyMilRatio * milLossRate + enemyWealthRatio * wealthLossRate + enemyScorePenalty;
+                    enemy.foreignWars[nation.id].warFatigue = clamp((enemy.foreignWars[nation.id].warFatigue || 0) + enemyFatigueDelta, 0, 1);
+                }
+            }
+
             // === 战争结束判定（每10天检查一次） ===
             if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
                 if (!war.endScoreThreshold) {
@@ -2045,8 +2169,14 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 // 极端战线位置也可触发结束
                 const extremePosition = war.linePosition <= 8 || war.linePosition >= 92;
 
-                // 战争疲劳因子：持续越久结束概率越高（100天后开始递增，上限15%）
-                const fatigueFactor = clamp((warDuration - 100) / 2000, 0, 0.15);
+                // 战争疲劳驱动的结束概率：结合 warGoal 的疲劳阈值
+                const goalConfig = AI_WAR_DECISION.WAR_GOALS[war.warGoal] || AI_WAR_DECISION.WAR_GOALS.tribute;
+                const fatigueThreshold = goalConfig.fatigueThreshold || 0.5;
+                const nationFatigue = war.warFatigue || 0;
+                const enemyFatigue = enemy.foreignWars?.[nation.id]?.warFatigue || 0;
+                // 双方有任一方疲劳超过阈值，增加结束概率
+                const fatigueOver = Math.max(nationFatigue - fatigueThreshold, enemyFatigue - fatigueThreshold, 0);
+                const fatigueFactor = clamp(fatigueOver * 0.3 + (warDuration - 100) / 2000, 0, 0.20);
                 const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 + fatigueFactor : extremePosition ? 0.02 + fatigueFactor : 0.005 + fatigueFactor;
 
                 if (absoluteWarScore >= war.endScoreThreshold || Math.random() < exhaustionEndChance) {
