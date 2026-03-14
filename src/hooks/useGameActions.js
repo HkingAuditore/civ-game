@@ -170,6 +170,8 @@ export const useGameActions = (gameState, addLog) => {
         modifiers,
         productionPerDay,
         militaryCorps, // [FIX Bug9] 读取军团状态用于兵力统计
+        generals,
+        setGenerals,
         setMilitaryCorps,
         setActiveBattles,
         // Cabinet policy decrees (permanent)
@@ -2181,6 +2183,7 @@ export const useGameActions = (gameState, addLog) => {
         // Use functional update to avoid stale state when firing multiple officials in sequence.
         setOfficials(prev => fireOfficial(officialId, prev));
         clearOfficialFromAssignments(officialId);
+        removeOfficialLinkedGeneral(officialId);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
 
@@ -2226,6 +2229,7 @@ export const useGameActions = (gameState, addLog) => {
 
         const official = removedOfficial;
         clearOfficialFromAssignments(officialId);
+        removeOfficialLinkedGeneral(officialId);
 
         // 获取没收的财产
         if (result.wealthGained > 0) {
@@ -2362,6 +2366,33 @@ export const useGameActions = (gameState, addLog) => {
         acc[role] = null;
         return acc;
     }, {});
+
+    const removeOfficialLinkedGeneral = (officialId) => {
+        if (!officialId) return;
+
+        const linkedGeneralIds = (generals || [])
+            .filter((general) => general?.officialId === officialId)
+            .map((general) => general.id)
+            .filter(Boolean);
+
+        if (linkedGeneralIds.length === 0) return;
+
+        if (typeof setGenerals === 'function') {
+            setGenerals((prev) => (prev || []).filter((general) => general?.officialId !== officialId));
+        }
+
+        if (typeof setMilitaryCorps === 'function') {
+            setMilitaryCorps((prev) => {
+                let changed = false;
+                const next = (prev || []).map((corps) => {
+                    if (!linkedGeneralIds.includes(corps?.generalId)) return corps;
+                    changed = true;
+                    return { ...corps, generalId: null };
+                });
+                return changed ? next : prev;
+            });
+        }
+    };
 
     const clearOfficialFromAssignments = (officialId) => {
         if (!officialId || typeof setMinisterAssignments !== 'function') return;

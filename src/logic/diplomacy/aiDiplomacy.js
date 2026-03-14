@@ -26,6 +26,7 @@ import {
     getNationEconomicScale,
     getNationTreasury,
 } from './economyUtils';
+import { calculateNationLocalPrice } from './warEconomy';
 import { applyWarRelationCap } from '../../utils/diplomacyUtils';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
@@ -38,6 +39,30 @@ const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
         onTreasuryChange(actual, reason);
     }
     return actual;
+};
+
+const syncNationTradeInventory = (nation, resourceKey, nextAmount) => {
+    if (!nation || !resourceKey) return 0;
+    const safeAmount = Math.max(0, Number(nextAmount || 0));
+    nation.inventory = { ...(nation.inventory || {}) };
+    nation.inventory[resourceKey] = safeAmount;
+    nation.nationInventories = { ...(nation.nationInventories || {}) };
+    nation.nationInventories[resourceKey] = safeAmount;
+    return safeAmount;
+};
+
+const refreshNationTradePrice = (nation, resourceKey, marketPrices = {}, shock = 0) => {
+    if (!nation || !resourceKey) return;
+    nation.nationPrices = { ...(nation.nationPrices || {}) };
+    nation.nationPrices[resourceKey] = calculateNationLocalPrice({
+        resourceKey,
+        nation,
+        marketPrice: marketPrices?.[resourceKey],
+        currentPrice: nation.nationPrices?.[resourceKey],
+        inventoryOverride: nation.nationInventories?.[resourceKey] ?? nation.inventory?.[resourceKey],
+        wealthOverride: nation.wealth,
+        shock,
+    });
 };
 
 /**
@@ -300,17 +325,21 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
                 const sellerInv = seller.inventory || {};
                 const buyerInv = buyer.inventory || {};
                 const available = sellerInv[resource] || 0;
-                const tradeAmount = Math.min(available * 0.3, 50 + Math.random() * 100);
+                const unitPrice = 1.0;
+                const maxAffordable = Math.max(0, (buyer.wealth || 0) / unitPrice);
+                const tradeAmount = Math.min(available * 0.3, 50 + Math.random() * 100, maxAffordable);
                 if (tradeAmount < 5) continue;
 
                 // 执行资源转移
-                seller.inventory[resource] = Math.max(0, (sellerInv[resource] || 0) - tradeAmount);
-                buyer.inventory[resource] = (buyerInv[resource] || 0) + tradeAmount;
+                syncNationTradeInventory(seller, resource, Math.max(0, (sellerInv[resource] || 0) - tradeAmount));
+                syncNationTradeInventory(buyer, resource, (buyerInv[resource] || 0) + tradeAmount);
 
                 // 以财富结算（简化价格 = 1 银/单位）
-                const price = tradeAmount * 1.0;
+                const price = tradeAmount * unitPrice;
                 buyer.wealth = Math.max(0, (buyer.wealth || 0) - price);
                 seller.wealth = (seller.wealth || 0) + price;
+                refreshNationTradePrice(seller, resource, null, 0.01);
+                refreshNationTradePrice(buyer, resource, null, 0.01);
 
                 // 关系提升
                 if (!buyer.foreignRelations) buyer.foreignRelations = {};
@@ -457,14 +486,12 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
             const aiCost = baseValue + tariff;
             if (aiRevenue <= aiCost) return;
 
-            if ((res[resourceKey] || 0) >= quantity) {
+            if ((res[resourceKey] || 0) >= quantity && (nation.wealth || 0) >= aiCost) {
                 res[resourceKey] = (res[resourceKey] || 0) - quantity;
                 applyTreasuryChange(res, tariff, 'ai_trade_tariff', onTreasuryChange);
                 nation.wealth = Math.max(0, (nation.wealth || 0) - baseValue - tariff);
-                if (!nation.inventory) {
-                    nation.inventory = {};
-                }
-                nation.inventory[resourceKey] = (nation.inventory[resourceKey] || 0) + quantity;
+                syncNationTradeInventory(nation, resourceKey, (nation.inventory?.[resourceKey] || 0) + quantity);
+                refreshNationTradePrice(nation, resourceKey, market?.prices, 0.02);
 
                 // [NEW] Track export to demandBreakdown for GDP calculation
                 if (demandBreakdown) {
@@ -491,14 +518,13 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
             const aiRevenue = baseValue - tariff;
             if (aiRevenue <= aiCost) return;
 
-            if (aiTreasury >= baseValue * 0.6 || aiEconomyScale >= baseValue) {
+            if ((aiTreasury >= baseValue * 0.6 || aiEconomyScale >= baseValue)
+                && (nation.inventory?.[resourceKey] || 0) >= quantity) {
                 res[resourceKey] = (res[resourceKey] || 0) + quantity;
                 applyTreasuryChange(res, tariff, 'ai_trade_tariff', onTreasuryChange);
                 nation.wealth = (nation.wealth || 0) + baseValue - tariff;
-                if (!nation.inventory) {
-                    nation.inventory = {};
-                }
-                nation.inventory[resourceKey] = Math.max(0, (nation.inventory[resourceKey] || 0) - quantity);
+                syncNationTradeInventory(nation, resourceKey, Math.max(0, (nation.inventory?.[resourceKey] || 0) - quantity));
+                refreshNationTradePrice(nation, resourceKey, market?.prices, 0.02);
 
                 // [NEW] Track import to supplyBreakdown for GDP calculation
                 if (supplyBreakdown) {
@@ -1004,8 +1030,6 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
             return;
         }
 
-        const nationAggression = nation.aggression ?? 0.3;
-        
         // ===== 创建门槛检查 =====
         // 1. 财富门槛：需要有一定经济实力
         const allianceOutput = getNationAnnualOutput(nation, 1000);

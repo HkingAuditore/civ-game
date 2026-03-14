@@ -62,6 +62,7 @@ import { DonateModal } from './components/modals/DonateModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { assignCorpsToFront, removeCorpsFromFront, getPlayerSide } from './logic/diplomacy/frontSystem';
 import { setTacticOrder, createBattle, processReinforcement, isBattleActive } from './logic/diplomacy/battleSystem';
+import { getCorpsTotalUnits } from './logic/diplomacy/corpsSystem';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 import { selectIdeology } from './logic/ideology/ideologyEmergence';
@@ -304,6 +305,9 @@ function GameApp({ gameState }) {
     const [saveSlotModalMode, setSaveSlotModalMode] = useState('save'); // 'save' | 'load'
     const [showEmpireScene, setShowEmpireScene] = useState(false);
     const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
+    const [warfrontFocusRequest, setWarfrontFocusRequest] = useState(null);
+    const [pendingWarDeployment, setPendingWarDeployment] = useState(null);
+    const knownPlayerFrontIdsRef = useRef(new Set());
 
     // Responsive detection: only render sidebars on desktop to avoid hidden components consuming resources
     const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
@@ -637,6 +641,30 @@ function GameApp({ gameState }) {
         ));
     }, [gameState]);
 
+    const focusMilitaryWarfront = useCallback((frontId = null) => {
+        gameState.setActiveTab('military');
+        setWarfrontFocusRequest({
+            frontId: frontId || null,
+            token: Date.now(),
+        });
+    }, [gameState]);
+
+    const scheduleWarfrontFocus = useCallback((frontId = null) => {
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => focusMilitaryWarfront(frontId));
+            return;
+        }
+        setTimeout(() => focusMilitaryWarfront(frontId), 0);
+    }, [focusMilitaryWarfront]);
+
+    const handleDeclareWarFollowUp = useCallback(({ targetNationId, autoDeployCorpsId = null } = {}) => {
+        if (!targetNationId) return;
+        setPendingWarDeployment({
+            targetNationId,
+            autoDeployCorpsId: autoDeployCorpsId || null,
+        });
+    }, []);
+
     const estimateMilitaryPower = () => {
         const army = gameState.army || {};
         const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
@@ -653,6 +681,94 @@ function GameApp({ gameState }) {
         }
         return Math.min(1, totalUnits / capacity);
     };
+
+    const playerActiveFronts = useMemo(() => (
+        (gameState.activeFronts || []).filter((front) =>
+            front?.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player')
+        )
+    ), [gameState.activeFronts]);
+
+    const playerReserveCorps = useMemo(() => (
+        (gameState.militaryCorps || [])
+            .filter((corps) => !corps?.isAI && !corps?.assignedFrontId && corps?.status === 'idle' && getCorpsTotalUnits(corps) > 0)
+            .sort((left, right) => {
+                const unitDiff = getCorpsTotalUnits(right) - getCorpsTotalUnits(left);
+                if (unitDiff !== 0) return unitDiff;
+                return Number(right?.morale || 100) - Number(left?.morale || 100);
+            })
+    ), [gameState.militaryCorps]);
+
+    const undeployedPlayerFronts = useMemo(() => (
+        playerActiveFronts.filter((front) => {
+            const playerSide = getPlayerSide(front);
+            if (!playerSide) return false;
+            return (front.assignedCorps?.[playerSide] || []).length === 0;
+        })
+    ), [playerActiveFronts]);
+
+    const firstUndeployedPlayerFront = undeployedPlayerFronts[0] || null;
+    const firstUndeployedEnemyName = useMemo(() => {
+        if (!firstUndeployedPlayerFront) return '前线';
+        const enemyId = firstUndeployedPlayerFront.attackerId === 'player'
+            ? firstUndeployedPlayerFront.defenderId
+            : firstUndeployedPlayerFront.attackerId;
+        return gameState.nations?.find((nation) => nation.id === enemyId)?.name || enemyId || '前线';
+    }, [firstUndeployedPlayerFront, gameState.nations]);
+
+    useEffect(() => {
+        const nextKnownIds = new Set(playerActiveFronts.map((front) => front.id));
+        const newUndeployedFront = playerActiveFronts.find((front) => {
+            const playerSide = getPlayerSide(front);
+            if (!playerSide) return false;
+            const isNewFront = !knownPlayerFrontIdsRef.current.has(front.id);
+            const hasNoPlayerCorps = (front.assignedCorps?.[playerSide] || []).length === 0;
+            return isNewFront && hasNoPlayerCorps;
+        });
+
+        knownPlayerFrontIdsRef.current = nextKnownIds;
+
+        if (newUndeployedFront) {
+            scheduleWarfrontFocus(newUndeployedFront.id);
+            if (!pendingWarDeployment?.targetNationId) {
+                addLog('⚠️ 新战线已生成，但你还没有部署军团。');
+            }
+        }
+    }, [addLog, pendingWarDeployment?.targetNationId, playerActiveFronts, scheduleWarfrontFocus]);
+
+    useEffect(() => {
+        if (!pendingWarDeployment?.targetNationId) return;
+
+        const matchingFront = playerActiveFronts.find((front) => {
+            const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
+            return enemyId === pendingWarDeployment.targetNationId;
+        });
+        if (!matchingFront) return;
+
+        scheduleWarfrontFocus(matchingFront.id);
+
+        if (!pendingWarDeployment.autoDeployCorpsId) {
+            setPendingWarDeployment(null);
+            return;
+        }
+
+        const corps = (gameState.militaryCorps || []).find((item) => item.id === pendingWarDeployment.autoDeployCorpsId);
+        if (!corps || corps.isAI || corps.assignedFrontId || corps.status !== 'idle' || getCorpsTotalUnits(corps) <= 0) {
+            addLog('⚠️ 预定派往前线的军团当前不可用，已为你打开战局页。');
+            setPendingWarDeployment(null);
+            return;
+        }
+
+        const playerSide = getPlayerSide(matchingFront);
+        const alreadyAssigned = (matchingFront.assignedCorps?.[playerSide] || []).includes(corps.id);
+        if (!alreadyAssigned) {
+            handleAssignCorpsToFront(matchingFront.id, corps.id);
+            const enemyId = matchingFront.attackerId === 'player' ? matchingFront.defenderId : matchingFront.attackerId;
+            const enemyName = gameState.nations?.find((nation) => nation.id === enemyId)?.name || enemyId || '敌军';
+            addLog(`🛡️ ${corps.name} 已自动派往对 ${enemyName} 的前线。`);
+        }
+
+        setPendingWarDeployment(null);
+    }, [addLog, gameState.militaryCorps, gameState.nations, handleAssignCorpsToFront, pendingWarDeployment, playerActiveFronts, scheduleWarfrontFocus]);
 
     const clampOrganization = (value) => Math.max(0, Math.min(100, value ?? 0));
 
@@ -1158,6 +1274,39 @@ function GameApp({ gameState }) {
                 className="h-14 sm:h-16 lg:h-20 header-placeholder-landscape header-safe-area-margin"
             ></div>
 
+            {undeployedPlayerFronts.length > 0 && (
+                <div className="px-3 pt-2 lg:px-6">
+                    <button
+                        type="button"
+                        onClick={() => focusMilitaryWarfront(firstUndeployedPlayerFront?.id || null)}
+                        className="w-full rounded-2xl border border-red-500/40 bg-red-950/35 px-4 py-3 text-left shadow-[0_0_25px_rgba(239,68,68,0.12)] transition-colors hover:bg-red-950/45"
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className="mt-0.5 rounded-full border border-red-500/40 bg-red-900/40 p-2">
+                                <Icon name="AlertTriangle" size={16} className="text-red-300" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-bold text-red-100">
+                                        {undeployedPlayerFronts.length > 1
+                                            ? `${undeployedPlayerFronts.length} 条战线尚未部署军团`
+                                            : `${firstUndeployedEnemyName} 战线尚未部署军团`}
+                                    </p>
+                                    <span className="rounded-full border border-red-500/30 px-2 py-0.5 text-xs text-red-200">
+                                        点击直达 军事 / 战局
+                                    </span>
+                                </div>
+                                <p className="mt-1 text-xs leading-relaxed text-red-100/85">
+                                    {playerReserveCorps.length > 0
+                                        ? `当前有 ${playerReserveCorps.length} 支空闲军团可派往前线，若不处理，你很容易在开战后忘记部署。`
+                                        : '当前没有空闲军团可立即派遣，请先从其他战线撤回军团，或在军团页重新编组后再上前线。'}
+                                </p>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+            )}
+
             {/* 移动端总览按钮 - 紧贴顶部状态栏下方，史诗金属风格 */}
             <div className="lg:hidden fixed left-1/2 -translate-x-1/2 z-40 overview-btn-safe-area">
                 <button
@@ -1403,7 +1552,7 @@ function GameApp({ gameState }) {
                                                 officials={gameState.officials}
                                                 corpsReplenishQueue={gameState.corpsReplenishQueue}
                                                 onUpdateCorpsReplenishQueue={gameState.setCorpsReplenishQueue}
-                                                autoRecruitEnabled={gameState.autoRecruitEnabled}
+                                                warfrontFocusRequest={warfrontFocusRequest}
                                             />
                                         )}
 
@@ -1586,6 +1735,8 @@ function GameApp({ gameState }) {
                                                 foreignInvestments={gameState.foreignInvestments}
                                                 foreignInvestmentPolicy={gameState.foreignInvestmentPolicy}
                                                 gameState={gameState}
+                                                militaryCorps={gameState.militaryCorps}
+                                                onAfterDeclareWar={handleDeclareWarFollowUp}
                                                 vassalDiplomacyQueue={gameState.vassalDiplomacyQueue}
                                                 vassalDiplomacyHistory={gameState.vassalDiplomacyHistory}
                                                 onApproveVassalDiplomacy={actions.approveVassalDiplomacyAction}
