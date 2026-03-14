@@ -16,6 +16,7 @@ import {
     isDiplomacyUnlocked,
 } from '../../config';
 import { calculateNegotiationAcceptChance } from '../../logic/diplomacy/negotiation';
+import { getCorpsTotalUnits } from '../../logic/diplomacy/corpsSystem';
 import { getEffectiveRelationValue } from '../../utils/diplomacyUtils';
 
 // Constants
@@ -58,6 +59,8 @@ const DiplomacyTabComponent = ({
     onApproveVassalDiplomacy,
     onRejectVassalDiplomacy,
     onIssueVassalOrder,
+    militaryCorps = [],
+    onAfterDeclareWar,
 }) => {
     // --- State Management ---
     const [selectedNationId, setSelectedNationId] = useState(null);
@@ -376,6 +379,23 @@ const DiplomacyTabComponent = ({
         return militaryOrgs;
     }, [visibleNations, selectedNation, diplomacyOrganizations]);
 
+    const availablePlayerCorps = useMemo(() => (
+        (militaryCorps || [])
+            .filter((corps) => !corps?.isAI && !corps?.assignedFrontId && corps?.status === 'idle' && getCorpsTotalUnits(corps) > 0)
+            .map((corps) => ({
+                ...corps,
+                totalUnits: getCorpsTotalUnits(corps),
+            }))
+            .sort((left, right) => {
+                if ((right.totalUnits || 0) !== (left.totalUnits || 0)) {
+                    return (right.totalUnits || 0) - (left.totalUnits || 0);
+                }
+                return Number(right?.morale || 100) - Number(left?.morale || 100);
+            })
+    ), [militaryCorps]);
+
+    const recommendedCorps = availablePlayerCorps[0] || null;
+
     // Simple Actions
     const handleSimpleAction = (nationId, action, payload) => {
         if (onDiplomaticAction) {
@@ -483,8 +503,14 @@ const DiplomacyTabComponent = ({
                 <DeclareWarModal
                     targetNation={selectedNation}
                     militaryOrgs={targetNationAllies}
-                    onConfirm={() => {
+                    recommendedCorps={recommendedCorps}
+                    availableCorps={availablePlayerCorps}
+                    onConfirm={({ autoDeployCorpsId } = {}) => {
                         handleSimpleAction(selectedNation.id, 'declare_war');
+                        onAfterDeclareWar?.({
+                            targetNationId: selectedNation.id,
+                            autoDeployCorpsId: autoDeployCorpsId || null,
+                        });
                         setShowDeclareWarModal(false);
                     }}
                     onCancel={() => setShowDeclareWarModal(false)}

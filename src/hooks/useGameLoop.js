@@ -173,6 +173,69 @@ const formatUnitSummary = (unitMap = {}) => {
         .join('、');
 };
 
+const mergeCorpsReplenishQueue = (currentQueue = {}, pendingUpdates = {}, corpsList = []) => {
+    const corpsMap = new Map((corpsList || []).filter(Boolean).map((corps) => [corps.id, corps]));
+    const next = {};
+
+    Object.entries(currentQueue || {}).forEach(([corpsId, deficits]) => {
+        const corps = corpsMap.get(corpsId);
+        if (!corps || corps.isAI) return;
+
+        const normalizedDeficits = {};
+        Object.entries(deficits || {}).forEach(([unitId, count]) => {
+            const safeCount = Math.max(0, Number(count || 0));
+            if (safeCount > 0) {
+                normalizedDeficits[unitId] = safeCount;
+            }
+        });
+
+        if (Object.keys(normalizedDeficits).length > 0) {
+            next[corpsId] = normalizedDeficits;
+        }
+    });
+
+    Object.entries(pendingUpdates || {}).forEach(([corpsId, unitLosses]) => {
+        const corps = corpsMap.get(corpsId);
+        if (!corps || corps.isAI) return;
+
+        if (!next[corpsId]) next[corpsId] = {};
+
+        Object.entries(unitLosses || {}).forEach(([unitId, loss]) => {
+            const safeLoss = Math.max(0, Number(loss || 0));
+            if (safeLoss > 0) {
+                next[corpsId][unitId] = (next[corpsId][unitId] || 0) + safeLoss;
+            }
+        });
+
+        if (Object.keys(next[corpsId]).length === 0) {
+            delete next[corpsId];
+        }
+    });
+
+    return next;
+};
+
+const aggregateCorpsReplenishDemand = (corpsReplenishQueue = {}, corpsList = []) => {
+    const corpsMap = new Map((corpsList || []).filter(Boolean).map((corps) => [corps.id, corps]));
+    const aggregatedDemand = {};
+
+    Object.entries(corpsReplenishQueue || {}).forEach(([corpsId, deficits]) => {
+        const corps = corpsMap.get(corpsId);
+        if (!corps || corps.isAI) return;
+        if (corps.autoReplenish === false) return;
+        if (corps.status === 'in_combat' || corps.status === 'destroyed') return;
+
+        Object.entries(deficits || {}).forEach(([unitId, count]) => {
+            const safeCount = Math.max(0, Number(count || 0));
+            if (safeCount > 0) {
+                aggregatedDemand[unitId] = (aggregatedDemand[unitId] || 0) + safeCount;
+            }
+        });
+    });
+
+    return aggregatedDemand;
+};
+
 const getResourceDisplayName = (resourceKey) => {
     if (!resourceKey) return '未知资源';
     return RESOURCES[resourceKey]?.name || String(resourceKey).replace(/_/g, ' ');
@@ -1079,6 +1142,7 @@ difficulty, // 游戏难度
             tickProcessingRef.current = true;
             try {
             const current = stateRef.current;
+            let effectiveCorpsReplenishQueue = current.corpsReplenishQueue || {};
 
             // 自动存档检测：即使暂停也照常运行，避免长时间停留丢进度
             if (current.isAutoSaveEnabled) {
@@ -1405,8 +1469,8 @@ difficulty, // 游戏难度
                         queueOverrideForManpower = manpowerSync.updatedQueue;
                     }
 
-                    // [FIX] 浜哄彛涓嶈冻瀵艰嚧鐨勮В鏁ｏ細鐩存帴瑙ｆ暎锛屼笉瑙﹀彂鑷姩琛ュ叺
-                    // 鍙湁鎴樻枟鎹熷け锛堥€氳繃 AUTO_REPLENISH_LOSSES 鏃ュ織锛夋墠瑙﹀彂鑷姩琛ュ叺
+                    // [FIX] 人口不足导致的解散：直接解散，不触发自动补兵
+                    // 自动补兵只处理真实战损与军团补兵缺额，不处理人口不足导致的缩编
                     if (manpowerSync.removedUnits) {
                         const summary = formatUnitSummary(manpowerSync.removedUnits);
                         if (summary) {
@@ -3206,17 +3270,12 @@ difficulty, // 游戏难度
                                     }
                                 }
 
-                                // Subtract player casualties from global army
+                                // Front battles consume corps troops directly. Do not deduct the reserve pool again.
                                 if (playerSide) {
                                     const playerCasualties = playerSide === 'attacker'
                                         ? updatedBattle.result.attackerCasualties
                                         : updatedBattle.result.defenderCasualties;
                                     if (playerCasualties && Object.keys(playerCasualties).length > 0) {
-                                        if (!updatedArmyFromBattle) updatedArmyFromBattle = { ...(armyStateForQueue || current.army || {}) };
-                                        for (const [uid, count] of Object.entries(playerCasualties)) {
-                                            updatedArmyFromBattle[uid] = Math.max(0, (updatedArmyFromBattle[uid] || 0) - count);
-                                            if (updatedArmyFromBattle[uid] <= 0) delete updatedArmyFromBattle[uid];
-                                        }
                                         const totalPlayerLoss = Object.values(playerCasualties).reduce((s, c) => s + c, 0);
                                         battleLogs.push('[我军伤亡] ' + totalPlayerLoss + ' 人');
                                     }
@@ -4152,19 +4211,12 @@ difficulty, // 游戏难度
 
                         // Merge corps losses into replenish queue (battle + friction combined)
                         if (Object.keys(pendingCorpsLossUpdates).length > 0) {
-                            setCorpsReplenishQueue(prev => {
-                                const next = { ...prev };
-                                for (const [corpsId, unitLosses] of Object.entries(pendingCorpsLossUpdates)) {
-                                    // Skip AI corps
-                                    const corpsObj = updatedCorps.find(c => c.id === corpsId);
-                                    if (corpsObj?.isAI) continue;
-                                    if (!next[corpsId]) next[corpsId] = {};
-                                    for (const [unitId, loss] of Object.entries(unitLosses)) {
-                                        next[corpsId][unitId] = (next[corpsId][unitId] || 0) + loss;
-                                    }
-                                }
-                                return next;
-                            });
+                            effectiveCorpsReplenishQueue = mergeCorpsReplenishQueue(
+                                effectiveCorpsReplenishQueue,
+                                pendingCorpsLossUpdates,
+                                updatedCorps
+                            );
+                            setCorpsReplenishQueue(effectiveCorpsReplenishQueue);
                         }
 
                         // [FIX] Sync stateRef immediately to prevent stale reads in fast ticks
@@ -4172,6 +4224,8 @@ difficulty, // 游戏难度
                         stateRef.current.activeFronts = updatedFronts;
                         stateRef.current.militaryCorps = updatedCorps;
                         stateRef.current.generals = updatedGenerals;
+                        stateRef.current.corpsReplenishQueue = effectiveCorpsReplenishQueue;
+                        current.corpsReplenishQueue = effectiveCorpsReplenishQueue;
                         if (updatedArmyFromBattle) stateRef.current.army = updatedArmyFromBattle;
 
                         // Log battle events
@@ -7253,6 +7307,16 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                             }
                         }
                     });
+
+                    const corpsDemand = aggregateCorpsReplenishDemand(
+                        effectiveCorpsReplenishQueue,
+                        current.militaryCorps || []
+                    );
+                    Object.entries(corpsDemand).forEach(([unitId, count]) => {
+                        if (count > 0) {
+                            allAutoReplenishLosses[unitId] = (allAutoReplenishLosses[unitId] || 0) + count;
+                        }
+                    });
                 }
                 const autoReplenishKey = Object.entries(allAutoReplenishLosses)
                     .sort(([a], [b]) => a.localeCompare(b))
@@ -7508,7 +7572,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         // Try to assign replenish items directly to damaged corps
                         const toArmy = [...normalItems]; // items that go to the army pool
                         const toCorps = []; // { item, corpsId, corpsName }
-                        const currentReplenishQueue = current.corpsReplenishQueue || {};
+                        const currentReplenishQueue = effectiveCorpsReplenishQueue;
                         const currentCorpsList = current.militaryCorps || [];
                         const currentFronts = current.activeFronts || [];
                         // Build a working copy of the queue to track assignments within this tick
