@@ -3,7 +3,7 @@ import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNe
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { BUILDING_CHAINS } from '../config/buildingChains';
 import { buildOwnershipListFromLegacy, providesOwnerJobs, OWNER_TYPES } from '../config/ownerTypes';
-import { isResourceUnlocked } from '../utils/resources';
+import { getAvailableResourceSet, isResourceDemandActive, isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
@@ -35,8 +35,8 @@ import { canForeignTradeResource } from './utils/helpers';
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
 
-let cachedPotentialResourcesKey = null;
-let cachedPotentialResourcesSet = null;
+let cachedAvailableResourcesKey = null;
+let cachedAvailableResourcesSet = null;
 
 const mergeInvestmentByKey = (investments = [], incoming, getKey) => {
     if (!incoming) return investments;
@@ -1772,34 +1772,25 @@ export const simulateTick = ({
     });
     perfEnd('ownerJobsAdjust');
 
-    // Calculate potential resources: resources from buildings that are unlocked (can be built)
-    perfStart('potentialResources');
-    const potentialResources = (() => {
-        const techKey = Array.isArray(techsUnlocked) ? techsUnlocked.join('|') : '';
-        const cacheKey = `${epoch}|${techKey}`;
-        if (cachedPotentialResourcesKey === cacheKey && cachedPotentialResourcesSet) {
-            return cachedPotentialResourcesSet;
-        }
-        const set = new Set();
-        BUILDINGS.forEach(b => {
-            // Check if building is unlocked: epoch requirement met AND tech requirement met (if any)
-            const epochUnlocked = (b.epoch ?? 0) <= epoch;
-            const techUnlocked = !b.requiresTech || techsUnlocked.includes(b.requiresTech);
+    // Calculate available resources: resources backed by already built output buildings
+    perfStart('availableResources');
+    const availableResources = (() => {
+        const cacheKey = Object.entries(buildings || {})
+            .filter(([, count]) => Number(count) > 0)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([buildingId, count]) => `${buildingId}:${count}`)
+            .join('|');
 
-            if (epochUnlocked && techUnlocked && b.output) {
-                Object.entries(b.output).forEach(([resKey, amount]) => {
-                    if (!RESOURCES[resKey]) return;
-                    if ((amount || 0) > 0) {
-                        set.add(resKey);
-                    }
-                });
-            }
-        });
-        cachedPotentialResourcesKey = cacheKey;
-        cachedPotentialResourcesSet = set;
+        if (cachedAvailableResourcesKey === cacheKey && cachedAvailableResourcesSet) {
+            return cachedAvailableResourcesSet;
+        }
+
+        const set = getAvailableResourceSet(buildings);
+        cachedAvailableResourcesKey = cacheKey;
+        cachedAvailableResourcesSet = set;
         return set;
     })();
-    perfEnd('potentialResources');
+    perfEnd('availableResources');
 
     if (maxPopPercent !== 0) {
         const multiplier = Math.max(0, 1 + maxPopPercent);
@@ -3800,8 +3791,8 @@ export const simulateTick = ({
                 // Fallback to epoch check for resources without tech requirement
                 continue;
             }
-            if (!potentialResources.has(resKey)) {
-                // 只有已解锁建筑能产出的资源才会产生需?
+            if (!isResourceDemandActive(resKey, epoch, techsUnlocked, availableResources)) {
+                // 只有已具备稳定供给能力的资源才会进入需求
                 continue;
             }
 
@@ -4351,7 +4342,7 @@ export const simulateTick = ({
             const resourceInfo = RESOURCES[resource];
             if (resourceInfo?.unlockTech && !techsUnlocked.includes(resourceInfo.unlockTech)) return;
             if (resourceInfo && typeof resourceInfo.unlockEpoch === 'number' && resourceInfo.unlockEpoch > epoch) return;
-            if (potentialResources && !potentialResources.has(resource)) return;
+            if (!isResourceDemandActive(resource, epoch, techsUnlocked, availableResources)) return;
 
             let requirement = amountPerCapita * needsRequirementMultiplier;
             if (requirement <= 0) return;
@@ -4998,7 +4989,7 @@ export const simulateTick = ({
         priceMap: getPrice, // 传递价格获取函?
         livingStandardStreaks,
         needsRequirementMultiplier,
-        potentialResources,
+        availableResources,
     });
 
 
@@ -5014,7 +5005,7 @@ export const simulateTick = ({
             epoch,
             techsUnlocked,
             needsRequirementMultiplier,
-            potentialResources,
+            availableResources,
         });
 
         const pLevel = getPriceAwareLivingStandardLevel(avgWealth, officialThresholds.thresholds, '贫困');
@@ -7386,7 +7377,7 @@ export const simulateTick = ({
         gameSpeed,
         classFinancialData, // Pass detailed financial tracking
         logs,
-        potentialResources, // [FIX] Restrict trade to producible resources
+        potentialResources: availableResources, // Restrict trade to already available resources
 
         // Trade 2.0: player merchant assignments (backward compatible)
         merchantAssignments: merchantState.merchantAssignments || merchantState.assignments || null,
