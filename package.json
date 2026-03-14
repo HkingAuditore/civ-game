@@ -7,7 +7,8 @@
         "dev": "vite",
         "build": "vite build",
         "lint": "eslint .",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "balance:audit": "python3 scripts/audit_building_balance.py"
     },
     "dependencies": {
         "@capacitor/android": "^8.0.0",
