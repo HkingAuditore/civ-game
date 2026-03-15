@@ -70,7 +70,7 @@ const AssignmentRow = ({
 
     return (
         <>
-            <div className="hidden p-3 rounded-lg bg-gray-800/40 border border-white/5 space-y-2">
+            <div className="sm:hidden p-3 rounded-lg bg-gray-800/40 border border-white/5 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                         <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
@@ -138,7 +138,7 @@ const AssignmentRow = ({
             </div>
 
             <div
-                className="grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
+                className="hidden sm:grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
             >
             {/* 1. Nation Info (Cols 1-4) - reduced */}
             <div className="col-span-4 flex items-center gap-2 min-w-0">

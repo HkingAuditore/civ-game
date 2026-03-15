@@ -1263,7 +1263,7 @@ const StatCard = ({ icon, label, value, color, subtitle = null }) => (
         </div>
         <div className="min-w-0 flex-1">
             <div className="text-[10px] text-theme-text opacity-60 font-bold leading-tight">{label}</div>
-            <div className={`text-sm font-bold font-mono ${color} leading-tight break-all md:break-normal md:truncate`}>{value}</div>
+            <div className={`text-sm font-bold font-mono ${color} leading-tight truncate overflow-hidden`}>{value}</div>
             {subtitle && (
                 <div className="text-[10px] text-theme-text opacity-50 leading-tight break-words line-clamp-2">{subtitle}</div>
             )}

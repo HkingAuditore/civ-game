@@ -3979,6 +3979,11 @@ export const useGameActions = (gameState, addLog) => {
                     createFrontForWar('player', ally.id, ally);
                 });
 
+                // 主动宣战后自动暂停，让玩家有时间部署军队
+                if (typeof gameState.setIsPaused === 'function') {
+                    gameState.setIsPaused(true);
+                }
+
                 break;
             }
             // ========================================================================

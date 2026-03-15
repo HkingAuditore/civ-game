@@ -1,19 +1,46 @@
 package com.ToyEmpires.civgame;
 
+import android.content.Context;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+
+    /**
+     * 固定 WebView 字体缩放比例为 1.0，防止系统"字体大小"设置影响游戏 UI
+     * 不覆盖此方法时，Android 系统字体放大会导致 WebView 内字体比 PC 浏览器更大
+     */
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        Configuration config = newBase.getResources().getConfiguration();
+        config.fontScale = 1.0f;
+        Context context = newBase.createConfigurationContext(config);
+        super.attachBaseContext(context);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
+
+        // 锁定 WebView 文字缩放为 100%
+        // Android 系统"字体大小"设置会通过 WebSettings.textZoom 影响 WebView 内
+        // 所有基于 rem/em 的尺寸（不只是字体，还包括 padding/margin/width 等），
+        // 导致整体界面排版比例与 PC 端不一致。固定为 100 后与 PC 浏览器行为一致。
+        WebView webView = getBridge().getWebView();
+        if (webView != null) {
+            WebSettings settings = webView.getSettings();
+            settings.setTextZoom(100);
+        }
+
         // 设置全屏沉浸模式
         setImmersiveMode();
         
