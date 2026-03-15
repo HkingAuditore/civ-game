@@ -428,19 +428,16 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
         ? 0
         : Math.min(
             attackerMaxAbsLoss,
-            Math.max(
-                1,
-                Math.min(attackerUnits - 1, Math.round(attackerUnits * clamp(attackerLossRate, attackerMinRate, 0.07)))
-            )
+            // [FIX] 去掉固定保底1人：当守方兵力极少时，攻方损失应接近0
+            // 改为：计算结果 < 1 时直接取0，避免"1人守军每阶段必杀1人"
+            Math.min(attackerUnits - 1, Math.round(attackerUnits * clamp(attackerLossRate, attackerMinRate, 0.07)))
         );
     const defenderLossTarget = defenderUnits <= 1
         ? 0
         : Math.min(
             defenderMaxAbsLoss,
-            Math.max(
-                1,
-                Math.min(defenderUnits - 1, Math.round(defenderUnits * clamp(defenderLossRate, defenderMinRate, 0.08)))
-            )
+            // [FIX] 同上
+            Math.min(defenderUnits - 1, Math.round(defenderUnits * clamp(defenderLossRate, defenderMinRate, 0.08)))
         );
 
     const momentumShift = clamp(Math.round(advantage * (engagement.engagementMomentum || 12 || 12)), -10, 10);
@@ -926,15 +923,27 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
         const dailyRate = engagement.dailyCasualtyRate || 0.003;
         const atkUnits = Math.max(1, getTotalUnits(b.attacker.currentUnits));
         const defUnits = Math.max(1, getTotalUnits(b.defender.currentUnits));
-        // 每日小额随机伤亡（约为阶段结算的 1/3~1/2）
-        const dailyAtkLoss = Math.max(1, Math.round(atkUnits * dailyRate * (0.8 + Math.random() * 0.4)));
-        const dailyDefLoss = Math.max(1, Math.round(defUnits * dailyRate * (0.8 + Math.random() * 0.4)));
-        const atkApplied = applyLosses(b.attacker.currentUnits, dailyAtkLoss, {});
-        const defApplied = applyLosses(b.defender.currentUnits, dailyDefLoss, {});
-        b.attacker.currentUnits = atkApplied.nextUnits;
-        b.defender.currentUnits = defApplied.nextUnits;
-        b.attacker.totalCasualties = mergeLossMaps(b.attacker.totalCasualties, atkApplied.losses);
-        b.defender.totalCasualties = mergeLossMaps(b.defender.totalCasualties, defApplied.losses);
+
+        // [FIX] 兵力比修正：与阶段结算保持一致，避免极少数敌军也能造成固定伤亡
+        const forceRatio = atkUnits / defUnits;
+        const dampenAtk = forceRatio > 1 ? Math.min(1, 1 / Math.sqrt(forceRatio)) : 1;
+        const dampenDef = forceRatio < 1 ? Math.min(1, Math.sqrt(forceRatio)) : 1;
+
+        // [FIX] 去掉 Math.max(1) 保底：兵力极少时不应造成固定伤亡
+        // 只有当计算结果 >= 1 时才造成伤亡，避免"1人每天必杀1人"的悖论
+        const dailyAtkLoss = Math.round(atkUnits * dailyRate * dampenAtk * (0.8 + Math.random() * 0.4));
+        const dailyDefLoss = Math.round(defUnits * dailyRate * dampenDef * (0.8 + Math.random() * 0.4));
+
+        if (dailyAtkLoss > 0) {
+            const atkApplied = applyLosses(b.attacker.currentUnits, dailyAtkLoss, {});
+            b.attacker.currentUnits = atkApplied.nextUnits;
+            b.attacker.totalCasualties = mergeLossMaps(b.attacker.totalCasualties, atkApplied.losses);
+        }
+        if (dailyDefLoss > 0) {
+            const defApplied = applyLosses(b.defender.currentUnits, dailyDefLoss, {});
+            b.defender.currentUnits = defApplied.nextUnits;
+            b.defender.totalCasualties = mergeLossMaps(b.defender.totalCasualties, defApplied.losses);
+        }
     }
 
     if (b.phaseDaysRemaining <= 0) {
