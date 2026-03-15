@@ -2107,6 +2107,7 @@ function GameApp({ gameState }) {
                     totalWealth={gameState.totalWealth}
                     activeBuffs={gameState.activeBuffs}
                     activeDebuffs={gameState.activeDebuffs}
+                    buildings={gameState.buildings}
                     epoch={gameState.epoch}
                     techsUnlocked={gameState.techsUnlocked}
                     history={gameState.history}

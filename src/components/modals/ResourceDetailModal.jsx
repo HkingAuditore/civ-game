@@ -8,7 +8,7 @@ import { Icon } from '../common/UIComponents';
 import { SimpleLineChart } from '../common/SimpleLineChart';
 import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES } from '../../config';
 import { calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
-import { isResourceUnlocked } from '../../utils/resources';
+import { getAvailableResourceSet, isResourceDemandActive } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getSimpleSupplyChain } from '../../utils/resourceGraph';
 
@@ -981,6 +981,7 @@ const ResourceDetailContent = ({
     // Removed isAnimatingOut as framer-motion handles it
     const resourceDef = RESOURCES[resourceKey];
     const isSilver = resourceKey === 'silver';
+    const availableResources = useMemo(() => getAvailableResourceSet(buildings), [buildings]);
 
     const priceHistoryData = useMemo(() => {
         const history = market?.priceHistory?.[resourceKey];
@@ -1164,7 +1165,7 @@ const ResourceDetailContent = ({
             const baseNeeds = stratum.needs || {};
             let essentialCostPerCapita = 0;
             ['food', 'cloth'].forEach(resKey => {
-                if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+                if (baseNeeds[resKey] && isResourceDemandActive(resKey, epoch, techsUnlocked, availableResources)) {
                     const marketPrice = priceMap[resKey] || RESOURCES[resKey]?.basePrice || 1;
                     const basePrice = RESOURCES[resKey]?.basePrice || 1;
                     const effectivePrice = Math.max(marketPrice, basePrice);
@@ -1206,6 +1207,9 @@ const ResourceDetailContent = ({
                         unlockedLuxuryThreshold = threshold;
                         const luxuryNeedsAtThreshold = stratum.luxuryNeeds[threshold];
                         for (const [resKey, amount] of Object.entries(luxuryNeedsAtThreshold)) {
+                            if (!isResourceDemandActive(resKey, epoch, techsUnlocked, availableResources)) {
+                                continue;
+                            }
                             effectiveNeeds[resKey] =
                                 (effectiveNeeds[resKey] || 0) + (amount * luxuryConsumptionMultiplier);
                         }

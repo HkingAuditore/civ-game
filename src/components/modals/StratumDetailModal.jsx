@@ -7,7 +7,7 @@ import { SimpleLineChart } from '../common/SimpleLineChart';
 import { STRATA } from '../../config';
 import { RESOURCES } from '../../config/gameConstants';
 import { formatEffectDetails } from '../../utils/effectFormatter';
-import { isResourceUnlocked } from '../../utils/resources';
+import { getAvailableResourceSet, isResourceDemandActive } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
@@ -176,6 +176,7 @@ export const StratumDetailModal = ({
   totalWealth,
   activeBuffs,
   activeDebuffs,
+  buildings = {},
   epoch = 0,
   techsUnlocked = [],
   history = {},
@@ -225,6 +226,7 @@ export const StratumDetailModal = ({
   const stratumDebuffs = activeDebuffs.filter(debuff => debuff.class === stratumKey || debuff.source === stratumKey);
   const wealthHistory = classWealthHistory[stratumKey] || [];
   const stratumHistory = history?.class?.[stratumKey] || { pop: [], income: [], expense: [] };
+  const availableResources = getAvailableResourceSet(buildings);
 
   const renderWealthChart = (history = []) => {
     if (!history || history.length <= 1) return null;
@@ -494,7 +496,7 @@ export const StratumDetailModal = ({
                   {(() => {
                     const needsEntries = Object.entries(stratum.needs || {});
                     const visibleNeeds = needsEntries.filter(([resource]) => {
-                      return isResourceUnlocked(resource, epoch, techsUnlocked);
+                      return isResourceDemandActive(resource, epoch, techsUnlocked, availableResources);
                     });
                     return visibleNeeds.length > 0 ? (
                       visibleNeeds.map(([resource, amount]) => {

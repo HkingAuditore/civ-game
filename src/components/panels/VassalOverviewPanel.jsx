@@ -7,7 +7,7 @@ import React, { useMemo, memo } from 'react';
 import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
+import { VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 import { calculateEnhancedTribute } from '../../logic/diplomacy/vassalSystem';
 
 /**
@@ -58,17 +58,6 @@ export const VassalOverviewPanel = memo(({
         };
     }, [vassals, playerResources]);
 
-    // 按附庸类型分组
-    const vassalsByType = useMemo(() => {
-        const groups = {};
-        vassals.forEach(v => {
-            const type = v.vassalType || 'protectorate';
-            if (!groups[type]) groups[type] = [];
-            groups[type].push(v);
-        });
-        return groups;
-    }, [vassals]);
-
     return (
         <BottomSheet
             isOpen={isOpen}
@@ -84,7 +73,7 @@ export const VassalOverviewPanel = memo(({
                     </div>
                     <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-700/40">
                         <div className="text-xs text-amber-400 mb-1">日朝贡</div>
-                        <div className="text-lg font-bold text-amber-200">{formatNumberShortCN(summary.totalTribute / 30)}</div>
+                        <div className="text-lg font-bold text-amber-200">{formatNumberShortCN(summary.totalTribute)}</div>
                     </div>
                     <div className={`rounded-lg p-3 border ${summary.atRiskCount > 0 ? 'bg-red-900/30 border-red-700/40' : 'bg-gray-800/50 border-gray-700/40'}`}>
                         <div className="text-xs text-gray-400 mb-1">独立风险</div>
@@ -128,8 +117,6 @@ export const VassalOverviewPanel = memo(({
                                     const tribute = calculateEnhancedTribute(vassal, playerResources.silver || 10000);
                                     const independence = vassal.independencePressure || 0;
                                     const isAtRisk = independence > 60;
-                                    const vassalLabel = VASSAL_TYPE_LABELS[vassal.vassalType] || '附庸国';
-
                                     return (
                                         <div
                                             key={vassal.id}
@@ -145,7 +132,7 @@ export const VassalOverviewPanel = memo(({
                                                     )}
                                                 </div>
                                                 <div className="text-sm text-amber-400 font-semibold">
-                                                    +{formatNumberShortCN(tribute.silver)}/月
+                                                    +{formatNumberShortCN(tribute.silver)}/日
                                                 </div>
                                             </div>
 

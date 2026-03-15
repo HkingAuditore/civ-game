@@ -4,7 +4,7 @@
  */
 
 import { STRATA, RESOURCES } from '../../config';
-import { isResourceUnlocked } from '../../utils/resources';
+import { isResourceDemandActive } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
 import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard, calculatePriceAwareLivingStandardThresholds } from '../../utils/livingStandard';
 import { applyBuyPriceControl } from '../officials/cabinetSynergy';
@@ -46,7 +46,8 @@ export const processNeedsConsumption = ({
     classFinancialData = {}, // 新增：详细财务跟踪
     tick,
     logs,
-    potentialResources = null,  // 已解锁建筑可产出资源集合（用于门控需求）
+    availableResources = null,  // 已建成产出建筑可稳定供给的资源集合
+    potentialResources = null,  // 兼容旧调用
     priceControls = null,       // 政府价格管制设置
     leftFactionDominant = false, // 是否左派主导（只有左派主导时价格管制才生效）
     difficulty = 'normal',
@@ -57,6 +58,7 @@ export const processNeedsConsumption = ({
     const updatedDemand = { ...demand };
     const needsReport = {};
     const classShortages = {};
+    const activeResources = availableResources || potentialResources;
 
     // Get difficulty multiplier (default 1.0)
     const difficultyMultiplier = getResourceConsumptionMultiplier(difficulty);
@@ -88,7 +90,7 @@ export const processNeedsConsumption = ({
         let essentialCost = 0;
         const essentialResources = ['food', 'cloth'];
         essentialResources.forEach(resKey => {
-            if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+            if (baseNeeds[resKey] && isResourceDemandActive(resKey, epoch, techsUnlocked, activeResources)) {
                 const price = priceMap[resKey] || getBasePrice(resKey);
                 essentialCost += baseNeeds[resKey] * price;
             }
@@ -121,7 +123,7 @@ export const processNeedsConsumption = ({
             if (unlockMultiplier >= threshold) {
                 const tierNeeds = luxuryNeeds[threshold];
                 Object.entries(tierNeeds).forEach(([resKey, amount]) => {
-                    if (isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+                    if (isResourceDemandActive(resKey, epoch, techsUnlocked, activeResources)) {
                         effectiveNeeds[resKey] =
                             (effectiveNeeds[resKey] || 0) + (amount * luxuryConsumptionMultiplier);
                     }
@@ -133,10 +135,7 @@ export const processNeedsConsumption = ({
         // Process each need
         Object.entries(effectiveNeeds).forEach(([resKey, base]) => {
             // Skip if resource not unlocked
-            if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) return;
-
-            // 检查是否有已解锁建筑能产出该资源（无已解锁建筑则无需求）
-            if (potentialResources && !potentialResources.has(resKey)) return;
+            if (!isResourceDemandActive(resKey, epoch, techsUnlocked, activeResources)) return;
 
             // Apply difficulty multiplier to per capita needs
             const perCapita = base * needsRequirementMultiplier * difficultyMultiplier;
@@ -328,11 +327,13 @@ export const calculateLivingStandards = ({
     priceMap = {},
     livingStandardStreaks = {},
     needsRequirementMultiplier = 1,
+    availableResources = null,
     potentialResources = null,
 }) => {
 
     const classLivingStandard = {};
     const updatedLivingStandardStreaks = {};
+    const activeResources = availableResources || potentialResources;
 
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -363,7 +364,7 @@ export const calculateLivingStandards = ({
         };
 
         essentialResources.forEach(resKey => {
-            if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+            if (baseNeeds[resKey] && isResourceDemandActive(resKey, epoch, techsUnlocked, activeResources)) {
                 const amount = baseNeeds[resKey] * count;
                 const marketPrice = getPrice(resKey);
                 const basePrice = getBasePrice(resKey);
@@ -384,7 +385,7 @@ export const calculateLivingStandards = ({
             epoch,
             techsUnlocked,
             needsRequirementMultiplier,
-            potentialResources,
+            availableResources: activeResources,
         });
 
 
@@ -410,7 +411,7 @@ export const calculateLivingStandards = ({
 
         // Base needs count
         const baseNeedsCount = def.needs
-            ? Object.keys(def.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length
+            ? Object.keys(def.needs).filter(r => isResourceDemandActive(r, epoch, techsUnlocked, activeResources)).length
             : 0;
 
         // Count unlocked luxury tiers (基于解锁能力，不受阶层消费上限限制)
@@ -421,7 +422,7 @@ export const calculateLivingStandards = ({
                 unlockedLuxuryTiers++;
                 const tierNeeds = luxuryNeeds[threshold];
                 const unlockedResources = Object.keys(tierNeeds)
-                    .filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
+                    .filter(r => isResourceDemandActive(r, epoch, techsUnlocked, activeResources));
                 const newResources = unlockedResources.filter(r => !def.needs?.[r]);
                 effectiveNeedsCount += newResources.length;
             }
