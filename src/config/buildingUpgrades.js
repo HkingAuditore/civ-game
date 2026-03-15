@@ -745,7 +745,7 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // university: base output science: 5.2, culture: 1.2, owner: official, base jobs: scribe:4, engineer:2, official:2
+    // university: base output science: 5.2, culture: 1.2, owner: official, base jobs: scribe:4, engineer:2
     // 效率提升型升级：教学方法优化，产出增加但岗位适度增加
     university: [
         {
@@ -753,14 +753,14 @@ export const BUILDING_UPGRADES = {
             cost: { brick: 250, papyrus: 60, silver: 750, science: 150 },
             input: { papyrus: 0.35, coffee: 0.21, delicacies: 0.13, science: 0.42 },
             output: { science: 6.3, culture: 1.4 },
-            jobs: { scribe: 4, engineer: 2, official: 2 },
+            jobs: { scribe: 4, engineer: 2 },
         },
         {
             name: "皇家学院",
             cost: { brick: 400, papyrus: 120, silver: 1700, science: 400 },
             input: { papyrus: 0.45, coffee: 0.28, delicacies: 0.16, science: 0.62 },
             output: { science: 7.65, culture: 1.8 },
-            jobs: { scribe: 5, engineer: 2, official: 2 },
+            jobs: { scribe: 5, engineer: 2 },
         },
     ],
 
@@ -1411,14 +1411,14 @@ export const BUILDING_UPGRADES = {
             cost: { silver: 4000, steel: 45, tools: 20, science: 200 },
             input: {},
             output: { uranium: 0.78 }, // 1.3x
-            jobs: { miner: 7, worker: 3, official: 1 },
+            jobs: { miner: 7, worker: 3 },
         },
         {
             name: "气体扩散法",
             cost: { silver: 8000, steel: 80, tools: 35, science: 400 },
             input: {},
             output: { uranium: 1.35 }, // 2.25x
-            jobs: { miner: 8, worker: 4, official: 1 },
+            jobs: { miner: 8, worker: 4 },
         },
     ],
 
@@ -1429,14 +1429,14 @@ export const BUILDING_UPGRADES = {
             cost: { silver: 12000, steel: 120, stone: 150, brick: 70, science: 400 },
             input: { uranium: 0.22, steel: 0.14, stone: 0.10 },
             output: { electricity: 5.20 },
-            jobs: { technician: 7, engineer: 3, official: 1 },
+            jobs: { technician: 7, engineer: 3 },
         },
         {
             name: "快中子堆",
             cost: { silver: 25000, steel: 200, stone: 250, brick: 120, science: 800 },
             input: { uranium: 0.28, steel: 0.18, stone: 0.12 },
             output: { electricity: 7.20 },
-            jobs: { technician: 8, engineer: 4, official: 1 },
+            jobs: { technician: 8, engineer: 4 },
         },
     ],
 
@@ -1573,14 +1573,14 @@ export const BUILDING_UPGRADES = {
             cost: { silver: 9000, steel: 70, electronics: 15, chemicals: 20, science: 300 },
             input: { electronics: 0.195, steel: 0.26, chemicals: 0.13, electricity: 0.195 },
             output: { ordnance: 0.39 }, // 1.3x
-            jobs: { worker: 7, technician: 3, engineer: 2, official: 1 },
+            jobs: { worker: 7, technician: 3, engineer: 2 },
         },
         {
             name: "模块化军工",
             cost: { silver: 18000, steel: 120, electronics: 30, chemicals: 40, science: 600 },
             input: { electronics: 0.3375, steel: 0.45, chemicals: 0.225, electricity: 0.3375 },
             output: { ordnance: 0.675 }, // 2.25x
-            jobs: { worker: 8, technician: 4, engineer: 3, official: 1 },
+            jobs: { worker: 8, technician: 4, engineer: 3 },
         },
     ],
 
