@@ -36,7 +36,7 @@ export const VassalOverviewPanel = memo(({
         let atRiskCount = 0;
 
         vassals.forEach(v => {
-            const tribute = calculateEnhancedTribute(v, playerResources.silver || 10000);
+            const tribute = calculateEnhancedTribute(v);
             totalTribute += tribute.silver || 0;
             totalWealth += v.wealth || 0;
             totalPopulation += v.population || 0;
@@ -56,7 +56,7 @@ export const VassalOverviewPanel = memo(({
             avgIndependence,
             atRiskCount,
         };
-    }, [vassals, playerResources]);
+    }, [vassals]);
 
     return (
         <BottomSheet
@@ -114,7 +114,7 @@ export const VassalOverviewPanel = memo(({
                             </div>
                             <div className="space-y-2">
                                 {vassals.map(vassal => {
-                                    const tribute = calculateEnhancedTribute(vassal, playerResources.silver || 10000);
+                                    const tribute = calculateEnhancedTribute(vassal);
                                     const independence = vassal.independencePressure || 0;
                                     const isAtRisk = independence > 60;
                                     return (
@@ -131,7 +131,7 @@ export const VassalOverviewPanel = memo(({
                                                         <span className="px-1.5 py-0.5 text-xs bg-red-600 text-white rounded">风险</span>
                                                     )}
                                                 </div>
-                                                <div className="text-sm text-amber-400 font-semibold">
+                                <div className="text-sm text-amber-400 font-semibold">
                                                     +{formatNumberShortCN(tribute.silver)}/日
                                                 </div>
                                             </div>

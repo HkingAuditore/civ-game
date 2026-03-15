@@ -382,6 +382,7 @@ import {
     checkAIBreakAlliance,
     processNationRelationDecay,
     processVassalUpdates,
+    calculateEnhancedTribute,
     initializeNationEconomyData,
     updateNationEconomyData,
     // AI Economy functions (Refactored System)
@@ -6395,6 +6396,22 @@ export const simulateTick = ({
 
     if (vassalResult.tributeIncome > 0) {
         applySilverChange(vassalResult.tributeIncome, 'vassal_tribute_income');
+    }
+
+    // [FIX] 朝贡全量结算：对未被本轮分片选中的附庸，单独计算并结算朝贡
+    // 分片更新只处理部分附庸的经济/独立性，但朝贡是每日财政收入，必须全量结算
+    const unprocessedVassals = vassalNations.filter(v => !vassalTargetIds.includes(v.id));
+    if (unprocessedVassals.length > 0) {
+        let extraTributeIncome = 0;
+        unprocessedVassals.forEach(vassal => {
+            const tribute = calculateEnhancedTribute(vassal);
+            if (tribute.silver > 0) {
+                extraTributeIncome += tribute.silver;
+            }
+        });
+        if (extraTributeIncome > 0) {
+            applySilverChange(extraTributeIncome, 'vassal_tribute_income');
+        }
     }
     if (vassalResult.resourceTribute && Object.keys(vassalResult.resourceTribute).length > 0) {
         Object.entries(vassalResult.resourceTribute).forEach(([resourceKey, amount]) => {
