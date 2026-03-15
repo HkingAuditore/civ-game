@@ -736,6 +736,7 @@ function _collectMechanicEffect(me, target) {
             break;
         case 'building_cost_mod':
         case 'official_bonus':
+        case 'official_capacity':
         case 'tax_modifier':
         case 'cooldown_mod':
         case 'price_volatility_mod':
@@ -908,6 +909,7 @@ export function applyRuleMods(equippedIdeologies) {
     const activeRuleMods = {
         building_cost_mod: {},
         official_bonus: {},
+        official_capacity: {},  // 官员上限加成
         tax_modifier: {},
         cooldown_mod: {},
         price_volatility_mod: {},

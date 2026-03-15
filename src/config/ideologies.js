@@ -66,7 +66,7 @@ export const IDEOLOGY_SCORE_TRIGGERS = {
  *    }>
  *
  * 3) ruleMods: Array<{
- *      type: 'building_cost_mod' | 'official_bonus' | 'tax_modifier' | 'cooldown_mod' | 'price_volatility_mod' | 'tech_cost_mod',
+ *      type: 'building_cost_mod' | 'official_bonus' | 'official_capacity' | 'tax_modifier' | 'cooldown_mod' | 'price_volatility_mod' | 'tech_cost_mod',
  *      scope?: string,   // e.g. building category for building_cost_mod, stratum for official_bonus
  *      value: number,
  *    }>
@@ -1793,6 +1793,8 @@ export const IDEOLOGIES = [
                         { type: 'building_cost_mod', scope: 'civic', value: -0.08 },
                         // 儒家强调礼制，官员体系效率提升
                         { type: 'official_bonus', scope: 'all', value: 0.12 },
+                        // 儒家礼制扩大官员编制
+                        { type: 'official_capacity', scope: '_global', value: 3 },
                     ],
                     triggerEffects: [
                         // 儒家官员派系：每8名官员提供文化加成（礼乐教化的核心）
@@ -1842,6 +1844,8 @@ export const IDEOLOGIES = [
                     ruleMods: [
                         // 法家强调官员执法效率，官员体系效率+10%
                         { type: 'official_bonus', scope: 'all', value: 0.10 },
+                        // 法家扩充官僚机构
+                        { type: 'official_capacity', scope: '_global', value: 2 },
                     ],
                 },
                 {
@@ -1850,6 +1854,7 @@ export const IDEOLOGIES = [
                         { type: 'official_bonus', scope: 'all', value: 0.15 },
                         // 法家重视建筑管控，降低工业建筑消耗
                         { type: 'building_input_mod', scope: 'industry', value: -0.08 },
+                        { type: 'official_capacity', scope: '_global', value: 3 },
                     ],
                 },
                 {
@@ -1857,6 +1862,7 @@ export const IDEOLOGIES = [
                     ruleMods: [
                         { type: 'official_bonus', scope: 'all', value: 0.20 },
                         { type: 'building_input_mod', scope: 'industry', value: -0.12 },
+                        { type: 'official_capacity', scope: '_global', value: 4 },
                     ],
                 },
             ],

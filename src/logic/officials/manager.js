@@ -141,6 +141,8 @@ const EPOCH_OFFICIAL_BONUS = {
     5: 15,  // 文艺复兴：+15
     6: 18,  // 工业时代：+18
     7: 21,  // 信息时代：+21
+    8: 24,  // 电气时代：+24
+    9: 27,  // 原子时代：+27
 };
 
 // 科技对官员容量的加成
@@ -157,14 +159,15 @@ const TECH_OFFICIAL_BONUS = {
  * @param {number} epoch - 当前时代
  * @param {Object} polityEffects - 当前政体效果
  * @param {Array} techsUnlocked - 已解锁科技列表
+ * @param {number} ideologyBonus - 理念加成（来自装备的理念规则）
  * @returns {number} 有效官员容量
  */
-export const calculateOfficialCapacity = (epoch = 0, polityEffects = {}, techsUnlocked = []) => {
+export const calculateOfficialCapacity = (epoch = 0, polityEffects = {}, techsUnlocked = [], ideologyBonus = 0) => {
     // 基础容量
     const baseCapacity = 2;
 
-    // 时代加成
-    const epochBonus = EPOCH_OFFICIAL_BONUS[epoch] || 0;
+    // 时代加成（每个时代递增3，确保升级时代后官员上限不下降）
+    const epochBonus = EPOCH_OFFICIAL_BONUS[epoch] ?? (epoch * 3);
 
     // 政体加成
     const polityBonus = polityEffects.officialCapacity || 0;
@@ -177,7 +180,10 @@ export const calculateOfficialCapacity = (epoch = 0, polityEffects = {}, techsUn
         }
     });
 
-    return Math.max(1, baseCapacity + epochBonus + polityBonus + techBonus);
+    // 理念加成
+    const ideoBonus = Math.floor(ideologyBonus || 0);
+
+    return Math.max(1, baseCapacity + epochBonus + polityBonus + techBonus + ideoBonus);
 };
 
 /**

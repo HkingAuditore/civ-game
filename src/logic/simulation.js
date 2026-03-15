@@ -1453,6 +1453,8 @@ export const simulateTick = ({
         if (ideoCorruptionMod) bonuses.corruption = Math.max(0, (bonuses.corruption || 0) + ideoCorruptionMod);
         // official_bonus: 作为官员体系整体强度修正，供 UI/后续系统消费
         bonuses.ideoOfficialBonusMod = ideologyRuleMods.official_bonus?._global || 0;
+        // official_capacity: 理念加官员上限（整数加成）
+        bonuses.ideoOfficialCapacityBonus = Math.floor(ideologyRuleMods.official_capacity?._global || 0);
         // tax_modifier: 作用于整体征税倍率，和 taxIncome 区分开
         bonuses.ideoTaxModifier = ideologyRuleMods.tax_modifier?._global || 0;
         // cooldown_mod: 供外交/军事/策略行动统一读取
@@ -8798,8 +8800,8 @@ export const simulateTick = ({
         activeFronts, // [NEW] 活跃战线
         activeBattles, // [NEW] 进行中的战斗
         officials: updatedOfficials, // 更新后的官员列表（含财务数据?
-        // 计算有效官员容量（基于时代、政体和科技?
-        effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
+        // 计算有效官员容量（基于时代、政体、科技和理念）
+        effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked, bonuses.ideoOfficialCapacityBonus || 0),
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation

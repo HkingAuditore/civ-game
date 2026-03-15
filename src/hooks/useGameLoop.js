@@ -5785,7 +5785,10 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                     const aggressorId = warData.nationId;
                                     const aggressorName = warData.nationName;
 
-                                    // 瑙﹀彂鐜╁鐨勫鎴樺脊绐?
+                                    // 被宣战时自动暂停游戏，让玩家有时间应对
+                                    setIsPaused(true);
+
+                                    // 瑙﹀彂鐜╁鐨勫鎴樺脊绐?
                                     const aggressor = result.nations?.find(n => n.id === aggressorId);
                                     if (aggressor) {
                                         // [NEW] Pass warData to show appropriate message for vassal protection wars
@@ -5794,7 +5797,6 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                         }, warData);
                                         currentActions.triggerDiplomaticEvent(event);
                                     }
-
 
                                     // === 鎴樹簤鍚岀洘杩為攣鍙嶅簲閫昏緫 ===
                                     // 鏃㈢劧 simulation.js 浠呬粎瑙﹀彂浜嗕簨浠讹紝鎴戜滑闇€瑕佸湪杩欓噷澶勭悊澶嶆潅鐨勫悓鐩熼€昏緫
