@@ -1,6 +1,7 @@
 const RULE_MOD_TYPES = new Set([
     'building_cost_mod',
     'official_bonus',
+    'official_capacity',
     'tax_modifier',
     'cooldown_mod',
     'price_volatility_mod',

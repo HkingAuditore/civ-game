@@ -48,7 +48,7 @@ export const EPOCHS = [
         color: "text-amber-300",
         bg: "bg-amber-900",
         tileColor: "bg-amber-700",
-        req: { science: 1800, population: 90, culture: 250 },
+        req: { science: 1800, population: 150, culture: 250 },
         cost: { food: 20000, wood: 10000, brick: 3600, silver: 5000, tools: 1200, science: 1800 },
         bonuses: {
             desc: "哲学与艺术的萌芽，文明全方位提升。",
@@ -66,7 +66,7 @@ export const EPOCHS = [
         color: "text-blue-400",
         bg: "bg-blue-950",
         tileColor: "bg-blue-800",
-        req: { science: 4500, population: 170, culture: 600 },
+        req: { science: 4500, population: 400, culture: 600 },
         cost: { food: 100000, wood: 50000, brick: 25000, iron: 12500, papyrus: 5000, silver: 15000, science: 4500 },
         bonuses: {
             desc: "封建制度确立，人口与经济快速增长。",
@@ -84,7 +84,7 @@ export const EPOCHS = [
         color: "text-cyan-300",
         bg: "bg-cyan-900",
         tileColor: "bg-cyan-700",
-        req: { science: 8000, population: 320, culture: 1400 },
+        req: { science: 8000, population: 900, culture: 1400 },
         cost: { food: 260000, plank: 70000, brick: 60000, iron: 35000, silver: 40000, science: 8000 },
         bonuses: {
             desc: "大航海开启，贸易与工业蓬勃发展。",
@@ -102,7 +102,7 @@ export const EPOCHS = [
         color: "text-purple-400",
         bg: "bg-purple-950",
         tileColor: "bg-purple-800",
-        req: { science: 12000, population: 450, culture: 2500 },
+        req: { science: 12000, population: 1800, culture: 2500 },
         cost: { food: 350000, plank: 80000, papyrus: 30000, spice: 20000, silver: 50000, science: 12000 },
         bonuses: {
             desc: "理性的光辉照耀，科学与文化大幅提升。",
@@ -120,7 +120,7 @@ export const EPOCHS = [
         color: "text-gray-200",
         bg: "bg-gray-800",
         tileColor: "bg-gray-600",
-        req: { science: 20000, population: 650, culture: 4000 },
+        req: { science: 20000, population: 4500, culture: 4000 },
         cost: { food: 750000, brick: 180000, iron: 120000, tools: 75000, spice: 30000, silver: 120000, science: 20000 },
         bonuses: {
             desc: "机械化大生产，工业产能爆炸式增长。",
@@ -138,8 +138,8 @@ export const EPOCHS = [
         color: "text-sky-400",
         bg: "bg-sky-950",
         tileColor: "bg-sky-800",
-        req: { science: 30000, population: 800, culture: 6000 },
-        cost: { silver: 5000, steel: 50, coal: 100 },
+        req: { science: 30000, population: 8000, culture: 6000 },
+        cost: { food: 1500000, brick: 350000, iron: 200000, tools: 150000, silver: 280000, steel: 8000, coal: 15000, science: 30000 },
         bonuses: {
             desc: "电力驱动的第二次工业革命。石油化工、电力传输、汽车制造标志着新纪元的到来。",
             gatherBonus: 2.20,
@@ -156,8 +156,8 @@ export const EPOCHS = [
         color: "text-violet-400",
         bg: "bg-violet-950",
         tileColor: "bg-violet-800",
-        req: { science: 50000, population: 1200, culture: 12000 },
-        cost: { silver: 10000, oil: 80, wiring: 30, chemicals: 20 },
+        req: { science: 50000, population: 14000, culture: 12000 },
+        cost: { food: 3000000, brick: 600000, iron: 400000, tools: 280000, silver: 600000, steel: 25000, oil: 8000, wiring: 6000, chemicals: 4000, science: 50000 },
         bonuses: {
             desc: "核能释放、电子革命、塑料帝国。人类文明进入超级工业化阶段。",
             gatherBonus: 2.80,
@@ -174,8 +174,8 @@ export const EPOCHS = [
         color: "text-cyan-400",
         bg: "bg-cyan-950",
         tileColor: "bg-cyan-800",
-        req: { science: 80000, population: 1800, culture: 22000 },
-        cost: { silver: 20000, electronics: 15, plastics: 20, aluminum: 10 },
+        req: { science: 80000, population: 25000, culture: 22000 },
+        cost: { food: 6000000, brick: 1000000, iron: 700000, tools: 500000, silver: 1200000, steel: 60000, oil: 20000, electronics: 5000, plastics: 8000, aluminum: 4000, science: 80000 },
         bonuses: {
             desc: "硅片上的文明。半导体、互联网和可再生能源重塑人类社会。",
             gatherBonus: 3.50,
