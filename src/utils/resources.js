@@ -1,6 +1,6 @@
 // 资源相关的工具函数
 
-import { RESOURCES } from '../config';
+import { BUILDINGS, RESOURCES } from '../config';
 
 /**
  * 检查资源是否已解锁
@@ -25,6 +25,57 @@ export const isResourceUnlocked = (resourceKey, epoch, techsUnlocked = []) => {
     return false;
   }
   
+  return true;
+};
+
+/**
+ * 基于“已建成产出建筑”计算当前可稳定获得的资源集合
+ * @param {Object} buildingCounts - 建筑数量映射
+ * @returns {Set<string>} 可稳定获得的资源集合
+ */
+export const getAvailableResourceSet = (buildingCounts = {}) => {
+  const availableResources = new Set();
+
+  BUILDINGS.forEach((building) => {
+    const count = Number(buildingCounts?.[building.id] || 0);
+    if (count <= 0 || !building.output) {
+      return;
+    }
+
+    Object.entries(building.output).forEach(([resourceKey, amount]) => {
+      if (!RESOURCES[resourceKey] || !Number.isFinite(amount) || amount <= 0) {
+        return;
+      }
+      availableResources.add(resourceKey);
+    });
+  });
+
+  return availableResources;
+};
+
+/**
+ * 资源是否进入需求/生活水平/满意度体系
+ * 规则：已解锁 + 已具备稳定供给能力（已有产出建筑）
+ * @param {string} resourceKey
+ * @param {number} epoch
+ * @param {Array} techsUnlocked
+ * @param {Set<string>|null} availableResources
+ * @returns {boolean}
+ */
+export const isResourceDemandActive = (
+  resourceKey,
+  epoch,
+  techsUnlocked = [],
+  availableResources = null
+) => {
+  if (!isResourceUnlocked(resourceKey, epoch, techsUnlocked)) {
+    return false;
+  }
+
+  if (availableResources && !availableResources.has(resourceKey)) {
+    return false;
+  }
+
   return true;
 };
 
