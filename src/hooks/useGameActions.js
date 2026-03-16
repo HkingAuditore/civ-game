@@ -555,6 +555,13 @@ export const useGameActions = (gameState, addLog) => {
             setPendingDiplomaticEvents(prev => [...prev, event]);
             return;
         }
+        // 事件弹出时自动暂停游戏，保存触发前的暂停状态
+        if (typeof gameState.setPausedBeforeEvent === 'function') {
+            gameState.setPausedBeforeEvent(gameState.isPaused);
+        }
+        if (typeof gameState.setIsPaused === 'function') {
+            gameState.setIsPaused(true);
+        }
         setCurrentEvent(event);
         setEventHistory(prev => [...(prev || []), event.id]);
     };
@@ -2103,7 +2110,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog('选拔仍在冷却中。');
             return;
         }
-        const candidates = triggerSelection(epoch, popStructure, classInfluence, market, rates);
+        const candidates = triggerSelection(epoch, popStructure, classInfluence, market, rates, officials || []);
         setOfficialCandidates(candidates);
         setLastSelectionDay(daysElapsed);
         addLog('已举行新一轮官员选拔，请查看候选人名单。');

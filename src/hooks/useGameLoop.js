@@ -753,6 +753,11 @@ difficulty, // 游戏难度
 
     // 浣跨敤ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
     const tickProcessingRef = useRef(false); // re-entrancy guard for high-speed ticks
+    // 记录每个阶层最后一次触发 brewing/plotting 事件的天数，防止短时间内反复弹出
+    const orgEventCooldownRef = useRef({}); // { [stratumKey_eventType]: lastTriggerDay }
+    const ORG_EVENT_COOLDOWN_DAYS = 60; // 同一阶层同类事件的冷却天数
+    // 记录已触发政变的官员ID，防止同一官员在状态更新前重复触发政变
+    const coupTriggeredOfficialIds = useRef(new Set());
     const stateRef = useRef({        resources,
         market,
         buildings,
@@ -1991,31 +1996,33 @@ difficulty, // 游戏难度
                 {
                     import('../logic/ideology/ideologyScoring').then(({ checkAndAwardIdeologyScore, checkEmergence, getEmergenceThreshold }) => {
                         import('../logic/ideology/ideologyEmergence').then(({ generateEmergenceCandidates }) => {
+                            // 使用stateRef.current获取最新状态，避免异步时序问题
+                            const latestState = stateRef.current;
                             // 计算当前贸易量（贸易路线价值之和）
-                            const _tradeVolume = (current.tradeRoutes?.routes || []).reduce((sum, r) => sum + (r.value || r.amount || 0), 0);
+                            const _tradeVolume = (latestState.tradeRoutes?.routes || []).reduce((sum, r) => sum + (r.value || r.amount || 0), 0);
                             // 构建当前在战国家列表（用于检测战争结束）
-                            const _curWarNations = (current.nations || [])
+                            const _curWarNations = (latestState.nations || [])
                                 .filter(n => n.isAtWar && !n.isRebelNation)
                                 .map(n => ({ id: n.id, warScore: n.warScore || 0, eventId: `${n.id}_${n.warStartDay || 0}` }));
                             const prevState = {
-                                techsUnlocked: current.techsUnlocked || [],
-                                epoch: current.epoch || 0,
-                                stability: current.stability || 50,
-                                completedChains: current.completedChains || 0,
+                                techsUnlocked: latestState.techsUnlocked || [],
+                                epoch: latestState.epoch || 0,
+                                stability: latestState.stability || 50,
+                                completedChains: latestState.completedChains || 0,
                                 // 上一tick的在战国家列表（用于检测战争结束）
                                 warNations: prevWarNationsRef.current,
                             };
                             const curState = {
-                                techsUnlocked: current.techsUnlocked || [],
-                                epoch: current.epoch || 0,
-                                stability: result.stability ?? current.stability ?? 50,
-                                population: result.population ?? current.population ?? 0,
-                                buildings: current.buildings || {},
+                                techsUnlocked: latestState.techsUnlocked || [],
+                                epoch: latestState.epoch || 0,
+                                stability: result.stability ?? latestState.stability ?? 50,
+                                population: result.population ?? latestState.population ?? 0,
+                                buildings: latestState.buildings || {},
                                 resources: adjustedResources,
-                                popStructure: result.popStructure || current.popStructure || {},
-                                classApproval: result.classApproval || current.classApproval || {},
-                                ideologyMilestones: current.ideologyMilestones || [],
-                                completedChains: result.completedChains ?? current.completedChains ?? 0,
+                                popStructure: result.popStructure || latestState.popStructure || {},
+                                classApproval: result.classApproval || latestState.classApproval || {},
+                                ideologyMilestones: latestState.ideologyMilestones || [],
+                                completedChains: result.completedChains ?? latestState.completedChains ?? 0,
                                 tradeVolume: _tradeVolume,
                                 warNations: _curWarNations,
                             };
@@ -2030,11 +2037,11 @@ difficulty, // 游戏难度
                             }
 
                             // 3. 涌现检查
-                            const newScore = (current.ideologyScore || 0) + scoreResult.scoreGained;
-                            const newSpent = current.ideologyScoreSpent || 0;
-                            const ownedCount = (current.ideologyCollection || []).length;
-                            if (!current.pendingIdeologyEmergence && checkEmergence(newScore, newSpent, ownedCount)) {
-                                const candidates = generateEmergenceCandidates(curState, current.ideologyCollection || []);
+                            const newScore = (latestState.ideologyScore || 0) + scoreResult.scoreGained;
+                            const newSpent = latestState.ideologyScoreSpent || 0;
+                            const ownedCount = (latestState.ideologyCollection || []).length;
+                            if (!latestState.pendingIdeologyEmergence && checkEmergence(newScore, newSpent, ownedCount)) {
+                                const candidates = generateEmergenceCandidates(curState, latestState.ideologyCollection || []);
                                 if (candidates.length > 0) {
                                     setIsPaused(true);
                                     setPendingIdeologyEmergence({ candidates });
@@ -2310,11 +2317,18 @@ difficulty, // 游戏难度
                         const triggerChance = Math.min(0.15, 0.02 * loyaltyFactor);
 
                         if (Math.random() < triggerChance) {
-                            // [FIX] 娣诲姞瀹夊叏妫€鏌ワ細纭繚鐩爣瀹樺憳鏈夋湁鏁堢殑ID锛岄伩鍏嶆剰澶栧垹闄ゅ叾浠栧畼鍛?
+                            // [FIX] 添加安全检查：确保目标官员有有效的ID，避免意外删除其他官员
                             const targetId = target.official.id;
                             if (!targetId) {
                                 console.error('[COUP BUG] Target official has no ID:', target.official);
                             }
+                            // [FIX] 防止同一官员在状态更新前重复触发政变（多tick竞态）
+                            if (coupTriggeredOfficialIds.current.has(targetId)) {
+                                // 该官员已触发政变，跳过
+                            } else {
+                                coupTriggeredOfficialIds.current.add(targetId);
+                                // 60秒后清除记录（防止内存泄漏，实际上官员已被移除）
+                                setTimeout(() => coupTriggeredOfficialIds.current.delete(targetId), 60000);
                             const newOfficials = officialsList.filter(o => o && o.id && o.id !== targetId);
                             const newBuildings = { ...(result.buildings || {}) };
                             const newBuildingUpgrades = { ...(result.buildingUpgrades || {}) };
@@ -2399,6 +2413,7 @@ difficulty, // 游戏难度
                             };
 
                             addLog('[官僚政变] ' + target.official.name + ' 携资叛逃，成立了 ' + rebelNation.name + '。');
+                            } // end else (not already triggered)
                         }
                     }
                 }
@@ -4868,6 +4883,17 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         const epochBlocksRebellion = stratumKey === 'unemployed' && currentEpoch <= 0;
                         const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, stratumKey);
                         const militaryIsRebelling = isMilitaryRebelling(updatedOrganizationStates);
+
+                        // brewing/plotting 事件冷却检查，防止组织度在阈值附近波动时反复弹出
+                        if (orgEvent.type === 'brewing' || orgEvent.type === 'plotting') {
+                            const cooldownKey = `${stratumKey}_${orgEvent.type}`;
+                            const lastTriggerDay = orgEventCooldownRef.current[cooldownKey] || 0;
+                            const currentDay = current.daysElapsed || 0;
+                            if (currentDay - lastTriggerDay < ORG_EVENT_COOLDOWN_DAYS) {
+                                continue; // 冷却中，跳过
+                            }
+                            orgEventCooldownRef.current[cooldownKey] = currentDay;
+                        }
 
                         // 鏋勫缓鍙涗贡鐘舵€佸璞′緵浜嬩欢浣跨敤
                         const rebellionStateForEvent = {

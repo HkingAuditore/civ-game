@@ -1108,7 +1108,8 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
     // 4. 获取当前时代可用兵种
     const availableUnits = getAvailableUnitsForEpoch(epoch);
     if (availableUnits.length === 0) {
-        const minFloor = WAR_ECONOMY?.MIN_ARMY_FLOOR || 10;
+        const minFloor = maxManpower > 0 ? Math.min(WAR_ECONOMY?.MIN_ARMY_FLOOR || 10, maxManpower) : 0;
+        if (minFloor === 0) return {};
         return { militia: Math.max(minFloor, Math.min(maxManpower, Math.floor(militaryBudget / 200))) };
     }
 
@@ -1209,9 +1210,9 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
         totalRecruited = Object.values(army).reduce((s, c) => s + c, 0);
     }
 
-    // 10. 保底：极端情况下至少有MIN_ARMY_FLOOR人步兵
-    const minFloor = WAR_ECONOMY?.MIN_ARMY_FLOOR || 10;
-    if (totalRecruited < minFloor) {
+    // 10. 保底：极端情况下至少有MIN_ARMY_FLOOR人步兵（受人口上限约束，人口不足时不保底）
+    const minFloor = maxManpower > 0 ? Math.min(WAR_ECONOMY?.MIN_ARMY_FLOOR || 10, maxManpower) : 0;
+    if (minFloor > 0 && totalRecruited < minFloor) {
         // 选当前时代最便宜的步兵
         const fallbackInfantry = infantryUnits.length > 0
             ? infantryUnits.reduce((best, id) => {

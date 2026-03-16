@@ -2320,9 +2320,7 @@ function GameApp({ gameState }) {
                 isOpen={showSaveTransferModal}
                 onClose={() => setShowSaveTransferModal(false)}
                 onExportFile={handleExportSave}
-                onExportClipboard={handleExportClipboard}
                 onImportFile={handleImportSave}
-                onImportClipboard={handleImportFromClipboard}
             />
 
             {/* 成就弹窗 */}

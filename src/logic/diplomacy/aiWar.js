@@ -333,6 +333,29 @@ export const checkRebelSurrender = ({
     const lastRebelPeaceRequest = Number.isFinite(next.lastPeaceRequestDay) ? next.lastPeaceRequestDay : -Infinity;
     const canRebelRequestPeace = (tick - lastRebelPeaceRequest) >= 30;
 
+    // 强制投降：人口或财富跌破生存底线时，无视冷却时间立即投降
+    const rebelPopulation = next.population || 0;
+    const rebelWealth = next.wealth || 0;
+    const REBEL_SURRENDER_MIN_POPULATION = 10;
+    const REBEL_SURRENDER_MIN_WEALTH = 1000;
+
+    if (!next.isPeaceRequesting) {
+        if (rebelPopulation < REBEL_SURRENDER_MIN_POPULATION) {
+            next.isPeaceRequesting = true;
+            next.peaceTribute = 0;
+            next.lastPeaceRequestDay = tick;
+            logs.push(`🏳️ ${next.name} 人口已不足 ${REBEL_SURRENDER_MIN_POPULATION} 人，无力为继，被迫投降！`);
+            return;
+        }
+        if (rebelWealth < REBEL_SURRENDER_MIN_WEALTH) {
+            next.isPeaceRequesting = true;
+            next.peaceTribute = 0;
+            next.lastPeaceRequestDay = tick;
+            logs.push(`🏳️ ${next.name} 财富已耗尽（剩余 ${Math.floor(rebelWealth)} 银币），无法维持战争，被迫投降！`);
+            return;
+        }
+    }
+
     if (canRebelRequestPeace && !next.isPeaceRequesting) {
         const desperationLevel = Math.max(0, rebelWarScore - 20) / 100 + Math.max(0, rebelWarDuration - 60) / 500;
         const surrenderChance = Math.min(0.4, desperationLevel * 0.5);
@@ -2619,11 +2642,12 @@ export const syncAINationMilitary = ({
     const totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
 
     // [FIX] Enforce population-based army cap: armies can't exceed what population can sustain
+    // maxManpower >= 0 ensures the cap is enforced even when population is tiny (maxManpower=0)
     const population = updatedNation.population || 100;
     const wartimeMobilizationBonus = updatedNation.isAtWar ? 0.008 : 0;
     const manpowerRatio = Math.min(0.026, 0.008 + (epoch || 0) * 0.0015 + wartimeMobilizationBonus);
     const maxManpower = Math.floor(population * manpowerRatio * 1.1); // 1.1x slight buffer
-    if (totalUnits > maxManpower && maxManpower > 0) {
+    if (totalUnits > maxManpower && maxManpower >= 0) {
         const shrinkRatio = maxManpower / totalUnits;
         allNationCorps.forEach(corps => {
             if (corps.units) {
