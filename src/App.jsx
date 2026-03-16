@@ -315,6 +315,9 @@ function GameApp({ gameState }) {
     const [showDifficultyModal, setShowDifficultyModal] = useState(false); // 难度选择弹窗
     const [showSaveSlotModal, setShowSaveSlotModal] = useState(false); // 存档槽位弹窗
     const [saveSlotModalMode, setSaveSlotModalMode] = useState('save'); // 'save' | 'load'
+    // 未保存进度保护：pendingAction 记录用户原本想执行的操作（'load' | 'newGame'）
+    const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
+    const [pendingAction, setPendingAction] = useState(null); // { type: 'load' | 'newGame' }
     const [showEmpireScene, setShowEmpireScene] = useState(false);
     const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
     const [warfrontFocusRequest, setWarfrontFocusRequest] = useState(null);
@@ -1155,14 +1158,55 @@ function GameApp({ gameState }) {
     };
 
     const handleLoadManual = () => {
-        // 打开加载弹窗
+        // 有游戏进度时先弹出保护确认，防止丢失未保存进度
+        if ((gameState.daysElapsed ?? 0) > 0) {
+            setPendingAction({ type: 'load' });
+            setShowUnsavedConfirm(true);
+            return;
+        }
         setSaveSlotModalMode('load');
         setShowSaveSlotModal(true);
+    };
+
+    // 未保存进度确认：先保存再继续
+    const handleUnsavedSaveFirst = () => {
+        setShowUnsavedConfirm(false);
+        // 先打开保存弹窗，保存完成后再执行 pendingAction
+        setSaveSlotModalMode('save');
+        setShowSaveSlotModal(true);
+    };
+
+    // 未保存进度确认：直接丢弃进度继续
+    const handleUnsavedDiscard = () => {
+        const action = pendingAction;
+        setShowUnsavedConfirm(false);
+        setPendingAction(null);
+        if (action?.type === 'load') {
+            setSaveSlotModalMode('load');
+            setShowSaveSlotModal(true);
+        } else if (action?.type === 'newGame') {
+            setShowDifficultyModal(true);
+        }
+    };
+
+    // 未保存进度确认：取消
+    const handleUnsavedCancel = () => {
+        setShowUnsavedConfirm(false);
+        setPendingAction(null);
     };
 
     const handleSaveToSlot = (slotIndex) => {
         gameState.saveGame({ slotIndex });
         setShowSaveSlotModal(false);
+        // 保存完成后，若有待执行的操作（如加载存档/新游戏），继续执行
+        if (pendingAction?.type === 'load') {
+            setPendingAction(null);
+            setSaveSlotModalMode('load');
+            setShowSaveSlotModal(true);
+        } else if (pendingAction?.type === 'newGame') {
+            setPendingAction(null);
+            setShowDifficultyModal(true);
+        }
     };
 
     const handleLoadFromSlot = (slotIndex) => {
@@ -1249,7 +1293,15 @@ function GameApp({ gameState }) {
                             onSaveTransfer={() => setShowSaveTransferModal(true)}
                             onAchievements={() => setShowAchievementsModal(true)}
                             onSettings={() => setIsSettingsOpen(true)}
-                            onReset={() => setShowDifficultyModal(true)}
+                            onReset={() => {
+                                // 有游戏进度时先弹出保护确认，防止丢失未保存进度
+                                if ((gameState.daysElapsed ?? 0) > 0) {
+                                    setPendingAction({ type: 'newGame' });
+                                    setShowUnsavedConfirm(true);
+                                } else {
+                                    setShowDifficultyModal(true);
+                                }
+                            }}
                             onTutorial={handleReopenTutorial}
                             onWiki={() => setIsWikiOpen(true)}
                             onDonate={() => setShowDonateModal(true)}
@@ -1259,7 +1311,7 @@ function GameApp({ gameState }) {
                     }
                 />
             </div>
-            {/* 移动端游戏控制 - 位于底部导航栏右上方，留有间距 */}
+            {/* 移动端游戏控制            {/* 移动端游戏控制 - 位于底部导航栏右上方，留有间距 */}
             <div className="lg:hidden fixed bottom-[68px] right-2 z-40 game-controls-landscape" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 <div className="scale-[0.9] origin-bottom-right">
                     <GameControls
@@ -1272,7 +1324,14 @@ function GameApp({ gameState }) {
                         onSaveTransfer={() => setShowSaveTransferModal(true)}
                         onAchievements={() => setShowAchievementsModal(true)}
                         onSettings={() => setIsSettingsOpen(true)}
-                        onReset={() => setShowDifficultyModal(true)}
+                        onReset={() => {
+                            if ((gameState.daysElapsed ?? 0) > 0) {
+                                setPendingAction({ type: 'newGame' });
+                                setShowUnsavedConfirm(true);
+                            } else {
+                                setShowDifficultyModal(true);
+                            }
+                        }}
                         onTutorial={handleReopenTutorial}
                         onWiki={() => setIsWikiOpen(true)}
                         onDonate={() => setShowDonateModal(true)}
@@ -2319,6 +2378,44 @@ function GameApp({ gameState }) {
                 }}
                 onCancel={() => setShowDifficultyModal(false)}
             />
+
+            {/* 未保存进度保护确认弹窗 */}
+            {showUnsavedConfirm && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/80" onClick={handleUnsavedCancel} />
+                    <div className="relative bg-gray-800 border border-amber-500/50 rounded-xl p-5 max-w-sm mx-4 shadow-2xl">
+                        <div className="flex items-center gap-2 mb-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            <h3 className="text-base font-bold text-amber-300">当前进度未保存</h3>
+                        </div>
+                        <p className="text-sm text-gray-300 mb-4">
+                            {pendingAction?.type === 'load' ? '读取存档' : '另开新档'}将会丢失当前未保存的游戏进度。
+                            <br />
+                            <span className="text-xs text-gray-400">是否先保存当前进度？</span>
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <button
+                                onClick={handleUnsavedSaveFirst}
+                                className="w-full px-3 py-2 rounded-lg text-sm font-bold bg-green-700 hover:bg-green-600 text-white transition-colors"
+                            >
+                                先保存，再继续
+                            </button>
+                            <button
+                                onClick={handleUnsavedDiscard}
+                                className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-red-300 transition-colors"
+                            >
+                                直接继续（丢弃进度）
+                            </button>
+                            <button
+                                onClick={handleUnsavedCancel}
+                                className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-gray-800 hover:bg-gray-700 text-gray-400 transition-colors"
+                            >
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* 存档槽位选择弹窗 */}
             <SaveSlotModal

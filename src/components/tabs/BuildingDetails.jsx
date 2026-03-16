@@ -340,6 +340,20 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         return summary;
     }, [foreignInvestments, nations, building.id]);
 
+    // 计算该建筑的代经营（国有）数量：读取官员的 managedBuildings 字段
+    const stateOwnership = useMemo(() => {
+        const summary = { count: 0, managers: {} };
+        (officials || []).forEach(official => {
+            (official.managedBuildings || []).forEach(mb => {
+                if (mb.buildingId !== building.id) return;
+                summary.count += 1;
+                const managerName = official.name || official.id || '未知官员';
+                summary.managers[managerName] = (summary.managers[managerName] || 0) + 1;
+            });
+        });
+        return summary;
+    }, [officials, building.id]);
+
     // 计算升级后的聚合效果（总值）和平均值
     const { effectiveTotalStats, averageBuilding } = useMemo(() => {
         const upgradeData = upgradeLevels || {};
@@ -402,6 +416,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 totalStats.jobs[ownerRole] = Math.max(0, totalStats.jobs[ownerRole] - slotsToRemove);
             }
 
+            // ========== 修正业主岗位：减去代经营（国有）数量 ==========
+            // 代经营建筑产权属于国家，不提供阶层业主岗位
+            if (ownerRole && totalStats.jobs[ownerRole] && stateOwnership.count > 0) {
+                const ownerSlotsPerBuilding = building.jobs?.[ownerRole] || 0;
+                const slotsToRemove = ownerSlotsPerBuilding * stateOwnership.count;
+                totalStats.jobs[ownerRole] = Math.max(0, totalStats.jobs[ownerRole] - slotsToRemove);
+            }
+
             // ========== 修正业主岗位：减去外资投资数量 ==========
             // 外资投资的产业由外国业主经营，不应计算为本地业主岗位
             if (ownerRole && totalStats.jobs[ownerRole] && foreignOwnership.count > 0) {
@@ -431,6 +453,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             // 注：如果官员投资的是升级后的建筑，这里会有少许误差，但影响不大
             const ownerSlotsPerBuilding = building.jobs?.[ownerRole] || 0;
             const slotsToRemove = ownerSlotsPerBuilding * officialOwnership.count;
+            effectiveOps.jobs[ownerRole] = Math.max(0, effectiveOps.jobs[ownerRole] - slotsToRemove);
+        }
+
+        // ========== 修正业主岗位：减去代经营（国有）数量 ==========
+        // 代经营建筑产权属于国家，不提供阶层业主岗位
+        if (ownerRole && effectiveOps.jobs[ownerRole] && stateOwnership.count > 0) {
+            const ownerSlotsPerBuilding = building.jobs?.[ownerRole] || 0;
+            const slotsToRemove = ownerSlotsPerBuilding * stateOwnership.count;
             effectiveOps.jobs[ownerRole] = Math.max(0, effectiveOps.jobs[ownerRole] - slotsToRemove);
         }
 
@@ -1168,7 +1198,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         <DetailSection title="业主构成" icon="Users">
                             {/* 本国商人业主 */}
                             {(() => {
-                                const stratumCount = Math.max(0, count - officialOwnership.count - foreignOwnership.count);
+                                // 阶层业主 = 总数 - 官员私产 - 代经营（国有）- 外资
+                                const stratumCount = Math.max(0, count - officialOwnership.count - stateOwnership.count - foreignOwnership.count);
                                 const stratumColors = getOwnerTypeColors('stratum');
                                 return stratumCount > 0 ? (
                                     <div className={`p-2 rounded-lg ${stratumColors.bg} border ${stratumColors.border} mb-2`}>
@@ -1186,6 +1217,38 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         </div>
                                     </div>
                                 ) : null;
+                            })()}
+
+                            {/* 代经营（国有企业） */}
+                            {stateOwnership.count > 0 && (() => {
+                                const stateColors = getOwnerTypeColors('state');
+                                return (
+                                    <div className={`p-2 rounded-lg ${stateColors.bg} border ${stateColors.border} mb-2`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className={`flex items-center gap-1.5 ${stateColors.text} text-sm font-semibold`}>
+                                                <Icon name={getOwnerTypeIcon('state')} size={14} />
+                                                {OWNER_TYPE_LABELS.state}
+                                            </span>
+                                            <span className={`font-mono font-bold ${stateColors.text}`}>
+                                                {stateOwnership.count} 座
+                                            </span>
+                                        </div>
+                                        <div className="mt-1.5 space-y-1">
+                                            {Object.entries(stateOwnership.managers).map(([name, managedCount]) => (
+                                                <div
+                                                    key={`state-manager-${name}`}
+                                                    className="flex items-center justify-between text-xs px-2 py-1 rounded bg-black/20"
+                                                >
+                                                    <span className="text-gray-300">{name}</span>
+                                                    <span className={`font-mono ${stateColors.text}`}>{managedCount} 座</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="mt-1 text-xs text-gray-500">
+                                            国有代经营，不提供业主岗位
+                                        </div>
+                                    </div>
+                                );
                             })()}
 
                             {/* 官员私产 */}

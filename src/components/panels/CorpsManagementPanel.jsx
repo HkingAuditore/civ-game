@@ -4,7 +4,7 @@
  */
 import React, { useState, useMemo, useRef, useCallback, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES } from '../../config';
+import { UNIT_TYPES, calculateBattlePower } from '../../config';
 import {
     createCorps,
     assignUnitsToCorps,
@@ -145,6 +145,8 @@ const CorpsManagementPanel = ({
     corpsReplenishQueue = {},
     onUpdateCorpsReplenishQueue,
     autoRecruitEnabled = false,
+    militaryBonus = 0,
+    ideologyRuleMods = {},
 }) => {
     const [selectedCorpsId, setSelectedCorpsId] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -391,6 +393,25 @@ const CorpsManagementPanel = ({
                                                 战斗中
                                             </span>
                                         )}
+                                        {/* 战力显示：基于军团内单位计算，含将领加成 */}
+                                        {unitCount > 0 && (() => {
+                                            const generalBonus = general ? (militaryBonus + (general.bonuses?.attack || 0)) : militaryBonus;
+                                            // 无将领时战力-15%
+                                            const noGeneralPenalty = general ? 0 : -0.15;
+                                            const corpsRuleMods = {
+                                                ...ideologyRuleMods,
+                                                unitAttackMod: {
+                                                    ...(ideologyRuleMods.unitAttackMod || {}),
+                                                    _global: ((ideologyRuleMods.unitAttackMod?._global || 0) + noGeneralPenalty),
+                                                },
+                                            };
+                                            const power = calculateBattlePower(corps.units || {}, epoch, generalBonus, 50, corpsRuleMods);
+                                            return (
+                                                <span className="text-xs text-gray-500">
+                                                    战力: <span className="text-purple-300 font-mono">{formatNumberShortCN(Math.round(power))}</span>
+                                                </span>
+                                            );
+                                        })()}
                                         <span className="text-xs text-gray-500">
                                             士气: <span className={corps.morale > 70 ? 'text-green-400' : corps.morale > 40 ? 'text-yellow-400' : 'text-red-400'}>{Math.round(corps.morale)}</span>
                                         </span>

@@ -210,7 +210,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: -0.25,        // More negative effect (was -0.15)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 7.0,    // 700% inventory target (was 5.0)
+        inventoryTargetDaysMultiplier: 2.0,    // 700% inventory target (was 5.0)
         aiDevelopmentMultiplier: 2.0,          // 200% AI development speed [Reduced from 5.0 to curb AI snowball]
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.5,           // 50% tax tolerance (was 0.6)
@@ -264,7 +264,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: -0.45,        // More negative stability effect (was -0.3)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 18.0,   // 1800% inventory target (was 12.0)
+        inventoryTargetDaysMultiplier: 2.80,   // 1800% inventory target (was 12.0)
         aiDevelopmentMultiplier: 3.0,          // 300% AI development speed [Reduced from 8.0 to curb AI snowball]
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.2,           // 20% tax tolerance (was 0.3)
@@ -316,8 +316,8 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: -0.8,         // Severe negative stability effect (was -0.6)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 35.0,   // 3500% inventory target (was 25.0)
-        aiDevelopmentMultiplier: 4.0,          // 400% AI development speed [Reduced from 11.0 to curb AI snowball]
+        inventoryTargetDaysMultiplier: 3.5,    // 350% inventory target (was 35.0, corrected: removed extra zero)
+        aiDevelopmentMultiplier: 4.0,         // 400% AI development speed [Reduced from 11.0 to curb AI snowball]
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.1,           // 10% tax tolerance (was 0.15)
         resourceConsumptionMultiplier: 15.0,   // 1500% consumption (was 10.0)
@@ -326,7 +326,7 @@ export const DIFFICULTY_CONFIG = {
         startingSilverMultiplier: 12.0,        // Increased starting silver (was 10.0)
         populationGrowthMultiplier: 0.1,       // 10% growth rate (was 0.15)
         buildingUpgradeCostMultiplier: 18.0,   // 1800% upgrade cost (was 12.0)
-        armyMaintenanceMultiplier: 5.5,        // 550% army maintenance (was 4.0)
+        armyMaintenanceMultiplier: 4.0,        // 400% army maintenance (was 5.5, reduced: too punishing)
         maxConsumptionMultiplierBonus: 18,     // +18 to max consumption (was 15)
 
         // Diplomacy/Relations modifiers

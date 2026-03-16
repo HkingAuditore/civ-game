@@ -1979,16 +1979,13 @@ export const generateEnemyCorpsForFront = (front, enemyNation, epoch, generateNa
             console.warn(`[frontSystem] AI corps for ${enemyNation?.name} had 0 units, fallback to ${fallbackId} x${MIN_FALLBACK}`);
         }
 
-        // Generate a general for this corps
+        // Generate a general for this corps (null when epoch < 1 / Bronze Age not yet reached)
         const general = generateGeneral(epoch);
-        general.id = `ai_gen_${front.id}_${Date.now()}_${i}`;
-        general.assignedCorpsId = corpsId;
-
         const corps = {
             id: corpsId,
             name: `${enemyNation.name || '敌军'} ${corpsNames[i] || `第${i + 1}军团`}`,
             units: army,
-            generalId: general.id,
+            generalId: general ? general.id : null,
             assignedFrontId: front.id,
             status: 'deployed',
             morale: 80 + Math.floor(Math.random() * 20),
@@ -1996,8 +1993,13 @@ export const generateEnemyCorpsForFront = (front, enemyNation, epoch, generateNa
             nationId: enemyNation.id,
         };
 
+        if (general) {
+            general.id = `ai_gen_${front.id}_${Date.now()}_${i}`;
+            general.assignedCorpsId = corpsId;
+            enemyGenerals.push(general);
+        }
+
         enemyCorps.push(corps);
-        enemyGenerals.push(general);
     }
 
     return { enemyCorps, enemyGenerals };
