@@ -6867,22 +6867,25 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                                     style: 'success',
                                                     effects: {},
                                                     callback: () => {
-                                                        // 鎺ュ彈鍜屽钩锛岀粨鏉熸垬浜?
-                                                        setNations(prev => prev.map(n => n.id === eventData.nationId ? {
-                                                            ...n,
-                                                            isAtWar: false,
-                                                            warScore: 0,
-                                                            warDuration: 0,
-                                                            peaceTreatyUntil: current.daysElapsed + 365, // 1骞村拰骞虫潯绾?
-                                                            isMercyPeaceOffering: false,
-                                                            relation: Math.min(100, (n.relation || 50) + 10), // 鍏崇郴鐣ュ井鏀瑰杽
-                                                        } : n));
-                                                        addLog('[停战达成] 你接受了 ' + eventData.nationName + ' 的和平提议，战争结束。');
+                                                        if (typeof currentActions?.handleEnemyPeaceAccept === 'function') {
+                                                            currentActions.handleEnemyPeaceAccept(eventData.nationId, 'peace_only', 0);
+                                                        } else {
+                                                            setNations(prev => prev.map(n => n.id === eventData.nationId ? {
+                                                                ...n,
+                                                                isAtWar: false,
+                                                                warScore: 0,
+                                                                warDuration: 0,
+                                                                peaceTreatyUntil: current.daysElapsed + 365,
+                                                                isMercyPeaceOffering: false,
+                                                                relation: Math.min(100, (n.relation || 50) + 10),
+                                                            } : n));
+                                                            addLog('[停战达成] 你接受了 ' + eventData.nationName + ' 的和平提议，战争结束。');
+                                                        }
                                                     },
                                                 },
                                                 {
                                                     id: 'reject',
-                                                    text: '鈿旓笍 鎷掔粷',
+                                                    text: '婉拒停战',
                                                     description: '继续战争（不推荐）',
                                                     style: 'danger',
                                                     effects: {},
