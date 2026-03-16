@@ -19,7 +19,7 @@ import { calculateFrontEconomicImpact } from '../../logic/diplomacy/frontSystem'
 const WAR_SCORE_GUIDE = [
     {
         title: '压倒性胜利',
-        range: '战分 ≥ 350',
+        range: '战分 ≥ 500',
         color: 'text-emerald-300',
         tips: [
             '可要求吞并整国、超高额赔款或一次性分期巨额赔款',
@@ -28,7 +28,7 @@ const WAR_SCORE_GUIDE = [
     },
     {
         title: '大胜',
-        range: '150 ~ 349',
+        range: '150 ~ 499',
         color: 'text-green-300',
         tips: [
             '可要求高额赔款或长期分期付款',

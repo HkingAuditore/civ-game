@@ -3152,7 +3152,7 @@ difficulty, // 游戏难度
                                     return {
                                         ...f,
                                         activeBattleId: updatedBattle.status === 'active' ? updatedBattle.id : null,
-                                        warScore: Math.max(-200, Math.min(200, getFrontWarScoreTotal(warScoreBreakdown))),
+                                        warScore: Math.max(-500, Math.min(500, getFrontWarScoreTotal(warScoreBreakdown))),
                                         warScoreBreakdown,
                                     };
                                 });
@@ -3897,7 +3897,7 @@ difficulty, // 游戏难度
                                 raidIntensity: resolvedSummary.raidIntensity,
                                 entrenchment: resolvedSummary.entrenchment,
                                 contestedZone: resolvedSummary.contestedZone,
-                                warScore: Math.max(-200, Math.min(200, getFrontWarScoreTotal(nextWarScoreBreakdown))),
+                                warScore: Math.max(-500, Math.min(500, getFrontWarScoreTotal(nextWarScoreBreakdown))),
                                 warScoreBreakdown: nextWarScoreBreakdown,
                                 economicDamageBreakdown: {
                                     supplyLineDamage: Number(advancedFront.economicDamageBreakdown?.supplyLineDamage || 0),
@@ -6046,18 +6046,29 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                     debugLog('event', '[EVENT DEBUG] Found nation:', nation?.name, 'isPeaceRequesting:', nation?.isPeaceRequesting);
                                     if (nation && nation.isPeaceRequesting) {
                                         debugLog('event', '[EVENT DEBUG] Creating peace request event...');
+                                        // 优先从战线系统读取战争分数（上限±200），nation.warScore 被限制在±100
+                                        const nationFronts = (activeFronts || []).filter(f =>
+                                            f?.status === 'active' && (
+                                                (f.attackerId === nation.id && f.defenderId === 'player') ||
+                                                (f.attackerId === 'player' && f.defenderId === nation.id)
+                                            )
+                                        );
+                                        const frontWarScore = nationFronts.length > 0
+                                            ? nationFronts.reduce((sum, f) => sum + (f.warScore || 0), 0)
+                                            : null;
+                                        const effectiveWarScore = frontWarScore !== null ? frontWarScore : (nation.warScore || 0);
                                         debugLog('event', '[EVENT DEBUG] Parameters:', {
                                             nation: nation.name,
                                             nationId: nation.id,
                                             tribute,
-                                            warScore: nation.warScore || 0,
+                                            warScore: effectiveWarScore,
                                             population: nation.population
                                         });
                                         try {
                                             const event = createEnemyPeaceRequestEvent(
                                                 nation,
                                                 tribute,
-                                                nation.warScore || 0,
+                                                effectiveWarScore,
                                                 (accepted, proposalType, amount) => {
                                                     // 处理和平请求的回调
                                                     if (accepted) {

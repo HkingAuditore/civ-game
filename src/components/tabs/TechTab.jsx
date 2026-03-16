@@ -444,16 +444,6 @@ const TechTabComponent = ({
                         <div className="mb-2">
                             <p className="text-xs text-gray-400 mb-1">升级要求：</p>
                             <div className="flex flex-wrap gap-2">
-                                {nextEpochInfo.req.science && (
-                                    <span
-                                        className={`text-xs px-2 py-1 rounded ${(resources.science || 0) >= nextEpochInfo.req.science
-                                            ? 'bg-green-900/30 text-green-400'
-                                            : 'bg-red-900/30 text-red-400'
-                                            }`}
-                                    >
-                                        {RESOURCES.science?.name || '科研'}: {(resources.science || 0).toFixed(0)} / {nextEpochInfo.req.science}
-                                    </span>
-                                )}
                                 {nextEpochInfo.req.population && (
                                     <span
                                         className={`text-xs px-2 py-1 rounded ${population >= nextEpochInfo.req.population
@@ -526,11 +516,7 @@ const TechTabComponent = ({
                                 '条件不足'
                             )}
                         </button>
-                        {!epochTechRequirement.isTechRequirementMet && (
-                            <p className="mt-2 text-xs text-red-400">
-                                需要先完成本时代科技：已研发 {epochTechRequirement.currentEpochResearched}/{epochTechRequirement.currentEpochTechTotal}，至少需要 {epochTechRequirement.requiredTechCount} 项。
-                            </p>
-                        )}
+
                     </div>
                 )}
 

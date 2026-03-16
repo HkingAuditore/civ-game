@@ -4079,7 +4079,17 @@ export const useGameActions = (gameState, addLog) => {
                     addLog('当前并未与该国交战。');
                     return;
                 }
-                const warScore = targetNation.warScore || 0;
+                // 优先从战线系统读取战争分数（上限±200），nation.warScore 被限制在±100 不够精确
+                const relevantFronts = (activeFronts || []).filter(f =>
+                    f?.status === 'active' && (
+                        (f.attackerId === nationId && f.defenderId === 'player') ||
+                        (f.attackerId === 'player' && f.defenderId === nationId)
+                    )
+                );
+                const frontWarScore = relevantFronts.length > 0
+                    ? relevantFronts.reduce((sum, f) => sum + (f.warScore || 0), 0)
+                    : null;
+                const warScore = frontWarScore !== null ? frontWarScore : (targetNation.warScore || 0);
                 const warDuration = targetNation.warDuration || 0;
                 const enemyLosses = targetNation.enemyLosses || 0;
                 // 触发玩家和平提议事件
