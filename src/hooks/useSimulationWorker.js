@@ -206,8 +206,47 @@ export function useSimulationWorker() {
         return Promise.resolve(simulateTick(gameState));
     }, [isUsingWorker]);
 
+    /**
+     * [PERF] 低频同步history数据到worker缓存
+     * 避免每tick都通过postMessage传输大量history数据
+     * @param {Object} historyData - { classWealthHistory, classNeedsHistory }
+     */
+    const syncHistory = useCallback((historyData) => {
+        if (workerRef.current && isUsingWorker) {
+            try {
+                workerRef.current.postMessage({
+                    type: 'SYNC_HISTORY',
+                    payload: historyData
+                });
+            } catch (e) {
+                // 同步失败不影响主流程
+                console.warn('[SimulationWorker] syncHistory failed:', e);
+            }
+        }
+    }, [isUsingWorker]);
+
+    /**
+     * [PERF] 控制Worker端调试数据传输开关
+     * 关闭时worker会从返回payload中剔除buildingDebugData、_perf.sections、modifiers.sources
+     * @param {boolean} enabled - 是否启用调试数据传输
+     */
+    const setDebugMode = useCallback((enabled) => {
+        if (workerRef.current && isUsingWorker) {
+            try {
+                workerRef.current.postMessage({
+                    type: 'SET_DEBUG',
+                    payload: { enabled }
+                });
+            } catch (e) {
+                console.warn('[SimulationWorker] setDebugMode failed:', e);
+            }
+        }
+    }, [isUsingWorker]);
+
     return {
         runSimulation,
+        syncHistory,
+        setDebugMode,
         isUsingWorker,
         workerError
     };

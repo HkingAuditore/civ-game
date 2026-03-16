@@ -40,10 +40,106 @@ export const RATE_LIMIT_CONFIG = {
     
     // Building upgrade distribution cache validation: every N ticks
     buildingCacheValidation: 10,
+
+    // === 新增：deferred级频率配置 ===
+    // 官员系统模拟：每N个tick执行一次
+    officialSimFrequency: 5,
+    // 内阁机制：每N个tick执行一次
+    cabinetFrequency: 5,
+    // 叛乱系统：每N个tick执行一次
+    rebellionFrequency: 3,
+    // 人口外流与惩罚：每N个tick执行一次
+    exodusFrequency: 5,
+    // 价格收敛（条约效果）：每N个tick执行一次
+    priceConvergenceFrequency: 5,
+
+    // === 新增：batch级频率配置（超低频） ===
+    // 海外投资结算：每N个tick执行一次
+    overseasInvestmentFrequency: 20,
+    // 外国投资结算：每N个tick执行一次
+    foreignInvestmentFrequency: 20,
+
+    // === 新增：历史数据更新频率 ===
+    historyUpdateFrequency: 5,
+};
+
+// ============================================================================
+// 动态频率上下文（单例）
+// 每个tick开始时设置当前国家数量，shouldRunThisTick自动使用动态频率
+// ============================================================================
+const _dynamicContext = {
+    nationCount: 0,
+    isLowPerf: false,
+    isInitialized: false,
+};
+
+// ============================================================================
+// Tick预算保护机制
+// ============================================================================
+const TICK_BUDGET_MS = 150; // critical级完成后的时间预算上限
+const TICK_HARD_LIMIT_MS = 200; // 单tick绝对上限
+
+const _tickBudget = {
+    startTime: 0,
+    budgetExceeded: false,
+    consecutiveOverruns: 0,
 };
 
 /**
+ * 开始新tick的预算计时（在simulateTick入口处调用）
+ */
+export function startTickBudget() {
+    _tickBudget.startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    _tickBudget.budgetExceeded = false;
+}
+
+/**
+ * 检查当前tick是否超过预算（在critical级分段全部完成后调用）
+ * @returns {boolean} true表示超预算，应跳过后续deferred/batch操作
+ */
+export function checkTickBudget() {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const elapsed = now - _tickBudget.startTime;
+
+    if (elapsed >= TICK_BUDGET_MS) {
+        _tickBudget.budgetExceeded = true;
+        _tickBudget.consecutiveOverruns++;
+
+        // 连续3个tick超时，输出性能警告
+        if (_tickBudget.consecutiveOverruns >= 3 && _tickBudget.consecutiveOverruns % 3 === 0) {
+            console.warn(
+                `[Performance] ☢️ Tick预算连续${_tickBudget.consecutiveOverruns}次超限(${elapsed.toFixed(1)}ms >= ${TICK_BUDGET_MS}ms)，` +
+                `建议降低游戏速度或启用低性能模式`
+            );
+        }
+        return true;
+    }
+
+    _tickBudget.consecutiveOverruns = 0;
+    return false;
+}
+
+/**
+ * 获取当前tick是否超预算（不重新计算，仅读取状态）
+ */
+export function isTickBudgetExceeded() {
+    return _tickBudget.budgetExceeded;
+}
+
+/**
+ * 设置动态频率上下文（每tick入口处调用一次）
+ * @param {number} nationCount - 当前存活的AI国家数量
+ * @param {boolean} [isLowPerf=false] - 是否处于低性能模式
+ */
+export function setDynamicFrequencyContext(nationCount, isLowPerf = false) {
+    _dynamicContext.nationCount = nationCount;
+    _dynamicContext.isLowPerf = isLowPerf;
+    _dynamicContext.isInitialized = true;
+}
+
+/**
  * Check if a rate-limited operation should run this tick
+ * 自动结合动态频率上下文（国家数量 + 设备性能）计算实际频率
  * @param {number} tick - Current tick number
  * @param {string} operationType - Type of operation (key in RATE_LIMIT_CONFIG)
  * @param {boolean} forceRun - Override to force execution
@@ -52,10 +148,131 @@ export const RATE_LIMIT_CONFIG = {
 export function shouldRunThisTick(tick, operationType, forceRun = false) {
     if (forceRun) return true;
     
-    const frequency = RATE_LIMIT_CONFIG[`${operationType}Frequency`] || 
-                      RATE_LIMIT_CONFIG[operationType] || 1;
+    const baseFreq = RATE_LIMIT_CONFIG[`${operationType}Frequency`] || 
+                     RATE_LIMIT_CONFIG[operationType] || 1;
+    
+    // 如果动态上下文已初始化，使用动态频率；否则回退到基础频率
+    const priority = PERF_SEGMENT_PRIORITY[operationType] || TICK_PRIORITY.DEFERRED;
+    const frequency = _dynamicContext.isInitialized
+        ? getDynamicFrequency(baseFreq, _dynamicContext.nationCount, priority)
+        : baseFreq;
+    
+    // [PERF] Tick预算保护：超时时自动跳过非critical操作
+    if (_tickBudget.budgetExceeded && priority !== TICK_PRIORITY.CRITICAL) {
+        return false;
+    }
     
     return tick % frequency === 0;
+}
+
+// ============================================================================
+// 三级Tick频率优先级体系
+// ============================================================================
+
+/**
+ * Tick优先级枚举
+ * CRITICAL：每tick必须执行的收入/经济流转操作
+ * DEFERRED：可延迟数tick执行的决策/行动类操作
+ * BATCH：可大幅延迟执行的超低频操作（如20tick一次）
+ */
+export const TICK_PRIORITY = {
+    CRITICAL: 'critical',
+    DEFERRED: 'deferred',
+    BATCH: 'batch',
+};
+
+/**
+ * 所有35个性能分段的优先级映射
+ * 用于标识每个分段属于哪个频率级别
+ */
+export const PERF_SEGMENT_PRIORITY = {
+    // === CRITICAL级：每tick执行（收入/经济流转） ===
+    preProduction:      TICK_PRIORITY.CRITICAL,
+    ownerJobsAdjust:    TICK_PRIORITY.CRITICAL,
+    availableResources: TICK_PRIORITY.CRITICAL,
+    populationJobs:     TICK_PRIORITY.CRITICAL,
+    passiveGains:       TICK_PRIORITY.CRITICAL,
+    headTax:            TICK_PRIORITY.CRITICAL,
+    productionLoop:     TICK_PRIORITY.CRITICAL,
+    armyMaintenance:    TICK_PRIORITY.CRITICAL,
+    needsConsumption:   TICK_PRIORITY.CRITICAL,
+    socialEconomy:      TICK_PRIORITY.CRITICAL,
+    livingStandards:    TICK_PRIORITY.CRITICAL,
+    approvalCalc:       TICK_PRIORITY.CRITICAL,
+    wealthDecay:        TICK_PRIORITY.CRITICAL,
+    influenceCalc:      TICK_PRIORITY.CRITICAL,
+    stabilityCalc:      TICK_PRIORITY.CRITICAL,
+    marketEconomy:      TICK_PRIORITY.CRITICAL,
+    marketUpdate:       TICK_PRIORITY.CRITICAL,
+    vassalUpdates:      TICK_PRIORITY.CRITICAL,
+    buffsDebuffs:       TICK_PRIORITY.CRITICAL,
+    bonusesApply:       TICK_PRIORITY.CRITICAL,
+
+    // === DEFERRED级：低频执行（决策/行动类） ===
+    aiNationUpdate:       TICK_PRIORITY.DEFERRED,
+    diplomacyAI:          TICK_PRIORITY.DEFERRED,
+    officialsSim:         TICK_PRIORITY.DEFERRED,
+    cabinetMechanics:     TICK_PRIORITY.DEFERRED,
+    exodusAndPenalties:   TICK_PRIORITY.DEFERRED,
+    monthlyRelationDecay: TICK_PRIORITY.DEFERRED,
+    orgMonthly:           TICK_PRIORITY.DEFERRED,
+    migrationMonthly:     TICK_PRIORITY.DEFERRED,
+    rebellionDaily:       TICK_PRIORITY.DEFERRED,
+    priceConvergence:     TICK_PRIORITY.DEFERRED,
+
+    // === BATCH级：超低频执行 ===
+    overseasInvestments:  TICK_PRIORITY.BATCH,
+    overseasUpgrades:     TICK_PRIORITY.BATCH,
+    foreignInvestments:   TICK_PRIORITY.BATCH,
+    foreignUpgrades:      TICK_PRIORITY.BATCH,
+    manualTrade:          TICK_PRIORITY.BATCH,
+};
+
+/**
+ * 动态频率计算 — 根据AI国家数量和设备性能模式调整实际执行频率
+ * @param {number} baseFreq - 基础频率（来自RATE_LIMIT_CONFIG）
+ * @param {number} nationCount - 当前存活的AI国家数量
+ * @param {string} priority - TICK_PRIORITY中的优先级（用于决定缩放系数）
+ * @returns {number} 实际应使用的频率值
+ */
+export function getDynamicFrequency(baseFreq, nationCount, priority = TICK_PRIORITY.DEFERRED) {
+    // critical级始终每tick执行，不做动态调整
+    if (priority === TICK_PRIORITY.CRITICAL) return 1;
+
+    let freq = baseFreq;
+
+    // 根据AI国家数量缩放：超过15个时开始增大间隔
+    const NATION_THRESHOLD = 15;
+    if (nationCount > NATION_THRESHOLD) {
+        const scaleFactor = 1 + (nationCount - NATION_THRESHOLD) * 0.05;
+        freq = Math.round(freq * scaleFactor);
+    }
+
+    // 根据设备性能模式缩放（通过动态上下文传入，兼容worker环境）
+    if (_dynamicContext.isLowPerf) {
+        if (priority === TICK_PRIORITY.DEFERRED) {
+            freq = Math.round(freq * 1.5);
+        } else if (priority === TICK_PRIORITY.BATCH) {
+            freq = Math.round(freq * 2);
+        }
+    }
+
+    // 确保最小值为1
+    return Math.max(1, freq);
+}
+
+/**
+ * 获取指定操作在当前条件下的动态频率值
+ * 便捷函数，组合了RATE_LIMIT_CONFIG查找和getDynamicFrequency
+ * @param {string} operationType - 操作类型（RATE_LIMIT_CONFIG中的key）
+ * @param {number} nationCount - 当前存活AI国家数量
+ * @returns {number} 实际频率值
+ */
+export function getEffectiveFrequency(operationType, nationCount) {
+    const baseFreq = RATE_LIMIT_CONFIG[`${operationType}Frequency`] ||
+                     RATE_LIMIT_CONFIG[operationType] || 1;
+    const priority = PERF_SEGMENT_PRIORITY[operationType] || TICK_PRIORITY.DEFERRED;
+    return getDynamicFrequency(baseFreq, nationCount, priority);
 }
 
 // ============================================================================
@@ -283,4 +500,102 @@ export function resetAllDirty() {
     Object.keys(dirtyFlags).forEach(key => {
         dirtyFlags[key] = true;
     });
+}
+
+// ============================================================================
+// 帧率监控与性能日志
+// ============================================================================
+
+/**
+ * 帧率监控器
+ * 追踪tick执行帧率，检测到持续低帧率时提供回调通知
+ */
+const _fpsMonitor = {
+    tickTimes: [],       // 最近N个tick的时间戳
+    windowSize: 30,      // 滑动窗口大小
+    lowFpsThreshold: 15, // 低帧率阈值（ticks/second）
+    lowFpsCount: 0,      // 连续低帧率计数
+    lowFpsAlertAt: 10,   // 连续N次低帧率时触发警告
+    lastAlertTime: 0,    // 上次警告时间（避免频繁警告）
+    alertCooldownMs: 10000, // 警告冷却时间（10秒）
+};
+
+/**
+ * 记录一个tick完成的时间，更新帧率统计
+ * @returns {{ fps: number, isLowFps: boolean } | null} 帧率信息（窗口满时返回）
+ */
+export function recordTickComplete() {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    _fpsMonitor.tickTimes.push(now);
+
+    // 保持滑动窗口大小
+    if (_fpsMonitor.tickTimes.length > _fpsMonitor.windowSize) {
+        _fpsMonitor.tickTimes.shift();
+    }
+
+    // 窗口未满时不计算
+    if (_fpsMonitor.tickTimes.length < _fpsMonitor.windowSize) {
+        return null;
+    }
+
+    // 计算帧率：N个tick / 总时间（秒）
+    const totalTimeMs = now - _fpsMonitor.tickTimes[0];
+    const fps = totalTimeMs > 0 ? ((_fpsMonitor.windowSize - 1) / totalTimeMs) * 1000 : 0;
+    const isLowFps = fps < _fpsMonitor.lowFpsThreshold;
+
+    if (isLowFps) {
+        _fpsMonitor.lowFpsCount++;
+    } else {
+        _fpsMonitor.lowFpsCount = 0;
+    }
+
+    // 连续低帧率警告
+    if (_fpsMonitor.lowFpsCount >= _fpsMonitor.lowFpsAlertAt) {
+        if (now - _fpsMonitor.lastAlertTime >= _fpsMonitor.alertCooldownMs) {
+            _fpsMonitor.lastAlertTime = now;
+            console.warn(
+                `[Performance] ⚠️ 持续低帧率: ${fps.toFixed(1)} tps (阈值: ${_fpsMonitor.lowFpsThreshold})，` +
+                `建议切换到低性能模式`
+            );
+        }
+    }
+
+    return { fps: Math.round(fps * 10) / 10, isLowFps };
+}
+
+/**
+ * 获取当前帧率（仅读取，不更新）
+ * @returns {number} 当前帧率，窗口未满时返回-1
+ */
+export function getCurrentFps() {
+    if (_fpsMonitor.tickTimes.length < _fpsMonitor.windowSize) return -1;
+    const now = _fpsMonitor.tickTimes[_fpsMonitor.tickTimes.length - 1];
+    const totalTimeMs = now - _fpsMonitor.tickTimes[0];
+    return totalTimeMs > 0 ? Math.round(((_fpsMonitor.windowSize - 1) / totalTimeMs) * 1000 * 10) / 10 : 0;
+}
+
+/**
+ * [DEV] 开发环境性能日志：输出每个性能分段的执行/跳过状态
+ * @param {number} tick - 当前tick号
+ * @param {Object} segmentStatus - { segmentName: boolean } 映射，true表示执行，false表示跳过
+ */
+export function logTickSegments(tick, segmentStatus) {
+    // 每100个tick输出一次摘要，避免控制台刷屏
+    if (tick % 100 !== 0) return;
+
+    const executed = [];
+    const skipped = [];
+
+    Object.entries(segmentStatus).forEach(([name, didRun]) => {
+        if (didRun) {
+            executed.push(name);
+        } else {
+            skipped.push(name);
+        }
+    });
+
+    console.groupCollapsed(`[PerfLog] Tick ${tick}: 执行=${executed.length} 跳过=${skipped.length}`);
+    console.log('执行:', executed.join(', '));
+    console.log('跳过:', skipped.join(', '));
+    console.groupEnd();
 }

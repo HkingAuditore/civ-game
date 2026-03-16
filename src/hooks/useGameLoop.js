@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
 import { useSimulationWorker } from './useSimulationWorker';
+import { isLowPerformance } from './useDevicePerformance';
 import {
     BUILDINGS,
     calculateArmyPopulation,
@@ -916,7 +917,7 @@ difficulty, // 游戏难度
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
 
-    const { runSimulation, isUsingWorker } = useSimulationWorker();
+    const { runSimulation, syncHistory, isUsingWorker } = useSimulationWorker();
 
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
@@ -1339,10 +1340,10 @@ difficulty, // 游戏难度
                 activeBuffs: current.activeBuffs,
                 activeDebuffs: current.activeDebuffs,
 
-                // 鍘嗗彶鏁版嵁 (Pass from Ref for latest data without waiting for State)
-                classWealthHistory: classWealthHistoryRef.current,
-                classNeedsHistory: classNeedsHistoryRef.current,
-
+                // [PERF] 历史数据不再每tick传输，改用worker内部缓存；
+                // 主线程直接调用时仍传入（非worker模式回退）
+                classWealthHistory: isUsingWorker ? undefined : classWealthHistoryRef.current,
+                classNeedsHistory: isUsingWorker ? undefined : classNeedsHistoryRef.current,
                 // 鏃堕棿鍜岃妭鏃?
                 daysElapsed: current.daysElapsed,
                 lastFestivalYear: current.lastFestivalYear,
@@ -1409,6 +1410,8 @@ difficulty, // 游戏难度
                 })(),
                 ideologySynergies: IDEOLOGY_SYNERGIES || [],
                 antiSynergies: ANTI_SYNERGIES || [],
+                // [PERF] 性能模式信息，供 simulation 中动态频率调整使用
+                _isLowPerformance: isLowPerformance(),
             };
 
             const perfEnabled = typeof window !== 'undefined'
@@ -2604,6 +2607,12 @@ difficulty, // 游戏难度
 
                 if (shouldUpdateUIState) {
                     historyUpdateCounterRef.current = 0;
+
+                    // [PERF] 低频同步history到worker缓存
+                    syncHistory({
+                        classWealthHistory: classWealthHistoryRef.current,
+                        classNeedsHistory: classNeedsHistoryRef.current,
+                    });
 
                     // Sync Class History State (clone to trigger render)
                     setClassWealthHistory({ ...classWealthHistoryRef.current });

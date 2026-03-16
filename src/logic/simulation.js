@@ -239,6 +239,11 @@ import {
     tickCache,
     getBuildingLevelDistribution,
     RATE_LIMIT_CONFIG,
+    setDynamicFrequencyContext,
+    startTickBudget,
+    checkTickBudget,
+    recordTickComplete,
+    logTickSegments,
 } from './utils';
 
 import {
@@ -517,6 +522,8 @@ export const simulateTick = ({
     ideologySynergies = [],   // 联动配置数组
     antiSynergies = [],       // 反协同配置数组
     ideologyMetrics = null,
+    // [PERF] 性能模式标志，主线程传入
+    _isLowPerformance = false,
 }) => {
     if (!Number.isFinite(tick)) {
         const parsedTick = Number(tick);
@@ -558,6 +565,12 @@ export const simulateTick = ({
         perfMarkEnd(label);
     };
     perfMarkStart('simulateTick');
+
+    // [PERF] 设置动态频率上下文：根据当前存活AI国家数量自动调整所有deferred/batch级操作的执行频率
+    const _aliveAINationCount = (nations || []).filter(n => !n.isAnnexed && (n.population || 0) > 0 && n.id !== 'player').length;
+    setDynamicFrequencyContext(_aliveAINationCount, _isLowPerformance);
+    // [PERF] 开始预算计时
+    startTickBudget();
 
     const res = { ...resources };
     const getSlice = (list, slices) => {
@@ -715,6 +728,12 @@ export const simulateTick = ({
     let updatedOverseasInvestments = [...overseasInvestments];
     let updatedForeignInvestments = [...foreignInvestments];
     let investmentLogs = [];
+    // [PERF] batch级：投资结算频率守卫（默认每20tick结算一次）
+    const shouldSettleOverseasInvestment = shouldRunThisTick(tick, 'overseasInvestment');
+    const shouldSettleForeignInvestment = shouldRunThisTick(tick, 'foreignInvestment');
+    // 计算累积tick数：用于批量结算时将收益乘以累积周期
+    const overseasInvestmentFreq = RATE_LIMIT_CONFIG.overseasInvestmentFrequency || 20;
+    const foreignInvestmentFreq = RATE_LIMIT_CONFIG.foreignInvestmentFrequency || 20;
     // NEW: Track supply source breakdown
     const supplyBreakdown = {};
     const resourceLossBreakdown = {};
@@ -854,7 +873,8 @@ export const simulateTick = ({
     // === Execute Investment Logic (Now that Wealth/Ledger is ready) ===
 
     // 1. Overseas Investments (Player -> AI)
-    if (overseasInvestments.length > 0) {
+    // [PERF] batch级守卫：仅在结算tick执行，一次结算N个tick的量
+    if (overseasInvestments.length > 0 && shouldSettleOverseasInvestment) {
         perfStart('overseasInvestments');
         const oiResult = processOverseasInvestments({
             overseasInvestments, // Use original input
@@ -865,6 +885,7 @@ export const simulateTick = ({
             classWealth: wealth, // Use the working wealth object (simulating direct mutation)
             taxPolicies: policies,
             daysElapsed: tick,
+            ticksElapsed: overseasInvestmentFreq, // 批量结算：利润/税收乘以累积tick数
         });
 
         updatedOverseasInvestments = oiResult.updatedInvestments;
@@ -4098,6 +4119,11 @@ export const simulateTick = ({
     // 5. Advanced Cabinet Mechanics (Left/Right Dominance Active Effects)
     // ====================================================================================================
 
+    // [PERF] 内阁机制属于deferred级，按配置频率执行
+    // _freeMarketDebug 在守卫外声明，确保 return 语句可安全引用
+    let _freeMarketDebug = {};
+    const shouldUpdateCabinet = shouldRunThisTick(tick, 'cabinet');
+    if (shouldUpdateCabinet) {
     perfStart('cabinetMechanics');
     // --- Left Dominance: Planned Economy (Quota System) ---
     // User sets target population ratios. We adjust actual population towards targets.
@@ -4157,7 +4183,7 @@ export const simulateTick = ({
     // Owners automatically build new buildings using their wealth.
     let newBuildingsCount = { ...buildings };
     // [DEBUG] 临时调试信息 - 追踪自由市场机制问题
-    const _freeMarketDebug = {
+    _freeMarketDebug = {
         // 传入?cabinetStatus
         cabinetStatusReceived: {
             hasCabinetStatus: !!cabinetStatus,
@@ -4241,19 +4267,26 @@ export const simulateTick = ({
         }
     }
     perfEnd('cabinetMechanics');
+    } // end shouldUpdateCabinet
 
     // ====================================================================================================
     // 6. Return Simulation Result
     // ====================================================================================================
     // Move official processing here so their wealth is aggregated into `wealth` BEFORE
     // calculateLivingStandards runs. This ensures StrataPanel shows correct data.
-    perfStart('officialsSim');
-
+    // [PERF] 官员系统属于deferred级，按配置频率执行；跳过时保留上次计算的官员财富
+    // 变量声明提到守卫外部，确保后续代码引用安全
     let totalOfficialWealth = 0;
     let totalOfficialExpense = 0;
     let totalOfficialIncome = 0; // Track income for UI
     let totalOfficialLaborIncome = 0; // Track labor income (salary + subsidy)
     const pendingOfficialUpgrades = [];
+    // 默认值：跳过时使用原始officials列表
+    let updatedOfficials = Array.isArray(officials) ? [...officials] : [];
+
+    const shouldUpdateOfficials = shouldRunThisTick(tick, 'officialSim');
+    if (shouldUpdateOfficials) {
+    perfStart('officialsSim');
     const officialMarketSnapshot = {
         prices: priceMap,
         wages: market?.wages || {},
@@ -4266,7 +4299,7 @@ export const simulateTick = ({
     // 1. 建筑生产、工资发放、盈利都是每个Tick更新?
     // 2. 官员的收入（薪水、产业收益）和支出（消费、税收）应该实时计算
     // 3. 投资决策已有内置冷却时间（INVESTMENT_COOLDOWN=90, UPGRADE_COOLDOWN=60），不会造成性能问题
-    const updatedOfficials = officialCount === 0 ? [] : officialList.map((official, index) => {
+    updatedOfficials = officialCount === 0 ? [] : officialList.map((official, index) => {
         if (!official) return official;
         const normalizedOfficial = migrateOfficialForInvestment(official, tick);
 
@@ -4978,6 +5011,7 @@ export const simulateTick = ({
     roleLivingExpense.official = roleExpense.official; // Capture all official living expenses (Head Tax + Consumption)
     roleLaborIncome.official = totalOfficialLaborIncome;
     perfEnd('officialsSim');
+    } // end shouldUpdateOfficials
 
     perfStart('livingStandards');
     const livingStandardsResult = calculateLivingStandards({
@@ -5553,12 +5587,16 @@ export const simulateTick = ({
     // 保留此处代码注释以说明设计意?
     // NOTE: legitimacyApprovalModifier 现在应该?approvalBreakdown 中体现（需要在上方循环添加?
 
-    perfStart('exodusAndPenalties');
-    let exodusPopulationLoss = 0;
+    // [PERF] 人口外流属于deferred级，按配置频率执行
+    // extraStabilityPenalty 在守卫外声明，确保 stabilityCalc 可安全引用
     let extraStabilityPenalty = 0;
     if (bonuses.factionConflict) {
         extraStabilityPenalty += bonuses.factionConflict;
     }
+    const shouldUpdateExodus = shouldRunThisTick(tick, 'exodus');
+    if (shouldUpdateExodus) {
+    perfStart('exodusAndPenalties');
+    let exodusPopulationLoss = 0;
     // 修正人口外流（Exodus）：愤怒人口离开时带走财富（资本外逃）
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -5631,6 +5669,7 @@ export const simulateTick = ({
         }
     });
     perfEnd('exodusAndPenalties');
+    } // end shouldUpdateExodus
 
     perfStart('buffsDebuffs');
     const newActiveBuffs = [];
@@ -5697,6 +5736,10 @@ export const simulateTick = ({
     perfEnd('wealthDecay');
     perfEnd('stabilityCalc');
 
+    // [PERF] Tick预算保护：critical级分段全部完成，检查已用时间
+    // 如果超过预算上限，后续deferred/batch级操作将被自动跳过
+    checkTickBudget();
+
     const visibleEpoch = epoch;
     // 记录本回合来自战争赔款（含分期）的财政收?
     let warIndemnityIncome = 0;
@@ -5711,6 +5754,9 @@ export const simulateTick = ({
     const shouldUpdateDiplomacy = shouldRunThisTick(tick, 'diplomacyUpdate');
     const shouldUpdateAI = shouldRunThisTick(tick, 'aiDecision');
     const shouldUpdateMerchantTrade = shouldRunThisTick(tick, 'merchantTrade');
+    // [PERF] deferred级频率守卫
+    const shouldUpdateRebellion = shouldRunThisTick(tick, 'rebellion');
+    const shouldUpdatePriceConvergence = shouldRunThisTick(tick, 'priceConvergence');
     (nations || []).forEach(n => {
         if (n.lastPeaceRequestDay && n.lastPeaceRequestDay > lastGlobalPeaceRequest) {
             lastGlobalPeaceRequest = n.lastPeaceRequestDay;
@@ -5725,7 +5771,11 @@ export const simulateTick = ({
     let organizationUpdatesOccurred = false;
 
     perfStart('aiNationUpdate');
-    const aiSliceCount = Math.max(1, RATE_LIMIT_CONFIG.aiNationUpdateSlices || 1);
+    // [PERF] 动态分片：当AI国家>10时自动增大分片数，确保每tick只处理约4个AI国家的完整逻辑
+    const aliveNationCount = (nations || []).filter(n => !n.isAnnexed && (n.population || 0) > 0 && n.id !== 'player').length;
+    const aiSliceCount = aliveNationCount > 10
+        ? Math.max(4, Math.ceil(aliveNationCount / 4))
+        : Math.max(1, RATE_LIMIT_CONFIG.aiNationUpdateSlices || 1);
     const aiTargets = getSlice(nations || [], aiSliceCount);
     const aiTargetIds = new Set(aiTargets.map(n => n?.id));
 
@@ -6264,7 +6314,7 @@ export const simulateTick = ({
     // Process AI nation stability, dissident organization, and civil wars
     // ========================================================================
     let rebellionSystemResult = null;
-    if (shouldUpdateDiplomacy) {
+    if (shouldUpdateRebellion) {
         perfStart('rebellionDaily');
         rebellionSystemResult = processRebellionSystemDaily(updatedNations, {
             daysElapsed: tick,
@@ -6437,7 +6487,7 @@ export const simulateTick = ({
     // Process market price convergence for free trade agreement nations
     // ========================================================================
     let priceConvergenceResult = null;
-    if (shouldUpdateDiplomacy && market?.prices) {
+    if (shouldUpdatePriceConvergence && market?.prices) {
         perfStart('priceConvergence');
         priceConvergenceResult = processPriceConvergence(market.prices, updatedNations, tick);
 
@@ -6478,7 +6528,10 @@ export const simulateTick = ({
         && !n.isRebelNation
         && !n.isAnnexed // 排除已被吞并的国?
     );
-    const diplomacySliceCount = Math.max(1, RATE_LIMIT_CONFIG.diplomacyUpdateSlices || 1);
+    // [PERF] 动态分片：外交AI根据国家数量动态调整
+    const diplomacySliceCount = aliveNationCount > 10
+        ? Math.max(4, Math.ceil(aliveNationCount / 4))
+        : Math.max(1, RATE_LIMIT_CONFIG.diplomacyUpdateSlices || 1);
     const diplomacyTargets = getSlice(visibleNations, diplomacySliceCount);
 
     perfStart('diplomacyAI');
@@ -8322,7 +8375,8 @@ export const simulateTick = ({
     }
 
     // 2. Foreign Investments (AI -> Player) - Executed AFTER jobFill is populated
-    if (foreignInvestments.length > 0) {
+    // [PERF] batch级守卫：仅在结算tick执行
+    if (foreignInvestments.length > 0 && shouldSettleForeignInvestment) {
         perfStart('foreignInvestments');
         const fiResult = processForeignInvestments({
             foreignInvestments: updatedForeignInvestments,
@@ -8335,6 +8389,7 @@ export const simulateTick = ({
             daysElapsed: tick,
             jobFill: buildingJobFill,
             buildings: builds,
+            ticksElapsed: foreignInvestmentFreq, // 批量结算：利润/税收乘以累积tick数
         });
 
         updatedForeignInvestments = fiResult.updatedInvestments;
@@ -8655,6 +8710,24 @@ export const simulateTick = ({
     const perfTotalMs = perfTime() - perfStartAll;
     // [OPTIMIZATION REMOVED] 移除游标递增逻辑，不再需要批处理
     perfMarkEnd('simulateTick');
+
+    // [PERF] 记录tick完成时间，更新帧率统计
+    recordTickComplete();
+
+    // [DEV] 开发环境下每100tick输出性能分段执行/跳过摘要
+    if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+        logTickSegments(tick, {
+            officialsSim: typeof shouldUpdateOfficials !== 'undefined' ? shouldUpdateOfficials : true,
+            cabinetMechanics: typeof shouldUpdateCabinet !== 'undefined' ? shouldUpdateCabinet : true,
+            exodusAndPenalties: typeof shouldUpdateExodus !== 'undefined' ? shouldUpdateExodus : true,
+            rebellionDaily: shouldUpdateRebellion,
+            priceConvergence: shouldUpdatePriceConvergence,
+            overseasInvestments: shouldSettleOverseasInvestment,
+            foreignInvestments: shouldSettleForeignInvestment,
+            aiNationUpdate: shouldUpdateAI,
+            diplomacyAI: shouldUpdateDiplomacy,
+        });
+    }
 
     return {
         officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
