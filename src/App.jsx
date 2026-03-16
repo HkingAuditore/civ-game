@@ -59,6 +59,7 @@ import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { collectAnnualSnapshot, generateExportText } from './utils/annualReport';
 import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
+import { ChangelogModal, CHANGELOG } from './components/modals/ChangelogModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { assignCorpsToFront, removeCorpsFromFront, getPlayerSide } from './logic/diplomacy/frontSystem';
 import { setTacticOrder, createBattle, processReinforcement, isBattleActive } from './logic/diplomacy/battleSystem';
@@ -216,6 +217,16 @@ function GameApp({ gameState }) {
     const [showSaveTransferModal, setShowSaveTransferModal] = useState(false); // 新增：控制存档传输弹窗
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [showDonateModal, setShowDonateModal] = useState(false);
+    const [showChangelogModal, setShowChangelogModal] = useState(false);
+
+    // Detect if player is opening a new version for the first time, auto-show changelog
+    useEffect(() => {
+        const latestVersion = CHANGELOG[0]?.version;
+        const lastSeenVersion = localStorage.getItem('lastSeenChangelogVersion');
+        if (latestVersion && lastSeenVersion !== latestVersion) {
+            setShowChangelogModal(true);
+        }
+    }, []);
     const [showEconomicDashboard, setShowEconomicDashboard] = useState(false); // 新增：控制经济数据看板
 
     // 官员超编检测状态
@@ -1242,6 +1253,7 @@ function GameApp({ gameState }) {
                             onTutorial={handleReopenTutorial}
                             onWiki={() => setIsWikiOpen(true)}
                             onDonate={() => setShowDonateModal(true)}
+                            onChangelog={() => setShowChangelogModal(true)}
                             onTriggerEvent={actions.triggerRandomEvent}
                         />
                     }
@@ -1264,6 +1276,7 @@ function GameApp({ gameState }) {
                         onTutorial={handleReopenTutorial}
                         onWiki={() => setIsWikiOpen(true)}
                         onDonate={() => setShowDonateModal(true)}
+                        onChangelog={() => setShowChangelogModal(true)}
                         menuDirection="up"
                         onTriggerEvent={actions.triggerRandomEvent}
                     />
@@ -2330,10 +2343,23 @@ function GameApp({ gameState }) {
                 unlockedAchievements={gameState.unlockedAchievements}
             />
 
-            {/* 打赏作者弹窗 */}
+            {/* 打赏作者弹窗（仅网页端） */}
             <DonateModal
                 isOpen={showDonateModal}
                 onClose={() => setShowDonateModal(false)}
+            />
+
+            {/* 更新日志弹窗 */}
+            <ChangelogModal
+                isOpen={showChangelogModal}
+                onClose={() => {
+                    // Record the version player has seen so it won't auto-pop again
+                    const latestVersion = CHANGELOG[0]?.version;
+                    if (latestVersion) {
+                        localStorage.setItem('lastSeenChangelogVersion', latestVersion);
+                    }
+                    setShowChangelogModal(false);
+                }}
             />
 
             {/* 理念涌现弹窗 */}
