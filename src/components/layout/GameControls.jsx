@@ -7,6 +7,10 @@ import { Icon } from '../common/UIComponents';
 import { GAME_SPEEDS } from '../../config';
 import { useSound } from '../../hooks';
 import { cn } from '../../config/unifiedStyles';
+import { Capacitor } from '@capacitor/core';
+
+// 检测是否在原生APP环境（Android/iOS）中运行
+const IS_NATIVE_APP = Capacitor.isNativePlatform();
 
 /**
  * 游戏控制面板组件 - 史诗风格
@@ -26,6 +30,7 @@ export const GameControls = React.memo(({
     onTutorial,
     onWiki,
     onDonate,
+    onChangelog,
     menuDirection = 'down',
     onTriggerEvent,
 }) => {
@@ -283,20 +288,23 @@ export const GameControls = React.memo(({
                                         <span className="ml-2">设置</span>
                                     </button>
 
-                                    <button
-                                        onClick={() => {
-                                            onDonate?.();
-                                            setIsGameMenuOpen(false);
-                                        }}
-                                        disabled={!onDonate}
-                                        className={cn(
-                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold transition-colors rounded touch-feedback',
-                                            onDonate ? 'text-pink-300 hover:bg-pink-500/10' : 'text-ancient-stone/40 cursor-not-allowed'
-                                        )}
-                                    >
-                                        <Icon name="Heart" size={12} />
-                                        <span className="ml-2">打赏作者</span>
-                                    </button>
+                                    {/* 打赏按钮仅在网页端显示，APP端隐藏 */}
+                                    {!IS_NATIVE_APP && (
+                                        <button
+                                            onClick={() => {
+                                                onDonate?.();
+                                                setIsGameMenuOpen(false);
+                                            }}
+                                            disabled={!onDonate}
+                                            className={cn(
+                                                'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold transition-colors rounded touch-feedback',
+                                                onDonate ? 'text-pink-300 hover:bg-pink-500/10' : 'text-ancient-stone/40 cursor-not-allowed'
+                                            )}
+                                        >
+                                            <Icon name="Heart" size={12} />
+                                            <span className="ml-2">打赏作者</span>
+                                        </button>
+                                    )}
 
                                     <div className="my-1 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent mx-2"></div>
 
@@ -359,6 +367,13 @@ export const GameControls = React.memo(({
                                     >
                                         <Icon name="Book" size={10} />
                                         <span className="ml-2">文明百科</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { onChangelog?.(); setIsHelpMenuOpen(false); }}
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-ancient-gold/80 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                    >
+                                        <Icon name="ScrollText" size={10} />
+                                        <span className="ml-2">更新日志</span>
                                     </button>
                                     <div className="my-1 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent mx-2"></div>
                                     <button
