@@ -753,9 +753,6 @@ difficulty, // 游戏难度
 
     // 浣跨敤ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
     const tickProcessingRef = useRef(false); // re-entrancy guard for high-speed ticks
-    // 记录每个阶层最后一次触发 brewing/plotting 事件的天数，防止短时间内反复弹出
-    const orgEventCooldownRef = useRef({}); // { [stratumKey_eventType]: lastTriggerDay }
-    const ORG_EVENT_COOLDOWN_DAYS = 60; // 同一阶层同类事件的冷却天数
     // 记录已触发政变的官员ID，防止同一官员在状态更新前重复触发政变
     const coupTriggeredOfficialIds = useRef(new Set());
     const stateRef = useRef({        resources,
@@ -4884,15 +4881,10 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, stratumKey);
                         const militaryIsRebelling = isMilitaryRebelling(updatedOrganizationStates);
 
-                        // brewing/plotting 事件冷却检查，防止组织度在阈值附近波动时反复弹出
-                        if (orgEvent.type === 'brewing' || orgEvent.type === 'plotting') {
-                            const cooldownKey = `${stratumKey}_${orgEvent.type}`;
-                            const lastTriggerDay = orgEventCooldownRef.current[cooldownKey] || 0;
-                            const currentDay = current.daysElapsed || 0;
-                            if (currentDay - lastTriggerDay < ORG_EVENT_COOLDOWN_DAYS) {
-                                continue; // 冷却中，跳过
-                            }
-                            orgEventCooldownRef.current[cooldownKey] = currentDay;
+                        // 若当前已有未处理事件，跳过新的组织度事件，避免重复弹出
+                        // （事件弹出时游戏已暂停，玩家处理后才会继续，正常跨越阈值仍会触发）
+                        if (current.currentEvent) {
+                            continue;
                         }
 
                         // 鏋勫缓鍙涗贡鐘舵€佸璞′緵浜嬩欢浣跨敤
