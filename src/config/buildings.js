@@ -262,9 +262,9 @@ export const BUILDINGS = [
         output: { fine_clothes: 1.2, culture: 0.5 },
         jobs: { artisan: 3 },
         owner: 'artisan',
-        epoch: 1,
+        epoch: 2,
         cat: 'industry',
-        requiresTech: 'tools',
+        requiresTech: 'advanced_weaving',
         visual: { icon: 'Package', color: 'bg-indigo-900', text: 'text-indigo-100' }
     },
 
@@ -420,7 +420,7 @@ export const BUILDINGS = [
         desc: "安抚民心，产出文化。",
         baseCost: { stone: 150, plank: 50, brick: 60 },
         input: { furniture: 0.04, fine_clothes: 0.03 }, // 降低输入消耗，使基础版净产出为正
-        output: { culture: 3.2, silver: 0.6667 },
+        output: { culture: 4.0, silver: 0.8 },
         jobs: { cleric: 4 },
         owner: 'cleric',
         epoch: 3,
@@ -781,6 +781,21 @@ export const BUILDINGS = [
         cat: 'civic',
         requiresTech: 'early_administration',
         visual: { icon: 'Scroll', color: 'bg-slate-700', text: 'text-slate-200' }
+    },
+
+    {
+        id: 'harbor',
+        name: "港口",
+        desc: "早期沿海贸易据点，停靠渔船与商船，换取少量银币。",
+        baseCost: { plank: 120, stone: 60 },
+        input: { plank: 0.20 },
+        output: { silver: 1.2 },
+        jobs: { merchant: 2, worker: 2 },
+        owner: 'merchant',
+        epoch: 1,
+        cat: 'civic',
+        requiresTech: 'sailing',
+        visual: { icon: 'Anchor', color: 'bg-sky-800', text: 'text-sky-200' }
     },
 
     {

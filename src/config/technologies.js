@@ -112,7 +112,7 @@ export const TECHS = [
     {
         id: 'sailing',
         name: "航海术",
-        desc: "解锁船坞建设，开启海上贸易与军事行动。财政收入 +3%，每人每日获得 0.02 粮食。",
+        desc: "解锁港口建设，开启沿海贸易。财政收入 +3%，每人每日获得 0.02 粮食。",
         cost: { science: 1050 },
         epoch: 1,
         prerequisites: ['caravan_trade'],
@@ -431,7 +431,7 @@ export const TECHS = [
     {
         id: 'cartography',
         name: "海图绘制",
-        desc: "船坞香料获取 +18%。",
+        desc: "解锁船坞建设，开启远洋贸易。船坞香料获取 +18%。",
         cost: { science: 6300 },
         epoch: 4,
         prerequisites: ['sailing'],

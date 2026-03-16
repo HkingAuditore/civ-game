@@ -475,22 +475,22 @@ export const IDEOLOGIES = [
             levels: [
                 {
                     stability: 6,
-                    taxIncome: 0.05,
+                    taxIncome: 0.03,
                     scienceBonus: -0.03,
                     triggerEffects: [
                         // 资源消耗：维持宫廷排场和王室威仪需要持续的銀币投入
                         { type: 'resource_drain', resource: 'silver', drainPerTick: 10,
-                            bonus: { stability: 4, taxIncome: 0.03 },
-                            penaltyIfDrained: { stability: -5, taxIncome: -0.04 } },
+                            bonus: { stability: 4, taxIncome: 0.02 },
+                            penaltyIfDrained: { stability: -5, taxIncome: -0.02 } },
                         // 与共和主义根本矛盾
                         { type: 'mutual_exclusion', conflictsWith: ['republicanism'],
                             penalty: { stability: -12, categories: { civic: -0.10 } },
-                            bonusIfPure: { stability: 3, taxIncome: 0.02 } },
+                            bonusIfPure: { stability: 3, taxIncome: 0.01 } },
                     ],
                 },
                 {
                     stability: 10,
-                    taxIncome: 0.08,
+                    taxIncome: 0.05,
                     categories: { military: 0.05 },
                     scienceBonus: -0.03,  // 不再增加
                     converters: [
@@ -501,11 +501,11 @@ export const IDEOLOGIES = [
                     ],
                     triggerEffects: [
                         { type: 'resource_drain', resource: 'silver', drainPerTick: 20,
-                            bonus: { stability: 5, taxIncome: 0.04 },
-                            penaltyIfDrained: { stability: -6, taxIncome: -0.05 } },
+                            bonus: { stability: 5, taxIncome: 0.02 },
+                            penaltyIfDrained: { stability: -6, taxIncome: -0.03 } },
                         { type: 'mutual_exclusion', conflictsWith: ['republicanism'],
                             penalty: { stability: -12, categories: { civic: -0.10 } },
-                            bonusIfPure: { stability: 3, taxIncome: 0.02 } },
+                            bonusIfPure: { stability: 3, taxIncome: 0.01 } },
                     ],
                     ruleMods: [
                         { type: 'diplomatic_influence', value: 0.10 },
@@ -513,32 +513,32 @@ export const IDEOLOGIES = [
                 },
                 {
                     stability: 14,
-                    taxIncome: 0.12,
+                    taxIncome: 0.07,
                     categories: { military: 0.07 },
                     maxPop: 0.04,
                     scienceBonus: -0.02,  // 惩罚减轻
                     converters: [
                         { source: 'peasant', sourceType: 'population', ratio: 0.0000008, target: 'stability', cap: 12 },
                         // 农民人口 → 税收（封建地租）
-                        { source: 'peasant', sourceType: 'population', ratio: 0.0000006, target: 'taxIncome', cap: 0.40 },
+                        { source: 'peasant', sourceType: 'population', ratio: 0.0000006, target: 'taxIncome', cap: 0.20 },
                         // 合法性 → 稳定度+税收（君权越巩固，统治越高效）
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.10, target: 'stability', cap: 14 },
-                        { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.004, target: 'taxIncome', cap: 0.35 },
+                        { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.004, target: 'taxIncome', cap: 0.18 },
                     ],
                     onEvents: [
-                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '君权宣言', buffId: 'royal_decree', duration: 120, effects: { stability: 12, taxIncome: 0.10, categories: { military: 0.08 } } }, cooldownDays: 60 },
+                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '君权宣言', buffId: 'royal_decree', duration: 120, effects: { stability: 12, taxIncome: 0.05, categories: { military: 0.08 } } }, cooldownDays: 60 },
                     ],
                     triggerEffects: [
                         { type: 'resource_drain', resource: 'silver', drainPerTick: 35,
-                            bonus: { stability: 6, taxIncome: 0.05 },
-                            penaltyIfDrained: { stability: -8, taxIncome: -0.06 } },
+                            bonus: { stability: 6, taxIncome: 0.03 },
+                            penaltyIfDrained: { stability: -8, taxIncome: -0.03 } },
                         { type: 'mutual_exclusion', conflictsWith: ['republicanism'],
                             penalty: { stability: -12, categories: { civic: -0.10 } },
-                            bonusIfPure: { stability: 3, taxIncome: 0.02 } },
+                            bonusIfPure: { stability: 3, taxIncome: 0.01 } },
                         // 条件翻转：高稳定度时君权更巩固
                         { type: 'conditional_flip', condition: 'stability_above', threshold: 70,
                             normalBonus: {},
-                            flippedBonus: { stability: 4, taxIncome: 0.04 } },
+                            flippedBonus: { stability: 4, taxIncome: 0.02 } },
                     ],
                     ruleMods: [
                         { type: 'diplomatic_influence', value: 0.15 },
@@ -590,7 +590,7 @@ export const IDEOLOGIES = [
                     cultureBonus: 0.03,
                     militaryBonus: -0.03,
                     onEvents: [
-{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '紧急授权', buffId: 'republic_emergency_mandate', duration: 90, effects: { stability: 8, categories: { civic: 0.08 }, taxIncome: -0.02 } }, cooldownDays: 60 },
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '紧急授权', buffId: 'republic_emergency_mandate', duration: 90, effects: { stability: 8, categories: { civic: 0.08 }, taxIncome: -0.01 } }, cooldownDays: 60 },
                     ],
                     converters: [
                         // 平均满意度 → 稳定度+文化（民主共识越高越繁荣）
@@ -599,14 +599,14 @@ export const IDEOLOGIES = [
                     ],
                     triggerEffects: [
                         { type: 'conditional_flip', condition: 'stability_below', threshold: 35,
-                            normalBonus: { taxIncome: 0.02, cultureBonus: 0.02 },
+                            normalBonus: { taxIncome: 0.01, cultureBonus: 0.02 },
                             flippedBonus: { stability: -4, production: -0.03 } },
                         // 逆向缩放：满意度越高，军事惩罚越小（和平共和）
                         { type: 'inverse_scaling', source: 'militaryBonus', threshold: 0.20, aboveBonus: { stability: -0.3 }, belowBonus: { cultureBonus: 0.01 }, cap: 6 },
                         // 联盟多样性：联盟每增加1个阶层，稳定度和文化提升
                         { type: 'coalition_diversity_bonus', perStratum: { stability: 1.5, cultureBonus: 0.008 } },
                         // 商人满意度阈值：商人满意度超过65时，稳定度和税收提升
-                        { type: 'approval_threshold_bonus', stratum: 'merchant', threshold: 65, bonus: { stability: 3, taxIncome: 0.03 } },
+                        { type: 'approval_threshold_bonus', stratum: 'merchant', threshold: 65, bonus: { stability: 3, taxIncome: 0.015 } },
                     ],
                 },
             ],
@@ -736,57 +736,57 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    taxIncome: 0.06,
+                    taxIncome: 0.03,
                     categories: { gather: -0.03 },
                     triggerEffects: [
                         // 核心机制：贸易盈余 → 税收加成
-                        { type: 'resource_threshold', resource: 'silver', threshold: 2000, bonus: { taxIncome: 0.02 } },
+                        { type: 'resource_threshold', resource: 'silver', threshold: 2000, bonus: { taxIncome: 0.01 } },
                         // 按完整产业链给予奖励
-                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.015 }, cap: 0.25 },
+                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.008 }, cap: 0.12 },
                         // 港口数量 → 税收（港口是重商主义的核心）
-                        { type: 'building_specific_bonus', buildingId: 'harbor', per: 30, bonus: { taxIncome: 0.018 }, cap: 0.30 },
+                        { type: 'building_specific_bonus', buildingId: 'harbor', per: 30, bonus: { taxIncome: 0.009 }, cap: 0.15 },
                     ],
                 },
                 {
-                    taxIncome: 0.10,
+                    taxIncome: 0.05,
                     categories: { industry: 0.04, gather: -0.04 },
                     converters: [
-                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0002, target: 'taxIncome', cap: 0.50 },
+                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0002, target: 'taxIncome', cap: 0.25 },
                         // 平均满意度 → 税收（商人满意时贸易更活跃）
-                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.003, target: 'taxIncome', cap: 0.25 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.003, target: 'taxIncome', cap: 0.12 },
                         // 富裕人口 → 税收（商人阶层财富带动贸易）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'taxIncome', cap: 0.25 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'taxIncome', cap: 0.12 },
                     ],
                     triggerEffects: [
-                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.02 }, cap: 0.30 },
+                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.01 }, cap: 0.15 },
                         // 港口数量 → 税收+产业链（贸易网络扩张）
-                        { type: 'building_specific_bonus', buildingId: 'harbor', per: 20, bonus: { taxIncome: 0.022, categories: { industry: 0.008 } }, cap: 0.40 },
+                        { type: 'building_specific_bonus', buildingId: 'harbor', per: 20, bonus: { taxIncome: 0.011, categories: { industry: 0.008 } }, cap: 0.20 },
                     ],
                     ruleMods: [
                         { type: 'trade_route_mod', value: 0.15 },  // 贸易路线容量+15%
                     ],
                 },
                 {
-                    taxIncome: 0.15,
+                    taxIncome: 0.08,
                     categories: { industry: 0.06, gather: -0.05 },
                     stability: 3,
                     converters: [
-                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0003, target: 'taxIncome', cap: 0.70 },
+                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0003, target: 'taxIncome', cap: 0.35 },
                         // 新增：銀币库存也能贡献产出
                         { source: 'silver', sourceType: 'resource', ratio: 0.00001, target: 'production', cap: 0.30 },
                         // 平均满意度 → 税收+稳定度（商业繁荣人心安定）
-                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.005, target: 'taxIncome', cap: 0.35 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.005, target: 'taxIncome', cap: 0.18 },
                     ],
                     onEvents: [
-                        { event: 'on_trade_complete', effect: { action: 'addBuff', name: '关税整编', buffId: 'customs_drive', duration: 90, effects: { taxIncome: 0.12, stability: 5 } }, cooldownDays: 20 },
+                        { event: 'on_trade_complete', effect: { action: 'addBuff', name: '关税整编', buffId: 'customs_drive', duration: 90, effects: { taxIncome: 0.06, stability: 5 } }, cooldownDays: 20 },
                         { event: 'on_treasury_milestone', effect: { action: 'addStability', amount: 8 }, cooldownDays: 45 },
                     ],
                     triggerEffects: [
-                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.025 }, cap: 0.35 },
+                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.012 }, cap: 0.18 },
                         // 港口数量 → 税收+产出+稳定（全球贸易帝国）
-                        { type: 'building_specific_bonus', buildingId: 'harbor', per: 15, bonus: { taxIncome: 0.025, production: 0.010, stability: 0.5 }, cap: 0.55 },
+                        { type: 'building_specific_bonus', buildingId: 'harbor', per: 15, bonus: { taxIncome: 0.012, production: 0.010, stability: 0.5 }, cap: 0.28 },
                         // 互斥惩罚：与自由贸易理念冲突
-                        { type: 'mutual_exclusion', conflictsWith: ['laissez_faire'], penalty: { taxIncome: -0.10, stability: -5 }, bonusIfPure: { taxIncome: 0.05, production: 0.03 } },
+                        { type: 'mutual_exclusion', conflictsWith: ['laissez_faire'], penalty: { taxIncome: -0.05, stability: -5 }, bonusIfPure: { taxIncome: 0.03, production: 0.03 } },
                     ],
                     ruleMods: [
                         { type: 'trade_route_mod', value: 0.25 },
@@ -809,26 +809,26 @@ export const IDEOLOGIES = [
             levels: [
                 {
                     categories: { industry: 0.10 },
-                    taxIncome: 0.06,
+                    taxIncome: 0.03,
                     stability: -2,
                     triggerEffects: [
                         { type: 'chain_count_bonus', countType: 'complete', perCount: { categories: { industry: 0.03 } }, cap: 0.30 },
                         { type: 'mutual_exclusion', conflictsWith: ['communism'],
-                            penalty: { production: -0.15, taxIncome: -0.10, stability: -10 },
-                            bonusIfPure: { taxIncome: 0.04, production: 0.02 } },
+                            penalty: { production: -0.15, taxIncome: -0.05, stability: -10 },
+                            bonusIfPure: { taxIncome: 0.02, production: 0.02 } },
                     ],
                 },
                 {
                     categories: { industry: 0.14 },
-                    taxIncome: 0.09,
+                    taxIncome: 0.05,
                     production: 0.05,
                     stability: -2,  // 不再加重
                     converters: [
-                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.004, target: 'taxIncome', cap: 0.50 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.004, target: 'taxIncome', cap: 0.25 },
                         // 完整产业链 → 产出
                         { source: 'chain', sourceType: 'chainCount', ratio: 0.015, target: 'production', cap: 0.35 },
                         // 富裕人口 → 税收（资本家级消费拉动经济）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00003, target: 'taxIncome', cap: 0.30 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00003, target: 'taxIncome', cap: 0.15 },
                     ],
                     ruleMods: [
                         { type: 'price_volatility_mod', value: 0.12 },
@@ -836,14 +836,14 @@ export const IDEOLOGIES = [
                 },
                 {
                     categories: { industry: 0.18 },
-                    taxIncome: 0.12,
+                    taxIncome: 0.06,
                     production: 0.08,
                     stability: -3,
                     onEvents: [
-                        { event: 'on_chain_complete', effect: { action: 'addBuff', name: '市场繁荣', buffId: 'market_boom', duration: 120, effects: { taxIncome: 0.15, production: 0.08 } }, cooldownDays: 45 },
+                        { event: 'on_chain_complete', effect: { action: 'addBuff', name: '市场繁荣', buffId: 'market_boom', duration: 120, effects: { taxIncome: 0.08, production: 0.08 } }, cooldownDays: 45 },
                     ],
                     converters: [
-                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.005, target: 'taxIncome', cap: 0.65 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.005, target: 'taxIncome', cap: 0.32 },
                         { source: 'chain', sourceType: 'chainCount', ratio: 0.020, target: 'production', cap: 0.50 },
                     ],
                     triggerEffects: [
@@ -853,7 +853,7 @@ export const IDEOLOGIES = [
                         // 条件翻转：高稳定度时市场更活跃
                         { type: 'conditional_flip', condition: 'stability_above', threshold: 55,
                             normalBonus: {},
-                            flippedBonus: { taxIncome: 0.04, production: 0.03 } },
+                            flippedBonus: { taxIncome: 0.02, production: 0.03 } },
                     ],
                 },
             ],
@@ -875,7 +875,7 @@ export const IDEOLOGIES = [
                 {
                     categories: { gather: 0.10, industry: -0.03 },
                     maxPop: 0.04,
-                    taxIncome: 0.02,
+                    taxIncome: 0.01,
                     triggerEffects: [
                         { type: 'stratum_bonus', stratum: 'peasant', bonus: { perPopPassive: { food: 0.006 } } },
                         // 采集建筑数量 → 采集加成（核心成长机制）
@@ -888,33 +888,33 @@ export const IDEOLOGIES = [
                     categories: { gather: 0.15, industry: -0.04 },
                     maxPop: 0.07,
                     stability: 4,
-                    taxIncome: 0.04,
+                    taxIncome: 0.02,
                     scienceBonus: -0.02,
                     converters: [
                         // 农民人口 → 食物产出
                         { source: 'peasant', sourceType: 'population', ratio: 0.0000008, target: 'production', cap: 0.35 },
                         // 采集建筑 → 税收（土地税）
-                        { source: 'gather', sourceType: 'buildingCount', ratio: 0.0008, target: 'taxIncome', cap: 0.40 },
+                        { source: 'gather', sourceType: 'buildingCount', ratio: 0.0008, target: 'taxIncome', cap: 0.20 },
                     ],
                     triggerEffects: [
                         { type: 'stratum_bonus', stratum: 'peasant', bonus: { perPopPassive: { food: 0.008 } } },
                         { type: 'building_count_bonus', category: 'gather', per: 4, bonus: { categories: { gather: 0.025 } }, cap: 0.40 },
                         // 农场数量 → 采集+税收（农业规模扩张）
-                        { type: 'building_specific_bonus', buildingId: 'farm', per: 50, bonus: { categories: { gather: 0.030 }, taxIncome: 0.008 }, cap: 0.45 },
+                        { type: 'building_specific_bonus', buildingId: 'farm', per: 50, bonus: { categories: { gather: 0.030 }, taxIncome: 0.004 }, cap: 0.22 },
                     ],
                 },
                 {
                     categories: { gather: 0.20, industry: -0.05 },
                     maxPop: 0.10,
                     stability: 6,
-                    taxIncome: 0.06,
+                    taxIncome: 0.03,
                     scienceBonus: -0.02,  // 惩罚不再增加
                     onEvents: [
-                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '农业革命', buffId: 'agrarian_revolution', duration: 200, effects: { categories: { gather: 0.20 }, maxPop: 0.08, taxIncome: 0.05 } }, cooldownDays: 90 },
+                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '农业革命', buffId: 'agrarian_revolution', duration: 200, effects: { categories: { gather: 0.20 }, maxPop: 0.08, taxIncome: 0.03 } }, cooldownDays: 90 },
                     ],
                     converters: [
                         { source: 'peasant', sourceType: 'population', ratio: 0.0000012, target: 'production', cap: 0.50 },
-                        { source: 'gather', sourceType: 'buildingCount', ratio: 0.001, target: 'taxIncome', cap: 0.55 },
+                        { source: 'gather', sourceType: 'buildingCount', ratio: 0.001, target: 'taxIncome', cap: 0.28 },
                     ],
                     triggerEffects: [
                         { type: 'stratum_bonus', stratum: 'peasant', bonus: { perPopPassive: { food: 0.010 } } },
@@ -924,8 +924,7 @@ export const IDEOLOGIES = [
                             normalBonus: {},
                             flippedBonus: { categories: { gather: 0.05 }, maxPop: 0.03 } },
                         // 农场数量 → 采集+税收+人口（农业帝国全面效益）
-                        { type: 'building_specific_bonus', buildingId: 'farm', per: 30, bonus: { categories: { gather: 0.035 }, taxIncome: 0.010, maxPop: 0.005 }, cap: 0.60 },
-                    ],
+                        { type: 'building_specific_bonus', buildingId: 'farm', per: 30, bonus: { categories: { gather: 0.035 }, taxIncome: 0.005, maxPop: 0.005 }, cap: 0.30 },                    ],
                 },
             ],
         },

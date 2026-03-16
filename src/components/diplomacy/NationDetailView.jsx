@@ -130,7 +130,8 @@ const NationDetailView = ({
         ? economyMetrics.outputPerCapita
         : (annualOutput ? annualOutput / Math.max(1, nation.population || 1) : null);
     const playerWealth = gameState?.resources?.silver || 0;
-    const targetEconomicScale = annualOutput ?? nationalNetWorth ?? wealthStock ?? nation.wealth ?? 0;
+    // 使用nation.wealth与执行逻辑(useGameActions)保持一致，避免UI显示与实际花费不符
+    const targetEconomicScale = nation.wealth ?? wealthStock ?? nationalNetWorth ?? annualOutput ?? 0;
     const giftCostValue = calculateDynamicGiftCost(playerWealth, targetEconomicScale);
     const provokeCostValue = calculateProvokeCost(playerWealth, targetEconomicScale);
 
