@@ -516,7 +516,7 @@ export const BUILDINGS = [
         output: { culture: 5.40 },
         jobs: { cleric: 3 },
         owner: 'cleric',
-        epoch: 1,
+        epoch: 2,
         cat: 'civic',
         requiresTech: 'amphitheater_design',
         visual: { icon: 'Music2', color: 'bg-rose-900', text: 'text-rose-200' }
