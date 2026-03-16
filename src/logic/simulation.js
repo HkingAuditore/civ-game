@@ -7148,9 +7148,10 @@ export const simulateTick = ({
                         ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
                     }
 
-                    // 成本?= (原材料成本含?+ 工资成本 + 营业税成?+ 业主生活需求成? / 产出数量
+                    // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本 + 业主生活需求成本) / 产出数量
                     const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
-                    const costPrice = totalCost / outputAmount;
+                    // 负营业税（补贴）可能使 totalCost 为负，成本价保底为0，避免扰乱价格模型
+                    const costPrice = Math.max(0, totalCost / outputAmount);
 
                     // === 三层价格模型 ===
                     // 1. 计算供需调整系数（基于库存天数）

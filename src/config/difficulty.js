@@ -42,7 +42,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: 0.18,         // Reduced stability dampening (was 0.25)
         newGameGracePeriod: 100,               // Shorter grace period (was 150)
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 0.7,    // 70% inventory target (was 0.5)
+        inventoryTargetDaysMultiplier: 1.8,    // 180% inventory target（更多缓冲=更稳定经济，和平模式）
         aiDevelopmentMultiplier: 0.8,          // 80% AI development speed (was 0.6)
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 1.6,           // 160% tax tolerance (was 2.0)
@@ -101,7 +101,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: 0.10,         // Reduced stability dampening (was 0.15)
         newGameGracePeriod: 60,                // Shorter grace period (was 100)
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 0.85,   // 85% inventory target (was 0.7)
+        inventoryTargetDaysMultiplier: 1.4,    // 140% inventory target（较多缓冲=较稳定经济，简单模式）
         aiDevelopmentMultiplier: 1.0,          // 100% AI development speed (was 0.8)
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 1.3,           // 130% tax tolerance (was 1.5)
@@ -156,7 +156,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: -0.05,        // Slight negative effect (was 0)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 1.5,    // 150% inventory target (was 1.0)
+        inventoryTargetDaysMultiplier: 1.0,    // 100% inventory target（标准缓冲，普通模式）
         aiDevelopmentMultiplier: 1.5,          // 150% AI development speed (was 1.0)
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.9,           // 90% tax tolerance (was 1.0)
@@ -210,7 +210,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: -0.25,        // More negative effect (was -0.15)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 2.0,    // 700% inventory target (was 5.0)
+        inventoryTargetDaysMultiplier: 0.7,    // 70% inventory target（较少缓冲=较波动经济，困难模式）
         aiDevelopmentMultiplier: 2.0,          // 200% AI development speed [Reduced from 5.0 to curb AI snowball]
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.5,           // 50% tax tolerance (was 0.6)
@@ -264,7 +264,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: -0.45,        // More negative stability effect (was -0.3)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 2.80,   // 1800% inventory target (was 12.0)
+        inventoryTargetDaysMultiplier: 0.5,    // 50% inventory target（更少缓冲=更波动经济，灾厄模式）
         aiDevelopmentMultiplier: 3.0,          // 300% AI development speed [Reduced from 8.0 to curb AI snowball]
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.2,           // 20% tax tolerance (was 0.3)
@@ -316,7 +316,7 @@ export const DIFFICULTY_CONFIG = {
         stabilityDampeningBonus: -0.8,         // Severe negative stability effect (was -0.6)
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 3.5,    // 350% inventory target (was 35.0, corrected: removed extra zero)
+        inventoryTargetDaysMultiplier: 0.35,   // 35% inventory target（最少缓冲=最波动经济，地狱模式）
         aiDevelopmentMultiplier: 4.0,         // 400% AI development speed [Reduced from 11.0 to curb AI snowball]
         // [NEW] Configurable Parameters
         taxToleranceMultiplier: 0.1,           // 10% tax tolerance (was 0.15)

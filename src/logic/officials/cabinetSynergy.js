@@ -5,6 +5,7 @@
 
 import { POLITICAL_STANCES } from '../../config/politicalStances';
 import { RESOURCES } from '../../config';
+import { getBusinessTaxRate } from '../economy/taxes';
 
 // Legacy decree pool (curated) for the Centrist cabinet.
 import { DECREES as LEGACY_DECREES, CENTRIST_CABINET_DECREES } from '../../config/decrees_deprecated';
@@ -770,8 +771,8 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {})
         (sum, [res, val]) => sum + getPrice(res, true) * val, 0
     );
 
-    // 营业税
-    const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+    // 营业税（通过模块函数获取，确保 clamp 在合法范围内）
+    const businessTaxMultiplier = getBusinessTaxRate(building.id, taxPolicies?.businessTaxRates || {});
     const businessTaxBase = building.businessTaxBase ?? 0.1;
     const businessTax = businessTaxBase * businessTaxMultiplier;
 
