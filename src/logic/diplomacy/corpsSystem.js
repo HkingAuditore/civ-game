@@ -175,6 +175,8 @@ export const deriveTraitsFromOfficial = (official, maxTraits = 2) => {
  * @returns {Object} New general object
  */
 export const generateGeneral = (epoch = 0) => {
+    // Generals require the official system (unlocked at epoch >= 1 / Bronze Age)
+    if (epoch < 1) return null;
     const name = GENERAL_NAMES[Math.floor(Math.random() * GENERAL_NAMES.length)];
     // Pick 1-2 random traits
     const traitCount = Math.random() < 0.3 ? 2 : 1;

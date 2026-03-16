@@ -74,6 +74,7 @@ import {
     isSelectionAvailable,
     disposeOfficial,
     switchPropertyPolicy,
+    getAggregatedOfficialEffects,
 } from '../logic/officials/manager';
 import { MINISTER_ROLES, MINISTER_LABELS, ECONOMIC_MINISTER_ROLES } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
@@ -168,6 +169,7 @@ export const useGameActions = (gameState, addLog) => {
         setBuildingUpgrades,
         autoRecruitEnabled,
         modifiers,
+        setModifiers,
         productionPerDay,
         militaryCorps, // [FIX Bug9] 读取军团状态用于兵力统计
         generals,
@@ -2188,7 +2190,22 @@ export const useGameActions = (gameState, addLog) => {
     const fireExistingOfficial = (officialId) => {
         const official = officials.find(o => o.id === officialId);
         // Use functional update to avoid stale state when firing multiple officials in sequence.
-        setOfficials(prev => fireOfficial(officialId, prev));
+        setOfficials(prev => {
+            const newOfficials = fireOfficial(officialId, prev);
+            // 即时更新 officialEffects.buildingCostMod，避免等到下一 tick 才生效
+            // 只更新 buildingCostMod（影响建筑购买成本），其他字段等下一 tick 自然刷新
+            if (setModifiers) {
+                const newEffects = getAggregatedOfficialEffects(newOfficials, true);
+                setModifiers(prev2 => ({
+                    ...prev2,
+                    officialEffects: {
+                        ...(prev2?.officialEffects || {}),
+                        buildingCostMod: newEffects.buildingCostMod || 0,
+                    },
+                }));
+            }
+            return newOfficials;
+        });
         clearOfficialFromAssignments(officialId);
         removeOfficialLinkedGeneral(officialId);
         if (official) {
@@ -4750,15 +4767,26 @@ export const useGameActions = (gameState, addLog) => {
                                 direction: 'player_to_ai',
                             });
                         }
+                        const newWealth = (n.wealth || 0) + signingGift - demandSilver;
                         const updates = {
                             treaties: nextTreaties,
 
                             relation: clampRelation((n.relation || 0) + 6 + stanceDelta),
-                            wealth: (n.wealth || 0) + signingGift - demandSilver,
+                            wealth: newWealth,
                             lastDiplomaticActionDay: {
                                 ...(n.lastDiplomaticActionDay || {}),
                                 negotiate_treaty: daysElapsed,
                             },
+                            // [FIX] 立即更新 aiEconomyMetrics，使 UI 财政储备/财富显示即时反映变化
+                            // 否则需等到下一 tick AIEconomyService 重算才能看到变化
+                            aiEconomyMetrics: n.aiEconomyMetrics ? {
+                                ...n.aiEconomyMetrics,
+                                liquidWealth: Math.max(0, newWealth),
+                                wealthStock: Math.max(0, (n.aiEconomyMetrics.wealthStock || 0) + signingGift - demandSilver),
+                                nationalNetWorth: Math.max(0, (n.aiEconomyMetrics.nationalNetWorth || 0) + signingGift - demandSilver),
+                                // treasury 基于 budget 计算，不直接等于 wealth，但赠送银币后应同步增加
+                                treasury: Math.max(0, (n.aiEconomyMetrics.treasury || 0) + signingGift - demandSilver),
+                            } : n.aiEconomyMetrics,
                         };
                         if (resourceAmount > 0 && resourceKey) {
                             updates.inventory = {

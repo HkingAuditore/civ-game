@@ -2622,12 +2622,14 @@ export const syncAINationMilitary = ({
             corps.nationId = updatedNation.id;
 
             const general = generateAIGeneral(updatedNation, epoch);
-            general.id = `ai_gen_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
-            general.assignedCorpsId = corps.id;
-            corps.generalId = general.id;
+            if (general) {
+                general.id = `ai_gen_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
+                general.assignedCorpsId = corps.id;
+                corps.generalId = general.id;
+                newGenerals.push(general);
+            }
 
             newCorps.push(corps);
-            newGenerals.push(general);
         }
     }
 
@@ -2762,6 +2764,8 @@ export const evaluateAIFrontPlan = ({
  * @returns {Object} A pseudo-general object compatible with corpsSystem
  */
 export const generateAIGeneral = (nation, epoch) => {
+    // Generals require the official system (unlocked at epoch >= 1 / Bronze Age)
+    if ((epoch ?? 0) < 1) return null;
     const GENERAL_TRAIT_IDS = ['aggressive', 'defensive', 'swift', 'inspiring', 'cunning', 'veteran', 'logistics', 'siege_master'];
     const aggression = nation.aggression ?? 0.3;
 

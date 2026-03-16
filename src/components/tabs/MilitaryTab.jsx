@@ -1307,6 +1307,8 @@ const MilitaryTabComponent = ({
                     corpsReplenishQueue={corpsReplenishQueue}
                     onUpdateCorpsReplenishQueue={onUpdateCorpsReplenishQueue}
                     autoRecruitEnabled={autoRecruitEnabled}
+                    militaryBonus={militaryBonus}
+                    ideologyRuleMods={ideologyRuleMods}
                 />
             )}
 

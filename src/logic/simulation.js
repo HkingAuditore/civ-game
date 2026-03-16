@@ -821,9 +821,8 @@ export const simulateTick = ({
         return 0;
     };
     const getBusinessTaxRate = (buildingId) => {
-        const rate = businessTaxRates[buildingId];
-        if (typeof rate === 'number') return rate; // 允许负税率（补贴?
-        return 1; // 默认税率系数?，与UI显示一?
+        // 使用模块级函数确保截断逻辑（TAX_LIMITS.MAX_BUSINESS_TAX）生效
+        return getBusinessTaxRateFromModule(buildingId, businessTaxRates);
     };
     // REFACTORED: Use imported function from ./economy/taxes
     const taxBreakdown = initializeTaxBreakdown();
@@ -2041,7 +2040,7 @@ export const simulateTick = ({
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
-                const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
+                const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
                 // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
                 // 如果是补贴（负数），实际到账金额受税收效率影?
@@ -2057,8 +2056,7 @@ export const simulateTick = ({
             } else {
                 // 雇员预估：使用上一 tick 市场工资，如果为 0 则尝试从 building 属性推导
                 // [FIX] 冷启动修复：当历史工资极低时，基于建筑利润反推合理工资预期
-                // 计算建筑的潜在利润来推测雇员应得的合理工资
-                const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
+                // 计算建筑的潜在利润来推测雇员应得的合理工资预期                const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
                 
                 // 计算建筑利润以推断合理的雇员工资（解决新行业冷启动问题）
                 let estimatedWage = avgPaidWage;
@@ -7138,7 +7136,7 @@ export const simulateTick = ({
                     }
 
                     // 计算营业税成?
-                    const businessTaxMultiplier = policies?.businessTaxRates?.[building.id] ?? 1;
+                    const businessTaxMultiplier = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
                     const businessTaxBase = building.businessTaxBase ?? 0.1;
                     const businessTaxCost = businessTaxBase * businessTaxMultiplier;
 
@@ -7580,7 +7578,7 @@ export const simulateTick = ({
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
-                const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
+                const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
                 // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
                 const businessTaxCost = businessTaxBase * businessTaxRate;
                 // 如果是补贴（负数），实际到账金额受税收效率影?
@@ -7861,7 +7859,10 @@ export const simulateTick = ({
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
             nextLastMinisterExpansionDay = tick;
-            logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
+            // [FIX] 遵守官员日志可见性设置
+            if (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true) {
+                logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
+            }
         }
     }
 
@@ -7885,6 +7886,11 @@ export const simulateTick = ({
     const updatedBuildingUpgrades = { ...buildingUpgrades };
     const OWNER_UPGRADE_WEALTH_THRESHOLD = 1.5; // Per-capita wealth must be >= 1.5x base upgrade cost
     const OWNER_UPGRADE_CHANCE_PER_TICK = 0.02; // 2% chance per tick per eligible building type
+
+    // 全局资源预算追踪：防止多个建筑同时升级时透支市场库存
+    // 每次升级前检查剩余可用量，升级后立即扣减预算
+    const upgradeResourceBudget = {};
+    Object.keys(res).forEach(k => { upgradeResourceBudget[k] = res[k] || 0; });
 
     BUILDINGS.forEach(b => {
         const buildingId = b.id;
@@ -7942,14 +7948,15 @@ export const simulateTick = ({
                 continue; // Upgrade not triggered this tick
             }
 
-            // Check if market has enough resources
+            // [FIX] 检查全局资源预算（防止多建筑同时升级透支市场库存）
+            // 使用 upgradeResourceBudget 而非 res，确保跨建筑的累计消耗不超过实际库存
             const hasResources = Object.entries(baseCost).every(([resource, amount]) => {
                 if (resource === 'silver') return true;
-                return (res[resource] || 0) >= amount;
+                return (upgradeResourceBudget[resource] || 0) >= amount;
             });
 
             if (!hasResources) {
-                continue; // Not enough resources in market
+                continue; // Not enough resources in market (accounting for other pending upgrades)
             }
 
             // Check if owner can afford (has enough wealth)
@@ -7959,10 +7966,12 @@ export const simulateTick = ({
 
             // === Execute the upgrade ===
 
-            // 1. Deduct resources from market
+            // 1. Deduct resources from market AND from budget tracker
             Object.entries(baseCost).forEach(([resource, amount]) => {
                 if (resource !== 'silver') {
                     applyResourceChange(resource, -amount, 'building_construction_cost');
+                    // 同步扣减预算，防止后续建筑重复使用同一库存
+                    upgradeResourceBudget[resource] = Math.max(0, (upgradeResourceBudget[resource] || 0) - amount);
                 }
             });
 
@@ -8389,8 +8398,11 @@ export const simulateTick = ({
         perfEnd('foreignUpgrades');
     }
 
-    // Merge investment logs
-    logs.push(...investmentLogs);
+    // Merge investment logs (gated by official log visibility setting)
+    const showOfficialLogsForInvestment = eventEffectSettings?.logVisibility?.showOfficialLogs ?? true;
+    if (showOfficialLogsForInvestment) {
+        logs.push(...investmentLogs);
+    }
     // Add manual trade logs
     if (tradeRouteSummary?.tradeLog) {
         // Gated by log settings? Usually handled in UI, but simulation just returns them.
