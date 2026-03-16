@@ -26,11 +26,24 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
  * @param {Object} rates - 当前资源速率（用于估算规模）
  * @returns {Array} 新生成的候选人列表
  */
-export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null) => {
+export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, existingOfficials = []) => {
     const candidates = [];
+    // 收集已有官员和候选人的名字，避免重名
+    const usedNames = new Set(existingOfficials.map(o => o.name).filter(Boolean));
     // 固定生成5名候选人，传入 index 防止同批次 ID 碰撞
-    for (let i = 0; i < 5; i++) {
-        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, i));
+    let attempts = 0;
+    const maxAttempts = 20; // 最多尝试20次，防止死循环
+    while (candidates.length < 5 && attempts < maxAttempts) {
+        const candidate = generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length);
+        if (!usedNames.has(candidate.name)) {
+            usedNames.add(candidate.name);
+            candidates.push(candidate);
+        }
+        attempts++;
+    }
+    // 如果尝试次数用完仍不足5人，直接补充（允许重名）
+    while (candidates.length < 5) {
+        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length));
     }
     return candidates;
 };

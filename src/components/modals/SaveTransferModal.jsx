@@ -11,17 +11,13 @@ import { Icon } from '../common/UIComponents';
  * @param {boolean} isOpen - 是否显示弹窗
  * @param {Function} onClose - 关闭回调
  * @param {Function} onExportFile - 导出为文件
- * @param {Function} onExportClipboard - 导出到剪贴板
  * @param {Function} onImportFile - 从文件导入
- * @param {Function} onImportClipboard - 从剪贴板导入
  */
 export const SaveTransferModal = ({
     isOpen,
     onClose,
     onExportFile,
-    onExportClipboard,
     onImportFile,
-    onImportClipboard,
 }) => {
     const [activeTab, setActiveTab] = useState('export');
     const [status, setStatus] = useState(null); // { type: 'success' | 'error', message: string }
@@ -42,20 +38,6 @@ export const SaveTransferModal = ({
         }
     };
 
-    const handleExportClipboard = async () => {
-        if (isProcessing) return;
-        setIsProcessing(true);
-        setStatus(null);
-        try {
-            await onExportClipboard?.();
-            setStatus({ type: 'success', message: '存档已复制到剪贴板！' });
-        } catch (error) {
-            setStatus({ type: 'error', message: error.message || '复制失败' });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
     const handleImportFile = async (event) => {
         if (!event?.target?.files?.length) return;
         const [file] = event.target.files;
@@ -67,23 +49,6 @@ export const SaveTransferModal = ({
             await onImportFile?.(file);
             setStatus({ type: 'success', message: '存档导入成功！' });
             setTimeout(() => onClose(), 1000);
-        } catch (error) {
-            setStatus({ type: 'error', message: error.message || '导入失败' });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handleImportClipboard = async () => {
-        if (isProcessing) return;
-        setIsProcessing(true);
-        setStatus(null);
-        try {
-            const result = await onImportClipboard?.();
-            if (result !== false) {
-                setStatus({ type: 'success', message: '存档导入成功！' });
-                setTimeout(() => onClose(), 1000);
-            }
         } catch (error) {
             setStatus({ type: 'error', message: error.message || '导入失败' });
         } finally {
@@ -201,26 +166,6 @@ export const SaveTransferModal = ({
                                             <Icon name="ChevronRight" size={16} className="text-gray-500 group-hover:text-emerald-400 transition-colors mt-2" />
                                         </div>
                                     </button>
-
-                                    {/* 复制到剪贴板 */}
-                                    <button
-                                        onClick={handleExportClipboard}
-                                        disabled={isProcessing}
-                                        className="w-full p-3 rounded-xl border border-cyan-500/30 bg-cyan-900/20 hover:bg-cyan-900/40 transition-all text-left group disabled:opacity-50"
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2 rounded-lg bg-cyan-500/20">
-                                                <Icon name="Clipboard" size={20} className="text-cyan-400" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="text-sm font-bold text-cyan-300">复制到剪贴板</div>
-                                                <p className="text-xs text-gray-400 mt-0.5">
-                                                    复制存档数据，可粘贴到聊天软件发送
-                                                </p>
-                                            </div>
-                                            <Icon name="ChevronRight" size={16} className="text-gray-500 group-hover:text-cyan-400 transition-colors mt-2" />
-                                        </div>
-                                    </button>
                                 </>
                             ) : (
                                 <>
@@ -245,26 +190,6 @@ export const SaveTransferModal = ({
                                                 </p>
                                             </div>
                                             <Icon name="ChevronRight" size={16} className="text-gray-500 group-hover:text-blue-400 transition-colors mt-2" />
-                                        </div>
-                                    </button>
-
-                                    {/* 从剪贴板导入 */}
-                                    <button
-                                        onClick={handleImportClipboard}
-                                        disabled={isProcessing}
-                                        className="w-full p-3 rounded-xl border border-purple-500/30 bg-purple-900/20 hover:bg-purple-900/40 transition-all text-left group disabled:opacity-50"
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2 rounded-lg bg-purple-500/20">
-                                                <Icon name="ClipboardPaste" size={20} className="text-purple-400" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="text-sm font-bold text-purple-300">从剪贴板导入</div>
-                                                <p className="text-xs text-gray-400 mt-0.5">
-                                                    读取剪贴板中的存档数据
-                                                </p>
-                                            </div>
-                                            <Icon name="ChevronRight" size={16} className="text-gray-500 group-hover:text-purple-400 transition-colors mt-2" />
                                         </div>
                                     </button>
                                 </>

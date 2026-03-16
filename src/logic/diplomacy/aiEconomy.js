@@ -607,7 +607,14 @@ export const initializeRebelEconomy = (nation) => {
     const maxWealth = Math.max(baseWealth, Math.floor(baseWealth * 1.15));
 
     next.population = clamp(Math.round(next.population || basePopulation), 5, maxPopulation);
-    next.wealth = clamp(Math.round(next.wealth || baseWealth), baseWealth * 0.5, maxWealth);
+
+    // 财富只在首次初始化时设置默认值，之后允许战争损耗自由消耗
+    // 仅保留极低的生存底线（10%基础财富），不再每tick强制夹回50%
+    if (next.wealth == null) {
+        next.wealth = baseWealth;
+    } else {
+        next.wealth = clamp(Math.round(next.wealth), Math.floor(baseWealth * 0.1), maxWealth);
+    }
     next.budget = Math.min(next.wealth, Math.max(0, next.budget ?? Math.floor(next.wealth * 0.3)));
 };
 
