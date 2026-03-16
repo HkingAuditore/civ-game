@@ -241,7 +241,7 @@ export const TECHS = [
         name: "剧场设计",
         desc: "解锁剧场建筑。",
         cost: { science: 1470 },
-        epoch: 1,
+        epoch: 2,
         prerequisites: ['early_administration'],
         effects: {},
     },
@@ -711,7 +711,7 @@ export const TECHS = [
     {
         id: 'mechanized_weaving',
         name: "机械织布",
-        desc: "解锁织布坊和成衣作坊，水力驱动的飞梭织机大幅提升布料产量。织布坊效率 +20%，成衣作坊效率 +15%。",
+        desc: "水力驱动的飞梭织机大幅提升纺织效率。织布坊效率 +14%，成衣作坊效率 +10%。",
         cost: { science: 13500 },
         epoch: 5,
         prerequisites: ['basic_weaving'],
