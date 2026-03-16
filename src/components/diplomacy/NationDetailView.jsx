@@ -1653,6 +1653,7 @@ const ActiveWars = ({ nation, gameState, daysElapsed, nations = [], epoch = 0 })
         }
 
         // 2. Wars with other AI nations (use nations array instead of gameState.foreignNations)
+        const addedEnemyIds = new Set();
         if (nation.foreignWars) {
             Object.entries(nation.foreignWars).forEach(([enemyId, warData]) => {
                 if (warData && warData.isAtWar) {
@@ -1660,30 +1661,63 @@ const ActiveWars = ({ nation, gameState, daysElapsed, nations = [], epoch = 0 })
                     const enemy = nations.find(n => n.id === enemyId);
                     // Safety check: Don't show wars with nations that are annexed or invisible
                     if (!enemy || enemy.isAnnexed || enemy.visible === false) return;
-                    if (enemy) {
-                        wars.push({
-                            id: enemy.id,
-                            name: enemy.name,
-                            isPlayer: false,
-                            startDate: warData.warStartDay || 0,
-                            score: warData.warScore || 0,
-                            linePosition: warData.linePosition,
-                            destroyedBuildings: warData.destroyedBuildings || {},
-                            warScoreBreakdown: warData.warScoreBreakdown || {},
-                            warEvents: warData.warEvents || [],
-                            nationEffStr: warData.nationEffStr || 0,
-                            enemyEffStr: warData.enemyEffStr || 0,
-                            warIntensity: warData.warIntensity || 1,
-                            warDuration: warData.warDuration || 0,
-                            endScoreThreshold: warData.endScoreThreshold || 0,
-                            assignedCorpsIds: warData.assignedCorpsIds || [],
-                            assignedEnemyCorpsIds: warData.assignedEnemyCorpsIds || [],
-                            enemy,
-                        });
-                    }
+                    addedEnemyIds.add(enemyId);
+                    wars.push({
+                        id: enemy.id,
+                        name: enemy.name,
+                        isPlayer: false,
+                        startDate: warData.warStartDay || 0,
+                        score: warData.warScore || 0,
+                        linePosition: warData.linePosition,
+                        destroyedBuildings: warData.destroyedBuildings || {},
+                        warScoreBreakdown: warData.warScoreBreakdown || {},
+                        warEvents: warData.warEvents || [],
+                        nationEffStr: warData.nationEffStr || 0,
+                        enemyEffStr: warData.enemyEffStr || 0,
+                        warIntensity: warData.warIntensity || 1,
+                        warDuration: warData.warDuration || 0,
+                        endScoreThreshold: warData.endScoreThreshold || 0,
+                        assignedCorpsIds: warData.assignedCorpsIds || [],
+                        assignedEnemyCorpsIds: warData.assignedEnemyCorpsIds || [],
+                        enemy,
+                    });
                 }
             });
         }
+
+        // 3. Reverse lookup: find wars where other AI nations have this nation as enemy
+        // (handles cases where nation.foreignWars is missing the entry due to old save data)
+        nations.forEach(otherNation => {
+            if (!otherNation || otherNation.isAnnexed || otherNation.visible === false) return;
+            if (otherNation.id === nation.id) return;
+            if (addedEnemyIds.has(otherNation.id)) return; // already added
+            const reverseWarData = otherNation.foreignWars?.[nation.id];
+            if (reverseWarData && reverseWarData.isAtWar) {
+                // Build a mirrored war entry from the enemy's perspective
+                const mirroredLinePosition = reverseWarData.linePosition != null
+                    ? 100 - reverseWarData.linePosition
+                    : null;
+                wars.push({
+                    id: otherNation.id,
+                    name: otherNation.name,
+                    isPlayer: false,
+                    startDate: reverseWarData.warStartDay || 0,
+                    score: -(reverseWarData.warScore || 0),
+                    linePosition: mirroredLinePosition,
+                    destroyedBuildings: reverseWarData.destroyedBuildings || {},
+                    warScoreBreakdown: reverseWarData.warScoreBreakdown || {},
+                    warEvents: reverseWarData.warEvents || [],
+                    nationEffStr: reverseWarData.enemyEffStr || 0,
+                    enemyEffStr: reverseWarData.nationEffStr || 0,
+                    warIntensity: reverseWarData.warIntensity || 1,
+                    warDuration: reverseWarData.warDuration || 0,
+                    endScoreThreshold: reverseWarData.endScoreThreshold || 0,
+                    assignedCorpsIds: reverseWarData.assignedEnemyCorpsIds || [],
+                    assignedEnemyCorpsIds: reverseWarData.assignedCorpsIds || [],
+                    enemy: otherNation,
+                });
+            }
+        });
 
         return wars;
     }, [nation, gameState, nations]);
@@ -2004,8 +2038,8 @@ const AIWarForcePanel = ({ nation, enemy, militaryCorps, generals, epoch, nation
 
 const AIWarFrontDetail = ({ war, nation, enemy, daysElapsed, nations = [], militaryCorps = [], generals = [], epoch = 0 }) => {
     const [showEvents, setShowEvents] = useState(false);
+    // linePosition may be null in old saves; default to 50 (neutral front)
     const linePos = war.linePosition != null ? war.linePosition : 50;
-    const hasData = war.linePosition != null;
     const duration = war.warDuration || (war.startDate > 0 ? Math.max(0, daysElapsed - war.startDate) : 0);
 
     // 多线作战信息
@@ -2051,14 +2085,6 @@ const AIWarFrontDetail = ({ war, nation, enemy, daysElapsed, nations = [], milit
     const endThreshold = war.endScoreThreshold || 0;
     const absoluteScore = Math.abs(war.score || 0);
     const scoreProgress = endThreshold > 0 ? Math.min(1, absoluteScore / endThreshold) : 0;
-
-    if (!hasData) {
-        return (
-            <div className="mt-1 p-3 text-xs text-gray-400 bg-gray-900/30 rounded border border-gray-800/30 text-center">
-                战线数据不可用（旧存档）
-            </div>
-        );
-    }
 
     return (
         <div className="mt-1 p-3 bg-gray-900/40 rounded border border-gray-700/30 space-y-3">

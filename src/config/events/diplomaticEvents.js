@@ -239,7 +239,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const vassalUnlocked = epoch >= 3;
 
     // 根据战争分数提供不同选项
-    if (warScore > 300) {
+    if (warScore > 500) {
         const highTribute = Math.max(baseTribute * 2, paymentSet.high);
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;

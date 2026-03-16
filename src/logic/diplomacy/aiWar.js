@@ -1861,7 +1861,8 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             }
 
             if (!enemy.foreignWars) enemy.foreignWars = {};
-            if (!enemy.foreignWars[nation.id]) {
+            if (!enemy.foreignWars[nation.id] || !enemy.foreignWars[nation.id].isAtWar) {
+                // 旧存档容错：对方记录缺失或被错误清除，重新同步战争状态
                 enemy.foreignWars[nation.id] = {
                     isAtWar: true,
                     warStartDay: war.warStartDay || tick,
