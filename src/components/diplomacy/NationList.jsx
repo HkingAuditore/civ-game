@@ -1,7 +1,24 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Input, Badge } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
+
+const PINNED_NATIONS_KEY = 'civ_pinned_nations';
+
+const loadPinnedNations = () => {
+    try {
+        const raw = localStorage.getItem(PINNED_NATIONS_KEY);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+        return new Set();
+    }
+};
+
+const savePinnedNations = (set) => {
+    try {
+        localStorage.setItem(PINNED_NATIONS_KEY, JSON.stringify([...set]));
+    } catch { /* ignore */ }
+};
 
 const NationList = ({
     nations,
@@ -15,6 +32,21 @@ const NationList = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('all'); // all, allies, enemies
     const [sortBy] = useState('relation'); // relation, name
+    const [pinnedNations, setPinnedNations] = useState(loadPinnedNations);
+
+    const togglePin = useCallback((e, nationId) => {
+        e.stopPropagation();
+        setPinnedNations(prev => {
+            const next = new Set(prev);
+            if (next.has(nationId)) {
+                next.delete(nationId);
+            } else {
+                next.add(nationId);
+            }
+            savePinnedNations(next);
+            return next;
+        });
+    }, []);
 
     const pendingRequestCountMap = useMemo(() => {
         const map = {};
@@ -39,11 +71,17 @@ const NationList = ({
                 const rel = relationInfo ? relationInfo(n) : { value: 0, isAllied: false };
                 if (filterType === 'allies') return rel.isAllied || rel.value >= 60;
                 if (filterType === 'enemies') return n.isAtWar || rel.value <= 20;
+                if (filterType === 'pinned') return pinnedNations.has(n.id);
                 return true;
             });
         }
 
         result = result.slice().sort((a, b) => {
+            // Pinned nations always come first
+            const aPinned = pinnedNations.has(a.id) ? 1 : 0;
+            const bPinned = pinnedNations.has(b.id) ? 1 : 0;
+            if (aPinned !== bPinned) return bPinned - aPinned;
+
             // Prioritize nations with pending requests
             const aCount = pendingRequestCountMap[a.id] || 0;
             const bCount = pendingRequestCountMap[b.id] || 0;
@@ -56,7 +94,7 @@ const NationList = ({
         });
 
         return result;
-    }, [nations, visibleNations, searchTerm, filterType, sortBy, relationInfo, pendingRequestCountMap]);
+    }, [nations, visibleNations, searchTerm, filterType, sortBy, relationInfo, pendingRequestCountMap, pinnedNations]);
 
     const sharedOrganizationMap = useMemo(() => {
         const organizations = diplomacyOrganizations?.organizations || [];
@@ -97,6 +135,7 @@ const NationList = ({
                         { id: 'all', label: '全部' },
                         { id: 'allies', label: '盟友' },
                         { id: 'enemies', label: '敌对' },
+                        { id: 'pinned', label: '⭐ 收藏' },
                     ].map((f) => (
                         <button
                             key={f.id}
@@ -186,6 +225,19 @@ const NationList = ({
                                     ${hasRequest ? 'border-l-4 border-l-red-500 bg-red-900/10' : ''} 
                                 `}
                             >
+                                {/* 收藏按钮 */}
+                                <button
+                                    onClick={(e) => togglePin(e, nation.id)}
+                                    className={`absolute top-1.5 right-1.5 z-10 p-0.5 rounded transition-opacity ${
+                                        pinnedNations.has(nation.id)
+                                            ? 'text-amber-400 opacity-100'
+                                            : 'text-gray-600 opacity-0 group-hover:opacity-100'
+                                    }`}
+                                    title={pinnedNations.has(nation.id) ? '取消收藏' : '收藏置顶'}
+                                >
+                                    <Icon name="Star" size={12} />
+                                </button>
+
                                 <div className="flex items-center justify-between mb-1.5">
                                     <div className="flex items-center gap-2.5">
                                         <div

@@ -1143,7 +1143,15 @@ export const useGameState = () => {
     const savingIndicatorTimer = useRef(null);
     const autoSaveQuotaNotifiedRef = useRef(false);
 
-    // ========== 政令与外交状�?==========
+    // ========== Pending Actions Queue（玩家操作增量队列）==========
+    // 解决 tick 覆盖玩家操作的竞争条件：
+    // buyBuilding/sellBuilding 将增量写入此队列，tick 启动时合并到 simulationParams
+    const pendingActionsRef = useRef({
+        buildingDeltas: {},   // { [buildingId]: deltaCount } 正数=购买，负数=出售
+        resourceDeltas: {},   // { [resourceId]: deltaAmount } 负数=消耗
+    });
+
+    // ========== 政令与外交状态 ==========
     const [nations, setNations] = useState(buildInitialNations());
     const [diplomaticReputation, setDiplomaticReputation] = useState(50); // 国际声誉 (0-100)
 
@@ -3848,6 +3856,8 @@ export const useGameState = () => {
         setFiscalActual,
         dailyMilitaryExpense,
         setDailyMilitaryExpense,
+        // Pending Actions Queue（tick-action 竞争条件修复）
+        pendingActionsRef,
     };
 };
 

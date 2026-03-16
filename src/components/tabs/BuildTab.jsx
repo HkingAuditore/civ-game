@@ -15,6 +15,17 @@ import { calculateBuildingCost, applyBuildingCostModifier } from '../../utils/bu
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { BUILDING_CHAINS, BUILDING_TO_CHAIN } from '../../config/buildingChains';
 
+const PINNED_BUILDINGS_KEY = 'civ_pinned_buildings';
+const loadPinnedBuildings = () => {
+    try {
+        const raw = localStorage.getItem(PINNED_BUILDINGS_KEY);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
+};
+const savePinnedBuildings = (set) => {
+    try { localStorage.setItem(PINNED_BUILDINGS_KEY, JSON.stringify([...set])); } catch { /* ignore */ }
+};
+
 /**
  * 建筑悬浮提示框 (使用 Portal)
  * 优化：接收预计算的业主岗位数，避免重复遍历外资和官员数据
@@ -211,6 +222,8 @@ const CompactBuildingCard = ({
     actualOutputByRes = {},
     // 优化：直接传入已计算好的业主岗位数，而非在每个卡片中重复计算
     ownerJobsRequired = 0,
+    isPinned = false,
+    onTogglePin,
 }) => {
     const VisualIcon = Icon;
 
@@ -222,6 +235,19 @@ const CompactBuildingCard = ({
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
         >
+            {/* 收藏按钮 */}
+            {onTogglePin && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); onTogglePin(building.id); }}
+                    className={`absolute top-0.5 left-0.5 z-20 p-0.5 rounded transition-opacity ${
+                        isPinned ? 'text-amber-400 opacity-100' : 'text-gray-600 opacity-0 group-hover:opacity-100'
+                    }`}
+                    title={isPinned ? '取消收藏' : '收藏置顶'}
+                >
+                    <VisualIcon name="Star" size={10} />
+                </button>
+            )}
+
             {/* 升级提示 - 仅在有建筑且可升级时显示 */}
             {count > 0 && hasUpgrades && (
                 <div
@@ -346,7 +372,8 @@ const MemoCompactBuildingCard = memo(CompactBuildingCard, (prevProps, nextProps)
         prevProps.silverCost !== nextProps.silverCost ||
         prevProps.hasUpgrades !== nextProps.hasUpgrades ||
         prevProps.ownerJobsRequired !== nextProps.ownerJobsRequired ||
-        prevProps.epoch !== nextProps.epoch
+        prevProps.epoch !== nextProps.epoch ||
+        prevProps.isPinned !== nextProps.isPinned
     ) {
         return false;
     }
@@ -402,6 +429,15 @@ const BuildTabComponent = ({
     const liveJobFill = jobFill;
     const liveBuildingFinancialData = buildingFinancialData;
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
+    const [pinnedBuildings, setPinnedBuildings] = useState(loadPinnedBuildings);
+    const toggleBuildingPin = useCallback((buildingId) => {
+        setPinnedBuildings(prev => {
+            const next = new Set(prev);
+            if (next.has(buildingId)) { next.delete(buildingId); } else { next.add(buildingId); }
+            savePinnedBuildings(next);
+            return next;
+        });
+    }, []);
     const [viewport, setViewport] = useState(() => {
         if (typeof window === 'undefined') return { scrollY: 0, height: 0, width: 0 };
         return {
@@ -939,9 +975,11 @@ const BuildTabComponent = ({
                 ownerJobsRequired={ownerJobsRequired}
                 unlockedOutput={unlockedOutput}
                 actualOutputByRes={actualOutputByRes}
+                isPinned={pinnedBuildings.has(building.id)}
+                onTogglePin={toggleBuildingPin}
             />
         );
-    }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredResources, onShowDetails]);
+    }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredResources, onShowDetails, pinnedBuildings, toggleBuildingPin]);
 
     const renderChainTopCard = useCallback((chainId, topBuilding, otherBuildings) => {
         const topCardData = cardDataById[topBuilding.id];
@@ -965,7 +1003,7 @@ const BuildTabComponent = ({
 
         return (
             <div key={topBuilding.id} className="relative" data-build-card="1">
-                <MemoCompactBuildingCard
+                        <MemoCompactBuildingCard
                     building={averageBuilding}
                     count={count}
                     affordable={affordable}
@@ -984,6 +1022,8 @@ const BuildTabComponent = ({
                     ownerJobsRequired={ownerJobsCorrections[topBuilding.id] ?? (topBuilding.jobs?.[topBuilding.owner] || 0) * count}
                     unlockedOutput={unlockedOutput}
                     actualOutputByRes={actualOutputByRes}
+                    isPinned={pinnedBuildings.has(topBuilding.id)}
+                    onTogglePin={toggleBuildingPin}
                 />
 
                 {/* 链展开角标 - 右侧偏上 */}
@@ -1059,6 +1099,7 @@ const BuildTabComponent = ({
     };
     const categoryFilters = [
         { key: 'all', label: '全部' },
+        { key: 'pinned', label: '⭐ 收藏' },
         { key: 'gather', label: '采集' },
         { key: 'industry', label: '工业' },
         { key: 'civic', label: '市政' },
@@ -1066,7 +1107,7 @@ const BuildTabComponent = ({
     ];
     const [activeCategory, setActiveCategory] = useState('all');
     const categoriesToRender =
-        activeCategory === 'all'
+        activeCategory === 'all' || activeCategory === 'pinned'
             ? Object.entries(categories)
             : Object.entries(categories).filter(([key]) => key === activeCategory);
 
@@ -1187,6 +1228,8 @@ const BuildTabComponent = ({
 
             {categoriesToRender.map(([catKey, catInfo]) => {
                 const categoryWorkers = categoryWorkersByKey[catKey] || 0;
+                // 收藏过滤：仅显示已收藏的建筑
+                const isPinnedFilter = activeCategory === 'pinned';
 
                 return (
 <div key={catKey} className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
@@ -1206,9 +1249,13 @@ const BuildTabComponent = ({
                             className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11 gap-1"
                         >
                             {(() => {
-                                const items = flatItemsByCategory[catKey] || [];
+                                let items = flatItemsByCategory[catKey] || [];
+                                // 收藏过滤：只显示已收藏的建筑
+                                if (isPinnedFilter) {
+                                    items = items.filter(item => pinnedBuildings.has(item.building?.id || item.chainId));
+                                }
                                 const range = virtualRangeByCategory[catKey];
-                                const useVirtual = range?.enabled;
+                                const useVirtual = range?.enabled && !isPinnedFilter;
                                 const startIndex = useVirtual ? range.startIndex : 0;
                                 const endIndex = useVirtual ? range.endIndex : items.length;
                                 const visibleItems = items.slice(startIndex, endIndex);

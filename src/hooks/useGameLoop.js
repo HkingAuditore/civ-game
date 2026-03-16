@@ -749,6 +749,8 @@ difficulty, // 游戏难度
         setIdeologyMilestones,
         pendingIdeologyEmergence,
         setPendingIdeologyEmergence,
+        // Pending Actions Queue（tick-action 竞争条件修复）
+        pendingActionsRef,
     } = gameState;
 
     // 浣跨敤ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
@@ -1221,13 +1223,46 @@ difficulty, // 游戏难度
             const officialDailySalary = calculateTotalDailySalary(current.officials || []);
             const canAffordOfficials = (current.resources?.silver || 0) >= officialDailySalary;
 
-            // Build simulation parameters - 鎵嬪姩鍒楀嚭鍙簭鍒楀寲瀛楁锛屾帓闄ゅ嚱鏁板璞★紙濡?actions锛?
-            // 杩欐牱鍙互姝ｇ‘鍚敤 Web Worker 鍔犻€燂紝閬垮厤 DataCloneError
+            // Build simulation parameters - 鎵嬪姩鍒楀嚭鍙簭鍒楀寲瀛楁锛屾帓闄ゅ嚱鏁板璞★紙濡?actions锛?
+            // 杩欐牱鍙互姝ｇ'鍚敤 Web Worker 鍔犻€燂紝閬垮厤 DataCloneError
+
+            // [FIX] 合并玩家操作增量到 simulation 输入，防止 tick 覆盖用户操作
+            let mergedBuildings = current.buildings;
+            let mergedResources = current.resources;
+            let consumedPendingDeltas = null; // 记录本次消费的 delta，用于 tick 结果写回时校验
+            if (pendingActionsRef?.current) {
+                const pa = pendingActionsRef.current;
+                const hasBuildingDeltas = Object.keys(pa.buildingDeltas).length > 0;
+                const hasResourceDeltas = Object.keys(pa.resourceDeltas).length > 0;
+                if (hasBuildingDeltas || hasResourceDeltas) {
+                    // 快照并清空队列（原子操作，后续新 action 写入不会丢失）
+                    consumedPendingDeltas = {
+                        buildingDeltas: { ...pa.buildingDeltas },
+                        resourceDeltas: { ...pa.resourceDeltas },
+                    };
+                    pa.buildingDeltas = {};
+                    pa.resourceDeltas = {};
+
+                    if (hasBuildingDeltas) {
+                        mergedBuildings = { ...current.buildings };
+                        Object.entries(consumedPendingDeltas.buildingDeltas).forEach(([bid, delta]) => {
+                            mergedBuildings[bid] = Math.max(0, (mergedBuildings[bid] || 0) + delta);
+                        });
+                    }
+                    if (hasResourceDeltas) {
+                        mergedResources = { ...current.resources };
+                        Object.entries(consumedPendingDeltas.resourceDeltas).forEach(([rid, delta]) => {
+                            mergedResources[rid] = Math.max(0, (mergedResources[rid] || 0) + delta);
+                        });
+                    }
+                }
+            }
+
             const simulationParams = {
-                // 基础游戏数据
-                resources: current.resources,
+                // 基础游戏数据（使用合并了 pending actions 的版本）
+                resources: mergedResources,
                 market: current.market,
-                buildings: current.buildings,
+                buildings: mergedBuildings,
                 buildingUpgrades: current.buildingUpgrades,
                 population: current.population,
                 popStructure: current.popStructure,
@@ -1947,7 +1982,24 @@ difficulty, // 游戏难度
                 const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
                     ? result._debug.startingSilver
                     : treasuryAtTickStart;
-                setResources(adjustedResources, {
+                // [FIX] 使用函数更新器合并 tick 期间新产生的玩家操作资源增量
+                setResources(prev => {
+                    // adjustedResources 已包含 tick 启动时消费的 pending delta
+                    // 但 tick 运行期间可能有新的 buyBuilding 消耗资源
+                    // 通过 diff(prev, mergedResources) 检测新增量
+                    const result2 = { ...adjustedResources };
+                    if (mergedResources) {
+                        Object.keys(prev).forEach(rid => {
+                            const prevVal = prev[rid] || 0;
+                            const mergedVal = mergedResources[rid] || 0;
+                            const lateActionDelta = prevVal - mergedVal;
+                            if (lateActionDelta !== 0) {
+                                result2[rid] = Math.max(0, (result2[rid] || 0) + lateActionDelta);
+                            }
+                        });
+                    }
+                    return result2;
+                }, {
                     reason: 'tick_update',
                     meta: { day: current.daysElapsed || 0, source: 'game_loop' },
                     auditEntries,
@@ -2987,8 +3039,32 @@ difficulty, // 游戏难度
                         }
                     }
                     // [NEW] Update buildings count (from Free Market expansion)
+                    // [FIX] 使用函数更新器合并 tick 期间新产生的玩家操作增量
                     if (nextBuildings) {
-                        setBuildings(nextBuildings);
+                        setBuildings(prev => {
+                            // nextBuildings 已包含 tick 启动时消费的 pending delta
+                            // 但 tick 运行期间可能有新的 buyBuilding/sellBuilding 调用
+                            // 这些新增量已写入 React state (prev) 但不在 nextBuildings 中
+                            // 通过 diff(prev, mergedBuildings) 检测新增量
+                            const result = { ...nextBuildings };
+                            if (mergedBuildings) {
+                                Object.keys(prev).forEach(bid => {
+                                    const prevCount = prev[bid] || 0;
+                                    const mergedCount = mergedBuildings[bid] || 0;
+                                    const lateActionDelta = prevCount - mergedCount;
+                                    if (lateActionDelta !== 0) {
+                                        result[bid] = Math.max(0, (result[bid] || 0) + lateActionDelta);
+                                    }
+                                });
+                                // 处理 prev 中有但 mergedBuildings 中没有的新建筑（极端情况）
+                                Object.keys(prev).forEach(bid => {
+                                    if (!(bid in mergedBuildings) && prev[bid] > 0) {
+                                        result[bid] = (result[bid] || 0) + prev[bid];
+                                    }
+                                });
+                            }
+                            return result;
+                        });
                     }
                     if (typeof result.lastMinisterExpansionDay === 'number') {
                         setLastMinisterExpansionDay(result.lastMinisterExpansionDay);

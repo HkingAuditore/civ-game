@@ -208,6 +208,8 @@ export const useGameActions = (gameState, addLog) => {
         // Corps replenish queue
         corpsReplenishQueue,
         setCorpsReplenishQueue,
+        // Pending Actions Queue（tick-action 竞争条件修复）
+        pendingActionsRef,
     } = gameState;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
@@ -1389,6 +1391,17 @@ export const useGameActions = (gameState, addLog) => {
 
         setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
+
+        // 写入 pending queue，防止 tick 覆盖此操作
+        if (pendingActionsRef?.current) {
+            const pa = pendingActionsRef.current;
+            pa.buildingDeltas[id] = (pa.buildingDeltas[id] || 0) + finalCount;
+            Object.entries(totalCost).forEach(([res, amt]) => {
+                pa.resourceDeltas[res] = (pa.resourceDeltas[res] || 0) - amt;
+            });
+            pa.resourceDeltas.silver = (pa.resourceDeltas.silver || 0) - silverCost;
+        }
+
         addLog(`建造了 ${finalCount} 个 ${b.name}`);
 
         // Ideology event: build
@@ -1563,6 +1576,12 @@ export const useGameActions = (gameState, addLog) => {
             const newVal = Math.max(0, currentVal - sellCount);
             return { ...prev, [id]: newVal };
         });
+
+        // 写入 pending queue，防止 tick 覆盖此操作
+        if (pendingActionsRef?.current) {
+            pendingActionsRef.current.buildingDeltas[id] =
+                (pendingActionsRef.current.buildingDeltas[id] || 0) - sellCount;
+        }
 
         // 根据拆除数量显示不同日志
         if (sellCount === 1) {
