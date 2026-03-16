@@ -1019,6 +1019,7 @@ export function processOverseasInvestments({
     classWealth = {},
     taxPolicies = {},
     daysElapsed = 0,
+    ticksElapsed = 1, // [PERF] 批量结算倍率，默认1表示每tick执行
 }) {
     const logs = [];
     let totalProfit = 0;
@@ -1071,29 +1072,29 @@ export function processOverseasInvestments({
             playerIsHome: true,
             partnerNation: targetNation,
         });
-        const scaledProfit = (profitResult.profit || 0) * multiplier;
-        const scaledOutput = (profitResult.outputValue || 0) * multiplier;
-        const scaledInput = (profitResult.inputCost || 0) * multiplier;
-        const scaledWage = (profitResult.wageCost || 0) * multiplier;
-        const scaledBusinessTax = (profitResult.businessTaxCost || 0) * multiplier;
-        const scaledTransport = (profitResult.transportCost || 0) * multiplier;
-        const scaledTariffCost = (profitResult.tariffCost || 0) * multiplier;
-        const scaledTariffRevenue = (profitResult.tariffRevenue || 0) * multiplier;
-        const scaledTariffSubsidy = (profitResult.tariffSubsidy || 0) * multiplier;
+        const scaledProfit = (profitResult.profit || 0) * multiplier * ticksElapsed;
+        const scaledOutput = (profitResult.outputValue || 0) * multiplier * ticksElapsed;
+        const scaledInput = (profitResult.inputCost || 0) * multiplier * ticksElapsed;
+        const scaledWage = (profitResult.wageCost || 0) * multiplier * ticksElapsed;
+        const scaledBusinessTax = (profitResult.businessTaxCost || 0) * multiplier * ticksElapsed;
+        const scaledTransport = (profitResult.transportCost || 0) * multiplier * ticksElapsed;
+        const scaledTariffCost = (profitResult.tariffCost || 0) * multiplier * ticksElapsed;
+        const scaledTariffRevenue = (profitResult.tariffRevenue || 0) * multiplier * ticksElapsed;
+        const scaledTariffSubsidy = (profitResult.tariffSubsidy || 0) * multiplier * ticksElapsed;
 
-        // 汇总资源变更
+        // 汇总资源变更（同样乘以ticksElapsed倍率）
         if (profitResult.localResourceChanges) {
             if (!marketChanges[investment.targetNationId]) {
                 marketChanges[investment.targetNationId] = {};
             }
             Object.entries(profitResult.localResourceChanges).forEach(([res, delta]) => {
-                marketChanges[investment.targetNationId][res] = (marketChanges[investment.targetNationId][res] || 0) + delta * multiplier;
+                marketChanges[investment.targetNationId][res] = (marketChanges[investment.targetNationId][res] || 0) + delta * multiplier * ticksElapsed;
             });
         }
 
         if (profitResult.playerResourceChanges) {
             Object.entries(profitResult.playerResourceChanges).forEach(([res, delta]) => {
-                playerInventoryChanges[res] = (playerInventoryChanges[res] || 0) + delta * multiplier;
+                playerInventoryChanges[res] = (playerInventoryChanges[res] || 0) + delta * multiplier * ticksElapsed;
             });
         }
 
@@ -1497,6 +1498,7 @@ export function processForeignInvestments({
     // [NEW] 用于计算实际到岗率
     jobFill = {},
     buildings = {},
+    ticksElapsed = 1, // [PERF] 批量结算倍率，默认1表示每tick执行
 }) {
     const logs = [];
     let totalTaxRevenue = 0;
@@ -1591,16 +1593,16 @@ export function processForeignInvestments({
             staffingRatio = filledSlots / totalSlots;
         }
 
-        // 5. 处理结果 - 利润乘以到岗率
-        // 理论利润 * 到岗率 = 实际利润
+        // 5. 处理结果 - 利润乘以到岗率，再乘以ticksElapsed批量结算倍率
+        // 理论利润 * 到岗率 * 累积tick数 = 实际利润
         const theoreticalProfit = (profitResult.profit || 0) * multiplier;
-        const dailyProfit = theoreticalProfit * staffingRatio;
+        const dailyProfit = theoreticalProfit * staffingRatio * ticksElapsed;
         const theoreticalTariffRevenue = (profitResult.tariffRevenue || 0) * multiplier;
         const theoreticalTariffSubsidy = (profitResult.tariffSubsidy || 0) * multiplier;
         const theoreticalTariffCost = (profitResult.tariffCost || 0) * multiplier;
-        const scaledTariffRevenue = theoreticalTariffRevenue * staffingRatio;
-        const scaledTariffSubsidy = theoreticalTariffSubsidy * staffingRatio;
-        const scaledTariffCost = theoreticalTariffCost * staffingRatio;
+        const scaledTariffRevenue = theoreticalTariffRevenue * staffingRatio * ticksElapsed;
+        const scaledTariffSubsidy = theoreticalTariffSubsidy * staffingRatio * ticksElapsed;
+        const scaledTariffCost = theoreticalTariffCost * staffingRatio * ticksElapsed;
 
         // 计算税收 (Strict Rules Logic for Foreign Investment)
         let effectiveTaxRate = 0.60; // 默认惩罚性税率 60%
