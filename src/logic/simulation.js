@@ -2056,7 +2056,8 @@ export const simulateTick = ({
             } else {
                 // 雇员预估：使用上一 tick 市场工资，如果为 0 则尝试从 building 属性推导
                 // [FIX] 冷启动修复：当历史工资极低时，基于建筑利润反推合理工资预期
-                // 计算建筑的潜在利润来推测雇员应得的合理工资预期                const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
+                // 计算建筑的潜在利润来推测雇员应得的合理工资预期
+                const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
                 
                 // 计算建筑利润以推断合理的雇员工资（解决新行业冷启动问题）
                 let estimatedWage = avgPaidWage;

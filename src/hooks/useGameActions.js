@@ -6525,6 +6525,14 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${targetNation.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}！`);
             return;
         }
+        if (proposalType === 'peace_only') {
+            endWarWithNation(nationId, {
+                isMercyPeaceOffering: false,
+                relation: Math.min(100, (targetNation.relation || 50) + 10),
+            });
+            addLog(`[停战达成] 你接受了 ${targetNation.name} 的和平提议，战争结束。`);
+            return;
+        }
         if (paymentAmount > 0) {
             setResourcesWithReason(
                 prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }),
