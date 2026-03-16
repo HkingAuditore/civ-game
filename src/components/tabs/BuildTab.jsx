@@ -224,8 +224,10 @@ const CompactBuildingCard = ({
     ownerJobsRequired = 0,
     isPinned = false,
     onTogglePin,
+    canHover = true,
 }) => {
     const VisualIcon = Icon;
+    const showPinButton = isPinned || !canHover;
 
     return (
         <div
@@ -239,12 +241,17 @@ const CompactBuildingCard = ({
             {onTogglePin && (
                 <button
                     onClick={(e) => { e.stopPropagation(); onTogglePin(building.id); }}
-                    className={`absolute top-0.5 left-0.5 z-20 p-0.5 rounded transition-opacity ${
-                        isPinned ? 'text-amber-400 opacity-100' : 'text-gray-600 opacity-0 group-hover:opacity-100'
+                    className={`absolute top-1 left-1 z-20 flex items-center justify-center min-w-8 min-h-8 rounded-full border transition-all ${
+                        showPinButton
+                            ? (isPinned
+                                ? 'text-amber-300 bg-amber-500/20 border-amber-400/60 opacity-100 shadow-sm'
+                                : 'text-gray-200 bg-black/45 border-white/15 opacity-100')
+                            : 'text-gray-600 bg-black/20 border-transparent opacity-0 group-hover:opacity-100'
                     }`}
                     title={isPinned ? '取消收藏' : '收藏置顶'}
+                    aria-label={isPinned ? `取消收藏 ${building.name}` : `收藏 ${building.name}`}
                 >
-                    <VisualIcon name="Star" size={10} />
+                    <VisualIcon name="Star" size={14} />
                 </button>
             )}
 
@@ -373,7 +380,8 @@ const MemoCompactBuildingCard = memo(CompactBuildingCard, (prevProps, nextProps)
         prevProps.hasUpgrades !== nextProps.hasUpgrades ||
         prevProps.ownerJobsRequired !== nextProps.ownerJobsRequired ||
         prevProps.epoch !== nextProps.epoch ||
-        prevProps.isPinned !== nextProps.isPinned
+        prevProps.isPinned !== nextProps.isPinned ||
+        prevProps.canHover !== nextProps.canHover
     ) {
         return false;
     }
@@ -977,6 +985,7 @@ const BuildTabComponent = ({
                 actualOutputByRes={actualOutputByRes}
                 isPinned={pinnedBuildings.has(building.id)}
                 onTogglePin={toggleBuildingPin}
+                canHover={canHover}
             />
         );
     }, [cardDataById, ownerJobsCorrections, onBuy, onSell, handleMouseEnter, handleMouseLeave, epoch, techsUnlocked, deferredResources, onShowDetails, pinnedBuildings, toggleBuildingPin]);
@@ -1024,6 +1033,7 @@ const BuildTabComponent = ({
                     actualOutputByRes={actualOutputByRes}
                     isPinned={pinnedBuildings.has(topBuilding.id)}
                     onTogglePin={toggleBuildingPin}
+                    canHover={canHover}
                 />
 
                 {/* 链展开角标 - 右侧偏上 */}
