@@ -96,7 +96,35 @@ const StratumDetailSheetComponent = ({
     const influence = classInfluence[stratumKey] || 0;
     const wealthValue = classWealth[stratumKey] ?? 0;
     // Use classFinancialData for overview consistent with finance tab
-    const finData = classFinancialData[stratumKey] || {};
+    // Special case for 'official': classFinancialData is reset every tick but officialSim only runs every 5 ticks,
+    // so we aggregate from the persistent lastDay* fields on each official object instead.
+    const finData = (() => {
+        if (stratumKey === 'official' && officials.length > 0) {
+            let totalSalary = 0, totalPropertyIncome = 0, totalHeadTax = 0;
+            let totalEssentialCost = 0, totalLuxuryCost = 0;
+            officials.forEach(o => {
+                totalSalary += (o.salary || 0);
+                totalPropertyIncome += (o.lastDayPropertyIncome || 0);
+                totalHeadTax += (o.lastDayHeadTaxPaid || 0);
+                // lastDayExpense includes essential+luxury consumption (excluding headTax)
+                const consumption = Math.max(0, (o.lastDayExpense || 0) - (o.lastDayHeadTaxPaid || 0));
+                const luxuryPart = o.lastDayLuxuryExpense || 0;
+                totalLuxuryCost += luxuryPart;
+                totalEssentialCost += Math.max(0, consumption - luxuryPart);
+            });
+            return {
+                income: { salary: totalSalary, ownerRevenue: totalPropertyIncome, wage: 0, subsidy: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
+                expense: {
+                    headTax: totalHeadTax,
+                    essentialNeeds: totalEssentialCost > 0 ? { _total: { cost: totalEssentialCost, quantity: 0 } } : {},
+                    luxuryNeeds: totalLuxuryCost > 0 ? { _total: { cost: totalLuxuryCost, quantity: 0 } } : {},
+                    transactionTax: 0, businessTax: 0, tariffs: 0, productionCosts: 0,
+                    wages: 0, decay: 0, tradeExportPurchase: 0, capitalFlight: 0, buildingCost: 0, layoffTransfer: 0
+                }
+            };
+        }
+        return classFinancialData[stratumKey] || {};
+    })();
     const incomeData = finData.income || {};
     const expenseData = finData.expense || {};
 
@@ -1160,9 +1188,8 @@ const StratumDetailSheetComponent = ({
             {/* 财务Tab内容 */}
             {activeTab === 'finance' && (
                 <div className="space-y-2">
-                    {/* 总收支概览 - 使用classFinancialData计算以确保与明细一致 */}
+                    {/* 总收支概览 - 使用顶层 finData（official 阶层已从 officials 数组汇总，避免 classFinancialData 每 tick 重置问题） */}
                     {(() => {
-                        const finData = classFinancialData[stratumKey] || {};
                         const incomeData = finData.income || {};
                         const expenseData = finData.expense || {};
 
@@ -1245,7 +1272,7 @@ const StratumDetailSheetComponent = ({
                             收入构成 (人均/日)
                         </h3>
                         {(() => {
-                            const data = classFinancialData[stratumKey]?.income || {};
+                            const data = finData.income || {};
                             const wage = (data.wage || 0) / safeDayScale / Math.max(count, 1);
                             const ownerRevenue = (data.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const subsidy = (data.subsidy || 0) / safeDayScale / Math.max(count, 1);
@@ -1314,7 +1341,7 @@ const StratumDetailSheetComponent = ({
                             支出构成 (人均/日)
                         </h3>
                         {(() => {
-                            const data = classFinancialData[stratumKey]?.expense || {};
+                            const data = finData.expense || {};
                             const headTax = (data.headTax || 0) / safeDayScale / Math.max(count, 1);
                             const transactionTax = (data.transactionTax || 0) / safeDayScale / Math.max(count, 1);
                             const businessTax = (data.businessTax || 0) / safeDayScale / Math.max(count, 1);

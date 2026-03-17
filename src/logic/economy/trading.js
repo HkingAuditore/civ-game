@@ -49,8 +49,25 @@ export const DEFAULT_TRADE_CONFIG = {
     
     // Trade 3.0: Opportunity-first approach (select trades first, then assign merchants)
     maxTradeOpportunitiesPerPartner: 3, // [DEPRECATED] No longer used - kept for compatibility
-    maxGlobalTradeOpportunities: 15, // [NEW] Top N most profitable trade opportunities globally (across all nations)
+    maxGlobalTradeOpportunities: 45, // [NEW] Top N most profitable trade opportunities globally (across all nations)
     merchantBatchesPerCycle: 3, // Split merchants into N batches (N = tradeDuration for even distribution)
+
+    // Trade 3.1: Cached opportunity evaluation (expensive evaluation runs less often, execution every tick)
+    opportunityRefreshInterval: 12, // How often (in ticks) to re-evaluate trade opportunities (STEP 1)
+    tradeSlicesPerCycle: 3, // Split opportunities into N slices for per-tick execution rotation
+};
+
+// --- Trade 3.1: Module-level opportunity cache ----------------------------
+// Caches the expensive STEP 1 (opportunity evaluation) result.
+// Only refreshed every `opportunityRefreshInterval` ticks.
+// STEP 2-3 (lightweight execution) reads from cache every tick.
+const _opportunityCache = {
+    topOpportunities: [],      // Cached top global opportunities
+    allPartnerBatches: [],     // Cached partner batch allocations
+    assignments: {},           // Cached merchant assignments
+    totalMerchants: 0,         // Cached total merchant count
+    lastRefreshTick: -Infinity, // Last tick when STEP 1 ran
+    partnerSignature: '',      // Hash of partner list for invalidation
 };
 
 // --- Trade 2.0 helpers -------------------------------------------------
@@ -703,18 +720,9 @@ export const simulateMerchantTrade = ({
         }
     });
 
-    // If we are throttling new trades, skip expensive opportunity search
-    if (!allowNewTrades) {
-        const lockedCapital = updatedPendingTrades.reduce((sum, trade) => sum + Math.max(0, trade?.capitalLocked || 0), 0);
-        return {
-            pendingTrades: updatedPendingTrades,
-            lastTradeTime,
-            lockedCapital,
-            capitalInvestedThisTick: 0,
-            completedTrades,
-            tradeRotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
-        };
-    }
+    // Trade 3.1: allowNewTrades now only controls STEP 1 (expensive evaluation).
+    // STEP 2-3 (lightweight execution from cache) always runs so trades happen every tick.
+    // The old early-return is removed — we fall through to cached execution below.
 
     // Check trade cooldown
     const ticksSinceLastTrade = tick - lastTradeTime;
@@ -730,6 +738,63 @@ export const simulateMerchantTrade = ({
         };
     }
 
+    // --- Trade 3.1: Determine if we need to refresh opportunity cache (STEP 1) ---
+    const refreshInterval = tradeConfig.opportunityRefreshInterval || 3;
+    const cacheAge = tick - _opportunityCache.lastRefreshTick;
+    const shouldRefreshOpportunities = allowNewTrades && (cacheAge >= refreshInterval || _opportunityCache.topOpportunities.length === 0);
+
+    // If cache is valid and we're not refreshing, skip straight to STEP 2-3 execution
+    if (!shouldRefreshOpportunities && _opportunityCache.topOpportunities.length > 0) {
+        // Use cached data for STEP 2-3 execution
+        return executeCachedTrades({
+            tick,
+            tradeConfig,
+            updatedPendingTrades,
+            lastTradeTime,
+            capitalInvestedThisTick,
+            completedTrades,
+            rotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] },
+            // Cached data
+            topGlobalOpportunities: _opportunityCache.topOpportunities,
+            partnerBatches: _opportunityCache.allPartnerBatches,
+            totalMerchants: _opportunityCache.totalMerchants,
+            // Execution context
+            wealth,
+            res,
+            supply,
+            demand,
+            nations,
+            market,
+            taxPolicies,
+            taxBreakdown,
+            getLocalPrice,
+            getImportTaxRate,
+            getExportTaxRate,
+            roleExpense,
+            roleWagePayout,
+            classFinancialData,
+            logs,
+            ledger,
+            supplyBreakdown,
+            demandBreakdown,
+            merchantCount,
+        });
+    }
+
+    // If no cache and not allowed to refresh, return (first-tick edge case)
+    if (!shouldRefreshOpportunities) {
+        const lockedCapital = updatedPendingTrades.reduce((sum, trade) => sum + Math.max(0, trade?.capitalLocked || 0), 0);
+        return {
+            pendingTrades: updatedPendingTrades,
+            lastTradeTime,
+            lockedCapital,
+            capitalInvestedThisTick: 0,
+            completedTrades,
+            tradeRotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
+        };
+    }
+
+    // --- STEP 1: Full opportunity evaluation (expensive, runs every N ticks) ---
     const tradableKeys = Object.keys(RESOURCES)
         .filter(key => canForeignTradeResource(key))
         .filter(key => !potentialResources || potentialResources.has(key));
@@ -834,6 +899,9 @@ export const simulateMerchantTrade = ({
         };
     }
 
+    // Cache the total merchant count for STEP 2-3
+    const totalMerchants = partnerBatches.reduce((sum, pb) => sum + pb.count, 0);
+
     // [DEBUG] Log merchant assignment details
     if (tradeConfig.enableDebugLog) {
         debugLog('trade', `[商人派驻] 总商人数: ${merchantCount}, 派驻商人: ${explicitlyAssignedCount}, 闲置商人: ${idleMerchantCount}`, {
@@ -847,10 +915,6 @@ export const simulateMerchantTrade = ({
             rotationState
         });
     }
-
-    // [ROTATION] Limit new trades per tick to spread load across multiple ticks
-    const maxNewTradesThisTick = tradeConfig.maxNewTradesPerTick || 10;
-    let tradesCreatedThisTick = 0;
 
     // ============================================================
     // TRADE 3.0: Opportunity-First Approach
@@ -1080,15 +1144,98 @@ export const simulateMerchantTrade = ({
         });
     }
     
+    // --- Trade 3.1: Update opportunity cache after STEP 1 evaluation ---
+    _opportunityCache.topOpportunities = topGlobalOpportunities;
+    _opportunityCache.allPartnerBatches = partnerBatches;
+    _opportunityCache.assignments = assignments;
+    _opportunityCache.totalMerchants = totalMerchants;
+    _opportunityCache.lastRefreshTick = tick;
+    _opportunityCache.partnerSignature = currentPartnerIds;
+    
+    // Now execute STEP 2-3 using the freshly cached data
+    return executeCachedTrades({
+        tick,
+        tradeConfig,
+        updatedPendingTrades,
+        lastTradeTime,
+        capitalInvestedThisTick,
+        completedTrades,
+        rotationState,
+        // Freshly evaluated data (same as cache)
+        topGlobalOpportunities,
+        partnerBatches,
+        totalMerchants,
+        // Execution context
+        wealth,
+        res,
+        supply,
+        demand,
+        nations,
+        market,
+        taxPolicies,
+        taxBreakdown,
+        getLocalPrice,
+        getImportTaxRate,
+        getExportTaxRate,
+        roleExpense,
+        roleWagePayout,
+        classFinancialData,
+        logs,
+        ledger,
+        supplyBreakdown,
+        demandBreakdown,
+        merchantCount,
+    });
+};
+
+/**
+ * STEP 2-3: Execute trades from cached opportunities (lightweight, runs every tick)
+ * Separated from STEP 1 (expensive evaluation) for performance.
+ */
+const executeCachedTrades = ({
+    tick,
+    tradeConfig,
+    updatedPendingTrades,
+    lastTradeTime,
+    capitalInvestedThisTick,
+    completedTrades,
+    rotationState,
+    topGlobalOpportunities,
+    partnerBatches,
+    totalMerchants,
+    wealth,
+    res,
+    supply,
+    demand,
+    nations,
+    market,
+    taxPolicies,
+    taxBreakdown,
+    getLocalPrice,
+    getImportTaxRate,
+    getExportTaxRate,
+    roleExpense,
+    roleWagePayout,
+    classFinancialData,
+    logs,
+    ledger,
+    supplyBreakdown,
+    demandBreakdown,
+    merchantCount,
+}) => {
+    const importTariffMultipliers = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const exportTariffMultipliers = taxPolicies?.exportTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
+
     // ============================================================
     // STEP 2: Rotate through opportunities to spread trades across ticks
     // ============================================================
-    const tradeDuration = tradeConfig.tradeDuration || 3;
+    const sliceCount = tradeConfig.tradeSlicesPerCycle || tradeConfig.tradeDuration || 3;
     
     // Calculate how many opportunities to process this tick
-    // Goal: Process all opportunities over N ticks (N = tradeDuration)
-    const opportunitiesPerTick = Math.ceil(topGlobalOpportunities.length / tradeDuration);
-    const startIndex = (tick % tradeDuration) * opportunitiesPerTick;
+    // Goal: Process all opportunities over N ticks (N = sliceCount)
+    const opportunitiesPerTick = Math.ceil(topGlobalOpportunities.length / sliceCount);
+    const startIndex = (tick % sliceCount) * opportunitiesPerTick;
     const endIndex = Math.min(startIndex + opportunitiesPerTick, topGlobalOpportunities.length);
     
     // Select opportunities for this tick
@@ -1105,17 +1252,15 @@ export const simulateMerchantTrade = ({
         };
     }
     
-    // Calculate total merchants to process this tick
-    const totalMerchants = partnerBatches.reduce((sum, pb) => sum + pb.count, 0);
-    
     // [DEBUG] Log batch processing
     if (tradeConfig.enableDebugLog) {
-        debugLog('trade', `[商人轮询] Tick ${tick}, 处理机会 ${startIndex}-${endIndex}/${allTradeOpportunities.length}`, {
+        debugLog('trade', `[商人轮询] Tick ${tick}, 处理机会 ${startIndex}-${endIndex}/${topGlobalOpportunities.length}`, {
             tick,
-            tradeDuration,
+            sliceCount,
             opportunitiesThisTick: opportunitiesThisTick.length,
-            totalOpportunities: allTradeOpportunities.length,
-            totalMerchants
+            totalOpportunities: topGlobalOpportunities.length,
+            totalMerchants,
+            cacheAge: tick - _opportunityCache.lastRefreshTick,
         });
     }
     
@@ -1170,10 +1315,32 @@ export const simulateMerchantTrade = ({
     
     for (let i = 0; i < merchantAllocations.length; i++) {
         const allocation = merchantAllocations[i];
-        const { partner, partnerBatch, candidate, getPartnerImportTaxRate, getPartnerExportTaxRate, tradeEfficiencyMultiplier, merchantCount } = allocation;
+        const { candidate, merchantCount: allocatedMerchants } = allocation;
+        
+        // Re-resolve partner from nations array (cache may hold stale references)
+        const partner = Array.isArray(nations) ? nations.find(n => n?.id === allocation.partner?.id) : allocation.partner;
+        if (!partner) continue;
+        
+        const partnerBatch = allocation.partnerBatch;
+        
+        // Re-calculate treaty effects for this partner
+        const treatyEffects = getTreatyEffects(partner, tick);
+        const treatyTariffMult = treatyEffects.tariffMultiplier;
+        const tradeEfficiencyMultiplier = 1 + Math.max(0, treatyEffects.tradeEfficiencyBonus || 0);
+        
+        const getPartnerImportTaxRate = (resource) => {
+            const tariffPart = (importTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
+        const getPartnerExportTaxRate = (resource) => {
+            const tariffPart = (exportTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
         
         
-        if (merchantCount === 0) continue;
+        if (allocatedMerchants === 0) continue;
         
         const currentTotalWealth = wealth.merchant || 0;
         if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
@@ -1181,13 +1348,13 @@ export const simulateMerchantTrade = ({
         // Calculate efficiency based on merchant composition
         const explicitEfficiency = 1;
         const idleEfficiency = tradeConfig.idleTradeEfficiency;
-        const totalMerchantsForPartner = partnerBatch.explicitCount + partnerBatch.idleCount;
+        const totalMerchantsForPartner = (partnerBatch?.explicitCount || 0) + (partnerBatch?.idleCount || 0);
         const averageEfficiency = totalMerchantsForPartner > 0
-            ? (partnerBatch.explicitCount * explicitEfficiency + partnerBatch.idleCount * idleEfficiency) / totalMerchantsForPartner
+            ? ((partnerBatch?.explicitCount || 0) * explicitEfficiency + (partnerBatch?.idleCount || 0) * idleEfficiency) / totalMerchantsForPartner
             : idleEfficiency;
         
         // Allocate wealth proportional to merchants assigned to this opportunity
-        const wealthShare = merchantCount / totalMerchants;
+        const wealthShare = allocatedMerchants / totalMerchants;
         const wealthForThisOpportunity = currentTotalWealth * wealthShare * averageEfficiency;
 
         if (candidate.type === 'export') {
@@ -1198,7 +1365,7 @@ export const simulateMerchantTrade = ({
                 partnerId: partner.id,
                 resourceKey: candidate.resourceKey,
                 wealthForThisBatch: wealthForThisOpportunity,
-                batchMultiplier: merchantCount,
+                batchMultiplier: allocatedMerchants,
                 wealth,
                 res,
                 supply,
@@ -1225,7 +1392,7 @@ export const simulateMerchantTrade = ({
                 }
                 
                 lastTradeTime = tick;
-                merchantsProcessed += merchantCount;
+                merchantsProcessed += allocatedMerchants;
             }
         } else {
             const result = executeImportTradeV2({
@@ -1235,7 +1402,7 @@ export const simulateMerchantTrade = ({
                 partnerId: partner.id,
                 resourceKey: candidate.resourceKey,
                 wealthForThisBatch: wealthForThisOpportunity,
-                batchMultiplier: merchantCount,
+                batchMultiplier: allocatedMerchants,
                 wealth,
                 res,
                 taxBreakdown,
@@ -1259,7 +1426,7 @@ export const simulateMerchantTrade = ({
                 }
                 
                 lastTradeTime = tick;
-                merchantsProcessed += merchantCount;
+                merchantsProcessed += allocatedMerchants;
             }
         }
     }
@@ -1270,7 +1437,8 @@ export const simulateMerchantTrade = ({
             merchantsProcessed,
             totalMerchants,
             tradesCreated: updatedPendingTrades.length,
-            opportunitiesProcessed: opportunitiesThisTick.length
+            opportunitiesProcessed: opportunitiesThisTick.length,
+            cacheAge: tick - _opportunityCache.lastRefreshTick,
         });
     }
 

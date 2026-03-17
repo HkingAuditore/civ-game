@@ -207,6 +207,7 @@ export const PERF_SEGMENT_PRIORITY = {
     vassalUpdates:      TICK_PRIORITY.CRITICAL,
     buffsDebuffs:       TICK_PRIORITY.CRITICAL,
     bonusesApply:       TICK_PRIORITY.CRITICAL,
+    merchantTrade:      TICK_PRIORITY.CRITICAL, // Merchant trade must run every tick (execution is cheap; only opportunity evaluation is throttled internally)
 
     // === DEFERRED级：低频执行（决策/行动类） ===
     aiNationUpdate:       TICK_PRIORITY.DEFERRED,
