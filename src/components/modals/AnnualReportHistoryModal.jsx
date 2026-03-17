@@ -398,12 +398,14 @@ export const AnnualReportHistoryModal = ({
                     className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-ancient-gold/30 bg-gray-950/95 shadow-2xl shadow-ancient-gold/10 overflow-hidden"
                 >
                     {view === 'detail' && selectedEntry ? (
+                        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
                         <ReportDetailView
                             entry={selectedEntry}
                             empireName={empireName}
                             onBack={handleBackToList}
                             onExport={handleExportSingle}
                         />
+                        </div>
                     ) : (
                         <>
                             {/* Header */}
