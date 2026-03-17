@@ -511,9 +511,10 @@ export const analyzeTradeOpportunities = ({
     const allExports = [];
     const allImports = [];
 
-    // Scan all visible nations
+    // Scan all visible nations (skip undiscovered — relation null/undefined)
     (nations || []).forEach(partner => {
         if (!partner || partner.isAtWar) return;
+        if (partner.relation === null || partner.relation === undefined) return;
 
         tradableKeys.forEach(resourceKey => {
             // Export check
@@ -640,21 +641,10 @@ export const simulateMerchantTrade = ({
     const tradeConfig = { ...DEFAULT_TRADE_CONFIG, ...(STRATA.merchant?.tradeConfig || {}) };
 
     // Process pending trades (point-to-point: apply on completion)
-    // [FIX] Filter out trades with undiscovered nations (旧存档清理)
+    // Process all pending trades - even those with undiscovered nations
+    // (trades already initiated with goods/funds committed must complete normally)
     const updatedPendingTrades = [];
     pendingTrades.forEach(trade => {
-        // Skip trades with undiscovered nations
-        if (trade.partnerId) {
-            const partner = Array.isArray(nations) ? nations.find(n => n?.id === trade.partnerId) : null;
-            if (!partner || partner.relation === null || partner.relation === undefined) {
-                // Skip this trade - nation is not discovered
-                if (tradeConfig.enableDebugLog) {
-                    debugLog('trade', `[贸易清理] 跳过未发现国家的贸易: ${trade.partnerId}`, trade);
-                }
-                return; // Skip this trade
-            }
-        }
-        
         trade.daysRemaining -= 1;
 
         if (trade.daysRemaining <= 0) {
@@ -875,9 +865,17 @@ export const simulateMerchantTrade = ({
 
     // Convert assignments to concrete partner list, and cap partners per tick for performance.
     // [FIX] Ensure all partners are evaluated over time by rotating through them
+    // [FIX] Filter out undiscovered nations — cannot trade with nations we haven't discovered
     const allPartnerList = Object.entries(assignments)
         .map(([nationId, count]) => ({ nationId, count }))
-        .filter(e => e.count > 0);
+        .filter(e => {
+            if (e.count <= 0) return false;
+            const n = Array.isArray(nations) ? nations.find(x => x?.id === e.nationId) : null;
+            if (!n) return false;
+            // Undiscovered nations have null/undefined relation
+            if (n.relation === null || n.relation === undefined) return false;
+            return true;
+        });
     
     // Build a pool of "merchant batches" based on assigned counts.
     // Each merchant can handle one trade route, so batches = merchant count.
@@ -1408,6 +1406,8 @@ const executeCachedTrades = ({
         // Re-resolve partner from nations array (cache may hold stale references)
         const partner = Array.isArray(nations) ? nations.find(n => n?.id === allocation.partner?.id) : allocation.partner;
         if (!partner) continue;
+        // [FIX] Skip undiscovered nations — cannot create trades with nations we haven't found
+        if (partner.relation === null || partner.relation === undefined) continue;
         
         const partnerBatch = allocation.partnerBatch;
         
