@@ -917,6 +917,8 @@ difficulty, // 游戏难度
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
+    // NOTE: prevTechsRef / prevEpochRef removed — tech/epoch ideology scoring
+    // is now handled proactively in useGameActions (researchTech / advanceEpoch).
 
     const { runSimulation, syncHistory, isUsingWorker } = useSimulationWorker();
 
@@ -2060,16 +2062,12 @@ difficulty, // 游戏难度
                                 .filter(n => n.isAtWar && !n.isRebelNation)
                                 .map(n => ({ id: n.id, warScore: n.warScore || 0, eventId: `${n.id}_${n.warStartDay || 0}` }));
                             const prevState = {
-                                techsUnlocked: latestState.techsUnlocked || [],
-                                epoch: latestState.epoch || 0,
                                 stability: latestState.stability || 50,
                                 completedChains: latestState.completedChains || 0,
                                 // 上一tick的在战国家列表（用于检测战争结束）
                                 warNations: prevWarNationsRef.current,
                             };
                             const curState = {
-                                techsUnlocked: latestState.techsUnlocked || [],
-                                epoch: latestState.epoch || 0,
                                 stability: result.stability ?? latestState.stability ?? 50,
                                 population: result.population ?? latestState.population ?? 0,
                                 buildings: latestState.buildings || {},
@@ -2081,7 +2079,7 @@ difficulty, // 游戏难度
                                 tradeVolume: _tradeVolume,
                                 warNations: _curWarNations,
                             };
-                            // 更新上一tick的在战国家列表（供下一tick使用）
+                            // 更新上一tick的快照（供下一tick使用）
                             prevWarNationsRef.current = _curWarNations;
                             const scoreResult = checkAndAwardIdeologyScore(curState, prevState);
                             if (scoreResult.scoreGained > 0) {
@@ -4337,7 +4335,10 @@ difficulty, // 游戏难度
                             battleLogs.forEach(log => addLog(log));
                         }
 
-                        // Flush ideology event bus logs and effects
+                    }
+
+                    // Flush ideology event bus logs and effects (outside battle if-block so it runs every tick)
+                    {
                         const ideologyLogs = ideologyEventBus.flushLogs();
                         if (ideologyLogs.length > 0) {
                             ideologyLogs.forEach(log => addLog(log));

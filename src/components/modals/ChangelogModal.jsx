@@ -8,9 +8,18 @@ import { Icon } from '../common/UIComponents';
  */
 export const CHANGELOG = [
     {
-        version: '2.1.0',
+        version: '2.1.1',
         date: '2026-03-17',
         isLatest: true,
+        highlights: ['贸易优化'],
+        changes: [
+            { type: 'improve', text: '贸易优化' },
+        ],
+    },
+    {
+        version: '2.1.0',
+        date: '2026-03-17',
+        isLatest: false,
         highlights: ['修复军团士兵不计入阶层人口的问题', '修复市场恶性清空资源 bug', '军团卡片新增可展开详情面板', '组织度面板重做', '各难度满意度阈值调整', '税收通过弹性机制自然抑制各阶层需求意愿量'],
         changes: [
             { type: 'fix', text: '修复编入军团的士兵不计入 soldier 阶层岗位需求的问题：军团内单位现在会与散兵一同参与 soldier 岗位计算，确保军人阶层人口数量、满意度、军饷转账等下游数值正确反映实际兵力' },
