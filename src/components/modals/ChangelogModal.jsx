@@ -28,7 +28,7 @@ export const CHANGELOG = [
     },
     {
         version: '2.0.9',
-        date: '2026-03-17',
+        date: '2026-03-16',
         isLatest: false,
         highlights: ['修复敌方停战提议接受流程', '放缓 AI 时代推进速度', '重做难度库存缓冲与价格波动', '修正营业税补贴导致的负成本价'],
         changes: [
@@ -60,7 +60,7 @@ export const CHANGELOG = [
     },
     {
         version: '2.0.6',
-        date: '2025-07-16',
+        date: '2026-03-15',
         isLatest: false,
         highlights: ['更新日志功能上线', '修复密谋事件反复弹出的问题', '修复同一官员反复出现的问题'],
         changes: [
@@ -73,7 +73,7 @@ export const CHANGELOG = [
     },
     {
         version: '2.0.5',
-        date: '2025-07-01',
+        date: '2026-03-15',
         highlights: ['外交系统优化', '理念系统平衡调整'],
         changes: [
             { type: 'new', text: '外交谈判新增更多条约类型' },
@@ -84,7 +84,7 @@ export const CHANGELOG = [
     },
     {
         version: '2.0.4',
-        date: '2025-06-15',
+        date: '2026-03-14',
         highlights: ['军团系统上线', '战线管理优化'],
         changes: [
             { type: 'new', text: '新增军团编组系统，支持多军团同时作战' },
