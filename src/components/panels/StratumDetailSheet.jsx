@@ -12,7 +12,9 @@ import {
     getStageIcon,
     predictDaysToUprising,
     ORGANIZATION_STAGE,
+    STAGE_THRESHOLDS,
 } from '../../logic/organizationSystem';
+import { getSatisfactionThreshold, getDifficultyConfig, DEFAULT_DIFFICULTY } from '../../config/difficulty';
 import { getAvailableActions } from '../../logic/strategicActions';
 import { getPromiseTaskRemainingDays } from '../../logic/promiseTasks';
 import { analyzeDissatisfactionSources } from '../../logic/demands';
@@ -58,6 +60,7 @@ const StratumDetailSheetComponent = ({
     activeDemands = {}, // 新增：活跃诉求
     nations = [],
     officials = [], // 新增：官员列表
+    difficulty, // 游戏难度
 
     // Optional: extra approval drivers from simulation (to explain 'mysterious' drops)
     legitimacyTaxModifier = 1,
@@ -899,102 +902,158 @@ const StratumDetailSheetComponent = ({
                             const orgStageIcon = getStageIcon(orgStage);
                             const daysToUprising = predictDaysToUprising(organization, growthRate);
 
+                            // 组织度增减分析
+                            const diffLevel = difficulty || DEFAULT_DIFFICULTY;
+                            const satThreshold = getSatisfactionThreshold(diffLevel);
+                            const decayThreshold = satThreshold + 3;
+                            const isGrowing = growthRate > 0;
+                            const isDecaying = growthRate < 0;
+                            const isStable = growthRate === 0;
+
+                            // 趋势判断
+                            let trendLabel, trendColor, trendIcon;
+                            if (isGrowing) {
+                                trendLabel = '上升中';
+                                trendColor = 'text-red-400';
+                                trendIcon = 'TrendingUp';
+                            } else if (isDecaying) {
+                                trendLabel = '下降中';
+                                trendColor = 'text-green-400';
+                                trendIcon = 'TrendingDown';
+                            } else {
+                                trendLabel = '稳定';
+                                trendColor = 'text-gray-400';
+                                trendIcon = 'Minus';
+                            }
+
+                            // 根据好感度和阈值判断组织度增减原因
+                            const currentApproval = classApproval[stratumKey] ?? 50;
+                            const orgDrivers = [];
+                            if (currentApproval < satThreshold) {
+                                orgDrivers.push({
+                                    label: `好感度 ${currentApproval.toFixed(0)} < 增长阈值 ${satThreshold}`,
+                                    effect: '推动组织度增长',
+                                    color: 'text-red-300',
+                                    icon: 'AlertTriangle',
+                                });
+                            } else if (currentApproval > decayThreshold) {
+                                orgDrivers.push({
+                                    label: `好感度 ${currentApproval.toFixed(0)} > 衰减阈值 ${decayThreshold}`,
+                                    effect: '推动组织度衰减',
+                                    color: 'text-green-300',
+                                    icon: 'Heart',
+                                });
+                            } else {
+                                orgDrivers.push({
+                                    label: `好感度 ${currentApproval.toFixed(0)} 在安全区间 [${satThreshold}, ${decayThreshold}]`,
+                                    effect: '好感度因素无变化',
+                                    color: 'text-gray-400',
+                                    icon: 'Minus',
+                                });
+                            }
+
+                            // 驱动因子（shortages, tax 等）
+                            const shortages = classShortages[stratumKey] || [];
+                            if (shortages.length > 0) {
+                                const basicShortages = shortages.filter(s => {
+                                    const stratum = STRATA[stratumKey];
+                                    return stratum?.needs?.[s.resource];
+                                });
+                                if (basicShortages.length > 0) {
+                                    orgDrivers.push({
+                                        label: `基础物资短缺 (${basicShortages.map(s => RESOURCES[s.resource]?.name || s.resource).join('、')})`,
+                                        effect: '加速组织度增长',
+                                        color: 'text-red-300',
+                                        icon: 'PackageX',
+                                    });
+                                }
+                            }
+
+                            // 50%上限检测
+                            const hasBasicShortage = shortages.some(s => {
+                                const stratum = STRATA[stratumKey];
+                                return stratum?.needs?.[s.resource];
+                            });
+                            const isCappedAt50 = !hasBasicShortage && currentApproval > 60;
+
                             return (
                                 <>
-                                    {/* 组织度状态卡片 */}
-                                    <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
-                                        <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                                            <Icon name="AlertTriangle" size={16} className="text-orange-400" />
-                                            组织度状态
-                                        </h3>
-
-                                        {/* 组织度进度条 */}
-                                        <div className="mb-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Icon
-                                                        name={orgStageIcon}
-                                                        size={18}
-                                                        className={organization >= 70 ? 'text-red-500 animate-pulse' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}
-                                                    />
-                                                    <span className={`text-sm font-bold ${organization >= 70 ? 'text-red-400' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
-                                                        {orgStageName}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-lg font-mono font-bold text-white">{organization.toFixed(0)}%</span>
-                                                    {growthRate !== 0 && (
-                                                        <span className={`text-xs font-mono ${growthRate > 0 ? 'text-red-300' : 'text-green-300'}`}>
-                                                            ({growthRate > 0 ? '+' : ''}{growthRate.toFixed(2)}/天)
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="w-full bg-gray-800/50 rounded-full h-3 border border-gray-600 overflow-hidden">
-                                                <div
-                                                    className={`h-3 rounded-full transition-all ${organization >= 90 ? 'bg-red-500 animate-pulse' :
-                                                        organization >= 70 ? 'bg-orange-500' :
-                                                            organization >= 30 ? 'bg-yellow-500' : 'bg-gray-500'
-                                                        }`}
-                                                    style={{ width: `${organization}%` }}
+                                    {/* 组织度主卡片 */}
+                                    <div className="bg-ancient-ink/40 rounded-lg p-3 border border-ancient-gold/20">
+                                        {/* 标题行 */}
+                                        <div className="flex items-center justify-between mb-2.5">
+                                            <div className="flex items-center gap-2">
+                                                <Icon
+                                                    name={orgStageIcon}
+                                                    size={18}
+                                                    className={organization >= 70 ? 'text-red-500 animate-pulse' : organization >= 30 ? 'text-orange-400' : 'text-green-400'}
                                                 />
+                                                <span className={`text-sm font-bold ${organization >= 70 ? 'text-red-400' : organization >= 30 ? 'text-orange-400' : 'text-green-400'}`}>
+                                                    {orgStageName}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xl font-mono font-bold text-ancient-parchment">{organization.toFixed(0)}%</span>
+                                            </div>
+                                        </div>
+
+                                        {/* 进度条 */}
+                                        <div className="w-full bg-ancient-ink/60 rounded-full h-2.5 border border-ancient-gold/10 overflow-hidden mb-2">
+                                            <div
+                                                className={`h-2.5 rounded-full transition-all duration-500 ${organization >= 90 ? 'bg-red-500 animate-pulse' :
+                                                    organization >= 70 ? 'bg-orange-500' :
+                                                        organization >= 50 ? 'bg-yellow-500' :
+                                                            organization >= 30 ? 'bg-yellow-600' : 'bg-green-600'
+                                                    }`}
+                                                style={{ width: `${organization}%` }}
+                                            />
+                                        </div>
+
+                                        {/* 趋势行 */}
+                                        <div className="flex items-center justify-between">
+                                            <div className={`flex items-center gap-1.5 text-xs font-medium ${trendColor}`}>
+                                                <Icon name={trendIcon} size={14} />
+                                                <span>{trendLabel}</span>
+                                                {growthRate !== 0 && (
+                                                    <span className="font-mono">
+                                                        ({growthRate > 0 ? '+' : ''}{growthRate.toFixed(2)}/天)
+                                                    </span>
+                                                )}
                                             </div>
                                             {daysToUprising !== null && daysToUprising < 200 && (
-                                                <div className="text-sm text-red-400 mt-2 animate-pulse font-bold">
-                                                    ⚠️ 预计 {daysToUprising} 天后爆发叛乱
-                                                </div>
+                                                <span className="text-xs text-red-400 animate-pulse font-bold">
+                                                    ⚠️ {daysToUprising}天后叛乱
+                                                </span>
+                                            )}
+                                            {isCappedAt50 && organization >= 49 && (
+                                                <span className="text-xs text-blue-300 flex items-center gap-1">
+                                                    <Icon name="Lock" size={11} />
+                                                    上限50%（无物资短缺）
+                                                </span>
                                             )}
                                         </div>
-
-                                        {/* 阶段说明 */}
-                                        {/* <div className="bg-gray-800/50 rounded p-2 text-xs text-gray-300">
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div><span className="text-yellow-400">0-29%</span>: 平静</div>
-                                            <div><span className="text-yellow-400">30-49%</span>: 不满</div>
-                                            <div><span className="text-orange-400">50-69%</span>: 动员</div>
-                                            <div><span className="text-red-400">70-89%</span>: 激进</div>
-                                            <div className="col-span-2"><span className="text-red-500">90-100%</span>: 起义爆发！</div>
-                                        </div>
-                                    </div> */}
                                     </div>
 
-                                    {/* 为什么好感度会下降（解释卡片） */}
-                                    <div className="bg-gray-800/40 rounded p-3 border border-gray-600">
-                                        <h3 className="text-xs font-bold text-white mb-2 flex items-center gap-2">
-                                            <Icon name="HelpCircle" size={14} className="text-amber-300" />
-                                            为什么好感度会下降？
+                                    {/* 组织度变化因素 */}
+                                    <div className="bg-ancient-ink/30 rounded-lg p-3 border border-ancient-gold/15">
+                                        <h3 className="text-xs font-bold text-ancient-parchment mb-2 flex items-center gap-1.5">
+                                            <Icon name="Activity" size={14} className="text-ancient-gold" />
+                                            组织度变化因素
                                         </h3>
-                                        <div className="text-xs text-gray-300 space-y-1.5 leading-relaxed">
-                                            <div>
-                                                <span className="text-gray-200 font-semibold">核心逻辑：</span>
-                                                好感度不是“永久值”，它会持续受到经济与政策的影响。
-                                            </div>
-                                            <ul className="space-y-1">
-                                                <li className="flex gap-2">
-                                                    <span className="text-red-300">-</span>
-                                                    <span><span className="text-gray-200 font-semibold">基础物资短缺</span>：买不到/买不起（常见是粮食、衣物等）会持续拉低好感度，并推动组织度上升。</span>
-                                                </li>
-                                                <li className="flex gap-2">
-                                                    <span className="text-red-300">-</span>
-                                                    <span><span className="text-gray-200 font-semibold">税负过高</span>：人头税或关键物资税过重时，他们会更不满，组织抗税。</span>
-                                                </li>
-                                                <li className="flex gap-2">
-                                                    <span className="text-red-300">-</span>
-                                                    <span><span className="text-gray-200 font-semibold">收入不足 / 生活水平恶化</span>：即使“工资看起来很高”，但如果物价更高或供给不足，好感度仍会下降。</span>
-                                                </li>
-                                                <li className="flex gap-2">
-                                                    <span className="text-red-300">-</span>
-                                                    <span><span className="text-gray-200 font-semibold">临时事件/政令效果消退</span>：事件加成有持续时间，结束后会回落，看起来像“突然下降”。</span>
-                                                </li>
-                                            </ul>
-                                            <div className="text-xs text-gray-400 pt-1 border-t border-gray-700/70">
-                                                下面的<span className="text-gray-200 font-semibold">"好感度变化分析"</span>会把正负因素按贡献度拆出来，帮助你了解影响好感度的各项因素。
-                                            </div>                                        </div>
+                                        <div className="space-y-1.5">
+                                            {orgDrivers.map((driver, idx) => (
+                                                <div key={idx} className="flex items-start gap-2 text-xs">
+                                                    <Icon name={driver.icon} size={13} className={`${driver.color} flex-shrink-0 mt-0.5`} />
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="text-ancient-stone">{driver.label}</span>
+                                                        <span className={`ml-1.5 font-medium ${driver.color}`}>→ {driver.effect}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
 
-
-
-                                    {/* 好感度变化分析（完整） */}
+                                    {/* 好感度变化分析 */}
                                     {(() => {
                                         const dissatisfactionContext = {
                                             classShortages,
@@ -1007,15 +1066,11 @@ const StratumDetailSheetComponent = ({
                                             classExpense,
                                             classWealth,
                                             approvalBreakdown,
-                                            classFinancialData, // [NEW] For business tax / tariff burden analysis
-
-                                            // Match simulation semantics (legitimacy affects effective head tax)
+                                            classFinancialData,
                                             effectiveTaxModifier: legitimacyTaxModifier ?? 1,
                                             popStructure,
                                             dayScale,
                                             market: market || { prices: {} },
-
-                                            // Extra approval drivers (so UI can explain 'mysterious' drops)
                                             taxShock: taxShock || {},
                                             eventApprovalModifiers: eventApprovalModifiers || {},
                                             decreeApprovalModifiers: decreeApprovalModifiers || {},
@@ -1023,7 +1078,7 @@ const StratumDetailSheetComponent = ({
                                         };
                                         const analysis = analyzeDissatisfactionSources(stratumKey, dissatisfactionContext);
                                         return (
-                                            <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
+                                            <div className="bg-ancient-ink/30 rounded-lg p-3 border border-ancient-gold/15">
                                                 <DissatisfactionAnalysis
                                                     sources={analysis.sources}
                                                     totalContribution={analysis.totalContribution}
@@ -1035,70 +1090,59 @@ const StratumDetailSheetComponent = ({
                                     })()}
 
                                     {/* 当前诉求 */}
-                                    {(currentOrganization >= 50 || derivedDemands.length > 0) && (
-                                        <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
+                                    {derivedDemands.length > 0 && (
+                                        <div className="bg-ancient-ink/30 rounded-lg p-3 border border-ancient-gold/15">
                                             <DemandsList
                                                 demands={derivedDemands}
                                                 currentDay={daysElapsed}
                                             />
-                                            {derivedDemands.length === 0 && (
-                                                <div className="flex items-center gap-2 text-xs text-gray-400">
-                                                    <Icon name="Scroll" size={14} className="text-purple-400" />
-                                                    <span>当前没有具体诉求</span>
-                                                </div>
-                                            )}
                                         </div>
                                     )}
 
-                                    {/* 策略行动区 */}
-                                    <div className="bg-gray-700/50 rounded p-3 border border-gray-600 space-y-3">
-                                        <div>
-                                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                                                <Icon name="Zap" size={16} className="text-blue-400" />
-                                                策略行动
-                                            </h3>
-                                            <div className="space-y-1.5">
-                                                {availableActions.map(action => (
-                                                    <StrategicActionButton
-                                                        key={action.id}
-                                                        action={action}
-                                                        stratumKey={stratumKey}
-                                                        stratumName={stratum.name}
-                                                        popCount={count}
-                                                        disabled={!onStrategicAction || !action.available}
-                                                        unavailableReason={action.unavailableReason}
-                                                        onExecute={onStrategicAction}
-                                                        actionUsage={actionUsage}
-                                                    />
-                                                ))}
-                                            </div>
-                                            {availableActions.length === 0 && (
-                                                <div className="text-xs text-gray-400 text-center mt-2">暂无可用的策略行动</div>
-                                            )}
-                                            {!onStrategicAction && (
-                                                <div className="text-xs text-gray-500 mt-2 text-center bg-gray-800/30 rounded p-2">
-                                                    策略行动功能开发中...
-                                                </div>
-                                            )}
+                                    {/* 策略行动 */}
+                                    <div className="bg-ancient-ink/30 rounded-lg p-3 border border-ancient-gold/15 space-y-2.5">
+                                        <h3 className="text-xs font-bold text-ancient-parchment flex items-center gap-1.5">
+                                            <Icon name="Zap" size={14} className="text-blue-400" />
+                                            策略行动
+                                        </h3>
+                                        <div className="space-y-1.5">
+                                            {availableActions.map(action => (
+                                                <StrategicActionButton
+                                                    key={action.id}
+                                                    action={action}
+                                                    stratumKey={stratumKey}
+                                                    stratumName={stratum.name}
+                                                    popCount={count}
+                                                    disabled={!onStrategicAction || !action.available}
+                                                    unavailableReason={action.unavailableReason}
+                                                    onExecute={onStrategicAction}
+                                                    actionUsage={actionUsage}
+                                                />
+                                            ))}
                                         </div>
-                                        <div className="pt-2 border-t border-gray-600/60">
-                                            <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1">
-                                                <Icon name="FileText" size={12} className="text-amber-300" />
-                                                承诺任务
-                                            </h4>
-                                            {stratumPromiseTasks.length > 0 ? (
+                                        {availableActions.length === 0 && (
+                                            <div className="text-xs text-ancient-stone text-center">暂无可用的策略行动</div>
+                                        )}
+
+                                        {/* 承诺任务 */}
+                                        {stratumPromiseTasks.length > 0 && (
+                                            <div className="pt-2 border-t border-ancient-gold/10">
+                                                <h4 className="text-xs font-bold text-ancient-parchment mb-1.5 flex items-center gap-1">
+                                                    <Icon name="FileText" size={12} className="text-amber-300" />
+                                                    承诺任务
+                                                </h4>
                                                 <div className="space-y-1">
                                                     {stratumPromiseTasks.map(task => {
                                                         const remaining = getPromiseTaskRemainingDays(task, daysElapsed || 0);
                                                         return (
-                                                            <div key={task.id} className="bg-gray-800/60 border border-gray-600 rounded p-2">
-                                                                <div className="flex items-center justify-between text-xs text-gray-300">
-                                                                    <span className="font-semibold text-white">{task.description}</span>
+                                                            <div key={task.id} className="bg-ancient-ink/40 border border-ancient-gold/10 rounded p-2">
+                                                                <div className="flex items-center justify-between text-xs">
+                                                                    <span className="font-semibold text-ancient-parchment">{task.description}</span>
                                                                     <span className={`font-mono ${remaining <= 5 ? 'text-red-300' : 'text-green-300'}`}>
                                                                         剩余 {remaining} 天
                                                                     </span>
                                                                 </div>
-                                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                                <div className="text-xs text-ancient-stone mt-0.5">
                                                                     失败惩罚: 组织度 +{task.failurePenalty?.organization || 0}%
                                                                     {task.failurePenalty?.forcedUprising ? '（直接爆发）' : ''}
                                                                 </div>
@@ -1106,15 +1150,12 @@ const StratumDetailSheetComponent = ({
                                                         );
                                                     })}
                                                 </div>
-                                            ) : (
-                                                <div className="text-xs text-gray-400">暂无该阶层的承诺。</div>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </>
                             );
-                        })())}
-                </div>
+                        })())}                </div>
             )}
             {/* 财务Tab内容 */}
             {activeTab === 'finance' && (

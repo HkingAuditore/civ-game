@@ -28,7 +28,7 @@ export const DIFFICULTY_CONFIG = {
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 0.4,     // 40% organization growth rate (was 0.2)
         organizationDecayMultiplier: 1.5,      // 150% decay rate (was 2.0)
-        satisfactionThreshold: 30,             // Slightly higher threshold (was 25)
+        satisfactionThreshold: 25,             // Low threshold for peaceful mode
         buildingCostGrowthFactor: 1.08,        // Slightly higher scaling (was 1.05)
         // AI War modifiers
         aiWarDeclarationChance: 0.25,          // 25% of normal war declaration chance (was 0.1)
@@ -87,7 +87,7 @@ export const DIFFICULTY_CONFIG = {
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 0.7,     // 70% organization growth rate (was 0.5)
         organizationDecayMultiplier: 1.2,      // 120% decay rate (was 1.5)
-        satisfactionThreshold: 40,             // Higher threshold (was 35)
+        satisfactionThreshold: 35,             // Moderate threshold for easy mode
         buildingCostGrowthFactor: 1.12,        // Slightly higher scaling (was 1.10)
         // AI War modifiers
         aiWarDeclarationChance: 0.7,           // 70% of normal war declaration chance (was 0.5)
@@ -142,7 +142,7 @@ export const DIFFICULTY_CONFIG = {
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 1.2,     // 120% organization growth rate (was 1.0)
         organizationDecayMultiplier: 0.9,      // 90% decay rate (was 1.0)
-        satisfactionThreshold: 50,             // Higher threshold (was 45)
+        satisfactionThreshold: 45,             // Standard threshold for normal mode
         buildingCostGrowthFactor: 1.18,        // Higher scaling (was 1.15)
         // AI War modifiers
         aiWarDeclarationChance: 1.3,           // 130% normal war declaration chance (was 1.0)
@@ -196,7 +196,7 @@ export const DIFFICULTY_CONFIG = {
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 2.8,     // 280% organization growth rate (was 2.0)
         organizationDecayMultiplier: 0.25,     // 25% decay rate (was 0.4)
-        satisfactionThreshold: 70,             // Higher threshold (was 65)
+        satisfactionThreshold: 60,             // Challenging but fair threshold for hard mode
         buildingCostGrowthFactor: 1.35,        // Steeper scaling (was 1.30)
         // AI War modifiers
         aiWarDeclarationChance: 3.5,           // 350% war declaration chance (was 2.5)
@@ -250,7 +250,7 @@ export const DIFFICULTY_CONFIG = {
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 3.5,     // 350% organization growth rate (was 2.5)
         organizationDecayMultiplier: 0.08,     // 8% decay rate (was 0.15)
-        satisfactionThreshold: 85,             // Very high threshold (was 80)
+        satisfactionThreshold: 75,             // High threshold for very hard mode
         buildingCostGrowthFactor: 1.42,        // Very steep scaling (was 1.35)
         // AI War modifiers
         aiWarDeclarationChance: 6.0,           // 600% war declaration chance (was 4.5)
@@ -302,7 +302,7 @@ export const DIFFICULTY_CONFIG = {
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 5.5,     // 550% organization growth rate (was 4.0)
         organizationDecayMultiplier: 0.02,     // 2% decay rate (was 0.03)
-        satisfactionThreshold: 90,             // Extreme threshold (was 85)
+        satisfactionThreshold: 85,             // Extreme threshold for hell mode
         buildingCostGrowthFactor: 1.60,        // Extreme scaling (was 1.50)
         // AI War modifiers
         aiWarDeclarationChance: 10.0,          // 1000% war declaration chance (was 7.0)
