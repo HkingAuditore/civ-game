@@ -6616,7 +6616,17 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`Peace proposal to ${targetNation.name} canceled.`);
             return;
         }
-        const warScore = targetNation.warScore || 0;
+        // [FIX] Prefer frontWarScore over nation.warScore to match what UI showed
+        const relevantFrontsForProposal = (activeFronts || []).filter(f =>
+            f?.status === 'active' && (
+                (f.attackerId === nationId && f.defenderId === 'player') ||
+                (f.attackerId === 'player' && f.defenderId === nationId)
+            )
+        );
+        const frontWarScoreForProposal = relevantFrontsForProposal.length > 0
+            ? relevantFrontsForProposal.reduce((sum, f) => sum + (f.warScore || 0), 0)
+            : null;
+        const warScore = frontWarScoreForProposal !== null ? frontWarScoreForProposal : (targetNation.warScore || 0);
         const aggression = targetNation.aggression ?? 0.3;
         const durationDays = INSTALLMENT_CONFIG?.DURATION_DAYS || 365;
         const paymentAmount = Math.max(0, Math.floor(amount || 0));
