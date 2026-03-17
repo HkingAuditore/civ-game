@@ -616,7 +616,7 @@ const TradeRoutesModal = ({
 
     const tabs = [
         { id: 'assignments', label: '派驻商人', shortLabel: '派驻', count: assignedTotal, icon: 'Users' },
-        { id: 'activeTrades', label: '进行中贸易', shortLabel: '进行中', count: pendingTrades.length, icon: 'Loader' },
+        { id: 'activeTrades', label: '进行中贸易', shortLabel: '进行中', count: mergedPendingTrades.length, icon: 'Loader' },
         { id: 'priceCompare', label: '物价对比', shortLabel: '物价', count: tradableResources.length, icon: 'BarChart2' },
     ];
 
@@ -967,7 +967,7 @@ const TradeRoutesModal = ({
                                         <span className="font-semibold text-amber-100">进行中贸易</span>
                                     </div>
                                     <div className="font-mono text-xs">
-                                        共 <span className="text-amber-300">{pendingTrades.length}</span> 笔交易运输中
+                                        共 <span className="text-amber-300">{mergedPendingTrades.length}</span> 笔交易运输中
                                     </div>
                                 </div>
                                 <div className="mt-1 text-xs text-gray-400">
@@ -975,7 +975,7 @@ const TradeRoutesModal = ({
                                 </div>
                             </div>
 
-                            {pendingTrades.length === 0 ? (
+                            {mergedPendingTrades.length === 0 ? (
                                 <div className="space-y-3">
                                     <div className="text-center py-6 text-gray-500">
                                         <Icon name="PackageOpen" size={40} className="mx-auto mb-3 opacity-20" />
