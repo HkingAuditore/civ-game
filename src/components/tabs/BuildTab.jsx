@@ -746,7 +746,7 @@ const BuildTabComponent = ({
         });
 
         return stats;
-    }, [buildings, buildingUpgrades, difficulty]);
+    }, [buildings, buildingUpgrades, difficulty, buildingCostMod]);
 
     const availableBuildingsByCategory = useMemo(() => {
         const grouped = {};
@@ -1313,7 +1313,7 @@ const BuildTabComponent = ({
                 );
             })}
 
-            {/* 悬浮提示框 Portal */}
+            {/* 悬浮提示框 Portal — cost 从 cardDataById 实时读取，避免 hover 快照导致成本不更新 */}
             <BuildingTooltip
                 building={hoveredBuilding.building}
                 anchorElement={hoveredBuilding.element}
@@ -1321,7 +1321,7 @@ const BuildTabComponent = ({
                 epoch={epoch}
                 techsUnlocked={techsUnlocked}
                 jobFill={liveJobFill}
-                cost={hoveredBuilding.cost}
+                cost={hoveredBuilding.building ? (cardDataById[hoveredBuilding.building.id]?.cost || hoveredBuilding.cost) : undefined}
                 resources={deferredResources}
                 ownerJobsRequired={hoveredBuilding.building ? ownerJobsCorrections[hoveredBuilding.building.id] : undefined}
             />

@@ -8,9 +8,28 @@ import { Icon } from '../common/UIComponents';
  */
 export const CHANGELOG = [
     {
-        version: '2.0.9',
+        version: '2.0.10',
         date: '2026-03-17',
         isLatest: true,
+        highlights: ['新增年度报告历史弹窗', '信息时代视觉主题', '政体效果大幅扩展', 'Tick 预算管理与性能优化', '游戏循环重构'],
+        changes: [
+            { type: 'new', text: '新增年度报告历史弹窗（AnnualReportHistoryModal），支持查看历史年度报告，涵盖经济、人口、军事等多维度数据对比' },
+            { type: 'new', text: '新增信息时代（epoch 8）完整视觉主题：配色方案、粒子效果与时代背景图片渲染' },
+            { type: 'new', text: '政体效果大幅扩展：新增商业帝国、神权封建王国、科技联盟等多种政体配置，覆盖更多时代与政治路线' },
+            { type: 'improve', text: 'Tick 预算管理：新增单帧时间预算机制（150ms 上限），防止模拟计算超时导致界面卡顿' },
+            { type: 'improve', text: '节流状态分层优化：背景/装饰元素降低刷新频率，减少不必要的 React 重渲染' },
+            { type: 'improve', text: 'Worker 通信优化：主线程与模拟 Worker 间消息传递重构，降低序列化开销' },
+            { type: 'improve', text: '游戏循环重构：精简 useGameLoop 主循环逻辑，减少冗余状态同步' },
+            { type: 'improve', text: '内阁协同效果优化：调整协同加成逻辑，提升内阁组合的策略深度' },
+            { type: 'fix', text: '修复理念涌现系统中涌现条件判断的边界问题，确保理念在正确时机触发' },
+            { type: 'fix', text: '修复建筑面板在特定筛选条件下的显示异常' },
+            { type: 'balance', text: '进一步微调各难度下的库存目标与经济波动参数，强化难度梯度差异' },
+        ],
+    },
+    {
+        version: '2.0.9',
+        date: '2026-03-17',
+        isLatest: false,
         highlights: ['修复敌方停战提议接受流程', '放缓 AI 时代推进速度', '重做难度库存缓冲与价格波动', '修正营业税补贴导致的负成本价'],
         changes: [
             { type: 'fix', text: '修复接受敌方停战提议时流程未统一走战争结束逻辑的问题，避免停战状态与外交后续处理不一致' },

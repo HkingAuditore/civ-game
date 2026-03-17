@@ -1269,15 +1269,17 @@ export const useGameActions = (gameState, addLog) => {
         const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         for (let k in nextEpoch.cost) {
+            if (k === 'silver') continue; // silver checked as part of silverCost below
             const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
             if ((resources[k] || 0) < cost) return false;
         }
 
-        // 检查银币成本
-        const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
-            const cost = Math.ceil(amount * techCostMultiplier);
-            return sum + cost * getMarketPrice(resource);
-        }, 0);
+        // 检查银币成本: direct silver + non-silver materials at market price
+        let silverCost = Math.ceil((nextEpoch.cost.silver || 0) * techCostMultiplier);
+        Object.entries(nextEpoch.cost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return;
+            silverCost += Math.ceil(amount * techCostMultiplier) * getMarketPrice(resource);
+        });
         if ((resources.silver || 0) < silverCost) return false;
 
         return true;
@@ -1300,17 +1302,20 @@ export const useGameActions = (gameState, addLog) => {
         const difficulty = gameState.difficulty || 'normal';
         const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
-        // 计算银币成本
-        const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
-            const cost = Math.ceil(amount * techCostMultiplier);
-            return sum + cost * getMarketPrice(resource);
-        }, 0);
+        // [FIX] 银币成本: 直接银币 + 非银币材料的市场价折算
+        let silverCost = Math.ceil((nextEpoch.cost.silver || 0) * techCostMultiplier);
+        Object.entries(nextEpoch.cost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return;
+            silverCost += Math.ceil(amount * techCostMultiplier) * getMarketPrice(resource);
+        });
 
-        // 扣除成本和银币
+        // 扣除非银币材料
         for (let k in nextEpoch.cost) {
+            if (k === 'silver') continue; // silver deducted as part of silverCost
             const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
             newRes[k] -= cost;
         }
+        // 扣除银币总成本
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
         setResourcesWithReason(newRes, 'upgrade_epoch');
@@ -1366,16 +1371,25 @@ export const useGameActions = (gameState, addLog) => {
             });
         }
 
-        const hasMaterials = Object.entries(totalCost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
+        // [FIX] silver in baseCost is a direct currency cost, not a material to "buy".
+        // Separate silver from materials to avoid double-deducting.
+        const directSilverCost = totalCost.silver || 0;
+
+        const hasMaterials = Object.entries(totalCost).every(([resource, amount]) => {
+            if (resource === 'silver') return true; // silver checked separately below
+            return (resources[resource] || 0) >= amount;
+        });
         if (!hasMaterials) {
             addLog(`资源不足，无法建造 ${finalCount} 个 ${b.name}`);
             return;
         }
 
-        // 计算银币成本并应用官员建筑成本修正
-        let silverCost = Object.entries(totalCost).reduce((sum, [resource, amount]) => {
-            return sum + amount * getMarketPrice(resource);
-        }, 0);
+        // 计算银币成本：直接银币成本 + 非银币材料按市场价折算的采购费
+        let silverCost = directSilverCost;
+        Object.entries(totalCost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return; // already included above
+            silverCost += amount * getMarketPrice(resource);
+        });
         silverCost = Math.max(0, silverCost);
 
         if ((resources.silver || 0) < silverCost) {
@@ -1384,22 +1398,26 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         const newRes = { ...resources };
+        // Deduct non-silver materials
         Object.entries(totalCost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return; // silver deducted as part of silverCost
             newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
         });
+        // Deduct total silver cost (direct + material procurement)
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
         setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
 
         // 写入 pending queue，防止 tick 覆盖此操作
+        // [FIX] Only write buildingDeltas (simulation needs to know new buildings for production).
+        // Do NOT write resourceDeltas here — setResourcesWithReason already updated React state,
+        // and the lateActionDelta mechanism in useGameLoop tick write-back will preserve the
+        // state diff. Writing resourceDeltas causes double-deduction because stateRef syncs
+        // the already-deducted resources via useEffect, then pendingDeltas deducts again.
         if (pendingActionsRef?.current) {
             const pa = pendingActionsRef.current;
             pa.buildingDeltas[id] = (pa.buildingDeltas[id] || 0) + finalCount;
-            Object.entries(totalCost).forEach(([res, amt]) => {
-                pa.resourceDeltas[res] = (pa.resourceDeltas[res] || 0) - amt;
-            });
-            pa.resourceDeltas.silver = (pa.resourceDeltas.silver || 0) - silverCost;
         }
 
         addLog(`建造了 ${finalCount} 个 ${b.name}`);
@@ -2555,6 +2573,7 @@ export const useGameActions = (gameState, addLog) => {
         // 检查资源
         let canAfford = true;
         for (let resource in totalUnitCost) {
+            if (resource === 'silver') continue; // silver checked as part of silverCost below
             if ((resources[resource] || 0) < totalUnitCost[resource]) {
                 canAfford = false;
                 break;
@@ -2568,9 +2587,12 @@ export const useGameActions = (gameState, addLog) => {
             return false;
         }
 
-        const silverCost = Object.entries(totalUnitCost).reduce((sum, [resource, amount]) => {
-            return sum + amount * getMarketPrice(resource);
-        }, 0);
+        // [FIX] silver in recruitCost is a direct currency cost, not a purchasable material
+        let silverCost = totalUnitCost.silver || 0;
+        Object.entries(totalUnitCost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return;
+            silverCost += amount * getMarketPrice(resource);
+        });
 
         if ((resources.silver || 0) < silverCost) {
             if (!silent) {
@@ -2600,6 +2622,7 @@ export const useGameActions = (gameState, addLog) => {
         // 扣除资源
         const newRes = { ...resources };
         for (let resource in totalUnitCost) {
+            if (resource === 'silver') continue; // silver deducted as part of silverCost
             newRes[resource] -= totalUnitCost[resource];
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
@@ -2660,12 +2683,16 @@ export const useGameActions = (gameState, addLog) => {
             if (item.status === 'waiting' || item.status === 'training') {
                 const refundResources = {};
                 for (let resource in unit.recruitCost) {
+                    if (resource === 'silver') continue; // silver refunded via silverCost
                     refundResources[resource] = Math.floor(unit.recruitCost[resource] * 0.5);
                 }
 
-                const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
-                    return sum + amount * getMarketPrice(resource);
-                }, 0);
+                // [FIX] Refund silver = direct silver cost + material market value
+                let silverCost = (unit.recruitCost.silver || 0);
+                Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
+                    if (resource === 'silver') return;
+                    silverCost += amount * getMarketPrice(resource);
+                });
                 const refundSilver = Math.floor(silverCost * 0.5);
 
                 setResourcesWithReason(prev => {
@@ -2699,11 +2726,15 @@ export const useGameActions = (gameState, addLog) => {
                 const unit = UNIT_TYPES[item.unitId];
                 if (item.status === 'waiting' || item.status === 'training') {
                     for (let resource in unit.recruitCost) {
+                        if (resource === 'silver') continue; // silver refunded via silverCost
                         totalRefundResources[resource] = (totalRefundResources[resource] || 0) + Math.floor(unit.recruitCost[resource] * 0.5);
                     }
-                    const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
-                        return sum + amount * getMarketPrice(resource);
-                    }, 0);
+                    // [FIX] silver = direct silver cost + material market value
+                    let silverCost = (unit.recruitCost.silver || 0);
+                    Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
+                        if (resource === 'silver') return;
+                        silverCost += amount * getMarketPrice(resource);
+                    });
                     totalRefundSilver += Math.floor(silverCost * 0.5);
                 }
             });

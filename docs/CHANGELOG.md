@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [2.0.10] - 2026-03-17
+
+### Added
+- **年度报告历史弹窗**：新增 `AnnualReportHistoryModal` 组件，支持查看历史年度报告，涵盖经济、人口、军事等多维度数据对比
+- **信息时代视觉主题**：`epicTheme.js` 新增信息时代（epoch 8）完整主题配置，包含配色、粒子效果与背景样式
+- **时代背景组件扩展**：`EraBackground.jsx` 支持信息时代背景图片渲染
+
+### Changed
+- **政体效果大幅扩展**：`polityEffects.js` 新增商业帝国、神权封建王国、科技联盟等多种政体配置，覆盖更多时代与政治路线
+- **内阁协同效果优化**：`cabinetSynergy.js` 调整协同加成逻辑，提升内阁组合的策略深度
+- **难度库存与经济参数调整**：`difficulty.js` 与 `gameConstants.js` 进一步微调各难度下的库存目标与经济波动参数
+
+### Performance
+- **Tick 预算管理**：`performanceUtils.js` 新增 tick 时间预算机制（`TICK_BUDGET_MS = 150ms`），防止单帧计算超时导致卡顿
+- **节流状态优化**：`useThrottledGameState.js` 重构节流优先级分层，背景/装饰元素降低刷新频率，减少不必要渲染
+- **Worker 通信优化**：`simulation.worker.js` 与 `useSimulationWorker.js` 优化主线程与 Worker 间的消息传递，降低序列化开销
+- **游戏循环重构**：`useGameLoop.js` 精简主循环逻辑，减少冗余状态同步
+
+### Fixed
+- **理念涌现系统**：修复 `ideologyEmergence.js` 中涌现条件判断的边界问题，确保理念正确触发
+- **建筑面板**：`BuildTab.jsx` 修复建筑列表在特定筛选条件下的显示异常
+
 ## [2.0.9] - 2026-03-17
 
 ### Fixed
