@@ -4919,6 +4919,11 @@ export const simulateTick = ({
     roleLivingExpense.official = roleExpense.official; // Capture all official living expenses (Head Tax + Consumption)
     roleLaborIncome.official = totalOfficialLaborIncome;
     perfEnd('officialsSim');
+    } else {
+    // [FIX] When officialSim is skipped, restore wealth.official from individual officials
+    // wealth.official was cleared to 0 at init; without this, classWealth.official stays 0 in UI
+    totalOfficialWealth = updatedOfficials.reduce((sum, o) => sum + (Number.isFinite(o?.wealth) ? o.wealth : 0), 0);
+    wealth.official = totalOfficialWealth;
     } // end shouldUpdateOfficials
 
     perfStart('livingStandards');
