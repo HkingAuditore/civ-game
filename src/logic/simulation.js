@@ -1828,9 +1828,21 @@ export const simulateTick = ({
     totalMaxPop = Math.floor(totalMaxPop);
 
     // 军人岗位包括：已有军?+ 等待人员的岗?+ 训练中的岗位
-    // 计算已有军队的人口需?
+    // 计算已有军队的人口需?（包含散兵 army 和军团 militaryCorps 内的所有单位）
     let currentArmyPopNeeded = 0;
-    Object.entries(army).forEach(([unitId, count]) => {
+    // 合并散兵和军团内单位，与军饷计算保持一致
+    const allUnitsForJobCalc = { ...(army || {}) };
+    if (Array.isArray(militaryCorps)) {
+        for (const corps of militaryCorps) {
+            if (corps?.isAI) continue; // 跳过AI军团
+            for (const [unitId, count] of Object.entries(corps?.units || {})) {
+                if (count > 0) {
+                    allUnitsForJobCalc[unitId] = (allUnitsForJobCalc[unitId] || 0) + count;
+                }
+            }
+        }
+    }
+    Object.entries(allUnitsForJobCalc).forEach(([unitId, count]) => {
         if (!count || count <= 0) return;
         const unit = UNIT_TYPES[unitId];
         const popCost = unit?.populationCost || 1;
