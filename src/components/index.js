@@ -82,6 +82,7 @@ export { StratumDetailModal } from './modals/StratumDetailModal';
 export { ResourceDetailModal } from './modals/ResourceDetailModal';
 export { PopulationDetailModal } from './modals/PopulationDetailModal';
 export { AnnualReportModal } from './modals/AnnualReportModal';
+export { AnnualReportHistoryModal } from './modals/AnnualReportHistoryModal';
 export { TutorialModal } from './modals/TutorialModal';
 export { WikiModal } from './modals/WikiModal';
 export { CardDetailModal } from './modals/CardDetailModal';

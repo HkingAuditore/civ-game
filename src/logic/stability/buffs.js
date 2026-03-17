@@ -72,7 +72,8 @@ export const calculateStability = ({
     eventStabilityModifier = 0,
     extraStabilityPenalty = 0,
     currentStability = 50,
-    stabilityBonus = 0 // NEW: Stability bonus from other sources (e.g. festivals)
+    stabilityBonus = 0, // Stability bonus as percentage multiplier (e.g. 0.05 = +5% of baseStability)
+    stabilityFlat = 0   // Stability bonus as absolute value (e.g. +4, -2, from ideologies)
 }) => {
     // Calculate weighted average of class approval
     let weightedApprovalSum = 0;
@@ -108,6 +109,11 @@ export const calculateStability = ({
     // Apply stability bonus (percentage of base stability)
     if (stabilityBonus) {
         stabilityModifier += baseStability * stabilityBonus;
+    }
+
+    // Apply flat stability bonus (absolute value, e.g. from ideologies)
+    if (stabilityFlat) {
+        stabilityModifier += stabilityFlat;
     }
 
     stabilityModifier -= extraStabilityPenalty;

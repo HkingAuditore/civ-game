@@ -226,6 +226,33 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.12 },
         }
     },
+    {
+        name: '技术工人苏维埃',
+        priority: 1000,
+        description: '技术工人阶层独揽政权，以工业技术为国家核心',
+        icon: 'Wrench',
+        color: 'text-cyan-500',
+        conditions: { exactCoalition: ['technician'] },
+        effects: {
+            industry: 0.20,
+            buildingProductionMod: { factory: 0.15, chemical_plant: 0.20 },
+            stratumDemandMod: { technician: -0.10 },
+        }
+    },
+    {
+        name: '科学家委员会',
+        priority: 1000,
+        description: '顶尖科学家主导国家，以知识与研究为最高权威',
+        icon: 'Microscope',
+        color: 'text-violet-400',
+        conditions: { exactCoalition: ['scientist'] },
+        effects: {
+            scienceBonus: 0.30,
+            buildingProductionMod: { university: 0.25, research_institute: 0.30 },
+            militaryBonus: -0.10,
+            officialCapacity: 3,
+        }
+    },
     // 单一阶层兜底 (优先级 999)
     {
         name: '独裁政体',
@@ -380,6 +407,157 @@ export const POLITY_DEFINITIONS = [
             militaryBonus: 0.22,
             buildingProductionMod: { barracks: 0.2 },
             stability: -0.03,
+        }
+    },
+
+    // 神权贵族联盟
+    {
+        name: '神权封建王国',
+        priority: 900,
+        description: '地主与神职人员联合，以土地和信仰双重统治',
+        icon: 'Crown',
+        color: 'text-purple-600',
+        conditions: {
+            includes: ['landowner', 'cleric'],
+            maxSize: 2,
+        },
+        effects: {
+            categories: { gather: 0.15 },
+            cultureBonus: 0.18,
+            stability: 0.12,
+            scienceBonus: -0.12,
+            buildingProductionMod: { farm: 0.12, large_estate: 0.12 },
+        }
+    },
+
+    // 商业帝国
+    {
+        name: '商业帝国',
+        priority: 900,
+        description: '商人与航海家联合，以贸易和海权主导国家',
+        icon: 'Ship',
+        color: 'text-teal-500',
+        conditions: {
+            includes: ['merchant', 'navigator'],
+            maxSize: 2,
+        },
+        effects: {
+            buildingProductionMod: { market: 0.2, trade_port: 0.25, dockyard: 0.2 },
+            taxIncome: 0.20,
+            militaryBonus: 0.08,
+        }
+    },
+
+    // 工业资本-军事联盟
+    {
+        name: '军国主义帝国',
+        priority: 900,
+        description: '资本家与军人联合，以工业力量支撑军事扩张',
+        icon: 'Shield',
+        color: 'text-red-700',
+        conditions: {
+            includes: ['capitalist', 'soldier'],
+            maxSize: 2,
+        },
+        effects: {
+            militaryBonus: 0.25,
+            industry: 0.12,
+            buildingProductionMod: { factory: 0.15, barracks: 0.2 },
+            stability: -0.05,
+        }
+    },
+
+    // 科技联盟（信息时代）
+    {
+        name: '科技共和国',
+        priority: 900,
+        description: '技术工人与科学家联合，以技术创新驱动国家',
+        icon: 'Atom',
+        color: 'text-violet-500',
+        conditions: {
+            includes: ['technician', 'scientist'],
+            maxSize: 2,
+        },
+        effects: {
+            scienceBonus: 0.25,
+            industry: 0.15,
+            buildingProductionMod: { factory: 0.12, research_institute: 0.25, chemical_plant: 0.15 },
+            stratumDemandMod: { technician: -0.08, scientist: -0.08 },
+        }
+    },
+
+    // 知识精英联盟
+    {
+        name: '知识精英共和国',
+        priority: 900,
+        description: '学者、工程师与科学家联合，以知识和技术治国',
+        icon: 'GraduationCap',
+        color: 'text-blue-500',
+        conditions: {
+            includes: ['scribe', 'engineer', 'scientist'],
+        },
+        effects: {
+            scienceBonus: 0.30,
+            cultureBonus: 0.15,
+            buildingProductionMod: { library: 0.2, university: 0.25, research_institute: 0.2 },
+            officialCapacity: 5,
+            militaryBonus: -0.08,
+        }
+    },
+
+    // 工业三角联盟
+    {
+        name: '工业三角同盟',
+        priority: 900,
+        description: '工人、技术工人与资本家联合，形成完整工业体系',
+        icon: 'Factory',
+        color: 'text-orange-600',
+        conditions: {
+            includes: ['worker', 'technician', 'capitalist'],
+        },
+        effects: {
+            industry: 0.22,
+            buildingProductionMod: { factory: 0.20, chemical_plant: 0.18, steel_works: 0.15 },
+            taxIncome: 0.10,
+            stratumDemandMod: { worker: -0.06 },
+        }
+    },
+
+    // 官商联盟
+    {
+        name: '官商勾结政府',
+        priority: 900,
+        description: '官员与商人相互勾连，以行政权力保护商业利益',
+        icon: 'Handshake',
+        color: 'text-yellow-600',
+        conditions: {
+            includes: ['official', 'merchant'],
+            maxSize: 2,
+        },
+        effects: {
+            taxIncome: 0.18,
+            buildingProductionMod: { market: 0.18, trade_port: 0.15 },
+            cultureBonus: 0.08,
+            stability: -0.05,
+            officialCapacity: 4,
+        }
+    },
+
+    // 工匠-商人联盟（前工业时代）
+    {
+        name: '行会商业共和',
+        priority: 900,
+        description: '工匠行会与商人阶层联合，以手工业和贸易为基础',
+        icon: 'Anvil',
+        color: 'text-amber-600',
+        conditions: {
+            includes: ['artisan', 'merchant'],
+            maxSize: 2,
+        },
+        effects: {
+            buildingProductionMod: { loom_house: 0.2, furniture_workshop: 0.18, market: 0.15 },
+            industry: 0.12,
+            taxIncome: 0.10,
         }
     },
 
@@ -559,9 +737,39 @@ export const POLITY_DEFINITIONS = [
             officialCapacity: 3, // 技术精英政府增加官员容量
         }
     },
-
-    // ============================================
-    // 5. 通用阶层政体 (优先级 600)
+    {
+        name: '信息时代民主',
+        priority: 700,
+        description: '科学家主导的现代民主政体，以知识经济为核心',
+        icon: 'Cpu',
+        color: 'text-violet-400',
+        conditions: {
+            minCategoryShare: { intellectual: 0.5 },
+            includes: ['scientist'],
+        },
+        effects: {
+            scienceBonus: 0.22,
+            buildingProductionMod: { university: 0.18, research_institute: 0.22 },
+            officialCapacity: 4,
+            militaryBonus: -0.05,
+        }
+    },
+    {
+        name: '技术工业国家',
+        priority: 700,
+        description: '技术工人主导的工业政体，以精密制造为国家支柱',
+        icon: 'Wrench',
+        color: 'text-cyan-600',
+        conditions: {
+            minCategoryShare: { industrial: 0.6 },
+            includes: ['technician'],
+        },
+        effects: {
+            industry: 0.18,
+            buildingProductionMod: { factory: 0.15, chemical_plant: 0.18 },
+            stratumDemandMod: { technician: -0.08, worker: -0.05 },
+        }
+    },
     // ============================================
     {
         name: '无产阶级政府',

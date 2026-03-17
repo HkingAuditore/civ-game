@@ -657,7 +657,9 @@ export const simulateTick = ({
     // Helper: modify res[resourceType] AND track the change in one call (for traceability)
     const applyResourceChange = (resourceType, amount, reason) => {
         if (amount === 0) return;
-        res[resourceType] = (res[resourceType] || 0) + amount;
+        // [FIX] Prevent resource inventory from going negative
+        const newValue = (res[resourceType] || 0) + amount;
+        res[resourceType] = resourceType === 'silver' ? newValue : Math.max(0, newValue);
         trackResourceChange(resourceType, amount, reason);
         // Also track silver changes in the dedicated log for financial reporting
         if (resourceType === 'silver') {
@@ -1162,6 +1164,10 @@ export const simulateTick = ({
     if (stanceEffects.taxEfficiency) {
         bonuses.taxEfficiencyBonus = (bonuses.taxEfficiencyBonus || 0) + stanceEffects.taxEfficiency;
     }
+    // Cap taxEfficiencyBonus at 1.0 (100%) so that rawEfficiency = efficiency * (1 + bonus - corruption)
+    // never exceeds 1.0 when corruption is 0, keeping displayed bonus consistent with actual effect.
+    bonuses.taxEfficiencyBonus = Math.min(1.0, bonuses.taxEfficiencyBonus || 0);
+
     if (stanceEffects.taxBonus) {
         bonuses.taxBonus = (bonuses.taxBonus || 0) + stanceEffects.taxBonus;
     }
@@ -5730,7 +5736,8 @@ export const simulateTick = ({
         eventStabilityModifier,
         extraStabilityPenalty,
         currentStability,
-        stabilityBonus: bonuses.stabilityBonus || 0
+        stabilityBonus: bonuses.stabilityBonus || 0,
+        stabilityFlat: bonuses.stabilityFlat || 0
     });
     perfEnd('buffsDebuffs');
     perfEnd('wealthDecay');
@@ -7211,24 +7218,29 @@ export const simulateTick = ({
                     const inventoryRatio = inventoryDays / inventoryTargetDays;
                     let priceMultiplier = 1.0;
 
+                    // [FIX] Smoothed price curve to reduce extreme oscillations.
+                    // Old curve: 0.1→10x, 0.5→6x caused violent tick-to-tick swings.
+                    // New curve: gentler slopes, max 5x, continuous transitions.
                     if (inventoryRatio < 0.1) {
-                        // [ENHANCED] 极度稀缺：库存接近0时，价格暴涨
-                        priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10?
-                        priceMultiplier = Math.min(10.0, priceMultiplier); // 最?0?
+                        // Extreme shortage: steep but capped at 5x (was 10x)
+                        priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
+                        priceMultiplier = Math.min(5.0, priceMultiplier);
                     } else if (inventoryRatio < 0.5) {
-                        // 库存紧张，大幅涨?
-                        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最??
+                        // Low inventory: moderate increase, max 3x (was 6x)
+                        priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                     } else if (inventoryRatio < 1.0) {
-                        // 库存偏低，适度涨价
-                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0?
+                        // Slightly low: gentle increase 1.0-1.5x (was 1.0-2.0x)
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 0.5;
+                    } else if (inventoryRatio > 3.0) {
+                        // Severe oversupply: deeper discount
+                        priceMultiplier = 0.65 - (inventoryRatio - 3.0) * 0.1;
+                        priceMultiplier = Math.max(0.2, priceMultiplier);
                     } else if (inventoryRatio > 2.0) {
-                        // 库存积压，大幅降?
-                        // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯?
-                        priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最?.1?
-                        priceMultiplier = Math.max(0.1, priceMultiplier);
+                        // Oversupply: moderate discount
+                        priceMultiplier = 0.85 - (inventoryRatio - 2.0) * 0.2;
                     } else if (inventoryRatio > 1.0) {
-                        // 库存充足，适度降价
-                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0?
+                        // Slightly high: gentle decrease 0.85-1.0x
+                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                     }
 
                     // 2. 获取基础价格（市场认可的合理价格?
@@ -7274,24 +7286,21 @@ export const simulateTick = ({
                 const inventoryRatio = inventoryDays / inventoryTargetDays;
                 let priceMultiplier = 1.0;
 
+                // [FIX] Same smoothed price curve as building-based pricing
                 if (inventoryRatio < 0.1) {
-                    // [极度稀缺] 库存接近0时，价格暴涨
-                    priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10?
-                    priceMultiplier = Math.min(10.0, priceMultiplier);
+                    priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
+                    priceMultiplier = Math.min(5.0, priceMultiplier);
                 } else if (inventoryRatio < 0.5) {
-                    // 库存紧张，大幅涨?
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最??
+                    priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                 } else if (inventoryRatio < 1.0) {
-                    // 库存偏低，适度涨价
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0?
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 0.5;
+                } else if (inventoryRatio > 3.0) {
+                    priceMultiplier = 0.65 - (inventoryRatio - 3.0) * 0.1;
+                    priceMultiplier = Math.max(0.2, priceMultiplier);
                 } else if (inventoryRatio > 2.0) {
-                    // 库存积压，大幅降?
-                    // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯?
-                    priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最?.1?
-                    priceMultiplier = Math.max(0.1, priceMultiplier);
+                    priceMultiplier = 0.85 - (inventoryRatio - 2.0) * 0.2;
                 } else if (inventoryRatio > 1.0) {
-                    // 库存充足，适度降价
-                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0?
+                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                 }
 
                 marketPrice = basePrice * priceMultiplier;
@@ -7352,8 +7361,10 @@ export const simulateTick = ({
             // [FIX] 动态平滑系数：供需差距大时加快响应，避免价格反应迟钝
             const prevPrice = priceMap[resource] || ideoAdjustedMarketPrice;
             const priceGapRatio = prevPrice > 0 ? Math.abs(ideoAdjustedMarketPrice - prevPrice) / prevPrice : 0;
-            // 基础平滑 0.1；差距超过 50% 时逐步加速到 0.4
-            const dynamicSmoothing = Math.min(0.4, 0.1 + priceGapRatio * 0.3);
+            // [FIX] Reduced smoothing speed to dampen price oscillations.
+            // Base smoothing 0.05 (was 0.1); max 0.2 (was 0.4).
+            // This means prices take ~10-20 ticks to converge instead of ~3-5.
+            const dynamicSmoothing = Math.min(0.2, 0.05 + priceGapRatio * 0.15);
             const smoothed = prevPrice + (ideoAdjustedMarketPrice - prevPrice) * dynamicSmoothing;
 
             // 应用价格限制
@@ -7739,16 +7750,27 @@ export const simulateTick = ({
         const fallbackIncome = netIncomePerCapita !== 0 ? netIncomePerCapita : disposableWage;
 
         // 【空岗位预估收入】当该行业无人工作时，使用基于建筑产出的预估收入
-        // 解决恶性循环：无人工作 ?收入? ?更无人愿意去
+        // 解决恶性循环：无人工作 → 收入零 → 更无人愿意去
         let incomeSignal;
         if (pop === 0) {
-            // 无人工作时，使用预估收入（区分业主和雇员?
+            // 无人工作时，使用预估收入（区分业主和雇员）
             incomeSignal = estimateVacantRoleIncome(role);
-        } else if (role === 'merchant' || historicalIncomePerCapita !== 0) {
-            // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波?
-            incomeSignal = role === 'merchant' ? fallbackIncome : historicalIncomePerCapita;
-        } else {
+        } else if (role === 'merchant') {
+            // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波动
             incomeSignal = fallbackIncome;
+        } else {
+            // [FIX] 非商人角色：优先使用 netIncomePerCapita（真正的收支净额）
+            // 旧逻辑使用 historicalIncomePerCapita（即财富变化差值），但财富变化会受到
+            // 人口迁入带入财富、产出暂存等非收支因素的干扰，导致亏损行业看起来赚钱。
+            // netIncomePerCapita = (roleWagePayout - roleExpense) / pop，
+            // 其中 roleExpense 已包含人头税、营业税、生产成本、工资支付等全部支出。
+            if (netIncomePerCapita !== 0) {
+                incomeSignal = netIncomePerCapita;
+            } else if (historicalIncomePerCapita !== 0) {
+                incomeSignal = historicalIncomePerCapita;
+            } else {
+                incomeSignal = fallbackIncome;
+            }
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 

@@ -241,17 +241,20 @@ export const updateMarketPrices = ({
                 : 50.0;
 
             // Price adjustment based on inventory - continuous piecewise function
+            // [FIX] Smoothed curve to reduce oscillations (consistent with simulation.js)
             let priceMultiplier = 1.0;
             if (inventoryRatio < 0.1) {
-                // Extreme shortage: steep increase, continuous at ratio=0.1 (value=5.0)
-                priceMultiplier = 5.0 + (0.1 - inventoryRatio) * 40.0;
-                priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
+                priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
+                priceMultiplier = Math.min(Math.min(5.0, maxMultiplier), priceMultiplier);
             } else if (inventoryRatio < 0.5) {
-                // Low inventory: moderate increase, continuous at ratio=0.1 (value=5.0) and ratio=0.5 (value=1.0)
-                priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 10.0;
+                priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
+            } else if (inventoryRatio > 3.0) {
+                priceMultiplier = 0.65 - (inventoryRatio - 3.0) * 0.1;
+                priceMultiplier = Math.max(0.2, priceMultiplier);
             } else if (inventoryRatio > 2.0) {
-                // High inventory - price decreases
-                priceMultiplier = 1 - Math.min(0.5, (inventoryRatio - 2.0) * inventoryPriceImpact * 0.5);
+                priceMultiplier = 0.85 - (inventoryRatio - 2.0) * 0.2;
+            } else if (inventoryRatio > 1.0) {
+                priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
             }
 
             // Apply supplyDemandWeight: scales how much supply/demand moves price away from 1.0
@@ -270,10 +273,10 @@ export const updateMarketPrices = ({
             const targetPrice = minPrice * priceMultiplier;
 
             // Smooth price transition
-            // [FIX] 动态平滑系数：供需差距大时加快响应
+            // [FIX] Reduced smoothing to dampen oscillations (consistent with simulation.js)
             const currentPrice = priceMap[resource] || basePrice;
             const gapRatio = currentPrice > 0 ? Math.abs(targetPrice - currentPrice) / currentPrice : 0;
-            const smoothing = Math.min(0.4, 0.2 + gapRatio * 0.2);
+            const smoothing = Math.min(0.2, 0.05 + gapRatio * 0.15);
             updatedPrices[resource] = parseFloat(
                 (currentPrice + (targetPrice - currentPrice) * smoothing).toFixed(2)
             );

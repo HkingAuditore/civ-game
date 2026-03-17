@@ -1030,6 +1030,11 @@ export const checkWarDeclaration = ({
     const relation = next.relation ?? 50;
     const aggression = next.aggression ?? 0.2;
 
+    // [FIX] Vassals cannot declare war on overlord (independence wars handled by vassalSystem)
+    if (next.vassalOf === 'player') {
+        return;
+    }
+
     // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot declare war
     // Skip annexed nations or nations with zero population
     if (next.isAnnexed || (next.population || 0) <= 0) {

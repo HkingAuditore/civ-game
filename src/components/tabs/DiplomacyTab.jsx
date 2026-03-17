@@ -353,7 +353,7 @@ const DiplomacyTabComponent = ({
                     if (!nation) return false;
 
                     // 排除玩家的附庸
-                    if (nation.isVassal === true) return false;
+                    if (nation.vassalOf === 'player') return false;
 
                     return true;
                 })

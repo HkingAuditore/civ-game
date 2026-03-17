@@ -9,9 +9,10 @@ import { IDEOLOGIES, IDEOLOGY_MAP } from '../../config/ideologies';
  * 从可用理念池中加权随机抽取3个候选理念
  * @param {Object} gameState - 游戏状态
  * @param {Array} ideologyCollection - 已拥有的理念库 [{ id, level }]
+ * @param {number} rarityBonus - 跳过累积的稀有度加成（0~3，每次跳过+1）
  * @returns {Array} 3个候选理念对象 [{ ...ideologyConfig, isUpgrade: boolean, currentLevel: number }]
  */
-export function generateEmergenceCandidates(gameState, ideologyCollection = []) {
+export function generateEmergenceCandidates(gameState, ideologyCollection = [], rarityBonus = 0) {
     const { epoch = 0, techsUnlocked = [], rulingCoalition = [] } = gameState;
 
     // 构建已拥有理念的等级映射
@@ -43,6 +44,15 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = []) 
         if (ideology.rarity === 'legendary') weight *= 0.25;
         else if (ideology.rarity === 'rare') weight *= 0.5;
         else if (ideology.rarity === 'uncommon') weight *= 0.75;
+
+        // 跳过累积的稀有度加成：每次跳过提升高稀有度理念的权重
+        // rarityBonus 上限为3，legendary最多提升到与common相当（0.25 * 4 = 1.0）
+        if (rarityBonus > 0) {
+            const bonus = Math.min(rarityBonus, 3);
+            if (ideology.rarity === 'legendary') weight *= (1 + bonus * 1.25); // 最多 *4.75
+            else if (ideology.rarity === 'rare')  weight *= (1 + bonus * 0.5);  // 最多 *2.5
+            else if (ideology.rarity === 'uncommon') weight *= (1 + bonus * 0.2); // 最多 *1.6
+        }
 
         // 时代匹配加成
         if (ideology.unlockEpoch === epoch) weight *= 2.0;

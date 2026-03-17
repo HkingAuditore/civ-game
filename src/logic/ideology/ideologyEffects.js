@@ -1061,7 +1061,7 @@ function _addToBonusField(bonuses, key, value) {
             bonuses.productionBonus = (bonuses.productionBonus || 0) + value;
             break;
         case 'stability':
-            bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + value;
+            bonuses.stabilityFlat = (bonuses.stabilityFlat || 0) + value;
             break;
         case 'maxPop':
             bonuses.maxPopPercent = (bonuses.maxPopPercent || 0) + value;

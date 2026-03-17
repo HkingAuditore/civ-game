@@ -201,9 +201,10 @@ export const calculateNationLocalPrice = ({
     price *= 1 + shortagePressure * 0.45 + warPressure + Math.max(-0.12, Math.min(0.3, safeNumber(shock, 0)));
     price *= 1 - Math.min(0.35, surplusPressure * 0.18);
 
-    if (Number.isFinite(Number(marketPrice)) && Number(marketPrice) > 0) {
-        price = price * 0.97 + Number(marketPrice) * 0.03;
-    }
+    // [FIX] Removed player market price convergence here.
+    // Nations.js already applies convergence in updateSingleNation (1-3% per tick).
+    // Having convergence in BOTH places caused ~4-6% per tick double-convergence,
+    // making foreign prices track the player market within 30 ticks.
 
     const minPrice = resourceConfig.minPrice || 0.1;
     const maxPrice = resourceConfig.maxPrice || 100;

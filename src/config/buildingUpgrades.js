@@ -1628,14 +1628,14 @@ export const BUILDING_UPGRADES = {
             cost: { silver: 9000, electronics: 15, science: 300 },
             input: { semiconductors: 0.065, electricity: 0.39 },
             output: { software: 0.26, science: 0.39 }, // 1.3x
-            jobs: { scientist: 5, scribe: 3, capitalist: 1 },
+            jobs: { engineer: 5, technician: 3, capitalist: 1 },
         },
         {
             name: "AI辅助编程",
             cost: { silver: 18000, electronics: 30, science: 600 },
             input: { semiconductors: 0.1125, electricity: 0.675 },
             output: { software: 0.45, science: 0.675 }, // 2.25x
-            jobs: { scientist: 6, scribe: 4, capitalist: 1 },
+            jobs: { engineer: 6, technician: 4, capitalist: 1 },
         },
     ],
 

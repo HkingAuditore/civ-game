@@ -1723,7 +1723,7 @@ export const BUILDINGS = [
         baseCost: { silver: 6000, electronics: 10 },
         input: { semiconductors: 0.05, electricity: 0.3 },
         output: { software: 0.2, science: 0.3 },
-        jobs: { scientist: 4, scribe: 3, capitalist: 1 },
+        jobs: { engineer: 4, technician: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 9,
         cat: 'industry',
