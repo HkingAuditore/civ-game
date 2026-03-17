@@ -463,6 +463,7 @@ const BuildTabComponent = ({
     const gridRefs = useRef({});
     const rowHeightsRef = useRef({});
     const [virtualRangeByCategory, setVirtualRangeByCategory] = useState({});
+    const virtualRangeRef = useRef({});
 
     // 优化：使用useCallback稳定化handleMouseEnter，减少子组件重渲染
     const handleMouseEnter = useCallback((e, building, cost) => {
@@ -1170,7 +1171,10 @@ const BuildTabComponent = ({
             }
 
             const gridRect = gridEl.getBoundingClientRect();
-            const gridTop = gridRect.top + window.scrollY;
+            // [FIX] 补偿当前topSpacer的高度，得到稳定的"无spacer时的gridTop"
+            // 避免spacer高度变化 → gridTop变化 → range变化 → spacer变化的无限震荡
+            const currentTopSpacer = virtualRangeRef.current[catKey]?.topSpacerHeight || 0;
+            const gridTop = gridRect.top + window.scrollY - currentTopSpacer;
             const viewTop = viewportScrollY;
             const viewBottom = viewportScrollY + viewportHeight;
 
@@ -1196,11 +1200,17 @@ const BuildTabComponent = ({
         setVirtualRangeByCategory(prev => {
             const prevKeys = Object.keys(prev);
             const nextKeys = Object.keys(nextRanges);
-            if (prevKeys.length !== nextKeys.length) return nextRanges;
+            if (prevKeys.length !== nextKeys.length) {
+                virtualRangeRef.current = nextRanges;
+                return nextRanges;
+            }
             for (const key of nextKeys) {
                 const next = nextRanges[key];
                 const current = prev[key];
-                if (!current) return nextRanges;
+                if (!current) {
+                    virtualRangeRef.current = nextRanges;
+                    return nextRanges;
+                }
                 if (
                     current.enabled !== next.enabled ||
                     current.startIndex !== next.startIndex ||
@@ -1208,6 +1218,7 @@ const BuildTabComponent = ({
                     current.topSpacerHeight !== next.topSpacerHeight ||
                     current.bottomSpacerHeight !== next.bottomSpacerHeight
                 ) {
+                    virtualRangeRef.current = nextRanges;
                     return nextRanges;
                 }
             }
