@@ -488,7 +488,7 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
 
     // Get satisfaction threshold from difficulty settings
     const satisfactionThreshold = getSatisfactionThreshold(difficultyLevel);
-    const decayThreshold = satisfactionThreshold + 5; // Decay starts 5 points above growth threshold
+    const decayThreshold = satisfactionThreshold + 3; // 衰减起始点：阈值+3（原+5，减少死区宽度）
 
     // 当满意度 < threshold 时开始增长, 满意度越低增长越快
     if (approval < satisfactionThreshold) {
@@ -503,8 +503,8 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
 
     // 当满意度 > decayThreshold 时开始衰减
     if (approval > decayThreshold) {
-        // 基础衰减率
-        let decayRate = -0.3; // 降低衰减速度以保持平衡
+        // 基础衰减率：满意度越高衰减越快
+        let decayRate = -0.3;
 
         // 满意度 > 80 时衰减速度翻倍
         if (approval > 80) {

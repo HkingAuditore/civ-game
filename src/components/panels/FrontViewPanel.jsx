@@ -1,8 +1,17 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES } from '../../config';
+import { RESOURCES, UNIT_TYPES, UNIT_CATEGORIES } from '../../config';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { getCorpsTotalUnits, getCorpsGeneral } from '../../logic/diplomacy/corpsSystem';
+import {
+    getCorpsTotalUnits,
+    getCorpsGeneral,
+    calculateCorpsCombatPower,
+    getGeneralBonuses,
+    getTraitDetails,
+    CORPS_FRONT_TASKS,
+    NO_GENERAL_PENALTY,
+} from '../../logic/diplomacy/corpsSystem';
+import { calculateArmyMaintenance } from '../../config/militaryUnits';
 
 import {
     getPlayerSide,
@@ -199,6 +208,177 @@ const SummaryStat = ({ label, value, tone = 'text-white', align = 'left' }) => (
     </div>
 );
 
+// 军团详情展开面板 — 显示兵种配置、将领、战力、军需
+const CorpsDetailExpanded = ({ corps, general, epoch, market }) => {
+    const units = corps.units || {};
+    const unitEntries = Object.entries(units).filter(([, count]) => count > 0);
+    const totalUnits = getCorpsTotalUnits(corps);
+    const combatPower = calculateCorpsCombatPower(corps, general, epoch);
+    const maintenance = calculateArmyMaintenance(units);
+    const prices = market?.prices || market || {};
+    const bonuses = general ? getGeneralBonuses(general) : null;
+    const traits = general ? getTraitDetails(general.traits) : [];
+    const taskInfo = CORPS_FRONT_TASKS[corps.frontTask] || CORPS_FRONT_TASKS.assault;
+
+    // 按兵种类别分组
+    const unitsByCategory = {};
+    for (const [uid, count] of unitEntries) {
+        const unit = UNIT_TYPES[uid];
+        if (!unit) continue;
+        const cat = unit.category || 'unknown';
+        if (!unitsByCategory[cat]) unitsByCategory[cat] = [];
+        unitsByCategory[cat].push({ uid, unit, count });
+    }
+
+    // 计算攻防分项
+    let totalAttack = 0;
+    let totalDefense = 0;
+    for (const [uid, count] of unitEntries) {
+        const unit = UNIT_TYPES[uid];
+        if (!unit) continue;
+        totalAttack += unit.attack * count;
+        totalDefense += unit.defense * count;
+    }
+
+    // 军需银币折算
+    const maintenanceEntries = Object.entries(maintenance).filter(([, v]) => v > 0);
+    const totalMaintenanceSilver = maintenanceEntries.reduce((sum, [res, amt]) => {
+        if (res === 'silver') return sum + amt;
+        const price = Number(prices[res] || RESOURCES[res]?.basePrice || 1);
+        return sum + amt * price;
+    }, 0);
+
+    return (
+        <div className="mt-2 space-y-2 text-xs">
+            {/* 兵种配置 */}
+            <div className="rounded-lg border border-gray-700/60 bg-black/30 p-2">
+                <p className="mb-1.5 font-semibold text-gray-300 flex items-center gap-1">
+                    <Icon name="Users" size={12} className="text-cyan-400" />
+                    兵种配置 <span className="text-gray-500 font-normal">({totalUnits} 人)</span>
+                </p>
+                {Object.keys(unitsByCategory).length === 0 ? (
+                    <p className="text-gray-500">无编制单位</p>
+                ) : (
+                    <div className="space-y-1.5">
+                        {Object.entries(unitsByCategory).map(([cat, catUnits]) => {
+                            const catInfo = UNIT_CATEGORIES[cat];
+                            const catTotal = catUnits.reduce((s, u) => s + u.count, 0);
+                            return (
+                                <div key={cat}>
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <Icon name={catInfo?.icon || 'Circle'} size={10} className={catInfo?.color || 'text-gray-400'} />
+                                        <span className={`font-medium ${catInfo?.color || 'text-gray-300'}`}>{catInfo?.name || cat}</span>
+                                        <span className="text-gray-500">({catTotal})</span>
+                                    </div>
+                                    <div className="ml-3 space-y-0.5">
+                                        {catUnits.map(({ uid, unit, count }) => (
+                                            <div key={uid} className="flex items-center justify-between">
+                                                <span className="text-gray-300">{unit.name}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-gray-400">×{count}</span>
+                                                    <span className="text-red-400/70" title="攻击">⚔{unit.attack}</span>
+                                                    <span className="text-blue-400/70" title="防御">🛡{unit.defense}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* 将领详情 */}
+            <div className="rounded-lg border border-gray-700/60 bg-black/30 p-2">
+                <p className="mb-1.5 font-semibold text-gray-300 flex items-center gap-1">
+                    <Icon name="Star" size={12} className="text-yellow-400" />
+                    将领
+                </p>
+                {general ? (
+                    <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                            <span className="text-white font-medium">{general.name}</span>
+                            <span className="text-gray-400">Lv.{general.level} · 经验 {general.experience || 0}</span>
+                        </div>
+                        {traits.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                                {traits.map(t => (
+                                    <span key={t.id} className="px-1.5 py-0.5 rounded bg-gray-800/80 border border-gray-700/50 text-gray-300">
+                                        {t.name} <span className="text-gray-500">{t.desc}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        {bonuses && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-gray-400">
+                                {bonuses.attackBonus !== 0 && <span className={bonuses.attackBonus > 0 ? 'text-red-300' : 'text-red-400/60'}>攻击 {bonuses.attackBonus > 0 ? '+' : ''}{(bonuses.attackBonus * 100).toFixed(0)}%</span>}
+                                {bonuses.defenseBonus !== 0 && <span className={bonuses.defenseBonus > 0 ? 'text-blue-300' : 'text-blue-400/60'}>防御 {bonuses.defenseBonus > 0 ? '+' : ''}{(bonuses.defenseBonus * 100).toFixed(0)}%</span>}
+                                {bonuses.moraleBonus !== 0 && <span className="text-green-300">士气 +{(bonuses.moraleBonus * 100).toFixed(0)}%</span>}
+                                {bonuses.speedBonus !== 0 && <span className="text-cyan-300">速度 +{(bonuses.speedBonus * 100).toFixed(0)}%</span>}
+                                {bonuses.supplyBonus !== 0 && <span className="text-amber-300">补给 -{(bonuses.supplyBonus * 100).toFixed(0)}%</span>}
+                                {bonuses.siegeBonus !== 0 && <span className="text-orange-300">攻城 +{(bonuses.siegeBonus * 100).toFixed(0)}%</span>}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <p className="text-gray-500 italic">无将领（战力 -{Math.round((1 - NO_GENERAL_PENALTY) * 100)}%）</p>
+                )}
+            </div>
+
+            {/* 战斗力详情 */}
+            <div className="rounded-lg border border-gray-700/60 bg-black/30 p-2">
+                <p className="mb-1.5 font-semibold text-gray-300 flex items-center gap-1">
+                    <Icon name="Zap" size={12} className="text-purple-400" />
+                    战斗力 <span className="text-purple-300 font-mono ml-1">{formatNumberShortCN(combatPower)}</span>
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                    <div className="rounded border border-gray-800/60 bg-black/20 px-2 py-1">
+                        <span className="text-gray-500">基础攻击</span>
+                        <p className="text-red-300 font-mono">{formatNumberShortCN(totalAttack)}</p>
+                    </div>
+                    <div className="rounded border border-gray-800/60 bg-black/20 px-2 py-1">
+                        <span className="text-gray-500">基础防御</span>
+                        <p className="text-blue-300 font-mono">{formatNumberShortCN(totalDefense)}</p>
+                    </div>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-gray-400">
+                    <span>士气修正 ×{(0.5 + (corps.morale || 100) / 100 * 0.5).toFixed(2)}</span>
+                    <span>将领修正 ×{general ? (1 + (bonuses?.attackBonus || 0) * 0.5 + (bonuses?.defenseBonus || 0) * 0.5).toFixed(2) : NO_GENERAL_PENALTY.toFixed(2)}</span>
+                    <span>作战任务: {taskInfo.name}</span>
+                </div>
+            </div>
+
+            {/* 军需详情 */}
+            <div className="rounded-lg border border-gray-700/60 bg-black/30 p-2">
+                <p className="mb-1.5 font-semibold text-gray-300 flex items-center gap-1">
+                    <Icon name="Package" size={12} className="text-amber-400" />
+                    日均军需 <span className="text-amber-200 font-mono ml-1">≈ {formatNumberShortCN(totalMaintenanceSilver, { decimals: 0 })} 银</span>
+                </p>
+                {maintenanceEntries.length === 0 ? (
+                    <p className="text-gray-500">无维护消耗</p>
+                ) : (
+                    <div className="space-y-0.5">
+                        {maintenanceEntries.map(([res, amt]) => {
+                            const resName = RESOURCES[res]?.name || res;
+                            const unitPrice = res === 'silver' ? 1 : Number(prices[res] || RESOURCES[res]?.basePrice || 1);
+                            return (
+                                <div key={res} className="flex items-center justify-between">
+                                    <span className="text-gray-400">{resName}</span>
+                                    <span className="text-gray-300 font-mono">
+                                        {formatNumberShortCN(amt, { decimals: 1 })}/日
+                                        {res !== 'silver' && <span className="text-gray-500 ml-1">(≈{formatNumberShortCN(amt * unitPrice, { decimals: 0 })}银)</span>}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const ForceColumn = ({
     title,
     tone,
@@ -211,7 +391,11 @@ const ForceColumn = ({
     reserveCorps = [],
     front,
     playerSide,
+    epoch,
+    market,
 }) => {
+    const [expandedCorpsId, setExpandedCorpsId] = useState(null);
+
     return (
         <section className={`rounded-2xl border p-3 ${tone}`}>
             <div className="mb-3 flex items-center justify-between">
@@ -241,25 +425,41 @@ const ForceColumn = ({
                     <p className="rounded-xl border border-dashed border-gray-700 bg-black/20 px-3 py-2 text-xs text-gray-500">暂无军团部署</p>
                 ) : corpsList.map((corps) => {
                     const general = getCorpsGeneral(generals, corps.id);
+                    const isExpanded = expandedCorpsId === corps.id;
+                    const combatPower = calculateCorpsCombatPower(corps, general, epoch);
                     return (
-                        <div key={corps.id} className="rounded-xl border border-gray-800 bg-black/20 p-2">
-                            <div className="flex items-center justify-between gap-2">
-                                <div className="text-xs">
-                                    <p className="font-semibold text-white">{corps.name} <span className="text-gray-500">({getCorpsTotalUnits(corps)})</span></p>
-                                    <p className="text-xs text-gray-400">
+                        <div key={corps.id} className={`rounded-xl border bg-black/20 p-2 transition-colors ${isExpanded ? 'border-cyan-600/40 bg-cyan-950/5' : 'border-gray-800 hover:border-gray-700'}`}>
+                            <div
+                                className="flex items-center justify-between gap-2 cursor-pointer"
+                                onClick={() => setExpandedCorpsId(isExpanded ? null : corps.id)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => e.key === 'Enter' && setExpandedCorpsId(isExpanded ? null : corps.id)}
+                            >
+                                <div className="text-xs flex-1 min-w-0">
+                                    <p className="font-semibold text-white flex items-center gap-1">
+                                        <Icon name={isExpanded ? 'ChevronDown' : 'ChevronRight'} size={12} className="text-gray-500 flex-shrink-0" />
+                                        {corps.name}
+                                        <span className="text-gray-500">({getCorpsTotalUnits(corps)})</span>
+                                        <span className="text-purple-400/70 font-mono ml-1">⚔{formatNumberShortCN(combatPower)}</span>
+                                    </p>
+                                    <p className="text-xs text-gray-400 ml-4">
                                         {general ? `将领 ${general.name} Lv.${general.level || 1}` : '无将领'} · 士气 {Math.round(corps.morale || 100)}
                                     </p>
                                 </div>
                                 {canControlTasks && (
                                     <button
                                         type="button"
-                                        className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300 hover:bg-gray-600"
-                                        onClick={() => onRemoveCorpsFromFront?.(front.id, corps.id, playerSide)}
+                                        className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300 hover:bg-gray-600 flex-shrink-0"
+                                        onClick={(e) => { e.stopPropagation(); onRemoveCorpsFromFront?.(front.id, corps.id, playerSide); }}
                                     >
                                         撤回
                                     </button>
                                 )}
                             </div>
+                            {isExpanded && (
+                                <CorpsDetailExpanded corps={corps} general={general} epoch={epoch} market={market} />
+                            )}
                         </div>
                     );
                 })}
@@ -434,6 +634,8 @@ const FrontViewPanel = ({
                     onRemoveCorpsFromFront={onRemoveCorpsFromFront}
                     front={front}
                     playerSide={playerSide}
+                    epoch={epoch}
+                    market={market}
                 />
                 <ForceColumn
                     title="敌方战力面板"
@@ -444,6 +646,8 @@ const FrontViewPanel = ({
                     canControlTasks={false}
                     front={front}
                     playerSide={playerSide}
+                    epoch={epoch}
+                    market={market}
                 />
             </div>
 

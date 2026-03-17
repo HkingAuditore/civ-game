@@ -2000,6 +2000,7 @@ function GameApp({ gameState }) {
                         epoch={gameState.epoch}
                         techsUnlocked={gameState.techsUnlocked}
                         officials={gameState.officials} // Pass officials data for average loyalty calculation
+                        difficulty={gameState.difficulty}
 
                         // Extra approval drivers (so UI can explain 'mysterious' drops)
                         legitimacyTaxModifier={gameState.legitimacyTaxModifier}
