@@ -1425,10 +1425,10 @@ const StratumDetailSheetComponent = ({
                                             </div>
                                             {/* 各资源明细 */}
                                             <div className="pl-2 space-y-0.5 border-l-2 border-gray-700">
-                                                {Object.entries(data.essentialNeeds || {}).map(([resKey, entry]) => {
-                                                    const costVal = typeof entry === 'object' ? entry.cost : entry;
-                                                    const qtyVal = typeof entry === 'object' ? entry.quantity : 0;
-                                                    const priceVal = typeof entry === 'object' ? entry.price : 0;
+                                {Object.entries(data.essentialNeeds || {}).map(([resKey, entry]) => {
+                                                    const costVal = (typeof entry === 'object' ? entry.cost : entry) || 0;
+                                                    const qtyVal = (typeof entry === 'object' ? entry.quantity : 0) || 0;
+                                                    const priceVal = (typeof entry === 'object' ? entry.price : 0) || 0;
                                                     const perCapitaCost = costVal / safeDayScale / Math.max(count, 1);
                                                     const perCapitaQty = qtyVal / safeDayScale / Math.max(count, 1);
                                                     if (perCapitaCost < 0.001) return null;
@@ -1461,10 +1461,10 @@ const StratumDetailSheetComponent = ({
                                             </div>
                                             {/* 各资源明细 */}
                                             <div className="pl-2 space-y-0.5 border-l-2 border-gray-700">
-                                                {Object.entries(data.luxuryNeeds || {}).map(([resKey, entry]) => {
-                                                    const costVal = typeof entry === 'object' ? entry.cost : entry;
-                                                    const qtyVal = typeof entry === 'object' ? entry.quantity : 0;
-                                                    const priceVal = typeof entry === 'object' ? entry.price : 0;
+                                {Object.entries(data.luxuryNeeds || {}).map(([resKey, entry]) => {
+                                                    const costVal = (typeof entry === 'object' ? entry.cost : entry) || 0;
+                                                    const qtyVal = (typeof entry === 'object' ? entry.quantity : 0) || 0;
+                                                    const priceVal = (typeof entry === 'object' ? entry.price : 0) || 0;
                                                     const perCapitaCost = costVal / safeDayScale / Math.max(count, 1);
                                                     const perCapitaQty = qtyVal / safeDayScale / Math.max(count, 1);
                                                     if (perCapitaCost < 0.001) return null;
