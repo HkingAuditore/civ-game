@@ -1126,6 +1126,8 @@ export const useGameState = () => {
     const [ideologyCooldowns, setIdeologyCooldowns] = useState({}); // { [id]: days }
     const [ideologyMilestones, setIdeologyMilestones] = useState([]); // string[]
     const [pendingIdeologyEmergence, setPendingIdeologyEmergence] = useState(null); // null | { candidates }
+    const [ideologyEmergenceRarityBonus, setIdeologyEmergenceRarityBonus] = useState(0); // 跳过累积的稀有度加成（0~3）
+    const [lastEmergenceWasSkipped, setLastEmergenceWasSkipped] = useState(false); // 上次涌现是否是跳过（用于判断加成是否留存）
 
     // ========== 游戏控制状�?==========
     const [activeTab, setActiveTab] = useState('overview');
@@ -1414,6 +1416,7 @@ export const useGameState = () => {
     const [festivalModal, setFestivalModal] = useState(null); // { reportData, year }
     const [annualReportBaseline, setAnnualReportBaseline] = useState(null); // Year-start baseline snapshot
     const [lastFestivalYear, setLastFestivalYear] = useState(1); // Last report year (starts at 1 to avoid year-1 trigger)
+    const [annualReportHistory, setAnnualReportHistory] = useState([]); // Historical reports: [{ year, epoch, reportData }]
     // ========== 商人交易状�?==========
     const [merchantState, setMerchantState] = useState(buildInitialMerchantState); // 商人交易状态：买入-持有-卖出周期
 
@@ -1857,6 +1860,7 @@ export const useGameState = () => {
                 festivalModal,
                 annualReportBaseline,
                 lastFestivalYear,
+                annualReportHistory,
                 showTutorial,
                 currentEvent,
                 eventHistory,
@@ -1902,6 +1906,7 @@ export const useGameState = () => {
                 ideologyCooldowns,
                 ideologyMilestones,
                 pendingIdeologyEmergence,
+                ideologyEmergenceRarityBonus,
                 // AI balance version marker - increment to trigger re-migration of old saves
                 // v1: initial migration for too-strong/too-weak AI
                 // v2: fix missing economyTraits fields that prevent AI development
@@ -2506,6 +2511,7 @@ export const useGameState = () => {
         setFestivalModal(data.festivalModal || null);
         setAnnualReportBaseline(data.annualReportBaseline || null);
         setLastFestivalYear(data.lastFestivalYear || 1);
+        setAnnualReportHistory(Array.isArray(data.annualReportHistory) ? data.annualReportHistory : []);
         setShowTutorial(data.showTutorial ?? true);
         setCurrentEvent(data.currentEvent || null);
         setEventHistory(trimArray(data.eventHistory || [], AUTO_SAVE_LIMITS.eventHistory));
@@ -2596,7 +2602,7 @@ export const useGameState = () => {
         setIdeologyCooldowns(data.ideologyCooldowns || {});
         setIdeologyMilestones(Array.isArray(data.ideologyMilestones) ? data.ideologyMilestones : []);
         setPendingIdeologyEmergence(data.pendingIdeologyEmergence ?? null);
-        setActionCooldowns(data.actionCooldowns || {});
+        setIdeologyEmergenceRarityBonus(data.ideologyEmergenceRarityBonus ?? 0);
         setActionUsage(data.actionUsage || {});
         setPromiseTasks(data.promiseTasks || []);
         setEventConfirmationEnabled(data.eventConfirmationEnabled || false);
@@ -3578,6 +3584,10 @@ export const useGameState = () => {
         setIdeologyMilestones,
         pendingIdeologyEmergence,
         setPendingIdeologyEmergence,
+        ideologyEmergenceRarityBonus,
+        setIdeologyEmergenceRarityBonus,
+        lastEmergenceWasSkipped,
+        setLastEmergenceWasSkipped,
 
         daysElapsed,
         setDaysElapsed,
@@ -3753,6 +3763,8 @@ export const useGameState = () => {
         setAnnualReportBaseline,
         lastFestivalYear,
         setLastFestivalYear,
+        annualReportHistory,
+        setAnnualReportHistory,
 
         // 商人交易系统
         merchantState,

@@ -72,9 +72,9 @@ export const EPOCH_THEMES = {
     atmosphere: 'classical',
     icon: '🏛️',
   },
-  // 中世纪 - Medieval Age (Enhanced Royal Purple & Stone)
+  // 封建时代 - Medieval Age (Enhanced Royal Purple & Stone)
   3: {
-    name: '中世纪',
+    name: '封建时代',
     primaryColor: '#6b21a8', // 皇家紫 Royal Purple
     secondaryColor: '#581c87',
     accentColor: '#a855f7',
@@ -160,9 +160,53 @@ export const EPOCH_THEMES = {
     atmosphere: 'industrial',
     icon: '⚙️',
   },
-  // 现代 - Modern Age (Enhanced Cyan Tech)
+  // 电气时代 - Electric Age (Sky Blue)
   7: {
-    name: '现代',
+    name: '电气时代',
+    primaryColor: '#0284c7', // 天蓝 Sky Blue
+    secondaryColor: '#0369a1',
+    accentColor: '#38bdf8', // 亮天蓝
+    bgGradient: 'linear-gradient(135deg, #0c1a26 0%, #0f2030 50%, #0c1a26 100%)',
+    bgColor: '#0c1a26',
+    surfaceColor: 'rgba(14, 28, 40, 0.92)',
+    surfaceAltColor: 'rgba(18, 36, 52, 0.85)',
+    surfaceMutedColor: 'rgba(12, 24, 36, 0.68)',
+    surfaceTranslucent: 'rgba(12, 24, 36, 0.52)',
+    textMutedColor: 'rgba(186, 230, 253, 0.8)',
+    bgPattern: 'circuit',
+    textColor: '#bae6fd',
+    borderColor: 'rgba(2, 132, 199, 0.45)',
+    glowColor: 'rgba(56, 189, 248, 0.45)',
+    metalHighlight: 'rgba(56, 189, 248, 0.35)',
+    shadowDepth: '0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 10px rgba(2, 132, 199, 0.4)',
+    atmosphere: 'electric',
+    icon: '⚡',
+  },
+  // 原子时代 - Atomic Age (Violet Nuclear)
+  8: {
+    name: '原子时代',
+    primaryColor: '#7c3aed', // 紫罗兰 Violet
+    secondaryColor: '#6d28d9',
+    accentColor: '#a78bfa', // 亮紫
+    bgGradient: 'linear-gradient(135deg, #130d1e 0%, #1e1030 50%, #130d1e 100%)',
+    bgColor: '#130d1e',
+    surfaceColor: 'rgba(22, 14, 36, 0.92)',
+    surfaceAltColor: 'rgba(32, 18, 52, 0.85)',
+    surfaceMutedColor: 'rgba(18, 12, 30, 0.68)',
+    surfaceTranslucent: 'rgba(18, 12, 30, 0.52)',
+    textMutedColor: 'rgba(237, 233, 254, 0.8)',
+    bgPattern: 'circuit',
+    textColor: '#ede9fe',
+    borderColor: 'rgba(124, 58, 237, 0.45)',
+    glowColor: 'rgba(167, 139, 250, 0.45)',
+    metalHighlight: 'rgba(167, 139, 250, 0.35)',
+    shadowDepth: '0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 10px rgba(124, 58, 237, 0.4)',
+    atmosphere: 'atomic',
+    icon: '☢️',
+  },
+  // 信息时代 - Information Age (Cyan Tech)
+  9: {
+    name: '信息时代',
     primaryColor: '#0891b2', // 科技青 Cyan
     secondaryColor: '#0e7490',
     accentColor: '#22d3ee', // 亮青色
@@ -178,8 +222,9 @@ export const EPOCH_THEMES = {
     borderColor: 'rgba(8, 145, 178, 0.4)',
     glowColor: 'rgba(34, 211, 238, 0.4)',
     metalHighlight: 'rgba(34, 211, 238, 0.35)',
-    atmosphere: 'modern',
-    icon: '🏙️',
+    shadowDepth: '0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 10px rgba(8, 145, 178, 0.4)',
+    atmosphere: 'information',
+    icon: '💻',
   },
 };
 

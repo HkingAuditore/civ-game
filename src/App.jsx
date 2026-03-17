@@ -42,6 +42,7 @@ import {
     ResourceDetailModal,
     PopulationDetailModal,
     AnnualReportModal,
+    AnnualReportHistoryModal,
     TutorialModal,
     WikiModal,
 } from './components';
@@ -319,6 +320,7 @@ function GameApp({ gameState }) {
     const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
     const [pendingAction, setPendingAction] = useState(null); // { type: 'load' | 'newGame' }
     const [showEmpireScene, setShowEmpireScene] = useState(false);
+    const [showReportHistory, setShowReportHistory] = useState(false); // Historical annual report viewer
     const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
     const [warfrontFocusRequest, setWarfrontFocusRequest] = useState(null);
     const [pendingWarDeployment, setPendingWarDeployment] = useState(null);
@@ -460,9 +462,19 @@ function GameApp({ gameState }) {
         }
     };
 
-    // Handle annual report close: save baseline and resume
+    // Handle annual report close: save baseline, archive report, and resume
     const handleReportClose = useCallback(() => {
-        const reportYear = gameState.festivalModal?.year;
+        const modal = gameState.festivalModal;
+        const reportYear = modal?.year;
+        const reportData = modal?.reportData;
+        // Archive report to history (keep max 50 years to limit save size)
+        if (reportYear && reportData) {
+            const MAX_REPORT_HISTORY = 50;
+            gameState.setAnnualReportHistory(prev => {
+                const next = [...prev, { year: reportYear, epoch: gameState.epoch, reportData }];
+                return next.length > MAX_REPORT_HISTORY ? next.slice(-MAX_REPORT_HISTORY) : next;
+            });
+        }
         // Save current snapshot as next year's baseline
         const newBaseline = collectAnnualSnapshot(gameState);
         gameState.setAnnualReportBaseline(newBaseline);
@@ -1282,6 +1294,7 @@ function GameApp({ gameState }) {
                     onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
                     onMarketClick={() => setShowMarket(true)}  // 新增：打开国内市场弹窗
                     onEmpireSceneClick={() => setShowEmpireScene(true)}  // 新增：点击日期按钮弹出帝国场景
+                    onReportHistoryClick={() => setShowReportHistory(true)}  // 新增：点击查看历年报告
                     gameControls={
                         <GameControls
                             isPaused={gameState.isPaused}
@@ -2255,6 +2268,15 @@ function GameApp({ gameState }) {
                 />
             )}
 
+            {/* Historical Annual Report Viewer */}
+            <AnnualReportHistoryModal
+                isOpen={showReportHistory}
+                onClose={() => setShowReportHistory(false)}
+                history={gameState.annualReportHistory || []}
+                empireName={gameState.empireName}
+                currentEpoch={gameState.epoch}
+            />
+
             {/* 事件系统底部面板 */}
             <BottomSheet
                 isOpen={!!gameState.currentEvent}
@@ -2468,6 +2490,19 @@ function GameApp({ gameState }) {
                 collectionList={(gameState.ideologyCollection || [])
                     .filter(e => !(gameState.equippedIdeologies || []).includes(e.id))
                     .map(e => ({ ...e, config: IDEOLOGY_MAP[e.id] || e }))}
+                rarityBonus={gameState.ideologyEmergenceRarityBonus || 0}
+                onSkip={() => {
+                    // 跳过本次涌现：累加稀有度加成（上限3），消耗分数，恢复游戏
+                    const newBonus = Math.min((gameState.ideologyEmergenceRarityBonus || 0) + 1, 3);
+                    gameState.setIdeologyEmergenceRarityBonus(newBonus);
+                    gameState.setLastEmergenceWasSkipped(true);
+                    // 消耗分数（跳过也消耗，避免无限刷新）
+                    const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
+                    gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
+                    // 清除涌现事件并恢复游戏
+                    gameState.setPendingIdeologyEmergence(null);
+                    gameState.setIsPaused(false);
+                }}
                 onSelect={(ideologyId, discardId) => {
                     // 若有放弃的理念，先从收藏中移除
                     let collection = gameState.ideologyCollection || [];
@@ -2480,8 +2515,11 @@ function GameApp({ gameState }) {
                     // 消耗分数
                     const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
                     gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
-                    // 清除涌现事件
+                    // 选择后立即重置稀有度加成（连续跳过链断开）
+                    gameState.setIdeologyEmergenceRarityBonus(0);
+                    // 清除涌现事件，标记本次为"选择"（非跳过），下次涌现不继承加成
                     gameState.setPendingIdeologyEmergence(null);
+                    gameState.setLastEmergenceWasSkipped(false);
                 }}
             />
         </div>

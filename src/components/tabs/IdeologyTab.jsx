@@ -3,7 +3,7 @@
  * 显示理念分数进度、卡槽区域、理念库
  */
 
-import React, { useState, useMemo, memo, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, memo, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
 import { IDEOLOGY_CATEGORIES, IDEOLOGY_MAP, IDEOLOGIES } from '../../config/ideologies';
 import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../../config/ideologySynergies';
@@ -215,7 +215,7 @@ const IdeologyTabComponent = ({
     );
 
     // 更新卡槽数（响应时代变化）
-    useMemo(() => {
+    useEffect(() => {
         if (maxSlots > ideologySlotCount && setIdeologySlotCount) {
             setIdeologySlotCount(maxSlots);
         }

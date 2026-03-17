@@ -750,7 +750,8 @@ difficulty, // 游戏难度
         setIdeologyMilestones,
         pendingIdeologyEmergence,
         setPendingIdeologyEmergence,
-        // Pending Actions Queue（tick-action 竞争条件修复）
+        ideologyEmergenceRarityBonus,
+        lastEmergenceWasSkipped,
         pendingActionsRef,
     } = gameState;
 
@@ -834,9 +835,9 @@ difficulty, // 游戏难度
         ideologyCooldowns,
         ideologyMilestones,
         pendingIdeologyEmergence,
+        ideologyEmergenceRarityBonus,
+        lastEmergenceWasSkipped,
     });
-
-    const saveGameRef = useRef(gameState.saveGame);
     const autoReplenishTickRef = useRef({ day: null, key: '' });
     const capacityTrimLogRef = useRef({ day: null });
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
@@ -919,6 +920,7 @@ difficulty, // 游戏难度
 
     const { runSimulation, syncHistory, isUsingWorker } = useSimulationWorker();
 
+    const saveGameRef = useRef(gameState.saveGame);
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
     }, [gameState.saveGame]);
@@ -1010,8 +1012,9 @@ difficulty, // 游戏难度
             ideologyCooldowns,
             ideologyMilestones,
             pendingIdeologyEmergence,
+            ideologyEmergenceRarityBonus,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, ideologyEmergenceRarityBonus, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
@@ -2093,7 +2096,10 @@ difficulty, // 游戏难度
                             const newSpent = latestState.ideologyScoreSpent || 0;
                             const ownedCount = (latestState.ideologyCollection || []).length;
                             if (!latestState.pendingIdeologyEmergence && checkEmergence(newScore, newSpent, ownedCount)) {
-                                const candidates = generateEmergenceCandidates(curState, latestState.ideologyCollection || []);
+                                // 只有上次是跳过时才继承稀有度加成，选择后加成清零
+                                const wasSkipped = latestState.lastEmergenceWasSkipped ?? false;
+                                const rarityBonus = wasSkipped ? (latestState.ideologyEmergenceRarityBonus || ideologyEmergenceRarityBonus || 0) : 0;
+                                const candidates = generateEmergenceCandidates(curState, latestState.ideologyCollection || [], rarityBonus);
                                 if (candidates.length > 0) {
                                     setIsPaused(true);
                                     setPendingIdeologyEmergence({ candidates });
@@ -5939,22 +5945,20 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             if (!aggressorAllianceIds.includes(n.id)) return false;
                                             if (sharedAllianceIds.has(n.id)) return false;
                                             if (n.isAtWar) return false;
-                                            // 鎺掗櫎鐜╁鐨勯檮搴?
-                                            if (n.isVassal === true) return false;
+                                            // [FIX] Exclude player's vassals - use vassalOf which is the actual field
+                                            if (n.vassalOf === 'player') return false;
                                             return true;
                                         });
-
                                         // 鐜╁鐨勭洘鍙嬶紙鎺掗櫎鍏卞悓鐩熷弸鍜岄檮搴革級
                                         const playerAllies = nextNations.filter(n => {
                                             if (n.id === aggressorId) return false;
                                             if (!playerAllianceIds.includes(n.id)) return false;
                                             if (sharedAllianceIds.has(n.id)) return false;
                                             if (n.isAtWar) return false;
-                                            // 鎺掗櫎鐜╁鐨勯檮搴?
-                                            if (n.isVassal === true) return false;
+                                            // [FIX] Exclude player's vassals - use vassalOf which is the actual field
+                                            if (n.vassalOf === 'player') return false;
                                             return true;
                                         });
-
                                         // ========== 鎴樹簤涓婇檺妫€鏌?==========
                                         const MAX_CONCURRENT_WARS = 3;
                                         // 璁＄畻褰撳墠涓庣帺瀹朵氦鎴樼殑AI鍥藉鏁伴噺锛堜笉鍖呮嫭鍙涘啗锛?
