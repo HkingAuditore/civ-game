@@ -266,7 +266,17 @@ const DiplomacyLayout = ({
                         diplomacyOrganizations={diplomacyOrganizations}
                         tradeRoutes={tradeRoutes}
                         merchantState={merchantState}
-                        onMerchantStateChange={onMerchantStateChange}
+                        onMerchantStateChange={(nationId, count) => {
+                            if (onMerchantStateChange) {
+                                onMerchantStateChange(prev => ({
+                                    ...prev,
+                                    merchantAssignments: {
+                                        ...(prev?.merchantAssignments || {}),
+                                        [nationId]: count
+                                    }
+                                }));
+                            }
+                        }}
                         popStructure={gameState?.popStructure} // Ensure popStructure is passed
                         overseasInvestments={overseasInvestments}
                         foreignInvestments={foreignInvestments}
