@@ -3379,8 +3379,9 @@ export const simulateTick = ({
                         // 这里只记录补贴总额，腐败损失会在税收汇总阶段处?
                     });
 
-                    // 记录补贴支出（用于后续腐败计算）
-                    taxBreakdown.subsidy = (taxBreakdown.subsidy || 0) + subsidyAmount;
+                    // NOTE: taxBreakdown.subsidy is automatically updated by ledger.transfer()
+                    // via _updateSystemStats (amount = ownerSubsidyActual per owner).
+                    // Do NOT manually add here — it would cause double-counting.
 
                     if (effectiveEfficiency < 1 && tick % 30 === 0) {
                         const lossPercent = ((1 - effectiveEfficiency) * 100).toFixed(1);
@@ -4138,6 +4139,11 @@ export const simulateTick = ({
         };
 
         // We pass BUILDINGS, wealth, settings, counts, market with wages, and tax policies
+        // Calculate tax efficiency for subsidy estimation (same formula as subsidy payout)
+        const _stabFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
+        const _rawEff = _stabFactor * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+        const _taxEfficiency = Math.max(0, Math.min(1, _rawEff));
+
         const { expansions, wealthDeductions } = processOwnerExpansions(
             BUILDINGS,
             wealth,
@@ -4145,7 +4151,8 @@ export const simulateTick = ({
             newBuildingsCount,
             marketForExpansion,
             taxPolicies,  // [NEW] 传递税收政策用于营业税计算
-            buildingStaffingRatios
+            buildingStaffingRatios,
+            { taxEfficiency: _taxEfficiency }
         );
 
         // Apply expansions

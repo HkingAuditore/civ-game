@@ -49,25 +49,37 @@ export const DEFAULT_TRADE_CONFIG = {
     
     // Trade 3.0: Opportunity-first approach (select trades first, then assign merchants)
     maxTradeOpportunitiesPerPartner: 3, // [DEPRECATED] No longer used - kept for compatibility
-    maxGlobalTradeOpportunities: 45, // [NEW] Top N most profitable trade opportunities globally (across all nations)
+    maxGlobalTradeOpportunities: 120, // [NEW] Top N most profitable trade opportunities globally (across all nations)
     merchantBatchesPerCycle: 3, // Split merchants into N batches (N = tradeDuration for even distribution)
 
     // Trade 3.1: Cached opportunity evaluation (expensive evaluation runs less often, execution every tick)
-    opportunityRefreshInterval: 12, // How often (in ticks) to re-evaluate trade opportunities (STEP 1)
+    opportunityRefreshInterval: 3, // How often (in ticks) to run a STEP 1 slice evaluation
     tradeSlicesPerCycle: 3, // Split opportunities into N slices for per-tick execution rotation
+
+    // Trade 3.2: Incremental partner evaluation — split STEP 1 into partnerSliceCount slices
+    // Full cycle = partnerSliceCount × opportunityRefreshInterval ticks
+    // E.g. 10 slices × 3 ticks = 30 ticks for a complete refresh
+    partnerSliceCount: 10, // How many slices to divide partners into for incremental evaluation
 };
 
-// --- Trade 3.1: Module-level opportunity cache ----------------------------
+// --- Trade 3.1 / 3.2: Module-level opportunity cache ----------------------
 // Caches the expensive STEP 1 (opportunity evaluation) result.
-// Only refreshed every `opportunityRefreshInterval` ticks.
-// STEP 2-3 (lightweight execution) reads from cache every tick.
+// Trade 3.2: STEP 1 is now incremental — each refresh evaluates only a
+// slice of partners and merges results into the cache progressively.
+// A full refresh cycle completes in `partnerSliceCount` refreshes.
 const _opportunityCache = {
-    topOpportunities: [],      // Cached top global opportunities
-    allPartnerBatches: [],     // Cached partner batch allocations
-    assignments: {},           // Cached merchant assignments
+    topOpportunities: [],      // Merged & ranked top global opportunities
+    allPartnerBatches: [],     // Cached partner batch allocations (full set)
+    assignments: {},           // Cached merchant assignments (full set)
     totalMerchants: 0,         // Cached total merchant count
-    lastRefreshTick: -Infinity, // Last tick when STEP 1 ran
+    lastRefreshTick: -Infinity, // Last tick when a STEP 1 slice ran
     partnerSignature: '',      // Hash of partner list for invalidation
+
+    // Trade 3.2: Incremental evaluation state
+    partnerOpportunities: {},  // { [nationId]: opportunity[] } — per-partner cached candidates
+    currentSliceIndex: 0,      // Which partner slice to evaluate next (0..partnerSliceCount-1)
+    fullPartnerList: [],       // Snapshot of all partner batches for stable slicing
+    lastFullCycleComplete: -Infinity, // Tick when last full cycle finished
 };
 
 // --- Trade 2.0 helpers -------------------------------------------------
@@ -923,10 +935,49 @@ export const simulateMerchantTrade = ({
     // 3. Create trades for current batch only
     // ============================================================
     
-    // STEP 1: Collect all trade opportunities from all partners
-    const allTradeOpportunities = [];
+    // ============================================================
+    // Trade 3.2: Incremental Partner Evaluation
+    // Instead of evaluating ALL partners every refresh, split into
+    // `partnerSliceCount` slices. Each refresh evaluates one slice,
+    // merges results into cache, then rebuilds global ranking.
+    // Full cycle = partnerSliceCount × opportunityRefreshInterval ticks.
+    // ============================================================
+    const partnerSliceCount = tradeConfig.partnerSliceCount || 2;
+
+    // Detect partner list change → invalidate incremental cache
+    if (_opportunityCache.partnerSignature !== currentPartnerIds) {
+        _opportunityCache.partnerOpportunities = {};
+        _opportunityCache.currentSliceIndex = 0;
+        _opportunityCache.fullPartnerList = [...partnerBatches];
+    } else {
+        // Keep fullPartnerList up-to-date with latest partner data
+        _opportunityCache.fullPartnerList = [...partnerBatches];
+    }
+
+    // Determine which slice of partners to evaluate this refresh
+    const sliceIdx = _opportunityCache.currentSliceIndex % partnerSliceCount;
+    const sliceSize = Math.ceil(partnerBatches.length / partnerSliceCount);
+    const sliceStart = sliceIdx * sliceSize;
+    const sliceEnd = Math.min(sliceStart + sliceSize, partnerBatches.length);
+    const partnersThisSlice = partnerBatches.slice(sliceStart, sliceEnd);
+
+    // Advance slice index for next refresh
+    _opportunityCache.currentSliceIndex = (sliceIdx + 1) % partnerSliceCount;
+    if (_opportunityCache.currentSliceIndex === 0) {
+        _opportunityCache.lastFullCycleComplete = tick;
+    }
+
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[分片评估] Slice ${sliceIdx + 1}/${partnerSliceCount}, 评估 ${partnersThisSlice.length}/${partnerBatches.length} 个伙伴`, {
+            sliceIdx, sliceStart, sliceEnd,
+            partnerIds: partnersThisSlice.map(p => p.nationId),
+        });
+    }
+
+    // STEP 1: Collect trade opportunities from THIS SLICE's partners only
+    const sliceOpportunities = []; // Opportunities found in this slice
     
-    for (const partnerBatch of partnerBatches) {
+    for (const partnerBatch of partnersThisSlice) {
         const partner = Array.isArray(nations) ? nations.find(n => n?.id === partnerBatch.nationId) : null;
         
         
@@ -1088,7 +1139,7 @@ export const simulateMerchantTrade = ({
         // [NEW] Don't filter per-partner - collect ALL candidates for global ranking
         // Add all candidates to global opportunity pool with partner context
         candidates.forEach(candidate => {
-            allTradeOpportunities.push({
+            sliceOpportunities.push({
                 partner,
                 partnerBatch,
                 candidate,
@@ -1099,8 +1150,46 @@ export const simulateMerchantTrade = ({
         });
     }
     
-    // Early exit if no opportunities found
+    // --- Trade 3.2: Incrementally merge this slice's results into cache ---
+    // Update per-partner opportunity cache for the partners in this slice
+    for (const pb of partnersThisSlice) {
+        // Clear old opportunities for these partners (will be replaced)
+        _opportunityCache.partnerOpportunities[pb.nationId] = [];
+    }
+    sliceOpportunities.forEach(opp => {
+        const nid = opp.partnerBatch?.nationId || opp.partner?.id;
+        if (nid) {
+            if (!_opportunityCache.partnerOpportunities[nid]) {
+                _opportunityCache.partnerOpportunities[nid] = [];
+            }
+            _opportunityCache.partnerOpportunities[nid].push(opp);
+        }
+    });
+
+    // Prune partners that no longer exist in the current partner list
+    const activePartnerSet = new Set(partnerBatches.map(p => p.nationId));
+    for (const nid of Object.keys(_opportunityCache.partnerOpportunities)) {
+        if (!activePartnerSet.has(nid)) {
+            delete _opportunityCache.partnerOpportunities[nid];
+        }
+    }
+
+    // Rebuild global opportunity ranking from ALL cached partner opportunities
+    const allTradeOpportunities = [];
+    for (const nid of Object.keys(_opportunityCache.partnerOpportunities)) {
+        const opps = _opportunityCache.partnerOpportunities[nid];
+        if (opps) allTradeOpportunities.push(...opps);
+    }
+
+    // Early exit if no opportunities found across all cached partners
     if (allTradeOpportunities.length === 0) {
+        // Still update cache metadata even if empty
+        _opportunityCache.topOpportunities = [];
+        _opportunityCache.allPartnerBatches = partnerBatches;
+        _opportunityCache.assignments = assignments;
+        _opportunityCache.totalMerchants = totalMerchants;
+        _opportunityCache.lastRefreshTick = tick;
+        _opportunityCache.partnerSignature = currentPartnerIds;
         return {
             pendingTrades: updatedPendingTrades,
             lastTradeTime,
@@ -1113,13 +1202,10 @@ export const simulateMerchantTrade = ({
     
     // [DEBUG] Log collected opportunities
     if (tradeConfig.enableDebugLog) {
-        debugLog('trade', `[贸易机会] 收集到 ${allTradeOpportunities.length} 个贸易机会`, {
-            opportunities: allTradeOpportunities.map(o => ({
-                partner: o.partner.name,
-                resource: o.candidate.resourceKey,
-                type: o.candidate.type,
-                score: o.candidate.score.toFixed(2),
-            }))
+        debugLog('trade', `[贸易机会] 缓存中共 ${allTradeOpportunities.length} 个贸易机会 (本次切片新增 ${sliceOpportunities.length})`, {
+            cachedPartners: Object.keys(_opportunityCache.partnerOpportunities).length,
+            slicePartners: partnersThisSlice.length,
+            sliceOpportunities: sliceOpportunities.length,
         });
     }
     
@@ -1134,17 +1220,19 @@ export const simulateMerchantTrade = ({
     const topGlobalOpportunities = allTradeOpportunities.slice(0, maxGlobalOpportunities);
     
     if (tradeConfig.enableDebugLog) {
-        debugLog('trade', `[全局排序] 选择最赚钱的前 ${topGlobalOpportunities.length} 个贸易机会`, {
+        debugLog('trade', `[全局排序] 选择最赚钱的前 ${topGlobalOpportunities.length} 个贸易机会 (slice ${sliceIdx + 1}/${partnerSliceCount})`, {
             top5: topGlobalOpportunities.slice(0, 5).map(o => ({
                 partner: o.partner.name,
                 resource: o.candidate.resourceKey,
                 type: o.candidate.type,
                 score: o.candidate.score.toFixed(2),
-            }))
+            })),
+            totalCandidates: allTradeOpportunities.length,
+            cachedPartnerCount: Object.keys(_opportunityCache.partnerOpportunities).length,
         });
     }
     
-    // --- Trade 3.1: Update opportunity cache after STEP 1 evaluation ---
+    // --- Trade 3.2: Update opportunity cache with merged results ---
     _opportunityCache.topOpportunities = topGlobalOpportunities;
     _opportunityCache.allPartnerBatches = partnerBatches;
     _opportunityCache.assignments = assignments;

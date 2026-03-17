@@ -82,6 +82,7 @@ import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
 import { BUILDING_CHAINS } from '../config/buildingChains';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
+import { IDEOLOGY_SCORE_TRIGGERS } from '../config/ideologies';
 import { getEpochTechRequirementStatus } from '../utils/epochUpgrade';
 
 const getCompletedChainIds = (buildingState = {}) => {
@@ -1325,6 +1326,18 @@ export const useGameActions = (gameState, addLog) => {
         // Ideology event: epoch advance
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_EPOCH_ADVANCE, { newEpoch: epoch + 1, epochName: nextEpoch.name }, daysElapsed);
 
+        // Proactive ideology score award for epoch advance (replaces passive diff in useGameLoop)
+        {
+            const { base, epochScale } = IDEOLOGY_SCORE_TRIGGERS.epoch_advance;
+            const newEpochNum = epoch + 1;
+            const amount = base + newEpochNum * epochScale;
+            ideologyEventBus.queueDirectEffect(
+                { action: 'addIdeologyScore', amount, category: 'epoch_advance' },
+                'epoch_advance'
+            );
+            addLog(`🔮 进入第${newEpochNum}时代获得 ${amount} 理念之力`);
+        }
+
         // 播放升级音效
         try {
             const soundGenerator = generateSound(SOUND_TYPES.LEVEL_UP);
@@ -2129,6 +2142,17 @@ export const useGameActions = (gameState, addLog) => {
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TECH_UNLOCK, {
             techId: id, techCount: (techsUnlocked?.length || 0) + 1
         }, daysElapsed);
+
+        // Proactive ideology score award for tech research (replaces passive diff in useGameLoop)
+        {
+            const { base, epochScale } = IDEOLOGY_SCORE_TRIGGERS.research_tech;
+            const amount = base + epoch * epochScale;
+            ideologyEventBus.queueDirectEffect(
+                { action: 'addIdeologyScore', amount, category: 'research_tech' },
+                'research_tech'
+            );
+            addLog(`🔮 研发知识「${tech.name}」获得 ${amount} 理念之力`);
+        }
 
         // 播放研究音效
         try {
