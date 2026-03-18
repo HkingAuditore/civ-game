@@ -30,8 +30,8 @@ export const BUILDING_UPGRADES = {
         {
             name: "精耕田",
             cost: { plank: 80, brick: 40, tools: 15, silver: 800 },
-            input: { tools: 0.08, wood: 0.1 }, // reasonable input increase
-            output: { food: 10.8 }, // 2.25x of base 4.8
+            input: { tools: 0.08, wood: 0.1, fertilizer: 0.08 }, // fertilizer for modern intensive farming
+            output: { food: 12.96 }, // 2.7x of base 4.8, fertilizer bonus
             jobs: { peasant: 4 }, // +1 peasant only
         },
     ],
@@ -400,8 +400,8 @@ export const BUILDING_UPGRADES = {
         {
             name: "领主庄园",
             cost: { brick: 50, furniture: 15, silver: 900 },
-            input: { tools: 0.16, wood: 0.26, cloth: 0.04 },
-            output: { food: 39.5, cloth: 0.12, ale: 0.06 },
+            input: { tools: 0.16, wood: 0.26, cloth: 0.04, fertilizer: 0.15 }, // fertilizer boosts estate yields
+            output: { food: 47.25, cloth: 0.12, ale: 0.06 }, // 1.75x of base 27.0, fertilizer bonus
             jobs: { serf: 9, landowner: 1 },
         },
     ],
@@ -609,8 +609,8 @@ export const BUILDING_UPGRADES = {
         {
             name: "种植园庄园",
             cost: { plank: 200, tools: 60, silver: 1800 },
-            input: { tools: 0.06 },
-            output: { coffee: 1.35, spice: 0.02, food: 0.5 }, // 2.25x of base 0.6 + 混种&粮食副产
+            input: { tools: 0.06, fertilizer: 0.08 }, // fertilizer for intensive coffee cultivation
+            output: { coffee: 1.62, spice: 0.02, food: 0.5 }, // 2.7x of base 0.6, fertilizer bonus
             jobs: { serf: 8, merchant: 1 }, // +1 serf only
         },
     ],
@@ -627,8 +627,8 @@ export const BUILDING_UPGRADES = {
         {
             name: "香料庄园",
             cost: { plank: 200, tools: 80, silver: 2200 },
-            input: { food: 1.2, tools: 0.10 },
-            output: { spice: 2.70, coffee: 0.04, food: 0.6 }, // 2.25x of base 1.20 + 混种副产
+            input: { food: 1.2, tools: 0.10, fertilizer: 0.10 }, // fertilizer for intensive spice cultivation
+            output: { spice: 3.24, coffee: 0.04, food: 0.6 }, // 2.7x of base 1.20, fertilizer bonus
             jobs: { serf: 12, landowner: 1 },
         },
     ],
@@ -880,15 +880,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "大机械农场",
             cost: { steel: 100, tools: 50, silver: 750 },
-            input: { tools: 0.23, coal: 0.46, iron: 0.06 },
-            output: { food: 58.5 },
+            input: { tools: 0.23, coal: 0.46, iron: 0.06, fertilizer: 0.12 }, // fertilizer is standard for industrial-era farming
+            output: { food: 67.2 }, // 1.4x of base 48.0, fertilizer boost
             jobs: { worker: 11, engineer: 1, capitalist: 1 },
         },
         {
             name: "工业农场",
             cost: { steel: 170, tools: 80, silver: 1700 },
-            input: { tools: 0.34, coal: 0.69, iron: 0.10, dye: 0.03 },
-            output: { food: 72.8, cloth: 0.35 },
+            input: { tools: 0.34, coal: 0.69, iron: 0.10, dye: 0.03, fertilizer: 0.20 }, // heavy fertilizer usage
+            output: { food: 91.2, cloth: 0.35 }, // 1.9x of base 48.0, full fertilizer benefit
             jobs: { worker: 12, engineer: 1, capitalist: 1 },
         },
     ],
@@ -1180,8 +1180,8 @@ export const BUILDING_UPGRADES = {
         {
             name: "大棉花庄园",
             cost: { wood: 500, tools: 80, spice: 50, silver: 900 },
-            input: {},
-            output: { cotton: 5.40 }, // 2.25x
+            input: { fertilizer: 0.10 }, // fertilizer boosts cotton yields
+            output: { cotton: 6.48 }, // 2.7x of base 2.4, fertilizer bonus
             jobs: { serf: 7, merchant: 1, worker: 1 },
         },
     ],
@@ -1228,15 +1228,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "改良品种",
             cost: { silver: 1200, wood: 50, tools: 10, science: 80 },
-            input: {},
-            output: { rubber: 1.04 }, // 1.3x
+            input: { fertilizer: 0.10 }, // fertilizer for improved rubber tree cultivation
+            output: { rubber: 1.20 }, // 1.5x of base 0.8, fertilizer boost
             jobs: { worker: 9, merchant: 1 },
         },
         {
             name: "大规模种植园",
             cost: { silver: 2500, wood: 80, tools: 20, science: 150 },
-            input: {},
-            output: { rubber: 1.80 }, // 2.25x
+            input: { fertilizer: 0.18 }, // heavy fertilizer usage for mass cultivation
+            output: { rubber: 2.08 }, // 2.6x of base 0.8, fertilizer bonus
             jobs: { worker: 11, merchant: 1 },
         },
     ],
