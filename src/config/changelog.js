@@ -4,9 +4,18 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.1.4',
+        version: '2.1.5',
         date: '2026-03-18',
         isLatest: true,
+        highlights: ['橡胶/塑料/铝重新加入全阶层消费'],
+        changes: [
+            { type: 'balance', text: '重新加入橡胶（rubber）、塑料（plastics）、铝（aluminum）三种资源的居民直接消费：作为广泛日用品（胶鞋、塑料盆、铝餐具等），全阶层从低富裕度（1.0~2.0）即开始使用，随富裕度增长逐级增加消费量，上层阶层用量显著高于底层' },
+        ],
+    },
+    {
+        version: '2.1.4',
+        date: '2026-03-18',
+        isLatest: false,
         highlights: ['建筑升级岗位大幅扩充', '建筑集约化体系：后期建筑业主占比递减', '建筑升级资源解锁前置检查', '业主自动升级速度大幅提升'],
         changes: [
             { type: 'balance', text: '建筑升级岗位大幅扩充：所有建筑升级后岗位增加 50~80%/级，Lv1 产出 1.75x、Lv2 产出 3.3x，输入同步增长，确保效率比逐级明显增加' },
