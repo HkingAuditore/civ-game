@@ -39,7 +39,7 @@ import {
 } from '../config';
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier, getAIMilitaryStrengthMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
-import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
+import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier, areUpgradeInputsUnlocked } from '../utils/buildingUpgradeUtils';
 import { simulateBattle, calculateBattlePower, calculateNationBattlePower, generateNationArmy } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -1649,6 +1649,16 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
+        // 检查目标等级的输入资源是否全部已解锁
+        const { unlocked: inputsUnlocked, missingResources } = areUpgradeInputsUnlocked(
+            buildingId, fromLevel + 1, epoch, techsUnlocked
+        );
+        if (!inputsUnlocked) {
+            const missingNames = missingResources.map(r => RESOURCES[r]?.name || r).join('、');
+            addLog(`⚠️ 无法升级 ${building.name}：需要的输入资源（${missingNames}）尚未解锁。`);
+            return;
+        }
+
         // 检查是否有该等级的建筑可升级
         const levelCounts = buildingUpgrades[buildingId] || {};
         const distribution = {};
@@ -1832,6 +1842,16 @@ export const useGameActions = (gameState, addLog) => {
     const batchUpgradeBuilding = (buildingId, fromLevel, upgradeCount) => {
         const building = BUILDINGS.find(b => b.id === buildingId);
         if (!building) return;
+
+        // 检查目标等级的输入资源是否全部已解锁
+        const { unlocked: inputsUnlocked, missingResources } = areUpgradeInputsUnlocked(
+            buildingId, fromLevel + 1, epoch, techsUnlocked
+        );
+        if (!inputsUnlocked) {
+            const missingNames = missingResources.map(r => RESOURCES[r]?.name || r).join('、');
+            addLog(`⚠️ 无法升级 ${building.name}：需要的输入资源（${missingNames}）尚未解锁。`);
+            return;
+        }
 
         const buildingCount = buildings[buildingId] || 0;
         const levelCounts = buildingUpgrades[buildingId] || {};

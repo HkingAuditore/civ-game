@@ -172,16 +172,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "深铜矿",
             cost: { wood: 120, tools: 20, silver: 350 },
-            input: { tools: 0.05, wood: 0.2, food: 0.2 }, // modest input cost
-            output: { copper: 0.8667 }, // 1.3x of base 0.6667
-            jobs: { miner: 4 }, // keep same, efficiency upgrade
+            input: { tools: 0.0625, wood: 0.25, food: 0.25 }, // modest input cost
+            output: { copper: 1.0834 }, // 1.3x of base 0.6667
+            jobs: { miner: 4, worker: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "大铜矿",
             cost: { plank: 80, tools: 40, silver: 800 },
-            input: { tools: 0.1, wood: 0.35, food: 0.35 }, // reasonable input increase
-            output: { copper: 1.5, stone: 0.15 }, // 2.25x of base 0.6667 + 废石利用
-            jobs: { miner: 5 }, // +1 miner only
+            input: { tools: 0.12, wood: 0.42, food: 0.42 }, // reasonable input increase
+            output: { copper: 1.8, stone: 0.18 }, // 2.25x of base 0.6667 + 废石利用
+            jobs: { miner: 5, worker: 1 }, // +1 miner only
         },
     ],
 
@@ -190,16 +190,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大染坊",
             cost: { wood: 60, stone: 25, tools: 10, silver: 250 },
-            input: { food: 0.6, tools: 0.02 },
-            output: { dye: 1.17 }, // 1.3x of base 0.9
-            jobs: { artisan: 3 }, // keep same, efficiency upgrade
+            input: { food: 0.8, tools: 0.0267 },
+            output: { dye: 1.56 }, // 1.3x of base 0.9
+            jobs: { artisan: 3, worker: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "染色工坊",
             cost: { plank: 50, brick: 30, tools: 20, silver: 600 },
-            input: { food: 0.9, tools: 0.04, cloth: 0.05 }, // 需要布料样本
-            output: { dye: 2.025, culture: 0.05 }, // 2.25x of base 0.9 + 染艺文化
-            jobs: { artisan: 4 }, // +1 artisan only
+            input: { food: 1.125, tools: 0.05, cloth: 0.0625 }, // 需要布料样本
+            output: { dye: 2.5313, culture: 0.0625 }, // 2.25x of base 0.9 + 染艺文化
+            jobs: { artisan: 4, worker: 1 }, // +1 artisan only
         },
     ],
 
@@ -208,16 +208,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "水力锯木坊",
             cost: { wood: 120, stone: 40, tools: 15, silver: 350 },
-            input: { wood: 1.4, tools: 0.03 },
-            output: { plank: 4.511 }, // 1.3x of base 3.47
-            jobs: { artisan: 4 }, // keep same, efficiency upgrade
+            input: { wood: 1.75, tools: 0.0375 },
+            output: { plank: 5.6387 }, // 1.3x of base 3.47
+            jobs: { artisan: 4, worker: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "大锯木坊",
             cost: { plank: 80, brick: 50, tools: 30, silver: 800 },
-            input: { wood: 2.0, tools: 0.06, cloth: 0.05 }, // 需要布料（家具软垫）
-            output: { plank: 7.8075, furniture: 0.05 }, // 2.25x of base 3.47 + 边角料家具
-            jobs: { artisan: 5 }, // +1 artisan only
+            input: { wood: 2.4, tools: 0.072, cloth: 0.06 }, // 需要布料（家具软垫）
+            output: { plank: 9.369, furniture: 0.06 }, // 2.25x of base 3.47 + 边角料家具
+            jobs: { artisan: 5, worker: 1 }, // +1 artisan only
         },
     ],
 
@@ -246,16 +246,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大剧场",
             cost: { stone: 120, brick: 40, silver: 400 },
-            input: { fine_clothes: 0.06, dye: 0.015 }, // 降低消耗
-            output: { culture: 6.5, silver: 0.8 }, // 1.2x
-            jobs: { cleric: 2 }, // 减少岗位，提升人均效率
+            input: { fine_clothes: 0.09, dye: 0.0225 }, // 降低消耗
+            output: { culture: 9.75, silver: 1.2 }, // 1.2x
+            jobs: { cleric: 2, worker: 1 }, // 减少岗位，提升人均效率
         },
         {
             name: "宏伟剧场",
             cost: { brick: 80, furniture: 20, silver: 900 },
-            input: { fine_clothes: 0.08, ale: 0.03, dye: 0.025 }, // 降低消耗
-            output: { culture: 9.0, silver: 1.5 }, // 1.6x + 高额门票
-            jobs: { cleric: 2 }, // 适度增加
+            input: { fine_clothes: 0.12, ale: 0.045, dye: 0.0375 }, // 降低消耗
+            output: { culture: 13.5, silver: 2.25 }, // 1.6x + 高额门票
+            jobs: { cleric: 2, worker: 1 }, // 适度增加
         },
     ],
 
@@ -266,16 +266,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "改良造纸坊",
             cost: { wood: 60, tools: 10, silver: 220 },
-            input: { tools: 0.01 },
-            output: { papyrus: 1.17 }, // 1.3x of base 0.90
-            jobs: { artisan: 3 }, // keep same, efficiency upgrade
+            input: { tools: 0.0167 },
+            output: { papyrus: 1.95 }, // 1.3x of base 0.90
+            jobs: { artisan: 3, worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "大造纸坊",
             cost: { plank: 50, tools: 20, silver: 500 },
-            input: { tools: 0.02 },
-            output: { papyrus: 2.025, science: 0.05 }, // 2.25x of base 0.90 + 研墨副产
-            jobs: { artisan: 4 }, // +1 artisan only
+            input: { tools: 0.03 },
+            output: { papyrus: 3.0375, science: 0.075 }, // 2.25x of base 0.90 + 研墨副产
+            jobs: { artisan: 4, worker: 2 }, // +1 artisan only
         },
     ],
 
@@ -284,9 +284,9 @@ export const BUILDING_UPGRADES = {
         {
             name: "精致厨房",
             cost: { brick: 40, tools: 15, cloth: 8, silver: 350 },
-            input: { tools: 0.08, food: 1.2 },
-            output: { delicacies: 2.6 }, // 1.3x of base 2.00
-            jobs: { artisan: 3, worker: 1 }, // keep same, efficiency upgrade
+            input: { tools: 0.1, food: 1.5 },
+            output: { delicacies: 3.25 }, // 1.3x of base 2.00
+            jobs: { artisan: 3, worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "御膳房",
@@ -302,16 +302,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大酒坊",
             cost: { brick: 30, tools: 12, cloth: 6, silver: 280 },
-            input: { food: 1.0, wood: 0.15, tools: 0.01 },
-            output: { ale: 2.34 }, // 1.3x of base 1.80
-            jobs: { artisan: 3 }, // keep same, efficiency upgrade
+            input: { food: 1.6667, wood: 0.25, tools: 0.0167 },
+            output: { ale: 3.9 }, // 1.3x of base 1.80
+            jobs: { artisan: 3, worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "酿酒工坊",
             cost: { brick: 50, tools: 25, dye: 10, ale: 15, silver: 650 },
-            input: { food: 1.5, wood: 0.25, tools: 0.02, spice: 0.03 }, // 需要香料调味
-            output: { ale: 4.05, culture: 0.05 }, // 2.25x of base 1.80 + 酒文化
-            jobs: { artisan: 4 }, // +1 artisan only
+            input: { food: 2.25, wood: 0.375, tools: 0.03, spice: 0.045 }, // 需要香料调味
+            output: { ale: 6.075, culture: 0.075 }, // 2.25x of base 1.80 + 酒文化
+            jobs: { artisan: 4, worker: 2 }, // +1 artisan only
         },
     ],
 
@@ -320,16 +320,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "精工家具坊",
             cost: { plank: 80, tools: 20, silver: 400 },
-            input: { tools: 0.08, plank: 1.0, cloth: 0.25 },
-            output: { furniture: 2.08 }, // 1.3x of base 1.60
-            jobs: { artisan: 4 }, // keep same, efficiency upgrade
+            input: { tools: 0.12, plank: 1.5, cloth: 0.375 },
+            output: { furniture: 3.12 }, // 1.3x of base 1.60
+            jobs: { artisan: 4, worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "大家具坊",
             cost: { plank: 120, furniture: 15, silver: 900 },
-            input: { tools: 0.12, plank: 1.5, cloth: 0.35 },
-            output: { furniture: 3.6 }, // 2.25x of base 1.60
-            jobs: { artisan: 5 }, // +1 artisan only (no worker needed)
+            input: { tools: 0.192, plank: 2.4, cloth: 0.56 },
+            output: { furniture: 5.76 }, // 2.25x of base 1.60
+            jobs: { artisan: 5, worker: 3 }, // +1 artisan only (no worker needed)
         },
     ],
 
@@ -338,16 +338,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "高级成衣坊",
             cost: { plank: 50, tools: 15, silver: 350 },
-            input: { tools: 0.069, cloth: 1.725, dye: 0.345 },
-            output: { fine_clothes: 1.56, culture: 0.65 }, // 1.3x of base 1.2 & 0.5
-            jobs: { artisan: 3 }, // keep same, efficiency upgrade
+            input: { tools: 0.115, cloth: 2.875, dye: 0.575 },
+            output: { fine_clothes: 2.6, culture: 1.0833 }, // 1.3x of base 1.2 & 0.5
+            jobs: { artisan: 3, worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "御用成衣坊",
             cost: { brick: 40, fine_clothes: 10, silver: 800 },
-            input: { tools: 0.108, cloth: 2.7, dye: 0.54 },
-            output: { fine_clothes: 2.7, culture: 1.125 }, // 2.25x of base 1.2 & 0.5
-            jobs: { artisan: 4 }, // +1 artisan only
+            input: { tools: 0.162, cloth: 4.05, dye: 0.81 },
+            output: { fine_clothes: 4.05, culture: 1.6875 }, // 2.25x of base 1.2 & 0.5
+            jobs: { artisan: 4, worker: 2 }, // +1 artisan only
         },
     ],
 
@@ -412,16 +412,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大教堂",
             cost: { brick: 80, furniture: 25, silver: 500 },
-            input: { furniture: 0.05, fine_clothes: 0.04 }, // 1.3x基础输入
-            output: { culture: 4.16, silver: 1.2 }, // 1.3x culture + 奉献收入
-            jobs: { cleric: 3 }, // 减少岗位
+            input: { furniture: 0.1, fine_clothes: 0.08 }, // 1.3x基础输入
+            output: { culture: 8.32, silver: 2.4 }, // 1.3x culture + 奉献收入
+            jobs: { cleric: 3, worker: 3 }, // 减少岗位
         },
         {
             name: "主教座堂",
             cost: { brick: 150, furniture: 40, silver: 1200 },
-            input: { furniture: 0.07, fine_clothes: 0.055, papyrus: 0.02 }, // 2.25x基础输入
-            output: { culture: 7.2, silver: 2.0, science: 0.15 }, // 2.25x culture + 高额奉献 + 神学
-            jobs: { cleric: 4 }, // 恢复岗位
+            input: { furniture: 0.14, fine_clothes: 0.11, papyrus: 0.04 }, // 2.25x基础输入
+            output: { culture: 14.4, silver: 4, science: 0.3 }, // 2.25x culture + 高额奉献 + 神学
+            jobs: { cleric: 4, worker: 4 }, // 恢复岗位
         },
     ],
 
@@ -469,16 +469,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大采石工场",
             cost: { plank: 60, iron: 25, silver: 350 },
-            input: { tools: 0.085, food: 0.14 },
-            output: { stone: 10.05 },
-            jobs: { miner: 4, worker: 1 },
+            input: { tools: 0.136, food: 0.224 },
+            output: { stone: 16.08 },
+            jobs: { miner: 4, worker: 4 },
         },
         {
             name: "皇家采石场",
             cost: { brick: 80, iron: 40, silver: 800 },
-            input: { tools: 0.13, food: 0.22 },
-            output: { stone: 13.5, brick: 0.20 },
-            jobs: { miner: 5, worker: 1 },
+            input: { tools: 0.2167, food: 0.3667 },
+            output: { stone: 22.5, brick: 0.3333 },
+            jobs: { miner: 5, worker: 5 },
         },
     ],
 
@@ -487,16 +487,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "特用林场",
             cost: { plank: 80, tools: 30, silver: 450 },
-            input: { tools: 0.11, food: 0.18 },
-            output: { wood: 15.18 },
-            jobs: { lumberjack: 5, worker: 1 },
+            input: { tools: 0.1833, food: 0.3 },
+            output: { wood: 25.3 },
+            jobs: { lumberjack: 5, worker: 5 },
         },
         {
             name: "皇家御林",
             cost: { brick: 80, tools: 50, silver: 900 },
-            input: { tools: 0.16, food: 0.28 },
-            output: { wood: 18.2, food: 0.35 },
-            jobs: { lumberjack: 6, worker: 1 },
+            input: { tools: 0.2743, food: 0.48 },
+            output: { wood: 31.2, food: 0.6 },
+            jobs: { lumberjack: 6, worker: 6 },
         },
     ],
 
@@ -544,16 +544,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "繁荣港口",
             cost: { plank: 150, spice: 30, silver: 600 },
-            input: { spice: 0.46 },
-            output: { food: 3.467, silver: 0.15 }, // 1.3x of base 2.6667
-            jobs: { merchant: 4 }, // keep same, efficiency upgrade
+            input: { spice: 1.15 },
+            output: { food: 8.6675, silver: 0.375 }, // 1.3x of base 2.6667
+            jobs: { merchant: 4, worker: 6 }, // keep same, efficiency upgrade
         },
         {
             name: "贸易枢纽",
             cost: { plank: 120, spice: 60, silver: 1300 },
-            input: { spice: 0.72, cloth: 0.06 }, // 需要帆布
-            output: { food: 6.0, silver: 0.4 }, // 2.25x of base 2.6667 + 贸易利润
-            jobs: { merchant: 5 }, // +1 merchant only
+            input: { spice: 1.872, cloth: 0.156 }, // 需要帆布
+            output: { food: 15.6, silver: 1.04 }, // 2.25x of base 2.6667 + 贸易利润
+            jobs: { merchant: 5, worker: 8 }, // +1 merchant only
         },
     ],
 
@@ -562,16 +562,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "通风矿井",
             cost: { brick: 120, tools: 45, silver: 650 },
-            input: { tools: 0.15, wood: 0.32, science: 0.06 },
-            output: { iron: 2.415, copper: 1.45 },
-            jobs: { miner: 6, engineer: 1 },
+            input: { tools: 0.3857, wood: 0.8229, science: 0.1543 },
+            output: { iron: 6.21, copper: 3.7286 },
+            jobs: { miner: 6, engineer: 12 },
         },
         {
             name: "蒸汽矿井",
             cost: { brick: 200, steel: 50, tools: 80, silver: 1200 },
-            input: { tools: 0.19, coal: 0.14, wood: 0.38, science: 0.08 },
-            output: { iron: 3.04, copper: 1.82, coal: 0.10 },
-            jobs: { miner: 7, engineer: 1 },
+            input: { tools: 0.475, coal: 0.35, wood: 0.95, science: 0.2 },
+            output: { iron: 7.6, copper: 4.55, coal: 0.25 },
+            jobs: { miner: 7, engineer: 13 },
         },
     ],
 
@@ -583,16 +583,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大印染工坊",
             cost: { brick: 80, tools: 25, silver: 480 },
-            input: { food: 0.9, cloth: 0.5, spice: 0.06, science: 0.026 },
-            output: { dye: 2.34, fine_clothes: 0.585 }, // 1.3x
-            jobs: { artisan: 3, worker: 2 }, // keep same
+            input: { food: 1.62, cloth: 0.9, spice: 0.108, science: 0.0468 },
+            output: { dye: 4.212, fine_clothes: 1.053 }, // 1.3x
+            jobs: { artisan: 3, worker: 6 }, // keep same
         },
         {
             name: "皇家印染工坊",
             cost: { brick: 140, tools: 45, silver: 1050 },
-            input: { food: 1.2, cloth: 0.7, spice: 0.08, iron: 0.02, science: 0.045 }, // 需要金属染缸
-            output: { dye: 4.05, fine_clothes: 1.0125, culture: 0.08 }, // 2.25x + 织染艺术
-            jobs: { artisan: 4, worker: 2 }, // +1 artisan
+            input: { food: 2.4, cloth: 1.4, spice: 0.16, iron: 0.04, science: 0.09 }, // 需要金属染缸
+            output: { dye: 8.1, fine_clothes: 2.025, culture: 0.16 }, // 2.25x + 织染艺术
+            jobs: { artisan: 4, worker: 8 }, // +1 artisan
         },
     ],
 
@@ -639,16 +639,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "文人咖啡馆",
             cost: { plank: 80, coffee: 25, silver: 400 },
-            input: { coffee: 0.2, delicacies: 0.08 }, // 降低消耗
-            output: { culture: 4.8, science: 1.733, silver: 0.6 }, // 1.2x + 消费收入
-            jobs: { merchant: 1, scribe: 2 }, // 减少scribe岗位
+            input: { coffee: 0.4, delicacies: 0.16 }, // 降低消耗
+            output: { culture: 9.6, science: 3.466, silver: 1.2 }, // 1.2x + 消费收入
+            jobs: { merchant: 1, scribe: 5 }, // 减少scribe岗位
         },
         {
             name: "沙龙",
             cost: { brick: 60, furniture: 25, silver: 900 },
-            input: { coffee: 0.3, delicacies: 0.1 }, // 降低消耗
-            output: { culture: 7.0, science: 3.0, silver: 1.2 }, // 1.75x + 高端消费
-            jobs: { merchant: 1, scribe: 3 }, // 适度增加
+            input: { coffee: 0.45, delicacies: 0.15 }, // 降低消耗
+            output: { culture: 10.5, science: 4.5, silver: 1.8 }, // 1.75x + 高端消费
+            jobs: { merchant: 1, scribe: 5 }, // 适度增加
         },
     ],
 
@@ -787,16 +787,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大歌剧院",
             cost: { brick: 250, furniture: 50, silver: 700 },
-            input: { fine_clothes: 0.25, delicacies: 0.15 },
-            output: { culture: 5.6875, silver: 1.625 },
-            jobs: { cleric: 5, worker: 2, scribe: 1 },
+            input: { fine_clothes: 0.625, delicacies: 0.375 },
+            output: { culture: 14.2188, silver: 4.0625 },
+            jobs: { cleric: 5, worker: 10, scribe: 5 },
         },
         {
             name: "皇家歌剧院",
             cost: { brick: 400, furniture: 80, silver: 1500 },
-            input: { fine_clothes: 0.375, delicacies: 0.225, coffee: 0.1 },
-            output: { culture: 9.8438, silver: 2.8125, science: 0.1875 },
-            jobs: { cleric: 6, worker: 2, scribe: 1 },
+            input: { fine_clothes: 0.9583, delicacies: 0.575, coffee: 0.2556 },
+            output: { culture: 25.1564, silver: 7.1875, science: 0.4792 },
+            jobs: { cleric: 6, worker: 11, scribe: 6 },
         },
     ],
 
@@ -1007,16 +1007,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大铁路站",
             cost: { steel: 120, coal: 80, silver: 850 },
-            input: { coal: 0.375, ale: 0.1, delicacies: 0.05, science: 0.195 },
-            output: { silver: 3.51, maxPop: 15 },
-            jobs: { engineer: 4, scribe: 3, capitalist: 1 },
+            input: { coal: 0.5625, ale: 0.15, delicacies: 0.075, science: 0.2925 },
+            output: { silver: 5.265, maxPop: 22.5 },
+            jobs: { engineer: 6, scribe: 5, capitalist: 1 },
         },
         {
             name: "铁路枢纽",
             cost: { steel: 220, coal: 150, silver: 1900 },
-            input: { coal: 0.5625, ale: 0.15, delicacies: 0.075, science: 0.3375 },
-            output: { silver: 6.075, maxPop: 16, food: 0.625, culture: 0.125 },
-            jobs: { engineer: 5, scribe: 4, capitalist: 1 },
+            input: { coal: 0.675, ale: 0.18, delicacies: 0.09, science: 0.405 },
+            output: { silver: 7.29, maxPop: 19.2, food: 0.75, culture: 0.15 },
+            jobs: { engineer: 6, scribe: 5, capitalist: 1 },
         },
     ],
 
@@ -1045,16 +1045,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大铸剑坊",
             cost: { brick: 80, iron: 40, tools: 15, silver: 400 },
-            input: { iron: 0.69, copper: 0.345 },
-            output: { swords: 0.78 }, // 1.3x
-            jobs: { artisan: 4 },
+            input: { iron: 1.035, copper: 0.5175 },
+            output: { swords: 1.17 }, // 1.3x
+            jobs: { artisan: 4, worker: 2 },
         },
         {
             name: "御用铸剑坊",
             cost: { brick: 120, iron: 60, tools: 30, silver: 900 },
-            input: { iron: 1.08, copper: 0.54 },
-            output: { swords: 1.35 }, // 2.25x
-            jobs: { artisan: 5 },
+            input: { iron: 1.728, copper: 0.864 },
+            output: { swords: 2.16 }, // 2.25x
+            jobs: { artisan: 5, worker: 3 },
         },
     ],
 
@@ -1063,16 +1063,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大甲胄工坊",
             cost: { brick: 100, iron: 50, tools: 20, silver: 500 },
-            input: { iron: 0.92, cloth: 0.46 },
-            output: { plate_armor: 0.585 }, // 1.3x
-            jobs: { artisan: 4, worker: 1 },
+            input: { iron: 1.472, cloth: 0.736 },
+            output: { plate_armor: 0.936 }, // 1.3x
+            jobs: { artisan: 4, worker: 4 },
         },
         {
             name: "御用甲胄工坊",
             cost: { brick: 160, iron: 80, tools: 35, silver: 1100 },
-            input: { iron: 1.44, cloth: 0.72 },
-            output: { plate_armor: 1.0125 }, // 2.25x
-            jobs: { artisan: 5, worker: 1 },
+            input: { iron: 2.4, cloth: 1.2 },
+            output: { plate_armor: 1.6875 }, // 2.25x
+            jobs: { artisan: 5, worker: 5 },
         },
     ],
 
@@ -1081,16 +1081,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大火药工坊",
             cost: { brick: 140, iron: 30, tools: 25, silver: 550 },
-            input: { coal: 0.575, food: 0.345 },
-            output: { gunpowder: 0.715 }, // 1.3x
-            jobs: { artisan: 3, worker: 2 },
+            input: { coal: 1.035, food: 0.621 },
+            output: { gunpowder: 1.287 }, // 1.3x
+            jobs: { artisan: 3, worker: 6 },
         },
         {
             name: "火药工场",
             cost: { brick: 220, iron: 50, tools: 45, silver: 1200 },
-            input: { coal: 0.9, food: 0.54 },
-            output: { gunpowder: 1.2375 }, // 2.25x
-            jobs: { artisan: 4, worker: 2 },
+            input: { coal: 1.8, food: 1.08 },
+            output: { gunpowder: 2.475 }, // 2.25x
+            jobs: { artisan: 4, worker: 8 },
         },
     ],
 
@@ -1099,16 +1099,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大枪炮作坊",
             cost: { brick: 160, iron: 60, tools: 30, silver: 600 },
-            input: { iron: 0.805, gunpowder: 0.23 },
-            output: { muskets: 0.52 }, // 1.3x
-            jobs: { artisan: 4, worker: 2 },
+            input: { iron: 1.61, gunpowder: 0.46 },
+            output: { muskets: 1.04 }, // 1.3x
+            jobs: { artisan: 4, worker: 8 },
         },
         {
             name: "枪炮工场",
             cost: { brick: 260, iron: 100, tools: 50, silver: 1300 },
-            input: { iron: 1.26, gunpowder: 0.36 },
-            output: { muskets: 0.90 }, // 2.25x
-            jobs: { artisan: 5, worker: 2 },
+            input: { iron: 2.7, gunpowder: 0.7714 },
+            output: { muskets: 1.9286 }, // 2.25x
+            jobs: { artisan: 5, worker: 10 },
         },
     ],
 
@@ -1117,16 +1117,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大枪械工坊",
             cost: { brick: 200, steel: 60, tools: 45, silver: 700, science: 80 },
-            input: { steel: 0.575, tools: 0.1725 },
-            output: { rifles: 0.455 }, // 1.3x
-            jobs: { artisan: 4, engineer: 1, worker: 3 },
+            input: { steel: 1.4375, tools: 0.4312 },
+            output: { rifles: 1.1375 }, // 1.3x
+            jobs: { artisan: 4, engineer: 4, worker: 12 },
         },
         {
             name: "精密枪械工场",
             cost: { brick: 320, steel: 100, tools: 70, silver: 1500, science: 180 },
-            input: { steel: 0.9, tools: 0.27 },
-            output: { rifles: 0.7875 }, // 2.25x
-            jobs: { artisan: 5, engineer: 1, worker: 3 },
+            input: { steel: 2.3, tools: 0.69 },
+            output: { rifles: 2.0125 }, // 2.25x
+            jobs: { artisan: 5, engineer: 5, worker: 13 },
         },
     ],
 
@@ -1135,16 +1135,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大弹药厂",
             cost: { brick: 180, steel: 40, tools: 30, silver: 600, science: 60 },
-            input: { steel: 0.345, gunpowder: 0.46 },
-            output: { ammunition: 1.04 }, // 1.3x
-            jobs: { worker: 6, artisan: 2, engineer: 1 },
+            input: { steel: 0.46, gunpowder: 0.6133 },
+            output: { ammunition: 1.3867 }, // 1.3x
+            jobs: { worker: 9, artisan: 2, engineer: 1 },
         },
         {
             name: "弹药工场",
             cost: { brick: 300, steel: 80, tools: 55, silver: 1300, science: 140 },
-            input: { steel: 0.54, gunpowder: 0.72 },
-            output: { ammunition: 1.80 }, // 2.25x
-            jobs: { worker: 7, artisan: 2, engineer: 1 },
+            input: { steel: 0.648, gunpowder: 0.864 },
+            output: { ammunition: 2.16 }, // 2.25x
+            jobs: { worker: 9, artisan: 2, engineer: 1 },
         },
     ],
 
@@ -1211,15 +1211,15 @@ export const BUILDING_UPGRADES = {
             name: "深钻井架",
             cost: { silver: 2000, steel: 25, tools: 15, science: 100 },
             input: {},
-            output: { oil: 1.56 }, // 1.3x
-            jobs: { worker: 10, capitalist: 1 },
+            output: { oil: 2.1273 }, // 1.3x
+            jobs: { worker: 14, capitalist: 1 },
         },
         {
             name: "自动采油平台",
             cost: { silver: 4500, steel: 50, machinery: 8, science: 200 },
             input: {},
-            output: { oil: 2.70 }, // 2.25x
-            jobs: { worker: 11, capitalist: 1 },
+            output: { oil: 3.375 }, // 2.25x
+            jobs: { worker: 14, capitalist: 1 },
         },
     ],
 
@@ -1228,16 +1228,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "改良品种",
             cost: { silver: 1200, wood: 50, tools: 10, science: 80 },
-            input: { fertilizer: 0.10 }, // fertilizer for improved rubber tree cultivation
-            output: { rubber: 1.20 }, // 1.5x of base 0.8, fertilizer boost
-            jobs: { worker: 9, merchant: 1 },
+            input: { fertilizer: 0.15 }, // fertilizer for improved rubber tree cultivation
+            output: { rubber: 1.8 }, // 1.5x of base 0.8, fertilizer boost
+            jobs: { worker: 14, merchant: 1 },
         },
         {
             name: "大规模种植园",
             cost: { silver: 2500, wood: 80, tools: 20, science: 150 },
-            input: { fertilizer: 0.18 }, // heavy fertilizer usage for mass cultivation
-            output: { rubber: 2.08 }, // 2.6x of base 0.8, fertilizer bonus
-            jobs: { worker: 11, merchant: 1 },
+            input: { fertilizer: 0.225 }, // heavy fertilizer usage for mass cultivation
+            output: { rubber: 2.6 }, // 2.6x of base 0.8, fertilizer bonus
+            jobs: { worker: 14, merchant: 1 },
         },
     ],
 
@@ -1246,16 +1246,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "高压锅炉",
             cost: { silver: 3500, steel: 40, brick: 40, science: 150 },
-            input: { coal: 1.15 },
-            output: { electricity: 1.80 },
-            jobs: { worker: 7, engineer: 2, capitalist: 1 },
+            input: { coal: 1.725 },
+            output: { electricity: 2.7 },
+            jobs: { worker: 11, engineer: 3, capitalist: 1 },
         },
         {
             name: "超临界机组",
             cost: { silver: 7000, steel: 80, brick: 60, science: 300 },
-            input: { coal: 1.35 },
-            output: { electricity: 2.40 },
-            jobs: { worker: 8, engineer: 3, capitalist: 1 },
+            input: { coal: 1.6875 },
+            output: { electricity: 3 },
+            jobs: { worker: 10, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -1264,16 +1264,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "催化裂解",
             cost: { silver: 3000, steel: 30, brick: 20, science: 150 },
-            input: { oil: 0.78, coal: 0.39, dye: 0.13 },
-            output: { chemicals: 0.65 }, // 1.3x
-            jobs: { worker: 6, engineer: 2, capitalist: 1 },
+            input: { oil: 1.3, coal: 0.65, dye: 0.2167 },
+            output: { chemicals: 1.0833 }, // 1.3x
+            jobs: { worker: 11, engineer: 3, capitalist: 1 },
         },
         {
             name: "连续精馏塔",
             cost: { silver: 6000, steel: 60, brick: 40, science: 300 },
-            input: { oil: 1.35, coal: 0.675, dye: 0.225 },
-            output: { chemicals: 1.125 }, // 2.25x
-            jobs: { worker: 7, engineer: 3, capitalist: 1 },
+            input: { oil: 1.8409, coal: 0.9205, dye: 0.3068 },
+            output: { chemicals: 1.5341 }, // 2.25x
+            jobs: { worker: 10, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -1282,16 +1282,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "连续拉丝机",
             cost: { silver: 2500, steel: 15, tools: 12, science: 120 },
-            input: { copper: 1.04, rubber: 0.39, electricity: 0.104 },
-            output: { wiring: 0.65 }, // 1.3x
-            jobs: { worker: 7, engineer: 1, capitalist: 1 },
+            input: { copper: 1.7333, rubber: 0.65, electricity: 0.1733 },
+            output: { wiring: 1.0833 }, // 1.3x
+            jobs: { worker: 12, engineer: 2, capitalist: 1 },
         },
         {
             name: "多芯线自动化",
             cost: { silver: 5000, steel: 30, tools: 20, science: 250 },
-            input: { copper: 1.80, rubber: 0.675, electricity: 0.18 },
-            output: { wiring: 1.125 }, // 2.25x
-            jobs: { worker: 8, engineer: 1, capitalist: 1 },
+            input: { copper: 2.7, rubber: 1.0125, electricity: 0.27 },
+            output: { wiring: 1.6875 }, // 2.25x
+            jobs: { worker: 12, engineer: 2, capitalist: 1 },
         },
     ],
 
@@ -1300,16 +1300,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "精密车床",
             cost: { silver: 3500, steel: 45, iron: 30, tools: 15, science: 160 },
-            input: { steel: 0.39, iron: 0.52, tools: 0.26, electricity: 0.13 },
-            output: { machinery: 0.52 }, // 1.3x
-            jobs: { worker: 9, engineer: 2, capitalist: 1 },
+            input: { steel: 0.4875, iron: 0.65, tools: 0.325, electricity: 0.1625 },
+            output: { machinery: 0.65 }, // 1.3x
+            jobs: { worker: 11, engineer: 3, capitalist: 1 },
         },
         {
             name: "数控加工",
             cost: { silver: 7000, steel: 80, iron: 50, tools: 30, science: 350 },
-            input: { steel: 0.675, iron: 0.90, tools: 0.45, electricity: 0.225 },
-            output: { machinery: 0.90 }, // 2.25x
-            jobs: { worker: 10, engineer: 2, capitalist: 1 },
+            input: { steel: 0.7788, iron: 1.0385, tools: 0.5192, electricity: 0.2596 },
+            output: { machinery: 1.0385 }, // 2.25x
+            jobs: { worker: 12, engineer: 2, capitalist: 1 },
         },
     ],
 
@@ -1336,16 +1336,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "高压合成",
             cost: { silver: 2200, steel: 12, brick: 15, science: 100 },
-            input: { chemicals: 0.325, coal: 0.195 },
-            output: { fertilizer: 1.04 }, // 1.3x
-            jobs: { worker: 5, engineer: 1, capitalist: 1 },
+            input: { chemicals: 0.6964, coal: 0.4179 },
+            output: { fertilizer: 2.2286 }, // 1.3x
+            jobs: { worker: 12, engineer: 2, capitalist: 1 },
         },
         {
             name: "缓释配方",
             cost: { silver: 4500, steel: 25, brick: 30, science: 200 },
-            input: { chemicals: 0.5625, coal: 0.3375 },
-            output: { fertilizer: 1.8 }, // 2.25x
-            jobs: { worker: 6, engineer: 2, capitalist: 1 },
+            input: { chemicals: 0.9375, coal: 0.5625 },
+            output: { fertilizer: 3 }, // 2.25x
+            jobs: { worker: 11, engineer: 3, capitalist: 1 },
         },
     ],
 
@@ -1354,16 +1354,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "电气化竖井",
             cost: { silver: 2500, steel: 30, machinery: 8, science: 120 },
-            input: { electricity: 0.24 },
-            output: { copper: 3.68 },
-            jobs: { worker: 9, engineer: 1 },
+            input: { electricity: 0.36 },
+            output: { copper: 5.52 },
+            jobs: { worker: 13, engineer: 1, capitalist: 1 },
         },
         {
             name: "露天开采",
             cost: { silver: 5000, steel: 60, machinery: 15, science: 250 },
-            input: { electricity: 0.30, tools: 0.06 },
-            output: { copper: 5.06 },
-            jobs: { worker: 10, engineer: 1 },
+            input: { electricity: 0.4091, tools: 0.0818 },
+            output: { copper: 6.9 },
+            jobs: { worker: 13, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -1372,16 +1372,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "短波发射",
             cost: { silver: 3000, wiring: 15, steel: 12, science: 150 },
-            input: { electricity: 0.36, papyrus: 0.11 },
-            output: { science: 4.8, culture: 2.3 },
-            jobs: { scribe: 3, worker: 2, engineer: 1 },
+            input: { electricity: 0.9, papyrus: 0.275 },
+            output: { science: 12, culture: 5.75 },
+            jobs: { scribe: 7, worker: 5, engineer: 2, capitalist: 1 },
         },
         {
             name: "全国广播网",
             cost: { silver: 6000, wiring: 30, steel: 20, science: 300 },
-            input: { electricity: 0.48, papyrus: 0.14 },
-            output: { science: 5.8, culture: 2.8 },
-            jobs: { scribe: 4, worker: 2, engineer: 1 },
+            input: { electricity: 1.0286, papyrus: 0.3 },
+            output: { science: 12.4286, culture: 6 },
+            jobs: { scribe: 8, worker: 4, engineer: 2, capitalist: 1 },
         },
     ],
 
@@ -1428,15 +1428,15 @@ export const BUILDING_UPGRADES = {
             name: "离心浓缩",
             cost: { silver: 4000, steel: 45, tools: 20, science: 200 },
             input: {},
-            output: { uranium: 0.78 }, // 1.3x
-            jobs: { worker: 7, technician: 3 },
+            output: { uranium: 1.482 }, // 1.3x
+            jobs: { worker: 13, technician: 5, capitalist: 1 },
         },
         {
             name: "气体扩散法",
             cost: { silver: 8000, steel: 80, tools: 35, science: 400 },
             input: {},
-            output: { uranium: 1.35 }, // 2.25x
-            jobs: { worker: 8, technician: 4 },
+            output: { uranium: 2.1375 }, // 2.25x
+            jobs: { worker: 12, technician: 6, capitalist: 1 },
         },
     ],
 
@@ -1445,16 +1445,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "沸水反应堆",
             cost: { silver: 12000, steel: 120, stone: 150, brick: 70, science: 400 },
-            input: { uranium: 0.22, steel: 0.14, stone: 0.10 },
-            output: { electricity: 5.20 },
-            jobs: { technician: 7, engineer: 3 },
+            input: { uranium: 0.418, steel: 0.266, stone: 0.19 },
+            output: { electricity: 9.88 },
+            jobs: { technician: 13, engineer: 5, capitalist: 1 },
         },
         {
             name: "快中子堆",
             cost: { silver: 25000, steel: 200, stone: 250, brick: 120, science: 800 },
-            input: { uranium: 0.28, steel: 0.18, stone: 0.12 },
-            output: { electricity: 7.20 },
-            jobs: { technician: 8, engineer: 4 },
+            input: { uranium: 0.4433, steel: 0.285, stone: 0.19 },
+            output: { electricity: 11.4 },
+            jobs: { technician: 12, engineer: 6, capitalist: 1 },
         },
     ],
 
@@ -1463,16 +1463,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "注塑成型",
             cost: { silver: 4500, steel: 30, chemicals: 15, science: 180 },
-            input: { chemicals: 0.52, oil: 0.39 },
-            output: { plastics: 0.65 }, // 1.3x
-            jobs: { worker: 6, technician: 3, engineer: 1, capitalist: 1 },
+            input: { chemicals: 0.8982, oil: 0.6736 },
+            output: { plastics: 1.1227 }, // 1.3x
+            jobs: { worker: 11, technician: 5, engineer: 2, capitalist: 1 },
         },
         {
             name: "吹塑挤压",
             cost: { silver: 9000, steel: 60, chemicals: 30, science: 350 },
-            input: { chemicals: 0.90, oil: 0.675 },
-            output: { plastics: 1.125 }, // 2.25x
-            jobs: { worker: 7, technician: 4, engineer: 1, capitalist: 1 },
+            input: { chemicals: 1.3154, oil: 0.9865 },
+            output: { plastics: 1.6442 }, // 2.25x
+            jobs: { worker: 11, technician: 6, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -1481,16 +1481,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "洁净车间",
             cost: { silver: 6500, steel: 35, wiring: 20, chemicals: 15, science: 250 },
-            input: { copper: 0.39, wiring: 0.39, chemicals: 0.26, stone: 0.26, electricity: 0.156 },
-            output: { electronics: 0.39 }, // 1.3x
-            jobs: { technician: 6, worker: 4, engineer: 2, capitalist: 1 },
+            input: { copper: 0.57, wiring: 0.57, chemicals: 0.38, stone: 0.38, electricity: 0.228 },
+            output: { electronics: 0.57 }, // 1.3x
+            jobs: { technician: 9, worker: 6, engineer: 3, capitalist: 1 },
         },
         {
             name: "微米级工艺",
             cost: { silver: 13000, steel: 70, wiring: 40, chemicals: 30, science: 500 },
-            input: { copper: 0.675, wiring: 0.675, chemicals: 0.45, stone: 0.45, electricity: 0.27 },
-            output: { electronics: 0.675 }, // 2.25x
-            jobs: { technician: 7, worker: 5, engineer: 3, capitalist: 1 },
+            input: { copper: 0.8016, wiring: 0.8016, chemicals: 0.5344, stone: 0.5344, electricity: 0.3206 },
+            output: { electronics: 0.8016 }, // 2.25x
+            jobs: { technician: 8, worker: 6, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -1499,16 +1499,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "GMP标准化",
             cost: { silver: 5000, steel: 20, chemicals: 12, science: 200 },
-            input: { chemicals: 0.39, papyrus: 0.26 },
-            output: { medicine: 0.325 }, // 1.3x
-            jobs: { technician: 4, scribe: 2, engineer: 1, capitalist: 1 },
+            input: { chemicals: 0.9263, papyrus: 0.6175 },
+            output: { medicine: 0.7719 }, // 1.3x
+            jobs: { technician: 10, scribe: 5, engineer: 3, capitalist: 1 },
         },
         {
             name: "生物制剂",
             cost: { silver: 10000, steel: 40, chemicals: 25, science: 400 },
-            input: { chemicals: 0.675, papyrus: 0.45 },
-            output: { medicine: 0.5625 }, // 2.25x
-            jobs: { technician: 5, scribe: 3, engineer: 2, capitalist: 1 },
+            input: { chemicals: 1.1659, papyrus: 0.7773 },
+            output: { medicine: 0.9716 }, // 2.25x
+            jobs: { technician: 9, scribe: 5, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -1517,16 +1517,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "预焙阳极",
             cost: { silver: 5500, steel: 35, brick: 30, science: 200 },
-            input: { stone: 0.65, coal: 0.39, electricity: 0.65 },
-            output: { aluminum: 0.455 }, // 1.3x
-            jobs: { worker: 7, technician: 2, engineer: 1, capitalist: 1 },
+            input: { stone: 1.1227, coal: 0.6736, electricity: 1.1227 },
+            output: { aluminum: 0.7859 }, // 1.3x
+            jobs: { worker: 13, technician: 4, engineer: 1, capitalist: 1 },
         },
         {
             name: "惰性阳极",
             cost: { silver: 11000, steel: 70, brick: 50, science: 400 },
-            input: { stone: 1.125, coal: 0.675, electricity: 1.125 },
-            output: { aluminum: 0.7875 }, // 2.25x
-            jobs: { worker: 8, technician: 3, engineer: 2, capitalist: 1 },
+            input: { stone: 1.5268, coal: 0.9161, electricity: 1.5268 },
+            output: { aluminum: 1.0688 }, // 2.25x
+            jobs: { worker: 11, technician: 4, engineer: 3, capitalist: 1 },
         },
     ],
 
@@ -1535,16 +1535,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "模块化组装",
             cost: { silver: 8000, steel: 45, electronics: 8, science: 250 },
-            input: { electronics: 0.26, plastics: 0.26, steel: 0.13, electricity: 0.26 },
-            output: { electronics: 0.65 }, // 1.3x
-            jobs: { worker: 9, technician: 3, capitalist: 1 },
+            input: { electronics: 0.38, plastics: 0.38, steel: 0.19, electricity: 0.38 },
+            output: { electronics: 0.95 }, // 1.3x
+            jobs: { worker: 14, technician: 4, capitalist: 1 },
         },
         {
             name: "智能家电",
             cost: { silver: 16000, steel: 80, electronics: 15, science: 500 },
-            input: { electronics: 0.45, plastics: 0.45, steel: 0.225, electricity: 0.45 },
-            output: { electronics: 1.125 }, // 2.25x
-            jobs: { worker: 10, technician: 4, capitalist: 1 },
+            input: { electronics: 0.57, plastics: 0.57, steel: 0.285, electricity: 0.57 },
+            output: { electronics: 1.425 }, // 2.25x
+            jobs: { worker: 13, technician: 5, capitalist: 1 },
         },
     ],
 
@@ -1553,16 +1553,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "彩色广播",
             cost: { silver: 6500, electronics: 12, wiring: 15, steel: 15, science: 200 },
-            input: { electricity: 0.34, electronics: 0.06 },
-            output: { culture: 5.2, science: 1.8 },
-            jobs: { scribe: 4, technician: 2, engineer: 1 },
+            input: { electricity: 0.9229, electronics: 0.1629 },
+            output: { culture: 14.1143, science: 4.8857 },
+            jobs: { scribe: 10, technician: 5, engineer: 3, capitalist: 1 },
         },
         {
             name: "卫星转播",
             cost: { silver: 13000, electronics: 25, wiring: 30, steel: 25, science: 400 },
-            input: { electricity: 0.46, electronics: 0.08 },
-            output: { culture: 6.4, science: 2.2 },
-            jobs: { scribe: 4, technician: 2, engineer: 1 },
+            input: { electricity: 1.2486, electronics: 0.2171 },
+            output: { culture: 17.3714, science: 5.9714 },
+            jobs: { scribe: 10, technician: 5, engineer: 3, capitalist: 1 },
         },
     ],
 
@@ -1589,16 +1589,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "精确制造",
             cost: { silver: 9000, steel: 70, electronics: 15, chemicals: 20, science: 300 },
-            input: { electronics: 0.195, steel: 0.26, chemicals: 0.13, electricity: 0.195 },
-            output: { ordnance: 0.39 }, // 1.3x
-            jobs: { worker: 7, technician: 3, engineer: 2 },
+            input: { electronics: 0.3087, steel: 0.4117, chemicals: 0.2058, electricity: 0.3087 },
+            output: { ordnance: 0.6175 }, // 1.3x
+            jobs: { worker: 11, technician: 5, engineer: 2, capitalist: 1 },
         },
         {
             name: "模块化军工",
             cost: { silver: 18000, steel: 120, electronics: 30, chemicals: 40, science: 600 },
-            input: { electronics: 0.3375, steel: 0.45, chemicals: 0.225, electricity: 0.3375 },
-            output: { ordnance: 0.675 }, // 2.25x
-            jobs: { worker: 8, technician: 4, engineer: 3 },
+            input: { electronics: 0.4275, steel: 0.57, chemicals: 0.285, electricity: 0.4275 },
+            output: { ordnance: 0.855 }, // 2.25x
+            jobs: { worker: 10, technician: 5, engineer: 3, capitalist: 1 },
         },
     ],
 
@@ -1626,16 +1626,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "14nm工艺",
             cost: { silver: 18000, steel: 80, electronics: 30, chemicals: 20, science: 500 },
-            input: { electronics: 0.39, chemicals: 0.26, copper: 0.26, stone: 0.13, composites: 0.026, electricity: 0.325 },
-            output: { semiconductors: 0.195 }, // 1.3x
-            jobs: { technician: 7, scientist: 3, engineer: 2 },
+            input: { electronics: 0.7475, chemicals: 0.4983, copper: 0.4983, stone: 0.2492, composites: 0.0498, electricity: 0.6229 },
+            output: { semiconductors: 0.3738 }, // 1.3x
+            jobs: { technician: 13, scientist: 6, engineer: 3, capitalist: 1 },
         },
         {
             name: "3nm工艺",
             cost: { silver: 35000, steel: 150, electronics: 60, chemicals: 40, science: 1000 },
-            input: { electronics: 0.675, chemicals: 0.45, copper: 0.45, stone: 0.225, composites: 0.045, electricity: 0.5625 },
-            output: { semiconductors: 0.3375 }, // 2.25x
-            jobs: { technician: 8, scientist: 4, engineer: 3 },
+            input: { electronics: 1.035, chemicals: 0.69, copper: 0.69, stone: 0.345, composites: 0.069, electricity: 0.8625 },
+            output: { semiconductors: 0.5175 }, // 2.25x
+            jobs: { technician: 12, scientist: 6, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -1644,16 +1644,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "敏捷开发",
             cost: { silver: 9000, electronics: 15, science: 300 },
-            input: { semiconductors: 0.065, electricity: 0.39 },
-            output: { software: 0.26, science: 0.39 }, // 1.3x
-            jobs: { engineer: 5, technician: 3, capitalist: 1 },
+            input: { semiconductors: 0.1661, electricity: 0.9967 },
+            output: { software: 0.6644, science: 0.9967 }, // 1.3x
+            jobs: { engineer: 14, technician: 8, capitalist: 1 },
         },
         {
             name: "AI辅助编程",
             cost: { silver: 18000, electronics: 30, science: 600 },
-            input: { semiconductors: 0.1125, electricity: 0.675 },
-            output: { software: 0.45, science: 0.675 }, // 2.25x
-            jobs: { engineer: 6, technician: 4, capitalist: 1 },
+            input: { semiconductors: 0.2352, electricity: 1.4114 },
+            output: { software: 0.9409, science: 1.4114 }, // 2.25x
+            jobs: { engineer: 13, technician: 9, capitalist: 1 },
         },
     ],
 
@@ -1662,16 +1662,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "虚拟化集群",
             cost: { silver: 12000, steel: 60, brick: 40, semiconductors: 8, science: 350 },
-            input: { semiconductors: 0.065, electricity: 0.65, steel: 0.065, composites: 0.039 },
-            output: { silver: 5.20, science: 0.65 }, // 1.3x
-            jobs: { technician: 6, scientist: 2, engineer: 2 },
+            input: { semiconductors: 0.1495, electricity: 1.495, steel: 0.1495, composites: 0.0897 },
+            output: { silver: 11.96, science: 1.495 }, // 1.3x
+            jobs: { technician: 13, scientist: 4, engineer: 5, capitalist: 1 },
         },
         {
             name: "量子计算中心",
             cost: { silver: 25000, steel: 100, brick: 70, semiconductors: 15, science: 700 },
-            input: { semiconductors: 0.1125, electricity: 1.125, steel: 0.1125, composites: 0.0675 },
-            output: { silver: 9.00, science: 1.125 }, // 2.25x
-            jobs: { technician: 7, scientist: 3, engineer: 3 },
+            input: { semiconductors: 0.199, electricity: 1.9904, steel: 0.199, composites: 0.1194 },
+            output: { silver: 15.9231, science: 1.9904 }, // 2.25x
+            jobs: { technician: 12, scientist: 5, engineer: 5, capitalist: 1 },
         },
     ],
 
@@ -1680,16 +1680,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "移动互联",
             cost: { silver: 10000, electronics: 12, software: 5, science: 250 },
-            input: { software: 0.13, electricity: 0.26 },
-            output: { silver: 4.55, culture: 0.65 }, // 1.3x
-            jobs: { scientist: 3, scribe: 6, capitalist: 1 },
+            input: { software: 0.299, electricity: 0.598 },
+            output: { silver: 10.465, culture: 1.495 }, // 1.3x
+            jobs: { scientist: 7, scribe: 15, capitalist: 1 },
         },
         {
             name: "元宇宙平台",
             cost: { silver: 20000, electronics: 25, software: 10, science: 500 },
-            input: { software: 0.225, electricity: 0.45 },
-            output: { silver: 7.875, culture: 1.125 }, // 2.25x
-            jobs: { scientist: 4, scribe: 7, capitalist: 1 },
+            input: { software: 0.4313, electricity: 0.8625 },
+            output: { silver: 15.0938, culture: 2.1563 }, // 2.25x
+            jobs: { scientist: 8, scribe: 14, capitalist: 1 },
         },
     ],
 
@@ -1698,16 +1698,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "高效单晶硅",
             cost: { silver: 8000, semiconductors: 12, aluminum: 20, steel: 30, science: 250 },
-            input: { stone: 0.10, aluminum: 0.075, composites: 0.05 },
-            output: { electricity: 3.40 },
-            jobs: { technician: 5, engineer: 2, capitalist: 1 },
+            input: { stone: 0.25, aluminum: 0.1875, composites: 0.125 },
+            output: { electricity: 8.5 },
+            jobs: { technician: 14, engineer: 5, capitalist: 1 },
         },
         {
             name: "钙钛矿串联",
             cost: { silver: 16000, semiconductors: 25, aluminum: 40, steel: 50, science: 500 },
-            input: { stone: 0.13, aluminum: 0.095, composites: 0.065 },
-            output: { electricity: 4.60 },
-            jobs: { technician: 6, engineer: 3, capitalist: 1 },
+            input: { stone: 0.299, aluminum: 0.2185, composites: 0.1495 },
+            output: { electricity: 10.58 },
+            jobs: { technician: 15, engineer: 7, capitalist: 1 },
         },
     ],
 
@@ -1716,16 +1716,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "碳纤维增强",
             cost: { silver: 8500, aluminum: 15, plastics: 15, science: 250 },
-            input: { plastics: 0.39, aluminum: 0.26, chemicals: 0.13 },
-            output: { composites: 0.325 }, // 1.3x
-            jobs: { technician: 5, worker: 3, engineer: 1, capitalist: 1 },
+            input: { plastics: 0.897, aluminum: 0.598, chemicals: 0.299 },
+            output: { composites: 0.7475 }, // 1.3x
+            jobs: { technician: 12, worker: 7, engineer: 3, capitalist: 1 },
         },
         {
             name: "纳米复合材料",
             cost: { silver: 17000, aluminum: 30, plastics: 30, science: 500 },
-            input: { plastics: 0.675, aluminum: 0.45, chemicals: 0.225 },
-            output: { composites: 0.5625 }, // 2.25x
-            jobs: { technician: 6, worker: 4, engineer: 2, capitalist: 1 },
+            input: { plastics: 1.1942, aluminum: 0.7962, chemicals: 0.3981 },
+            output: { composites: 0.9952 }, // 2.25x
+            jobs: { technician: 11, worker: 7, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -1734,16 +1734,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "超级计算",
             cost: { silver: 15000, semiconductors: 15, electronics: 20, science: 500 },
-            input: { semiconductors: 0.07, electricity: 0.36, papyrus: 0.18, composites: 0.03 },
-            output: { science: 9.2, culture: 1.6 },
-            jobs: { scientist: 4, scribe: 2, engineer: 2, capitalist: 1 },
+            input: { semiconductors: 0.1789, electricity: 0.92, papyrus: 0.46, composites: 0.0767 },
+            output: { science: 23.5111, culture: 4.0889 },
+            jobs: { scientist: 11, scribe: 6, engineer: 5, capitalist: 1 },
         },
         {
             name: "AGI研究中心",
             cost: { silver: 30000, semiconductors: 30, electronics: 40, science: 1000 },
-            input: { semiconductors: 0.09, electricity: 0.46, papyrus: 0.22, composites: 0.04 },
-            output: { science: 10.8, culture: 2.0 },
-            jobs: { scientist: 5, scribe: 2, engineer: 2, capitalist: 1 },
+            input: { semiconductors: 0.207, electricity: 1.058, papyrus: 0.506, composites: 0.092 },
+            output: { science: 24.84, culture: 4.6 },
+            jobs: { scientist: 12, scribe: 5, engineer: 5, capitalist: 1 },
         },
     ],
 
@@ -1752,16 +1752,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "高频交易",
             cost: { silver: 14000, software: 8, electronics: 12, steel: 20, science: 350 },
-            input: { software: 0.13, electricity: 0.26 },
-            output: { silver: 6.50 }, // 1.3x
-            jobs: { scribe: 8, capitalist: 2 },
+            input: { software: 0.325, electricity: 0.65 },
+            output: { silver: 16.25 }, // 1.3x
+            jobs: { scribe: 23, capitalist: 2 },
         },
         {
             name: "去中心化金融",
             cost: { silver: 28000, software: 15, electronics: 25, steel: 35, science: 700 },
-            input: { software: 0.225, electricity: 0.45 },
-            output: { silver: 11.25 }, // 2.25x
-            jobs: { scribe: 10, capitalist: 3 },
+            input: { software: 0.5712, electricity: 1.1423 },
+            output: { silver: 28.5577 }, // 2.25x
+            jobs: { scribe: 30, capitalist: 3 },
         },
     ],
 
@@ -1770,16 +1770,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "基因编辑",
             cost: { silver: 12000, medicine: 15, electronics: 15, science: 400 },
-            input: { medicine: 0.13, electronics: 0.065, chemicals: 0.13 },
-            output: { science: 1.95, medicine: 0.195 }, // 1.3x
-            jobs: { scientist: 6, technician: 3, engineer: 1, capitalist: 1 },
+            input: { medicine: 0.2718, electronics: 0.1359, chemicals: 0.2718 },
+            output: { science: 4.0773, medicine: 0.4077 }, // 1.3x
+            jobs: { scientist: 13, technician: 7, engineer: 2, capitalist: 1 },
         },
         {
             name: "合成生物学",
             cost: { silver: 25000, medicine: 30, electronics: 30, science: 800 },
-            input: { medicine: 0.225, electronics: 0.1125, chemicals: 0.225 },
-            output: { science: 3.375, medicine: 0.3375 }, // 2.25x
-            jobs: { scientist: 7, technician: 4, engineer: 2, capitalist: 1 },
+            input: { medicine: 0.3696, electronics: 0.1848, chemicals: 0.3696 },
+            output: { science: 5.5446, medicine: 0.5545 }, // 2.25x
+            jobs: { scientist: 12, technician: 7, engineer: 3, capitalist: 1 },
         },
     ],
 
@@ -1788,16 +1788,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "自主采掘",
             cost: { silver: 9000, semiconductors: 8, machinery: 15, steel: 40, science: 300 },
-            input: { electricity: 0.39 },
-            output: { copper: 3.0, iron: 1.5, coal: 2.3, stone: 2.3 },
-            jobs: { technician: 4, engineer: 2 },
+            input: { electricity: 1.17 },
+            output: { copper: 9, iron: 4.5, coal: 6.9, stone: 6.9 },
+            jobs: { technician: 11, engineer: 6, capitalist: 1 },
         },
         {
             name: "深海太空采矿",
             cost: { silver: 18000, semiconductors: 15, machinery: 30, steel: 70, science: 600 },
-            input: { electricity: 0.675 },
-            output: { copper: 4.25, iron: 2.0, coal: 3.1, stone: 3.1 },
-            jobs: { technician: 5, engineer: 3 },
+            input: { electricity: 1.9406 },
+            output: { copper: 12.2188, iron: 5.75, coal: 8.9125, stone: 8.9125 },
+            jobs: { technician: 14, engineer: 8, capitalist: 1 },
         },
     ],
 };

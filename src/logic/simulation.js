@@ -345,7 +345,7 @@ import {
 import { LOYALTY_CONFIG, PROPERTY_POLICY_CONFIG } from '../config/officials';
 import { isStanceSatisfied } from '../config/politicalStances';
 import { migrateOfficialForInvestment } from './officials/migration';
-import { calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
+import { calculateBuildingCost, applyBuildingCostModifier, areUpgradeInputsUnlocked } from '../utils/buildingUpgradeUtils';
 import { calculateSilverCost } from '../utils/economy';
 
 // ============================================================================
@@ -4708,7 +4708,9 @@ export const simulateTick = ({
             cabinetStatus,
             builds,
             buildingUpgrades,
-            difficulty
+            difficulty,
+            epoch,
+            techsUnlocked
         );
 
         const MAX_UPGRADE_SPEND_RATIO = 0.2;
@@ -7872,7 +7874,8 @@ export const simulateTick = ({
     // Uses BASE cost (no scaling with existing upgrades) as per user requirement
     const updatedBuildingUpgrades = { ...buildingUpgrades };
     const OWNER_UPGRADE_WEALTH_THRESHOLD = 1.5; // Per-capita wealth must be >= 1.5x base upgrade cost
-    const OWNER_UPGRADE_CHANCE_PER_TICK = 0.02; // 2% chance per tick per eligible building type
+    const OWNER_UPGRADE_CHANCE_PER_TICK = 0.15; // 15% chance per tick per eligible building type
+    const OWNER_MAX_UPGRADES_PER_TICK = 3; // Allow up to 3 upgrades per building type per tick
 
     // 全局资源预算追踪：防止多个建筑同时升级时透支市场库存
     // 每次升级前检查剩余可用量，升级后立即扣减预算
@@ -7906,9 +7909,16 @@ export const simulateTick = ({
 
         // Find the lowest level building that can be upgraded
         // Start from level 0 and go up
+        let upgradesThisTick = 0;
         for (let fromLevel = 0; fromLevel < maxLevel; fromLevel++) {
             const atThisLevel = fullLevelCounts[fromLevel] || 0;
             if (atThisLevel <= 0) continue;
+
+            // 检查目标等级的输入资源是否已解锁
+            const { unlocked: inputsUnlocked } = areUpgradeInputsUnlocked(
+                buildingId, fromLevel + 1, epoch, techsUnlocked
+            );
+            if (!inputsUnlocked) continue;
 
             // Get BASE upgrade cost (no scaling, existingUpgradeCount = 0)
             const baseCost = getUpgradeCost(buildingId, fromLevel + 1, 0);
@@ -7994,8 +8004,9 @@ export const simulateTick = ({
             const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
             // logs.push(`⚠️ ${ownerName}自发投资了自己的产业 ${b.name} 到${upgradeName}（花费${Math.ceil(totalSilverCost)} 银币）`);
 
-            // Only upgrade one building per type per tick to avoid rapid changes
-            break;
+            // Only upgrade up to OWNER_MAX_UPGRADES_PER_TICK buildings per type per tick
+            upgradesThisTick++;
+            if (upgradesThisTick >= OWNER_MAX_UPGRADES_PER_TICK) break;
         }
     });
 

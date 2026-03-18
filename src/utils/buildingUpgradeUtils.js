@@ -3,6 +3,8 @@
 // 新数据格式: { buildingId: { level: count } } - 每个等级有多少座建筑
 
 import { BUILDING_UPGRADES, getBuildingEffectiveConfig } from '../config/buildingUpgrades';
+import { BUILDINGS } from '../config/buildings';
+import { isResourceUnlocked } from './resources';
 
 /**
  * 计算建筑造价
@@ -286,4 +288,34 @@ export const isOldUpgradeFormat = (upgrades, buildings = {}) => {
     }
 
     return false;
+};
+
+/**
+ * 检查建筑升级到目标等级时，所有输入资源是否已解锁
+ * 用于阻止升级到需要未解锁资源的等级
+ * 
+ * @param {string} buildingId - 建筑ID
+ * @param {number} targetLevel - 目标升级等级（1=第一次升级，2=第二次升级）
+ * @param {number} epoch - 当前时代
+ * @param {Array} techsUnlocked - 已解锁的科技列表
+ * @returns {{ unlocked: boolean, missingResources: string[] }}
+ */
+export const areUpgradeInputsUnlocked = (buildingId, targetLevel, epoch, techsUnlocked = []) => {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (!building) return { unlocked: true, missingResources: [] };
+
+    const config = getBuildingEffectiveConfig(building, targetLevel);
+    const inputs = config.input || {};
+    const missingResources = [];
+
+    for (const resourceKey of Object.keys(inputs)) {
+        if (!isResourceUnlocked(resourceKey, epoch, techsUnlocked)) {
+            missingResources.push(resourceKey);
+        }
+    }
+
+    return {
+        unlocked: missingResources.length === 0,
+        missingResources,
+    };
 };

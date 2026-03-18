@@ -4,7 +4,7 @@ import { RESOURCES, STRATA } from '../../config';
 import { calculateSilverCost } from '../../utils/economy';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { BUILDING_UPGRADES, getUpgradeCost, getMaxUpgradeLevel, getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
-import { getBuildingLevelDistribution, canBuildingUpgrade, getUpgradeCountAtOrAboveLevel } from '../../utils/buildingUpgradeUtils';
+import { getBuildingLevelDistribution, canBuildingUpgrade, getUpgradeCountAtOrAboveLevel, areUpgradeInputsUnlocked } from '../../utils/buildingUpgradeUtils';
 import { getBuildingCostGrowthFactor, getBuildingUpgradeCostMultiplier } from '../../config/difficulty';
 
 // 长按阈值（毫秒）
@@ -252,6 +252,15 @@ export const BuildingUpgradePanel = ({
     }, [buildingId, count, distributionKey]);
 
     const upgradeConfigs = BUILDING_UPGRADES[buildingId] || [];
+
+    // 检查升级是否因资源未解锁被阻止
+    const isUpgradeLockedByResource = (fromLevel) => {
+        const techsUnlocked = gameState?.techsUnlocked || [];
+        const { unlocked, missingResources } = areUpgradeInputsUnlocked(
+            buildingId, fromLevel + 1, epoch, techsUnlocked
+        );
+        return { locked: !unlocked, missingResources };
+    };
 
     // 检查是否可以升级（市场库存+银币都足够）
     const canAffordUpgrade = (fromLevel) => {
@@ -527,6 +536,10 @@ export const BuildingUpgradePanel = ({
 
                     const canUpgradeThis = levelNum < maxLevel && canAffordUpgrade(levelNum) && levelCount > 0;
                     const canDowngradeThis = levelNum > 0 && levelCount > 0;
+                    const { locked: resourceLocked, missingResources: lockedResources } = levelNum < maxLevel
+                        ? isUpgradeLockedByResource(levelNum)
+                        : { locked: false, missingResources: [] };
+                    const isUpgradeBlocked = resourceLocked && levelNum < maxLevel;
                     // 计算已有的同等级或更高升级数量，用于成本递增显示
                     const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(levelNum + 1, count, upgradeLevels);
                     const baseUpgradeCost = levelNum < maxLevel ? getUpgradeCost(buildingId, levelNum + 1, existingUpgradeCount, growthFactor) : null;
@@ -569,13 +582,15 @@ export const BuildingUpgradePanel = ({
                                         <LongPressButton
                                             onClick={() => handleUpgradeOne(levelNum)}
                                             onLongPress={() => handleUpgradeAll(levelNum, levelCount)}
-                                            disabled={!canUpgradeThis}
+                                            disabled={!canUpgradeThis || isUpgradeBlocked}
                                             variant="upgrade"
-                                            className={`w-8 h-7 rounded text-sm font-bold ${canUpgradeThis
+                                            className={`w-8 h-7 rounded text-sm font-bold ${canUpgradeThis && !isUpgradeBlocked
                                                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                                                 : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
                                                 }`}
-                                            title="单击+1 / 长按全部"
+                                            title={isUpgradeBlocked
+                                                ? `需要的输入资源尚未解锁：${lockedResources.map(r => RESOURCES[r]?.name || r).join('、')}`
+                                                : '单击+1 / 长按全部'}
                                         >
                                             <Icon name="ChevronUp" size={14} />
                                         </LongPressButton>
@@ -603,6 +618,14 @@ export const BuildingUpgradePanel = ({
                                     {/* 升级费用 */}
                                     {levelNum < maxLevel && upgradeCost && (
                                         <div className="mt-2 pt-2 border-t border-gray-700/30">
+                                            {isUpgradeBlocked && (
+                                                <div className="mb-2 flex items-center gap-1.5 text-xs text-amber-400 bg-amber-900/30 border border-amber-700/40 px-2 py-1.5 rounded">
+                                                    <Icon name="Lock" size={12} />
+                                                    <span>
+                                                        需要的输入资源尚未解锁：{lockedResources.map(r => RESOURCES[r]?.name || r).join('、')}
+                                                    </span>
+                                                </div>
+                                            )}
                                             {renderUpgradeCost(upgradeCost)}
                                         </div>
                                     )}
