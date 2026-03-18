@@ -5036,10 +5036,11 @@ export const simulateTick = ({
 
         // 执政联盟阶层的approvalCap惩罚（期望提高）
         const isCoalition = isCoalitionMember(key, rulingCoalition);
+        let coalitionCapPenalty = 0;
         if (isCoalition) {
             const livingLevel = livingStandard?.level || '温饱';
-            const penalty = getCoalitionApprovalCapPenalty(livingLevel, true);
-            livingStandardApprovalCap = Math.max(0, livingStandardApprovalCap - penalty);
+            coalitionCapPenalty = getCoalitionApprovalCapPenalty(livingLevel, true);
+            livingStandardApprovalCap = Math.max(0, livingStandardApprovalCap - coalitionCapPenalty);
         }
 
         let targetApproval = 70; // Base approval
@@ -5238,6 +5239,8 @@ export const simulateTick = ({
             capApplied: null,
             approvalAfterCap: 0,
             approvalFinal: 0,
+            isCoalition: isCoalition,
+            coalitionCapPenalty: coalitionCapPenalty,
         };
 
         // Base / living standard target
