@@ -4,9 +4,21 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.1.3',
+        date: '2026-03-18',
+        isLatest: true,
+        highlights: ['修正资源消费链：移除工业中间品直接消费', '复合材料消费全面覆盖所有阶层', '化肥成为农业建筑升级必需输入'],
+        changes: [
+            { type: 'balance', text: '修正资源消费链：从所有阶层的奢侈需求中移除 synthetic_fiber（化纤）、rubber（橡胶）、plastics（塑料）、aluminum（铝）四种工业中间品的直接消费，这些资源只应通过建筑加工为终端产品后再被民间消费' },
+            { type: 'balance', text: '复合材料（composites）消费大幅加强：覆盖面从 12 个阶层扩展到全部 17 个阶层，消费门槛全面降低（上层从 2.5 降至 1.8，中层从 5.0~9.0 降至 4.5~5.0，底层新增 7.0~7.5 档），每个阶层均有 2~4 个梯度消费档位' },
+            { type: 'balance', text: '化肥（fertilizer）纳入农业生产链：7 个农业/种植建筑的升级配置添加化肥输入需求（早期建筑 Lv2、工业时代建筑 Lv1 起需要化肥），添加化肥后产出额外提升 15~25%' },
+            { type: 'balance', text: '橡胶园（rubber_plantation）作为 E7 建筑，基础等级即需要化肥输入，与化肥厂同时代形成资源依赖链' },
+        ],
+    },
+    {
         version: '2.1.2',
         date: '2026-03-17',
-        isLatest: true,
+        isLatest: false,
         highlights: ['修复未发现国家的虚空贸易', '修复官员阶层财富显示异常', '理念系统新一轮平衡调整'],
         changes: [
             { type: 'fix', text: '修复与未发现国家产生虚空贸易的问题：贸易机会扫描、商人派驻轮换与缓存执行阶段现在都会过滤 relation 为 null/undefined 的国家，避免对未发现目标创建新贸易路线。' },
