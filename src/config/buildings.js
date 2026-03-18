@@ -309,6 +309,26 @@ export const BUILDINGS = [
             },
         }
     }, {
+        id: 'spice_plantation',
+        name: "香料种植园",
+        desc: "开垦殖民地香料田，本土培育珍贵辛香料，产量远胜海运贸易。",
+        baseCost: { wood: 200, tools: 30, food: 50 },
+        input: { food: 0.8, tools: 0.05 },
+        output: { spice: 1.20 },
+        jobs: { serf: 8, landowner: 1 },
+        owner: 'landowner',
+        epoch: 5,
+        cat: 'gather',
+        requiresTech: 'spice_cultivation',
+        visual: { icon: 'Leaf', color: 'bg-amber-900', text: 'text-amber-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.15, taxCostWeight: 0.20 },
+            wage: {
+                livingCostWeight: 0.05,
+                taxCostWeight: 0.05,
+            },
+        },
+    }, {
         id: 'coal_mine',
         name: "煤矿",
         desc: "开采地下煤炭，工业能源基石。",

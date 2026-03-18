@@ -615,6 +615,24 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
+    // spice_plantation: base output 1.20 spice, owner: landowner, base jobs: serf:8, landowner:1
+    spice_plantation: [
+        {
+            name: "大香料园",
+            cost: { wood: 300, tools: 50, silver: 1000 },
+            input: { food: 1.0, tools: 0.07 },
+            output: { spice: 1.56 }, // 1.3x of base 1.20
+            jobs: { serf: 10, landowner: 1 },
+        },
+        {
+            name: "香料庄园",
+            cost: { plank: 200, tools: 80, silver: 2200 },
+            input: { food: 1.2, tools: 0.10 },
+            output: { spice: 2.70, coffee: 0.04, food: 0.6 }, // 2.25x of base 1.20 + 混种副产
+            jobs: { serf: 12, landowner: 1 },
+        },
+    ],
+
     // coffee_house: base output culture: 4.0, science: 1.3333, owner: merchant, base jobs: merchant:1, scribe:3
     // 效率提升型升级：氛围优化，产出增加但岗位不增加
     coffee_house: [
