@@ -79,14 +79,14 @@ export const BUILDING_UPGRADES = {
             cost: { wood: 80, stone: 40, tools: 10, silver: 250 },
             input: { tools: 0.02 },
             output: { cloth: 3.744 }, // 1.3x of base 2.88
-            jobs: { artisan: 3 }, // keep same, efficiency upgrade
+            jobs: { peasant: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "大织布坊",
             cost: { plank: 60, brick: 40, tools: 20, silver: 600 },
             input: { tools: 0.04, dye: 0.03 }, // 新增染料需求
             output: { cloth: 6.48, culture: 0.05 }, // 2.25x of base 2.88 + 织艺文化
-            jobs: { artisan: 4 }, // +1 artisan only
+            jobs: { peasant: 4 }, // +1 peasant only
         },
     ],
 
