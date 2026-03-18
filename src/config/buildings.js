@@ -1413,9 +1413,9 @@ export const BUILDINGS = [
     {
         id: 'rubber_plantation',
         name: "橡胶园",
-        desc: "种植橡胶树并采集生橡胶，为电线和车辆工业提供原料。",
+        desc: "种植橡胶树并采集生橡胶，为电线和车辆工业提供原料。需要化肥维持产量。",
         baseCost: { silver: 800, wood: 30, tools: 5 },
-        input: {},
+        input: { fertilizer: 0.08 }, // E7 building, fertilizer required from base level
         output: { rubber: 0.8 },
         jobs: { worker: 8, merchant: 1 },
         owner: 'merchant',
