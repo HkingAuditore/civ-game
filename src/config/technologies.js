@@ -513,6 +513,15 @@ export const TECHS = [
         effects: {},
     },
     {
+        id: 'spice_cultivation',
+        name: "香料栽培学",
+        desc: "解锁香料种植园，本土种植珍贵辛香料，产量远胜航海贸易。",
+        cost: { science: 14400 },
+        epoch: 5,
+        prerequisites: ['spice_monopolies'],
+        effects: {},
+    },
+    {
         id: 'coffeehouse_philosophy',
         name: "咖啡馆哲学",
         desc: "解锁咖啡馆，每人每日获得 0.002 文化。",
