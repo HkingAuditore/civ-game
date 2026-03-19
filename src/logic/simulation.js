@@ -4778,6 +4778,7 @@ export const simulateTick = ({
             classApproval: classApproval,
             classInfluence: classInfluence,
             classIncome: estimatedClassIncome,  // [FIX] 使用包含官员收入预估的数?
+            classLivingStandard: market?.classLivingStandard || {},
             totalInfluence: computedTotalInfluence,
             stability: (currentStability ?? 50) / 100,
             rulingCoalition: rulingCoalition,

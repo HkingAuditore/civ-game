@@ -753,7 +753,7 @@ export const OfficialsPanel = ({
                                     onViewDetail={setSelectedOfficial}
                                     compact={true}
                                     currentDay={currentTick}
-                                    isStanceSatisfied={official.politicalStance ? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams) : null}
+                                    isStanceSatisfied={official.politicalStance ? (official.isStanceSatisfied ?? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams)) : null}
                                     generals={generals}
                                 />
                             ))}
