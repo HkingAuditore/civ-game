@@ -348,6 +348,35 @@ import { migrateOfficialForInvestment } from './officials/migration';
 import { calculateBuildingCost, applyBuildingCostModifier, areUpgradeInputsUnlocked } from '../utils/buildingUpgradeUtils';
 import { calculateSilverCost } from '../utils/economy';
 
+const buildInitialMinisterExpansionCooldowns = () => ({
+    global: 0,
+    agriculture: 0,
+    industry: 0,
+    commerce: 0,
+    civic: 0,
+});
+
+const normalizeMinisterExpansionCooldowns = (value) => {
+    const base = buildInitialMinisterExpansionCooldowns();
+    if (Number.isFinite(value)) {
+        return {
+            ...base,
+            global: value,
+            agriculture: value,
+            industry: value,
+            commerce: value,
+            civic: value,
+        };
+    }
+    if (!value || typeof value !== 'object') {
+        return base;
+    }
+    return {
+        ...base,
+        ...value,
+    };
+};
+
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
 // - initializeWealth -> ./population/growth.js
@@ -7764,12 +7793,12 @@ export const simulateTick = ({
     });
 
     // ========== 部长自动扩建系统 ==========
-    let nextLastMinisterExpansionDay = Number.isFinite(lastMinisterExpansionDay) ? lastMinisterExpansionDay : 0;
+    let nextLastMinisterExpansionDay = normalizeMinisterExpansionCooldowns(lastMinisterExpansionDay);
     const shouldAttemptMinisterExpansion = ECONOMIC_MINISTER_ROLES.some(
         (role) => ministerAssignments?.[role] && ministerAutoExpansion?.[role] === true
     );
 
-    if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 10)) {
+    if (shouldAttemptMinisterExpansion && (tick - (nextLastMinisterExpansionDay.global || 0) >= 5)) {
         const difficultyLevel = difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
@@ -7788,6 +7817,7 @@ export const simulateTick = ({
             // [NEW] Check if auto-expansion is enabled for this minister
             const autoExpansionEnabled = ministerAutoExpansion?.[role] === true;
             if (!autoExpansionEnabled) return;
+            if (tick - (nextLastMinisterExpansionDay[role] || 0) < 10) return;
 
             BUILDINGS.forEach((building) => {
                 if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;
@@ -7848,7 +7878,11 @@ export const simulateTick = ({
         if (bestCandidate) {
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
-            nextLastMinisterExpansionDay = tick;
+            nextLastMinisterExpansionDay = {
+                ...nextLastMinisterExpansionDay,
+                global: tick,
+                [bestCandidate.role]: tick,
+            };
             // [FIX] 遵守官员日志可见性设置
             if (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true) {
                 logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
