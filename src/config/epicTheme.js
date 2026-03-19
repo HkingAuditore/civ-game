@@ -140,7 +140,7 @@ export const EPOCH_THEMES = {
   },
   // 工业时代 - Industrial Age (Enhanced Iron & Steel Gray)
   6: {
-    name: '工业时代',
+    name: '蒸汽时代',
     primaryColor: '#52525b', // 钢铁灰 Zinc Gray
     secondaryColor: '#3f3f46',
     accentColor: '#a1a1aa', // 亮银
