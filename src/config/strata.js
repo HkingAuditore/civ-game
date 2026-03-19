@@ -161,12 +161,12 @@ export const STRATA = {
         maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.62, cloth: 0.11 },
         luxuryNeeds: {
-            1.0: { tools: 0.07, ale: 0.10, furniture: 0.05, culture: 0.04, rubber: 0.02, plastics: 0.02, aluminum: 0.012 },
+            1.0: { tools: 0.04, ale: 0.10, furniture: 0.05, culture: 0.04, rubber: 0.02, plastics: 0.02, aluminum: 0.012 },
             1.8: { copper: 0.02, spice: 0.05, medicine: 0.015 },   // 铜料，香料，医药
             2.5: { coffee: 0.04, fine_clothes: 0.035, brick: 0.04, culture: 0.09, electronics: 0.015, automobile: 0.02, rubber: 0.025, plastics: 0.03 }, // 咖啡，华服，砖块，文化，入门电子/汽车，更多橡胶/塑料
             3.5: { delicacies: 0.09, stone: 0.035, dye: 0.025, machinery: 0.01, aluminum: 0.015 }, // 珍馐，石材，染料，机械，更多铝
             4.5: { steel: 0.015, iron: 0.02, culture: 0.12, software: 0.01, medicine: 0.015, composites: 0.006, plastics: 0.03 }, // 技艺升级 + 软件/更多医药/复合材料/塑料
-            6.0: { tools: 0.06, copper: 0.03, furniture: 0.04, culture: 0.10, electricity: 0.03, automobile: 0.025, electronics: 0.02, composites: 0.01, rubber: 0.03, aluminum: 0.02 }, // 升级工坊 + 体面生活 + 更多汽车/电子/复合材料/橡胶/铝
+            6.0: { tools: 0.03, copper: 0.03, furniture: 0.04, culture: 0.10, electricity: 0.03, automobile: 0.025, electronics: 0.02, composites: 0.01, rubber: 0.03, aluminum: 0.02 }, // 升级工坊 + 体面生活 + 更多汽车/电子/复合材料/橡胶/铝
             8.0: { papyrus: 0.05, furniture: 0.03, software: 0.01, electricity: 0.03, composites: 0.008 }, // 报刊/室内陈设 + 软件/复合材料
             9.5: { coffee: 0.05, fine_clothes: 0.05, dye: 0.03, culture: 0.13, automobile: 0.02, electronics: 0.015, electricity: 0.03, composites: 0.01 }, // 体面社交 + 更多汽车/电子/复合材料
         },
