@@ -229,8 +229,8 @@ const IdeologyTabComponent = ({
     const unequippedCount = ideologyCollection.filter(e => !equippedIdeologies.includes(e.id)).length;
     const collectionFull = unequippedCount >= MAX_COLLECTION_SIZE;
 
-    // 详情BottomSheet状态
-    const [sheetEntry, setSheetEntry] = useState(null); // { config, level, isEquipped }
+    // 详情BottomSheet状态 { id, config, level, isEquipped }
+    const [sheetEntry, setSheetEntry] = useState(null);
     const threshold = getEmergenceThreshold(ownedCount);
     const progressPercent = Math.min((availableScore / threshold) * 100, 100);
 
@@ -374,6 +374,12 @@ const IdeologyTabComponent = ({
                             activeBuffs={activeBuffs}
                             onUnequip={handleUnequip}
                             compact={isMobile}
+                            onCardClick={(ideo) => setSheetEntry({
+                                id: ideo.id,
+                                config: ideo,
+                                level: collectionMap[ideo.id]?.level || 1,
+                                isEquipped: true,
+                            })}
                         />
                     ))}
                     {/* 空卡槽 */}
@@ -524,7 +530,7 @@ const IdeologyTabComponent = ({
                         {unequippedCollection.map(entry => (
                             <div
                                 key={entry.id}
-                                onClick={() => setSheetEntry(entry)}
+                                onClick={() => setSheetEntry({ ...entry, isEquipped: false })}
                                 className="cursor-pointer"
                             >
                             <IdeologyCard
@@ -559,7 +565,7 @@ const IdeologyTabComponent = ({
         <IdeologyDetailSheet
             ideology={sheetEntry?.config || null}
             level={sheetEntry?.level || 1}
-            isEquipped={false}
+            isEquipped={sheetEntry?.isEquipped || false}
             equippedIds={equippedIdeologies}
             activeBuffs={activeBuffs}
             cooldownRemaining={sheetEntry ? (ideologyCooldowns[sheetEntry.id] || 0) : 0}
