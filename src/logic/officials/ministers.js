@@ -86,14 +86,6 @@ export const getMinisterDiplomaticBonus = (statValue) => {
 
 export const isCommerceBuilding = (building) => COMMERCE_BUILDING_IDS.has(building?.id);
 
-const isIndustryResource = (resourceKey) => {
-    if (!resourceKey || resourceKey === 'food') return false;
-    const def = RESOURCES[resourceKey];
-    if (!def) return false;
-    const tags = def.tags || [];
-    return tags.includes('raw_material') || tags.includes('industrial') || tags.includes('manufactured');
-};
-
 export const getBuildingOutputResources = (building) => {
     if (!building?.output) return [];
     return Object.keys(building.output)
@@ -113,13 +105,12 @@ export const isBuildingUnlockedForMinister = (building, epoch, techsUnlocked = [
 export const isBuildingInMinisterScope = (building, role) => {
     if (!building) return false;
     if (role === 'commerce') return isCommerceBuilding(building);
-
-    const outputs = getBuildingOutputResources(building);
     if (role === 'agriculture') {
-        return outputs.includes('food') && !isCommerceBuilding(building);
+        // 与建设页“采集与农业”分组保持一致，避免跨部门串岗
+        return building.cat === 'gather';
     }
     if (role === 'industry') {
-        return building.cat === 'industry' || outputs.some((res) => isIndustryResource(res));
+        return building.cat === 'industry';
     }
     if (role === 'civic') {
         return building.cat === 'civic' && !isCommerceBuilding(building);

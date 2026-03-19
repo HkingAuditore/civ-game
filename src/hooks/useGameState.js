@@ -906,6 +906,35 @@ const buildInitialMinisterAutoExpansion = () => ({
     civic: true,
 });
 
+const buildInitialMinisterExpansionCooldowns = () => ({
+    global: 0,
+    agriculture: 0,
+    industry: 0,
+    commerce: 0,
+    civic: 0,
+});
+
+const normalizeMinisterExpansionCooldowns = (value) => {
+    const base = buildInitialMinisterExpansionCooldowns();
+    if (Number.isFinite(value)) {
+        return {
+            ...base,
+            global: value,
+            agriculture: value,
+            industry: value,
+            commerce: value,
+            civic: value,
+        };
+    }
+    if (!value || typeof value !== 'object') {
+        return base;
+    }
+    return {
+        ...base,
+        ...value,
+    };
+};
+
 const isTradable = (resourceKey) => {
     if (resourceKey === 'silver') return false;
     const def = RESOURCES[resourceKey];
@@ -1171,7 +1200,7 @@ export const useGameState = () => {
     // 注意：产业政策已迁移为逐官员字段 official.propertyPolicy（默认 'private'）
     const [ministerAssignments, setMinisterAssignments] = useState(buildInitialMinisterAssignments());
     const [ministerAutoExpansion, setMinisterAutoExpansion] = useState(buildInitialMinisterAutoExpansion());
-    const [lastMinisterExpansionDay, setLastMinisterExpansionDay] = useState(0);
+    const [lastMinisterExpansionDay, setLastMinisterExpansionDay] = useState(buildInitialMinisterExpansionCooldowns());
     // ========== 内阁协同系统状�?==========
     // Permanent policy decrees (legacy) - stored as array of { id, active, modifiers, ... }
     const [decrees, setDecrees] = useState([]);
@@ -2254,7 +2283,7 @@ export const useGameState = () => {
             ...buildInitialMinisterAutoExpansion(),
             ...(data.ministerAutoExpansion || {}),
         });
-        setLastMinisterExpansionDay(data.lastMinisterExpansionDay ?? 0);
+        setLastMinisterExpansionDay(normalizeMinisterExpansionCooldowns(data.lastMinisterExpansionDay));
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
         setDecrees(Array.isArray(data.decrees) ? data.decrees : []);
         setActiveDecrees(data.activeDecrees || {});

@@ -3080,7 +3080,10 @@ difficulty, // 游戏难度
                             return result;
                         });
                     }
-                    if (typeof result.lastMinisterExpansionDay === 'number') {
+                    if (
+                        typeof result.lastMinisterExpansionDay === 'number' ||
+                        (result.lastMinisterExpansionDay && typeof result.lastMinisterExpansionDay === 'object')
+                    ) {
                         setLastMinisterExpansionDay(result.lastMinisterExpansionDay);
                     }
                     // [DEBUG] 涓存椂鏃ュ織 - 杩借釜鑷敱甯傚満鏈哄埗闂
