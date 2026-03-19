@@ -561,8 +561,6 @@ export const findBestReplenishTarget = (unitId, corpsReplenishQueue, allCorps, a
         if (corps.isAI) continue;
         // Skip if corps auto-replenish is disabled
         if (corps.autoReplenish === false) continue;
-        // Skip corps in combat
-        if (corps.status === 'in_combat') continue;
 
         const priority = getCorpsReplenishPriority(corps, deficits, activeFronts);
         candidates.push({ corpsId, corps, deficit, priority });

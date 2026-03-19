@@ -225,7 +225,7 @@ const aggregateCorpsReplenishDemand = (corpsReplenishQueue = {}, corpsList = [])
         const corps = corpsMap.get(corpsId);
         if (!corps || corps.isAI) return;
         if (corps.autoReplenish === false) return;
-        if (corps.status === 'in_combat' || corps.status === 'destroyed') return;
+        if (corps.status === 'destroyed') return;
 
         Object.entries(deficits || {}).forEach(([unitId, count]) => {
             const safeCount = Math.max(0, Number(count || 0));
