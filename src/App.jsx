@@ -1732,8 +1732,7 @@ function GameApp({ gameState }) {
                                                     classApproval: gameState.classApproval,
                                                     classInfluence: gameState.classInfluence,
                                                     classLivingStandard: gameState.classLivingStandard,
-                                                    classIncome: gameState.classWealth, // 近似替代，或需要从 history 获取
-                                                    // classIncome: gameState.classIncome, // useGameLoop 如果导出了这个最好
+                                                    classIncome: gameState.classIncome || {},
                                                     stability: (gameState.stability ?? 50) / 100, // 转换为0-1范围，与simulation.js保持一致
                                                     legitimacy: gameState.legitimacy,
                                                     rulingCoalition: gameState.rulingCoalition,
