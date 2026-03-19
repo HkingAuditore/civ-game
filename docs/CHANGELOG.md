@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [2.1.6] - 2026-03-20
+
+### Fixed
+- **连续快速操作的扣费异常**：`useGameActions.js` 为建造、建筑升级、时代升级、科研和招募等关键流程改为读取最新的 `resources/buildings/buildingUpgrades` 引用，修复连续点击时可能读取陈旧状态、导致费用判断错误或重复扣费的问题
+- **自动补兵跳过前线军团**：`useGameLoop.js` 与 `corpsSystem.js` 不再因为军团处于 `in_combat` 状态而忽略其补兵需求，自动补兵现在可以正常支援战斗中的玩家军团
+- **改革法令税收标签重复**：`ReformDecreePanel.jsx` 去除重复 `taxIncome` 映射并统一文案为“税收加成”
+- **战争中“求和”动作错误**：`NationDetailView.jsx` 将按钮动作从 `propose_peace` 改为 `peace`，避免战争状态下按钮无效
+
+### Changed
+- **部长自动扩建冷却重构**：`simulation.js`、`useGameState.js`、`useOfficialStore.js` 将原来的单一 `lastMinisterExpansionDay` 数字改为带 `global/agriculture/industry/commerce/civic` 的对象；全局检查冷却缩短为 `5` 天，每位经济部长保留 `10` 天个人冷却，旧存档自动兼容迁移
+- **低人口阶层组织度限制**：`organizationSystem.js` 新增 `MIN_REBELLION_POPULATION = 10`；人口不足的阶层组织度上限为 `50%`，`useGameLoop.js` 在触发 uprising 时改为人口和财富外流而不是直接生成叛乱
+- **理念与时代面板体验优化**：`IdeologyCard.jsx` 始终显示稀有度标签，`IdeologyTab.jsx` 允许从已装备理念直接打开详情面板；`EraProgressionPanel.jsx` 改为直接读取 `EPOCHS` 名称，避免时代名称表与主配置脱节
+- **显示与数值微调**：`epicTheme.js` 将 epoch 6 的主题名称调整为“蒸汽时代”；`strata.js` 小幅下调 artisan 在部分富裕度档位的工具消费量
+
 ## [2.1.2] - 2026-03-17
 
 ### Fixed
