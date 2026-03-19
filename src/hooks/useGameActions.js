@@ -1,7 +1,7 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     BUILDINGS,
     EPOCHS,
@@ -212,6 +212,14 @@ export const useGameActions = (gameState, addLog) => {
         // Pending Actions Queue（tick-action 竞争条件修复）
         pendingActionsRef,
     } = gameState;
+
+    // 用 ref 追踪最新值，防止连续快速调用时读到陈旧闭包
+    const _resourcesRef = useRef(resources);
+    _resourcesRef.current = resources;
+    const _buildingsRef = useRef(buildings);
+    _buildingsRef.current = buildings;
+    const _buildingUpgradesRef = useRef(buildingUpgrades);
+    _buildingUpgradesRef.current = buildingUpgrades;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
         let nextMeta = meta;
@@ -1298,7 +1306,8 @@ export const useGameActions = (gameState, addLog) => {
         if (!canUpgradeEpoch()) return;
 
         const nextEpoch = EPOCHS[epoch + 1];
-        const newRes = { ...resources };
+        const latestResources = _resourcesRef.current;
+        const newRes = { ...latestResources };
 
         const difficulty = gameState.difficulty || 'normal';
         const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
@@ -1318,6 +1327,7 @@ export const useGameActions = (gameState, addLog) => {
         }
         // 扣除银币总成本
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        _resourcesRef.current = newRes;
 
         setResourcesWithReason(newRes, 'upgrade_epoch');
         setEpoch(epoch + 1);
@@ -1359,7 +1369,10 @@ export const useGameActions = (gameState, addLog) => {
         if (!b) return;
 
         const finalCount = Math.max(1, Math.floor(count));
-        const currentCount = buildings[id] || 0;
+        // 从 ref 读取最新值，防止 React 批处理导致连续快速调用读到陈旧闭包
+        const latestResources = _resourcesRef.current;
+        const latestBuildings = _buildingsRef.current;
+        const currentCount = latestBuildings[id] || 0;
 
         // 计算成本（随数量递增）
         const difficultyLevel = gameState.difficulty || 'normal';
@@ -1370,7 +1383,6 @@ export const useGameActions = (gameState, addLog) => {
         const ideoBCM = modifiers?.ideologyRuleMods?.buildingCostMod || {};
         const ideoBuildCostMod = (ideoBCM[b.cat] || 0) + (ideoBCM._global || 0);
         const combinedBuildCostMod = buildingCostMod + ideoBuildCostMod;
-
         let totalCost = {};
 
         // 累加每个建筑的成本
@@ -1390,7 +1402,7 @@ export const useGameActions = (gameState, addLog) => {
 
         const hasMaterials = Object.entries(totalCost).every(([resource, amount]) => {
             if (resource === 'silver') return true; // silver checked separately below
-            return (resources[resource] || 0) >= amount;
+            return (latestResources[resource] || 0) >= amount;
         });
         if (!hasMaterials) {
             addLog(`资源不足，无法建造 ${finalCount} 个 ${b.name}`);
@@ -1405,12 +1417,12 @@ export const useGameActions = (gameState, addLog) => {
         });
         silverCost = Math.max(0, silverCost);
 
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             addLog('银币不足，无法支付建造费用');
             return;
         }
 
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         // Deduct non-silver materials
         Object.entries(totalCost).forEach(([resource, amount]) => {
             if (resource === 'silver') return; // silver deducted as part of silverCost
@@ -1418,6 +1430,10 @@ export const useGameActions = (gameState, addLog) => {
         });
         // Deduct total silver cost (direct + material procurement)
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+
+        // 立即更新 ref，确保下一次快速调用能读到最新值
+        _resourcesRef.current = newRes;
+        _buildingsRef.current = { ...latestBuildings, [id]: currentCount + finalCount };
 
         setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
@@ -1470,7 +1486,7 @@ export const useGameActions = (gameState, addLog) => {
         const building = BUILDINGS.find(b => b.id === id);
         if (!building) return;
 
-        const currentCount = buildings[id] || 0;
+        const currentCount = _buildingsRef.current[id] || 0;
         const sellCount = Math.min(Math.max(1, Math.floor(count)), currentCount);
 
         if (sellCount <= 0) return;
@@ -1637,7 +1653,12 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        const count = buildings[buildingId] || 0;
+        // 从 ref 读取最新值，防止连续快速调用读到陈旧闭包
+        const latestResources = _resourcesRef.current;
+        const latestBuildings = _buildingsRef.current;
+        const latestBuildingUpgrades = _buildingUpgradesRef.current;
+
+        const count = latestBuildings[buildingId] || 0;
         if (count <= 0) {
             addLog('没有该建筑。');
             return;
@@ -1660,7 +1681,7 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 检查是否有该等级的建筑可升级
-        const levelCounts = buildingUpgrades[buildingId] || {};
+        const levelCounts = latestBuildingUpgrades[buildingId] || {};
         const distribution = {};
         let accounted = 0;
         for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
@@ -1700,7 +1721,7 @@ export const useGameActions = (gameState, addLog) => {
         // 1. 检查市场库存是否足够
         const hasMaterials = Object.entries(upgradeCost).every(([resource, amount]) => {
             if (resource === 'silver') return true;
-            return (resources[resource] || 0) >= amount;
+            return (latestResources[resource] || 0) >= amount;
         });
 
         if (!hasMaterials) {
@@ -1720,19 +1741,21 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 3. 检查银币是否足够
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             addLog(`银币不足，升级 ${building.name} 需要 ${Math.ceil(silverCost)} 银币。`);
             return;
         }
 
         // 4. 扣除资源和银币
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         Object.entries(upgradeCost).forEach(([resource, amount]) => {
             if (resource !== 'silver') {
                 newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
             }
         });
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        // 立即更新 ref，确保下一次快速调用能读到最新值
+        _resourcesRef.current = newRes;
         setResourcesWithReason(newRes, 'building_upgrade', { buildingId, count: 1 });
 
         // 5. 更新升级等级（新格式：等级计数）
@@ -1853,8 +1876,10 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        const buildingCount = buildings[buildingId] || 0;
-        const levelCounts = buildingUpgrades[buildingId] || {};
+        // 从 ref 读取最新值，防止连续快速调用读到陈旧闭包
+        const latestResources = _resourcesRef.current;
+        const buildingCount = _buildingsRef.current[buildingId] || 0;
+        const levelCounts = _buildingUpgradesRef.current[buildingId] || {};
 
         // 计算该等级的建筑数量（新格式）
         const distribution = {};
@@ -1912,7 +1937,7 @@ export const useGameActions = (gameState, addLog) => {
         let canAffordCount = individualCosts.length;
 
         for (const [resource, totalAmount] of Object.entries(totalResourceCost)) {
-            const available = resources[resource] || 0;
+            const available = latestResources[resource] || 0;
             if (available < totalAmount) {
                 let accumulated = 0;
                 for (let i = 0; i < individualCosts.length; i++) {
@@ -1926,7 +1951,7 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 检查银币是否足够
-        const availableSilver = resources.silver || 0;
+        const availableSilver = latestResources.silver || 0;
         let accumulatedSilver = 0;
         for (let i = 0; i < canAffordCount; i++) {
             const cost = individualCosts[i];
@@ -1959,7 +1984,7 @@ export const useGameActions = (gameState, addLog) => {
             if (firstCost && Object.keys(firstCost).length > 0) {
                 const hasMaterials = Object.entries(firstCost).every(([resource, amount]) => {
                     if (resource === 'silver') return true;
-                    return (resources[resource] || 0) >= amount;
+                    return (latestResources[resource] || 0) >= amount;
                 });
                 if (!hasMaterials) {
                     addLog(`市场资源不足，无法批量升级 ${building.name}。`);
@@ -1986,11 +2011,13 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 扣除资源和银币
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         for (const [resource, amount] of Object.entries(actualResourceCost)) {
             newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - actualSilverCost);
+        // 立即更新 ref，确保下一次快速调用能读到最新值
+        _resourcesRef.current = newRes;
         setResourcesWithReason(newRes, 'building_upgrade_batch', { buildingId, count: successCount });
 
         // 更新升级等级（新格式：等级计数）
@@ -2116,14 +2143,15 @@ export const useGameActions = (gameState, addLog) => {
             }
         }
 
-        // 检查资源
+        // 检查资源（从 ref 读取最新值）
+        const latestResources = _resourcesRef.current;
         const difficulty = gameState.difficulty || 'normal';
         const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         let canAfford = true;
         for (let resource in tech.cost) {
             const cost = Math.ceil(tech.cost[resource] * techCostMultiplier);
-            if ((resources[resource] || 0) < cost) {
+            if ((latestResources[resource] || 0) < cost) {
                 canAfford = false;
                 break;
             }
@@ -2141,18 +2169,19 @@ export const useGameActions = (gameState, addLog) => {
         }, 0);
 
         // 检查银币是否足够
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             addLog('银币不足，无法支付研究费用');
             return;
         }
 
         // 扣除资源和银币
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         for (let resource in tech.cost) {
             const cost = Math.ceil(tech.cost[resource] * techCostMultiplier);
             newRes[resource] -= cost;
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        _resourcesRef.current = newRes;
 
         setResourcesWithReason(newRes, 'tech_research', { techId: id });
         setTechsUnlocked(prev => [...prev, id]);
@@ -2614,11 +2643,14 @@ export const useGameActions = (gameState, addLog) => {
             }
         }
 
+        // 从 ref 读取最新资源值
+        const latestResources = _resourcesRef.current;
+
         // 检查资源
         let canAfford = true;
         for (let resource in totalUnitCost) {
             if (resource === 'silver') continue; // silver checked as part of silverCost below
-            if ((resources[resource] || 0) < totalUnitCost[resource]) {
+            if ((latestResources[resource] || 0) < totalUnitCost[resource]) {
                 canAfford = false;
                 break;
             }
@@ -2638,7 +2670,7 @@ export const useGameActions = (gameState, addLog) => {
             silverCost += amount * getMarketPrice(resource);
         });
 
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             if (!silent) {
                 addLog('银币不足，无法支付征兵物资费用。');
             }
@@ -2664,12 +2696,13 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 扣除资源
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         for (let resource in totalUnitCost) {
             if (resource === 'silver') continue; // silver deducted as part of silverCost
             newRes[resource] -= totalUnitCost[resource];
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        _resourcesRef.current = newRes;
         setResourcesWithReason(newRes, 'recruit_unit', { unitId, count: recruitCount });
 
         const trainingSpeedBonus = modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
