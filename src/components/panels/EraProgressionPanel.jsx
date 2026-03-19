@@ -13,20 +13,7 @@ import {
 } from '../../config/diplomacy';
 import { EPOCHS } from '../../config';
 
-/**
- * 时代名称映射
- */
-const ERA_NAMES = {
-    0: '石器时代',
-    1: '青铜时代',
-    2: '铁器时代',
-    3: '古典时代',
-    4: '中世纪',
-    5: '文艺复兴',
-    6: '启蒙时代',
-    7: '工业时代',
-    8: '现代',
-};
+const getEraName = (eraId) => EPOCHS[eraId]?.name || `时代 ${eraId}`;
 
 /**
  * 效果图标映射
@@ -97,8 +84,9 @@ const EffectCard = ({ type, name, value, effect }) => {
  * 时代演进效果面板主组件
  */
 const EraProgressionPanel = ({ currentEra = 0 }) => {
-    const eraName = ERA_NAMES[currentEra] || `时代 ${currentEra}`;
+    const eraName = getEraName(currentEra);
     const progressionEffects = getEraProgressionDescriptions(currentEra);
+    const nextEraName = getEraName(currentEra + 1);
     
     // 计算时代优势
     const eraAdvantage = currentEra; // 相对于时代0的优势
@@ -141,10 +129,10 @@ const EraProgressionPanel = ({ currentEra = 0 }) => {
             </div>
             
             {/* 下一时代预览 */}
-            {currentEra < 8 && (
+            {currentEra < EPOCHS.length - 1 && (
                 <div className="p-2.5 border-t border-gray-700/50 bg-gray-800/30">
                     <div className="text-xs text-gray-400 mb-1.5">
-                        下一时代 ({ERA_NAMES[currentEra + 1]}) 新增效果:
+                        下一时代 ({nextEraName}) 新增效果:
                     </div>
                     <div className="grid grid-cols-3 gap-1.5 text-xs">
                         <div className="text-gray-500">
