@@ -107,6 +107,9 @@ export const STRATEGIC_ACTION = {
 
 export const MIN_REBELLION_INFLUENCE = 0.1;
 
+// 最低叛乱人口门槛：人口低于此值的阶层无法组织有效叛乱
+export const MIN_REBELLION_POPULATION = 10;
+
 // 联合叛乱配置
 export const COALITION_REBELLION_CONFIG = {
     MIN_ORGANIZATION_TO_JOIN: 70,  // 其他阶层加入联合叛乱的最低组织度 (70%)
@@ -546,6 +549,7 @@ export function updateStratumOrganization(
         totalInfluence = 0, // 总影响力
         difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
         organizationGrowthMod = 0, // [NEW] 组织度增长修正 (from cabinet synergy)
+        populationCount = 0, // 该阶层人口数量
     } = options || {};
     // 初始化默认状态
     const state = {
@@ -645,6 +649,17 @@ export function updateStratumOrganization(
         const cappedOrganization = 75;
         if (newOrganization > cappedOrganization) {
             newOrganization = cappedOrganization;
+            if (state.growthRate > 0) {
+                state.growthRate = 0;
+            }
+        }
+    }
+
+    // 人口过少时无法组织有效叛乱，组织度上限50%
+    if (populationCount > 0 && populationCount < MIN_REBELLION_POPULATION) {
+        const lowPopCap = 50;
+        if (newOrganization > lowPopCap) {
+            newOrganization = lowPopCap;
             if (state.growthRate > 0) {
                 state.growthRate = 0;
             }
@@ -790,11 +805,12 @@ export function updateAllOrganizationStates(
                 hasActivePromise,
                 driverContext,
                 hasBasicShortage: !!driverContext.hasBasicShortage,
-                rulingCoalition, // 传递执政联盟成员
-                classInfluence, // 传递各阶层影响力
-                totalInfluence, // 传递总影响力
-                difficultyLevel, // 传递游戏难度
-                organizationGrowthMod, // 传递组织度增长修正
+                rulingCoalition,
+                classInfluence,
+                totalInfluence,
+                difficultyLevel,
+                organizationGrowthMod,
+                populationCount,
             }
         );
     });
