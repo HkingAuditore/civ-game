@@ -54,6 +54,7 @@ import {
     checkOrganizationEvents,
     ORGANIZATION_STAGE,
     MIN_REBELLION_INFLUENCE,
+    MIN_REBELLION_POPULATION,
     checkCoalitionRebellion,
     COALITION_REBELLION_CONFIG,
 } from '../logic/organizationSystem';
@@ -5035,13 +5036,42 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
 
 
                             case 'uprising': {
-                                // 妫€鏌ュ奖鍝嶅姏鍗犳瘮鏄惁瓒冲鍙戝姩鍙涗贡
                                 const stratumInfluence = rebellionStateForEvent.influenceShare;
+                                const stratumPopForRebellion = current.popStructure?.[stratumKey] || 0;
                                 if (epochBlocksRebellion) {
                                     addLog('[组织不足] ' + (STRATA[stratumKey]?.name || stratumKey) + ' 阶层尚未具备发动叛乱能力。');
                                     updatedOrganizationStates[stratumKey] = {
                                         ...updatedOrganizationStates[stratumKey],
                                         organization: 25,
+                                        stage: ORGANIZATION_STAGE.GRUMBLING,
+                                    };
+                                    break;
+                                }
+                                // 人口过少无法组织有效叛乱，按人口外流处理
+                                if (stratumPopForRebellion < MIN_REBELLION_POPULATION) {
+                                    const leaving = Math.max(1, Math.floor(stratumPopForRebellion * 0.1));
+                                    const popWealth = current.classWealth?.[stratumKey] || 0;
+                                    const perCapW = stratumPopForRebellion > 0 ? popWealth / stratumPopForRebellion : 0;
+                                    const fleeCapital = perCapW * leaving;
+
+                                    setPopStructure(prev => ({
+                                        ...prev,
+                                        [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - leaving),
+                                    }));
+                                    setPopulation(prev => reducePopulationWithFloor(prev, leaving));
+
+                                    if (fleeCapital > 0) {
+                                        setClassWealth(prev => ({
+                                            ...prev,
+                                            [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - fleeCapital),
+                                        }), { reason: 'rebellion_fleeing_capital', meta: { stratumKey } });
+                                    }
+
+                                    addLog('[人口不足] ' + (STRATA[stratumKey]?.name || stratumKey) + ' 仅有 ' + stratumPopForRebellion + ' 人，无法组织叛乱，' + leaving + ' 人愤怒离开。');
+
+                                    updatedOrganizationStates[stratumKey] = {
+                                        ...updatedOrganizationStates[stratumKey],
+                                        organization: 40,
                                         stage: ORGANIZATION_STAGE.GRUMBLING,
                                     };
                                     break;

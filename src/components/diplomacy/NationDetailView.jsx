@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button, Card, Tabs, Badge } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, DIPLOMACY_ERA_UNLOCK, BUILDINGS } from '../../config';
@@ -361,7 +361,7 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                                 icon="Flag"
                                 title="求和"
                                 desc="尝试通过谈判结束战争。"
-                                onClick={() => onDiplomaticAction?.(nation.id, 'propose_peace')}
+                                onClick={() => onDiplomaticAction?.(nation.id, 'peace')}
                                 color="purple"
                             />
                         ) : (
