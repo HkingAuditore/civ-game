@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [2.1.7] - 2026-03-20
+
+### Added
+- **音乐播放器显示开关**：`SettingsPanel.jsx` 新增“显示音乐播放器”选项，默认关闭；`App.jsx` 仅在开启时渲染左下角悬浮音乐播放器
+
+### Fixed
+- **建筑营业税输入健壮性**：`BuildingDetails.jsx` 为营业税系数新增限幅（基于 `TAX_LIMITS.MAX_BUSINESS_TAX`）与中间输入态处理，修复无效输入、极端值和正负切换导致的异常税额计算
+- **工资镜像与发薪口径一致性**：`simulation.js` 将建筑级实际发薪按岗位回写到全局 `wages` 镜像，修复价格/招工/投资等依赖模块读取到偏离实际支付工资的问题
+- **事件外交目标过滤与文案异常**：`useGameActions.js` 为事件外交选择器与 `triggerWar/triggerPeace` 增加玩家保护过滤（排除玩家附庸、军事同盟成员）；`EventDetail.jsx` 不再渲染 `exclude` 等控制字段，修复事件面板偶发英文异常标签
+
+### Changed
+- **工资支付双底线机制**：`simulation.js` 在工资结算中新增“雇员生计底线 + 业主保留底线”，并统一按 `preparedWagePlans` 汇总业主工资责任，降低异常工资波动与业主被瞬时掏空的概率
+- **税率说明文案优化**：`BuildingDetails.jsx` 更新建筑收入提示文案，强调实际工资受生计底线、业主保留与支付比例共同约束
+
 ## [2.1.6] - 2026-03-20
 
 ### Fixed
