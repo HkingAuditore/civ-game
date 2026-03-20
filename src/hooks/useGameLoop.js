@@ -1346,6 +1346,7 @@ difficulty, // 游戏难度
                 diplomacyOrganizations: current.diplomacyOrganizations,
                 classWealth: current.classWealth,
                 classApproval: current.classApproval,
+                classLivingStandard: current.classLivingStandard || {},
                 classInfluence: current.classInfluence,
                 totalInfluence: current.totalInfluence,
                 stability: current.stability,

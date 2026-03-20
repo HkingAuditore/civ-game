@@ -14,6 +14,7 @@ import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinet
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 import { debugLog } from '../utils/debugFlags';
 import { processPriceConvergence } from './diplomacy/treatyEffects';
+import { MINISTER_EXPANSION_CONFIG } from '../config/ministerExpansion';
 import {
     calculateCoalitionInfluenceShare,
     calculateLegitimacy,
@@ -493,6 +494,7 @@ export const simulateTick = ({
     market,
     classWealth,
     classApproval: previousApproval = {},
+    classLivingStandard: currentClassLivingStandard = {},
     activeBuffs: productionBuffs = [],
     activeDebuffs: productionDebuffs = [],
     taxPolicies,
@@ -1157,7 +1159,7 @@ export const simulateTick = ({
         classApproval: previousApproval,
         classInfluence: market?.classInfluence || {},
         totalInfluence: market?.totalInfluence || 1,
-        classLivingStandard: market?.classLivingStandard || {},
+        classLivingStandard: currentClassLivingStandard || {},
         classIncome: market?.classIncome || {},
         stability: currentStability / 100, // 转换?-1
         legitimacy: previousLegitimacy,
@@ -1462,7 +1464,7 @@ export const simulateTick = ({
             militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
             buildingCounts,
             unitCategoryCounts,
-            classLivingStandard: market?.classLivingStandard || {},
+            classLivingStandard: currentClassLivingStandard || {},
             classApproval: previousApproval || {},
             officials: officials || [],
             rulingCoalition: rulingCoalition || [],
@@ -4819,7 +4821,7 @@ export const simulateTick = ({
             classApproval: classApproval,
             classInfluence: classInfluence,
             classIncome: estimatedClassIncome,  // [FIX] 使用包含官员收入预估的数?
-            classLivingStandard: market?.classLivingStandard || {},
+            classLivingStandard: currentClassLivingStandard || {},
             totalInfluence: computedTotalInfluence,
             stability: (currentStability ?? 50) / 100,
             rulingCoalition: rulingCoalition,
@@ -7810,7 +7812,8 @@ export const simulateTick = ({
         (role) => ministerAssignments?.[role] && ministerAutoExpansion?.[role] === true
     );
 
-    if (shouldAttemptMinisterExpansion && (tick - (nextLastMinisterExpansionDay.global || 0) >= 5)) {
+    const ministerExpansionCfg = MINISTER_EXPANSION_CONFIG;
+    if (shouldAttemptMinisterExpansion && (tick - (nextLastMinisterExpansionDay.global || 0) >= ministerExpansionCfg.globalCooldownDays)) {
         const difficultyLevel = difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
@@ -7819,86 +7822,99 @@ export const simulateTick = ({
             prices: priceMap,
             wages: market?.wages || {},
         };
-        let bestCandidate = null;
+        const treasurySilver = res.silver || 0;
+        const budgetByRatio = treasurySilver * Math.max(0, ministerExpansionCfg.budgetRatio || 0);
+        const budgetByCap = Number.isFinite(ministerExpansionCfg.maxSilverPerTrigger)
+            ? ministerExpansionCfg.maxSilverPerTrigger
+            : treasurySilver;
+        let remainingBudget = Math.max(0, Math.min(treasurySilver, budgetByRatio, budgetByCap));
+        let builtCount = 0;
+        const builtByRole = {};
+        const expansionLogs = [];
 
-        ECONOMIC_MINISTER_ROLES.forEach((role) => {
-            const officialId = ministerAssignments?.[role];
-            const official = officialId ? ministerRoster.get(officialId) : null;
-            if (!official) return;
+        const findBestCandidate = () => {
+            let bestCandidate = null;
+            ECONOMIC_MINISTER_ROLES.forEach((role) => {
+                const officialId = ministerAssignments?.[role];
+                const official = officialId ? ministerRoster.get(officialId) : null;
+                if (!official) return;
 
-            // [NEW] Check if auto-expansion is enabled for this minister
-            const autoExpansionEnabled = ministerAutoExpansion?.[role] === true;
-            if (!autoExpansionEnabled) return;
-            if (tick - (nextLastMinisterExpansionDay[role] || 0) < 10) return;
+                const autoExpansionEnabled = ministerAutoExpansion?.[role] === true;
+                if (!autoExpansionEnabled) return;
+                const roleBuiltInThisTrigger = (builtByRole[role] || 0) > 0;
+                if (!roleBuiltInThisTrigger && tick - (nextLastMinisterExpansionDay[role] || 0) < ministerExpansionCfg.ministerCooldownDays) return;
 
-            BUILDINGS.forEach((building) => {
-                if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;
-                if (!isBuildingInMinisterScope(building, role)) return;
+                BUILDINGS.forEach((building) => {
+                    if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;
+                    if (!isBuildingInMinisterScope(building, role)) return;
 
-                const staffingRatioRaw = buildingStaffingRatios?.[building.id];
-                const staffingRatio = Number.isFinite(staffingRatioRaw) ? staffingRatioRaw : 1;
-                if (staffingRatio < 0.95) return;
+                    const staffingRatioRaw = buildingStaffingRatios?.[building.id];
+                    const staffingRatio = Number.isFinite(staffingRatioRaw) ? staffingRatioRaw : 1;
+                    if (staffingRatio < ministerExpansionCfg.minStaffingRatio) return;
 
-                const shortageScore = scoreBuildingShortage(building, supplyDemandRatio);
-                if (shortageScore <= 0) return;
+                    const shortageScore = scoreBuildingShortage(building, supplyDemandRatio);
+                    if (shortageScore <= 0) return;
 
-                const currentCount = builds[building.id] || 0;
-                const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
-                const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
-                const silverCost = calculateSilverCost(adjustedCost, { prices: priceMap });
-                if (!Number.isFinite(silverCost) || silverCost <= 0) return;
-                if ((res.silver || 0) < silverCost) return;
+                    const currentCount = builds[building.id] || 0;
+                    const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
+                    const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
+                    const silverCost = calculateSilverCost(adjustedCost, { prices: priceMap });
+                    if (!Number.isFinite(silverCost) || silverCost <= 0) return;
+                    if (silverCost > remainingBudget) return;
+                    if ((res.silver || 0) < silverCost) return;
 
-                const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
-                const profit = profitResult?.profit ?? 0;
-                const operatingCost = (profitResult?.inputValue ?? 0) + (profitResult?.wageCost ?? 0) + (profitResult?.businessTax ?? 0);
+                    const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
+                    const profit = profitResult?.profit ?? 0;
+                    const operatingCost = (profitResult?.inputValue ?? 0) + (profitResult?.wageCost ?? 0) + (profitResult?.businessTax ?? 0);
+                    const roi = operatingCost > 0 ? profit / operatingCost : 0;
 
-                // [FIX] ROI should be calculated based on operating costs, not construction costs
-                // ROI = profit / operating_cost (per turn profitability)
-                const roi = operatingCost > 0 ? profit / operatingCost : 0;
-
-                // [FIX] Consider market saturation: if too many buildings exist, skip
-                // Estimate: if current supply already meets 80%+ of demand, don't build more
-                const outputRes = Object.keys(building.output || {})[0];
-                if (outputRes) {
-                    const supplyRatio = supplyDemandRatio[outputRes];
-                    if (supplyRatio && supplyRatio > 0.8) {
-                        // Market is already well-supplied, building more will crash prices
-                        return;
+                    const outputRes = Object.keys(building.output || {})[0];
+                    if (outputRes) {
+                        const supplyRatio = supplyDemandRatio[outputRes];
+                        if (supplyRatio && supplyRatio > ministerExpansionCfg.maxSupplyDemandRatio) {
+                            return;
+                        }
                     }
-                }
 
-                // Require ROI at least 0.3 (30% margin over costs) to ensure profitability
-                if (roi <= 0.3) return;
+                    if (roi <= ministerExpansionCfg.minRoi) return;
 
-                if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
-                    (shortageScore === bestCandidate.shortageScore && roi > bestCandidate.roi) ||
-                    (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit > bestCandidate.profit) ||
-                    (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit === bestCandidate.profit && silverCost < bestCandidate.silverCost)) {
-                    bestCandidate = {
-                        role,
-                        building,
-                        shortageScore,
-                        silverCost,
-                        profit,
-                        roi,
-                    };
-                }
+                    if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
+                        (shortageScore === bestCandidate.shortageScore && roi > bestCandidate.roi) ||
+                        (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit > bestCandidate.profit) ||
+                        (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit === bestCandidate.profit && silverCost < bestCandidate.silverCost)) {
+                        bestCandidate = {
+                            role,
+                            building,
+                            shortageScore,
+                            silverCost,
+                            profit,
+                            roi,
+                        };
+                    }
+                });
             });
-        });
+            return bestCandidate;
+        };
 
-        if (bestCandidate) {
+        while (builtCount < ministerExpansionCfg.maxBuildsPerTrigger && remainingBudget > 0) {
+            const bestCandidate = findBestCandidate();
+            if (!bestCandidate) break;
+
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
+            builtCount += 1;
+            builtByRole[bestCandidate.role] = (builtByRole[bestCandidate.role] || 0) + 1;
+            remainingBudget = Math.max(0, remainingBudget - bestCandidate.silverCost);
             nextLastMinisterExpansionDay = {
                 ...nextLastMinisterExpansionDay,
                 global: tick,
                 [bestCandidate.role]: tick,
             };
-            // [FIX] 遵守官员日志可见性设置
-            if (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true) {
-                logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
-            }
+            expansionLogs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
+        }
+
+        if (expansionLogs.length > 0 && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
+            expansionLogs.forEach((entry) => logs.push(entry));
         }
     }
 
@@ -8617,7 +8633,7 @@ export const simulateTick = ({
                 severity: starvationDeaths >= Math.max(10, Math.floor((nextPopulation || 0) * 0.02)) ? 'severe' : 'minor',
             }, _t);
         }
-        const _previousLivingStandards = market?.classLivingStandard || {};
+        const _previousLivingStandards = currentClassLivingStandard || {};
         const _allLivingStrata = new Set([
             ...Object.keys(_previousLivingStandards),
             ...Object.keys(classLivingStandard || {}),
