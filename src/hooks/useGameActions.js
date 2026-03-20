@@ -53,7 +53,7 @@ import {
     reducePopulationWithFloor,
 } from '../utils/populationClamp';
 import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
-import { generateFront } from '../logic/diplomacy/frontSystem';
+import { generateFront, getEffectiveFrontWarScore } from '../logic/diplomacy/frontSystem';
 // 外交叛乱干预系统
 import { executeIntervention, INTERVENTION_OPTIONS } from '../logic/diplomacy/rebellionSystem';
 // 内部叛乱系统
@@ -4254,7 +4254,7 @@ export const useGameActions = (gameState, addLog) => {
                     )
                 );
                 const frontWarScore = relevantFronts.length > 0
-                    ? relevantFronts.reduce((sum, f) => sum + (f.warScore || 0), 0)
+                    ? relevantFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
                     : null;
                 const warScore = frontWarScore !== null ? frontWarScore : (targetNation.warScore || 0);
                 const warDuration = targetNation.warDuration || 0;
@@ -6700,7 +6700,7 @@ export const useGameActions = (gameState, addLog) => {
             )
         );
         const frontWarScoreForProposal = relevantFrontsForProposal.length > 0
-            ? relevantFrontsForProposal.reduce((sum, f) => sum + (f.warScore || 0), 0)
+            ? relevantFrontsForProposal.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
             : null;
         const warScore = frontWarScoreForProposal !== null ? frontWarScoreForProposal : (targetNation.warScore || 0);
         const aggression = targetNation.aggression ?? 0.3;

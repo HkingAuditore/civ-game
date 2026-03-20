@@ -456,7 +456,7 @@ import {
     getOverseasInvestmentGroupKey,
     getForeignInvestmentGroupKey,
 } from './diplomacy/overseasInvestment';
-import { getFrontlineEconomicModifiers } from './diplomacy/frontSystem';
+import { getFrontlineEconomicModifiers, getEffectiveFrontWarScore } from './diplomacy/frontSystem';
 import { processManualTradeRoutes } from './economy/manualTrade';
 
 // V2: Helper — compute average approval across all strata
@@ -5862,7 +5862,7 @@ export const simulateTick = ({
                 );
                 if (rebelFronts.length > 0) {
                     // 将战线战争分数同步到 nation.warScore
-                    const totalFrontWarScore = rebelFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    const totalFrontWarScore = rebelFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0);
                     next.warScore = totalFrontWarScore;
                 } else {
                     const rebelResult = processRebelWarActions({
@@ -6043,7 +6043,7 @@ export const simulateTick = ({
                 if (nationFronts.length > 0) {
                     // 将战线战争分数同步到 nation.warScore（取所有战线的加权和）
                     // 战线 warScore 正?玩家优势，与 nation.warScore 方向一?
-                    const totalFrontWarScore = nationFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    const totalFrontWarScore = nationFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0);
                     next.warScore = totalFrontWarScore;
                 } else {
                     // REFACTORED: Using module function for AI military action
@@ -7332,7 +7332,8 @@ export const simulateTick = ({
                 finalPrice = Math.min(finalPrice, maxPrice);
             }
 
-            updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
+            // 内部价格保留完整精度，避免微小变化在写入历史前就被截断成台阶线。
+            updatedPrices[resource] = finalPrice;
         });
         perfEnd('marketUpdate');
     }

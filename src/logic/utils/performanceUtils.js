@@ -187,6 +187,7 @@ export const TICK_PRIORITY = {
  */
 export const PERF_SEGMENT_PRIORITY = {
     // === CRITICAL级：每tick执行（收入/经济流转） ===
+    priceUpdate:        TICK_PRIORITY.CRITICAL,
     preProduction:      TICK_PRIORITY.CRITICAL,
     ownerJobsAdjust:    TICK_PRIORITY.CRITICAL,
     availableResources: TICK_PRIORITY.CRITICAL,

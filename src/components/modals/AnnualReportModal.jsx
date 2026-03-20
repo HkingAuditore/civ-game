@@ -307,9 +307,9 @@ export const AnnualReportModal = ({
                         {/* Economy */}
                         <ReportSection icon={SECTION_ICONS.economy} title="经济概况" commentary={commentaries?.economy} delay={0}>
                             <DataRow icon="Coins" label="国库余额" value={current?.silver} change={changes?.economy?.silver} isFirstYear={isFirstYear} />
-                            <DataRow icon="TrendingUp" label="GDP 总量" value={current?.gdp} change={changes?.economy?.gdp} isFirstYear={isFirstYear} />
-                            <DataRow icon="BarChart" label="消费价格（CPI）" value={current?.cpi} change={changes?.economy?.cpi} isFirstYear={isFirstYear} />
-                            <DataRow icon="Factory" label="生产价格（PPI）" value={current?.ppi} change={changes?.economy?.ppi} isFirstYear={isFirstYear} />
+                            <DataRow icon="TrendingUp" label="年累计 GDP" value={current?.gdp} change={changes?.economy?.gdp} isFirstYear={isFirstYear} />
+                            <DataRow icon="BarChart" label="年均消费价格（CPI）" value={current?.cpi} change={changes?.economy?.cpi} isFirstYear={isFirstYear} />
+                            <DataRow icon="Factory" label="年均生产价格（PPI）" value={current?.ppi} change={changes?.economy?.ppi} isFirstYear={isFirstYear} />
                             <DataRow icon="Banknote" label="日均税收" value={current?.totalTax} change={changes?.economy?.totalTax} isFirstYear={isFirstYear} />
                             <DataRow icon="Wallet" label="日均财政净收入" value={current?.fiscalNetIncome} change={changes?.economy?.fiscalNetIncome} isFirstYear={isFirstYear} />
                         </ReportSection>
