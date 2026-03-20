@@ -22,7 +22,8 @@ description: Summarize and execute civ-game version update workflow, including c
 2. 文案可读：`highlights` 用短句，`changes` 用完整句。
 3. 类型准确：`fix/improve/balance/new/remove` 不混用。
 4. 一次只做一个版本号，避免混入历史内容。
-5. 交付前至少做一次最小验证（`lint` 或 `build`）。
+5. 版本更新后必须运行 `update_version.bat` 同步版本位点。
+6. 交付前至少做一次最小验证（`lint` 或 `build`）。
 
 ## 标准流程
 
@@ -49,14 +50,19 @@ description: Summarize and execute civ-game version update workflow, including c
    - 新版本 `isLatest: true`。
    - 上一个最新版本改为 `isLatest: false`。
 
-5. 质量检查  
+5. 运行版本同步脚本  
+   - 在仓库根目录执行：`update_version.bat`（或 `.\update_version.bat`）。
+   - 脚本失败时不得跳过，需先修复失败原因再继续后续步骤。
+   - 执行后检查 `package.json`、`android/app/build.gradle` 等版本位点是否已同步。
+
+6. 质量检查  
    - 检查文案是否与改动一一对应，不夸大。
    - 检查所有条目都带 `type` 与 `text`。
    - 建议运行：`npm run lint`，必要时补 `npm run build`。
 
-6. 输出交付说明  
+7. 输出交付说明  
    - 告知更新了哪些文件。
-   - 给出本次版本核心亮点与验证结果。
+   - 给出本次版本核心亮点、`update_version.bat` 执行结果与验证结果。
 
 ## changelog 条目模板
 
