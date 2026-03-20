@@ -492,6 +492,15 @@ const MilitaryTabComponent = ({
         onToggleAutoRecruit(checked);
     };
 
+    const handleRecruitCountInputChange = (rawValue) => {
+        const parsed = parseInt(rawValue, 10);
+        if (!Number.isFinite(parsed)) {
+            setRecruitCount(1);
+            return;
+        }
+        setRecruitCount(Math.max(1, Math.min(9999, parsed)));
+    };
+
     const handleMouseEnter = (e, unit) => {
         if (canHover) setHoveredUnit({ unit, element: e.currentTarget });
     };
@@ -960,7 +969,7 @@ const MilitaryTabComponent = ({
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500">招募</span>
                                 <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
-                                    {[1, 10, 100, 1000].map((n) => (
+                                    {[1, 10].map((n) => (
                                         <button
                                             key={n}
                                             onClick={() => setRecruitCount(n)}
@@ -974,6 +983,16 @@ const MilitaryTabComponent = ({
                                         </button>
                                     ))}
                                 </div>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={9999}
+                                    step={1}
+                                    value={recruitCount}
+                                    onChange={(e) => handleRecruitCountInputChange(e.target.value)}
+                                    className="w-16 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100"
+                                    title="自定义招募数量"
+                                />
                             </div>
 
                             <div className="flex items-center gap-2">

@@ -93,12 +93,13 @@ const NationDetailView = ({
         ? relationInfo(nation)
         : { value: 0, label: '未知', color: 'text-ancient-stone', bg: '' };
 
-    const capacityUsage = Number.isFinite(economyMetrics.capacityUsage)
-        ? economyMetrics.capacityUsage
-        : null;
     const carryingCapacity = Number.isFinite(economyMetrics.carryingCapacity)
         ? economyMetrics.carryingCapacity
         : null;
+    // UI 口径统一：优先用当前展示的人口 / 承载上限计算承载率，避免缓存指标短暂不同步导致展示矛盾
+    const capacityUsage = carryingCapacity && carryingCapacity > 0
+        ? (Number(nation.population) || 0) / carryingCapacity
+        : (Number.isFinite(economyMetrics.capacityUsage) ? economyMetrics.capacityUsage : null);
     const annualOutput = Number.isFinite(economyMetrics.annualOutput)
         ? economyMetrics.annualOutput
         : (Number.isFinite(nation.gdp) ? nation.gdp : null);

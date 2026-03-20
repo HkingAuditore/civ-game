@@ -808,8 +808,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         return totalIncome / popCount;
     }, [popStructure, classFinancialData]);
 
-    const handleMaxBuy = () => {
-        setBuyCount(maxBuyCount);
+    const handleBuyCountInputChange = (rawValue) => {
+        const parsed = parseInt(rawValue, 10);
+        if (!Number.isFinite(parsed)) {
+            setBuyCount(1);
+            return;
+        }
+        const clamped = Math.max(1, Math.min(maxBuyCount, parsed));
+        setBuyCount(clamped);
     };
 
     // ... (rest of the component)
@@ -1393,7 +1399,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         <div className="flex flex-col gap-2">
                         {/* 建造数量选择器 */}
                         <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
-                            {[1, 10, 100, 1000].map(n => (
+                            {[1, 10].map(n => (
                                     <button
                                         key={`buy-${n}`}
                                         onClick={() => setBuyCount(n)}
@@ -1405,6 +1411,16 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         x{n}
                                     </button>
                                 ))}
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={maxBuyCount}
+                                    step={1}
+                                    value={normalizedBuyCount}
+                                    onChange={(e) => handleBuyCountInputChange(e.target.value)}
+                                    className="w-16 bg-gray-900/70 border border-gray-600 rounded px-1 py-1 text-xs text-gray-200 text-center"
+                                    title="自定义建造数量"
+                                />
                             </div>
                             <button
                                 onClick={() => onBuy && onBuy(building.id, normalizedBuyCount)}
