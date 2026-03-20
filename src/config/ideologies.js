@@ -388,7 +388,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '感官会欺骗，记忆会模糊，唯有理性之光永不熄灭，在那光中，真理澄明如镜。',
         lore: '"我思故我在。" ——勒内·笛卡尔',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { minTechs: 20 }, multiplier: 1.5 },
         ],
@@ -437,7 +437,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '在虚无的深渊边缘，人必须自己选择成为什么样的人，这选择本身就是自由。',
         lore: '"存在先于本质。" ——让-保罗·萨特',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { stabilityBelow: 40 }, multiplier: 1.5 },
         ],
@@ -651,7 +651,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '当千万人的心跳在同一面旗帜下共鸣，个体的血流便汇成一条民族的河流。',
         lore: '"民族是什么？它是一个灵魂、一种精神原则。" ——厄内斯特·勒南',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { minEpoch: 5 }, multiplier: 1.5 },
         ],
@@ -714,7 +714,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '政府与人民之间有一份不成文的契约：以服从换取保护，以让渡部分自由换取剩余的自由。',
         lore: '"人是生而自由的，却无往不在枷锁之中。" ——让-雅克·卢梭',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -833,7 +833,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '让市场自己说话，那只看不见的手，比任何宰相的算计都更加精明。',
         lore: '"每一个人……既不打算促进公共利益，却被一只看不见的手引导着……" ——亚当·斯密',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -968,7 +968,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '当市场无法追赶时代的脚步，国家便亲自下场，以铁腕推动工业的引擎。',
         lore: '"国家不应成为经济生活的旁观者。" ——弗里德里希·李斯特',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1099,7 +1099,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 3,
         desc: '以眼还眼只会让整个世界陷入黑暗，另一种力量正在觉醒：非暴力的力量。',
         lore: '"以眼还眼，只会让整个世界变瞎。" ——莫罕达斯·甘地',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { noPeacefulYears: 10 }, multiplier: 0.5 }, // 长期和平更容易出现
         ],
@@ -1248,7 +1248,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '谁掌握了海洋，谁就握住了世界贸易的咽喉；谁握住了贸易，谁就握住了世界。',
         lore: '"谁控制了海洋，谁就控制了世界贸易；谁控制了世界贸易，谁就控制了世界。" ——阿尔弗雷德·马汉',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1371,7 +1371,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '理性的光辉太过冰冷，真正的艺术要燃烧，让情感冲破形式的牢笼。',
         lore: '"一切艺术都源于激情。" ——维克多·雨果',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1421,7 +1421,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '光影在画布上颤动，那一瞬间的光芒被永远留住，艺术不再复制现实，而是捕捉感受。',
         lore: '"色彩是我的痴迷，是长久的执念。" ——克劳德·莫奈',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1491,7 +1491,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '怀疑是科学的起点，实验是真理的审判席，让事实说话，让假设跪下。',
         lore: '"知识就是力量。" ——弗朗西斯·培根',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1541,7 +1541,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '蒸汽、电力、代码，人类的双手正在创造上帝未曾赐予的奇迹。',
         lore: '"任何足够先进的技术都与魔法无异。" ——阿瑟·克拉克',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1591,7 +1591,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '当一个人跪下时，另一个人就必须骑在他背上，让我们都站起来。',
         lore: '"人人生而平等，造物主赋予他们若干不可转让的权利。" ——托马斯·杰斐逊',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1699,7 +1699,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '在国家的巨轮与个人的浮木之间，有一片由公民自己编织的网，那是自由真正生长的土壤。',
         lore: '"在美国，无论哪里都能看到人们在结社。" ——亚历克西·德·托克维尔',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1749,7 +1749,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 1,
         desc: '通过冥想与修行达到与神圣的直接合一，超越理性的体验是最高真理。',
         lore: '"神秘主义不是逃避现实，而是深入现实的本质。" ——鲁米',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1864,7 +1864,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 1,
         desc: '人不因善而行动，只因利害而行动。严刑峻法，才是治国的良方。',
         lore: '"法不阿贵，绳不挠曲。" ——韩非子',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
