@@ -217,6 +217,69 @@ const mergeCorpsReplenishQueue = (currentQueue = {}, pendingUpdates = {}, corpsL
     return next;
 };
 
+const cloneBuildingUpgrades = (buildingUpgrades = {}) => {
+    const cloned = {};
+    Object.entries(buildingUpgrades || {}).forEach(([buildingId, levelCounts]) => {
+        const nextLevelCounts = {};
+        Object.entries(levelCounts || {}).forEach(([levelKey, rawCount]) => {
+            const count = Number(rawCount || 0);
+            if (!Number.isFinite(count) || count <= 0) return;
+            nextLevelCounts[levelKey] = count;
+        });
+        if (Object.keys(nextLevelCounts).length > 0) {
+            cloned[buildingId] = nextLevelCounts;
+        }
+    });
+    return cloned;
+};
+
+const applyBuildingUpgradeDelta = (target, buildingId, levelKey, delta) => {
+    if (!delta) return;
+    if (!target[buildingId]) target[buildingId] = {};
+    const current = Number(target[buildingId][levelKey] || 0);
+    const next = current + delta;
+    if (next > 0) {
+        target[buildingId][levelKey] = next;
+    } else {
+        delete target[buildingId][levelKey];
+        if (Object.keys(target[buildingId]).length === 0) {
+            delete target[buildingId];
+        }
+    }
+};
+
+// 合并 tick 期间发生的建筑升级变更，防止 simulation 写回覆盖玩家操作
+const mergeLateBuildingUpgradeChanges = (simulatedUpgrades, currentUpgrades, tickBaseUpgrades) => {
+    const merged = cloneBuildingUpgrades(simulatedUpgrades || {});
+    const base = tickBaseUpgrades || {};
+    const current = currentUpgrades || {};
+
+    const buildingIds = new Set([
+        ...Object.keys(base),
+        ...Object.keys(current),
+    ]);
+
+    buildingIds.forEach((buildingId) => {
+        const baseLevels = base[buildingId] || {};
+        const currentLevels = current[buildingId] || {};
+        const levelKeys = new Set([
+            ...Object.keys(baseLevels),
+            ...Object.keys(currentLevels),
+        ]);
+
+        levelKeys.forEach((levelKey) => {
+            const before = Number(baseLevels[levelKey] || 0);
+            const after = Number(currentLevels[levelKey] || 0);
+            const delta = after - before;
+            if (delta !== 0) {
+                applyBuildingUpgradeDelta(merged, buildingId, levelKey, delta);
+            }
+        });
+    });
+
+    return merged;
+};
+
 const aggregateCorpsReplenishDemand = (corpsReplenishQueue = {}, corpsList = []) => {
     const corpsMap = new Map((corpsList || []).filter(Boolean).map((corps) => [corps.id, corps]));
     const aggregatedDemand = {};
@@ -1235,6 +1298,7 @@ difficulty, // 游戏难度
 
             // [FIX] 合并玩家操作增量到 simulation 输入，防止 tick 覆盖用户操作
             let mergedBuildings = current.buildings;
+            const tickBaseBuildingUpgrades = current.buildingUpgrades;
             let mergedResources = current.resources;
             let consumedPendingDeltas = null; // 记录本次消费的 delta，用于 tick 结果写回时校验
             if (pendingActionsRef?.current) {
@@ -3092,7 +3156,11 @@ difficulty, // 游戏难度
                     }
                     // Update building upgrades from owner auto-upgrade
                     if (nextBuildingUpgrades) {
-                        setBuildingUpgrades(nextBuildingUpgrades);
+                        setBuildingUpgrades(prev => mergeLateBuildingUpgradeChanges(
+                            nextBuildingUpgrades,
+                            prev,
+                            tickBaseBuildingUpgrades
+                        ));
                     }
                     if (coupOutcome?.event) {
                         setRebellionStates(prev => ({
