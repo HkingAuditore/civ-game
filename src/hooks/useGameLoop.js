@@ -2135,6 +2135,9 @@ difficulty, // 游戏难度
                             const curState = {
                                 stability: result.stability ?? latestState.stability ?? 50,
                                 population: result.population ?? latestState.population ?? 0,
+                                epoch: latestState.epoch ?? epoch ?? 0,
+                                techsUnlocked: latestState.techsUnlocked || techsUnlocked || [],
+                                rulingCoalition: latestState.rulingCoalition || rulingCoalition || [],
                                 buildings: latestState.buildings || {},
                                 resources: adjustedResources,
                                 popStructure: result.popStructure || latestState.popStructure || {},

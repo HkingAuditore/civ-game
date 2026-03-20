@@ -4,9 +4,20 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.1.7',
+        version: '2.1.8',
         date: '2026-03-20',
         isLatest: true,
+        highlights: ['修复建筑升级写回竞态覆盖玩家操作', '理念稀有度分布调整为更高常见性'],
+        changes: [
+            { type: 'fix', text: '修复 tick 期间建筑升级写回的竞态问题：当玩家在同一 tick 内进行升级操作时，simulation 结果不再覆盖当帧玩家变更，避免升级数量被回滚或丢失。' },
+            { type: 'improve', text: '新增建筑升级延迟变更合并逻辑：按 tick 基线对比 current 状态，计算并合并升级增量，确保自动升级与玩家手动操作可同时正确落地。' },
+            { type: 'balance', text: '调整多项理念卡牌稀有度，将部分 uncommon 下调为 common，提升这些理念在流程中的出现概率与可获得性。' },
+        ],
+    },
+    {
+        version: '2.1.7',
+        date: '2026-03-20',
+        isLatest: false,
         highlights: ['建筑营业税输入加限幅与容错', '工资系统新增双底线并回写全局工资镜像', '事件外交目标过滤修复附庸/同盟误触发开战'],
         changes: [
             { type: 'fix', text: '修复建筑营业税系数输入在无效值、极端值与正负切换时的异常表现：税率输入改为支持中间输入态，并统一按 TAX_LIMITS.MAX_BUSINESS_TAX 限幅。' },
