@@ -814,6 +814,7 @@ const DEFAULT_EVENT_EFFECT_SETTINGS = {
     logVisibility: {
         showMerchantTradeLogs: true,
         showTradeRouteLogs: true,
+        showMusicPlayer: false,
     },
 };
 

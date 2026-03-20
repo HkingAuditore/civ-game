@@ -3094,6 +3094,35 @@ export const simulateTick = ({
         const buildingWageConfig = b.marketConfig?.wage || {};
         const wageMode = buildingWageConfig.wageMode;
         const subsistenceMultiplier = buildingWageConfig.subsistenceMultiplier || 1.5;
+        const buildingWageLivingCosts = buildLivingCostMap(livingCostBreakdown, buildingWageConfig);
+        const getBuildingLivingCostFloor = (role) => {
+            const base = buildingWageLivingCosts?.[role];
+            if (!Number.isFinite(base) || base <= 0) {
+                return BASE_WAGE_REFERENCE * 0.8;
+            }
+            return Math.max(BASE_WAGE_REFERENCE * 0.8, base * 1.1);
+        };
+        const ownerIncomeFloorMultiplier = Number.isFinite(buildingWageConfig.ownerIncomeFloorMultiplier)
+            ? Math.max(0, buildingWageConfig.ownerIncomeFloorMultiplier)
+            : 1.15;
+        const ownerIncomeFloorPerCapitaOverride = Number.isFinite(buildingWageConfig.ownerIncomeFloorPerCapita)
+            ? Math.max(0, buildingWageConfig.ownerIncomeFloorPerCapita)
+            : null;
+        const getOwnerIncomeFloorPerCapita = (ownerKey) => {
+            if (ownerIncomeFloorPerCapitaOverride !== null) {
+                return ownerIncomeFloorPerCapitaOverride;
+            }
+            return getBuildingLivingCostFloor(ownerKey) * ownerIncomeFloorMultiplier;
+        };
+        const ownerSlotsByKey = {};
+        Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+            if (lvlCount <= 0) return;
+            const lvl = parseInt(lvlStr);
+            const config = getBuildingEffectiveConfig(b, lvl);
+            const ownerKey = config.owner || 'state';
+            const ownerSlots = config.jobs?.[ownerKey] || 0;
+            ownerSlotsByKey[ownerKey] = (ownerSlotsByKey[ownerKey] || 0) + ownerSlots * lvlCount;
+        });
 
         const preparedWagePlans = wagePlans.map(plan => {
             // ownerKey is required for per-building wage distribution payment.
@@ -3128,11 +3157,13 @@ export const simulateTick = ({
             // This prevents the runaway wage inflation/deflation feedback loop
             if (wageMode === 'subsistence') {
                 // Get the role's living cost as the wage base
-                const roleLivingCost = wageLivingCosts?.[plan.role] || getLivingCostFloor(plan.role);
+                const roleLivingCost = buildingWageLivingCosts?.[plan.role] || getBuildingLivingCostFloor(plan.role);
                 // Wage = living cost × multiplier (e.g., 1.5 = subsistence + 50% buffer)
                 // This is a FIXED wage based on actual needs, not market dynamics
                 expectedSlotWage = roleLivingCost * subsistenceMultiplier;
             }
+            // 双底线之雇员底线：每个岗位必须至少覆盖该建筑的生计下限
+            expectedSlotWage = Math.max(expectedSlotWage, getBuildingLivingCostFloor(plan.role));
 
             const due = expectedSlotWage * plan.filled;
             plannedWageBill += due;
@@ -3155,36 +3186,12 @@ export const simulateTick = ({
         buildingFinancialData[b.id].wagePaidRatioByOwner = ownerPaidRatio;
 
         if (plannedWageBill > 0) {
-            // === 按等级精确计算每?owner 的工资责?===
-            // 构建 ownerWageBills: { ownerKey: totalWageBill }
+            // 使用 preparedWagePlans 汇总 owner 责任，确保与 expectedSlotWage 完全同口径
             const ownerWageBills = {};
-            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
-                if (lvlCount <= 0) return;
-                const lvl = parseInt(lvlStr);
-                const config = getBuildingEffectiveConfig(b, lvl);
-                const ownerKey = config.owner || 'state';
-                if (!ownerWageBills[ownerKey]) ownerWageBills[ownerKey] = 0;
-
-                // 计算该等级的工资成本
-                if (config.jobs) {
-                    Object.entries(config.jobs).forEach(([role, slots]) => {
-                        // 跳过业主角色
-                        if (role === ownerKey) return;
-
-                        let wage;
-                        // Subsistence wage mode - use fixed living-cost based wages
-                        if (wageMode === 'subsistence') {
-                            const roleLivingCost = wageLivingCosts?.[role] || getLivingCostFloor(role);
-                            wage = roleLivingCost * subsistenceMultiplier;
-                        } else {
-                            // Default: use market-based expected wage
-                            wage = getExpectedWage(role);
-                        }
-
-                        const levelWageCost = slots * lvlCount * wage * utilization * (levelWagePressures[lvl] || 1);
-                        ownerWageBills[ownerKey] += levelWageCost;
-                    });
-                }
+            preparedWagePlans.forEach((plan) => {
+                if (plan.filled <= 0 || plan.expectedSlotWage <= 0) return;
+                ownerWageBills[plan.ownerKey] = (ownerWageBills[plan.ownerKey] || 0)
+                    + (plan.expectedSlotWage * plan.filled);
             });
 
             // 按每?owner 的实际工资责任支付（并记录每?owner 的支付比例）
@@ -3205,6 +3212,11 @@ export const simulateTick = ({
                     });
                     reservedWealth *= 1.2;
                 }
+                // 双底线之业主底线：至少保留业主人均收入底线对应的总财富空间
+                const ownerSlots = Math.max(1, ownerSlotsByKey[oKey] || 1);
+                const ownerIncomeFloorPerCapita = getOwnerIncomeFloorPerCapita(oKey);
+                const ownerIncomeReserve = ownerIncomeFloorPerCapita * ownerSlots;
+                reservedWealth = Math.max(reservedWealth, ownerIncomeReserve);
 
                 const disposableWealth = Math.max(0, available - reservedWealth);
                 const paid = Math.min(disposableWealth, ownerBill);
@@ -8707,6 +8719,30 @@ export const simulateTick = ({
         });
     }
 
+    // 将建筑级实际发薪回写为全局工资镜像，兼容价格/招工/投资等依赖
+    const mirroredWages = { ...updatedWages };
+    const totalPaidByRole = {};
+    const totalFilledByRole = {};
+    Object.values(buildingFinancialData || {}).forEach((finance) => {
+        if (!finance) return;
+        Object.entries(finance.wagesByRole || {}).forEach(([role, paid]) => {
+            if (!Number.isFinite(paid) || paid <= 0) return;
+            totalPaidByRole[role] = (totalPaidByRole[role] || 0) + paid;
+        });
+        Object.entries(finance.filledByRole || {}).forEach(([role, filled]) => {
+            if (!Number.isFinite(filled) || filled <= 0) return;
+            totalFilledByRole[role] = (totalFilledByRole[role] || 0) + filled;
+        });
+    });
+    Object.entries(totalFilledByRole).forEach(([role, totalFilled]) => {
+        const totalPaid = totalPaidByRole[role] || 0;
+        if (totalFilled <= 0) return;
+        const avgPaid = totalPaid / totalFilled;
+        if (Number.isFinite(avgPaid)) {
+            mirroredWages[role] = parseFloat(avgPaid.toFixed(2));
+        }
+    });
+
     return {
         officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
         _perf: {
@@ -8742,7 +8778,7 @@ export const simulateTick = ({
             prices: updatedPrices,
             demand,
             supply,
-            wages: updatedWages,
+            wages: mirroredWages,
             needsShortages: classShortages,
             stratumConsumption, // NEW: Return actual consumption breakdown
             supplyBreakdown,    // NEW: Return supply breakdown
