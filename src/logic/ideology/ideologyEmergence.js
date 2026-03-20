@@ -5,6 +5,32 @@
 
 import { IDEOLOGIES, IDEOLOGY_MAP } from '../../config/ideologies';
 
+const RARITY_WEIGHT_MULTIPLIERS = {
+    common: 1,
+    uncommon: 0.85,
+    rare: 0.65,
+    legendary: 0.4,
+};
+
+const RARITY_BONUS_MULTIPLIERS = {
+    uncommon: [1, 1.4, 1.9, 2.5],
+    rare: [1, 1.9, 3.2, 5.2],
+    legendary: [1, 3.2, 6.5, 11],
+};
+
+const RARITY_TIERS = {
+    common: 0,
+    uncommon: 1,
+    rare: 2,
+    legendary: 3,
+};
+
+const MIN_RARITY_BY_SKIP = {
+    1: 'uncommon',
+    2: 'rare',
+    3: 'rare',
+};
+
 /**
  * 从可用理念池中加权随机抽取3个候选理念
  * @param {Object} gameState - 游戏状态
@@ -13,7 +39,7 @@ import { IDEOLOGIES, IDEOLOGY_MAP } from '../../config/ideologies';
  * @returns {Array} 3个候选理念对象 [{ ...ideologyConfig, isUpgrade: boolean, currentLevel: number }]
  */
 export function generateEmergenceCandidates(gameState, ideologyCollection = [], rarityBonus = 0) {
-    const { epoch = 0, techsUnlocked = [], rulingCoalition = [] } = gameState;
+    const { epoch = 0, rulingCoalition = [] } = gameState;
 
     // 构建已拥有理念的等级映射
     const ownedMap = {};
@@ -37,21 +63,23 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
     }
 
     // 计算每个理念的权重
+    const normalizedBonus = Math.max(0, Math.min(Number(rarityBonus || 0), 3));
     const weightedPool = availablePool.map(ideology => {
         let weight = 10; // 基础权重
 
         // 稀有度调整
-        if (ideology.rarity === 'legendary') weight *= 0.25;
-        else if (ideology.rarity === 'rare') weight *= 0.5;
-        else if (ideology.rarity === 'uncommon') weight *= 0.75;
+        weight *= RARITY_WEIGHT_MULTIPLIERS[ideology.rarity] || 1;
 
-        // 跳过累积的稀有度加成：每次跳过提升高稀有度理念的权重
-        // rarityBonus 上限为3，legendary最多提升到与common相当（0.25 * 4 = 1.0）
-        if (rarityBonus > 0) {
-            const bonus = Math.min(rarityBonus, 3);
-            if (ideology.rarity === 'legendary') weight *= (1 + bonus * 1.25); // 最多 *4.75
-            else if (ideology.rarity === 'rare')  weight *= (1 + bonus * 0.5);  // 最多 *2.5
-            else if (ideology.rarity === 'uncommon') weight *= (1 + bonus * 0.2); // 最多 *1.6
+        // 跳过累积的稀有度加成：强化稀有理念，并轻微压低 common 的存在感
+        if (normalizedBonus > 0) {
+            if (ideology.rarity === 'common') {
+                weight *= Math.max(0.45, 1 - normalizedBonus * 0.12);
+            } else {
+                const bonusTable = RARITY_BONUS_MULTIPLIERS[ideology.rarity];
+                if (bonusTable) {
+                    weight *= bonusTable[normalizedBonus];
+                }
+            }
         }
 
         // 时代匹配加成
@@ -77,7 +105,7 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
 
         // 已拥有但未满级的理念有适度权重（鼓励强化但不过度）
         if (ownedMap[ideology.id]) {
-            weight *= 0.8;
+            weight *= normalizedBonus > 0 ? 0.55 : 0.7;
         }
 
         return { ideology, weight: Math.max(weight, 0.1) };
@@ -87,21 +115,29 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
     const selected = [];
     const pool = [...weightedPool];
 
-    for (let i = 0; i < 3 && pool.length > 0; i++) {
-        const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
-        let rand = Math.random() * totalWeight;
-        let selectedIndex = 0;
-
-        for (let j = 0; j < pool.length; j++) {
-            rand -= pool[j].weight;
-            if (rand <= 0) {
-                selectedIndex = j;
-                break;
+    // 跳过后的保底机制：确保下一次至少出现更高稀有度的候选
+    const guaranteedMinRarity = MIN_RARITY_BY_SKIP[normalizedBonus];
+    if (guaranteedMinRarity) {
+        const guaranteedCandidate = _pickWeighted(
+            pool.filter(({ ideology }) => _getRarityTier(ideology.rarity) >= _getRarityTier(guaranteedMinRarity))
+        );
+        if (guaranteedCandidate) {
+            selected.push(guaranteedCandidate.ideology);
+            const guaranteedIndex = pool.findIndex(item => item.ideology.id === guaranteedCandidate.ideology.id);
+            if (guaranteedIndex >= 0) {
+                pool.splice(guaranteedIndex, 1);
             }
         }
+    }
 
-        selected.push(pool[selectedIndex].ideology);
-        pool.splice(selectedIndex, 1);
+    for (let i = selected.length; i < 3 && pool.length > 0; i++) {
+        const picked = _pickWeighted(pool);
+        if (!picked) break;
+        selected.push(picked.ideology);
+        const selectedIndex = pool.findIndex(item => item.ideology.id === picked.ideology.id);
+        if (selectedIndex >= 0) {
+            pool.splice(selectedIndex, 1);
+        }
     }
 
     // 保证至少1个可选（未拥有或未满级）
@@ -113,6 +149,23 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
     }
 
     return selected.map(ideology => _enrichCandidate(ideology, ownedMap));
+}
+
+function _pickWeighted(pool = []) {
+    if (!pool.length) return null;
+    const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
+    let rand = Math.random() * totalWeight;
+    for (let j = 0; j < pool.length; j++) {
+        rand -= pool[j].weight;
+        if (rand <= 0) {
+            return pool[j];
+        }
+    }
+    return pool[pool.length - 1] || null;
+}
+
+function _getRarityTier(rarity) {
+    return RARITY_TIERS[rarity] ?? 0;
 }
 
 /**

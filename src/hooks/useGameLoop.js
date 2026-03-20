@@ -105,6 +105,8 @@ import {
     getEnemySide,
     summarizeFrontState,
     getBoundedHomelandPressure,
+    getEffectiveFrontWarScore,
+    getWarScoreBreakdownTotal,
 } from '../logic/diplomacy/frontSystem';
 import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic, processReinforcement, isBattleActive } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits, findBestReplenishTarget } from '../logic/diplomacy/corpsSystem';
@@ -310,13 +312,6 @@ const getBuildingDisplayName = (buildingId) => {
     if (!buildingId) return '未知建筑';
     return BUILDINGS.find((building) => building.id === buildingId)?.name || String(buildingId).replace(/_/g, ' ');
 };
-
-const getFrontWarScoreTotal = (breakdown = {}) => (
-    Number(breakdown?.battle || 0)
-    + Number(breakdown?.advance || 0)
-    + Number(breakdown?.economic || 0)
-    + Number(breakdown?.homeland || 0)
-);
 
 const getBattleLossTotal = (losses = {}) => (
     Object.values(losses || {}).reduce((sum, count) => sum + Number(count || 0), 0)
@@ -730,6 +725,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setFestivalModal,
         annualReportBaseline,
         setAnnualReportBaseline,
+        annualReportAccumulator,
+        setAnnualReportAccumulator,
         lastFestivalYear,
         setLastFestivalYear,
         setHistory,
@@ -852,6 +849,7 @@ difficulty, // 游戏难度
         classApproval,
         daysElapsed,
         annualReportBaseline,
+        annualReportAccumulator,
         lastFestivalYear,
         // [FIX] Add economic data for annual report snapshot
         economicIndicators,
@@ -1023,6 +1021,7 @@ difficulty, // 游戏难度
             classApproval,
             daysElapsed,
             annualReportBaseline,
+            annualReportAccumulator,
             lastFestivalYear,
             // [FIX] Add economic data for annual report snapshot
             economicIndicators,
@@ -1080,7 +1079,7 @@ difficulty, // 游戏难度
             pendingIdeologyEmergence,
             ideologyEmergenceRarityBonus,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, ideologyEmergenceRarityBonus, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, annualReportAccumulator, lastFestivalYear, economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, ideologyEmergenceRarityBonus, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
@@ -2052,6 +2051,24 @@ difficulty, // 游戏难度
                 console.log('鉁?Calculated Indicators:', indicators);
                 console.groupEnd();
                 setEconomicIndicators(indicators);
+                setAnnualReportAccumulator(prev => {
+                    const base = prev || {
+                        daysCount: 0,
+                        gdpSum: 0,
+                        cpiSum: 0,
+                        ppiSum: 0,
+                        taxSum: 0,
+                        fiscalNetIncomeSum: 0,
+                    };
+                    return {
+                        daysCount: (base.daysCount || 0) + 1,
+                        gdpSum: (base.gdpSum || 0) + Number(indicators.gdp?.total || 0),
+                        cpiSum: (base.cpiSum || 0) + Number(indicators.cpi?.index || 0),
+                        ppiSum: (base.ppiSum || 0) + Number(indicators.ppi?.index || 0),
+                        taxSum: (base.taxSum || 0) + Number(treasuryIncome || 0),
+                        fiscalNetIncomeSum: (base.fiscalNetIncomeSum || 0) + Number(netTreasuryChange || 0),
+                    };
+                });
 
                 const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
                     ? result._debug.startingSilver
@@ -2706,6 +2723,7 @@ difficulty, // 游戏难度
                             ...safeHistory,
                             treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
                             tax: appendValue(safeHistory.tax, treasuryIncome || 0),
+                            fiscalNetIncome: appendValue(safeHistory.fiscalNetIncome, netTreasuryChange || 0),
                             population: appendValue(safeHistory.population, nextPopulation || 0),
                             // 缁忔祹鎸囨爣鍘嗗彶
                             gdp: appendValue(safeHistory.gdp, indicators.gdp?.total || 0),
@@ -3317,7 +3335,7 @@ difficulty, // 游戏难度
                                     return {
                                         ...f,
                                         activeBattleId: updatedBattle.status === 'active' ? updatedBattle.id : null,
-                                        warScore: Math.max(-500, Math.min(500, getFrontWarScoreTotal(warScoreBreakdown))),
+                                        warScore: Math.max(-500, Math.min(500, getWarScoreBreakdownTotal(warScoreBreakdown))),
                                         warScoreBreakdown,
                                     };
                                 });
@@ -3653,7 +3671,7 @@ difficulty, // 游戏难度
                             };
                             let updatedFront = {
                                 ...f,
-                                warScore: Math.max(-200, Math.min(200, getFrontWarScoreTotal(warScoreBreakdown))),
+                                warScore: Math.max(-200, Math.min(200, getWarScoreBreakdownTotal(warScoreBreakdown))),
                                 frictionLog,
                                 economicDamageBreakdown: mergedEconomicDamage,
                                 warScoreBreakdown,
@@ -4062,7 +4080,7 @@ difficulty, // 游戏难度
                                 raidIntensity: resolvedSummary.raidIntensity,
                                 entrenchment: resolvedSummary.entrenchment,
                                 contestedZone: resolvedSummary.contestedZone,
-                                warScore: Math.max(-500, Math.min(500, getFrontWarScoreTotal(nextWarScoreBreakdown))),
+                                warScore: Math.max(-500, Math.min(500, getWarScoreBreakdownTotal(nextWarScoreBreakdown))),
                                 warScoreBreakdown: nextWarScoreBreakdown,
                                 economicDamageBreakdown: {
                                     supplyLineDamage: Number(advancedFront.economicDamageBreakdown?.supplyLineDamage || 0),
@@ -6249,7 +6267,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             )
                                         );
                                         const frontWarScore = nationFronts.length > 0
-                                            ? nationFronts.reduce((sum, f) => sum + (f.warScore || 0), 0)
+                                            ? nationFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
                                             : null;
                                         const effectiveWarScore = frontWarScore !== null ? frontWarScore : (nation.warScore || 0);
                                         debugLog('event', '[EVENT DEBUG] Parameters:', {

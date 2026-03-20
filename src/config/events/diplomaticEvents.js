@@ -12,6 +12,9 @@ export const REBEL_DEMAND_SURRENDER_TYPE = {
     MASSACRE: 'massacre'
 };
 
+const VASSAL_WAR_SCORE_THRESHOLD = 300;
+const ANNEX_WAR_SCORE_THRESHOLD = 500;
+
 /**
  * Creates a rebel surrender demand event with multiple options
  * @param {Object} nation - The rebel nation
@@ -239,7 +242,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const vassalUnlocked = epoch >= 3;
 
     // 根据战争分数提供不同选项
-    if (warScore > 500) {
+    if (warScore >= ANNEX_WAR_SCORE_THRESHOLD) {
         const highTribute = Math.max(baseTribute * 2, paymentSet.high);
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
@@ -254,7 +257,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
             effects: {},
             callback: () => callback(true, 'annex', annexPopulation),
         });
-        if (vassalUnlocked) {
+        if (vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal',
                 text: '要求成为附庸国',
@@ -262,7 +265,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
                 effects: {},
                 callback: () => callback(true, 'vassal', 0),
             });
-        } else {
+        } else if (!vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal_locked',
                 text: '🔒 要求成为附庸国',
@@ -430,7 +433,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     });
 
     let description = '';
-    if (warScore > 450) {
+    if (warScore >= ANNEX_WAR_SCORE_THRESHOLD) {
         description = `${nation.name}的政权濒临崩溃,使节带着投降书恳求无条件和平。`;
     } else if (warScore > 200) {
         description = `${nation.name}在连番败仗后愿意支付沉重赔偿以换取停火。`;
@@ -442,8 +445,8 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
 
     return {
         id: `enemy_peace_request_${nation.id}_${Date.now()}`,
-        name: warScore > 450 ? `${nation.name}的投降书` : `${nation.name}的和谈请求`,
-        icon: warScore > 450 ? 'Flag' : 'HandHeart',
+        name: warScore >= ANNEX_WAR_SCORE_THRESHOLD ? `${nation.name}的投降书` : `${nation.name}的和谈请求`,
+        icon: warScore >= ANNEX_WAR_SCORE_THRESHOLD ? 'Flag' : 'HandHeart',
         image: null,
         description,
         isDiplomaticEvent: true,
@@ -482,7 +485,7 @@ export function createPlayerPeaceProposalEvent(
         return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped)));
     };
 
-    if (warScore > 500) {
+    if (warScore >= ANNEX_WAR_SCORE_THRESHOLD) {
         const highTribute = Math.ceil(demandingPayments.high * 1.4);
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(25, Math.floor((nation.population || nation.basePopulation || 1000) * 0.25)));
         const annexPopulation = nation.population || nation.basePopulation || 1000;
@@ -575,7 +578,7 @@ export function createPlayerPeaceProposalEvent(
             callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
         });
         // 附庸选项（需要已解锁附庸系统）
-        if (vassalUnlocked) {
+        if (vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal',
                 text: '🏴 要求成为附庸国',
@@ -583,7 +586,7 @@ export function createPlayerPeaceProposalEvent(
                 effects: {},
                 callback: () => callback('demand_vassal', 'vassal'),
             });
-        } else {
+        } else if (!vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal_locked',
                 text: '🔒 要求成为附庸国',
@@ -620,7 +623,7 @@ export function createPlayerPeaceProposalEvent(
             callback: () => callback('demand_population', populationDemand),
         });
         // 附庸选项（需要已解锁附庸系统）
-        if (vassalUnlocked) {
+        if (vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal',
                 text: '🏴 要求成为附庸国',
@@ -628,7 +631,7 @@ export function createPlayerPeaceProposalEvent(
                 effects: {},
                 callback: () => callback('demand_vassal', 'vassal'),
             });
-        } else {
+        } else if (!vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal_locked',
                 text: '🔒 要求成为附庸国',

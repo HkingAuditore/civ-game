@@ -58,6 +58,15 @@ import { AchievementsModal } from './components/modals/AchievementsModal';
 import { IdeologyEmergenceModal } from './components/modals/IdeologyEmergenceModal';
 import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { collectAnnualSnapshot, generateExportText } from './utils/annualReport';
+
+const ANNUAL_REPORT_IDEOLOGY_REWARD = {
+    S: 60,
+    A: 40,
+    B: 25,
+    C: 10,
+    D: 0,
+    F: 0,
+};
 import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
 import { CHANGELOG } from './config/changelog';
@@ -468,6 +477,8 @@ function GameApp({ gameState }) {
         const modal = gameState.festivalModal;
         const reportYear = modal?.year;
         const reportData = modal?.reportData;
+        const reportGrade = reportData?.scoring?.grade;
+        const ideologyReward = ANNUAL_REPORT_IDEOLOGY_REWARD[reportGrade] || 0;
         // Archive report to history (keep max 50 years to limit save size)
         if (reportYear && reportData) {
             const MAX_REPORT_HISTORY = 50;
@@ -476,9 +487,23 @@ function GameApp({ gameState }) {
                 return next.length > MAX_REPORT_HISTORY ? next.slice(-MAX_REPORT_HISTORY) : next;
             });
         }
+        if (ideologyReward > 0 && typeof gameState.setIdeologyScore === 'function') {
+            gameState.setIdeologyScore(prev => (prev || 0) + ideologyReward);
+            addLog(`⚡ 年度政府工作报告获评 ${reportGrade} 级，获得 ${ideologyReward} 点理念分。`);
+        }
         // Save current snapshot as next year's baseline
         const newBaseline = collectAnnualSnapshot(gameState);
         gameState.setAnnualReportBaseline(newBaseline);
+        if (typeof gameState.setAnnualReportAccumulator === 'function') {
+            gameState.setAnnualReportAccumulator({
+                daysCount: 0,
+                gdpSum: 0,
+                cpiSum: 0,
+                ppiSum: 0,
+                taxSum: 0,
+                fiscalNetIncomeSum: 0,
+            });
+        }
         // Close modal
         gameState.setFestivalModal(null);
         // Restore pause state

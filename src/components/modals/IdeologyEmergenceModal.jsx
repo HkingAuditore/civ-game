@@ -126,7 +126,7 @@ const IdeologyEmergenceModalComponent = ({
                                         {rarityBonus > 0 && (
                                             <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-900/30 border border-amber-500/40 text-xs text-amber-300">
                                                 <Icon name="TrendingUp" size={12} className="text-amber-400" />
-                                                已跳过 {rarityBonus} 次，稀有度加成 +{rarityBonus} 层（上限3层）
+                                                已跳过 {rarityBonus} 次，下一次更易出现高稀有理念
                                             </div>
                                         )}
                                         {/* 收藏满提示 */}
@@ -182,7 +182,11 @@ const IdeologyEmergenceModalComponent = ({
                                                 onSkip?.();
                                             }}
                                             className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all border-2 border-gray-600 text-gray-400 hover:text-gray-200 hover:border-gray-500"
-                                            title={rarityBonus < 3 ? `跳过后下次稀有度加成 +1（当前 ${rarityBonus}/3）` : '已达稀有度加成上限（3/3）'}
+                                            title={
+                                                rarityBonus < 3
+                                                    ? `跳过后下次更易出现高稀有理念，并提高保底档位（当前 ${rarityBonus}/3）`
+                                                    : '已达稀有度加成上限（3/3）'
+                                            }
                                         >
                                             <span className="flex items-center gap-2">
                                                 <Icon name="SkipForward" size={16} />

@@ -33,7 +33,7 @@ const TREND_CHARTS = [
         title: '经济指标',
         icon: 'TrendingUp',
         series: [
-            { key: 'gdp', label: 'GDP', color: '#60a5fa', extract: (r) => r.reportData?.current?.gdp },
+            { key: 'gdp', label: '年累计GDP', color: '#60a5fa', extract: (r) => r.reportData?.current?.gdp },
             { key: 'silver', label: '国库', color: '#fbbf24', extract: (r) => r.reportData?.current?.silver },
         ],
     },
@@ -51,8 +51,8 @@ const TREND_CHARTS = [
         title: '物价指数',
         icon: 'BarChart',
         series: [
-            { key: 'cpi', label: 'CPI', color: '#a78bfa', extract: (r) => r.reportData?.current?.cpi },
-            { key: 'ppi', label: 'PPI', color: '#fb923c', extract: (r) => r.reportData?.current?.ppi },
+            { key: 'cpi', label: '年均CPI', color: '#a78bfa', extract: (r) => r.reportData?.current?.cpi },
+            { key: 'ppi', label: '年均PPI', color: '#fb923c', extract: (r) => r.reportData?.current?.ppi },
         ],
     },
     {
@@ -209,10 +209,11 @@ const ReportDetailView = ({ entry, empireName, onBack, onExport }) => {
             <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
                 <Section icon="TrendingUp" title="经济概况" commentary={commentaries?.economy}>
                     <DataRow icon="Coins" label="国库余额" value={current?.silver} change={changes?.economy?.silver} />
-                    <DataRow icon="TrendingUp" label="GDP 总量" value={current?.gdp} change={changes?.economy?.gdp} />
-                    <DataRow icon="BarChart" label="CPI" value={current?.cpi} change={changes?.economy?.cpi} />
-                    <DataRow icon="Factory" label="PPI" value={current?.ppi} change={changes?.economy?.ppi} />
+                    <DataRow icon="TrendingUp" label="年累计 GDP" value={current?.gdp} change={changes?.economy?.gdp} />
+                    <DataRow icon="BarChart" label="年均 CPI" value={current?.cpi} change={changes?.economy?.cpi} />
+                    <DataRow icon="Factory" label="年均 PPI" value={current?.ppi} change={changes?.economy?.ppi} />
                     <DataRow icon="Banknote" label="日均税收" value={current?.totalTax} change={changes?.economy?.totalTax} />
+                    <DataRow icon="Wallet" label="日均财政净收入" value={current?.fiscalNetIncome} change={changes?.economy?.fiscalNetIncome} />
                 </Section>
 
                 <Section icon="Users" title="人口民生" commentary={commentaries?.population}>

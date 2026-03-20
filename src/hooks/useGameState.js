@@ -14,6 +14,7 @@ import { ensureAIMilitaryState, syncAINationMilitary, evaluateAIFrontPlan } from
 import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
 import { getScenarioById } from '../config/scenarios';
 import { clampBootstrapPopulation } from '../utils/populationClamp';
+import { createAnnualReportAccumulator } from '../utils/annualReport';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
@@ -384,6 +385,7 @@ const buildInitialHistory = () => {
     return {
         treasury: [],
         tax: [],
+        fiscalNetIncome: [],
         population: [],
         class: classHistory,
         // 经济指标历史
@@ -449,6 +451,7 @@ const trimHistorySnapshot = (history, limit) => {
         ...history,
         treasury: trimArray(history.treasury, limit),
         tax: trimArray(history.tax, limit),
+        fiscalNetIncome: trimArray(history.fiscalNetIncome, limit),
         population: trimArray(history.population, limit),
     };
     if (history.class && typeof history.class === 'object') {
@@ -778,6 +781,7 @@ const buildMinimalAutoSavePayload = (payload) => {
         lastBattleTargetId: undefined,
         lastBattleDay: undefined,
         annualReportBaseline: undefined,
+        annualReportAccumulator: undefined,
         lastFestivalYear: undefined,
         showTutorial: undefined,
         currentEvent: undefined,
@@ -1445,6 +1449,7 @@ export const useGameState = () => {
     // ========== Annual report system ==========
     const [festivalModal, setFestivalModal] = useState(null); // { reportData, year }
     const [annualReportBaseline, setAnnualReportBaseline] = useState(null); // Year-start baseline snapshot
+    const [annualReportAccumulator, setAnnualReportAccumulator] = useState(createAnnualReportAccumulator); // 当前年度累计器
     const [lastFestivalYear, setLastFestivalYear] = useState(1); // Last report year (starts at 1 to avoid year-1 trigger)
     const [annualReportHistory, setAnnualReportHistory] = useState([]); // Historical reports: [{ year, epoch, reportData }]
     // ========== 商人交易状�?==========
@@ -1889,6 +1894,7 @@ export const useGameState = () => {
                 militaryWageRatio,
                 festivalModal,
                 annualReportBaseline,
+                annualReportAccumulator,
                 lastFestivalYear,
                 annualReportHistory,
                 showTutorial,
@@ -2540,6 +2546,7 @@ export const useGameState = () => {
         setTargetArmyComposition(data.targetArmyComposition || {});
         setFestivalModal(data.festivalModal || null);
         setAnnualReportBaseline(data.annualReportBaseline || null);
+        setAnnualReportAccumulator(data.annualReportAccumulator || createAnnualReportAccumulator());
         setLastFestivalYear(data.lastFestivalYear || 1);
         setAnnualReportHistory(Array.isArray(data.annualReportHistory) ? data.annualReportHistory : []);
         setShowTutorial(data.showTutorial ?? true);
@@ -3791,6 +3798,8 @@ export const useGameState = () => {
         setFestivalModal,
         annualReportBaseline,
         setAnnualReportBaseline,
+        annualReportAccumulator,
+        setAnnualReportAccumulator,
         lastFestivalYear,
         setLastFestivalYear,
         annualReportHistory,

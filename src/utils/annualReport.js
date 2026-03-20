@@ -8,6 +8,17 @@ import { BUILDINGS, EPOCHS, STRATA, RESOURCES, TECHS } from '../config';
 import { calculateArmyPopulation, UNIT_TYPES } from '../config/militaryUnits';
 import { formatNumberShortCN } from './numberFormat';
 
+const REPORT_YEAR_DAYS = 360;
+
+export const createAnnualReportAccumulator = () => ({
+    daysCount: 0,
+    gdpSum: 0,
+    cpiSum: 0,
+    ppiSum: 0,
+    taxSum: 0,
+    fiscalNetIncomeSum: 0,
+});
+
 // ============================================================
 // Helper: safe numeric value
 // ============================================================
@@ -36,6 +47,22 @@ const fmtDelta = (delta, pctVal) => {
     return `${sign}${delta < 0 ? '-' : ''}${deltaStr}${pctStr}`;
 };
 
+const takeRecentSeries = (series, days = REPORT_YEAR_DAYS) => (
+    Array.isArray(series) ? series.slice(-days).filter(Number.isFinite) : []
+);
+
+const averageSeries = (series, fallback = 0) => {
+    const values = takeRecentSeries(series);
+    if (!values.length) return fallback;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+};
+
+const sumSeries = (series, fallback = 0) => {
+    const values = takeRecentSeries(series);
+    if (!values.length) return fallback;
+    return values.reduce((sum, value) => sum + value, 0);
+};
+
 // ============================================================
 // 1. collectAnnualSnapshot
 // ============================================================
@@ -50,10 +77,19 @@ export const collectAnnualSnapshot = (gs) => {
 
     // --- Economy ---
     const silver = safe(gs.resources?.silver);
-    const gdp = safe(gs.economicIndicators?.gdp?.total);
+    const history = gs.history || {};
+    const annualAccumulator = gs.annualReportAccumulator || createAnnualReportAccumulator();
+    const annualDays = Math.max(0, safe(annualAccumulator.daysCount, 0));
+    const gdp = annualDays > 0
+        ? safe(annualAccumulator.gdpSum)
+        : sumSeries(history.gdp, safe(gs.economicIndicators?.gdp?.total));
     const gdpChange = safe(gs.economicIndicators?.gdp?.change);
-    const cpi = safe(gs.economicIndicators?.cpi?.index, 100);
-    const ppi = safe(gs.economicIndicators?.ppi?.index, 100);
+    const cpi = annualDays > 0
+        ? safe(annualAccumulator.cpiSum) / annualDays
+        : averageSeries(history.cpi, safe(gs.economicIndicators?.cpi?.index, 100));
+    const ppi = annualDays > 0
+        ? safe(annualAccumulator.ppiSum) / annualDays
+        : averageSeries(history.ppi, safe(gs.economicIndicators?.ppi?.index, 100));
     const fiscalSilverDelta = safe(gs.fiscalActual?.silverDelta);
 
     // --- Population ---
@@ -125,9 +161,13 @@ export const collectAnnualSnapshot = (gs) => {
 
     // --- Taxes (from taxes state which tracks daily tax totals) ---
     const taxes = gs.taxes || {};
-    const totalTax = safe(taxes.total);
-    // fiscalActual.silverDelta is the net daily treasury change (more reliable for fiscal overview)
-    const fiscalNetIncome = safe(gs.fiscalActual?.silverDelta);
+    const totalTax = annualDays > 0
+        ? safe(annualAccumulator.taxSum) / annualDays
+        : averageSeries(history.tax, safe(taxes.total));
+    // fiscalActual.silverDelta is the net daily treasury change; annual report should use year-average net income.
+    const fiscalNetIncome = annualDays > 0
+        ? safe(annualAccumulator.fiscalNetIncomeSum) / annualDays
+        : averageSeries(history.fiscalNetIncome, safe(gs.fiscalActual?.silverDelta));
 
     return {
         // Economy
@@ -668,8 +708,11 @@ export const generateExportText = (reportData, empireName, year, epochIndex) => 
         lines.push('');
         lines.push('📊 【经济概况】');
         lines.push(`  💰 国库: ${fmtNum(current.silver)} 银币`);
-        lines.push(`  📈 GDP: ${fmtNum(current.gdp)}`);
+        lines.push(`  📈 年累计GDP: ${fmtNum(current.gdp)}`);
+        lines.push(`  📊 年均CPI: ${fmtNum(current.cpi)}`);
+        lines.push(`  🏭 年均PPI: ${fmtNum(current.ppi)}`);
         lines.push(`  💵 日均税收: ${fmtNum(current.totalTax)}`);
+        lines.push(`  👛 日均财政净收入: ${fmtNum(current.fiscalNetIncome)}`);
 
         lines.push('');
         lines.push('👥 【人口与民生】');
@@ -734,9 +777,11 @@ export const generateExportText = (reportData, empireName, year, epochIndex) => 
         lines.push('');
         lines.push(`📊 【经济概况】${generateSectionCommentary('economy', changes, current)}`);
         lines.push(`  💰 国库: ${fmtNum(current.silver)}  ${fmtDelta(changes.economy?.silver?.delta, changes.economy?.silver?.percent)}`);
-        lines.push(`  📈 GDP: ${fmtNum(current.gdp)}  ${fmtDelta(changes.economy?.gdp?.delta, changes.economy?.gdp?.percent)}`);
-        lines.push(`  📊 CPI: ${fmtNum(current.cpi)}  ${fmtDelta(changes.economy?.cpi?.delta, changes.economy?.cpi?.percent)}`);
-        lines.push(`  🏭 PPI: ${fmtNum(current.ppi)}  ${fmtDelta(changes.economy?.ppi?.delta, changes.economy?.ppi?.percent)}`);
+        lines.push(`  📈 年累计GDP: ${fmtNum(current.gdp)}  ${fmtDelta(changes.economy?.gdp?.delta, changes.economy?.gdp?.percent)}`);
+        lines.push(`  📊 年均CPI: ${fmtNum(current.cpi)}  ${fmtDelta(changes.economy?.cpi?.delta, changes.economy?.cpi?.percent)}`);
+        lines.push(`  🏭 年均PPI: ${fmtNum(current.ppi)}  ${fmtDelta(changes.economy?.ppi?.delta, changes.economy?.ppi?.percent)}`);
+        lines.push(`  💵 日均税收: ${fmtNum(current.totalTax)}  ${fmtDelta(changes.economy?.totalTax?.delta, changes.economy?.totalTax?.percent)}`);
+        lines.push(`  👛 日均财政净收入: ${fmtNum(current.fiscalNetIncome)}  ${fmtDelta(changes.economy?.fiscalNetIncome?.delta, changes.economy?.fiscalNetIncome?.percent)}`);
 
         // Population
         lines.push('');

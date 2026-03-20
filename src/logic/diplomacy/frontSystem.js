@@ -284,12 +284,19 @@ const buildWarScoreBreakdown = (prev = {}, updates = {}) => ({
     homeland: (prev.homeland || 0) + (updates.homeland || 0),
 });
 
-const getWarScoreBreakdownTotal = (breakdown = {}) => (
+export const getWarScoreBreakdownTotal = (breakdown = {}) => (
     Number(breakdown?.battle || 0)
     + Number(breakdown?.advance || 0)
     + Number(breakdown?.economic || 0)
     + Number(breakdown?.homeland || 0)
 );
+
+export const getEffectiveFrontWarScore = (front = {}) => {
+    const total = getWarScoreBreakdownTotal(front?.warScoreBreakdown || {});
+    const hasBreakdownScore = total !== 0
+        || Object.values(front?.warScoreBreakdown || {}).some((value) => Number(value || 0) !== 0);
+    return hasBreakdownScore ? total : Number(front?.warScore || 0);
+};
 
 const deriveDetailedPhase = (linePosition, pressure, supplyRatio, contestedZone) => {
     if (linePosition <= 8 || linePosition >= 92 || pressure >= 80) return 'collapse';

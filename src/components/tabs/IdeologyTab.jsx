@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useEffect, memo, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
-import { IDEOLOGY_CATEGORIES, IDEOLOGY_MAP, IDEOLOGIES } from '../../config/ideologies';
+import { IDEOLOGY_MAP, IDEOLOGIES } from '../../config/ideologies';
 import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../../config/ideologySynergies';
 import { getEmergenceThreshold } from '../../logic/ideology/ideologyScoring';
 import { getMaxSlots, equipIdeology, unequipIdeology, resolveEquippedIdeologies } from '../../logic/ideology/ideologySlots';
@@ -201,7 +201,6 @@ const IdeologyTabComponent = ({
     setIdeologyCooldowns,
     setIdeologySlotCount,
 }) => {
-    const [categoryFilter, setCategoryFilter] = useState('all');
     const [rarityFilter, setRarityFilter] = useState('all');
 
     // 移动端检测
@@ -270,7 +269,7 @@ const IdeologyTabComponent = ({
 
     const hasAnyAntiSynergy = activeAntiSynergies.some(a => a.isActive);
 
-    // 未装备的理念库（按分类和稀有度筛选）
+    // 未装备的理念库（仅按品质筛选）
     const unequippedCollection = useMemo(() => {
         return ideologyCollection
             .filter(entry => !equippedIdeologies.includes(entry.id))
@@ -279,9 +278,8 @@ const IdeologyTabComponent = ({
                 config: IDEOLOGY_MAP[entry.id],
             }))
             .filter(entry => entry.config)
-            .filter(entry => categoryFilter === 'all' || entry.config.category === categoryFilter)
             .filter(entry => rarityFilter === 'all' || (entry.config.rarity || 'common') === rarityFilter);
-    }, [ideologyCollection, equippedIdeologies, categoryFilter, rarityFilter]);
+    }, [ideologyCollection, equippedIdeologies, rarityFilter]);
 
     // 装备操作
     const handleEquip = useCallback((ideologyId) => {
@@ -451,41 +449,6 @@ const IdeologyTabComponent = ({
                     </span>
                 </div>
 
-                {/* 分类筛选 */}
-                <div className="flex flex-wrap gap-1 mb-3">
-                    <button
-                        onClick={() => setCategoryFilter('all')}
-                        className={`text-[11px] px-2 py-1 rounded-full border transition-all ${
-                            categoryFilter === 'all'
-                                ? 'bg-gray-600/50 border-gray-400 text-white'
-                                : 'border-gray-700 text-gray-500 hover:text-gray-300'
-                        }`}
-                    >
-                        全部
-                    </button>
-                    {Object.entries(IDEOLOGY_CATEGORIES).map(([key, cat]) => {
-                        const count = unequippedCollection.filter(e => categoryFilter === 'all' ? e.config.category === key : true).length;
-                        const totalInCategory = ideologyCollection.filter(e => IDEOLOGY_MAP[e.id]?.category === key && !equippedIdeologies.includes(e.id)).length;
-                        return (
-                            <button
-                                key={key}
-                                onClick={() => setCategoryFilter(key === categoryFilter ? 'all' : key)}
-                                className={`text-[11px] px-2 py-1 rounded-full border transition-all flex items-center gap-1 ${
-                                    categoryFilter === key
-                                        ? `${cat.bgClass} border-gray-400 text-white`
-                                        : 'border-gray-700 text-gray-500 hover:text-gray-300'
-                                }`}
-                            >
-                                <Icon name={cat.icon} size={10} className={cat.color} />
-                                {cat.name}
-                                {totalInCategory > 0 && (
-                                    <span className="text-[9px] text-gray-400">({totalInCategory})</span>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
-
                 {/* 稀有度筛选 */}
                 <div className="flex flex-wrap gap-1 mb-3">
                     <button
@@ -501,8 +464,7 @@ const IdeologyTabComponent = ({
                     {Object.entries(RARITY_FILTER_CONFIG).map(([key, cfg]) => {
                         const count = ideologyCollection.filter(e =>
                             !equippedIdeologies.includes(e.id) &&
-                            (IDEOLOGY_MAP[e.id]?.rarity || 'common') === key &&
-                            (categoryFilter === 'all' || IDEOLOGY_MAP[e.id]?.category === categoryFilter)
+                            (IDEOLOGY_MAP[e.id]?.rarity || 'common') === key
                         ).length;
                         return (
                             <button
@@ -551,8 +513,8 @@ const IdeologyTabComponent = ({
                         <p className="text-xs text-gray-500">
                             {ideologyCollection.length === 0
                                 ? '尚未获得任何理念，继续发展文明以获取理念分数'
-                                : categoryFilter !== 'all'
-                                    ? '该分类下暂无未装备的理念'
+                                : rarityFilter !== 'all'
+                                    ? '该品质下暂无未装备理念'
                                     : '所有理念均已装备在卡槽中'
                             }
                         </p>
