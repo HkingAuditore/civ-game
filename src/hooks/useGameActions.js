@@ -732,29 +732,49 @@ export const useGameActions = (gameState, addLog) => {
         return true;
     });
 
-    const selectNationBySelector = (selector, visibleNations) => {
+    const isPlayerProtectedEventNation = (nation) => {
+        if (!nation || nation.id === 'player') return true;
+        if (nation.vassalOf === 'player') return true;
+        if (nation.alliedWithPlayer === true) return true;
+
+        const organizations = Array.isArray(diplomacyOrganizations?.organizations)
+            ? diplomacyOrganizations.organizations
+            : [];
+        return organizations.some(org => {
+            if (!org || org.type !== 'military_alliance' || org.isActive === false) return false;
+            const members = Array.isArray(org.members) ? org.members : [];
+            return members.includes('player') && members.includes(nation.id);
+        });
+    };
+
+    const selectNationBySelector = (selector, visibleNations, options = {}) => {
+        const { excludePlayerProtected = false } = options;
+        const pool = excludePlayerProtected
+            ? visibleNations.filter(n => !isPlayerProtectedEventNation(n))
+            : visibleNations;
+
         if (!selector) return null;
         if (selector === 'random') {
-            if (visibleNations.length === 0) return null;
-            return visibleNations[Math.floor(Math.random() * visibleNations.length)];
+            if (pool.length === 0) return null;
+            return pool[Math.floor(Math.random() * pool.length)];
         }
         if (selector === 'strongest') {
-            return visibleNations.reduce((best, n) => (!best || (n.wealth || 0) > (best.wealth || 0) ? n : best), null);
+            return pool.reduce((best, n) => (!best || (n.wealth || 0) > (best.wealth || 0) ? n : best), null);
         }
         if (selector === 'weakest') {
-            return visibleNations.reduce((best, n) => (!best || (n.wealth || 0) < (best.wealth || 0) ? n : best), null);
+            return pool.reduce((best, n) => (!best || (n.wealth || 0) < (best.wealth || 0) ? n : best), null);
         }
         if (selector === 'hostile') {
-            const hostile = visibleNations.filter(n => (n.relation || 0) < 30);
+            const hostile = pool.filter(n => (n.relation || 0) < 30);
             if (hostile.length === 0) return null;
             return hostile[Math.floor(Math.random() * hostile.length)];
         }
         if (selector === 'friendly') {
-            const friendly = visibleNations.filter(n => (n.relation || 0) >= 60);
+            const friendly = pool.filter(n => (n.relation || 0) >= 60);
             if (friendly.length === 0) return null;
             return friendly[Math.floor(Math.random() * friendly.length)];
         }
-        return visibleNations.find(n => n.id === selector) || null;
+        return pool.find(n => n.id === selector) || null;
     };
 
     const applyPopulationDelta = (delta) => {
@@ -921,8 +941,11 @@ export const useGameActions = (gameState, addLog) => {
                 if (!nation) return nation;
                 let nextNation = { ...nation };
 
-                const applyNationDelta = (map, key, clampMin = null, clampMax = null) => {
+                const applyNationDelta = (map, key, clampMin = null, clampMax = null, options = {}) => {
                     if (!map || typeof map !== 'object') return;
+                    const { excludePlayerProtected = false } = options;
+                    if (excludePlayerProtected && isPlayerProtectedEventNation(nation)) return;
+
                     const entries = Object.entries(map);
                     let totalDelta = 0;
                     let matched = false;
@@ -940,7 +963,7 @@ export const useGameActions = (gameState, addLog) => {
                             totalDelta += value;
                             return;
                         }
-                        const picked = selectNationBySelector(selector, visible);
+                        const picked = selectNationBySelector(selector, visible, { excludePlayerProtected });
                         if (picked && picked.id === nation.id) {
                             matched = true;
                             totalDelta += value;
@@ -961,16 +984,16 @@ export const useGameActions = (gameState, addLog) => {
                             return nation;
                         }
                     }
-                    applyNationDelta(filtered.nationRelation, 'relation', 0, 100);
+                    applyNationDelta(filtered.nationRelation, 'relation', 0, 100, { excludePlayerProtected: true });
                 }
                 if (filtered.nationAggression) {
-                    applyNationDelta(filtered.nationAggression, 'aggression', 0, 1);
+                    applyNationDelta(filtered.nationAggression, 'aggression', 0, 1, { excludePlayerProtected: true });
                 }
                 if (filtered.nationWealth) {
-                    applyNationDelta(filtered.nationWealth, 'wealth', 0, null);
+                    applyNationDelta(filtered.nationWealth, 'wealth', 0, null, { excludePlayerProtected: true });
                 }
                 if (filtered.nationMarketVolatility) {
-                    applyNationDelta(filtered.nationMarketVolatility, 'marketVolatility', 0, 1);
+                    applyNationDelta(filtered.nationMarketVolatility, 'marketVolatility', 0, 1, { excludePlayerProtected: true });
                 }
 
                 return nextNation;
@@ -978,7 +1001,7 @@ export const useGameActions = (gameState, addLog) => {
 
             const triggerWarTarget = filtered.triggerWar;
             if (triggerWarTarget) {
-                const targetNation = selectNationBySelector(triggerWarTarget, visible);
+                const targetNation = selectNationBySelector(triggerWarTarget, visible, { excludePlayerProtected: true });
                 if (targetNation) {
                     startWarAgainstPlayer(targetNation.id, {
                         reason: 'event',
@@ -989,7 +1012,7 @@ export const useGameActions = (gameState, addLog) => {
 
             const triggerPeaceTarget = filtered.triggerPeace;
             if (triggerPeaceTarget) {
-                const targetNation = selectNationBySelector(triggerPeaceTarget, visible);
+                const targetNation = selectNationBySelector(triggerPeaceTarget, visible, { excludePlayerProtected: true });
                 if (targetNation) {
                     endWarWithNation(targetNation.id, {
                         peaceTreatyUntil: daysElapsed + 365,
