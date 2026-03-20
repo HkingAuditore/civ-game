@@ -1261,7 +1261,7 @@ function GameApp({ gameState }) {
         <div className="min-h-screen font-epic text-theme-text transition-all duration-1000 relative">
             {/* Dynamic Era Background */}
             <EraBackground epoch={gameState.epoch} opacity={0.08} />
-            <MusicPlayer />
+            {(gameState.eventEffectSettings?.logVisibility?.showMusicPlayer ?? false) && <MusicPlayer />}
             <PerfOverlay />
             {/* 浮动文本 */}
             {gameState.clicks.map(c => (
@@ -2385,6 +2385,14 @@ function GameApp({ gameState }) {
                                 logVisibility: {
                                     ...((prev || {}).logVisibility || {}),
                                     showOfficialLogs: enabled,
+                                }
+                            }))}
+                            showMusicPlayer={gameState.eventEffectSettings?.logVisibility?.showMusicPlayer ?? false}
+                            onToggleMusicPlayer={(enabled) => gameState.setEventEffectSettings(prev => ({
+                                ...(prev || {}),
+                                logVisibility: {
+                                    ...((prev || {}).logVisibility || {}),
+                                    showMusicPlayer: enabled,
                                 }
                             }))}
                         />

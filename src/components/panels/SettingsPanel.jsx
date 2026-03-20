@@ -142,6 +142,8 @@ export const SettingsPanel = ({
     onToggleMerchantTradeLogs,
     showOfficialLogs,
     onToggleOfficialLogs,
+    showMusicPlayer,
+    onToggleMusicPlayer,
 }) => {
     const merchantTradeLogToggleAvailable = typeof onToggleMerchantTradeLogs === 'function';
     const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
@@ -359,6 +361,29 @@ export const SettingsPanel = ({
                     </div>
                 </>
             )}
+
+            {/* 音乐播放器显示 */}
+            <div className="border-t border-gray-700 pt-4 space-y-2">
+                <div className="flex items-center justify-between text-xs text-gray-300">
+                    <span>显示音乐播放器</span>
+                    <span className={(showMusicPlayer ?? false) ? 'text-emerald-300' : 'text-gray-500'}>
+                        {(showMusicPlayer ?? false) ? '已启用' : '已关闭'}
+                    </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={showMusicPlayer ?? false}
+                        onChange={(e) => onToggleMusicPlayer && onToggleMusicPlayer(e.target.checked)}
+                    />
+                    <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+                    <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${(showMusicPlayer ?? false) ? 'translate-x-5' : ''}`} />
+                </label>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                    默认关闭。开启后左下角会显示悬浮音乐播放器。
+                </p>
+            </div>
 
 
 
