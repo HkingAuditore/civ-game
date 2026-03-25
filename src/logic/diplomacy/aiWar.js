@@ -771,11 +771,10 @@ export const checkAIPeaceRequest = ({
     tick,
     lastGlobalPeaceRequest = -Infinity,
     logs,
-    activeFronts = [], // [NEW] Active war fronts for damage assessment
+    activeFronts = [],
 }) => {
     const next = nation;
 
-    // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot request peace
     if (next.isAnnexed || (next.population || 0) <= 0) {
         return false;
     }
@@ -784,56 +783,93 @@ export const checkAIPeaceRequest = ({
         ? next.lastPeaceRequestDay
         : -Infinity;
 
-    // Check per-nation cooldown
     const canRequestPeace = (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
 
-    // Check global cooldown - prevents multiple nations from requesting peace simultaneously
     const globalCooldown = GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS;
     const globalReady = (tick - lastGlobalPeaceRequest) >= globalCooldown;
 
+    if (!canRequestPeace || !globalReady) {
+        return false;
+    }
+
     const negotiationContext = getNationNegotiationContext(next, activeFronts);
+    const { frontContext, aiDominantOnFront, playerAdvantageScore } = negotiationContext;
+    const warDuration = next.warDuration || 0;
+    const aggression = next.aggression || 0.3;
 
-    if (negotiationContext.playerAdvantageScore > 12 && canRequestPeace && globalReady) {
-        const { frontContext, aiDominantOnFront } = negotiationContext;
-        if (aiDominantOnFront) {
-            return false;
+    if (frontContext.isPressingPlayerCore && playerAdvantageScore < 400) {
+        return false;
+    }
+
+    let willingness = 0;
+    let tributeMultiplier = 1.0;
+
+    if (playerAdvantageScore > 100) {
+        // === 路径1：分数驱动（玩家明显占优，warScore可达±1000+） ===
+        willingness = Math.min(0.5, 0.03 + playerAdvantageScore / 1200 + warDuration / 400)
+            + Math.min(0.15, (next.enemyLosses || 0) / 500);
+        tributeMultiplier = 1.0;
+    } else if (warDuration >= 100) {
+        // === 路径2：持久战/僵局（对应AI-AI战争的 warFatigue + exhaustionEndChance） ===
+        willingness = Math.min(0.15, (warDuration - 100) / 800);
+
+        const warExpense = next.warTotalExpense || 0;
+        const currentWealth = Math.max(1, next.wealth || 500);
+        willingness += Math.min(0.08, (warExpense / currentWealth) * 0.03);
+
+        const isStalemate = frontContext.frontCount > 0
+            && Math.abs(frontContext.averageRelativePosition - 50) < 15
+            && Math.abs(playerAdvantageScore) < 250;
+        if (isStalemate) {
+            willingness += 0.04 + Math.min(0.08, (warDuration - 100) / 600);
         }
 
-        const willingness = Math.min(0.5, 0.03 + negotiationContext.playerAdvantageScore / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+        willingness *= Math.max(0.15, 1.0 - aggression * 0.8);
+        tributeMultiplier = 0.3;
+    }
 
-        let frontDamageBonus = 0;
-        if (activeFronts && activeFronts.length > 0) {
-            for (const front of activeFronts) {
-                if (front.attackerId !== next.id && front.defenderId !== next.id) continue;
-                const ownInfra = (front.infrastructure || []).filter(i => i.owner === next.id);
-                const destroyedCount = ownInfra.filter(i => i.destroyed).length;
-                const ownNodes = (front.resourceNodes || []).filter(n => n.owner === next.id);
-                const plunderedCount = ownNodes.filter(n => n.plundered).length;
-                frontDamageBonus += destroyedCount * 0.04 + plunderedCount * 0.03;
-            }
-        }
+    if (willingness <= 0) {
+        return false;
+    }
 
-        const currentFrontPenalty = frontContext.frontCount > 0
-            ? Math.max(0, (frontContext.averageRelativePosition - 50) / 18) + Math.max(0, (frontContext.strengthRatio - 1) * 0.12)
-            : 0;
-        const effectivePeaceChance = Math.max(0, willingness + frontDamageBonus - currentFrontPenalty);
-
-        if (Math.random() < effectivePeaceChance) {
-            const warScore = Math.abs(next.warScore || 0);
-            const enemyLosses = next.enemyLosses || 0;
-            const warDuration = next.warDuration || 0;
-            const availableWealth = Math.max(0, next.wealth || 0);
-            const tribute = calculateAIPeaceTribute(warScore, enemyLosses, warDuration, availableWealth);
-            // Ensure tribute is an integer and format it properly to avoid scientific notation
-            const tributeInt = Math.floor(tribute);
-            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tributeInt.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。`);
-            next.isPeaceRequesting = true;
-            next.peaceTribute = tribute;
-            next.lastPeaceRequestDay = tick;
-            return true; // Signal that a peace request was made
+    let frontDamageBonus = 0;
+    if (activeFronts && activeFronts.length > 0) {
+        for (const front of activeFronts) {
+            if (front.attackerId !== next.id && front.defenderId !== next.id) continue;
+            const ownInfra = (front.infrastructure || []).filter(i => i.owner === next.id);
+            const destroyedCount = ownInfra.filter(i => i.destroyed).length;
+            const ownNodes = (front.resourceNodes || []).filter(n => n.owner === next.id);
+            const plunderedCount = ownNodes.filter(n => n.plundered).length;
+            frontDamageBonus += destroyedCount * 0.04 + plunderedCount * 0.03;
         }
     }
-    return false; // No peace request made
+
+    const currentFrontPenalty = frontContext.frontCount > 0
+        ? Math.max(0, (frontContext.averageRelativePosition - 50) / 18) + Math.max(0, (frontContext.strengthRatio - 1) * 0.12)
+        : 0;
+
+    // aiDominantOnFront 改为软惩罚：大幅降低意愿但不完全阻断
+    if (aiDominantOnFront) {
+        willingness *= (playerAdvantageScore > 400) ? 0.3 : 0.12;
+    }
+
+    const effectivePeaceChance = Math.max(0, willingness + frontDamageBonus - currentFrontPenalty);
+
+    if (Math.random() < effectivePeaceChance) {
+        const warScore = Math.abs(next.warScore || 0);
+        const enemyLosses = next.enemyLosses || 0;
+        const availableWealth = Math.max(0, next.wealth || 0);
+        const baseTribute = calculateAIPeaceTribute(Math.max(warScore, 5), enemyLosses, warDuration, availableWealth);
+        const tribute = Math.floor(baseTribute * tributeMultiplier);
+        const tributeInt = Math.floor(tribute);
+        logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tributeInt.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。`);
+        next.isPeaceRequesting = true;
+        next.peaceTribute = tribute;
+        next.lastPeaceRequestDay = tick;
+        return true;
+    }
+
+    return false;
 };
 
 /**
@@ -862,20 +898,20 @@ export const checkAISurrenderDemand = ({
     const negotiationContext = getNationNegotiationContext(next, activeFronts);
     const aiWarScore = negotiationContext.aiAdvantageScore;
 
-    if (aiWarScore > 25 && (next.warDuration || 0) > 30 && !negotiationContext.aiUnderFrontPressure) {
+    if (aiWarScore > 200 && (next.warDuration || 0) > 30 && !negotiationContext.aiUnderFrontPressure) {
         const lastDemandDay = next.lastSurrenderDemandDay || 0;
-        if (tick - lastDemandDay >= 60 && Math.random() < 0.03) {
+        const surrenderChance = Math.min(0.15, 0.03 + (aiWarScore - 200) / 8000);
+        if (tick - lastDemandDay >= 45 && Math.random() < surrenderChance) {
             next.lastSurrenderDemandDay = tick;
 
             let demandType = 'tribute';
             const warDuration = next.warDuration || 0;
-            // 传入玩家财富，使赔款计算与玩家主动求和时一致
             let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration, playerWealth);
 
-            if (aiWarScore > 100) {
+            if (aiWarScore > 800) {
                 demandType = 'territory';
                 demandAmount = Math.min(50, Math.max(3, Math.floor(population * 0.05)));
-            } else if (aiWarScore > 50 && Math.random() < 0.5) {
+            } else if (aiWarScore > 400 && Math.random() < 0.5) {
                 demandType = 'open_market';
                 demandAmount = 365 * 2;
             }
@@ -980,7 +1016,7 @@ export const checkMercyPeace = ({
     if (negotiationContext.aiDominantOnFront) {
         mercyChance += 0.08;
     }
-    if (negotiationContext.aiAdvantageScore >= 80 && negotiationContext.frontContext.isPressingPlayerCore) {
+    if (negotiationContext.aiAdvantageScore >= 600 && negotiationContext.frontContext.isPressingPlayerCore) {
         mercyChance = Math.max(0.05, mercyChance - 0.2);
     }
 

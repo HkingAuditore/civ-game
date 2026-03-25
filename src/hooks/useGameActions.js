@@ -3486,9 +3486,14 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             case 'propose_peace': {
-                // warScore 正数 = 玩家优势（玩家胜利时 +分）
-                const playerAdvantage = targetNation.warScore || 0;
-
+                const relevantFrontsOld = (activeFronts || []).filter(f =>
+                    (f.attackerId === 'player' && f.defenderId === nationId) ||
+                    (f.defenderId === 'player' && f.attackerId === nationId)
+                );
+                const frontWarScoreOld = relevantFrontsOld.length > 0
+                    ? relevantFrontsOld.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
+                    : null;
+                const playerAdvantage = frontWarScoreOld !== null ? frontWarScoreOld : (targetNation.warScore || 0);
 
                 const event = createPlayerPeaceProposalEvent(
                     targetNation,

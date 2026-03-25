@@ -3531,17 +3531,10 @@ difficulty, // 游戏难度
                                     });
                                 }
 
-                                // Update nation warScore
-                                if (front && playerSide) {
-                                    const isPlayerWinner = (winner === playerSide);
-                                    const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
-                                    const warScoreChange = playerSide === 'attacker'
-                                        ? Number(updatedBattle.result?.totalWarScoreDelta || 0)
-                                        : -Number(updatedBattle.result?.totalWarScoreDelta || 0);
-                                    setNations(prev => prev.map(n =>
-                                        n.id === enemyId ? { ...n, warScore: Math.max(-100, Math.min(100, (n.warScore || 0) + (warScoreChange || (isPlayerWinner ? 12 : -12)))) } : n
-                                    ));
-                                }
+                                // [FIX] Removed redundant nation.warScore update on battle resolution.
+                                // Battle phase deltas already flow through nationWarScoreDeltaByEnemyId (per-phase)
+                                // AND front.warScoreBreakdown.battle (accumulated by simulation).
+                                // The old code double-counted totalWarScoreDelta AND clamped to ±100.
 
                             }
 
@@ -4393,7 +4386,7 @@ difficulty, // 游戏难度
                                 if (!delta) return n;
                                 return {
                                     ...n,
-                                    warScore: Math.max(-100, Math.min(100, (n.warScore || 0) + delta)),
+                                    warScore: (n.warScore || 0) + delta,
                                 };
                             }));
                         }

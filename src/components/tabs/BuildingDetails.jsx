@@ -11,6 +11,7 @@ import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier } from '../.
 import { formatNumberShortCN } from '../../utils/numberFormat';
 // 最低工资下限
 const MIN_ROLE_WAGE = 0.1;
+const BUILD_BUY_COUNT_LIMIT = 9999;
 
 /**
  * 获取角色的市场工资（直接从 market.wages 获取）
@@ -552,7 +553,12 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     };
 
     // 批量购买状态
-    const [buyCount, setBuyCount] = useState(1);
+    const [buyCount, setBuyCount] = useState(() => {
+        if (typeof window === 'undefined') return 1;
+        const saved = parseInt(window.localStorage.getItem('civ_build_buy_count') || '', 10);
+        if (!Number.isFinite(saved) || saved <= 0) return 1;
+        return Math.min(BUILD_BUY_COUNT_LIMIT, saved);
+    });
     // 批量拆除状态
     const [sellCount, setSellCount] = useState(1);
 
@@ -563,7 +569,12 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         }
     }, [count, sellCount]);
 
-    const normalizedBuyCount = Math.max(1, Math.floor(Number(buyCount) || 1));
+    const normalizedBuyCount = Math.max(1, Math.min(BUILD_BUY_COUNT_LIMIT, Math.floor(Number(buyCount) || 1)));
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('civ_build_buy_count', String(normalizedBuyCount));
+    }, [normalizedBuyCount]);
 
     // 计算批量成本
     const calculateBulkCost = (count) => {
@@ -594,62 +605,6 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const canAffordNext = hasMaterials && hasSilver;
 
     const compactSilverCost = formatCompactCost(nextSilverCost);
-
-    // 计算最大可买数量 (限制为1000以防卡顿)
-    // [性能优化] 使用 useMemo 缓存最大可购买数量，避免每次渲染重新计算
-    const maxBuyCount = useMemo(() => {
-        const MAX_SEARCH = 1000;
-        const currentCount = buildings[building.id] || 0;
-        const difficulty = gameState.difficulty;
-        const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
-        const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
-
-        // 简单模拟
-        let maxCount = 0;
-        let currentTotalCost = {};
-        let currentTotalSilver = 0;
-        const availSilver = resources.silver || 0;
-
-        for (let i = 0; i < MAX_SEARCH; i++) {
-            // 预计算这一个的成本
-            const thisBuildCount = currentCount + i;
-            const rawCost = calculateBuildingCost(building.baseCost, thisBuildCount, growthFactor, baseMultiplier);
-            const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
-
-            // 检查加上这一个是否超支
-            let nextTotalCost = { ...currentTotalCost };
-            let nextTotalSilver = currentTotalSilver;
-
-            // Update totals
-            let possible = true;
-            Object.entries(adjustedCost).forEach(([res, val]) => {
-                const newResTotal = (nextTotalCost[res] || 0) + val;
-                if ((resources[res] || 0) < newResTotal) {
-                    possible = false;
-                }
-                nextTotalCost[res] = newResTotal;
-            });
-
-            if (!possible) break; // 资源不足
-
-            // Check silver
-            let silverForThis = 0;
-            Object.entries(adjustedCost).forEach(([res, val]) => {
-                if (res === 'silver') silverForThis += val;
-                else silverForThis += val * getResourcePrice(res);
-            });
-
-            nextTotalSilver += silverForThis;
-            if (availSilver < nextTotalSilver) break; // 银币不足
-
-            // Success
-            currentTotalCost = nextTotalCost;
-            currentTotalSilver = nextTotalSilver;
-            maxCount++;
-        }
-        return maxCount || 1;
-    }, [building.id, building.baseCost, buildings, resources, market?.prices, gameState.difficulty, gameState.modifiers?.officialEffects?.buildingCostMod]);
 
     const totalJobSlots = Object.values(effectiveTotalStats.jobs || {}).reduce((sum, val) => sum + val, 0);
     const totalJobsFilled = Object.entries(effectiveTotalStats.jobs || {}).reduce((sum, [role, required]) => {
@@ -814,7 +769,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             setBuyCount(1);
             return;
         }
-        const clamped = Math.max(1, Math.min(maxBuyCount, parsed));
+        const clamped = Math.max(1, Math.min(BUILD_BUY_COUNT_LIMIT, parsed));
         setBuyCount(clamped);
     };
 
@@ -1414,7 +1369,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 <input
                                     type="number"
                                     min={1}
-                                    max={maxBuyCount}
+                                    max={BUILD_BUY_COUNT_LIMIT}
                                     step={1}
                                     value={normalizedBuyCount}
                                     onChange={(e) => handleBuyCountInputChange(e.target.value)}
