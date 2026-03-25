@@ -354,6 +354,7 @@ const MilitaryTabComponent = ({
     onUpdateCorpsReplenishQueue,
     warfrontFocusRequest = null,
 }) => {
+    const RECRUIT_COUNT_LIMIT = 9999;
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
@@ -362,7 +363,12 @@ const MilitaryTabComponent = ({
     const [selectedFrontId, setSelectedFrontId] = useState(null);
     const [isFrontDetailSheetOpen, setIsFrontDetailSheetOpen] = useState(false);
     const [isMobileWarfrontLayout, setIsMobileWarfrontLayout] = useState(false);
-    const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 10, 100, 1000
+    const [recruitCount, setRecruitCount] = useState(() => {
+        if (typeof window === 'undefined') return 1;
+        const saved = parseInt(window.localStorage.getItem('civ_military_recruit_count') || '', 10);
+        if (!Number.isFinite(saved) || saved <= 0) return 1;
+        return Math.min(RECRUIT_COUNT_LIMIT, saved);
+    }); // 批量招募数量
     const [disbandCount, setDisbandCount] = useState(1); // 批量解散数量：1, 10, 100, 1000
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
@@ -388,6 +394,12 @@ const MilitaryTabComponent = ({
         mediaQuery.addListener(handleChange);
         return () => mediaQuery.removeListener(handleChange);
     }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const normalized = Math.max(1, Math.min(RECRUIT_COUNT_LIMIT, Math.floor(Number(recruitCount) || 1)));
+        window.localStorage.setItem('civ_military_recruit_count', String(normalized));
+    }, [recruitCount, RECRUIT_COUNT_LIMIT]);
     
     // Memoize queue counts to prevent recalculation on every render
     const queueCounts = useMemo(() => {
@@ -498,7 +510,7 @@ const MilitaryTabComponent = ({
             setRecruitCount(1);
             return;
         }
-        setRecruitCount(Math.max(1, Math.min(9999, parsed)));
+        setRecruitCount(Math.max(1, Math.min(RECRUIT_COUNT_LIMIT, parsed)));
     };
 
     const handleMouseEnter = (e, unit) => {
@@ -986,7 +998,7 @@ const MilitaryTabComponent = ({
                                 <input
                                     type="number"
                                     min={1}
-                                    max={9999}
+                                    max={RECRUIT_COUNT_LIMIT}
                                     step={1}
                                     value={recruitCount}
                                     onChange={(e) => handleRecruitCountInputChange(e.target.value)}
