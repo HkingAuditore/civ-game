@@ -35,6 +35,7 @@ const buffer = {
 
 let flushTimer = null;
 let enabled = false;
+let sessionEnded = false;
 
 // ── 初始化 ──
 
@@ -68,6 +69,10 @@ export function initCustomBackend() {
     });
 
     window.addEventListener('pagehide', () => {
+        endSession();
+    });
+
+    window.addEventListener('beforeunload', () => {
         endSession();
     });
 }
@@ -133,18 +138,20 @@ function flush() {
 // ── 会话结束 ──
 
 function endSession() {
+    if (!enabled || sessionEnded) return;
+    sessionEnded = true;
+
     flush();
     const durationMs = Date.now() - sessionStartTime;
-    const body = JSON.stringify({ sessionId, durationMs });
+    const payload = { sessionId, durationMs };
+    const url = `${API_URL}/api/session/end${API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : ''}`;
+
+    // 卸载阶段先尝试 keepalive fetch，保留自定义请求头；失败时仍有 beacon 兜底。
+    sendJSON(`${API_URL}/api/session/end`, payload);
 
     if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: 'application/json' });
-        navigator.sendBeacon(
-            `${API_URL}/api/session/end${API_KEY ? `?key=${API_KEY}` : ''}`,
-            blob
-        );
-    } else {
-        sendJSON(`${API_URL}/api/session/end`, { sessionId, durationMs });
+        const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=UTF-8' });
+        navigator.sendBeacon(url, blob);
     }
 }
 
