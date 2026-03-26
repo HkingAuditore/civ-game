@@ -3,11 +3,27 @@ import { getPool } from '../db.js';
 
 const router = Router();
 
+function getRequestBody(req) {
+    if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+        return req.body;
+    }
+
+    if (typeof req.body === 'string' && req.body.trim()) {
+        try {
+            return JSON.parse(req.body);
+        } catch {
+            return {};
+        }
+    }
+
+    return {};
+}
+
 // ── POST /api/session/start ──
 
 router.post('/session/start', async (req, res) => {
     try {
-        const { userId, sessionId, appVersion, difficulty, scenario, userAgent } = req.body;
+        const { userId, sessionId, appVersion, difficulty, scenario, userAgent } = getRequestBody(req);
         if (!userId || !sessionId) {
             return res.status(400).json({ error: 'userId and sessionId required' });
         }
@@ -28,14 +44,15 @@ router.post('/session/start', async (req, res) => {
 
 router.post('/session/end', async (req, res) => {
     try {
-        const { sessionId, durationMs } = req.body;
+        const { sessionId, durationMs } = getRequestBody(req);
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId required' });
         }
         const pool = getPool();
+        const normalizedDurationMs = Number.isFinite(Number(durationMs)) ? Number(durationMs) : null;
         await pool.execute(
             `UPDATE sessions SET ended_at = NOW(), duration_ms = ? WHERE session_id = ?`,
-            [durationMs || null, sessionId]
+            [normalizedDurationMs, sessionId]
         );
         res.json({ ok: true });
     } catch (err) {
@@ -48,7 +65,7 @@ router.post('/session/end', async (req, res) => {
 
 router.post('/session/heartbeat', async (req, res) => {
     try {
-        const { sessionId } = req.body;
+        const { sessionId } = getRequestBody(req);
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId required' });
         }
@@ -69,7 +86,7 @@ router.post('/session/heartbeat', async (req, res) => {
 
 router.post('/events', async (req, res) => {
     try {
-        const { design, resource, errors } = req.body;
+        const { design, resource, errors } = getRequestBody(req);
         const pool = getPool();
         const promises = [];
 

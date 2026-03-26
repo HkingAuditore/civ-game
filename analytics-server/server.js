@@ -26,6 +26,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '512kb' }));
+app.use(express.text({ type: 'text/plain', limit: '512kb' }));
 
 // ── API Key 验证 ──
 
@@ -34,7 +35,9 @@ const API_KEY = process.env.API_KEY;
 app.use('/api', (req, res, next) => {
     if (req.path === '/health') return next();
     if (!API_KEY) return next();
-    const clientKey = req.headers['x-api-key'];
+    const headerKey = req.headers['x-api-key'];
+    const queryKey = typeof req.query?.key === 'string' ? req.query.key : null;
+    const clientKey = headerKey || queryKey;
     if (clientKey !== API_KEY) {
         return res.status(401).json({ error: 'Invalid API key' });
     }
