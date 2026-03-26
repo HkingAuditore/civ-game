@@ -6,6 +6,7 @@
 import { STRATA } from '../config/strata';
 import { RESOURCES } from '../config';
 import { debugLog } from '../utils/debugFlags';
+import { trackDemandGenerate, trackDemandComplete, trackDemandFail } from '../analytics/gaTracker';
 
 // 获取资源的中文名称
 function getResourceName(resourceKey) {
@@ -768,6 +769,7 @@ export function generateDemands(stratumKey, context) {
         });
     }
 
+    demands.forEach(d => trackDemandGenerate(d.type, stratumKey));
     return demands;
 }
 
@@ -857,8 +859,10 @@ export function evaluateDemands(activeDemands, context) {
                 const result = checkDemandFulfillment(demand, context);
                 if (result.fulfilled) {
                     completed.push({ ...demand, result });
+                    trackDemandComplete(demand.type, currentDay - (demand.createdDay || 0));
                 } else {
                     failed.push({ ...demand, result });
+                    trackDemandFail(demand.type);
                 }
                 return;
             }
@@ -867,6 +871,7 @@ export function evaluateDemands(activeDemands, context) {
             const result = checkDemandFulfillment(demand, context);
             if (result.fulfilled) {
                 completed.push({ ...demand, result });
+                trackDemandComplete(demand.type, currentDay - (demand.createdDay || 0));
                 return;
             }
 

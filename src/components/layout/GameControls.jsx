@@ -8,6 +8,14 @@ import { GAME_SPEEDS } from '../../config';
 import { useSound } from '../../hooks';
 import { cn } from '../../config/unifiedStyles';
 import { Capacitor } from '@capacitor/core';
+import {
+    trackSpeedChange,
+    trackPause,
+    trackResume,
+    trackSettingsOpen,
+    trackTutorialOpen,
+    trackWikiOpen,
+} from '../../analytics/gaTracker';
 
 // 检测是否在原生APP环境（Android/iOS）中运行
 const IS_NATIVE_APP = Capacitor.isNativePlatform();
@@ -139,6 +147,11 @@ export const GameControls = React.memo(({
                 <button
                     onClick={() => {
                         playSound(SOUND_TYPES.CLICK);
+                        if (isPaused) {
+                            trackResume();
+                        } else {
+                            trackPause();
+                        }
                         onPauseToggle();
                     }}
                     className={cn(
@@ -169,7 +182,9 @@ export const GameControls = React.memo(({
                             // 循环切换速度：1 -> 2 -> 5 -> 1
                             const currentIndex = GAME_SPEEDS.indexOf(gameSpeed);
                             const nextIndex = (currentIndex + 1) % GAME_SPEEDS.length;
-                            onSpeedChange(GAME_SPEEDS[nextIndex]);
+                            const nextSpeed = GAME_SPEEDS[nextIndex];
+                            trackSpeedChange(nextSpeed);
+                            onSpeedChange(nextSpeed);
                             if (isPaused) onPauseToggle();
                         }}
                         title={isPaused ? '请先继续游戏' : `当前${gameSpeed}倍速，点击切换`}
@@ -182,6 +197,9 @@ export const GameControls = React.memo(({
                             key={speed}
                             onClick={() => {
                                 playSound(SOUND_TYPES.CLICK);
+                                if (speed !== gameSpeed) {
+                                    trackSpeedChange(speed);
+                                }
                                 onSpeedChange(speed);
                                 if (isPaused) onPauseToggle();
                             }}
@@ -281,7 +299,11 @@ export const GameControls = React.memo(({
                                     </button>
 
                                     <button
-                                        onClick={() => { onSettings(); setIsGameMenuOpen(false); }}
+                                        onClick={() => {
+                                            trackSettingsOpen();
+                                            onSettings();
+                                            setIsGameMenuOpen(false);
+                                        }}
                                         className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Settings" size={12} />
@@ -355,14 +377,22 @@ export const GameControls = React.memo(({
                                     )}
                                 >
                                     <button
-                                        onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}
+                                        onClick={() => {
+                                            trackTutorialOpen();
+                                            onTutorial();
+                                            setIsHelpMenuOpen(false);
+                                        }}
                                         className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="BookOpen" size={10} />
                                         <span className="ml-2">新手教程</span>
                                     </button>
                                     <button
-                                        onClick={() => { onWiki(); setIsHelpMenuOpen(false); }}
+                                        onClick={() => {
+                                            trackWikiOpen();
+                                            onWiki();
+                                            setIsHelpMenuOpen(false);
+                                        }}
                                         className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Book" size={10} />

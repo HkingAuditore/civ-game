@@ -67,7 +67,12 @@ import {
 } from '../config/events';
 import { evaluatePromiseTasks } from '../logic/promiseTasks';
 import { debugLog, debugError, isDebugEnabled } from '../utils/debugFlags';
-import { trackPeriodicMetrics, trackRebellionPhase } from '../analytics/gaTracker';
+import {
+    trackPeriodicMetrics, trackRebellionPhase,
+    trackEconomicFlows, trackPriceSampling,
+    trackPopulationMilestone, trackPopulationStarvation,
+    trackStabilityLevelChange, trackEconomicCrisis,
+} from '../analytics/gaTracker';
 // 叛乱事件（保留事件创建函数）
 import {
     hasAvailableMilitary,
@@ -2057,14 +2062,59 @@ difficulty, // 游戏难度
                 const nextDay = (current.daysElapsed || 0) + 1;
                 if (nextDay % 30 === 0) {
                     const totalArmyCount = Object.values(result.army || current.army || {}).reduce((s, v) => s + (v || 0), 0);
+                    const pop = result.population || current.population;
+                    const stab = result.stability;
                     trackPeriodicMetrics({
                         gdp: indicators.gdp?.total,
                         cpi: indicators.cpi?.index,
-                        population: result.population || current.population,
-                        stability: result.stability,
+                        ppi: indicators.ppi?.index,
+                        population: pop,
+                        stability: stab,
                         treasury: result.resources?.silver,
                         armySize: totalArmyCount,
                     });
+
+                    // 经济流水采样
+                    const slog = result.silverChangeLog || {};
+                    trackEconomicFlows({
+                        taxIncome: (slog.tax_income || 0) + (slog.head_tax || 0) + (slog.resource_tax || 0) + (slog.business_tax || 0),
+                        tradeIncome: (slog.trade_income || 0) + (slog.trade_route_transaction || 0),
+                        militaryCost: Math.abs(slog.military_maintenance || 0) + Math.abs(slog.military_wage || 0),
+                        buildingCost: Math.abs(slog.building_maintenance || 0),
+                        officialCost: Math.abs(slog.official_salary || 0),
+                    });
+
+                    // 市场价格采样
+                    trackPriceSampling(result.prices || current.prices);
+
+                    // 人口里程碑检测
+                    const prevPop = current.population || 0;
+                    const milestones = [100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
+                    for (const m of milestones) {
+                        if (prevPop < m && pop >= m) {
+                            trackPopulationMilestone(m, pop);
+                        }
+                    }
+
+                    // 饥荒死亡追踪
+                    if (result.starvationDeaths > 0) {
+                        trackPopulationStarvation(result.starvationDeaths);
+                    }
+
+                    // 稳定度等级变化
+                    const prevStab = current.stability || 50;
+                    const stabLevels = [20, 40, 60, 80];
+                    for (const lvl of stabLevels) {
+                        if ((prevStab >= lvl && stab < lvl) || (prevStab < lvl && stab >= lvl)) {
+                            const levelName = stab < 20 ? 'critical' : stab < 40 ? 'low' : stab < 60 ? 'medium' : stab < 80 ? 'high' : 'excellent';
+                            trackStabilityLevelChange(levelName, stab);
+                            break;
+                        }
+                    }
+
+                    // 经济危机检测
+                    if (result.resources?.silver <= 0) trackEconomicCrisis('bankruptcy', 0);
+                    if (indicators.cpi?.index > 200) trackEconomicCrisis('hyperinflation', indicators.cpi.index);
                 }
 
                 setAnnualReportAccumulator(prev => {

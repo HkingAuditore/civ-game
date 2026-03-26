@@ -6,6 +6,7 @@ import { STRATA } from '../config/strata';
 import { RESOURCES } from '../config';
 import { REBELLION_PHASE } from '../config/events/rebellionEvents';
 import { PASSIVE_DEMAND_TYPES } from './demands';
+import { trackOrganizationPhase, trackRebellionCoalition } from '../analytics/gaTracker';
 import { getCoalitionSensitivity, isCoalitionMember, getLegitimacyOrganizationModifier, calculateCoalitionInfluenceShare, calculateLegitimacy } from './rulingCoalition';
 import {
     getDifficultyConfig,
@@ -159,6 +160,7 @@ export function checkCoalitionRebellion(
     if (isCoalition) {
         console.log(`[COALITION] Found ${coalitionStrata.length} strata eligible for coalition rebellion:`, coalitionStrata);
         console.log(`[COALITION] Total influence share: ${(totalInfluenceShare * 100).toFixed(1)}%`);
+        trackRebellionCoalition(primaryStratumKey);
     }
 
     return {
@@ -838,6 +840,7 @@ export function checkOrganizationEvents(previousStates, currentStates) {
 
         // 检查跨越30%阈值 (酝酿事件)
         if (prevOrg < STAGE_THRESHOLDS.GRUMBLING && currOrg >= STAGE_THRESHOLDS.GRUMBLING) {
+            trackOrganizationPhase(stratumKey, 'brewing', currOrg);
             events.push({
                 type: 'brewing',
                 stratumKey,
@@ -848,6 +851,7 @@ export function checkOrganizationEvents(previousStates, currentStates) {
 
         // 检查跨越60%阈值 (密谋事件) - 使用70%作为radicalizing
         if (prevOrg < STAGE_THRESHOLDS.RADICALIZING && currOrg >= STAGE_THRESHOLDS.RADICALIZING) {
+            trackOrganizationPhase(stratumKey, 'plotting', currOrg);
             events.push({
                 type: 'plotting',
                 stratumKey,
@@ -857,12 +861,8 @@ export function checkOrganizationEvents(previousStates, currentStates) {
         }
 
         // 检查达到100%阈值 (起义事件)
-        // 只要组织度达到或超过100%，就触发事件让后续逻辑处理
-        // 后续逻辑会检查：
-        // 1. 影响力是否足够（<10%会触发人口外流而非叛乱）
-        // 2. 是否已存在该阶层的叛军政府（避免重复创建）
-        // 注意：即使 stage 已经是 UPRISING（老存档），也需要触发事件来处理
         if (currOrg >= 100) {
+            trackOrganizationPhase(stratumKey, 'uprising', currOrg);
             events.push({
                 type: 'uprising',
                 stratumKey,

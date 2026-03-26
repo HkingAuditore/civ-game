@@ -1,7 +1,7 @@
 // 军事标签页组件
 // 显示可招募的兵种、当前军队和战斗功能
 
-import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, memo } from 'react';
+import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, getEnemyUnitsForEpoch, TECHS, EPOCHS } from '../../config';
@@ -15,6 +15,7 @@ import ActiveBattlePanel from '../panels/ActiveBattlePanel';
 import WarfrontCard from '../panels/WarfrontCard';
 import { BottomSheet } from './BottomSheet';
 import { calculateFrontEconomicImpact } from '../../logic/diplomacy/frontSystem';
+import { trackSubTabSwitch, trackAutoReplenish, trackWageRatio } from '../../analytics/gaTracker';
 
 const WAR_SCORE_GUIDE = [
     {
@@ -360,6 +361,10 @@ const MilitaryTabComponent = ({
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
+    const goMilitarySection = useCallback((section) => {
+        trackSubTabSwitch('military', section);
+        setActiveSection(section);
+    }, []);
     const [selectedFrontId, setSelectedFrontId] = useState(null);
     const [isFrontDetailSheetOpen, setIsFrontDetailSheetOpen] = useState(false);
     const [isMobileWarfrontLayout, setIsMobileWarfrontLayout] = useState(false);
@@ -501,6 +506,7 @@ const MilitaryTabComponent = ({
 
     const handleToggleAutoRecruit = (checked) => {
         if (!onToggleAutoRecruit) return;
+        trackAutoReplenish(checked);
         onToggleAutoRecruit(checked);
     };
 
@@ -618,14 +624,14 @@ const MilitaryTabComponent = ({
 
     React.useEffect(() => {
         if (!warfrontFocusRequest?.token) return;
-        setActiveSection('warfront');
+        goMilitarySection('warfront');
         if (warfrontFocusRequest.frontId) {
             setSelectedFrontId(warfrontFocusRequest.frontId);
             if (isMobileWarfrontLayout) {
                 setIsFrontDetailSheetOpen(true);
             }
         }
-    }, [isMobileWarfrontLayout, warfrontFocusRequest]);
+    }, [isMobileWarfrontLayout, warfrontFocusRequest, goMilitarySection]);
 
     React.useEffect(() => {
         if (activeSection !== 'warfront') return;
@@ -728,7 +734,7 @@ const MilitaryTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'soldiers'
                         ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('soldiers')}
+                    onClick={() => goMilitarySection('soldiers')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Users" size={14} />
@@ -739,7 +745,7 @@ const MilitaryTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'corps'
                         ? 'bg-purple-900/40 border-purple-500/60 text-purple-100 shadow-metal-sm'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('corps')}
+                    onClick={() => goMilitarySection('corps')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Shield" size={14} />
@@ -750,7 +756,7 @@ const MilitaryTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'warfront'
                         ? 'bg-red-900/40 border-red-500/60 text-red-100 shadow-metal-sm'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('warfront')}
+                    onClick={() => goMilitarySection('warfront')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Swords" size={14} />
@@ -884,7 +890,11 @@ const MilitaryTabComponent = ({
                                     type="number"
                                     step="0.1"
                                     value={militaryWageRatio}
-                                    onChange={(e) => onUpdateWageRatio && onUpdateWageRatio(parseFloat(e.target.value) || 0)}
+                                    onChange={(e) => {
+                                        const r = parseFloat(e.target.value) || 0;
+                                        trackWageRatio(r);
+                                        onUpdateWageRatio && onUpdateWageRatio(r);
+                                    }}
                                     className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100"
                                 />
                                 <span className="text-gray-500">军费 = 资源成本 × 时代 × 规模 × 倍率</span>

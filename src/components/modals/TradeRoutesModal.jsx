@@ -6,6 +6,7 @@ import { calculateMaxTradeRoutes, calculateForeignPrice, calculateTradeStatus } 
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 import { useLongPress } from '../../hooks/useLongPress';
+import { trackMerchantAssign, trackTradePreference, trackTradeRouteMode } from '../../analytics/gaTracker';
 
 // Separate component for assignment row to properly use hooks
 const AssignmentRow = ({
@@ -294,6 +295,12 @@ const TradeRoutesModal = ({
         if (type === 'dumping') nextQ.dumping = !nextQ.dumping;
         if (type === 'forceBuy') nextQ.forceBuy = !nextQ.forceBuy;
 
+        if (type === 'dumping') {
+            trackTradeRouteMode(nationId, nextQ.dumping ? 'dumping_on' : 'dumping_off');
+        } else if (type === 'forceBuy') {
+            trackTradeRouteMode(nationId, nextQ.forceBuy ? 'forceBuy_on' : 'forceBuy_off');
+        }
+
         const nextMap = {
             ...((base.coercionByNation && typeof base.coercionByNation === 'object') ? base.coercionByNation : {}),
             [nationId]: nextQ,
@@ -336,12 +343,20 @@ const TradeRoutesModal = ({
         const cap = (isOpenMarket || force) ? 999999 : (baseMax + totalBonus);
         const safe = Math.max(0, Math.min(cap, Math.floor(Number(nextValue) || 0)));
 
+        const prevRaw = merchantAssignments?.[nationId];
+        const prevSafe = prevRaw === undefined || prevRaw === null
+            ? 0
+            : Math.max(0, Math.floor(Number(prevRaw) || 0));
+
         const next = {
             ...(merchantAssignments && typeof merchantAssignments === 'object' ? merchantAssignments : {}),
             [nationId]: safe,
         };
         if (safe <= 0) {
             delete next[nationId];
+        }
+        if (safe !== prevSafe) {
+            trackMerchantAssign(nationId, safe);
         }
         onUpdateMerchantAssignments(next);
     };
@@ -852,6 +867,7 @@ const TradeRoutesModal = ({
                                                             const nextImport = { ...(base.import || {}) };
                                                             if (isSelected) delete nextImport[resourceKey];
                                                             else nextImport[resourceKey] = bias;
+                                                            trackTradePreference('import', resourceKey);
                                                             onUpdateMerchantTradePreferences({
                                                                 ...base,
                                                                 import: nextImport,
@@ -909,6 +925,7 @@ const TradeRoutesModal = ({
                                                             const nextExport = { ...(base.export || {}) };
                                                             if (isSelected) delete nextExport[resourceKey];
                                                             else nextExport[resourceKey] = bias;
+                                                            trackTradePreference('export', resourceKey);
                                                             onUpdateMerchantTradePreferences({
                                                                 ...base,
                                                                 export: nextExport,

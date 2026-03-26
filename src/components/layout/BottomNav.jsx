@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
+import { trackTabSwitch } from '../../analytics/gaTracker';
 
 // Tab配置，包含独特的颜色主题
 const TAB_CONFIG = {
@@ -98,7 +99,10 @@ export const BottomNav = React.memo(({ activeTab, onTabChange, epoch = 0 }) => {
                                 role="tab"
                                 aria-label={tab.label}
                                 aria-selected={isActive}
-                                onClick={() => onTabChange(tab.id)}
+                                onClick={() => {
+                                    trackTabSwitch(tab.id);
+                                    onTabChange(tab.id);
+                                }}
                                 data-tutorial={`tab-${tab.id}`}
                                 className={`
                   appearance-none bg-transparent

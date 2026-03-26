@@ -90,9 +90,13 @@ export const TREATY_EFFECT_CONFIGS = {
  */
 export const getActiveTreaties = (nation, daysElapsed) => {
     if (!nation?.treaties || !Array.isArray(nation.treaties)) return [];
-    return nation.treaties.filter(t => 
-        t && (!Number.isFinite(t.endDay) || daysElapsed < t.endDay)
-    );
+    return nation.treaties.filter((t) => {
+        if (!t) return false;
+        const status = typeof t.status === 'string' ? t.status.toLowerCase() : null;
+        if (status === 'expired' || status === 'terminated' || status === 'cancelled') return false;
+        if (Number.isFinite(t.endDay) && daysElapsed >= t.endDay) return false;
+        return true;
+    });
 };
 
 /**

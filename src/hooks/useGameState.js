@@ -17,7 +17,7 @@ import { clampBootstrapPopulation } from '../utils/populationClamp';
 import { createAnnualReportAccumulator } from '../utils/annualReport';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { trackSaveGame, trackLoadGame, trackResetGame, trackNewGame, trackErrorError } from '../analytics/gaTracker';
+import { trackSaveGame, trackLoadGame, trackResetGame, trackNewGame, trackErrorError, trackExportSave, trackImportSave, trackCoalitionChange, trackIdeologyEquip, trackIdeologyUnequip } from '../analytics/gaTracker';
 
 // 多存档槽位系�?
 const SAVE_SLOT_COUNT = 10; // 手动存档槽位数量
@@ -2651,9 +2651,7 @@ export const useGameState = () => {
         if (source === 'auto' && (autoSaveBlocked || !isAutoSaveEnabled)) {
             return;
         }
-        if (source === 'manual') {
-            trackSaveGame(daysElapsed);
-        }
+        trackSaveGame(daysElapsed, source);
         const timestamp = Date.now();
         const { payload } = buildSavePayload({ source, timestamp });
         // Always compact saves to reduce storage usage (both manual and auto)
@@ -2971,6 +2969,7 @@ export const useGameState = () => {
                     : externalRaw;
                 applyLoadedGameState(externalData);
                 addLogEntry(`📂 ${friendlyName}读取成功！`);
+                trackLoadGame(externalData?.daysElapsed || daysElapsed);
                 return true;
             }
             applyLoadedGameState(data);
@@ -3035,6 +3034,7 @@ export const useGameState = () => {
         if (typeof window === 'undefined' || typeof Blob === 'undefined') {
             throw new Error('导出仅支持浏览器环境');
         }
+        trackExportSave();
         try {
             const timestamp = Date.now();
             const { payload } = buildSavePayload({ source: 'binary-export', timestamp });
@@ -3311,6 +3311,7 @@ export const useGameState = () => {
     };
 
     const importSaveFromBinary = async (fileOrBuffer) => {
+        trackImportSave();
         try {
             if (!fileOrBuffer) {
                 throw new Error('请选择有效的存档文�');

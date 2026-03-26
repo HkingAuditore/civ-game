@@ -10,6 +10,7 @@ import { isResourceUnlocked } from '../../utils/resources';
 import { CoalitionPanel } from '../panels/CoalitionPanel';
 import { OfficialsPanel } from '../panels/officials/OfficialsPanel';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import { trackSubTabSwitch } from '../../analytics/gaTracker';
 
 // Helper to clamp values
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -627,7 +628,7 @@ const PoliticsTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'government'
                         ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('government')}
+                    onClick={() => { trackSubTabSwitch('politics', 'government'); setActiveSection('government'); }}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Landmark" size={14} />
@@ -638,7 +639,7 @@ const PoliticsTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'tax'
                         ? 'bg-amber-900/30 border-ancient-gold/60 text-amber-100 shadow-metal-sm'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('tax')}
+                    onClick={() => { trackSubTabSwitch('politics', 'tax'); setActiveSection('tax'); }}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="DollarSign" size={14} />
@@ -649,7 +650,7 @@ const PoliticsTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'officials'
                         ? 'bg-purple-900/40 border-ancient-gold/60 text-purple-100 shadow-metal-sm'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'} ${epoch < 1 ? 'opacity-50' : ''}`}
-                    onClick={() => setActiveSection('officials')}
+                    onClick={() => { trackSubTabSwitch('politics', 'officials'); setActiveSection('officials'); }}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         {epoch < 1 && <Icon name="Lock" size={12} className="text-gray-500" />}
@@ -681,9 +682,9 @@ const PoliticsTabComponent = ({
                         税收政策调节
                     </h3>
                     <div className="flex flex-nowrap gap-1.5 mb-3 border-b border-gray-700 overflow-x-auto scrollbar-thin">
-                        <button onClick={() => setActiveTaxTab('head')} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'head' ? 'text-yellow-300 border-b-2 border-yellow-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Users" size={12} />人头税</div></button>
-                        <button onClick={() => setActiveTaxTab('resource')} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'resource' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Package" size={12} />交易税</div></button>
-                        <button onClick={() => setActiveTaxTab('business')} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'business' ? 'text-green-300 border-b-2 border-green-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Building" size={12} />营业税</div></button>
+                        <button onClick={() => { trackSubTabSwitch('politics', 'tax_head'); setActiveTaxTab('head'); }} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'head' ? 'text-yellow-300 border-b-2 border-yellow-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Users" size={12} />人头税</div></button>
+                        <button onClick={() => { trackSubTabSwitch('politics', 'tax_resource'); setActiveTaxTab('resource'); }} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'resource' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Package" size={12} />交易税</div></button>
+                        <button onClick={() => { trackSubTabSwitch('politics', 'tax_business'); setActiveTaxTab('business'); }} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'business' ? 'text-green-300 border-b-2 border-green-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Building" size={12} />营业税</div></button>
                     </div>
 
                     {activeTaxTab === 'head' && (
