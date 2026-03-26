@@ -4,9 +4,28 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.1.11',
+        version: '2.1.12',
         date: '2026-03-26',
         isLatest: true,
+        highlights: [
+            '新增自建分析后端，事件缓冲批量上报与 sendBeacon 兜底',
+            '埋点覆盖率从核心操作扩展到全量玩家行为与经济周期采样',
+            '条约有效性判定统一加固，cancelled 状态不再遗漏',
+            '建筑面板虚拟滚动 spacer 计算修复无限震荡',
+        ],
+        changes: [
+            { type: 'new', text: '新增自建分析后端（analytics-server）：基于 Express + PostgreSQL 的独立事件收集服务，含会话管理、批量事件入库与常用查询模板；客户端通过 customBackend 适配层缓冲事件，10 秒或 50 条自动 flush，页面关闭时 sendBeacon 兜底，配置 VITE_ANALYTICS_API_URL 即可启用。' },
+            { type: 'new', text: '事件埋点新增 60+ 事件类型：覆盖存档导入导出、难度/场景选择、建筑批量升降级、附庸审批/指令、和约接受/拒绝/提议、军事解散全部/取消训练/自动补兵/军饷倍率、税收调整、价格管制、贸易偏好/商人分配/路线模式、事件抉择、手动采集、理念装卸、UI 标签/子标签/速度/暂停/建筑置顶与筛选等，同时新增经济流水、市场价格、人口里程碑、饥荒死亡、稳定度等级变化、经济危机、诉求生命周期、组织度阶段、AI 行为和条约状态的周期采样。' },
+            { type: 'improve', text: '所有分析事件同时双写至 GameAnalytics SDK 和自建后端，确保数据冗余；自建后端静默降级——服务不可用时不影响游戏运行。' },
+            { type: 'improve', text: '事件追踪模块按类别重组（生命周期/建筑/科技/外交/附庸/和约/军事/政治/税收/贸易/事件/理念/成就/周期指标/经济流水/价格/里程碑/诉求/组织度/AI/条约/UI），结构更清晰、扩展更方便。' },
+            { type: 'fix', text: '条约有效性判定统一并加固：提取 isTreatyRecordActive 公共函数，到期日优先于 status 字段判断，新增对 cancelled 状态的过滤；getActiveTreaties 同步修正，避免已取消条约仍生效。' },
+            { type: 'fix', text: '建筑面板虚拟滚动的 topSpacer 高度计算不再回补自身高度：修复 spacer 高度变化 → gridTop 变化 → range 变化 → spacer 变化的无限震荡循环。' },
+        ],
+    },
+    {
+        version: '2.1.11',
+        date: '2026-03-26',
+        isLatest: false,
         highlights: [
             '接入 GameAnalytics 全链路埋点与 GDPR 合规开关',
             'AI 求和机制重做：持久战/僵局路径 + 战争分门槛修正',
