@@ -82,6 +82,7 @@ import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
 import { IDEOLOGY_MAP } from './config/ideologies';
 import { initGA, setDimensions } from './analytics/gaInit';
 import { installGlobalErrorHandlers, trackProgressionStart } from './analytics/gaTracker';
+import { initCustomBackend } from './analytics/customBackend';
 
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
@@ -235,6 +236,7 @@ function GameApp({ gameState }) {
     // GameAnalytics 初始化
     useEffect(() => {
         initGA();
+        initCustomBackend();
         installGlobalErrorHandlers();
         const epochNames = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
         setDimensions({

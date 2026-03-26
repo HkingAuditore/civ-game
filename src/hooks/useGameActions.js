@@ -56,10 +56,17 @@ import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordSta
 import { generateFront, getEffectiveFrontWarScore } from '../logic/diplomacy/frontSystem';
 import {
     trackBuyBuilding, trackSellBuilding, trackUpgradeBuilding,
+    trackDowngradeBuilding, trackBatchUpgradeBuilding, trackBatchDowngradeBuilding,
     trackResearchTech, trackEpochUpgrade, trackDiplomacy,
-    trackRecruit, trackBattleLaunch, trackDecreeToggle,
+    trackRecruit, trackBattleLaunch, trackBattleResult, trackDecreeToggle,
     trackResourceSink, trackOfficialHire, trackOfficialFire,
+    trackOfficialSalary, trackMinisterAssign,
     trackProgressionComplete, trackProgressionStart, trackDisband,
+    trackDisbandAll, trackCancelTraining, trackCancelAllTraining,
+    trackManualGather, trackEventChoice, trackRebellionAction,
+    trackVassalApprove, trackVassalReject, trackVassalOrder,
+    trackPeaceAccept, trackPeaceReject, trackPeacePropose,
+    trackTradeRouteMode,
 } from '../analytics/gaTracker';
 import { setDimensions } from '../analytics/gaInit';
 // 外交叛乱干预系统
@@ -477,6 +484,7 @@ export const useGameActions = (gameState, addLog) => {
     const approveVassalDiplomacyAction = (requestId) => {
         const request = (vassalDiplomacyQueue || []).find(item => item?.id === requestId);
         if (!request) return;
+        trackVassalApprove(request.actionType, request.vassalId);
         const result = executeVassalDiplomacyAction(request);
         if (result.success) {
             resolveVassalDiplomacyRequest(requestId, 'approved');
@@ -487,6 +495,8 @@ export const useGameActions = (gameState, addLog) => {
     };
 
     const rejectVassalDiplomacyAction = (requestId, reason = 'rejected') => {
+        const request = (vassalDiplomacyQueue || []).find(item => item?.id === requestId);
+        trackVassalReject(request?.actionType || 'unknown', request?.vassalId);
         resolveVassalDiplomacyRequest(requestId, 'rejected', { failureReason: reason });
         if (reason) addLog(`🛑 已拒绝附庸外交请求：${reason}`);
     };
@@ -497,6 +507,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog('无法下达指令：附庸不存在');
             return;
         }
+        trackVassalOrder(actionType, vassalId);
 
         // [FIX] Cannot issue orders to annexed vassals
         if (vassal.isAnnexed) {
@@ -1061,6 +1072,7 @@ export const useGameActions = (gameState, addLog) => {
         const current = currentEvent && currentEvent.id === eventId ? currentEvent : null;
         const fallback = current || EVENTS.find(evt => evt.id === eventId);
         const selected = option || {};
+        trackEventChoice(eventId, selected.id || 0);
 
         if (selected.effects) {
             applyEventEffects(selected.effects);
@@ -1863,6 +1875,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${building.name} 已是基础等级。`);
             return;
         }
+        trackDowngradeBuilding(buildingId, fromLevel);
 
         // 检查是否有该等级的建筑可降级
         const levelCounts = buildingUpgrades[buildingId] || {};
@@ -1910,6 +1923,7 @@ export const useGameActions = (gameState, addLog) => {
     const batchUpgradeBuilding = (buildingId, fromLevel, upgradeCount) => {
         const building = BUILDINGS.find(b => b.id === buildingId);
         if (!building) return;
+        trackBatchUpgradeBuilding(buildingId, upgradeCount);
 
         // 检查目标等级的输入资源是否全部已解锁
         const { unlocked: inputsUnlocked, missingResources } = areUpgradeInputsUnlocked(
@@ -2116,6 +2130,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${building.name} 已是基础等级。`);
             return;
         }
+        trackBatchDowngradeBuilding(buildingId, downgradeCount);
 
         // 新格式：直接读取该等级的数量
         const levelCounts = buildingUpgrades[buildingId] || {};
@@ -2529,6 +2544,7 @@ export const useGameActions = (gameState, addLog) => {
      */
     const updateOfficialSalary = (officialId, nextSalary) => {
         if (!officialId || !Number.isFinite(nextSalary)) return;
+        trackOfficialSalary(Math.floor(nextSalary));
         setOfficials(prev => prev.map(official => (
             official.id === officialId ? { ...official, salary: Math.floor(nextSalary) } : official
         )));
@@ -2599,6 +2615,7 @@ export const useGameActions = (gameState, addLog) => {
         if (!MINISTER_ROLES.includes(role)) return;
         const official = officials.find(o => o.id === officialId);
         if (!official) return;
+        trackMinisterAssign(role);
         setMinisterAssignments(prev => {
             const next = { ...buildEmptyMinisterAssignments(), ...(prev || {}) };
             MINISTER_ROLES.forEach((otherRole) => {
@@ -2645,6 +2662,7 @@ export const useGameActions = (gameState, addLog) => {
      * @param {Event} e - 鼠标事件
      */
     const manualGather = (e) => {
+        trackManualGather(1);
         setClicks(prev => [...prev, {
             id: Date.now(),
             x: e.clientX,
@@ -2807,6 +2825,7 @@ export const useGameActions = (gameState, addLog) => {
 
             const item = prev[queueIndex];
             const unit = UNIT_TYPES[item.unitId];
+            trackCancelTraining(item.unitId);
 
             // 移除该项
             const newQueue = prev.filter((_, idx) => idx !== queueIndex);
@@ -2849,6 +2868,7 @@ export const useGameActions = (gameState, addLog) => {
     const cancelAllTraining = () => {
         setMilitaryQueue(prev => {
             if (prev.length === 0) return prev;
+            trackCancelAllTraining(prev.length);
 
             let totalRefundSilver = 0;
             const totalRefundResources = {};
@@ -2893,6 +2913,7 @@ export const useGameActions = (gameState, addLog) => {
     const disbandAllUnits = (unitId) => {
         const count = army[unitId] || 0;
         if (count <= 0) return;
+        trackDisbandAll(count);
 
         setArmy(prev => ({
             ...prev,
@@ -6353,8 +6374,8 @@ export const useGameActions = (gameState, addLog) => {
      * @param {boolean} playerVictory - 玩家是否胜利
      */
     const handleRebellionAction = (action, stratumKey, extraData = {}) => {
-
         if (!stratumKey) return;
+        trackRebellionAction(action, stratumKey);
         const rebellionState = (rebellionStates && rebellionStates[stratumKey]) || {};
         const totalArmy = Object.values(army || {}).reduce((sum, count) => sum + (count || 0), 0);
         const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}) / 100;
@@ -6586,7 +6607,8 @@ export const useGameActions = (gameState, addLog) => {
     const handleEnemyPeaceAccept = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
-        
+        trackPeaceAccept(nationId);
+
         // Peaceful resolution grants reputation bonus (except for annexation)
         if (proposalType !== 'annex' && setDiplomaticReputation) {
             const { newReputation } = calculateReputationChange(
@@ -6728,6 +6750,7 @@ export const useGameActions = (gameState, addLog) => {
     const handleEnemyPeaceReject = (nationId) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
+        trackPeaceReject(nationId);
         setNations(prev => prev.map(n => {
             if (n.id !== nationId) return n;
             return { ...n, relation: Math.max(0, (n.relation || 0) - 5) };
@@ -6737,6 +6760,7 @@ export const useGameActions = (gameState, addLog) => {
     const handlePlayerPeaceProposal = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
+        trackPeacePropose(nationId);
         if (proposalType === 'cancel') {
             addLog(`Peace proposal to ${targetNation.name} canceled.`);
             return;

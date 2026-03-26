@@ -12,6 +12,7 @@ import { getEpochTheme } from '../../config/epicTheme';
 import { getTechCostMultiplier } from '../../config/difficulty';
 import { IdeologyTab } from './IdeologyTab';
 import { TechTreeView } from './TechTreeView';
+import { trackSubTabSwitch } from '../../analytics/gaTracker';
 
 const EPOCH_BONUS_LABELS = {
     gatherBonus: { label: '采集产出', type: 'percent' },
@@ -340,7 +341,7 @@ const TechTabComponent = ({
                             ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
                             : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
                     }`}
-                    onClick={() => setActiveSection('knowledge')}
+                    onClick={() => { trackSubTabSwitch('tech', 'knowledge'); setActiveSection('knowledge'); }}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Lightbulb" size={14} />
@@ -353,7 +354,7 @@ const TechTabComponent = ({
                             ? 'bg-purple-900/40 border-purple-500/60 text-purple-100 shadow-metal-sm'
                             : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
                     }`}
-                    onClick={() => setActiveSection('ideology')}
+                    onClick={() => { trackSubTabSwitch('tech', 'ideology'); setActiveSection('ideology'); }}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Sparkles" size={14} />
