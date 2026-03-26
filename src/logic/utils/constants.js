@@ -33,9 +33,8 @@ export const ROLE_PRIORITY = [
 ];
 
 // Job migration ratio - percentage of population that can migrate per tick
-// Reduced from 0.05 to 0.02 to slow down migration frequency
-// Reduced to 0.005 to significantly stabilize job markets
-export const JOB_MIGRATION_RATIO = 0.0025;
+// Raised from 0.25% to 1.2% so labor can reallocate faster.
+export const JOB_MIGRATION_RATIO = 0.012;
 // Guaranteed migration ratio when source role population is low (below LOW_POP_THRESHOLD)
 export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
 // Limit how fast vacancies can be filled per tick to reduce oscillation

@@ -785,7 +785,7 @@ export const IDEOLOGIES = [
                         // 平均满意度 → 税收（商人满意时贸易更活跃）
                         { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.003, target: 'taxIncome', cap: 0.12 },
                         // 富裕人口 → 税收（商人阶层财富带动贸易）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'taxIncome', cap: 0.12 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000004, target: 'taxIncome', cap: 0.12 },
                     ],
                     triggerEffects: [
                         { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.01 }, cap: 0.15 },
@@ -858,7 +858,7 @@ export const IDEOLOGIES = [
                         // 完整产业链 → 产出
                         { source: 'chain', sourceType: 'chainCount', ratio: 0.015, target: 'production', cap: 0.35 },
                         // 富裕人口 → 税收（资本家级消费拉动经济）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00003, target: 'taxIncome', cap: 0.15 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000003, target: 'taxIncome', cap: 0.15 },
                     ],
                     ruleMods: [
                         { type: 'price_volatility_mod', value: 0.12 },
@@ -1661,23 +1661,23 @@ export const IDEOLOGIES = [
                     scienceBonus: 0.05, taxIncome: 0.03, maxPop: -0.02, stability: -2,
                     converters: [
                         // 富裕人口 → 科研（精英阶层投资知识）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'scienceBonus', cap: 0.25 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000004, target: 'scienceBonus', cap: 0.25 },
                     ],
                 },
                 {
                     scienceBonus: 0.08, taxIncome: 0.05, categories: { industry: 0.03 }, maxPop: -0.02, stability: -3,
                     converters: [
                         // 富裕人口 → 科研+税收（精英阶层投资和消费）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00005, target: 'scienceBonus', cap: 0.35 },
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00003, target: 'taxIncome', cap: 0.20 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000005, target: 'scienceBonus', cap: 0.35 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000003, target: 'taxIncome', cap: 0.20 },
                     ],
                 },
                 {
                     scienceBonus: 0.12, taxIncome: 0.08, categories: { industry: 0.06 }, maxPop: -0.02, stability: -5,
                     converters: [
                         // 富裕人口 → 科研+税收（精英阶层全面引领）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00006, target: 'scienceBonus', cap: 0.45 },
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'taxIncome', cap: 0.30 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000006, target: 'scienceBonus', cap: 0.45 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000004, target: 'taxIncome', cap: 0.30 },
                     ],
                 },
             ],
