@@ -782,6 +782,13 @@ function _readSourceValue(converter, triggerState) {
         case 'officialCount':
             return triggerState.officialCount || 0;
         case 'population':
+            // 支持按阶层人口转化：当 source 指向具体阶层时优先读取 popStructure[source]
+            if (source && source !== 'population') {
+                const stratumPop = triggerState.popStructure?.[source];
+                if (typeof stratumPop === 'number') {
+                    return stratumPop;
+                }
+            }
             return triggerState.population || 0;
         case 'stability':
             return triggerState.stability || 0;

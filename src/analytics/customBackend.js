@@ -39,7 +39,11 @@ let enabled = false;
 // ── 初始化 ──
 
 export function initCustomBackend() {
-    if (!API_URL) return;
+    if (!API_URL) {
+        console.warn('[Analytics] No VITE_ANALYTICS_API_URL configured, custom backend disabled');
+        return;
+    }
+    console.log('[Analytics] Custom backend init →', API_URL);
     enabled = true;
 
     const userId = getOrCreateUserId();
@@ -47,7 +51,7 @@ export function initCustomBackend() {
     sendJSON(`${API_URL}/api/session/start`, {
         userId,
         sessionId,
-        appVersion: import.meta.env.VITE_APP_VERSION || '2.1.11',
+        appVersion: __APP_VERSION__,
         difficulty: null,
         scenario: null,
         userAgent: navigator.userAgent,
@@ -156,9 +160,13 @@ function sendJSON(url, data) {
             },
             body: JSON.stringify(data),
             keepalive: true,
-        }).catch(() => {});
-    } catch {
-        // 静默降级
+        }).then(res => {
+            if (!res.ok) console.warn('[Analytics] POST failed:', res.status, url);
+        }).catch(err => {
+            console.warn('[Analytics] Network error:', err.message, url);
+        });
+    } catch (e) {
+        console.warn('[Analytics] Send error:', e.message);
     }
 }
 

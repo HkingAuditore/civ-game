@@ -16,6 +16,22 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
 import { BUILDING_CHAINS, BUILDING_TO_CHAIN } from '../../config/buildingChains';
 import { trackBuildingPin, trackBuildingFilter } from '../../analytics/gaTracker';
 
+const CATEGORIES = {
+    gather: { name: '采集与农业', icon: 'Wheat', color: 'text-yellow-400' },
+    industry: { name: '工业生产', icon: 'Factory', color: 'text-blue-400' },
+    civic: { name: '市政建筑', icon: 'Home', color: 'text-green-400' },
+    military: { name: '军事建筑', icon: 'Swords', color: 'text-red-400' },
+};
+const CATEGORY_ENTRIES = Object.entries(CATEGORIES);
+const CATEGORY_FILTERS = [
+    { key: 'all', label: '全部' },
+    { key: 'pinned', label: '⭐ 收藏' },
+    { key: 'gather', label: '采集' },
+    { key: 'industry', label: '工业' },
+    { key: 'civic', label: '市政' },
+    { key: 'military', label: '军事' },
+];
+
 const PINNED_BUILDINGS_KEY = 'civ_pinned_buildings';
 const loadPinnedBuildings = () => {
     try {
@@ -491,11 +507,12 @@ const BuildTabComponent = ({
             if (rafId) return;
             rafId = window.requestAnimationFrame(update);
         };
-        window.addEventListener('scroll', onScroll, { passive: true });
+        // capture: true 也捕获父容器的 scroll 事件，避免虚拟化失效
+        document.addEventListener('scroll', onScroll, { passive: true, capture: true });
         window.addEventListener('resize', onScroll);
         update();
         return () => {
-            window.removeEventListener('scroll', onScroll);
+            document.removeEventListener('scroll', onScroll, { capture: true });
             window.removeEventListener('resize', onScroll);
             if (rafId) window.cancelAnimationFrame(rafId);
         };
@@ -1103,28 +1120,14 @@ const BuildTabComponent = ({
         return result;
     }, [availableBuildingsByCategory, groupedBuildingsByCategory, expandedChains]);
 
-    // 按类别分组建筑
-    const categories = {
-        gather: { name: '采集与农业', icon: 'Wheat', color: 'text-yellow-400' },
-        industry: { name: '工业生产', icon: 'Factory', color: 'text-blue-400' },
-        civic: { name: '市政建筑', icon: 'Home', color: 'text-green-400' },
-        military: { name: '军事建筑', icon: 'Swords', color: 'text-red-400' },
-    };
-    const categoryFilters = [
-        { key: 'all', label: '全部' },
-        { key: 'pinned', label: '⭐ 收藏' },
-        { key: 'gather', label: '采集' },
-        { key: 'industry', label: '工业' },
-        { key: 'civic', label: '市政' },
-        { key: 'military', label: '军事' },
-    ];
     const [activeCategory, setActiveCategory] = useState('all');
-    const categoriesToRender =
+    const categoriesToRender = useMemo(() =>
         activeCategory === 'all' || activeCategory === 'pinned'
-            ? Object.entries(categories)
-            : Object.entries(categories).filter(([key]) => key === activeCategory);
+            ? CATEGORY_ENTRIES
+            : CATEGORY_ENTRIES.filter(([key]) => key === activeCategory),
+        [activeCategory]
+    );
 
-    // Memoize viewport values to prevent infinite loop
     const viewportScrollY = useMemo(() => viewport.scrollY, [viewport.scrollY]);
     const viewportHeight = useMemo(() => viewport.height, [viewport.height]);
 
@@ -1230,7 +1233,7 @@ const BuildTabComponent = ({
     return (
 <div className="space-y-3 build-tab">
             <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm overflow-x-auto">
-                {categoryFilters.map((filter) => {
+                {CATEGORY_FILTERS.map((filter) => {
                     const isActive = filter.key === activeCategory;
                     return (
                         <button

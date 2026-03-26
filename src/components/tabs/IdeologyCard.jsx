@@ -392,7 +392,10 @@ function getConverterSourcePhrase(converter, step) {
         case 'officialCount':
             return `每${step}名官员`;
         case 'population':
-            return `每${step}人口`;
+            if (converter.source && converter.source !== 'population') {
+                return `每${step}${getStratumName(converter.source)}人口`;
+            }
+            return `每${step}总人口`;
         case 'stability':
             return `每${step}点稳定度`;
         case 'warCount':
