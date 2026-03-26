@@ -4,9 +4,24 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.1.13',
+        version: '2.1.14',
         date: '2026-03-26',
         isLatest: true,
+        highlights: [
+            '新增分析查询手册，常用 SQL 可直接复用',
+            '新增命令行查询脚本，临时取数更高效',
+            '分析工作流文档化，平衡排查路径更清晰',
+        ],
+        changes: [
+            { type: 'new', text: '新增 `analytics-server/ANALYTICS_GUIDE.md` 数据分析手册：集中整理 sessions、design_events、resource_events、error_events 的字段说明、event_id 全索引与按场景分类的查询模板，便于快速定位玩法平衡与留存问题。' },
+            { type: 'new', text: '新增 `analytics-server/scripts/query.cjs` 命令行查询脚本：支持通过 `node scripts/query.cjs \"SQL\"` 直接执行 SQL 并输出 JSON 结果，减少临时写脚本和手工连接数据库的重复操作。' },
+            { type: 'improve', text: '新增 `skills/civ-analytics/SKILL.md` 分析技能文档，统一数据分析步骤、查询约束和结果解读流程，提升后续版本排查与调参的一致性。' },
+        ],
+    },
+    {
+        version: '2.1.13',
+        date: '2026-03-26',
+        isLatest: false,
         highlights: [
             '理念富裕人口转化系数回调，后期税收与科研增幅更可控',
             '岗位迁移速度与保底迁移同步优化，劳动力错配恢复更快',

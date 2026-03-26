@@ -3693,9 +3693,20 @@ export const useGameActions = (gameState, addLog) => {
                             };
                             addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}`);
                         }
+                        const nextForeignWars = { ...(n.foreignWars || {}) };
+                        if (nextForeignWars.player) {
+                            nextForeignWars.player = {
+                                ...nextForeignWars.player,
+                                isAtWar: false,
+                                warScore: 0,
+                                peaceTreatyUntil: daysElapsed + 365,
+                            };
+                        }
+
                         return {
                             ...n,
                             isAtWar: false,
+                            warTarget: null,
                             warScore: 0,
                             warDuration: 0,
 
@@ -3703,9 +3714,24 @@ export const useGameActions = (gameState, addLog) => {
                             relation: Math.min(100, Math.max(0, (n.relation || 0) + relationChange)),
                             wealth: Math.max(0, (n.wealth || 0) + silverChange),
                             population: clampPopulationAtFloor((n.population || 1000) + popChange),
-
+                            foreignWars: nextForeignWars,
                             lootReserve: Math.max(0, (n.lootReserve || 0) - lootReserveChange),
                             ...vassalUpdates
+                        };
+                    }
+
+                    if (n.id === 'player' && n.foreignWars?.[nationId]) {
+                        return {
+                            ...n,
+                            foreignWars: {
+                                ...n.foreignWars,
+                                [nationId]: {
+                                    ...n.foreignWars[nationId],
+                                    isAtWar: false,
+                                    warScore: 0,
+                                    peaceTreatyUntil: daysElapsed + 365,
+                                },
+                            },
                         };
                     }
 
@@ -6557,17 +6583,45 @@ export const useGameActions = (gameState, addLog) => {
         }, daysElapsed);
 
         setNations(prev => prev.map(n => {
-            if (n.id !== nationId) return n;
-            return {
-                ...n,
-                isAtWar: false,
-                warScore: 0,
-                warDuration: 0,
-                enemyLosses: 0,
-                peaceTreatyUntil: daysElapsed + 365,
-                ...extraUpdates,
+            if (n.id === nationId) {
+                const nextForeignWars = { ...(n.foreignWars || {}) };
+                if (nextForeignWars.player) {
+                    nextForeignWars.player = {
+                        ...nextForeignWars.player,
+                        isAtWar: false,
+                        warScore: 0,
+                        peaceTreatyUntil: daysElapsed + 365,
+                    };
+                }
+                return {
+                    ...n,
+                    isAtWar: false,
+                    warTarget: null,
+                    warScore: 0,
+                    warDuration: 0,
+                    enemyLosses: 0,
+                    peaceTreatyUntil: daysElapsed + 365,
+                    foreignWars: nextForeignWars,
+                    ...extraUpdates,
+                };
+            }
 
-            };
+            if (n.id === 'player' && n.foreignWars?.[nationId]) {
+                return {
+                    ...n,
+                    foreignWars: {
+                        ...n.foreignWars,
+                        [nationId]: {
+                            ...n.foreignWars[nationId],
+                            isAtWar: false,
+                            warScore: 0,
+                            peaceTreatyUntil: daysElapsed + 365,
+                        },
+                    },
+                };
+            }
+
+            return n;
         }));
 
         if (cleanupRuntime) {

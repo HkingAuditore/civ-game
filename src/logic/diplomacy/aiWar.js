@@ -39,7 +39,7 @@ import { getCheckpointsCrossed, CHECKPOINTS } from './frontSystem';
 import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile, calculateWarPlunder } from './warEconomy';
 import { WAR_ECONOMY, AI_WAR_DECISION } from '../../config/gameConstants';
 import { BUILDINGS } from '../../config/buildings';
-import { clampPopulationAtFloor, reducePopulationWithFloor } from '../../utils/populationClamp';
+import { reducePopulationWithFloor } from '../../utils/populationClamp';
 
 const AI_DOCTRINES = {
     line_breaker: {
@@ -84,6 +84,44 @@ const pickDoctrine = (nation, epoch = 0) => {
     if (aggression < 0.25) return AI_DOCTRINES.siege_attrition;
     if (aggression > 0.6) return AI_DOCTRINES.deep_raid;
     return AI_DOCTRINES.balanced_command;
+};
+
+/**
+ * Frontline-driven population casualties for AI-AI wars.
+ * 仅在战线拉扯或被推进到本土时提高损失，避免“只要开战就持续暴跌”。
+ */
+const applyFrontlinePopulationCasualties = ({
+    nation,
+    enemy,
+    linePosition = 50,
+    warIntensity = 1,
+}) => {
+    const nationPop = Math.max(1, Number(nation?.population || 0));
+    const enemyPop = Math.max(1, Number(enemy?.population || 0));
+
+    // 前线越接近中线（50），代表接触战更密集；越深入本土，民用损失越高
+    const contestFactor = 1 - Math.min(1, Math.abs(linePosition - 50) / 50);
+    const nationHomelandPressure = Math.max(0, (50 - linePosition) / 45); // line<50: nation本土受压
+    const enemyHomelandPressure = Math.max(0, (linePosition - 50) / 45); // line>50: enemy本土受压
+
+    const nationCollapse = linePosition <= 12 ? 1 : 0;
+    const enemyCollapse = linePosition >= 88 ? 1 : 0;
+
+    // 基础损失很低，主要由前线状态驱动；单tick最高不超过 0.12%
+    const baseRate = 0.00003 * warIntensity;
+    const contestRate = 0.00012 * contestFactor * warIntensity;
+    const nationPressureRate = 0.00045 * Math.pow(nationHomelandPressure, 1.35) * warIntensity;
+    const enemyPressureRate = 0.00045 * Math.pow(enemyHomelandPressure, 1.35) * warIntensity;
+    const collapseRate = 0.00035 * warIntensity;
+
+    const nationRate = clamp(baseRate + contestRate + nationPressureRate + (nationCollapse ? collapseRate : 0), 0, 0.0012);
+    const enemyRate = clamp(baseRate + contestRate + enemyPressureRate + (enemyCollapse ? collapseRate : 0), 0, 0.0012);
+
+    const nationLoss = Math.max(0, Math.floor(nationPop * nationRate));
+    const enemyLoss = Math.max(0, Math.floor(enemyPop * enemyRate));
+
+    nation.population = reducePopulationWithFloor(nationPop, nationLoss);
+    enemy.population = reducePopulationWithFloor(enemyPop, enemyLoss);
 };
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
@@ -1941,8 +1979,6 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             // === 经济衰减（极端战线时翻倍） ===
             let nationWealthDecay = 0.997 - (warIntensity * 0.0015);
             let enemyWealthDecay = 0.997 - (warIntensity * 0.0015);
-            const populationDecayRate = 0.998 - (warIntensity * 0.002);
-
             // 极端战线衰减加速：linePosition <=8 表示 nation 被深入，>=92 表示 enemy 被深入
             const lp = war.linePosition;
             if (lp <= 8) nationWealthDecay *= 0.997; // 翻倍衰减
@@ -1956,9 +1992,13 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             const nationWarExpense = Math.max(1, Math.round(getNationAnnualOutput(nation, 500) * 0.0009 * warIntensity));
             const enemyWarExpense = Math.max(1, Math.round(getNationAnnualOutput(enemy, 500) * 0.0009 * warIntensity));
             nation.wealth = Math.max(100, (nation.wealth || 500) * nationWealthDecay * nationMultiWarPenalty - nationWarExpense);
-            nation.population = clampPopulationAtFloor((nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
             enemy.wealth = Math.max(100, (enemy.wealth || 500) * enemyWealthDecay * enemyMultiWarPenalty - enemyWarExpense);
-            enemy.population = clampPopulationAtFloor((enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
+            applyFrontlinePopulationCasualties({
+                nation,
+                enemy,
+                linePosition: lp,
+                warIntensity,
+            });
 
             // === linePosition 推进（每tick） ===
             // 基于分配到本战线的实际军团战力计算有效战力
