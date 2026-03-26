@@ -86,8 +86,7 @@ import {
     createRebelNation,
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
-import { getTreatyDailyMaintenance, INDEPENDENCE_CONFIG } from '../config/diplomacy';
-import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
+import { getTreatyDailyMaintenance } from '../config/diplomacy';
 import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
 import { LOYALTY_CONFIG } from '../config/officials';
 import { updateAllOfficialsDaily } from '../logic/officials/progression';
@@ -1932,55 +1931,19 @@ difficulty, // 游戏难度
                     });
                 }
 
-                // ========== 附庸每日更新（朝贡与独立倾向）- 移到主setResources之前 ==========
-                // [FIX] 将附庸朝贡收入和控制成本整合到 adjustedResources 和 auditEntries 中
-                // 閬垮厤浜х敓宸ㄥぇ鐨?瀵硅处宸"
+                // ========== 附庸请求检查 ==========
+                // 附庸的每日结算（朝贡/独立倾向/满意度）已由 simulation.js 统一处理，
+                // 这里不再重复调用 processVassalUpdates，避免同一tick重复结算导致数值异常。
                 let vassalNationsUpdated = null;
                 const vassalLogs = [];
                 if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
-                    // Calculate player military strength from army
-                    const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
-                    const baseMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
-                    const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
-                    const garrisonCommitment = (current.nations || []).reduce((sum, nation) => {
-                        if (nation.vassalOf !== 'player') return sum;
-                        const garrison = nation.vassalPolicy?.controlMeasures?.garrison;
-                        const isActive = garrison === true || (garrison && garrison.active !== false);
-                        if (!isActive) return sum;
-                        const vassalStrength = nation.militaryStrength || 0.5;
-                        return sum + (vassalStrength * garrisonFactor);
-                    }, 0);
-                    const playerMilitaryStrength = Math.max(0.1, baseMilitaryStrength - garrisonCommitment);
-
-                    const vassalUpdateResult = processVassalUpdates({
-                        nations: current.nations,
-                        daysElapsed: current.daysElapsed || 0,
-                        epoch: current.epoch || 0,
-                        playerMilitary: playerMilitaryStrength,
-                        playerStability: result.stability || 50,
-                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
-                        playerWealth: adjustedResources.silver || 0,
-                        playerPopulation: current.population || 1000000,
-                        officials: result.officials || [],
-                        difficultyLevel: current.difficulty,
-                        logs: vassalLogs
-                    });
-
                     // [NEW] Check for vassal autonomous requests (Lower Tribute, Aid, Investment)
                     checkVassalRequests(
                         current.nations.filter(n => n.vassalOf === 'player'),
                         current.daysElapsed || 0,
                         vassalLogs
                     );
-
-                    if (vassalUpdateResult) {
-                        // 保存更新后的国家列表（含independencePressure/satisfaction等附庸状态字段）
-                        if (vassalUpdateResult.nations) {
-                            vassalNationsUpdated = vassalUpdateResult.nations;
-                        }
-                        // 朝贡财政结算（tributeIncome/resourceTribute/totalControlCost）
-                        // 由 simulation.js 中的 processVassalUpdates 统一处理，此处不重复结算
-                    }                }
+                }
 
                 const treasuryIncome = auditEntries.reduce((sum, entry) => {
                     const amount = Number(entry?.amount || 0);

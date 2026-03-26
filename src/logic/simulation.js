@@ -4527,9 +4527,14 @@ export const simulateTick = ({
         const ownedPropertiesList = Array.isArray(normalizedOfficial.ownedProperties)
             ? normalizedOfficial.ownedProperties
             : [];
+        const managedBuildingsList = Array.isArray(normalizedOfficial.managedBuildings)
+            ? normalizedOfficial.managedBuildings
+            : [];
+        const incomeSourceList = isStateManagedPolicy ? managedBuildingsList : ownedPropertiesList;
+
         let propertySummary = normalizedOfficial._propertySummary;
         const expectedSummaryCount = ownedPropertiesList.length;
-        if (!propertySummary || propertySummary.totalCount !== expectedSummaryCount) {
+        if (!isStateManagedPolicy && (!propertySummary || propertySummary.totalCount !== expectedSummaryCount)) {
             const summary = { byBuilding: {}, byBuildingLevel: {}, totalCount: expectedSummaryCount };
             ownedPropertiesList.forEach((prop) => {
                 if (!prop?.buildingId) return;
@@ -4542,8 +4547,16 @@ export const simulateTick = ({
             });
             propertySummary = summary;
         }
+        const incomeSourceSummary = {
+            byBuilding: {},
+            totalCount: incomeSourceList.length,
+        };
+        incomeSourceList.forEach((prop) => {
+            if (!prop?.buildingId) return;
+            incomeSourceSummary.byBuilding[prop.buildingId] = (incomeSourceSummary.byBuilding[prop.buildingId] || 0) + 1;
+        });
 
-        Object.entries(propertySummary?.byBuilding || {}).forEach(([buildingId, count]) => {
+        Object.entries(incomeSourceSummary.byBuilding || {}).forEach(([buildingId, count]) => {
             if (!count) return;
             const perBuildingProfit = getActualProfitPerBuilding(buildingId);
             if (perBuildingProfit === null) {
@@ -4690,6 +4703,9 @@ export const simulateTick = ({
         const ownedProperties = Array.isArray(normalizedOfficial.ownedProperties)
             ? [...normalizedOfficial.ownedProperties]
             : [];
+        const managedBuildings = Array.isArray(normalizedOfficial.managedBuildings)
+            ? [...normalizedOfficial.managedBuildings]
+            : [];
         let nextPropertySummary = propertySummary ? {
             byBuilding: { ...(propertySummary.byBuilding || {}) },
             byBuildingLevel: { ...(propertySummary.byBuildingLevel || {}) },
@@ -4717,24 +4733,36 @@ export const simulateTick = ({
             }
             if (investmentCost > 0) {
             const instanceId = `${investmentDecision.buildingId}_off_${normalizedOfficial.id}_${tick}_${Math.floor(Math.random() * 1000)}`;
-            ownedProperties.push({
-                buildingId: investmentDecision.buildingId,
-                instanceId,
-                purchaseDay: tick,
-                purchaseCost: investmentDecision.cost,
-                level: 0,
-            });
-            if (!nextPropertySummary) {
-                nextPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: ownedProperties.length };
+            if (isStateManagedPolicy) {
+                managedBuildings.push({
+                    buildingId: investmentDecision.buildingId,
+                    instanceId,
+                    purchaseDay: tick,
+                    purchaseCost: investmentDecision.cost,
+                    level: 0,
+                    ownerType: 'state',
+                    managedBy: normalizedOfficial.id,
+                });
+            } else {
+                ownedProperties.push({
+                    buildingId: investmentDecision.buildingId,
+                    instanceId,
+                    purchaseDay: tick,
+                    purchaseCost: investmentDecision.cost,
+                    level: 0,
+                });
+                if (!nextPropertySummary) {
+                    nextPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: ownedProperties.length };
+                }
+                nextPropertySummary.byBuilding[investmentDecision.buildingId] =
+                    (nextPropertySummary.byBuilding[investmentDecision.buildingId] || 0) + 1;
+                if (!nextPropertySummary.byBuildingLevel[investmentDecision.buildingId]) {
+                    nextPropertySummary.byBuildingLevel[investmentDecision.buildingId] = {};
+                }
+                nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] =
+                    (nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] || 0) + 1;
+                nextPropertySummary.totalCount = ownedProperties.length;
             }
-            nextPropertySummary.byBuilding[investmentDecision.buildingId] =
-                (nextPropertySummary.byBuilding[investmentDecision.buildingId] || 0) + 1;
-            if (!nextPropertySummary.byBuildingLevel[investmentDecision.buildingId]) {
-                nextPropertySummary.byBuildingLevel[investmentDecision.buildingId] = {};
-            }
-            nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] =
-                (nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] || 0) + 1;
-            nextPropertySummary.totalCount = ownedProperties.length;
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
             if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
@@ -4917,6 +4945,7 @@ export const simulateTick = ({
             lastDayHeadTaxPaid: headTaxPaid,
             financialSatisfaction: combinedSatisfaction,
             ownedProperties,
+            managedBuildings,
             investmentProfile,
             lastDayPropertyIncome: isStateManagedPolicy ? managementFeeIncome : totalPropertyIncome,
             lastDayManagementFee: managementFeeIncome,
