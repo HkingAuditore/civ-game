@@ -12,6 +12,7 @@
 
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { simulateTick } from '../logic/simulation';
+import { trackErrorWarning, trackErrorError } from '../analytics/gaTracker';
 
 // Import worker using Vite's worker import syntax
 // This tells Vite to bundle the worker separately
@@ -114,6 +115,7 @@ export function useSimulationWorker() {
             
         } catch (error) {
             console.warn('[SimulationWorker] Failed to create worker, using main thread:', error);
+            trackErrorWarning(`WorkerError: ${error.message || 'Failed to create worker'}`);
             setWorkerError(error.message || 'Failed to create worker');
             setIsUsingWorker(false);
         }
@@ -155,10 +157,12 @@ export function useSimulationWorker() {
                         }
                         
                         // Fall back to main thread
+                        trackErrorWarning('WorkerTimeout: simulation exceeded 5s');
                         try {
                             const result = simulateTick(gameState);
                             resolve(result);
                         } catch (error) {
+                            trackErrorError(`SimulationError: ${error.message}`);
                             reject(error);
                         }
                     }
@@ -175,11 +179,13 @@ export function useSimulationWorker() {
                     pendingResolveRef.current = null;
                     pendingRejectRef.current = null;
                     console.warn('[SimulationWorker] postMessage failed, using main thread:', error);
+                    trackErrorWarning(`WorkerPostMessageError: ${error.message}`);
                     
                     try {
                         const result = simulateTick(gameState);
                         resolve(result);
                     } catch (simError) {
+                        trackErrorError(`SimulationError: ${simError.message}`);
                         reject(simError);
                     }
                 }

@@ -369,11 +369,18 @@ const TradeRoutesModal = ({
     // Get visible nations for current epoch
     const visibleNations = useMemo(() => {
         return nations.filter(
-            (nation) =>
-                epoch >= (nation.appearEpoch ?? 0) &&
-                (nation.expireEpoch == null || epoch <= nation.expireEpoch) &&
-                !nation.isAtWar && // Exclude nations at war
-                nation.relation !== undefined && nation.relation !== null // Only show discovered nations
+            (nation) => {
+                const isPlayerVassal = nation?.vassalOf === 'player';
+                const isInEpochRange =
+                    epoch >= (nation.appearEpoch ?? 0) &&
+                    (nation.expireEpoch == null || epoch <= nation.expireEpoch);
+                return (
+                    // 附庸不受时代窗口限制，确保升时代后仍可在贸易路线中管理
+                    (isInEpochRange || isPlayerVassal) &&
+                    !nation.isAtWar && // Exclude nations at war
+                    nation.relation !== undefined && nation.relation !== null // Only show discovered nations
+                );
+            }
         );
     }, [nations, epoch]);
 

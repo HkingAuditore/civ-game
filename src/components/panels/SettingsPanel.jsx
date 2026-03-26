@@ -5,6 +5,7 @@ import React, { useRef, useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { useSound, useDevicePerformance, PERFORMANCE_MODES } from '../../hooks';
 import { DIFFICULTY_LEVELS, getDifficultyOptions } from '../../config/difficulty';
+import { setAnalyticsConsent, getAnalyticsConsent } from '../../analytics/gaInit';
 
 
 /**
@@ -118,6 +119,40 @@ const DifficultySectionComponent = ({ currentDifficulty }) => {
             <p className="text-xs text-gray-500 text-center">
                 如需更改难度，请回到主菜单开始新游戏
             </p>
+        </div>
+    );
+};
+
+const AnalyticsToggleSection = () => {
+    const [enabled, setEnabled] = useState(() => getAnalyticsConsent());
+
+    const handleToggle = () => {
+        const next = !enabled;
+        setEnabled(next);
+        setAnalyticsConsent(next);
+    };
+
+    return (
+        <div className="border-t border-gray-700 pt-3 space-y-2">
+            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                <Icon name="BarChart3" size={14} /> 数据分析
+            </h4>
+            <p className="text-xs text-gray-400 leading-relaxed">
+                匿名游戏数据帮助我们改善游戏体验，不收集任何个人信息。
+            </p>
+            <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-300">允许发送匿名游戏数据</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={enabled}
+                        onChange={handleToggle}
+                    />
+                    <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+                    <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${enabled ? 'translate-x-5' : ''}`} />
+                </label>
+            </div>
         </div>
     );
 };
@@ -646,6 +681,9 @@ export const SettingsPanel = ({
                     </div>
                 )}
             </div>
+
+            {/* 数据分析设置 */}
+            <AnalyticsToggleSection />
 
             {/* 关于与法律 */}
             <div className="border-t border-gray-700 pt-3 space-y-2">

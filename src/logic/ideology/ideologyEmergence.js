@@ -31,6 +31,10 @@ const MIN_RARITY_BY_SKIP = {
     3: 'rare',
 };
 
+const EPOCH_BALANCE_MIN_MULTIPLIER = 0.65;
+const EPOCH_BALANCE_MAX_MULTIPLIER = 1.45;
+const SAME_EPOCH_PICK_DAMPING = 0.55;
+
 /**
  * 从可用理念池中加权随机抽取3个候选理念
  * @param {Object} gameState - 游戏状态
@@ -62,6 +66,8 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
         return availablePool.map(ideology => _enrichCandidate(ideology, ownedMap));
     }
 
+    const epochBalanceMap = _buildEpochBalanceMap(availablePool);
+
     // 计算每个理念的权重
     const normalizedBonus = Math.max(0, Math.min(Number(rarityBonus || 0), 3));
     const weightedPool = availablePool.map(ideology => {
@@ -85,6 +91,10 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
         // 时代匹配加成
         if (ideology.unlockEpoch === epoch) weight *= 2.0;
         else if (ideology.unlockEpoch === epoch - 1) weight *= 1.3;
+
+        // 时代分布均衡：同一可用池中，数量少的时代给予适度补偿，避免中期时代长期垄断候选池
+        const epochBalanceMultiplier = epochBalanceMap[ideology.unlockEpoch] || 1;
+        weight *= epochBalanceMultiplier;
 
         // 阶层关联（执政联盟相关）
         if (rulingCoalition && rulingCoalition.length > 0) {
@@ -131,7 +141,7 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
     }
 
     for (let i = selected.length; i < 3 && pool.length > 0; i++) {
-        const picked = _pickWeighted(pool);
+        const picked = _pickWeightedWithEpochDamping(pool, selected);
         if (!picked) break;
         selected.push(picked.ideology);
         const selectedIndex = pool.findIndex(item => item.ideology.id === picked.ideology.id);
@@ -162,6 +172,50 @@ function _pickWeighted(pool = []) {
         }
     }
     return pool[pool.length - 1] || null;
+}
+
+function _pickWeightedWithEpochDamping(pool = [], selected = []) {
+    if (!pool.length) return null;
+    if (!selected.length) return _pickWeighted(pool);
+
+    const selectedEpochCount = {};
+    for (const item of selected) {
+        const key = item?.unlockEpoch ?? -1;
+        selectedEpochCount[key] = (selectedEpochCount[key] || 0) + 1;
+    }
+
+    const adjustedPool = pool.map(item => {
+        const pickedCount = selectedEpochCount[item.ideology.unlockEpoch] || 0;
+        const dampedWeight = item.weight * Math.pow(SAME_EPOCH_PICK_DAMPING, pickedCount);
+        return { ...item, weight: Math.max(dampedWeight, 0.1) };
+    });
+
+    return _pickWeighted(adjustedPool);
+}
+
+function _buildEpochBalanceMap(pool = []) {
+    if (!pool.length) return {};
+
+    const counts = {};
+    for (const ideology of pool) {
+        const key = ideology.unlockEpoch ?? 0;
+        counts[key] = (counts[key] || 0) + 1;
+    }
+
+    const epochValues = Object.values(counts);
+    if (!epochValues.length) return {};
+
+    const average = epochValues.reduce((sum, n) => sum + n, 0) / epochValues.length;
+    const multipliers = {};
+    for (const [epochKey, count] of Object.entries(counts)) {
+        const raw = Math.sqrt(average / Math.max(count, 1));
+        multipliers[Number(epochKey)] = _clamp(raw, EPOCH_BALANCE_MIN_MULTIPLIER, EPOCH_BALANCE_MAX_MULTIPLIER);
+    }
+    return multipliers;
+}
+
+function _clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
 }
 
 function _getRarityTier(rarity) {

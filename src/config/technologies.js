@@ -768,7 +768,7 @@ export const TECHS = [
     {
         id: 'bessemer_process',
         name: "贝塞麦炼钢法",
-        desc: "解锁炼钢厂和冶金工坊，吹入空气快速去碳，钢铁产量剧增。炼钢厂效率 +30%，冶金工坊效率 +25%。",
+        desc: "吹入空气快速去碳，钢铁产量剧增。炼钢厂效率 +30%，冶金工坊效率 +25%。",
         cost: { science: 27900 },
         epoch: 6,
         prerequisites: ['advanced_metallurgy', 'steel_alloys'],

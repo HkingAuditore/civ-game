@@ -17,6 +17,7 @@ import { clampBootstrapPopulation } from '../utils/populationClamp';
 import { createAnnualReportAccumulator } from '../utils/annualReport';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { trackSaveGame, trackLoadGame, trackResetGame, trackNewGame, trackErrorError } from '../analytics/gaTracker';
 
 // 多存档槽位系�?
 const SAVE_SLOT_COUNT = 10; // 手动存档槽位数量
@@ -1705,6 +1706,7 @@ export const useGameState = () => {
                 }
 
                 // 跳过自动加载，开始新游戏
+                trackNewGame(difficultyForNewGame);
                 return;
             }
 
@@ -2649,6 +2651,9 @@ export const useGameState = () => {
         if (source === 'auto' && (autoSaveBlocked || !isAutoSaveEnabled)) {
             return;
         }
+        if (source === 'manual') {
+            trackSaveGame(daysElapsed);
+        }
         const timestamp = Date.now();
         const { payload } = buildSavePayload({ source, timestamp });
         // Always compact saves to reduce storage usage (both manual and auto)
@@ -2916,6 +2921,7 @@ export const useGameState = () => {
                 }
             } else {
                 console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
+                trackErrorError(`SaveWriteError: ${error.message}`);
                 if (source === 'auto') {
                     addLogEntry(`�?自动存档失败�?{error.message}`);
                 } else {
@@ -2969,10 +2975,12 @@ export const useGameState = () => {
             }
             applyLoadedGameState(data);
             addLogEntry(`📂 ${friendlyName}读取成功！`);
+            trackLoadGame(data?.daysElapsed || daysElapsed);
             return true;
         } catch (error) {
             console.error('Load game failed:', error);
             addLogEntry(`�?读取存档失败�?{error.message}`);
+            trackErrorError(`SaveLoadError: ${error.message}`);
             return false;
         }
     };
@@ -3502,6 +3510,7 @@ export const useGameState = () => {
         if (typeof window === 'undefined') {
             return;
         }
+        trackResetGame(daysElapsed);
         const normalized = typeof options === 'string'
             ? { difficulty: options }
             : (options || {});
