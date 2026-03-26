@@ -54,6 +54,14 @@ import {
 } from '../utils/populationClamp';
 import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
 import { generateFront, getEffectiveFrontWarScore } from '../logic/diplomacy/frontSystem';
+import {
+    trackBuyBuilding, trackSellBuilding, trackUpgradeBuilding,
+    trackResearchTech, trackEpochUpgrade, trackDiplomacy,
+    trackRecruit, trackBattleLaunch, trackDecreeToggle,
+    trackResourceSink, trackOfficialHire, trackOfficialFire,
+    trackProgressionComplete, trackProgressionStart, trackDisband,
+} from '../analytics/gaTracker';
+import { setDimensions } from '../analytics/gaInit';
 // 外交叛乱干预系统
 import { executeIntervention, INTERVENTION_OPTIONS } from '../logic/diplomacy/rebellionSystem';
 // 内部叛乱系统
@@ -527,6 +535,7 @@ export const useGameActions = (gameState, addLog) => {
 
     const toggleDecree = (decreeId) => {
         if (!decreeId || typeof setDecrees !== 'function') return;
+        trackDecreeToggle(decreeId);
 
         // Pull the latest definition so effects are guaranteed to exist in state.
         // (simulation expects { id, active, modifiers })
@@ -1356,6 +1365,13 @@ export const useGameActions = (gameState, addLog) => {
         setEpoch(epoch + 1);
         addLog(`🎉 文明进入 ${nextEpoch.name}！`);
 
+        trackProgressionComplete(epoch);
+        trackProgressionStart(epoch + 1);
+        trackEpochUpgrade(epoch + 1, daysElapsed);
+        trackResourceSink('silver', silverCost, 'tech', 'upgrade_epoch');
+        const epochNames = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
+        setDimensions({ epoch: epochNames[epoch + 1] });
+
         // Ideology event: epoch advance
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_EPOCH_ADVANCE, { newEpoch: epoch + 1, epochName: nextEpoch.name }, daysElapsed);
 
@@ -1460,6 +1476,8 @@ export const useGameActions = (gameState, addLog) => {
 
         setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
+        trackBuyBuilding(id, silverCost);
+        trackResourceSink('silver', silverCost, 'building', id);
 
         // 写入 pending queue，防止 tick 覆盖此操作
         // [FIX] Only write buildingDeltas (simulation needs to know new buildings for production).
@@ -1653,6 +1671,8 @@ export const useGameActions = (gameState, addLog) => {
                 (pendingActionsRef.current.buildingDeltas[id] || 0) - sellCount;
         }
 
+        trackSellBuilding(id);
+
         // 根据拆除数量显示不同日志
         if (sellCount === 1) {
             addLog(`🏚️ 拆除了 ${building.name}`);
@@ -1809,6 +1829,8 @@ export const useGameActions = (gameState, addLog) => {
 
         const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${nextLevel}`;
         addLog(`⬆️ ${building.name} 升级为 ${upgradeName}！（花费 ${Math.ceil(silverCost)} 银币）`);
+        trackUpgradeBuilding(buildingId, nextLevel);
+        trackResourceSink('silver', silverCost, 'building', buildingId);
 
         // Ideology event: upgrade building
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_UPGRADE, {
@@ -2209,6 +2231,11 @@ export const useGameActions = (gameState, addLog) => {
         setResourcesWithReason(newRes, 'tech_research', { techId: id });
         setTechsUnlocked(prev => [...prev, id]);
         addLog(`✓ 研究完成：${tech.name}`);
+        trackResearchTech(id, tech.cost?.science || 0);
+        trackResourceSink('silver', silverCost, 'tech', id);
+        if (tech.cost?.science) {
+            trackResourceSink('science', Math.ceil(tech.cost.science * techCostMultiplier), 'tech', id);
+        }
 
         // Ideology event: tech unlock
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TECH_UNLOCK, {
@@ -2290,6 +2317,7 @@ export const useGameActions = (gameState, addLog) => {
         
         setOfficialCandidates(hireResult.newCandidates);
         addLog(`雇佣了官员 ${hiredOfficial.name}。`);
+        trackOfficialHire();
 
         // Ideology event: hire official
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_HIRE_OFFICIAL, {
@@ -2343,6 +2371,7 @@ export const useGameActions = (gameState, addLog) => {
         removeOfficialLinkedGeneral(officialId);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
+            trackOfficialFire();
 
             // Ideology event: fire official
             ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_FIRE_OFFICIAL, {
@@ -2727,6 +2756,8 @@ export const useGameActions = (gameState, addLog) => {
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
         _resourcesRef.current = newRes;
         setResourcesWithReason(newRes, 'recruit_unit', { unitId, count: recruitCount });
+        trackRecruit(unitId, recruitCount);
+        trackResourceSink('silver', silverCost, 'military', unitId);
 
         const trainingSpeedBonus = modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
         const trainingMultiplier = Math.max(0.5, 1 - trainingSpeedBonus);
@@ -2760,6 +2791,7 @@ export const useGameActions = (gameState, addLog) => {
                 [unitId]: prev[unitId] - 1
             }));
             addLog(`解散了 ${UNIT_TYPES[unitId].name}`);
+            trackDisband(unitId, 1);
         }
     };
 
@@ -3161,6 +3193,11 @@ export const useGameActions = (gameState, addLog) => {
             description: (result.battleReport || []).join('\n'),
         });
 
+        trackBattleLaunch();
+        const totalLosses = Object.values(result.attackerLosses || {}).reduce((s, v) => s + v, 0);
+        const lossRatio = totalUnits > 0 ? totalLosses / totalUnits : 0;
+        trackBattleResult(result.victory ? 'Victory' : 'Defeat', Math.round(lossRatio * 100));
+
         addLog(result.victory ? `⚔️ 针对 ${targetNation.name} 的行动取得胜利！` : `💀 对 ${targetNation.name} 的进攻受挫。`);
 
         // 更新上次战斗目标和时间，用于计算行军时间
@@ -3327,6 +3364,8 @@ export const useGameActions = (gameState, addLog) => {
                 return { ...current, organizations: nextOrgs };
             });
         };
+
+        trackDiplomacy(action, nationId);
 
         switch (action) {
             case 'gift': {
@@ -4277,6 +4316,11 @@ export const useGameActions = (gameState, addLog) => {
                         epoch: epoch || 0,
                     },
                     (proposalType, amount) => {
+                        // 叛乱政府求和必须走专用收尾逻辑，否则不会正确结束叛乱态
+                        if (targetNation.isRebelNation) {
+                            handleDiplomaticAction(nationId, 'finalize_peace', { type: proposalType, value: amount });
+                            return;
+                        }
                         handlePlayerPeaceProposal(nationId, proposalType, amount);
                     }
 

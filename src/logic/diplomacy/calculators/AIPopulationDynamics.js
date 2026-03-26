@@ -90,7 +90,8 @@ export const calculateAIPopulationDynamics = ({
         : clamp(1 - (capacityRatio - 1) * 0.85, 0.2, 0.95);
 
     const tickScale = Math.min(2, Math.max(0.5, ticksSinceUpdate / 10));
-    const baseGrowthRate = (0.0032 + (developmentRate - 1) * 0.0012) * tickScale;
+    // 温和提速：略微抬高基础增长与发展率收益，避免AI中后期“只维持不扩张”
+    const baseGrowthRate = (0.0042 + (developmentRate - 1) * 0.0015) * tickScale;
     let netGrowthRate = baseGrowthRate * foodFactor * wealthFactor * employmentFactor * warFactor * crowdingFactor;
 
     if (foodRatio < 0.85) {
@@ -100,7 +101,7 @@ export const calculateAIPopulationDynamics = ({
         netGrowthRate -= Math.min(0.06, (capacityRatio - 1) * 0.08);
     }
 
-    netGrowthRate = clamp(netGrowthRate, -0.05, 0.025);
+    netGrowthRate = clamp(netGrowthRate, -0.05, 0.03);
     const rawPopulationDelta = population * netGrowthRate;
     let populationChange = Math.round(rawPopulationDelta);
     if (population <= 25) {

@@ -64,6 +64,7 @@ const StratumDetailSheetComponent = ({
 
     // Optional: extra approval drivers from simulation (to explain 'mysterious' drops)
     legitimacyTaxModifier = 1,
+    effectiveTaxModifier = 1,
     taxShock = {},
     eventApprovalModifiers = {},
     decreeApprovalModifiers = {},
@@ -648,19 +649,32 @@ const StratumDetailSheetComponent = ({
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每人每日)</div>
-                                    <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
-                                        <span className={`text-sm font-bold font-mono ${(stratum.headTaxBase * headTaxMultiplier) > 0 ? 'text-yellow-300' : (stratum.headTaxBase * headTaxMultiplier) < 0 ? 'text-green-300' : 'text-gray-400'
-                                            }`}>
-                                            {(stratum.headTaxBase * headTaxMultiplier) < 0 ? '补贴 ' : ''}{Math.abs((stratum.headTaxBase || 0.01) * headTaxMultiplier).toFixed(3)}
-                                        </span>
-                                        <Icon
-                                            name={(stratum.headTaxBase * headTaxMultiplier) > 0 ? "TrendingUp" : (stratum.headTaxBase * headTaxMultiplier) < 0 ? "TrendingDown" : "Coins"}
-                                            size={12}
-                                            className={`inline-block ml-1 ${(stratum.headTaxBase * headTaxMultiplier) > 0 ? 'text-yellow-400' : (stratum.headTaxBase * headTaxMultiplier) < 0 ? 'text-green-400' : 'text-gray-500'
-                                                }`}
-                                        />
-                                    </div>
+                                    {(() => {
+                                        const taxBasePerCapita = (stratum.headTaxBase || 0.01) * headTaxMultiplier;
+                                        const displayedPerCapitaTax = taxBasePerCapita * (effectiveTaxModifier || 1);
+                                        return (
+                                            <>
+                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每人每日, 含税收修正)</div>
+                                                <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
+                                                    <span className={`text-sm font-bold font-mono ${displayedPerCapitaTax > 0 ? 'text-yellow-300' : displayedPerCapitaTax < 0 ? 'text-green-300' : 'text-gray-400'
+                                                        }`}>
+                                                        {displayedPerCapitaTax < 0 ? '补贴 ' : ''}{Math.abs(displayedPerCapitaTax).toFixed(3)}
+                                                    </span>
+                                                    <Icon
+                                                        name={displayedPerCapitaTax > 0 ? "TrendingUp" : displayedPerCapitaTax < 0 ? "TrendingDown" : "Coins"}
+                                                        size={12}
+                                                        className={`inline-block ml-1 ${displayedPerCapitaTax > 0 ? 'text-yellow-400' : displayedPerCapitaTax < 0 ? 'text-green-400' : 'text-gray-500'
+                                                            }`}
+                                                    />
+                                                </div>
+                                                {Math.abs((effectiveTaxModifier || 1) - 1) > 0.001 && (
+                                                    <div className="text-[11px] text-gray-500 mt-1 text-center">
+                                                        基准税额 {Math.abs(taxBasePerCapita).toFixed(3)} × 税收修正 {(effectiveTaxModifier || 1).toFixed(2)}
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
@@ -1095,7 +1109,7 @@ const StratumDetailSheetComponent = ({
                                             classWealth,
                                             approvalBreakdown,
                                             classFinancialData,
-                                            effectiveTaxModifier: legitimacyTaxModifier ?? 1,
+                                            effectiveTaxModifier: effectiveTaxModifier ?? 1,
                                             popStructure,
                                             dayScale,
                                             market: market || { prices: {} },

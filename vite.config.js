@@ -10,6 +10,11 @@ export default defineConfig({
         // 禁用 React DevTools Profiler，避免大状态对象克隆导致内存溢出
         '__REACT_DEVTOOLS_GLOBAL_HOOK__': JSON.stringify({ isDisabled: true }),
     },
+    optimizeDeps: {
+        include: ['gameanalytics'],
+        exclude: [],
+        entries: ['index.html'],
+    },
     build: {
         // 目标 ES2018，兼容 Android 8.0+ (Chrome 62+) 的 WebView
         target: 'es2018',

@@ -4584,10 +4584,14 @@ export const simulateTick = ({
             if (isStateManagedPolicy && totalPropertyIncome > 0) {
                 // 代经营制：利润按比例分配给国库和官员管理费
                 const profitSplit = calculateStateManagedProfitSplit(totalPropertyIncome, normalizedOfficial);
+                const treasuryIncome = profitSplit.toTreasury || 0;
                 managementFeeIncome = profitSplit.toOfficial;
+                if (treasuryIncome > 0) {
+                    // 国企利润国库份额：真实入账并进入财政明细
+                    ledger.transfer('void', 'state', treasuryIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, 'state_enterprise_profit');
+                }
                 currentWealth = Math.max(0, currentWealth + managementFeeIncome);
                 totalOfficialIncome += managementFeeIncome;
-                // 国库收到的部分由上层处理（通过减少利润归属）
                 if (managementFeeIncome > 0) {
                     ledger.transfer('void', 'official', managementFeeIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, 'MANAGEMENT_FEE');
                 }
@@ -8789,6 +8793,7 @@ export const simulateTick = ({
         stability: stabilityValue,
         legitimacy: coalitionLegitimacy, // 执政联盟合法?
         legitimacyTaxModifier, // 税收修正系数
+        effectiveTaxModifier, // 最终税收修正（含合法性、政策和额外加成）
         logs,
         vassalDiplomacyRequests,
         market: {

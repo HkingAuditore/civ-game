@@ -80,6 +80,8 @@ import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 import { selectIdeology } from './logic/ideology/ideologyEmergence';
 import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
 import { IDEOLOGY_MAP } from './config/ideologies';
+import { initGA, setDimensions } from './analytics/gaInit';
+import { installGlobalErrorHandlers, trackProgressionStart } from './analytics/gaTracker';
 
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
@@ -229,6 +231,19 @@ function GameApp({ gameState }) {
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [showDonateModal, setShowDonateModal] = useState(false);
     const [showChangelogModal, setShowChangelogModal] = useState(false);
+
+    // GameAnalytics 初始化
+    useEffect(() => {
+        initGA();
+        installGlobalErrorHandlers();
+        const epochNames = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
+        setDimensions({
+            difficulty: gameState.difficulty || 'easy',
+            scenario: 'freeplay',
+            epoch: epochNames[gameState.epoch] || 'stone',
+        });
+        trackProgressionStart(gameState.epoch || 0);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Detect if player is opening a new version for the first time, auto-show changelog
     useEffect(() => {
@@ -2029,6 +2044,7 @@ function GameApp({ gameState }) {
 
                         // Extra approval drivers (so UI can explain 'mysterious' drops)
                         legitimacyTaxModifier={gameState.legitimacyTaxModifier}
+                        effectiveTaxModifier={gameState.effectiveTaxModifier}
                         taxShock={gameState.taxShock}
                         eventApprovalModifiers={gameState.eventApprovalModifiers}
                         decreeApprovalModifiers={gameState.decreeApprovalModifiers}

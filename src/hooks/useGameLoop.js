@@ -67,6 +67,7 @@ import {
 } from '../config/events';
 import { evaluatePromiseTasks } from '../logic/promiseTasks';
 import { debugLog, debugError, isDebugEnabled } from '../utils/debugFlags';
+import { trackPeriodicMetrics, trackRebellionPhase } from '../analytics/gaTracker';
 // 叛乱事件（保留事件创建函数）
 import {
     hasAvailableMilitary,
@@ -2051,6 +2052,21 @@ difficulty, // 游戏难度
                 console.log('鉁?Calculated Indicators:', indicators);
                 console.groupEnd();
                 setEconomicIndicators(indicators);
+
+                // GameAnalytics 周期采样（每 30 游戏日）
+                const nextDay = (current.daysElapsed || 0) + 1;
+                if (nextDay % 30 === 0) {
+                    const totalArmyCount = Object.values(result.army || current.army || {}).reduce((s, v) => s + (v || 0), 0);
+                    trackPeriodicMetrics({
+                        gdp: indicators.gdp?.total,
+                        cpi: indicators.cpi?.index,
+                        population: result.population || current.population,
+                        stability: result.stability,
+                        treasury: result.resources?.silver,
+                        armySize: totalArmyCount,
+                    });
+                }
+
                 setAnnualReportAccumulator(prev => {
                     const base = prev || {
                         daysCount: 0,
@@ -5051,6 +5067,14 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     updatedOrganizationStates
                 );
                 const currentEpoch = current.epoch || 0;
+
+                // GameAnalytics: 组织度阶段跃迁上报
+                if (organizationEvents.length > 0) {
+                    for (const orgEvt of organizationEvents) {
+                        const org = updatedOrganizationStates[orgEvt.stratumKey];
+                        trackRebellionPhase(orgEvt.type, orgEvt.stratumKey, org?.organization);
+                    }
+                }
 
                 // 澶勭悊缁勭粐搴︿簨浠?
                 if (organizationEvents.length > 0 && current.actions?.triggerDiplomaticEvent) {
