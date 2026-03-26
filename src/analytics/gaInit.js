@@ -36,7 +36,7 @@ export function initGA() {
         GA.setEnabledInfoLog(true);
     }
 
-    const appVersion = import.meta.env.VITE_APP_VERSION || '2.1.10';
+    const appVersion = import.meta.env.VITE_APP_VERSION || '2.1.11';
     GA.configureBuild(`web ${appVersion}`);
 
     // 资源货币白名单（仅 [A-Za-z]）
