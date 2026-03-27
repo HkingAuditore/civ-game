@@ -2115,7 +2115,7 @@ export const useGameState = () => {
         setEpoch(data.epoch ?? 0);
         setActiveTab(data.activeTab || 'build');
         setGameSpeed(data.gameSpeed ?? 1);
-        setIsPaused(data.isPaused ?? false);
+        setIsPaused(true);
         setDiplomaticReputation(data.diplomaticReputation ?? 50);
 
         // [FIX] Legacy save migration: Fix AI nations with broken population/wealth from old versions

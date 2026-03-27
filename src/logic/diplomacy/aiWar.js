@@ -2752,18 +2752,21 @@ export const syncAINationMilitary = ({
     );
 
     // 低兵力回填：旧存档中已存在的 AI 军团也要向可持续兵力靠拢，避免长期停留在个位数。
+    // [PERF] 批量分配代替逐个+1循环，O(corps) 替代 O(deficit)
     if (allNationCorps.length > 0 && totalUnits < sustainableArmy) {
-        let deficit = sustainableArmy - totalUnits;
+        const deficit = sustainableArmy - totalUnits;
         const reinforcementUnitId = Object.entries(sustainableTemplateArmy)
             .sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] || 'militia';
         const receiverCorps = [...allNationCorps].sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
-        let cursor = 0;
-        while (deficit > 0 && receiverCorps.length > 0) {
-            const corps = receiverCorps[cursor % receiverCorps.length];
-            corps.units = { ...(corps.units || {}) };
-            corps.units[reinforcementUnitId] = (corps.units[reinforcementUnitId] || 0) + 1;
-            deficit -= 1;
-            cursor += 1;
+        const perCorps = Math.floor(deficit / receiverCorps.length);
+        const remainder = deficit % receiverCorps.length;
+        for (let i = 0; i < receiverCorps.length; i++) {
+            const add = perCorps + (i < remainder ? 1 : 0);
+            if (add > 0) {
+                const corps = receiverCorps[i];
+                corps.units = { ...(corps.units || {}) };
+                corps.units[reinforcementUnitId] = (corps.units[reinforcementUnitId] || 0) + add;
+            }
         }
         totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
     }
