@@ -2456,12 +2456,20 @@ export const useGameActions = (gameState, addLog) => {
             setStability(prev => Math.max(0, Math.min(1, (prev || 0.5) + result.effects.stabilityChange)));
         }
 
-        // 应用组织度增加
+        // 应用组织度变化（复用现有 rebellionStates 结构）
         if (result.effects?.organizationChange) {
-            setClassOrganization(prev => {
-                const updated = { ...prev };
+            setRebellionStates(prev => {
+                const updated = { ...(prev || {}) };
                 Object.entries(result.effects.organizationChange).forEach(([stratum, change]) => {
-                    updated[stratum] = Math.max(0, (updated[stratum] || 0) + change);
+                    const currentState = updated[stratum] || {};
+                    const nextValue = Math.max(0, Math.min(100, (currentState.organization || 0) + change));
+                    const stage = getOrganizationStage(nextValue);
+                    updated[stratum] = {
+                        ...currentState,
+                        organization: nextValue,
+                        stage,
+                        phase: getPhaseFromStage(stage),
+                    };
                 });
                 return updated;
             });
