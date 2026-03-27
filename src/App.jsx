@@ -81,8 +81,10 @@ import { selectIdeology } from './logic/ideology/ideologyEmergence';
 import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
 import { IDEOLOGY_MAP } from './config/ideologies';
 import { initGA, setDimensions } from './analytics/gaInit';
-import { installGlobalErrorHandlers, trackProgressionStart } from './analytics/gaTracker';
+import { installGlobalErrorHandlers, setAnalyticsContextGetter, trackProgressionStart } from './analytics/gaTracker';
 import { initCustomBackend } from './analytics/customBackend';
+
+const EPOCH_DIMENSIONS = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
 
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
@@ -238,14 +240,26 @@ function GameApp({ gameState }) {
         initGA();
         initCustomBackend();
         installGlobalErrorHandlers();
-        const epochNames = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
         setDimensions({
             difficulty: gameState.difficulty || 'easy',
             scenario: 'freeplay',
-            epoch: epochNames[gameState.epoch] || 'stone',
+            epoch: EPOCH_DIMENSIONS[gameState.epoch] || 'stone',
         });
         trackProgressionStart(gameState.epoch || 0);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        const playerNation = (gameState.nations || []).find((nation) => nation?.isPlayer);
+        setAnalyticsContextGetter(() => ({
+            daysElapsed: gameState.daysElapsed,
+            epoch: EPOCH_DIMENSIONS[gameState.epoch] || null,
+            playerNationId: playerNation?.id || null,
+            playerNationName: playerNation?.name || null,
+        }));
+        return () => {
+            setAnalyticsContextGetter(null);
+        };
+    }, [gameState.daysElapsed, gameState.epoch, gameState.nations]);
 
     // Detect if player is opening a new version for the first time, auto-show changelog
     useEffect(() => {

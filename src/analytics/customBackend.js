@@ -88,6 +88,8 @@ export function bufferDesignEvent(eventId, value, extra = {}) {
         value: value ?? null,
         epoch: extra.epoch || null,
         daysElapsed: extra.daysElapsed ?? null,
+        playerNationId: extra.playerNationId || null,
+        playerNationName: extra.playerNationName || null,
         timestamp: Date.now(),
     });
     if (buffer.design.length >= FLUSH_THRESHOLD) flush();

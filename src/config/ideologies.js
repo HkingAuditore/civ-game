@@ -1658,26 +1658,26 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    scienceBonus: 0.05, taxIncome: 0.03, maxPop: -0.02, stability: -2,
+                    scienceBonus: 0.04, taxIncome: 0.02, maxPop: -0.02, stability: -2,
                     converters: [
                         // 富裕人口 → 科研（精英阶层投资知识）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000004, target: 'scienceBonus', cap: 0.25 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000002, target: 'scienceBonus', cap: 0.10 },
                     ],
                 },
                 {
-                    scienceBonus: 0.08, taxIncome: 0.05, categories: { industry: 0.03 }, maxPop: -0.02, stability: -3,
+                    scienceBonus: 0.06, taxIncome: 0.03, categories: { industry: 0.02 }, maxPop: -0.02, stability: -3,
                     converters: [
                         // 富裕人口 → 科研+税收（精英阶层投资和消费）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000005, target: 'scienceBonus', cap: 0.35 },
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000003, target: 'taxIncome', cap: 0.20 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0000025, target: 'scienceBonus', cap: 0.14 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0000015, target: 'taxIncome', cap: 0.08 },
                     ],
                 },
                 {
-                    scienceBonus: 0.12, taxIncome: 0.08, categories: { industry: 0.06 }, maxPop: -0.02, stability: -5,
+                    scienceBonus: 0.08, taxIncome: 0.05, categories: { industry: 0.04 }, maxPop: -0.02, stability: -4,
                     converters: [
                         // 富裕人口 → 科研+税收（精英阶层全面引领）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000006, target: 'scienceBonus', cap: 0.45 },
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000004, target: 'taxIncome', cap: 0.30 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000003, target: 'scienceBonus', cap: 0.18 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000002, target: 'taxIncome', cap: 0.12 },
                     ],
                 },
             ],
@@ -1685,7 +1685,7 @@ export const IDEOLOGIES = [
                 { type: 'stratum_bonus', stratum: 'landowner', bonus: { perPopPassive: { silver: 0.02 } } },
                 // 资源消耗：精英阶层的特权和奢靡开销需要银币维持
                 { type: 'resource_drain', resource: 'silver', drainPerTick: 6,
-                    bonus: { scienceBonus: 0.03, taxIncome: 0.02 },
+                    bonus: { scienceBonus: 0.02, taxIncome: 0.01 },
                     penaltyIfDrained: { stability: -5, taxIncome: -0.03 } },
             ],
         },

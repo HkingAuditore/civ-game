@@ -1210,9 +1210,18 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
         totalRecruited = Object.values(army).reduce((s, c) => s + c, 0);
     }
 
-    // 10. 保底：极端情况下至少有MIN_ARMY_FLOOR人步兵（受人口上限约束，人口不足时不保底）
-    const minFloor = maxManpower > 0 ? Math.min(WAR_ECONOMY?.MIN_ARMY_FLOOR || 10, maxManpower) : 0;
-    if (minFloor > 0 && totalRecruited < minFloor) {
+    // 10. 人口动员下限：
+    // 纯军费预算在高物价或低现金流时会把大人口国家压到个位兵力，导致观感严重失真。
+    // 这里给一个受 maxManpower 约束的“最低动员规模”，战时更高、和平更低。
+    const baseFloor = maxManpower > 0 ? Math.min(WAR_ECONOMY?.MIN_ARMY_FLOOR || 10, maxManpower) : 0;
+    const mobilizationFloorRatio = nation?.isAtWar ? 0.30 : 0.12;
+    const qualityFloorFactor = Math.max(0.8, Math.min(1.25, militaryQuality));
+    const mobilizationFloor = maxManpower > 0
+        ? Math.floor(maxManpower * mobilizationFloorRatio * qualityFloorFactor)
+        : 0;
+    const minRecruitFloor = Math.max(baseFloor, Math.min(maxManpower, mobilizationFloor));
+
+    if (minRecruitFloor > 0 && totalRecruited < minRecruitFloor) {
         // 选当前时代最便宜的步兵
         const fallbackInfantry = infantryUnits.length > 0
             ? infantryUnits.reduce((best, id) => {
@@ -1220,7 +1229,7 @@ export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0, difficu
                 return c < (best.cost || Infinity) ? { id, cost: c } : best;
             }, { id: infantryUnits[0], cost: Infinity })
             : { id: 'militia' };
-        const needed = minFloor - totalRecruited;
+        const needed = minRecruitFloor - totalRecruited;
         army[fallbackInfantry.id] = (army[fallbackInfantry.id] || 0) + needed;
     }
 

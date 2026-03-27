@@ -10,6 +10,58 @@
 
 ---
 
+## 存量库升级（如果表已存在）
+
+> 兼容性说明：后端已支持“动态列探测”。即使你暂时没升级表结构，事件仍可正常写入（只是国家列为空）。升级后重启服务即可自动写入国家列。
+
+### MySQL 8.0.29+（推荐）
+
+```sql
+ALTER TABLE design_events
+    ADD COLUMN IF NOT EXISTS player_nation_id VARCHAR(64) DEFAULT NULL AFTER days_elapsed,
+    ADD COLUMN IF NOT EXISTS player_nation_name VARCHAR(64) DEFAULT NULL AFTER player_nation_id;
+```
+
+### MySQL 5.7 / 8.0 低版本（不支持 `IF NOT EXISTS`）
+
+```sql
+SET @db_name = DATABASE();
+
+SET @sql = (
+    SELECT IF(
+        EXISTS(
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = @db_name
+              AND table_name = 'design_events'
+              AND column_name = 'player_nation_id'
+        ),
+        'SELECT "player_nation_id exists" AS msg',
+        'ALTER TABLE design_events ADD COLUMN player_nation_id VARCHAR(64) DEFAULT NULL AFTER days_elapsed'
+    )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(
+        EXISTS(
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = @db_name
+              AND table_name = 'design_events'
+              AND column_name = 'player_nation_name'
+        ),
+        'SELECT "player_nation_name exists" AS msg',
+        'ALTER TABLE design_events ADD COLUMN player_nation_name VARCHAR(64) DEFAULT NULL AFTER player_nation_id'
+    )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+```
+
+---
+
 ## 数据表结构
 
 ### sessions — 会话表
@@ -37,6 +89,8 @@
 | event_value | DOUBLE | 数值，含义取决于事件类型 |
 | epoch | VARCHAR(32) | 当前时代 |
 | days_elapsed | INT | 游戏内天数 |
+| player_nation_id | VARCHAR(64) | 玩家国家ID（若可识别） |
+| player_nation_name | VARCHAR(64) | 玩家国家名称（若可识别） |
 | created_at | DATETIME | 事件时间 |
 
 ### resource_events — 资源收支表
@@ -112,6 +166,7 @@
 | `Diplomacy:Gift:nationId` | — | 赠礼 |
 | `Diplomacy:Trade:nationId` | — | 交易 |
 | `Diplomacy:Annex:nationId` | — | 吞并 |
+| `Diplomacy:Action:action:nationId` | — | 未归类外交动作（保留原 action） |
 | `Vassal:Approve:action:nationId` | — | 批准附庸外交 |
 | `Vassal:Reject:action:nationId` | — | 拒绝附庸外交 |
 | `Vassal:Order:actionType:nationId` | — | 下达附庸指令 |
@@ -214,20 +269,31 @@
 | `Demand:Fail:type` | — | 诉求失败 |
 | `Organization:Phase:stratum:phase` | 组织度 | 组织度阶段变化 |
 
-### UI 导航
+> 说明：当前版本默认**不采集 UI 交互事件**（所有 `UI:*` 事件会在客户端拦截）。
 
-| event_id 格式 | event_value | 说明 |
-|---|---|---|
-| `UI:Tab:overview` | — | 切换主标签 |
-| `UI:SubTab:military:units` | — | 切换子标签 |
-| `UI:Speed:2` | — | 切换游戏速度 |
-| `UI:Pause` | — | 暂停 |
-| `UI:Resume` | — | 继续 |
-| `UI:Pin:Building:farm` | — | 置顶建筑 |
-| `UI:Filter:Building:production` | — | 筛选建筑分类 |
-| `UI:Tutorial` | — | 打开教程 |
-| `UI:Wiki` | — | 打开百科 |
-| `UI:Settings` | — | 打开设置 |
+---
+
+## 埋点治理策略（平衡优先）
+
+当前客户端埋点采用“事件组软开关”模式：低价值事件默认关闭，但可快速恢复，无需删代码。
+
+- 默认保留（高价值）：`core`（经济、物价、人口、稳定、军事结果、外交关键行为、官员关键动作）
+- 默认关闭（软剔除）：`ui`、`diplomacy_controls`、`strategic`、`demand`、`ai`、`treaty`
+- 本地覆盖键：`localStorage['civ_analytics_event_group_flags']`（JSON）
+
+示例：
+
+```json
+{
+  "core": true,
+  "ui": false,
+  "diplomacy_controls": false,
+  "strategic": false,
+  "demand": false,
+  "ai": false,
+  "treaty": false
+}
+```
 
 ---
 
@@ -300,6 +366,46 @@ FROM design_events WHERE event_id LIKE 'Epoch:Upgrade:%' GROUP BY epoch ORDER BY
 -- 最常研究的科技
 SELECT SUBSTRING_INDEX(event_id,':',-1) AS tech, COUNT(*) AS cnt
 FROM design_events WHERE event_id LIKE 'Tech:Research:%' GROUP BY tech ORDER BY cnt DESC LIMIT 10;
+
+-- 核心字段上报完整度（天数/玩家国家）
+SELECT
+    ROUND(100 * AVG(days_elapsed IS NOT NULL), 2) AS days_coverage_pct,
+    ROUND(100 * AVG(player_nation_name IS NOT NULL), 2) AS nation_coverage_pct
+FROM design_events
+WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY);
+
+-- 按玩家国家看行为量
+SELECT
+    COALESCE(player_nation_name, 'unknown') AS player_nation,
+    COUNT(*) AS events
+FROM design_events
+WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+GROUP BY player_nation
+ORDER BY events DESC;
+
+-- 局内天数分层（按30天桶）
+SELECT
+    FLOOR(days_elapsed / 30) * 30 AS day_bucket,
+    ROUND(AVG(CASE WHEN event_id='Economy:GDP' THEN event_value END), 0) AS avg_gdp,
+    ROUND(AVG(CASE WHEN event_id='Economy:CPI' THEN event_value END), 2) AS avg_cpi
+FROM design_events
+WHERE days_elapsed IS NOT NULL
+  AND event_id IN ('Economy:GDP', 'Economy:CPI')
+GROUP BY day_bucket
+ORDER BY day_bucket;
+
+-- 外交动作兼容解析（新旧格式）
+SELECT
+    CASE
+      WHEN event_id LIKE 'Diplomacy:Action:%:%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(event_id, ':', 3), ':', -1)
+      WHEN event_id LIKE 'Diplomacy:Action:%' THEN 'action_legacy_unknown'
+      ELSE SUBSTRING_INDEX(SUBSTRING_INDEX(event_id, ':', 2), ':', -1)
+    END AS action,
+    COUNT(*) AS cnt
+FROM design_events
+WHERE event_id LIKE 'Diplomacy:%'
+GROUP BY action
+ORDER BY cnt DESC;
 ```
 
 ### 错误监控
@@ -341,6 +447,13 @@ SUBSTRING_INDEX(event_id, ':', -1)
 
 -- 第二段（子类别）
 SUBSTRING_INDEX(SUBSTRING_INDEX(event_id, ':', 2), ':', -1)
+
+-- 外交动作（兼容 Diplomacy:Action:action:nationId 新格式）
+CASE
+  WHEN event_id LIKE 'Diplomacy:Action:%:%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(event_id, ':', 3), ':', -1)
+  WHEN event_id LIKE 'Diplomacy:Action:%' THEN 'action_legacy_unknown'
+  ELSE SUBSTRING_INDEX(SUBSTRING_INDEX(event_id, ':', 2), ':', -1)
+END
 ```
 
 ### 按时间范围

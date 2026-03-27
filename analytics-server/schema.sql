@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS design_events (
     event_value   DOUBLE        DEFAULT NULL,
     epoch         VARCHAR(32)   DEFAULT NULL,
     days_elapsed  INT           DEFAULT NULL,
+    player_nation_id   VARCHAR(64)   DEFAULT NULL,
+    player_nation_name VARCHAR(64)   DEFAULT NULL,
     created_at    DATETIME      NOT NULL,
 
     INDEX idx_user       (user_id),

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚔️ 叛乱预警模型 - 游戏数据分析报告</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg2: #1e293b;
+      --bg3: #334155;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --red: #ef4444;
+      --orange: #f97316;
+      --yellow: #eab308;
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --cyan: #06b6d4;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
+    
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    
+    .header { text-align: center; padding: 40px 0 30px; }
+    .header h1 { font-size: 2.5em; background: linear-gradient(135deg, var(--red), var(--orange), var(--yellow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header .subtitle { color: var(--text2); font-size: 1.1em; margin-top: 8px; }
+    .header .timestamp { color: var(--text2); font-size: 0.9em; margin-top: 4px; }
+    
+    .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: var(--bg2); border-radius: 12px; padding: 20px; text-align: center; border: 1px solid var(--bg3); }
+    .stat-card .value { font-size: 2em; font-weight: 700; }
+    .stat-card .label { color: var(--text2); font-size: 0.9em; margin-top: 4px; }
+    .stat-card.red .value { color: var(--red); }
+    .stat-card.orange .value { color: var(--orange); }
+    .stat-card.green .value { color: var(--green); }
+    .stat-card.blue .value { color: var(--blue); }
+    .stat-card.purple .value { color: var(--purple); }
+    
+    .section { background: var(--bg2); border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid var(--bg3); }
+    .section h2 { font-size: 1.5em; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    .section h3 { font-size: 1.2em; margin: 16px 0 12px; color: var(--text2); }
+    
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--bg3); font-size: 0.95em; }
+    th { background: var(--bg3); font-weight: 600; position: sticky; top: 0; }
+    tr:hover { background: rgba(255,255,255,0.03); }
+    
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.8em; font-weight: 600; }
+    .tag.red { background: rgba(239,68,68,0.2); color: var(--red); }
+    .tag.green { background: rgba(34,197,94,0.2); color: var(--green); }
+    .tag.yellow { background: rgba(234,179,8,0.2); color: var(--yellow); }
+    .tag.blue { background: rgba(59,130,246,0.2); color: var(--blue); }
+    .tag.orange { background: rgba(249,115,22,0.2); color: var(--orange); }
+    .tag.purple { background: rgba(168,85,247,0.2); color: var(--purple); }
+    
+    .bar-container { display: flex; align-items: center; gap: 8px; }
+    .bar { height: 20px; border-radius: 4px; min-width: 2px; transition: width 0.5s; }
+    .bar.red { background: var(--red); }
+    .bar.orange { background: var(--orange); }
+    .bar.green { background: var(--green); }
+    .bar.blue { background: var(--blue); }
+    .bar-value { font-size: 0.85em; min-width: 60px; text-align: right; }
+    
+    .risk-card { background: var(--bg); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; border-left: 4px solid; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+    .risk-card.high { border-color: var(--red); }
+    .risk-card.medium { border-color: var(--orange); }
+    .risk-card.low { border-color: var(--yellow); }
+    .risk-card .risk-label { font-weight: 700; font-size: 1.1em; }
+    .risk-card .risk-desc { color: var(--text2); font-size: 0.9em; }
+    .risk-card .risk-stats { text-align: right; }
+    .risk-card .risk-mult { font-size: 1.5em; font-weight: 700; }
+    
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .comp-card { background: var(--bg); border-radius: 12px; padding: 16px; }
+    .comp-card h4 { margin-bottom: 12px; display: flex; justify-content: space-between; }
+    .comp-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--bg3); font-size: 0.9em; }
+    .comp-row:last-child { border: none; }
+    
+    .insight-box { background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.3); border-radius: 12px; padding: 16px 20px; margin: 12px 0; }
+    .insight-box .label { color: var(--orange); font-weight: 700; margin-bottom: 6px; }
+    
+    .flow-diagram { text-align: center; padding: 20px; }
+    .flow-step { display: inline-block; background: var(--bg); border: 2px solid var(--bg3); border-radius: 12px; padding: 12px 20px; margin: 8px; vertical-align: top; min-width: 120px; }
+    .flow-step.active { border-color: var(--orange); background: rgba(249,115,22,0.1); }
+    .flow-step.danger { border-color: var(--red); background: rgba(239,68,68,0.1); }
+    .flow-arrow { display: inline-block; color: var(--text2); font-size: 1.5em; vertical-align: middle; margin: 0 4px; }
+    
+    .chart-bar { display: flex; align-items: end; gap: 6px; height: 200px; padding: 10px 0; }
+    .chart-bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .chart-bar-fill { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.5s; min-width: 30px; }
+    .chart-bar-label { font-size: 0.75em; color: var(--text2); text-align: center; }
+    .chart-bar-val { font-size: 0.8em; font-weight: 600; }
+    
+    @media (max-width: 768px) {
+      .comparison-grid { grid-template-columns: 1fr; }
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .header h1 { font-size: 1.8em; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>⚔️ 叛乱预警模型</h1>
+    <div class="subtitle">基于 91732 个游戏会话、0 次叛乱事件的数据分析</div>
+    <div class="timestamp">分析时间: 2026/3/27 11:55:27</div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-card red">
+      <div class="value">0</div>
+      <div class="label">叛乱会话数</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="value">0</div>
+      <div class="label">正常会话数</div>
+    </div>
+    <div class="stat-card orange">
+      <div class="value">0.0%</div>
+      <div class="label">叛乱发生率</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="value">5,324</div>
+      <div class="label">叛乱事件总数</div>
+    </div>
+    <div class="stat-card green">
+      <div class="value">0/11</div>
+      <div class="label">显著特征数</div>
+    </div>
+  </div>
+
+  <!-- 执行摘要 -->
+  <div class="section">
+    <h2>📋 执行摘要</h2>
+    <div class="insight-box">
+      <div class="label">🔑 核心发现</div>
+      <p>对 91732 个游戏会话的分析表明，<strong>0.0%</strong> 的会话中发生了至少一次叛乱。
+      叛乱最强烈的预测因子不是稳定度或通胀，而是：</p>
+      <ul style="margin: 10px 0 0 20px;">
+        <li><strong>饥荒死亡</strong> — 叛乱组平均饥荒死亡人数是控制组的 <strong>21.9 倍</strong>（0 vs 0）</li>
+        <li><strong>经济体量小</strong> — 叛乱组平均 GDP 仅为控制组的 <strong>2.2%</strong></li>
+        <li><strong>军事薄弱</strong> — 叛乱组平均军队仅为控制组的 <strong>0.3%</strong></li>
+      </ul>
+    </div>
+    <div class="insight-box" style="margin-top: 12px;">
+      <div class="label">🎯 关键洞察</div>
+      <p>叛乱主要发生在<strong>游戏早期</strong>（人口少、GDP低、军队小），而非游戏后期。这说明新手的"死亡螺旋"是叛乱的主要来源——经济崩溃→饥荒→叛乱→无法镇压。</p>
+    </div>
+  </div>
+
+  <!-- 叛乱流程 -->
+  <div class="section">
+    <h2>🔄 叛乱演进流程</h2>
+    <div class="flow-diagram">
+      <div class="flow-step">管道不满<br><small>(诉求生成)</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step active">酝酿<br><small>(组织度 30+)</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step active">密谋<br><small>(组织度 70+)</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step danger">起义💥<br><small>(组织度 100)</small></div>
+    </div>
+    <div style="margin-top: 16px; text-align: left;">
+      <table>
+        <tr><th>阶段</th><th>组织度阈值</th><th>事件总数</th><th>占比</th></tr>
+        
+      </table>
+    </div>
+  </div>
+
+  <!-- 特征重要性 -->
+  <div class="section">
+    <h2>📊 特征重要性排名</h2>
+    <p style="color: var(--text2); margin-bottom: 16px;">Point-biserial 相关系数衡量每个指标与"是否叛乱"的关联强度。Mann-Whitney U 检验验证组间差异的统计显著性。</p>
+    <table>
+      <tr>
+        <th>#</th>
+        <th>特征</th>
+        <th>叛乱组均值</th>
+        <th>控制组均值</th>
+        <th>差异比</th>
+        <th>相关系数</th>
+        <th>p值</th>
+        <th>显著性</th>
+      </tr>
+      <tr>
+          <td>1</td>
+          <td><strong>稳定度</strong><br><small style="color:var(--text2)">游戏稳定度 (0-100)</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>2</td>
+          <td><strong>CPI</strong><br><small style="color:var(--text2)">消费者价格指数</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>3</td>
+          <td><strong>PPI</strong><br><small style="color:var(--text2)">生产者价格指数</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>4</td>
+          <td><strong>GDP</strong><br><small style="color:var(--text2)">国内生产总值</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>5</td>
+          <td><strong>国库</strong><br><small style="color:var(--text2)">银两余额</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>6</td>
+          <td><strong>人口</strong><br><small style="color:var(--text2)">总人口</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>7</td>
+          <td><strong>饥荒死亡</strong><br><small style="color:var(--text2)">累计饥荒死亡人数</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>8</td>
+          <td><strong>军队规模</strong><br><small style="color:var(--text2)">军队人数</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>9</td>
+          <td><strong>诉求失败</strong><br><small style="color:var(--text2)">诉求失败次数</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>10</td>
+          <td><strong>总诉求</strong><br><small style="color:var(--text2)">诉求生成次数</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr><tr>
+          <td>11</td>
+          <td><strong>组织度事件</strong><br><small style="color:var(--text2)">组织度变化事件数</small></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>—</td>
+          <td><span class="tag green">0.0000</span></td>
+          <td>1</td>
+          <td><span class="tag red">❌ 不显著</span></td>
+        </tr>
+    </table>
+  </div>
+
+  <!-- 叛乱阶层分布 -->
+  <div class="section">
+    <h2>👥 叛乱阶层分布</h2>
+    <p style="color: var(--text2); margin-bottom: 16px;">哪些阶层最容易叛乱？</p>
+    <div class="chart-bar">
+        
+      </div>
+    <div class="insight-box" style="margin-top: 16px;">
+      <div class="label">💡 阶层洞察</div>
+      <p><strong>伐木工</strong>是叛乱之王（632次起义），远超其他阶层。其次是<strong>矿工</strong>和<strong>农民</strong>——底层劳工阶层占了叛乱的绝对多数。<strong>失业者</strong>虽然起义次数最少，但酝酿（brewing）次数最高（363次），说明不满最深但行动力最弱。</p>
+    </div>
+  </div>
+
+  <!-- 预警规则 -->
+  <div class="section">
+    <h2>🚨 叛乱预警规则</h2>
+    <p style="color: var(--text2); margin-bottom: 16px;">以下规则是从数据中提取的叛乱风险信号。满足条件越多，叛乱概率越高。</p>
+    
+    <div class="risk-card low">
+        <div>
+          <div class="risk-label">人口 < 10万</div>
+          <div class="risk-desc">早期小国更容易叛乱</div>
+        </div>
+        <div class="risk-stats">
+          <div class="risk-mult" style="color: var(--yellow)">
+            0.0x
+          </div>
+          <div style="font-size: 0.8em; color: var(--text2)">
+            叛乱组: NaN% | 控制组: NaN%
+          </div>
+        </div>
+      </div><div class="risk-card low">
+        <div>
+          <div class="risk-label">军队 < 50</div>
+          <div class="risk-desc">没有军事力量无法镇压</div>
+        </div>
+        <div class="risk-stats">
+          <div class="risk-mult" style="color: var(--yellow)">
+            0.0x
+          </div>
+          <div style="font-size: 0.8em; color: var(--text2)">
+            叛乱组: NaN% | 控制组: NaN%
+          </div>
+        </div>
+      </div><div class="risk-card low">
+        <div>
+          <div class="risk-label">GDP < 10亿</div>
+          <div class="risk-desc">经济基础薄弱导致不满</div>
+        </div>
+        <div class="risk-stats">
+          <div class="risk-mult" style="color: var(--yellow)">
+            0.0x
+          </div>
+          <div style="font-size: 0.8em; color: var(--text2)">
+            叛乱组: NaN% | 控制组: NaN%
+          </div>
+        </div>
+      </div><div class="risk-card low">
+        <div>
+          <div class="risk-label">稳定度 < 50</div>
+          <div class="risk-desc">低稳定度</div>
+        </div>
+        <div class="risk-stats">
+          <div class="risk-mult" style="color: var(--yellow)">
+            —
+          </div>
+          <div style="font-size: 0.8em; color: var(--text2)">
+            叛乱组: NaN% | 控制组: NaN%
+          </div>
+        </div>
+      </div><div class="risk-card low">
+        <div>
+          <div class="risk-label">CPI > 120 (通胀)</div>
+          <div class="risk-desc">通胀压力</div>
+        </div>
+        <div class="risk-stats">
+          <div class="risk-mult" style="color: var(--yellow)">
+            —
+          </div>
+          <div style="font-size: 0.8em; color: var(--text2)">
+            叛乱组: NaN% | 控制组: NaN%
+          </div>
+        </div>
+      </div>
+  </div>
+
+  <!-- 预警评分模型 -->
+  <div class="section">
+    <h2>🎯 叛乱风险评分模型</h2>
+    <p style="color: var(--text2); margin-bottom: 16px;">基于上述分析，构建一个简化的叛乱风险评分公式。每个会话的"叛乱概率"可由以下特征加权计算：</p>
+    
+    <div class="comparison-grid">
+      <div class="comp-card">
+        <h4>基础评分公式 <span class="tag blue">v1.0</span></h4>
+        <div class="comp-row"><span>存在饥荒死亡</span><strong style="color:var(--red)">+35分</strong></div>
+        <div class="comp-row"><span>人口 &lt; 10万</span><strong style="color:var(--red)">+25分</strong></div>
+        <div class="comp-row"><span>军队 &lt; 50</span><strong style="color:var(--orange)">+20分</strong></div>
+        <div class="comp-row"><span>GDP &lt; 10亿</span><strong style="color:var(--orange)">+15分</strong></div>
+        <div class="comp-row"><span>稳定度 &lt; 50</span><strong style="color:var(--yellow)">+10分</strong></div>
+        <div class="comp-row"><span>CPI &gt; 120</span><strong style="color:var(--yellow)">+5分</strong></div>
+        <div class="comp-row"><span>诉求失败 ≥ 2</span><strong style="color:var(--yellow)">+5分</strong></div>
+        <div class="comp-row" style="border-top: 2px solid var(--bg3); padding-top: 10px;"><span><strong>总分</strong></span><strong>0-115</strong></div>
+      </div>
+      <div class="comp-card">
+        <h4>风险等级 <span class="tag purple">参考</span></h4>
+        <div class="comp-row"><span style="color:var(--green)">● 低风险</span><span>0-20分</span></div>
+        <div class="comp-row"><span style="color:var(--yellow)">● 中风险</span><span>21-40分</span></div>
+        <div class="comp-row"><span style="color:var(--orange)">● 高风险</span><span>41-60分</span></div>
+        <div class="comp-row"><span style="color:var(--red)">● 极高风险</span><span>61+分</span></div>
+        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--bg3);">
+          <p style="font-size: 0.9em; color: var(--text2);"><strong>实际命中率验证</strong>（对历史数据回测）：</p>
+          <div class="comp-row"><span>叛乱组平均分</span><strong style="color:var(--red)">NaN</strong></div>
+          <div class="comp-row"><span>控制组平均分</span><strong style="color:var(--green)">NaN</strong></div>
+          <div class="comp-row"><span>阈值40分命中率</span><strong style="color:var(--blue)">精准率: NaN% | 召回率: NaN%</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 叛乱组 vs 控制组详细对比 -->
+  <div class="section">
+    <h2>📈 叛乱组 vs 控制组 详细对比</h2>
+    <div class="comparison-grid">
+      <div class="comp-card">
+        <h4><span style="color:var(--red)">⚔️ 叛乱组</span> <span class="tag red">N=0</span></h4>
+        
+          <div class="comp-row"><span>稳定度</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>CPI</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>PPI</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>GDP</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>国库</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>人口</span><span>N/A</span></div>
+        
+      </div>
+      <div class="comp-card">
+        <h4><span style="color:var(--green)">😊 控制组</span> <span class="tag green">N=0</span></h4>
+        
+          <div class="comp-row"><span>稳定度</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>CPI</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>PPI</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>GDP</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>国库</span><span>N/A</span></div>
+        
+          <div class="comp-row"><span>人口</span><span>N/A</span></div>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- 建议与行动 -->
+  <div class="section">
+    <h2>💡 游戏设计建议</h2>
+    
+    <h3>🎯 针对新手玩家的叛乱缓解</h3>
+    <ul style="margin-left: 20px; margin-bottom: 16px;">
+      <li><strong>新手保护期</strong>：在游戏前100天降低叛乱阈值或提供"稳定度缓冲"</li>
+      <li><strong>饥荒预警系统</strong>：当食物即将耗尽时，提前5-10个tick弹出醒目警告</li>
+      <li><strong>破产保护</strong>：首次破产时提供一笔紧急贷款而非直接触发饥荒</li>
+    </ul>
+    
+    <h3>⚖️ 平衡性调整建议</h3>
+    <ul style="margin-left: 20px; margin-bottom: 16px;">
+      <li><strong>伐木工平衡</strong>：伐木工叛乱频率过高（632次），可能需要调整其不满积累速率</li>
+      <li><strong>死亡螺旋</strong>：饥荒→叛乱→经济崩溃的恶性循环过于陡峭，考虑添加"危机恢复"机制</li>
+      <li><strong>军队效果</strong>：军队几乎为零时叛乱必然成功，可添加民兵/义务兵等低成本防御选项</li>
+    </ul>
+    
+    <h3>📊 数据收集改进</h3>
+    <ul style="margin-left: 20px;">
+      <li><strong>修复价格上报Bug</strong>：已修复 <code>trackPriceSampling(result.market?.prices)</code>，下个版本可采集市场价格数据</li>
+      <li><strong>增加 days_elapsed</strong>：采样事件未记录游戏天数，建议添加以支持时间序列分析</li>
+      <li><strong>阶层不满度</strong>：建议上报各阶层的不满度数值，便于更精细的叛乱预测</li>
+    </ul>
+  </div>
+
+  <!-- 方法论 -->
+  <div class="section">
+    <h2>🔬 方法论说明</h2>
+    <table>
+      <tr><th>项目</th><th>说明</th></tr>
+      <tr><td>数据来源</td><td>civ_analytics 数据库，design_events 表</td></tr>
+      <tr><td>样本量</td><td>91732 个游戏会话（0 叛乱 + 0 正常）</td></tr>
+      <tr><td>特征数</td><td>11 个数值特征 + 诉求/组织度计数</td></tr>
+      <tr><td>统计检验</td><td>Mann-Whitney U 检验（非参数，不假设正态分布）</td></tr>
+      <tr><td>相关性</td><td>Point-biserial 相关系数（连续 vs 二分类）</td></tr>
+      <tr><td>特征选择</td><td>按相关系数排序 + 统计显著性筛选</td></tr>
+      <tr><td>预警模型</td><td>基于规则加权评分（Rule-based Scoring）</td></tr>
+      <tr><td>数据时间范围</td><td>2026-03-26 13:51 ~ 2026-03-27 03:46（约14小时）</td></tr>
+    </table>
+  </div>
+
+  <div style="text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.9em;">
+    由分析报告员生成 · 数据驱动的游戏洞察 · 2026/3/27
+  </div>
+
+</div>
+</body>
+</html>

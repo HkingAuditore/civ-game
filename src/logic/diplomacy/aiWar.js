@@ -2723,7 +2723,30 @@ export const syncAINationMilitary = ({
         });
         return army;
     }, {});
-    const totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    let totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+
+    const sustainableTemplateArmy = generateNationArmy(updatedNation, epoch, 1.0, 1.0);
+    const sustainableArmy = Math.max(
+        10,
+        Object.values(sustainableTemplateArmy).reduce((sum, count) => sum + (count || 0), 0)
+    );
+
+    // 低兵力回填：旧存档中已存在的 AI 军团也要向可持续兵力靠拢，避免长期停留在个位数。
+    if (allNationCorps.length > 0 && totalUnits < sustainableArmy) {
+        let deficit = sustainableArmy - totalUnits;
+        const reinforcementUnitId = Object.entries(sustainableTemplateArmy)
+            .sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] || 'militia';
+        const receiverCorps = [...allNationCorps].sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
+        let cursor = 0;
+        while (deficit > 0 && receiverCorps.length > 0) {
+            const corps = receiverCorps[cursor % receiverCorps.length];
+            corps.units = { ...(corps.units || {}) };
+            corps.units[reinforcementUnitId] = (corps.units[reinforcementUnitId] || 0) + 1;
+            deficit -= 1;
+            cursor += 1;
+        }
+        totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    }
 
     // [FIX] Enforce population-based army cap: armies can't exceed what population can sustain
     // maxManpower >= 0 ensures the cap is enforced even when population is tiny (maxManpower=0)
@@ -2745,10 +2768,6 @@ export const syncAINationMilitary = ({
     const orgFactor = 0.7 + Number(updatedNation.military?.organization || 50) / 100 * 0.6;
     const techFactor = 0.8 + Number(updatedNation.military?.techLevel || 1) * 0.08;
     const supplyFactor = Math.min(1.3, 0.7 + Number(updatedNation.military?.logistics?.throughput || 1) * 0.35);
-    const sustainableArmy = Math.max(
-        10,
-        Object.values(generateNationArmy(updatedNation, epoch, 1.0, 1.0)).reduce((sum, count) => sum + (count || 0), 0)
-    );
     const mobilizationFactor = totalUnits / sustainableArmy;
     updatedNation.militaryQuality = clamp(orgFactor * techFactor * supplyFactor, 0.7, 1.8);
     updatedNation.militaryStrength = clamp(mobilizationFactor * updatedNation.militaryQuality, 0.25, 2.4);
