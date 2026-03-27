@@ -1,0 +1,876 @@
+{
+  "1_data_overview": [
+    {
+      "total_sessions": 622,
+      "total_players": 267,
+      "earliest_session": "2026-03-26T12:29:47.000Z",
+      "latest_session": "2026-03-27T03:34:20.000Z",
+      "total_design_events": 718864,
+      "total_resource_events": 157358,
+      "total_errors": 148
+    }
+  ],
+  "2_event_categories": [
+    {
+      "category": "Economy",
+      "cnt": 187572
+    },
+    {
+      "category": "Building",
+      "cnt": 151141
+    },
+    {
+      "category": "Diplomacy",
+      "cnt": 112121
+    },
+    {
+      "category": "Military",
+      "cnt": 66119
+    },
+    {
+      "category": "UI",
+      "cnt": 51986
+    },
+    {
+      "category": "Population",
+      "cnt": 51475
+    },
+    {
+      "category": "Stability",
+      "cnt": 46671
+    },
+    {
+      "category": "Game",
+      "cnt": 15905
+    },
+    {
+      "category": "Trade",
+      "cnt": 9938
+    },
+    {
+      "category": "Event",
+      "cnt": 7927
+    },
+    {
+      "category": "Tech",
+      "cnt": 4903
+    },
+    {
+      "category": "Rebellion",
+      "cnt": 4849
+    },
+    {
+      "category": "Organization",
+      "cnt": 4551
+    },
+    {
+      "category": "Official",
+      "cnt": 1715
+    },
+    {
+      "category": "Achievement",
+      "cnt": 1200
+    },
+    {
+      "category": "Peace",
+      "cnt": 339
+    },
+    {
+      "category": "Epoch",
+      "cnt": 316
+    },
+    {
+      "category": "Decree",
+      "cnt": 127
+    },
+    {
+      "category": "Vassal",
+      "cnt": 9
+    }
+  ],
+  "3_player_stats": [
+    {
+      "today_dau": 225,
+      "week_dau": 241,
+      "online_now": 11,
+      "avg_session_hours": "0.39",
+      "total_hours": "212.85"
+    }
+  ],
+  "4_economy_stats": [
+    {
+      "event_id": "Economy:CPI",
+      "samples": 46625,
+      "avg_val": 70.08,
+      "min_val": 4.68,
+      "max_val": 658.02
+    },
+    {
+      "event_id": "Economy:GDP",
+      "samples": 46625,
+      "avg_val": 3793086987.46,
+      "min_val": -3375775081.36,
+      "max_val": 13993508871547.39
+    },
+    {
+      "event_id": "Economy:PPI",
+      "samples": 46625,
+      "avg_val": 66.66,
+      "min_val": 6.79,
+      "max_val": 720.65
+    },
+    {
+      "event_id": "Economy:Treasury",
+      "samples": 46625,
+      "avg_val": 227563783094811.56,
+      "min_val": -929134.47,
+      "max_val": 42148394512417700
+    },
+    {
+      "event_id": "Military:ArmySize",
+      "samples": 46625,
+      "avg_val": 1659.24,
+      "min_val": 0,
+      "max_val": 2423502
+    },
+    {
+      "event_id": "Population:Total",
+      "samples": 46625,
+      "avg_val": 139980053.33,
+      "min_val": 0,
+      "max_val": 11339835297
+    },
+    {
+      "event_id": "Stability:Level",
+      "samples": 46625,
+      "avg_val": 89.77,
+      "min_val": 9.1,
+      "max_val": 100
+    }
+  ],
+  "5_top_buildings": [
+    {
+      "building": "hut",
+      "cnt": 13433
+    },
+    {
+      "building": "farm",
+      "cnt": 7218
+    },
+    {
+      "building": "lumber_camp",
+      "cnt": 3969
+    },
+    {
+      "building": "loom_house",
+      "cnt": 3682
+    },
+    {
+      "building": "quarry",
+      "cnt": 3316
+    },
+    {
+      "building": "house",
+      "cnt": 3313
+    },
+    {
+      "building": "granary",
+      "cnt": 2949
+    },
+    {
+      "building": "manor_house",
+      "cnt": 2947
+    },
+    {
+      "building": "steel_works",
+      "cnt": 2901
+    },
+    {
+      "building": "apartment_block",
+      "cnt": 2314
+    },
+    {
+      "building": "brickworks",
+      "cnt": 2290
+    },
+    {
+      "building": "townhouse",
+      "cnt": 2219
+    },
+    {
+      "building": "stone_tool_workshop",
+      "cnt": 2154
+    },
+    {
+      "building": "trading_post",
+      "cnt": 2109
+    },
+    {
+      "building": "oil_well",
+      "cnt": 2068
+    }
+  ],
+  "6_epoch_reach": [
+    {
+      "epoch": "1",
+      "players": 108
+    }
+  ],
+  "7_diplomacy_events": [
+    {
+      "action": "Action",
+      "cnt": 110935
+    },
+    {
+      "action": "Peace",
+      "cnt": 361
+    },
+    {
+      "action": "Gift",
+      "cnt": 346
+    },
+    {
+      "action": "Treaty",
+      "cnt": 240
+    },
+    {
+      "action": "DeclareWar",
+      "cnt": 222
+    },
+    {
+      "action": "Vassal",
+      "cnt": 26
+    }
+  ],
+  "8_military_events": [
+    {
+      "action": "ArmySize",
+      "cnt": 46635
+    },
+    {
+      "action": "Disband",
+      "cnt": 13838
+    },
+    {
+      "action": "Recruit",
+      "cnt": 5307
+    },
+    {
+      "action": "WageRatio",
+      "cnt": 194
+    },
+    {
+      "action": "AutoReplenish",
+      "cnt": 73
+    },
+    {
+      "action": "DisbandAll",
+      "cnt": 40
+    },
+    {
+      "action": "CancelTrain",
+      "cnt": 30
+    },
+    {
+      "action": "CancelAll",
+      "cnt": 14
+    }
+  ],
+  "9_event_choices_top20": [
+    {
+      "event_id": "Event:Choose:great_flood:organize_rescue",
+      "cnt": 89
+    },
+    {
+      "event_id": "Event:Choose:harvest_festival:celebrate",
+      "cnt": 69
+    },
+    {
+      "event_id": "Event:Choose:shaman_ritual:grand_ritual",
+      "cnt": 62
+    },
+    {
+      "event_id": "Event:Choose:academic_boom:patronize_scholars",
+      "cnt": 58
+    },
+    {
+      "event_id": "Event:Choose:winter_preparation:encourage_stockpiling",
+      "cnt": 58
+    },
+    {
+      "event_id": "Event:Choose:merchant_caravan:trade",
+      "cnt": 52
+    },
+    {
+      "event_id": "Event:Choose:festival_season:grand_celebration",
+      "cnt": 51
+    },
+    {
+      "event_id": "Event:Choose:star_reader:support_stargazer",
+      "cnt": 51
+    },
+    {
+      "event_id": "Event:Choose:good_harvest:store",
+      "cnt": 49
+    },
+    {
+      "event_id": "Event:Choose:tribal_marriage:accept_marriage",
+      "cnt": 47
+    },
+    {
+      "event_id": "Event:Choose:fire_discovery:honor_elder",
+      "cnt": 45
+    },
+    {
+      "event_id": "Event:Choose:locust_plague:organize_extermination",
+      "cnt": 45
+    },
+    {
+      "event_id": "Event:Choose:wolf_domestication:tame_wolves",
+      "cnt": 42
+    },
+    {
+      "event_id": "Event:Choose:obsidian_trade:establish_trade",
+      "cnt": 42
+    },
+    {
+      "event_id": "Event:Choose:natural_disaster:relief",
+      "cnt": 41
+    },
+    {
+      "event_id": "Event:Choose:labor_shortage:import_labor",
+      "cnt": 41
+    },
+    {
+      "event_id": "Event:Choose:star_gazer:support_observer",
+      "cnt": 38
+    },
+    {
+      "event_id": "Event:Choose:wage_demands:raise_wages",
+      "cnt": 38
+    },
+    {
+      "event_id": "Event:Choose:first_pottery:encourage_pottery",
+      "cnt": 38
+    },
+    {
+      "event_id": "Event:Choose:stone_age_new_water:develop_water_source",
+      "cnt": 38
+    }
+  ],
+  "10_econ_flow": [],
+  "11_crisis_events": [
+    {
+      "crisis_type": "hyperinflation",
+      "cnt": 938,
+      "avg_value": 279.66
+    },
+    {
+      "crisis_type": "bankruptcy",
+      "cnt": 138,
+      "avg_value": 0
+    }
+  ],
+  "12_rebellion_events": [
+    {
+      "phase": "uprising",
+      "stratum": "lumberjack",
+      "cnt": 584
+    },
+    {
+      "phase": "uprising",
+      "stratum": "miner",
+      "cnt": 460
+    },
+    {
+      "phase": "brewing",
+      "stratum": "unemployed",
+      "cnt": 356
+    },
+    {
+      "phase": "uprising",
+      "stratum": "peasant",
+      "cnt": 267
+    },
+    {
+      "phase": "plotting",
+      "stratum": "artisan",
+      "cnt": 203
+    },
+    {
+      "phase": "plotting",
+      "stratum": "unemployed",
+      "cnt": 198
+    },
+    {
+      "phase": "uprising",
+      "stratum": "artisan",
+      "cnt": 194
+    },
+    {
+      "phase": "plotting",
+      "stratum": "lumberjack",
+      "cnt": 142
+    },
+    {
+      "phase": "brewing",
+      "stratum": "miner",
+      "cnt": 141
+    },
+    {
+      "phase": "brewing",
+      "stratum": "peasant",
+      "cnt": 135
+    },
+    {
+      "phase": "brewing",
+      "stratum": "lumberjack",
+      "cnt": 135
+    },
+    {
+      "phase": "plotting",
+      "stratum": "peasant",
+      "cnt": 133
+    },
+    {
+      "phase": "plotting",
+      "stratum": "miner",
+      "cnt": 132
+    },
+    {
+      "phase": "uprising",
+      "stratum": "cleric",
+      "cnt": 121
+    },
+    {
+      "phase": "plotting",
+      "stratum": "cleric",
+      "cnt": 115
+    },
+    {
+      "phase": "Coalition",
+      "stratum": "artisan",
+      "cnt": 103
+    },
+    {
+      "phase": "plotting",
+      "stratum": "scribe",
+      "cnt": 92
+    },
+    {
+      "phase": "uprising",
+      "stratum": "scribe",
+      "cnt": 87
+    },
+    {
+      "phase": "brewing",
+      "stratum": "artisan",
+      "cnt": 83
+    },
+    {
+      "phase": "brewing",
+      "stratum": "scribe",
+      "cnt": 80
+    }
+  ],
+  "13_top_techs": [
+    {
+      "tech": "barter",
+      "cnt": 92
+    },
+    {
+      "tech": "stone_axes",
+      "cnt": 91
+    },
+    {
+      "tech": "animal_husbandry",
+      "cnt": 90
+    },
+    {
+      "tech": "flint_knapping",
+      "cnt": 90
+    },
+    {
+      "tech": "pottery",
+      "cnt": 89
+    },
+    {
+      "tech": "basic_irrigation",
+      "cnt": 89
+    },
+    {
+      "tech": "communal_granary",
+      "cnt": 87
+    },
+    {
+      "tech": "tool_making",
+      "cnt": 87
+    },
+    {
+      "tech": "oral_tradition",
+      "cnt": 83
+    },
+    {
+      "tech": "river_fishing",
+      "cnt": 79
+    },
+    {
+      "tech": "wheel",
+      "cnt": 78
+    },
+    {
+      "tech": "copper_mining",
+      "cnt": 73
+    },
+    {
+      "tech": "early_administration",
+      "cnt": 71
+    },
+    {
+      "tech": "tools",
+      "cnt": 71
+    },
+    {
+      "tech": "bronze_working",
+      "cnt": 70
+    }
+  ],
+  "14_difficulty": [
+    {
+      "event_id": "Game:NewGame:easy",
+      "cnt": 58
+    },
+    {
+      "event_id": "Game:NewGame:normal",
+      "cnt": 33
+    },
+    {
+      "event_id": "Game:NewGame:extreme",
+      "cnt": 19
+    },
+    {
+      "event_id": "Game:NewGame:very_easy",
+      "cnt": 18
+    },
+    {
+      "event_id": "Game:NewGame:hard",
+      "cnt": 2
+    }
+  ],
+  "15_top_decrees": [
+    {
+      "decree": "communal_granary",
+      "cnt": 7
+    },
+    {
+      "decree": "state_granary",
+      "cnt": 7
+    },
+    {
+      "decree": "public_education_act",
+      "cnt": 6
+    },
+    {
+      "decree": "joint_stock",
+      "cnt": 5
+    },
+    {
+      "decree": "bullionism",
+      "cnt": 5
+    },
+    {
+      "decree": "knight_tournament",
+      "cnt": 5
+    },
+    {
+      "decree": "habeas_corpus",
+      "cnt": 5
+    },
+    {
+      "decree": "sumptuary_laws",
+      "cnt": 5
+    },
+    {
+      "decree": "hanseatic_law",
+      "cnt": 4
+    },
+    {
+      "decree": "factory_act",
+      "cnt": 4
+    }
+  ],
+  "16_achievements": [
+    {
+      "achievement": "legitimacy_high",
+      "cnt": 56,
+      "earliest_day": 21,
+      "avg_day": 627.3
+    },
+    {
+      "achievement": "legitimacy_very_high",
+      "cnt": 55,
+      "earliest_day": 27,
+      "avg_day": 661.7
+    },
+    {
+      "achievement": "single_coalition",
+      "cnt": 54,
+      "earliest_day": 2,
+      "avg_day": 27.5
+    },
+    {
+      "achievement": "build_foundation",
+      "cnt": 45,
+      "earliest_day": 26,
+      "avg_day": 1159.4
+    },
+    {
+      "achievement": "mandate_heaven",
+      "cnt": 44,
+      "earliest_day": 74,
+      "avg_day": 1264.2
+    },
+    {
+      "achievement": "rich_strata_two",
+      "cnt": 42,
+      "earliest_day": 137,
+      "avg_day": 1371.1
+    },
+    {
+      "achievement": "tech_spark",
+      "cnt": 38,
+      "earliest_day": 771,
+      "avg_day": 2990.6
+    },
+    {
+      "achievement": "big_coalition",
+      "cnt": 37,
+      "earliest_day": 510,
+      "avg_day": 2712.6
+    },
+    {
+      "achievement": "approval_all_high",
+      "cnt": 35,
+      "earliest_day": 121,
+      "avg_day": 1083.5
+    },
+    {
+      "achievement": "pax_romana",
+      "cnt": 35,
+      "earliest_day": 1440,
+      "avg_day": 2371.4
+    },
+    {
+      "achievement": "rich_strata_four",
+      "cnt": 35,
+      "earliest_day": 518,
+      "avg_day": 2294.3
+    },
+    {
+      "achievement": "build_crafted",
+      "cnt": 34,
+      "earliest_day": 641,
+      "avg_day": 3192.8
+    },
+    {
+      "achievement": "rule_decade",
+      "cnt": 34,
+      "earliest_day": 3240,
+      "avg_day": 4122.6
+    },
+    {
+      "achievement": "income_gold",
+      "cnt": 31,
+      "earliest_day": 691,
+      "avg_day": 6507
+    },
+    {
+      "achievement": "epoch_2",
+      "cnt": 31,
+      "earliest_day": 0,
+      "avg_day": 7288.9
+    },
+    {
+      "achievement": "epoch_1",
+      "cnt": 31,
+      "earliest_day": 0,
+      "avg_day": 4374.4
+    },
+    {
+      "achievement": "tech_enlighten",
+      "cnt": 30,
+      "earliest_day": 0,
+      "avg_day": 5231.8
+    },
+    {
+      "achievement": "income_river",
+      "cnt": 26,
+      "earliest_day": 691,
+      "avg_day": 8504.7
+    },
+    {
+      "achievement": "bread_circus",
+      "cnt": 25,
+      "earliest_day": 245,
+      "avg_day": 5683.6
+    },
+    {
+      "achievement": "population_swarm",
+      "cnt": 24,
+      "earliest_day": 1,
+      "avg_day": 7331.4
+    }
+  ],
+  "17_hardcore_players": [
+    {
+      "user_id": "1754caf5-592e-4237-b8fa-91756a1c35eb",
+      "total_hours": "8.56",
+      "sessions": 16,
+      "last_played": "2026-03-27T03:20:15.000Z"
+    },
+    {
+      "user_id": "cff2ceeb-434c-4972-adaf-3b270311a864",
+      "total_hours": "7.12",
+      "sessions": 4,
+      "last_played": "2026-03-27T01:34:19.000Z"
+    },
+    {
+      "user_id": "f13ab8ee-67a6-4db0-a3bc-dc1fcb01f6c3",
+      "total_hours": "6.25",
+      "sessions": 3,
+      "last_played": "2026-03-27T01:16:13.000Z"
+    },
+    {
+      "user_id": "781d84ea-233a-42d5-af5e-19cf9d17c197",
+      "total_hours": "6.06",
+      "sessions": 12,
+      "last_played": "2026-03-27T03:02:44.000Z"
+    },
+    {
+      "user_id": "a9d74438-e9b2-427f-a18e-6cbc04339eed",
+      "total_hours": "4.56",
+      "sessions": 1,
+      "last_played": "2026-03-26T21:09:15.000Z"
+    },
+    {
+      "user_id": "32cc089f-ea65-481e-863e-00803f292a8f",
+      "total_hours": "4.31",
+      "sessions": 2,
+      "last_played": "2026-03-26T23:25:44.000Z"
+    },
+    {
+      "user_id": "d329e36a-e8cd-4d5c-88f5-fd77ade9a669",
+      "total_hours": "4.13",
+      "sessions": 4,
+      "last_played": "2026-03-26T21:09:59.000Z"
+    },
+    {
+      "user_id": "6c4bcb04-e467-4c1f-af95-b5e7096ee1c1",
+      "total_hours": "3.75",
+      "sessions": 1,
+      "last_played": "2026-03-27T01:39:06.000Z"
+    },
+    {
+      "user_id": "f2d5be3c-e22d-4767-afcd-c82c13324861",
+      "total_hours": "3.71",
+      "sessions": 11,
+      "last_played": "2026-03-27T03:27:09.000Z"
+    },
+    {
+      "user_id": "7b634857-8e11-4d73-9a89-d96d6baafda4",
+      "total_hours": "3.30",
+      "sessions": 1,
+      "last_played": "2026-03-26T20:19:38.000Z"
+    }
+  ],
+  "18_dau_trend": [
+    {
+      "day": "2026-03-25T16:00:00.000Z",
+      "dau": 30
+    },
+    {
+      "day": "2026-03-26T16:00:00.000Z",
+      "dau": 252
+    }
+  ],
+  "19_starvation": [
+    {
+      "total_events": 4840,
+      "total_deaths": 87630478,
+      "avg_deaths": 18105.5,
+      "max_single_event": 3225703
+    }
+  ],
+  "20_resource_summary": [
+    {
+      "currency": "science",
+      "flow_type": "sink",
+      "cnt": 4903,
+      "total": "142310539",
+      "avg": "29025.20"
+    },
+    {
+      "currency": "silver",
+      "flow_type": "sink",
+      "cnt": 152480,
+      "total": "1171517315784",
+      "avg": "7683088.38"
+    }
+  ],
+  "21_battle_win_rate": [],
+  "22_tax_changes": [],
+  "23_demand_events": [],
+  "24_military_recruit_top": [
+    {
+      "unit": "cyber_unit",
+      "cnt": 420,
+      "total_recruited": 217390
+    },
+    {
+      "unit": "light_cavalry",
+      "cnt": 382,
+      "total_recruited": 1048
+    },
+    {
+      "unit": "militia",
+      "cnt": 253,
+      "total_recruited": 1904
+    },
+    {
+      "unit": "knight",
+      "cnt": 241,
+      "total_recruited": 1086
+    },
+    {
+      "unit": "guided_missile",
+      "cnt": 228,
+      "total_recruited": 326331
+    },
+    {
+      "unit": "heavy_infantry",
+      "cnt": 222,
+      "total_recruited": 11106
+    },
+    {
+      "unit": "fighter_plane",
+      "cnt": 215,
+      "total_recruited": 9278
+    },
+    {
+      "unit": "crossbowman",
+      "cnt": 206,
+      "total_recruited": 1110
+    },
+    {
+      "unit": "armored_car",
+      "cnt": 203,
+      "total_recruited": 601705
+    },
+    {
+      "unit": "drone",
+      "cnt": 200,
+      "total_recruited": 225359
+    }
+  ],
+  "25_ideology_usage": []
+}

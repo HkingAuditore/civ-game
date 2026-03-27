@@ -66,7 +66,7 @@ import {
     trackManualGather, trackEventChoice, trackRebellionAction,
     trackVassalApprove, trackVassalReject, trackVassalOrder,
     trackPeaceAccept, trackPeaceReject, trackPeacePropose,
-    trackTradeRouteMode,
+    trackTradeRouteMode, trackCoalitionChange,
 } from '../analytics/gaTracker';
 import { setDimensions } from '../analytics/gaInit';
 // 外交叛乱干预系统
@@ -1049,21 +1049,21 @@ export const useGameActions = (gameState, addLog) => {
             const { addToCoalition, removeFromCoalition } = filtered.modifyCoalition;
 
             if (addToCoalition && typeof setRulingCoalition === 'function') {
-                setRulingCoalition(prev => {
-                    const currentCoalition = Array.isArray(prev) ? prev : [];
-                    // Avoid duplicates
-                    if (currentCoalition.includes(addToCoalition)) {
-                        return currentCoalition;
-                    }
-                    return [...currentCoalition, addToCoalition];
-                });
+                const currentCoalition = Array.isArray(rulingCoalition) ? rulingCoalition : [];
+                if (!currentCoalition.includes(addToCoalition)) {
+                    const nextCoalition = [...currentCoalition, addToCoalition];
+                    setRulingCoalition(nextCoalition);
+                    trackCoalitionChange(nextCoalition.length);
+                }
             }
 
             if (removeFromCoalition && typeof setRulingCoalition === 'function') {
-                setRulingCoalition(prev => {
-                    const currentCoalition = Array.isArray(prev) ? prev : [];
-                    return currentCoalition.filter(stratum => stratum !== removeFromCoalition);
-                });
+                const currentCoalition = Array.isArray(rulingCoalition) ? rulingCoalition : [];
+                if (currentCoalition.includes(removeFromCoalition)) {
+                    const nextCoalition = currentCoalition.filter(stratum => stratum !== removeFromCoalition);
+                    setRulingCoalition(nextCoalition);
+                    trackCoalitionChange(nextCoalition.length);
+                }
             }
         }
     };
@@ -3334,6 +3334,7 @@ export const useGameActions = (gameState, addLog) => {
     const handleDiplomaticAction = (nationId, action, payload = {}) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation && nationId !== 'player') return;
+        const shouldTrackAnalytics = payload?.trackAnalytics !== false;
         const clampRelation = (value) => Math.max(0, Math.min(100, value));
 
         // 外交动作冷却时间配置（天数）        
@@ -3394,7 +3395,9 @@ export const useGameActions = (gameState, addLog) => {
             });
         };
 
-        trackDiplomacy(action, nationId);
+        if (shouldTrackAnalytics) {
+            trackDiplomacy(action, nationId);
+        }
 
         switch (action) {
             case 'gift': {

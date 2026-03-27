@@ -71,7 +71,7 @@ import {
     trackPeriodicMetrics, trackRebellionPhase,
     trackEconomicFlows, trackPriceSampling,
     trackPopulationMilestone, trackPopulationStarvation,
-    trackStabilityLevelChange, trackEconomicCrisis,
+    trackStabilityLevelChange, trackEconomicCrisis, trackTaxChange,
 } from '../analytics/gaTracker';
 // 叛乱事件（保留事件创建函数）
 import {
@@ -171,6 +171,38 @@ const getTotalArmyCount = (armyState = {}, queueState = [], corpsState = []) => 
         }
     }
     return armyCount + queueCount + corpsCount;
+};
+
+const normalizeTaxPolicySnapshot = (taxPolicies = {}) => {
+    const toSortedPairs = (obj = {}) => Object.entries(obj || {}).sort(([a], [b]) => a.localeCompare(b));
+    return {
+        headTaxRates: toSortedPairs(taxPolicies.headTaxRates),
+        resourceTaxRates: toSortedPairs(taxPolicies.resourceTaxRates),
+        businessTaxRates: toSortedPairs(taxPolicies.businessTaxRates),
+        importTariffMultipliers: toSortedPairs(taxPolicies.importTariffMultipliers),
+        exportTariffMultipliers: toSortedPairs(taxPolicies.exportTariffMultipliers),
+    };
+};
+
+const emitTaxPolicyChanges = (prevSnapshot, nextSnapshot) => {
+    const emitDiff = (taxType, prevPairs, nextPairs) => {
+        const prevMap = new Map(prevPairs || []);
+        const nextMap = new Map(nextPairs || []);
+        const keys = new Set([...prevMap.keys(), ...nextMap.keys()]);
+        keys.forEach((key) => {
+            const prevVal = Number(prevMap.get(key) ?? 0);
+            const nextVal = Number(nextMap.get(key) ?? 0);
+            if (!Number.isFinite(nextVal)) return;
+            if (Math.abs(prevVal - nextVal) < 0.0001) return;
+            trackTaxChange(taxType, key, nextVal);
+        });
+    };
+
+    emitDiff('head', prevSnapshot.headTaxRates, nextSnapshot.headTaxRates);
+    emitDiff('resource', prevSnapshot.resourceTaxRates, nextSnapshot.resourceTaxRates);
+    emitDiff('business', prevSnapshot.businessTaxRates, nextSnapshot.businessTaxRates);
+    emitDiff('import_tariff', prevSnapshot.importTariffMultipliers, nextSnapshot.importTariffMultipliers);
+    emitDiff('export_tariff', prevSnapshot.exportTariffMultipliers, nextSnapshot.exportTariffMultipliers);
 };
 
 const formatUnitSummary = (unitMap = {}) => {
@@ -907,6 +939,7 @@ difficulty, // 游戏难度
     });
     const autoReplenishTickRef = useRef({ day: null, key: '' });
     const capacityTrimLogRef = useRef({ day: null });
+    const taxPolicySnapshotRef = useRef(null);
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
     const perfLogRef = useRef({ lastLogDay: null, didLogOnce: false });
@@ -2021,6 +2054,15 @@ difficulty, // 游戏难度
                 console.groupEnd();
                 setEconomicIndicators(indicators);
 
+                // 税收政策变化采集：仅在实际变化时上报，避免高频噪音。
+                const nextTaxSnapshot = normalizeTaxPolicySnapshot(current.taxPolicies || taxPolicies || {});
+                if (!taxPolicySnapshotRef.current) {
+                    taxPolicySnapshotRef.current = nextTaxSnapshot;
+                } else {
+                    emitTaxPolicyChanges(taxPolicySnapshotRef.current, nextTaxSnapshot);
+                    taxPolicySnapshotRef.current = nextTaxSnapshot;
+                }
+
                 // GameAnalytics 周期采样（每 30 游戏日）
                 const nextDay = (current.daysElapsed || 0) + 1;
                 if (nextDay % 30 === 0) {
@@ -2048,7 +2090,7 @@ difficulty, // 游戏难度
                     });
 
                     // 市场价格采样
-                    trackPriceSampling(result.prices || current.prices);
+                    trackPriceSampling(result.market?.prices);
 
                     // 人口里程碑检测
                     const prevPop = current.population || 0;
@@ -2392,7 +2434,8 @@ difficulty, // 游戏难度
                                     ownerStratum: 'capitalist',
                                     operatingMode: 'local',
                                     investmentAmount: cost,
-                                    investmentPolicy
+                                    investmentPolicy,
+                                    trackAnalytics: false,
                                 });
 
                                 setNations(prev => prev.map(n => (

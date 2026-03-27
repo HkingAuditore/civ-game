@@ -1,0 +1,871 @@
+{
+  "rebellionEvents": [
+    {
+      "event_id": "Rebellion:uprising:lumberjack",
+      "cnt": 632,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:uprising:miner",
+      "cnt": 467,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:uprising:peasant",
+      "cnt": 456,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:brewing:unemployed",
+      "cnt": 363,
+      "avg_value": 30.29,
+      "min_value": 30,
+      "max_value": 35.6
+    },
+    {
+      "event_id": "Rebellion:plotting:unemployed",
+      "cnt": 206,
+      "avg_value": 70.29,
+      "min_value": 70,
+      "max_value": 71.64
+    },
+    {
+      "event_id": "Rebellion:plotting:artisan",
+      "cnt": 205,
+      "avg_value": 72.49,
+      "min_value": 70.02,
+      "max_value": 90.37
+    },
+    {
+      "event_id": "Rebellion:uprising:artisan",
+      "cnt": 194,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:plotting:peasant",
+      "cnt": 161,
+      "avg_value": 71.59,
+      "min_value": 70.08,
+      "max_value": 79.81
+    },
+    {
+      "event_id": "Rebellion:plotting:lumberjack",
+      "cnt": 153,
+      "avg_value": 71.82,
+      "min_value": 70,
+      "max_value": 83.29
+    },
+    {
+      "event_id": "Rebellion:brewing:miner",
+      "cnt": 148,
+      "avg_value": 30.69,
+      "min_value": 30,
+      "max_value": 36.63
+    },
+    {
+      "event_id": "Rebellion:brewing:peasant",
+      "cnt": 144,
+      "avg_value": 31.3,
+      "min_value": 30.02,
+      "max_value": 40.24
+    },
+    {
+      "event_id": "Rebellion:plotting:miner",
+      "cnt": 141,
+      "avg_value": 71.29,
+      "min_value": 70,
+      "max_value": 78.95
+    },
+    {
+      "event_id": "Rebellion:brewing:lumberjack",
+      "cnt": 140,
+      "avg_value": 30.93,
+      "min_value": 30,
+      "max_value": 34.77
+    },
+    {
+      "event_id": "Rebellion:uprising:cleric",
+      "cnt": 128,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:plotting:cleric",
+      "cnt": 126,
+      "avg_value": 70.79,
+      "min_value": 70,
+      "max_value": 75.5
+    },
+    {
+      "event_id": "Rebellion:Coalition:artisan",
+      "cnt": 103,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:plotting:scribe",
+      "cnt": 100,
+      "avg_value": 70.73,
+      "min_value": 70,
+      "max_value": 73.69
+    },
+    {
+      "event_id": "Rebellion:uprising:merchant",
+      "cnt": 90,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:uprising:scribe",
+      "cnt": 89,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:brewing:artisan",
+      "cnt": 87,
+      "avg_value": 30.8,
+      "min_value": 30,
+      "max_value": 34.67
+    },
+    {
+      "event_id": "Rebellion:brewing:scribe",
+      "cnt": 83,
+      "avg_value": 30.45,
+      "min_value": 30.01,
+      "max_value": 33.16
+    },
+    {
+      "event_id": "Rebellion:plotting:merchant",
+      "cnt": 79,
+      "avg_value": 70.71,
+      "min_value": 70,
+      "max_value": 74.95
+    },
+    {
+      "event_id": "Rebellion:uprising:landowner",
+      "cnt": 78,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:brewing:cleric",
+      "cnt": 78,
+      "avg_value": 30.37,
+      "min_value": 30,
+      "max_value": 35.81
+    },
+    {
+      "event_id": "Rebellion:uprising:worker",
+      "cnt": 65,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:brewing:merchant",
+      "cnt": 64,
+      "avg_value": 30.51,
+      "min_value": 30,
+      "max_value": 34.69
+    },
+    {
+      "event_id": "Rebellion:plotting:soldier",
+      "cnt": 53,
+      "avg_value": 70.78,
+      "min_value": 70,
+      "max_value": 78.54
+    },
+    {
+      "event_id": "Rebellion:brewing:worker",
+      "cnt": 48,
+      "avg_value": 30.33,
+      "min_value": 30,
+      "max_value": 31.35
+    },
+    {
+      "event_id": "Rebellion:plotting:engineer",
+      "cnt": 45,
+      "avg_value": 70.48,
+      "min_value": 70.01,
+      "max_value": 71.13
+    },
+    {
+      "event_id": "Rebellion:brewing:soldier",
+      "cnt": 44,
+      "avg_value": 30.32,
+      "min_value": 30,
+      "max_value": 31.19
+    },
+    {
+      "event_id": "Rebellion:brewing:landowner",
+      "cnt": 43,
+      "avg_value": 30.37,
+      "min_value": 30.01,
+      "max_value": 31.79
+    },
+    {
+      "event_id": "Rebellion:plotting:worker",
+      "cnt": 40,
+      "avg_value": 70.89,
+      "min_value": 70,
+      "max_value": 73.36
+    },
+    {
+      "event_id": "Rebellion:Coalition:peasant",
+      "cnt": 40,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:artisan",
+      "cnt": 37,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:brewing:engineer",
+      "cnt": 32,
+      "avg_value": 30.22,
+      "min_value": 30.01,
+      "max_value": 30.69
+    },
+    {
+      "event_id": "Rebellion:uprising:engineer",
+      "cnt": 32,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:uprising:soldier",
+      "cnt": 29,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:plotting:landowner",
+      "cnt": 22,
+      "avg_value": 70.29,
+      "min_value": 70.02,
+      "max_value": 70.96
+    },
+    {
+      "event_id": "Rebellion:brewing:capitalist",
+      "cnt": 22,
+      "avg_value": 30.36,
+      "min_value": 30,
+      "max_value": 31.48
+    },
+    {
+      "event_id": "Rebellion:Coalition:cleric",
+      "cnt": 21,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:plotting:technician",
+      "cnt": 17,
+      "avg_value": 70.65,
+      "min_value": 70,
+      "max_value": 71.49
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:peasant",
+      "cnt": 16,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:plotting:serf",
+      "cnt": 16,
+      "avg_value": 70.54,
+      "min_value": 70.03,
+      "max_value": 71.96
+    },
+    {
+      "event_id": "Rebellion:plotting:capitalist",
+      "cnt": 16,
+      "avg_value": 70.27,
+      "min_value": 70.03,
+      "max_value": 70.89
+    },
+    {
+      "event_id": "Rebellion:Coalition:worker",
+      "cnt": 15,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:brewing:serf",
+      "cnt": 12,
+      "avg_value": 30.24,
+      "min_value": 30,
+      "max_value": 31.35
+    },
+    {
+      "event_id": "Rebellion:Coalition:scribe",
+      "cnt": 12,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:brewing:technician",
+      "cnt": 11,
+      "avg_value": 30.32,
+      "min_value": 30,
+      "max_value": 31.26
+    },
+    {
+      "event_id": "Rebellion:uprising:technician",
+      "cnt": 11,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:uprising:unemployed",
+      "cnt": 9,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:cleric",
+      "cnt": 9,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:merchant",
+      "cnt": 6,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:uprising:capitalist",
+      "cnt": 6,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:scribe",
+      "cnt": 6,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:soldier",
+      "cnt": 6,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:uprising:navigator",
+      "cnt": 6,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:plotting:navigator",
+      "cnt": 5,
+      "avg_value": 70.29,
+      "min_value": 70.14,
+      "max_value": 70.4
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:artisan",
+      "cnt": 5,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:uprising:serf",
+      "cnt": 5,
+      "avg_value": 100,
+      "min_value": 100,
+      "max_value": 100
+    },
+    {
+      "event_id": "Rebellion:Coalition:soldier",
+      "cnt": 5,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:peasant",
+      "cnt": 5,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:scribe",
+      "cnt": 4,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:brewing:navigator",
+      "cnt": 4,
+      "avg_value": 30.29,
+      "min_value": 30.09,
+      "max_value": 30.48
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:capitalist",
+      "cnt": 3,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Coalition:miner",
+      "cnt": 3,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Coalition:merchant",
+      "cnt": 3,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:worker",
+      "cnt": 3,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:unemployed",
+      "cnt": 3,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:miner",
+      "cnt": 3,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Coalition:capitalist",
+      "cnt": 2,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:worker",
+      "cnt": 2,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Coalition:engineer",
+      "cnt": 1,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:unemployed",
+      "cnt": 1,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:merchant",
+      "cnt": 1,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:lumberjack",
+      "cnt": 1,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:cleric",
+      "cnt": 1,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:suppress:capitalist",
+      "cnt": 1,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    },
+    {
+      "event_id": "Rebellion:Action:accept_war:engineer",
+      "cnt": 1,
+      "avg_value": null,
+      "min_value": null,
+      "max_value": null
+    }
+  ],
+  "rebellionPhases": [],
+  "orgEvents": [
+    {
+      "event_id": "Organization:Phase:lumberjack:uprising",
+      "cnt": 632,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:miner:uprising",
+      "cnt": 467,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:peasant:uprising",
+      "cnt": 456,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:unemployed:brewing",
+      "cnt": 363,
+      "avg_value": 30.15
+    },
+    {
+      "event_id": "Organization:Phase:unemployed:plotting",
+      "cnt": 206,
+      "avg_value": 70.19
+    },
+    {
+      "event_id": "Organization:Phase:artisan:plotting",
+      "cnt": 205,
+      "avg_value": 72.46
+    },
+    {
+      "event_id": "Organization:Phase:artisan:uprising",
+      "cnt": 194,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:peasant:plotting",
+      "cnt": 161,
+      "avg_value": 71.54
+    },
+    {
+      "event_id": "Organization:Phase:lumberjack:plotting",
+      "cnt": 153,
+      "avg_value": 71.78
+    },
+    {
+      "event_id": "Organization:Phase:miner:brewing",
+      "cnt": 148,
+      "avg_value": 30.63
+    },
+    {
+      "event_id": "Organization:Phase:peasant:brewing",
+      "cnt": 144,
+      "avg_value": 31.19
+    },
+    {
+      "event_id": "Organization:Phase:miner:plotting",
+      "cnt": 141,
+      "avg_value": 71.21
+    },
+    {
+      "event_id": "Organization:Phase:lumberjack:brewing",
+      "cnt": 140,
+      "avg_value": 30.89
+    },
+    {
+      "event_id": "Organization:Phase:cleric:uprising",
+      "cnt": 128,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:cleric:plotting",
+      "cnt": 126,
+      "avg_value": 70.65
+    },
+    {
+      "event_id": "Organization:Phase:scribe:plotting",
+      "cnt": 100,
+      "avg_value": 70.61
+    },
+    {
+      "event_id": "Organization:Phase:merchant:uprising",
+      "cnt": 90,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:scribe:uprising",
+      "cnt": 89,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:artisan:brewing",
+      "cnt": 87,
+      "avg_value": 30.74
+    },
+    {
+      "event_id": "Organization:Phase:scribe:brewing",
+      "cnt": 83,
+      "avg_value": 30.4
+    },
+    {
+      "event_id": "Organization:Phase:merchant:plotting",
+      "cnt": 79,
+      "avg_value": 70.58
+    },
+    {
+      "event_id": "Organization:Phase:landowner:uprising",
+      "cnt": 78,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:cleric:brewing",
+      "cnt": 78,
+      "avg_value": 30.23
+    },
+    {
+      "event_id": "Organization:Phase:worker:uprising",
+      "cnt": 65,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:merchant:brewing",
+      "cnt": 64,
+      "avg_value": 30.45
+    },
+    {
+      "event_id": "Organization:Phase:soldier:plotting",
+      "cnt": 53,
+      "avg_value": 70.68
+    },
+    {
+      "event_id": "Organization:Phase:worker:brewing",
+      "cnt": 48,
+      "avg_value": 30.29
+    },
+    {
+      "event_id": "Organization:Phase:engineer:plotting",
+      "cnt": 45,
+      "avg_value": 70.44
+    },
+    {
+      "event_id": "Organization:Phase:soldier:brewing",
+      "cnt": 44,
+      "avg_value": 30.23
+    },
+    {
+      "event_id": "Organization:Phase:landowner:brewing",
+      "cnt": 43,
+      "avg_value": 30.26
+    },
+    {
+      "event_id": "Organization:Phase:worker:plotting",
+      "cnt": 40,
+      "avg_value": 70.88
+    },
+    {
+      "event_id": "Organization:Phase:engineer:uprising",
+      "cnt": 32,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:engineer:brewing",
+      "cnt": 32,
+      "avg_value": 30.09
+    },
+    {
+      "event_id": "Organization:Phase:soldier:uprising",
+      "cnt": 29,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:capitalist:brewing",
+      "cnt": 22,
+      "avg_value": 30.27
+    },
+    {
+      "event_id": "Organization:Phase:landowner:plotting",
+      "cnt": 22,
+      "avg_value": 70.14
+    },
+    {
+      "event_id": "Organization:Phase:technician:plotting",
+      "cnt": 17,
+      "avg_value": 70.59
+    },
+    {
+      "event_id": "Organization:Phase:serf:plotting",
+      "cnt": 16,
+      "avg_value": 70.5
+    },
+    {
+      "event_id": "Organization:Phase:capitalist:plotting",
+      "cnt": 16,
+      "avg_value": 70.19
+    },
+    {
+      "event_id": "Organization:Phase:serf:brewing",
+      "cnt": 12,
+      "avg_value": 30.17
+    },
+    {
+      "event_id": "Organization:Phase:technician:brewing",
+      "cnt": 11,
+      "avg_value": 30.18
+    },
+    {
+      "event_id": "Organization:Phase:technician:uprising",
+      "cnt": 11,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:unemployed:uprising",
+      "cnt": 9,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:capitalist:uprising",
+      "cnt": 6,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:navigator:uprising",
+      "cnt": 6,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:serf:uprising",
+      "cnt": 5,
+      "avg_value": 100
+    },
+    {
+      "event_id": "Organization:Phase:navigator:plotting",
+      "cnt": 5,
+      "avg_value": 70
+    },
+    {
+      "event_id": "Organization:Phase:navigator:brewing",
+      "cnt": 4,
+      "avg_value": 30
+    }
+  ],
+  "rebellionStrata": [],
+  "demandEvents": [],
+  "demandFails": [],
+  "samplingFreq": [
+    {
+      "event_id": "Economy:CPI",
+      "cnt": 48178,
+      "sessions": 492
+    },
+    {
+      "event_id": "Economy:GDP",
+      "cnt": 48178,
+      "sessions": 492
+    },
+    {
+      "event_id": "Economy:PPI",
+      "cnt": 48178,
+      "sessions": 492
+    },
+    {
+      "event_id": "Economy:Treasury",
+      "cnt": 48178,
+      "sessions": 492
+    },
+    {
+      "event_id": "Military:ArmySize",
+      "cnt": 48178,
+      "sessions": 492
+    },
+    {
+      "event_id": "Population:Total",
+      "cnt": 48178,
+      "sessions": 492
+    },
+    {
+      "event_id": "Stability:Level",
+      "cnt": 48178,
+      "sessions": 492
+    },
+    {
+      "event_id": "Population:Starvation",
+      "cnt": 5232,
+      "sessions": 219
+    }
+  ],
+  "preRebellionMetrics": [
+    {
+      "total_sessions": 0,
+      "avg_stability": null,
+      "avg_cpi": null,
+      "avg_gdp": null,
+      "avg_treasury": null,
+      "avg_population": null,
+      "sessions_with_starvation": null,
+      "avg_starvation": null,
+      "avg_army": null,
+      "avg_ppi": null
+    }
+  ],
+  "controlMetrics": [
+    {
+      "total_sessions": 0,
+      "avg_stability": null,
+      "avg_cpi": null,
+      "avg_gdp": null,
+      "avg_treasury": null,
+      "avg_population": null,
+      "sessions_with_starvation": null,
+      "avg_starvation": null,
+      "avg_army": null,
+      "avg_ppi": null
+    }
+  ],
+  "stabilityHist": [],
+  "cpiHist": [],
+  "starvationData": [],
+  "demandFailCount": [],
+  "orgBeforeRebellion": []
+}

@@ -10,15 +10,143 @@ const GA = gameanalytics?.GameAnalytics;
 const EGAProgressionStatus = gameanalytics?.EGAProgressionStatus;
 const EGAResourceFlowType = gameanalytics?.EGAResourceFlowType;
 const EGAErrorSeverity = gameanalytics?.EGAErrorSeverity;
+const UI_EVENT_PREFIX = 'UI:';
+const ANALYTICS_EVENT_GROUP_FLAGS_KEY = 'civ_analytics_event_group_flags';
+const DEFAULT_EVENT_GROUP_FLAGS = {
+    core: true, // 经济/军事/人口/稳定等核心平衡事件
+    ui: false,
+    diplomacy_controls: false, // 外交微操偏好，不直接影响平衡
+    strategic: false, // 低频且当前利用率低
+    demand: false, // 诉求链路尚未稳定接线
+    ai: false, // AI 内部行为，当前分析价值有限
+    treaty: false, // 条约细分尚未形成稳定分析口径
+};
+
+let runtimeContextGetter = null;
+let analyticsEventGroupFlags = loadAnalyticsEventGroupFlags();
 
 function safe(fn) {
     if (!isGAInitialized()) return;
     try { fn(); } catch (e) { console.warn('[GA] Event error:', e); }
 }
 
+function normalizeRuntimeContext(raw) {
+    if (!raw || typeof raw !== 'object') return {};
+    const daysElapsed = Number(raw.daysElapsed);
+    return {
+        epoch: raw.epoch || null,
+        daysElapsed: Number.isFinite(daysElapsed) ? Math.max(0, Math.floor(daysElapsed)) : null,
+        playerNationId: raw.playerNationId || null,
+        playerNationName: raw.playerNationName || null,
+    };
+}
+
+function getRuntimeContext() {
+    if (typeof runtimeContextGetter !== 'function') return {};
+    try {
+        return normalizeRuntimeContext(runtimeContextGetter());
+    } catch (e) {
+        console.warn('[GA] Context getter error:', e);
+        return {};
+    }
+}
+
+function shouldSkipUIEvent(eventId) {
+    // 当前分析目标不包含 UI 交互，统一忽略 UI 事件。
+    return eventId.startsWith(UI_EVENT_PREFIX);
+}
+
+function isPlainObject(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function loadAnalyticsEventGroupFlags() {
+    if (typeof localStorage === 'undefined') {
+        return { ...DEFAULT_EVENT_GROUP_FLAGS };
+    }
+    try {
+        const raw = localStorage.getItem(ANALYTICS_EVENT_GROUP_FLAGS_KEY);
+        if (!raw) return { ...DEFAULT_EVENT_GROUP_FLAGS };
+        const parsed = JSON.parse(raw);
+        if (!isPlainObject(parsed)) return { ...DEFAULT_EVENT_GROUP_FLAGS };
+        return {
+            ...DEFAULT_EVENT_GROUP_FLAGS,
+            ...Object.fromEntries(
+                Object.entries(parsed).map(([key, val]) => [key, Boolean(val)])
+            ),
+        };
+    } catch (_err) {
+        return { ...DEFAULT_EVENT_GROUP_FLAGS };
+    }
+}
+
+function persistAnalyticsEventGroupFlags() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+        localStorage.setItem(ANALYTICS_EVENT_GROUP_FLAGS_KEY, JSON.stringify(analyticsEventGroupFlags));
+    } catch (_err) {
+        // ignore
+    }
+}
+
+function getEventGroup(eventId) {
+    if (eventId.startsWith(UI_EVENT_PREFIX)) return 'ui';
+    if (
+        eventId.startsWith(`${GA_EVENTS.TRADE_PREFERENCE}:`)
+        || eventId.startsWith(`${GA_EVENTS.TRADE_MERCHANT}:`)
+        || eventId.startsWith(`${GA_EVENTS.TRADE_ROUTE_MODE}:`)
+        || eventId.startsWith(`${GA_EVENTS.POLICY_PRICE_CONTROL}:`)
+    ) {
+        return 'diplomacy_controls';
+    }
+    if (eventId.startsWith(`${GA_EVENTS.STRATEGIC_ACTION}:`)) return 'strategic';
+    if (eventId.startsWith(`${GA_EVENTS.DEMAND_GENERATE}:`) || eventId.startsWith(`${GA_EVENTS.DEMAND_COMPLETE}:`) || eventId.startsWith(`${GA_EVENTS.DEMAND_FAIL}:`)) return 'demand';
+    if (eventId.startsWith(`${GA_EVENTS.AI_WAR}:`) || eventId.startsWith(`${GA_EVENTS.AI_PEACE}:`)) return 'ai';
+    if (eventId.startsWith(`${GA_EVENTS.TREATY_SIGN}:`) || eventId.startsWith(`${GA_EVENTS.TREATY_EXPIRE}:`) || eventId.startsWith(`${GA_EVENTS.TREATY_BREAK}:`)) return 'treaty';
+    return 'core';
+}
+
+function shouldSkipByEventGroup(eventId) {
+    const group = getEventGroup(eventId);
+    const enabled = analyticsEventGroupFlags[group];
+    return enabled === false;
+}
+
+function shouldSkipDesignEvent(eventId) {
+    return shouldSkipUIEvent(eventId) || shouldSkipByEventGroup(eventId);
+}
+
+export function setAnalyticsContextGetter(getter) {
+    runtimeContextGetter = typeof getter === 'function' ? getter : null;
+}
+
+export function getAnalyticsEventGroupFlags() {
+    return { ...analyticsEventGroupFlags };
+}
+
+export function updateAnalyticsEventGroupFlags(nextFlags = {}) {
+    if (!isPlainObject(nextFlags)) return getAnalyticsEventGroupFlags();
+    analyticsEventGroupFlags = {
+        ...analyticsEventGroupFlags,
+        ...Object.fromEntries(
+            Object.entries(nextFlags).map(([key, val]) => [key, Boolean(val)])
+        ),
+    };
+    persistAnalyticsEventGroupFlags();
+    return getAnalyticsEventGroupFlags();
+}
+
+export function resetAnalyticsEventGroupFlags() {
+    analyticsEventGroupFlags = { ...DEFAULT_EVENT_GROUP_FLAGS };
+    persistAnalyticsEventGroupFlags();
+    return getAnalyticsEventGroupFlags();
+}
+
 // ═══════════════════════ Design Events ═══════════════════════
 
 export function trackDesign(eventId, value) {
+    if (shouldSkipDesignEvent(eventId)) return;
+    const context = getRuntimeContext();
     safe(() => {
         if (value !== undefined && value !== null) {
             GA.addDesignEvent(eventId, Number(value));
@@ -26,7 +154,7 @@ export function trackDesign(eventId, value) {
             GA.addDesignEvent(eventId);
         }
     });
-    bufferDesignEvent(eventId, value);
+    bufferDesignEvent(eventId, value, context);
 }
 
 // ── 游戏生命周期 ──
@@ -109,9 +237,20 @@ const DIPLOMACY_ACTION_MAP = {
     break_treaty: GA_EVENTS.DIPLOMACY_TREATY,
 };
 
+function sanitizeSegment(value) {
+    return String(value || 'unknown').toLowerCase().replace(/[^a-z0-9_]/g, '_');
+}
+
 export function trackDiplomacy(action, nationId) {
-    const base = DIPLOMACY_ACTION_MAP[action] || GA_EVENTS.DIPLOMACY_OTHER;
-    trackDesign(`${base}:${nationId || 'unknown'}`);
+    const actionKey = sanitizeSegment(action);
+    const nationKey = sanitizeSegment(nationId);
+    const base = DIPLOMACY_ACTION_MAP[actionKey];
+    if (base) {
+        trackDesign(`${base}:${nationKey}`);
+        return;
+    }
+    // 未归类动作保留 action 维度，避免全部挤在 Diplomacy:Action。
+    trackDesign(`${GA_EVENTS.DIPLOMACY_OTHER}:${actionKey}:${nationKey}`);
 }
 
 // ── 附庸 ──

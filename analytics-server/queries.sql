@@ -233,17 +233,103 @@ WHERE difficulty IS NOT NULL
 GROUP BY difficulty
 ORDER BY session_count DESC;
 
+-- 16 已移除（UI 事件不再采集）
+
 -- ────────────────────────────────────────────────
--- 16. UI Tab 使用频率
+-- 16.1 核心字段上报完整度（最近7天）
 -- ────────────────────────────────────────────────
 
 SELECT
-    SUBSTRING_INDEX(event_id, ':', -1) AS tab_name,
-    COUNT(*) AS click_count
+    ROUND(100 * AVG(days_elapsed IS NOT NULL), 2) AS days_coverage_pct,
+    ROUND(100 * AVG(player_nation_name IS NOT NULL), 2) AS nation_coverage_pct
 FROM design_events
-WHERE event_id LIKE 'UI:Tab:%'
-GROUP BY tab_name
-ORDER BY click_count DESC;
+WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY);
+
+-- ────────────────────────────────────────────────
+-- 16.2 按玩家国家统计行为量（最近7天）
+-- ────────────────────────────────────────────────
+
+SELECT
+    COALESCE(player_nation_name, 'unknown') AS player_nation,
+    COUNT(*) AS event_count
+FROM design_events
+WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+GROUP BY player_nation
+ORDER BY event_count DESC;
+
+-- ────────────────────────────────────────────────
+-- 16.3 局内天数分层：核心经济指标（按30天桶）
+-- ────────────────────────────────────────────────
+
+SELECT
+    FLOOR(days_elapsed / 30) * 30 AS day_bucket,
+    ROUND(AVG(CASE WHEN event_id = 'Economy:GDP' THEN event_value END), 0) AS avg_gdp,
+    ROUND(AVG(CASE WHEN event_id = 'Economy:CPI' THEN event_value END), 2) AS avg_cpi,
+    ROUND(AVG(CASE WHEN event_id = 'Economy:PPI' THEN event_value END), 2) AS avg_ppi,
+    ROUND(AVG(CASE WHEN event_id = 'Stability:Level' THEN event_value END), 2) AS avg_stability,
+    ROUND(AVG(CASE WHEN event_id = 'Population:Total' THEN event_value END), 0) AS avg_population,
+    COUNT(*) AS samples
+FROM design_events
+WHERE days_elapsed IS NOT NULL
+  AND event_id IN ('Economy:GDP', 'Economy:CPI', 'Economy:PPI', 'Stability:Level', 'Population:Total')
+GROUP BY day_bucket
+ORDER BY day_bucket;
+
+-- ────────────────────────────────────────────────
+-- 16.4 难度分层：CPI 与破产率（按30天桶）
+-- ────────────────────────────────────────────────
+
+SELECT
+    COALESCE(s.difficulty, 'unknown') AS difficulty,
+    FLOOR(d.days_elapsed / 30) * 30 AS day_bucket,
+    ROUND(AVG(CASE WHEN d.event_id = 'Economy:CPI' THEN d.event_value END), 2) AS avg_cpi,
+    SUM(CASE WHEN d.event_id = 'Economy:Crisis:bankruptcy' THEN 1 ELSE 0 END) AS bankruptcy_events,
+    COUNT(*) AS samples
+FROM design_events d
+LEFT JOIN sessions s ON s.session_id = d.session_id
+WHERE d.days_elapsed IS NOT NULL
+  AND d.event_id IN ('Economy:CPI', 'Economy:Crisis:bankruptcy')
+GROUP BY difficulty, day_bucket
+ORDER BY difficulty, day_bucket;
+
+-- ────────────────────────────────────────────────
+-- 16.5 指定国家局内物价（按30天桶，替换国家名）
+-- ────────────────────────────────────────────────
+
+SELECT
+    FLOOR(days_elapsed / 30) * 30 AS day_bucket,
+    SUBSTRING_INDEX(event_id, ':', -1) AS resource,
+    ROUND(AVG(event_value), 2) AS avg_price,
+    COUNT(*) AS samples
+FROM design_events
+WHERE event_id LIKE 'Price:%'
+  AND player_nation_name = '***'
+  AND days_elapsed IS NOT NULL
+GROUP BY day_bucket, resource
+ORDER BY day_bucket, resource;
+
+-- ────────────────────────────────────────────────
+-- 16.6 外交动作兼容解析 + 旧格式占比
+-- ────────────────────────────────────────────────
+
+SELECT
+    CASE
+        WHEN event_id LIKE 'Diplomacy:Action:%:%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(event_id, ':', 3), ':', -1)
+        WHEN event_id LIKE 'Diplomacy:Action:%' THEN 'action_legacy_unknown'
+        ELSE SUBSTRING_INDEX(SUBSTRING_INDEX(event_id, ':', 2), ':', -1)
+    END AS action,
+    COUNT(*) AS cnt
+FROM design_events
+WHERE event_id LIKE 'Diplomacy:%'
+GROUP BY action
+ORDER BY cnt DESC
+LIMIT 30;
+
+SELECT
+    ROUND(100 * AVG(event_id LIKE 'Diplomacy:Action:%'), 2) AS diplomacy_action_share_pct,
+    ROUND(100 * AVG(event_id LIKE 'Diplomacy:Action:%' AND event_id NOT LIKE 'Diplomacy:Action:%:%'), 2) AS diplomacy_action_legacy_pct
+FROM design_events
+WHERE event_id LIKE 'Diplomacy:%';
 
 -- ────────────────────────────────────────────────
 -- 17. 错误统计（按严重级别）

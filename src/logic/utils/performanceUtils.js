@@ -42,8 +42,8 @@ export const RATE_LIMIT_CONFIG = {
     buildingCacheValidation: 10,
 
     // === 新增：deferred级频率配置 ===
-    // 官员系统模拟：每N个tick执行一次
-    officialSimFrequency: 5,
+    // 官员系统模拟：每tick执行，避免国企收益/官员收支被低频结算稀释
+    officialSimFrequency: 1,
     // 内阁机制：每N个tick执行一次
     cabinetFrequency: 5,
     // 叛乱系统：每N个tick执行一次
