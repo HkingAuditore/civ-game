@@ -21,7 +21,7 @@ rem ======================== 用户配置区 ==========================
 rem --- OTA 通用 ---
 set "CHANNEL=production"
 set "MANDATORY=false"
-set "MIN_NATIVE_VERSION=2.1.15"
+set "MIN_NATIVE_VERSION=2.3.0"
 set "RELEASE_NOTES=Hotfix and balance updates"
 
 rem --- 部署方式: cos / local / scp ---
@@ -102,7 +102,7 @@ if not exist "%ROOT_DIR%dist\index.html" (
 )
 
 echo [3/5] Creating OTA zip bundle...
-powershell -NoProfile -Command "Compress-Archive -Path 'dist\*' -DestinationPath '%TMP_ZIP%' -Force"
+node scripts/create_ota_zip.cjs "%TMP_ZIP%" dist
 if errorlevel 1 (
     echo [ERROR] Failed to create zip bundle
     exit /b 1
@@ -131,7 +131,8 @@ powershell -NoProfile -Command ^
     "  url='!DOWNLOAD_URL!';" ^
     "  checksum='%BUNDLE_SHA256%';" ^
     "};" ^
-    "$obj | ConvertTo-Json -Depth 5 | Out-File -FilePath '%TMP_MANIFEST%' -Encoding utf8"
+    "$json = $obj | ConvertTo-Json -Depth 5;" ^
+    "[System.IO.File]::WriteAllText('%TMP_MANIFEST%', $json, (New-Object System.Text.UTF8Encoding $false))"
 if errorlevel 1 (
     echo [ERROR] Failed to generate updates.json
     exit /b 1
@@ -171,15 +172,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   Uploading bundle zip to COS (long cache)...
-coscmd upload -H "Cache-Control:max-age=604800" "%TMP_ZIP%" "ota/bundles/%BUNDLE_FILE%"
+echo   Uploading bundle zip to COS...
+coscmd upload "%TMP_ZIP%" "ota/bundles/%BUNDLE_FILE%"
 if errorlevel 1 (
     echo [ERROR] coscmd upload bundle failed
     exit /b 1
 )
 
-echo   Uploading updates.json to COS (short cache)...
-coscmd upload -H "Cache-Control:max-age=60, must-revalidate" "%TMP_MANIFEST%" "ota/%CHANNEL%/updates.json"
+echo   Uploading updates.json to COS...
+coscmd upload -f "%TMP_MANIFEST%" "ota/%CHANNEL%/updates.json"
 if errorlevel 1 (
     echo [ERROR] coscmd upload updates.json failed
     exit /b 1

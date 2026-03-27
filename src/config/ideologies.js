@@ -781,7 +781,7 @@ export const IDEOLOGIES = [
                     taxIncome: 0.05,
                     categories: { industry: 0.04, gather: -0.04 },
                     converters: [
-                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0002, target: 'taxIncome', cap: 0.25 },
+                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0001, target: 'taxIncome', cap: 0.25 },
                         // 平均满意度 → 税收（商人满意时贸易更活跃）
                         { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.003, target: 'taxIncome', cap: 0.12 },
                         // 富裕人口 → 税收（商人阶层财富带动贸易）
@@ -801,7 +801,7 @@ export const IDEOLOGIES = [
                     categories: { industry: 0.06, gather: -0.05 },
                     stability: 3,
                     converters: [
-                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0003, target: 'taxIncome', cap: 0.35 },
+                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.00015, target: 'taxIncome', cap: 0.35 },
                         // 新增：銀币库存也能贡献产出
                         { source: 'silver', sourceType: 'resource', ratio: 0.00001, target: 'production', cap: 0.30 },
                         // 平均满意度 → 税收+稳定度（商业繁荣人心安定）
@@ -3910,11 +3910,11 @@ export const IDEOLOGIES = [
                 { taxIncome: 0.05, cultureBonus: 0.02 },
                 { taxIncome: 0.08, cultureBonus: 0.04,
                     converters: [
-                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.001, target: 'taxIncome', cap: 0.30 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.0001, target: 'taxIncome', cap: 0.30 },
                     ] },
                 { taxIncome: 0.12, cultureBonus: 0.06,
                     converters: [
-                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.001, target: 'taxIncome', cap: 0.30 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.0001, target: 'taxIncome', cap: 0.30 },
                         { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.02, target: 'taxIncome', cap: 0.35 },
                     ],
                     ruleMods: [
@@ -4455,13 +4455,13 @@ export const IDEOLOGIES = [
                 },
                 { scienceBonus: 0.10, production: 0.05,
                     converters: [
-                        { source: 'copper', sourceType: 'resource', ratio: 0.008, target: 'scienceBonus', cap: 0.18 },
-                        { source: 'iron', sourceType: 'resource', ratio: 0.005, target: 'production', cap: 0.15 },
+                        { source: 'copper', sourceType: 'resource', ratio: 0.000008, target: 'scienceBonus', cap: 0.18 },
+                        { source: 'iron', sourceType: 'resource', ratio: 0.000005, target: 'production', cap: 0.15 },
                     ] },
                 { scienceBonus: 0.15, production: 0.08,
                     converters: [
-                        { source: 'copper', sourceType: 'resource', ratio: 0.012, target: 'scienceBonus', cap: 0.25 },
-                        { source: 'iron', sourceType: 'resource', ratio: 0.008, target: 'production', cap: 0.22 },
+                        { source: 'copper', sourceType: 'resource', ratio: 0.000012, target: 'scienceBonus', cap: 0.25 },
+                        { source: 'iron', sourceType: 'resource', ratio: 0.000008, target: 'production', cap: 0.22 },
                     ],
                     ruleMods: [
                         { type: 'resource_price_mod', scope: 'iron', value: -0.15 },
@@ -4948,7 +4948,7 @@ export const IDEOLOGIES = [
                     cultureBonus: 0.02,
                     converters: [
                         { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.012, target: 'scienceBonus', cap: 0.60 },
-                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.00008, target: 'cultureBonus', cap: 0.06 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.00008, target: 'cultureBonus', cap: 0.30 },
                     ],
                 },
                 {
