@@ -92,14 +92,18 @@ router.post('/session/end', async (req, res) => {
 
 router.post('/session/heartbeat', async (req, res) => {
     try {
-        const { sessionId } = getRequestBody(req);
+        const { sessionId, difficulty, scenario } = getRequestBody(req);
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId required' });
         }
         const pool = getPool();
         await pool.execute(
-            `UPDATE sessions SET last_seen = NOW() WHERE session_id = ?`,
-            [sessionId]
+            `UPDATE sessions
+             SET last_seen = NOW(),
+                 difficulty = COALESCE(?, difficulty),
+                 scenario = COALESCE(?, scenario)
+             WHERE session_id = ?`,
+            [difficulty || null, scenario || null, sessionId]
         );
         res.json({ ok: true });
     } catch (err) {

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>哈耶克的文明 - 玩家游戏时长与行为规律分析</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0a0a1a,#1a1a3e,#0d0d2b);color:#e0e0e0;min-height:100vh;padding:20px}
+.container{max-width:1200px;margin:0 auto}
+h1{text-align:center;font-size:2.2em;margin-bottom:6px;background:linear-gradient(90deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#777;margin-bottom:30px;font-size:.9em}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px}
+.stat-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px;text-align:center;backdrop-filter:blur(10px);transition:transform .2s}
+.stat-card:hover{transform:translateY(-3px)}
+.stat-value{font-size:2.2em;font-weight:800;line-height:1.1}
+.stat-label{font-size:.85em;color:#999;margin-top:5px}
+.chart-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:22px;margin-bottom:22px;backdrop-filter:blur(10px)}
+.chart-title{font-size:1.15em;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.chart-title .emoji{font-size:1.2em}
+.chart-title .note{font-size:.7em;color:#666;margin-left:auto}
+.insight-box{background:rgba(102,126,234,.08);border-left:4px solid #667eea;border-radius:0 12px 12px 0;padding:16px 20px;margin-bottom:22px}
+.insight-box h3{color:#667eea;font-size:1em;margin-bottom:8px}
+.insight-box ul{padding-left:20px;font-size:.9em;line-height:1.9}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.88em}
+th{background:rgba(255,255,255,.06);padding:10px 12px;text-align:left;color:#bbb;font-weight:600;border-bottom:2px solid rgba(255,255,255,.1)}
+td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05)}
+tr:hover{background:rgba(255,255,255,.03)}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75em;font-weight:600}
+.tag-legend{background:#ff6b6b;color:#fff}
+.tag-dabbler{background:#ffa726;color:#000}
+.tag-light{background:#ffee58;color:#000}
+.tag-mid{background:#66bb6a;color:#fff}
+.tag-heavy{background:#42a5f5;color:#fff}
+.footer{text-align:center;color:#444;margin-top:30px;font-size:.8em}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🎮 玩家游戏时长与行为规律</h1>
+<p class="subtitle">数据范围: 2026-03-26 ~ 2026-03-27 · 基于会话数据 · 自动生成报告</p>
+
+<!-- 概览卡片 -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-value" style="color:#667eea">267</div>
+    <div class="stat-label">累计玩家</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#764ba2">622</div>
+    <div class="stat-label">累计会话</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#4fc3f7">58 分钟</div>
+    <div class="stat-label">人均总时长</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#ffd700">586 分钟</div>
+    <div class="stat-label">🏆 最高总时长</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#4caf50">3.5h</div>
+    <div class="stat-label">最高单次会话</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#ff7043">81 人</div>
+    <div class="stat-label">"路过"玩家 (30.3%)</div>
+  </div>
+</div>
+
+<!-- 单次会话时长分布 -->
+<div class="chart-box">
+  <div class="chart-title"><span class="emoji">⏱️</span> 单次会话时长分布 <span class="note">仅统计已完成的会话</span></div>
+  <canvas id="sessionDurChart" height="80"></canvas>
+</div>
+
+<!-- 24小时活跃时段 -->
+<div class="chart-box">
+  <div class="chart-title"><span class="emoji">🕐</span> 24小时活跃时段分布 (UTC+8)</div>
+  <canvas id="hourlyChart" height="90"></canvas>
+</div>
+
+<!-- 玩家分群 -->
+<div class="chart-box">
+  <div class="chart-title"><span class="emoji">👥</span> 玩家分群画像</div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px" id="segmentCards"></div>
+</div>
+
+<!-- TOP20 骨灰玩家 -->
+<div class="chart-box">
+  <div class="chart-title"><span class="emoji">🏆</span> TOP 20 骨灰玩家排行榜</div>
+  <div class="table-wrap">
+    <table id="top20Table">
+      <thead><tr><th>#</th><th>玩家 ID</th><th>总时长</th><th>会话数</th><th>首见</th><th>最后活跃</th><th>标签</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 关键发现 -->
+<div class="insight-box">
+  <h3>🔍 关键发现与规律</h3>
+  <ul>
+    <li><strong>晚高峰 19:00-21:00 是绝对主力</strong> — 占全天活跃的 35%，其中 19:00 是巅峰（92人同时在线）</li>
+    <li><strong>凌晨活跃度超预期</strong> — 凌晨 1:00 仍有 57 人在线，说明"修仙党"不少</li>
+    <li><strong>单次会话中位数约 10 分钟</strong> — 但 35 个会话超过 2 小时，最长的平均 2.9 小时</li>
+    <li><strong>30% 玩家是"路过型"</strong> — 玩了不到 5 分钟就走了，可能是点错或加载后觉得不合口味</li>
+    <li><strong>重度玩家（>10h）占比 18%</strong> — 48 人累计超过 10 小时，是核心用户群</li>
+    <li><strong>TOP1 骨灰玩家 586 分钟</strong> — 分 18 个会话，从昨晚 23:10 玩到今天 12:28，几乎通宵</li>
+    <li><strong>多次回访率高</strong> — 人均 2.3 次会话，轻度及以上玩家平均 3-4 次</li>
+    <li><strong>难度字段全部为空</strong> — 说明难度选择可能没有正确上报到 session 记录</li>
+  </ul>
+</div>
+
+<div class="footer">数据来源: civ_analytics · sessions 表 · 生成时间 <span id="genTime"></span></div>
+</div>
+
+<script>
+// ===== DATA =====
+const sessionDur = [
+  {bucket:'<1分钟',cnt:136,avg:26.9},
+  {bucket:'1-5分钟',cnt:163,avg:123.8},
+  {bucket:'5-10分钟',cnt:96,avg:409.8},
+  {bucket:'10-30分钟',cnt:176,avg:1085.4},
+  {bucket:'30-60分钟',cnt:104,avg:2551.1},
+  {bucket:'1-2小时',cnt:50,avg:4803.9},
+  {bucket:'>2小时',cnt:35,avg:10588.1},
+];
+
+const hourly = [
+  {h:5,s:2,u:1},{h:6,s:16,u:7},{h:7,s:45,u:26},{h:8,s:82,u:58},
+  {h:9,s:94,u:57},{h:10,s:73,u:41},{h:11,s:46,u:31},{h:12,s:24,u:21},
+  {h:13,s:32,u:22},{h:14,s:32,u:23},{h:15,s:44,u:34},{h:16,s:90,u:60},
+  {h:17,s:111,u:77},{h:18,s:117,u:85},{h:19,s:136,u:92},{h:20,s:123,u:90},
+  {h:21,s:125,u:88},{h:22,s:85,u:63},
+];
+
+const segments = [
+  {name:'路过',range:'0-5分钟',count:81,pct:30.3,color:'#ff6b6b',cls:'tag-legend',avgMin:1,avgSess:1},
+  {name:'尝鲜',range:'5-30分钟',count:76,pct:28.5,color:'#ffa726',cls:'tag-dabbler',avgMin:15,avgSess:2},
+  {name:'轻度',range:'30分钟-2小时',count:121,pct:45.3,color:'#ffee58',cls:'tag-light',avgMin:61,avgSess:3},
+  {name:'中度',range:'2-10小时',count:48,pct:18.0,color:'#66bb6a',cls:'tag-mid',avgMin:213,avgSess:4},
+];
+
+const top20 = [
+  {id:'1754caf5...',min:586,sess:18,first:'03-26 23:10',last:'03-27 12:28'},
+  {id:'cff2ceeb...',min:529,sess:5,first:'03-27 01:19',last:'03-27 11:13'},
+  {id:'f13ab8ee...',min:375,sess:3,first:'03-26 23:57',last:'03-27 08:26'},
+  {id:'781d84ea...',min:364,sess:12,first:'03-26 23:10',last:'03-27 10:53'},
+  {id:'98967464...',min:315,sess:4,first:'03-27 02:00',last:'03-27 13:24'},
+  {id:'488a91bc...',min:314,sess:4,first:'03-27 00:31',last:'03-27 14:00'},
+  {id:'a1aebfed...',min:306,sess:10,first:'03-27 07:18',last:'03-27 14:12'},
+  {id:'a9d74438...',min:305,sess:2,first:'03-27 00:36',last:'03-27 11:02'},
+  {id:'1774573...',min:263,sess:2,first:'03-27 09:02',last:'03-27 09:22'},
+  {id:'32cc089f...',min:259,sess:2,first:'03-27 03:07',last:'03-27 03:08'},
+  {id:'2519c06c...',min:258,sess:2,first:'03-27 09:17',last:'03-27 09:17'},
+  {id:'d329e36a...',min:248,sess:4,first:'03-27 00:57',last:'03-27 03:09'},
+  {id:'f2d5be3c...',min:245,sess:12,first:'03-27 00:53',last:'03-27 11:27'},
+  {id:'1523231d...',min:233,sess:2,first:'03-27 09:22',last:'03-27 13:12'},
+  {id:'8ebb1189...',min:231,sess:4,first:'03-27 02:08',last:'03-27 09:50'},
+  {id:'7c0d07d2...',min:228,sess:12,first:'03-27 08:07',last:'03-27 14:13'},
+  {id:'6c4bcb04...',min:225,sess:1,first:'03-27 05:54',last:'03-27 05:54'},
+  {id:'c8b85db4...',min:224,sess:5,first:'03-27 09:36',last:'03-27 12:04'},
+  {id:'6705eff9...',min:208,sess:4,first:'03-27 08:24',last:'03-27 13:07'},
+  {id:'7b634857...',min:198,sess:1,first:'03-27 01:02',last:'03-27 01:02'},
+];
+
+// ===== CHARTS =====
+const chartOpt = {
+  responsive:true,
+  plugins:{
+    legend:{labels:{color:'#aaa',usePointStyle:true,padding:16}},
+    tooltip:{backgroundColor:'rgba(0,0,0,.85)',cornerRadius:8,padding:10}
+  },
+  scales:{
+    x:{ticks:{color:'#777',font:{size:11}},grid:{color:'rgba(255,255,255,.05)'}},
+    y:{ticks:{color:'#777',font:{size:11}},grid:{color:'rgba(255,255,255,.07)'}}
+  }
+};
+
+// 1. 会话时长分布 - 双轴: 柱状(数量) + 折线(平均时长)
+new Chart(document.getElementById('sessionDurChart'),{
+  type:'bar',
+  data:{
+    labels: sessionDur.map(d=>d.bucket),
+    datasets:[
+      {
+        label:'会话数',
+        data: sessionDur.map(d=>d.cnt),
+        backgroundColor: sessionDur.map((_,i)=>{
+          const colors=['#ef5350','#ff7043','#ffa726','#ffee58','#66bb6a','#42a5f5','#ab47bc'];
+          return colors[i]+'cc';
+        }),
+        borderRadius:6,
+        yAxisID:'y',
+        order:2,
+      },
+      {
+        label:'平均时长(秒)',
+        data: sessionDur.map(d=>d.avg),
+        type:'line',
+        borderColor:'#ff4081',
+        backgroundColor:'rgba(255,64,129,.1)',
+        fill:true,
+        tension:.4,
+        pointRadius:5,
+        pointBackgroundColor:'#ff4081',
+        borderWidth:2.5,
+        yAxisID:'y1',
+        order:1,
+      }
+    ]
+  },
+  options:{
+    ...chartOpt,
+    scales:{
+      ...chartOpt.scales,
+      y:{...chartOpt.scales.y,position:'left',title:{display:true,text:'会话数',color:'#999'}},
+      y1:{...chartOpt.scales.y,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'平均时长(秒)',color:'#999'}},
+    }
+  }
+});
+
+// 2. 24小时活跃 - 面积图
+const fullHour = Array.from({length:24},(_,i)=>i);
+const sessMap = {}; hourly.forEach(h=>sessMap[h.h]=h.s);
+const userMap = {}; hourly.forEach(h=>userMap[h.h]=h.u);
+
+new Chart(document.getElementById('hourlyChart'),{
+  type:'line',
+  data:{
+    labels: fullHour.map(h=>`${String(h).padStart(2,'0')}:00`),
+    datasets:[
+      {
+        label:'活跃会话',
+        data: fullHour.map(h=>sessMap[h]??0),
+        borderColor:'#667eea',
+        backgroundColor:'rgba(102,126,234,.15)',
+        fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#667eea',borderWidth:2.5,
+      },
+      {
+        label:'去重玩家',
+        data: fullHour.map(h=>userMap[h]??0),
+        borderColor:'#26c6da',
+        backgroundColor:'rgba(38,198,218,.1)',
+        fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#26c6da',borderWidth:2,
+      }
+    ]
+  },
+  options:{...chartOpt,interaction:{mode:'index',intersect:false}}
+});
+
+// 3. 玩家分群卡片
+const segHtml = segments.map(s=>`
+  <div style="flex:1;min-width:200px;background:${s.color}18;border:1px solid ${s.color}44;border-radius:14px;padding:16px;text-align:center">
+    <div style="font-size:.8em;color:${s.color};font-weight:700;margin-bottom:4px">${s.name}</div>
+    <div style="font-size:.75em;color:#888;margin-bottom:10px">${s.range}</div>
+    <div style="font-size:2em;font-weight:800;color:${s.color}">${s.count}</div>
+    <div style="font-size:.75em;color:#999">人 (${s.pct}%)</div>
+    <div style="font-size:.8em;color:#aaa;margin-top:8px">人均 ${s.avgMin}min · ${s.avgSess}次</div>
+  </div>
+`).join('');
+document.getElementById('segmentCards').innerHTML = segHtml;
+
+// 4. TOP20 表格
+function fmtMin(m){
+  if(m>=60) return `${Math.floor(m/60)}h${m%60}m`;
+  return `${m}m`;
+}
+const tbody = top20.map((p,i)=>{
+  const bar = Math.min(100, p.min/586*100);
+  const color = p.min>=300?'#42a5f5':p.min>=200?'#66bb6a':p.min>=100?'#ffa726':'#ff7043';
+  return `<tr>
+    <td style="font-weight:700;color:${i<3?'#ffd700':'#888'}">${i+1}</td>
+    <td style="font-family:monospace;font-size:.82em;color:#aaa">${p.id}</td>
+    <td>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;min-width:60px">
+          <div style="height:100%;width:${bar}%;background:${color};border-radius:3px"></div>
+        </div>
+        <span style="font-weight:600;color:${color};min-width:60px">${fmtMin(p.min)}</span>
+      </div>
+    </td>
+    <td>${p.sess}次</td>
+    <td style="font-size:.82em;color:#888">${p.first}</td>
+    <td style="font-size:.82em;color:#888">${p.last}</td>
+    <td><span class="tag ${p.min>=300?'tag-heavy':p.min>=100?'tag-mid':'tag-light'}">${p.min>=300?'骨灰':p.min>=100?'忠实':'新人'}</span></td>
+  </tr>`;
+}).join('');
+document.querySelector('#top20Table tbody').innerHTML = tbody;
+
+document.getElementById('genTime').textContent = new Date().toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'});
+</script>
+</body>
+</html>

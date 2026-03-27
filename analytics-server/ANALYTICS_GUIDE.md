@@ -220,6 +220,8 @@ DEALLOCATE PREPARE stmt;
 | `Event:Choose:eventId:optionId` | — | 事件选项 |
 | `Ideology:Equip:ideologyId` | — | 装备理念 |
 | `Ideology:Unequip:ideologyId` | — | 卸下理念 |
+| `Ideology:EmergenceSelect:ideologyId` | 本次涌现消耗分数 | 选择涌现理念 |
+| `Ideology:EmergenceSkip` | 本次涌现消耗分数 | 跳过涌现理念 |
 | `Achievement:Unlock:achievementId` | daysElapsed | 解锁成就 |
 
 ### 周期采样指标（每30游戏日记录一次）

@@ -16,6 +16,7 @@ import {
     createPeaceRequestEvent,
     createEnemyPeaceRequestEvent,
     createPlayerPeaceProposalEvent,
+    createPeaceProposalRejectedEvent,
     createBattleEvent,
     createAllianceRequestEvent,
     createAllianceProposalResultEvent,
@@ -6908,6 +6909,15 @@ export const useGameActions = (gameState, addLog) => {
                 return { ...n, relation: Math.max(0, (n.relation || 0) - 5) };
             }));
             addLog(`${targetNation.name} rejected your peace proposal.`);
+            triggerDiplomaticEvent(createPeaceProposalRejectedEvent(
+                targetNation,
+                proposalType,
+                acceptChance,
+                {
+                    relationPenalty: 5,
+                    warScore,
+                }
+            ));
             return;
         }
         if (proposalType === 'demand_annex' && warScore < 500) {
