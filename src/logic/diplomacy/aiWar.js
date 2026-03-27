@@ -71,6 +71,7 @@ const AI_DOCTRINES = {
         techTags: ['参谋组织'],
     },
 };
+const MAX_AI_TARGET_CORPS = 12;
 
 const getMaterielResourceForEpoch = (epoch = 0) => {
     if (epoch >= 5) return 'ammunition';
@@ -2548,7 +2549,11 @@ export const makeVassalsPeaceAfterSuzerain = (enemyNationId, nations, logs) => {
  * @returns {Object} A pseudo-corps object compatible with battleSystem
  */
 export const generateAICorps = (nation, epoch) => {
-    const targetCorps = Math.max(1, Number(nation?.military?.forcePool?.targetCorps || 1));
+    const targetCorps = clamp(
+        Math.round(Number(nation?.military?.forcePool?.targetCorps || 1)),
+        1,
+        MAX_AI_TARGET_CORPS
+    );
     const units = generateNationArmy(nation, epoch, 1 / targetCorps, 1.0);
     const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
 
@@ -2572,16 +2577,27 @@ export const ensureAIMilitaryState = (nation, epoch = 0) => {
     const organizationBase = 40 + epoch * 6 + Math.round((nation.militaryStrength || 0.8) * 18);
     const techLevel = Math.max(1, epoch + Math.round(getNationAnnualOutput(nation, 0) / 6000));
     const materielResource = getMaterielResourceForEpoch(epoch);
+    const mergedForcePool = {
+        targetCorps: Math.max(1, Math.min(5, Math.round((nation.population || 80) / 180) + (nation.isAtWar ? 1 : 0))),
+        reserveRatio: nation.isAtWar ? 0.35 : 0.55,
+        ...(nation.military?.forcePool || {}),
+    };
+    const sanitizedForcePool = {
+        ...mergedForcePool,
+        targetCorps: clamp(
+            Math.round(Number(mergedForcePool.targetCorps || 1)),
+            1,
+            MAX_AI_TARGET_CORPS
+        ),
+        reserveRatio: clamp(Number(mergedForcePool.reserveRatio ?? 0.55), 0.1, 0.9),
+    };
+
     const military = {
         organization: clamp(nation.military?.organization ?? organizationBase, 20, 100),
         doctrine: nation.military?.doctrine || doctrine.id,
         techLevel: nation.military?.techLevel || techLevel,
         techTags: Array.isArray(nation.military?.techTags) && nation.military.techTags.length > 0 ? nation.military.techTags : doctrine.techTags,
-        forcePool: {
-            targetCorps: Math.max(1, Math.min(5, Math.round((nation.population || 80) / 180) + (nation.isAtWar ? 1 : 0))),
-            reserveRatio: nation.isAtWar ? 0.35 : 0.55,
-            ...(nation.military?.forcePool || {}),
-        },
+        forcePool: sanitizedForcePool,
         corpsTemplates: Array.isArray(nation.military?.corpsTemplates) ? nation.military.corpsTemplates : [],
         logistics: {
             throughput: clamp(nation.military?.logistics?.throughput ?? (0.8 + epoch * 0.08), 0.6, 2.5),
@@ -2629,7 +2645,11 @@ export const syncAINationMilitary = ({
         .filter((corps) => corps?.isAI && corps.nationId === nextNation.id)
         .filter((corps) => getCorpsTotalUnits(corps) > 0);
     const nationGenerals = (generals || []).filter((general) => nationCorps.some((corps) => corps.generalId === general.id));
-    const targetCorps = Math.max(1, Number(nextNation.military?.forcePool?.targetCorps || 1));
+    const targetCorps = clamp(
+        Math.round(Number(nextNation.military?.forcePool?.targetCorps || 1)),
+        1,
+        MAX_AI_TARGET_CORPS
+    );
     const baseIncomePulse = Math.max(
         1,
         Math.round(getNationAnnualOutput(nextNation, 0) * (nextNation.military?.budgetShare || 0.12) * 0.0025)
