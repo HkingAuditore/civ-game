@@ -37,10 +37,12 @@ export function useThrottledGameState(gameState, throttleMs = DEFAULT_THROTTLE_M
         const timeSinceLastUpdate = now - lastUpdateRef.current;
         
         if (timeSinceLastUpdate >= throttleMs) {
-            // Enough time has passed, update immediately
+            if (pendingUpdateRef.current) {
+                clearTimeout(pendingUpdateRef.current);
+                pendingUpdateRef.current = null;
+            }
             setThrottledState(latestStateRef.current);
             lastUpdateRef.current = now;
-            pendingUpdateRef.current = null;
         } else if (!pendingUpdateRef.current) {
             // Schedule update for later
             const delay = throttleMs - timeSinceLastUpdate;
@@ -127,6 +129,10 @@ export function useThrottledSelector(gameState, selector, throttleMs = DEFAULT_T
         const timeSinceLastUpdate = now - lastUpdateRef.current;
         
         if (timeSinceLastUpdate >= throttleMs) {
+            if (pendingUpdateRef.current) {
+                clearTimeout(pendingUpdateRef.current);
+                pendingUpdateRef.current = null;
+            }
             setThrottledValue(selectedValue);
             lastUpdateRef.current = now;
         } else if (!pendingUpdateRef.current) {
