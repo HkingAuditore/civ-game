@@ -1609,7 +1609,7 @@ const computeLosses = ({
 // 完整战斗模拟
 export const simulateBattle = (attackerData, defenderData) => {
     const { army: attackerArmy, militaryBuffs: attackerBuffs = 0 } = attackerData;
-    const { army: defenderArmy, militaryBuffs: defenderBuffs = 0, wealth: defenderWealth = 1000 } = defenderData;
+    const { army: defenderArmy, militaryBuffs: defenderBuffs = 0, wealth: defenderWealth = 1000, isHomeDefense = false } = defenderData;
 
     const attackerCategoryCounts = getCategoryCounts(attackerArmy);
     const defenderCategoryCounts = getCategoryCounts(defenderArmy);
@@ -1629,11 +1629,15 @@ export const simulateBattle = (attackerData, defenderData) => {
         enemyCategoryCounts: attackerCategoryCounts,
         enemyCounterPressure: attackerCounterPressure,
         militaryBuffs: defenderBuffs,
-        defenseMultiplier: 1.2,
+        defenseMultiplier: 1.4,
     });
 
     let attackerPower = attackerProfile.totalAttack * 0.65 + attackerProfile.totalDefense * 0.35;
     let defenderPower = defenderProfile.totalAttack * 0.65 + defenderProfile.totalDefense * 0.35;
+
+    if (isHomeDefense) {
+        defenderPower *= 1.2;
+    }
 
     attackerPower *= 0.9 + Math.random() * 0.2;
     defenderPower *= 0.9 + Math.random() * 0.2;

@@ -612,6 +612,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setPopStructure,
         setMaxPop,
         maxPopBonus,
+        setMaxPopBonus,
         setRates,
         taxes,
         setTaxes,
@@ -1272,7 +1273,12 @@ difficulty, // 游戏难度
                 epoch: current.epoch,
                 techsUnlocked: current.techsUnlocked,
                 decrees: current.decrees,
-                nations: current.nations,
+                nations: (current.nations || []).map(n => {
+                    if (n.isDefeated || n.population <= 0) {
+                        return { id: n.id, name: n.name, isDefeated: true, population: 0 };
+                    }
+                    return n;
+                }),
                 diplomacyOrganizations: current.diplomacyOrganizations,
                 classWealth: current.classWealth,
                 classApproval: current.classApproval,
@@ -4966,9 +4972,9 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, stratumKey);
                         const militaryIsRebelling = isMilitaryRebelling(updatedOrganizationStates);
 
-                        // 若当前已有未处理事件，跳过新的组织度事件，避免重复弹出
-                        // （事件弹出时游戏已暂停，玩家处理后才会继续，正常跨越阈值仍会触发）
-                        if (current.currentEvent) {
+                        // 若当前已有未处理事件，跳过非起义的组织度事件
+                        // uprising 是跨越式检测，跳过后不会重触发，因此必须放行
+                        if (current.currentEvent && orgEvent.type !== 'uprising') {
                             continue;
                         }
 

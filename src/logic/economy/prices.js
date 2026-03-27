@@ -243,12 +243,12 @@ export const updateMarketPrices = ({
             // Price adjustment based on inventory - continuous piecewise function
             let priceMultiplier = 1.0;
             if (inventoryRatio < 0.1) {
-                // Extreme shortage: steep increase, continuous at ratio=0.1 (value=5.0)
-                priceMultiplier = 5.0 + (0.1 - inventoryRatio) * 40.0;
+                // Extreme shortage: steep increase, continuous at ratio=0.1 (value=3.5)
+                priceMultiplier = 3.5 + (0.1 - inventoryRatio) * 25.0;
                 priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
             } else if (inventoryRatio < 0.5) {
-                // Low inventory: moderate increase, continuous at ratio=0.1 (value=5.0) and ratio=0.5 (value=1.0)
-                priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 10.0;
+                // Low inventory: moderate increase, continuous at ratio=0.1 (value=3.5) and ratio=0.5 (value=1.0)
+                priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 6.25;
             } else if (inventoryRatio > 2.0) {
                 // High inventory - price decreases
                 priceMultiplier = 1 - Math.min(0.5, (inventoryRatio - 2.0) * inventoryPriceImpact * 0.5);

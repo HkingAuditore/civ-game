@@ -54,11 +54,16 @@ const syncStore = (store, fieldMap) => {
  * @param {Object} gs - useGameState() 的返回值
  */
 export const useStoreSync = (gs) => {
-    // 使用 ref 存储上一次同步的值，避免不必要的重复写入
     const prevRef = useRef(null);
+    const lastSyncTimeRef = useRef(0);
 
     useEffect(() => {
         if (!gs) return;
+
+        // 节流：至少间隔 16ms（一帧）才执行同步，减少高频渲染下的开销
+        const now = Date.now();
+        if (now - lastSyncTimeRef.current < 16) return;
+        lastSyncTimeRef.current = now;
 
         // 同步 UI Store
         syncStore(useUIStore, {

@@ -381,12 +381,12 @@ export const processAIIndependentGrowth = ({
         }
         
         const rawWealthRate = (baseWealthGrowthRate + catchUpBonus) * tickScale;
-        const cappedWealthRate = clamp(rawWealthRate, -0.02, 0.08);  // [FIX] Increased cap from 0.03 to 0.08
+        const cappedWealthRate = clamp(rawWealthRate, -0.02, 0.12);  // [BALANCE] Increased cap to let AI wealth grow faster
         const wealthGrowthRate = 1 + cappedWealthRate;
         
         // [FIX v5] 调整人均财富上限，防止过度限制
         // Per-capita cap: Stone=3k, Ancient=6k, Medieval=12k, Industrial=24k, Modern=48k
-        const perCapitaWealthCap = Math.min(100000, 3000 * Math.pow(2, Math.min(epoch, 4)));
+        const perCapitaWealthCap = Math.min(500000, 5000 * Math.pow(2.5, Math.min(epoch, 5)));
         
         // If already at or above per-capita cap, slow down growth
         let cappedWealthGrowthRate = 1.0;
@@ -791,16 +791,14 @@ export const scaleNewlyUnlockedNation = ({
     let wealthScale = 1.0;
 
     if (appearEpoch > 0 && appearEpoch <= currentEpoch) {
-        // Population scaling: new nations should be 30%-80% of player's population
-        // Scale based on player population, with reasonable bounds
+        // Population scaling: new nations should be 30%-150% of player's population
         if (playerPopulation > 0) {
-            populationScale = Math.max(0.3, Math.min(0.8, playerPopulation / 5000));
+            populationScale = Math.max(0.3, Math.min(1.5, playerPopulation / 5000));
         }
 
-        // Wealth scaling: new nations should be 20%-60% of player's wealth
-        // Scale based on player wealth, with reasonable bounds
+        // Wealth scaling: new nations should be 20%-120% of player's wealth
         if (playerWealth > 0) {
-            wealthScale = Math.max(0.2, Math.min(0.6, playerWealth / 50000));
+            wealthScale = Math.max(0.2, Math.min(1.2, playerWealth / 50000));
         }
 
         // Epoch bonus: each epoch adds 20% to the scaling
@@ -830,7 +828,7 @@ export const scaleNewlyUnlockedNation = ({
     if (nation.economyTraits) {
         nation.economyTraits.basePopulation = nation.population;
         nation.economyTraits.baseWealth = nation.wealth;
-        nation.economyTraits.ownBasePopulation = Math.max(5, Math.floor(nation.population / 10));
+        nation.economyTraits.ownBasePopulation = Math.max(5, Math.floor(nation.population / 5));
         nation.economyTraits.ownBaseWealth = Math.max(500, Math.floor(nation.wealth));
     }
 

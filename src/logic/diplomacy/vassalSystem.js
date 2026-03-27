@@ -1021,8 +1021,9 @@ export const calculateEnhancedTribute = (vassalNation) => {
         }
     }
 
+    const TRIBUTE_HARD_CAP = 100000;
     return {
-        silver: Math.floor(baseTribute),
+        silver: Math.min(Math.floor(baseTribute), TRIBUTE_HARD_CAP),
         resources,
     };
 };
@@ -1741,7 +1742,7 @@ export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
  * @param {Object} params - 检查参数
  * @returns {Object} { canEstablish, reason }
  */
-export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, warScore }) => {
+export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, warScore, vassalCount = 0 }) => {
     const config = VASSAL_TYPE_CONFIGS[vassalType];
     if (!config) {
         return { canEstablish: false, reason: '无效的附庸类型' };
@@ -1757,10 +1758,15 @@ export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, 
         return { canEstablish: false, reason: '该国已是附庸国' };
     }
 
+    // 附庸数量递增限制
+    if (vassalCount >= 5 && !nation.isAtWar) {
+        return { canEstablish: false, reason: '附庸数量过多，无法和平附庸（上限5）' };
+    }
+
     // 检查关系要求（战争状态下通过战争分数判断）
     if (nation.isAtWar) {
-        // 统一附庸化要求战争分数 50
-        const requiredScore = 300;
+        const baseScore = 600;
+        const requiredScore = vassalCount >= 3 ? baseScore + (vassalCount - 3) * 300 : baseScore;
         if ((warScore || 0) < requiredScore) {
             return { canEstablish: false, reason: `战争分数不足（需要 ${requiredScore}）` };
         }
@@ -1771,9 +1777,9 @@ export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, 
         }
     }
 
-    // 检查军事力量比
+    // 检查军事力量比（和平附庸需要绝对军事优势）
     const militaryRatio = (nation.militaryStrength || 0.5) / Math.max(0.1, playerMilitary);
-    if (militaryRatio > 0.8 && !nation.isAtWar) {
+    if (militaryRatio > 0.5 && !nation.isAtWar) {
         return { canEstablish: false, reason: '对方军事力量过强' };
     }
 

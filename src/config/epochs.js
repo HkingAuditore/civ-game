@@ -24,7 +24,7 @@ export const EPOCHS = [
         cost: {},
         bonuses: {
             desc: "文明的起源，一切从这里开始。",
-            gatherBonus: 0.20 // +20% 采集
+            gatherBonus: 0.30 // +30% 采集
         }
     },
     {
@@ -33,8 +33,8 @@ export const EPOCHS = [
         color: "text-orange-400",
         bg: "bg-orange-950",
         tileColor: "bg-orange-800",
-        req: { science: 600, population: 25 },
-        cost: { food: 6000, wood: 3500, stone: 1200, silver: 600, science: 600 },
+        req: { science: 420, population: 20 },
+        cost: { food: 4500, wood: 2500, stone: 1200, silver: 400, science: 420 },
         bonuses: {
             desc: "掌握青铜冶炼与畜力生产，资源获取加速。",
             gatherBonus: 0.40, // +40%
@@ -116,14 +116,14 @@ export const EPOCHS = [
     },
     {
         id: 6,
-        name: "工业时代",
+        name: "蒸汽时代",
         color: "text-gray-200",
         bg: "bg-gray-800",
         tileColor: "bg-gray-600",
         req: { science: 20000, population: 4500, culture: 4000 },
         cost: { food: 750000, brick: 180000, iron: 120000, tools: 75000, spice: 30000, silver: 120000, science: 20000 },
         bonuses: {
-            desc: "机械化大生产，工业产能爆炸式增长。",
+            desc: "蒸汽与煤铁带来巨量产能。",
             gatherBonus: 2.00,
             militaryBonus: 0.60,
             cultureBonus: 0.80,

@@ -333,7 +333,7 @@ export const RESOURCES = {
         // 战略金属：高稳定度
         marketConfig: {
             supplyDemandWeight: 0.8,        // 供需影响较小（战略资源）
-            inventoryTargetDays: 500.0,       // 战略资源高库存目标
+            inventoryTargetDays: 200.0,       // 降低以避免正常库存下 inventoryRatio 长期偏低导致通胀
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性（军事必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -547,7 +547,7 @@ export const RESOURCES = {
         // 高级工业品：标准配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 300.0,       // 工业品较高库存目标
+            inventoryTargetDays: 150.0,       // 降低以缓解工业时代通胀
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
