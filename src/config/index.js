@@ -59,6 +59,7 @@ export {
     createPeaceRequestEvent,
     createEnemyPeaceRequestEvent,
     createPlayerPeaceProposalEvent,
+    createPeaceProposalRejectedEvent,
     createBattleEvent,
     createAllianceRequestEvent,
     createOrganizationInviteEvent,

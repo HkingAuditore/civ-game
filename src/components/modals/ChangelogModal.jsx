@@ -1,81 +1,7 @@
 // 游戏更新日志模态框
 import React, { useState } from 'react';
+import { CHANGELOG } from '../../config/changelog';
 import { Icon } from '../common/UIComponents';
-
-/**
- * 更新日志条目配置
- * 每次更新后在此数组头部添加新版本记录
- */
-export const CHANGELOG = [
-    {
-        version: '2.0.9',
-        date: '2026-03-17',
-        isLatest: true,
-        highlights: ['修复敌方停战提议接受流程', '放缓 AI 时代推进速度', '重做难度库存缓冲与价格波动', '修正营业税补贴导致的负成本价'],
-        changes: [
-            { type: 'fix', text: '修复接受敌方停战提议时流程未统一走战争结束逻辑的问题，避免停战状态与外交后续处理不一致' },
-            { type: 'fix', text: '修复营业税为负值（补贴）时可能出现负成本价的问题，成本价现在保底为 0，避免价格模型被异常拉偏' },
-            { type: 'fix', text: '清理雇员工资冷启动推导代码中的注释串行问题，避免影响后续维护与阅读' },
-            { type: 'balance', text: '大幅放缓 AI 时代推进：提高各时代科技/文化需求系数，时代升级冷却由 200 提升至 600，科技文化累积速率下调至 0.4' },
-            { type: 'balance', text: '重做各难度库存目标倍率：和平/简单模式增加库存缓冲提升稳定性，困难/灾厄/地狱模式降低缓冲以增强价格波动与经营压力' },
-            { type: 'improve', text: '建筑利润计算改为统一通过税务模块读取营业税倍率，确保税率被正确限制在合法范围内' },
-            { type: 'improve', text: '敌方停战事件按钮文案优化为“婉拒停战”，提升交互语义清晰度' },
-        ],
-    },
-    {
-        version: '2.0.8',
-        date: '2026-03-16',
-        isLatest: false,
-        highlights: ['新增建筑/国家收藏置顶功能', '修复外交赠礼费用显示错误', '修复成衣作坊时代配置', '新增港口建筑', '平衡调整'],
-        changes: [
-            { type: 'new', text: '新增建筑收藏功能：建筑卡片左上角悬停出现 ⭐ 按钮，可收藏常用建筑；建筑面板新增"⭐ 收藏"过滤器，收藏数据持久保存' },
-            { type: 'new', text: '新增国家收藏功能：外交国家卡片右上角悬停出现 ⭐ 按钮，可收藏常用国家；国家列表新增"⭐ 收藏"过滤器，收藏的国家自动置顶' },
-            { type: 'new', text: '新增港口（harbor）建筑：epoch 1，需要航海术科技，消耗木板产出银币，填补航海术的实际解锁目标' },
-            { type: 'fix', text: '修复外交赠礼费用显示与实际花费不一致的问题（UI 显示固定 100 但实际花费更高）' },
-            { type: 'fix', text: '修复成衣作坊时代配置错误：从 epoch 1 调整为 epoch 2，前置科技改为高级纺织，与华服解锁时代对齐' },
-            { type: 'fix', text: '修正航海术科技描述：解锁港口（而非船坞）；修正海图绘制描述：明确解锁船坞' },
-            { type: 'balance', text: '小幅提升教堂基础产出：文化 3.2 → 4.0（+25%），银币 0.67 → 0.8（+20%），强化文化+财政双产出定位' },
-            { type: 'balance', text: '大幅降低各理念 taxIncome 数值（约 -50%）：修复后期 income_ideology_virtual_tax 异常偏高的问题' },
-            { type: 'balance', text: '同步降低各时代 taxIncome 加成：封建 0.20→0.10，探索 0.50→0.25，电气 0.30→0.15，原子 0.35→0.18，信息 0.40→0.20' },
-        ],
-    },
-    {
-        version: '2.0.6',
-        date: '2025-07-16',
-        isLatest: false,
-        highlights: ['更新日志功能上线', '修复密谋事件反复弹出的问题', '修复同一官员反复出现的问题'],
-        changes: [
-            { type: 'fix', text: '修复密谋/起义事件在玩家未处理时反复弹出的问题（现在有未处理事件时不会触发新的组织度事件）' },
-            { type: 'fix', text: '修复同一官员候选人反复出现的问题' },
-            { type: 'fix', text: '事件弹出时游戏现在会自动暂停' },
-            { type: 'new', text: '新增更新日志功能，方便玩家了解游戏更新内容' },
-            { type: 'remove', text: '移除存档的"导出到剪贴板"和"从剪贴板导入"功能（已由文件导入导出替代）' },
-        ],
-    },
-    {
-        version: '2.0.5',
-        date: '2025-07-01',
-        highlights: ['外交系统优化', '理念系统平衡调整'],
-        changes: [
-            { type: 'new', text: '外交谈判新增更多条约类型' },
-            { type: 'balance', text: '调整多项理念数值，修复升级收益倒挂问题' },
-            { type: 'fix', text: '修复贸易路线税收计算错误' },
-            { type: 'fix', text: '修复官员忠诚度在某些情况下不正确衰减的问题' },
-        ],
-    },
-    {
-        version: '2.0.4',
-        date: '2025-06-15',
-        highlights: ['军团系统上线', '战线管理优化'],
-        changes: [
-            { type: 'new', text: '新增军团编组系统，支持多军团同时作战' },
-            { type: 'new', text: '新增战线管理界面，可为不同战线分配军团' },
-            { type: 'new', text: '新增将领系统，将领可为军团提供战斗加成' },
-            { type: 'balance', text: '调整军队维护成本计算，加入规模惩罚机制' },
-            { type: 'fix', text: '修复战斗结算时部分单位数量计算错误' },
-        ],
-    },
-];
 
 // 变更类型配置
 const CHANGE_TYPE_CONFIG = {
@@ -195,7 +121,7 @@ export const ChangelogModal = ({ isOpen, onClose }) => {
                 {/* 底部 */}
                 <div className="p-3 border-t border-gray-700 flex-shrink-0">
                     <p className="text-xs text-gray-500 text-center">
-                        感谢你的支持与反馈，游戏持续更新中 🎮
+                        QQ群546526159，游戏持续更新中 🎮
                     </p>
                 </div>
             </div>

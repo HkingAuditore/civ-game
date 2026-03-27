@@ -6,7 +6,7 @@ import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculat
 import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
 import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
-import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS, useOtaUpdate } from './hooks';
 import { useStoreSync } from './stores/useStoreSync';
 import { useTutorialSystem } from './hooks/useTutorialSystem';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
@@ -42,6 +42,7 @@ import {
     ResourceDetailModal,
     PopulationDetailModal,
     AnnualReportModal,
+    AnnualReportHistoryModal,
     TutorialModal,
     WikiModal,
 } from './components';
@@ -57,9 +58,19 @@ import { AchievementsModal } from './components/modals/AchievementsModal';
 import { IdeologyEmergenceModal } from './components/modals/IdeologyEmergenceModal';
 import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { collectAnnualSnapshot, generateExportText } from './utils/annualReport';
+
+const ANNUAL_REPORT_IDEOLOGY_REWARD = {
+    S: 60,
+    A: 40,
+    B: 25,
+    C: 10,
+    D: 0,
+    F: 0,
+};
 import { AchievementToast } from './components/common/AchievementToast';
 import { DonateModal } from './components/modals/DonateModal';
-import { ChangelogModal, CHANGELOG } from './components/modals/ChangelogModal';
+import { CHANGELOG } from './config/changelog';
+import { ChangelogModal } from './components/modals/ChangelogModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { assignCorpsToFront, removeCorpsFromFront, getPlayerSide } from './logic/diplomacy/frontSystem';
 import { setTacticOrder, createBattle, processReinforcement, isBattleActive } from './logic/diplomacy/battleSystem';
@@ -69,6 +80,17 @@ import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 import { selectIdeology } from './logic/ideology/ideologyEmergence';
 import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
 import { IDEOLOGY_MAP } from './config/ideologies';
+import { initGA, setDimensions } from './analytics/gaInit';
+import {
+    installGlobalErrorHandlers,
+    setAnalyticsContextGetter,
+    trackIdeologyEmergenceSelect,
+    trackIdeologyEmergenceSkip,
+    trackProgressionStart,
+} from './analytics/gaTracker';
+import { initCustomBackend, updateDimensions } from './analytics/customBackend';
+
+const EPOCH_DIMENSIONS = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
 
 const PerfOverlay = () => {
     const [stats, setStats] = useState(null);
@@ -190,6 +212,9 @@ function GameApp({ gameState }) {
     // 将 gameState 同步到 Zustand stores（渐进迁移桥接层）
     useStoreSync(gameState);
 
+    // OTA 热更新（仅原生平台生效）
+    useOtaUpdate();
+
     // 添加日志函数 - memoized to prevent unnecessary re-renders
     const addLog = useCallback((msg) => {
         if (gameState?.setLogs) {
@@ -218,6 +243,46 @@ function GameApp({ gameState }) {
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [showDonateModal, setShowDonateModal] = useState(false);
     const [showChangelogModal, setShowChangelogModal] = useState(false);
+
+    // GameAnalytics 初始化
+    useEffect(() => {
+        initGA();
+        initCustomBackend({
+            difficulty: gameState.difficulty || 'easy',
+            scenario: 'freeplay',
+        });
+        installGlobalErrorHandlers();
+        setDimensions({
+            difficulty: gameState.difficulty || 'easy',
+            scenario: 'freeplay',
+            epoch: EPOCH_DIMENSIONS[gameState.epoch] || 'stone',
+        });
+        trackProgressionStart(gameState.epoch || 0);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        updateDimensions({
+            difficulty: gameState.difficulty || 'easy',
+            scenario: 'freeplay',
+        });
+    }, [gameState.difficulty]);
+
+    useEffect(() => {
+        const playerNation = (gameState.nations || []).find((nation) => (
+            nation?.isPlayer
+            || nation?.id === 'player'
+            || nation?.id === 0
+        ));
+        setAnalyticsContextGetter(() => ({
+            daysElapsed: gameState.daysElapsed,
+            epoch: EPOCH_DIMENSIONS[gameState.epoch] || null,
+            playerNationId: playerNation?.id || 'player',
+            playerNationName: playerNation?.name || gameState.empireName || '我的帝国',
+        }));
+        return () => {
+            setAnalyticsContextGetter(null);
+        };
+    }, [gameState.daysElapsed, gameState.epoch, gameState.nations, gameState.empireName]);
 
     // Detect if player is opening a new version for the first time, auto-show changelog
     useEffect(() => {
@@ -319,6 +384,7 @@ function GameApp({ gameState }) {
     const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
     const [pendingAction, setPendingAction] = useState(null); // { type: 'load' | 'newGame' }
     const [showEmpireScene, setShowEmpireScene] = useState(false);
+    const [showReportHistory, setShowReportHistory] = useState(false); // Historical annual report viewer
     const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
     const [warfrontFocusRequest, setWarfrontFocusRequest] = useState(null);
     const [pendingWarDeployment, setPendingWarDeployment] = useState(null);
@@ -460,12 +526,38 @@ function GameApp({ gameState }) {
         }
     };
 
-    // Handle annual report close: save baseline and resume
+    // Handle annual report close: save baseline, archive report, and resume
     const handleReportClose = useCallback(() => {
-        const reportYear = gameState.festivalModal?.year;
+        const modal = gameState.festivalModal;
+        const reportYear = modal?.year;
+        const reportData = modal?.reportData;
+        const reportGrade = reportData?.scoring?.grade;
+        const ideologyReward = ANNUAL_REPORT_IDEOLOGY_REWARD[reportGrade] || 0;
+        // Archive report to history (keep max 50 years to limit save size)
+        if (reportYear && reportData) {
+            const MAX_REPORT_HISTORY = 50;
+            gameState.setAnnualReportHistory(prev => {
+                const next = [...prev, { year: reportYear, epoch: gameState.epoch, reportData }];
+                return next.length > MAX_REPORT_HISTORY ? next.slice(-MAX_REPORT_HISTORY) : next;
+            });
+        }
+        if (ideologyReward > 0 && typeof gameState.setIdeologyScore === 'function') {
+            gameState.setIdeologyScore(prev => (prev || 0) + ideologyReward);
+            addLog(`⚡ 年度政府工作报告获评 ${reportGrade} 级，获得 ${ideologyReward} 点理念分。`);
+        }
         // Save current snapshot as next year's baseline
         const newBaseline = collectAnnualSnapshot(gameState);
         gameState.setAnnualReportBaseline(newBaseline);
+        if (typeof gameState.setAnnualReportAccumulator === 'function') {
+            gameState.setAnnualReportAccumulator({
+                daysCount: 0,
+                gdpSum: 0,
+                cpiSum: 0,
+                ppiSum: 0,
+                taxSum: 0,
+                fiscalNetIncomeSum: 0,
+            });
+        }
         // Close modal
         gameState.setFestivalModal(null);
         // Restore pause state
@@ -1248,7 +1340,7 @@ function GameApp({ gameState }) {
         <div className="min-h-screen font-epic text-theme-text transition-all duration-1000 relative">
             {/* Dynamic Era Background */}
             <EraBackground epoch={gameState.epoch} opacity={0.08} />
-            <MusicPlayer />
+            {(gameState.eventEffectSettings?.logVisibility?.showMusicPlayer ?? false) && <MusicPlayer />}
             <PerfOverlay />
             {/* 浮动文本 */}
             {gameState.clicks.map(c => (
@@ -1282,6 +1374,7 @@ function GameApp({ gameState }) {
                     onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
                     onMarketClick={() => setShowMarket(true)}  // 新增：打开国内市场弹窗
                     onEmpireSceneClick={() => setShowEmpireScene(true)}  // 新增：点击日期按钮弹出帝国场景
+                    onReportHistoryClick={() => setShowReportHistory(true)}  // 新增：点击查看历年报告
                     gameControls={
                         <GameControls
                             isPaused={gameState.isPaused}
@@ -1718,8 +1811,7 @@ function GameApp({ gameState }) {
                                                     classApproval: gameState.classApproval,
                                                     classInfluence: gameState.classInfluence,
                                                     classLivingStandard: gameState.classLivingStandard,
-                                                    classIncome: gameState.classWealth, // 近似替代，或需要从 history 获取
-                                                    // classIncome: gameState.classIncome, // useGameLoop 如果导出了这个最好
+                                                    classIncome: gameState.classIncome || {},
                                                     stability: (gameState.stability ?? 50) / 100, // 转换为0-1范围，与simulation.js保持一致
                                                     legitimacy: gameState.legitimacy,
                                                     rulingCoalition: gameState.rulingCoalition,
@@ -1987,9 +2079,11 @@ function GameApp({ gameState }) {
                         epoch={gameState.epoch}
                         techsUnlocked={gameState.techsUnlocked}
                         officials={gameState.officials} // Pass officials data for average loyalty calculation
+                        difficulty={gameState.difficulty}
 
                         // Extra approval drivers (so UI can explain 'mysterious' drops)
                         legitimacyTaxModifier={gameState.legitimacyTaxModifier}
+                        effectiveTaxModifier={gameState.effectiveTaxModifier}
                         taxShock={gameState.taxShock}
                         eventApprovalModifiers={gameState.eventApprovalModifiers}
                         decreeApprovalModifiers={gameState.decreeApprovalModifiers}
@@ -2255,6 +2349,15 @@ function GameApp({ gameState }) {
                 />
             )}
 
+            {/* Historical Annual Report Viewer */}
+            <AnnualReportHistoryModal
+                isOpen={showReportHistory}
+                onClose={() => setShowReportHistory(false)}
+                history={gameState.annualReportHistory || []}
+                empireName={gameState.empireName}
+                currentEpoch={gameState.epoch}
+            />
+
             {/* 事件系统底部面板 */}
             <BottomSheet
                 isOpen={!!gameState.currentEvent}
@@ -2364,6 +2467,14 @@ function GameApp({ gameState }) {
                                     showOfficialLogs: enabled,
                                 }
                             }))}
+                            showMusicPlayer={gameState.eventEffectSettings?.logVisibility?.showMusicPlayer ?? false}
+                            onToggleMusicPlayer={(enabled) => gameState.setEventEffectSettings(prev => ({
+                                ...(prev || {}),
+                                logVisibility: {
+                                    ...((prev || {}).logVisibility || {}),
+                                    showMusicPlayer: enabled,
+                                }
+                            }))}
                         />
                     </div>
                 </div>
@@ -2468,6 +2579,20 @@ function GameApp({ gameState }) {
                 collectionList={(gameState.ideologyCollection || [])
                     .filter(e => !(gameState.equippedIdeologies || []).includes(e.id))
                     .map(e => ({ ...e, config: IDEOLOGY_MAP[e.id] || e }))}
+                rarityBonus={gameState.ideologyEmergenceRarityBonus || 0}
+                onSkip={() => {
+                    // 跳过本次涌现：累加稀有度加成（上限3），消耗分数，恢复游戏
+                    const newBonus = Math.min((gameState.ideologyEmergenceRarityBonus || 0) + 1, 3);
+                    gameState.setIdeologyEmergenceRarityBonus(newBonus);
+                    gameState.setLastEmergenceWasSkipped(true);
+                    // 消耗分数（跳过也消耗，避免无限刷新）
+                    const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
+                    trackIdeologyEmergenceSkip(threshold);
+                    gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
+                    // 清除涌现事件并恢复游戏
+                    gameState.setPendingIdeologyEmergence(null);
+                    gameState.setIsPaused(false);
+                }}
                 onSelect={(ideologyId, discardId) => {
                     // 若有放弃的理念，先从收藏中移除
                     let collection = gameState.ideologyCollection || [];
@@ -2479,9 +2604,13 @@ function GameApp({ gameState }) {
                     gameState.setIdeologyCollection(result.updatedCollection);
                     // 消耗分数
                     const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
+                    trackIdeologyEmergenceSelect(ideologyId, threshold);
                     gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
-                    // 清除涌现事件
+                    // 选择后立即重置稀有度加成（连续跳过链断开）
+                    gameState.setIdeologyEmergenceRarityBonus(0);
+                    // 清除涌现事件，标记本次为"选择"（非跳过），下次涌现不继承加成
                     gameState.setPendingIdeologyEmergence(null);
+                    gameState.setLastEmergenceWasSkipped(false);
                 }}
             />
         </div>

@@ -742,7 +742,7 @@ const MIN_EXPANSION_STAFFING_RATIO = 1.0;
  * @param {Object} taxPolicies - 税收政策
  * @returns {Object} { profit, outputValue, inputValue, wageCost, businessTax }
  */
-export const calculateBuildingProfit = (building, market = {}, taxPolicies = {}) => {
+export const calculateBuildingProfit = (building, market = {}, taxPolicies = {}, { taxEfficiency = 1 } = {}) => {
     if (!building) return { profit: 0, outputValue: 0, inputValue: 0, wageCost: 0, businessTax: 0 };
 
     const prices = market?.prices || {};
@@ -774,7 +774,10 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {})
     // 营业税（通过模块函数获取，确保 clamp 在合法范围内）
     const businessTaxMultiplier = getBusinessTaxRate(building.id, taxPolicies?.businessTaxRates || {});
     const businessTaxBase = building.businessTaxBase ?? 0.1;
-    const businessTax = businessTaxBase * businessTaxMultiplier;
+    const rawBusinessTax = businessTaxBase * businessTaxMultiplier;
+    // When businessTax < 0 (subsidy), actual payout is reduced by taxEfficiency (corruption eats part of it).
+    // When businessTax >= 0 (normal tax), use full amount (efficiency already applied elsewhere).
+    const businessTax = rawBusinessTax < 0 ? rawBusinessTax * Math.max(0, Math.min(1, taxEfficiency)) : rawBusinessTax;
 
     // 雇员工资（不含业主）
     const ownerKey = building.owner;
@@ -809,7 +812,7 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {})
  * @param {Object} staffingRatios - 建筑岗位填充率 { buildingId: ratio }
  * @returns {Object} { canExpand, reason, cost, profit, roi }
  */
-export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSettings, currentCount, market = {}, taxPolicies = {}, staffingRatios = {}) => {
+export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSettings, currentCount, market = {}, taxPolicies = {}, staffingRatios = {}, { taxEfficiency = 1 } = {}) => {
     if (!building || !ownerStratum) {
         return { canExpand: false, reason: '无效建筑', cost: 0, profit: 0, roi: 0 };
     }
@@ -831,8 +834,8 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
     }
     baseCost = baseCost > 0 ? Math.round(baseCost) : 100;
 
-    // 计算建筑盈利
-    const profitResult = calculateBuildingProfit(building, market, taxPolicies);
+    // 计算建筑盈利（补贴受税收效率折扣）
+    const profitResult = calculateBuildingProfit(building, market, taxPolicies, { taxEfficiency });
     const profit = profitResult.profit;
 
     // 计算 ROI（投资回报率）
@@ -868,7 +871,7 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
  * @param {Object} staffingRatios - 建筑岗位填充率 { buildingId: ratio }
  * @returns {Object} { expansions, wealthDeductions }
  */
-export const processOwnerExpansions = (buildings, classWealth, expansionSettings, buildingCounts, market = {}, taxPolicies = {}, staffingRatios = {}) => {
+export const processOwnerExpansions = (buildings, classWealth, expansionSettings, buildingCounts, market = {}, taxPolicies = {}, staffingRatios = {}, { taxEfficiency = 1 } = {}) => {
     const expansions = [];
     const wealthDeductions = {};
 
@@ -894,7 +897,7 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         const currentCount = buildingCounts[building.id] || 0;
 
         const { canExpand, reason, cost, profit, roi } = canOwnerExpand(
-            building, ownerStratum, ownerWealth, expansionSettings, currentCount, market, taxPolicies, staffingRatios
+            building, ownerStratum, ownerWealth, expansionSettings, currentCount, market, taxPolicies, staffingRatios, { taxEfficiency }
         );
 
         if (canExpand) {

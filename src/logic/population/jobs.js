@@ -607,6 +607,10 @@ export const handleJobMigration = ({
     let migrants = Math.floor(sourceCandidate.pop * effectiveMigrationRatio);
     if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
     migrants = Math.min(migrants, targetCandidate.vacancy);
+    // Hard floor: when source has population and target has vacancy, migrate at least 1.
+    if (migrants <= 0 && sourceCandidate.pop > 0 && targetCandidate.vacancy > 0) {
+        migrants = 1;
+    }
 
     if (migrants > 0) {
         let placementInfo = null;

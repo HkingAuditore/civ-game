@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button, Card, Tabs, Badge } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, DIPLOMACY_ERA_UNLOCK, BUILDINGS } from '../../config';
@@ -93,12 +93,13 @@ const NationDetailView = ({
         ? relationInfo(nation)
         : { value: 0, label: '未知', color: 'text-ancient-stone', bg: '' };
 
-    const capacityUsage = Number.isFinite(economyMetrics.capacityUsage)
-        ? economyMetrics.capacityUsage
-        : null;
     const carryingCapacity = Number.isFinite(economyMetrics.carryingCapacity)
         ? economyMetrics.carryingCapacity
         : null;
+    // UI 口径统一：优先用当前展示的人口 / 承载上限计算承载率，避免缓存指标短暂不同步导致展示矛盾
+    const capacityUsage = carryingCapacity && carryingCapacity > 0
+        ? (Number(nation.population) || 0) / carryingCapacity
+        : (Number.isFinite(economyMetrics.capacityUsage) ? economyMetrics.capacityUsage : null);
     const annualOutput = Number.isFinite(economyMetrics.annualOutput)
         ? economyMetrics.annualOutput
         : (Number.isFinite(nation.gdp) ? nation.gdp : null);
@@ -361,7 +362,7 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                                 icon="Flag"
                                 title="求和"
                                 desc="尝试通过谈判结束战争。"
-                                onClick={() => onDiplomaticAction?.(nation.id, 'propose_peace')}
+                                onClick={() => onDiplomaticAction?.(nation.id, 'peace')}
                                 color="purple"
                             />
                         ) : (

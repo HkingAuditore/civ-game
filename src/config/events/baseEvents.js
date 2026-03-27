@@ -734,7 +734,7 @@ export const BASE_EVENTS = [
                 description: '为学者提供纸草和津贴，鼓励他们著书立说。',
                 effects: {
                     resourcePercent: {
-                        papyrus: -80,
+                        papyrus: -0.08,
                         silver: -0.02,
                         science: 0.08,
                     },
@@ -2507,7 +2507,7 @@ export const BASE_EVENTS = [
                 effects: {
                     resourcePercent: {
                         silver: -0.025,
-                        papyrus: -50,
+                        papyrus: -0.05,
                     },
                     stability: 15,
                     approval: {

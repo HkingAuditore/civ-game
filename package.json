@@ -1,14 +1,15 @@
 {
     "name": "hayek-civilization-market-economy",
     "private": true,
-    "version": "2.0.9",
+    "version": "2.3.0",
     "type": "module",
     "scripts": {
         "dev": "vite",
         "build": "vite build",
         "lint": "eslint .",
         "preview": "vite preview",
-        "balance:audit": "python3 scripts/audit_building_balance.py"
+        "balance:audit": "python3 scripts/audit_building_balance.py",
+        "balance:report": "node tools/balance-analyzer.mjs"
     },
     "dependencies": {
         "@capacitor/android": "^8.0.0",
@@ -17,8 +18,10 @@
         "@capacitor/filesystem": "^8.0.0",
         "@capacitor/share": "^8.0.0",
         "@capacitor/status-bar": "^8.0.0",
+        "@capgo/capacitor-updater": "^8.45.0",
         "@tanstack/react-virtual": "^3.13.14",
         "framer-motion": "^12.23.26",
+        "gameanalytics": "^4.4.7",
         "lucide-react": "^0.554.0",
         "mysql2": "^3.20.0",
         "react": "^19.2.0",
@@ -31,6 +34,7 @@
         "@types/react": "^19.2.5",
         "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^5.1.1",
+        "archiver": "^7.0.1",
         "autoprefixer": "^10.4.22",
         "eslint": "^9.39.1",
         "eslint-plugin-react-hooks": "^7.0.1",

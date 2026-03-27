@@ -2,7 +2,69 @@
 
 ## [Unreleased]
 
-## [2.0.9] - 2026-03-17
+## [2.1.7] - 2026-03-20
+
+### Added
+- **音乐播放器显示开关**：`SettingsPanel.jsx` 新增“显示音乐播放器”选项，默认关闭；`App.jsx` 仅在开启时渲染左下角悬浮音乐播放器
+
+### Fixed
+- **建筑营业税输入健壮性**：`BuildingDetails.jsx` 为营业税系数新增限幅（基于 `TAX_LIMITS.MAX_BUSINESS_TAX`）与中间输入态处理，修复无效输入、极端值和正负切换导致的异常税额计算
+- **工资镜像与发薪口径一致性**：`simulation.js` 将建筑级实际发薪按岗位回写到全局 `wages` 镜像，修复价格/招工/投资等依赖模块读取到偏离实际支付工资的问题
+- **事件外交目标过滤与文案异常**：`useGameActions.js` 为事件外交选择器与 `triggerWar/triggerPeace` 增加玩家保护过滤（排除玩家附庸、军事同盟成员）；`EventDetail.jsx` 不再渲染 `exclude` 等控制字段，修复事件面板偶发英文异常标签
+
+### Changed
+- **工资支付双底线机制**：`simulation.js` 在工资结算中新增“雇员生计底线 + 业主保留底线”，并统一按 `preparedWagePlans` 汇总业主工资责任，降低异常工资波动与业主被瞬时掏空的概率
+- **税率说明文案优化**：`BuildingDetails.jsx` 更新建筑收入提示文案，强调实际工资受生计底线、业主保留与支付比例共同约束
+
+## [2.1.6] - 2026-03-20
+
+### Fixed
+- **连续快速操作的扣费异常**：`useGameActions.js` 为建造、建筑升级、时代升级、科研和招募等关键流程改为读取最新的 `resources/buildings/buildingUpgrades` 引用，修复连续点击时可能读取陈旧状态、导致费用判断错误或重复扣费的问题
+- **自动补兵跳过前线军团**：`useGameLoop.js` 与 `corpsSystem.js` 不再因为军团处于 `in_combat` 状态而忽略其补兵需求，自动补兵现在可以正常支援战斗中的玩家军团
+- **改革法令税收标签重复**：`ReformDecreePanel.jsx` 去除重复 `taxIncome` 映射并统一文案为“税收加成”
+- **战争中“求和”动作错误**：`NationDetailView.jsx` 将按钮动作从 `propose_peace` 改为 `peace`，避免战争状态下按钮无效
+
+### Changed
+- **部长自动扩建冷却重构**：`simulation.js`、`useGameState.js`、`useOfficialStore.js` 将原来的单一 `lastMinisterExpansionDay` 数字改为带 `global/agriculture/industry/commerce/civic` 的对象；全局检查冷却缩短为 `5` 天，每位经济部长保留 `10` 天个人冷却，旧存档自动兼容迁移
+- **低人口阶层组织度限制**：`organizationSystem.js` 新增 `MIN_REBELLION_POPULATION = 10`；人口不足的阶层组织度上限为 `50%`，`useGameLoop.js` 在触发 uprising 时改为人口和财富外流而不是直接生成叛乱
+- **理念与时代面板体验优化**：`IdeologyCard.jsx` 始终显示稀有度标签，`IdeologyTab.jsx` 允许从已装备理念直接打开详情面板；`EraProgressionPanel.jsx` 改为直接读取 `EPOCHS` 名称，避免时代名称表与主配置脱节
+- **显示与数值微调**：`epicTheme.js` 将 epoch 6 的主题名称调整为“蒸汽时代”；`strata.js` 小幅下调 artisan 在部分富裕度档位的工具消费量
+
+## [2.1.2] - 2026-03-17
+
+### Fixed
+- **未发现国家虚空贸易**：`trading.js` 在贸易机会扫描、商人派驻轮换、缓存贸易执行阶段统一过滤 `relation` 为空的国家，避免对未发现国家发起新贸易
+- **进行中订单保留**：已发起且货物/资金已承诺的历史贸易不再因国家暂不可见而被中途清理，运输中的订单会正常结算完成
+- **贸易路线计数显示**：`TradeRoutesModal.jsx` 的“进行中贸易”页签与头部统计改为使用合并后的运输订单数，避免数量与列表不一致
+- **官员阶层财富统计**：`simulation.js` 在跳过官员模拟时补回 `wealth.official` 汇总，修复 official 阶层财富显示为 0 的问题
+- **阶层需求明细空值显示**：`StratumDetailSheet.jsx` 为需求成本、数量、价格字段增加 `0` 兜底，避免详情面板出现异常值
+
+### Changed
+- **理念系统平衡**：`ideologies.js` 对多组理念进行了新一轮重平衡，补强基础加成、建筑/科技转换器、条件翻转效果与事件 Buff，提升不同发展路线的成长性与辨识度
+
+## [2.0.10] - 2026-03-17
+
+### Added
+- **年度报告历史弹窗**：新增 `AnnualReportHistoryModal` 组件，支持查看历史年度报告，涵盖经济、人口、军事等多维度数据对比
+- **信息时代视觉主题**：`epicTheme.js` 新增信息时代（epoch 8）完整主题配置，包含配色、粒子效果与背景样式
+- **时代背景组件扩展**：`EraBackground.jsx` 支持信息时代背景图片渲染
+
+### Changed
+- **政体效果大幅扩展**：`polityEffects.js` 新增商业帝国、神权封建王国、科技联盟等多种政体配置，覆盖更多时代与政治路线
+- **内阁协同效果优化**：`cabinetSynergy.js` 调整协同加成逻辑，提升内阁组合的策略深度
+- **难度库存与经济参数调整**：`difficulty.js` 与 `gameConstants.js` 进一步微调各难度下的库存目标与经济波动参数
+
+### Performance
+- **Tick 预算管理**：`performanceUtils.js` 新增 tick 时间预算机制（`TICK_BUDGET_MS = 150ms`），防止单帧计算超时导致卡顿
+- **节流状态优化**：`useThrottledGameState.js` 重构节流优先级分层，背景/装饰元素降低刷新频率，减少不必要渲染
+- **Worker 通信优化**：`simulation.worker.js` 与 `useSimulationWorker.js` 优化主线程与 Worker 间的消息传递，降低序列化开销
+- **游戏循环重构**：`useGameLoop.js` 精简主循环逻辑，减少冗余状态同步
+
+### Fixed
+- **理念涌现系统**：修复 `ideologyEmergence.js` 中涌现条件判断的边界问题，确保理念正确触发
+- **建筑面板**：`BuildTab.jsx` 修复建筑列表在特定筛选条件下的显示异常
+
+## [2.0.9] - 2026-03-16
 
 ### Fixed
 - **[2026-03-17] 停战与价格模型修复**

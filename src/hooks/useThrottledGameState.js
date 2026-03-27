@@ -29,21 +29,25 @@ export function useThrottledGameState(gameState, throttleMs = DEFAULT_THROTTLE_M
     const lastUpdateRef = useRef(0);
     const pendingUpdateRef = useRef(null);
     const rafIdRef = useRef(null);
+    const latestStateRef = useRef(gameState);
     
     const updateState = useCallback(() => {
+        latestStateRef.current = gameState;
         const now = performance.now();
         const timeSinceLastUpdate = now - lastUpdateRef.current;
         
         if (timeSinceLastUpdate >= throttleMs) {
-            // Enough time has passed, update immediately
-            setThrottledState(gameState);
+            if (pendingUpdateRef.current) {
+                clearTimeout(pendingUpdateRef.current);
+                pendingUpdateRef.current = null;
+            }
+            setThrottledState(latestStateRef.current);
             lastUpdateRef.current = now;
-            pendingUpdateRef.current = null;
         } else if (!pendingUpdateRef.current) {
             // Schedule update for later
             const delay = throttleMs - timeSinceLastUpdate;
             pendingUpdateRef.current = setTimeout(() => {
-                setThrottledState(gameState);
+                setThrottledState(latestStateRef.current);
                 lastUpdateRef.current = performance.now();
                 pendingUpdateRef.current = null;
             }, delay);
@@ -58,11 +62,17 @@ export function useThrottledGameState(gameState, throttleMs = DEFAULT_THROTTLE_M
             if (rafIdRef.current) {
                 cancelAnimationFrame(rafIdRef.current);
             }
-            if (pendingUpdateRef.current) {
-                clearTimeout(pendingUpdateRef.current);
-            }
+            // 不在每次 effect 重跑时清理 pending timeout，
+            // 否则高频更新下会导致节流更新一直被取消。
         };
     }, [updateState]);
+
+    useEffect(() => () => {
+        if (pendingUpdateRef.current) {
+            clearTimeout(pendingUpdateRef.current);
+            pendingUpdateRef.current = null;
+        }
+    }, []);
     
     return throttledState;
 }
@@ -105,6 +115,7 @@ export function useThrottledSelector(gameState, selector, throttleMs = DEFAULT_T
     const lastUpdateRef = useRef(0);
     const pendingUpdateRef = useRef(null);
     const lastSelectedRef = useRef(selectedValue);
+    const latestSelectedRef = useRef(selectedValue);
     
     useEffect(() => {
         // [PERF] 浅比较：只有选中的状态切片实际发生变化时才触发重渲染
@@ -112,29 +123,35 @@ export function useThrottledSelector(gameState, selector, throttleMs = DEFAULT_T
             return;
         }
         lastSelectedRef.current = selectedValue;
+        latestSelectedRef.current = selectedValue;
 
         const now = performance.now();
         const timeSinceLastUpdate = now - lastUpdateRef.current;
         
         if (timeSinceLastUpdate >= throttleMs) {
+            if (pendingUpdateRef.current) {
+                clearTimeout(pendingUpdateRef.current);
+                pendingUpdateRef.current = null;
+            }
             setThrottledValue(selectedValue);
             lastUpdateRef.current = now;
         } else if (!pendingUpdateRef.current) {
             const delay = throttleMs - timeSinceLastUpdate;
             pendingUpdateRef.current = setTimeout(() => {
-                setThrottledValue(selectedValue);
+                // 使用最新快照，避免在高频更新下被旧闭包值“卡住”
+                setThrottledValue(latestSelectedRef.current);
                 lastUpdateRef.current = performance.now();
                 pendingUpdateRef.current = null;
             }, delay);
         }
-        
-        return () => {
-            if (pendingUpdateRef.current) {
-                clearTimeout(pendingUpdateRef.current);
-                pendingUpdateRef.current = null;
-            }
-        };
     }, [selectedValue, throttleMs]);
+
+    useEffect(() => () => {
+        if (pendingUpdateRef.current) {
+            clearTimeout(pendingUpdateRef.current);
+            pendingUpdateRef.current = null;
+        }
+    }, []);
     
     return throttledValue;
 }

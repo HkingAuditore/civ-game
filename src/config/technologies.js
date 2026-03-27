@@ -513,6 +513,15 @@ export const TECHS = [
         effects: {},
     },
     {
+        id: 'spice_cultivation',
+        name: "香料栽培学",
+        desc: "解锁香料种植园，本土种植珍贵辛香料，产量远胜航海贸易。",
+        cost: { science: 14400 },
+        epoch: 5,
+        prerequisites: ['spice_monopolies'],
+        effects: {},
+    },
+    {
         id: 'coffeehouse_philosophy',
         name: "咖啡馆哲学",
         desc: "解锁咖啡馆，每人每日获得 0.002 文化。",
@@ -759,7 +768,7 @@ export const TECHS = [
     {
         id: 'bessemer_process',
         name: "贝塞麦炼钢法",
-        desc: "解锁炼钢厂和冶金工坊，吹入空气快速去碳，钢铁产量剧增。炼钢厂效率 +30%，冶金工坊效率 +25%。",
+        desc: "吹入空气快速去碳，钢铁产量剧增。炼钢厂效率 +30%，冶金工坊效率 +25%。",
         cost: { science: 27900 },
         epoch: 6,
         prerequisites: ['advanced_metallurgy', 'steel_alloys'],

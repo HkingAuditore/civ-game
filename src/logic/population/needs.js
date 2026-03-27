@@ -3,7 +3,7 @@
  * Handles resource consumption and needs satisfaction for all strata
  */
 
-import { STRATA, RESOURCES } from '../../config';
+import { STRATA, RESOURCES, ECONOMIC_INFLUENCE } from '../../config';
 import { isResourceDemandActive } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
 import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard, calculatePriceAwareLivingStandardThresholds } from '../../utils/livingStandard';
@@ -139,7 +139,7 @@ export const processNeedsConsumption = ({
 
             // Apply difficulty multiplier to per capita needs
             const perCapita = base * needsRequirementMultiplier * difficultyMultiplier;
-            const requirement = perCapita * count;
+            let requirement = perCapita * count;
             const available = res[resKey] || 0;
             let satisfied = 0;
 
@@ -157,6 +157,27 @@ export const processNeedsConsumption = ({
                 let tentativePrice = marketPrice;
                 if (priceControlActive) {
                     tentativePrice = priceControls.governmentSellPrices[resKey];
+                }
+
+                // 税收需求弹性抑制：税率通过弹性机制自然压低需求意愿量
+                // 考虑三个维度：资源弹性、阶层人均存款充裕度、是否为奢侈性需求
+                const taxRate = getResourceTaxRate(resKey);
+                if (taxRate > 0) {
+                    const resourceInfo = RESOURCES[resKey] || {};
+                    const defaultElasticity = ECONOMIC_INFLUENCE?.market?.demandElasticity || 0.5;
+                    const demandElasticity = resourceInfo.marketConfig?.demandElasticity ?? defaultElasticity;
+
+                    // 阶层人均存款充裕度：存款越充裕对税收越不敏感（富人不在乎税）
+                    // wealthPerCapita / startingWealth：比值越高越不敏感，上限约3倍（超过3倍基本免疫）
+                    const wealthSensitivity = 1 / (1 + Math.min(3, wealthPerCapita / (def.startingWealth || 100)));
+
+                    // 奢侈性需求放大系数：奢侈需求（luxuryNeeds 中定义的）对税收更敏感
+                    const isLuxuryNeed = !baseNeeds.hasOwnProperty(resKey);
+                    const luxuryFactor = isLuxuryNeed ? 1.5 : 1.0;
+
+                    // 综合抑制率：taxRate × 弹性 × 存款敏感度 × 奢侈系数，上限50%
+                    const suppressionRate = Math.min(0.5, taxRate * demandElasticity * wealthSensitivity * luxuryFactor);
+                    requirement *= (1 - suppressionRate);
                 }
 
                 const priceWithTax = tentativePrice * (1 + getResourceTaxRate(resKey));

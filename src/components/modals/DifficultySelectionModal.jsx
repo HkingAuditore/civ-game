@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { getDifficultyOptions, DEFAULT_DIFFICULTY } from '../../config/difficulty';
 import { getScenarioOptions } from '../../config/scenarios';
+import { trackDifficultySelect, trackScenarioSelect } from '../../analytics/gaTracker';
 
 /**
  * 新档模式选择模态框组件
@@ -31,6 +32,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
     }, [isOpen, scenarioOptions]);
 
     const handleConfirm = () => {
+        trackDifficultySelect(selectedDifficulty);
         onConfirm({
             difficulty: selectedDifficulty,
             scenarioId: mode === 'scenario' ? selectedScenario : null,
@@ -186,7 +188,10 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                         className={`rounded-lg border-2 p-3 cursor-pointer transition-all duration-200 ${isSelected
                                             ? 'border-emerald-400/60 bg-emerald-900/30 shadow-lg shadow-emerald-500/10'
                                             : 'border-emerald-600/20 bg-gray-900/30 hover:border-emerald-500/40'}`}
-                                        onClick={() => setSelectedScenario(scenario.id)}
+                                        onClick={() => {
+                                            setSelectedScenario(scenario.id);
+                                            trackScenarioSelect(scenario.id);
+                                        }}
                                         whileHover={{ scale: 1.01 }}
                                         whileTap={{ scale: 0.98 }}
                                     >

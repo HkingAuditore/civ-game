@@ -109,7 +109,11 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
     const filteredOptions = filterEventOptions(event.options, epoch, techsUnlocked);
 
     // 获取可见国家列表
-    const visibleNations = nations.filter(n => n.visible !== false);
+    const visibleNations = nations.filter(n => (
+        n.visible !== false
+        && n.vassalOf !== 'player'
+        && n.alliedWithPlayer !== true
+    ));
 
     // 获取事件中预解析的随机国家信息
     const resolvedRandomNation = event._resolvedRandomNation;
@@ -254,7 +258,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
         if (!style) return null;
 
         return Object.entries(effectMap)
-            .filter(([target]) => !target.startsWith('_'))
+            .filter(([target, value]) => !target.startsWith('_') && target !== 'exclude' && typeof value === 'number')
             .map(([target, value]) => {
                 let targetName = resolveNationNames(target);
                 if (targetName) {

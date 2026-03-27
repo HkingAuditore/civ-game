@@ -50,24 +50,9 @@ export function checkAndAwardIdeologyScore(gameState, prevState) {
     let scoreGained = 0;
     const milestones = [...(gameState.ideologyMilestones || [])];
 
-    // 1. 研发知识
-    if (gameState.techsUnlocked && prevState.techsUnlocked) {
-        const newTechs = gameState.techsUnlocked.filter(t => !prevState.techsUnlocked.includes(t));
-        if (newTechs.length > 0) {
-            const { base, epochScale } = IDEOLOGY_SCORE_TRIGGERS.research_tech;
-            const amount = newTechs.length * (base + gameState.epoch * epochScale);
-            scoreGained += amount;
-            reasons.push({ type: 'research_tech', amount, desc: `研发${newTechs.length}项知识` });
-        }
-    }
-
-    // 2. 进入新时代
-    if (gameState.epoch > (prevState.epoch || 0)) {
-        const { base, epochScale } = IDEOLOGY_SCORE_TRIGGERS.epoch_advance;
-        const amount = base + gameState.epoch * epochScale;
-        scoreGained += amount;
-        reasons.push({ type: 'epoch_advance', amount, desc: `进入第${gameState.epoch}时代` });
-    }
+    // NOTE: research_tech and epoch_advance scoring are now handled proactively
+    // in useGameActions.js (researchTech / advanceEpoch) via ideologyEventBus.queueDirectEffect().
+    // This eliminates the fragile prevTechsRef/prevEpochRef diff and save-load jump detection.
 
     // 3. 建筑里程碑（公式化，指数递增，无上限）
     const totalBuildings = _countTotalBuildings(gameState.buildings);

@@ -19,6 +19,14 @@ const buildInitialMinisterAutoExpansion = () => ({
     civic: true,
 });
 
+const buildInitialMinisterExpansionCooldowns = () => ({
+    global: 0,
+    agriculture: 0,
+    industry: 0,
+    commerce: 0,
+    civic: 0,
+});
+
 export const useOfficialStore = create((set, get) => ({
     officials: [],
     setOfficials: (v) => set({ officials: typeof v === 'function' ? v(get().officials) : v }),
@@ -41,12 +49,13 @@ export const useOfficialStore = create((set, get) => ({
     ministerAutoExpansion: buildInitialMinisterAutoExpansion(),
     setMinisterAutoExpansion: (v) => set({ ministerAutoExpansion: typeof v === 'function' ? v(get().ministerAutoExpansion) : v }),
 
-    lastMinisterExpansionDay: 0,
+    lastMinisterExpansionDay: buildInitialMinisterExpansionCooldowns(),
     setLastMinisterExpansionDay: (v) => set({ lastMinisterExpansionDay: typeof v === 'function' ? v(get().lastMinisterExpansionDay) : v }),
 
     // 静态引用
     buildInitialMinisterAssignments,
     buildInitialMinisterAutoExpansion,
+    buildInitialMinisterExpansionCooldowns,
 
     // 批量重置
     resetOfficials: (overrides = {}) => set({
@@ -57,7 +66,7 @@ export const useOfficialStore = create((set, get) => ({
         officialCapacity: 2,
         ministerAssignments: buildInitialMinisterAssignments(),
         ministerAutoExpansion: buildInitialMinisterAutoExpansion(),
-        lastMinisterExpansionDay: 0,
+        lastMinisterExpansionDay: buildInitialMinisterExpansionCooldowns(),
         ...overrides,
     }),
 }));

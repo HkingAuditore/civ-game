@@ -39,7 +39,7 @@ const STRATUM_NAME_BY_ID = (() => {
  */
 const formatDecreeEffect = (key, value) => {
     const effectLabels = {
-        taxIncome: '税收',
+        taxIncome: '税收加成',
         production: '全局生产',
         industry: '工业产出',
         stability: '稳定度',
@@ -48,8 +48,7 @@ const formatDecreeEffect = (key, value) => {
         cultureBonus: '文化产出',
         maxPop: '人口上限',
         gatherBonus: '采集产出',
-        populationGrowth: '人口增长', // 新增
-        taxIncome: '税收加成',
+        populationGrowth: '人口增长',
         buildCostReduction: '建筑成本',
         needsReduction: '居民需求',
     };

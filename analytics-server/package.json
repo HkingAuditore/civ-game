@@ -1,0 +1,19 @@
+{
+    "name": "civ-analytics-server",
+    "version": "1.0.0",
+    "description": "Self-hosted analytics backend for civ-game (dual-write with GameAnalytics)",
+    "type": "module",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js"
+    },
+    "dependencies": {
+        "compression": "^1.8.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.7",
+        "express": "^5.1.0",
+        "helmet": "^8.1.0",
+        "mysql2": "^3.14.0"
+    }
+}

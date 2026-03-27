@@ -19,9 +19,11 @@ const IdeologyEmergenceModalComponent = ({
     show = false,
     candidates = [],   // 3个候选理念对象
     onSelect,           // (ideologyId, discardId?) => void
+    onSkip,             // () => void  跳过本次涌现
     equippedIds = [],   // 当前已装备的理念id
     collectionFull = false,   // 未装备收藏是否已满（>=10）
     collectionList = [],      // 当前未装备的理念列表 [{id, level, config}]
+    rarityBonus = 0,    // 当前跳过累积的稀有度加成（0~3）
 }) => {
     const [selectedId, setSelectedId] = useState(null);
     const [step, setStep] = useState(1); // 1=选择新理念, 2=选择放弃哪个
@@ -120,6 +122,13 @@ const IdeologyEmergenceModalComponent = ({
                                         <p className="text-xs sm:text-sm text-gray-400">
                                             文明的思想之光闪耀，请选择一个理念加入你的收藏
                                         </p>
+                                        {/* 稀有度加成提示 */}
+                                        {rarityBonus > 0 && (
+                                            <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-900/30 border border-amber-500/40 text-xs text-amber-300">
+                                                <Icon name="TrendingUp" size={12} className="text-amber-400" />
+                                                已跳过 {rarityBonus} 次，下一次更易出现高稀有理念
+                                            </div>
+                                        )}
                                         {/* 收藏满提示 */}
                                         {collectionFull && (
                                             <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-900/30 border border-red-500/40 text-xs text-red-300">
@@ -157,25 +166,53 @@ const IdeologyEmergenceModalComponent = ({
                                     </div>
                                 </div>
 
-                                <MotionDiv
+                <MotionDiv
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: selectedId ? 1 : 0.3 }}
                                     className="text-center shrink-0 pt-1 pb-1"
                                 >
-                                    <button
-                                        onClick={handleStep1Confirm}
-                                        disabled={!selectedId}
-                                        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${
-                                            selectedId
-                                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400/50 text-white shadow-lg hover:shadow-purple-500/30 hover:scale-105'
-                                                : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed'
-                                        }`}
-                                    >
-                                        <span className="flex items-center gap-2">
-                                            <Icon name={collectionFull && !isUpgrade ? 'ArrowRight' : 'Check'} size={16} />
-                                            {collectionFull && !isUpgrade ? '下一步：选择放弃' : '确认选择'}
-                                        </span>
-                                    </button>
+                                    <div className="flex items-center justify-center gap-3">
+                                        {/* 跳过按钮 */}
+                                        <button
+                                            onClick={() => {
+                                                setSelectedId(null);
+                                                setStep(1);
+                                                setDiscardId(null);
+                                                setDetailEntry(null);
+                                                onSkip?.();
+                                            }}
+                                            className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all border-2 border-gray-600 text-gray-400 hover:text-gray-200 hover:border-gray-500"
+                                            title={
+                                                rarityBonus < 3
+                                                    ? `跳过后下次更易出现高稀有理念，并提高保底档位（当前 ${rarityBonus}/3）`
+                                                    : '已达稀有度加成上限（3/3）'
+                                            }
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Icon name="SkipForward" size={16} />
+                                                跳过
+                                                {rarityBonus < 3
+                                                    ? <span className="text-amber-400 text-xs">（稀有度+1）</span>
+                                                    : <span className="text-gray-500 text-xs">（已满）</span>
+                                                }
+                                            </span>
+                                        </button>
+                                        {/* 确认按钮 */}
+                                        <button
+                                            onClick={handleStep1Confirm}
+                                            disabled={!selectedId}
+                                            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${
+                                                selectedId
+                                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400/50 text-white shadow-lg hover:shadow-purple-500/30 hover:scale-105'
+                                                    : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed'
+                                            }`}
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Icon name={collectionFull && !isUpgrade ? 'ArrowRight' : 'Check'} size={16} />
+                                                {collectionFull && !isUpgrade ? '下一步：选择放弃' : '确认选择'}
+                                            </span>
+                                        </button>
+                                    </div>
                                 </MotionDiv>
                             </>
                         ) : (

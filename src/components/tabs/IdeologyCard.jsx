@@ -392,7 +392,10 @@ function getConverterSourcePhrase(converter, step) {
         case 'officialCount':
             return `每${step}名官员`;
         case 'population':
-            return `每${step}人口`;
+            if (converter.source && converter.source !== 'population') {
+                return `每${step}${getStratumName(converter.source)}人口`;
+            }
+            return `每${step}总人口`;
         case 'stability':
             return `每${step}点稳定度`;
         case 'warCount':
@@ -625,12 +628,9 @@ const IdeologyCardComponent = ({
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                             <div className="flex items-center gap-1">
                                 <LevelStars level={level} />
-                                {/* 稀有度标签（非普通时显示） */}
-                                {ideology.rarity && ideology.rarity !== 'common' && (
-                                    <span className={`text-[9px] px-1 py-0 rounded ${rarity.bgBadge} ${rarity.color} border ${rarity.borderColor}/40 font-semibold`}>
-                                        {rarity.label}
-                                    </span>
-                                )}
+                                <span className={`text-[9px] px-1 py-0 rounded ${rarity.bgBadge} ${rarity.color} border ${rarity.borderColor}/40 font-semibold`}>
+                                    {rarity.label}
+                                </span>
                             </div>
                             {isEquipped && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-900/50 text-green-300 border border-green-700/50">

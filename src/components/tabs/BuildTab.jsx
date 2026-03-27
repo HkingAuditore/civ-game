@@ -14,6 +14,23 @@ import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier } from '../.
 import { calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { BUILDING_CHAINS, BUILDING_TO_CHAIN } from '../../config/buildingChains';
+import { trackBuildingPin, trackBuildingFilter } from '../../analytics/gaTracker';
+
+const CATEGORIES = {
+    gather: { name: '采集与农业', icon: 'Wheat', color: 'text-yellow-400' },
+    industry: { name: '工业生产', icon: 'Factory', color: 'text-blue-400' },
+    civic: { name: '市政建筑', icon: 'Home', color: 'text-green-400' },
+    military: { name: '军事建筑', icon: 'Swords', color: 'text-red-400' },
+};
+const CATEGORY_ENTRIES = Object.entries(CATEGORIES);
+const CATEGORY_FILTERS = [
+    { key: 'all', label: '全部' },
+    { key: 'pinned', label: '⭐ 收藏' },
+    { key: 'gather', label: '采集' },
+    { key: 'industry', label: '工业' },
+    { key: 'civic', label: '市政' },
+    { key: 'military', label: '军事' },
+];
 
 const PINNED_BUILDINGS_KEY = 'civ_pinned_buildings';
 const loadPinnedBuildings = () => {
@@ -439,6 +456,7 @@ const BuildTabComponent = ({
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     const [pinnedBuildings, setPinnedBuildings] = useState(loadPinnedBuildings);
     const toggleBuildingPin = useCallback((buildingId) => {
+        trackBuildingPin(buildingId);
         setPinnedBuildings(prev => {
             const next = new Set(prev);
             if (next.has(buildingId)) { next.delete(buildingId); } else { next.add(buildingId); }
@@ -489,11 +507,12 @@ const BuildTabComponent = ({
             if (rafId) return;
             rafId = window.requestAnimationFrame(update);
         };
-        window.addEventListener('scroll', onScroll, { passive: true });
+        // capture: true 也捕获父容器的 scroll 事件，避免虚拟化失效
+        document.addEventListener('scroll', onScroll, { passive: true, capture: true });
         window.addEventListener('resize', onScroll);
         update();
         return () => {
-            window.removeEventListener('scroll', onScroll);
+            document.removeEventListener('scroll', onScroll, { capture: true });
             window.removeEventListener('resize', onScroll);
             if (rafId) window.cancelAnimationFrame(rafId);
         };
@@ -746,7 +765,7 @@ const BuildTabComponent = ({
         });
 
         return stats;
-    }, [buildings, buildingUpgrades, difficulty]);
+    }, [buildings, buildingUpgrades, difficulty, buildingCostMod]);
 
     const availableBuildingsByCategory = useMemo(() => {
         const grouped = {};
@@ -1101,28 +1120,14 @@ const BuildTabComponent = ({
         return result;
     }, [availableBuildingsByCategory, groupedBuildingsByCategory, expandedChains]);
 
-    // 按类别分组建筑
-    const categories = {
-        gather: { name: '采集与农业', icon: 'Wheat', color: 'text-yellow-400' },
-        industry: { name: '工业生产', icon: 'Factory', color: 'text-blue-400' },
-        civic: { name: '市政建筑', icon: 'Home', color: 'text-green-400' },
-        military: { name: '军事建筑', icon: 'Swords', color: 'text-red-400' },
-    };
-    const categoryFilters = [
-        { key: 'all', label: '全部' },
-        { key: 'pinned', label: '⭐ 收藏' },
-        { key: 'gather', label: '采集' },
-        { key: 'industry', label: '工业' },
-        { key: 'civic', label: '市政' },
-        { key: 'military', label: '军事' },
-    ];
     const [activeCategory, setActiveCategory] = useState('all');
-    const categoriesToRender =
+    const categoriesToRender = useMemo(() =>
         activeCategory === 'all' || activeCategory === 'pinned'
-            ? Object.entries(categories)
-            : Object.entries(categories).filter(([key]) => key === activeCategory);
+            ? CATEGORY_ENTRIES
+            : CATEGORY_ENTRIES.filter(([key]) => key === activeCategory),
+        [activeCategory]
+    );
 
-    // Memoize viewport values to prevent infinite loop
     const viewportScrollY = useMemo(() => viewport.scrollY, [viewport.scrollY]);
     const viewportHeight = useMemo(() => viewport.height, [viewport.height]);
 
@@ -1171,10 +1176,9 @@ const BuildTabComponent = ({
             }
 
             const gridRect = gridEl.getBoundingClientRect();
-            // [FIX] 补偿当前topSpacer的高度，得到稳定的"无spacer时的gridTop"
-            // 避免spacer高度变化 → gridTop变化 → range变化 → spacer变化的无限震荡
-            const currentTopSpacer = virtualRangeRef.current[catKey]?.topSpacerHeight || 0;
-            const gridTop = gridRect.top + window.scrollY - currentTopSpacer;
+            // spacer 是 grid 内部的 col-span-full 子元素，不影响 gridRect.top
+            // 直接使用 gridRect.top + scrollY 即可得到 grid 的绝对页面位置
+            const gridTop = gridRect.top + window.scrollY;
             const viewTop = viewportScrollY;
             const viewBottom = viewportScrollY + viewportHeight;
 
@@ -1229,12 +1233,12 @@ const BuildTabComponent = ({
     return (
 <div className="space-y-3 build-tab">
             <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm overflow-x-auto">
-                {categoryFilters.map((filter) => {
+                {CATEGORY_FILTERS.map((filter) => {
                     const isActive = filter.key === activeCategory;
                     return (
                         <button
                             key={filter.key}
-                            onClick={() => setActiveCategory(filter.key)}
+                            onClick={() => { trackBuildingFilter(filter.key); setActiveCategory(filter.key); }}
                             className={`appearance-none min-w-[64px] px-4 py-2 rounded-full border-2 text-xs font-semibold transition-all ${isActive
                                 ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
                                 : 'bg-transparent border-transparent text-ancient-stone hover:text-ancient-parchment'
@@ -1313,7 +1317,7 @@ const BuildTabComponent = ({
                 );
             })}
 
-            {/* 悬浮提示框 Portal */}
+            {/* 悬浮提示框 Portal — cost 从 cardDataById 实时读取，避免 hover 快照导致成本不更新 */}
             <BuildingTooltip
                 building={hoveredBuilding.building}
                 anchorElement={hoveredBuilding.element}
@@ -1321,7 +1325,7 @@ const BuildTabComponent = ({
                 epoch={epoch}
                 techsUnlocked={techsUnlocked}
                 jobFill={liveJobFill}
-                cost={hoveredBuilding.cost}
+                cost={hoveredBuilding.building ? (cardDataById[hoveredBuilding.building.id]?.cost || hoveredBuilding.cost) : undefined}
                 resources={deferredResources}
                 ownerJobsRequired={hoveredBuilding.building ? ownerJobsCorrections[hoveredBuilding.building.id] : undefined}
             />

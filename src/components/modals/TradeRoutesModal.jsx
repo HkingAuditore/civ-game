@@ -6,6 +6,7 @@ import { calculateMaxTradeRoutes, calculateForeignPrice, calculateTradeStatus } 
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 import { useLongPress } from '../../hooks/useLongPress';
+import { trackMerchantAssign, trackTradePreference, trackTradeRouteMode } from '../../analytics/gaTracker';
 
 // Separate component for assignment row to properly use hooks
 const AssignmentRow = ({
@@ -294,6 +295,12 @@ const TradeRoutesModal = ({
         if (type === 'dumping') nextQ.dumping = !nextQ.dumping;
         if (type === 'forceBuy') nextQ.forceBuy = !nextQ.forceBuy;
 
+        if (type === 'dumping') {
+            trackTradeRouteMode(nationId, nextQ.dumping ? 'dumping_on' : 'dumping_off');
+        } else if (type === 'forceBuy') {
+            trackTradeRouteMode(nationId, nextQ.forceBuy ? 'forceBuy_on' : 'forceBuy_off');
+        }
+
         const nextMap = {
             ...((base.coercionByNation && typeof base.coercionByNation === 'object') ? base.coercionByNation : {}),
             [nationId]: nextQ,
@@ -336,12 +343,20 @@ const TradeRoutesModal = ({
         const cap = (isOpenMarket || force) ? 999999 : (baseMax + totalBonus);
         const safe = Math.max(0, Math.min(cap, Math.floor(Number(nextValue) || 0)));
 
+        const prevRaw = merchantAssignments?.[nationId];
+        const prevSafe = prevRaw === undefined || prevRaw === null
+            ? 0
+            : Math.max(0, Math.floor(Number(prevRaw) || 0));
+
         const next = {
             ...(merchantAssignments && typeof merchantAssignments === 'object' ? merchantAssignments : {}),
             [nationId]: safe,
         };
         if (safe <= 0) {
             delete next[nationId];
+        }
+        if (safe !== prevSafe) {
+            trackMerchantAssign(nationId, safe);
         }
         onUpdateMerchantAssignments(next);
     };
@@ -369,11 +384,18 @@ const TradeRoutesModal = ({
     // Get visible nations for current epoch
     const visibleNations = useMemo(() => {
         return nations.filter(
-            (nation) =>
-                epoch >= (nation.appearEpoch ?? 0) &&
-                (nation.expireEpoch == null || epoch <= nation.expireEpoch) &&
-                !nation.isAtWar && // Exclude nations at war
-                nation.relation !== undefined && nation.relation !== null // Only show discovered nations
+            (nation) => {
+                const isPlayerVassal = nation?.vassalOf === 'player';
+                const isInEpochRange =
+                    epoch >= (nation.appearEpoch ?? 0) &&
+                    (nation.expireEpoch == null || epoch <= nation.expireEpoch);
+                return (
+                    // 附庸不受时代窗口限制，确保升时代后仍可在贸易路线中管理
+                    (isInEpochRange || isPlayerVassal) &&
+                    !nation.isAtWar && // Exclude nations at war
+                    nation.relation !== undefined && nation.relation !== null // Only show discovered nations
+                );
+            }
         );
     }, [nations, epoch]);
 
@@ -616,7 +638,7 @@ const TradeRoutesModal = ({
 
     const tabs = [
         { id: 'assignments', label: '派驻商人', shortLabel: '派驻', count: assignedTotal, icon: 'Users' },
-        { id: 'activeTrades', label: '进行中贸易', shortLabel: '进行中', count: pendingTrades.length, icon: 'Loader' },
+        { id: 'activeTrades', label: '进行中贸易', shortLabel: '进行中', count: mergedPendingTrades.length, icon: 'Loader' },
         { id: 'priceCompare', label: '物价对比', shortLabel: '物价', count: tradableResources.length, icon: 'BarChart2' },
     ];
 
@@ -845,6 +867,7 @@ const TradeRoutesModal = ({
                                                             const nextImport = { ...(base.import || {}) };
                                                             if (isSelected) delete nextImport[resourceKey];
                                                             else nextImport[resourceKey] = bias;
+                                                            trackTradePreference('import', resourceKey);
                                                             onUpdateMerchantTradePreferences({
                                                                 ...base,
                                                                 import: nextImport,
@@ -902,6 +925,7 @@ const TradeRoutesModal = ({
                                                             const nextExport = { ...(base.export || {}) };
                                                             if (isSelected) delete nextExport[resourceKey];
                                                             else nextExport[resourceKey] = bias;
+                                                            trackTradePreference('export', resourceKey);
                                                             onUpdateMerchantTradePreferences({
                                                                 ...base,
                                                                 export: nextExport,
@@ -967,7 +991,7 @@ const TradeRoutesModal = ({
                                         <span className="font-semibold text-amber-100">进行中贸易</span>
                                     </div>
                                     <div className="font-mono text-xs">
-                                        共 <span className="text-amber-300">{pendingTrades.length}</span> 笔交易运输中
+                                        共 <span className="text-amber-300">{mergedPendingTrades.length}</span> 笔交易运输中
                                     </div>
                                 </div>
                                 <div className="mt-1 text-xs text-gray-400">
@@ -975,7 +999,7 @@ const TradeRoutesModal = ({
                                 </div>
                             </div>
 
-                            {pendingTrades.length === 0 ? (
+                            {mergedPendingTrades.length === 0 ? (
                                 <div className="space-y-3">
                                     <div className="text-center py-6 text-gray-500">
                                         <Icon name="PackageOpen" size={40} className="mx-auto mb-3 opacity-20" />

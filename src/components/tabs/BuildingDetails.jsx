@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES, STRATA, EPOCHS, OWNER_TYPE_LABELS, getOwnerTypeIcon, getOwnerTypeColors } from '../../config';
+import { RESOURCES, STRATA, EPOCHS, OWNER_TYPE_LABELS, getOwnerTypeIcon, getOwnerTypeColors, TAX_LIMITS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
@@ -11,6 +11,7 @@ import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier } from '../.
 import { formatNumberShortCN } from '../../utils/numberFormat';
 // 最低工资下限
 const MIN_ROLE_WAGE = 0.1;
+const BUILD_BUY_COUNT_LIMIT = 9999;
 
 /**
  * 获取角色的市场工资（直接从 market.wages 获取）
@@ -489,6 +490,13 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     }, [building, count, upgradeLevels, officialOwnership, foreignOwnership]);
 
     const [draftMultiplier, setDraftMultiplier] = useState(null);
+    const clampBusinessTaxRate = useCallback((rate) => {
+        const limit = TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000;
+        const numeric = Number(rate);
+        if (!Number.isFinite(numeric)) return 1;
+        return Math.max(-limit, Math.min(limit, numeric));
+    }, []);
+
     const [activeSection, setActiveSection] = useState('overview');
     const hasUpgradePanel = count > 0 && canBuildingUpgrade(building.id);
 
@@ -545,7 +553,12 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     };
 
     // 批量购买状态
-    const [buyCount, setBuyCount] = useState(1);
+    const [buyCount, setBuyCount] = useState(() => {
+        if (typeof window === 'undefined') return 1;
+        const saved = parseInt(window.localStorage.getItem('civ_build_buy_count') || '', 10);
+        if (!Number.isFinite(saved) || saved <= 0) return 1;
+        return Math.min(BUILD_BUY_COUNT_LIMIT, saved);
+    });
     // 批量拆除状态
     const [sellCount, setSellCount] = useState(1);
 
@@ -556,7 +569,12 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         }
     }, [count, sellCount]);
 
-    const normalizedBuyCount = Math.max(1, Math.floor(Number(buyCount) || 1));
+    const normalizedBuyCount = Math.max(1, Math.min(BUILD_BUY_COUNT_LIMIT, Math.floor(Number(buyCount) || 1)));
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('civ_build_buy_count', String(normalizedBuyCount));
+    }, [normalizedBuyCount]);
 
     // 计算批量成本
     const calculateBulkCost = (count) => {
@@ -587,62 +605,6 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const canAffordNext = hasMaterials && hasSilver;
 
     const compactSilverCost = formatCompactCost(nextSilverCost);
-
-    // 计算最大可买数量 (限制为1000以防卡顿)
-    // [性能优化] 使用 useMemo 缓存最大可购买数量，避免每次渲染重新计算
-    const maxBuyCount = useMemo(() => {
-        const MAX_SEARCH = 1000;
-        const currentCount = buildings[building.id] || 0;
-        const difficulty = gameState.difficulty;
-        const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
-        const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
-
-        // 简单模拟
-        let maxCount = 0;
-        let currentTotalCost = {};
-        let currentTotalSilver = 0;
-        const availSilver = resources.silver || 0;
-
-        for (let i = 0; i < MAX_SEARCH; i++) {
-            // 预计算这一个的成本
-            const thisBuildCount = currentCount + i;
-            const rawCost = calculateBuildingCost(building.baseCost, thisBuildCount, growthFactor, baseMultiplier);
-            const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
-
-            // 检查加上这一个是否超支
-            let nextTotalCost = { ...currentTotalCost };
-            let nextTotalSilver = currentTotalSilver;
-
-            // Update totals
-            let possible = true;
-            Object.entries(adjustedCost).forEach(([res, val]) => {
-                const newResTotal = (nextTotalCost[res] || 0) + val;
-                if ((resources[res] || 0) < newResTotal) {
-                    possible = false;
-                }
-                nextTotalCost[res] = newResTotal;
-            });
-
-            if (!possible) break; // 资源不足
-
-            // Check silver
-            let silverForThis = 0;
-            Object.entries(adjustedCost).forEach(([res, val]) => {
-                if (res === 'silver') silverForThis += val;
-                else silverForThis += val * getResourcePrice(res);
-            });
-
-            nextTotalSilver += silverForThis;
-            if (availSilver < nextTotalSilver) break; // 银币不足
-
-            // Success
-            currentTotalCost = nextTotalCost;
-            currentTotalSilver = nextTotalSilver;
-            maxCount++;
-        }
-        return maxCount || 1;
-    }, [building.id, building.baseCost, buildings, resources, market?.prices, gameState.difficulty, gameState.modifiers?.officialEffects?.buildingCostMod]);
 
     const totalJobSlots = Object.values(effectiveTotalStats.jobs || {}).reduce((sum, val) => sum + val, 0);
     const totalJobsFilled = Object.entries(effectiveTotalStats.jobs || {}).reduce((sum, [role, required]) => {
@@ -801,8 +763,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         return totalIncome / popCount;
     }, [popStructure, classFinancialData]);
 
-    const handleMaxBuy = () => {
-        setBuyCount(maxBuyCount);
+    const handleBuyCountInputChange = (rawValue) => {
+        const parsed = parseInt(rawValue, 10);
+        if (!Number.isFinite(parsed)) {
+            setBuyCount(1);
+            return;
+        }
+        const clamped = Math.max(1, Math.min(BUILD_BUY_COUNT_LIMIT, parsed));
+        setBuyCount(clamped);
     };
 
     // ... (rest of the component)
@@ -874,18 +842,25 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes, gameState]);
 
     // 营业税逻辑
-    const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+    const businessTaxMultiplier = clampBusinessTaxRate(taxPolicies?.businessTaxRates?.[building.id] ?? 1);
     const businessTaxBase = building.businessTaxBase ?? 0.1;
     const actualBusinessTax = businessTaxBase * businessTaxMultiplier;
 
     const handleDraftChange = (raw) => {
-        setDraftMultiplier(raw);
+        // 允许中间输入态，避免用户输入负号时被立即重置
+        if (raw === '' || raw === '-' || raw === '.' || raw === '-.') {
+            setDraftMultiplier(raw);
+            return;
+        }
+        const parsed = Number(raw);
+        if (!Number.isFinite(parsed)) return;
+        setDraftMultiplier(String(clampBusinessTaxRate(parsed)));
     };
 
     const commitDraft = () => {
         if (draftMultiplier === null || !onUpdateTaxPolicies) return;
-        const parsed = parseFloat(draftMultiplier);
-        const numeric = Number.isNaN(parsed) ? 1 : parsed; // 如果输入无效，重置为1
+        const parsed = Number(draftMultiplier);
+        const numeric = Number.isFinite(parsed) ? clampBusinessTaxRate(parsed) : 1;
         onUpdateTaxPolicies(prev => ({
             ...prev,
             businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: numeric },
@@ -979,8 +954,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const currentValue = parseFloat(draftMultiplier ?? businessTaxMultiplier);
-                                                    const newValue = isNaN(currentValue) ? -1 : -currentValue;
+                                                    const currentValue = Number(draftMultiplier ?? businessTaxMultiplier);
+                                                    const normalizedCurrent = Number.isFinite(currentValue)
+                                                        ? clampBusinessTaxRate(currentValue)
+                                                        : 1;
+                                                    const newValue = clampBusinessTaxRate(-normalizedCurrent);
                                                     handleDraftChange(String(newValue));
                                                     // 直接提交
                                                     onUpdateTaxPolicies(prev => ({
@@ -1010,6 +988,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                                 className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
                                                 placeholder="税率系数"
                                             />
+                                        </div>
+                                        <div className="text-[10px] text-gray-500 mt-1">
+                                            限幅：{-(TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000)} ~ {TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000}
                                         </div>
                                     </div>
                                     <div>
@@ -1188,7 +1169,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                     </div>
                                 ))}
                                 <p className="text-xs text-gray-600 mt-1">
-                                    💡 默认显示本期实际人均收入（全局）；若无数据则按建筑估算：业主=(产出-投入-营业税-雇员工资)/岗位，雇员=市场工资
+                                    💡 默认显示本期实际人均收入（全局）；若无数据则按建筑估算。实际工资同时受雇员生计底线、业主保留底线与支付比例约束。
                                 </p>
                             </div>
                         )}
@@ -1373,7 +1354,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         <div className="flex flex-col gap-2">
                         {/* 建造数量选择器 */}
                         <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
-                            {[1, 10, 100, 1000].map(n => (
+                            {[1, 10].map(n => (
                                     <button
                                         key={`buy-${n}`}
                                         onClick={() => setBuyCount(n)}
@@ -1385,6 +1366,16 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         x{n}
                                     </button>
                                 ))}
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={BUILD_BUY_COUNT_LIMIT}
+                                    step={1}
+                                    value={normalizedBuyCount}
+                                    onChange={(e) => handleBuyCountInputChange(e.target.value)}
+                                    className="w-16 bg-gray-900/70 border border-gray-600 rounded px-1 py-1 text-xs text-gray-200 text-center"
+                                    title="自定义建造数量"
+                                />
                             </div>
                             <button
                                 onClick={() => onBuy && onBuy(building.id, normalizedBuyCount)}

@@ -14,6 +14,7 @@ import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinet
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 import { debugLog } from '../utils/debugFlags';
 import { processPriceConvergence } from './diplomacy/treatyEffects';
+import { MINISTER_EXPANSION_CONFIG } from '../config/ministerExpansion';
 import {
     calculateCoalitionInfluenceShare,
     calculateLegitimacy,
@@ -345,8 +346,37 @@ import {
 import { LOYALTY_CONFIG, PROPERTY_POLICY_CONFIG } from '../config/officials';
 import { isStanceSatisfied } from '../config/politicalStances';
 import { migrateOfficialForInvestment } from './officials/migration';
-import { calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
+import { calculateBuildingCost, applyBuildingCostModifier, areUpgradeInputsUnlocked } from '../utils/buildingUpgradeUtils';
 import { calculateSilverCost } from '../utils/economy';
+
+const buildInitialMinisterExpansionCooldowns = () => ({
+    global: 0,
+    agriculture: 0,
+    industry: 0,
+    commerce: 0,
+    civic: 0,
+});
+
+const normalizeMinisterExpansionCooldowns = (value) => {
+    const base = buildInitialMinisterExpansionCooldowns();
+    if (Number.isFinite(value)) {
+        return {
+            ...base,
+            global: value,
+            agriculture: value,
+            industry: value,
+            commerce: value,
+            civic: value,
+        };
+    }
+    if (!value || typeof value !== 'object') {
+        return base;
+    }
+    return {
+        ...base,
+        ...value,
+    };
+};
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -426,7 +456,7 @@ import {
     getOverseasInvestmentGroupKey,
     getForeignInvestmentGroupKey,
 } from './diplomacy/overseasInvestment';
-import { getFrontlineEconomicModifiers } from './diplomacy/frontSystem';
+import { getFrontlineEconomicModifiers, getEffectiveFrontWarScore } from './diplomacy/frontSystem';
 import { processManualTradeRoutes } from './economy/manualTrade';
 
 // V2: Helper — compute average approval across all strata
@@ -464,6 +494,7 @@ export const simulateTick = ({
     market,
     classWealth,
     classApproval: previousApproval = {},
+    classLivingStandard: currentClassLivingStandard = {},
     activeBuffs: productionBuffs = [],
     activeDebuffs: productionDebuffs = [],
     taxPolicies,
@@ -662,7 +693,9 @@ export const simulateTick = ({
         if (!Number.isFinite(amount)) return;
         const clamped = Math.max(-SAFE_VALUE_CAP, Math.min(SAFE_VALUE_CAP, amount));
         const newVal = (res[resourceType] || 0) + clamped;
-        res[resourceType] = Math.max(-SAFE_VALUE_CAP, Math.min(SAFE_VALUE_CAP, newVal));
+        // 银币可以为负（欠债），其他资源不可低于 0
+        const safeVal = Math.max(-SAFE_VALUE_CAP, Math.min(SAFE_VALUE_CAP, newVal));
+        res[resourceType] = resourceType === 'silver' ? safeVal : Math.max(0, safeVal);
         trackResourceChange(resourceType, clamped, reason);
         if (resourceType === 'silver') {
             trackSilverChange(clamped, reason);
@@ -1130,7 +1163,7 @@ export const simulateTick = ({
         classApproval: previousApproval,
         classInfluence: market?.classInfluence || {},
         totalInfluence: market?.totalInfluence || 1,
-        classLivingStandard: market?.classLivingStandard || {},
+        classLivingStandard: currentClassLivingStandard || {},
         classIncome: market?.classIncome || {},
         stability: currentStability / 100, // 转换?-1
         legitimacy: previousLegitimacy,
@@ -1166,6 +1199,10 @@ export const simulateTick = ({
     if (stanceEffects.taxEfficiency) {
         bonuses.taxEfficiencyBonus = (bonuses.taxEfficiencyBonus || 0) + stanceEffects.taxEfficiency;
     }
+    // Cap taxEfficiencyBonus at 1.0 (100%) so that rawEfficiency = efficiency * (1 + bonus - corruption)
+    // never exceeds 1.0 when corruption is 0, keeping displayed bonus consistent with actual effect.
+    bonuses.taxEfficiencyBonus = Math.min(1.0, bonuses.taxEfficiencyBonus || 0);
+
     if (stanceEffects.taxBonus) {
         bonuses.taxBonus = (bonuses.taxBonus || 0) + stanceEffects.taxBonus;
     }
@@ -1431,7 +1468,7 @@ export const simulateTick = ({
             militarySize: Object.values(army || {}).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0),
             buildingCounts,
             unitCategoryCounts,
-            classLivingStandard: market?.classLivingStandard || {},
+            classLivingStandard: currentClassLivingStandard || {},
             classApproval: previousApproval || {},
             officials: officials || [],
             rulingCoalition: rulingCoalition || [],
@@ -1826,9 +1863,21 @@ export const simulateTick = ({
     totalMaxPop = Math.floor(totalMaxPop);
 
     // 军人岗位包括：已有军?+ 等待人员的岗?+ 训练中的岗位
-    // 计算已有军队的人口需?
+    // 计算已有军队的人口需?（包含散兵 army 和军团 militaryCorps 内的所有单位）
     let currentArmyPopNeeded = 0;
-    Object.entries(army).forEach(([unitId, count]) => {
+    // 合并散兵和军团内单位，与军饷计算保持一致
+    const allUnitsForJobCalc = { ...(army || {}) };
+    if (Array.isArray(militaryCorps)) {
+        for (const corps of militaryCorps) {
+            if (corps?.isAI) continue; // 跳过AI军团
+            for (const [unitId, count] of Object.entries(corps?.units || {})) {
+                if (count > 0) {
+                    allUnitsForJobCalc[unitId] = (allUnitsForJobCalc[unitId] || 0) + count;
+                }
+            }
+        }
+    }
+    Object.entries(allUnitsForJobCalc).forEach(([unitId, count]) => {
         if (!count || count <= 0) return;
         const unit = UNIT_TYPES[unitId];
         const popCost = unit?.populationCost || 1;
@@ -3051,6 +3100,35 @@ export const simulateTick = ({
         const buildingWageConfig = b.marketConfig?.wage || {};
         const wageMode = buildingWageConfig.wageMode;
         const subsistenceMultiplier = buildingWageConfig.subsistenceMultiplier || 1.5;
+        const buildingWageLivingCosts = buildLivingCostMap(livingCostBreakdown, buildingWageConfig);
+        const getBuildingLivingCostFloor = (role) => {
+            const base = buildingWageLivingCosts?.[role];
+            if (!Number.isFinite(base) || base <= 0) {
+                return BASE_WAGE_REFERENCE * 0.8;
+            }
+            return Math.max(BASE_WAGE_REFERENCE * 0.8, base * 1.1);
+        };
+        const ownerIncomeFloorMultiplier = Number.isFinite(buildingWageConfig.ownerIncomeFloorMultiplier)
+            ? Math.max(0, buildingWageConfig.ownerIncomeFloorMultiplier)
+            : 1.15;
+        const ownerIncomeFloorPerCapitaOverride = Number.isFinite(buildingWageConfig.ownerIncomeFloorPerCapita)
+            ? Math.max(0, buildingWageConfig.ownerIncomeFloorPerCapita)
+            : null;
+        const getOwnerIncomeFloorPerCapita = (ownerKey) => {
+            if (ownerIncomeFloorPerCapitaOverride !== null) {
+                return ownerIncomeFloorPerCapitaOverride;
+            }
+            return getBuildingLivingCostFloor(ownerKey) * ownerIncomeFloorMultiplier;
+        };
+        const ownerSlotsByKey = {};
+        Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+            if (lvlCount <= 0) return;
+            const lvl = parseInt(lvlStr);
+            const config = getBuildingEffectiveConfig(b, lvl);
+            const ownerKey = config.owner || 'state';
+            const ownerSlots = config.jobs?.[ownerKey] || 0;
+            ownerSlotsByKey[ownerKey] = (ownerSlotsByKey[ownerKey] || 0) + ownerSlots * lvlCount;
+        });
 
         const preparedWagePlans = wagePlans.map(plan => {
             // ownerKey is required for per-building wage distribution payment.
@@ -3085,11 +3163,13 @@ export const simulateTick = ({
             // This prevents the runaway wage inflation/deflation feedback loop
             if (wageMode === 'subsistence') {
                 // Get the role's living cost as the wage base
-                const roleLivingCost = wageLivingCosts?.[plan.role] || getLivingCostFloor(plan.role);
+                const roleLivingCost = buildingWageLivingCosts?.[plan.role] || getBuildingLivingCostFloor(plan.role);
                 // Wage = living cost × multiplier (e.g., 1.5 = subsistence + 50% buffer)
                 // This is a FIXED wage based on actual needs, not market dynamics
                 expectedSlotWage = roleLivingCost * subsistenceMultiplier;
             }
+            // 双底线之雇员底线：每个岗位必须至少覆盖该建筑的生计下限
+            expectedSlotWage = Math.max(expectedSlotWage, getBuildingLivingCostFloor(plan.role));
 
             const due = expectedSlotWage * plan.filled;
             plannedWageBill += due;
@@ -3112,36 +3192,12 @@ export const simulateTick = ({
         buildingFinancialData[b.id].wagePaidRatioByOwner = ownerPaidRatio;
 
         if (plannedWageBill > 0) {
-            // === 按等级精确计算每?owner 的工资责?===
-            // 构建 ownerWageBills: { ownerKey: totalWageBill }
+            // 使用 preparedWagePlans 汇总 owner 责任，确保与 expectedSlotWage 完全同口径
             const ownerWageBills = {};
-            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
-                if (lvlCount <= 0) return;
-                const lvl = parseInt(lvlStr);
-                const config = getBuildingEffectiveConfig(b, lvl);
-                const ownerKey = config.owner || 'state';
-                if (!ownerWageBills[ownerKey]) ownerWageBills[ownerKey] = 0;
-
-                // 计算该等级的工资成本
-                if (config.jobs) {
-                    Object.entries(config.jobs).forEach(([role, slots]) => {
-                        // 跳过业主角色
-                        if (role === ownerKey) return;
-
-                        let wage;
-                        // Subsistence wage mode - use fixed living-cost based wages
-                        if (wageMode === 'subsistence') {
-                            const roleLivingCost = wageLivingCosts?.[role] || getLivingCostFloor(role);
-                            wage = roleLivingCost * subsistenceMultiplier;
-                        } else {
-                            // Default: use market-based expected wage
-                            wage = getExpectedWage(role);
-                        }
-
-                        const levelWageCost = slots * lvlCount * wage * utilization * (levelWagePressures[lvl] || 1);
-                        ownerWageBills[ownerKey] += levelWageCost;
-                    });
-                }
+            preparedWagePlans.forEach((plan) => {
+                if (plan.filled <= 0 || plan.expectedSlotWage <= 0) return;
+                ownerWageBills[plan.ownerKey] = (ownerWageBills[plan.ownerKey] || 0)
+                    + (plan.expectedSlotWage * plan.filled);
             });
 
             // 按每?owner 的实际工资责任支付（并记录每?owner 的支付比例）
@@ -3162,6 +3218,11 @@ export const simulateTick = ({
                     });
                     reservedWealth *= 1.2;
                 }
+                // 双底线之业主底线：至少保留业主人均收入底线对应的总财富空间
+                const ownerSlots = Math.max(1, ownerSlotsByKey[oKey] || 1);
+                const ownerIncomeFloorPerCapita = getOwnerIncomeFloorPerCapita(oKey);
+                const ownerIncomeReserve = ownerIncomeFloorPerCapita * ownerSlots;
+                reservedWealth = Math.max(reservedWealth, ownerIncomeReserve);
 
                 const disposableWealth = Math.max(0, available - reservedWealth);
                 const paid = Math.min(disposableWealth, ownerBill);
@@ -3365,8 +3426,9 @@ export const simulateTick = ({
                         // 这里只记录补贴总额，腐败损失会在税收汇总阶段处?
                     });
 
-                    // 记录补贴支出（用于后续腐败计算）
-                    taxBreakdown.subsidy = (taxBreakdown.subsidy || 0) + subsidyAmount;
+                    // NOTE: taxBreakdown.subsidy is automatically updated by ledger.transfer()
+                    // via _updateSystemStats (amount = ownerSubsidyActual per owner).
+                    // Do NOT manually add here — it would cause double-counting.
 
                     if (effectiveEfficiency < 1 && tick % 30 === 0) {
                         const lossPercent = ((1 - effectiveEfficiency) * 100).toFixed(1);
@@ -3375,123 +3437,6 @@ export const simulateTick = ({
                 } else {
                     if (tick % 30 === 0) {
                         recordAggregatedLog(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
-                    }
-                }
-            }
-        }
-
-        if (b.id === 'market') {
-            const marketOwnerKey = b.owner || 'merchant';
-            const hasMerchants = (popStructure[marketOwnerKey] || 0) > 0;
-            const canTradeThisTick = tick % 5 === 0;
-            if (hasMerchants && canTradeThisTick) {
-                const merchantWealth = wealth[marketOwnerKey] || 0;
-                let availableMerchantWealth = merchantWealth;
-                if (availableMerchantWealth <= 0) {
-                    // 没有可用于贸易的资金
-                } else {
-                    const surpluses = [];
-                    Object.entries(res).forEach(([resKey, amount]) => {
-                        if (!canForeignTradeResource(resKey) || resKey === 'silver') return;
-                        if ((amount || 0) <= 300) return;
-                        if ((rates[resKey] || 0) < 0) return;
-
-                        const localPrice = getPrice(resKey);
-                        surpluses.push({ resource: resKey, stock: amount, localPrice });
-                    });
-
-                    if (surpluses.length > 0) {
-                        const shortageTargets = [];
-                        Object.keys(RESOURCES).forEach(resourceKey => {
-                            if (!canForeignTradeResource(resourceKey) || resourceKey === 'silver') return;
-                            const stock = res[resourceKey] || 0;
-                            const netRate = rates[resourceKey] || 0;
-                            const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
-                            const stockGap = Math.max(0, 200 - stock);
-                            const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
-                            const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
-                            if (shortageAmount <= 0) return;
-                            const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
-                            const requiredValue = shortageAmount * importPrice;
-                            if (requiredValue <= 0) return;
-                            shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
-                        });
-
-                        if (shortageTargets.length > 0) {
-                            shortageTargets.sort((a, b) => b.requiredValue - a.requiredValue);
-                            const logThreshold = 10;
-
-                            shortageTargets.forEach(target => {
-                                if (availableMerchantWealth <= 0) return;
-                                let remainingAmount = target.shortageAmount;
-                                let remainingValue = target.requiredValue;
-
-                                for (const surplus of surpluses) {
-                                    if (availableMerchantWealth <= 0) break;
-                                    if (remainingAmount <= 0 || remainingValue <= 0) break;
-
-                                    const sourceResource = surplus.resource;
-                                    const sourcePrice = surplus.localPrice;
-                                    if (sourcePrice <= 0) continue;
-                                    const currentStock = res[sourceResource] || 0;
-                                    if (currentStock <= 0) continue;
-
-                                    const demandLimit = remainingValue / sourcePrice;
-                                    const inventoryLimit = currentStock * 0.05;
-                                    const wealthLimit = availableMerchantWealth / sourcePrice;
-                                    const exportAmount = Math.min(demandLimit, inventoryLimit, wealthLimit);
-                                    if (!Number.isFinite(exportAmount) || exportAmount <= 0) continue;
-
-                                    const exportValue = exportAmount * sourcePrice;
-                                    availableMerchantWealth -= exportValue;
-                                    ledger.transfer(marketOwnerKey, 'void', exportValue, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE);
-                                    roleExpense[marketOwnerKey] = (roleExpense[marketOwnerKey] || 0) + exportValue;
-
-                                    applyResourceChange(sourceResource, -exportAmount, 'trade_export_deduction');
-                                    supply[sourceResource] = (supply[sourceResource] || 0) + exportAmount;
-                                    rates[sourceResource] = (rates[sourceResource] || 0) - exportAmount;
-                                    surplus.stock = Math.max(0, surplus.stock - exportAmount);
-                                    remainingValue = Math.max(0, remainingValue - exportValue);
-
-                                    // NEW: Track export demand (resource consumed by trade)
-                                    if (!demandBreakdown[sourceResource]) demandBreakdown[sourceResource] = { buildings: {}, pop: 0, exports: 0 };
-                                    demandBreakdown[sourceResource].exports = (demandBreakdown[sourceResource].exports || 0) + exportAmount;
-
-                                    if (target.importPrice <= 0) continue;
-                                    let importAmount = exportValue / target.importPrice;
-                                    if (!Number.isFinite(importAmount) || importAmount <= 0) continue;
-                                    importAmount = Math.min(importAmount, remainingAmount);
-                                    if (importAmount <= 0) continue;
-
-                                    const importCost = importAmount * target.importPrice;
-                                    ledger.transfer('void', marketOwnerKey, importCost, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE);
-                                    availableMerchantWealth += importCost;
-
-                                    applyResourceChange(target.resource, importAmount, 'trade_import_gain');
-                                    supply[target.resource] = (supply[target.resource] || 0) + importAmount;
-                                    rates[target.resource] = (rates[target.resource] || 0) + importAmount;
-
-                                    // NEW: Track import supply
-                                    if (!supplyBreakdown[target.resource]) supplyBreakdown[target.resource] = { buildings: {}, imports: 0 };
-                                    supplyBreakdown[target.resource].imports = (supplyBreakdown[target.resource].imports || 0) + importAmount;
-
-                                    remainingAmount = Math.max(0, remainingAmount - importAmount);
-
-                                    // Record full import revenue as income, not just profit
-                                    // This ensures income - expense = wealth change
-                                    if (importCost > 0) {
-                                        directIncomeApplied[marketOwnerKey] = (directIncomeApplied[marketOwnerKey] || 0) + importCost;
-                                        roleWagePayout[marketOwnerKey] = (roleWagePayout[marketOwnerKey] || 0) + importCost;
-                                    }
-
-                                    if (importCost > logThreshold) {
-                                        const fromName = RESOURCES[sourceResource]?.name || sourceResource;
-                                        const toName = RESOURCES[target.resource]?.name || target.resource;
-                                        // logs.push(`⚠️ 市场：商人动用自有资金${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换取${importAmount.toFixed(1)} ${toName}。`);
-                                    }
-                                }
-                            });
-                        }
                     }
                 }
             }
@@ -4241,6 +4186,11 @@ export const simulateTick = ({
         };
 
         // We pass BUILDINGS, wealth, settings, counts, market with wages, and tax policies
+        // Calculate tax efficiency for subsidy estimation (same formula as subsidy payout)
+        const _stabFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
+        const _rawEff = _stabFactor * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+        const _taxEfficiency = Math.max(0, Math.min(1, _rawEff));
+
         const { expansions, wealthDeductions } = processOwnerExpansions(
             BUILDINGS,
             wealth,
@@ -4248,7 +4198,8 @@ export const simulateTick = ({
             newBuildingsCount,
             marketForExpansion,
             taxPolicies,  // [NEW] 传递税收政策用于营业税计算
-            buildingStaffingRatios
+            buildingStaffingRatios,
+            { taxEfficiency: _taxEfficiency }
         );
 
         // Apply expansions
@@ -4580,9 +4531,14 @@ export const simulateTick = ({
         const ownedPropertiesList = Array.isArray(normalizedOfficial.ownedProperties)
             ? normalizedOfficial.ownedProperties
             : [];
+        const managedBuildingsList = Array.isArray(normalizedOfficial.managedBuildings)
+            ? normalizedOfficial.managedBuildings
+            : [];
+        const incomeSourceList = isStateManagedPolicy ? managedBuildingsList : ownedPropertiesList;
+
         let propertySummary = normalizedOfficial._propertySummary;
         const expectedSummaryCount = ownedPropertiesList.length;
-        if (!propertySummary || propertySummary.totalCount !== expectedSummaryCount) {
+        if (!isStateManagedPolicy && (!propertySummary || propertySummary.totalCount !== expectedSummaryCount)) {
             const summary = { byBuilding: {}, byBuildingLevel: {}, totalCount: expectedSummaryCount };
             ownedPropertiesList.forEach((prop) => {
                 if (!prop?.buildingId) return;
@@ -4595,8 +4551,16 @@ export const simulateTick = ({
             });
             propertySummary = summary;
         }
+        const incomeSourceSummary = {
+            byBuilding: {},
+            totalCount: incomeSourceList.length,
+        };
+        incomeSourceList.forEach((prop) => {
+            if (!prop?.buildingId) return;
+            incomeSourceSummary.byBuilding[prop.buildingId] = (incomeSourceSummary.byBuilding[prop.buildingId] || 0) + 1;
+        });
 
-        Object.entries(propertySummary?.byBuilding || {}).forEach(([buildingId, count]) => {
+        Object.entries(incomeSourceSummary.byBuilding || {}).forEach(([buildingId, count]) => {
             if (!count) return;
             const perBuildingProfit = getActualProfitPerBuilding(buildingId);
             if (perBuildingProfit === null) {
@@ -4637,10 +4601,14 @@ export const simulateTick = ({
             if (isStateManagedPolicy && totalPropertyIncome > 0) {
                 // 代经营制：利润按比例分配给国库和官员管理费
                 const profitSplit = calculateStateManagedProfitSplit(totalPropertyIncome, normalizedOfficial);
+                const treasuryIncome = profitSplit.toTreasury || 0;
                 managementFeeIncome = profitSplit.toOfficial;
+                if (treasuryIncome > 0) {
+                    // 国企利润国库份额：真实入账并进入财政明细
+                    ledger.transfer('void', 'state', treasuryIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, 'state_enterprise_profit');
+                }
                 currentWealth = Math.max(0, currentWealth + managementFeeIncome);
                 totalOfficialIncome += managementFeeIncome;
-                // 国库收到的部分由上层处理（通过减少利润归属）
                 if (managementFeeIncome > 0) {
                     ledger.transfer('void', 'official', managementFeeIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, 'MANAGEMENT_FEE');
                 }
@@ -4739,6 +4707,9 @@ export const simulateTick = ({
         const ownedProperties = Array.isArray(normalizedOfficial.ownedProperties)
             ? [...normalizedOfficial.ownedProperties]
             : [];
+        const managedBuildings = Array.isArray(normalizedOfficial.managedBuildings)
+            ? [...normalizedOfficial.managedBuildings]
+            : [];
         let nextPropertySummary = propertySummary ? {
             byBuilding: { ...(propertySummary.byBuilding || {}) },
             byBuildingLevel: { ...(propertySummary.byBuildingLevel || {}) },
@@ -4766,24 +4737,36 @@ export const simulateTick = ({
             }
             if (investmentCost > 0) {
             const instanceId = `${investmentDecision.buildingId}_off_${normalizedOfficial.id}_${tick}_${Math.floor(Math.random() * 1000)}`;
-            ownedProperties.push({
-                buildingId: investmentDecision.buildingId,
-                instanceId,
-                purchaseDay: tick,
-                purchaseCost: investmentDecision.cost,
-                level: 0,
-            });
-            if (!nextPropertySummary) {
-                nextPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: ownedProperties.length };
+            if (isStateManagedPolicy) {
+                managedBuildings.push({
+                    buildingId: investmentDecision.buildingId,
+                    instanceId,
+                    purchaseDay: tick,
+                    purchaseCost: investmentDecision.cost,
+                    level: 0,
+                    ownerType: 'state',
+                    managedBy: normalizedOfficial.id,
+                });
+            } else {
+                ownedProperties.push({
+                    buildingId: investmentDecision.buildingId,
+                    instanceId,
+                    purchaseDay: tick,
+                    purchaseCost: investmentDecision.cost,
+                    level: 0,
+                });
+                if (!nextPropertySummary) {
+                    nextPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: ownedProperties.length };
+                }
+                nextPropertySummary.byBuilding[investmentDecision.buildingId] =
+                    (nextPropertySummary.byBuilding[investmentDecision.buildingId] || 0) + 1;
+                if (!nextPropertySummary.byBuildingLevel[investmentDecision.buildingId]) {
+                    nextPropertySummary.byBuildingLevel[investmentDecision.buildingId] = {};
+                }
+                nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] =
+                    (nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] || 0) + 1;
+                nextPropertySummary.totalCount = ownedProperties.length;
             }
-            nextPropertySummary.byBuilding[investmentDecision.buildingId] =
-                (nextPropertySummary.byBuilding[investmentDecision.buildingId] || 0) + 1;
-            if (!nextPropertySummary.byBuildingLevel[investmentDecision.buildingId]) {
-                nextPropertySummary.byBuildingLevel[investmentDecision.buildingId] = {};
-            }
-            nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] =
-                (nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] || 0) + 1;
-            nextPropertySummary.totalCount = ownedProperties.length;
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
             if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
@@ -4804,7 +4787,9 @@ export const simulateTick = ({
             cabinetStatus,
             builds,
             buildingUpgrades,
-            difficulty
+            difficulty,
+            epoch,
+            techsUnlocked
         );
 
         const MAX_UPGRADE_SPEND_RATIO = 0.2;
@@ -4872,6 +4857,7 @@ export const simulateTick = ({
             classApproval: classApproval,
             classInfluence: classInfluence,
             classIncome: estimatedClassIncome,  // [FIX] 使用包含官员收入预估的数?
+            classLivingStandard: currentClassLivingStandard || {},
             totalInfluence: computedTotalInfluence,
             stability: (currentStability ?? 50) / 100,
             rulingCoalition: rulingCoalition,
@@ -4963,6 +4949,7 @@ export const simulateTick = ({
             lastDayHeadTaxPaid: headTaxPaid,
             financialSatisfaction: combinedSatisfaction,
             ownedProperties,
+            managedBuildings,
             investmentProfile,
             lastDayPropertyIncome: isStateManagedPolicy ? managementFeeIncome : totalPropertyIncome,
             lastDayManagementFee: managementFeeIncome,
@@ -5015,6 +5002,11 @@ export const simulateTick = ({
     roleLivingExpense.official = roleExpense.official; // Capture all official living expenses (Head Tax + Consumption)
     roleLaborIncome.official = totalOfficialLaborIncome;
     perfEnd('officialsSim');
+    } else {
+    // [FIX] When officialSim is skipped, restore wealth.official from individual officials
+    // wealth.official was cleared to 0 at init; without this, classWealth.official stays 0 in UI
+    totalOfficialWealth = updatedOfficials.reduce((sum, o) => sum + (Number.isFinite(o?.wealth) ? o.wealth : 0), 0);
+    wealth.official = totalOfficialWealth;
     } // end shouldUpdateOfficials
 
     perfStart('livingStandards');
@@ -5127,10 +5119,11 @@ export const simulateTick = ({
 
         // 执政联盟阶层的approvalCap惩罚（期望提高）
         const isCoalition = isCoalitionMember(key, rulingCoalition);
+        let coalitionCapPenalty = 0;
         if (isCoalition) {
             const livingLevel = livingStandard?.level || '温饱';
-            const penalty = getCoalitionApprovalCapPenalty(livingLevel, true);
-            livingStandardApprovalCap = Math.max(0, livingStandardApprovalCap - penalty);
+            coalitionCapPenalty = getCoalitionApprovalCapPenalty(livingLevel, true);
+            livingStandardApprovalCap = Math.max(0, livingStandardApprovalCap - coalitionCapPenalty);
         }
 
         let targetApproval = 70; // Base approval
@@ -5329,6 +5322,8 @@ export const simulateTick = ({
             capApplied: null,
             approvalAfterCap: 0,
             approvalFinal: 0,
+            isCoalition: isCoalition,
+            coalitionCapPenalty: coalitionCapPenalty,
         };
 
         // Base / living standard target
@@ -5734,7 +5729,8 @@ export const simulateTick = ({
         eventStabilityModifier,
         extraStabilityPenalty,
         currentStability,
-        stabilityBonus: bonuses.stabilityBonus || 0
+        stabilityBonus: bonuses.stabilityBonus || 0,
+        stabilityFlat: bonuses.stabilityFlat || 0
     });
     perfEnd('buffsDebuffs');
     perfEnd('wealthDecay');
@@ -5903,7 +5899,7 @@ export const simulateTick = ({
                 );
                 if (rebelFronts.length > 0) {
                     // 将战线战争分数同步到 nation.warScore
-                    const totalFrontWarScore = rebelFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    const totalFrontWarScore = rebelFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0);
                     next.warScore = totalFrontWarScore;
                 } else {
                     const rebelResult = processRebelWarActions({
@@ -6084,7 +6080,7 @@ export const simulateTick = ({
                 if (nationFronts.length > 0) {
                     // 将战线战争分数同步到 nation.warScore（取所有战线的加权和）
                     // 战线 warScore 正?玩家优势，与 nation.warScore 方向一?
-                    const totalFrontWarScore = nationFronts.reduce((sum, f) => sum + (f.warScore || 0), 0);
+                    const totalFrontWarScore = nationFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0);
                     next.warScore = totalFrontWarScore;
                 } else {
                     // REFACTORED: Using module function for AI military action
@@ -7215,24 +7211,29 @@ export const simulateTick = ({
                     const inventoryRatio = inventoryDays / inventoryTargetDays;
                     let priceMultiplier = 1.0;
 
+                    // [FIX] Smoothed price curve to reduce extreme oscillations.
+                    // Old curve: 0.1→10x, 0.5→6x caused violent tick-to-tick swings.
+                    // New curve: gentler slopes, max 5x, continuous transitions.
                     if (inventoryRatio < 0.1) {
-                        // [ENHANCED] 极度稀缺：库存接近0时，价格暴涨
-                        priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10?
-                        priceMultiplier = Math.min(10.0, priceMultiplier); // 最?0?
+                        // Extreme shortage: steep but capped at 5x (was 10x)
+                        priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
+                        priceMultiplier = Math.min(5.0, priceMultiplier);
                     } else if (inventoryRatio < 0.5) {
-                        // 库存紧张，大幅涨?
-                        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最??
+                        // Low inventory: moderate increase, max 3x (was 6x)
+                        priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                     } else if (inventoryRatio < 1.0) {
-                        // 库存偏低，适度涨价
-                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0?
+                        // Slightly low: gentle increase 1.0-1.5x (was 1.0-2.0x)
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 0.5;
+                    } else if (inventoryRatio > 3.0) {
+                        // Severe oversupply: deeper discount
+                        priceMultiplier = 0.65 - (inventoryRatio - 3.0) * 0.1;
+                        priceMultiplier = Math.max(0.2, priceMultiplier);
                     } else if (inventoryRatio > 2.0) {
-                        // 库存积压，大幅降?
-                        // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯?
-                        priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最?.1?
-                        priceMultiplier = Math.max(0.1, priceMultiplier);
+                        // Oversupply: moderate discount
+                        priceMultiplier = 0.85 - (inventoryRatio - 2.0) * 0.2;
                     } else if (inventoryRatio > 1.0) {
-                        // 库存充足，适度降价
-                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0?
+                        // Slightly high: gentle decrease 0.85-1.0x
+                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                     }
 
                     // 时代过渡缓冲：当前时代刚解锁的资源，库存积累期内限制价格上涨
@@ -7286,24 +7287,21 @@ export const simulateTick = ({
                 const inventoryRatio = inventoryDays / inventoryTargetDays;
                 let priceMultiplier = 1.0;
 
+                // [FIX] Same smoothed price curve as building-based pricing
                 if (inventoryRatio < 0.1) {
-                    // [极度稀缺] 库存接近0时，价格暴涨
-                    priceMultiplier = 6.0 + (0.1 - inventoryRatio) * 40.0; // 6-10?
-                    priceMultiplier = Math.min(10.0, priceMultiplier);
+                    priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
+                    priceMultiplier = Math.min(5.0, priceMultiplier);
                 } else if (inventoryRatio < 0.5) {
-                    // 库存紧张，大幅涨?
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最??
+                    priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                 } else if (inventoryRatio < 1.0) {
-                    // 库存偏低，适度涨价
-                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0?
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 0.5;
+                } else if (inventoryRatio > 3.0) {
+                    priceMultiplier = 0.65 - (inventoryRatio - 3.0) * 0.1;
+                    priceMultiplier = Math.max(0.2, priceMultiplier);
                 } else if (inventoryRatio > 2.0) {
-                    // 库存积压，大幅降?
-                    // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯?
-                    priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最?.1?
-                    priceMultiplier = Math.max(0.1, priceMultiplier);
+                    priceMultiplier = 0.85 - (inventoryRatio - 2.0) * 0.2;
                 } else if (inventoryRatio > 1.0) {
-                    // 库存充足，适度降价
-                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0?
+                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                 }
 
                 marketPrice = basePrice * priceMultiplier;
@@ -7364,8 +7362,10 @@ export const simulateTick = ({
             // [FIX] 动态平滑系数：供需差距大时加快响应，避免价格反应迟钝
             const prevPrice = priceMap[resource] || ideoAdjustedMarketPrice;
             const priceGapRatio = prevPrice > 0 ? Math.abs(ideoAdjustedMarketPrice - prevPrice) / prevPrice : 0;
-            // 基础平滑 0.1；差距超过 50% 时逐步加速到 0.4
-            const dynamicSmoothing = Math.min(0.4, 0.1 + priceGapRatio * 0.3);
+            // [FIX] Reduced smoothing speed to dampen price oscillations.
+            // Base smoothing 0.05 (was 0.1); max 0.2 (was 0.4).
+            // This means prices take ~10-20 ticks to converge instead of ~3-5.
+            const dynamicSmoothing = Math.min(0.2, 0.05 + priceGapRatio * 0.15);
             const smoothed = prevPrice + (ideoAdjustedMarketPrice - prevPrice) * dynamicSmoothing;
 
             // 应用价格限制
@@ -7377,7 +7377,8 @@ export const simulateTick = ({
                 finalPrice = Math.min(finalPrice, maxPrice);
             }
 
-            updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
+            // 内部价格保留完整精度，避免微小变化在写入历史前就被截断成台阶线。
+            updatedPrices[resource] = finalPrice;
         });
         perfEnd('marketUpdate');
     }
@@ -7751,16 +7752,27 @@ export const simulateTick = ({
         const fallbackIncome = netIncomePerCapita !== 0 ? netIncomePerCapita : disposableWage;
 
         // 【空岗位预估收入】当该行业无人工作时，使用基于建筑产出的预估收入
-        // 解决恶性循环：无人工作 ?收入? ?更无人愿意去
+        // 解决恶性循环：无人工作 → 收入零 → 更无人愿意去
         let incomeSignal;
         if (pop === 0) {
-            // 无人工作时，使用预估收入（区分业主和雇员?
+            // 无人工作时，使用预估收入（区分业主和雇员）
             incomeSignal = estimateVacantRoleIncome(role);
-        } else if (role === 'merchant' || historicalIncomePerCapita !== 0) {
-            // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波?
-            incomeSignal = role === 'merchant' ? fallbackIncome : historicalIncomePerCapita;
-        } else {
+        } else if (role === 'merchant') {
+            // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波动
             incomeSignal = fallbackIncome;
+        } else {
+            // [FIX] 非商人角色：优先使用 netIncomePerCapita（真正的收支净额）
+            // 旧逻辑使用 historicalIncomePerCapita（即财富变化差值），但财富变化会受到
+            // 人口迁入带入财富、产出暂存等非收支因素的干扰，导致亏损行业看起来赚钱。
+            // netIncomePerCapita = (roleWagePayout - roleExpense) / pop，
+            // 其中 roleExpense 已包含人头税、营业税、生产成本、工资支付等全部支出。
+            if (netIncomePerCapita !== 0) {
+                incomeSignal = netIncomePerCapita;
+            } else if (historicalIncomePerCapita !== 0) {
+                incomeSignal = historicalIncomePerCapita;
+            } else {
+                incomeSignal = fallbackIncome;
+            }
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
@@ -7841,12 +7853,13 @@ export const simulateTick = ({
     });
 
     // ========== 部长自动扩建系统 ==========
-    let nextLastMinisterExpansionDay = Number.isFinite(lastMinisterExpansionDay) ? lastMinisterExpansionDay : 0;
+    let nextLastMinisterExpansionDay = normalizeMinisterExpansionCooldowns(lastMinisterExpansionDay);
     const shouldAttemptMinisterExpansion = ECONOMIC_MINISTER_ROLES.some(
         (role) => ministerAssignments?.[role] && ministerAutoExpansion?.[role] === true
     );
 
-    if (shouldAttemptMinisterExpansion && (tick - nextLastMinisterExpansionDay >= 10)) {
+    const ministerExpansionCfg = MINISTER_EXPANSION_CONFIG;
+    if (shouldAttemptMinisterExpansion && (tick - (nextLastMinisterExpansionDay.global || 0) >= ministerExpansionCfg.globalCooldownDays)) {
         const difficultyLevel = difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
@@ -7855,81 +7868,99 @@ export const simulateTick = ({
             prices: priceMap,
             wages: market?.wages || {},
         };
-        let bestCandidate = null;
+        const treasurySilver = res.silver || 0;
+        const budgetByRatio = treasurySilver * Math.max(0, ministerExpansionCfg.budgetRatio || 0);
+        const budgetByCap = Number.isFinite(ministerExpansionCfg.maxSilverPerTrigger)
+            ? ministerExpansionCfg.maxSilverPerTrigger
+            : treasurySilver;
+        let remainingBudget = Math.max(0, Math.min(treasurySilver, budgetByRatio, budgetByCap));
+        let builtCount = 0;
+        const builtByRole = {};
+        const expansionLogs = [];
 
-        ECONOMIC_MINISTER_ROLES.forEach((role) => {
-            const officialId = ministerAssignments?.[role];
-            const official = officialId ? ministerRoster.get(officialId) : null;
-            if (!official) return;
+        const findBestCandidate = () => {
+            let bestCandidate = null;
+            ECONOMIC_MINISTER_ROLES.forEach((role) => {
+                const officialId = ministerAssignments?.[role];
+                const official = officialId ? ministerRoster.get(officialId) : null;
+                if (!official) return;
 
-            // [NEW] Check if auto-expansion is enabled for this minister
-            const autoExpansionEnabled = ministerAutoExpansion?.[role] === true;
-            if (!autoExpansionEnabled) return;
+                const autoExpansionEnabled = ministerAutoExpansion?.[role] === true;
+                if (!autoExpansionEnabled) return;
+                const roleBuiltInThisTrigger = (builtByRole[role] || 0) > 0;
+                if (!roleBuiltInThisTrigger && tick - (nextLastMinisterExpansionDay[role] || 0) < ministerExpansionCfg.ministerCooldownDays) return;
 
-            BUILDINGS.forEach((building) => {
-                if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;
-                if (!isBuildingInMinisterScope(building, role)) return;
+                BUILDINGS.forEach((building) => {
+                    if (!isBuildingUnlockedForMinister(building, epoch, techsUnlocked)) return;
+                    if (!isBuildingInMinisterScope(building, role)) return;
 
-                const staffingRatioRaw = buildingStaffingRatios?.[building.id];
-                const staffingRatio = Number.isFinite(staffingRatioRaw) ? staffingRatioRaw : 1;
-                if (staffingRatio < 0.95) return;
+                    const staffingRatioRaw = buildingStaffingRatios?.[building.id];
+                    const staffingRatio = Number.isFinite(staffingRatioRaw) ? staffingRatioRaw : 1;
+                    if (staffingRatio < ministerExpansionCfg.minStaffingRatio) return;
 
-                const shortageScore = scoreBuildingShortage(building, supplyDemandRatio);
-                if (shortageScore <= 0) return;
+                    const shortageScore = scoreBuildingShortage(building, supplyDemandRatio);
+                    if (shortageScore <= 0) return;
 
-                const currentCount = builds[building.id] || 0;
-                const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
-                const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
-                const silverCost = calculateSilverCost(adjustedCost, { prices: priceMap });
-                if (!Number.isFinite(silverCost) || silverCost <= 0) return;
-                if ((res.silver || 0) < silverCost) return;
+                    const currentCount = builds[building.id] || 0;
+                    const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
+                    const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
+                    const silverCost = calculateSilverCost(adjustedCost, { prices: priceMap });
+                    if (!Number.isFinite(silverCost) || silverCost <= 0) return;
+                    if (silverCost > remainingBudget) return;
+                    if ((res.silver || 0) < silverCost) return;
 
-                const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
-                const profit = profitResult?.profit ?? 0;
-                const operatingCost = (profitResult?.inputValue ?? 0) + (profitResult?.wageCost ?? 0) + (profitResult?.businessTax ?? 0);
+                    const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
+                    const profit = profitResult?.profit ?? 0;
+                    const operatingCost = (profitResult?.inputValue ?? 0) + (profitResult?.wageCost ?? 0) + (profitResult?.businessTax ?? 0);
+                    const roi = operatingCost > 0 ? profit / operatingCost : 0;
 
-                // [FIX] ROI should be calculated based on operating costs, not construction costs
-                // ROI = profit / operating_cost (per turn profitability)
-                const roi = operatingCost > 0 ? profit / operatingCost : 0;
-
-                // [FIX] Consider market saturation: if too many buildings exist, skip
-                // Estimate: if current supply already meets 80%+ of demand, don't build more
-                const outputRes = Object.keys(building.output || {})[0];
-                if (outputRes) {
-                    const supplyRatio = supplyDemandRatio[outputRes];
-                    if (supplyRatio && supplyRatio > 0.8) {
-                        // Market is already well-supplied, building more will crash prices
-                        return;
+                    const outputRes = Object.keys(building.output || {})[0];
+                    if (outputRes) {
+                        const supplyRatio = supplyDemandRatio[outputRes];
+                        if (supplyRatio && supplyRatio > ministerExpansionCfg.maxSupplyDemandRatio) {
+                            return;
+                        }
                     }
-                }
 
-                // Require ROI at least 0.3 (30% margin over costs) to ensure profitability
-                if (roi <= 0.3) return;
+                    if (roi <= ministerExpansionCfg.minRoi) return;
 
-                if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
-                    (shortageScore === bestCandidate.shortageScore && roi > bestCandidate.roi) ||
-                    (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit > bestCandidate.profit) ||
-                    (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit === bestCandidate.profit && silverCost < bestCandidate.silverCost)) {
-                    bestCandidate = {
-                        role,
-                        building,
-                        shortageScore,
-                        silverCost,
-                        profit,
-                        roi,
-                    };
-                }
+                    if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
+                        (shortageScore === bestCandidate.shortageScore && roi > bestCandidate.roi) ||
+                        (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit > bestCandidate.profit) ||
+                        (shortageScore === bestCandidate.shortageScore && roi === bestCandidate.roi && profit === bestCandidate.profit && silverCost < bestCandidate.silverCost)) {
+                        bestCandidate = {
+                            role,
+                            building,
+                            shortageScore,
+                            silverCost,
+                            profit,
+                            roi,
+                        };
+                    }
+                });
             });
-        });
+            return bestCandidate;
+        };
 
-        if (bestCandidate) {
+        while (builtCount < ministerExpansionCfg.maxBuildsPerTrigger && remainingBudget > 0) {
+            const bestCandidate = findBestCandidate();
+            if (!bestCandidate) break;
+
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
-            nextLastMinisterExpansionDay = tick;
-            // [FIX] 遵守官员日志可见性设置
-            if (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true) {
-                logs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
-            }
+            builtCount += 1;
+            builtByRole[bestCandidate.role] = (builtByRole[bestCandidate.role] || 0) + 1;
+            remainingBudget = Math.max(0, remainingBudget - bestCandidate.silverCost);
+            nextLastMinisterExpansionDay = {
+                ...nextLastMinisterExpansionDay,
+                global: tick,
+                [bestCandidate.role]: tick,
+            };
+            expansionLogs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
+        }
+
+        if (expansionLogs.length > 0 && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
+            expansionLogs.forEach((entry) => logs.push(entry));
         }
     }
 
@@ -7952,7 +7983,8 @@ export const simulateTick = ({
     // Uses BASE cost (no scaling with existing upgrades) as per user requirement
     const updatedBuildingUpgrades = { ...buildingUpgrades };
     const OWNER_UPGRADE_WEALTH_THRESHOLD = 1.5; // Per-capita wealth must be >= 1.5x base upgrade cost
-    const OWNER_UPGRADE_CHANCE_PER_TICK = 0.02; // 2% chance per tick per eligible building type
+    const OWNER_UPGRADE_CHANCE_PER_TICK = 0.15; // 15% chance per tick per eligible building type
+    const OWNER_MAX_UPGRADES_PER_TICK = 3; // Allow up to 3 upgrades per building type per tick
 
     // 全局资源预算追踪：防止多个建筑同时升级时透支市场库存
     // 每次升级前检查剩余可用量，升级后立即扣减预算
@@ -7986,9 +8018,16 @@ export const simulateTick = ({
 
         // Find the lowest level building that can be upgraded
         // Start from level 0 and go up
+        let upgradesThisTick = 0;
         for (let fromLevel = 0; fromLevel < maxLevel; fromLevel++) {
             const atThisLevel = fullLevelCounts[fromLevel] || 0;
             if (atThisLevel <= 0) continue;
+
+            // 检查目标等级的输入资源是否已解锁
+            const { unlocked: inputsUnlocked } = areUpgradeInputsUnlocked(
+                buildingId, fromLevel + 1, epoch, techsUnlocked
+            );
+            if (!inputsUnlocked) continue;
 
             // Get BASE upgrade cost (no scaling, existingUpgradeCount = 0)
             const baseCost = getUpgradeCost(buildingId, fromLevel + 1, 0);
@@ -8074,8 +8113,9 @@ export const simulateTick = ({
             const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
             // logs.push(`⚠️ ${ownerName}自发投资了自己的产业 ${b.name} 到${upgradeName}（花费${Math.ceil(totalSilverCost)} 银币）`);
 
-            // Only upgrade one building per type per tick to avoid rapid changes
-            break;
+            // Only upgrade up to OWNER_MAX_UPGRADES_PER_TICK buildings per type per tick
+            upgradesThisTick++;
+            if (upgradesThisTick >= OWNER_MAX_UPGRADES_PER_TICK) break;
         }
     });
 
@@ -8640,7 +8680,7 @@ export const simulateTick = ({
                 severity: starvationDeaths >= Math.max(10, Math.floor((nextPopulation || 0) * 0.02)) ? 'severe' : 'minor',
             }, _t);
         }
-        const _previousLivingStandards = market?.classLivingStandard || {};
+        const _previousLivingStandards = currentClassLivingStandard || {};
         const _allLivingStrata = new Set([
             ...Object.keys(_previousLivingStandards),
             ...Object.keys(classLivingStandard || {}),
@@ -8742,6 +8782,30 @@ export const simulateTick = ({
         });
     }
 
+    // 将建筑级实际发薪回写为全局工资镜像，兼容价格/招工/投资等依赖
+    const mirroredWages = { ...updatedWages };
+    const totalPaidByRole = {};
+    const totalFilledByRole = {};
+    Object.values(buildingFinancialData || {}).forEach((finance) => {
+        if (!finance) return;
+        Object.entries(finance.wagesByRole || {}).forEach(([role, paid]) => {
+            if (!Number.isFinite(paid) || paid <= 0) return;
+            totalPaidByRole[role] = (totalPaidByRole[role] || 0) + paid;
+        });
+        Object.entries(finance.filledByRole || {}).forEach(([role, filled]) => {
+            if (!Number.isFinite(filled) || filled <= 0) return;
+            totalFilledByRole[role] = (totalFilledByRole[role] || 0) + filled;
+        });
+    });
+    Object.entries(totalFilledByRole).forEach(([role, totalFilled]) => {
+        const totalPaid = totalPaidByRole[role] || 0;
+        if (totalFilled <= 0) return;
+        const avgPaid = totalPaid / totalFilled;
+        if (Number.isFinite(avgPaid)) {
+            mirroredWages[role] = parseFloat(avgPaid.toFixed(2));
+        }
+    });
+
     return {
         officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
         _perf: {
@@ -8771,13 +8835,14 @@ export const simulateTick = ({
         stability: stabilityValue,
         legitimacy: coalitionLegitimacy, // 执政联盟合法?
         legitimacyTaxModifier, // 税收修正系数
+        effectiveTaxModifier, // 最终税收修正（含合法性、政策和额外加成）
         logs,
         vassalDiplomacyRequests,
         market: {
             prices: updatedPrices,
             demand,
             supply,
-            wages: updatedWages,
+            wages: mirroredWages,
             needsShortages: classShortages,
             stratumConsumption, // NEW: Return actual consumption breakdown
             supplyBreakdown,    // NEW: Return supply breakdown

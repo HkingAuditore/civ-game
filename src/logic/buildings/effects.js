@@ -37,7 +37,8 @@ export const initializeBonuses = () => ({
     approvalEffects: {},
     organizationGrowthMod: 0,
     // 新增：庆典/科技/政令的特殊加成
-    stabilityBonus: 0,      // 稳定度加成
+    stabilityBonus: 0,      // 稳定度百分比加成（乘以baseStability）
+    stabilityFlat: 0,       // 稳定度绝对值加成（直接加到stabilityModifier）
     scienceBonus: 0,        // 科研产出加成
     cultureBonus: 0,        // 文化产出加成
     militaryBonus: 0,        // 军事力量加成
@@ -149,8 +150,9 @@ export const applyEffects = (effects, bonuses) => {
         bonuses.organizationGrowthMod += effects.organizationDecay;
     }
     // 新增：处理庆典的特殊加成效果
+    // stability 字段为绝对值（如 -2, +4），映射到 stabilityFlat 而非 stabilityBonus（百分比乘数）
     if (effects.stability) {
-        bonuses.stabilityBonus += effects.stability;
+        bonuses.stabilityFlat = (bonuses.stabilityFlat || 0) + effects.stability;
     }
     if (effects.scienceBonus) {
         bonuses.scienceBonus += effects.scienceBonus;

@@ -613,8 +613,10 @@ export const updateNationEconomyData = (nation, marketPrices = {}, context = {})
 
         const playerPrice = marketPrices[resourceKey];
         if (playerPrice) {
+            // [FIX] Reduced convergence rate to prevent foreign prices from tracking player market
+            // Free trade: 1% per tick (was 3%), Normal: 0.3% per tick (was 1%)
             const hasFreeTrade = updated.treaties?.some(t => t.type === 'free_trade' && t.status === 'active');
-            const convergenceRate = hasFreeTrade ? 0.03 : 0.01;
+            const convergenceRate = hasFreeTrade ? 0.01 : 0.003;
             newPrice = newPrice * (1 - convergenceRate) + playerPrice * convergenceRate;
         }
 

@@ -2,7 +2,7 @@ import { BUILDINGS } from '../../config/buildings';
 import { POLITICAL_STANCES } from '../../config/politicalStances';
 import { getBuildingEffectiveConfig, getMaxUpgradeLevel, getUpgradeCost } from '../../config/buildingUpgrades';
 import { getBuildingCostGrowthFactor } from '../../config/difficulty';
-import { calculateBuildingCost, getUpgradeCountAtOrAboveLevel } from '../../utils/buildingUpgradeUtils';
+import { calculateBuildingCost, getUpgradeCountAtOrAboveLevel, areUpgradeInputsUnlocked } from '../../utils/buildingUpgradeUtils';
 import { calculateBuildingProfit } from './cabinetSynergy';
 
 export const INVESTMENT_COOLDOWN = 90;
@@ -298,7 +298,9 @@ export const processOfficialBuildingUpgrade = (
     cabinetStatus,
     buildingCounts,
     buildingUpgrades,
-    difficultyLevel
+    difficultyLevel,
+    epoch = 0,
+    techsUnlocked = []
 ) => {
     if (!official.ownedProperties?.length) return null;
     const lastUpgradeDay = official.investmentProfile?.lastUpgradeDay || 0;
@@ -319,6 +321,12 @@ export const processOfficialBuildingUpgrade = (
         const currentLevel = prop.level || 0;
         const nextLevel = currentLevel + 1;
         if (nextLevel > maxLevel) return;
+
+        // 检查目标等级的输入资源是否已解锁
+        const { unlocked: inputsUnlocked } = areUpgradeInputsUnlocked(
+            building.id, nextLevel, epoch, techsUnlocked
+        );
+        if (!inputsUnlocked) return;
 
         const totalCount = buildingCounts?.[building.id] || 0;
         const levelCounts = buildingUpgrades?.[building.id] || {};

@@ -25,12 +25,13 @@ export const LEGITIMACY_LEVEL = {
 };
 
 // 联盟阶层的 ApprovalCap 惩罚（按生活水平等级）
+// 越穷的阶层期望改善生活的诉求越强烈，惩罚越重；越富则期望差距越小，惩罚越轻
 export const COALITION_APPROVAL_CAP_PENALTY = {
-    '赤贫': 10,
-    '贫困': 10,
+    '赤贫': 25,
+    '贫困': 20,
     '温饱': 15,
-    '小康': 15,
-    '富裕': 10,
+    '小康': 10,
+    '富裕': 5,
     '奢华': 0,
 };
 

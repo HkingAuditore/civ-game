@@ -1,0 +1,36 @@
+commit e2a31d91e1cd53881a5c9a9094d991824b4e1b34
+Author: HkingAuditore <178854663@qq.com>
+Date:   Tue Mar 17 15:48:32 2026 +0800
+
+    Update simulation.js
+
+ src/logic/simulation.js | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+commit e3bcca3caf85243f2f40e40a8e7dfe092fd4f32f
+Author: HkingAuditore <178854663@qq.com>
+Date:   Tue Mar 17 15:42:46 2026 +0800
+
+    update
+
+ src/App.jsx                                  |   1 +
+ src/components/panels/FrontViewPanel.jsx     | 224 +++++++++++++++++-
+ src/components/panels/StratumDetailSheet.jsx | 327 +++++++++++++++------------
+ src/config/difficulty.js                     |  12 +-
+ src/logic/organizationSystem.js              |   6 +-
+ 5 files changed, 408 insertions(+), 162 deletions(-)
+commit 986fee247fe0fe2a1f54217568d0d0b41b1d5852
+Author: HkingAuditore <178854663@qq.com>
+Date:   Tue Mar 17 15:14:10 2026 +0800
+
+    修复市场的恶性清空资源bug
+
+ src/logic/simulation.js | 117 ------------------------------------------------
+ 1 file changed, 117 deletions(-)
+commit 555627a537b16139628522d9ba561a1eb8d54856
+Author: HkingAuditore <178854663@qq.com>
+Date:   Tue Mar 17 14:38:15 2026 +0800
+
+    Update DiplomacyLayout.jsx
+
+ src/components/diplomacy/DiplomacyLayout.jsx | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)

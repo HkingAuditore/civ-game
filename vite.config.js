@@ -1,14 +1,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'fs'
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     plugins: [react()],
     // 使用相对路径，使其兼容 GitHub Pages 子目录部署和自定义域名根目录部署
     base: './',
     define: {
-        // 禁用 React DevTools Profiler，避免大状态对象克隆导致内存溢出
-        '__REACT_DEVTOOLS_GLOBAL_HOOK__': JSON.stringify({ isDisabled: true }),
+        // 仅在生产环境禁用 DevTools Hook，避免与 Fast Refresh 冲突
+        ...(mode === 'production'
+            ? { '__REACT_DEVTOOLS_GLOBAL_HOOK__': JSON.stringify({ isDisabled: true }) }
+            : {}),
+        '__APP_VERSION__': JSON.stringify(pkg.version),
+    },
+    optimizeDeps: {
+        include: ['gameanalytics'],
+        exclude: [],
+        entries: ['index.html'],
     },
     build: {
         // 目标 ES2018，兼容 Android 8.0+ (Chrome 62+) 的 WebView
@@ -34,4 +45,4 @@ export default defineConfig({
     esbuild: {
         target: 'es2018',
     },
-})
+}))
