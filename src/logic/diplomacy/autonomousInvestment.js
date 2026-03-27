@@ -15,6 +15,61 @@ const MIN_FOREIGN_INVESTMENT_STAFFING_RATIO = 0.95;
 const MAX_TOP_INVESTMENTS = 5;
 const MAX_BUILDING_SAMPLES = 5;
 
+// ========== 模块级缓存（类似 trading.js 的 _opportunityCache）==========
+// 避免每次调用都对全量国家/建筑做 filter + sort
+const _investmentCache = {
+    // --- Inbound eligible investors cache ---
+    inboundSignature: '',
+    inboundEligible: [],       // 已排序的 eligible investors
+    inboundLastRefreshDay: -Infinity,
+    // --- Outbound candidate nations cache ---
+    outboundSignature: '',
+    outboundCandidates: [],    // 已排序的 candidate nations
+    outboundLastRefreshDay: -Infinity,
+    // --- Building candidate cache for selectBestInvestmentBuilding ---
+    buildingSignature: '',
+    buildingCandidates: [],    // pre-filtered BUILDINGS
+    buildingLastRefreshDay: -Infinity,
+    // --- Foreign investment index: buildingId -> operating count ---
+    foreignInvIndex: null,     // Map<string, number>
+    foreignInvSignature: '',
+};
+
+const CACHE_REFRESH_INTERVAL = 30; // 每 30 天刷新一次缓存
+
+const buildForeignInvIndex = (foreignInvestments) => {
+    const idx = new Map();
+    if (!foreignInvestments) return idx;
+    for (let i = 0; i < foreignInvestments.length; i++) {
+        const inv = foreignInvestments[i];
+        if (inv.status === 'operating') {
+            const key = inv.buildingId;
+            idx.set(key, (idx.get(key) || 0) + (inv.count || 1));
+        }
+    }
+    return idx;
+};
+
+const computeInboundSignature = (nations, diplomacyOrganizations, daysElapsed) => {
+    const nCount = nations?.length || 0;
+    const orgCount = diplomacyOrganizations?.organizations?.length || 0;
+    const dayBucket = Math.floor(daysElapsed / CACHE_REFRESH_INTERVAL);
+    return `${nCount}|${orgCount}|${dayBucket}`;
+};
+
+const computeOutboundSignature = (nations, diplomacyOrganizations, daysElapsed) => {
+    const nCount = nations?.length || 0;
+    const orgCount = diplomacyOrganizations?.organizations?.length || 0;
+    const dayBucket = Math.floor(daysElapsed / CACHE_REFRESH_INTERVAL);
+    return `out|${nCount}|${orgCount}|${dayBucket}`;
+};
+
+const computeBuildingSignature = (targetBuildings, epoch, daysElapsed) => {
+    const bKeys = targetBuildings ? Object.keys(targetBuildings).length : 0;
+    const dayBucket = Math.floor(daysElapsed / CACHE_REFRESH_INTERVAL);
+    return `bld|${bKeys}|${epoch}|${dayBucket}`;
+};
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const weightedSampleWithoutReplacement = (items, getWeight, sampleSize) => {
@@ -162,23 +217,36 @@ export function selectOutboundInvestmentsBatch({
     daysElapsed,
     taxPolicies = {},
     maxInvestments = MAX_TOP_INVESTMENTS,
-    batchSize = 2, // [NEW] 每次处理的国家数量
-    batchOffset = 0, // [NEW] 当前批次的起始位置
+    batchSize = 2,
+    batchOffset = 0,
 }) {
     if (!playerNation) return { investments: [], hasMore: false, nextOffset: 0 };
 
-    const candidateNations = (nations || []).filter(n => canPlayerInvestInNation(n, diplomacyOrganizations, daysElapsed));
-    if (candidateNations.length === 0) return { investments: [], hasMore: false, nextOffset: 0 };
+    // --- 缓存层：candidate nations 只在签名变化时重算 ---
+    const sig = computeOutboundSignature(nations, diplomacyOrganizations, daysElapsed);
+    let sortedCandidates;
 
-    // [MODIFIED] 不再采样，直接对所有候选国家进行分批处理
-    // 按关系、财富信号等排序，优先处理更有潜力的国家
-    const sortedCandidates = candidateNations.sort((a, b) => {
-        const weightA = getRelationWeight(a.relation || 0) * getWealthSignal(a);
-        const weightB = getRelationWeight(b.relation || 0) * getWealthSignal(b);
-        return weightB - weightA;
-    });
+    if (sig === _investmentCache.outboundSignature && _investmentCache.outboundCandidates.length > 0) {
+        sortedCandidates = _investmentCache.outboundCandidates;
+    } else {
+        const candidateNations = (nations || []).filter(n => canPlayerInvestInNation(n, diplomacyOrganizations, daysElapsed));
+        if (candidateNations.length === 0) return { investments: [], hasMore: false, nextOffset: 0 };
 
-    // 分批处理：每次处理 batchSize 个国家
+        sortedCandidates = candidateNations.sort((a, b) => {
+            const weightA = getRelationWeight(a.relation || 0) * getWealthSignal(a);
+            const weightB = getRelationWeight(b.relation || 0) * getWealthSignal(b);
+            return weightB - weightA;
+        });
+
+        _investmentCache.outboundSignature = sig;
+        _investmentCache.outboundCandidates = sortedCandidates;
+        _investmentCache.outboundLastRefreshDay = daysElapsed;
+
+        debugLog('trade', `[OUTBOUND] 刷新候选国缓存: ${sortedCandidates.length} 个候选`);
+    }
+
+    if (sortedCandidates.length === 0) return { investments: [], hasMore: false, nextOffset: 0 };
+
     const sampledNations = sortedCandidates.slice(batchOffset, batchOffset + batchSize);
     const hasMore = (batchOffset + batchSize) < sortedCandidates.length;
     const nextOffset = hasMore ? (batchOffset + batchSize) : 0;
@@ -188,20 +256,23 @@ export function selectOutboundInvestmentsBatch({
 
     const investments = [];
 
-    sampledNations.forEach(targetNation => {
+    for (let ni = 0; ni < sampledNations.length; ni++) {
+        const targetNation = sampledNations[ni];
         const accessType = targetNation.vassalOf === 'player' ? 'vassal' : 'treaty';
         const investableCache = buildInvestableCache(epoch, accessType, strata);
 
         let bestOption = null;
 
-        strata.forEach(stratum => {
+        for (let si = 0; si < strata.length; si++) {
+            const stratum = strata[si];
             const wealth = classWealth[stratum] || 0;
-                const buildingPool = investableCache[stratum] || [];
-                const sampledBuildings = pickRandomSubset(buildingPool, MAX_BUILDING_SAMPLES);
+            const buildingPool = investableCache[stratum] || [];
+            const sampledBuildings = pickRandomSubset(buildingPool, MAX_BUILDING_SAMPLES);
 
-                sampledBuildings.forEach(building => {
+            for (let bi = 0; bi < sampledBuildings.length; bi++) {
+                const building = sampledBuildings[bi];
                 const cost = getBuildingSilverCost(building);
-                if (cost <= 0 || cost > wealth) return;
+                if (cost <= 0 || cost > wealth) continue;
 
                 const { roi, dailyProfit } = estimateROIForBuilding(
                     building,
@@ -211,40 +282,32 @@ export function selectOutboundInvestmentsBatch({
                     diplomacyOrganizations?.organizations || [],
                     daysElapsed
                 );
-                
-                // Only consider investments with positive ROI (profitable)
-                if (!Number.isFinite(roi) || roi <= 0) return;
+
+                if (!Number.isFinite(roi) || roi <= 0) continue;
 
                 if (!bestOption || roi > bestOption.roi) {
-                    bestOption = {
-                        stratum,
-                        targetNation,
-                        building,
-                        cost,
-                        roi,
-                        dailyProfit,
-                    };
+                    bestOption = { stratum, targetNation, building, cost, roi, dailyProfit };
                 }
-            });
-        });
+            }
+        }
 
         if (bestOption) {
             investments.push(bestOption);
         }
-    });
+    }
 
     if (investments.length === 0) return { investments: [], hasMore, nextOffset };
 
     investments.sort((a, b) => b.roi - a.roi);
     const finalInvestments = investments.slice(0, Math.min(maxInvestments, investments.length)).map(option => ({
-            ...option,
-            investment: createOverseasInvestment({
-                buildingId: option.building.id,
-                targetNationId: option.targetNation.id,
-                ownerStratum: option.stratum,
-                strategy: 'PROFIT_MAX',
+        ...option,
+        investment: createOverseasInvestment({
+            buildingId: option.building.id,
+            targetNationId: option.targetNation.id,
+            ownerStratum: option.stratum,
+            strategy: 'PROFIT_MAX',
             investmentAmount: option.cost,
-            }),
+        }),
     }));
     return { investments: finalInvestments, hasMore, nextOffset };
 }
@@ -259,70 +322,65 @@ export function selectInboundInvestmentsBatch({
     foreignInvestments = [],
     taxPolicies = {},
     maxInvestments = MAX_TOP_INVESTMENTS,
-    batchSize = 2, // [NEW] 每次处理的投资国数量
-    batchOffset = 0, // [NEW] 当前批次的起始位置
+    batchSize = 2,
+    batchOffset = 0,
 }) {
-    debugLog('trade', '🔍 [INBOUND-DEBUG] 开始筛选投资国...');
-    debugLog('trade', '🔍 [INBOUND-DEBUG] investorNations 数量:', investorNations?.length || 0);
-    debugLog('trade', '🔍 [INBOUND-DEBUG] playerState:', playerState?.id);
-    debugLog('trade', '🔍 [INBOUND-DEBUG] daysElapsed:', daysElapsed);
+    // --- 缓存层：eligible investors 只在签名变化时重算 ---
+    const sig = computeInboundSignature(investorNations, diplomacyOrganizations, daysElapsed);
+    let sortedInvestors;
 
-    const eligibleInvestors = (investorNations || []).filter(n => {
-        if (!n || n.id === 'player') {
-            debugLog('trade', '🔍 [INBOUND-DEBUG] 跳过:', n?.name || 'null', '- 原因: 玩家或null');
-            return false;
-        }
-        const investorOutput = getNationAnnualOutput(n, 0);
-        const investorTreasury = getNationTreasury(n, 0);
-        if (investorOutput < 1200 || investorTreasury < 300) {
-            debugLog('trade', '🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 年产出或财政不足', investorOutput, investorTreasury);
-            return false;
-        }
-        if (!canForeignInvestInPlayer(n, playerState, diplomacyOrganizations, daysElapsed)) {
-            debugLog('trade', '🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 无投资权限');
-            return false;
-        }
-        const lastDay = n.lastForeignInvestmentDay ?? -Infinity;
-        const cooldown = daysElapsed - lastDay;
-        if (cooldown < 60) {
-            debugLog('trade', '🔍 [INBOUND-DEBUG] 跳过:', n.name, '- 原因: 冷却中', cooldown, '天');
-            return false;
-        }
-        debugLog('trade', '✅ [INBOUND-DEBUG] 符合条件:', n.name, '- 年产出:', investorOutput, '财政:', investorTreasury, '关系:', n.relation);
-        return true;
-    });
+    if (sig === _investmentCache.inboundSignature && _investmentCache.inboundEligible.length > 0) {
+        sortedInvestors = _investmentCache.inboundEligible;
+    } else {
+        const eligibleInvestors = [];
+        const nations = investorNations || [];
+        let skipCooldown = 0, skipPermission = 0, skipWealth = 0;
 
-    debugLog('trade', '🔍 [INBOUND-DEBUG] eligibleInvestors 数量:', eligibleInvestors.length);
+        for (let i = 0; i < nations.length; i++) {
+            const n = nations[i];
+            if (!n || n.id === 'player') continue;
 
-    if (eligibleInvestors.length === 0) {
-        debugLog('trade', '❌ [INBOUND-DEBUG] 没有符合条件的投资国');
+            const investorOutput = getNationAnnualOutput(n, 0);
+            const investorTreasury = getNationTreasury(n, 0);
+            if (investorOutput < 1200 || investorTreasury < 300) { skipWealth++; continue; }
+
+            if (!canForeignInvestInPlayer(n, playerState, diplomacyOrganizations, daysElapsed)) { skipPermission++; continue; }
+
+            const lastDay = n.lastForeignInvestmentDay ?? -Infinity;
+            if (daysElapsed - lastDay < 60) { skipCooldown++; continue; }
+
+            eligibleInvestors.push(n);
+        }
+
+        debugLog('trade', `[INBOUND] 筛选完毕: ${eligibleInvestors.length} eligible / ${nations.length} total (跳过: 权限${skipPermission} 冷却${skipCooldown} 财政${skipWealth})`);
+
+        sortedInvestors = eligibleInvestors.sort((a, b) => {
+            const weightA = getRelationWeight(a.relation || 0) * getWealthSignal(a);
+            const weightB = getRelationWeight(b.relation || 0) * getWealthSignal(b);
+            return weightB - weightA;
+        });
+
+        _investmentCache.inboundSignature = sig;
+        _investmentCache.inboundEligible = sortedInvestors;
+        _investmentCache.inboundLastRefreshDay = daysElapsed;
+    }
+
+    if (sortedInvestors.length === 0) {
         return { investments: [], hasMore: false, nextOffset: 0 };
     }
 
-    // [MODIFIED] 不再采样，直接对所有符合条件的投资国按优先级排序
-    const sortedInvestors = eligibleInvestors.sort((a, b) => {
-        const weightA = getRelationWeight(a.relation || 0) * getWealthSignal(a);
-        const weightB = getRelationWeight(b.relation || 0) * getWealthSignal(b);
-        return weightB - weightA;
-    });
-
-    debugLog('trade', '🔍 [INBOUND-DEBUG] 排序后的投资国:', sortedInvestors.map(n => n.name));
-
-    // 分批处理：每次处理 batchSize 个投资国
     const batchInvestors = sortedInvestors.slice(batchOffset, batchOffset + batchSize);
     const hasMore = (batchOffset + batchSize) < sortedInvestors.length;
     const nextOffset = hasMore ? (batchOffset + batchSize) : 0;
 
-    debugLog('trade', '🔍 [INBOUND-DEBUG] 本批次处理:', batchInvestors.map(n => n.name));
-    debugLog('trade', '🔍 [INBOUND-DEBUG] batchOffset:', batchOffset, 'hasMore:', hasMore, 'nextOffset:', nextOffset);
+    debugLog('trade', `[INBOUND] batch [${batchOffset}..${batchOffset + batchSize}] of ${sortedInvestors.length}: ${batchInvestors.map(n => n.name).join(', ')}`);
 
     const decisions = [];
 
-    batchInvestors.forEach(investorNation => {
+    for (let i = 0; i < batchInvestors.length; i++) {
+        const investorNation = batchInvestors[i];
         const investmentPolicy = investorNation.vassalPolicy?.investmentPolicy || 'autonomous';
         const roiThreshold = getInvestmentPolicyThreshold(investmentPolicy);
-
-        debugLog('trade', '🔍 [INBOUND-DEBUG] 评估', investorNation.name, '- policy:', investmentPolicy, 'threshold:', roiThreshold);
 
         const bestBuilding = selectBestInvestmentBuilding({
             targetBuildings: playerState?.buildings || {},
@@ -331,16 +389,12 @@ export function selectInboundInvestmentsBatch({
             market,
             investorWealth: getNationTreasury(investorNation, 0),
             foreignInvestments,
+            daysElapsed,
         });
 
-        debugLog('trade', '🔍 [INBOUND-DEBUG]', investorNation.name, '最佳建筑:', bestBuilding?.building?.name, 'ROI:', bestBuilding?.roi);
+        if (!bestBuilding || bestBuilding.roi <= roiThreshold) continue;
 
-        if (!bestBuilding || bestBuilding.roi <= roiThreshold) {
-            debugLog('trade', '❌ [INBOUND-DEBUG]', investorNation.name, '跳过 - ROI不足或无建筑');
-            return;
-        }
-
-        debugLog('trade', '✅ [INBOUND-DEBUG]', investorNation.name, '决定投资:', bestBuilding.building.name);
+        debugLog('trade', `[INBOUND] ${investorNation.name} -> ${bestBuilding.building.name} ROI=${(bestBuilding.roi * 100).toFixed(1)}%`);
 
         decisions.push({
             investorNation,
@@ -349,19 +403,14 @@ export function selectInboundInvestmentsBatch({
             roi: bestBuilding.roi,
             investmentPolicy,
         });
-    });
-
-    debugLog('trade', '🔍 [INBOUND-DEBUG] 本批次投资决策数量:', decisions.length);
+    }
 
     if (decisions.length === 0) {
-        debugLog('trade', '❌ [INBOUND-DEBUG] 本批次没有投资决策');
         return { investments: [], hasMore, nextOffset };
     }
 
     decisions.sort((a, b) => b.roi - a.roi);
     const topDecisions = decisions.slice(0, Math.min(maxInvestments, decisions.length));
-    
-    debugLog('trade', '✅ [INBOUND-DEBUG] 返回投资决策:', topDecisions.map(d => `${d.investorNation.name} -> ${d.building.name}`));
 
     return {
         investments: topDecisions,
@@ -653,20 +702,21 @@ export function processAIInvestment({
     // Shuffle
     const shuffledBuildings = candidateBuildings.sort(() => Math.random() - 0.5);
 
+    // Pre-index foreign investments once
+    const fiIdx = buildForeignInvIndex(foreignInvestments);
+
     for (const target of targets) {
         for (const building of shuffledBuildings) {
             const costConfig = building.baseCost || building.cost || {};
             const baseCost = Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
-            const cost = (baseCost || 1000) * 1.5; // Foreign investment markup
+            const cost = (baseCost || 1000) * 1.5;
             if ((investorNation.wealth || 0) < cost || investorTreasury < cost * 0.2) continue;
 
             const targetBuildings = target.buildings || {};
             const playerBuildingCount = targetBuildings[building.id] || 0;
             if (playerBuildingCount <= 0) continue;
 
-            const existingForeignCount = (foreignInvestments || []).filter(
-                inv => inv.buildingId === building.id && inv.status === 'operating'
-            ).reduce((sum, inv) => sum + (inv.count || 1), 0);
+            const existingForeignCount = fiIdx.get(building.id) || 0;
             if (existingForeignCount >= playerBuildingCount) continue;
 
             // Check staffing ratio
@@ -767,132 +817,129 @@ export function selectBestInvestmentBuilding({
     epoch = 0,
     market = null,
     investorWealth = Infinity,
-    foreignInvestments = [] // [NEW] 现有外资投资列表，用于检查上限
+    foreignInvestments = [],
+    daysElapsed = 0,
 }) {
-    // 1. Filter buildings that meet all requirements
-    const candidateBuildings = BUILDINGS.filter(b => {
-        // 1.1 Basic Type Check - only gather and industry
-        if (b.cat !== 'gather' && b.cat !== 'industry') return false;
-        
-        // 1.2 Epoch check
-        if ((b.epoch || 0) > epoch) return false;
-        
-        // 1.3 Must have cost defined
-        if (!b.baseCost && !b.cost) return false;
-
-        // 1.4 [CRITICAL] Employment Relationship Check
-        // Cannot invest in buildings without employment relationship
-        // Rule: A building is investable ONLY if it employs people OTHER than the owner.
-        // If the only worker is the owner (e.g. Peasant Farm, Quarry), it is Self-Employment
-        const jobs = b.jobs || {};
-        const hasEmployees = Object.keys(jobs).some(jobStratum => jobStratum !== b.owner);
-        if (!hasEmployees) {
-            debugLog('trade', `[投资筛选] 排除 ${b.name}: 没有雇佣关系 (owner=${b.owner}, jobs=${Object.keys(jobs).join(',')})`);
-            return false;
-        }
-
-        // 1.5 Target must have this building
-        const buildingCount = targetBuildings[b.id] || 0;
-        if (buildingCount <= 0) {
-            return false;
-        }
-
-        // 1.6 [NEW] Check if foreign investment count has reached building count limit
-        // Foreign investment cannot exceed the number of buildings owned by the target
-        const existingForeignCount = (foreignInvestments || []).filter(
-            inv => inv.buildingId === b.id && inv.status === 'operating'
-        ).reduce((sum, inv) => sum + (inv.count || 1), 0);
-        if (existingForeignCount >= buildingCount) {
-            debugLog('trade', `[投资筛选] 排除 ${b.name}: 外资数量已达上限 (${existingForeignCount}/${buildingCount})`);
-            return false;
-        }
-
-        // 1.6 Check staffing ratio (>= 95%) - Skip if jobFill data not available
-        // For demand investment from player, jobFill may not be passed, assume player's buildings are staffed
-        const hasJobFillData = targetJobFill && Object.keys(targetJobFill).length > 0;
-        if (hasJobFillData) {
-            const buildingJobFillData = targetJobFill[b.id] || {};
-            const buildingJobs = b.jobs || {};
-            let totalSlots = 0;
-            let filledSlots = 0;
-            Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
-                const totalRoleSlots = slotsPerBuilding * buildingCount;
-                totalSlots += totalRoleSlots;
-                filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
-            });
-            const staffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
-            if (staffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
-                debugLog('trade', `[投资筛选] 排除 ${b.name}: 到岗率不足 (${(staffingRatio * 100).toFixed(1)}% < 95%)`);
-                return false;
-            }
-        }
-
-        // 1.7 Check if investor can afford
-        const costConfig = b.baseCost || b.cost || {};
-        const baseCost = Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
-        const cost = (baseCost || 1000) * 1.5; // Foreign investment markup
-        if (cost > investorWealth) {
-            return false;
-        }
-
-        return true;
-    });
-
-    if (candidateBuildings.length === 0) {
-        debugLog('trade', '[投资筛选] 没有找到满足条件的建筑');
-        return null;
+    // --- 预索引 foreignInvestments: O(n) 一次，代替每建筑 O(n) filter ---
+    const fiSig = `fi|${(foreignInvestments || []).length}|${Math.floor(daysElapsed / CACHE_REFRESH_INTERVAL)}`;
+    let foreignInvIdx;
+    if (fiSig === _investmentCache.foreignInvSignature && _investmentCache.foreignInvIndex) {
+        foreignInvIdx = _investmentCache.foreignInvIndex;
+    } else {
+        foreignInvIdx = buildForeignInvIndex(foreignInvestments);
+        _investmentCache.foreignInvIndex = foreignInvIdx;
+        _investmentCache.foreignInvSignature = fiSig;
     }
 
-    debugLog('trade', `[投资筛选] 找到 ${candidateBuildings.length} 个候选建筑: ${candidateBuildings.map(b => b.name).join(', ')}`);
+    // --- 缓存层：静态建筑候选（仅依赖 epoch + targetBuildings keys）---
+    // 只缓存 "不依赖 investorWealth" 的筛选步骤
+    const bldSig = computeBuildingSignature(targetBuildings, epoch, daysElapsed);
+    let preFilteredBuildings;
 
-    // 2. Calculate ROI for each candidate and select the best
+    if (bldSig === _investmentCache.buildingSignature && _investmentCache.buildingCandidates.length > 0) {
+        preFilteredBuildings = _investmentCache.buildingCandidates;
+    } else {
+        preFilteredBuildings = [];
+        const hasJobFillData = targetJobFill && Object.keys(targetJobFill).length > 0;
+        let skipNoEmploy = 0, skipStaffing = 0, skipCap = 0;
+
+        for (let i = 0; i < BUILDINGS.length; i++) {
+            const b = BUILDINGS[i];
+            if (b.cat !== 'gather' && b.cat !== 'industry') continue;
+            if ((b.epoch || 0) > epoch) continue;
+            if (!b.baseCost && !b.cost) continue;
+
+            const jobs = b.jobs || {};
+            const jobKeys = Object.keys(jobs);
+            let hasEmployees = false;
+            for (let j = 0; j < jobKeys.length; j++) {
+                if (jobKeys[j] !== b.owner) { hasEmployees = true; break; }
+            }
+            if (!hasEmployees) { skipNoEmploy++; continue; }
+
+            const buildingCount = targetBuildings[b.id] || 0;
+            if (buildingCount <= 0) continue;
+
+            const existingForeignCount = foreignInvIdx.get(b.id) || 0;
+            if (existingForeignCount >= buildingCount) { skipCap++; continue; }
+
+            if (hasJobFillData) {
+                const buildingJobFillData = targetJobFill[b.id] || {};
+                let totalSlots = 0, filledSlots = 0;
+                for (let j = 0; j < jobKeys.length; j++) {
+                    const role = jobKeys[j];
+                    const slotsPerBuilding = jobs[role];
+                    const totalRoleSlots = slotsPerBuilding * buildingCount;
+                    totalSlots += totalRoleSlots;
+                    filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
+                }
+                const staffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
+                if (staffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) { skipStaffing++; continue; }
+            }
+
+            const costConfig = b.baseCost || b.cost || {};
+            const vals = Object.values(costConfig);
+            let baseCostSum = 0;
+            for (let j = 0; j < vals.length; j++) {
+                if (typeof vals[j] === 'number') baseCostSum += vals[j];
+            }
+            const cost = (baseCostSum || 1000) * 1.5;
+
+            preFilteredBuildings.push({ building: b, cost });
+        }
+
+        _investmentCache.buildingSignature = bldSig;
+        _investmentCache.buildingCandidates = preFilteredBuildings;
+
+        debugLog('trade', `[投资筛选] 缓存刷新: ${preFilteredBuildings.length} 候选 (排除: 无雇佣${skipNoEmploy} 到岗率${skipStaffing} 外资上限${skipCap})`);
+    }
+
+    if (preFilteredBuildings.length === 0) return null;
+
+    // --- 仅对 investorWealth 做运行时过滤 + ROI 计算 ---
+    const prices = {};
+    const resKeys = Object.keys(RESOURCES);
+    for (let i = 0; i < resKeys.length; i++) {
+        const key = resKeys[i];
+        prices[key] = market?.prices?.[key] || RESOURCES[key]?.basePrice || 1;
+    }
+    const wages = market?.wages || {};
+
     let bestBuilding = null;
     let bestRoi = -Infinity;
     let bestCost = 0;
 
-    // Prepare market prices (use base prices if no market data)
-    const prices = {};
-    Object.keys(RESOURCES).forEach(key => {
-        prices[key] = market?.prices?.[key] || RESOURCES[key]?.basePrice || 1;
-    });
+    for (let i = 0; i < preFilteredBuildings.length; i++) {
+        const { building, cost } = preFilteredBuildings[i];
+        if (cost > investorWealth) continue;
 
-    for (const building of candidateBuildings) {
-        const costConfig = building.baseCost || building.cost || {};
-        const baseCost = Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
-        const cost = (baseCost || 1000) * 1.5;
-
-        // Calculate daily profit
         let outputValue = 0;
         const output = building.output || {};
-        Object.entries(output).forEach(([res, amount]) => {
-            if (res === 'maxPop' || res === 'militaryCapacity') return;
-            const price = prices[res] || 1;
-            outputValue += amount * price;
-        });
+        const outputKeys = Object.keys(output);
+        for (let j = 0; j < outputKeys.length; j++) {
+            const res = outputKeys[j];
+            if (res === 'maxPop' || res === 'militaryCapacity') continue;
+            outputValue += output[res] * (prices[res] || 1);
+        }
 
         let inputCost = 0;
         const input = building.input || {};
-        Object.entries(input).forEach(([res, amount]) => {
-            const price = prices[res] || 1;
-            inputCost += amount * price;
-        });
+        const inputKeys = Object.keys(input);
+        for (let j = 0; j < inputKeys.length; j++) {
+            inputCost += input[inputKeys[j]] * (prices[inputKeys[j]] || 1);
+        }
 
         let wageCost = 0;
         const jobs = building.jobs || {};
-        // [FIX] Use actual market wages instead of fixed estimate
-        // This ensures wage changes affect investment decisions
-        const wages = market?.wages || {};
-        Object.entries(jobs).forEach(([stratum, count]) => {
-            if (building.owner && stratum === building.owner) return;
-            // Use market wage if available, otherwise fallback to reasonable estimate
-            const wage = wages[stratum] ?? 0.1; // 0.1 silver per worker per day as fallback
-            wageCost += count * wage;
-        });
+        const jobKeys = Object.keys(jobs);
+        for (let j = 0; j < jobKeys.length; j++) {
+            const stratum = jobKeys[j];
+            if (building.owner && stratum === building.owner) continue;
+            wageCost += jobs[stratum] * (wages[stratum] ?? 0.1);
+        }
 
         const dailyProfit = outputValue - inputCost - wageCost;
         const roi = cost > 0 ? (dailyProfit * 360) / cost : 0;
-
-        debugLog('trade', `[投资筛选] ${building.name}: profit=${dailyProfit.toFixed(1)}/day, cost=${cost}, ROI=${(roi * 100).toFixed(1)}%`);
 
         if (roi > bestRoi) {
             bestRoi = roi;
@@ -901,15 +948,23 @@ export function selectBestInvestmentBuilding({
         }
     }
 
-    if (!bestBuilding) {
-        debugLog('trade', '[投资筛选] 没有找到正ROI的建筑');
-        return null;
-    }
+    if (!bestBuilding) return null;
 
-    debugLog('trade', `[投资筛选] 选择最佳建筑: ${bestBuilding.name} (ROI=${(bestRoi * 100).toFixed(1)}%)`);
-    return {
-        building: bestBuilding,
-        cost: bestCost,
-        roi: bestRoi
-    };
+    debugLog('trade', `[投资筛选] 最佳: ${bestBuilding.name} ROI=${(bestRoi * 100).toFixed(1)}%`);
+    return { building: bestBuilding, cost: bestCost, roi: bestRoi };
+}
+
+/**
+ * 重置投资系统的模块级缓存。
+ * 在每个新投资周期开始时调用，确保缓存不会跨周期残留过期数据。
+ */
+export function resetInvestmentCache() {
+    _investmentCache.inboundSignature = '';
+    _investmentCache.inboundEligible = [];
+    _investmentCache.outboundSignature = '';
+    _investmentCache.outboundCandidates = [];
+    _investmentCache.buildingSignature = '';
+    _investmentCache.buildingCandidates = [];
+    _investmentCache.foreignInvIndex = null;
+    _investmentCache.foreignInvSignature = '';
 }
