@@ -12,6 +12,9 @@ export const REBEL_DEMAND_SURRENDER_TYPE = {
     MASSACRE: 'massacre'
 };
 
+const VASSAL_WAR_SCORE_THRESHOLD = 300;
+const ANNEX_WAR_SCORE_THRESHOLD = 500;
+
 /**
  * Creates a rebel surrender demand event with multiple options
  * @param {Object} nation - The rebel nation
@@ -239,7 +242,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const vassalUnlocked = epoch >= 3;
 
     // 根据战争分数提供不同选项
-    if (warScore > 500) {
+    if (warScore >= ANNEX_WAR_SCORE_THRESHOLD) {
         const highTribute = Math.max(baseTribute * 2, paymentSet.high);
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
@@ -254,7 +257,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
             effects: {},
             callback: () => callback(true, 'annex', annexPopulation),
         });
-        if (vassalUnlocked) {
+        if (vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal',
                 text: '要求成为附庸国',
@@ -262,7 +265,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
                 effects: {},
                 callback: () => callback(true, 'vassal', 0),
             });
-        } else {
+        } else if (!vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal_locked',
                 text: '🔒 要求成为附庸国',
@@ -430,7 +433,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     });
 
     let description = '';
-    if (warScore > 450) {
+    if (warScore >= ANNEX_WAR_SCORE_THRESHOLD) {
         description = `${nation.name}的政权濒临崩溃,使节带着投降书恳求无条件和平。`;
     } else if (warScore > 200) {
         description = `${nation.name}在连番败仗后愿意支付沉重赔偿以换取停火。`;
@@ -442,8 +445,8 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
 
     return {
         id: `enemy_peace_request_${nation.id}_${Date.now()}`,
-        name: warScore > 450 ? `${nation.name}的投降书` : `${nation.name}的和谈请求`,
-        icon: warScore > 450 ? 'Flag' : 'HandHeart',
+        name: warScore >= ANNEX_WAR_SCORE_THRESHOLD ? `${nation.name}的投降书` : `${nation.name}的和谈请求`,
+        icon: warScore >= ANNEX_WAR_SCORE_THRESHOLD ? 'Flag' : 'HandHeart',
         image: null,
         description,
         isDiplomaticEvent: true,
@@ -482,7 +485,7 @@ export function createPlayerPeaceProposalEvent(
         return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped)));
     };
 
-    if (warScore > 500) {
+    if (warScore >= ANNEX_WAR_SCORE_THRESHOLD) {
         const highTribute = Math.ceil(demandingPayments.high * 1.4);
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(25, Math.floor((nation.population || nation.basePopulation || 1000) * 0.25)));
         const annexPopulation = nation.population || nation.basePopulation || 1000;
@@ -575,7 +578,7 @@ export function createPlayerPeaceProposalEvent(
             callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
         });
         // 附庸选项（需要已解锁附庸系统）
-        if (vassalUnlocked) {
+        if (vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal',
                 text: '🏴 要求成为附庸国',
@@ -583,7 +586,7 @@ export function createPlayerPeaceProposalEvent(
                 effects: {},
                 callback: () => callback('demand_vassal', 'vassal'),
             });
-        } else {
+        } else if (!vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal_locked',
                 text: '🔒 要求成为附庸国',
@@ -620,7 +623,7 @@ export function createPlayerPeaceProposalEvent(
             callback: () => callback('demand_population', populationDemand),
         });
         // 附庸选项（需要已解锁附庸系统）
-        if (vassalUnlocked) {
+        if (vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal',
                 text: '🏴 要求成为附庸国',
@@ -628,7 +631,7 @@ export function createPlayerPeaceProposalEvent(
                 effects: {},
                 callback: () => callback('demand_vassal', 'vassal'),
             });
-        } else {
+        } else if (!vassalUnlocked && warScore >= VASSAL_WAR_SCORE_THRESHOLD) {
             options.push({
                 id: 'demand_vassal_locked',
                 text: '🔒 要求成为附庸国',
@@ -755,6 +758,59 @@ export function createPeaceRequestEvent(nation, tribute, onAccept) {
     return createEnemyPeaceRequestEvent(nation, tribute, 0, (accepted) => {
         if (accepted) onAccept();
     });
+}
+
+/**
+ * 创建外交事件 - 玩家求和被拒绝反馈
+ * @param {Object} nation - 拒绝和谈的国家
+ * @param {string} proposalType - 玩家提出的方案类型
+ * @param {number} acceptChance - 该方案被接受的概率(0-1)
+ * @param {Object} context - 补充上下文
+ * @returns {Object} - 外交事件对象
+ */
+export function createPeaceProposalRejectedEvent(nation, proposalType, acceptChance = 0, context = {}) {
+    const proposalLabels = {
+        demand_annex: '吞并要求',
+        demand_vassal: '附庸要求',
+        demand_high: '巨额赔款',
+        demand_standard: '赔款要求',
+        demand_installment: '分期赔款要求',
+        demand_population: '人口割让要求',
+        demand_open_market: '开放市场要求',
+        pay_high: '巨额赔款方案',
+        pay_standard: '赔款方案',
+        pay_moderate: '象征性赔款方案',
+        pay_installment: '分期赔款方案',
+        pay_installment_moderate: '分期赔款方案',
+        offer_population: '割地求和方案',
+        peace_only: '无条件停战方案',
+    };
+
+    const normalizedChance = Math.max(0, Math.min(1, Number(acceptChance) || 0));
+    const chancePercent = Math.round(normalizedChance * 100);
+    const relationPenalty = Math.max(0, Math.floor(context.relationPenalty ?? 5));
+    const proposalLabel = proposalLabels[proposalType] || '和谈方案';
+    const warScoreText = Number.isFinite(context.warScore)
+        ? `当前战局评分约为 ${Math.round(context.warScore)}。`
+        : '';
+
+    return {
+        id: `peace_rejected_${nation.id}_${Date.now()}`,
+        name: `${nation.name} 拒绝和谈`,
+        icon: 'XCircle',
+        image: null,
+        description: `${nation.name} 拒绝了你提出的「${proposalLabel}」。\n\n本次方案接受概率约为 ${chancePercent}%，未能达成和平。\n关系下降 ${relationPenalty} 点。${warScoreText}`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'acknowledge_reject',
+                text: '继续战争',
+                description: '和谈失败，战争继续。',
+                effects: {},
+                callback: () => { },
+            },
+        ],
+    };
 }
 
 /**

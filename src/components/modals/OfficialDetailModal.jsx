@@ -314,9 +314,9 @@ export const OfficialDetailModal = ({
         setIsEditingName(false);
     };
 
-    // [FIX] 直接使用模拟端计算好的isStanceSatisfied，保证与loyaltyChangeFactors一致
-    // 优先使用模拟端数据，如果没有（旧存档兼容）则使用UI层传入的值
-    const derivedStanceSatisfied = official?.isStanceSatisfied ?? isStanceSatisfied;
+    // 优先使用UI层实时重算结果，避免显示滞后；
+    // 若无实时值再回退到模拟端缓存值（旧存档兼容）
+    const derivedStanceSatisfied = isStanceSatisfied ?? official?.isStanceSatisfied ?? null;
 
     // 忠诚度变化原因分析
     const loyaltyReasons = useMemo(() => {

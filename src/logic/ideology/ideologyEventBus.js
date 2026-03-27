@@ -327,6 +327,23 @@ class IdeologyEventBus {
     }
 
     /**
+     * Directly queue an effect result without going through event handlers.
+     * Used by useGameActions to push ideology score awards (e.g. tech research, epoch advance)
+     * so that flushEffects() in useGameLoop can consume them uniformly.
+     * @param {Object} result - effect result descriptor, e.g. { action: 'addIdeologyScore', amount: 23 }
+     * @param {string} [source='direct'] - source identifier for logging
+     */
+    queueDirectEffect(result, source = 'direct') {
+        if (!result || !result.action) return;
+        this._pendingEffects.push({
+            ideologyId: source,
+            eventId: 'direct_award',
+            result,
+            tick: 0,
+        });
+    }
+
+    /**
      * Get the trigger count for a specific ideology+event combination.
      * Used by UI to display "已触发 N 次".
      * @param {string} ideologyId

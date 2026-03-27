@@ -28,6 +28,7 @@ export const StatusBar = React.memo(({
     onStrataClick,
     onMarketClick,
     onEmpireSceneClick,
+    onReportHistoryClick,
     gameControls,
 }) => {
     const TAX_POPOVER_Z_INDEX = 95;
@@ -46,6 +47,7 @@ export const StatusBar = React.memo(({
         income_price_control: '价格管制收入',
         '贸易路线税收': '贸易路线税收',
         income_trade_route: '关税',
+        income_ideology_virtual_tax: '理念税收加成',
         '军队维护支出': '军饷维护',
         '军队维护支出（部分支付）': '军饷维护',
         expense_army_maintenance: '军饷维护',
@@ -119,6 +121,7 @@ export const StatusBar = React.memo(({
         autonomous_investment_return: '投资回报',
         trade_route_transaction: '贸易结算',
         overseas_investment_return: '海外投资收益',
+        state_enterprise_profit: '国有企业利润',
         tax_efficiency_loss: '战争税收损失',
         build_purchase: '购买建筑',
         corruption: '腐败',
@@ -486,6 +489,19 @@ export const StatusBar = React.memo(({
                                     {calendar.year}年 · {calendar.season}
                                 </span>
                             </div>
+                        </button>
+
+                        {/* 历年报告按钮 */}
+                        <button
+                            onClick={() => {
+                                if (onReportHistoryClick) {
+                                    onReportHistoryClick();
+                                }
+                            }}
+                            className="relative group flex items-center glass-ancient px-1.5 py-1 rounded-lg border border-ancient-gold/15 hover:border-ancient-gold/40 hover:shadow-glow-gold transition-all touch-feedback"
+                            title="历年政府工作报告"
+                        >
+                            <Icon name="ScrollText" size={13} className="text-ancient-gold/70 group-hover:text-ancient-gold transition-colors" />
                         </button>
                     </div>
 

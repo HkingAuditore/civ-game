@@ -49,8 +49,37 @@ export const DEFAULT_TRADE_CONFIG = {
     
     // Trade 3.0: Opportunity-first approach (select trades first, then assign merchants)
     maxTradeOpportunitiesPerPartner: 3, // [DEPRECATED] No longer used - kept for compatibility
-    maxGlobalTradeOpportunities: 15, // [NEW] Top N most profitable trade opportunities globally (across all nations)
+    maxGlobalTradeOpportunities: 120, // [NEW] Top N most profitable trade opportunities globally (across all nations)
     merchantBatchesPerCycle: 3, // Split merchants into N batches (N = tradeDuration for even distribution)
+
+    // Trade 3.1: Cached opportunity evaluation (expensive evaluation runs less often, execution every tick)
+    opportunityRefreshInterval: 3, // How often (in ticks) to run a STEP 1 slice evaluation
+    tradeSlicesPerCycle: 3, // Split opportunities into N slices for per-tick execution rotation
+
+    // Trade 3.2: Incremental partner evaluation — split STEP 1 into partnerSliceCount slices
+    // Full cycle = partnerSliceCount × opportunityRefreshInterval ticks
+    // E.g. 10 slices × 3 ticks = 30 ticks for a complete refresh
+    partnerSliceCount: 10, // How many slices to divide partners into for incremental evaluation
+};
+
+// --- Trade 3.1 / 3.2: Module-level opportunity cache ----------------------
+// Caches the expensive STEP 1 (opportunity evaluation) result.
+// Trade 3.2: STEP 1 is now incremental — each refresh evaluates only a
+// slice of partners and merges results into the cache progressively.
+// A full refresh cycle completes in `partnerSliceCount` refreshes.
+const _opportunityCache = {
+    topOpportunities: [],      // Merged & ranked top global opportunities
+    allPartnerBatches: [],     // Cached partner batch allocations (full set)
+    assignments: {},           // Cached merchant assignments (full set)
+    totalMerchants: 0,         // Cached total merchant count
+    lastRefreshTick: -Infinity, // Last tick when a STEP 1 slice ran
+    partnerSignature: '',      // Hash of partner list for invalidation
+
+    // Trade 3.2: Incremental evaluation state
+    partnerOpportunities: {},  // { [nationId]: opportunity[] } — per-partner cached candidates
+    currentSliceIndex: 0,      // Which partner slice to evaluate next (0..partnerSliceCount-1)
+    fullPartnerList: [],       // Snapshot of all partner batches for stable slicing
+    lastFullCycleComplete: -Infinity, // Tick when last full cycle finished
 };
 
 // --- Trade 2.0 helpers -------------------------------------------------
@@ -482,9 +511,10 @@ export const analyzeTradeOpportunities = ({
     const allExports = [];
     const allImports = [];
 
-    // Scan all visible nations
+    // Scan all visible nations (skip undiscovered — relation null/undefined)
     (nations || []).forEach(partner => {
         if (!partner || partner.isAtWar) return;
+        if (partner.relation === null || partner.relation === undefined) return;
 
         tradableKeys.forEach(resourceKey => {
             // Export check
@@ -611,21 +641,10 @@ export const simulateMerchantTrade = ({
     const tradeConfig = { ...DEFAULT_TRADE_CONFIG, ...(STRATA.merchant?.tradeConfig || {}) };
 
     // Process pending trades (point-to-point: apply on completion)
-    // [FIX] Filter out trades with undiscovered nations (旧存档清理)
+    // Process all pending trades - even those with undiscovered nations
+    // (trades already initiated with goods/funds committed must complete normally)
     const updatedPendingTrades = [];
     pendingTrades.forEach(trade => {
-        // Skip trades with undiscovered nations
-        if (trade.partnerId) {
-            const partner = Array.isArray(nations) ? nations.find(n => n?.id === trade.partnerId) : null;
-            if (!partner || partner.relation === null || partner.relation === undefined) {
-                // Skip this trade - nation is not discovered
-                if (tradeConfig.enableDebugLog) {
-                    debugLog('trade', `[贸易清理] 跳过未发现国家的贸易: ${trade.partnerId}`, trade);
-                }
-                return; // Skip this trade
-            }
-        }
-        
         trade.daysRemaining -= 1;
 
         if (trade.daysRemaining <= 0) {
@@ -703,18 +722,9 @@ export const simulateMerchantTrade = ({
         }
     });
 
-    // If we are throttling new trades, skip expensive opportunity search
-    if (!allowNewTrades) {
-        const lockedCapital = updatedPendingTrades.reduce((sum, trade) => sum + Math.max(0, trade?.capitalLocked || 0), 0);
-        return {
-            pendingTrades: updatedPendingTrades,
-            lastTradeTime,
-            lockedCapital,
-            capitalInvestedThisTick: 0,
-            completedTrades,
-            tradeRotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
-        };
-    }
+    // Trade 3.1: allowNewTrades now only controls STEP 1 (expensive evaluation).
+    // STEP 2-3 (lightweight execution from cache) always runs so trades happen every tick.
+    // The old early-return is removed — we fall through to cached execution below.
 
     // Check trade cooldown
     const ticksSinceLastTrade = tick - lastTradeTime;
@@ -730,6 +740,63 @@ export const simulateMerchantTrade = ({
         };
     }
 
+    // --- Trade 3.1: Determine if we need to refresh opportunity cache (STEP 1) ---
+    const refreshInterval = tradeConfig.opportunityRefreshInterval || 3;
+    const cacheAge = tick - _opportunityCache.lastRefreshTick;
+    const shouldRefreshOpportunities = allowNewTrades && (cacheAge >= refreshInterval || _opportunityCache.topOpportunities.length === 0);
+
+    // If cache is valid and we're not refreshing, skip straight to STEP 2-3 execution
+    if (!shouldRefreshOpportunities && _opportunityCache.topOpportunities.length > 0) {
+        // Use cached data for STEP 2-3 execution
+        return executeCachedTrades({
+            tick,
+            tradeConfig,
+            updatedPendingTrades,
+            lastTradeTime,
+            capitalInvestedThisTick,
+            completedTrades,
+            rotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] },
+            // Cached data
+            topGlobalOpportunities: _opportunityCache.topOpportunities,
+            partnerBatches: _opportunityCache.allPartnerBatches,
+            totalMerchants: _opportunityCache.totalMerchants,
+            // Execution context
+            wealth,
+            res,
+            supply,
+            demand,
+            nations,
+            market,
+            taxPolicies,
+            taxBreakdown,
+            getLocalPrice,
+            getImportTaxRate,
+            getExportTaxRate,
+            roleExpense,
+            roleWagePayout,
+            classFinancialData,
+            logs,
+            ledger,
+            supplyBreakdown,
+            demandBreakdown,
+            merchantCount,
+        });
+    }
+
+    // If no cache and not allowed to refresh, return (first-tick edge case)
+    if (!shouldRefreshOpportunities) {
+        const lockedCapital = updatedPendingTrades.reduce((sum, trade) => sum + Math.max(0, trade?.capitalLocked || 0), 0);
+        return {
+            pendingTrades: updatedPendingTrades,
+            lastTradeTime,
+            lockedCapital,
+            capitalInvestedThisTick: 0,
+            completedTrades,
+            tradeRotationState: tradeRotationState || { partnerIndex: 0, tradeIndex: 0, partnerList: [] }
+        };
+    }
+
+    // --- STEP 1: Full opportunity evaluation (expensive, runs every N ticks) ---
     const tradableKeys = Object.keys(RESOURCES)
         .filter(key => canForeignTradeResource(key))
         .filter(key => !potentialResources || potentialResources.has(key));
@@ -798,9 +865,17 @@ export const simulateMerchantTrade = ({
 
     // Convert assignments to concrete partner list, and cap partners per tick for performance.
     // [FIX] Ensure all partners are evaluated over time by rotating through them
+    // [FIX] Filter out undiscovered nations — cannot trade with nations we haven't discovered
     const allPartnerList = Object.entries(assignments)
         .map(([nationId, count]) => ({ nationId, count }))
-        .filter(e => e.count > 0);
+        .filter(e => {
+            if (e.count <= 0) return false;
+            const n = Array.isArray(nations) ? nations.find(x => x?.id === e.nationId) : null;
+            if (!n) return false;
+            // Undiscovered nations have null/undefined relation
+            if (n.relation === null || n.relation === undefined) return false;
+            return true;
+        });
     
     // Build a pool of "merchant batches" based on assigned counts.
     // Each merchant can handle one trade route, so batches = merchant count.
@@ -834,6 +909,9 @@ export const simulateMerchantTrade = ({
         };
     }
 
+    // Cache the total merchant count for STEP 2-3
+    const totalMerchants = partnerBatches.reduce((sum, pb) => sum + pb.count, 0);
+
     // [DEBUG] Log merchant assignment details
     if (tradeConfig.enableDebugLog) {
         debugLog('trade', `[商人派驻] 总商人数: ${merchantCount}, 派驻商人: ${explicitlyAssignedCount}, 闲置商人: ${idleMerchantCount}`, {
@@ -848,10 +926,6 @@ export const simulateMerchantTrade = ({
         });
     }
 
-    // [ROTATION] Limit new trades per tick to spread load across multiple ticks
-    const maxNewTradesThisTick = tradeConfig.maxNewTradesPerTick || 10;
-    let tradesCreatedThisTick = 0;
-
     // ============================================================
     // TRADE 3.0: Opportunity-First Approach
     // 1. Collect all profitable trade opportunities (no merchant iteration)
@@ -859,10 +933,49 @@ export const simulateMerchantTrade = ({
     // 3. Create trades for current batch only
     // ============================================================
     
-    // STEP 1: Collect all trade opportunities from all partners
-    const allTradeOpportunities = [];
+    // ============================================================
+    // Trade 3.2: Incremental Partner Evaluation
+    // Instead of evaluating ALL partners every refresh, split into
+    // `partnerSliceCount` slices. Each refresh evaluates one slice,
+    // merges results into cache, then rebuilds global ranking.
+    // Full cycle = partnerSliceCount × opportunityRefreshInterval ticks.
+    // ============================================================
+    const partnerSliceCount = tradeConfig.partnerSliceCount || 2;
+
+    // Detect partner list change → invalidate incremental cache
+    if (_opportunityCache.partnerSignature !== currentPartnerIds) {
+        _opportunityCache.partnerOpportunities = {};
+        _opportunityCache.currentSliceIndex = 0;
+        _opportunityCache.fullPartnerList = [...partnerBatches];
+    } else {
+        // Keep fullPartnerList up-to-date with latest partner data
+        _opportunityCache.fullPartnerList = [...partnerBatches];
+    }
+
+    // Determine which slice of partners to evaluate this refresh
+    const sliceIdx = _opportunityCache.currentSliceIndex % partnerSliceCount;
+    const sliceSize = Math.ceil(partnerBatches.length / partnerSliceCount);
+    const sliceStart = sliceIdx * sliceSize;
+    const sliceEnd = Math.min(sliceStart + sliceSize, partnerBatches.length);
+    const partnersThisSlice = partnerBatches.slice(sliceStart, sliceEnd);
+
+    // Advance slice index for next refresh
+    _opportunityCache.currentSliceIndex = (sliceIdx + 1) % partnerSliceCount;
+    if (_opportunityCache.currentSliceIndex === 0) {
+        _opportunityCache.lastFullCycleComplete = tick;
+    }
+
+    if (tradeConfig.enableDebugLog) {
+        debugLog('trade', `[分片评估] Slice ${sliceIdx + 1}/${partnerSliceCount}, 评估 ${partnersThisSlice.length}/${partnerBatches.length} 个伙伴`, {
+            sliceIdx, sliceStart, sliceEnd,
+            partnerIds: partnersThisSlice.map(p => p.nationId),
+        });
+    }
+
+    // STEP 1: Collect trade opportunities from THIS SLICE's partners only
+    const sliceOpportunities = []; // Opportunities found in this slice
     
-    for (const partnerBatch of partnerBatches) {
+    for (const partnerBatch of partnersThisSlice) {
         const partner = Array.isArray(nations) ? nations.find(n => n?.id === partnerBatch.nationId) : null;
         
         
@@ -1024,7 +1137,7 @@ export const simulateMerchantTrade = ({
         // [NEW] Don't filter per-partner - collect ALL candidates for global ranking
         // Add all candidates to global opportunity pool with partner context
         candidates.forEach(candidate => {
-            allTradeOpportunities.push({
+            sliceOpportunities.push({
                 partner,
                 partnerBatch,
                 candidate,
@@ -1035,8 +1148,46 @@ export const simulateMerchantTrade = ({
         });
     }
     
-    // Early exit if no opportunities found
+    // --- Trade 3.2: Incrementally merge this slice's results into cache ---
+    // Update per-partner opportunity cache for the partners in this slice
+    for (const pb of partnersThisSlice) {
+        // Clear old opportunities for these partners (will be replaced)
+        _opportunityCache.partnerOpportunities[pb.nationId] = [];
+    }
+    sliceOpportunities.forEach(opp => {
+        const nid = opp.partnerBatch?.nationId || opp.partner?.id;
+        if (nid) {
+            if (!_opportunityCache.partnerOpportunities[nid]) {
+                _opportunityCache.partnerOpportunities[nid] = [];
+            }
+            _opportunityCache.partnerOpportunities[nid].push(opp);
+        }
+    });
+
+    // Prune partners that no longer exist in the current partner list
+    const activePartnerSet = new Set(partnerBatches.map(p => p.nationId));
+    for (const nid of Object.keys(_opportunityCache.partnerOpportunities)) {
+        if (!activePartnerSet.has(nid)) {
+            delete _opportunityCache.partnerOpportunities[nid];
+        }
+    }
+
+    // Rebuild global opportunity ranking from ALL cached partner opportunities
+    const allTradeOpportunities = [];
+    for (const nid of Object.keys(_opportunityCache.partnerOpportunities)) {
+        const opps = _opportunityCache.partnerOpportunities[nid];
+        if (opps) allTradeOpportunities.push(...opps);
+    }
+
+    // Early exit if no opportunities found across all cached partners
     if (allTradeOpportunities.length === 0) {
+        // Still update cache metadata even if empty
+        _opportunityCache.topOpportunities = [];
+        _opportunityCache.allPartnerBatches = partnerBatches;
+        _opportunityCache.assignments = assignments;
+        _opportunityCache.totalMerchants = totalMerchants;
+        _opportunityCache.lastRefreshTick = tick;
+        _opportunityCache.partnerSignature = currentPartnerIds;
         return {
             pendingTrades: updatedPendingTrades,
             lastTradeTime,
@@ -1049,13 +1200,10 @@ export const simulateMerchantTrade = ({
     
     // [DEBUG] Log collected opportunities
     if (tradeConfig.enableDebugLog) {
-        debugLog('trade', `[贸易机会] 收集到 ${allTradeOpportunities.length} 个贸易机会`, {
-            opportunities: allTradeOpportunities.map(o => ({
-                partner: o.partner.name,
-                resource: o.candidate.resourceKey,
-                type: o.candidate.type,
-                score: o.candidate.score.toFixed(2),
-            }))
+        debugLog('trade', `[贸易机会] 缓存中共 ${allTradeOpportunities.length} 个贸易机会 (本次切片新增 ${sliceOpportunities.length})`, {
+            cachedPartners: Object.keys(_opportunityCache.partnerOpportunities).length,
+            slicePartners: partnersThisSlice.length,
+            sliceOpportunities: sliceOpportunities.length,
         });
     }
     
@@ -1070,25 +1218,110 @@ export const simulateMerchantTrade = ({
     const topGlobalOpportunities = allTradeOpportunities.slice(0, maxGlobalOpportunities);
     
     if (tradeConfig.enableDebugLog) {
-        debugLog('trade', `[全局排序] 选择最赚钱的前 ${topGlobalOpportunities.length} 个贸易机会`, {
+        debugLog('trade', `[全局排序] 选择最赚钱的前 ${topGlobalOpportunities.length} 个贸易机会 (slice ${sliceIdx + 1}/${partnerSliceCount})`, {
             top5: topGlobalOpportunities.slice(0, 5).map(o => ({
                 partner: o.partner.name,
                 resource: o.candidate.resourceKey,
                 type: o.candidate.type,
                 score: o.candidate.score.toFixed(2),
-            }))
+            })),
+            totalCandidates: allTradeOpportunities.length,
+            cachedPartnerCount: Object.keys(_opportunityCache.partnerOpportunities).length,
         });
     }
     
+    // --- Trade 3.2: Update opportunity cache with merged results ---
+    _opportunityCache.topOpportunities = topGlobalOpportunities;
+    _opportunityCache.allPartnerBatches = partnerBatches;
+    _opportunityCache.assignments = assignments;
+    _opportunityCache.totalMerchants = totalMerchants;
+    _opportunityCache.lastRefreshTick = tick;
+    _opportunityCache.partnerSignature = currentPartnerIds;
+    
+    // Now execute STEP 2-3 using the freshly cached data
+    return executeCachedTrades({
+        tick,
+        tradeConfig,
+        updatedPendingTrades,
+        lastTradeTime,
+        capitalInvestedThisTick,
+        completedTrades,
+        rotationState,
+        // Freshly evaluated data (same as cache)
+        topGlobalOpportunities,
+        partnerBatches,
+        totalMerchants,
+        // Execution context
+        wealth,
+        res,
+        supply,
+        demand,
+        nations,
+        market,
+        taxPolicies,
+        taxBreakdown,
+        getLocalPrice,
+        getImportTaxRate,
+        getExportTaxRate,
+        roleExpense,
+        roleWagePayout,
+        classFinancialData,
+        logs,
+        ledger,
+        supplyBreakdown,
+        demandBreakdown,
+        merchantCount,
+    });
+};
+
+/**
+ * STEP 2-3: Execute trades from cached opportunities (lightweight, runs every tick)
+ * Separated from STEP 1 (expensive evaluation) for performance.
+ */
+const executeCachedTrades = ({
+    tick,
+    tradeConfig,
+    updatedPendingTrades,
+    lastTradeTime,
+    capitalInvestedThisTick,
+    completedTrades,
+    rotationState,
+    topGlobalOpportunities,
+    partnerBatches,
+    totalMerchants,
+    wealth,
+    res,
+    supply,
+    demand,
+    nations,
+    market,
+    taxPolicies,
+    taxBreakdown,
+    getLocalPrice,
+    getImportTaxRate,
+    getExportTaxRate,
+    roleExpense,
+    roleWagePayout,
+    classFinancialData,
+    logs,
+    ledger,
+    supplyBreakdown,
+    demandBreakdown,
+    merchantCount,
+}) => {
+    const importTariffMultipliers = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const exportTariffMultipliers = taxPolicies?.exportTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
+
     // ============================================================
     // STEP 2: Rotate through opportunities to spread trades across ticks
     // ============================================================
-    const tradeDuration = tradeConfig.tradeDuration || 3;
+    const sliceCount = tradeConfig.tradeSlicesPerCycle || tradeConfig.tradeDuration || 3;
     
     // Calculate how many opportunities to process this tick
-    // Goal: Process all opportunities over N ticks (N = tradeDuration)
-    const opportunitiesPerTick = Math.ceil(topGlobalOpportunities.length / tradeDuration);
-    const startIndex = (tick % tradeDuration) * opportunitiesPerTick;
+    // Goal: Process all opportunities over N ticks (N = sliceCount)
+    const opportunitiesPerTick = Math.ceil(topGlobalOpportunities.length / sliceCount);
+    const startIndex = (tick % sliceCount) * opportunitiesPerTick;
     const endIndex = Math.min(startIndex + opportunitiesPerTick, topGlobalOpportunities.length);
     
     // Select opportunities for this tick
@@ -1105,17 +1338,15 @@ export const simulateMerchantTrade = ({
         };
     }
     
-    // Calculate total merchants to process this tick
-    const totalMerchants = partnerBatches.reduce((sum, pb) => sum + pb.count, 0);
-    
     // [DEBUG] Log batch processing
     if (tradeConfig.enableDebugLog) {
-        debugLog('trade', `[商人轮询] Tick ${tick}, 处理机会 ${startIndex}-${endIndex}/${allTradeOpportunities.length}`, {
+        debugLog('trade', `[商人轮询] Tick ${tick}, 处理机会 ${startIndex}-${endIndex}/${topGlobalOpportunities.length}`, {
             tick,
-            tradeDuration,
+            sliceCount,
             opportunitiesThisTick: opportunitiesThisTick.length,
-            totalOpportunities: allTradeOpportunities.length,
-            totalMerchants
+            totalOpportunities: topGlobalOpportunities.length,
+            totalMerchants,
+            cacheAge: tick - _opportunityCache.lastRefreshTick,
         });
     }
     
@@ -1170,10 +1401,34 @@ export const simulateMerchantTrade = ({
     
     for (let i = 0; i < merchantAllocations.length; i++) {
         const allocation = merchantAllocations[i];
-        const { partner, partnerBatch, candidate, getPartnerImportTaxRate, getPartnerExportTaxRate, tradeEfficiencyMultiplier, merchantCount } = allocation;
+        const { candidate, merchantCount: allocatedMerchants } = allocation;
+        
+        // Re-resolve partner from nations array (cache may hold stale references)
+        const partner = Array.isArray(nations) ? nations.find(n => n?.id === allocation.partner?.id) : allocation.partner;
+        if (!partner) continue;
+        // [FIX] Skip undiscovered nations — cannot create trades with nations we haven't found
+        if (partner.relation === null || partner.relation === undefined) continue;
+        
+        const partnerBatch = allocation.partnerBatch;
+        
+        // Re-calculate treaty effects for this partner
+        const treatyEffects = getTreatyEffects(partner, tick);
+        const treatyTariffMult = treatyEffects.tariffMultiplier;
+        const tradeEfficiencyMultiplier = 1 + Math.max(0, treatyEffects.tradeEfficiencyBonus || 0);
+        
+        const getPartnerImportTaxRate = (resource) => {
+            const tariffPart = (importTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
+        const getPartnerExportTaxRate = (resource) => {
+            const tariffPart = (exportTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
         
         
-        if (merchantCount === 0) continue;
+        if (allocatedMerchants === 0) continue;
         
         const currentTotalWealth = wealth.merchant || 0;
         if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
@@ -1181,13 +1436,13 @@ export const simulateMerchantTrade = ({
         // Calculate efficiency based on merchant composition
         const explicitEfficiency = 1;
         const idleEfficiency = tradeConfig.idleTradeEfficiency;
-        const totalMerchantsForPartner = partnerBatch.explicitCount + partnerBatch.idleCount;
+        const totalMerchantsForPartner = (partnerBatch?.explicitCount || 0) + (partnerBatch?.idleCount || 0);
         const averageEfficiency = totalMerchantsForPartner > 0
-            ? (partnerBatch.explicitCount * explicitEfficiency + partnerBatch.idleCount * idleEfficiency) / totalMerchantsForPartner
+            ? ((partnerBatch?.explicitCount || 0) * explicitEfficiency + (partnerBatch?.idleCount || 0) * idleEfficiency) / totalMerchantsForPartner
             : idleEfficiency;
         
         // Allocate wealth proportional to merchants assigned to this opportunity
-        const wealthShare = merchantCount / totalMerchants;
+        const wealthShare = allocatedMerchants / totalMerchants;
         const wealthForThisOpportunity = currentTotalWealth * wealthShare * averageEfficiency;
 
         if (candidate.type === 'export') {
@@ -1198,7 +1453,7 @@ export const simulateMerchantTrade = ({
                 partnerId: partner.id,
                 resourceKey: candidate.resourceKey,
                 wealthForThisBatch: wealthForThisOpportunity,
-                batchMultiplier: merchantCount,
+                batchMultiplier: allocatedMerchants,
                 wealth,
                 res,
                 supply,
@@ -1225,7 +1480,7 @@ export const simulateMerchantTrade = ({
                 }
                 
                 lastTradeTime = tick;
-                merchantsProcessed += merchantCount;
+                merchantsProcessed += allocatedMerchants;
             }
         } else {
             const result = executeImportTradeV2({
@@ -1235,7 +1490,7 @@ export const simulateMerchantTrade = ({
                 partnerId: partner.id,
                 resourceKey: candidate.resourceKey,
                 wealthForThisBatch: wealthForThisOpportunity,
-                batchMultiplier: merchantCount,
+                batchMultiplier: allocatedMerchants,
                 wealth,
                 res,
                 taxBreakdown,
@@ -1259,7 +1514,7 @@ export const simulateMerchantTrade = ({
                 }
                 
                 lastTradeTime = tick;
-                merchantsProcessed += merchantCount;
+                merchantsProcessed += allocatedMerchants;
             }
         }
     }
@@ -1270,7 +1525,8 @@ export const simulateMerchantTrade = ({
             merchantsProcessed,
             totalMerchants,
             tradesCreated: updatedPendingTrades.length,
-            opportunitiesProcessed: opportunitiesThisTick.length
+            opportunitiesProcessed: opportunitiesThisTick.length,
+            cacheAge: tick - _opportunityCache.lastRefreshTick,
         });
     }
 

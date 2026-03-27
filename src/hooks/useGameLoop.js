@@ -54,6 +54,7 @@ import {
     checkOrganizationEvents,
     ORGANIZATION_STAGE,
     MIN_REBELLION_INFLUENCE,
+    MIN_REBELLION_POPULATION,
     checkCoalitionRebellion,
     COALITION_REBELLION_CONFIG,
 } from '../logic/organizationSystem';
@@ -66,6 +67,12 @@ import {
 } from '../config/events';
 import { evaluatePromiseTasks } from '../logic/promiseTasks';
 import { debugLog, debugError, isDebugEnabled } from '../utils/debugFlags';
+import {
+    trackPeriodicMetrics, trackRebellionPhase,
+    trackEconomicFlows, trackPriceSampling,
+    trackPopulationMilestone, trackPopulationStarvation,
+    trackStabilityLevelChange, trackEconomicCrisis, trackTaxChange,
+} from '../analytics/gaTracker';
 // 叛乱事件（保留事件创建函数）
 import {
     hasAvailableMilitary,
@@ -79,8 +86,7 @@ import {
     createRebelNation,
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
-import { getTreatyDailyMaintenance, INDEPENDENCE_CONFIG } from '../config/diplomacy';
-import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
+import { getTreatyDailyMaintenance } from '../config/diplomacy';
 import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
 import { LOYALTY_CONFIG } from '../config/officials';
 import { updateAllOfficialsDaily } from '../logic/officials/progression';
@@ -104,6 +110,8 @@ import {
     getEnemySide,
     summarizeFrontState,
     getBoundedHomelandPressure,
+    getEffectiveFrontWarScore,
+    getWarScoreBreakdownTotal,
 } from '../logic/diplomacy/frontSystem';
 import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic, processReinforcement, isBattleActive } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits, findBestReplenishTarget } from '../logic/diplomacy/corpsSystem';
@@ -165,6 +173,38 @@ const getTotalArmyCount = (armyState = {}, queueState = [], corpsState = []) => 
     return armyCount + queueCount + corpsCount;
 };
 
+const normalizeTaxPolicySnapshot = (taxPolicies = {}) => {
+    const toSortedPairs = (obj = {}) => Object.entries(obj || {}).sort(([a], [b]) => a.localeCompare(b));
+    return {
+        headTaxRates: toSortedPairs(taxPolicies.headTaxRates),
+        resourceTaxRates: toSortedPairs(taxPolicies.resourceTaxRates),
+        businessTaxRates: toSortedPairs(taxPolicies.businessTaxRates),
+        importTariffMultipliers: toSortedPairs(taxPolicies.importTariffMultipliers),
+        exportTariffMultipliers: toSortedPairs(taxPolicies.exportTariffMultipliers),
+    };
+};
+
+const emitTaxPolicyChanges = (prevSnapshot, nextSnapshot) => {
+    const emitDiff = (taxType, prevPairs, nextPairs) => {
+        const prevMap = new Map(prevPairs || []);
+        const nextMap = new Map(nextPairs || []);
+        const keys = new Set([...prevMap.keys(), ...nextMap.keys()]);
+        keys.forEach((key) => {
+            const prevVal = Number(prevMap.get(key) ?? 0);
+            const nextVal = Number(nextMap.get(key) ?? 0);
+            if (!Number.isFinite(nextVal)) return;
+            if (Math.abs(prevVal - nextVal) < 0.0001) return;
+            trackTaxChange(taxType, key, nextVal);
+        });
+    };
+
+    emitDiff('head', prevSnapshot.headTaxRates, nextSnapshot.headTaxRates);
+    emitDiff('resource', prevSnapshot.resourceTaxRates, nextSnapshot.resourceTaxRates);
+    emitDiff('business', prevSnapshot.businessTaxRates, nextSnapshot.businessTaxRates);
+    emitDiff('import_tariff', prevSnapshot.importTariffMultipliers, nextSnapshot.importTariffMultipliers);
+    emitDiff('export_tariff', prevSnapshot.exportTariffMultipliers, nextSnapshot.exportTariffMultipliers);
+};
+
 const formatUnitSummary = (unitMap = {}) => {
     return Object.entries(unitMap)
         .map(([unitId, count]) => {
@@ -216,6 +256,69 @@ const mergeCorpsReplenishQueue = (currentQueue = {}, pendingUpdates = {}, corpsL
     return next;
 };
 
+const cloneBuildingUpgrades = (buildingUpgrades = {}) => {
+    const cloned = {};
+    Object.entries(buildingUpgrades || {}).forEach(([buildingId, levelCounts]) => {
+        const nextLevelCounts = {};
+        Object.entries(levelCounts || {}).forEach(([levelKey, rawCount]) => {
+            const count = Number(rawCount || 0);
+            if (!Number.isFinite(count) || count <= 0) return;
+            nextLevelCounts[levelKey] = count;
+        });
+        if (Object.keys(nextLevelCounts).length > 0) {
+            cloned[buildingId] = nextLevelCounts;
+        }
+    });
+    return cloned;
+};
+
+const applyBuildingUpgradeDelta = (target, buildingId, levelKey, delta) => {
+    if (!delta) return;
+    if (!target[buildingId]) target[buildingId] = {};
+    const current = Number(target[buildingId][levelKey] || 0);
+    const next = current + delta;
+    if (next > 0) {
+        target[buildingId][levelKey] = next;
+    } else {
+        delete target[buildingId][levelKey];
+        if (Object.keys(target[buildingId]).length === 0) {
+            delete target[buildingId];
+        }
+    }
+};
+
+// 合并 tick 期间发生的建筑升级变更，防止 simulation 写回覆盖玩家操作
+const mergeLateBuildingUpgradeChanges = (simulatedUpgrades, currentUpgrades, tickBaseUpgrades) => {
+    const merged = cloneBuildingUpgrades(simulatedUpgrades || {});
+    const base = tickBaseUpgrades || {};
+    const current = currentUpgrades || {};
+
+    const buildingIds = new Set([
+        ...Object.keys(base),
+        ...Object.keys(current),
+    ]);
+
+    buildingIds.forEach((buildingId) => {
+        const baseLevels = base[buildingId] || {};
+        const currentLevels = current[buildingId] || {};
+        const levelKeys = new Set([
+            ...Object.keys(baseLevels),
+            ...Object.keys(currentLevels),
+        ]);
+
+        levelKeys.forEach((levelKey) => {
+            const before = Number(baseLevels[levelKey] || 0);
+            const after = Number(currentLevels[levelKey] || 0);
+            const delta = after - before;
+            if (delta !== 0) {
+                applyBuildingUpgradeDelta(merged, buildingId, levelKey, delta);
+            }
+        });
+    });
+
+    return merged;
+};
+
 const aggregateCorpsReplenishDemand = (corpsReplenishQueue = {}, corpsList = []) => {
     const corpsMap = new Map((corpsList || []).filter(Boolean).map((corps) => [corps.id, corps]));
     const aggregatedDemand = {};
@@ -224,7 +327,7 @@ const aggregateCorpsReplenishDemand = (corpsReplenishQueue = {}, corpsList = [])
         const corps = corpsMap.get(corpsId);
         if (!corps || corps.isAI) return;
         if (corps.autoReplenish === false) return;
-        if (corps.status === 'in_combat' || corps.status === 'destroyed') return;
+        if (corps.status === 'destroyed') return;
 
         Object.entries(deficits || {}).forEach(([unitId, count]) => {
             const safeCount = Math.max(0, Number(count || 0));
@@ -246,13 +349,6 @@ const getBuildingDisplayName = (buildingId) => {
     if (!buildingId) return '未知建筑';
     return BUILDINGS.find((building) => building.id === buildingId)?.name || String(buildingId).replace(/_/g, ' ');
 };
-
-const getFrontWarScoreTotal = (breakdown = {}) => (
-    Number(breakdown?.battle || 0)
-    + Number(breakdown?.advance || 0)
-    + Number(breakdown?.economic || 0)
-    + Number(breakdown?.homeland || 0)
-);
 
 const getBattleLossTotal = (losses = {}) => (
     Object.values(losses || {}).reduce((sum, count) => sum + Number(count || 0), 0)
@@ -667,6 +763,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setFestivalModal,
         annualReportBaseline,
         setAnnualReportBaseline,
+        annualReportAccumulator,
+        setAnnualReportAccumulator,
         lastFestivalYear,
         setLastFestivalYear,
         setHistory,
@@ -751,7 +849,8 @@ difficulty, // 游戏难度
         setIdeologyMilestones,
         pendingIdeologyEmergence,
         setPendingIdeologyEmergence,
-        // Pending Actions Queue（tick-action 竞争条件修复）
+        ideologyEmergenceRarityBonus,
+        lastEmergenceWasSkipped,
         pendingActionsRef,
     } = gameState;
 
@@ -788,6 +887,7 @@ difficulty, // 游戏难度
         classApproval,
         daysElapsed,
         annualReportBaseline,
+        annualReportAccumulator,
         lastFestivalYear,
         // [FIX] Add economic data for annual report snapshot
         economicIndicators,
@@ -835,11 +935,12 @@ difficulty, // 游戏难度
         ideologyCooldowns,
         ideologyMilestones,
         pendingIdeologyEmergence,
+        ideologyEmergenceRarityBonus,
+        lastEmergenceWasSkipped,
     });
-
-    const saveGameRef = useRef(gameState.saveGame);
     const autoReplenishTickRef = useRef({ day: null, key: '' });
     const capacityTrimLogRef = useRef({ day: null });
+    const taxPolicySnapshotRef = useRef(null);
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
     const perfLogRef = useRef({ lastLogDay: null, didLogOnce: false });
@@ -917,9 +1018,12 @@ difficulty, // 游戏难度
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
+    // NOTE: prevTechsRef / prevEpochRef removed — tech/epoch ideology scoring
+    // is now handled proactively in useGameActions (researchTech / advanceEpoch).
 
     const { runSimulation, syncHistory, isUsingWorker } = useSimulationWorker();
 
+    const saveGameRef = useRef(gameState.saveGame);
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
     }, [gameState.saveGame]);
@@ -956,6 +1060,7 @@ difficulty, // 游戏难度
             classApproval,
             daysElapsed,
             annualReportBaseline,
+            annualReportAccumulator,
             lastFestivalYear,
             // [FIX] Add economic data for annual report snapshot
             economicIndicators,
@@ -1011,8 +1116,9 @@ difficulty, // 游戏难度
             ideologyCooldowns,
             ideologyMilestones,
             pendingIdeologyEmergence,
+            ideologyEmergenceRarityBonus,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, lastFestivalYear, economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, annualReportBaseline, annualReportAccumulator, lastFestivalYear, economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, officialsSimCursor, activeDecrees, expansionSettings, quotaTargets, officialCapacity, ministerAssignments, ministerAutoExpansion, lastMinisterExpansionDay, priceControls, foreignInvestments, diplomaticReputation, militaryCorps, generals, activeFronts, activeBattles, corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore, ideologyScoreSpent, ideologyCooldowns, ideologyMilestones, pendingIdeologyEmergence, ideologyEmergenceRarityBonus, isUsingWorker]);    // Note: classWealth is intentionally excluded from dependencies to prevent infinite loop
     // when setClassWealth is called inside Promise chains within this effect.
     // The latest classWealth value is available via stateRef.current.classWealth
 
@@ -1230,6 +1336,7 @@ difficulty, // 游戏难度
 
             // [FIX] 合并玩家操作增量到 simulation 输入，防止 tick 覆盖用户操作
             let mergedBuildings = current.buildings;
+            const tickBaseBuildingUpgrades = current.buildingUpgrades;
             let mergedResources = current.resources;
             let consumedPendingDeltas = null; // 记录本次消费的 delta，用于 tick 结果写回时校验
             if (pendingActionsRef?.current) {
@@ -1282,6 +1389,7 @@ difficulty, // 游戏难度
                 diplomacyOrganizations: current.diplomacyOrganizations,
                 classWealth: current.classWealth,
                 classApproval: current.classApproval,
+                classLivingStandard: current.classLivingStandard || {},
                 classInfluence: current.classInfluence,
                 totalInfluence: current.totalInfluence,
                 stability: current.stability,
@@ -1487,6 +1595,13 @@ difficulty, // 游戏难度
                 }
 
                 // 浠ヤ笅鏄鐞嗘ā鎷熺粨鏋滅殑浠ｇ爜锛屽寘瑁呭湪 then 鍥炶皟涓?
+
+                // ========== Apply 阶段分段计时 ==========
+                const _ap = typeof performance !== 'undefined' ? performance.now.bind(performance) : Date.now;
+                const _apStart = _ap();
+                const _apSections = {};
+                let _apLast = _apStart;
+                const _apMark = (label) => { const now = _ap(); _apSections[label] = now - _apLast; _apLast = now; };
 
                 // 鏇存柊 Modifiers 鐘舵€佷緵 UI 鏄剧ず
                 setModifiers(result.modifiers || {});
@@ -1862,55 +1977,19 @@ difficulty, // 游戏难度
                     });
                 }
 
-                // ========== 附庸每日更新（朝贡与独立倾向）- 移到主setResources之前 ==========
-                // [FIX] 将附庸朝贡收入和控制成本整合到 adjustedResources 和 auditEntries 中
-                // 閬垮厤浜х敓宸ㄥぇ鐨?瀵硅处宸"
+                // ========== 附庸请求检查 ==========
+                // 附庸的每日结算（朝贡/独立倾向/满意度）已由 simulation.js 统一处理，
+                // 这里不再重复调用 processVassalUpdates，避免同一tick重复结算导致数值异常。
                 let vassalNationsUpdated = null;
                 const vassalLogs = [];
                 if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
-                    // Calculate player military strength from army
-                    const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
-                    const baseMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
-                    const garrisonFactor = INDEPENDENCE_CONFIG?.controlMeasures?.garrison?.militaryCommitmentFactor || 0;
-                    const garrisonCommitment = (current.nations || []).reduce((sum, nation) => {
-                        if (nation.vassalOf !== 'player') return sum;
-                        const garrison = nation.vassalPolicy?.controlMeasures?.garrison;
-                        const isActive = garrison === true || (garrison && garrison.active !== false);
-                        if (!isActive) return sum;
-                        const vassalStrength = nation.militaryStrength || 0.5;
-                        return sum + (vassalStrength * garrisonFactor);
-                    }, 0);
-                    const playerMilitaryStrength = Math.max(0.1, baseMilitaryStrength - garrisonCommitment);
-
-                    const vassalUpdateResult = processVassalUpdates({
-                        nations: current.nations,
-                        daysElapsed: current.daysElapsed || 0,
-                        epoch: current.epoch || 0,
-                        playerMilitary: playerMilitaryStrength,
-                        playerStability: result.stability || 50,
-                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
-                        playerWealth: adjustedResources.silver || 0,
-                        playerPopulation: current.population || 1000000,
-                        officials: result.officials || [],
-                        difficultyLevel: current.difficulty,
-                        logs: vassalLogs
-                    });
-
                     // [NEW] Check for vassal autonomous requests (Lower Tribute, Aid, Investment)
                     checkVassalRequests(
                         current.nations.filter(n => n.vassalOf === 'player'),
                         current.daysElapsed || 0,
                         vassalLogs
                     );
-
-                    if (vassalUpdateResult) {
-                        // 保存更新后的国家列表（含independencePressure/satisfaction等附庸状态字段）
-                        if (vassalUpdateResult.nations) {
-                            vassalNationsUpdated = vassalUpdateResult.nations;
-                        }
-                        // 朝贡财政结算（tributeIncome/resourceTribute/totalControlCost）
-                        // 由 simulation.js 中的 processVassalUpdates 统一处理，此处不重复结算
-                    }                }
+                }
 
                 const treasuryIncome = auditEntries.reduce((sum, entry) => {
                     const amount = Number(entry?.amount || 0);
@@ -1929,7 +2008,7 @@ difficulty, // 游戏难度
 
                 console.groupEnd();
                 // === 财政日志结束 ===
-                console.log('🔴🔴🔴 [DEBUG-CHECKPOINT] 财政日志结束，继续执行..');
+                _apMark('fiscal');
 
                 // ========== 缁忔祹鎸囨爣璁＄畻 ==========
                 // 1. 鏇存柊浠锋牸鍘嗗彶锛堟瘡澶╋級
@@ -1988,6 +2067,93 @@ difficulty, // 游戏难度
                 console.groupEnd();
                 setEconomicIndicators(indicators);
 
+                // 税收政策变化采集：仅在实际变化时上报，避免高频噪音。
+                const nextTaxSnapshot = normalizeTaxPolicySnapshot(current.taxPolicies || taxPolicies || {});
+                if (!taxPolicySnapshotRef.current) {
+                    taxPolicySnapshotRef.current = nextTaxSnapshot;
+                } else {
+                    emitTaxPolicyChanges(taxPolicySnapshotRef.current, nextTaxSnapshot);
+                    taxPolicySnapshotRef.current = nextTaxSnapshot;
+                }
+
+                // GameAnalytics 周期采样（每 30 游戏日）
+                const nextDay = (current.daysElapsed || 0) + 1;
+                if (nextDay % 30 === 0) {
+                    const totalArmyCount = Object.values(result.army || current.army || {}).reduce((s, v) => s + (v || 0), 0);
+                    const pop = result.population || current.population;
+                    const stab = result.stability;
+                    trackPeriodicMetrics({
+                        gdp: indicators.gdp?.total,
+                        cpi: indicators.cpi?.index,
+                        ppi: indicators.ppi?.index,
+                        population: pop,
+                        stability: stab,
+                        treasury: result.resources?.silver,
+                        armySize: totalArmyCount,
+                    });
+
+                    // 经济流水采样
+                    const slog = result.silverChangeLog || {};
+                    trackEconomicFlows({
+                        taxIncome: (slog.tax_income || 0) + (slog.head_tax || 0) + (slog.resource_tax || 0) + (slog.business_tax || 0),
+                        tradeIncome: (slog.trade_income || 0) + (slog.trade_route_transaction || 0),
+                        militaryCost: Math.abs(slog.military_maintenance || 0) + Math.abs(slog.military_wage || 0),
+                        buildingCost: Math.abs(slog.building_maintenance || 0),
+                        officialCost: Math.abs(slog.official_salary || 0),
+                    });
+
+                    // 市场价格采样
+                    trackPriceSampling(result.market?.prices);
+
+                    // 人口里程碑检测
+                    const prevPop = current.population || 0;
+                    const milestones = [100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
+                    for (const m of milestones) {
+                        if (prevPop < m && pop >= m) {
+                            trackPopulationMilestone(m, pop);
+                        }
+                    }
+
+                    // 饥荒死亡追踪
+                    if (result.starvationDeaths > 0) {
+                        trackPopulationStarvation(result.starvationDeaths);
+                    }
+
+                    // 稳定度等级变化
+                    const prevStab = current.stability || 50;
+                    const stabLevels = [20, 40, 60, 80];
+                    for (const lvl of stabLevels) {
+                        if ((prevStab >= lvl && stab < lvl) || (prevStab < lvl && stab >= lvl)) {
+                            const levelName = stab < 20 ? 'critical' : stab < 40 ? 'low' : stab < 60 ? 'medium' : stab < 80 ? 'high' : 'excellent';
+                            trackStabilityLevelChange(levelName, stab);
+                            break;
+                        }
+                    }
+
+                    // 经济危机检测
+                    if (result.resources?.silver <= 0) trackEconomicCrisis('bankruptcy', 0);
+                    if (indicators.cpi?.index > 200) trackEconomicCrisis('hyperinflation', indicators.cpi.index);
+                }
+
+                setAnnualReportAccumulator(prev => {
+                    const base = prev || {
+                        daysCount: 0,
+                        gdpSum: 0,
+                        cpiSum: 0,
+                        ppiSum: 0,
+                        taxSum: 0,
+                        fiscalNetIncomeSum: 0,
+                    };
+                    return {
+                        daysCount: (base.daysCount || 0) + 1,
+                        gdpSum: (base.gdpSum || 0) + Number(indicators.gdp?.total || 0),
+                        cpiSum: (base.cpiSum || 0) + Number(indicators.cpi?.index || 0),
+                        ppiSum: (base.ppiSum || 0) + Number(indicators.ppi?.index || 0),
+                        taxSum: (base.taxSum || 0) + Number(treasuryIncome || 0),
+                        fiscalNetIncomeSum: (base.fiscalNetIncomeSum || 0) + Number(netTreasuryChange || 0),
+                    };
+                });
+
                 const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
                     ? result._debug.startingSilver
                     : treasuryAtTickStart;
@@ -2042,6 +2208,8 @@ difficulty, // 游戏难度
                     });
                 }
 
+                _apMark('indicators+resources');
+
                 // ========== 理念系统每日更新 ==========
                 // 1. 冷却减少
                 if (current.ideologyCooldowns && Object.keys(current.ideologyCooldowns).length > 0) {
@@ -2063,18 +2231,17 @@ difficulty, // 游戏难度
                                 .filter(n => n.isAtWar && !n.isRebelNation)
                                 .map(n => ({ id: n.id, warScore: n.warScore || 0, eventId: `${n.id}_${n.warStartDay || 0}` }));
                             const prevState = {
-                                techsUnlocked: latestState.techsUnlocked || [],
-                                epoch: latestState.epoch || 0,
                                 stability: latestState.stability || 50,
                                 completedChains: latestState.completedChains || 0,
                                 // 上一tick的在战国家列表（用于检测战争结束）
                                 warNations: prevWarNationsRef.current,
                             };
                             const curState = {
-                                techsUnlocked: latestState.techsUnlocked || [],
-                                epoch: latestState.epoch || 0,
                                 stability: result.stability ?? latestState.stability ?? 50,
                                 population: result.population ?? latestState.population ?? 0,
+                                epoch: latestState.epoch ?? epoch ?? 0,
+                                techsUnlocked: latestState.techsUnlocked || techsUnlocked || [],
+                                rulingCoalition: latestState.rulingCoalition || rulingCoalition || [],
                                 buildings: latestState.buildings || {},
                                 resources: adjustedResources,
                                 popStructure: result.popStructure || latestState.popStructure || {},
@@ -2084,7 +2251,7 @@ difficulty, // 游戏难度
                                 tradeVolume: _tradeVolume,
                                 warNations: _curWarNations,
                             };
-                            // 更新上一tick的在战国家列表（供下一tick使用）
+                            // 更新上一tick的快照（供下一tick使用）
                             prevWarNationsRef.current = _curWarNations;
                             const scoreResult = checkAndAwardIdeologyScore(curState, prevState);
                             if (scoreResult.scoreGained > 0) {
@@ -2099,7 +2266,10 @@ difficulty, // 游戏难度
                             const newSpent = latestState.ideologyScoreSpent || 0;
                             const ownedCount = (latestState.ideologyCollection || []).length;
                             if (!latestState.pendingIdeologyEmergence && checkEmergence(newScore, newSpent, ownedCount)) {
-                                const candidates = generateEmergenceCandidates(curState, latestState.ideologyCollection || []);
+                                // 只有上次是跳过时才继承稀有度加成，选择后加成清零
+                                const wasSkipped = latestState.lastEmergenceWasSkipped ?? false;
+                                const rarityBonus = wasSkipped ? (latestState.ideologyEmergenceRarityBonus || ideologyEmergenceRarityBonus || 0) : 0;
+                                const candidates = generateEmergenceCandidates(curState, latestState.ideologyCollection || [], rarityBonus);
                                 if (candidates.length > 0) {
                                     setIsPaused(true);
                                     setPendingIdeologyEmergence({ candidates });
@@ -2139,7 +2309,8 @@ difficulty, // 游戏难度
                         outboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
                     }
 
-                    import('../logic/diplomacy/autonomousInvestment').then(({ selectOutboundInvestmentsBatch }) => {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ selectOutboundInvestmentsBatch, resetInvestmentCache }) => {
+                        if (shouldStartNewCycle && !isInActiveCycle) resetInvestmentCache();
                         // [FIX] 鐜╁鏁版嵁涓嶅湪 nations 鏁扮粍涓紝闇€瑕佹瀯寤鸿櫄鎷熺帺瀹跺浗瀹跺璞?
                         const playerNation = {
                             id: 'player',
@@ -2216,7 +2387,8 @@ difficulty, // 游戏难度
 
                 if (shouldStartInboundCycle || isInInboundCycle) {
                     debugLog('trade', '[INBOUND-CYCLE] 触发 inbound investment 检查');
-                    import('../logic/diplomacy/autonomousInvestment').then(({ selectInboundInvestmentsBatch }) => {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ selectInboundInvestmentsBatch, resetInvestmentCache }) => {
+                        if (shouldStartInboundCycle && !isInInboundCycle) resetInvestmentCache();
                         // 寮€濮嬫柊鍛ㄦ湡鏃堕噸缃?offset
                         if (shouldStartInboundCycle && !isInInboundCycle) {
                             debugLog('trade', '馃攧 [INBOUND-CYCLE] 寮€濮嬫柊鍛ㄦ湡锛岄噸缃?offset');
@@ -2279,7 +2451,8 @@ difficulty, // 游戏难度
                                     ownerStratum: 'capitalist',
                                     operatingMode: 'local',
                                     investmentAmount: cost,
-                                    investmentPolicy
+                                    investmentPolicy,
+                                    trackAnalytics: false,
                                 });
 
                                 setNations(prev => prev.map(n => (
@@ -2301,6 +2474,8 @@ difficulty, // 游戏难度
                 // 条约维护费已在 simulation 内统一扣除并记账，避免主线程重复扣减
 
                 // [MOVED] 附庸每日更新已移至主 setResources 调用之前，避免产生对账差额
+
+                _apMark('ideology+investment_dispatch');
 
                 // ========== 官员成长系统（每日经验与升级）==========
                 let progressionChanges = [];
@@ -2544,6 +2719,8 @@ difficulty, // 游戏难度
                 }
                 const nextPopulation = coupOutcome?.population ?? result.population;
 
+                _apMark('officials+coup+vassal_merge');
+
                 // --- 鍘嗗彶鏁版嵁鏇存柊 (Update Refs directly) ---
                 const MAX_POINTS = HISTORY_STORAGE_LIMIT;
 
@@ -2639,6 +2816,7 @@ difficulty, // 游戏难度
                             ...safeHistory,
                             treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
                             tax: appendValue(safeHistory.tax, treasuryIncome || 0),
+                            fiscalNetIncome: appendValue(safeHistory.fiscalNetIncome, netTreasuryChange || 0),
                             population: appendValue(safeHistory.population, nextPopulation || 0),
                             // 缁忔祹鎸囨爣鍘嗗彶
                             gdp: appendValue(safeHistory.gdp, indicators.gdp?.total || 0),
@@ -2854,6 +3032,8 @@ difficulty, // 游戏难度
                 // [FIX] 将 currentActions 提升到 .then() 回调顶层作用域，
                 // 确保 unstable_batchedUpdates 内外所有代码都能访问
                 const currentActions = current.actions;
+
+                _apMark('history+ideology_events');
 
                 unstable_batchedUpdates(() => {
                     setPopStructure(nextPopStructure);
@@ -3081,7 +3261,10 @@ difficulty, // 游戏难度
                             return result;
                         });
                     }
-                    if (typeof result.lastMinisterExpansionDay === 'number') {
+                    if (
+                        typeof result.lastMinisterExpansionDay === 'number' ||
+                        (result.lastMinisterExpansionDay && typeof result.lastMinisterExpansionDay === 'object')
+                    ) {
                         setLastMinisterExpansionDay(result.lastMinisterExpansionDay);
                     }
                     // [DEBUG] 涓存椂鏃ュ織 - 杩借釜鑷敱甯傚満鏈哄埗闂
@@ -3090,7 +3273,11 @@ difficulty, // 游戏难度
                     }
                     // Update building upgrades from owner auto-upgrade
                     if (nextBuildingUpgrades) {
-                        setBuildingUpgrades(nextBuildingUpgrades);
+                        setBuildingUpgrades(prev => mergeLateBuildingUpgradeChanges(
+                            nextBuildingUpgrades,
+                            prev,
+                            tickBaseBuildingUpgrades
+                        ));
                     }
                     if (coupOutcome?.event) {
                         setRebellionStates(prev => ({
@@ -3114,6 +3301,8 @@ difficulty, // 游戏难度
                         // forcedSubsidy 鐢卞崟鐙殑閫昏緫澶勭悊锛屼笉鍦ㄦ鏇存柊
                     }));
 
+                    _apMark('setState_batch_basic');
+
                     // ========== 鎴樻枟鍥炲悎鎺ㄨ繘 & 鎴樼嚎 Tick ==========
                     const currentActiveBattles = current.activeBattles || [];
                     const currentActiveFronts = current.activeFronts || [];
@@ -3124,6 +3313,8 @@ difficulty, // 游戏难度
                     let updatedCorps = [...currentCorps];
                     let updatedGenerals = [...currentGenerals];
 
+                    const _milBattleStart = _ap();
+                    let _milBattleRoundsMs = 0, _milFrictionMs = 0;
                     if (currentActiveBattles.length > 0 || currentActiveFronts.length > 0) {
                         let updatedArmyFromBattle = null;
                         const battleLogs = [];
@@ -3243,7 +3434,7 @@ difficulty, // 游戏难度
                                     return {
                                         ...f,
                                         activeBattleId: updatedBattle.status === 'active' ? updatedBattle.id : null,
-                                        warScore: Math.max(-500, Math.min(500, getFrontWarScoreTotal(warScoreBreakdown))),
+                                        warScore: Math.max(-500, Math.min(500, getWarScoreBreakdownTotal(warScoreBreakdown))),
                                         warScoreBreakdown,
                                     };
                                 });
@@ -3439,17 +3630,10 @@ difficulty, // 游戏难度
                                     });
                                 }
 
-                                // Update nation warScore
-                                if (front && playerSide) {
-                                    const isPlayerWinner = (winner === playerSide);
-                                    const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
-                                    const warScoreChange = playerSide === 'attacker'
-                                        ? Number(updatedBattle.result?.totalWarScoreDelta || 0)
-                                        : -Number(updatedBattle.result?.totalWarScoreDelta || 0);
-                                    setNations(prev => prev.map(n =>
-                                        n.id === enemyId ? { ...n, warScore: Math.max(-100, Math.min(100, (n.warScore || 0) + (warScoreChange || (isPlayerWinner ? 12 : -12)))) } : n
-                                    ));
-                                }
+                                // [FIX] Removed redundant nation.warScore update on battle resolution.
+                                // Battle phase deltas already flow through nationWarScoreDeltaByEnemyId (per-phase)
+                                // AND front.warScoreBreakdown.battle (accumulated by simulation).
+                                // The old code double-counted totalWarScoreDelta AND clamped to ±100.
 
                             }
 
@@ -3457,6 +3641,7 @@ difficulty, // 游戏难度
                         });
 
                         updatedBattles = updatedBattles.filter((battle) => battle?.status === 'active');
+                        _milBattleRoundsMs = _ap() - _milBattleStart;
 
                         // --- Process front ticks (resource regeneration) ---
                         updatedFronts = updatedFronts.map(f => {
@@ -3579,7 +3764,7 @@ difficulty, // 游戏难度
                             };
                             let updatedFront = {
                                 ...f,
-                                warScore: Math.max(-200, Math.min(200, getFrontWarScoreTotal(warScoreBreakdown))),
+                                warScore: Math.max(-200, Math.min(200, getWarScoreBreakdownTotal(warScoreBreakdown))),
                                 frictionLog,
                                 economicDamageBreakdown: mergedEconomicDamage,
                                 warScoreBreakdown,
@@ -3689,6 +3874,7 @@ difficulty, // 游戏难度
                             return updatedFront;
                         });
 
+                        _milFrictionMs = _ap() - _milBattleStart - _milBattleRoundsMs;
                         // --- Sync friction-caused building destruction ---
                         if (buildingDestructionQueue.length > 0) {
                             setBuildings(prev => {
@@ -3988,7 +4174,7 @@ difficulty, // 游戏难度
                                 raidIntensity: resolvedSummary.raidIntensity,
                                 entrenchment: resolvedSummary.entrenchment,
                                 contestedZone: resolvedSummary.contestedZone,
-                                warScore: Math.max(-500, Math.min(500, getFrontWarScoreTotal(nextWarScoreBreakdown))),
+                                warScore: Math.max(-500, Math.min(500, getWarScoreBreakdownTotal(nextWarScoreBreakdown))),
                                 warScoreBreakdown: nextWarScoreBreakdown,
                                 economicDamageBreakdown: {
                                     supplyLineDamage: Number(advancedFront.economicDamageBreakdown?.supplyLineDamage || 0),
@@ -4301,7 +4487,7 @@ difficulty, // 游戏难度
                                 if (!delta) return n;
                                 return {
                                     ...n,
-                                    warScore: Math.max(-100, Math.min(100, (n.warScore || 0) + delta)),
+                                    warScore: (n.warScore || 0) + delta,
                                 };
                             }));
                         }
@@ -4337,7 +4523,10 @@ difficulty, // 游戏难度
                             battleLogs.forEach(log => addLog(log));
                         }
 
-                        // Flush ideology event bus logs and effects
+                    }
+
+                    // Flush ideology event bus logs and effects (outside battle if-block so it runs every tick)
+                    {
                         const ideologyLogs = ideologyEventBus.flushLogs();
                         if (ideologyLogs.length > 0) {
                             ideologyLogs.forEach(log => addLog(log));
@@ -4416,11 +4605,16 @@ difficulty, // 游戏难度
 
                     // ========== AI Enemy Corps & Auto-Battle Logic ==========
                     {
+                        const _milStart = _ap();
                         const fronts = updatedFronts;
                         const battles = updatedBattles || [];
                         const currentDay = (current.daysElapsed || 0) + 1;
                         let aiNations = [...(current.nations || [])].map((nation) => ensureAIMilitaryState(nation, current.epoch || 0));
                         const aiNationChangedIds = new Set();
+
+                        // [PERF] 用 Map 代替反复 .map() 全量拷贝数组
+                        const corpsMap = new Map(updatedCorps.map(c => [c.id, c]));
+                        const generalMap = new Map(updatedGenerals.map(g => [g.id, g]));
 
                         aiNations = aiNations.map((nation) => {
                             if (!nation || nation.id === 'player') return nation;
@@ -4431,27 +4625,33 @@ difficulty, // 游戏难度
                                 militaryCorps: updatedCorps,
                                 generals: updatedGenerals,
                             });
-                            const existingIds = new Set(updatedCorps.map((corps) => corps.id));
                             syncResult.corps.forEach((corps) => {
-                                if (!existingIds.has(corps.id)) {
-                                    updatedCorps.push(corps);
-                                    existingIds.add(corps.id);
+                                const existing = corpsMap.get(corps.id);
+                                if (existing) {
+                                    corpsMap.set(corps.id, { ...existing, ...corps });
                                 } else {
-                                    updatedCorps = updatedCorps.map((item) => item.id === corps.id ? { ...item, ...corps } : item);
+                                    corpsMap.set(corps.id, corps);
                                 }
                             });
-                            const existingGeneralIds = new Set(updatedGenerals.map((general) => general.id));
                             syncResult.generals.forEach((general) => {
-                                if (!existingGeneralIds.has(general.id)) {
-                                    updatedGenerals.push(general);
-                                    existingGeneralIds.add(general.id);
+                                if (!generalMap.has(general.id)) {
+                                    generalMap.set(general.id, general);
                                 }
                             });
                             aiNationChangedIds.add(syncResult.nation.id);
                             return syncResult.nation;
                         });
 
+                        // 同步回数组
+                        updatedCorps = Array.from(corpsMap.values());
+                        updatedGenerals = Array.from(generalMap.values());
+                        const _milSyncMs = _ap() - _milStart;
+
                         // [NEW] 跨战线军团调度：每个AI国家的有限军团按优先级分配到各活跃战线
+                        // [PERF] 用 Map 索引代替嵌套 find/filter
+                        const corpsIdxMap = new Map(updatedCorps.map(c => [c.id, c]));
+                        const frontIdxMap = new Map(updatedFronts.map(f => [f.id, f]));
+
                         for (const nation of aiNations) {
                             if (!nation || nation.id === 'player') continue;
                             const nationActiveFronts = updatedFronts.filter(f =>
@@ -4472,27 +4672,30 @@ difficulty, // 游戏难度
                                 nation,
                                 epoch: current.epoch || 0,
                             });
+                            // 刷新 Map 索引
+                            updatedCorps.forEach(c => corpsIdxMap.set(c.id, c));
 
-                            // 同步战线的 assignedCorps 记录
                             for (const [frontId, corpsIds] of Object.entries(allocations)) {
-                                updatedFronts = updatedFronts.map(f => {
-                                    if (f.id !== frontId) return f;
-                                    const side = f.attackerId === nation.id ? 'attacker' : 'defender';
-                                    return {
-                                        ...f,
-                                        assignedCorps: {
-                                            ...f.assignedCorps,
-                                            [side]: [...new Set([...(f.assignedCorps?.[side] || []).filter(id => {
-                                                // 保留非本国家的军团ID
-                                                const corps = updatedCorps.find(c => c.id === id);
-                                                return corps && corps.nationId !== nation.id;
-                                            }), ...corpsIds])],
-                                        },
-                                    };
+                                const f = frontIdxMap.get(frontId);
+                                if (!f) continue;
+                                const side = f.attackerId === nation.id ? 'attacker' : 'defender';
+                                const kept = (f.assignedCorps?.[side] || []).filter(id => {
+                                    const corps = corpsIdxMap.get(id);
+                                    return corps && corps.nationId !== nation.id;
                                 });
+                                const merged = {
+                                    ...f,
+                                    assignedCorps: {
+                                        ...f.assignedCorps,
+                                        [side]: [...new Set([...kept, ...corpsIds])],
+                                    },
+                                };
+                                frontIdxMap.set(frontId, merged);
                             }
                             aiNationChangedIds.add(nation.id);
                         }
+                        updatedFronts = Array.from(frontIdxMap.values());
+                        const _milAllocMs = _ap() - _milStart - _milSyncMs;
 
                         for (const front of fronts) {
                             if (front.status !== 'active') continue;
@@ -4799,10 +5002,12 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                             }
                         }
 
+                        const _milFrontLoopMs = _ap() - _milStart - _milSyncMs - _milAllocMs;
                         if (aiNationChangedIds.size > 0) {
                             const aiMarketPrices = result.market?.prices || current.market?.prices || {};
+                            const aiNationsMap = new Map(aiNations.map(n => [n.id, n]));
                             setNations(prev => prev.map(nation => {
-                                const updatedNation = aiNations.find(item => item.id === nation.id);
+                                const updatedNation = aiNationsMap.get(nation.id);
                                 if (!updatedNation || !aiNationChangedIds.has(nation.id)) return nation;
 
                                 const activeNationFronts = (updatedFronts || []).filter((front) => front?.status === 'active' && (front.attackerId === nation.id || front.defenderId === nation.id));
@@ -4906,6 +5111,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         }
 
 
+                        const _milSetNationsMs = _ap() - _milStart - _milSyncMs - _milAllocMs - _milFrontLoopMs;
                         setActiveBattles(updatedBattles);
                         setActiveFronts(updatedFronts);
                         if (updatedCorps !== currentCorps) setMilitaryCorps(updatedCorps);
@@ -4916,6 +5122,10 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         stateRef.current.activeFronts = updatedFronts;
                         stateRef.current.militaryCorps = updatedCorps;
                         stateRef.current.generals = updatedGenerals;
+                        const _milTotalMs = _ap() - _milBattleStart;
+                        if (_milTotalMs > 50) {
+                            console.warn(`[Perf-Military] total=${_milTotalMs.toFixed(1)}ms battleRounds=${_milBattleRoundsMs.toFixed(1)} friction=${_milFrictionMs.toFixed(1)} aiSync=${_milSyncMs.toFixed(1)} aiAlloc=${_milAllocMs.toFixed(1)} frontLoop=${_milFrontLoopMs.toFixed(1)} setNations=${_milSetNationsMs.toFixed(1)} battles=${currentActiveBattles.length} fronts=${currentActiveFronts.length} corps=${updatedCorps.length} nations=${aiNations.length}`);
+                        }
                     }
 
                     // 姣忔 Tick 鎺ㄨ繘 1 澶╋紙鑰岄潪 gameSpeed 澶╋級                    // 鍔犻€熸晥鏋滈€氳繃澧炲姞 Tick 棰戠巼瀹炵幇锛岃€岄潪澧炲姞姣忔鎺ㄨ繘鐨勫ぉ鏁?
@@ -4924,6 +5134,8 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         return (Number.isFinite(numericPrev) ? numericPrev : 0) + 1;
                     });
                 });
+
+                _apMark('batchedUpdates+military');
 
                 if (coupOutcome?.event && current.actions?.triggerDiplomaticEvent) {
                     current.actions.triggerDiplomaticEvent(coupOutcome.event);
@@ -4963,6 +5175,14 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     updatedOrganizationStates
                 );
                 const currentEpoch = current.epoch || 0;
+
+                // GameAnalytics: 组织度阶段跃迁上报
+                if (organizationEvents.length > 0) {
+                    for (const orgEvt of organizationEvents) {
+                        const org = updatedOrganizationStates[orgEvt.stratumKey];
+                        trackRebellionPhase(orgEvt.type, orgEvt.stratumKey, org?.organization);
+                    }
+                }
 
                 // 澶勭悊缁勭粐搴︿簨浠?
                 if (organizationEvents.length > 0 && current.actions?.triggerDiplomaticEvent) {
@@ -5034,13 +5254,42 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
 
 
                             case 'uprising': {
-                                // 妫€鏌ュ奖鍝嶅姏鍗犳瘮鏄惁瓒冲鍙戝姩鍙涗贡
                                 const stratumInfluence = rebellionStateForEvent.influenceShare;
+                                const stratumPopForRebellion = current.popStructure?.[stratumKey] || 0;
                                 if (epochBlocksRebellion) {
                                     addLog('[组织不足] ' + (STRATA[stratumKey]?.name || stratumKey) + ' 阶层尚未具备发动叛乱能力。');
                                     updatedOrganizationStates[stratumKey] = {
                                         ...updatedOrganizationStates[stratumKey],
                                         organization: 25,
+                                        stage: ORGANIZATION_STAGE.GRUMBLING,
+                                    };
+                                    break;
+                                }
+                                // 人口过少无法组织有效叛乱，按人口外流处理
+                                if (stratumPopForRebellion < MIN_REBELLION_POPULATION) {
+                                    const leaving = Math.max(1, Math.floor(stratumPopForRebellion * 0.1));
+                                    const popWealth = current.classWealth?.[stratumKey] || 0;
+                                    const perCapW = stratumPopForRebellion > 0 ? popWealth / stratumPopForRebellion : 0;
+                                    const fleeCapital = perCapW * leaving;
+
+                                    setPopStructure(prev => ({
+                                        ...prev,
+                                        [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - leaving),
+                                    }));
+                                    setPopulation(prev => reducePopulationWithFloor(prev, leaving));
+
+                                    if (fleeCapital > 0) {
+                                        setClassWealth(prev => ({
+                                            ...prev,
+                                            [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - fleeCapital),
+                                        }), { reason: 'rebellion_fleeing_capital', meta: { stratumKey } });
+                                    }
+
+                                    addLog('[人口不足] ' + (STRATA[stratumKey]?.name || stratumKey) + ' 仅有 ' + stratumPopForRebellion + ' 人，无法组织叛乱，' + leaving + ' 人愤怒离开。');
+
+                                    updatedOrganizationStates[stratumKey] = {
+                                        ...updatedOrganizationStates[stratumKey],
+                                        organization: 40,
                                         stage: ORGANIZATION_STAGE.GRUMBLING,
                                     };
                                     break;
@@ -5705,6 +5954,8 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     }
                 }
 
+                _apMark('rebellion+diplomacy+vassal');
+
                 // 娣诲姞鏂版棩蹇?
                 if (result.logs.length) {
                     // 鍘婚噸锛氳拷韪凡澶勭悊鐨勭獊琚簨浠?
@@ -5945,22 +6196,20 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             if (!aggressorAllianceIds.includes(n.id)) return false;
                                             if (sharedAllianceIds.has(n.id)) return false;
                                             if (n.isAtWar) return false;
-                                            // 鎺掗櫎鐜╁鐨勯檮搴?
-                                            if (n.isVassal === true) return false;
+                                            // [FIX] Exclude player's vassals - use vassalOf which is the actual field
+                                            if (n.vassalOf === 'player') return false;
                                             return true;
                                         });
-
                                         // 鐜╁鐨勭洘鍙嬶紙鎺掗櫎鍏卞悓鐩熷弸鍜岄檮搴革級
                                         const playerAllies = nextNations.filter(n => {
                                             if (n.id === aggressorId) return false;
                                             if (!playerAllianceIds.includes(n.id)) return false;
                                             if (sharedAllianceIds.has(n.id)) return false;
                                             if (n.isAtWar) return false;
-                                            // 鎺掗櫎鐜╁鐨勯檮搴?
-                                            if (n.isVassal === true) return false;
+                                            // [FIX] Exclude player's vassals - use vassalOf which is the actual field
+                                            if (n.vassalOf === 'player') return false;
                                             return true;
                                         });
-
                                         // ========== 鎴樹簤涓婇檺妫€鏌?==========
                                         const MAX_CONCURRENT_WARS = 3;
                                         // 璁＄畻褰撳墠涓庣帺瀹朵氦鎴樼殑AI鍥藉鏁伴噺锛堜笉鍖呮嫭鍙涘啗锛?
@@ -6145,7 +6394,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             )
                                         );
                                         const frontWarScore = nationFronts.length > 0
-                                            ? nationFronts.reduce((sum, f) => sum + (f.warScore || 0), 0)
+                                            ? nationFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
                                             : null;
                                         const effectiveWarScore = frontWarScore !== null ? frontWarScore : (nation.warScore || 0);
                                         debugLog('event', '[EVENT DEBUG] Parameters:', {
@@ -7407,6 +7656,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 }
                 // 澶勭悊璁粌闃熷垪
 
+                _apMark("logs+events");
                 // [FIX] Moved Auto Replenish Logic here to share scope with setMilitaryQueue
                 const autoRecruitEnabled = current.autoRecruitEnabled || false;
                 const allAutoReplenishLosses = {};
@@ -7825,6 +8075,13 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     });
                 });
 
+                _apMark('recruit+queue');
+                // 记录完整 apply sections
+                const _apTotalMs = _ap() - _apStart;
+                if (typeof window !== 'undefined') {
+                    window.__APPLY_SECTIONS = { ..._apSections, _total: _apTotalMs };
+                }
+
                 const perfNow = (typeof performance !== 'undefined' && performance.now)
                     ? performance.now()
                     : Date.now();
@@ -7863,12 +8120,20 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 if (shouldLog) {
                     perfLogRef.current.lastLogDay = perfDay;
                     perfLogRef.current.didLogOnce = true;
+                    const applySectionStr = Object.entries(_apSections)
+                        .filter(([, v]) => v > 1)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([k, v]) => `${k}=${v.toFixed(1)}`)
+                        .join(' ');
                     console.log(
                         `[Perf] day=${perfDay} total=${perfTotalMs.toFixed(1)}ms sim=${perfSimMs.toFixed(1)}ms apply=${perfApplyMs.toFixed(1)}ms ` +
                         `nations=${current.nations?.length || 0} overseas=${overseasInvestmentsRef.current?.length || 0} foreign=${current.foreignInvestments?.length || 0}` +
                         (topSections ? ` sections=${topSections}` : '') +
                         (otherMs > 0 ? ` other=${otherMs.toFixed(1)}ms` : '')
                     );
+                    if (applySectionStr) {
+                        console.log(`[Perf-Apply] ${applySectionStr} _total=${_apTotalMs.toFixed(1)}ms`);
+                    }
                     if (forceLog && sectionEntries.length > 0) {
                         const sorted = [...sectionEntries].sort((a, b) => b[1] - a[1]);
                         console.table(Object.fromEntries(sorted.map(([k, v]) => [k, Number(v.toFixed(2))])));

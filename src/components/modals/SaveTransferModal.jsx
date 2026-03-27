@@ -6,6 +6,8 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 
+const IMPORT_TIMEOUT_MS = 15000;
+
 /**
  * 存档传输弹窗组件
  * @param {boolean} isOpen - 是否显示弹窗
@@ -46,7 +48,15 @@ export const SaveTransferModal = ({
         setIsProcessing(true);
         setStatus(null);
         try {
-            await onImportFile?.(file);
+            const result = await Promise.race([
+                Promise.resolve(onImportFile?.(file)),
+                new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('导入超时（15秒）。请重试，或先清理旧存档后再导入。')), IMPORT_TIMEOUT_MS);
+                }),
+            ]);
+            if (!result) {
+                throw new Error('导入未完成。请检查存档文件是否有效。');
+            }
             setStatus({ type: 'success', message: '存档导入成功！' });
             setTimeout(() => onClose(), 1000);
         } catch (error) {

@@ -1,7 +1,7 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     BUILDINGS,
     EPOCHS,
@@ -16,6 +16,7 @@ import {
     createPeaceRequestEvent,
     createEnemyPeaceRequestEvent,
     createPlayerPeaceProposalEvent,
+    createPeaceProposalRejectedEvent,
     createBattleEvent,
     createAllianceRequestEvent,
     createAllianceProposalResultEvent,
@@ -39,7 +40,7 @@ import {
 } from '../config';
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier, getAIMilitaryStrengthMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
-import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
+import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier, areUpgradeInputsUnlocked } from '../utils/buildingUpgradeUtils';
 import { simulateBattle, calculateBattlePower, calculateNationBattlePower, generateNationArmy } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -53,7 +54,22 @@ import {
     reducePopulationWithFloor,
 } from '../utils/populationClamp';
 import { calculateNegotiationAcceptChance, generateCounterProposal, canAffordStance, NEGOTIATION_STANCES } from '../logic/diplomacy/negotiation';
-import { generateFront } from '../logic/diplomacy/frontSystem';
+import { generateFront, getEffectiveFrontWarScore } from '../logic/diplomacy/frontSystem';
+import {
+    trackBuyBuilding, trackSellBuilding, trackUpgradeBuilding,
+    trackDowngradeBuilding, trackBatchUpgradeBuilding, trackBatchDowngradeBuilding,
+    trackResearchTech, trackEpochUpgrade, trackDiplomacy,
+    trackRecruit, trackBattleLaunch, trackBattleResult, trackDecreeToggle,
+    trackResourceSink, trackOfficialHire, trackOfficialFire,
+    trackOfficialSalary, trackMinisterAssign,
+    trackProgressionComplete, trackProgressionStart, trackDisband,
+    trackDisbandAll, trackCancelTraining, trackCancelAllTraining,
+    trackManualGather, trackEventChoice, trackRebellionAction,
+    trackVassalApprove, trackVassalReject, trackVassalOrder,
+    trackPeaceAccept, trackPeaceReject, trackPeacePropose,
+    trackTradeRouteMode, trackCoalitionChange,
+} from '../analytics/gaTracker';
+import { setDimensions } from '../analytics/gaInit';
 // 外交叛乱干预系统
 import { executeIntervention, INTERVENTION_OPTIONS } from '../logic/diplomacy/rebellionSystem';
 // 内部叛乱系统
@@ -82,6 +98,7 @@ import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
 import { BUILDING_CHAINS } from '../config/buildingChains';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
+import { IDEOLOGY_SCORE_TRIGGERS } from '../config/ideologies';
 import { getEpochTechRequirementStatus } from '../utils/epochUpgrade';
 
 const getCompletedChainIds = (buildingState = {}) => {
@@ -211,6 +228,14 @@ export const useGameActions = (gameState, addLog) => {
         // Pending Actions Queue（tick-action 竞争条件修复）
         pendingActionsRef,
     } = gameState;
+
+    // 用 ref 追踪最新值，防止连续快速调用时读到陈旧闭包
+    const _resourcesRef = useRef(resources);
+    _resourcesRef.current = resources;
+    const _buildingsRef = useRef(buildings);
+    _buildingsRef.current = buildings;
+    const _buildingUpgradesRef = useRef(buildingUpgrades);
+    _buildingUpgradesRef.current = buildingUpgrades;
 
     const setResourcesWithReason = (updater, reason, meta = null) => {
         let nextMeta = meta;
@@ -460,6 +485,7 @@ export const useGameActions = (gameState, addLog) => {
     const approveVassalDiplomacyAction = (requestId) => {
         const request = (vassalDiplomacyQueue || []).find(item => item?.id === requestId);
         if (!request) return;
+        trackVassalApprove(request.actionType, request.vassalId);
         const result = executeVassalDiplomacyAction(request);
         if (result.success) {
             resolveVassalDiplomacyRequest(requestId, 'approved');
@@ -470,6 +496,8 @@ export const useGameActions = (gameState, addLog) => {
     };
 
     const rejectVassalDiplomacyAction = (requestId, reason = 'rejected') => {
+        const request = (vassalDiplomacyQueue || []).find(item => item?.id === requestId);
+        trackVassalReject(request?.actionType || 'unknown', request?.vassalId);
         resolveVassalDiplomacyRequest(requestId, 'rejected', { failureReason: reason });
         if (reason) addLog(`🛑 已拒绝附庸外交请求：${reason}`);
     };
@@ -480,6 +508,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog('无法下达指令：附庸不存在');
             return;
         }
+        trackVassalOrder(actionType, vassalId);
 
         // [FIX] Cannot issue orders to annexed vassals
         if (vassal.isAnnexed) {
@@ -518,6 +547,7 @@ export const useGameActions = (gameState, addLog) => {
 
     const toggleDecree = (decreeId) => {
         if (!decreeId || typeof setDecrees !== 'function') return;
+        trackDecreeToggle(decreeId);
 
         // Pull the latest definition so effects are guaranteed to exist in state.
         // (simulation expects { id, active, modifiers })
@@ -723,29 +753,49 @@ export const useGameActions = (gameState, addLog) => {
         return true;
     });
 
-    const selectNationBySelector = (selector, visibleNations) => {
+    const isPlayerProtectedEventNation = (nation) => {
+        if (!nation || nation.id === 'player') return true;
+        if (nation.vassalOf === 'player') return true;
+        if (nation.alliedWithPlayer === true) return true;
+
+        const organizations = Array.isArray(diplomacyOrganizations?.organizations)
+            ? diplomacyOrganizations.organizations
+            : [];
+        return organizations.some(org => {
+            if (!org || org.type !== 'military_alliance' || org.isActive === false) return false;
+            const members = Array.isArray(org.members) ? org.members : [];
+            return members.includes('player') && members.includes(nation.id);
+        });
+    };
+
+    const selectNationBySelector = (selector, visibleNations, options = {}) => {
+        const { excludePlayerProtected = false } = options;
+        const pool = excludePlayerProtected
+            ? visibleNations.filter(n => !isPlayerProtectedEventNation(n))
+            : visibleNations;
+
         if (!selector) return null;
         if (selector === 'random') {
-            if (visibleNations.length === 0) return null;
-            return visibleNations[Math.floor(Math.random() * visibleNations.length)];
+            if (pool.length === 0) return null;
+            return pool[Math.floor(Math.random() * pool.length)];
         }
         if (selector === 'strongest') {
-            return visibleNations.reduce((best, n) => (!best || (n.wealth || 0) > (best.wealth || 0) ? n : best), null);
+            return pool.reduce((best, n) => (!best || (n.wealth || 0) > (best.wealth || 0) ? n : best), null);
         }
         if (selector === 'weakest') {
-            return visibleNations.reduce((best, n) => (!best || (n.wealth || 0) < (best.wealth || 0) ? n : best), null);
+            return pool.reduce((best, n) => (!best || (n.wealth || 0) < (best.wealth || 0) ? n : best), null);
         }
         if (selector === 'hostile') {
-            const hostile = visibleNations.filter(n => (n.relation || 0) < 30);
+            const hostile = pool.filter(n => (n.relation || 0) < 30);
             if (hostile.length === 0) return null;
             return hostile[Math.floor(Math.random() * hostile.length)];
         }
         if (selector === 'friendly') {
-            const friendly = visibleNations.filter(n => (n.relation || 0) >= 60);
+            const friendly = pool.filter(n => (n.relation || 0) >= 60);
             if (friendly.length === 0) return null;
             return friendly[Math.floor(Math.random() * friendly.length)];
         }
-        return visibleNations.find(n => n.id === selector) || null;
+        return pool.find(n => n.id === selector) || null;
     };
 
     const applyPopulationDelta = (delta) => {
@@ -912,8 +962,11 @@ export const useGameActions = (gameState, addLog) => {
                 if (!nation) return nation;
                 let nextNation = { ...nation };
 
-                const applyNationDelta = (map, key, clampMin = null, clampMax = null) => {
+                const applyNationDelta = (map, key, clampMin = null, clampMax = null, options = {}) => {
                     if (!map || typeof map !== 'object') return;
+                    const { excludePlayerProtected = false } = options;
+                    if (excludePlayerProtected && isPlayerProtectedEventNation(nation)) return;
+
                     const entries = Object.entries(map);
                     let totalDelta = 0;
                     let matched = false;
@@ -931,7 +984,7 @@ export const useGameActions = (gameState, addLog) => {
                             totalDelta += value;
                             return;
                         }
-                        const picked = selectNationBySelector(selector, visible);
+                        const picked = selectNationBySelector(selector, visible, { excludePlayerProtected });
                         if (picked && picked.id === nation.id) {
                             matched = true;
                             totalDelta += value;
@@ -952,16 +1005,16 @@ export const useGameActions = (gameState, addLog) => {
                             return nation;
                         }
                     }
-                    applyNationDelta(filtered.nationRelation, 'relation', 0, 100);
+                    applyNationDelta(filtered.nationRelation, 'relation', 0, 100, { excludePlayerProtected: true });
                 }
                 if (filtered.nationAggression) {
-                    applyNationDelta(filtered.nationAggression, 'aggression', 0, 1);
+                    applyNationDelta(filtered.nationAggression, 'aggression', 0, 1, { excludePlayerProtected: true });
                 }
                 if (filtered.nationWealth) {
-                    applyNationDelta(filtered.nationWealth, 'wealth', 0, null);
+                    applyNationDelta(filtered.nationWealth, 'wealth', 0, null, { excludePlayerProtected: true });
                 }
                 if (filtered.nationMarketVolatility) {
-                    applyNationDelta(filtered.nationMarketVolatility, 'marketVolatility', 0, 1);
+                    applyNationDelta(filtered.nationMarketVolatility, 'marketVolatility', 0, 1, { excludePlayerProtected: true });
                 }
 
                 return nextNation;
@@ -969,7 +1022,7 @@ export const useGameActions = (gameState, addLog) => {
 
             const triggerWarTarget = filtered.triggerWar;
             if (triggerWarTarget) {
-                const targetNation = selectNationBySelector(triggerWarTarget, visible);
+                const targetNation = selectNationBySelector(triggerWarTarget, visible, { excludePlayerProtected: true });
                 if (targetNation) {
                     startWarAgainstPlayer(targetNation.id, {
                         reason: 'event',
@@ -980,7 +1033,7 @@ export const useGameActions = (gameState, addLog) => {
 
             const triggerPeaceTarget = filtered.triggerPeace;
             if (triggerPeaceTarget) {
-                const targetNation = selectNationBySelector(triggerPeaceTarget, visible);
+                const targetNation = selectNationBySelector(triggerPeaceTarget, visible, { excludePlayerProtected: true });
                 if (targetNation) {
                     endWarWithNation(targetNation.id, {
                         peaceTreatyUntil: daysElapsed + 365,
@@ -997,21 +1050,21 @@ export const useGameActions = (gameState, addLog) => {
             const { addToCoalition, removeFromCoalition } = filtered.modifyCoalition;
 
             if (addToCoalition && typeof setRulingCoalition === 'function') {
-                setRulingCoalition(prev => {
-                    const currentCoalition = Array.isArray(prev) ? prev : [];
-                    // Avoid duplicates
-                    if (currentCoalition.includes(addToCoalition)) {
-                        return currentCoalition;
-                    }
-                    return [...currentCoalition, addToCoalition];
-                });
+                const currentCoalition = Array.isArray(rulingCoalition) ? rulingCoalition : [];
+                if (!currentCoalition.includes(addToCoalition)) {
+                    const nextCoalition = [...currentCoalition, addToCoalition];
+                    setRulingCoalition(nextCoalition);
+                    trackCoalitionChange(nextCoalition.length);
+                }
             }
 
             if (removeFromCoalition && typeof setRulingCoalition === 'function') {
-                setRulingCoalition(prev => {
-                    const currentCoalition = Array.isArray(prev) ? prev : [];
-                    return currentCoalition.filter(stratum => stratum !== removeFromCoalition);
-                });
+                const currentCoalition = Array.isArray(rulingCoalition) ? rulingCoalition : [];
+                if (currentCoalition.includes(removeFromCoalition)) {
+                    const nextCoalition = currentCoalition.filter(stratum => stratum !== removeFromCoalition);
+                    setRulingCoalition(nextCoalition);
+                    trackCoalitionChange(nextCoalition.length);
+                }
             }
         }
     };
@@ -1020,6 +1073,7 @@ export const useGameActions = (gameState, addLog) => {
         const current = currentEvent && currentEvent.id === eventId ? currentEvent : null;
         const fallback = current || EVENTS.find(evt => evt.id === eventId);
         const selected = option || {};
+        trackEventChoice(eventId, selected.id || 0);
 
         if (selected.effects) {
             applyEventEffects(selected.effects);
@@ -1269,15 +1323,17 @@ export const useGameActions = (gameState, addLog) => {
         const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         for (let k in nextEpoch.cost) {
+            if (k === 'silver') continue; // silver checked as part of silverCost below
             const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
             if ((resources[k] || 0) < cost) return false;
         }
 
-        // 检查银币成本
-        const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
-            const cost = Math.ceil(amount * techCostMultiplier);
-            return sum + cost * getMarketPrice(resource);
-        }, 0);
+        // 检查银币成本: direct silver + non-silver materials at market price
+        let silverCost = Math.ceil((nextEpoch.cost.silver || 0) * techCostMultiplier);
+        Object.entries(nextEpoch.cost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return;
+            silverCost += Math.ceil(amount * techCostMultiplier) * getMarketPrice(resource);
+        });
         if ((resources.silver || 0) < silverCost) return false;
 
         return true;
@@ -1295,23 +1351,28 @@ export const useGameActions = (gameState, addLog) => {
         if (!canUpgradeEpoch()) return;
 
         const nextEpoch = EPOCHS[epoch + 1];
-        const newRes = { ...resources };
+        const latestResources = _resourcesRef.current;
+        const newRes = { ...latestResources };
 
         const difficulty = gameState.difficulty || 'normal';
         const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
-        // 计算银币成本
-        const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
-            const cost = Math.ceil(amount * techCostMultiplier);
-            return sum + cost * getMarketPrice(resource);
-        }, 0);
+        // [FIX] 银币成本: 直接银币 + 非银币材料的市场价折算
+        let silverCost = Math.ceil((nextEpoch.cost.silver || 0) * techCostMultiplier);
+        Object.entries(nextEpoch.cost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return;
+            silverCost += Math.ceil(amount * techCostMultiplier) * getMarketPrice(resource);
+        });
 
-        // 扣除成本和银币
+        // 扣除非银币材料
         for (let k in nextEpoch.cost) {
+            if (k === 'silver') continue; // silver deducted as part of silverCost
             const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
             newRes[k] -= cost;
         }
+        // 扣除银币总成本
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        _resourcesRef.current = newRes;
 
         // 时代升级时为新解锁的资源补充少量初始库存，缓解过渡期通胀
         const newEpochIndex = epoch + 1;
@@ -1326,8 +1387,27 @@ export const useGameActions = (gameState, addLog) => {
         setEpoch(newEpochIndex);
         addLog(`🎉 文明进入 ${nextEpoch.name}！`);
 
+        trackProgressionComplete(epoch);
+        trackProgressionStart(epoch + 1);
+        trackEpochUpgrade(epoch + 1, daysElapsed);
+        trackResourceSink('silver', silverCost, 'tech', 'upgrade_epoch');
+        const epochNames = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
+        setDimensions({ epoch: epochNames[epoch + 1] });
+
         // Ideology event: epoch advance
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_EPOCH_ADVANCE, { newEpoch: epoch + 1, epochName: nextEpoch.name }, daysElapsed);
+
+        // Proactive ideology score award for epoch advance (replaces passive diff in useGameLoop)
+        {
+            const { base, epochScale } = IDEOLOGY_SCORE_TRIGGERS.epoch_advance;
+            const newEpochNum = epoch + 1;
+            const amount = base + newEpochNum * epochScale;
+            ideologyEventBus.queueDirectEffect(
+                { action: 'addIdeologyScore', amount, category: 'epoch_advance' },
+                'epoch_advance'
+            );
+            addLog(`🔮 进入第${newEpochNum}时代获得 ${amount} 理念之力`);
+        }
 
         // 播放升级音效
         try {
@@ -1350,7 +1430,10 @@ export const useGameActions = (gameState, addLog) => {
         if (!b) return;
 
         const finalCount = Math.max(1, Math.floor(count));
-        const currentCount = buildings[id] || 0;
+        // 从 ref 读取最新值，防止 React 批处理导致连续快速调用读到陈旧闭包
+        const latestResources = _resourcesRef.current;
+        const latestBuildings = _buildingsRef.current;
+        const currentCount = latestBuildings[id] || 0;
 
         // 计算成本（随数量递增）
         const difficultyLevel = gameState.difficulty || 'normal';
@@ -1361,7 +1444,6 @@ export const useGameActions = (gameState, addLog) => {
         const ideoBCM = modifiers?.ideologyRuleMods?.buildingCostMod || {};
         const ideoBuildCostMod = (ideoBCM[b.cat] || 0) + (ideoBCM._global || 0);
         const combinedBuildCostMod = buildingCostMod + ideoBuildCostMod;
-
         let totalCost = {};
 
         // 累加每个建筑的成本
@@ -1375,40 +1457,59 @@ export const useGameActions = (gameState, addLog) => {
             });
         }
 
-        const hasMaterials = Object.entries(totalCost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
+        // [FIX] silver in baseCost is a direct currency cost, not a material to "buy".
+        // Separate silver from materials to avoid double-deducting.
+        const directSilverCost = totalCost.silver || 0;
+
+        const hasMaterials = Object.entries(totalCost).every(([resource, amount]) => {
+            if (resource === 'silver') return true; // silver checked separately below
+            return (latestResources[resource] || 0) >= amount;
+        });
         if (!hasMaterials) {
             addLog(`资源不足，无法建造 ${finalCount} 个 ${b.name}`);
             return;
         }
 
-        // 计算银币成本并应用官员建筑成本修正
-        let silverCost = Object.entries(totalCost).reduce((sum, [resource, amount]) => {
-            return sum + amount * getMarketPrice(resource);
-        }, 0);
+        // 计算银币成本：直接银币成本 + 非银币材料按市场价折算的采购费
+        let silverCost = directSilverCost;
+        Object.entries(totalCost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return; // already included above
+            silverCost += amount * getMarketPrice(resource);
+        });
         silverCost = Math.max(0, silverCost);
 
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             addLog('银币不足，无法支付建造费用');
             return;
         }
 
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
+        // Deduct non-silver materials
         Object.entries(totalCost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return; // silver deducted as part of silverCost
             newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
         });
+        // Deduct total silver cost (direct + material procurement)
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+
+        // 立即更新 ref，确保下一次快速调用能读到最新值
+        _resourcesRef.current = newRes;
+        _buildingsRef.current = { ...latestBuildings, [id]: currentCount + finalCount };
 
         setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
+        trackBuyBuilding(id, silverCost);
+        trackResourceSink('silver', silverCost, 'building', id);
 
         // 写入 pending queue，防止 tick 覆盖此操作
+        // [FIX] Only write buildingDeltas (simulation needs to know new buildings for production).
+        // Do NOT write resourceDeltas here — setResourcesWithReason already updated React state,
+        // and the lateActionDelta mechanism in useGameLoop tick write-back will preserve the
+        // state diff. Writing resourceDeltas causes double-deduction because stateRef syncs
+        // the already-deducted resources via useEffect, then pendingDeltas deducts again.
         if (pendingActionsRef?.current) {
             const pa = pendingActionsRef.current;
             pa.buildingDeltas[id] = (pa.buildingDeltas[id] || 0) + finalCount;
-            Object.entries(totalCost).forEach(([res, amt]) => {
-                pa.resourceDeltas[res] = (pa.resourceDeltas[res] || 0) - amt;
-            });
-            pa.resourceDeltas.silver = (pa.resourceDeltas.silver || 0) - silverCost;
         }
 
         addLog(`建造了 ${finalCount} 个 ${b.name}`);
@@ -1448,7 +1549,7 @@ export const useGameActions = (gameState, addLog) => {
         const building = BUILDINGS.find(b => b.id === id);
         if (!building) return;
 
-        const currentCount = buildings[id] || 0;
+        const currentCount = _buildingsRef.current[id] || 0;
         const sellCount = Math.min(Math.max(1, Math.floor(count)), currentCount);
 
         if (sellCount <= 0) return;
@@ -1592,6 +1693,8 @@ export const useGameActions = (gameState, addLog) => {
                 (pendingActionsRef.current.buildingDeltas[id] || 0) - sellCount;
         }
 
+        trackSellBuilding(id);
+
         // 根据拆除数量显示不同日志
         if (sellCount === 1) {
             addLog(`🏚️ 拆除了 ${building.name}`);
@@ -1615,7 +1718,12 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        const count = buildings[buildingId] || 0;
+        // 从 ref 读取最新值，防止连续快速调用读到陈旧闭包
+        const latestResources = _resourcesRef.current;
+        const latestBuildings = _buildingsRef.current;
+        const latestBuildingUpgrades = _buildingUpgradesRef.current;
+
+        const count = latestBuildings[buildingId] || 0;
         if (count <= 0) {
             addLog('没有该建筑。');
             return;
@@ -1627,8 +1735,18 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
+        // 检查目标等级的输入资源是否全部已解锁
+        const { unlocked: inputsUnlocked, missingResources } = areUpgradeInputsUnlocked(
+            buildingId, fromLevel + 1, epoch, techsUnlocked
+        );
+        if (!inputsUnlocked) {
+            const missingNames = missingResources.map(r => RESOURCES[r]?.name || r).join('、');
+            addLog(`⚠️ 无法升级 ${building.name}：需要的输入资源（${missingNames}）尚未解锁。`);
+            return;
+        }
+
         // 检查是否有该等级的建筑可升级
-        const levelCounts = buildingUpgrades[buildingId] || {};
+        const levelCounts = latestBuildingUpgrades[buildingId] || {};
         const distribution = {};
         let accounted = 0;
         for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
@@ -1668,7 +1786,7 @@ export const useGameActions = (gameState, addLog) => {
         // 1. 检查市场库存是否足够
         const hasMaterials = Object.entries(upgradeCost).every(([resource, amount]) => {
             if (resource === 'silver') return true;
-            return (resources[resource] || 0) >= amount;
+            return (latestResources[resource] || 0) >= amount;
         });
 
         if (!hasMaterials) {
@@ -1688,19 +1806,21 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 3. 检查银币是否足够
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             addLog(`银币不足，升级 ${building.name} 需要 ${Math.ceil(silverCost)} 银币。`);
             return;
         }
 
         // 4. 扣除资源和银币
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         Object.entries(upgradeCost).forEach(([resource, amount]) => {
             if (resource !== 'silver') {
                 newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
             }
         });
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        // 立即更新 ref，确保下一次快速调用能读到最新值
+        _resourcesRef.current = newRes;
         setResourcesWithReason(newRes, 'building_upgrade', { buildingId, count: 1 });
 
         // 5. 更新升级等级（新格式：等级计数）
@@ -1731,6 +1851,8 @@ export const useGameActions = (gameState, addLog) => {
 
         const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${nextLevel}`;
         addLog(`⬆️ ${building.name} 升级为 ${upgradeName}！（花费 ${Math.ceil(silverCost)} 银币）`);
+        trackUpgradeBuilding(buildingId, nextLevel);
+        trackResourceSink('silver', silverCost, 'building', buildingId);
 
         // Ideology event: upgrade building
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_UPGRADE, {
@@ -1763,6 +1885,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${building.name} 已是基础等级。`);
             return;
         }
+        trackDowngradeBuilding(buildingId, fromLevel);
 
         // 检查是否有该等级的建筑可降级
         const levelCounts = buildingUpgrades[buildingId] || {};
@@ -1810,9 +1933,22 @@ export const useGameActions = (gameState, addLog) => {
     const batchUpgradeBuilding = (buildingId, fromLevel, upgradeCount) => {
         const building = BUILDINGS.find(b => b.id === buildingId);
         if (!building) return;
+        trackBatchUpgradeBuilding(buildingId, upgradeCount);
 
-        const buildingCount = buildings[buildingId] || 0;
-        const levelCounts = buildingUpgrades[buildingId] || {};
+        // 检查目标等级的输入资源是否全部已解锁
+        const { unlocked: inputsUnlocked, missingResources } = areUpgradeInputsUnlocked(
+            buildingId, fromLevel + 1, epoch, techsUnlocked
+        );
+        if (!inputsUnlocked) {
+            const missingNames = missingResources.map(r => RESOURCES[r]?.name || r).join('、');
+            addLog(`⚠️ 无法升级 ${building.name}：需要的输入资源（${missingNames}）尚未解锁。`);
+            return;
+        }
+
+        // 从 ref 读取最新值，防止连续快速调用读到陈旧闭包
+        const latestResources = _resourcesRef.current;
+        const buildingCount = _buildingsRef.current[buildingId] || 0;
+        const levelCounts = _buildingUpgradesRef.current[buildingId] || {};
 
         // 计算该等级的建筑数量（新格式）
         const distribution = {};
@@ -1870,7 +2006,7 @@ export const useGameActions = (gameState, addLog) => {
         let canAffordCount = individualCosts.length;
 
         for (const [resource, totalAmount] of Object.entries(totalResourceCost)) {
-            const available = resources[resource] || 0;
+            const available = latestResources[resource] || 0;
             if (available < totalAmount) {
                 let accumulated = 0;
                 for (let i = 0; i < individualCosts.length; i++) {
@@ -1884,7 +2020,7 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 检查银币是否足够
-        const availableSilver = resources.silver || 0;
+        const availableSilver = latestResources.silver || 0;
         let accumulatedSilver = 0;
         for (let i = 0; i < canAffordCount; i++) {
             const cost = individualCosts[i];
@@ -1917,7 +2053,7 @@ export const useGameActions = (gameState, addLog) => {
             if (firstCost && Object.keys(firstCost).length > 0) {
                 const hasMaterials = Object.entries(firstCost).every(([resource, amount]) => {
                     if (resource === 'silver') return true;
-                    return (resources[resource] || 0) >= amount;
+                    return (latestResources[resource] || 0) >= amount;
                 });
                 if (!hasMaterials) {
                     addLog(`市场资源不足，无法批量升级 ${building.name}。`);
@@ -1944,11 +2080,13 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 扣除资源和银币
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         for (const [resource, amount] of Object.entries(actualResourceCost)) {
             newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - actualSilverCost);
+        // 立即更新 ref，确保下一次快速调用能读到最新值
+        _resourcesRef.current = newRes;
         setResourcesWithReason(newRes, 'building_upgrade_batch', { buildingId, count: successCount });
 
         // 更新升级等级（新格式：等级计数）
@@ -2002,6 +2140,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${building.name} 已是基础等级。`);
             return;
         }
+        trackBatchDowngradeBuilding(buildingId, downgradeCount);
 
         // 新格式：直接读取该等级的数量
         const levelCounts = buildingUpgrades[buildingId] || {};
@@ -2074,14 +2213,15 @@ export const useGameActions = (gameState, addLog) => {
             }
         }
 
-        // 检查资源
+        // 检查资源（从 ref 读取最新值）
+        const latestResources = _resourcesRef.current;
         const difficulty = gameState.difficulty || 'normal';
         const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
 
         let canAfford = true;
         for (let resource in tech.cost) {
             const cost = Math.ceil(tech.cost[resource] * techCostMultiplier);
-            if ((resources[resource] || 0) < cost) {
+            if ((latestResources[resource] || 0) < cost) {
                 canAfford = false;
                 break;
             }
@@ -2099,27 +2239,44 @@ export const useGameActions = (gameState, addLog) => {
         }, 0);
 
         // 检查银币是否足够
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             addLog('银币不足，无法支付研究费用');
             return;
         }
 
         // 扣除资源和银币
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         for (let resource in tech.cost) {
             const cost = Math.ceil(tech.cost[resource] * techCostMultiplier);
             newRes[resource] -= cost;
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        _resourcesRef.current = newRes;
 
         setResourcesWithReason(newRes, 'tech_research', { techId: id });
         setTechsUnlocked(prev => [...prev, id]);
         addLog(`✓ 研究完成：${tech.name}`);
+        trackResearchTech(id, tech.cost?.science || 0);
+        trackResourceSink('silver', silverCost, 'tech', id);
+        if (tech.cost?.science) {
+            trackResourceSink('science', Math.ceil(tech.cost.science * techCostMultiplier), 'tech', id);
+        }
 
         // Ideology event: tech unlock
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_TECH_UNLOCK, {
             techId: id, techCount: (techsUnlocked?.length || 0) + 1
         }, daysElapsed);
+
+        // Proactive ideology score award for tech research (replaces passive diff in useGameLoop)
+        {
+            const { base, epochScale } = IDEOLOGY_SCORE_TRIGGERS.research_tech;
+            const amount = base + epoch * epochScale;
+            ideologyEventBus.queueDirectEffect(
+                { action: 'addIdeologyScore', amount, category: 'research_tech' },
+                'research_tech'
+            );
+            addLog(`🔮 研发知识「${tech.name}」获得 ${amount} 理念之力`);
+        }
 
         // 播放研究音效
         try {
@@ -2185,6 +2342,7 @@ export const useGameActions = (gameState, addLog) => {
         
         setOfficialCandidates(hireResult.newCandidates);
         addLog(`雇佣了官员 ${hiredOfficial.name}。`);
+        trackOfficialHire();
 
         // Ideology event: hire official
         ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_HIRE_OFFICIAL, {
@@ -2238,6 +2396,7 @@ export const useGameActions = (gameState, addLog) => {
         removeOfficialLinkedGeneral(officialId);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
+            trackOfficialFire();
 
             // Ideology event: fire official
             ideologyEventBus.emit(IDEOLOGY_EVENTS.ON_FIRE_OFFICIAL, {
@@ -2307,22 +2466,22 @@ export const useGameActions = (gameState, addLog) => {
             setStability(prev => Math.max(0, Math.min(1, (prev || 0.5) + result.effects.stabilityChange)));
         }
 
-        // 应用组织度增加
+        // 应用组织度变化（复用现有 rebellionStates 结构）
         if (result.effects?.organizationChange) {
             setRebellionStates(prev => {
-                const newStates = { ...prev };
+                const updated = { ...(prev || {}) };
                 Object.entries(result.effects.organizationChange).forEach(([stratum, change]) => {
-                    const currentState = newStates[stratum] || {};
+                    const currentState = updated[stratum] || {};
                     const nextValue = Math.max(0, Math.min(100, (currentState.organization || 0) + change));
                     const stage = getOrganizationStage(nextValue);
-                    newStates[stratum] = {
+                    updated[stratum] = {
                         ...currentState,
                         organization: nextValue,
                         stage,
                         phase: getPhaseFromStage(stage),
                     };
                 });
-                return newStates;
+                return updated;
             });
         }
 
@@ -2403,6 +2562,7 @@ export const useGameActions = (gameState, addLog) => {
      */
     const updateOfficialSalary = (officialId, nextSalary) => {
         if (!officialId || !Number.isFinite(nextSalary)) return;
+        trackOfficialSalary(Math.floor(nextSalary));
         setOfficials(prev => prev.map(official => (
             official.id === officialId ? { ...official, salary: Math.floor(nextSalary) } : official
         )));
@@ -2473,6 +2633,7 @@ export const useGameActions = (gameState, addLog) => {
         if (!MINISTER_ROLES.includes(role)) return;
         const official = officials.find(o => o.id === officialId);
         if (!official) return;
+        trackMinisterAssign(role);
         setMinisterAssignments(prev => {
             const next = { ...buildEmptyMinisterAssignments(), ...(prev || {}) };
             MINISTER_ROLES.forEach((otherRole) => {
@@ -2519,6 +2680,7 @@ export const useGameActions = (gameState, addLog) => {
      * @param {Event} e - 鼠标事件
      */
     const manualGather = (e) => {
+        trackManualGather(1);
         setClicks(prev => [...prev, {
             id: Date.now(),
             x: e.clientX,
@@ -2569,10 +2731,14 @@ export const useGameActions = (gameState, addLog) => {
             }
         }
 
+        // 从 ref 读取最新资源值
+        const latestResources = _resourcesRef.current;
+
         // 检查资源
         let canAfford = true;
         for (let resource in totalUnitCost) {
-            if ((resources[resource] || 0) < totalUnitCost[resource]) {
+            if (resource === 'silver') continue; // silver checked as part of silverCost below
+            if ((latestResources[resource] || 0) < totalUnitCost[resource]) {
                 canAfford = false;
                 break;
             }
@@ -2585,11 +2751,14 @@ export const useGameActions = (gameState, addLog) => {
             return false;
         }
 
-        const silverCost = Object.entries(totalUnitCost).reduce((sum, [resource, amount]) => {
-            return sum + amount * getMarketPrice(resource);
-        }, 0);
+        // [FIX] silver in recruitCost is a direct currency cost, not a purchasable material
+        let silverCost = totalUnitCost.silver || 0;
+        Object.entries(totalUnitCost).forEach(([resource, amount]) => {
+            if (resource === 'silver') return;
+            silverCost += amount * getMarketPrice(resource);
+        });
 
-        if ((resources.silver || 0) < silverCost) {
+        if ((latestResources.silver || 0) < silverCost) {
             if (!silent) {
                 addLog('银币不足，无法支付征兵物资费用。');
             }
@@ -2615,12 +2784,16 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 扣除资源
-        const newRes = { ...resources };
+        const newRes = { ...latestResources };
         for (let resource in totalUnitCost) {
+            if (resource === 'silver') continue; // silver deducted as part of silverCost
             newRes[resource] -= totalUnitCost[resource];
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        _resourcesRef.current = newRes;
         setResourcesWithReason(newRes, 'recruit_unit', { unitId, count: recruitCount });
+        trackRecruit(unitId, recruitCount);
+        trackResourceSink('silver', silverCost, 'military', unitId);
 
         const trainingSpeedBonus = modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
         const trainingMultiplier = Math.max(0.5, 1 - trainingSpeedBonus);
@@ -2654,6 +2827,7 @@ export const useGameActions = (gameState, addLog) => {
                 [unitId]: prev[unitId] - 1
             }));
             addLog(`解散了 ${UNIT_TYPES[unitId].name}`);
+            trackDisband(unitId, 1);
         }
     };
 
@@ -2669,6 +2843,7 @@ export const useGameActions = (gameState, addLog) => {
 
             const item = prev[queueIndex];
             const unit = UNIT_TYPES[item.unitId];
+            trackCancelTraining(item.unitId);
 
             // 移除该项
             const newQueue = prev.filter((_, idx) => idx !== queueIndex);
@@ -2677,12 +2852,16 @@ export const useGameActions = (gameState, addLog) => {
             if (item.status === 'waiting' || item.status === 'training') {
                 const refundResources = {};
                 for (let resource in unit.recruitCost) {
+                    if (resource === 'silver') continue; // silver refunded via silverCost
                     refundResources[resource] = Math.floor(unit.recruitCost[resource] * 0.5);
                 }
 
-                const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
-                    return sum + amount * getMarketPrice(resource);
-                }, 0);
+                // [FIX] Refund silver = direct silver cost + material market value
+                let silverCost = (unit.recruitCost.silver || 0);
+                Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
+                    if (resource === 'silver') return;
+                    silverCost += amount * getMarketPrice(resource);
+                });
                 const refundSilver = Math.floor(silverCost * 0.5);
 
                 setResourcesWithReason(prev => {
@@ -2707,6 +2886,7 @@ export const useGameActions = (gameState, addLog) => {
     const cancelAllTraining = () => {
         setMilitaryQueue(prev => {
             if (prev.length === 0) return prev;
+            trackCancelAllTraining(prev.length);
 
             let totalRefundSilver = 0;
             const totalRefundResources = {};
@@ -2716,11 +2896,15 @@ export const useGameActions = (gameState, addLog) => {
                 const unit = UNIT_TYPES[item.unitId];
                 if (item.status === 'waiting' || item.status === 'training') {
                     for (let resource in unit.recruitCost) {
+                        if (resource === 'silver') continue; // silver refunded via silverCost
                         totalRefundResources[resource] = (totalRefundResources[resource] || 0) + Math.floor(unit.recruitCost[resource] * 0.5);
                     }
-                    const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
-                        return sum + amount * getMarketPrice(resource);
-                    }, 0);
+                    // [FIX] silver = direct silver cost + material market value
+                    let silverCost = (unit.recruitCost.silver || 0);
+                    Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
+                        if (resource === 'silver') return;
+                        silverCost += amount * getMarketPrice(resource);
+                    });
                     totalRefundSilver += Math.floor(silverCost * 0.5);
                 }
             });
@@ -2747,6 +2931,7 @@ export const useGameActions = (gameState, addLog) => {
     const disbandAllUnits = (unitId) => {
         const count = army[unitId] || 0;
         if (count <= 0) return;
+        trackDisbandAll(count);
 
         setArmy(prev => ({
             ...prev,
@@ -3048,6 +3233,11 @@ export const useGameActions = (gameState, addLog) => {
             description: (result.battleReport || []).join('\n'),
         });
 
+        trackBattleLaunch();
+        const totalLosses = Object.values(result.attackerLosses || {}).reduce((s, v) => s + v, 0);
+        const lossRatio = totalUnits > 0 ? totalLosses / totalUnits : 0;
+        trackBattleResult(result.victory ? 'Victory' : 'Defeat', Math.round(lossRatio * 100));
+
         addLog(result.victory ? `⚔️ 针对 ${targetNation.name} 的行动取得胜利！` : `💀 对 ${targetNation.name} 的进攻受挫。`);
 
         // 更新上次战斗目标和时间，用于计算行军时间
@@ -3155,6 +3345,7 @@ export const useGameActions = (gameState, addLog) => {
     const handleDiplomaticAction = (nationId, action, payload = {}) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation && nationId !== 'player') return;
+        const shouldTrackAnalytics = payload?.trackAnalytics !== false;
         const clampRelation = (value) => Math.max(0, Math.min(100, value));
 
         // 外交动作冷却时间配置（天数）        
@@ -3214,6 +3405,10 @@ export const useGameActions = (gameState, addLog) => {
                 return { ...current, organizations: nextOrgs };
             });
         };
+
+        if (shouldTrackAnalytics) {
+            trackDiplomacy(action, nationId);
+        }
 
         switch (action) {
             case 'gift': {
@@ -3373,9 +3568,14 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             case 'propose_peace': {
-                // warScore 正数 = 玩家优势（玩家胜利时 +分）
-                const playerAdvantage = targetNation.warScore || 0;
-
+                const relevantFrontsOld = (activeFronts || []).filter(f =>
+                    (f.attackerId === 'player' && f.defenderId === nationId) ||
+                    (f.defenderId === 'player' && f.attackerId === nationId)
+                );
+                const frontWarScoreOld = relevantFrontsOld.length > 0
+                    ? relevantFrontsOld.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
+                    : null;
+                const playerAdvantage = frontWarScoreOld !== null ? frontWarScoreOld : (targetNation.warScore || 0);
 
                 const event = createPlayerPeaceProposalEvent(
                     targetNation,
@@ -3515,9 +3715,20 @@ export const useGameActions = (gameState, addLog) => {
                             };
                             addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}`);
                         }
+                        const nextForeignWars = { ...(n.foreignWars || {}) };
+                        if (nextForeignWars.player) {
+                            nextForeignWars.player = {
+                                ...nextForeignWars.player,
+                                isAtWar: false,
+                                warScore: 0,
+                                peaceTreatyUntil: daysElapsed + 365,
+                            };
+                        }
+
                         return {
                             ...n,
                             isAtWar: false,
+                            warTarget: null,
                             warScore: 0,
                             warDuration: 0,
 
@@ -3525,9 +3736,24 @@ export const useGameActions = (gameState, addLog) => {
                             relation: Math.min(100, Math.max(0, (n.relation || 0) + relationChange)),
                             wealth: Math.max(0, (n.wealth || 0) + silverChange),
                             population: clampPopulationAtFloor((n.population || 1000) + popChange),
-
+                            foreignWars: nextForeignWars,
                             lootReserve: Math.max(0, (n.lootReserve || 0) - lootReserveChange),
                             ...vassalUpdates
+                        };
+                    }
+
+                    if (n.id === 'player' && n.foreignWars?.[nationId]) {
+                        return {
+                            ...n,
+                            foreignWars: {
+                                ...n.foreignWars,
+                                [nationId]: {
+                                    ...n.foreignWars[nationId],
+                                    isAtWar: false,
+                                    warScore: 0,
+                                    peaceTreatyUntil: daysElapsed + 365,
+                                },
+                            },
                         };
                     }
 
@@ -3809,7 +4035,7 @@ export const useGameActions = (gameState, addLog) => {
                     if (!targetAllianceIds.includes(n.id)) return false;
                     if (sharedAllianceIds.has(n.id)) return false;
                     // ✅ 排除附庸国（附庸国不应该通过联盟自动参战）
-                    if (n.vassalOf || n.isVassal === true) return false;
+                    if (n.vassalOf === 'player' || n.vassalOf) return false;
                     // ✅ 底线检查：如果这个盟友与玩家的盟友在同一组织，不能号召
                     if (checkAllianceConflict(n.id, potentialPlayerAllies)) return false;
                     return true;
@@ -3820,7 +4046,7 @@ export const useGameActions = (gameState, addLog) => {
                     if (!playerAllianceIds.includes(n.id)) return false;
                     if (sharedAllianceIds.has(n.id)) return false;
                     // ✅ 排除玩家的附庸（附庸不应该被号召参战）
-                    if (n.isVassal === true) return false;
+                    if (n.vassalOf === 'player') return false;
                     // ✅ 底线检查：如果这个盟友与目标的盟友在同一组织，不能号召
                     if (checkAllianceConflict(n.id, potentialTargetAllies)) return false;
 
@@ -4141,7 +4367,7 @@ export const useGameActions = (gameState, addLog) => {
                     )
                 );
                 const frontWarScore = relevantFronts.length > 0
-                    ? relevantFronts.reduce((sum, f) => sum + (f.warScore || 0), 0)
+                    ? relevantFronts.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
                     : null;
                 const warScore = frontWarScore !== null ? frontWarScore : (targetNation.warScore || 0);
                 const warDuration = targetNation.warDuration || 0;
@@ -4159,6 +4385,11 @@ export const useGameActions = (gameState, addLog) => {
                         epoch: epoch || 0,
                     },
                     (proposalType, amount) => {
+                        // 叛乱政府求和必须走专用收尾逻辑，否则不会正确结束叛乱态
+                        if (targetNation.isRebelNation) {
+                            handleDiplomaticAction(nationId, 'finalize_peace', { type: proposalType, value: amount });
+                            return;
+                        }
                         handlePlayerPeaceProposal(nationId, proposalType, amount);
                     }
 
@@ -6193,8 +6424,8 @@ export const useGameActions = (gameState, addLog) => {
      * @param {boolean} playerVictory - 玩家是否胜利
      */
     const handleRebellionAction = (action, stratumKey, extraData = {}) => {
-
         if (!stratumKey) return;
+        trackRebellionAction(action, stratumKey);
         const rebellionState = (rebellionStates && rebellionStates[stratumKey]) || {};
         const totalArmy = Object.values(army || {}).reduce((sum, count) => sum + (count || 0), 0);
         const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0, 50, modifiers?.ideologyRuleMods || {}) / 100;
@@ -6376,17 +6607,45 @@ export const useGameActions = (gameState, addLog) => {
         }, daysElapsed);
 
         setNations(prev => prev.map(n => {
-            if (n.id !== nationId) return n;
-            return {
-                ...n,
-                isAtWar: false,
-                warScore: 0,
-                warDuration: 0,
-                enemyLosses: 0,
-                peaceTreatyUntil: daysElapsed + 365,
-                ...extraUpdates,
+            if (n.id === nationId) {
+                const nextForeignWars = { ...(n.foreignWars || {}) };
+                if (nextForeignWars.player) {
+                    nextForeignWars.player = {
+                        ...nextForeignWars.player,
+                        isAtWar: false,
+                        warScore: 0,
+                        peaceTreatyUntil: daysElapsed + 365,
+                    };
+                }
+                return {
+                    ...n,
+                    isAtWar: false,
+                    warTarget: null,
+                    warScore: 0,
+                    warDuration: 0,
+                    enemyLosses: 0,
+                    peaceTreatyUntil: daysElapsed + 365,
+                    foreignWars: nextForeignWars,
+                    ...extraUpdates,
+                };
+            }
 
-            };
+            if (n.id === 'player' && n.foreignWars?.[nationId]) {
+                return {
+                    ...n,
+                    foreignWars: {
+                        ...n.foreignWars,
+                        [nationId]: {
+                            ...n.foreignWars[nationId],
+                            isAtWar: false,
+                            warScore: 0,
+                            peaceTreatyUntil: daysElapsed + 365,
+                        },
+                    },
+                };
+            }
+
+            return n;
         }));
 
         if (cleanupRuntime) {
@@ -6426,7 +6685,8 @@ export const useGameActions = (gameState, addLog) => {
     const handleEnemyPeaceAccept = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
-        
+        trackPeaceAccept(nationId);
+
         // Peaceful resolution grants reputation bonus (except for annexation)
         if (proposalType !== 'annex' && setDiplomaticReputation) {
             const { newReputation } = calculateReputationChange(
@@ -6568,6 +6828,7 @@ export const useGameActions = (gameState, addLog) => {
     const handleEnemyPeaceReject = (nationId) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
+        trackPeaceReject(nationId);
         setNations(prev => prev.map(n => {
             if (n.id !== nationId) return n;
             return { ...n, relation: Math.max(0, (n.relation || 0) - 5) };
@@ -6577,11 +6838,22 @@ export const useGameActions = (gameState, addLog) => {
     const handlePlayerPeaceProposal = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
+        trackPeacePropose(nationId);
         if (proposalType === 'cancel') {
             addLog(`Peace proposal to ${targetNation.name} canceled.`);
             return;
         }
-        const warScore = targetNation.warScore || 0;
+        // [FIX] Prefer frontWarScore over nation.warScore to match what UI showed
+        const relevantFrontsForProposal = (activeFronts || []).filter(f =>
+            f?.status === 'active' && (
+                (f.attackerId === nationId && f.defenderId === 'player') ||
+                (f.attackerId === 'player' && f.defenderId === nationId)
+            )
+        );
+        const frontWarScoreForProposal = relevantFrontsForProposal.length > 0
+            ? relevantFrontsForProposal.reduce((sum, f) => sum + getEffectiveFrontWarScore(f), 0)
+            : null;
+        const warScore = frontWarScoreForProposal !== null ? frontWarScoreForProposal : (targetNation.warScore || 0);
         const aggression = targetNation.aggression ?? 0.3;
         const durationDays = INSTALLMENT_CONFIG?.DURATION_DAYS || 365;
         const paymentAmount = Math.max(0, Math.floor(amount || 0));
@@ -6649,6 +6921,15 @@ export const useGameActions = (gameState, addLog) => {
                 return { ...n, relation: Math.max(0, (n.relation || 0) - 5) };
             }));
             addLog(`${targetNation.name} rejected your peace proposal.`);
+            triggerDiplomaticEvent(createPeaceProposalRejectedEvent(
+                targetNation,
+                proposalType,
+                acceptChance,
+                {
+                    relationPenalty: 5,
+                    warScore,
+                }
+            ));
             return;
         }
         if (proposalType === 'demand_annex' && warScore < 500) {

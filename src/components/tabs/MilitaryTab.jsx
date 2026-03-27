@@ -1,7 +1,7 @@
 // 军事标签页组件
 // 显示可招募的兵种、当前军队和战斗功能
 
-import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, memo } from 'react';
+import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, getEnemyUnitsForEpoch, TECHS, EPOCHS } from '../../config';
@@ -15,6 +15,7 @@ import ActiveBattlePanel from '../panels/ActiveBattlePanel';
 import WarfrontCard from '../panels/WarfrontCard';
 import { BottomSheet } from './BottomSheet';
 import { calculateFrontEconomicImpact } from '../../logic/diplomacy/frontSystem';
+import { trackSubTabSwitch, trackAutoReplenish, trackWageRatio } from '../../analytics/gaTracker';
 
 const WAR_SCORE_GUIDE = [
     {
@@ -354,15 +355,25 @@ const MilitaryTabComponent = ({
     onUpdateCorpsReplenishQueue,
     warfrontFocusRequest = null,
 }) => {
+    const RECRUIT_COUNT_LIMIT = 9999;
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
+    const goMilitarySection = useCallback((section) => {
+        trackSubTabSwitch('military', section);
+        setActiveSection(section);
+    }, []);
     const [selectedFrontId, setSelectedFrontId] = useState(null);
     const [isFrontDetailSheetOpen, setIsFrontDetailSheetOpen] = useState(false);
     const [isMobileWarfrontLayout, setIsMobileWarfrontLayout] = useState(false);
-    const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 10, 100, 1000
+    const [recruitCount, setRecruitCount] = useState(() => {
+        if (typeof window === 'undefined') return 1;
+        const saved = parseInt(window.localStorage.getItem('civ_military_recruit_count') || '', 10);
+        if (!Number.isFinite(saved) || saved <= 0) return 1;
+        return Math.min(RECRUIT_COUNT_LIMIT, saved);
+    }); // 批量招募数量
     const [disbandCount, setDisbandCount] = useState(1); // 批量解散数量：1, 10, 100, 1000
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
@@ -388,6 +399,12 @@ const MilitaryTabComponent = ({
         mediaQuery.addListener(handleChange);
         return () => mediaQuery.removeListener(handleChange);
     }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const normalized = Math.max(1, Math.min(RECRUIT_COUNT_LIMIT, Math.floor(Number(recruitCount) || 1)));
+        window.localStorage.setItem('civ_military_recruit_count', String(normalized));
+    }, [recruitCount, RECRUIT_COUNT_LIMIT]);
     
     // Memoize queue counts to prevent recalculation on every render
     const queueCounts = useMemo(() => {
@@ -489,7 +506,17 @@ const MilitaryTabComponent = ({
 
     const handleToggleAutoRecruit = (checked) => {
         if (!onToggleAutoRecruit) return;
+        trackAutoReplenish(checked);
         onToggleAutoRecruit(checked);
+    };
+
+    const handleRecruitCountInputChange = (rawValue) => {
+        const parsed = parseInt(rawValue, 10);
+        if (!Number.isFinite(parsed)) {
+            setRecruitCount(1);
+            return;
+        }
+        setRecruitCount(Math.max(1, Math.min(RECRUIT_COUNT_LIMIT, parsed)));
     };
 
     const handleMouseEnter = (e, unit) => {
@@ -597,14 +624,14 @@ const MilitaryTabComponent = ({
 
     React.useEffect(() => {
         if (!warfrontFocusRequest?.token) return;
-        setActiveSection('warfront');
+        goMilitarySection('warfront');
         if (warfrontFocusRequest.frontId) {
             setSelectedFrontId(warfrontFocusRequest.frontId);
             if (isMobileWarfrontLayout) {
                 setIsFrontDetailSheetOpen(true);
             }
         }
-    }, [isMobileWarfrontLayout, warfrontFocusRequest]);
+    }, [isMobileWarfrontLayout, warfrontFocusRequest, goMilitarySection]);
 
     React.useEffect(() => {
         if (activeSection !== 'warfront') return;
@@ -707,7 +734,7 @@ const MilitaryTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'soldiers'
                         ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('soldiers')}
+                    onClick={() => goMilitarySection('soldiers')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Users" size={14} />
@@ -718,7 +745,7 @@ const MilitaryTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'corps'
                         ? 'bg-purple-900/40 border-purple-500/60 text-purple-100 shadow-metal-sm'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('corps')}
+                    onClick={() => goMilitarySection('corps')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Shield" size={14} />
@@ -729,7 +756,7 @@ const MilitaryTabComponent = ({
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'warfront'
                         ? 'bg-red-900/40 border-red-500/60 text-red-100 shadow-metal-sm'
                         : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                    onClick={() => setActiveSection('warfront')}
+                    onClick={() => goMilitarySection('warfront')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Swords" size={14} />
@@ -863,7 +890,11 @@ const MilitaryTabComponent = ({
                                     type="number"
                                     step="0.1"
                                     value={militaryWageRatio}
-                                    onChange={(e) => onUpdateWageRatio && onUpdateWageRatio(parseFloat(e.target.value) || 0)}
+                                    onChange={(e) => {
+                                        const r = parseFloat(e.target.value) || 0;
+                                        trackWageRatio(r);
+                                        onUpdateWageRatio && onUpdateWageRatio(r);
+                                    }}
                                     className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100"
                                 />
                                 <span className="text-gray-500">军费 = 资源成本 × 时代 × 规模 × 倍率</span>
@@ -960,7 +991,7 @@ const MilitaryTabComponent = ({
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500">招募</span>
                                 <div className="inline-flex items-center bg-gray-900/60 border border-gray-700 rounded-full p-0.5">
-                                    {[1, 10, 100, 1000].map((n) => (
+                                    {[1, 10].map((n) => (
                                         <button
                                             key={n}
                                             onClick={() => setRecruitCount(n)}
@@ -974,6 +1005,16 @@ const MilitaryTabComponent = ({
                                         </button>
                                     ))}
                                 </div>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={RECRUIT_COUNT_LIMIT}
+                                    step={1}
+                                    value={recruitCount}
+                                    onChange={(e) => handleRecruitCountInputChange(e.target.value)}
+                                    className="w-16 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100"
+                                    title="自定义招募数量"
+                                />
                             </div>
 
                             <div className="flex items-center gap-2">

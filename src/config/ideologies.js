@@ -342,26 +342,38 @@ export const IDEOLOGIES = [
         ],
         effects: {
             levels: [
-                { scienceBonus: 0.06, maxPop: 0.03, militaryBonus: -0.03 },
-                {
-                    scienceBonus: 0.08,
-                    maxPop: 0.05,
-                    cultureBonus: 0.03,
-                    militaryBonus: -0.04,
+                { scienceBonus: 0.08, maxPop: 0.05, cultureBonus: 0.03, militaryBonus: -0.02,
                     triggerEffects: [
-                        { type: 'tech_count_bonus', perTech: { flatPop: 1.2 } },
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.0012, cultureBonus: 0.0008 } },
                     ],
                 },
                 {
-                    scienceBonus: 0.10,
-                    maxPop: 0.06,
-                    cultureBonus: 0.05,
-                    militaryBonus: -0.05,
-                    onEvents: [
-{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '人道救济', buffId: 'humanitarian_relief', duration: 120, effects: { stability: 8, maxPop: 0.06, cultureBonus: 0.05 } }, cooldownDays: 60 },
+                    scienceBonus: 0.14,
+                    maxPop: 0.08,
+                    cultureBonus: 0.06,
+                    militaryBonus: -0.03,
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0012, target: 'cultureBonus', cap: 0.40 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.002, target: 'scienceBonus', cap: 0.45 },
                     ],
                     triggerEffects: [
-                        { type: 'conditional_flip', condition: 'stability_below', threshold: 35, normalBonus: { scienceBonus: 0.02, cultureBonus: 0.02 }, flippedBonus: { stability: -4, scienceBonus: -0.03 } },
+                        { type: 'tech_count_bonus', perTech: { flatPop: 1.8 } },
+                    ],
+                },
+                {
+                    scienceBonus: 0.20,
+                    maxPop: 0.12,
+                    cultureBonus: 0.10,
+                    militaryBonus: -0.04,
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0018, target: 'cultureBonus', cap: 0.55 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'scienceBonus', cap: 0.60 },
+                    ],
+                    onEvents: [
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '人道救济', buffId: 'humanitarian_relief', duration: 150, effects: { stability: 12, maxPop: 0.10, cultureBonus: 0.10, scienceBonus: 0.08 } }, cooldownDays: 60 },
+                    ],
+                    triggerEffects: [
+                        { type: 'conditional_flip', condition: 'stability_below', threshold: 35, normalBonus: { scienceBonus: 0.04, cultureBonus: 0.03 }, flippedBonus: { stability: -4, scienceBonus: -0.03 } },
                     ],
                 },
             ],
@@ -376,32 +388,38 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '感官会欺骗，记忆会模糊，唯有理性之光永不熄灭，在那光中，真理澄明如镜。',
         lore: '"我思故我在。" ——勒内·笛卡尔',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { minTechs: 20 }, multiplier: 1.5 },
         ],
         effects: {
             levels: [
-                { scienceBonus: 0.08, categories: { industry: 0.02 }, cultureBonus: -0.03, stability: -2 },
+                { scienceBonus: 0.12, categories: { industry: 0.04 }, cultureBonus: -0.03, stability: -2 },
                 {
-                    scienceBonus: 0.10,
-                    categories: { industry: 0.04 },
+                    scienceBonus: 0.16,
+                    categories: { industry: 0.06 },
                     cultureBonus: -0.03,
                     stability: -2,
+                    converters: [
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'scienceBonus', cap: 0.50 },
+                    ],
                     triggerEffects: [
-                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.0012 } },
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.002 } },
                     ],
                 },
                 {
-                    scienceBonus: 0.12,
-                    categories: { industry: 0.05 },
-                    cultureBonus: -0.04,
+                    scienceBonus: 0.22,
+                    categories: { industry: 0.08 },
+                    cultureBonus: -0.03,
                     stability: -3,
+                    converters: [
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.004, target: 'scienceBonus', cap: 0.65 },
+                    ],
                     onEvents: [
-{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '理性突破', buffId: 'rational_breakthrough', duration: 90, effects: { scienceBonus: 0.12, production: 0.05 } }, cooldownDays: 15 },
+{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '理性突破', buffId: 'rational_breakthrough', duration: 120, effects: { scienceBonus: 0.20, production: 0.10 } }, cooldownDays: 15 },
                     ],
                     ruleMods: [
-                        { type: 'tech_cost_mod', value: -0.08 },
+                        { type: 'tech_cost_mod', value: -0.12 },
                     ],
                     triggerEffects: [
                         { type: 'conditional_flip', condition: 'stability_below', threshold: 40, normalBonus: { scienceBonus: 0.02 }, flippedBonus: { scienceBonus: -0.04, stability: -3 } },
@@ -419,15 +437,22 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '在虚无的深渊边缘，人必须自己选择成为什么样的人，这选择本身就是自由。',
         lore: '"存在先于本质。" ——让-保罗·萨特',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { stabilityBelow: 40 }, multiplier: 1.5 },
         ],
         effects: {
             levels: [
-                { cultureBonus: 0.08, stability: -3, maxPop: -0.02 },
-                { cultureBonus: 0.12, scienceBonus: 0.05, stability: -3, maxPop: -0.03 },
-                { cultureBonus: 0.18, scienceBonus: 0.08, stability: -2, production: 0.05, maxPop: -0.03 },
+                { cultureBonus: 0.12, stability: -3, maxPop: -0.01 },
+                { cultureBonus: 0.18, scienceBonus: 0.08, stability: -2, maxPop: -0.02 },
+                { cultureBonus: 0.26, scienceBonus: 0.12, stability: -1, production: 0.06, maxPop: -0.02,
+                    onEvents: [
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '存在的勇气', buffId: 'existential_courage', duration: 180, effects: { cultureBonus: 0.20, scienceBonus: 0.12, production: 0.08 } }, cooldownDays: 60 },
+                    ],
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'cultureBonus', cap: 0.50 },
+                    ],
+                },
             ],
             triggerEffects: [
                 { type: 'epoch_scaling', perEpoch: { cultureBonus: 0.01 } },
@@ -449,9 +474,14 @@ export const IDEOLOGIES = [
         ],
         effects: {
             levels: [
-                { scienceBonus: 0.08, cultureBonus: 0.05, production: -0.03 },
-                { scienceBonus: 0.12, cultureBonus: 0.08, categories: { civic: 0.03 }, production: -0.04 },
-                { scienceBonus: 0.16, cultureBonus: 0.12, categories: { civic: 0.06 }, stability: 5, production: -0.05 },
+                { scienceBonus: 0.12, cultureBonus: 0.08, production: -0.02 },
+                { scienceBonus: 0.18, cultureBonus: 0.12, categories: { civic: 0.05 }, production: -0.03 },
+                { scienceBonus: 0.25, cultureBonus: 0.18, categories: { civic: 0.08 }, stability: 6, production: -0.04,
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'cultureBonus', cap: 0.50 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'scienceBonus', cap: 0.55 },
+                    ],
+                },
             ],
             triggerEffects: [
                 { type: 'stratum_bonus', stratum: 'scribe', bonus: { perPopPassive: { science: 0.02 } } },
@@ -621,7 +651,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '当千万人的心跳在同一面旗帜下共鸣，个体的血流便汇成一条民族的河流。',
         lore: '"民族是什么？它是一个灵魂、一种精神原则。" ——厄内斯特·勒南',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { minEpoch: 5 }, multiplier: 1.5 },
         ],
@@ -684,7 +714,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '政府与人民之间有一份不成文的契约：以服从换取保护，以让渡部分自由换取剩余的自由。',
         lore: '"人是生而自由的，却无往不在枷锁之中。" ——让-雅克·卢梭',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -751,11 +781,11 @@ export const IDEOLOGIES = [
                     taxIncome: 0.05,
                     categories: { industry: 0.04, gather: -0.04 },
                     converters: [
-                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0002, target: 'taxIncome', cap: 0.25 },
+                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0001, target: 'taxIncome', cap: 0.25 },
                         // 平均满意度 → 税收（商人满意时贸易更活跃）
                         { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.003, target: 'taxIncome', cap: 0.12 },
                         // 富裕人口 → 税收（商人阶层财富带动贸易）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'taxIncome', cap: 0.12 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000004, target: 'taxIncome', cap: 0.12 },
                     ],
                     triggerEffects: [
                         { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.01 }, cap: 0.15 },
@@ -771,7 +801,7 @@ export const IDEOLOGIES = [
                     categories: { industry: 0.06, gather: -0.05 },
                     stability: 3,
                     converters: [
-                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.0003, target: 'taxIncome', cap: 0.35 },
+                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.00015, target: 'taxIncome', cap: 0.35 },
                         // 新增：銀币库存也能贡献产出
                         { source: 'silver', sourceType: 'resource', ratio: 0.00001, target: 'production', cap: 0.30 },
                         // 平均满意度 → 税收+稳定度（商业繁荣人心安定）
@@ -803,7 +833,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '让市场自己说话，那只看不见的手，比任何宰相的算计都更加精明。',
         lore: '"每一个人……既不打算促进公共利益，却被一只看不见的手引导着……" ——亚当·斯密',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -828,7 +858,7 @@ export const IDEOLOGIES = [
                         // 完整产业链 → 产出
                         { source: 'chain', sourceType: 'chainCount', ratio: 0.015, target: 'production', cap: 0.35 },
                         // 富裕人口 → 税收（资本家级消费拉动经济）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00003, target: 'taxIncome', cap: 0.15 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000003, target: 'taxIncome', cap: 0.15 },
                     ],
                     ruleMods: [
                         { type: 'price_volatility_mod', value: 0.12 },
@@ -938,7 +968,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '当市场无法追赶时代的脚步，国家便亲自下场，以铁腕推动工业的引擎。',
         lore: '"国家不应成为经济生活的旁观者。" ——弗里德里希·李斯特',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1069,7 +1099,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 3,
         desc: '以眼还眼只会让整个世界陷入黑暗，另一种力量正在觉醒：非暴力的力量。',
         lore: '"以眼还眼，只会让整个世界变瞎。" ——莫罕达斯·甘地',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [
             { condition: { noPeacefulYears: 10 }, multiplier: 0.5 }, // 长期和平更容易出现
         ],
@@ -1218,7 +1248,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '谁掌握了海洋，谁就握住了世界贸易的咽喉；谁握住了贸易，谁就握住了世界。',
         lore: '"谁控制了海洋，谁就控制了世界贸易；谁控制了世界贸易，谁就控制了世界。" ——阿尔弗雷德·马汉',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1341,7 +1371,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '理性的光辉太过冰冷，真正的艺术要燃烧，让情感冲破形式的牢笼。',
         lore: '"一切艺术都源于激情。" ——维克多·雨果',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1391,7 +1421,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '光影在画布上颤动，那一瞬间的光芒被永远留住，艺术不再复制现实，而是捕捉感受。',
         lore: '"色彩是我的痴迷，是长久的执念。" ——克劳德·莫奈',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1461,7 +1491,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '怀疑是科学的起点，实验是真理的审判席，让事实说话，让假设跪下。',
         lore: '"知识就是力量。" ——弗朗西斯·培根',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1511,7 +1541,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 6,
         desc: '蒸汽、电力、代码，人类的双手正在创造上帝未曾赐予的奇迹。',
         lore: '"任何足够先进的技术都与魔法无异。" ——阿瑟·克拉克',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1561,7 +1591,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 4,
         desc: '当一个人跪下时，另一个人就必须骑在他背上，让我们都站起来。',
         lore: '"人人生而平等，造物主赋予他们若干不可转让的权利。" ——托马斯·杰斐逊',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1628,26 +1658,26 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    scienceBonus: 0.05, taxIncome: 0.03, maxPop: -0.02, stability: -2,
+                    scienceBonus: 0.04, taxIncome: 0.02, maxPop: -0.02, stability: -2,
                     converters: [
                         // 富裕人口 → 科研（精英阶层投资知识）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'scienceBonus', cap: 0.25 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000002, target: 'scienceBonus', cap: 0.10 },
                     ],
                 },
                 {
-                    scienceBonus: 0.08, taxIncome: 0.05, categories: { industry: 0.03 }, maxPop: -0.02, stability: -3,
+                    scienceBonus: 0.06, taxIncome: 0.03, categories: { industry: 0.02 }, maxPop: -0.02, stability: -3,
                     converters: [
                         // 富裕人口 → 科研+税收（精英阶层投资和消费）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00005, target: 'scienceBonus', cap: 0.35 },
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00003, target: 'taxIncome', cap: 0.20 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0000025, target: 'scienceBonus', cap: 0.14 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0000015, target: 'taxIncome', cap: 0.08 },
                     ],
                 },
                 {
-                    scienceBonus: 0.12, taxIncome: 0.08, categories: { industry: 0.06 }, maxPop: -0.02, stability: -5,
+                    scienceBonus: 0.08, taxIncome: 0.05, categories: { industry: 0.04 }, maxPop: -0.02, stability: -4,
                     converters: [
                         // 富裕人口 → 科研+税收（精英阶层全面引领）
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00006, target: 'scienceBonus', cap: 0.45 },
-                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00004, target: 'taxIncome', cap: 0.30 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000003, target: 'scienceBonus', cap: 0.18 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.000002, target: 'taxIncome', cap: 0.12 },
                     ],
                 },
             ],
@@ -1655,7 +1685,7 @@ export const IDEOLOGIES = [
                 { type: 'stratum_bonus', stratum: 'landowner', bonus: { perPopPassive: { silver: 0.02 } } },
                 // 资源消耗：精英阶层的特权和奢靡开销需要银币维持
                 { type: 'resource_drain', resource: 'silver', drainPerTick: 6,
-                    bonus: { scienceBonus: 0.03, taxIncome: 0.02 },
+                    bonus: { scienceBonus: 0.02, taxIncome: 0.01 },
                     penaltyIfDrained: { stability: -5, taxIncome: -0.03 } },
             ],
         },
@@ -1669,7 +1699,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 5,
         desc: '在国家的巨轮与个人的浮木之间，有一片由公民自己编织的网，那是自由真正生长的土壤。',
         lore: '"在美国，无论哪里都能看到人们在结社。" ——亚历克西·德·托克维尔',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1719,7 +1749,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 1,
         desc: '通过冥想与修行达到与神圣的直接合一，超越理性的体验是最高真理。',
         lore: '"神秘主义不是逃避现实，而是深入现实的本质。" ——鲁米',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1834,7 +1864,7 @@ export const IDEOLOGIES = [
         unlockEpoch: 1,
         desc: '人不因善而行动，只因利害而行动。严刑峻法，才是治国的良方。',
         lore: '"法不阿贵，绳不挠曲。" ——韩非子',
-        rarity: 'uncommon',
+        rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
@@ -1887,9 +1917,26 @@ export const IDEOLOGIES = [
         ],
         effects: {
             levels: [
-                { production: 0.06, scienceBonus: 0.05, cultureBonus: -0.03 },
-                { production: 0.10, scienceBonus: 0.08, categories: { industry: 0.03 }, cultureBonus: -0.04, stability: -2 },
-                { production: 0.14, scienceBonus: 0.12, categories: { industry: 0.06 }, taxIncome: 0.03, cultureBonus: -0.05, stability: -2 },
+                { production: 0.10, scienceBonus: 0.08, cultureBonus: -0.03,
+                    triggerEffects: [
+                        { type: 'chain_count_bonus', countType: 'complete', perCount: { production: 0.025 } },
+                        { type: 'building_count_bonus', category: 'industry', per: 5, bonus: { scienceBonus: 0.02 } },
+                    ],
+                },
+                { production: 0.16, scienceBonus: 0.14, categories: { industry: 0.06 }, cultureBonus: -0.03, stability: -2,
+                    converters: [
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'production', cap: 0.45 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.001, target: 'scienceBonus', cap: 0.35 },
+                    ],
+                },
+                { production: 0.22, scienceBonus: 0.20, categories: { industry: 0.10 }, taxIncome: 0.06, cultureBonus: -0.04, stability: -2,
+                    converters: [
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.004, target: 'production', cap: 0.55 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.0015, target: 'scienceBonus', cap: 0.50 },
+                    ],
+                    onEvents: [
+{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '实用突破', buffId: 'pragmatic_breakthrough', duration: 120, effects: { production: 0.15, scienceBonus: 0.12, taxIncome: 0.08 } }, cooldownDays: 30 },
+                    ] },
             ],
             triggerEffects: [
                 { type: 'chain_count_bonus', countType: 'complete', perCount: { production: 0.02 } },
@@ -1939,9 +1986,19 @@ export const IDEOLOGIES = [
         ],
         effects: {
             levels: [
-                { stability: -10, cultureBonus: 0.08, production: 0.05 },
-                { stability: -10, cultureBonus: 0.12, production: 0.08, scienceBonus: 0.05 },
-                { stability: -8, cultureBonus: 0.18, production: 0.12, scienceBonus: 0.08, maxPop: 0.05 },
+                { stability: -10, cultureBonus: 0.12, production: 0.08 },
+                { stability: -8, cultureBonus: 0.18, production: 0.14, scienceBonus: 0.08,
+                    converters: [
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000008, target: 'production', cap: 0.40 },
+                    ],
+                },
+                { stability: -6, cultureBonus: 0.25, production: 0.20, scienceBonus: 0.14, maxPop: 0.06,
+                    converters: [
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.00001, target: 'production', cap: 0.55 },
+                    ],
+                    onEvents: [
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '自由联合', buffId: 'free_association', duration: 240, effects: { cultureBonus: 0.20, production: 0.15, scienceBonus: 0.12 } }, cooldownDays: 60 },
+                    ] },
             ],
             triggerEffects: [
                 { type: 'stratum_bonus', stratum: 'worker', bonus: { perPopPassive: { culture: 0.003 } } },
@@ -2726,43 +2783,43 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    stability: 8,
-                    taxIncome: 0.04,
-                    categories: { civic: 0.04 },
+                    stability: 12,
+                    taxIncome: 0.07,
+                    categories: { civic: 0.07 },
                     scienceBonus: -0.03,
                     cultureBonus: -0.02,
                     triggerEffects: [
-                        { type: 'stratum_bonus', stratum: 'official', bonus: { perPopPassive: { silver: 0.01, culture: 0.01 } } },
+                        { type: 'stratum_bonus', stratum: 'official', bonus: { perPopPassive: { silver: 0.015, culture: 0.012 } } },
                         { type: 'mutual_exclusion', conflictsWith: ['republicanism', 'anarchism'],
                             penalty: { stability: -15, categories: { civic: -0.10 } },
-                            bonusIfPure: { stability: 5, taxIncome: 0.03 } },
+                            bonusIfPure: { stability: 8, taxIncome: 0.05 } },
                     ],
                 },
                 {
-                    stability: 10,
-                    taxIncome: 0.06,
-                    categories: { civic: 0.06, gather: 0.03 },
-                    scienceBonus: -0.04,
-                    cultureBonus: -0.03,
-                    maxPop: 0.03,
+                    stability: 16,
+                    taxIncome: 0.12,
+                    categories: { civic: 0.10, gather: 0.05 },
+                    scienceBonus: -0.03,
+                    cultureBonus: -0.02,
+                    maxPop: 0.05,
                     converters: [
-                        { source: 'stability', sourceType: 'stability', ratio: 0.0025, target: 'taxIncome', targetType: 'bonus', cap: 0.35 },
-                        { source: 'officials', sourceType: 'officialCount', ratio: 0.25, target: 'stability', targetType: 'bonus', cap: 4 },
+                        { source: 'stability', sourceType: 'stability', ratio: 0.004, target: 'taxIncome', targetType: 'bonus', cap: 0.50 },
+                        { source: 'officials', sourceType: 'officialCount', ratio: 0.35, target: 'stability', targetType: 'bonus', cap: 8 },
                     ],
                     ruleMods: [
-                        { type: 'building_cost_mod', scope: 'civic', value: -0.08 },
+                        { type: 'building_cost_mod', scope: 'civic', value: -0.12 },
                     ],
                 },
                 {
-                    stability: 12,
-                    taxIncome: 0.08,
-                    categories: { civic: 0.08, gather: 0.04 },
-                    scienceBonus: -0.04,
-                    cultureBonus: -0.03,
-                    maxPop: 0.04,
+                    stability: 20,
+                    taxIncome: 0.18,
+                    categories: { civic: 0.14, gather: 0.08 },
+                    scienceBonus: -0.03,
+                    cultureBonus: -0.02,
+                    maxPop: 0.08,
                     onEvents: [
-                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '赦令安民', buffId: 'heavenly_pacification', duration: 120, effects: { stability: 12, taxIncome: 0.06, categories: { civic: 0.06 } } }, cooldownDays: 45 },
-                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '盛世开元', buffId: 'golden_mandate', duration: 180, effects: { stability: 15, taxIncome: 0.12, production: 0.08 } }, cooldownDays: 90 },
+                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '赦令安民', buffId: 'heavenly_pacification', duration: 150, effects: { stability: 18, taxIncome: 0.10, categories: { civic: 0.10 } } }, cooldownDays: 45 },
+                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '盛世开元', buffId: 'golden_mandate', duration: 240, effects: { stability: 20, taxIncome: 0.18, production: 0.12, maxPop: 0.08 } }, cooldownDays: 90 },
                     ],
                     triggerEffects: [
                         { type: 'conditional_flip', condition: 'stability_below', threshold: 25,
@@ -2793,43 +2850,43 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    taxIncome: 0.08,
-                    categories: { industry: 0.06 },
-                    production: 0.04,
+                    taxIncome: 0.12,
+                    categories: { industry: 0.10 },
+                    production: 0.07,
                     stability: -4,
                     cultureBonus: -0.03,
                     triggerEffects: [
-                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.02, production: 0.01 } },
+                        { type: 'chain_count_bonus', countType: 'complete', perCount: { taxIncome: 0.025, production: 0.012 } },
                         { type: 'mutual_exclusion', conflictsWith: ['communism', 'state_capitalism'],
                             penalty: { production: -0.12, taxIncome: -0.10, stability: -8 },
-                            bonusIfPure: { taxIncome: 0.04 } },
+                            bonusIfPure: { taxIncome: 0.06 } },
                     ],
                 },
                 {
-                    taxIncome: 0.10,
-                    categories: { industry: 0.08 },
-                    production: 0.06,
+                    taxIncome: 0.18,
+                    categories: { industry: 0.14 },
+                    production: 0.10,
                     stability: -4,
-                    cultureBonus: -0.04,
+                    cultureBonus: -0.03,
                     militaryBonus: -0.02,
                     converters: [
-                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.002, target: 'taxIncome', targetType: 'bonus', cap: 0.50 },
-                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.00012, target: 'production', targetType: 'bonus', cap: 0.30 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.003, target: 'taxIncome', targetType: 'bonus', cap: 0.60 },
+                        { source: 'trade', sourceType: 'tradeVolume', ratio: 0.00018, target: 'production', targetType: 'bonus', cap: 0.40 },
                     ],
                     ruleMods: [
                         { type: 'price_volatility_mod', value: 0.18 },
-                        { type: 'building_cost_mod', scope: 'industry', value: -0.10 },
+                        { type: 'building_cost_mod', scope: 'industry', value: -0.12 },
                     ],
                 },
                 {
-                    taxIncome: 0.12,
-                    categories: { industry: 0.10 },
-                    production: 0.08,
-                    stability: -5,
-                    cultureBonus: -0.05,
+                    taxIncome: 0.25,
+                    categories: { industry: 0.18 },
+                    production: 0.14,
+                    stability: -4,
+                    cultureBonus: -0.04,
                     militaryBonus: -0.03,
                     onEvents: [
-                        { event: 'on_chain_complete', effect: { action: 'addBuff', name: '市场繁荣', buffId: 'market_prosperity', duration: 180, effects: { taxIncome: 0.18, production: 0.12 } }, cooldownDays: 60 },
+                        { event: 'on_chain_complete', effect: { action: 'addBuff', name: '市场繁荣', buffId: 'market_prosperity', duration: 180, effects: { taxIncome: 0.25, production: 0.18 } }, cooldownDays: 45 },
                     ],
                     triggerEffects: [
                         { type: 'conditional_flip', condition: 'treasury_below', threshold: 500,
@@ -2860,43 +2917,44 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    scienceBonus: 0.10,
-                    cultureBonus: 0.06,
+                    scienceBonus: 0.15,
+                    cultureBonus: 0.10,
                     stability: -4,
                     militaryBonus: -0.04,
                     production: -0.02,
                     triggerEffects: [
-                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.0015, cultureBonus: 0.0008 } },
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.002, cultureBonus: 0.0012 } },
                         { type: 'mutual_exclusion', conflictsWith: ['caste_system', 'divine_right'],
                             penalty: { scienceBonus: -0.10, cultureBonus: -0.08, stability: -8 },
-                            bonusIfPure: { scienceBonus: 0.03, cultureBonus: 0.02 } },
+                            bonusIfPure: { scienceBonus: 0.05, cultureBonus: 0.03 } },
                     ],
                 },
                 {
-                    scienceBonus: 0.12,
-                    cultureBonus: 0.08,
-                    stability: -4,
-                    militaryBonus: -0.05,
-                    production: -0.03,
-                    maxPop: 0.04,
+                    scienceBonus: 0.22,
+                    cultureBonus: 0.14,
+                    stability: -3,
+                    militaryBonus: -0.04,
+                    production: -0.02,
+                    maxPop: 0.06,
                     converters: [
-                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'scienceBonus', targetType: 'bonus', cap: 0.35 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.002, target: 'scienceBonus', targetType: 'bonus', cap: 0.50 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'cultureBonus', cap: 0.40 },
                     ],
                     ruleMods: [
-                        { type: 'tech_cost_mod', value: -0.12 },
-                        { type: 'building_cost_mod', scope: 'civic', value: -0.06 },
+                        { type: 'tech_cost_mod', value: -0.15 },
+                        { type: 'building_cost_mod', scope: 'civic', value: -0.10 },
                     ],
                 },
                 {
-                    scienceBonus: 0.15,
-                    cultureBonus: 0.10,
-                    stability: -5,
-                    militaryBonus: -0.05,
-                    production: -0.03,
-                    maxPop: 0.05,
+                    scienceBonus: 0.30,
+                    cultureBonus: 0.20,
+                    stability: -3,
+                    militaryBonus: -0.04,
+                    production: -0.02,
+                    maxPop: 0.08,
                     onEvents: [
-                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '公民论战', buffId: 'public_reason_campaign', duration: 120, effects: { scienceBonus: 0.12, cultureBonus: 0.08, stability: 6 } }, cooldownDays: 60 },
-                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '知识大爆炸', buffId: 'knowledge_big_bang', duration: 180, effects: { scienceBonus: 0.22, cultureBonus: 0.15 } }, cooldownDays: 90 },
+                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '公民论战', buffId: 'public_reason_campaign', duration: 150, effects: { scienceBonus: 0.18, cultureBonus: 0.12, stability: 10 } }, cooldownDays: 45 },
+                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '知识大爆炸', buffId: 'knowledge_big_bang', duration: 240, effects: { scienceBonus: 0.30, cultureBonus: 0.22, maxPop: 0.08 } }, cooldownDays: 60 },
                     ],
                     triggerEffects: [
                         { type: 'conditional_flip', condition: 'stability_below', threshold: 30,
@@ -2927,14 +2985,14 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    stability: 10,
-                    cultureBonus: 0.08,
-                    maxPop: 0.06,
-                    scienceBonus: 0.04,
+                    stability: 14,
+                    cultureBonus: 0.12,
+                    maxPop: 0.08,
+                    scienceBonus: 0.06,
                     militaryBonus: -0.10,
-                    taxIncome: -0.04,
+                    taxIncome: -0.03,
                     onEvents: [
-                        { event: 'on_treaty_sign', effect: { action: 'addBuff', name: '和平协定', buffId: 'peace_accord', duration: 180, effects: { stability: 10, cultureBonus: 0.08, maxPop: 0.06 } }, cooldownDays: 60 },
+                        { event: 'on_treaty_sign', effect: { action: 'addBuff', name: '和平协定', buffId: 'peace_accord', duration: 240, effects: { stability: 15, cultureBonus: 0.12, maxPop: 0.08, scienceBonus: 0.06 } }, cooldownDays: 45 },
                     ],
                     triggerEffects: [
                         { type: 'mutual_exclusion', conflictsWith: ['militarism', 'imperialism', 'total_war'],
@@ -2943,33 +3001,33 @@ export const IDEOLOGIES = [
                     ],
                 },
                 {
-                    stability: 12,
-                    cultureBonus: 0.10,
-                    maxPop: 0.08,
-                    scienceBonus: 0.05,
-                    production: 0.03,
-                    militaryBonus: -0.09,
-                    taxIncome: -0.04,
+                    stability: 18,
+                    cultureBonus: 0.16,
+                    maxPop: 0.12,
+                    scienceBonus: 0.08,
+                    production: 0.05,
+                    militaryBonus: -0.08,
+                    taxIncome: -0.03,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000012, target: 'cultureBonus', targetType: 'bonus', cap: 0.35 },
-                        { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.8, target: 'stability', targetType: 'bonus', cap: 6 },
+                        { source: 'population', sourceType: 'population', ratio: 0.0000018, target: 'cultureBonus', targetType: 'bonus', cap: 0.45 },
+                        { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 1.2, target: 'stability', targetType: 'bonus', cap: 10 },
                     ],
                     ruleMods: [
                         { type: 'building_cost_mod', scope: 'civic', value: -0.10 },
                     ],
                 },
                 {
-                    stability: 14,
-                    cultureBonus: 0.12,
-                    maxPop: 0.10,
-                    scienceBonus: 0.06,
-                    production: 0.05,
-                    militaryBonus: -0.08,
-                    taxIncome: -0.05,
+                    stability: 22,
+                    cultureBonus: 0.20,
+                    maxPop: 0.15,
+                    scienceBonus: 0.12,
+                    production: 0.08,
+                    militaryBonus: -0.06,
+                    taxIncome: -0.03,
                     onEvents: [
-                        { event: 'on_treaty_sign', effect: { action: 'addBuff', name: '永久和平', buffId: 'perpetual_peace', duration: 240, effects: { stability: 15, cultureBonus: 0.15, maxPop: 0.10, scienceBonus: 0.08 } }, cooldownDays: 60 },
-                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '人道协调', buffId: 'humanitarian_coordination', duration: 120, effects: { stability: 8, maxPop: 0.08, cultureBonus: 0.08 } }, cooldownDays: 60 },
-                        { event: 'on_pop_milestone', effect: { action: 'addBuff', name: '人类大同', buffId: 'universal_brotherhood', duration: 240, effects: { stability: 15, maxPop: 0.12, cultureBonus: 0.06 } }, cooldownDays: 60 },
+                        { event: 'on_treaty_sign', effect: { action: 'addBuff', name: '永久和平', buffId: 'perpetual_peace', duration: 300, effects: { stability: 20, cultureBonus: 0.20, maxPop: 0.15, scienceBonus: 0.12 } }, cooldownDays: 45 },
+                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '人道协调', buffId: 'humanitarian_coordination', duration: 150, effects: { stability: 12, maxPop: 0.10, cultureBonus: 0.12, scienceBonus: 0.06 } }, cooldownDays: 45 },
+                        { event: 'on_pop_milestone', effect: { action: 'addBuff', name: '人类大同', buffId: 'universal_brotherhood', duration: 300, effects: { stability: 20, maxPop: 0.15, cultureBonus: 0.10, scienceBonus: 0.08 } }, cooldownDays: 45 },
                     ],
                     triggerEffects: [
                         { type: 'conditional_flip', condition: 'isAtWar',
@@ -3000,49 +3058,49 @@ export const IDEOLOGIES = [
         effects: {
             levels: [
                 {
-                    scienceBonus: 0.12,
-                    categories: { industry: 0.08 },
-                    production: 0.06,
-                    stability: -6,
-                    cultureBonus: -0.05,
-                    maxPop: -0.02,
-                    triggerEffects: [
-                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.002, production: 0.0008 } },
-{ type: 'building_count_bonus', category: 'industry', per: 12, bonus: { scienceBonus: 0.05, production: 0.02 } },
-                    ],
-                },
-                {
-                    scienceBonus: 0.15,
-                    categories: { industry: 0.10 },
-                    production: 0.08,
-                    stability: -6,
-                    cultureBonus: -0.06,
-                    maxPop: -0.03,
-                    converters: [
-                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.002, target: 'scienceBonus', targetType: 'bonus', cap: 0.50 },
-                    ],
-                    ruleMods: [
-                        { type: 'tech_cost_mod', value: -0.14 },
-                        { type: 'building_cost_mod', scope: 'industry', value: -0.08 },
-                    ],
-                },
-                {
                     scienceBonus: 0.18,
                     categories: { industry: 0.12 },
-                    production: 0.10,
-                    stability: -7,
-                    cultureBonus: -0.07,
-                    maxPop: -0.04,
+                    production: 0.08,
+                    stability: -5,
+                    cultureBonus: -0.04,
+                    maxPop: -0.02,
+                    triggerEffects: [
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.003, production: 0.0012 } },
+{ type: 'building_count_bonus', category: 'industry', per: 12, bonus: { scienceBonus: 0.06, production: 0.03 } },
+                    ],
+                },
+                {
+                    scienceBonus: 0.25,
+                    categories: { industry: 0.16 },
+                    production: 0.12,
+                    stability: -5,
+                    cultureBonus: -0.04,
+                    maxPop: -0.02,
+                    converters: [
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.003, target: 'scienceBonus', targetType: 'bonus', cap: 0.65 },
+                    ],
+                    ruleMods: [
+                        { type: 'tech_cost_mod', value: -0.18 },
+                        { type: 'building_cost_mod', scope: 'industry', value: -0.12 },
+                    ],
+                },
+                {
+                    scienceBonus: 0.35,
+                    categories: { industry: 0.18 },
+                    production: 0.14,
+                    stability: -5,
+                    cultureBonus: -0.05,
+                    maxPop: -0.02,
                     onEvents: [
-                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '技术奇点', buffId: 'tech_singularity', duration: 240, effects: { scienceBonus: 0.25, production: 0.15, categories: { industry: 0.12 }, stability: -3 } }, cooldownDays: 90 },
-                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '科研军管', buffId: 'emergency_research_directorate', duration: 120, effects: { scienceBonus: 0.15, production: 0.10, stability: -2 } }, cooldownDays: 60 },
+                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '技术奇点', buffId: 'tech_singularity', duration: 300, effects: { scienceBonus: 0.35, production: 0.22, categories: { industry: 0.18 } } }, cooldownDays: 60 },
+                        { event: 'on_stability_crisis', effect: { action: 'addBuff', name: '科研军管', buffId: 'emergency_research_directorate', duration: 150, effects: { scienceBonus: 0.22, production: 0.15, stability: 5 } }, cooldownDays: 45 },
                     ],
                     triggerEffects: [
                         { type: 'conditional_flip', condition: 'population_above', threshold: 5000,
-                            normalBonus: { scienceBonus: -0.03, production: -0.02 },
-                            flippedBonus: { scienceBonus: 0.05, production: 0.03 } },
-                        { type: 'resource_drain', resource: 'silver', drainPerTick: 10,
-                            bonus: { scienceBonus: 0.04, categories: { industry: 0.02 } },
+                            normalBonus: { scienceBonus: -0.02, production: -0.01 },
+                            flippedBonus: { scienceBonus: 0.08, production: 0.05 } },
+                        { type: 'resource_drain', resource: 'silver', drainPerTick: 12,
+                            bonus: { scienceBonus: 0.06, categories: { industry: 0.04 } },
                             penaltyIfDrained: { scienceBonus: -0.05, production: -0.04, stability: -4 } },
                     ],
                 },
@@ -3064,15 +3122,29 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { stability: -3, scienceBonus: 0.05, cultureBonus: 0.05 },
-                { stability: -2, scienceBonus: 0.08, cultureBonus: 0.08 },
-                { stability: -1, scienceBonus: 0.12, cultureBonus: 0.12,
+                { stability: -3, scienceBonus: 0.08, cultureBonus: 0.08,
+                    triggerEffects: [
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.002, cultureBonus: 0.001 } },
+                    ],
+                },
+                { stability: -2, scienceBonus: 0.14, cultureBonus: 0.12,
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'cultureBonus', cap: 0.45 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'scienceBonus', cap: 0.50 },
+                    ],
+                },
+                { stability: -1, scienceBonus: 0.20, cultureBonus: 0.18,
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.002, target: 'cultureBonus', cap: 0.60 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.004, target: 'scienceBonus', cap: 0.65 },
+                    ],
                     onEvents: [
-{ event: 'on_rebellion_start', effect: { action: 'addBuff', name: '扬弃', effects: { scienceBonus: 0.20, cultureBonus: 0.15 }, duration: 360 }, cooldownDays: 180 },
+{ event: 'on_rebellion_start', effect: { action: 'addBuff', name: '扬弃', effects: { scienceBonus: 0.30, cultureBonus: 0.25, production: 0.12 }, duration: 360 }, cooldownDays: 180 },
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '否定之否定', buffId: 'dialectic_synthesis', duration: 150, effects: { scienceBonus: 0.18, cultureBonus: 0.15, stability: 6 } }, cooldownDays: 60 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'inverse_scaling', source: 'stability', threshold: 55, aboveBonus: { scienceBonus: -0.003 }, belowBonus: { scienceBonus: 0.005 }, cap: 0.45 },
+                { type: 'inverse_scaling', source: 'stability', threshold: 55, aboveBonus: { scienceBonus: -0.003 }, belowBonus: { scienceBonus: 0.008 }, cap: 0.55 },
             ],
         },
     },
@@ -3089,15 +3161,24 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { taxIncome: 0.04, needsReduction: 0.03 },
-                { taxIncome: 0.06, needsReduction: 0.05,
+                { taxIncome: 0.06, needsReduction: 0.05, stability: 3,
+                    triggerEffects: [
+                        { type: 'approval_threshold_bonus', stratum: 'worker', threshold: 55, bonus: { taxIncome: 0.03, stability: 2 } },
+                    ],
+                },
+                { taxIncome: 0.10, needsReduction: 0.08, stability: 5,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000005, target: 'taxIncome', cap: 0.45 },
+                        { source: 'population', sourceType: 'population', ratio: 0.0000008, target: 'taxIncome', cap: 0.55 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.005, target: 'stability', cap: 8 },
                     ] },
-                { taxIncome: 0.04, needsReduction: 0.03,
+                { taxIncome: 0.15, needsReduction: 0.12, stability: 7,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000005, target: 'taxIncome', cap: 0.45 },
-{ source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.0001, target: 'stability', cap: 6 },
+                        { source: 'population', sourceType: 'population', ratio: 0.000001, target: 'taxIncome', cap: 0.65 },
+                        { source: 'wealthyPop', sourceType: 'wealthyPop', ratio: 0.00015, target: 'stability', cap: 10 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.008, target: 'taxIncome', cap: 0.35 },
+                    ],
+                    onEvents: [
+{ event: 'on_pop_milestone', effect: { action: 'addBuff', name: '最大幸福', buffId: 'greatest_happiness', duration: 180, effects: { taxIncome: 0.12, stability: 8, needsReduction: 0.10 } }, cooldownDays: 60 },
                     ] },
             ],
         },
@@ -3115,22 +3196,32 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { stability: -5, cultureBonus: 0.08 },
-                { stability: -4, cultureBonus: 0.12,
+                { stability: -5, cultureBonus: 0.12, scienceBonus: 0.04,
+                    triggerEffects: [
+                        { type: 'inverse_scaling', source: 'stability', threshold: 40, aboveBonus: { cultureBonus: -0.002 }, belowBonus: { cultureBonus: 0.006, scienceBonus: 0.003 }, cap: 0.50 },
+                    ],
+                },
+                { stability: -4, cultureBonus: 0.18, scienceBonus: 0.06,
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'cultureBonus', cap: 0.45 },
+                    ],
                     ruleMods: [
-                        { type: 'corruption_mod', value: -0.15 },
+                        { type: 'corruption_mod', value: -0.18 },
                     ] },
-                { stability: -3, cultureBonus: 0.16,
+                { stability: -3, cultureBonus: 0.25, scienceBonus: 0.10,
+                    converters: [
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.002, target: 'cultureBonus', cap: 0.60 },
+                    ],
                     ruleMods: [
-                        { type: 'corruption_mod', value: -0.20 },
+                        { type: 'corruption_mod', value: -0.25 },
                     ],
                     onEvents: [
-{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '永恒轮回', effects: { scienceBonus: 0.15, cultureBonus: 0.15, militaryBonus: 0.15 }, duration: 360 }, cooldownDays: 180 },
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '永恒轮回', effects: { scienceBonus: 0.25, cultureBonus: 0.25, militaryBonus: 0.20 }, duration: 360 }, cooldownDays: 180 },
                     ] },
             ],
             triggerEffects: [
                 { type: 'diminishing_returns', category: 'theology', threshold: 1, perExtra: { cultureBonus: -0.03 } },
-                { type: 'resource_drain', resource: 'silver', drainPerTick: 5, bonus: { cultureBonus: 0.05 }, penaltyIfDrained: { stability: -3 } },
+                { type: 'resource_drain', resource: 'silver', drainPerTick: 8, bonus: { cultureBonus: 0.06, scienceBonus: 0.03 }, penaltyIfDrained: { stability: -5 } },
             ],
         },
     },
@@ -3147,17 +3238,26 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { industryBonus: 0.05, stability: -2 },
-                { industryBonus: 0.08, stability: -2,
+                { industryBonus: 0.08, stability: -2, militaryBonus: 0.04,
+                    triggerEffects: [
+                        { type: 'building_count_bonus', category: 'industry', per: 5, bonus: { industryBonus: 0.025 } },
+                    ],
+                },
+                { industryBonus: 0.14, stability: -2, militaryBonus: 0.06,
                     converters: [
-                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000005, target: 'production', cap: 0.35 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000008, target: 'production', cap: 0.45 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.001, target: 'industryBonus', cap: 0.35 },
                     ] },
-                { industryBonus: 0.12, stability: -2, militaryBonus: 0.08,
+                { industryBonus: 0.20, stability: -1, militaryBonus: 0.10,
                     converters: [
-                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000005, target: 'production', cap: 0.35 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.00001, target: 'production', cap: 0.55 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.0015, target: 'industryBonus', cap: 0.50 },
                     ],
                     ruleMods: [
-                        { type: 'wages_mod', scope: 'worker', value: -0.15 },
+                        { type: 'wages_mod', scope: 'worker', value: -0.18 },
+                    ],
+                    onEvents: [
+{ event: 'on_war_victory', effect: { action: 'addBuff', name: '适者凯旋', buffId: 'survival_triumph', duration: 240, effects: { industryBonus: 0.15, militaryBonus: 0.12, production: 0.10 } }, cooldownDays: 90 },
                     ] },
             ],
         },
@@ -3206,16 +3306,28 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { militaryBonus: 0.05, stability: -3 },
-                { militaryBonus: 0.08, stability: -2 },
-                { militaryBonus: 0.12, stability: -1,
+                { militaryBonus: 0.08, stability: -3, scienceBonus: 0.05,
+                    triggerEffects: [
+                        { type: 'official_faction_bonus', faction: 'military', per: 5, bonus: { militaryBonus: 0.04, scienceBonus: 0.02 }, cap: 0.55 },
+                    ],
+                },
+                { militaryBonus: 0.14, stability: -2, scienceBonus: 0.08, cultureBonus: 0.05,
+                    converters: [
+                        { source: 'warCount', sourceType: 'warCount', ratio: 0.06, target: 'militaryBonus', cap: 0.35 },
+                    ],
+                },
+                { militaryBonus: 0.22, stability: -1, scienceBonus: 0.12, cultureBonus: 0.08,
+                    converters: [
+                        { source: 'warCount', sourceType: 'warCount', ratio: 0.08, target: 'militaryBonus', cap: 0.45 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'scienceBonus', cap: 0.40 },
+                    ],
                     onEvents: [
-{ event: 'on_battle_victory', effect: { action: 'addBuff', name: '意志的胜利', effects: { militaryBonus: 0.20, scienceBonus: 0.12 }, duration: 240 }, cooldownDays: 180 },
+{ event: 'on_battle_victory', effect: { action: 'addBuff', name: '意志的胜利', effects: { militaryBonus: 0.30, scienceBonus: 0.18, cultureBonus: 0.12 }, duration: 240 }, cooldownDays: 120 },
                     ] },
             ],
             triggerEffects: [
-{ type: 'official_faction_bonus', faction: 'military', per: 5, bonus: { militaryBonus: 0.03 }, cap: 0.45 },
-                { type: 'mutual_exclusion', conflictsWith: ['egalitarianism', 'collectivism'], penalty: { stability: -5 }, bonusIfPure: { militaryBonus: 0.03 } },
+{ type: 'official_faction_bonus', faction: 'military', per: 5, bonus: { militaryBonus: 0.04, scienceBonus: 0.02 }, cap: 0.55 },
+                { type: 'mutual_exclusion', conflictsWith: ['egalitarianism', 'collectivism'], penalty: { stability: -5 }, bonusIfPure: { militaryBonus: 0.05 } },
             ],
         },
     },
@@ -3234,18 +3346,31 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { needsReduction: 0.05, stability: 3 },
-                { needsReduction: 0.08, stability: 5,
-                    ruleMods: [
-                        { type: 'resource_price_mod', scope: '_global', value: -0.08 },
-                    ] },
-                { needsReduction: 0.12, stability: 8,
-                    ruleMods: [
-                        { type: 'resource_price_mod', scope: '_global', value: -0.12 },
+                { needsReduction: 0.08, stability: 5, cultureBonus: 0.04,
+                    triggerEffects: [
+                        { type: 'stratum_bonus', stratum: 'cleric', bonus: { perPopPassive: { culture: 0.006 } } },
+                        { type: 'building_specific_bonus', buildingId: 'temple', per: 40, bonus: { stability: 1.0, cultureBonus: 0.008 }, cap: 15 },
                     ],
+                },
+                { needsReduction: 0.12, stability: 8, cultureBonus: 0.07,
                     converters: [
-{ source: 'unemployment', sourceType: 'unemployment', ratio: 0.03, target: 'stability', cap: 4 },
-                        { source: 'stability', sourceType: 'stability', ratio: 0.003, target: 'cultureBonus', cap: 0.2 },
+                        { source: 'cleric', sourceType: 'population', ratio: 0.000003, target: 'stability', cap: 10 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.005, target: 'cultureBonus', cap: 0.30 },
+                    ],
+                    ruleMods: [
+                        { type: 'resource_price_mod', scope: '_global', value: -0.10 },
+                    ] },
+                { needsReduction: 0.18, stability: 12, cultureBonus: 0.12,
+                    converters: [
+                        { source: 'unemployment', sourceType: 'unemployment', ratio: 0.05, target: 'stability', cap: 8 },
+                        { source: 'stability', sourceType: 'stability', ratio: 0.005, target: 'cultureBonus', cap: 0.35 },
+                        { source: 'cleric', sourceType: 'population', ratio: 0.000005, target: 'stability', cap: 15 },
+                    ],
+                    ruleMods: [
+                        { type: 'resource_price_mod', scope: '_global', value: -0.15 },
+                    ],
+                    onEvents: [
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '空性觉悟', buffId: 'sunyata_awakening', duration: 180, effects: { stability: 15, cultureBonus: 0.12, needsReduction: 0.10 } }, cooldownDays: 60 },
                     ] },
             ],
         },
@@ -3289,21 +3414,33 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { production: 0.04, stability: 2 },
-                { production: 0.06, stability: 4,
-                    ruleMods: [
-                        { type: 'building_cost_mod', scope: 'gather', value: -0.12 },
-                    ] },
-                { production: 0.09, stability: 6, needsReduction: 0.08,
-                    ruleMods: [
-                        { type: 'building_cost_mod', scope: 'gather', value: -0.12 },
+                { production: 0.06, stability: 4, cultureBonus: 0.03,
+                    triggerEffects: [
+                        { type: 'building_count_bonus', category: 'gather', per: 5, bonus: { production: 0.025, stability: 0.4 }, cap: 0.35 },
                     ],
+                },
+                { production: 0.10, stability: 7, cultureBonus: 0.05,
                     converters: [
-                        { source: 'stability', sourceType: 'stability', ratio: 0.004, target: 'production', cap: 0.60 },
+                        { source: 'stability', sourceType: 'stability', ratio: 0.006, target: 'production', cap: 0.50 },
+                        { source: 'gather', sourceType: 'buildingCount', ratio: 0.001, target: 'cultureBonus', cap: 0.35 },
+                    ],
+                    ruleMods: [
+                        { type: 'building_cost_mod', scope: 'gather', value: -0.15 },
+                    ] },
+                { production: 0.15, stability: 10, cultureBonus: 0.08, needsReduction: 0.12,
+                    converters: [
+                        { source: 'stability', sourceType: 'stability', ratio: 0.008, target: 'production', cap: 0.70 },
+                        { source: 'gather', sourceType: 'buildingCount', ratio: 0.0015, target: 'cultureBonus', cap: 0.50 },
+                    ],
+                    ruleMods: [
+                        { type: 'building_cost_mod', scope: 'gather', value: -0.20 },
+                    ],
+                    onEvents: [
+{ event: 'on_stability_high', effect: { action: 'addBuff', name: '无为而治', buffId: 'wu_wei', duration: 240, effects: { production: 0.15, stability: 8, needsReduction: 0.10 } }, cooldownDays: 90 },
                     ] },
             ],
             triggerEffects: [
-{ type: 'building_specific_bonus', buildingId: 'farm', per: 5, bonus: { production: 0.03 } },
+{ type: 'building_specific_bonus', buildingId: 'farm', per: 5, bonus: { production: 0.04, stability: 0.5 } },
             ],
         },
     },
@@ -3352,15 +3489,28 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { scienceBonus: 0.04, stability: 2 },
-                { scienceBonus: 0.06, stability: 3 },
-                { scienceBonus: 0.10, stability: 5,
+                { scienceBonus: 0.07, stability: 4, cultureBonus: 0.03,
+                    triggerEffects: [
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.0015, cultureBonus: 0.001 } },
+                    ],
+                },
+                { scienceBonus: 0.12, stability: 6, cultureBonus: 0.05,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000005, target: 'scienceBonus', cap: 0.45 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'scienceBonus', cap: 0.45 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.001, target: 'cultureBonus', cap: 0.35 },
+                    ],
+                },
+                { scienceBonus: 0.18, stability: 8, cultureBonus: 0.08,
+                    converters: [
+                        { source: 'population', sourceType: 'population', ratio: 0.0000008, target: 'scienceBonus', cap: 0.55 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.004, target: 'scienceBonus', cap: 0.60 },
+                    ],
+                    onEvents: [
+{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '自然法则', buffId: 'natural_law', duration: 150, effects: { scienceBonus: 0.15, cultureBonus: 0.08, stability: 5 } }, cooldownDays: 30 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'tech_count_bonus', perTech: { cultureBonus: 0.001 } },
+                { type: 'tech_count_bonus', perTech: { cultureBonus: 0.0015 } },
             ],
         },
     },
@@ -3378,15 +3528,28 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { stability: 4, taxIncome: -0.03 },
-                { stability: 6, taxIncome: -0.02 },
-                { stability: 10, taxIncome: -0.01,
+                { stability: 6, taxIncome: -0.02, cultureBonus: 0.03,
+                    triggerEffects: [
+                        { type: 'coalition_diversity_bonus', perStratum: { stability: 1.8, taxIncome: 0.012 }, cap: 10 },
+                    ],
+                },
+                { stability: 10, taxIncome: 0.02, cultureBonus: 0.05,
                     converters: [
-                        { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.01, target: 'taxIncome', cap: 0.60 },
+                        { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.015, target: 'taxIncome', cap: 0.50 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.006, target: 'stability', cap: 8 },
+                    ],
+                },
+                { stability: 14, taxIncome: 0.05, cultureBonus: 0.08,
+                    converters: [
+                        { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.02, target: 'taxIncome', cap: 0.70 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.01, target: 'stability', cap: 12 },
+                    ],
+                    onEvents: [
+{ event: 'on_treaty_sign', effect: { action: 'addBuff', name: '联邦团结', buffId: 'federal_unity', duration: 180, effects: { stability: 10, taxIncome: 0.08, cultureBonus: 0.06 } }, cooldownDays: 60 },
                     ] },
             ],
             triggerEffects: [
-{ type: 'coalition_diversity_bonus', perStratum: { stability: 1.5, taxIncome: 0.01 }, cap: 8 },
+{ type: 'coalition_diversity_bonus', perStratum: { stability: 2.0, taxIncome: 0.015 }, cap: 12 },
             ],
         },
     },
@@ -3403,19 +3566,31 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { taxIncome: 0.08, stability: -3, cultureBonus: -0.05 },
-                { taxIncome: 0.12, stability: -3, cultureBonus: -0.04,
-                    ruleMods: [
-                        { type: 'corruption_mod', value: -0.2 },
-                        { type: 'wages_mod', scope: 'official', value: 0.2 },
-                    ] },
-                { taxIncome: 0.16, stability: -2, cultureBonus: -0.03,
+                { taxIncome: 0.12, stability: -3, cultureBonus: -0.04, production: 0.05,
+                    triggerEffects: [
+                        { type: 'official_faction_bonus', faction: 'military', per: 5, bonus: { taxIncome: 0.02, stability: 0.5 }, cap: 0.30 },
+                    ],
+                },
+                { taxIncome: 0.18, stability: -2, cultureBonus: -0.03, production: 0.08,
+                    converters: [
+                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.04, target: 'taxIncome', cap: 0.40 },
+                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.025, target: 'militaryBonus', cap: 0.25 },
+                    ],
                     ruleMods: [
                         { type: 'corruption_mod', value: -0.25 },
+                        { type: 'wages_mod', scope: 'official', value: 0.20 },
+                    ] },
+                { taxIncome: 0.24, stability: -1, cultureBonus: -0.02, production: 0.12, militaryBonus: 0.06,
+                    converters: [
+                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.05, target: 'taxIncome', cap: 0.55 },
+                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.035, target: 'militaryBonus', cap: 0.35 },
+                    ],
+                    ruleMods: [
+                        { type: 'corruption_mod', value: -0.30 },
                         { type: 'wages_mod', scope: 'official', value: 0.25 },
                     ],
-                    converters: [
-                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.03, target: 'militaryBonus', cap: 0.2 },
+                    onEvents: [
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '大清洗', buffId: 'great_purge', duration: 180, effects: { stability: 15, taxIncome: 0.15, militaryBonus: 0.10, cultureBonus: -0.08 } }, cooldownDays: 90 },
                     ] },
             ],
             triggerEffects: [
@@ -3471,18 +3646,33 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { scienceBonus: 0.05, stability: -3 },
-                { scienceBonus: 0.08, stability: -2 },
-                { scienceBonus: 0.12, stability: -1,
+                { scienceBonus: 0.08, stability: -3, production: 0.04,
+                    triggerEffects: [
+                        { type: 'official_faction_bonus', faction: 'academic', per: 5, bonus: { scienceBonus: 0.04, production: 0.02 }, cap: 0.50 },
+                    ],
+                },
+                { scienceBonus: 0.14, stability: -2, production: 0.07,
+                    converters: [
+                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.03, target: 'scienceBonus', cap: 0.40 },
+                    ],
                     ruleMods: [
-                        { type: 'tech_cost_mod', value: -0.15 },
+                        { type: 'tech_cost_mod', value: -0.10 },
+                    ],
+                },
+                { scienceBonus: 0.20, stability: -1, production: 0.10,
+                    converters: [
+                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.04, target: 'scienceBonus', cap: 0.55 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'production', cap: 0.45 },
+                    ],
+                    ruleMods: [
+                        { type: 'tech_cost_mod', value: -0.18 },
                     ],
                     onEvents: [
-                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '革命浪潮', effects: { scienceBonus: 0.08, cultureBonus: 0.08, militaryBonus: 0.08, industryBonus: 0.08 }, duration: 360 }, cooldownDays: 720 },
+                        { event: 'on_epoch_advance', effect: { action: 'addBuff', name: '革命浪潮', effects: { scienceBonus: 0.15, cultureBonus: 0.12, militaryBonus: 0.12, production: 0.12 }, duration: 360 }, cooldownDays: 720 },
                     ] },
             ],
             triggerEffects: [
-{ type: 'official_faction_bonus', faction: 'academic', per: 5, bonus: { scienceBonus: 0.03 }, cap: 0.45 },
+{ type: 'official_faction_bonus', faction: 'academic', per: 3, bonus: { scienceBonus: 0.04 }, cap: 0.55 },
             ],
         },
     },
@@ -3593,18 +3783,34 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { taxIncome: 0.03, stability: 2 },
-                { taxIncome: 0.05, stability: 4 },
-                { taxIncome: 0.08, stability: 6,
-                    ruleMods: [
-                        { type: 'price_volatility_mod', value: -0.2 },
+                { taxIncome: 0.06, stability: 4,
+                    triggerEffects: [
+                        { type: 'resource_threshold', resource: 'silver', above: { threshold: 3000, bonus: { taxIncome: 0.06, stability: 3 } }, below: { threshold: 800, bonus: { stability: -8 } } },
                     ],
+                },
+                { taxIncome: 0.10, stability: 7,
                     converters: [
-{ source: 'silver', sourceType: 'resource', ratio: 0.001, target: 'stability', cap: 5 },
+                        { source: 'silver', sourceType: 'resource', ratio: 0.002, target: 'stability', cap: 8 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.0001, target: 'taxIncome', cap: 0.30 },
+                    ],
+                    ruleMods: [
+                        { type: 'price_volatility_mod', value: -0.20 },
+                    ],
+                },
+                { taxIncome: 0.15, stability: 10,
+                    converters: [
+                        { source: 'silver', sourceType: 'resource', ratio: 0.003, target: 'stability', cap: 12 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.00015, target: 'taxIncome', cap: 0.45 },
+                    ],
+                    ruleMods: [
+                        { type: 'price_volatility_mod', value: -0.30 },
+                    ],
+                    onEvents: [
+{ event: 'on_trade_surplus', effect: { action: 'addBuff', name: '金本位繁荣', buffId: 'gold_standard_boom', duration: 180, effects: { taxIncome: 0.12, stability: 8 } }, cooldownDays: 60 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'resource_threshold', resource: 'silver', above: { threshold: 5000, bonus: { taxIncome: 0.08 } }, below: { threshold: 1000, bonus: { stability: -5 } } },
+                { type: 'resource_threshold', resource: 'silver', above: { threshold: 8000, bonus: { taxIncome: 0.10, stability: 5 } }, below: { threshold: 500, bonus: { stability: -12 } } },
             ],
         },
     },
@@ -3615,40 +3821,45 @@ export const IDEOLOGIES = [
         icon: 'Coins',
         color: 'text-green-400',
         unlockEpoch: 6,
-        desc: '市场的混乱是一头野兽，只有国家的铁腕才能驯服它，每一个齿轮都在计划中转动。',
+        desc: '市场的混乱是一头野兽，只有国家的铁腕才能駯服它，每一个齿轮都在计划中转动。',
         lore: '"我们将在五年内实现工业化。" ——约瑟夫·斯大林',
         rarity: 'rare',
         weightModifiers: [],
         effects: {
             levels: [
-                { industryBonus: 0.06, production: 0.04, needsReduction: 0.03,
+                { industryBonus: 0.10, production: 0.06, needsReduction: 0.05,
                     ruleMods: [
-                        // 计划经济降低工业建筑的原料消耗（集中调配提升效率）
-                        { type: 'building_input_mod', scope: 'industry', value: -0.10 },
+                        { type: 'building_input_mod', scope: 'industry', value: -0.12 },
                     ],
                 },
-                { industryBonus: 0.09, production: 0.06, needsReduction: 0.05,
-                    ruleMods: [
-                        { type: 'price_volatility_mod', value: -0.25 },
-                        { type: 'building_cost_mod', scope: 'industry', value: -0.12 },
-                        { type: 'building_input_mod', scope: 'industry', value: -0.15 },
-                    ] },
-                { industryBonus: 0.12, production: 0.08, needsReduction: 0.08,
+                { industryBonus: 0.15, production: 0.10, needsReduction: 0.08,
+                    converters: [
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.001, target: 'production', cap: 0.45 },
+                    ],
                     ruleMods: [
                         { type: 'price_volatility_mod', value: -0.30 },
-                        { type: 'building_cost_mod', scope: 'industry', value: -0.18 },
-                        { type: 'building_input_mod', scope: 'industry', value: -0.20 },
-                    ],
+                        { type: 'building_cost_mod', scope: 'industry', value: -0.15 },
+                        { type: 'building_input_mod', scope: 'industry', value: -0.18 },
+                    ] },
+                { industryBonus: 0.22, production: 0.15, needsReduction: 0.12,
                     converters: [
-                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: -0.005, target: 'taxIncome', cap: -0.15 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.0015, target: 'production', cap: 0.60 },
+                        { source: 'officialCount', sourceType: 'officialCount', ratio: 0.03, target: 'industryBonus', cap: 0.35 },
+                    ],
+                    ruleMods: [
+                        { type: 'price_volatility_mod', value: -0.40 },
+                        { type: 'building_cost_mod', scope: 'industry', value: -0.22 },
+                        { type: 'building_input_mod', scope: 'industry', value: -0.25 },
+                    ],
+                    onEvents: [
+{ event: 'on_build', effect: { action: 'addBuff', name: '五年计划', buffId: 'five_year_plan', duration: 120, effects: { industryBonus: 0.15, production: 0.10 } }, cooldownDays: 30, condition: { category: 'industry' } },
                     ] },
             ],
             triggerEffects: [
-{ type: 'building_count_bonus', category: 'industry', per: 5, bonus: { production: 0.03 } },
+{ type: 'building_count_bonus', category: 'industry', per: 5, bonus: { production: 0.04 } },
             ],
         },
-    },
-    {
+    },    {
         id: 'manorial_economy',
         name: '庄园经济',
         category: 'economy',
@@ -3699,11 +3910,11 @@ export const IDEOLOGIES = [
                 { taxIncome: 0.05, cultureBonus: 0.02 },
                 { taxIncome: 0.08, cultureBonus: 0.04,
                     converters: [
-                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.001, target: 'taxIncome', cap: 0.30 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.0001, target: 'taxIncome', cap: 0.30 },
                     ] },
                 { taxIncome: 0.12, cultureBonus: 0.06,
                     converters: [
-                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.001, target: 'taxIncome', cap: 0.30 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.0001, target: 'taxIncome', cap: 0.30 },
                         { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.02, target: 'taxIncome', cap: 0.35 },
                     ],
                     ruleMods: [
@@ -3757,22 +3968,34 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { stability: 3, industryBonus: 0.03, approval: { worker: 5 } },
-                { stability: 3, industryBonus: 0.03, approval: { worker: 7 }, organizationGrowthMod: -0.08,
-                    ruleMods: [
-                        { type: 'wages_mod', scope: 'worker', value: 0.08 },
-                    ] },
-                { stability: 3, industryBonus: 0.03, approval: { worker: 9, artisan: 4 }, organizationGrowthMod: -0.12,
-                    ruleMods: [
-                        { type: 'wages_mod', scope: 'worker', value: 0.08 },
+                { stability: 5, industryBonus: 0.06, approval: { worker: 6 },
+                    triggerEffects: [
+                        { type: 'approval_threshold_bonus', stratum: 'worker', threshold: 65, bonus: { industryBonus: 0.10, stability: 3 } },
                     ],
+                },
+                { stability: 8, industryBonus: 0.10, approval: { worker: 8 }, organizationGrowthMod: -0.08,
                     converters: [
-                        { source: 'stability', sourceType: 'stability', ratio: 0.003, target: 'industryBonus', cap: 0.35 },
+                        { source: 'stability', sourceType: 'stability', ratio: 0.005, target: 'industryBonus', cap: 0.45 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.004, target: 'production', cap: 0.25 },
+                    ],
+                    ruleMods: [
+                        { type: 'wages_mod', scope: 'worker', value: 0.10 },
+                    ] },
+                { stability: 12, industryBonus: 0.16, approval: { worker: 10, artisan: 5 }, organizationGrowthMod: -0.12,
+                    converters: [
+                        { source: 'stability', sourceType: 'stability', ratio: 0.008, target: 'industryBonus', cap: 0.60 },
+                        { source: 'avgApproval', sourceType: 'avgApproval', ratio: 0.006, target: 'production', cap: 0.35 },
+                    ],
+                    ruleMods: [
+                        { type: 'wages_mod', scope: 'worker', value: 0.12 },
+                    ],
+                    onEvents: [
+{ event: 'on_stability_high', effect: { action: 'addBuff', name: '合作繁荣', buffId: 'cooperative_prosperity', duration: 180, effects: { industryBonus: 0.12, stability: 8, production: 0.08 } }, cooldownDays: 60 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'approval_threshold_bonus', stratum: 'worker', threshold: 70, bonus: { industryBonus: 0.08 } },
-{ type: 'building_count_bonus', category: 'industry', per: 5, bonus: { stability: 1.5 } },
+                { type: 'approval_threshold_bonus', stratum: 'worker', threshold: 70, bonus: { industryBonus: 0.10, production: 0.05 } },
+{ type: 'building_count_bonus', category: 'industry', per: 5, bonus: { stability: 2.0 } },
             ],
         },
     },
@@ -3791,23 +4014,33 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { militaryBonus: 0.04, cultureBonus: 0.02 },
-                { militaryBonus: 0.06, cultureBonus: 0.04,
-                    ruleMods: [
-                        { type: 'unit_attack_mod', scope: 'cavalry', value: 0.12 },
-                        { type: 'unit_defense_mod', scope: 'cavalry', value: 0.08 },
-                    ] },
-                { militaryBonus: 0.08, cultureBonus: 0.06,
+                { militaryBonus: 0.07, cultureBonus: 0.04, stability: 3,
+                    triggerEffects: [
+                        { type: 'unit_count_bonus', category: 'cavalry', per: 300, bonus: { militaryBonus: 0.015, cultureBonus: 0.005 }, cap: 0.40 },
+                    ],
+                },
+                { militaryBonus: 0.12, cultureBonus: 0.07, stability: 5,
+                    converters: [
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.001, target: 'cultureBonus', cap: 0.35 },
+                    ],
                     ruleMods: [
                         { type: 'unit_attack_mod', scope: 'cavalry', value: 0.18 },
                         { type: 'unit_defense_mod', scope: 'cavalry', value: 0.12 },
+                    ] },
+                { militaryBonus: 0.18, cultureBonus: 0.10, stability: 7,
+                    converters: [
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.0015, target: 'cultureBonus', cap: 0.50 },
+                    ],
+                    ruleMods: [
+                        { type: 'unit_attack_mod', scope: 'cavalry', value: 0.25 },
+                        { type: 'unit_defense_mod', scope: 'cavalry', value: 0.18 },
                     ],
                     onEvents: [
-                        { event: 'on_battle_victory', effect: { action: 'addBuff', name: '凯旋赞歌', buffId: 'chivalric_glory', duration: 60, effects: { cultureBonus: 0.05, stability: 2, militaryBonus: 0.04 } }, cooldownDays: 60 },
+                        { event: 'on_battle_victory', effect: { action: 'addBuff', name: '凯旋赞歌', buffId: 'chivalric_glory', duration: 90, effects: { cultureBonus: 0.10, stability: 5, militaryBonus: 0.08 } }, cooldownDays: 45 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'unit_count_bonus', category: 'cavalry', per: 300, bonus: { militaryBonus: 0.01 }, cap: 0.30 },
+                { type: 'unit_count_bonus', category: 'cavalry', per: 300, bonus: { militaryBonus: 0.02, cultureBonus: 0.008 }, cap: 0.45 },
             ],
         },
     },
@@ -3824,22 +4057,34 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { stability: 3, militaryBonus: 0.03 },
                 { stability: 5, militaryBonus: 0.05,
+                    triggerEffects: [
+                        { type: 'building_specific_bonus', buildingId: 'fortress', per: 3, bonus: { militaryBonus: 0.06, stability: 1.5 } },
+                    ],
+                },
+                { stability: 8, militaryBonus: 0.10,
+                    converters: [
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.0012, target: 'stability', cap: 10 },
+                    ],
                     ruleMods: [
-                        { type: 'unit_defense_mod', scope: 'infantry', value: 0.15 },
+                        { type: 'unit_defense_mod', scope: 'infantry', value: 0.20 },
+                        { type: 'building_cost_mod', scope: 'military', value: -0.15 },
                     ] },
-                { stability: 8, militaryBonus: 0.08,
+                { stability: 12, militaryBonus: 0.16,
+                    converters: [
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.0018, target: 'stability', cap: 15 },
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.001, target: 'militaryBonus', cap: 0.40 },
+                    ],
                     ruleMods: [
-                        { type: 'unit_defense_mod', scope: 'infantry', value: 0.22 },
-                        { type: 'building_cost_mod', scope: 'military', value: -0.20 },
+                        { type: 'unit_defense_mod', scope: 'infantry', value: 0.30 },
+                        { type: 'building_cost_mod', scope: 'military', value: -0.25 },
                     ],
                     onEvents: [
-{ event: 'on_battle_defeat', effect: { action: 'addBuff', name: '哀兵必胜', effects: { militaryBonus: 0.28 }, duration: 360 }, cooldownDays: 180 },
+{ event: 'on_battle_defeat', effect: { action: 'addBuff', name: '哀兵必胜', effects: { militaryBonus: 0.35, stability: 8 }, duration: 360 }, cooldownDays: 120 },
                     ] },
             ],
             triggerEffects: [
-{ type: 'building_specific_bonus', buildingId: 'fortress', per: 3, bonus: { militaryBonus: 0.05 } },
+{ type: 'building_specific_bonus', buildingId: 'fortress', per: 3, bonus: { militaryBonus: 0.07, stability: 2 } },
             ],
         },
     },
@@ -3856,20 +4101,31 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { militaryBonus: 0.06 },
-                { militaryBonus: 0.09,
-                    ruleMods: [
-                        { type: 'unit_attack_mod', scope: 'cavalry', value: 0.15 },
-                        { type: 'unit_attack_mod', scope: 'gunpowder', value: 0.10 },
-                    ] },
-                { militaryBonus: 0.13,
-                    ruleMods: [
-                        { type: 'unit_attack_mod', scope: 'cavalry', value: 0.22 },
-                        { type: 'unit_attack_mod', scope: 'gunpowder', value: 0.15 },
-                        { type: 'recruit_cost_mod', scope: 'cavalry', value: -0.25 },
+                { militaryBonus: 0.10, production: 0.04,
+                    triggerEffects: [
+                        { type: 'conditional_flip', condition: 'isAtWar', flippedBonus: { militaryBonus: 0.08, production: 0.05 }, normalBonus: {} },
                     ],
+                },
+                { militaryBonus: 0.16, production: 0.07,
                     converters: [
-                        { source: 'warCount', sourceType: 'warCount', ratio: 0.10, target: 'militaryBonus', cap: 0.30 },
+                        { source: 'warCount', sourceType: 'warCount', ratio: 0.12, target: 'militaryBonus', cap: 0.40 },
+                    ],
+                    ruleMods: [
+                        { type: 'unit_attack_mod', scope: 'cavalry', value: 0.20 },
+                        { type: 'unit_attack_mod', scope: 'gunpowder', value: 0.15 },
+                    ] },
+                { militaryBonus: 0.22, production: 0.10,
+                    converters: [
+                        { source: 'warCount', sourceType: 'warCount', ratio: 0.15, target: 'militaryBonus', cap: 0.50 },
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.001, target: 'production', cap: 0.35 },
+                    ],
+                    ruleMods: [
+                        { type: 'unit_attack_mod', scope: 'cavalry', value: 0.28 },
+                        { type: 'unit_attack_mod', scope: 'gunpowder', value: 0.20 },
+                        { type: 'recruit_cost_mod', scope: 'cavalry', value: -0.30 },
+                    ],
+                    onEvents: [
+{ event: 'on_battle_victory', effect: { action: 'addBuff', name: '闪击突破', buffId: 'blitz_breakthrough', duration: 120, effects: { militaryBonus: 0.25, production: 0.10 } }, cooldownDays: 45 },
                     ] },
             ],
         },
@@ -3887,27 +4143,33 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { militaryBonus: 0.04, stability: 2 },
-                { militaryBonus: 0.04, stability: 2,
+                { militaryBonus: 0.07, stability: 4, production: 0.03,
+                    triggerEffects: [
+                        { type: 'approval_threshold_bonus', stratum: 'peasant', threshold: 65, bonus: { militaryBonus: 0.12, production: 0.05 } },
+                    ],
+                },
+                { militaryBonus: 0.10, stability: 6, production: 0.05,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000003, target: 'militaryBonus', cap: 0.45 },
+                        { source: 'population', sourceType: 'population', ratio: 0.0000005, target: 'militaryBonus', cap: 0.55 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000005, target: 'production', cap: 0.30 },
                     ],
                     ruleMods: [
-                        { type: 'recruit_cost_mod', scope: 'infantry', value: -0.2 },
+                        { type: 'recruit_cost_mod', scope: 'infantry', value: -0.25 },
                     ] },
-                { militaryBonus: 0.04, stability: 2,
+                { militaryBonus: 0.14, stability: 8, production: 0.08,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000003, target: 'militaryBonus', cap: 0.45 },
+                        { source: 'population', sourceType: 'population', ratio: 0.0000008, target: 'militaryBonus', cap: 0.65 },
+                        { source: 'poorPop', sourceType: 'poorPop', ratio: 0.000008, target: 'production', cap: 0.45 },
                     ],
                     ruleMods: [
-                        { type: 'recruit_cost_mod', scope: 'infantry', value: -0.2 },
+                        { type: 'recruit_cost_mod', scope: 'infantry', value: -0.30 },
                     ],
                     onEvents: [
-{ event: 'on_battle_defeat', effect: { action: 'addBuff', name: '敌后根据地', effects: { militaryBonus: 0.18, production: 0.12 }, duration: 360 }, cooldownDays: 180 },
+{ event: 'on_battle_defeat', effect: { action: 'addBuff', name: '敌后根据地', effects: { militaryBonus: 0.25, production: 0.18, stability: 8 }, duration: 360 }, cooldownDays: 120 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'approval_threshold_bonus', stratum: 'peasant', threshold: 70, bonus: { militaryBonus: 0.10 } },
+                { type: 'approval_threshold_bonus', stratum: 'peasant', threshold: 70, bonus: { militaryBonus: 0.12, production: 0.06 } },
             ],
         },
     },
@@ -3958,25 +4220,33 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { militaryBonus: 0.05, industryBonus: 0.05, stability: -3 },
-                { militaryBonus: 0.08, industryBonus: 0.08, stability: -3,
+                { militaryBonus: 0.08, industryBonus: 0.08, stability: -3, production: 0.04,
+                    triggerEffects: [
+                        { type: 'building_count_bonus', category: 'military', per: 5, bonus: { industryBonus: 0.03 } },
+                        { type: 'building_count_bonus', category: 'industry', per: 5, bonus: { militaryBonus: 0.02 } },
+                    ],
+                },
+                { militaryBonus: 0.14, industryBonus: 0.14, stability: -2, production: 0.07,
                     converters: [
-                        { source: 'military', sourceType: 'buildingCount', ratio: 0.002, target: 'industryBonus', cap: 0.45 },
-                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.0015, target: 'militaryBonus', cap: 0.35 },
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.003, target: 'industryBonus', cap: 0.55 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.002, target: 'militaryBonus', cap: 0.45 },
                     ] },
-                { militaryBonus: 0.12, industryBonus: 0.12, stability: -2,
+                { militaryBonus: 0.20, industryBonus: 0.20, stability: -1, production: 0.10,
                     converters: [
-                        { source: 'military', sourceType: 'buildingCount', ratio: 0.002, target: 'industryBonus', cap: 0.45 },
-                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.0015, target: 'militaryBonus', cap: 0.35 },
-                        { source: 'warCount', sourceType: 'warCount', ratio: 0.03, target: 'industryBonus', cap: 0.35 },
-                        { source: 'warCount', sourceType: 'warCount', ratio: 0.03, target: 'militaryBonus', cap: 0.35 },
+                        { source: 'military', sourceType: 'buildingCount', ratio: 0.004, target: 'industryBonus', cap: 0.65 },
+                        { source: 'industry', sourceType: 'buildingCount', ratio: 0.003, target: 'militaryBonus', cap: 0.55 },
+                        { source: 'warCount', sourceType: 'warCount', ratio: 0.05, target: 'industryBonus', cap: 0.40 },
+                        { source: 'warCount', sourceType: 'warCount', ratio: 0.05, target: 'militaryBonus', cap: 0.40 },
                     ],
                     ruleMods: [
-                        { type: 'maintenance_cost_mod', scope: 'gunpowder', value: -0.15 },
+                        { type: 'maintenance_cost_mod', scope: 'gunpowder', value: -0.20 },
+                    ],
+                    onEvents: [
+{ event: 'on_war_start', effect: { action: 'addBuff', name: '战争经济', buffId: 'war_economy', duration: 360, effects: { militaryBonus: 0.20, industryBonus: 0.15, production: 0.12 } }, cooldownDays: 90 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'resource_drain', resource: 'silver', drainPerTick: 8, bonus: { militaryBonus: 0.05, industryBonus: 0.05 }, penaltyIfDrained: { stability: -5 } },
+                { type: 'resource_drain', resource: 'silver', drainPerTick: 10, bonus: { militaryBonus: 0.06, industryBonus: 0.06 }, penaltyIfDrained: { stability: -6 } },
             ],
         },
     },
@@ -3995,21 +4265,27 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { cultureBonus: 0.06, scienceBonus: 0.04 },
-                { cultureBonus: 0.09, scienceBonus: 0.06,
+                { cultureBonus: 0.10, scienceBonus: 0.07, stability: 3,
+                    triggerEffects: [
+                        { type: 'building_specific_bonus', buildingId: 'university', per: 3, bonus: { cultureBonus: 0.05, scienceBonus: 0.03 } },
+                    ],
+                },
+                { cultureBonus: 0.16, scienceBonus: 0.12, stability: 5,
                     converters: [
-                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'scienceBonus', cap: 0.35 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.002, target: 'scienceBonus', cap: 0.45 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.003, target: 'cultureBonus', cap: 0.40 },
                     ] },
-                { cultureBonus: 0.13, scienceBonus: 0.09,
+                { cultureBonus: 0.22, scienceBonus: 0.16, stability: 7,
                     converters: [
-                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'scienceBonus', cap: 0.35 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.003, target: 'scienceBonus', cap: 0.60 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.004, target: 'cultureBonus', cap: 0.55 },
                     ],
                     onEvents: [
-{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '人文灵感', buffId: 'humanist_inspiration', duration: 150, effects: { cultureBonus: 0.10, scienceBonus: 0.08, stability: 3 } }, cooldownDays: 45 },
+{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '人文灵感', buffId: 'humanist_inspiration', duration: 180, effects: { cultureBonus: 0.15, scienceBonus: 0.12, stability: 5 } }, cooldownDays: 30 },
                     ] },
             ],
             triggerEffects: [
-{ type: 'building_specific_bonus', buildingId: 'university', per: 3, bonus: { cultureBonus: 0.04 } },
+{ type: 'building_specific_bonus', buildingId: 'university', per: 3, bonus: { cultureBonus: 0.06, scienceBonus: 0.04 } },
             ],
         },
     },
@@ -4087,28 +4363,36 @@ export const IDEOLOGIES = [
         icon: 'Palette',
         color: 'text-pink-400',
         unlockEpoch: 0,
-        desc: '在文字诞生之前，故事便已存在，它们活在歌谣里、活在吟唱中、活在每一个篝火旁的记忆深处。',
+        desc: '在文字诞生之前，故事便已存在，它们活在歌谣里、活在吟唱中、活在每一个篅火旁的记忆深处。',
         lore: '"从一个人的口中传到另一个人的耳中，这是最古老的学校。" ——非洲谚语',
         rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
-                { cultureBonus: 0.03, stability: 2 },
-                { cultureBonus: 0.05, stability: 4,
+                { cultureBonus: 0.06, stability: 4,
+                    triggerEffects: [
+                        { type: 'stratum_bonus', stratum: 'cleric', bonus: { cultureBonus: 0.008 }, per: 5 },
+                    ],
+                },
+                { cultureBonus: 0.10, stability: 6,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000004, target: 'cultureBonus', cap: 0.35 },
+                        { source: 'population', sourceType: 'population', ratio: 0.0000006, target: 'cultureBonus', cap: 0.45 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.001, target: 'stability', cap: 6 },
                     ] },
-                { cultureBonus: 0.08, stability: 6, needsReduction: 0.05,
+                { cultureBonus: 0.15, stability: 9, needsReduction: 0.08,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000004, target: 'cultureBonus', cap: 0.35 },
+                        { source: 'population', sourceType: 'population', ratio: 0.0000008, target: 'cultureBonus', cap: 0.55 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0015, target: 'stability', cap: 10 },
+                    ],
+                    onEvents: [
+{ event: 'on_stability_crisis', effect: { action: 'addBuff', name: '古老智慧', buffId: 'ancient_wisdom', duration: 180, effects: { cultureBonus: 0.12, stability: 10, needsReduction: 0.08 } }, cooldownDays: 60 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'stratum_bonus', stratum: 'cleric', bonus: { cultureBonus: 0.005 }, per: 5 },
+                { type: 'stratum_bonus', stratum: 'cleric', bonus: { cultureBonus: 0.008 }, per: 5 },
             ],
         },
-    },
-    {
+    },    {
         id: 'architectural_aesthetics',
         name: '建筑美学',
         category: 'aesthetics',
@@ -4121,25 +4405,31 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { cultureBonus: 0.03, stability: 2 },
-                { cultureBonus: 0.04, stability: 3,
+                { cultureBonus: 0.06, stability: 4,
+                    triggerEffects: [
+                        { type: 'building_count_bonus', category: 'civic', per: 5, bonus: { cultureBonus: 0.04, stability: 0.8 } },
+                    ],
+                },
+                { cultureBonus: 0.10, stability: 6,
                     converters: [
-                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0012, target: 'cultureBonus', cap: 0.30 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0018, target: 'cultureBonus', cap: 0.45 },
+                        { source: 'totalBuildings', sourceType: 'totalBuildings', ratio: 0.0003, target: 'stability', cap: 8 },
                     ] },
-                { cultureBonus: 0.04, stability: 3,
+                { cultureBonus: 0.15, stability: 8,
                     converters: [
-                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0012, target: 'cultureBonus', cap: 0.30 },
+                        { source: 'civic', sourceType: 'buildingCount', ratio: 0.0025, target: 'cultureBonus', cap: 0.60 },
+                        { source: 'totalBuildings', sourceType: 'totalBuildings', ratio: 0.0005, target: 'stability', cap: 12 },
                     ],
                     ruleMods: [
                         { type: 'building_cost_mod', scope: 'civic', value: 0.1 },
                     ],
                     onEvents: [
-{ event: 'on_build', effect: { action: 'addBuff', name: '城市景观', buffId: 'urban_beauty', duration: 120, effects: { cultureBonus: 0.08, stability: 3 } }, cooldownDays: 15 },
-                        { event: 'on_build', effect: { action: 'addStability', amount: 2 }, cooldownDays: 15 },
+{ event: 'on_build', effect: { action: 'addBuff', name: '城市景观', buffId: 'urban_beauty', duration: 120, effects: { cultureBonus: 0.12, stability: 5 } }, cooldownDays: 10 },
+                        { event: 'on_build', effect: { action: 'addStability', amount: 3 }, cooldownDays: 10 },
                     ] },
             ],
             triggerEffects: [
-{ type: 'building_count_bonus', category: 'civic', per: 5, bonus: { cultureBonus: 0.03 } },
+{ type: 'building_count_bonus', category: 'civic', per: 5, bonus: { cultureBonus: 0.04, stability: 1.0 } },
             ],
         },
     },
@@ -4152,31 +4442,37 @@ export const IDEOLOGIES = [
         icon: 'FlaskConical',
         color: 'text-cyan-400',
         unlockEpoch: 2,
-        desc: '在坩埚的火焰中，在神秘的符号里，炼金术士追寻着物质与灵魂的双重转化。',
+        desc: '在垉埚的火焰中，在神秘的符号里，炼金术士追寻着物质与灵魂的双重转化。',
         lore: '"如上所示，如在下所示。" ——《翡翠石板》',
         rarity: 'common',
         weightModifiers: [],
         effects: {
             levels: [
-                { scienceBonus: 0.03 },
-                { scienceBonus: 0.05,
+                { scienceBonus: 0.06, production: 0.03,
+                    triggerEffects: [
+                        { type: 'epoch_scaling', perEpoch: { scienceBonus: 0.008 } },
+                    ],
+                },
+                { scienceBonus: 0.10, production: 0.05,
                     converters: [
-                        { source: 'copper', sourceType: 'resource', ratio: 0.005, target: 'scienceBonus', cap: 0.1 },
+                        { source: 'copper', sourceType: 'resource', ratio: 0.000008, target: 'scienceBonus', cap: 0.18 },
+                        { source: 'iron', sourceType: 'resource', ratio: 0.000005, target: 'production', cap: 0.15 },
                     ] },
-                { scienceBonus: 0.08,
+                { scienceBonus: 0.15, production: 0.08,
                     converters: [
-                        { source: 'copper', sourceType: 'resource', ratio: 0.008, target: 'scienceBonus', cap: 0.15 },
+                        { source: 'copper', sourceType: 'resource', ratio: 0.000012, target: 'scienceBonus', cap: 0.25 },
+                        { source: 'iron', sourceType: 'resource', ratio: 0.000008, target: 'production', cap: 0.22 },
                     ],
                     ruleMods: [
-                        { type: 'resource_price_mod', scope: 'iron', value: -0.1 },
+                        { type: 'resource_price_mod', scope: 'iron', value: -0.15 },
+                        { type: 'resource_price_mod', scope: 'copper', value: -0.12 },
                     ],
                     onEvents: [
-{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '炼成试验', buffId: 'transmutation_trial', duration: 120, effects: { scienceBonus: 0.08, production: 0.05, cultureBonus: -0.01 } }, cooldownDays: 45 },
+{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '炼成试验', buffId: 'transmutation_trial', duration: 150, effects: { scienceBonus: 0.15, production: 0.10 } }, cooldownDays: 30 },
                     ] },
             ],
         },
-    },
-    {
+    },    {
         id: 'natural_history',
         name: '博物学',
         category: 'science',
@@ -4284,25 +4580,31 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { scienceBonus: 0.08, cultureBonus: 0.05 },
-                { scienceBonus: 0.12, cultureBonus: 0.07,
+                { scienceBonus: 0.12, cultureBonus: 0.08, industryBonus: 0.05,
+                    triggerEffects: [
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.003, cultureBonus: 0.002, industryBonus: 0.002 } },
+                    ],
+                },
+                { scienceBonus: 0.18, cultureBonus: 0.12, industryBonus: 0.08,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000005, target: 'scienceBonus', cap: 0.2 },
+                        { source: 'population', sourceType: 'population', ratio: 0.0000008, target: 'scienceBonus', cap: 0.35 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.004, target: 'industryBonus', cap: 0.45 },
                     ] },
-                { scienceBonus: 0.16, cultureBonus: 0.10,
+                { scienceBonus: 0.25, cultureBonus: 0.16, industryBonus: 0.12,
                     converters: [
-                        { source: 'population', sourceType: 'population', ratio: 0.0000005, target: 'scienceBonus', cap: 0.2 },
+                        { source: 'population', sourceType: 'population', ratio: 0.000001, target: 'scienceBonus', cap: 0.45 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.005, target: 'industryBonus', cap: 0.55 },
                     ],
                     ruleMods: [
-                        { type: 'tech_cost_mod', value: -0.2 },
+                        { type: 'tech_cost_mod', value: -0.25 },
                     ],
                     onEvents: [
-{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '突破', effects: { scienceBonus: 0.22 }, duration: 240 }, cooldownDays: 90 },
+{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '突破', effects: { scienceBonus: 0.30, industryBonus: 0.15, cultureBonus: 0.12 }, duration: 240 }, cooldownDays: 60 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'tech_count_bonus', perTech: { scienceBonus: 0.002, cultureBonus: 0.002, industryBonus: 0.002 } },
-{ type: 'building_specific_bonus', buildingId: 'university', per: 3, bonus: { scienceBonus: 0.05 } },
+                { type: 'tech_count_bonus', perTech: { scienceBonus: 0.003, cultureBonus: 0.002, industryBonus: 0.003 } },
+{ type: 'building_specific_bonus', buildingId: 'university', per: 3, bonus: { scienceBonus: 0.06, industryBonus: 0.03 } },
             ],
         },
     },
@@ -4445,25 +4747,34 @@ export const IDEOLOGIES = [
         weightModifiers: [],
         effects: {
             levels: [
-                { scienceBonus: 0.06, taxIncome: -0.05, stability: -2 },
-                { scienceBonus: 0.09, taxIncome: -0.04, stability: -2,
-                    ruleMods: [
-                        { type: 'corruption_mod', value: -0.30 },
-                    ] },
-                { scienceBonus: 0.14, taxIncome: -0.03, stability: -1,
-                    ruleMods: [
-                        { type: 'corruption_mod', value: -0.40 },
+                { scienceBonus: 0.10, taxIncome: -0.04, stability: -2,
+                    triggerEffects: [
+                        { type: 'tech_count_bonus', perTech: { scienceBonus: 0.002, taxIncome: 0.003 }, cap: 0.45 },
                     ],
+                },
+                { scienceBonus: 0.16, taxIncome: -0.03, stability: -1,
                     converters: [
-                        { source: 'stability', sourceType: 'stability', ratio: -0.005, target: 'scienceBonus', cap: 0.2 },
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.004, target: 'scienceBonus', cap: 0.50 },
+                    ],
+                    ruleMods: [
+                        { type: 'corruption_mod', value: -0.35 },
+                    ] },
+                { scienceBonus: 0.24, taxIncome: -0.02, stability: 0,
+                    converters: [
+                        { source: 'techCount', sourceType: 'techCount', ratio: 0.005, target: 'scienceBonus', cap: 0.65 },
+                        { source: 'stability', sourceType: 'stability', ratio: -0.006, target: 'scienceBonus', cap: 0.30 },
+                    ],
+                    ruleMods: [
+                        { type: 'corruption_mod', value: -0.45 },
                     ],
                     onEvents: [
-{ event: 'on_rebellion_start', effect: { action: 'addBuff', name: '匿名抵抗', effects: { scienceBonus: 0.30, cultureBonus: 0.20 }, duration: 360 }, cooldownDays: 180 },
+{ event: 'on_rebellion_start', effect: { action: 'addBuff', name: '匿名抵抗', effects: { scienceBonus: 0.40, cultureBonus: 0.25 }, duration: 360 }, cooldownDays: 120 },
+{ event: 'on_tech_unlock', effect: { action: 'addBuff', name: '去中心化突破', buffId: 'decentralized_breakthrough', duration: 180, effects: { scienceBonus: 0.20, taxIncome: 0.08 } }, cooldownDays: 45 },
                     ] },
             ],
             triggerEffects: [
-                { type: 'tech_count_bonus', perTech: { taxIncome: 0.002 }, cap: 0.35 },
-                { type: 'mutual_exclusion', conflictsWith: ['totalitarianism', 'divine_right'], penalty: { stability: -5 }, bonusIfPure: { scienceBonus: 0.05 } },
+                { type: 'tech_count_bonus', perTech: { taxIncome: 0.003 }, cap: 0.45 },
+                { type: 'mutual_exclusion', conflictsWith: ['totalitarianism', 'divine_right'], penalty: { stability: -5 }, bonusIfPure: { scienceBonus: 0.08 } },
             ],
         },
     },
@@ -4637,7 +4948,7 @@ export const IDEOLOGIES = [
                     cultureBonus: 0.02,
                     converters: [
                         { source: 'friendlyCount', sourceType: 'friendlyCount', ratio: 0.012, target: 'scienceBonus', cap: 0.60 },
-                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.00008, target: 'cultureBonus', cap: 0.06 },
+                        { source: 'tradeVolume', sourceType: 'tradeVolume', ratio: 0.00008, target: 'cultureBonus', cap: 0.30 },
                     ],
                 },
                 {

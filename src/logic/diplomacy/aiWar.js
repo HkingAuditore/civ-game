@@ -39,7 +39,7 @@ import { getCheckpointsCrossed, CHECKPOINTS } from './frontSystem';
 import { calculateWarBuildingDamage, calculateWarPopulationLoss, generateAIBuildingProfile, calculateWarPlunder } from './warEconomy';
 import { WAR_ECONOMY, AI_WAR_DECISION } from '../../config/gameConstants';
 import { BUILDINGS } from '../../config/buildings';
-import { clampPopulationAtFloor, reducePopulationWithFloor } from '../../utils/populationClamp';
+import { reducePopulationWithFloor } from '../../utils/populationClamp';
 
 const AI_DOCTRINES = {
     line_breaker: {
@@ -71,6 +71,7 @@ const AI_DOCTRINES = {
         techTags: ['参谋组织'],
     },
 };
+const MAX_AI_TARGET_CORPS = 12;
 
 const getMaterielResourceForEpoch = (epoch = 0) => {
     if (epoch >= 5) return 'ammunition';
@@ -84,6 +85,44 @@ const pickDoctrine = (nation, epoch = 0) => {
     if (aggression < 0.25) return AI_DOCTRINES.siege_attrition;
     if (aggression > 0.6) return AI_DOCTRINES.deep_raid;
     return AI_DOCTRINES.balanced_command;
+};
+
+/**
+ * Frontline-driven population casualties for AI-AI wars.
+ * 仅在战线拉扯或被推进到本土时提高损失，避免“只要开战就持续暴跌”。
+ */
+const applyFrontlinePopulationCasualties = ({
+    nation,
+    enemy,
+    linePosition = 50,
+    warIntensity = 1,
+}) => {
+    const nationPop = Math.max(1, Number(nation?.population || 0));
+    const enemyPop = Math.max(1, Number(enemy?.population || 0));
+
+    // 前线越接近中线（50），代表接触战更密集；越深入本土，民用损失越高
+    const contestFactor = 1 - Math.min(1, Math.abs(linePosition - 50) / 50);
+    const nationHomelandPressure = Math.max(0, (50 - linePosition) / 45); // line<50: nation本土受压
+    const enemyHomelandPressure = Math.max(0, (linePosition - 50) / 45); // line>50: enemy本土受压
+
+    const nationCollapse = linePosition <= 12 ? 1 : 0;
+    const enemyCollapse = linePosition >= 88 ? 1 : 0;
+
+    // 基础损失很低，主要由前线状态驱动；单tick最高不超过 0.12%
+    const baseRate = 0.00003 * warIntensity;
+    const contestRate = 0.00012 * contestFactor * warIntensity;
+    const nationPressureRate = 0.00045 * Math.pow(nationHomelandPressure, 1.35) * warIntensity;
+    const enemyPressureRate = 0.00045 * Math.pow(enemyHomelandPressure, 1.35) * warIntensity;
+    const collapseRate = 0.00035 * warIntensity;
+
+    const nationRate = clamp(baseRate + contestRate + nationPressureRate + (nationCollapse ? collapseRate : 0), 0, 0.0012);
+    const enemyRate = clamp(baseRate + contestRate + enemyPressureRate + (enemyCollapse ? collapseRate : 0), 0, 0.0012);
+
+    const nationLoss = Math.max(0, Math.floor(nationPop * nationRate));
+    const enemyLoss = Math.max(0, Math.floor(enemyPop * enemyRate));
+
+    nation.population = reducePopulationWithFloor(nationPop, nationLoss);
+    enemy.population = reducePopulationWithFloor(enemyPop, enemyLoss);
 };
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
@@ -771,11 +810,10 @@ export const checkAIPeaceRequest = ({
     tick,
     lastGlobalPeaceRequest = -Infinity,
     logs,
-    activeFronts = [], // [NEW] Active war fronts for damage assessment
+    activeFronts = [],
 }) => {
     const next = nation;
 
-    // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot request peace
     if (next.isAnnexed || (next.population || 0) <= 0) {
         return false;
     }
@@ -784,56 +822,93 @@ export const checkAIPeaceRequest = ({
         ? next.lastPeaceRequestDay
         : -Infinity;
 
-    // Check per-nation cooldown
     const canRequestPeace = (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
 
-    // Check global cooldown - prevents multiple nations from requesting peace simultaneously
     const globalCooldown = GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS;
     const globalReady = (tick - lastGlobalPeaceRequest) >= globalCooldown;
 
+    if (!canRequestPeace || !globalReady) {
+        return false;
+    }
+
     const negotiationContext = getNationNegotiationContext(next, activeFronts);
+    const { frontContext, aiDominantOnFront, playerAdvantageScore } = negotiationContext;
+    const warDuration = next.warDuration || 0;
+    const aggression = next.aggression || 0.3;
 
-    if (negotiationContext.playerAdvantageScore > 12 && canRequestPeace && globalReady) {
-        const { frontContext, aiDominantOnFront } = negotiationContext;
-        if (aiDominantOnFront) {
-            return false;
+    if (frontContext.isPressingPlayerCore && playerAdvantageScore < 400) {
+        return false;
+    }
+
+    let willingness = 0;
+    let tributeMultiplier = 1.0;
+
+    if (playerAdvantageScore > 100) {
+        // === 路径1：分数驱动（玩家明显占优，warScore可达±1000+） ===
+        willingness = Math.min(0.5, 0.03 + playerAdvantageScore / 1200 + warDuration / 400)
+            + Math.min(0.15, (next.enemyLosses || 0) / 500);
+        tributeMultiplier = 1.0;
+    } else if (warDuration >= 100) {
+        // === 路径2：持久战/僵局（对应AI-AI战争的 warFatigue + exhaustionEndChance） ===
+        willingness = Math.min(0.15, (warDuration - 100) / 800);
+
+        const warExpense = next.warTotalExpense || 0;
+        const currentWealth = Math.max(1, next.wealth || 500);
+        willingness += Math.min(0.08, (warExpense / currentWealth) * 0.03);
+
+        const isStalemate = frontContext.frontCount > 0
+            && Math.abs(frontContext.averageRelativePosition - 50) < 15
+            && Math.abs(playerAdvantageScore) < 250;
+        if (isStalemate) {
+            willingness += 0.04 + Math.min(0.08, (warDuration - 100) / 600);
         }
 
-        const willingness = Math.min(0.5, 0.03 + negotiationContext.playerAdvantageScore / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+        willingness *= Math.max(0.15, 1.0 - aggression * 0.8);
+        tributeMultiplier = 0.3;
+    }
 
-        let frontDamageBonus = 0;
-        if (activeFronts && activeFronts.length > 0) {
-            for (const front of activeFronts) {
-                if (front.attackerId !== next.id && front.defenderId !== next.id) continue;
-                const ownInfra = (front.infrastructure || []).filter(i => i.owner === next.id);
-                const destroyedCount = ownInfra.filter(i => i.destroyed).length;
-                const ownNodes = (front.resourceNodes || []).filter(n => n.owner === next.id);
-                const plunderedCount = ownNodes.filter(n => n.plundered).length;
-                frontDamageBonus += destroyedCount * 0.04 + plunderedCount * 0.03;
-            }
-        }
+    if (willingness <= 0) {
+        return false;
+    }
 
-        const currentFrontPenalty = frontContext.frontCount > 0
-            ? Math.max(0, (frontContext.averageRelativePosition - 50) / 18) + Math.max(0, (frontContext.strengthRatio - 1) * 0.12)
-            : 0;
-        const effectivePeaceChance = Math.max(0, willingness + frontDamageBonus - currentFrontPenalty);
-
-        if (Math.random() < effectivePeaceChance) {
-            const warScore = Math.abs(next.warScore || 0);
-            const enemyLosses = next.enemyLosses || 0;
-            const warDuration = next.warDuration || 0;
-            const availableWealth = Math.max(0, next.wealth || 0);
-            const tribute = calculateAIPeaceTribute(warScore, enemyLosses, warDuration, availableWealth);
-            // Ensure tribute is an integer and format it properly to avoid scientific notation
-            const tributeInt = Math.floor(tribute);
-            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tributeInt.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。`);
-            next.isPeaceRequesting = true;
-            next.peaceTribute = tribute;
-            next.lastPeaceRequestDay = tick;
-            return true; // Signal that a peace request was made
+    let frontDamageBonus = 0;
+    if (activeFronts && activeFronts.length > 0) {
+        for (const front of activeFronts) {
+            if (front.attackerId !== next.id && front.defenderId !== next.id) continue;
+            const ownInfra = (front.infrastructure || []).filter(i => i.owner === next.id);
+            const destroyedCount = ownInfra.filter(i => i.destroyed).length;
+            const ownNodes = (front.resourceNodes || []).filter(n => n.owner === next.id);
+            const plunderedCount = ownNodes.filter(n => n.plundered).length;
+            frontDamageBonus += destroyedCount * 0.04 + plunderedCount * 0.03;
         }
     }
-    return false; // No peace request made
+
+    const currentFrontPenalty = frontContext.frontCount > 0
+        ? Math.max(0, (frontContext.averageRelativePosition - 50) / 18) + Math.max(0, (frontContext.strengthRatio - 1) * 0.12)
+        : 0;
+
+    // aiDominantOnFront 改为软惩罚：大幅降低意愿但不完全阻断
+    if (aiDominantOnFront) {
+        willingness *= (playerAdvantageScore > 400) ? 0.3 : 0.12;
+    }
+
+    const effectivePeaceChance = Math.max(0, willingness + frontDamageBonus - currentFrontPenalty);
+
+    if (Math.random() < effectivePeaceChance) {
+        const warScore = Math.abs(next.warScore || 0);
+        const enemyLosses = next.enemyLosses || 0;
+        const availableWealth = Math.max(0, next.wealth || 0);
+        const baseTribute = calculateAIPeaceTribute(Math.max(warScore, 5), enemyLosses, warDuration, availableWealth);
+        const tribute = Math.floor(baseTribute * tributeMultiplier);
+        const tributeInt = Math.floor(tribute);
+        logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tributeInt.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。`);
+        next.isPeaceRequesting = true;
+        next.peaceTribute = tribute;
+        next.lastPeaceRequestDay = tick;
+        return true;
+    }
+
+    return false;
 };
 
 /**
@@ -862,20 +937,20 @@ export const checkAISurrenderDemand = ({
     const negotiationContext = getNationNegotiationContext(next, activeFronts);
     const aiWarScore = negotiationContext.aiAdvantageScore;
 
-    if (aiWarScore > 25 && (next.warDuration || 0) > 30 && !negotiationContext.aiUnderFrontPressure) {
+    if (aiWarScore > 200 && (next.warDuration || 0) > 30 && !negotiationContext.aiUnderFrontPressure) {
         const lastDemandDay = next.lastSurrenderDemandDay || 0;
-        if (tick - lastDemandDay >= 60 && Math.random() < 0.03) {
+        const surrenderChance = Math.min(0.15, 0.03 + (aiWarScore - 200) / 8000);
+        if (tick - lastDemandDay >= 45 && Math.random() < surrenderChance) {
             next.lastSurrenderDemandDay = tick;
 
             let demandType = 'tribute';
             const warDuration = next.warDuration || 0;
-            // 传入玩家财富，使赔款计算与玩家主动求和时一致
             let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration, playerWealth);
 
-            if (aiWarScore > 100) {
+            if (aiWarScore > 800) {
                 demandType = 'territory';
                 demandAmount = Math.min(50, Math.max(3, Math.floor(population * 0.05)));
-            } else if (aiWarScore > 50 && Math.random() < 0.5) {
+            } else if (aiWarScore > 400 && Math.random() < 0.5) {
                 demandType = 'open_market';
                 demandAmount = 365 * 2;
             }
@@ -980,7 +1055,7 @@ export const checkMercyPeace = ({
     if (negotiationContext.aiDominantOnFront) {
         mercyChance += 0.08;
     }
-    if (negotiationContext.aiAdvantageScore >= 80 && negotiationContext.frontContext.isPressingPlayerCore) {
+    if (negotiationContext.aiAdvantageScore >= 600 && negotiationContext.frontContext.isPressingPlayerCore) {
         mercyChance = Math.max(0.05, mercyChance - 0.2);
     }
 
@@ -1029,6 +1104,11 @@ export const checkWarDeclaration = ({
     const res = resources;
     const relation = next.relation ?? 50;
     const aggression = next.aggression ?? 0.2;
+
+    // [FIX] Vassals cannot declare war on overlord (independence wars handled by vassalSystem)
+    if (next.vassalOf === 'player') {
+        return;
+    }
 
     // [PERFORMANCE OPTIMIZATION] Destroyed nations cannot declare war
     // Skip annexed nations or nations with zero population
@@ -1900,8 +1980,6 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             // === 经济衰减（极端战线时翻倍） ===
             let nationWealthDecay = 0.997 - (warIntensity * 0.0015);
             let enemyWealthDecay = 0.997 - (warIntensity * 0.0015);
-            const populationDecayRate = 0.998 - (warIntensity * 0.002);
-
             // 极端战线衰减加速：linePosition <=8 表示 nation 被深入，>=92 表示 enemy 被深入
             const lp = war.linePosition;
             if (lp <= 8) nationWealthDecay *= 0.997; // 翻倍衰减
@@ -1915,9 +1993,13 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             const nationWarExpense = Math.max(1, Math.round(getNationAnnualOutput(nation, 500) * 0.0009 * warIntensity));
             const enemyWarExpense = Math.max(1, Math.round(getNationAnnualOutput(enemy, 500) * 0.0009 * warIntensity));
             nation.wealth = Math.max(100, (nation.wealth || 500) * nationWealthDecay * nationMultiWarPenalty - nationWarExpense);
-            nation.population = clampPopulationAtFloor((nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
             enemy.wealth = Math.max(100, (enemy.wealth || 500) * enemyWealthDecay * enemyMultiWarPenalty - enemyWarExpense);
-            enemy.population = clampPopulationAtFloor((enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
+            applyFrontlinePopulationCasualties({
+                nation,
+                enemy,
+                linePosition: lp,
+                warIntensity,
+            });
 
             // === linePosition 推进（每tick） ===
             // 基于分配到本战线的实际军团战力计算有效战力
@@ -2467,7 +2549,11 @@ export const makeVassalsPeaceAfterSuzerain = (enemyNationId, nations, logs) => {
  * @returns {Object} A pseudo-corps object compatible with battleSystem
  */
 export const generateAICorps = (nation, epoch) => {
-    const targetCorps = Math.max(1, Number(nation?.military?.forcePool?.targetCorps || 1));
+    const targetCorps = clamp(
+        Math.round(Number(nation?.military?.forcePool?.targetCorps || 1)),
+        1,
+        MAX_AI_TARGET_CORPS
+    );
     const units = generateNationArmy(nation, epoch, 1 / targetCorps, 1.0);
     const militaryQuality = Math.max(0.7, Math.min(1.6, nation?.militaryQuality ?? nation?.militaryStrength ?? 1.0));
 
@@ -2491,16 +2577,27 @@ export const ensureAIMilitaryState = (nation, epoch = 0) => {
     const organizationBase = 40 + epoch * 6 + Math.round((nation.militaryStrength || 0.8) * 18);
     const techLevel = Math.max(1, epoch + Math.round(getNationAnnualOutput(nation, 0) / 6000));
     const materielResource = getMaterielResourceForEpoch(epoch);
+    const mergedForcePool = {
+        targetCorps: Math.max(1, Math.min(5, Math.round((nation.population || 80) / 180) + (nation.isAtWar ? 1 : 0))),
+        reserveRatio: nation.isAtWar ? 0.35 : 0.55,
+        ...(nation.military?.forcePool || {}),
+    };
+    const sanitizedForcePool = {
+        ...mergedForcePool,
+        targetCorps: clamp(
+            Math.round(Number(mergedForcePool.targetCorps || 1)),
+            1,
+            MAX_AI_TARGET_CORPS
+        ),
+        reserveRatio: clamp(Number(mergedForcePool.reserveRatio ?? 0.55), 0.1, 0.9),
+    };
+
     const military = {
         organization: clamp(nation.military?.organization ?? organizationBase, 20, 100),
         doctrine: nation.military?.doctrine || doctrine.id,
         techLevel: nation.military?.techLevel || techLevel,
         techTags: Array.isArray(nation.military?.techTags) && nation.military.techTags.length > 0 ? nation.military.techTags : doctrine.techTags,
-        forcePool: {
-            targetCorps: Math.max(1, Math.min(5, Math.round((nation.population || 80) / 180) + (nation.isAtWar ? 1 : 0))),
-            reserveRatio: nation.isAtWar ? 0.35 : 0.55,
-            ...(nation.military?.forcePool || {}),
-        },
+        forcePool: sanitizedForcePool,
         corpsTemplates: Array.isArray(nation.military?.corpsTemplates) ? nation.military.corpsTemplates : [],
         logistics: {
             throughput: clamp(nation.military?.logistics?.throughput ?? (0.8 + epoch * 0.08), 0.6, 2.5),
@@ -2548,7 +2645,11 @@ export const syncAINationMilitary = ({
         .filter((corps) => corps?.isAI && corps.nationId === nextNation.id)
         .filter((corps) => getCorpsTotalUnits(corps) > 0);
     const nationGenerals = (generals || []).filter((general) => nationCorps.some((corps) => corps.generalId === general.id));
-    const targetCorps = Math.max(1, Number(nextNation.military?.forcePool?.targetCorps || 1));
+    const targetCorps = clamp(
+        Math.round(Number(nextNation.military?.forcePool?.targetCorps || 1)),
+        1,
+        MAX_AI_TARGET_CORPS
+    );
     const baseIncomePulse = Math.max(
         1,
         Math.round(getNationAnnualOutput(nextNation, 0) * (nextNation.military?.budgetShare || 0.12) * 0.0025)
@@ -2642,7 +2743,33 @@ export const syncAINationMilitary = ({
         });
         return army;
     }, {});
-    const totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    let totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+
+    const sustainableTemplateArmy = generateNationArmy(updatedNation, epoch, 1.0, 1.0);
+    const sustainableArmy = Math.max(
+        10,
+        Object.values(sustainableTemplateArmy).reduce((sum, count) => sum + (count || 0), 0)
+    );
+
+    // 低兵力回填：旧存档中已存在的 AI 军团也要向可持续兵力靠拢，避免长期停留在个位数。
+    // [PERF] 批量分配代替逐个+1循环，O(corps) 替代 O(deficit)
+    if (allNationCorps.length > 0 && totalUnits < sustainableArmy) {
+        const deficit = sustainableArmy - totalUnits;
+        const reinforcementUnitId = Object.entries(sustainableTemplateArmy)
+            .sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] || 'militia';
+        const receiverCorps = [...allNationCorps].sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
+        const perCorps = Math.floor(deficit / receiverCorps.length);
+        const remainder = deficit % receiverCorps.length;
+        for (let i = 0; i < receiverCorps.length; i++) {
+            const add = perCorps + (i < remainder ? 1 : 0);
+            if (add > 0) {
+                const corps = receiverCorps[i];
+                corps.units = { ...(corps.units || {}) };
+                corps.units[reinforcementUnitId] = (corps.units[reinforcementUnitId] || 0) + add;
+            }
+        }
+        totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
+    }
 
     // [FIX] Enforce population-based army cap: armies can't exceed what population can sustain
     // maxManpower >= 0 ensures the cap is enforced even when population is tiny (maxManpower=0)
@@ -2664,10 +2791,6 @@ export const syncAINationMilitary = ({
     const orgFactor = 0.7 + Number(updatedNation.military?.organization || 50) / 100 * 0.6;
     const techFactor = 0.8 + Number(updatedNation.military?.techLevel || 1) * 0.08;
     const supplyFactor = Math.min(1.3, 0.7 + Number(updatedNation.military?.logistics?.throughput || 1) * 0.35);
-    const sustainableArmy = Math.max(
-        10,
-        Object.values(generateNationArmy(updatedNation, epoch, 1.0, 1.0)).reduce((sum, count) => sum + (count || 0), 0)
-    );
     const mobilizationFactor = totalUnits / sustainableArmy;
     updatedNation.militaryQuality = clamp(orgFactor * techFactor * supplyFactor, 0.7, 1.8);
     updatedNation.militaryStrength = clamp(mobilizationFactor * updatedNation.militaryQuality, 0.25, 2.4);

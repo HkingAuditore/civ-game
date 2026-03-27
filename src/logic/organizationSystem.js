@@ -6,6 +6,7 @@ import { STRATA } from '../config/strata';
 import { RESOURCES } from '../config';
 import { REBELLION_PHASE } from '../config/events/rebellionEvents';
 import { PASSIVE_DEMAND_TYPES } from './demands';
+import { trackOrganizationPhase, trackRebellionCoalition } from '../analytics/gaTracker';
 import { getCoalitionSensitivity, isCoalitionMember, getLegitimacyOrganizationModifier, calculateCoalitionInfluenceShare, calculateLegitimacy } from './rulingCoalition';
 import {
     getDifficultyConfig,
@@ -107,6 +108,9 @@ export const STRATEGIC_ACTION = {
 
 export const MIN_REBELLION_INFLUENCE = 0.1;
 
+// 最低叛乱人口门槛：人口低于此值的阶层无法组织有效叛乱
+export const MIN_REBELLION_POPULATION = 10;
+
 // 联合叛乱配置
 export const COALITION_REBELLION_CONFIG = {
     MIN_ORGANIZATION_TO_JOIN: 70,  // 其他阶层加入联合叛乱的最低组织度 (70%)
@@ -156,6 +160,7 @@ export function checkCoalitionRebellion(
     if (isCoalition) {
         console.log(`[COALITION] Found ${coalitionStrata.length} strata eligible for coalition rebellion:`, coalitionStrata);
         console.log(`[COALITION] Total influence share: ${(totalInfluenceShare * 100).toFixed(1)}%`);
+        trackRebellionCoalition(primaryStratumKey);
     }
 
     return {
@@ -488,7 +493,7 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
 
     // Get satisfaction threshold from difficulty settings
     const satisfactionThreshold = getSatisfactionThreshold(difficultyLevel);
-    const decayThreshold = satisfactionThreshold + 5; // Decay starts 5 points above growth threshold
+    const decayThreshold = satisfactionThreshold + 3; // 衰减起始点：阈值+3（原+5，减少死区宽度）
 
     // 当满意度 < threshold 时开始增长, 满意度越低增长越快
     if (approval < satisfactionThreshold) {
@@ -503,8 +508,8 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
 
     // 当满意度 > decayThreshold 时开始衰减
     if (approval > decayThreshold) {
-        // 基础衰减率
-        let decayRate = -0.3; // 降低衰减速度以保持平衡
+        // 基础衰减率：满意度越高衰减越快
+        let decayRate = -0.3;
 
         // 满意度 > 80 时衰减速度翻倍
         if (approval > 80) {
@@ -546,6 +551,7 @@ export function updateStratumOrganization(
         totalInfluence = 0, // 总影响力
         difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
         organizationGrowthMod = 0, // [NEW] 组织度增长修正 (from cabinet synergy)
+        populationCount = 0, // 该阶层人口数量
     } = options || {};
     // 初始化默认状态
     const state = {
@@ -645,6 +651,17 @@ export function updateStratumOrganization(
         const cappedOrganization = 75;
         if (newOrganization > cappedOrganization) {
             newOrganization = cappedOrganization;
+            if (state.growthRate > 0) {
+                state.growthRate = 0;
+            }
+        }
+    }
+
+    // 人口过少时无法组织有效叛乱，组织度上限50%
+    if (populationCount > 0 && populationCount < MIN_REBELLION_POPULATION) {
+        const lowPopCap = 50;
+        if (newOrganization > lowPopCap) {
+            newOrganization = lowPopCap;
             if (state.growthRate > 0) {
                 state.growthRate = 0;
             }
@@ -790,11 +807,12 @@ export function updateAllOrganizationStates(
                 hasActivePromise,
                 driverContext,
                 hasBasicShortage: !!driverContext.hasBasicShortage,
-                rulingCoalition, // 传递执政联盟成员
-                classInfluence, // 传递各阶层影响力
-                totalInfluence, // 传递总影响力
-                difficultyLevel, // 传递游戏难度
-                organizationGrowthMod, // 传递组织度增长修正
+                rulingCoalition,
+                classInfluence,
+                totalInfluence,
+                difficultyLevel,
+                organizationGrowthMod,
+                populationCount,
             }
         );
     });
@@ -822,6 +840,7 @@ export function checkOrganizationEvents(previousStates, currentStates) {
 
         // 检查跨越30%阈值 (酝酿事件)
         if (prevOrg < STAGE_THRESHOLDS.GRUMBLING && currOrg >= STAGE_THRESHOLDS.GRUMBLING) {
+            trackOrganizationPhase(stratumKey, 'brewing', currOrg);
             events.push({
                 type: 'brewing',
                 stratumKey,
@@ -832,6 +851,7 @@ export function checkOrganizationEvents(previousStates, currentStates) {
 
         // 检查跨越60%阈值 (密谋事件) - 使用70%作为radicalizing
         if (prevOrg < STAGE_THRESHOLDS.RADICALIZING && currOrg >= STAGE_THRESHOLDS.RADICALIZING) {
+            trackOrganizationPhase(stratumKey, 'plotting', currOrg);
             events.push({
                 type: 'plotting',
                 stratumKey,
@@ -842,6 +862,7 @@ export function checkOrganizationEvents(previousStates, currentStates) {
 
         // 跨越100%阈值时触发一次起义事件（与 brewing/plotting 保持一致的跨越式检测）
         if (prevOrg < 100 && currOrg >= 100) {
+            trackOrganizationPhase(stratumKey, 'uprising', currOrg);
             events.push({
                 type: 'uprising',
                 stratumKey,

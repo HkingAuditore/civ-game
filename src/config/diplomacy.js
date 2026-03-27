@@ -666,7 +666,7 @@ export const TRIBUTE_CONFIG = {
     // 基础朝贡计算参数
     baseAmount: 20,                     // 固定保底，避免极小附庸完全没有现金朝贡
     // playerWealthRate Removed: Tribute should not depend on overlord wealth
-    vassalGDPRate: 0.25,                // 以附庸经济体量为主导，确保朝贡会随发展明显变化
+    vassalGDPRate: 0.18,                // 温和下调：减轻附庸发展期被持续抽血
 
     // 附庸规模系数
     sizeMultipliers: {

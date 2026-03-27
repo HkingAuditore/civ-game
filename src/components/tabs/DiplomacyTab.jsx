@@ -97,11 +97,18 @@ const DiplomacyTabComponent = ({
     const visibleNations = useMemo(
         () =>
             nations.filter(
-                (nation) =>
-                    epoch >= (nation.appearEpoch ?? 0) &&
-                    (nation.expireEpoch == null || epoch <= nation.expireEpoch) &&
-                    !nation.isAnnexed && // 排除已被吞并的国家
-                    nation.relation !== undefined && nation.relation !== null // 只显示已发现的国家
+                (nation) => {
+                    const isPlayerVassal = nation?.vassalOf === 'player';
+                    const isInEpochRange =
+                        epoch >= (nation.appearEpoch ?? 0) &&
+                        (nation.expireEpoch == null || epoch <= nation.expireEpoch);
+                    return (
+                        // 附庸不受时代可见性限制，避免升时代后在外交/贸易界面丢失
+                        (isInEpochRange || isPlayerVassal) &&
+                        !nation.isAnnexed && // 排除已被吞并的国家
+                        nation.relation !== undefined && nation.relation !== null // 只显示已发现的国家
+                    );
+                }
             ),
         [nations, epoch]
     );
@@ -353,7 +360,7 @@ const DiplomacyTabComponent = ({
                     if (!nation) return false;
 
                     // 排除玩家的附庸
-                    if (nation.isVassal === true) return false;
+                    if (nation.vassalOf === 'player') return false;
 
                     return true;
                 })

@@ -326,34 +326,32 @@ export function hasActiveTreaty(nation, treatyType, daysElapsed = 0) {
     const treaties = nation?.treaties;
     if (!treaties) return false;
 
+    const isTreatyRecordActive = (record) => {
+        if (!record) return false;
+        if (record.withPlayer === false) return false;
+
+        const status = typeof record.status === 'string' ? record.status.toLowerCase() : null;
+        const isExpiredByTime = Number.isFinite(record.endDay) && record.endDay <= daysElapsed;
+
+        // 到期日优先：即使 status 仍是 active，只要过期就失效。
+        if (isExpiredByTime) return false;
+        if (status === 'expired' || status === 'terminated' || status === 'cancelled') return false;
+        if (status === 'active') return true;
+
+        // 兼容旧存档：无状态或未知状态时，未过期即视为有效。
+        return true;
+    };
+
     // Array form
     if (Array.isArray(treaties)) {
-        const activeTreaty = treaties.find(t => {
-            if (!t || t.type !== treatyType) return false;
-            if (t.withPlayer === false) return false;
-            
-            // Check expiry: treaty is active if:
-            // 1. status is 'active', OR
-            // 2. status is undefined AND (endDay is undefined OR endDay > current day)
-            if (t.status === 'active') return true;
-            if (t.status === 'expired' || t.status === 'terminated') return false;
-            
-            // Legacy saves: missing status, check endDay
-            if (t.endDay != null && t.endDay <= daysElapsed) return false; // Expired
-            return true; // Active (no endDay or endDay in future)
-        });
+        const activeTreaty = treaties.find(t => t?.type === treatyType && isTreatyRecordActive(t));
         
         return !!activeTreaty;
     }
 
     // Map form
     const entry = treaties[treatyType];
-    if (!entry) return false;
-    if (entry.withPlayer === false) return false;
-    if (entry.status === 'active') return true;
-    if (entry.status === 'expired' || entry.status === 'terminated') return false;
-    if (entry.endDay != null && entry.endDay <= daysElapsed) return false;
-    return true;
+    return isTreatyRecordActive(entry);
 }
 
 /**

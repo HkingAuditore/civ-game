@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经济崩溃模型分析报告</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{background:#0f172a;color:#e2e8f0;font-family:-apple-system,'Segoe UI',sans-serif}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:20px}
+  .kpi{background:linear-gradient(135deg,#1e293b,#334155);border:1px solid #475569;border-radius:12px;padding:20px 24px}
+  .kv{font-size:2rem;font-weight:800}
+  .kr{background:linear-gradient(135deg,#f97316,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .kb{background:linear-gradient(135deg,#3b82f6,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .kg{background:linear-gradient(135deg,#22c55e,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .kp{background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .st{font-size:1.3rem;font-weight:700;color:#f8fafc;margin-bottom:16px;border-left:4px solid #f97316;padding-left:12px}
+  .ins{background:#1a1a2e;border-left:3px solid #f97316;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:.9rem}
+  .tb{padding:8px 20px;border-radius:8px;cursor:pointer;transition:all .2s;border:1px solid transparent;background:none;color:#94a3b8}
+  .tb.on{background:#334155;border-color:#f97316;color:#f8fafc}
+  .tb:hover{background:#1e293b}
+  canvas{max-height:420px}
+  .hm{text-align:center;font-size:.8rem;font-weight:600;padding:10px 6px;border-radius:4px}
+  #loading{text-align:center;padding:80px 20px}
+  .spinner{width:40px;height:40px;border:4px solid #334155;border-top-color:#f97316;border-radius:50%;animation:spin .8s linear infinite;margin:20px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+<div class="max-w-7xl mx-auto">
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p class="text-slate-400">加载数据中...</p>
+</div>
+
+<div id="app" style="display:none">
+
+<div class="text-center mb-8">
+  <h1 class="text-3xl md:text-4xl font-black mb-2">🏛️ 经济崩溃模型</h1>
+  <p class="text-slate-400">基于崩溃会话 + 正常会话对比分析 · <span id="dateRange"></span></p>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="kpis"></div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="st">崩溃类型分布</div><div style="max-width:320px;margin:0 auto"><canvas id="chCrisis"></canvas></div></div>
+  <div class="card"><div class="st">叛乱阶段漏斗</div><div style="max-width:320px;margin:0 auto"><canvas id="chRebel"></canvas></div></div>
+</div>
+
+<div class="card"><div class="st">叛乱阶层分布（去重）</div><canvas id="chStratum"></canvas></div>
+
+<div class="card">
+  <div class="st">崩溃前指标轨迹（10 采样周期，归一化对比）</div>
+  <div class="flex gap-2 mb-4 flex-wrap" id="trajTabs"></div>
+  <canvas id="chTraj" height="300"></canvas>
+  <div class="ins"><strong>🔍</strong> 通胀型崩溃前 CPI 稳步上升 (+5%)；破产型崩溃前 CPI 反而暴跌 (-21%)，GDP 急缩至基准的 0.5%——两种完全不同的崩溃路径。正常对照组各项指标平稳增长。</div>
+</div>
+
+<div class="card">
+  <div class="st">典型案例时间线</div>
+  <div class="flex gap-2 mb-4 flex-wrap" id="caseTabs"></div>
+  <canvas id="chCase" height="300"></canvas>
+</div>
+
+<div class="card">
+  <div class="st">指标相关性矩阵</div>
+  <div class="flex gap-2 mb-4">
+    <button class="tb on" onclick="drawHM('collapse',this)">崩溃组</button>
+    <button class="tb" onclick="drawHM('normal',this)">正常组</button>
+  </div>
+  <div id="hmBox" style="overflow-x:auto"></div>
+  <div class="ins"><strong>🔍</strong> 崩溃组 GDP-Population 相关系数 0.946（正常 0.983），崩溃时经济与人口脱钩加剧。CPI-Stability 几乎无相关 (-0.07)，说明通胀不直接影响政治稳定——危机传导通过其他路径。</div>
+</div>
+
+<div class="card">
+  <div class="st">CPI 增速分布（崩溃组 vs 正常组）</div>
+  <canvas id="chGrowth" height="240"></canvas>
+  <div class="ins"><strong>🔍</strong> 崩溃组 CPI 增速方差极大（+437%、+181% 等极端值），但中位数仅 +1.9%。正常组中位数 +0.4%。<strong>单次增速脉冲 >20%</strong> 是最有效的预警信号。</div>
+</div>
+
+<div class="card">
+  <div class="st">全服经济指标分布（平衡性诊断）</div>
+  <div class="flex gap-2 mb-4 flex-wrap" id="distTabs"></div>
+  <canvas id="chDist" height="280"></canvas>
+  <div class="ins"><strong>🔍</strong> CPI 中位 63、P75=95 接近警戒线；GDP/Treasury 极度右偏（少数大佬垄断资源）；Stability P75=100（大量玩家满稳定度）。经济模型呈<strong>赢家通吃</strong>特征。</div>
+</div>
+
+<div class="card">
+  <div class="st">崩溃前 vs 正常玩家指标对比（中位数）</div>
+  <canvas id="chCompare" height="280"></canvas>
+  <div class="ins"><strong>🔍</strong> 两组 CPI（74 vs 82）和 Stability（88 vs 91）差异不大，但 Treasury 中位数差异显著（42K vs 374K，约 9 倍）。<strong>国库储备不足是崩溃最显著的先兆</strong>。</div>
+</div>
+
+<div class="card">
+  <div class="st">🚨 崩溃预警阈值体系</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="rules"></div>
+</div>
+
+<div class="card">
+  <div class="st">🔄 崩溃级联路径</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+    <div>
+      <h3 class="font-bold text-orange-400 mb-3 text-base">路径 A：通胀螺旋</h3>
+      <div class="space-y-1.5">
+        <div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-900/60 text-red-300">高CPI</span>CPI > 100 持续 2+ 周期</div>
+        <div class="text-slate-600 pl-6">↓</div>
+        <div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-900/60 text-yellow-300">饥荒</span>Population:Starvation（352次，最常见）</div>
+        <div class="text-slate-600 pl-6">↓</div>
+        <div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-900/60 text-red-300">恶性通胀</span>CPI > 200（99次）</div>
+      </div>
+    </div>
+    <div>
+      <h3 class="font-bold text-blue-400 mb-3 text-base">路径 B：财政崩溃</h3>
+      <div class="space-y-1.5">
+        <div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-900/60 text-blue-300">国库枯竭</span>Treasury 低且持续下降</div>
+        <div class="text-slate-600 pl-6">↓</div>
+        <div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-900/60 text-yellow-300">叛乱酝酿</span>unemployed/artisan brewing</div>
+        <div class="text-slate-600 pl-6">↓</div>
+        <div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-900/60 text-red-300">破产</span>Economy:Crisis:bankruptcy（35次）</div>
+      </div>
+    </div>
+  </div>
+  <div class="ins mt-4"><strong>📊</strong> 352 次饥荒 >> 99 次通胀 >> 35 次破产。饥荒是崩溃链最常见的"中间态"。失业者(293次)最易叛乱，其次是工匠(200次)和伐木工(184次)。</div>
+</div>
+
+<div class="card">
+  <div class="st">⚠️ 数据局限</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+    <div class="p-4 rounded-lg bg-slate-800/50">
+      <p class="font-bold text-yellow-400 mb-1">缺失数据</p>
+      <ul class="text-slate-400 space-y-1 list-disc pl-4">
+        <li>EconFlow（税收/军事/贸易流水）全部为 0</li>
+        <li>Price（市场价格）因 bug 未上报（已修复）</li>
+        <li>days_elapsed 在危机事件中为 null</li>
+      </ul>
+    </div>
+    <div class="p-4 rounded-lg bg-slate-800/50">
+      <p class="font-bold text-green-400 mb-1">优化方向</p>
+      <ul class="text-slate-400 space-y-1 list-disc pl-4">
+        <li>上报 EconFlow 实现收支平衡分析</li>
+        <li>修复 days_elapsed 精确定位崩溃时机</li>
+        <li>增加存档快照事件</li>
+        <li>加入 difficulty 字段分层分析</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="text-center text-slate-600 text-sm mt-6 mb-4">哈耶克的文明：市场经济 · 经济崩溃模型分析 · 2026-03-27</div>
+
+</div>
+</div>
+
+<script>
+let D = {"collapsePreStats":{"CPI":{"count":309,"mean":78.63,"median":73.93,"stddev":46.77,"p10":26.67,"p25":39.41,"p75":102.87,"p90":140.94},"GDP":{"count":306,"mean":103176009.09,"median":2147.75,"stddev":1127919908.95,"p10":75.71,"p25":245.88,"p75":150136.52,"p90":7170622.98},"Treasury":{"count":309,"mean":90979920213.76,"median":42530.3,"stddev":1311122529007.26,"p10":541.29,"p25":2130.56,"p75":7485871.94,"p90":760077408.81},"Stability":{"count":309,"mean":86.4,"median":87.52,"stddev":13.08,"p10":70.36,"p25":77.86,"p75":100,"p90":100},"Population":{"count":309,"mean":4576995.9,"median":418,"stddev":47657343.93,"p10":34,"p25":93,"p75":10144,"p90":171617}},"normalStats":{"CPI":{"count":306,"mean":75.79,"median":82.24,"stddev":36.65,"p10":25.58,"p25":40.63,"p75":100,"p90":118.28},"GDP":{"count":305,"mean":8899461396.4,"median":24287.48,"stddev":42456428183.92,"p10":24.63,"p25":114.25,"p75":15158247.76,"p90":529509571.43},"Treasury":{"count":306,"mean":939648575724743.2,"median":373868.49,"stddev":5296917426346998,"p10":155.45,"p25":1390.62,"p75":2978838700.33,"p90":4410305963856.41},"Stability":{"count":306,"mean":88.37,"median":90.7,"stddev":12.52,"p10":73.3,"p25":77.76,"p75":100,"p90":100},"Population":{"count":306,"mean":358829127.8,"median":3403.5,"stddev":1654223879.14,"p10":14,"p25":47,"p75":634042,"p90":15149533}},"preTrajectory":{"hyperinflation":{"CPI":[76.14,75.63,76.57,76.28,75.15,74.54,77.53,78.92,78.49,80.09],"GDP":[306781.16,308718.01,293385.47,284357.6,253186.47,277270.27,324537.56,326672.64,315795.53,354551.66],"Treasury":[570264.8,569881.66,571602.16,516310.17,561063.61,556134.56,529767.3,466786.07,564464.84,527561.63],"Stability":[85.16,85.55,85.93,86.11,86.25,86.03,86.31,86.11,86.56,86.48],"Population":[67247.29,69205.92,71108.79,71838.44,116701.43,107820.27,71651.93,74061.55,75682.51,76695.66]},"bankruptcy":{"CPI":[84.93,86.42,88.36,89.18,89.59,89.59,69.21,66.32,67.13,66.85],"GDP":[3381461.64,3691930.34,2776929.83,2126234.73,1124000.5,1141960.6,17361.25,18292.45,15794.97,17676.44],"Treasury":[793.46,1090.96,912.59,872.23,871.8,1013.42,879.44,1013.4,796.47,222.04],"Stability":[78.37,77.66,78.75,80.05,79.89,79.4,88.18,88.16,87.94,89.32],"Population":[418360,203302.5,235359.5,278932,334848,404822,7621,7621,7621,7460]}},"normalTrajectory":{"CPI":[77.1,75.93,76.86,75.7,76.73,75.31,75.47,74.43,74.43,73.59],"GDP":[567575.94,567628.94,537224.31,510779.98,609348.34,606173,595044.93,627397.58,643485.36,639174.61],"Treasury":[379040.45,362657.86,396128.94,377923.03,389342.12,387232.71,353360.45,372925.31,402619.62,413265.79],"Stability":[85.56,87.21,88.01,88.2,88.43,88.94,89.81,90.45,90.41,90.57],"Population":[368037.26,369536.84,371862.11,393945.61,405701.49,430068.14,432718.78,449865.3,458753.08,475380.13]},"correlationMatrix":{"collapse":{"CPI":{"CPI":1,"GDP":0.102,"Treasury":0.235,"Stability":-0.071,"Population":0.083},"GDP":{"CPI":0.102,"GDP":1,"Treasury":0.47,"Stability":0.074,"Population":0.946},"Treasury":{"CPI":0.235,"GDP":0.47,"Treasury":1,"Stability":0.021,"Population":0.361},"Stability":{"CPI":-0.071,"GDP":0.074,"Treasury":0.021,"Stability":1,"Population":0.084},"Population":{"CPI":0.083,"GDP":0.946,"Treasury":0.361,"Stability":0.084,"Population":1}},"normal":{"CPI":{"CPI":1,"GDP":0.178,"Treasury":0.157,"Stability":-0.136,"Population":0.164},"GDP":{"CPI":0.178,"GDP":1,"Treasury":0.548,"Stability":0.104,"Population":0.983},"Treasury":{"CPI":0.157,"GDP":0.548,"Treasury":1,"Stability":0.115,"Population":0.572},"Stability":{"CPI":-0.136,"GDP":0.104,"Treasury":0.115,"Stability":1,"Population":0.117},"Population":{"CPI":0.164,"GDP":0.983,"Treasury":0.572,"Stability":0.117,"Population":1}}},"cpiGrowth":{"collapse":[0.4,0,2.2,-0.2,-1.1,62.8,-17.4,-1.2,0.4,-0.5,-1.6,2.1,0.5,-9.3,10.4,2.6,0,-0.4,-1.2,42.5,-3.9,0.5,-0.4,-5.8,0.9,1,12.4,16.5,-0.6,24.9,0.6,-2.9,-1.1,-0.3,-0.8,-18.1,3.1,-0.4,3.6,5.9,-2,1.2,0.4,-35.1,0.2,-62.8,3.2,2.3,-0.1,-0.3,0,5.8,-10.5,436.9,-1.6,-4,2,17.7,-0.1,-5.9,5.4,10,-6.4,-3.3,0,-6.7,0.9,-12.2,1.1,-5.3,2.4,0.9,0.1,132.9,1.9,21.4,-0.3,-8.1,0.3,-0.3,5.4,6.5,-14.7,-1.3,-55.4,-18.2,34.9,3.1,0,1.4,0.8,5,-35.9,-1.4,22.3,-0.2,2.6,-1.4,-0.3,0.3,-0.2,0,-0.2,8.2,3,0.6,-2.4,0.1,-0.2,-1.7,21.2,2.4,-6.6,-0.1,2.1,0.6,-68.5,1.6,-1.3,-1,12.9,0.9,-1.9,2.7,1.9,-0.4,3.1,2,-0.4,-12.7,-0.1,-2.3,0,8.1,-3,1.4,-2.1,37.5,0,4.7,4.7,-2.1,-1.4,0.7,-35.6,16.6,0,-0.1,-0.7,2.3,-1.6,6.5,0,26.5,-6.1,0.6,0.7,-2.2,6,0.4,-1.3,-3.8,2.1,-2.7,0,-27.2,-46.6,5.6,-1.8,0.4,-26.1,2.3,4,51,59.8,-2.5,-4.5,-1.2,1.8,-10.4,-1.2,4.3,-0.3,0.8,1.1,1.4,53.3,3.5,1.5,0.3,27.9,-56,4.3,5,-5.7,1.6,-1.8,-2.6,-1.6,-2.7,-3.4,1.3,3.8,1.2,18.5,-4,63.3,-3,-0.1,1.7,1.7,18.9,-0.1,-16.4,0,0.5,-0.2,-0.4,-4.4,0.7,0.2,0.6,0.4,-0.7,-0.1,1.5,4,-21.6,-13.7,-2.3,0,0,1.8,1.7,-11.5,1.9,3.8,0.7,1.4,0,4.9,63.3,1.1,0.7,-0.1,-1.6,7.7,107.4,181.4,9.9,0,-30.9,-2.6,-0.9,1.4,-26.5,129.7,-0.1,36.4,47.8,6.6,-0.4,0.1,-66.1,-20.2,2.9,-2.2,-65,-1.7,-1.3,-2.4,-2.9,39,12.3,1.1,46.9,0,15.7,3.5,-2.7,-5.8,0.4,-6,0,6.6,-0.4,0.8,-10.4,7.1,28.9,4.9,1,-1.2,1.7,-5.5,-41.7,0.2,12,0.1,40,-6.3,-1.7,13.1,-0.5,-8.9,24.1,-0.4,-10.7,-0.3],"normal":[-3.7,0,-0.2,-11.6,-16.3,-33.5,0.3,-0.7,2.1,-1,4.4,9.4,0.7,1,-6.3,5,19.8,0.6,1.6,0.2,-4.7,-0.5,1,1.5,-4.6,1.8,-20.8,-1.8,4.3,-0.1,3.1,24.4,16.1,-0.4,-0.1,-1.2,-3,-0.9,0,2.2,-1,-0.3,0,-3.3,-0.1,0,3.8,0.1,-1.1,1.4,0.1,-0.3,-22.1,-3.2,2.6,-4.8,0.1,0.1,9.2,0.1,1.5,-0.2,-2.6,-10.8,1.6,-0.7,-16.6,0.2,0.8,0.7,-5.2,-24.6,1,-0.3,0.1,-0.3,1.5,0.2,-0.6,1.8,-1.6,0.1,0.7,1.8,0,-2,0,0.6,73.6,7.8,-0.9,-0.2,2.2,-2.5,-8.7,-2.7,-0.2,0,2.6,-0.3,-1.3,4.9,-0.1,8.9,-0.2,2.8,-0.2,-0.2,-10.5,1.1,0.7,1.4,4.1,-0.2,-2.5,0.7,0.5,-16.7,-1.1,-0.1,-2.7,1.9,-5.5,-4,14.5,-14.1,0.1,0,0.4,-2.4,11.3,31.2,9.8,-1.5,-6.4,-0.4,4.2,-7.5,-3.1,0,-2.3,-12.9,114.5,0.4,0,5.3,0,6.5,0,0.7,-0.5,0.3,0.5,0,5.7,1.3,0.4,9.9,0,-0.1,-0.4,-1.2,0.1,1.5,-0.2,0.6,5.1,1.8,-0.2,-0.1,0.8,0,16,-47.9,4.5,8.4,0.3,-0.2,0.4,-0.2,0.1,41.9,0.4,0.2,-0.2,10.3,-2.9,-8.3,0,-1,-0.4,0,26,0.3,13.2,0.2,4.5,-4.4,0.2,-3.1,2.4,0.2,-0.5,0,0.5,0.1,0.3,213.3,-21,0.2,21.7,-0.3,0.1,-0.4,0.7,3.3,3.5,-0.9,12.4,-12,-1.1,-1.7,-0.9,2.2,0.3,-15,0.6,-2.8,0,-0.8,-7.6,-0.2,0,-4.2,8.3,-5.8,0,-0.5,-16.4,-20.1,-0.9,9.5,0,-23.2,0.1,-65.2,18,0,0.7,-2.1,-0.3,0.7,-39.3,9.7,3.5,0.6,-6.5,-76,-15.1,13.3,0.7,20,-1.9,0.1,0.2,-1.5,5.1,-0.8,-0.1,0,-0.9,0,-0.1,-8,0.3,0,15.3,-1.4,-3.6,-0.8,0.9,-0.7,0.1,0,0,-9.1,0,-0.7,14.5,0.2,-2.4,0,0.6,-3.4,-8.6,80.7,-3.9,-1.5,20.2,-0.2,13.8,-0.7,-1.2,-0.2,1,-0.4]},"caseStudies":[{"sessionId":"0092c524-0a70-4bea-a882-fec0242ec482","type":"hyperinflation","seriesLength":10,"CPI":[349.31,345.01,199.66,201.87,200.01,197.1,197.16,198.9,199.14,176.92,177.12,177.77,174.58,165.21,162.96,153.42,151.28,152.46,152.64,151.69,152.85,150.9,151.12,148.39,148.2,146.46,145.3,145.54,148.47,147.74],"GDP":[31990149,31694016,25047074,24543340,32192671,31554312,28137196,29559400,23665908,27733824,30552715,29024717,28612971,30052633,24711592,28855064,29227754,29003003,28048005,24296542,25196585,31814718,31713743,31906230,39345068,45462231,42701704,42198622,37637737,38844794],"Treasury":[55503708191,55503804390,55656404016,55656498521,55811847450,55812004202,55968738327,55968759124,56125878493,54760963796,54937394505,55112149185,55112328127,55310439301,55938074643,54659911020,54868962660,55087956443,55088008144,55753156792,55753130839,55959736079,55959680467,53390429086,53643346367,53944858274,54243234003,54243150594,53725263710,53725031470],"Stability":[100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],"Population":[738484,738484,738484,738484,738484,738484,738484,738484,738484,739893,739893,739893,739893,739894,739894,740520,741303,741303,741303,742712,742712,742712,742712,744121,744121,744121,744121,744121,744121,744121]},{"sessionId":"00f75c3a-9d54-4aa9-afbe-750034436933","type":"bankruptcy","seriesLength":10,"CPI":[99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.8,99.81],"GDP":[540509995,626589719,633587136,540582519,549361262,529931911,527041224,545398018,547170786,595269098,589850401,543609864,552398615,579013241,545029744,565346466,578681693,569653012,590563914,619769324,585302149,582195406,572184557,610659717,622555828,606737094,634708049,624368203,647308805,660891153],"Treasury":[136004404855,136533549014,137072639705,137597443887,138120162603,138642238523,132224315641,132743196069,133263972927,133792510212,133015864806,132075603856,137495042936,137476764522,137295223898,136947648922,136433382668,135751168021,134894487879,133999884914,133098869939,132201845289,131494159803,131069933882,130426760506,129635308929,128848318280,128056973635,127341838918,126722170464],"Stability":[100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],"Population":[88352943,88353944,88353944,88353944,88354985,88356787,88359350,88359350,88359350,88362954,107530133,127520021,147658169,168003513,188620175,209572720,230924843,252739639,268207888,268207887,268207887,268207888,268211492,268211492,268211492,268211492,268211492,268211675,268213477]},{"sessionId":"0116d8b4-0c59-427e-a57d-62052098123a","type":"hyperinflation","seriesLength":10,"CPI":[97.69,141.26,159.4,155.49,95.76,93.87,93.94,93.81,94.11,94.03,94.13,93.94,75.14,81.92,81.97,82.02,76.13,96.7,95.7,75.49,89.61,89.76,89.67,89.69,102.74,103.31,103.31,102.18,180.34,182.17],"GDP":[9.92,39.56,31.16,39.14,40.32,38.65,44.03,48.72,58.5,55.39,50.79,63.37,59.74,69.83,60.57,68.75,62.05,136.52,141.54,119.5,100.57,109.23,97.23,99.47,1607.28,671.18,1372.42,1216.18,545.18,926.62],"Treasury":[137.81,78.12,153.77,68.04,79.36,56.71,183.11,96.59,89.63,253.64,427.8,626.43,836.13,1064.22,1299.26,1534.29,1033.36,638.33,136.53,505.43,931,1379.52,1777.34,2179.57,729.03,2053.26,3660.01,5586.49,6805.75,8692.33],"Stability":[55.12,62.03,71.29,60.9,55.73,60.32,68.88,73.11,74.49,74.89,74.5,74.23,73.95,72.34,71.97,72.03,71.79,70.22,73.12,75.54,74.1,73.73,73.51,73.62,69.35,75.02,79.08,81.68,82.58,82.64],"Population":[5,11,11,15,18,19,20,24,26,27,30,34,37,41,41,41,43,47,52,58,63,69,71,71,71,80,86,86,86,92]},{"sessionId":"013e9104-935f-4328-a5a9-9102ad3132b1","type":"hyperinflation","seriesLength":10,"CPI":[51.27,43.15,43.19,43.26,43.41,43.04,56.37,56.35,56.36,56.46,55.88,56.36,56.44,52.17,52.32,52.28,51.8,51.98,52.08,52.23,51.56,52.46,51.55,54.6,53.89,53.41,49.12,49,49.24,49.75],"GDP":[908525,791085,858537,775015,1119541,790540,689950,1024077,643723,611003,943481,676830,1198667,852701,773993,1048353,1393153,946434,1050830,964196,758185,806573,1009386,623900,795966,763398,623866,1039299,1010991,1025767],"Treasury":[181713793,183626917,185586789,187447983,189430981,191472213,193457881,195641084,197720633,199791175,201840688,203889806,205940533,207997207,210044755,212107919,214163844,216202881,218186963,224094015,226008414,227926054,229835632,239366853,241346179,243318067,245408799,247502948,249668751,251867715],"Stability":[73.3,73.33,73.3,73.33,73.3,73.29,75.36,74.19,73.48,73.32,73.27,73.23,73.22,73.2,73.2,73.19,73.19,73.23,73.26,73.31,73.33,73.34,73.32,73.32,73.34,73.35,75.38,74.3,73.56,73.39],"Population":[21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21690,21691,21691,21691]},{"sessionId":"028eff0c-ad1f-438b-ba95-a87afe98ecb5","type":"hyperinflation","seriesLength":10,"CPI":[24.07,24.75,25.64,35.93,35.94,36.16,35.98,36.49,35.42,34.97,33.9,33.33,32.98,34.47,32.9,32.75,34.02,33.69,33.35,33.65,33.6,34.2,34.45,35.16,34.44,36.87,34.99,34.51,35.38,35.73],"GDP":[86293,91797,92416,94647,105352,120510,115670,107204,118130,110980,116305,123002,109890,125471,115737,115291,97084,127714,114714,116370,125998,129015,134673,135683,130020,117008,127066,128606,124791,121512],"Treasury":[3730632,3931010,4131636,4339878,4474339,4515933,4770161,4862873,5198731,5533112,5871109,6209206,6110486,4739350,4739453,5053939,5354328,5032364,5340259,5621852,5899640,6099772,6271795,6432212,6594865,6749413,6889336,7052801,7236706,7376927],"Stability":[100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],"Population":[5004,5004,5004,5004,5004,5319,5319,5319,5319,5319,5319,5319,5319,5319,5523,5787,5790,5790,5790,5790,5790,5790,5790,5790,5790,5790,5790,5790,5790,5790]}],"crisisSummary":{"totalCrisisPlayers":388,"uniquePlayers":214,"uniqueSessions":388,"byType":{"hyperinflation":99,"starvation":352,"bankruptcy":35}},"rebellionSummary":{"totalDeduped":1823,"byPhase":{"plotting":526,"brewing":825,"uprising":298,"Action":101,"Coalition":73},"byStratum":{"miner":164,"peasant":149,"lumberjack":184,"unemployed":293,"merchant":132,"scribe":130,"artisan":200,"soldier":59,"accept_war":82,"cleric":159,"landowner":55,"worker":97,"serf":25,"capitalist":21,"suppress":19,"engineer":38,"technician":9,"navigator":7}},"distributions":{"Economy:CPI":{"count":74858,"min":4.68,"p10":25.35,"p25":35.4,"p50":63.33,"p75":94.98,"p90":117.7,"max":658.02,"mean":70.61,"stddev":46.4},"Economy:GDP":{"count":63067,"min":0,"p10":100.94,"p25":917.1,"p50":9008.61,"p75":278311.08,"p90":2374515.93,"max":9996844.66,"mean":654181.14,"stddev":1565754.74},"Economy:Treasury":{"count":48103,"min":0,"p10":447.16,"p25":3679.98,"p50":39027.71,"p75":425323.83,"p90":3082786.63,"max":9998790.77,"mean":814663.69,"stddev":1837690.85},"Population:Total":{"count":71702,"min":0,"p10":58,"p25":273,"p50":3080,"p75":47412,"p90":408095,"max":9752962,"mean":248302.04,"stddev":972509.77},"Stability:Level":{"count":74938,"min":7.47,"p10":71.65,"p25":81.09,"p50":95.28,"p75":100,"p90":100,"max":100,"mean":89.58,"stddev":12.52}}};
+document.getElementById('loading').style.display = 'none';
+document.getElementById('app').style.display = 'block';
+buildAll();
+
+function buildAll() {
+  document.getElementById('dateRange').textContent = '309 个崩溃前样本 · 306 个正常对照 · 2026-03-27';
+
+  // ── KPIs ──
+  document.getElementById('kpis').innerHTML = [
+    ['崩溃会话', '388', '214 独立玩家', 'kr'],
+    ['恶性通胀', D.crisisSummary.byType.hyperinflation, 'CPI > 200 触发', 'kr'],
+    ['饥荒', D.crisisSummary.byType.starvation, '最常见崩溃态', 'kb'],
+    ['叛乱', D.rebellionSummary.totalDeduped.toLocaleString(), '298 次起义爆发', 'kp'],
+    ['破产', D.crisisSummary.byType.bankruptcy, '国库归零', 'kg']
+  ].map(([l, v, s, c]) => `<div class="kpi"><div class="text-slate-400 text-sm mb-1">${l}</div><div class="kv ${c}">${v}</div><div class="text-slate-500 text-xs mt-1">${s}</div></div>`).join('');
+
+  // ── Crisis type doughnut ──
+  new Chart(document.getElementById('chCrisis'), {
+    type: 'doughnut',
+    data: { labels: ['饥荒', '恶性通胀', '破产'], datasets: [{ data: [D.crisisSummary.byType.starvation, D.crisisSummary.byType.hyperinflation, D.crisisSummary.byType.bankruptcy], backgroundColor: ['#3b82f6', '#ef4444', '#22c55e'], borderColor: '#1e293b', borderWidth: 3 }] },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 16 } } } }
+  });
+
+  // ── Rebellion phase ──
+  const bp = D.rebellionSummary.byPhase;
+  new Chart(document.getElementById('chRebel'), {
+    type: 'doughnut',
+    data: { labels: ['酝酿 (brewing)', '密谋 (plotting)', '起义 (uprising)', '行动', '联合'], datasets: [{ data: [bp.brewing||0, bp.plotting||0, bp.uprising||0, bp.Action||0, bp.Coalition||0], backgroundColor: ['#f59e0b', '#f97316', '#ef4444', '#dc2626', '#991b1b'], borderColor: '#1e293b', borderWidth: 3 }] },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 12, font: { size: 11 } } } } }
+  });
+
+  // ── Rebellion stratum ──
+  const sL = { unemployed: '失业者', artisan: '工匠', lumberjack: '伐木工', miner: '矿工', cleric: '神职', peasant: '农民', merchant: '商人', scribe: '书吏', worker: '工人', accept_war: '战争派', soldier: '士兵', landowner: '地主', engineer: '工程师', serf: '农奴', capitalist: '资本家', suppress: '镇压', technician: '技师', navigator: '航海' };
+  const sV = Object.entries(D.rebellionSummary.byStratum).sort((a, b) => b[1] - a[1]);
+  new Chart(document.getElementById('chStratum'), {
+    type: 'bar',
+    data: { labels: sV.map(([k]) => sL[k] || k), datasets: [{ data: sV.map(([, v]) => v), backgroundColor: sV.map(([, v]) => v > 150 ? '#ef4444' : v > 100 ? '#f97316' : '#64748b'), borderRadius: 4 }] },
+    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 11 } } } } }
+  });
+
+  // ── Trajectory ──
+  const tM = ['CPI', 'GDP', 'Stability', 'Population', 'Treasury'];
+  const tT = document.getElementById('trajTabs');
+  let tC;
+  function norm(arr) { return arr.map(v => v != null && arr[0] ? +(v / arr[0] * 100).toFixed(1) : null); }
+  function drawTraj(m) {
+    const lb = Array.from({ length: 10 }, (_, i) => `T-${10 - i}`);
+    const h = D.preTrajectory.hyperinflation[m], b = D.preTrajectory.bankruptcy[m], n = D.normalTrajectory[m];
+    if (tC) tC.destroy();
+    tC = new Chart(document.getElementById('chTraj'), {
+      type: 'line', data: { labels: lb, datasets: [
+        { label: '恶性通胀前', data: norm(h), borderColor: '#ef4444', tension: .3, fill: false, pointRadius: 3 },
+        { label: '破产前', data: norm(b), borderColor: '#22c55e', tension: .3, fill: false, pointRadius: 3 },
+        { label: '正常对照组', data: norm(n), borderColor: '#3b82f6', tension: .3, borderDash: [5, 5], fill: false, pointRadius: 3 }
+      ] }, options: { responsive: true, plugins: { legend: { labels: { color: '#e2e8f0' } }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}%` } } }, scales: { x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', callback: v => v + '%' } } } }
+    });
+  }
+  tM.forEach((m, i) => { const b = document.createElement('button'); b.className = `tb ${i === 0 ? 'on' : ''}`; b.textContent = m; b.onclick = () => { tT.querySelectorAll('.tb').forEach(x => x.classList.remove('on')); b.classList.add('on'); drawTraj(m); }; tT.appendChild(b); });
+  drawTraj('CPI');
+
+  // ── Case Studies ──
+  const cases = D.caseStudies || [];
+  const cT = document.getElementById('caseTabs');
+  let cC;
+  function drawCase(i) {
+    const c = cases[i]; if (!c) return;
+    if (cC) cC.destroy();
+    const allStable = c.Stability.every(v => Math.abs(v - 100) < 1);
+    cC = new Chart(document.getElementById('chCase'), {
+      type: 'line', data: { labels: c.CPI.map((_, j) => j), datasets: [
+        { label: 'CPI', data: c.CPI, borderColor: '#ef4444', yAxisID: 'y', tension: .2, borderWidth: 2, pointRadius: 0 },
+        { label: 'GDP(K)', data: c.GDP.map(v => v / 1000), borderColor: '#22c55e', yAxisID: 'y1', tension: .2, borderWidth: 2, pointRadius: 0 },
+        { label: 'Stability', data: c.Stability, borderColor: '#a855f7', yAxisID: 'y', tension: .2, borderWidth: 2, pointRadius: 0, hidden: allStable }
+      ] }, options: { responsive: true, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: '#e2e8f0' } }, title: { display: true, text: `案例${i + 1}: ${c.type === 'hyperinflation' ? '恶性通胀' : '破产'} · ${c.CPI.length}个采样点`, color: '#94a3b8' } }, scales: { x: { display: false }, y: { position: 'left', grid: { color: '#334155' }, ticks: { color: '#ef4444' } }, y1: { position: 'right', grid: { display: false }, ticks: { color: '#22c55e' } } } }
+    });
+  }
+  cases.forEach((c, i) => { const b = document.createElement('button'); b.className = `tb ${i === 0 ? 'on' : ''}`; b.textContent = `${c.type === 'hyperinflation' ? '通胀' : '破产'}${i + 1}`; b.onclick = () => { cT.querySelectorAll('.tb').forEach(x => x.classList.remove('on')); b.classList.add('on'); drawCase(i); }; cT.appendChild(b); });
+  drawCase(0);
+
+  // ── Heatmap ──
+  const hmL = ['CPI', 'GDP', '国库', '稳定度', '人口'];
+  const hmK = ['CPI', 'GDP', 'Treasury', 'Stability', 'Population'];
+  window.drawHM = function (g, btn) {
+    if (btn) { btn.parentElement.querySelectorAll('.tb').forEach(b => b.classList.remove('on')); btn.classList.add('on'); }
+    const m = D.correlationMatrix[g];
+    let html = '<table style="border-collapse:collapse;margin:0 auto"><tr><td class="hm" style="color:#94a3b8"></td>' + hmL.map(l => `<td class="hm" style="color:#e2e8f0;font-weight:700">${l}</td>`).join('') + '</tr>';
+    hmL.forEach((l, i) => {
+      html += `<tr><td class="hm" style="color:#e2e8f0;font-weight:700">${l}</td>`;
+      hmK.forEach(kk => {
+        const v = m[hmK[i]][kk]; if (v == null) { html += '<td class="hm">-</td>'; return; }
+        const bg = v > 0 ? `rgba(239,68,68,${v * 0.6})` : `rgba(59,130,246,${Math.abs(v) * 0.6})`;
+        html += `<td class="hm" style="background:${bg};color:${Math.abs(v) > .5 ? '#fff' : '#cbd5e1'}">${v.toFixed(2)}</td>`;
+      });
+      html += '</tr>';
+    });
+    document.getElementById('hmBox').innerHTML = html + '</table>';
+  };
+  drawHM('collapse');
+
+  // ── CPI Growth histogram ──
+  function makeBins(arr, n) {
+    const s = [...arr].sort((a, b) => a - b);
+    const lo = Math.min(...s), hi = Math.max(...s), step = (hi - lo) / n;
+    const r = Array(n).fill(0);
+    s.forEach(v => { let b = Math.floor((v - lo) / step); if (b >= n) b = n - 1; r[b]++; });
+    return { counts: r, labels: Array.from({ length: n }, (_, i) => `${(lo + i * step).toFixed(0)}`) };
+  }
+  const cgB = makeBins(D.cpiGrowth.collapse, 30), ngB = makeBins(D.cpiGrowth.normal, 30);
+  new Chart(document.getElementById('chGrowth'), {
+    type: 'bar', data: { labels: cgB.labels, datasets: [
+      { label: '崩溃组', data: cgB.counts, backgroundColor: '#ef444480', borderColor: '#ef4444', borderWidth: 1, borderRadius: 2 },
+      { label: '正常组', data: ngB.counts, backgroundColor: '#3b82f680', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 2 }
+    ] }, options: { responsive: true, plugins: { legend: { labels: { color: '#e2e8f0' } } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', maxTicksLimit: 8 } }, y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } } } }
+  });
+
+  // ── Distribution ──
+  const distM = [['CPI', 'Economy:CPI'], ['GDP', 'Economy:GDP'], ['国库', 'Economy:Treasury'], ['人口', 'Population:Total'], ['稳定度', 'Stability:Level']];
+  const dT = document.getElementById('distTabs');
+  let dC;
+  function drawDist(key) {
+    const dd = D.distributions[key]; if (!dd) return;
+    const pts = [dd.min, dd.p10, dd.p25, dd.p50, dd.p75, dd.p90, dd.max];
+    const labels = ['Min', 'P10', 'P25', '中位数', 'P75', 'P90', 'Max'];
+    if (dC) dC.destroy();
+    dC = new Chart(document.getElementById('chDist'), {
+      type: 'bar', data: { labels, datasets: [{ data: pts, backgroundColor: labels.map(l => l === '中位数' ? '#f97316' : (l === 'P90' || l === 'P75') ? '#ef444480' : '#64748b'), borderColor: labels.map(l => l === '中位数' ? '#f97316' : '#475569'), borderWidth: 1, borderRadius: 6 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' } }, y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v } } }
+    });
+  }
+  distM.forEach(([l, k], i) => { const b = document.createElement('button'); b.className = `tb ${i === 0 ? 'on' : ''}`; b.textContent = l; b.onclick = () => { dT.querySelectorAll('.tb').forEach(x => x.classList.remove('on')); b.classList.add('on'); drawDist(k); }; dT.appendChild(b); });
+  drawDist('Economy:CPI');
+
+  // ── Compare chart ──
+  const metrics = ['CPI', 'GDP', 'Treasury', 'Stability', 'Population'];
+  const compLabels = ['CPI', 'GDP', '国库', '稳定度', '人口'];
+  const collapseMed = metrics.map(m => D.collapsePreStats[m].median);
+  const normalMed = metrics.map(m => D.normalStats[m].median);
+  // Log scale for display
+  const logV = v => v > 0 ? Math.log10(v + 1) : 0;
+  new Chart(document.getElementById('chCompare'), {
+    type: 'bar', data: { labels: compLabels, datasets: [
+      { label: '崩溃组中位数', data: collapseMed, backgroundColor: '#ef444480', borderColor: '#ef4444', borderWidth: 1, borderRadius: 6 },
+      { label: '正常组中位数', data: normalMed, backgroundColor: '#3b82f680', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 6 }
+    ] }, options: { responsive: true, plugins: { legend: { labels: { color: '#e2e8f0' } } }, scales: { x: { grid: { display: false }, ticks: { color: '#e2e8f0' } }, y: { type: 'logarithmic', grid: { color: '#334155' }, ticks: { color: '#94a3b8', callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v } } } }
+  });
+
+  // ── Warning Rules ──
+  const rules = [
+    { level: '🔴 严重', title: '恶性通胀', desc: 'CPI > 200（游戏内硬编码阈值）', detail: '前兆：CPI 连续上升 + 增速 > 20%/周期' },
+    { level: '🔴 严重', title: '破产', desc: 'Treasury ≤ 0（银两归零）', detail: '前兆：Treasury 中位数 42K（对照组 374K），国库枯竭 9 倍风险' },
+    { level: '🟡 预警', title: 'CPI 加速', desc: '单次 CPI 增速 > 20%', detail: '崩溃组 15% 会出现此类脉冲，正常组仅 4%' },
+    { level: '🟡 预警', title: '饥荒', desc: 'Population:Starvation 触发', detail: '全服 352 次远超其他危机类型，是崩溃链核心节点' },
+    { level: '🟢 注意', title: '叛乱酝酿', desc: 'unemployed/artisan 进入 brewing 阶段', detail: '失业者(293次)和工匠(200次)是最不稳定阶层' },
+    { level: '🟢 注意', title: '稳定度低', desc: 'Stability < 40', detail: '崩溃组 P10=70，正常组 P10=73，差异不大但极端值危险' },
+    { level: '📊 监控', title: 'GDP-人口脱钩', desc: 'GDP/Population 相关系数 < 0.9', detail: '正常组 0.983 → 崩溃组 0.946，脱钩意味着生产效率崩坏' },
+    { level: '📊 监控', title: '国库低位', desc: 'Treasury < 10,000', detail: '全服 P10=447，但破产组中位数仅 222（最后采样点）' }
+  ];
+  document.getElementById('rules').innerHTML = rules.map(r => `
+    <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+      <div class="flex items-center gap-2 mb-2"><span class="text-sm">${r.level}</span><span class="font-bold">${r.title}</span></div>
+      <p class="text-slate-300 text-sm">${r.desc}</p>
+      <p class="text-slate-500 text-xs mt-1">${r.detail}</p>
+    </div>
+  `).join('');
+}
+</script>
+</body>
+</html>

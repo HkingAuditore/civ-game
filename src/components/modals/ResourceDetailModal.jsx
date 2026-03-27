@@ -17,6 +17,16 @@ const formatAmount = (value) => {
     return formatNumberShortCN(value, { decimals: 1 });
 };
 
+const formatMarketNumber = (value, { compact = false } = {}) => {
+    if (!Number.isFinite(value)) return '--';
+    const abs = Math.abs(value);
+    if (compact && abs >= 1000) return formatNumberShortCN(value, { decimals: 1 });
+    if (abs >= 100) return value.toFixed(1);
+    if (abs >= 1) return value.toFixed(2);
+    if (abs >= 0.1) return value.toFixed(3);
+    return value.toFixed(4);
+};
+
 const ensureArray = (value) => {
     if (!value) return [];
     return Array.isArray(value) ? value : [value];
@@ -42,12 +52,18 @@ const MarketTrendChart = ({ series = [], height = 220, square = false }) => {
 
     let yMin = Math.min(...values);
     let yMax = Math.max(...values);
-    if (yMax === yMin) {
-        const paddingRange = Math.abs(yMax) * 0.1 || 1;
-        yMax += paddingRange;
+    const rawRange = yMax - yMin;
+    const minimumVisualRange = Math.max(Math.abs((yMax + yMin) / 2) * 0.03, 0.02);
+    if (rawRange < minimumVisualRange) {
+        const center = (yMax + yMin) / 2;
+        yMin = center - minimumVisualRange / 2;
+        yMax = center + minimumVisualRange / 2;
+    } else {
+        const paddingRange = rawRange * 0.12;
         yMin -= paddingRange;
+        yMax += paddingRange;
     }
-    const yRange = Math.max(yMax - yMin, 1);
+    const yRange = Math.max(yMax - yMin, minimumVisualRange);
 
     const width = 640;
     const chartHeight = square ? 640 : height;
@@ -117,7 +133,7 @@ const MarketTrendChart = ({ series = [], height = 220, square = false }) => {
                                 fontSize="10"
                                 textAnchor="end"
                             >
-                                {value.toFixed(1)}
+                                {formatMarketNumber(value)}
                             </text>
                         </g>
                     ))}
@@ -1968,7 +1984,7 @@ const ResourceDetailContent = ({
                                                     >
                                                         <Icon name={priceTrend >= 0 ? 'ArrowUp' : 'ArrowDown'} size={14} />
                                                         {priceTrend >= 0 ? '+' : ''}
-                                                        {formatAmount(priceTrend)}
+                                                        {formatMarketNumber(priceTrend)}
                                                     </span>
                                                 </div>
                                                 <p className="mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400">近两日价格变化</p>
@@ -1995,13 +2011,13 @@ const ResourceDetailContent = ({
                                                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
                                                         <p className="text-xs lg:text-xs text-gray-500">当前价格</p>
-                                                        <p className="text-sm lg:text-base font-bold text-white">{marketPrice.toFixed(2)}</p>
+                                                        <p className="text-sm lg:text-base font-bold text-white">{formatMarketNumber(marketPrice)}</p>
                                                     </div>
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
                                                         <p className="text-xs lg:text-xs text-gray-500">日变化</p>
                                                         <p className={`text-sm lg:text-base font-bold ${priceTrend > 0 ? 'text-emerald-300' : priceTrend < 0 ? 'text-rose-300' : 'text-white'
                                                             }`}>
-                                                            {priceTrend >= 0 ? '+' : ''}{formatAmount(priceTrend)}
+                                                            {priceTrend >= 0 ? '+' : ''}{formatMarketNumber(priceTrend)}
                                                         </p>
                                                     </div>
                                                 </div>

@@ -440,7 +440,8 @@ export const calculateAIVirtualEconomy = (nation = {}, context = {}) => {
     }, 0);
     const maintenanceCost = totalBuildingCount * 0.08 + capitalBaseValue * 0.0009;
     const localValueAdded = Math.max(0, effectiveOutput - inputCost * 0.45 - maintenanceCost);
-    const profitOutflow = Math.max(0, localValueAdded * foreignShare * 0.18);
+    // 温和下调利润外流，给本地经济留更多再投资空间
+    const profitOutflow = Math.max(0, localValueAdded * foreignShare * 0.12);
     const treasuryIncome = Math.max(0, localValueAdded * (nation.vassalOf === 'player' ? 0.1 : 0.08));
 
     return {

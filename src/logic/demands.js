@@ -6,6 +6,7 @@
 import { STRATA } from '../config/strata';
 import { RESOURCES } from '../config';
 import { debugLog } from '../utils/debugFlags';
+import { trackDemandGenerate, trackDemandComplete, trackDemandFail } from '../analytics/gaTracker';
 
 // 获取资源的中文名称
 function getResourceName(resourceKey) {
@@ -446,11 +447,14 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         // [NEW] 满意度上限过低（由生活水平+官员负面效果决定）
         const effectiveCap = approvalBill.effectiveApprovalCap;
         if (effectiveCap != null && effectiveCap < 70 && approval < effectiveCap) {
+            const isCoalitionCap = approvalBill.isCoalition && approvalBill.coalitionCapPenalty > 0;
             sources.push({
                 type: 'lowApprovalCap',
                 icon: 'TrendingDown',
-                label: '满意度上限限制',
-                detail: `满意度被限制在 ${Number(effectiveCap).toFixed(0)}%（由生活水平+官员惩罚决定）`,
+                label: isCoalitionCap ? '执政联盟期望限制' : '满意度上限限制',
+                detail: isCoalitionCap
+                    ? `满意度被限制在 ${Number(effectiveCap).toFixed(0)}%（执政联盟成员想要更好的生活，提升生活水平可降低此惩罚）`
+                    : `满意度被限制在 ${Number(effectiveCap).toFixed(0)}%（由生活水平+官员惩罚决定）`,
                 contribution: Math.min(2.0, (70 - effectiveCap) / 20),
                 severity: effectiveCap < 50 ? 'danger' : 'warning',
             });
@@ -601,14 +605,26 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
 
         // Cap applied (living standard / official negative effects)
         if (approvalBill.capApplied != null) {
-            sources.push({
-                type: 'approvalCap',
-                icon: 'MinusCircle',
-                label: '满意度上限压制',
-                detail: `上限 ${Number(approvalBill.capApplied).toFixed(0)}%（生活水平/官员惩罚导致）`,
-                contribution: 1.0,
-                severity: 'warning',
-            });
+            // 执政联盟惩罚单独说明
+            if (approvalBill.isCoalition && approvalBill.coalitionCapPenalty > 0) {
+                sources.push({
+                    type: 'approvalCap',
+                    icon: 'MinusCircle',
+                    label: '执政联盟期望压制',
+                    detail: `上限 ${Number(approvalBill.capApplied).toFixed(0)}%（执政联盟成员想要更好的生活，生活水平越低期望差距越大）`,
+                    contribution: 1.0,
+                    severity: 'warning',
+                });
+            } else {
+                sources.push({
+                    type: 'approvalCap',
+                    icon: 'MinusCircle',
+                    label: '满意度上限压制',
+                    detail: `上限 ${Number(approvalBill.capApplied).toFixed(0)}%（生活水平/官员惩罚导致）`,
+                    contribution: 1.0,
+                    severity: 'warning',
+                });
+            }
         }
 
         // [REMOVED] lowTargetApproval 检测已移至上方的目标满意度差距分析部分（第448行）
@@ -753,6 +769,7 @@ export function generateDemands(stratumKey, context) {
         });
     }
 
+    demands.forEach(d => trackDemandGenerate(d.type, stratumKey));
     return demands;
 }
 
@@ -842,8 +859,10 @@ export function evaluateDemands(activeDemands, context) {
                 const result = checkDemandFulfillment(demand, context);
                 if (result.fulfilled) {
                     completed.push({ ...demand, result });
+                    trackDemandComplete(demand.type, currentDay - (demand.createdDay || 0));
                 } else {
                     failed.push({ ...demand, result });
+                    trackDemandFail(demand.type);
                 }
                 return;
             }
@@ -852,6 +871,7 @@ export function evaluateDemands(activeDemands, context) {
             const result = checkDemandFulfillment(demand, context);
             if (result.fulfilled) {
                 completed.push({ ...demand, result });
+                trackDemandComplete(demand.type, currentDay - (demand.createdDay || 0));
                 return;
             }
 

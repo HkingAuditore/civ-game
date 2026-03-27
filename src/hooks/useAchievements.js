@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { ACHIEVEMENTS, COUNTRIES, EVENTS, calculateArmyPopulation } from '../config';
+import { trackAchievement } from '../analytics/gaTracker';
 
 export const useAchievements = (gameState, { netSilverPerDay, tradeTax, taxes }) => {
     const baseEventIds = useMemo(() => new Set(EVENTS.map(event => event.id)), []);
@@ -500,9 +501,10 @@ export const useAchievements = (gameState, { netSilverPerDay, tradeTax, taxes })
             }
             if (met) {
                 gameState.unlockAchievement(achievement);
+                trackAchievement(achievement.id, gameState.daysElapsed);
             }
         });
-    }, [achievementStats, unlockedAchievementIds, gameState.unlockAchievement]);
+    }, [achievementStats, unlockedAchievementIds, gameState.unlockAchievement, gameState.daysElapsed]);
 
     return { achievementStats };
 };

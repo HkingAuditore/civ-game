@@ -29,6 +29,19 @@ npm run dev
 npm run build
 ```
 
+## 一键发布（Windows）
+
+仓库根目录提供 `release_oneclick.bat`，用于一键执行：
+
+- `release_oneclick.bat ota`：构建 Web、生成 OTA zip + updates.json 并部署到 COS
+- `release_oneclick.bat apk`：构建并打 Android release APK
+- `release_oneclick.bat all`：先 OTA 再 APK
+
+首次使用前：
+1. 编辑脚本顶部"用户配置区"，填写 `CDN_BASE_URL` 等参数
+2. 配置 `coscmd`（见 `docs/cos-ota-setup.md`）
+3. 更新 `capacitor.config.json` 中的 `updateUrl` 为实际 COS/CDN 地址
+
 ## 游戏说明
 
 详细的游戏指南请查看 `/ai_reports` 目录下的文档。

@@ -26,11 +26,11 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
 const STRATA_GROUPS = {
     upper: {
         name: '上流阶级',
-        keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer'],
+        keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer', 'scientist'],
     },
     middle: {
         name: '中产阶级',
-        keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator'],
+        keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator', 'technician'],
     },
     lower: {
         name: '下层阶级',

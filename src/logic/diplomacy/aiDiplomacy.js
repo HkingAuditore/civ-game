@@ -41,6 +41,8 @@ const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     return actual;
 };
 
+const getOrganizationMembers = (org) => (Array.isArray(org?.members) ? org.members : []);
+
 const syncNationTradeInventory = (nation, resourceKey, nextAmount) => {
     if (!nation || !resourceKey) return 0;
     const safeAmount = Math.max(0, Number(nextAmount || 0));
@@ -222,8 +224,9 @@ const getSharedOrganizationEffects = (organizationState, nationId, partnerId) =>
 
     return organizations.reduce(
         (acc, org) => {
-            if (!org || !Array.isArray(org.members)) return acc;
-            if (!org.members.includes(nationId) || !org.members.includes(partnerId)) return acc;
+            if (!org) return acc;
+            const members = getOrganizationMembers(org);
+            if (!members.includes(nationId) || !members.includes(partnerId)) return acc;
             const effects = ORGANIZATION_EFFECTS[org.type] || {};
             return {
                 tariffDiscount: Math.max(acc.tariffDiscount, effects.tariffDiscount || 0),
@@ -783,7 +786,7 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
 
         // ===== 成员资格检查 =====
         // Check if already in an economic bloc
-        const myBloc = existingOrgs.find(org => org.type === 'economic_bloc' && org.members.includes(nation.id));
+        const myBloc = existingOrgs.find(org => org.type === 'economic_bloc' && getOrganizationMembers(org).includes(nation.id));
         // 如果已经加入了经济共同体，就不能再创建新的经济共同体
         if (myBloc) return;
 
@@ -814,11 +817,11 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
         const partner = potentialPartners[Math.floor(Math.random() * potentialPartners.length)];
 
         // Check if partner is in a bloc
-        const partnerBloc = existingOrgs.find(org => org.type === 'economic_bloc' && org.members.includes(partner.id));
+        const partnerBloc = existingOrgs.find(org => org.type === 'economic_bloc' && getOrganizationMembers(org).includes(partner.id));
 
         if (partnerBloc) {
             // Join existing bloc
-            const members = partnerBloc.members.map(mid => visibleNations.find(n => n.id === mid)).filter(n => n);
+            const members = getOrganizationMembers(partnerBloc).map(mid => visibleNations.find(n => n.id === mid)).filter(n => n);
             const approval = members.every(member => (member.foreignRelations?.[nation.id] ?? 50) >= 50);
 
             if (approval) {
@@ -1051,7 +1054,7 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
         // ===== 成员资格检查 =====
         // Check if nation is already in a military alliance
         const myAlliance = existingOrgs.find(org =>
-            org.type === 'military_alliance' && org.members.includes(nation.id)
+            org.type === 'military_alliance' && getOrganizationMembers(org).includes(nation.id)
         );
 
         // 如果已经加入了军事同盟，就不能再创建新的军事同盟
@@ -1087,13 +1090,13 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
 
         // Check if ally is in an alliance
         const allyAlliance = existingOrgs.find(org =>
-            org.type === 'military_alliance' && org.members.includes(ally.id)
+            org.type === 'military_alliance' && getOrganizationMembers(org).includes(ally.id)
         );
 
         if (allyAlliance) {
             // Request to join ally's alliance
             // Check if existing members like me
-            const members = allyAlliance.members.map(mid => visibleNations.find(n => n.id === mid)).filter(n => n);
+            const members = getOrganizationMembers(allyAlliance).map(mid => visibleNations.find(n => n.id === mid)).filter(n => n);
             const approval = members.every(member => {
                 const rel = member.foreignRelations?.[nation.id] ?? 50;
                 return rel >= 60;
@@ -1226,13 +1229,14 @@ export const processAIOrganizationRecruitment = (visibleNations, tick, logs, dip
         if (!org || org.isActive === false) return;
         if (!['military_alliance', 'economic_bloc'].includes(org.type)) return;
         if (!isDiplomacyUnlocked('organizations', org.type, epoch)) return;
+        const orgMembers = getOrganizationMembers(org);
 
         const maxMembers = getOrganizationMaxMembers(org.type, epoch);
-        if (org.members?.length >= maxMembers) return;
+        if (orgMembers.length >= maxMembers) return;
 
         const candidates = visibleNations.filter(candidate => {
             if (!candidate || candidate.isRebelNation) return false;
-            if (org.members.includes(candidate.id)) return false;
+            if (orgMembers.includes(candidate.id)) return false;
             const diplomacyCheck = canVassalPerformDiplomacy(candidate, 'alliance');
             if (!diplomacyCheck.allowed && !requiresVassalDiplomacyApproval(candidate)) return false;
             return true;
@@ -1246,7 +1250,7 @@ export const processAIOrganizationRecruitment = (visibleNations, tick, logs, dip
             let count = 0;
             let minRel = 100;
 
-            for (const memberId of org.members || []) {
+            for (const memberId of orgMembers) {
                 if (memberId === 'player') continue;
                 const member = nationMap.get(memberId);
                 if (!member) continue;
@@ -1312,9 +1316,10 @@ export const processAIOrganizationMaintenance = (visibleNations, tick, logs, dip
         if (!org || org.isActive === false) return;
         if (!['military_alliance', 'economic_bloc'].includes(org.type)) return;
         if (!isDiplomacyUnlocked('organizations', org.type, epoch)) return;
+        const orgMembers = getOrganizationMembers(org);
 
         const threshold = org.type === 'military_alliance' ? 40 : 35;
-        for (const memberId of org.members || []) {
+        for (const memberId of orgMembers) {
             if (memberId === 'player') continue;
             const member = nationMap.get(memberId);
             if (!member) continue;
@@ -1323,7 +1328,7 @@ export const processAIOrganizationMaintenance = (visibleNations, tick, logs, dip
             let count = 0;
             let hasWarWithMember = false;
 
-            for (const otherId of org.members || []) {
+            for (const otherId of orgMembers) {
                 if (otherId === memberId) continue;
                 if (otherId === 'player') {
                     sum += member.relation ?? 50;
@@ -1385,19 +1390,23 @@ export const processAIOrganizationInvitesToPlayer = (visibleNations, tick, logs,
         const inviteCooldown = 360;
         if ((tick - lastInviteDay) < inviteCooldown) return;
 
-        const myOrgs = organizations.filter(org =>
+        const myOrgs = organizations.filter(org => {
+            const members = getOrganizationMembers(org);
+            return (
             org?.isActive !== false &&
             ['military_alliance', 'economic_bloc'].includes(org.type) &&
-            org.members?.includes(nation.id) &&
-            !org.members?.includes('player')
-        );
+            members.includes(nation.id) &&
+            !members.includes('player')
+            );
+        });
         if (myOrgs.length === 0) return;
 
         const org = myOrgs.find(entry => isDiplomacyUnlocked('organizations', entry.type, epoch));
         if (!org) return;
+        const members = getOrganizationMembers(org);
 
         const maxMembers = getOrganizationMaxMembers(org.type, epoch);
-        if (org.members?.length >= maxMembers) return;
+        if (members.length >= maxMembers) return;
 
         const inviteChance = 0.001 + Math.max(0, (relation - 60) / 50000);
         if (Math.random() > inviteChance) return;
@@ -1431,8 +1440,8 @@ export const checkAIBreakAlliance = (nation, logs, diplomacyOrganizations) => {
 
     const alliancesWithPlayer = (diplomacyOrganizations.organizations || []).filter(org =>
         org.type === 'military_alliance' &&
-        org.members.includes(nation.id) &&
-        org.members.includes('player')
+        getOrganizationMembers(org).includes(nation.id) &&
+        getOrganizationMembers(org).includes('player')
     );
 
     if (alliancesWithPlayer.length === 0) return null;
