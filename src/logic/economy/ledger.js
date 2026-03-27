@@ -139,11 +139,14 @@ export class EconomyLedger {
     }
 
     _add(entity, amount, reason, metadata = {}) {
+        if (!Number.isFinite(amount)) return;
+        const CAP = 1e15;
         if (entity === 'state') {
-            this.resources.silver = (this.resources.silver || 0) + amount;
+            const clamped = Math.max(-CAP, Math.min(CAP, amount));
+            const newVal = (this.resources.silver || 0) + clamped;
+            this.resources.silver = Math.max(-CAP, Math.min(CAP, newVal));
         } else {
             this.wealth[entity] = this.safeWealth((this.wealth[entity] || 0) + amount);
-            // Track the wealth change
             this._trackClassWealthChange(entity, amount, reason);
         }
     }

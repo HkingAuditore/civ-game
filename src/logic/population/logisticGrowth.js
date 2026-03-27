@@ -228,7 +228,7 @@ export const calculateAINationCapacity = ({
 
     // Stronger AI nations can get closer to the upper bound, but not ignore domestic scale.
     const developmentModifier = 0.8 + developmentRate * 0.25;
-    const epochModifier = 1 + epoch * 0.12;
+    const epochModifier = 1 + epoch * 0.25 + Math.pow(epoch, 1.5) * 0.03;
 
     // Resource availability modifier (based on food stock)
     const foodStock = inventory.food || 0;

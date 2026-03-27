@@ -29,6 +29,8 @@ export function useSimulationWorker() {
     const [isUsingWorker, setIsUsingWorker] = useState(false);
     const [workerError, setWorkerError] = useState(null);
     const isInitializedRef = useRef(false);
+    const lastExecTimeRef = useRef(1000);
+    const sendTimeRef = useRef(0);
 
     // Initialize worker on mount
     useEffect(() => {
@@ -50,6 +52,9 @@ export function useSimulationWorker() {
                         break;
                         
                     case 'RESULT':
+                        if (sendTimeRef.current > 0) {
+                            lastExecTimeRef.current = Math.max(500, Date.now() - sendTimeRef.current);
+                        }
                         if (pendingResolveRef.current) {
                             pendingResolveRef.current(payload);
                             pendingResolveRef.current = null;
@@ -143,10 +148,10 @@ export function useSimulationWorker() {
                 pendingResolveRef.current = resolve;
                 pendingRejectRef.current = reject;
                 
-                // Set a timeout for worker response
+                const adaptiveTimeout = Math.min(15000, Math.max(3000, lastExecTimeRef.current * 3));
                 const timeout = setTimeout(() => {
                     if (pendingResolveRef.current) {
-                        console.warn('[SimulationWorker] Worker timeout, falling back to main thread');
+                        console.warn(`[SimulationWorker] Worker timeout (${adaptiveTimeout}ms), falling back to main thread`);
                         pendingResolveRef.current = null;
                         pendingRejectRef.current = null;
                         if (pendingLatestRef.current) {
@@ -154,7 +159,6 @@ export function useSimulationWorker() {
                             pendingLatestRef.current = null;
                         }
                         
-                        // Fall back to main thread
                         try {
                             const result = simulateTick(gameState);
                             resolve(result);
@@ -162,15 +166,15 @@ export function useSimulationWorker() {
                             reject(error);
                         }
                     }
-                }, 5000); // 5 second timeout
+                }, adaptiveTimeout);
                 
                 try {
+                    sendTimeRef.current = Date.now();
                     workerRef.current.postMessage({
                         type: 'SIMULATE',
                         payload: gameState
                     });
                 } catch (error) {
-                    // If postMessage fails (e.g., non-cloneable data), fall back
                     clearTimeout(timeout);
                     pendingResolveRef.current = null;
                     pendingRejectRef.current = null;

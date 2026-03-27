@@ -403,7 +403,7 @@ export const VASSAL_TYPE_CONFIGS = {
     vassal: {
         name: '附庸国',
         minEra: 3,
-        minRelation: 50,
+        minRelation: 70,
         tributeRate: 0.10,
         exploitationFactor: 1.0,
         tariffDiscount: 0.5,
@@ -421,10 +421,10 @@ export const VASSAL_TYPE_CONFIGS = {
         }
     },
     // Backwards compatibility keys mapped to same config
-    protectorate: { name: '附庸国', minEra: 3, minRelation: 50 },
-    tributary: { name: '附庸国', minEra: 3, minRelation: 50 },
-    puppet: { name: '附庸国', minEra: 3, minRelation: 50 },
-    colony: { name: '附庸国', minEra: 3, minRelation: 50 },
+    protectorate: { name: '附庸国', minEra: 3, minRelation: 70 },
+    tributary: { name: '附庸国', minEra: 3, minRelation: 70 },
+    puppet: { name: '附庸国', minEra: 3, minRelation: 70 },
+    colony: { name: '附庸国', minEra: 3, minRelation: 70 },
 };
 
 export const VASSAL_TYPE_LABELS = {
@@ -495,7 +495,7 @@ export const calculateTribute = (vassalNation) => {
 export const VASSAL_TRANSITION_REQUIREMENTS = {
     // 建立附庸关系的要求
     fromSovereign: {
-        vassal: { minRelation: 50, militaryRatio: 0.5, warScore: 50 },
+        vassal: { minRelation: 70, militaryRatio: 0.5, warScore: 50 },
     },
     // Backwards compatibility
     upgrade: {},

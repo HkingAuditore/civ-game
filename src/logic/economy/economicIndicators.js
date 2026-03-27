@@ -294,10 +294,11 @@ export function calculateGDP({
   console.log('✅ Net Exports Result:', { exports, imports, netExports });
   console.groupEnd();
   
-  // GDP总计
-  const total = consumption + investment + government + netExports;
+  const GDP_COMPONENT_CAP = 1e12;
+  const clampGDP = v => Math.max(-GDP_COMPONENT_CAP, Math.min(GDP_COMPONENT_CAP, Number.isFinite(v) ? v : 0));
+
+  const total = clampGDP(consumption) + clampGDP(investment) + clampGDP(government) + clampGDP(netExports);
   
-  // 增长率计算
   const change = previousGDP > 0 
     ? ((total - previousGDP) / previousGDP) * 100 
     : 0;

@@ -19,8 +19,8 @@
  * Base intrinsic growth rates (per 10 ticks)
  */
 export const GROWTH_RATES = {
-  // Base growth rate for AI nations (2% per 10 ticks)
-  AI_BASE: 0.02,
+  // Base growth rate for AI nations (3.5% per 10 ticks)
+  AI_BASE: 0.035,
   
   // Base growth rate for player nations (can be different if needed)
   PLAYER_BASE: 0.02,

@@ -654,14 +654,18 @@ export const simulateTick = ({
         // Actually trackSilverChange is defined below. We will call it there.
     }
 
+    const SAFE_VALUE_CAP = 1e15;
+
     // Helper: modify res[resourceType] AND track the change in one call (for traceability)
     const applyResourceChange = (resourceType, amount, reason) => {
         if (amount === 0) return;
-        res[resourceType] = (res[resourceType] || 0) + amount;
-        trackResourceChange(resourceType, amount, reason);
-        // Also track silver changes in the dedicated log for financial reporting
+        if (!Number.isFinite(amount)) return;
+        const clamped = Math.max(-SAFE_VALUE_CAP, Math.min(SAFE_VALUE_CAP, amount));
+        const newVal = (res[resourceType] || 0) + clamped;
+        res[resourceType] = Math.max(-SAFE_VALUE_CAP, Math.min(SAFE_VALUE_CAP, newVal));
+        trackResourceChange(resourceType, clamped, reason);
         if (resourceType === 'silver') {
-            trackSilverChange(amount, reason);
+            trackSilverChange(clamped, reason);
         }
     };
 
@@ -7231,6 +7235,14 @@ export const simulateTick = ({
                         priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0?
                     }
 
+                    // 时代过渡缓冲：当前时代刚解锁的资源，库存积累期内限制价格上涨
+                    const resUnlockEpoch = resourceDef?.unlockEpoch || 0;
+                    if (resUnlockEpoch === epoch && resUnlockEpoch > 0 && inventoryRatio < 0.8) {
+                        const rampUp = Math.max(0, inventoryRatio / 0.8);
+                        const maxAllowed = 2.0 + (10.0 - 2.0) * rampUp;
+                        priceMultiplier = Math.min(priceMultiplier, maxAllowed);
+                    }
+
                     // 2. 获取基础价格（市场认可的合理价格?
                     const basePrice = getBasePrice(resource);
 
@@ -8295,11 +8307,12 @@ export const simulateTick = ({
     taxBreakdown.policyExpense = decreeSilverExpense;
 
     // 8. Virtual tax income from ideologies (phantom silver, not taken from any stratum)
-    const virtualTaxRate = bonuses.virtualTaxIncome || 0;
+    const virtualTaxRate = Math.min(bonuses.virtualTaxIncome || 0, 0.5);
     let virtualTaxIncome = 0;
     if (virtualTaxRate > 0 && totalCollectedTax > 0) {
-        // Virtual tax = percentage of actual collected tax, as phantom extra income
         virtualTaxIncome = totalCollectedTax * virtualTaxRate;
+        const virtualTaxCap = Math.max(10000, (res.silver || 0) * 0.02);
+        virtualTaxIncome = Math.min(virtualTaxIncome, virtualTaxCap);
         applySilverChange(virtualTaxIncome, 'income_ideology_virtual_tax');
         rates.silver = (rates.silver || 0) + virtualTaxIncome;
     }

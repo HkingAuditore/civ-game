@@ -314,8 +314,8 @@ const decodeSavePayload = (encoded) => {
 };
 
 const INITIAL_RESOURCES = {
-    food: 200,
-    wood: 200,
+    food: 300,
+    wood: 300,
     stone: 200,
     cloth: 80,
     plank: 0,
@@ -328,7 +328,7 @@ const INITIAL_RESOURCES = {
     coffee: 0,
     coal: 0,
     steel: 0,
-    silver: 400,
+    silver: 600,
     science: 0,
     culture: 300
 };

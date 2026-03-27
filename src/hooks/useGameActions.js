@@ -1313,8 +1313,17 @@ export const useGameActions = (gameState, addLog) => {
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
+        // 时代升级时为新解锁的资源补充少量初始库存，缓解过渡期通胀
+        const newEpochIndex = epoch + 1;
+        Object.entries(RESOURCES).forEach(([key, def]) => {
+            if (def.unlockEpoch === newEpochIndex && !newRes[key]) {
+                const seedAmount = (def.basePrice || 1) * 50;
+                newRes[key] = seedAmount;
+            }
+        });
+
         setResourcesWithReason(newRes, 'upgrade_epoch');
-        setEpoch(epoch + 1);
+        setEpoch(newEpochIndex);
         addLog(`🎉 文明进入 ${nextEpoch.name}！`);
 
         // Ideology event: epoch advance
@@ -2300,12 +2309,20 @@ export const useGameActions = (gameState, addLog) => {
 
         // 应用组织度增加
         if (result.effects?.organizationChange) {
-            setClassOrganization(prev => {
-                const updated = { ...prev };
+            setRebellionStates(prev => {
+                const newStates = { ...prev };
                 Object.entries(result.effects.organizationChange).forEach(([stratum, change]) => {
-                    updated[stratum] = Math.max(0, (updated[stratum] || 0) + change);
+                    const currentState = newStates[stratum] || {};
+                    const nextValue = Math.max(0, Math.min(100, (currentState.organization || 0) + change));
+                    const stage = getOrganizationStage(nextValue);
+                    newStates[stratum] = {
+                        ...currentState,
+                        organization: nextValue,
+                        stage,
+                        phase: getPhaseFromStage(stage),
+                    };
                 });
-                return updated;
+                return newStates;
             });
         }
 
@@ -2822,6 +2839,7 @@ export const useGameActions = (gameState, addLog) => {
             epoch: enemyEpoch,
             militaryBuffs: mission.enemyBuff || 0,
             wealth: targetNation.wealth || 500,
+            isHomeDefense: true,
         };
 
         const result = simulateBattle(attackerData, defenderData);
@@ -5511,10 +5529,12 @@ export const useGameActions = (gameState, addLog) => {
                         }
                         const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
                         const warScore = targetNation.warScore || 0;
+                        const vassalCount = (nations || []).filter(n => n.vassalOf === 'player').length;
                         const { canEstablish, reason } = canEstablishVassal(targetNation, vassalType, {
                             epoch,
                             playerMilitary: Math.max(0.5, playerMilitary),
                             warScore: Math.abs(warScore),
+                            vassalCount,
                         });
 
                         if (!canEstablish) {
