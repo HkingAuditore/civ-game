@@ -90,6 +90,8 @@ export const GA_EVENTS = {
     // ── 理念 ──
     IDEOLOGY_EQUIP: 'Ideology:Equip',
     IDEOLOGY_UNEQUIP: 'Ideology:Unequip',
+    IDEOLOGY_EMERGENCE_SELECT: 'Ideology:EmergenceSelect',
+    IDEOLOGY_EMERGENCE_SKIP: 'Ideology:EmergenceSkip',
 
     // ── 成就 ──
     ACHIEVEMENT_UNLOCK: 'Achievement:Unlock',

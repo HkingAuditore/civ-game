@@ -81,8 +81,14 @@ import { selectIdeology } from './logic/ideology/ideologyEmergence';
 import { getEmergenceThreshold } from './logic/ideology/ideologyScoring';
 import { IDEOLOGY_MAP } from './config/ideologies';
 import { initGA, setDimensions } from './analytics/gaInit';
-import { installGlobalErrorHandlers, setAnalyticsContextGetter, trackProgressionStart } from './analytics/gaTracker';
-import { initCustomBackend } from './analytics/customBackend';
+import {
+    installGlobalErrorHandlers,
+    setAnalyticsContextGetter,
+    trackIdeologyEmergenceSelect,
+    trackIdeologyEmergenceSkip,
+    trackProgressionStart,
+} from './analytics/gaTracker';
+import { initCustomBackend, updateDimensions } from './analytics/customBackend';
 
 const EPOCH_DIMENSIONS = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
 
@@ -238,7 +244,10 @@ function GameApp({ gameState }) {
     // GameAnalytics 初始化
     useEffect(() => {
         initGA();
-        initCustomBackend();
+        initCustomBackend({
+            difficulty: gameState.difficulty || 'easy',
+            scenario: 'freeplay',
+        });
         installGlobalErrorHandlers();
         setDimensions({
             difficulty: gameState.difficulty || 'easy',
@@ -247,6 +256,13 @@ function GameApp({ gameState }) {
         });
         trackProgressionStart(gameState.epoch || 0);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        updateDimensions({
+            difficulty: gameState.difficulty || 'easy',
+            scenario: 'freeplay',
+        });
+    }, [gameState.difficulty]);
 
     useEffect(() => {
         const playerNation = (gameState.nations || []).find((nation) => nation?.isPlayer);
@@ -2564,6 +2580,7 @@ function GameApp({ gameState }) {
                     gameState.setLastEmergenceWasSkipped(true);
                     // 消耗分数（跳过也消耗，避免无限刷新）
                     const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
+                    trackIdeologyEmergenceSkip(threshold);
                     gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
                     // 清除涌现事件并恢复游戏
                     gameState.setPendingIdeologyEmergence(null);
@@ -2580,6 +2597,7 @@ function GameApp({ gameState }) {
                     gameState.setIdeologyCollection(result.updatedCollection);
                     // 消耗分数
                     const threshold = getEmergenceThreshold((gameState.ideologyCollection || []).length);
+                    trackIdeologyEmergenceSelect(ideologyId, threshold);
                     gameState.setIdeologyScoreSpent((gameState.ideologyScoreSpent || 0) + threshold);
                     // 选择后立即重置稀有度加成（连续跳过链断开）
                     gameState.setIdeologyEmergenceRarityBonus(0);

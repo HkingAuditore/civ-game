@@ -36,16 +36,28 @@ const buffer = {
 let flushTimer = null;
 let enabled = false;
 let sessionEnded = false;
+const sessionDimensions = {
+    difficulty: null,
+    scenario: null,
+};
+
+function normalizeDimensionValue(value) {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.slice(0, 64) : null;
+}
 
 // ── 初始化 ──
 
-export function initCustomBackend() {
+export function initCustomBackend({ difficulty = null, scenario = null } = {}) {
     if (!API_URL) {
         console.warn('[Analytics] No VITE_ANALYTICS_API_URL configured, custom backend disabled');
         return;
     }
     console.log('[Analytics] Custom backend init →', API_URL);
     enabled = true;
+    sessionDimensions.difficulty = normalizeDimensionValue(difficulty);
+    sessionDimensions.scenario = normalizeDimensionValue(scenario);
 
     const userId = getOrCreateUserId();
 
@@ -53,15 +65,19 @@ export function initCustomBackend() {
         userId,
         sessionId,
         appVersion: __APP_VERSION__,
-        difficulty: null,
-        scenario: null,
+        difficulty: sessionDimensions.difficulty,
+        scenario: sessionDimensions.scenario,
         userAgent: navigator.userAgent,
     });
 
     flushTimer = setInterval(flush, FLUSH_INTERVAL_MS);
 
     setInterval(() => {
-        sendJSON(`${API_URL}/api/session/heartbeat`, { sessionId });
+        sendJSON(`${API_URL}/api/session/heartbeat`, {
+            sessionId,
+            difficulty: sessionDimensions.difficulty,
+            scenario: sessionDimensions.scenario,
+        });
     }, 60_000);
 
     window.addEventListener('visibilitychange', () => {
@@ -182,8 +198,19 @@ function sendJSON(url, data) {
 // ── 更新维度 ──
 
 export function updateDimensions({ difficulty, scenario } = {}) {
-    // 维度信息通过 session 更新，不额外发请求
-    // 后续的 design event 会通过 extra.epoch 携带时代信息
-    void difficulty;
-    void scenario;
+    if (difficulty !== undefined) {
+        sessionDimensions.difficulty = normalizeDimensionValue(difficulty);
+    }
+    if (scenario !== undefined) {
+        sessionDimensions.scenario = normalizeDimensionValue(scenario);
+    }
+
+    if (!enabled || sessionEnded) return;
+
+    // 维度变化后立即同步一次，避免仅依赖心跳造成延迟
+    sendJSON(`${API_URL}/api/session/heartbeat`, {
+        sessionId,
+        difficulty: sessionDimensions.difficulty,
+        scenario: sessionDimensions.scenario,
+    });
 }

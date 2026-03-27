@@ -9,6 +9,7 @@ import { IDEOLOGY_MAP, IDEOLOGIES } from '../../config/ideologies';
 import { IDEOLOGY_SYNERGIES, ANTI_SYNERGIES } from '../../config/ideologySynergies';
 import { getEmergenceThreshold } from '../../logic/ideology/ideologyScoring';
 import { getMaxSlots, equipIdeology, unequipIdeology, resolveEquippedIdeologies } from '../../logic/ideology/ideologySlots';
+import { trackIdeologyEquip, trackIdeologyUnequip } from '../../analytics/gaTracker';
 import { IdeologyCard } from './IdeologyCard';
 import { IdeologyDetailSheet } from './IdeologyDetailSheet';
 import { useDevicePerformance } from '../../hooks';
@@ -291,6 +292,7 @@ const IdeologyTabComponent = ({
         });
         if (result.success && result.updatedState) {
             setEquippedIdeologies?.(result.updatedState.equippedIdeologies);
+            trackIdeologyEquip(ideologyId);
         }
     }, [equippedIdeologies, ideologyCollection, ideologyCooldowns, maxSlots, setEquippedIdeologies]);
 
@@ -303,6 +305,7 @@ const IdeologyTabComponent = ({
         if (result.success && result.updatedState) {
             setEquippedIdeologies?.(result.updatedState.equippedIdeologies);
             setIdeologyCooldowns?.(result.updatedState.ideologyCooldowns);
+            trackIdeologyUnequip(ideologyId);
         }
     }, [equippedIdeologies, ideologyCooldowns, setEquippedIdeologies, setIdeologyCooldowns]);
 

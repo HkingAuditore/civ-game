@@ -381,6 +381,12 @@ export function trackIdeologyEquip(ideologyId) {
 export function trackIdeologyUnequip(ideologyId) {
     trackDesign(`${GA_EVENTS.IDEOLOGY_UNEQUIP}:${ideologyId}`);
 }
+export function trackIdeologyEmergenceSelect(ideologyId, scoreCost) {
+    trackDesign(`${GA_EVENTS.IDEOLOGY_EMERGENCE_SELECT}:${ideologyId}`, scoreCost);
+}
+export function trackIdeologyEmergenceSkip(scoreCost) {
+    trackDesign(GA_EVENTS.IDEOLOGY_EMERGENCE_SKIP, scoreCost);
+}
 
 // ── 成就 ──
 
