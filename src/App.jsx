@@ -6,7 +6,7 @@ import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculat
 import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
 import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
-import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS, useOtaUpdate } from './hooks';
 import { useStoreSync } from './stores/useStoreSync';
 import { useTutorialSystem } from './hooks/useTutorialSystem';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
@@ -211,6 +211,9 @@ function GameApp({ gameState }) {
 
     // 将 gameState 同步到 Zustand stores（渐进迁移桥接层）
     useStoreSync(gameState);
+
+    // OTA 热更新（仅原生平台生效）
+    useOtaUpdate();
 
     // 添加日志函数 - memoized to prevent unnecessary re-renders
     const addLog = useCallback((msg) => {

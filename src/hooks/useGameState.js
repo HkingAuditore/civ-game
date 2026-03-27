@@ -32,6 +32,9 @@ const EXTERNAL_SAVE_FLAG = '__externalSave';
 const EXTERNAL_SAVE_STORAGE = 'indexeddb';
 const SAVE_IDB_NAME = 'civ_game_save_db_v1';
 const SAVE_IDB_STORE = 'saves';
+const MAX_LOADED_MILITARY_CORPS = 800;
+const MAX_LOADED_GENERALS = 1200;
+const FAST_LOAD_MILITARY_ENTITY_THRESHOLD = 260;
 
 // 兼容旧存档的 key（用于迁移）
 const LEGACY_SAVE_KEY = 'civ_game_save_data_v1';
@@ -39,53 +42,130 @@ const ACHIEVEMENT_STORAGE_KEY = 'civ_game_achievements_v1';
 const ACHIEVEMENT_PROGRESS_KEY = 'civ_game_achievement_progress_v1';
 
 const hasIndexedDb = () => typeof indexedDB !== 'undefined';
+const IDB_OPEN_TIMEOUT_MS = 8000;
+const IDB_REQUEST_TIMEOUT_MS = 10000;
 
 const openSaveDb = () => new Promise((resolve, reject) => {
     if (!hasIndexedDb()) {
         reject(new Error('IndexedDB not available'));
         return;
     }
-    const request = indexedDB.open(SAVE_IDB_NAME, 1);
+
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('IndexedDB open timeout'));
+    }, IDB_OPEN_TIMEOUT_MS);
+
+    const settle = (handler) => (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        handler(value);
+    };
+
+    let request;
+    try {
+        request = indexedDB.open(SAVE_IDB_NAME, 1);
+    } catch (error) {
+        clearTimeout(timeoutId);
+        reject(error);
+        return;
+    }
+
     request.onupgradeneeded = (event) => {
         const db = event.target.result;
         if (!db.objectStoreNames.contains(SAVE_IDB_STORE)) {
             db.createObjectStore(SAVE_IDB_STORE);
         }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('Failed to open IndexedDB'));
+    request.onsuccess = settle(() => resolve(request.result));
+    request.onerror = settle(() => reject(request.error || new Error('Failed to open IndexedDB')));
+    request.onblocked = settle(() => reject(new Error('IndexedDB open blocked')));
 });
 
 const readSaveFromIndexedDb = async (key) => {
     const db = await openSaveDb();
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(SAVE_IDB_STORE, 'readonly');
-        const store = tx.objectStore(SAVE_IDB_STORE);
-        const request = store.get(key);
-        request.onsuccess = () => resolve(request.result || null);
-        request.onerror = () => reject(request.error || new Error('Failed to read save'));
+        let settled = false;
+        const timeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error('IndexedDB read timeout'));
+        }, IDB_REQUEST_TIMEOUT_MS);
+        const settle = (handler) => () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            handler();
+        };
+        try {
+            const tx = db.transaction(SAVE_IDB_STORE, 'readonly');
+            const store = tx.objectStore(SAVE_IDB_STORE);
+            const request = store.get(key);
+            request.onsuccess = settle(() => resolve(request.result || null));
+            request.onerror = settle(() => reject(request.error || new Error('Failed to read save')));
+            tx.onabort = settle(() => reject(tx.error || new Error('IndexedDB read aborted')));
+        } catch (error) {
+            settle(() => reject(error))();
+        }
     });
 };
 
 const writeSaveToIndexedDb = async (key, value) => {
     const db = await openSaveDb();
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(SAVE_IDB_STORE, 'readwrite');
-        const store = tx.objectStore(SAVE_IDB_STORE);
-        const request = store.put(value, key);
-        request.onsuccess = () => resolve(true);
-        request.onerror = () => reject(request.error || new Error('Failed to write save'));
+        let settled = false;
+        const timeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error('IndexedDB write timeout'));
+        }, IDB_REQUEST_TIMEOUT_MS);
+        const settle = (handler) => () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            handler();
+        };
+        try {
+            const tx = db.transaction(SAVE_IDB_STORE, 'readwrite');
+            const store = tx.objectStore(SAVE_IDB_STORE);
+            const request = store.put(value, key);
+            request.onsuccess = settle(() => resolve(true));
+            request.onerror = settle(() => reject(request.error || new Error('Failed to write save')));
+            tx.onabort = settle(() => reject(tx.error || new Error('IndexedDB write aborted')));
+        } catch (error) {
+            settle(() => reject(error))();
+        }
     });
 };
 
 const removeSaveFromIndexedDb = async (key) => {
     const db = await openSaveDb();
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(SAVE_IDB_STORE, 'readwrite');
-        const store = tx.objectStore(SAVE_IDB_STORE);
-        const request = store.delete(key);
-        request.onsuccess = () => resolve(true);
-        request.onerror = () => reject(request.error || new Error('Failed to delete save'));
+        let settled = false;
+        const timeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error('IndexedDB delete timeout'));
+        }, IDB_REQUEST_TIMEOUT_MS);
+        const settle = (handler) => () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            handler();
+        };
+        try {
+            const tx = db.transaction(SAVE_IDB_STORE, 'readwrite');
+            const store = tx.objectStore(SAVE_IDB_STORE);
+            const request = store.delete(key);
+            request.onsuccess = settle(() => resolve(true));
+            request.onerror = settle(() => reject(request.error || new Error('Failed to delete save')));
+            tx.onabort = settle(() => reject(tx.error || new Error('IndexedDB delete aborted')));
+        } catch (error) {
+            settle(() => reject(error))();
+        }
     });
 };
 
@@ -2357,189 +2437,213 @@ export const useGameState = () => {
         setArmy(data.army || {});
         setMilitaryQueue(data.militaryQueue || []);
         setCorpsReplenishQueue(data.corpsReplenishQueue || {});
-        let loadedMilitaryCorps = (data.militaryCorps || [])
+        const rawMilitaryCorps = Array.isArray(data.militaryCorps) ? data.militaryCorps : [];
+        if (rawMilitaryCorps.length > MAX_LOADED_MILITARY_CORPS) {
+            console.warn(`[Save Migration] militaryCorps too large (${rawMilitaryCorps.length}), truncating to ${MAX_LOADED_MILITARY_CORPS}.`);
+        }
+        let loadedMilitaryCorps = rawMilitaryCorps
+            .slice(0, MAX_LOADED_MILITARY_CORPS)
             .filter(Boolean)
             .filter((corps) => getLoadedCorpsTotalUnits(corps) > 0);
-        let loadedGenerals = (data.generals || []).filter(Boolean);
-        const loadedFronts = (data.activeFronts || []).map(front => ensureFrontDefaults(front));
-        const playerWarNations = (migratedNations || []).filter(n => n?.isAtWar === true && !n?.isRebelNation);
-        const existingActiveEnemyIds = new Set(
-            loadedFronts
-                .filter(front => front.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player'))
-                .map(front => (front.attackerId === 'player' ? front.defenderId : front.attackerId))
-        );
-        const playerEco = {
-            resources: data.resources || {},
-            buildings: data.buildings || {},
-            population: loadedPopulation || data.population || 0,
-            wealth: data.resources?.silver || 0,
-        };
-        const rebuiltFronts = playerWarNations
-            .filter(nation => !existingActiveEnemyIds.has(nation.id))
-            .map(nation => {
-                const enemyEco = {
-                    resources: {},
-                    buildings: {},
-                    population: nation.population || nation.militaryPower || 200,
-                    wealth: nation.wealth || 500,
-                };
-                const front = generateFront(nation.id, 'player', data.epoch ?? 0, enemyEco, playerEco);
-                front.createdDay = data.daysElapsed || 0;
-                front.startDay = data.daysElapsed || 0;
+        const rawGenerals = Array.isArray(data.generals) ? data.generals : [];
+        if (rawGenerals.length > MAX_LOADED_GENERALS) {
+            console.warn(`[Save Migration] generals too large (${rawGenerals.length}), truncating to ${MAX_LOADED_GENERALS}.`);
+        }
+        let loadedGenerals = rawGenerals.slice(0, MAX_LOADED_GENERALS).filter(Boolean);
+        const shouldUseFastMilitaryLoad = (loadedMilitaryCorps.length + loadedGenerals.length) > FAST_LOAD_MILITARY_ENTITY_THRESHOLD;
+        if (shouldUseFastMilitaryLoad) {
+            console.warn(`[Save Migration] Large military payload detected (corps=${loadedMilitaryCorps.length}, generals=${loadedGenerals.length}), using fast-load path.`);
+            loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => ({
+                ...corps,
+                generalId: null,
+                assignedFrontId: null,
+                status: 'idle',
+            }));
+            setMilitaryCorps(loadedMilitaryCorps);
+            setGenerals(loadedGenerals);
+            setActiveFronts([]);
+            setActiveBattles([]);
+            setPendingRepairs(data.pendingRepairs || []);
+        } else {
+            const loadedFronts = (data.activeFronts || []).map(front => ensureFrontDefaults(front));
+            const playerWarNations = (migratedNations || []).filter(n => n?.isAtWar === true && !n?.isRebelNation);
+            const existingActiveEnemyIds = new Set(
+                loadedFronts
+                    .filter(front => front.status === 'active' && (front.attackerId === 'player' || front.defenderId === 'player'))
+                    .map(front => (front.attackerId === 'player' ? front.defenderId : front.attackerId))
+            );
+            const playerEco = {
+                resources: data.resources || {},
+                buildings: data.buildings || {},
+                population: loadedPopulation || data.population || 0,
+                wealth: data.resources?.silver || 0,
+            };
+            const rebuiltFronts = playerWarNations
+                .filter(nation => !existingActiveEnemyIds.has(nation.id))
+                .map(nation => {
+                    const enemyEco = {
+                        resources: {},
+                        buildings: {},
+                        population: nation.population || nation.militaryPower || 200,
+                        wealth: nation.wealth || 500,
+                    };
+                    const front = generateFront(nation.id, 'player', data.epoch ?? 0, enemyEco, playerEco);
+                    front.createdDay = data.daysElapsed || 0;
+                    front.startDay = data.daysElapsed || 0;
+                    return front;
+                });
+
+            let reconciledFronts = [...loadedFronts, ...rebuiltFronts].map(front => {
+                if (front.status !== 'active') return front;
+                const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
+                const enemyNation = (migratedNations || []).find(n => n.id === enemyId);
+                if (!enemyNation || enemyNation.isAtWar !== true) {
+                    return { ...front, status: 'collapsed' };
+                }
                 return front;
             });
+            const initialFrontIdSet = new Set(reconciledFronts.map((front) => front.id));
+            const validOfficialIdSet = new Set((data.officials || []).filter(Boolean).map((official) => official.id));
+            loadedGenerals = loadedGenerals.filter((general) => (
+                general?.isAI === true
+                || !general?.officialId
+                || validOfficialIdSet.has(general.officialId)
+            ));
+            const validGeneralIdSet = new Set(loadedGenerals.map((general) => general.id));
 
-        let reconciledFronts = [...loadedFronts, ...rebuiltFronts].map(front => {
-            if (front.status !== 'active') return front;
-            const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
-            const enemyNation = (migratedNations || []).find(n => n.id === enemyId);
-            if (!enemyNation || enemyNation.isAtWar !== true) {
-                return { ...front, status: 'collapsed' };
-            }
-            return front;
-        });
-        const initialFrontIdSet = new Set(reconciledFronts.map((front) => front.id));
-        const validOfficialIdSet = new Set((data.officials || []).filter(Boolean).map((official) => official.id));
-        loadedGenerals = loadedGenerals.filter((general) => (
-            general?.isAI === true
-            || !general?.officialId
-            || validOfficialIdSet.has(general.officialId)
-        ));
-        const validGeneralIdSet = new Set(loadedGenerals.map((general) => general.id));
-
-        loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => {
-            const assignedFrontId = initialFrontIdSet.has(corps.assignedFrontId) ? corps.assignedFrontId : null;
-            return {
-                ...corps,
-                generalId: validGeneralIdSet.has(corps.generalId) ? corps.generalId : null,
-                assignedFrontId,
-                status: assignedFrontId ? 'deployed' : 'idle',
-            };
-        });
-
-        let hydratedNations = (migratedNations || []).map((nation) => {
-            if (!nation || nation.id === 'player') return nation;
-            const syncResult = syncAINationMilitary({
-                nation,
-                epoch: currentEpoch,
-                currentDay: parsedDaysElapsed || 0,
-                militaryCorps: loadedMilitaryCorps,
-                generals: loadedGenerals,
-            });
-            loadedMilitaryCorps = [
-                ...loadedMilitaryCorps.filter((corps) => !(corps?.isAI && corps.nationId === nation.id)),
-                ...syncResult.corps,
-            ];
-            loadedGenerals = [
-                ...loadedGenerals.filter((general) => !syncResult.corps.some((corps) => corps.generalId === general.id)),
-                ...syncResult.generals,
-            ];
-            return syncResult.nation;
-        });
-
-        const corpsIdSet = new Set(loadedMilitaryCorps.map((corps) => corps.id));
-        reconciledFronts = reconciledFronts.map((front) => {
-            const pruneList = (list = []) => list.filter((id) => corpsIdSet.has(id));
-            return {
-                ...front,
-                assignedCorps: {
-                    attacker: pruneList(front.assignedCorps?.attacker),
-                    defender: pruneList(front.assignedCorps?.defender),
-                },
-                frontlineCorpsOrder: {
-                    attacker: pruneList(front.frontlineCorpsOrder?.attacker),
-                    defender: pruneList(front.frontlineCorpsOrder?.defender),
-                },
-                activeBattleId: null,
-            };
-        });
-
-        for (const front of reconciledFronts) {
-            if (front?.status !== 'active') continue;
-            const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
-            const enemyNation = hydratedNations.find((nation) => nation.id === enemyId);
-            if (!enemyNation) continue;
-            const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
-            const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
-            const enemyCorpsOnFront = loadedMilitaryCorps.filter((corps) => corps.isAI && corps.nationId === enemyId && corps.assignedFrontId === front.id);
-            if (enemyCorpsOnFront.length > 0) continue;
-            const playerCorpsOnFront = loadedMilitaryCorps.filter((corps) => !corps.isAI && corps.assignedFrontId === front.id);
-            const idleEnemyCorps = loadedMilitaryCorps.filter((corps) => corps.isAI && corps.nationId === enemyId && !corps.assignedFrontId);
-            if (idleEnemyCorps.length <= 0) continue;
-            const frontPlan = evaluateAIFrontPlan({
-                nation: enemyNation,
-                front,
-                ownCorps: idleEnemyCorps,
-                enemyCorps: playerCorpsOnFront,
-            });
-            const deployCount = Math.max(1, Math.min(idleEnemyCorps.length, frontPlan.desiredCorps || 1));
-            const deployIds = idleEnemyCorps.slice(0, deployCount).map((corps) => corps.id);
             loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => {
-                if (!deployIds.includes(corps.id)) return corps;
+                const assignedFrontId = initialFrontIdSet.has(corps.assignedFrontId) ? corps.assignedFrontId : null;
                 return {
                     ...corps,
-                    assignedFrontId: front.id,
-                    status: 'deployed',
-                    frontTask: frontPlan.taskAssignments?.[corps.id] || corps.frontTask || 'assault',
+                    generalId: validGeneralIdSet.has(corps.generalId) ? corps.generalId : null,
+                    assignedFrontId,
+                    status: assignedFrontId ? 'deployed' : 'idle',
                 };
             });
-            reconciledFronts = reconciledFronts.map((item) => {
-                if (item.id !== front.id) return item;
+
+            let hydratedNations = (migratedNations || []).map((nation) => {
+                if (!nation || nation.id === 'player') return nation;
+                const syncResult = syncAINationMilitary({
+                    nation,
+                    epoch: currentEpoch,
+                    currentDay: parsedDaysElapsed || 0,
+                    militaryCorps: loadedMilitaryCorps,
+                    generals: loadedGenerals,
+                });
+                loadedMilitaryCorps = [
+                    ...loadedMilitaryCorps.filter((corps) => !(corps?.isAI && corps.nationId === nation.id)),
+                    ...syncResult.corps,
+                ];
+                loadedGenerals = [
+                    ...loadedGenerals.filter((general) => !syncResult.corps.some((corps) => corps.generalId === general.id)),
+                    ...syncResult.generals,
+                ];
+                return syncResult.nation;
+            });
+
+            for (const front of reconciledFronts) {
+                if (front?.status !== 'active') continue;
+                const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
+                const enemyNation = hydratedNations.find((nation) => nation.id === enemyId);
+                if (!enemyNation) continue;
+                const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
+                const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
+                const enemyCorpsOnFront = loadedMilitaryCorps.filter((corps) => corps.isAI && corps.nationId === enemyId && corps.assignedFrontId === front.id);
+                if (enemyCorpsOnFront.length > 0) continue;
+                const playerCorpsOnFront = loadedMilitaryCorps.filter((corps) => !corps.isAI && corps.assignedFrontId === front.id);
+                const idleEnemyCorps = loadedMilitaryCorps.filter((corps) => corps.isAI && corps.nationId === enemyId && !corps.assignedFrontId);
+                if (idleEnemyCorps.length <= 0) continue;
+                const frontPlan = evaluateAIFrontPlan({
+                    nation: enemyNation,
+                    front,
+                    ownCorps: idleEnemyCorps,
+                    enemyCorps: playerCorpsOnFront,
+                });
+                const deployCount = Math.max(1, Math.min(idleEnemyCorps.length, frontPlan.desiredCorps || 1));
+                const deployIds = idleEnemyCorps.slice(0, deployCount).map((corps) => corps.id);
+                loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => {
+                    if (!deployIds.includes(corps.id)) return corps;
+                    return {
+                        ...corps,
+                        assignedFrontId: front.id,
+                        status: 'deployed',
+                        frontTask: frontPlan.taskAssignments?.[corps.id] || corps.frontTask || 'assault',
+                    };
+                });
+                reconciledFronts = reconciledFronts.map((item) => {
+                    if (item.id !== front.id) return item;
+                    return {
+                        ...item,
+                        aiPosture: frontPlan.posture,
+                        postures: {
+                            ...(item.postures || {}),
+                            [enemySide]: frontPlan.posture,
+                        },
+                        assignedCorps: {
+                            ...item.assignedCorps,
+                            [enemySide]: deployIds,
+                        },
+                        frontlineCorpsOrder: {
+                            ...(item.frontlineCorpsOrder || {}),
+                            [enemySide]: frontPlan.frontlineCorpsOrder?.length > 0 ? frontPlan.frontlineCorpsOrder : deployIds,
+                        },
+                    };
+                });
+            }
+            const corpsIdSet = new Set(loadedMilitaryCorps.map((corps) => corps.id));
+            reconciledFronts = reconciledFronts.map((front) => {
+                const pruneList = (list = []) => list.filter((id) => corpsIdSet.has(id));
                 return {
-                    ...item,
-                    aiPosture: frontPlan.posture,
-                    postures: {
-                        ...(item.postures || {}),
-                        [enemySide]: frontPlan.posture,
-                    },
+                    ...front,
                     assignedCorps: {
-                        ...item.assignedCorps,
-                        [enemySide]: deployIds,
+                        attacker: pruneList(front.assignedCorps?.attacker),
+                        defender: pruneList(front.assignedCorps?.defender),
                     },
                     frontlineCorpsOrder: {
-                        ...(item.frontlineCorpsOrder || {}),
-                        [enemySide]: frontPlan.frontlineCorpsOrder?.length > 0 ? frontPlan.frontlineCorpsOrder : deployIds,
+                        attacker: pruneList(front.frontlineCorpsOrder?.attacker),
+                        defender: pruneList(front.frontlineCorpsOrder?.defender),
                     },
+                    activeBattleId: null,
                 };
             });
+
+            const frontStatusMap = new Map(reconciledFronts.map(front => [front.id, front.status]));
+            const activeCorpsIds = new Set(loadedMilitaryCorps.map((corps) => corps.id));
+            const corpsById = new Map(loadedMilitaryCorps.map((corps) => [corps.id, corps]));
+            const reconciledBattles = (data.activeBattles || [])
+                .map((rawBattle) => ensureBattleDefaults(rawBattle))
+                .filter((battle) => {
+                    if (!battle || battle.status !== 'active') return false;
+                    if (battle.result?.finalized) return false;
+                    if (frontStatusMap.get(battle.frontId) !== 'active') return false;
+                    if (battle.currentRound >= battle.totalDays) return false;
+                    const attackerCorps = corpsById.get(battle.attacker?.corpsId);
+                    const defenderCorps = corpsById.get(battle.defender?.corpsId);
+                    if (!activeCorpsIds.has(battle.attacker?.corpsId) || !activeCorpsIds.has(battle.defender?.corpsId)) return false;
+                    return attackerCorps?.assignedFrontId === battle.frontId && defenderCorps?.assignedFrontId === battle.frontId;
+                });
+            const activeBattleCorps = new Set(
+                reconciledBattles.flatMap((battle) => [battle.attacker?.corpsId, battle.defender?.corpsId]).filter(Boolean)
+            );
+            loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => ({
+                ...corps,
+                status: activeBattleCorps.has(corps.id)
+                    ? 'in_combat'
+                    : (corps.assignedFrontId ? 'deployed' : 'idle'),
+            }));
+            const activeBattleIdByFront = new Map(reconciledBattles.map((battle) => [battle.frontId, battle.id]));
+            reconciledFronts = reconciledFronts.map((front) => ({
+                ...front,
+                activeBattleId: activeBattleIdByFront.get(front.id) || null,
+            }));
+
+            setMilitaryCorps(loadedMilitaryCorps);
+            setGenerals(loadedGenerals);
+            setActiveFronts(reconciledFronts);
+            setActiveBattles(reconciledBattles);
+            setPendingRepairs(data.pendingRepairs || []);
+            migratedNations = hydratedNations;
         }
-
-        const frontStatusMap = new Map(reconciledFronts.map(front => [front.id, front.status]));
-        const activeCorpsIds = new Set(loadedMilitaryCorps.map((corps) => corps.id));
-        const corpsById = new Map(loadedMilitaryCorps.map((corps) => [corps.id, corps]));
-        const reconciledBattles = (data.activeBattles || [])
-            .map((rawBattle) => ensureBattleDefaults(rawBattle))
-            .filter((battle) => {
-                if (!battle || battle.status !== 'active') return false;
-                if (battle.result?.finalized) return false;
-                if (frontStatusMap.get(battle.frontId) !== 'active') return false;
-                if (battle.currentRound >= battle.totalDays) return false;
-                const attackerCorps = corpsById.get(battle.attacker?.corpsId);
-                const defenderCorps = corpsById.get(battle.defender?.corpsId);
-                if (!activeCorpsIds.has(battle.attacker?.corpsId) || !activeCorpsIds.has(battle.defender?.corpsId)) return false;
-                return attackerCorps?.assignedFrontId === battle.frontId && defenderCorps?.assignedFrontId === battle.frontId;
-            });
-        const activeBattleCorps = new Set(
-            reconciledBattles.flatMap((battle) => [battle.attacker?.corpsId, battle.defender?.corpsId]).filter(Boolean)
-        );
-        loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => ({
-            ...corps,
-            status: activeBattleCorps.has(corps.id)
-                ? 'in_combat'
-                : (corps.assignedFrontId ? 'deployed' : 'idle'),
-        }));
-        const activeBattleIdByFront = new Map(reconciledBattles.map((battle) => [battle.frontId, battle.id]));
-        reconciledFronts = reconciledFronts.map((front) => ({
-            ...front,
-            activeBattleId: activeBattleIdByFront.get(front.id) || null,
-        }));
-
-        setMilitaryCorps(loadedMilitaryCorps);
-        setGenerals(loadedGenerals);
-        setActiveFronts(reconciledFronts);
-        setActiveBattles(reconciledBattles);
-        setPendingRepairs(data.pendingRepairs || []);
-        migratedNations = hydratedNations;
         setSelectedTarget(data.selectedTarget || null);
         setBattleResult(data.battleResult || null);
         setPlayerInstallmentPayment(data.playerInstallmentPayment || null);
