@@ -265,17 +265,21 @@ function GameApp({ gameState }) {
     }, [gameState.difficulty]);
 
     useEffect(() => {
-        const playerNation = (gameState.nations || []).find((nation) => nation?.isPlayer);
+        const playerNation = (gameState.nations || []).find((nation) => (
+            nation?.isPlayer
+            || nation?.id === 'player'
+            || nation?.id === 0
+        ));
         setAnalyticsContextGetter(() => ({
             daysElapsed: gameState.daysElapsed,
             epoch: EPOCH_DIMENSIONS[gameState.epoch] || null,
-            playerNationId: playerNation?.id || null,
-            playerNationName: playerNation?.name || null,
+            playerNationId: playerNation?.id || 'player',
+            playerNationName: playerNation?.name || gameState.empireName || '我的帝国',
         }));
         return () => {
             setAnalyticsContextGetter(null);
         };
-    }, [gameState.daysElapsed, gameState.epoch, gameState.nations]);
+    }, [gameState.daysElapsed, gameState.epoch, gameState.nations, gameState.empireName]);
 
     // Detect if player is opening a new version for the first time, auto-show changelog
     useEffect(() => {
