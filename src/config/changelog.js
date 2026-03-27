@@ -4,9 +4,24 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.1.15',
+        version: '2.3.0',
         date: '2026-03-27',
         isLatest: true,
+        highlights: [
+            '支持热更新，后续版本更新无需重新安装 APK',
+            '更新进度实时可见，下载状态一目了然',
+            '版本追踪统一，分析数据口径更准确',
+        ],
+        changes: [
+            { type: 'new', text: '新增 OTA 热更新系统：后续游戏内容与修复可直接推送到已安装的 APP，无需重新下载安装包。' },
+            { type: 'new', text: '热更新时屏幕底部显示实时状态提示（检查中、下载进度、下载完成），更新过程不再是黑箱。' },
+            { type: 'improve', text: '版本号追踪统一使用构建注入，GameAnalytics 与自建后端的版本口径完全一致，消除硬编码回退值。' },
+        ],
+    },
+    {
+        version: '2.1.15',
+        date: '2026-03-27',
+        isLatest: false,
         highlights: [
             '埋点改为核心优先，低价值事件默认降噪',
             '会话上报补齐难度与国家维度，分析口径更稳定',

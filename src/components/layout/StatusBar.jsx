@@ -47,6 +47,7 @@ export const StatusBar = React.memo(({
         income_price_control: '价格管制收入',
         '贸易路线税收': '贸易路线税收',
         income_trade_route: '关税',
+        income_ideology_virtual_tax: '理念税收加成',
         '军队维护支出': '军饷维护',
         '军队维护支出（部分支付）': '军饷维护',
         expense_army_maintenance: '军饷维护',
