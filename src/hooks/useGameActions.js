@@ -3236,7 +3236,7 @@ export const useGameActions = (gameState, addLog) => {
         trackBattleLaunch();
         const totalLosses = Object.values(result.attackerLosses || {}).reduce((s, v) => s + v, 0);
         const lossRatio = totalUnits > 0 ? totalLosses / totalUnits : 0;
-        trackBattleResult(result.victory ? 'Victory' : 'Defeat', Math.round(lossRatio * 100));
+        trackBattleResult(result.victory ? 'Victory' : 'Defeat', Math.round(lossRatio * 100), nationId);
 
         addLog(result.victory ? `⚔️ 针对 ${targetNation.name} 的行动取得胜利！` : `💀 对 ${targetNation.name} 的进攻受挫。`);
 

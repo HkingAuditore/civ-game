@@ -18,7 +18,7 @@ const DEFAULT_EVENT_GROUP_FLAGS = {
     diplomacy_controls: false, // 外交微操偏好，不直接影响平衡
     strategic: false, // 低频且当前利用率低
     demand: false, // 诉求链路尚未稳定接线
-    ai: false, // AI 内部行为，当前分析价值有限
+    ai: true, // AI 国家状态采样 + AI 宣战/和平
     treaty: false, // 条约细分尚未形成稳定分析口径
 };
 
@@ -101,7 +101,13 @@ function getEventGroup(eventId) {
     }
     if (eventId.startsWith(`${GA_EVENTS.STRATEGIC_ACTION}:`)) return 'strategic';
     if (eventId.startsWith(`${GA_EVENTS.DEMAND_GENERATE}:`) || eventId.startsWith(`${GA_EVENTS.DEMAND_COMPLETE}:`) || eventId.startsWith(`${GA_EVENTS.DEMAND_FAIL}:`)) return 'demand';
-    if (eventId.startsWith(`${GA_EVENTS.AI_WAR}:`) || eventId.startsWith(`${GA_EVENTS.AI_PEACE}:`)) return 'ai';
+    if (
+        eventId.startsWith(`${GA_EVENTS.AI_WAR}:`)
+        || eventId.startsWith(`${GA_EVENTS.AI_PEACE}:`)
+        || eventId.startsWith(`${GA_EVENTS.AI_TO_AI_WAR}:`)
+        || eventId.startsWith(`${GA_EVENTS.AI_TO_AI_PEACE}:`)
+        || eventId.startsWith('AINation:')
+    ) return 'ai';
     if (eventId.startsWith(`${GA_EVENTS.TREATY_SIGN}:`) || eventId.startsWith(`${GA_EVENTS.TREATY_EXPIRE}:`) || eventId.startsWith(`${GA_EVENTS.TREATY_BREAK}:`)) return 'treaty';
     return 'core';
 }
@@ -285,8 +291,9 @@ export function trackRecruit(unitId, count) {
 export function trackBattleLaunch() {
     trackDesign(GA_EVENTS.MILITARY_BATTLE_LAUNCH);
 }
-export function trackBattleResult(result, lossRatio) {
-    trackDesign(`${GA_EVENTS.MILITARY_BATTLE_RESULT}:${result || 'unknown'}`, lossRatio);
+export function trackBattleResult(result, lossRatio, nationId) {
+    const nid = nationId ? `:${sanitizeSegment(nationId)}` : '';
+    trackDesign(`${GA_EVENTS.MILITARY_BATTLE_RESULT}:${result || 'unknown'}${nid}`, lossRatio);
 }
 export function trackDisband(unitId, count) {
     trackDesign(`${GA_EVENTS.MILITARY_DISBAND}:${unitId}`, count);
@@ -470,6 +477,27 @@ export function trackAIWar(nationId) {
 }
 export function trackAIPeace(nationId) {
     trackDesign(`${GA_EVENTS.AI_PEACE}:${nationId}`);
+}
+export function trackAIToAIWar(attackerId, defenderId) {
+    trackDesign(`${GA_EVENTS.AI_TO_AI_WAR}:${attackerId}:${defenderId}`);
+}
+export function trackAIToAIPeace(nationA, nationB) {
+    trackDesign(`${GA_EVENTS.AI_TO_AI_PEACE}:${nationA}:${nationB}`);
+}
+
+// ── AI 国家周期采样 ──
+
+export function trackAINationSampling(nations) {
+    if (!Array.isArray(nations)) return;
+    for (const n of nations) {
+        if (!n || !n.id || n.isRebelNation) continue;
+        const nid = sanitizeSegment(n.id);
+        if (n.population !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_POP}:${nid}`, Math.round(n.population));
+        if (n.wealth !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_WEALTH}:${nid}`, Math.round(n.wealth));
+        if (n.militaryStrength !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_MILITARY}:${nid}`, Math.round(n.militaryStrength * 100));
+        if (n.relation !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_RELATION}:${nid}`, Math.round(n.relation));
+        if (n.isAtWar) trackDesign(`${GA_EVENTS.AI_NATION_AT_WAR}:${nid}`, 1);
+    }
 }
 
 // ── 条约 ──

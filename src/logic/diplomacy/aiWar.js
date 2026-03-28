@@ -28,6 +28,7 @@ import {
     applyPopulationLossModifier,
     isInGracePeriod,
 } from '../../config/difficulty';
+import { trackAIWar, trackAIToAIWar, trackAIToAIPeace } from '../../analytics/gaTracker';
 import { VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 import { requiresVassalDiplomacyApproval, buildVassalDiplomacyRequest } from './vassalSystem';
 import {
@@ -1194,6 +1195,7 @@ export const checkWarDeclaration = ({
         next.warStartDay = tick;
         next.warDuration = 0;
         next.warDeclarationPending = true;
+        trackAIWar(next.id);
         logs.push(`⚠️ ${next.name} 对你发动了战争！`);
         logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
 
@@ -1297,6 +1299,7 @@ export const checkWarDeclaration = ({
             next.warStartDay = tick;
             next.warDuration = 0;
             next.warDeclarationPending = true;
+            trackAIWar(next.id);
             logs.push(`⚠️ ${next.name} 觊觎你的财富，发动了战争！`);
             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name, reason: 'wealth' })}`);
 
@@ -1670,6 +1673,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                     nation.foreignWars[otherNation.id] = { isAtWar: true, warStartDay: tick, warScore: 0, warGoal: declaredWarGoal };
                     if (!otherNation.foreignWars) otherNation.foreignWars = {};
                     otherNation.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                    trackAIToAIWar(nation.id, otherNation.id);
 
                     const declarationNewsTemplates = [
                         `📢 国际新闻：${nation.name} 向 ${otherNation.name} 宣战了！`,
@@ -1686,6 +1690,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                             nation.warStartDay = tick;
                             nation.warDuration = 0;
                             nation.warDeclarationPending = true;
+                            trackAIWar(nation.id);
 
                             // [NEW] Add formal war declaration event so player sees a popup notification
                             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({
@@ -2448,6 +2453,7 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                     // 设置和平条约
                     nation.foreignWars[enemyId] = { isAtWar: false, peaceTreatyUntil: tick + peaceDuration };
                     enemy.foreignWars[nation.id] = { isAtWar: false, peaceTreatyUntil: tick + peaceDuration };
+                    trackAIToAIPeace(nation.id, enemyId);
 
                     // 关系变化：失败程度越高，关系下降越多
                     const relationDrop = 10 + Math.floor(finalScore / 10);

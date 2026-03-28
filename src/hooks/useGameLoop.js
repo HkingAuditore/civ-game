@@ -72,6 +72,7 @@ import {
     trackEconomicFlows, trackPriceSampling,
     trackPopulationMilestone, trackPopulationStarvation,
     trackStabilityLevelChange, trackEconomicCrisis, trackTaxChange,
+    trackAINationSampling,
 } from '../analytics/gaTracker';
 // 叛乱事件（保留事件创建函数）
 import {
@@ -2133,6 +2134,9 @@ difficulty, // 游戏难度
                     // 经济危机检测
                     if (result.resources?.silver <= 0) trackEconomicCrisis('bankruptcy', 0);
                     if (indicators.cpi?.index > 200) trackEconomicCrisis('hyperinflation', indicators.cpi.index);
+
+                    // AI 国家状态采样
+                    trackAINationSampling(result.nations || current.nations);
                 }
 
                 setAnnualReportAccumulator(prev => {
