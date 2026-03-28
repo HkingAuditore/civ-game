@@ -4,9 +4,32 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.1',
+        date: '2026-03-28',
+        isLatest: true,
+        highlights: [
+            '修复国库与 GDP 数值溢出导致的经济崩溃',
+            '叛乱不再每回合重复触发，起义节奏更合理',
+            '新时代过渡期物价平稳过渡，减少通胀冲击',
+            '蒸汽时代名称修正，不再显示为工业时代',
+        ],
+        changes: [
+            { type: 'fix', text: '修复银币与 GDP 计算中的数值溢出问题：对资源变化量与国库余额加入安全钳制（±1e15），防止附庸朝贡或虚拟税注入导致天文数字。' },
+            { type: 'fix', text: '修复策略行动中 setClassOrganization 未定义的报错：组织度变化现统一通过 setRebellionStates 回写，并同步阶段与相位。' },
+            { type: 'fix', text: '修复 useGameLoop 中 setMaxPopBonus 未定义的报错，补全解构。' },
+            { type: 'fix', text: '修复叛乱起义事件每 tick 重复触发的问题：改为跨越 100% 阈值时仅触发一次，与酝酿/密谋阶段保持一致。' },
+            { type: 'fix', text: '修复非银币资源可能出现负数库存的问题，生产资源库存不再低于 0。' },
+            { type: 'balance', text: '缓解封建/探索时代二次通胀：新时代过渡期物价乘数上限从 10 渐进开放，铁矿/钢铁目标库存天数下调，减少新资源解锁时的价格飙升。' },
+            { type: 'balance', text: '提高附庸化战争分数门槛至 600 并随附庸数量递增，抑制后期碾压式附庸扩张。' },
+            { type: 'balance', text: '优化极端缺货时的价格乘数曲线（峰值 5.0），新增库存极端过剩（>3x）时的折价分支，物价波动更平滑。' },
+            { type: 'improve', text: 'Worker 超时改为自适应策略（3s-15s），减少低端设备误判超时；模拟 payload 裁剪已阵亡/零人口国家，降低通信开销。' },
+            { type: 'fix', text: '蒸汽时代名称修正：第七时代不再错误显示为"工业时代"。' },
+        ],
+    },
+    {
         version: '2.3.0',
         date: '2026-03-27',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '支持热更新，后续版本更新无需重新安装 APK',
             '更新进度实时可见，下载状态一目了然',

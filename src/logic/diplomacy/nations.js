@@ -23,6 +23,7 @@ import {
     calculateNationLocalPrice,
     getNationInventoryBaseline,
 } from './warEconomy.js';
+import { trackAIWar } from '../../analytics/gaTracker.js';
 import { MIN_RUNTIME_POPULATION } from '../../utils/populationClamp';
 import {
     AI_ECONOMY_CONFIG,
@@ -1098,6 +1099,7 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
         nation.warStartDay = tick;
         nation.warDuration = 0;
         nation.warDeclarationPending = true;
+        trackAIWar(nation.id);
         logs.push(`⚠️ ${nation.name} declared war!`);
         logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: nation.id, nationName: nation.name })}`);
     }
@@ -1121,6 +1123,7 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
             nation.warStartDay = tick;
             nation.warDuration = 0;
             nation.warDeclarationPending = true;
+            trackAIWar(nation.id);
             logs.push(`⚠️ ${nation.name} covets your wealth, declared war!`);
             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: nation.id, nationName: nation.name, reason: 'wealth' })}`);
         }

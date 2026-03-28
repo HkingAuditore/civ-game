@@ -137,6 +137,15 @@ export const GA_EVENTS = {
     // ── AI 行为 ──
     AI_WAR: 'AI:War',
     AI_PEACE: 'AI:Peace',
+    AI_TO_AI_WAR: 'AI:ForeignWar',
+    AI_TO_AI_PEACE: 'AI:ForeignPeace',
+
+    // ── AI 国家周期采样 ──
+    AI_NATION_POP: 'AINation:Pop',
+    AI_NATION_WEALTH: 'AINation:Wealth',
+    AI_NATION_MILITARY: 'AINation:Military',
+    AI_NATION_RELATION: 'AINation:Relation',
+    AI_NATION_AT_WAR: 'AINation:AtWar',
 
     // ── 条约 ──
     TREATY_SIGN: 'Treaty:Sign',
