@@ -3,7 +3,7 @@
  * Handles class approval/satisfaction calculations
  */
 
-import { STRATA } from '../../config';
+import { STRATA, TAX_BASE_RATES } from '../../config';
 import { getTaxToleranceMultiplier } from '../../config/difficulty';
 
 /**
@@ -57,11 +57,15 @@ export const calculateClassApproval = ({
         else if (livingLevel === '富裕') targetApproval = 85;
         else if (livingLevel === '小康') targetApproval = 75;
 
-        // Tax Burden Logic
+        // Tax Burden Logic — 使用收入比例公式
         const headRate = getHeadTaxRate(key);
-        const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-        const taxPerCapita = Math.max(0, headBase * headRate * effectiveTaxModifier);
         const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
+        let taxPerCapita = 0;
+        if (headRate > 0) {
+            const incomeBase = incomePerCapita > 0
+                ? incomePerCapita * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+            taxPerCapita = incomeBase * headRate * effectiveTaxModifier;
+        }
 
         // Retrieve wealth per capita from living standard data (it contains accurate snapshot)
         const wealthPerCapita = livingStandard?.wealthPerCapita || 0;

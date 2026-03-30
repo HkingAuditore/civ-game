@@ -287,7 +287,7 @@ const buildDriverContext = (stratumKey, {
     const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
     const effectiveTaxMod = effectiveTaxModifier ?? 1;
     // [FIX] 使用实际人均收入而非 market.wages 岗位工资信号
-    const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+    const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
     let headTaxPerCapita;
     if (headTaxRate > 0) {
         const headIncomeBase = (Number.isFinite(incomePerCapita) && incomePerCapita > 0)

@@ -258,7 +258,13 @@ export const updateMarketPrices = ({
             }
 
             // Apply supplyDemandWeight: scales how much supply/demand moves price away from 1.0
-            priceMultiplier = 1.0 + (priceMultiplier - 1.0) * supplyDemandWeight;
+            // 生存物资极度短缺时逐步解除价格压制，让价格信号正常传导
+            let effectiveWeight = supplyDemandWeight;
+            if (resourceDef?.tags?.includes('essential') && inventoryRatio < 0.3 && supplyDemandWeight < 1.0) {
+                const crisisLift = 1.0 - inventoryRatio / 0.3;
+                effectiveWeight = supplyDemandWeight + (1.0 - supplyDemandWeight) * crisisLift;
+            }
+            priceMultiplier = 1.0 + (priceMultiplier - 1.0) * effectiveWeight;
 
             // [NEW] Military resource epoch obsolescence decay
             // Old-era military resources lose value as newer alternatives become available

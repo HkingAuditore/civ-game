@@ -341,7 +341,7 @@ const StratumDetailSheetComponent = ({
 
 
     // 人头税：正值 = 税收（百分比），负值 = 补贴（银币/人/日绝对值）
-    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
     const isSubsidyMode = headTaxMultiplier < 0;
     const displayHeadPercent = isSubsidyMode ? 0 : headTaxMultiplier * headBaseRate * 100;
     const displaySubsidyValue = isSubsidyMode ? Math.abs(headTaxMultiplier) : 0;
