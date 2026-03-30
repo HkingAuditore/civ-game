@@ -2705,13 +2705,18 @@ export const simulateTick = ({
         const wageCostPerMultiplier = baseWageCostPerMultiplier * wagePressure;
         const estimatedWageCost = wageCostPerMultiplier * simTargetMultiplier;
 
-        // 营业税（按营收比例征收）
+        // 营业税（按实际营收比例征收）
         const isHousingBuilding = b.cat === 'civic' && !b.owner && b.output?.maxPop > 0;
         const isMilitaryBuilding = b.cat === 'military';
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
-        const businessTaxPerBuilding = Math.max(0, outputValuePerMultiplier) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
-        const effectiveStaffingRatio = staffingRatio || 0;
-        const estimatedBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
+        let estimatedBusinessTax;
+        if (businessTaxMultiplier >= 0) {
+            estimatedBusinessTax = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+        } else {
+            const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
+            const flatSubsidyPerBuilding = Math.abs(businessTaxMultiplier) * bizBaseRate * 100;
+            estimatedBusinessTax = -(flatSubsidyPerBuilding * count);
+        }
 
         const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
         // Actual multiplier tracks real production (0 if empty)
@@ -3315,12 +3320,16 @@ export const simulateTick = ({
             }
         }
 
-        // 营业税收取：按营收比例，每次建筑产出时扣除
-        // 使用 staffingRatio 确保只对有工人的建筑征税/发补贴
-        // 空置建筑（staffingRatio=0）不产生税收/补贴
-        if (businessTaxPerBuilding !== 0 && count > 0) {
-            const effectiveStaffingRatio = staffingRatio || 0;
-            const totalBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
+        if (businessTaxMultiplier !== 0 && count > 0) {
+            let totalBusinessTax;
+            if (businessTaxMultiplier > 0) {
+                const actualOutputValue = outputValuePerMultiplier * actualMultiplier;
+                totalBusinessTax = Math.max(0, actualOutputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+            } else {
+                const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
+                const flatSubsidyPerBuilding = Math.abs(businessTaxMultiplier) * bizBaseRate * 100;
+                totalBusinessTax = -(flatSubsidyPerBuilding * count);
+            }
 
             if (totalBusinessTax > 0) {
                 // 正值：?owner 比例收税
@@ -3332,7 +3341,8 @@ export const simulateTick = ({
                         ledger.transfer(oKey, 'state', ownerTax, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, { buildingId: b.id });
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
-                        buildingFinancialData[b.id].businessTaxPaid += ownerTax;
+                        // [FIX] 移除手动累加：ledger.transfer 已通过 _updateSystemStats 更新 businessTaxPaid
+                        // 之前此处重复 += ownerTax 导致正税路径金额翻倍
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
                         recordAggregatedLog(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }

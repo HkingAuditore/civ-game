@@ -209,7 +209,6 @@ const ResourceTaxCard = ({
         </div>
     );
 };
-// 营业税卡片组件（按营收比例征收，UI 直接输入百分比）
 const BusinessTaxCard = ({ building, displayPercent, buildingCount, draftPercent, onDraftChange, onCommit, onToggleSign }) => {
     const isSubsidy = displayPercent < 0;
     const isTax = displayPercent > 0;
@@ -242,7 +241,7 @@ const BusinessTaxCard = ({ building, displayPercent, buildingCount, draftPercent
                         <div className="flex items-center justify-center gap-1">
                             <Icon name="TrendingDown" size={12} className="text-green-400" />
                             <span className={`${valueColor} text-sm font-semibold`}>
-                                补贴 {Math.abs(showPercent)}%
+                                补贴 {Math.abs(showPercent)}🪙/栋
                             </span>
                         </div>
                     ) : isTax ? (
@@ -255,7 +254,7 @@ const BusinessTaxCard = ({ building, displayPercent, buildingCount, draftPercent
                     ) : (
                         <span className="text-gray-500 text-sm">无税收</span>
                     )}
-                    <div className="text-xs text-gray-500 mt-0">营收税率</div>
+                    <div className="text-xs text-gray-500 mt-0">{isSubsidy ? '每栋补贴金额' : '营收税率'}</div>
                 </div>
             </div>
 
@@ -282,7 +281,7 @@ const BusinessTaxCard = ({ building, displayPercent, buildingCount, draftPercent
                         }
                     }}
                     className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                    placeholder="税率%"
+                    placeholder={isSubsidy ? "🪙/栋" : "税率%"}
                 />
             </div>
         </div>
@@ -761,7 +760,7 @@ const PoliticsTabComponent = ({
                         <div className="space-y-3">
                             <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
                                 <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">营业税说明</span></summary>
-                                <p className="mt-1">按建筑营业收入（产值）的比例征收（基准{((TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * 100).toFixed(0)}%）。税额 = 产值 × {((TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * 100).toFixed(0)}% × 系数。系数越高税收越多，负值为补贴。亏损建筑也需缴税。</p>
+                                <p className="mt-1"><b>正数 = 税率(%)</b>：按建筑营业收入的比例征收。例如 50 = 收取产值的 50%。<br/><b>负数 = 补贴(🪙/栋)</b>：从国库直接给每栋建筑发放固定补贴。例如 -50 = 每栋每次产出补贴 50🪙。</p>
                             </details>
                             {Object.entries(buildingsByCategory).map(([catKey, catInfo]) => {
                                 if (catInfo.buildings.length === 0) return null;

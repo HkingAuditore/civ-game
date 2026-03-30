@@ -35,6 +35,9 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
     const prevGameStateRef = useRef(null);
     // 用于记录建筑数量的初始值
     const buildingCountRef = useRef({});
+    // 稳定引用 gameState，避免 useCallback/useEffect 因 gameState 对象身份变化而频繁重建
+    const gameStateRef = useRef(gameState);
+    gameStateRef.current = gameState;
 
     // 获取当前步骤信息
     const currentStep = getStepById(currentStepId);
@@ -101,31 +104,27 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
     const nextStep = useCallback(() => {
         const nextId = getNextStepId(currentStepId);
         if (nextId) {
-            // 获取下一步的配置
             const nextStepConfig = getStepById(nextId);
 
             setCurrentStepId(nextId);
             setIsWaitingForChange(false);
             setTargetRect(null);
 
-            // 只在进入需要 building-count 验证的步骤时，更新对应建筑的参考数量
-            if (nextStepConfig?.validation?.type === 'building-count' && gameState?.buildings) {
+            if (nextStepConfig?.validation?.type === 'building-count' && gameStateRef.current?.buildings) {
                 const buildingIds = Array.isArray(nextStepConfig.validation.buildingId)
                     ? nextStepConfig.validation.buildingId
                     : [nextStepConfig.validation.buildingId];
 
-                // 只更新需要验证的建筑的参考数量
                 buildingIds.forEach(id => {
-                    buildingCountRef.current[id] = gameState.buildings[id] || 0;
+                    buildingCountRef.current[id] = gameStateRef.current.buildings[id] || 0;
                 });
             }
         } else {
-            // 教程完成
             setIsActive(false);
             markTutorialCompleted();
             onComplete?.();
         }
-    }, [currentStepId, gameState, markTutorialCompleted, onComplete]);
+    }, [currentStepId, markTutorialCompleted, onComplete]);
 
     /**
      * 更新目标元素位置
@@ -187,20 +186,21 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
         if (!currentStep?.validation) return false;
 
         const { type, expectedTab, buildingId, condition } = currentStep.validation;
+        const gs = gameStateRef.current;
 
         switch (type) {
             case 'tab-change':
                 return currentTab === expectedTab;
 
             case 'building-count': {
-                if (!gameState?.buildings) return false;
+                if (!gs?.buildings) return false;
 
                 const buildingIds = Array.isArray(buildingId) ? buildingId : [buildingId];
                 const prevCounts = buildingCountRef.current;
 
                 for (const id of buildingIds) {
                     const prevCount = prevCounts[id] || 0;
-                    const currentCount = gameState.buildings[id] || 0;
+                    const currentCount = gs.buildings[id] || 0;
 
                     if (condition === 'increased' && currentCount > prevCount) {
                         return true;
@@ -212,7 +212,7 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
             default:
                 return false;
         }
-    }, [currentStep, currentTab, gameState]);
+    }, [currentStep, currentTab]);
 
     /**
      * 处理点击事件
@@ -276,11 +276,11 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
     }, [isActive, currentStepId, updateTargetPosition]);
 
     // 监听状态变化（用于验证步骤完成）
+    // 依赖具体的原始值字段而非整个 gameState 对象，避免每帧重跑导致 React #185
+    const buildings = gameState?.buildings;
     useEffect(() => {
         if (!isActive || !currentStep?.validation) return;
 
-        // 对于 state-change 触发器，直接监听状态变化
-        // 对于其他触发器，需要先通过 handleClick 设置 isWaitingForChange
         const shouldValidate =
             currentStep.trigger === 'state-change' ||
             isWaitingForChange;
@@ -288,14 +288,14 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
         if (shouldValidate && validateStep()) {
             nextStep();
         }
-    }, [isActive, isWaitingForChange, currentStep, gameState, currentTab, validateStep, nextStep]);
+    }, [isActive, isWaitingForChange, currentStep, buildings, currentTab, validateStep, nextStep]);
 
     // 记录初始建筑数量
     useEffect(() => {
-        if (isActive && gameState?.buildings && Object.keys(buildingCountRef.current).length === 0) {
-            buildingCountRef.current = { ...gameState.buildings };
+        if (isActive && buildings && Object.keys(buildingCountRef.current).length === 0) {
+            buildingCountRef.current = { ...buildings };
         }
-    }, [isActive, gameState]);
+    }, [isActive, buildings]);
 
     // 教程激活时自动暂停游戏，关闭时恢复
     const wasPausedBeforeTutorialRef = useRef(false);
