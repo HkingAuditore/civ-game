@@ -5183,6 +5183,122 @@ export const EPOCH_EVENTS = [
     },
 
     // ==========================================
+    // 补充启蒙时代事件 (Epoch 5) - 低门槛高互动
+    // ==========================================
+    {
+        id: 'public_library_movement',
+        name: '公共图书馆运动',
+        icon: 'BookOpen',
+        description: '市民们联名请愿，要求建立一座面向所有人开放的公共图书馆。知识不应该是少数人的特权！学者们热烈响应，但贵族担心这会动摇他们的地位。',
+        triggerConditions: { minEpoch: 5, maxEpoch: 6 },
+        options: [
+            {
+                id: 'fund_library',
+                text: '拨款资助',
+                description: '知识是国家最重要的财富。',
+                effects: {
+                    resourcePercent: { silver: -0.03, science: 0.12, culture: 0.08 },
+                    approval: { scribe: 20, peasant: 10, landowner: -10 },
+                    stability: 3,
+                },
+            },
+            {
+                id: 'private_donation',
+                text: '鼓励私人捐赠',
+                description: '让富人的名字刻在图书馆的墙上。',
+                effects: {
+                    resourcePercent: { science: 0.06, culture: 0.04 },
+                    approval: { merchant: 15, capitalist: 10, scribe: 5 },
+                },
+            },
+            {
+                id: 'reject_proposal',
+                text: '驳回请愿',
+                description: '愚民无需太多知识。',
+                effects: {
+                    approval: { scribe: -20, peasant: -10, landowner: 10 },
+                    stability: -5,
+                },
+            },
+        ],
+    },
+    {
+        id: 'scientific_expedition',
+        name: '科学考察远征',
+        icon: 'Compass',
+        description: '一位著名博物学家请求资助一次环球科学考察。他承诺将带回珍稀标本、绘制精确海图，并记录世界各地的奇异风俗。这将极大提升我国的学术声望。',
+        triggerConditions: { minEpoch: 5, maxEpoch: 7 },
+        options: [
+            {
+                id: 'sponsor_expedition',
+                text: '全额资助远征',
+                description: '以国家名义探索未知世界。',
+                effects: {
+                    resourcePercent: { silver: -0.05, science: 0.15 },
+                    approval: { scribe: 15, merchant: 10 },
+                    stability: 5,
+                },
+            },
+            {
+                id: 'joint_venture',
+                text: '与商人合资',
+                description: '分摊费用，共享成果。',
+                effects: {
+                    resourcePercent: { silver: -0.02, science: 0.08 },
+                    approval: { merchant: 15, scribe: 5 },
+                },
+            },
+            {
+                id: 'decline_funding',
+                text: '拒绝资助',
+                description: '国库紧张，无力支持。',
+                effects: {
+                    approval: { scribe: -15 },
+                },
+            },
+        ],
+    },
+    {
+        id: 'coffeehouse_debate_craze',
+        name: '咖啡馆辩论热',
+        icon: 'Coffee',
+        description: '城中咖啡馆如雨后春笋般涌现，成为各阶层人士辩论时政的场所。商人、学者、甚至工匠都在这里高谈阔论。有人称之为"一便士大学"，也有人视其为叛乱的温床。',
+        triggerConditions: { minEpoch: 5, maxEpoch: 6 },
+        options: [
+            {
+                id: 'encourage_debate',
+                text: '鼓励自由辩论',
+                description: '思想的碰撞催生进步。',
+                effects: {
+                    resourcePercent: { culture: 0.1, science: 0.05 },
+                    approval: { merchant: 10, scribe: 15, artisan: 10, official: -10 },
+                    stability: -3,
+                },
+            },
+            {
+                id: 'regulate_coffeehouses',
+                text: '管制咖啡馆经营',
+                description: '设立许可证，派人监听。',
+                effects: {
+                    resourcePercent: { silver: 0.02 },
+                    approval: { merchant: -15, scribe: -10, official: 10 },
+                    stability: 5,
+                },
+            },
+            {
+                id: 'ban_political_talk',
+                text: '禁止谈论时政',
+                description: '咖啡馆只许谈天气和生意。',
+                effects: {
+                    approval: { scribe: -25, merchant: -10 },
+                    stability: 8,
+                    resourcePercent: { culture: -0.05 },
+                },
+            },
+        ],
+    },
+
+    // ==========================================
     // 新增历史事件 - 工业时代 (Epoch 6)
     // ==========================================
     {

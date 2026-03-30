@@ -247,8 +247,9 @@ function GameApp({ gameState }) {
     // GameAnalytics 初始化
     useEffect(() => {
         initGA();
+        // Don't send difficulty at init (it's still the default 'easy' before save loads)
         initCustomBackend({
-            difficulty: gameState.difficulty || 'easy',
+            difficulty: null,
             scenario: 'freeplay',
         });
         installGlobalErrorHandlers();
@@ -260,11 +261,16 @@ function GameApp({ gameState }) {
         trackProgressionStart(gameState.epoch || 0);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Update analytics difficulty when it changes or after save load stabilizes
     useEffect(() => {
-        updateDimensions({
-            difficulty: gameState.difficulty || 'easy',
-            scenario: 'freeplay',
-        });
+        // Debounce to avoid sending stale default before save loads
+        const timer = setTimeout(() => {
+            updateDimensions({
+                difficulty: gameState.difficulty || 'easy',
+                scenario: 'freeplay',
+            });
+        }, 2000);
+        return () => clearTimeout(timer);
     }, [gameState.difficulty]);
 
     useEffect(() => {
@@ -285,7 +291,10 @@ function GameApp({ gameState }) {
     }, [gameState.daysElapsed, gameState.epoch, gameState.nations, gameState.empireName]);
 
     // Detect if player is opening a new version for the first time, auto-show changelog
+    // Skip for brand-new players who haven't completed the tutorial yet
     useEffect(() => {
+        const tutorialDone = localStorage.getItem('tutorial_completed');
+        if (!tutorialDone) return;
         const latestVersion = CHANGELOG[0]?.version;
         const lastSeenVersion = localStorage.getItem('lastSeenChangelogVersion');
         if (latestVersion && lastSeenVersion !== latestVersion) {
@@ -293,6 +302,44 @@ function GameApp({ gameState }) {
         }
     }, []);
     const [showEconomicDashboard, setShowEconomicDashboard] = useState(false); // 新增：控制经济数据看板
+    const [welcomeBackMsg, setWelcomeBackMsg] = useState(null);
+
+    // Save session summary on page hide for welcome-back experience
+    useEffect(() => {
+        const saveSessionSummary = () => {
+            if (!gameState.daysElapsed || gameState.daysElapsed < 10) return;
+            const summary = {
+                population: gameState.population,
+                epoch: gameState.epoch,
+                silver: Math.floor(gameState.resources?.silver || 0),
+                techCount: (gameState.techsUnlocked || []).length,
+                empireName: gameState.empireName || '我的帝国',
+                timestamp: Date.now(),
+            };
+            try { localStorage.setItem('civ_session_summary', JSON.stringify(summary)); } catch (_) { /* ignore */ }
+        };
+        window.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') saveSessionSummary();
+        });
+        window.addEventListener('pagehide', saveSessionSummary);
+        return () => {
+            window.removeEventListener('pagehide', saveSessionSummary);
+        };
+    }, [gameState.daysElapsed, gameState.population, gameState.epoch, gameState.resources?.silver, gameState.techsUnlocked, gameState.empireName]);
+
+    // Show welcome-back banner on mount
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('civ_session_summary');
+            if (!raw) return;
+            const summary = JSON.parse(raw);
+            const hoursAway = (Date.now() - (summary.timestamp || 0)) / 3600000;
+            if (hoursAway < 0.5) return; // at least 30 min away
+            setWelcomeBackMsg(`欢迎回来！${summary.empireName} 在等你 — 人口 ${summary.population}，已研发 ${summary.techCount} 项科技`);
+            const timer = setTimeout(() => setWelcomeBackMsg(null), 6000);
+            return () => clearTimeout(timer);
+        } catch (_) { /* ignore */ }
+    }, []);
 
     // 官员超编检测状态
     const [showOfficialOverstaffModal, setShowOfficialOverstaffModal] = useState(false);
@@ -1969,6 +2016,8 @@ function GameApp({ gameState }) {
                                                 activeEventEffects={gameState.activeEventEffects}
                                                 // 日志
                                                 logs={deferredLogs}
+                                                // 时代进度
+                                                techsUnlocked={gameState.techsUnlocked}
                                             />
                                         )}
                                     </motion.div>
@@ -2276,6 +2325,16 @@ function GameApp({ gameState }) {
                     gameState.dismissAchievementNotification(notificationId);
                 }}
             />
+
+            {/* Welcome-back banner */}
+            {welcomeBackMsg && (
+                <div
+                    className="fixed top-16 left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-lg bg-gradient-to-r from-amber-900/90 to-amber-800/90 border border-amber-500/40 text-amber-200 text-xs shadow-lg backdrop-blur-sm animate-fade-in cursor-pointer max-w-[90vw] text-center"
+                    onClick={() => setWelcomeBackMsg(null)}
+                >
+                    {welcomeBackMsg}
+                </div>
+            )}
 
             {/* 战斗结果模态框（点击通知后显示详情） */}
             {gameState.battleResult && (

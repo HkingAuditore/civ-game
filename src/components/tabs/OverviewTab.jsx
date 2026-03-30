@@ -2,11 +2,12 @@
 // 显示阶层信息、市场信息和事件日志的综合视图
 // 使用与PC端相同的组件和风格
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StrataPanel } from '../panels/StrataPanel';
 import { ResourcePanel } from '../panels/ResourcePanel';
 import { LogPanel } from '../panels/LogPanel';
 import { Icon } from '../common/UIComponents';
+import { EPOCHS, TECHS } from '../../config';
 
 /**
  * 移动端总览Tab组件
@@ -41,9 +42,57 @@ export const OverviewTab = React.memo(({
     activeEventEffects = {},
     // 日志
     logs = [],
+    // 时代进度
+    techsUnlocked = [],
 }) => {
+    const epochProgress = useMemo(() => {
+        const nextIdx = epoch + 1;
+        if (nextIdx >= EPOCHS.length) return null;
+        const next = EPOCHS[nextIdx];
+        if (!next) return null;
+        const reqPop = next.req?.population || 0;
+        const reqScience = next.req?.science || 0;
+        const currentEpochTechs = TECHS.filter(t => t.epoch === epoch);
+        const researchedCount = currentEpochTechs.filter(t => techsUnlocked.includes(t.id)).length;
+        const requiredTechCount = Math.floor(currentEpochTechs.length * 0.8);
+        return {
+            name: next.name,
+            popReq: reqPop, popCur: population,
+            sciReq: reqScience, sciCur: Math.floor(resources.science || 0),
+            techReq: requiredTechCount, techCur: researchedCount, techTotal: currentEpochTechs.length,
+        };
+    }, [epoch, population, resources.science, techsUnlocked]);
+
     return (
         <div className="space-y-2">
+            {/* 时代升级进度提示 */}
+            {epochProgress && (
+                <section className="glass-epic rounded-lg border border-amber-500/30 shadow-epic overflow-hidden">
+                    <div className="px-2 py-1.5 bg-gradient-to-r from-amber-500/15 to-transparent">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <Icon name="Crown" size={12} className="text-amber-400" />
+                            <span className="text-xs font-bold text-amber-400 font-decorative">
+                                迈向{epochProgress.name}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                            {epochProgress.popReq > 0 && (
+                                <div className={`text-center px-1.5 py-1 rounded text-xs ${population >= epochProgress.popReq ? 'bg-green-900/30 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                                    人口 {population}/{epochProgress.popReq}
+                                </div>
+                            )}
+                            {epochProgress.sciReq > 0 && (
+                                <div className={`text-center px-1.5 py-1 rounded text-xs ${epochProgress.sciCur >= epochProgress.sciReq ? 'bg-green-900/30 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                                    科研 {epochProgress.sciCur}/{epochProgress.sciReq}
+                                </div>
+                            )}
+                            <div className={`text-center px-1.5 py-1 rounded text-xs ${epochProgress.techCur >= epochProgress.techReq ? 'bg-green-900/30 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                                科技 {epochProgress.techCur}/{epochProgress.techReq}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            )}
             {/* 社会阶层窗口 - 使用 glass-epic 风格，更紧凑 */}
             <section className="glass-epic rounded-lg border border-ancient-gold/20 shadow-epic overflow-hidden">
                 <div className="px-2 py-1 border-b border-ancient-gold/20 bg-gradient-to-r from-ancient-gold/10 to-transparent flex items-center justify-between">

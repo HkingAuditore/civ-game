@@ -33,8 +33,8 @@ export const EPOCHS = [
         color: "text-orange-400",
         bg: "bg-orange-950",
         tileColor: "bg-orange-800",
-        req: { science: 420, population: 20 },
-        cost: { food: 4500, wood: 2500, stone: 1200, silver: 400, science: 420 },
+        req: { science: 280, population: 15 },
+        cost: { food: 3000, wood: 1500, stone: 800, silver: 250, science: 280 },
         bonuses: {
             desc: "掌握青铜冶炼与畜力生产，资源获取加速。",
             gatherBonus: 0.40, // +40%

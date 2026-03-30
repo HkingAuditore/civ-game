@@ -1432,16 +1432,36 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     const playerEngagedUnits = playerTotal >= enemyTotal ? strongerEngagedUnits : weakerEngagedUnits;
     const enemyEngagedUnits = enemyTotal >= playerTotal ? strongerEngagedUnits : weakerEngagedUnits;
 
-    // Force ratio casualty multiplier: overwhelming force causes much higher attrition to the weaker side
-    // ratio 1:1 → ×1.0, 3:1 → ×1.6, 5:1 → ×2.0, 10:1 → ×2.5
-    const dominantRatioBonusCasualty = Math.min(2.5, 1.0 + Math.pow(Math.max(0, forceRatio - 1), 0.5) * 0.55);
-
-    const baseCasualtyRate = 0.002 + Math.random() * 0.004; // 0.2% ~ 0.6% of engaged troops
-    // Apply dominant-side casualty bonus: the weaker side suffers amplified losses
-    const playerCasualtyMod = playerTotal < enemyTotal ? dominantRatioBonusCasualty : 1.0;
-    const enemyCasualtyMod = enemyTotal < playerTotal ? dominantRatioBonusCasualty : 1.0;
-    let playerCasualties = Math.max(1, Math.floor(playerEngagedUnits * baseCasualtyRate * template.intensity * postureCfg.attritionMod * playerCasualtyMod));
-    let enemyCasualties = Math.max(1, Math.floor(enemyEngagedUnits * baseCasualtyRate * template.intensity * enemyCasualtyMod));
+    // 兰彻斯特摩擦模型：从参战军团的兵种组成计算聚合攻防
+    const getCorpsAggregateStats = (corpsList) => {
+        let atk = 0, def = 0;
+        for (const corps of corpsList) {
+            for (const [unitId, count] of Object.entries(corps.units || {})) {
+                const unit = UNIT_TYPES[unitId];
+                if (!unit || !count) continue;
+                atk += (unit.attack || 0) * count;
+                def += (unit.defense || 0) * count;
+            }
+        }
+        return { atk, def };
+    };
+    const playerStats = getCorpsAggregateStats(playerCorps);
+    const enemyStats = getCorpsAggregateStats(enemyCorps);
+    const frictionRate = (0.002 + Math.random() * 0.004) * template.intensity * postureCfg.attritionMod;
+    const playerDefPerUnit = Math.max(1, playerStats.def / Math.max(1, playerTotal));
+    const enemyDefPerUnit = Math.max(1, enemyStats.def / Math.max(1, enemyTotal));
+    // 用接触兵力缩放攻击输出（避免后方兵力全部参与摩擦）
+    const playerAtkEngaged = playerStats.atk * (playerEngagedUnits / Math.max(1, playerTotal));
+    const enemyAtkEngaged = enemyStats.atk * (enemyEngagedUnits / Math.max(1, enemyTotal));
+    const rawPlayerCas = enemyAtkEngaged * frictionRate / playerDefPerUnit;
+    const rawEnemyCas = playerAtkEngaged * frictionRate / enemyDefPerUnit;
+    const stochasticFloor = (x) => {
+        if (x <= 0) return 0;
+        const f = Math.floor(x);
+        return f + (Math.random() < (x - f) ? 1 : 0);
+    };
+    let playerCasualties = stochasticFloor(rawPlayerCas);
+    let enemyCasualties = stochasticFloor(rawEnemyCas);
 
     // Posture adjustments
     if (normalizePostureId(posture) === 'offensive') {

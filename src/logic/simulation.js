@@ -6784,13 +6784,32 @@ export const simulateTick = ({
     perfEnd('diplomacyAI');
 
     // Population fertility calculations (uses constants from ./utils/constants)
+    // Famine-fertility penalty: reduce birth rate when food satisfaction is low
+    let famineFertilityPenalty = 1;
+    {
+        let totalWeightedSat = 0;
+        let totalPeopleForSat = 0;
+        Object.keys(STRATA).forEach(key => {
+            if (key === 'official') return;
+            const cnt = popStructure[key] || 0;
+            if (cnt <= 0) return;
+            const sat = needsReport[key]?.satisfactionRatio ?? 1;
+            totalWeightedSat += sat * cnt;
+            totalPeopleForSat += cnt;
+        });
+        const globalFoodSat = totalPeopleForSat > 0 ? totalWeightedSat / totalPeopleForSat : 1;
+        if (globalFoodSat < 0.7) {
+            famineFertilityPenalty = Math.max(0.1, globalFoodSat / 0.7);
+        }
+    }
+
     let fertilityBirths = 0;
     let birthAccumulator = Math.max(0, previousBirthAccumulator || 0);
     let remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
     if (remainingCapacity > 0) {
         const popGrowthMultiplier = getPopulationGrowthMultiplier(difficulty);
         if (Math.random() < 0.01) console.log(`[DEBUG] PopGrowth: diff=${difficulty}, mult=${popGrowthMultiplier}`);
-        const baselineContribution = Math.max(0, population || 0) * FERTILITY_BASELINE_RATE * popGrowthMultiplier;
+        const baselineContribution = Math.max(0, population || 0) * FERTILITY_BASELINE_RATE * popGrowthMultiplier * famineFertilityPenalty;
         birthAccumulator += baselineContribution;
         if (population < LOW_POP_THRESHOLD) {
             const missingRatio = Math.max(0, (LOW_POP_THRESHOLD - population) / LOW_POP_THRESHOLD);
@@ -6814,7 +6833,7 @@ export const simulateTick = ({
             const totalWealthForStratum = classWealthResult[key] || 0;
             const perCapitaWealth = count > 0 ? totalWealthForStratum / count : 0;
             const wealthFactor = Math.max(0.3, Math.min(2, perCapitaWealth / WEALTH_BASELINE));
-            const birthRate = FERTILITY_BASE_RATE * approvalFactor * wealthFactor * (1 + (bonuses.populationGrowthBonus || 0));
+            const birthRate = FERTILITY_BASE_RATE * approvalFactor * wealthFactor * (1 + (bonuses.populationGrowthBonus || 0)) * famineFertilityPenalty;
             if (birthRate <= 0) return;
             let expectedBirths = count * birthRate;
             if (expectedBirths <= 0) return;
@@ -6907,6 +6926,26 @@ export const simulateTick = ({
             }
         }
     });
+
+    // Global starvation death cap: max 3% of total population per tick
+    const maxStarvationPerTick = Math.max(1, Math.floor(nextPopulation * 0.03));
+    if (starvationDeaths > maxStarvationPerTick) {
+        const excess = starvationDeaths - maxStarvationPerTick;
+        starvationDeaths = maxStarvationPerTick;
+        // Redistribute saved lives back to popStructure proportionally
+        let savedToDistribute = excess;
+        const strataKeys = Object.keys(STRATA).filter(k => k !== 'official' && (popStructure[k] || 0) > 0);
+        if (strataKeys.length > 0) {
+            const perStratum = Math.floor(savedToDistribute / strataKeys.length);
+            strataKeys.forEach(key => {
+                popStructure[key] = (popStructure[key] || 0) + perStratum;
+                savedToDistribute -= perStratum;
+            });
+            if (savedToDistribute > 0) {
+                popStructure[strataKeys[0]] = (popStructure[strataKeys[0]] || 0) + savedToDistribute;
+            }
+        }
+    }
 
     // [FIX] 计算nextPopulation时，直接使用popStructure的总和
     // 因为exodus和starvation已经在popStructure中正确扣减了
@@ -7097,6 +7136,16 @@ export const simulateTick = ({
                 }
             }
 
+            // Inventory decay: excess stock (>3x target) decays at 2%/tick (spoilage, theft, etc.)
+            if (adjustedDemand > 0) {
+                const decayThreshold = adjustedDemand * inventoryTargetDays * 3;
+                const currentStockForDecay = res[resource] || 0;
+                if (currentStockForDecay > decayThreshold) {
+                    const decayAmount = (currentStockForDecay - decayThreshold) * 0.02;
+                    res[resource] = currentStockForDecay - decayAmount;
+                }
+            }
+
 
             // 计算当前库存可以支撑多少?
             const dailyDemand = adjustedDemand;
@@ -7253,10 +7302,9 @@ export const simulateTick = ({
                     // 3. 计算市场价格（基于basePrice和供需关系?
                     let marketBasedPrice = basePrice * priceMultiplier;
 
-                    // 4. 最终价?= 市场价格（允许低于成本价?
-                    // 当供过于求时，价格可能低于成本，生产者会亏损
-                    // 这会促使生产者减产或转行，实现市场自我调?
-                    let sellingPrice = marketBasedPrice;
+                    // 4. 最终价格 = max(市场价格, 成本底线)
+                    // 价格不能长期低于成本的 50%，否则会造成系统性通缩
+                    let sellingPrice = Math.max(marketBasedPrice, costPrice * 0.5);
 
                     // 不超过物价限?
                     const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
@@ -8354,7 +8402,8 @@ export const simulateTick = ({
     let virtualTaxIncome = 0;
     if (virtualTaxRate > 0 && totalCollectedTax > 0) {
         virtualTaxIncome = totalCollectedTax * virtualTaxRate;
-        const virtualTaxCap = Math.max(10000, (res.silver || 0) * 0.02);
+        // Cap based on current tax revenue, NOT treasury balance (prevents exponential growth)
+        const virtualTaxCap = Math.max(10000, totalCollectedTax * 0.5);
         virtualTaxIncome = Math.min(virtualTaxIncome, virtualTaxCap);
         applySilverChange(virtualTaxIncome, 'income_ideology_virtual_tax');
         rates.silver = (rates.silver || 0) + virtualTaxIncome;

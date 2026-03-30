@@ -1684,6 +1684,46 @@ triggerConditions: { minPopulation: 150, minEpoch: 4, maxEpoch: 6 },
       },
     ],
   },
+
+  // ========== 通缩危机事件 ==========
+  {
+    id: 'deflation_crisis',
+    name: '通缩螺旋',
+    icon: 'TrendingDown',
+    description: '物价持续走低，商人囤货不售，工匠纷纷停工。市场陷入萧条，消费意愿低迷。',
+    triggerConditions: { minPopulation: 50, minEpoch: 1 },
+    options: [
+      {
+        id: 'stimulus_spending',
+        text: '国库拨款刺激消费',
+        effects: {
+          resourcePercent: { silver: -0.06 },
+          resourceDemandMod: { food: 0.2, cloth: 0.2, tools: 0.15 },
+          buildingProductionMod: { industry: 0.1, agriculture: 0.1 },
+          approval: { merchant: 15, peasant: 10 },
+          stability: 3,
+        },
+      },
+      {
+        id: 'public_works',
+        text: '大兴土木，扩大建设',
+        effects: {
+          resourcePercent: { silver: -0.1 },
+          resourceDemandMod: { stone: 0.3, wood: 0.25, iron: 0.2 },
+          approval: { peasant: 10, lumberjack: 10, miner: 10 },
+          stability: 5,
+        },
+      },
+      {
+        id: 'laissez_faire',
+        text: '顺其自然，等待市场恢复',
+        effects: {
+          approval: { merchant: -10, capitalist: -5 },
+          stability: -5,
+        },
+      },
+    ],
+  },
 ];
 
 export default economicEvents;

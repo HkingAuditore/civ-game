@@ -115,6 +115,14 @@ let battleIdCounter = 0;
 const randomInt = (min, max) => min + Math.floor(Math.random() * Math.max(1, max - min + 1));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+// 概率取整：解决小兵力时 Math.round 永远为 0 的问题
+// 例如 stochasticRound(0.3) 有 30% 概率返回 1，70% 概率返回 0
+const stochasticRound = (x) => {
+    if (x <= 0) return 0;
+    const floor = Math.floor(x);
+    return floor + (Math.random() < (x - floor) ? 1 : 0);
+};
+
 const getEngagementType = (engagementType, battleType) => (
     ENGAGEMENT_TYPES[engagementType]
         ? engagementType
@@ -392,55 +400,26 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
     const attackerUnits = Math.max(1, attackerState.profile.totalUnits);
     const defenderUnits = Math.max(1, defenderState.profile.totalUnits);
 
-    // [FIX Bug13] 兵力比修正：当一方兵力远超对方时，弱势方对强势方造成的损失受限
-    // ratio > 1 表示攻方人多，ratio < 1 表示守方人多
-    const forceRatio = attackerUnits / defenderUnits;
-    // 对攻方：如果攻方远多于守方，守方能造成的损伤比例下降
-    // 例如 10000 vs 100 时，forceRatio = 100，dampenAttacker ≈ 0.1（大幅降低攻方损失率）
-    const dampenAttacker = forceRatio > 1 ? Math.min(1, 1 / Math.sqrt(forceRatio)) : 1;
-    // 对守方：如果守方远多于攻方，攻方能造成的损伤比例下降
-    const dampenDefender = forceRatio < 1 ? Math.min(1, Math.sqrt(forceRatio)) : 1;
+    // --- 兰彻斯特杀伤模型 ---
+    // 伤亡 = 敌方总火力 × 强度 / 我方单位防御力
+    // attackScore / defenseScore 已包含兵种面板、克制、将领、补给、地域等所有修正
+    const intensity = engagement.baseCasualtyRate * phasePressure;
+    const defPerAttackerUnit = Math.max(1, attackerState.defenseScore / attackerUnits);
+    const defPerDefenderUnit = Math.max(1, defenderState.defenseScore / defenderUnits);
 
-    const attackerLossRate = engagement.baseCasualtyRate
-        * phasePressure
-        * (1.02 - advantage * 0.3)
-        * defenderState.plan.casualtyInflict
-        * attackerState.plan.casualtyTaken
-        * dampenAttacker; // [FIX Bug13] 兵力优势修正
-    const defenderLossRate = engagement.baseCasualtyRate
-        * phasePressure
-        * (0.98 + advantage * 0.3)
-        * attackerState.plan.casualtyInflict
-        * defenderState.plan.casualtyTaken
-        * dampenDefender; // [FIX Bug13] 兵力优势修正
-
-    // [FIX Bug13] 动态保底战损率：根据兵力比动态调整，避免碾压局下大军团反而损失更大
-    // 保底从 0.3% 降到最低 0.05%（兵力碾压10:1时）
-    const attackerMinRate = Math.max(0.0005, 0.003 * dampenAttacker);
-    const defenderMinRate = Math.max(0.0005, 0.003 * dampenDefender);
-
-    // [FIX Bug13] 伤害上限：一方的绝对伤害不能超过对方兵力的合理比例
-    // 防止 "万人大军每阶段自损30人而敌方百人残部也损失30人" 的悖论
-    const attackerMaxAbsLoss = Math.max(1, Math.ceil(defenderUnits * 0.5)); // 攻方损失不超过守方兵力的50%
-    const defenderMaxAbsLoss = Math.max(1, Math.ceil(attackerUnits * 0.5)); // 守方损失不超过攻方兵力的50%
+    const rawAttackerLoss = defenderState.attackScore * intensity
+        * defenderState.plan.casualtyInflict * attackerState.plan.casualtyTaken
+        / defPerAttackerUnit;
+    const rawDefenderLoss = attackerState.attackScore * intensity
+        * attackerState.plan.casualtyInflict * defenderState.plan.casualtyTaken
+        / defPerDefenderUnit;
 
     const attackerLossTarget = attackerUnits <= 1
-        ? 0
-        : Math.min(
-            attackerMaxAbsLoss,
-            // [FIX] 去掉固定保底1人：当守方兵力极少时，攻方损失应接近0
-            // 改为：计算结果 < 1 时直接取0，避免"1人守军每阶段必杀1人"
-            Math.min(attackerUnits - 1, Math.round(attackerUnits * clamp(attackerLossRate, attackerMinRate, 0.07)))
-        );
+        ? 0 : stochasticRound(Math.min(attackerUnits - 1, rawAttackerLoss));
     const defenderLossTarget = defenderUnits <= 1
-        ? 0
-        : Math.min(
-            defenderMaxAbsLoss,
-            // [FIX] 同上
-            Math.min(defenderUnits - 1, Math.round(defenderUnits * clamp(defenderLossRate, defenderMinRate, 0.08)))
-        );
+        ? 0 : stochasticRound(Math.min(defenderUnits - 1, rawDefenderLoss));
 
-    const momentumShift = clamp(Math.round(advantage * (engagement.engagementMomentum || 12 || 12)), -10, 10);
+    const momentumShift = clamp(Math.round(advantage * (engagement.engagementMomentum || 12)), -10, 10);
     const lineShiftRaw = advantage
         * engagement.lineImpact
         * attackerState.plan.line
@@ -452,7 +431,6 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
         + (lineShift > 0 ? 1 : lineShift < 0 ? -1 : 0)
     );
 
-    // Morale swing multiplier reduced from 100 to 40 to slow down morale collapse and extend battle duration
     const attackerMoraleShift = Math.round(
         -(attackerLossTarget / attackerUnits) * engagement.moraleSwing * 40 * (2 - attackerState.plan.morale)
         + (advantage > 0 ? 1 : advantage < 0 ? -2 : 0)
@@ -917,22 +895,21 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
         battleContext,
     });
 
-    // 每日小额伤亡：阶段未结算期间也造成持续战损，让兵力实时变化
+    // 每日伤亡（兰彻斯特模型）：敌方火力 × 日强度 / 我方单位防御力
     if (b.phaseDaysRemaining > 0) {
         const engagement = ENGAGEMENT_TYPES[b.engagementType] || ENGAGEMENT_TYPES.assault;
         const dailyRate = engagement.dailyCasualtyRate || 0.003;
         const atkUnits = Math.max(1, getTotalUnits(b.attacker.currentUnits));
         const defUnits = Math.max(1, getTotalUnits(b.defender.currentUnits));
 
-        // [FIX] 兵力比修正：与阶段结算保持一致，避免极少数敌军也能造成固定伤亡
-        const forceRatio = atkUnits / defUnits;
-        const dampenAtk = forceRatio > 1 ? Math.min(1, 1 / Math.sqrt(forceRatio)) : 1;
-        const dampenDef = forceRatio < 1 ? Math.min(1, Math.sqrt(forceRatio)) : 1;
-
-        // [FIX] 去掉 Math.max(1) 保底：兵力极少时不应造成固定伤亡
-        // 只有当计算结果 >= 1 时才造成伤亡，避免"1人每天必杀1人"的悖论
-        const dailyAtkLoss = Math.round(atkUnits * dailyRate * dampenAtk * (0.8 + Math.random() * 0.4));
-        const dailyDefLoss = Math.round(defUnits * dailyRate * dampenDef * (0.8 + Math.random() * 0.4));
+        const defPerAtk = Math.max(1, attackerState.defenseScore / atkUnits);
+        const defPerDef = Math.max(1, defenderState.defenseScore / defUnits);
+        const dailyAtkLoss = stochasticRound(
+            Math.min(atkUnits, defenderState.attackScore * dailyRate / defPerAtk)
+        );
+        const dailyDefLoss = stochasticRound(
+            Math.min(defUnits, attackerState.attackScore * dailyRate / defPerDef)
+        );
 
         if (dailyAtkLoss > 0) {
             const atkApplied = applyLosses(b.attacker.currentUnits, dailyAtkLoss, {});
