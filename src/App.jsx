@@ -1391,7 +1391,7 @@ function GameApp({ gameState }) {
             {(gameState.eventEffectSettings?.logVisibility?.showMusicPlayer ?? false) && <MusicPlayer />}
             <PerfOverlay />
             {/* 浮动文本 */}
-            {gameState.clicks.map(c => (
+            {(gameState.clicks || []).map(c => (
                 <FloatingText
                     key={c.id}
                     {...c}

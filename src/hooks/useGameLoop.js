@@ -2667,7 +2667,8 @@ difficulty, // 游戏难度
                 }
 
                 const nextPopStructure = coupOutcome?.popStructure || result.popStructure;
-                const nextOfficials = coupOutcome?.officials || result.officials;
+                const nextOfficials = Array.isArray(coupOutcome?.officials) ? coupOutcome.officials
+                    : Array.isArray(result.officials) ? result.officials : null;
                 const nextBuildings = coupOutcome?.buildings || result.buildings;
                 const nextBuildingUpgrades = coupOutcome?.buildingUpgrades || result.buildingUpgrades;
                 // [FIX] 合并附庸系统更新到nextNations，避免被覆盖
@@ -6011,15 +6012,15 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
 
                 _apMark('rebellion+diplomacy+vassal');
 
-                // 娣诲姞鏂版棩蹇?
-                if (result.logs.length) {
+                const _logs = Array.isArray(result.logs) ? result.logs : [];
+                if (_logs.length) {
                     // 鍘婚噸锛氳拷韪凡澶勭悊鐨勭獊琚簨浠?
                     const processedRaidNations = new Set();
 
                     // Filter and transform technical logs to human-readable format
                     const logVisibility = current?.eventEffectSettings?.logVisibility || {};
                     const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
-                    const processedLogs = result.logs.map(log => {
+                    const processedLogs = _logs.map(log => {
                         if (typeof log !== 'string') return log;
 
                         // Transform RAID_EVENT logs to human-readable format (now supports multiple action types)
@@ -6102,14 +6103,12 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     }
                     if (currentActions && currentActions.triggerDiplomaticEvent) {
                         if (eventDebug) {
-                            debugLog('event', '[EVENT DEBUG] Checking logs:', result.logs);
-                            debugLog('event', '[EVENT DEBUG] Total logs count:', result.logs.length);
+                            debugLog('event', '[EVENT DEBUG] Checking logs:', _logs);
+                            debugLog('event', '[EVENT DEBUG] Total logs count:', _logs.length);
                         }
 
                         // 先解析突袭事件日志，触发战斗结果弹窗
-                        const raidLogEntry = Array.isArray(result.logs)
-                            ? result.logs.find((log) => typeof log === 'string' && log.includes('RAID_EVENT'))
-                            : null;
+                        const raidLogEntry = _logs.find((log) => typeof log === 'string' && log.includes('RAID_EVENT'));
                         if (raidLogEntry && currentActions.addBattleNotification) {
                             try {
                                 const jsonStart = raidLogEntry.indexOf('{');
@@ -6187,9 +6186,9 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         }
 
 
-                        result.logs.forEach((log, index) => {
+                        _logs.forEach((log, index) => {
                             debugLog('event', `[EVENT DEBUG] Log ${index}: `, log);
-                            debugLog('event', `[EVENT DEBUG] Log ${index} includes RAID_EVENT: `, log.includes('RAID_EVENT'));
+                            debugLog('event', `[EVENT DEBUG] Log ${index} includes RAID_EVENT: `, typeof log === 'string' && log.includes('RAID_EVENT'));
 
                             // 检测宣战事件（使用新的 WAR_DECLARATION_EVENT 鏍囪锛?
                             if (log.includes('WAR_DECLARATION_EVENT:')) {
@@ -7717,13 +7716,13 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 const allAutoReplenishLosses = {};
 
                 // DEBUG: Check if we are receiving any replenish logs
-                const hasReplenishLog = result.logs.some(l => typeof l === 'string' && l.includes('AUTO_REPLENISH_LOSSES:'));
+                const hasReplenishLog = _logs.some(l => typeof l === 'string' && l.includes('AUTO_REPLENISH_LOSSES:'));
                 if (hasReplenishLog) {
                     addLog(`馃洜锔?[DEBUG] Worker sent replenishment signal! AutoRecruit: ${autoRecruitEnabled}`);
                 }
 
                 if (autoRecruitEnabled) {
-                    result.logs.forEach((log) => {
+                    _logs.forEach((log) => {
                         if (typeof log === 'string' && log.includes('AUTO_REPLENISH_LOSSES:')) {
                             try {
                                 const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');

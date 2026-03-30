@@ -4,9 +4,24 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.8',
+        version: '2.3.9',
         date: '2026-03-30',
         isLatest: true,
+        highlights: [
+            '紧急修复 Worker 崩溃（window is not defined），恢复 95%+ 玩家的游戏线程',
+            '修复无限渲染循环（React #185）和多个运行时空指针错误',
+        ],
+        changes: [
+            { type: 'fix', text: 'Web Worker 崩溃修复：gameanalytics SDK 在模块初始化时访问 window 导致 Worker 环境 100% 崩溃，通过注入兼容垫片（workerGlobals）在 SDK 加载前创建最小化 window 代理。影响约 400+ 玩家的 1449 次报错。' },
+            { type: 'fix', text: '修复 React Error #185 无限渲染循环：useGameActions 每次渲染返回新对象引用导致依赖它的 useEffect 反复触发，改为 useRef 保持稳定对象引用。影响 152 玩家。' },
+            { type: 'fix', text: '修复事件选项 undefined.map 崩溃：filterEventOptions 在 options 非数组时返回原值而非空数组，导致 EventDetail 组件 .map() 时崩溃。' },
+            { type: 'fix', text: '修复 result.logs / nextOfficials 等多处空指针：添加 Array.isArray 防护，防止 Worker 返回数据缺失时触发 "is not iterable" 和 "map is not a function" 错误。' },
+        ],
+    },
+    {
+        version: '2.3.8',
+        date: '2026-03-30',
+        isLatest: false,
         highlights: [
             '人头税征税上限 1000%、营业税范围 ±1000%，杜绝极端税率导致的经济崩盘',
             '旧存档迁移改为按实际收入反算税率，迁移后税额与旧版一致',

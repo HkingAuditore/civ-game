@@ -184,7 +184,7 @@ export const filterEventEffects = (effects, epoch, techsUnlocked = []) => {
  * @returns {Array} 过滤后的选项数组
  */
 export const filterEventOptions = (options, epoch, techsUnlocked = []) => {
-    if (!options || !Array.isArray(options)) return options;
+    if (!options || !Array.isArray(options)) return [];
     
     return options.map(option => {
         const filteredOption = { ...option };
