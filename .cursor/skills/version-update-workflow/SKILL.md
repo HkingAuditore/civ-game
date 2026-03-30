@@ -24,6 +24,7 @@ description: Summarize and execute civ-game version update workflow, including c
 4. 一次只做一个版本号，避免混入历史内容。
 5. 版本更新后必须运行 `update_version.bat` 同步版本位点。
 6. 交付前至少做一次最小验证（`lint` 或 `build`）。
+7. **版本发布后必须推送 OTA 热更新**：运行 `release_oneclick.bat` 将构建产物部署到 OTA 服务。
 
 ## 标准流程
 
@@ -51,7 +52,7 @@ description: Summarize and execute civ-game version update workflow, including c
    - 上一个最新版本改为 `isLatest: false`。
 
 5. 运行版本同步脚本  
-   - 在仓库根目录执行：`update_version.bat`（或 `.\update_version.bat`）。
+   - 在仓库根目录执行：`node scripts/build_android_release.js <版本号>`（PowerShell 下避免使用交互式 bat，直接传参）。
    - 脚本失败时不得跳过，需先修复失败原因再继续后续步骤。
    - 执行后检查 `package.json`、`android/app/build.gradle` 等版本位点是否已同步。
 
@@ -60,9 +61,20 @@ description: Summarize and execute civ-game version update workflow, including c
    - 检查所有条目都带 `type` 与 `text`。
    - 建议运行：`npm run lint`，必要时补 `npm run build`。
 
-7. 输出交付说明  
+7. Git 提交与推送  
+   - `git add` 所有版本相关文件（`src/`、`package.json`、`android/app/build.gradle`）。
+   - `git commit` 并 `git push`。
+
+8. 推送 OTA 热更新  
+   - 在仓库根目录执行：`.\release_oneclick.bat`（默认模式为 `ota`，仅推送热更新）。
+   - 脚本会自动：读取 `package.json` 版本 → `npm run build` → 打包 zip → 上传至 COS → 生成 `updates.json`。
+   - 可选模式：`.\release_oneclick.bat all`（OTA + Android APK）、`.\release_oneclick.bat apk`（仅 APK）。
+   - 检查输出中的 OTA Summary，确认 channel、version、sha256、url 等字段正确。
+   - **注意**：此脚本需要 `coscmd` 已配置且可用（`pip install coscmd`），否则 COS 部署会失败。
+
+9. 输出交付说明  
    - 告知更新了哪些文件。
-   - 给出本次版本核心亮点、`update_version.bat` 执行结果与验证结果。
+   - 给出本次版本核心亮点、版本同步结果、OTA 推送结果。
 
 ## changelog 条目模板
 

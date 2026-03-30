@@ -7,7 +7,7 @@ import { Icon } from '../common/UIComponents';
 import { TECHS, EPOCHS, BUILDINGS } from '../../config';
 import { RESOURCES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
-import { getEpochTechRequirementStatus } from '../../utils/epochUpgrade';
+import { getEpochTechRequirementStatus, getEpochScaleMultiplier } from '../../utils/epochUpgrade';
 import { getEpochTheme } from '../../config/epicTheme';
 import { getTechCostMultiplier } from '../../config/difficulty';
 import { IdeologyTab } from './IdeologyTab';
@@ -285,8 +285,9 @@ const TechTabComponent = ({
         () => getEpochTechRequirementStatus(safeEpochIndex, techsUnlocked),
         [safeEpochIndex, techsUnlocked]
     );
-    // 应用难度系数到时代升级成本
-    const epochCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod);
+    // 应用难度系数 + 人口规模缩放到时代升级成本
+    const epochScaleMultiplier = getEpochScaleMultiplier(population, safeEpochIndex);
+    const epochCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + techCostMod) * epochScaleMultiplier;
     const adjustedEpochCost = useMemo(() => {
         if (!nextEpochInfo) return {};
         const adjusted = {};
