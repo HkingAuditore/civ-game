@@ -34,3 +34,16 @@ analytics-server/.env
 
 # Generated reports
 tools/balance-report.html
+
+# Sensitive / private workspace data
+skills/
+.workbuddy/
+.cursor/
+analytics-server/scripts/
+ai_reports/_data.json
+ai_reports/_embed.json
+ai_reports/_session_features.json
+ai_reports/_build_report.cjs
+ai_reports/_precompute.cjs
+ai_reports/_query_features.cjs
+commit_msg.txt

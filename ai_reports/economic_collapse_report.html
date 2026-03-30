@@ -281,7 +281,7 @@ function buildAll() {
     if (dC) dC.destroy();
     dC = new Chart(document.getElementById('chDist'), {
       type: 'bar', data: { labels, datasets: [{ data: pts, backgroundColor: labels.map(l => l === '中位数' ? '#f97316' : (l === 'P90' || l === 'P75') ? '#ef444480' : '#64748b'), borderColor: labels.map(l => l === '中位数' ? '#f97316' : '#475569'), borderWidth: 1, borderRadius: 6 }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' } }, y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v } } }
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' } }, y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v } } } }
     });
   }
   distM.forEach(([l, k], i) => { const b = document.createElement('button'); b.className = `tb ${i === 0 ? 'on' : ''}`; b.textContent = l; b.onclick = () => { dT.querySelectorAll('.tb').forEach(x => x.classList.remove('on')); b.classList.add('on'); drawDist(k); }; dT.appendChild(b); });

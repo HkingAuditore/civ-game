@@ -195,12 +195,12 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     // 注意：实际征收还会受到“该阶层财富不足”的上限影响（无法从负资产里继续征税）
     const headTaxMultiplier = context.taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
     const effectiveTaxModifier = context.effectiveTaxModifier ?? 1;
-    const stratumWage = context.market?.wages?.[stratumKey];
+    // [FIX] 使用实际人均收入而非 market.wages（岗位工资信号），与 simulation.js 保持一致
     const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
     let plannedHeadTaxPerCapita;
     if (headTaxMultiplier > 0) {
-        const headIncomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
-            ? stratumWage * taxRatio : 0;
+        const headIncomeBase = (Number.isFinite(incomePerCapita) && incomePerCapita > 0)
+            ? incomePerCapita * taxRatio : 0;
         plannedHeadTaxPerCapita = headIncomeBase * headTaxMultiplier * effectiveTaxModifier;
     } else if (headTaxMultiplier < 0) {
         plannedHeadTaxPerCapita = headTaxMultiplier * effectiveTaxModifier;

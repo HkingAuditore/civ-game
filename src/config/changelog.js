@@ -4,9 +4,23 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.9',
+        version: '2.3.10',
         date: '2026-03-30',
         isLatest: true,
+        highlights: [
+            '修复人头税按岗位工资而非人均收入征收的严重计算错误——设 20% 税率实际可能收超过 100% 收入',
+        ],
+        changes: [
+            { type: 'fix', text: '人头税征收从"按岗位工资信号"改为"按当期每人实际工资收入"计算。旧逻辑使用 market.wages（每个岗位的日薪），在就业率低于 100% 时远高于人均收入，导致设定 20% 的税率实际税额可超过人均收入的 100%。' },
+            { type: 'fix', text: '官员人头税同步修正：使用官员本 tick 实际到手薪俸作为税基，而非全局工资信号。' },
+            { type: 'fix', text: '不满度分析（demands）和组织度系统（organizationSystem）的头税估算同步修正，使用实际人均收入而非岗位工资信号，确保税负评估与实际征收一致。' },
+            { type: 'fix', text: '建筑详情营业税"实际税额"始终显示 0：buildingFinancialData.businessTaxPaid 从未被写入，现在在征税和补贴时正确记录实际金额。' },
+        ],
+    },
+    {
+        version: '2.3.9',
+        date: '2026-03-30',
+        isLatest: false,
         highlights: [
             '紧急修复 Worker 崩溃（window is not defined），恢复 95%+ 玩家的游戏线程',
             '修复无限渲染循环（React #185）和多个运行时空指针错误',
