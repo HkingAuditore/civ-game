@@ -274,7 +274,7 @@
             transform: none;
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-WyTEm-zh.js"></script>
+  <script type="module" crossorigin src="./assets/index-DwizvOqc.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/vendor-CC5Q4v7N.js">
   <link rel="modulepreload" crossorigin href="./assets/motion-BF5hIlvv.js">
   <link rel="stylesheet" crossorigin href="./assets/index-CtaModA1.css">
@@ -290,23 +290,78 @@
     <div id="root"></div>
 
     <script>
-        // 全局错误收集器
+        // 全局错误收集器 + localStorage 持久化（闪退后可查看）
+        var CRASH_LOG_KEY = 'civ_crash_log';
         var globalErrors = [];
+        function persistCrashLog(entry) {
+            globalErrors.push(entry);
+            try {
+                var log = JSON.parse(localStorage.getItem(CRASH_LOG_KEY) || '[]');
+                entry.ts = new Date().toISOString();
+                entry.mem = (performance && performance.memory)
+                    ? Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB/' + Math.round(performance.memory.jsHeapSizeLimit / 1048576) + 'MB'
+                    : 'N/A';
+                log.push(entry);
+                if (log.length > 50) log = log.slice(-50);
+                localStorage.setItem(CRASH_LOG_KEY, JSON.stringify(log));
+            } catch (_) {}
+        }
         window.addEventListener('error', function (e) {
-            globalErrors.push({
+            persistCrashLog({
                 type: 'error',
                 message: e.message,
-                filename: e.filename,
+                filename: (e.filename || '').split('/').pop(),
                 lineno: e.lineno,
                 colno: e.colno
             });
         });
         window.addEventListener('unhandledrejection', function (e) {
-            globalErrors.push({
+            persistCrashLog({
                 type: 'unhandledrejection',
-                reason: String(e.reason)
+                reason: String(e.reason).slice(0, 512)
             });
         });
+        // 内存监控：每 30 秒记录一次，连续超限时标记
+        (function () {
+            var MEM_LOG_KEY = 'civ_mem_log';
+            setInterval(function () {
+                try {
+                    if (!performance || !performance.memory) return;
+                    var used = performance.memory.usedJSHeapSize;
+                    var limit = performance.memory.jsHeapSizeLimit;
+                    var pct = Math.round(used / limit * 100);
+                    var entry = { ts: new Date().toISOString(), mb: Math.round(used / 1048576), pct: pct };
+                    var log = JSON.parse(localStorage.getItem(MEM_LOG_KEY) || '[]');
+                    log.push(entry);
+                    if (log.length > 40) log = log.slice(-40);
+                    localStorage.setItem(MEM_LOG_KEY, JSON.stringify(log));
+                } catch (_) {}
+            }, 30000);
+        })();
+
+        // 启动时检查上次崩溃日志
+        (function () {
+            try {
+                var log = JSON.parse(localStorage.getItem(CRASH_LOG_KEY) || '[]');
+                var memLog = JSON.parse(localStorage.getItem('civ_mem_log') || '[]');
+                if (log.length > 0) {
+                    var last5 = log.slice(-5);
+                    var msg = '⚠️ 上次会话捕获到 ' + log.length + ' 条错误:\n\n' +
+                        last5.map(function (e) {
+                            return '[' + (e.ts || '?') + '] ' + e.type + ': ' + (e.message || e.reason || '?') + ' (mem: ' + (e.mem || 'N/A') + ')';
+                        }).join('\n');
+                    if (memLog.length > 0) {
+                        var lastMem = memLog.slice(-5);
+                        msg += '\n\n内存趋势(最后几次): ' + lastMem.map(function (m) { return m.mb + 'MB(' + m.pct + '%)'; }).join(' → ');
+                    }
+                    msg += '\n\n点击确定清除日志。';
+                    if (confirm(msg)) {
+                        localStorage.removeItem(CRASH_LOG_KEY);
+                        localStorage.removeItem('civ_mem_log');
+                    }
+                }
+            } catch (_) {}
+        })();
 
         // Hide loading screen when app is ready
         window.addEventListener('load', () => {
