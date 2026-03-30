@@ -1388,6 +1388,11 @@ difficulty, // 游戏难度
                     if (n.isDefeated || n.population <= 0) {
                         return { id: n.id, name: n.name, isDefeated: true, population: 0 };
                     }
+                    // Trim heavy history arrays from AI nations to reduce payload size
+                    if (!n.isPlayer) {
+                        const { tradeHistory, priceHistory, resourceHistory, ...trimmedNation } = n;
+                        return trimmedNation;
+                    }
                     return n;
                 }),
                 diplomacyOrganizations: current.diplomacyOrganizations,

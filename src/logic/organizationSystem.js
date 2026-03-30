@@ -62,10 +62,10 @@ export const STRATUM_ORGANIZATION_MULTIPLIER = {
     scribe: 1.2,        // 学者 (原0.9)
     worker: 1.3,        // 工人 (原1.0)
     artisan: 1.2,       // 工匠 (原0.8)
-    miner: 1.2,         // 矿工 (原0.9)
+    miner: 1.0,         // 矿工 (降低：初级资源阶层叛乱过频)
     // 底层阶级
-    peasant: 1.1,       // 自耕农 (原0.8)
-    lumberjack: 1.1,    // 樵夫 (原0.8)
+    peasant: 0.9,       // 自耕农 (降低：初级资源阶层叛乱过频)
+    lumberjack: 0.9,    // 樵夫 (降低：初级资源阶层叛乱过频)
     serf: 0.9,          // 佃农 (原0.6)
     unemployed: 0.4,    // 失业者 (原0.2)
 };

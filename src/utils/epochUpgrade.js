@@ -5,7 +5,9 @@ export const getEpochTechRequirementStatus = (epoch = 0, techsUnlocked = []) => 
     const currentEpochTechTotal = currentEpochTechs.length;
     const unlockedSet = new Set(Array.isArray(techsUnlocked) ? techsUnlocked : []);
     const currentEpochResearched = currentEpochTechs.filter((tech) => unlockedSet.has(tech.id)).length;
-    const requiredTechCount = Math.floor(currentEpochTechTotal * 0.8);
+    // Stone Age (epoch 0) uses 55% threshold to ease the first upgrade; later eras use 80%
+    const ratio = epoch === 0 ? 0.55 : 0.8;
+    const requiredTechCount = Math.floor(currentEpochTechTotal * ratio);
 
     return {
         currentEpochTechTotal,
