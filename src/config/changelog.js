@@ -4,9 +4,30 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.11',
+        date: '2026-03-31',
+        isLatest: true,
+        highlights: [
+            '营业税补贴改为每栋固定金额，告别"按比例补贴越亏越补"的怪圈',
+            '修复营业税正税金额翻倍 bug 与多个事件效果崩溃',
+            '教程系统与日志回调引用稳定化，彻底消除 React 无限渲染',
+        ],
+        changes: [
+            { type: 'fix', text: '营业税正税路径 businessTaxPaid 被 ledger 自动记录后又手动累加一次，导致正税金额翻倍入账。移除重复累加。' },
+            { type: 'fix', text: '事件选项非数组时 filterEventOptions 返回原值导致 EventDetail .map() 崩溃，兜底改为返回空数组。' },
+            { type: 'fix', text: '事件效果写入 setActiveEventEffects 时，approval/stability/resourceDemand/stratumDemand/buildingProduction 五个字段统一加 Array.isArray 防护，防止旧存档中对象格式数据触发 spread 异常。' },
+            { type: 'fix', text: '策略行动的 approvalChanges 写入格式从对象嵌套改为数组追加，与新的 activeEventEffects.approval 结构保持一致。' },
+            { type: 'fix', text: 'addLog 回调因依赖 gameState 每帧重建，通过 useRef 持有 setLogs 让引用完全稳定，消除下游 useEffect 不必要重跑。' },
+            { type: 'fix', text: '教程系统 useTutorialSystem 将 gameState 整体从依赖数组移除，改用 gameStateRef + 具体原始值字段，修复 React #185 无限渲染循环。' },
+            { type: 'improve', text: '营业税 UI 根据正负值自适应显示"税率(%)"或"补贴(🪙/栋)"，标签、占位符、说明文案全部联动，玩家一眼看清当前模式。' },
+            { type: 'balance', text: '营业税补贴模式从按营收比例改为每栋固定金额：负数值直接表示每栋每次产出补贴的金币数，计算更直观、补贴总额可预测。' },
+            { type: 'balance', text: '营业税正税征收改用实际产出（actualMultiplier）替代人员配比估算（staffingRatio），使税额与真实产值精确挂钩。' },
+        ],
+    },
+    {
         version: '2.3.10',
         date: '2026-03-30',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '修复人头税按岗位工资而非人均收入征收的严重计算错误——设 20% 税率实际可能收超过 100% 收入',
         ],

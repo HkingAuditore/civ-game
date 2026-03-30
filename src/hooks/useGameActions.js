@@ -734,7 +734,7 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 return filtered;
             })
-            : randomEvent.options;
+            : [];
 
         const eventToLaunch = {
             ...randomEvent,
@@ -887,7 +887,7 @@ export const useGameActions = (gameState, addLog) => {
                 setActiveEventEffects(prev => ({
                     ...(prev || {}),
                     approval: [
-                        ...(prev?.approval || []),
+                        ...(Array.isArray(prev?.approval) ? prev.approval : []),
                         ...Object.entries(filtered.approval).map(([stratum, value]) => ({
                             stratum,
                             currentValue: value,
@@ -902,7 +902,7 @@ export const useGameActions = (gameState, addLog) => {
                 setActiveEventEffects(prev => ({
                     ...(prev || {}),
                     stability: [
-                        ...(prev?.stability || []),
+                        ...(Array.isArray(prev?.stability) ? prev.stability : []),
                         {
                             currentValue: filtered.stability,
                         },
@@ -916,7 +916,7 @@ export const useGameActions = (gameState, addLog) => {
                 setActiveEventEffects(prev => ({
                     ...(prev || {}),
                     resourceDemand: [
-                        ...(prev?.resourceDemand || []),
+                        ...(Array.isArray(prev?.resourceDemand) ? prev.resourceDemand : []),
                         ...Object.entries(filtered.resourceDemandMod).map(([target, value]) => ({
                             target,
                             currentValue: value,
@@ -931,7 +931,7 @@ export const useGameActions = (gameState, addLog) => {
                 setActiveEventEffects(prev => ({
                     ...(prev || {}),
                     stratumDemand: [
-                        ...(prev?.stratumDemand || []),
+                        ...(Array.isArray(prev?.stratumDemand) ? prev.stratumDemand : []),
                         ...Object.entries(filtered.stratumDemandMod).map(([target, value]) => ({
                             target,
                             currentValue: value,
@@ -946,7 +946,7 @@ export const useGameActions = (gameState, addLog) => {
                 setActiveEventEffects(prev => ({
                     ...(prev || {}),
                     buildingProduction: [
-                        ...(prev?.buildingProduction || []),
+                        ...(Array.isArray(prev?.buildingProduction) ? prev.buildingProduction : []),
                         ...Object.entries(filtered.buildingProductionMod).map(([target, value]) => ({
                             target,
                             currentValue: value,

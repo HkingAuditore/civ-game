@@ -951,7 +951,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 </h4>
                                 <div className="grid grid-cols-2 gap-2 items-center">
                                     <div>
-                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">税率 (%)</div>
+                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">
+                                            {displayBizPercent < 0 ? '补贴 (🪙/栋)' : '税率 (%)'}
+                                        </div>
                                         <div className="flex items-center gap-1">
                                             <button
                                                 type="button"
@@ -984,11 +986,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                                     }
                                                 }}
                                                 className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                                placeholder="营收税率%"
+                                                placeholder={displayBizPercent < 0 ? "补贴🪙/栋" : "营收税率%"}
                                             />
                                         </div>
                                         <div className="text-[10px] text-gray-500 mt-1">
-                                            范围：-{maxBizPercent.toFixed(0)}% ~ {maxBizPercent.toFixed(0)}%
+                                            {displayBizPercent < 0
+                                                ? `负数=补贴(🪙/栋)，正数=税率(%)`
+                                                : `范围：-${maxBizPercent.toFixed(0)} ~ ${maxBizPercent.toFixed(0)}%`
+                                            }
                                         </div>
                                     </div>
                                     <div>
@@ -1000,7 +1005,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                             const isSubsidy = displayBizPercent < 0;
                                             return (
                                                 <>
-                                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
+                                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">
+                                                        {isSubsidy ? '实际补贴 (每栋/产出)' : '实际税额 (每次产出)'}
+                                                    </div>
                                                     <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                                                         {perBuildingTax != null ? (
                                                             <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidy ? 'text-green-300' : 'text-gray-400'}`}>

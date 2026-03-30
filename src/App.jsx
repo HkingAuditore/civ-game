@@ -215,12 +215,14 @@ function GameApp({ gameState }) {
     // OTA 热更新（仅原生平台生效）
     useOtaUpdate();
 
-    // 添加日志函数 - memoized to prevent unnecessary re-renders
+    // 添加日志函数 - 用 ref 持有 setLogs，让 addLog 引用稳定
+    const setLogsRef = useRef(gameState?.setLogs);
+    setLogsRef.current = gameState?.setLogs;
     const addLog = useCallback((msg) => {
-        if (gameState?.setLogs) {
-            gameState.setLogs(prev => [msg, ...prev].slice(0, LOG_STORAGE_LIMIT));
+        if (setLogsRef.current) {
+            setLogsRef.current(prev => [msg, ...prev].slice(0, LOG_STORAGE_LIMIT));
         }
-    }, [gameState]);
+    }, []);
 
     // 现在 gameState 肯定存在，可以安全调用这些钩子
     const actions = useGameActions(gameState, addLog);
@@ -1071,21 +1073,23 @@ function GameApp({ gameState }) {
         }
 
         if (result.effects.approvalChanges && Object.keys(result.effects.approvalChanges).length > 0) {
-            Object.entries(result.effects.approvalChanges).forEach(([key, change]) => {
-                if (change.value !== 0) {
-                    gameState.setActiveEventEffects(prev => ({
-                        ...prev,
-                        approval: {
-                            ...(prev.approval || {}),
-                            [key]: {
-                                value: (prev.approval?.[key]?.value || 0) + change.value,
-                                duration: change.duration || 30,
-                                source: `策略行动:${action.name}`,
-                            },
-                        },
-                    }));
-                }
-            });
+            const newApprovalEntries = Object.entries(result.effects.approvalChanges)
+                .filter(([, change]) => change.value !== 0)
+                .map(([stratum, change]) => ({
+                    stratum,
+                    currentValue: change.value,
+                    remainingDays: change.duration || 30,
+                    source: `策略行动:${action.name}`,
+                }));
+            if (newApprovalEntries.length > 0) {
+                gameState.setActiveEventEffects(prev => ({
+                    ...(prev || {}),
+                    approval: [
+                        ...(Array.isArray(prev?.approval) ? prev.approval : []),
+                        ...newApprovalEntries,
+                    ],
+                }));
+            }
         }
 
         if (result.effects.stabilityChange) {
