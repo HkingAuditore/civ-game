@@ -670,6 +670,9 @@ export const simulateTick = ({
         silverChangeLog.record(amount, reason);
     };
 
+    // 国有建筑银币产出累加器（用于财政估算）
+    let stateBuildingSilverOutput = 0;
+
     // General resource change log (for all resource types)
     const resourceChangeLog = {};
     const trackResourceChange = (resourceType, amount, reason) => {
@@ -3359,8 +3362,8 @@ export const simulateTick = ({
 
                             if (ownerKey === 'state') {
                                 applyResourceChange(resKey, levelAmount, 'building_production_direct');
+                                stateBuildingSilverOutput += levelAmount;
                             } else {
-                                // 私有建筑产出的银币直接进入业主口?
                                 ledger.transfer('void', ownerKey, levelAmount, 'building_production_direct', 'building_production_direct', { buildingId: b.id });
                             }
                         });
@@ -8858,9 +8861,10 @@ export const simulateTick = ({
         classFinancialData, // NEW: Return detailed financial data
         buildingFinancialData, // NEW: Per-building realized financial stats for UI
         buildingDebugData,  // DEBUG: Building production debug data
-        dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算?
-        dailyInvestment: ledger.dailyInvestment || 0, // 新增：当日投资额（建筑建?升级?
-        dailyOwnerRevenue: ledger.dailyOwnerRevenue || 0, // 新增：当日建筑产出收入（用于存货变动计算?
+        dailyMilitaryExpense: armyExpenseResult,
+        dailyInvestment: ledger.dailyInvestment || 0,
+        dailyOwnerRevenue: ledger.dailyOwnerRevenue || 0,
+        stateBuildingSilverOutput,
         needsShortages: classShortages,
         needsReport,
         starvationDeaths,

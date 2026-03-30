@@ -648,9 +648,14 @@ export const OfficialDetailModal = ({
                                         }
                                         const value = valueOrObj;
                                         const isPercent = Math.abs(value) < 2;
-                                        const displayVal = isPercent
-                                            ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
-                                            : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
+                                        let displayVal;
+                                        if (type === 'needsReduction') {
+                                            displayVal = value > 0 ? `-${(Math.abs(value) * 100).toFixed(0)}%` : `+${(Math.abs(value) * 100).toFixed(0)}%`;
+                                        } else {
+                                            displayVal = isPercent
+                                                ? `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
+                                                : `${value > 0 ? '+' : ''}${formatEffectNumber(value)}`;
+                                        }
                                         const isGood = getEffectStatus(type, value);
                                         return (
                                             <div key={type} className={`flex items-center gap-1 text-xs ${isGood ? 'text-green-300' : 'text-red-300'}`}>

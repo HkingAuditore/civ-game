@@ -1973,7 +1973,7 @@
 
     /* Scale down game controls in landscape */
     .game-controls-landscape>div {
-        transform: scale(0.85) !important;
+        transform: scale(0.92) !important;
         transform-origin: bottom right !important;
     }
 

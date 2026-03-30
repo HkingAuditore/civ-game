@@ -140,7 +140,7 @@ export const GameControls = React.memo(({
     };
 
     return (
-        <div className="game-controls flex items-stretch sm:items-center gap-0.5 sm:gap-1.5 h-8 sm:h-7">
+        <div className="game-controls flex items-stretch sm:items-center gap-0.5 sm:gap-1.5 h-10 sm:h-8">
             {/* 游戏速度控制 - 紧凑设计 */}
             <div className="flex items-center h-full rounded-md sm:rounded-lg border border-ancient-gold/20 glass-ancient shadow-ancient">
                 {/* 暂停/继续按钮 */}
@@ -155,15 +155,15 @@ export const GameControls = React.memo(({
                         onPauseToggle();
                     }}
                     className={cn(
-                        'appearance-none bg-transparent h-full px-1.5 sm:px-2 transition-all flex items-center justify-center gap-1 text-xs sm:text-xs font-bold touch-feedback',
+                        'appearance-none bg-transparent h-full px-2.5 sm:px-3 transition-all flex items-center justify-center gap-1 text-xs sm:text-xs font-bold touch-feedback',
                         isPaused
                             ? 'bg-green-500/10 border-r border-green-500/30 text-green-300 hover:bg-green-500/20'
                             : 'bg-orange-500/10 border-r border-orange-500/30 text-orange-300 hover:bg-orange-500/20'
                     )}
                     title={isPaused ? '继续游戏' : '暂停游戏'}
                 >
-                    <Icon name={isPaused ? 'Play' : 'Pause'} size={10} className="sm:w-3 sm:h-3 flex-shrink-0" />
-                    <span className="hidden sm:inline">{isPaused ? '继续' : '暂停'}</span>
+                    <Icon name={isPaused ? 'Play' : 'Pause'} size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="text-[10px] sm:text-xs sm:inline">{isPaused ? '继续' : '暂停'}</span>
                 </button>
 
                 {/* 速度选择按钮 - 窄屏单按钮循环，宽屏多按钮 */}

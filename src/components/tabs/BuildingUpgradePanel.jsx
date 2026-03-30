@@ -500,13 +500,24 @@ export const BuildingUpgradePanel = ({
         );
     };
 
-    // 处理升级/降级（新格式：直接传递等级）
+    const [batchAmounts, setBatchAmounts] = useState({});
+
     const handleUpgradeOne = (levelNum) => {
-        onUpgrade?.(levelNum);
+        const batch = batchAmounts[levelNum] || 1;
+        if (batch <= 1) {
+            onUpgrade?.(levelNum);
+        } else {
+            onBatchUpgrade?.(levelNum, batch);
+        }
     };
 
     const handleDowngradeOne = (levelNum) => {
-        onDowngrade?.(levelNum);
+        const batch = batchAmounts[levelNum] || 1;
+        if (batch <= 1) {
+            onDowngrade?.(levelNum);
+        } else {
+            onBatchDowngrade?.(levelNum, batch);
+        }
     };
 
     const handleUpgradeAll = (levelNum, levelCount) => {
@@ -577,23 +588,37 @@ export const BuildingUpgradePanel = ({
                                 </div>
 
                                 {/* 操作按钮 */}
-                                <div className="flex gap-1">
+                                <div className="flex gap-1 items-center">
                                     {levelCount > 0 && levelNum < maxLevel && (
-                                        <LongPressButton
-                                            onClick={() => handleUpgradeOne(levelNum)}
-                                            onLongPress={() => handleUpgradeAll(levelNum, levelCount)}
-                                            disabled={!canUpgradeThis || isUpgradeBlocked}
-                                            variant="upgrade"
-                                            className={`w-8 h-7 rounded text-sm font-bold ${canUpgradeThis && !isUpgradeBlocked
-                                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                                                : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                                                }`}
-                                            title={isUpgradeBlocked
-                                                ? `需要的输入资源尚未解锁：${lockedResources.map(r => RESOURCES[r]?.name || r).join('、')}`
-                                                : '单击+1 / 长按全部'}
-                                        >
-                                            <Icon name="ChevronUp" size={14} />
-                                        </LongPressButton>
+                                        <>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={levelCount}
+                                                value={batchAmounts[levelNum] || 1}
+                                                onChange={e => {
+                                                    const v = Math.max(1, Math.min(levelCount, parseInt(e.target.value) || 1));
+                                                    setBatchAmounts(prev => ({ ...prev, [levelNum]: v }));
+                                                }}
+                                                className="w-12 h-7 rounded bg-gray-800/80 border border-gray-600/60 text-center text-xs font-mono text-gray-200 focus:outline-none focus:border-emerald-500/60"
+                                                title="指定升级数量"
+                                            />
+                                            <LongPressButton
+                                                onClick={() => handleUpgradeOne(levelNum)}
+                                                onLongPress={() => handleUpgradeAll(levelNum, levelCount)}
+                                                disabled={!canUpgradeThis || isUpgradeBlocked}
+                                                variant="upgrade"
+                                                className={`w-8 h-7 rounded text-sm font-bold ${canUpgradeThis && !isUpgradeBlocked
+                                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                                    : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                                                    }`}
+                                                title={isUpgradeBlocked
+                                                    ? `需要的输入资源尚未解锁：${lockedResources.map(r => RESOURCES[r]?.name || r).join('、')}`
+                                                    : `单击升${batchAmounts[levelNum] || 1}座 / 长按全部`}
+                                            >
+                                                <Icon name="ChevronUp" size={14} />
+                                            </LongPressButton>
+                                        </>
                                     )}
                                     {canDowngradeThis && (
                                         <LongPressButton

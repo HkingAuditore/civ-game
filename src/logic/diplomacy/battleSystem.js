@@ -608,7 +608,7 @@ const applyPursuitLosses = (battle, winner, reason) => {
     const pursuitRate = clamp(
         basePursuitRate * (1 + momentumAdvantage * 0.5 + moralePenalty * 0.5) * Math.min(2, Math.sqrt(forceRatio)),
         0,
-        0.6
+        0.45
     );
     const pursuitLossTarget = Math.max(0, Math.round(loserUnits * pursuitRate));
     if (pursuitLossTarget <= 0) return;
@@ -639,13 +639,13 @@ const maybeFinalizeBattle = (battle) => {
         battle.result = finalizeBattleResult(battle, { winner: 'attacker', reason: 'withdrawal' });
         return battle;
     }
-    if (attackerUnits <= 0 || attackerUnits <= Math.max(1, Math.floor(attackerInitial * 0.08))) {
+    if (attackerUnits <= 0 || attackerUnits <= Math.max(1, Math.floor(attackerInitial * 0.05))) {
         applyPursuitLosses(battle, 'defender', 'annihilation');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'defender', reason: 'annihilation' });
         return battle;
     }
-    if (defenderUnits <= 0 || defenderUnits <= Math.max(1, Math.floor(defenderInitial * 0.08))) {
+    if (defenderUnits <= 0 || defenderUnits <= Math.max(1, Math.floor(defenderInitial * 0.05))) {
         applyPursuitLosses(battle, 'attacker', 'annihilation');
         battle.status = 'ended';
         battle.result = finalizeBattleResult(battle, { winner: 'attacker', reason: 'annihilation' });
