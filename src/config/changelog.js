@@ -82,6 +82,7 @@ export const CHANGELOG = [
         version: '2.3.5',
         date: '2026-03-30',
         isLatest: false,
+        changes: [],
     },
     {
         version: '2.3.4',
