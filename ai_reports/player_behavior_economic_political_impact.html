@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>哈耶克的文明 — 玩家行为对经济与政治系统的深度影响分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        :root {
+            --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+            --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+            --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+            --purple: #a78bfa; --orange: #fb923c; --pink: #f472b6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem; }
+        h1 { font-size: 2.2rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 2.5rem; }
+        h2 { font-size: 1.5rem; color: var(--accent); margin: 3rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--surface2); }
+        h3 { font-size: 1.15rem; color: var(--text); margin: 1.8rem 0 0.8rem; }
+        h4 { font-size: 1rem; color: var(--purple); margin: 1.2rem 0 0.5rem; }
+        p { margin-bottom: 0.8rem; color: var(--muted); font-size: 0.92rem; }
+        .grid { display: grid; gap: 1rem; }
+        .grid-4 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+        .grid-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        .grid-2 { grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); }
+        .card { background: var(--surface); border-radius: 12px; padding: 1.25rem; border: 1px solid var(--surface2); }
+        .stat-card { text-align: center; }
+        .stat-card .value { font-size: 2rem; font-weight: 700; color: var(--accent); }
+        .stat-card .label { font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem; }
+        .stat-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { text-align: left; padding: 0.6rem 0.8rem; color: var(--muted); font-weight: 600; border-bottom: 2px solid var(--surface2); font-size: 0.78rem; text-transform: uppercase; }
+        td { padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(51,65,85,0.5); }
+        tr:hover td { background: rgba(56,189,248,0.05); }
+        .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .tag-red { background: rgba(248,113,113,0.15); color: var(--red); }
+        .tag-yellow { background: rgba(251,191,36,0.15); color: var(--yellow); }
+        .tag-green { background: rgba(74,222,128,0.15); color: var(--green); }
+        .tag-purple { background: rgba(167,139,250,0.15); color: var(--purple); }
+        .tag-orange { background: rgba(251,146,60,0.15); color: var(--orange); }
+        .insight { background: linear-gradient(135deg, rgba(248,113,113,0.08), rgba(251,191,36,0.08)); border: 1px solid rgba(248,113,113,0.2); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; }
+        .insight-title { font-weight: 700; color: var(--red); margin-bottom: 0.3rem; }
+        .insight p { color: var(--muted); font-size: 0.9rem; }
+        .finding { background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(167,139,250,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; }
+        .finding-title { font-weight: 700; color: var(--accent); margin-bottom: 0.3rem; }
+        .finding p { color: var(--muted); font-size: 0.9rem; }
+        .fix { background: linear-gradient(135deg, rgba(74,222,128,0.08), rgba(56,189,248,0.08)); border: 1px solid rgba(74,222,128,0.2); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; }
+        .fix-title { font-weight: 700; color: var(--green); margin-bottom: 0.3rem; }
+        .fix p, .fix li { color: var(--muted); font-size: 0.9rem; }
+        .fix ul { padding-left: 1.2rem; margin-top: 0.5rem; }
+        .fix ul li { margin-bottom: 0.3rem; }
+        .warning { background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(251,146,60,0.08)); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; }
+        .warning-title { font-weight: 700; color: var(--yellow); margin-bottom: 0.3rem; }
+        .warning p { color: var(--muted); font-size: 0.9rem; }
+        .chart-wrap { background: var(--surface); border-radius: 12px; padding: 1.25rem; border: 1px solid var(--surface2); margin: 1rem 0; }
+        .chart-wrap canvas { max-height: 350px; }
+        .bar { height: 8px; border-radius: 4px; background: var(--surface2); overflow: hidden; margin-top: 0.3rem; }
+        .bar-fill { height: 100%; border-radius: 4px; }
+        .toc { background: var(--surface); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--surface2); margin-bottom: 2rem; }
+        .toc a { color: var(--accent); text-decoration: none; font-size: 0.9rem; display: block; padding: 0.3rem 0; }
+        .toc a:hover { color: var(--purple); }
+        .section-divider { height: 2px; background: linear-gradient(to right, var(--accent), transparent); margin: 3rem 0; border-radius: 1px; }
+        .flow-diagram { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+        .flow-box { background: var(--surface); border: 1px solid var(--surface2); border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.85rem; }
+        .flow-arrow { color: var(--red); font-size: 1.2rem; font-weight: bold; }
+        .metric-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(51,65,85,0.3); }
+        .metric-row:last-child { border-bottom: none; }
+        .metric-label { font-size: 0.85rem; color: var(--muted); }
+        .metric-value { font-size: 0.95rem; font-weight: 600; }
+        .highlight-number { color: var(--accent); font-weight: 700; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+<h1>玩家行为对经济与政治系统的深度影响分析</h1>
+<p class="subtitle">基于 3,525,396 条行为事件 · 1,020 名玩家 · 3,333 个游戏会话 · 数据截止 2026-03-30</p>
+
+<!-- 目录 -->
+<div class="toc">
+    <strong style="color: var(--text); font-size: 1rem;">目录</strong>
+    <a href="#overview">一、数据总览与玩家画像</a>
+    <a href="#econ-behavior">二、玩家经济行为模式</a>
+    <a href="#econ-impact">三、经济行为对经济系统的深度影响</a>
+    <a href="#pol-behavior">四、玩家政治行为模式</a>
+    <a href="#pol-impact">五、政治行为对政治系统的深度影响</a>
+    <a href="#cross-impact">六、经济-政治交叉影响——"崩溃螺旋"机制</a>
+    <a href="#epoch-analysis">七、时代维度分析——各纪元的经济政治特征</a>
+    <a href="#timeline">八、时间线分析——游戏生命周期中的行为演变</a>
+    <a href="#recommendations">九、基于数据的系统优化建议</a>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<h2 id="overview">一、数据总览与玩家画像</h2>
+
+<div class="grid grid-4">
+    <div class="card stat-card">
+        <div class="value">3.53M</div>
+        <div class="label">行为事件总量</div>
+        <div class="sub">设计事件 + 资源流水</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value">1,020</div>
+        <div class="label">独立玩家数</div>
+        <div class="sub">通过匿名 UUID 去重</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value">3,333</div>
+        <div class="label">游戏会话数</div>
+        <div class="sub">人均 3.27 局</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value">17.4 分钟</div>
+        <div class="label">平均会话时长</div>
+        <div class="sub">最长 57.7 小时</div>
+    </div>
+</div>
+
+<h3>行为事件分布</h3>
+<div class="chart-wrap">
+    <canvas id="categoryChart"></canvas>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <table>
+        <thead>
+            <tr><th>事件大类</th><th>事件数</th><th>占比</th><th>类型</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Economy（经济采样）</td><td>841,121</td><td>23.9%</td><td><span class="tag tag-green">自动采样</span></td></tr>
+            <tr><td>Price（价格采样）</td><td>654,648</td><td>18.6%</td><td><span class="tag tag-green">自动采样</span></td></tr>
+            <tr><td>Building（建筑操作）</td><td>630,262</td><td>17.9%</td><td><span class="tag tag-purple">主动行为</span></td></tr>
+            <tr><td>Military（军事行为）</td><td>329,396</td><td>9.3%</td><td><span class="tag tag-purple">主动+采样</span></td></tr>
+            <tr><td>Population（人口采样）</td><td>233,844</td><td>6.6%</td><td><span class="tag tag-green">自动采样</span></td></tr>
+            <tr><td>Diplomacy（外交行为）</td><td>233,792</td><td>6.6%</td><td><span class="tag tag-purple">主动行为</span></td></tr>
+            <tr><td>Stability（稳定度采样）</td><td>209,318</td><td>5.9%</td><td><span class="tag tag-green">自动采样</span></td></tr>
+            <tr><td>Rebellion（叛乱事件）</td><td>25,360</td><td>0.7%</td><td><span class="tag tag-red">系统触发</span></td></tr>
+            <tr><td>Tax（税收调整）</td><td>22,640</td><td>0.6%</td><td><span class="tag tag-purple">主动行为</span></td></tr>
+            <tr><td>Trade（贸易分配）</td><td>22,329</td><td>0.6%</td><td><span class="tag tag-purple">主动行为</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<h3>时代到达率（留存漏斗）</h3>
+<div class="card">
+    <table>
+        <thead><tr><th>时代升级</th><th>完成玩家数</th><th>相对上一级留存</th><th>累计留存率</th></tr></thead>
+        <tbody>
+            <tr><td>石器 → 青铜（Epoch 1）</td><td>336</td><td>—</td><td>100%</td></tr>
+            <tr><td>青铜 → 古典（Epoch 2）</td><td>244</td><td>72.6%</td><td>72.6%</td></tr>
+            <tr><td>古典 → 封建（Epoch 3）</td><td>164</td><td>67.2%</td><td>48.8%</td></tr>
+            <tr><td>封建 → 大航海（Epoch 4）</td><td>130</td><td>79.3%</td><td>38.7%</td></tr>
+            <tr><td>大航海 → 启蒙（Epoch 5）</td><td>116</td><td>89.2%</td><td>34.5%</td></tr>
+            <tr><td>启蒙 → 工业（Epoch 6）</td><td>101</td><td>87.1%</td><td>30.1%</td></tr>
+            <tr><td>工业 → 信息（Epoch 7）</td><td>89</td><td>88.1%</td><td>26.5%</td></tr>
+            <tr><td>信息 → 未来（Epoch 8）</td><td>98</td><td>—</td><td>29.2%</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="insight">
+    <div class="insight-title">关键发现：前三个时代是最大的流失漏斗</div>
+    <p>从石器到封建时代的累计留存率仅 <strong>48.8%</strong>，超过一半的玩家在古典时代之前流失。这与后文分析的"青铜-古典时代叛乱爆发"和"经济危机集中"高度吻合——<strong>经济政治系统的复杂性在早期就超过了玩家的管理能力</strong>。</p>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="econ-behavior">二、玩家经济行为模式</h2>
+
+<h3>2.1 建筑投资偏好——银两的最大去向</h3>
+
+<div class="grid grid-4" style="margin-bottom:1rem;">
+    <div class="card stat-card">
+        <div class="value" style="color:var(--yellow)">6.91T</div>
+        <div class="label">建筑总投入银两</div>
+        <div class="sub">占全部银两支出 97.5%</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value" style="color:var(--orange)">165.5B</div>
+        <div class="label">军事总投入银两</div>
+        <div class="sub">占 2.3%</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value" style="color:var(--purple)">9.4B</div>
+        <div class="label">科技总投入银两</div>
+        <div class="sub">占 0.1%</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value" style="color:var(--red)">590,628</div>
+        <div class="label">建筑购买总次数</div>
+        <div class="sub">最频繁的玩家操作</div>
+    </div>
+</div>
+
+<div class="card">
+    <h4>TOP 10 购买建筑排行</h4>
+    <table>
+        <thead><tr><th>建筑</th><th>购买次数</th><th>平均花费</th><th>功能定位</th><th>分析</th></tr></thead>
+        <tbody>
+            <tr><td>小屋 (hut)</td><td>62,373</td><td>410K</td><td>住房</td><td><span class="tag tag-green">生存刚需</span></td></tr>
+            <tr><td>农场 (farm)</td><td>31,891</td><td>1.4M</td><td>食物生产</td><td><span class="tag tag-green">生存刚需</span></td></tr>
+            <tr><td>伐木营 (lumber_camp)</td><td>17,637</td><td>709K</td><td>木材生产</td><td><span class="tag tag-yellow">基础产业</span></td></tr>
+            <tr><td>住宅 (house)</td><td>16,634</td><td>319K</td><td>住房升级</td><td><span class="tag tag-green">生存刚需</span></td></tr>
+            <tr><td>织布坊 (loom_house)</td><td>15,868</td><td>132K</td><td>布匹生产</td><td><span class="tag tag-yellow">基础产业</span></td></tr>
+            <tr><td>粮仓 (granary)</td><td>14,545</td><td>839K</td><td>食物储存</td><td><span class="tag tag-green">生存刚需</span></td></tr>
+            <tr><td>采石场 (quarry)</td><td>13,472</td><td>442K</td><td>石料生产</td><td><span class="tag tag-yellow">基础产业</span></td></tr>
+            <tr><td>公寓楼 (apartment_block)</td><td>12,615</td><td>26.6M</td><td>高级住房</td><td><span class="tag tag-purple">工业时代</span></td></tr>
+            <tr><td>庄园 (manor_house)</td><td>10,889</td><td>641K</td><td>中级住房</td><td><span class="tag tag-orange">封建时代</span></td></tr>
+            <tr><td>砖厂 (brickworks)</td><td>9,559</td><td>2.1M</td><td>建材生产</td><td><span class="tag tag-yellow">基础产业</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 E1：住房 > 食物 > 原材料 的优先级链条</div>
+    <p>玩家表现出极强的<strong>"住房优先"思维</strong>——住房类建筑（hut + house + manor_house + apartment_block + townhouse）合计购买超过 12 万次，远超农场的 3.2 万次。这说明玩家直觉上认为"人口 = 力量"，但这也意味着<strong>人口增长速度经常超过食物和消费品的供给能力</strong>，为后期经济危机埋下伏笔。</p>
+</div>
+
+<h3>2.2 建筑出售行为——经济压力的信号</h3>
+<div class="card">
+    <table>
+        <thead><tr><th>建筑</th><th>出售次数</th><th>购买次数</th><th>售出/购入比</th><th>信号</th></tr></thead>
+        <tbody>
+            <tr><td>农场 (farm)</td><td>1,826</td><td>31,891</td><td>5.7%</td><td><span class="tag tag-yellow">偶有出售</span></td></tr>
+            <tr><td>伐木营 (lumber_camp)</td><td>1,222</td><td>17,637</td><td>6.9%</td><td><span class="tag tag-yellow">偶有出售</span></td></tr>
+            <tr><td>石器作坊 (stone_tool_workshop)</td><td>1,121</td><td>8,797</td><td>12.7%</td><td><span class="tag tag-orange">频繁出售</span></td></tr>
+            <tr><td>大庄园 (large_estate)</td><td>1,071</td><td>6,580</td><td>16.3%</td><td><span class="tag tag-red">高频出售</span></td></tr>
+            <tr><td>采石场 (quarry)</td><td>1,038</td><td>13,472</td><td>7.7%</td><td><span class="tag tag-yellow">偶有出售</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 E2：石器作坊和大庄园的高售出率暴露了时代升级的"淘汰痛点"</div>
+    <p><strong>石器作坊</strong>（12.7%售出率）和<strong>大庄园</strong>（16.3%售出率）的售出比远高于其他建筑，说明玩家在时代推进时面临严重的<strong>产业结构转型压力</strong>——旧建筑变得低效需要卖掉，但卖掉又会导致岗位消失和短暂的生产断档。这个"转型断崖"可能是玩家流失的重要因素。</p>
+</div>
+
+<h3>2.3 税收政策行为</h3>
+
+<div class="chart-wrap">
+    <canvas id="taxChart"></canvas>
+</div>
+
+<div class="card">
+    <h4>人头税调整频率排行（最频繁调整的阶层）</h4>
+    <table>
+        <thead><tr><th>阶层</th><th>调整次数</th><th>平均税额</th><th>行为解读</th></tr></thead>
+        <tbody>
+            <tr><td>商人 (merchant)</td><td>1,097</td><td>95.2M</td><td><span class="tag tag-red">重点压榨对象</span></td></tr>
+            <tr><td>工匠 (artisan)</td><td>800</td><td>2.2M</td><td><span class="tag tag-orange">次要税源</span></td></tr>
+            <tr><td>农民 (peasant)</td><td>766</td><td>651K</td><td><span class="tag tag-yellow">中度课税</span></td></tr>
+            <tr><td>伐木工 (lumberjack)</td><td>715</td><td>负值*</td><td><span class="tag tag-green">有时补贴</span></td></tr>
+            <tr><td>教士 (cleric)</td><td>670</td><td>795K</td><td><span class="tag tag-yellow">中度课税</span></td></tr>
+            <tr><td>文士 (scribe)</td><td>629</td><td>792K</td><td><span class="tag tag-yellow">中度课税</span></td></tr>
+            <tr><td>矿工 (miner)</td><td>641</td><td>负值*</td><td><span class="tag tag-green">有时补贴</span></td></tr>
+        </tbody>
+    </table>
+    <p style="font-size:0.8rem; margin-top:0.5rem;">* 负值平均税额表明部分玩家对该阶层实行了补贴政策</p>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 E3：玩家形成了"竭泽而渔"的税收策略——重税商人，轻税底层</div>
+    <p>商人平均税额 <strong>9,520万</strong>，是工匠的 <strong>43倍</strong>、农民的 <strong>146倍</strong>。玩家普遍采取"对富人重税"的策略，但这直接导致了商人阶层的财富耗尽 → 贸易投资下降 → 商人不满 → 起义（商人起义 1,150 次排名第5）。讽刺的是，对伐木工和矿工的补贴也无法阻止他们成为起义最频繁的阶层。</p>
+</div>
+
+<h3>2.4 贸易行为</h3>
+<div class="card">
+    <h4>商人派驻前 10 目的地</h4>
+    <table>
+        <thead><tr><th>国家</th><th>派驻次数</th><th>平均商人数</th><th>外交关系</th></tr></thead>
+        <tbody>
+            <tr><td>石族 (stone_clan)</td><td>1,485</td><td>33</td><td><span class="tag tag-green">早期邻居</span></td></tr>
+            <tr><td>晨曦部落 (dawn_tribe)</td><td>1,220</td><td>936</td><td><span class="tag tag-green">早期邻居</span></td></tr>
+            <tr><td>金新月 (golden_crescent)</td><td>884</td><td>21</td><td><span class="tag tag-yellow">中期伙伴</span></td></tr>
+            <tr><td>丛林帝国 (jungle_empire)</td><td>882</td><td>20</td><td><span class="tag tag-yellow">中期伙伴</span></td></tr>
+            <tr><td>金字塔王国 (pyramid_kingdom)</td><td>869</td><td>20</td><td><span class="tag tag-yellow">中期伙伴</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="econ-impact">三、经济行为对经济系统的深度影响</h2>
+
+<h3>3.1 通货膨胀/通缩周期</h3>
+
+<div class="grid grid-3">
+    <div class="card stat-card">
+        <div class="value" style="color:var(--red)">3,884</div>
+        <div class="label">恶性通胀事件</div>
+        <div class="sub">276 个会话 · 178 名玩家（17.5%）</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value" style="color:var(--yellow)">908</div>
+        <div class="label">国库破产事件</div>
+        <div class="sub">116 个会话 · 88 名玩家（8.6%）</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value" style="color:var(--orange)">267 CPI</div>
+        <div class="label">通胀时平均物价指数</div>
+        <div class="sub">正常水平约 50-90</div>
+    </div>
+</div>
+
+<div class="chart-wrap">
+    <canvas id="cpiChart"></canvas>
+</div>
+
+<div class="insight">
+    <div class="insight-title">核心影响 E-I1：玩家的建筑过度投资直接驱动了通货膨胀</div>
+    <p>数据链条清晰：<strong>住房过度建设 → 人口快速增长 → 消费品需求暴增 → 库存天数骤降 → 物价飙升</strong>。石器时代 CPI 高达 85.6（在简单经济体中已属通胀）、大航海时代 CPI 90.4（最高），而这两个时代恰好是建筑投资最密集的阶段。青铜/古典时代 CPI 在 48-51 反而较低，可能是因为此时人口增长受到住房建设速度的自然约束。</p>
+</div>
+
+<h3>3.2 物价结构的深层问题</h3>
+<div class="card">
+    <table>
+        <thead><tr><th>资源</th><th>平均价格</th><th>价格含义</th></tr></thead>
+        <tbody>
+            <tr><td>食物 (food)</td><td>1.06</td><td>基本稳定</td></tr>
+            <tr><td>木材 (wood)</td><td>0.96</td><td>略有过剩</td></tr>
+            <tr><td>石料 (stone)</td><td>1.34</td><td>略有紧缺</td></tr>
+            <tr><td>布匹 (cloth)</td><td>1.78</td><td>中度紧缺</td></tr>
+            <tr><td>铁矿 (iron)</td><td>21.0</td><td><span class="tag tag-red">严重紧缺</span></td></tr>
+            <tr><td>工具 (tools)</td><td>26.8</td><td><span class="tag tag-red">严重紧缺</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 E-I2：工业品价格是基础品的 20-27 倍——产业链断裂信号</div>
+    <p>工具价格（26.8）是食物价格（1.06）的 <strong>25.3 倍</strong>，铁矿（21.0）是食物的 <strong>19.8 倍</strong>。这反映了游戏经济中一个结构性问题：<strong>玩家优先建设初级产业（农场、伐木营），但严重低估了工具/铁矿等产业链中游的需求</strong>。铁矿和工具作为建筑原料和消费品双重需求源，成为系统性瓶颈。</p>
+</div>
+
+<h3>3.3 经济危机的时代分布</h3>
+<div class="chart-wrap">
+    <canvas id="crisisEpochChart"></canvas>
+</div>
+
+<div class="card">
+    <table>
+        <thead><tr><th>时代</th><th>恶性通胀次数</th><th>平均通胀CPI</th><th>破产次数</th><th>危机密度*</th></tr></thead>
+        <tbody>
+            <tr><td>石器</td><td>646</td><td>267.4</td><td>8</td><td><span class="tag tag-yellow">0.29/会话</span></td></tr>
+            <tr><td>封建</td><td>453</td><td>291.4</td><td>92</td><td><span class="tag tag-red">2.41/会话</span></td></tr>
+            <tr><td>大航海</td><td>273</td><td>264.4</td><td>99</td><td><span class="tag tag-red">2.35/会话</span></td></tr>
+            <tr><td>青铜</td><td>233</td><td>299.2</td><td>226</td><td><span class="tag tag-orange">1.22/会话</span></td></tr>
+            <tr><td>古典</td><td>106</td><td>253.7</td><td>160</td><td><span class="tag tag-yellow">0.84/会话</span></td></tr>
+        </tbody>
+    </table>
+    <p style="font-size:0.8rem; margin-top:0.5rem;">* 危机密度 = (通胀+破产) / 该时代会话数</p>
+</div>
+
+<div class="insight">
+    <div class="insight-title">核心影响 E-I3：封建和大航海时代是经济"死亡谷"</div>
+    <p>封建时代的<strong>危机密度 2.41/会话</strong>意味着平均每个进入封建时代的玩家要经历约 2.4 次经济危机。封建时代的通胀CPI（291.4）也是所有时代最高的，这与封建时代新增大量消费品需求（奢侈品、铁器、布匹等）但产业链未能跟上有关。<strong>青铜时代的破产率极高（226次），说明此时玩家还不会管理财政</strong>。</p>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="pol-behavior">四、玩家政治行为模式</h2>
+
+<h3>4.1 执政联盟管理</h3>
+<div class="grid grid-3">
+    <div class="card stat-card">
+        <div class="value">1,432</div>
+        <div class="label">联盟变更次数</div>
+        <div class="sub">平均联盟成员数 4.24</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value">2,908</div>
+        <div class="label">官员雇佣次数</div>
+        <div class="sub">解雇 705 次</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value">89.88</div>
+        <div class="label">平均稳定度</div>
+        <div class="sub">总体偏高（满分100）</div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <h4>官员任命偏好</h4>
+    <table>
+        <thead><tr><th>部门</th><th>任命次数</th><th>占比</th><th>玩家思路</th></tr></thead>
+        <tbody>
+            <tr><td>商务部长 (commerce)</td><td>618</td><td>24.0%</td><td><span class="tag tag-green">经济优先</span></td></tr>
+            <tr><td>内政部长 (civic)</td><td>558</td><td>21.7%</td><td><span class="tag tag-yellow">稳定优先</span></td></tr>
+            <tr><td>农业部长 (agriculture)</td><td>517</td><td>20.1%</td><td><span class="tag tag-green">生产优先</span></td></tr>
+            <tr><td>工业部长 (industry)</td><td>510</td><td>19.8%</td><td><span class="tag tag-green">生产优先</span></td></tr>
+            <tr><td>军事部长 (military)</td><td>433</td><td>16.8%</td><td><span class="tag tag-orange">防务需求</span></td></tr>
+            <tr><td>外交部长 (diplomacy)</td><td>401</td><td>15.6%</td><td><span class="tag tag-purple">外交需求</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<h3>4.2 叛乱应对——玩家几乎不使用策略行动</h3>
+
+<div class="grid grid-2">
+    <div class="card stat-card">
+        <div class="value" style="color:var(--red)">12,176</div>
+        <div class="label">起义爆发总次数</div>
+        <div class="sub">阶层组织度达到 100%</div>
+    </div>
+    <div class="card stat-card">
+        <div class="value" style="color:var(--yellow)">423</div>
+        <div class="label">玩家叛乱应对操作</div>
+        <div class="sub">仅为起义数的 3.5%</div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <h4>叛乱应对动作分布</h4>
+    <table>
+        <thead><tr><th>动作</th><th>次数</th><th>占比</th></tr></thead>
+        <tbody>
+            <tr><td>接受战争 (accept_war)</td><td>355</td><td>83.9%</td></tr>
+            <tr><td>镇压 (suppress)</td><td>68</td><td>16.1%</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="insight">
+    <div class="insight-title">核心影响 P-I1：玩家对叛乱系统几乎"放弃治理"</div>
+    <p>面对 12,176 次起义，玩家只做了 423 次应对操作（3.5%）。其中 <strong>84% 选择"接受战争"</strong>，说明大多数玩家在叛乱发生时已经被动接受结果而非主动管理。这暴露了两个问题：(1) <strong>叛乱预防机制（策略行动：镇压/收买/分化/承诺）的 UI 可见性太低</strong>，玩家可能根本不知道存在这些工具；(2) <strong>叛乱从酝酿到爆发的时间窗口太短</strong>，玩家来不及反应。</p>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="pol-impact">五、政治行为对政治系统的深度影响</h2>
+
+<h3>5.1 阶层叛乱频率分析</h3>
+<div class="chart-wrap">
+    <canvas id="rebellionChart"></canvas>
+</div>
+
+<div class="card">
+    <table>
+        <thead><tr><th>阶层</th><th>酝酿</th><th>密谋</th><th>起义</th><th>升级效率*</th><th>风险等级</th></tr></thead>
+        <tbody>
+            <tr><td>伐木工 (lumberjack)</td><td>543</td><td>506</td><td>2,437</td><td>4.49</td><td><span class="tag tag-red">极高危</span></td></tr>
+            <tr><td>农民 (peasant)</td><td>685</td><td>680</td><td>2,316</td><td>3.38</td><td><span class="tag tag-red">极高危</span></td></tr>
+            <tr><td>矿工 (miner)</td><td>591</td><td>626</td><td>2,051</td><td>3.47</td><td><span class="tag tag-red">极高危</span></td></tr>
+            <tr><td>工匠 (artisan)</td><td>469</td><td>837</td><td>1,356</td><td>2.89</td><td><span class="tag tag-orange">高危</span></td></tr>
+            <tr><td>商人 (merchant)</td><td>430</td><td>525</td><td>1,164</td><td>2.71</td><td><span class="tag tag-orange">高危</span></td></tr>
+            <tr><td>教士 (cleric)</td><td>369</td><td>493</td><td>1,044</td><td>2.83</td><td><span class="tag tag-orange">高危</span></td></tr>
+            <tr><td>地主 (landowner)</td><td>196</td><td>76</td><td>674</td><td>3.44</td><td><span class="tag tag-yellow">中危</span></td></tr>
+            <tr><td>文士 (scribe)</td><td>438</td><td>391</td><td>448</td><td>1.02</td><td><span class="tag tag-yellow">中危</span></td></tr>
+            <tr><td>失业者 (unemployed)</td><td>1,567</td><td>889</td><td>13</td><td>0.008</td><td><span class="tag tag-green">低危*</span></td></tr>
+        </tbody>
+    </table>
+    <p style="font-size:0.8rem; margin-top:0.5rem;">* 升级效率 = 起义数/酝酿数。高于1意味着不经过完整酝酿即爆发（如读档后组织度已高）或多次重复爆发</p>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 P-I2：底层劳动者"三巨头"（伐木工/农民/矿工）占全部起义的 56%</div>
+    <p>伐木工（2,437 次）、农民（2,316 次）、矿工（2,051 次）合计占全部起义的 <strong>55.8%</strong>。更惊人的是，伐木工的<strong>升级效率 4.49</strong>——每产生一次酝酿就会触发 4.5 次起义，说明<strong>伐木工的组织度积累极快或跨阶段检测存在重复触发</strong>。这三个阶层的共同特征是：低收入、高需求不满足率、低影响力但人口庞大。</p>
+</div>
+
+<div class="warning">
+    <div class="warning-title">异常数据：失业者的 1,567 次酝酿几乎不会变成起义（仅 13 次）</div>
+    <p>失业者有 1,567 次酝酿但仅 13 次起义（0.8%），这是因为代码中石器时代的失业者起义会被拦截并降级组织度。但这 1,567 次酝酿事件仍然在 UI 中弹出，可能对玩家造成<strong>"狼来了"效应</strong>——频繁的失业者不满提示让玩家对叛乱警告逐渐麻木。</p>
+</div>
+
+<h3>5.2 时代叛乱密度</h3>
+<div class="chart-wrap">
+    <canvas id="rebellionEpochChart"></canvas>
+</div>
+
+<div class="card">
+    <table>
+        <thead><tr><th>时代</th><th>起义</th><th>会话数</th><th>起义密度（/会话）</th><th>评估</th></tr></thead>
+        <tbody>
+            <tr><td>石器</td><td>0</td><td>2,235</td><td>0</td><td><span class="tag tag-green">无叛乱</span>（系统屏蔽）</td></tr>
+            <tr><td>青铜</td><td>734</td><td>376</td><td>1.95</td><td><span class="tag tag-yellow">中度</span></td></tr>
+            <tr><td>古典</td><td>2,593</td><td>318</td><td><strong>8.15</strong></td><td><span class="tag tag-red">极端</span></td></tr>
+            <tr><td>封建</td><td>1,444</td><td>226</td><td>6.39</td><td><span class="tag tag-red">严重</span></td></tr>
+            <tr><td>大航海</td><td>1,464</td><td>158</td><td><strong>9.27</strong></td><td><span class="tag tag-red">极端</span></td></tr>
+            <tr><td>启蒙</td><td>83</td><td>118</td><td>0.70</td><td><span class="tag tag-green">低</span></td></tr>
+            <tr><td>工业</td><td>28</td><td>120</td><td>0.23</td><td><span class="tag tag-green">极低</span></td></tr>
+            <tr><td>信息</td><td>70</td><td>144</td><td>0.49</td><td><span class="tag tag-green">低</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="insight">
+    <div class="insight-title">核心影响 P-I3：古典（8.15/会话）和大航海（9.27/会话）是政治灾难区</div>
+    <p>大航海时代平均每个会话发生 <strong>9.27 次起义</strong>，古典时代 <strong>8.15 次</strong>。而能活到启蒙时代以后的玩家，起义密度骤降至 &lt;1 次/会话。这意味着<strong>古典和大航海时代是"政治生存筛选器"</strong>——不能在这两个时代学会政治管理的玩家会被叛乱淘汰。结合时代留存率数据（古典→封建留存仅67.2%），这一推论得到验证。</p>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="cross-impact">六、经济-政治交叉影响——"崩溃螺旋"机制</h2>
+
+<h3>6.1 发现核心机制："建设繁荣 → 膨胀崩溃"循环</h3>
+
+<p>综合所有数据，我们识别出一个贯穿玩家游戏生命周期的<strong>系统性反馈循环</strong>：</p>
+
+<div class="card" style="margin: 1.5rem 0; padding: 2rem;">
+    <div style="text-align:center; margin-bottom: 1.5rem;">
+        <strong style="color: var(--accent); font-size: 1.2rem;">经济-政治崩溃螺旋模型</strong>
+    </div>
+    <div class="flow-diagram" style="justify-content:center;">
+        <div class="flow-box" style="border-color:var(--green);">住房过度建设<br><small style="color:var(--muted)">年3-6: 7,300次/年</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="border-color:var(--yellow);">人口快速增长<br><small style="color:var(--muted)">消费需求暴增</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="border-color:var(--orange);">供给不足 + 物价飙升<br><small style="color:var(--muted)">CPI 85-90</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="border-color:var(--red);">阶层不满 + 组织度上升<br><small style="color:var(--muted)">driver: 短缺+贫困</small></div>
+    </div>
+    <div class="flow-diagram" style="justify-content:center; margin-top: 0.5rem;">
+        <div class="flow-box" style="border-color:var(--red);">叛乱爆发<br><small style="color:var(--muted)">年15-16: 154-179次</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="border-color:var(--purple);">军事镇压 → 军费飙升<br><small style="color:var(--muted)">军事银两 165B</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="border-color:var(--yellow);">被迫卖建筑<br><small style="color:var(--muted)">年15: 597次卖出</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="border-color:var(--red);">产出下降 → 更多短缺<br><small style="color:var(--muted)">恶性循环</small></div>
+    </div>
+</div>
+
+<h3>6.2 时间线证据——建设/卖出/起义的同步关系</h3>
+<div class="chart-wrap">
+    <canvas id="timelineChart"></canvas>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 X1：建设高峰（年3-6）与起义高峰（年15-26）相差约 10 年——"延迟爆炸"效应</div>
+    <p>数据清晰显示：<strong>年3-6</strong>是建筑购买峰值（7,300-7,500次/年），此时起义为零或个位数。从<strong>年7开始</strong>出现第一波起义（77次），<strong>年15-16达到第一个起义高峰</strong>（154-179次），此后进入周期性循环。建筑出售（经济压力信号）在<strong>年11-16急剧上升</strong>（从256到597次），与起义高峰完全同步。这证实了<strong>"经济繁荣期的过度建设在 10 年后转化为政治危机"</strong>的因果链。</p>
+</div>
+
+<h3>6.3 税收行为对两个系统的连锁影响</h3>
+<div class="chart-wrap">
+    <canvas id="taxTimelineChart"></canvas>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 X2：税收调整前置密集、后期稀疏——玩家在最需要调税时反而放弃了</div>
+    <p>年0-1的税收调整（869-896次）是年20（185次）的 <strong>4.7 倍</strong>。但起义集中在年15-26。这意味着<strong>玩家在游戏早期积极调税（此时并不迫切），到了真正需要精细税收管理的中后期反而降低了参与度</strong>。可能原因：(1) 税收 UI 在中后期变得太复杂（阶层多、税种多）；(2) 玩家已经形成了固定税率"设定后遗忘"；(3) 面对多线危机时税收调整的优先级被军事/建筑操作挤出。</p>
+</div>
+
+<h3>6.4 军事行为的经济代价</h3>
+
+<div class="card">
+    <table>
+        <thead><tr><th>指标</th><th>数据</th><th>系统影响</th></tr></thead>
+        <tbody>
+            <tr><td>平均军队规模</td><td>8,465（所有时代）</td><td>信息时代均值 23,481</td></tr>
+            <tr><td>解散总次数</td><td>~80,000+</td><td>远超招募总次数</td></tr>
+            <tr><td>最多解散兵种</td><td>加特林 (8,939) > 线列步兵 (5,556)</td><td>时代升级时被迫淘汰</td></tr>
+            <tr><td>军事银两消耗</td><td>165.5B</td><td>占总支出 2.3%（但关键时期更高）</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="finding">
+    <div class="finding-title">发现 X3：解散 >> 招募——玩家被迫不断"瘦身"军队以缓解经济压力</div>
+    <p>加特林枪的解散次数（8,939）远超任何兵种的招募次数（最高 cyber_unit 2,815 次招募 vs 5,024 次解散）。<strong>整体解散/招募比约 3:1</strong>。这说明玩家长期面临"养不起军队"的困境。军队维护费推高 demand（即使库存不足也增加需求侧），进一步推动物价上涨。但解散军队又降低国防能力，使叛乱更难军事镇压。这是一个<strong>进退两难的经济-军事困境</strong>。</p>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="epoch-analysis">七、时代维度分析——各纪元的经济政治特征</h2>
+
+<div class="chart-wrap">
+    <canvas id="epochOverviewChart"></canvas>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <table>
+        <thead><tr><th>时代</th><th>会话</th><th>平均CPI</th><th>平均人口</th><th>起义密度</th><th>危机密度</th><th>特征画像</th></tr></thead>
+        <tbody>
+            <tr><td>石器</td><td>2,235</td><td>85.6</td><td>251</td><td>0</td><td>0.29</td><td>高物价但无政治威胁；纯经济学习期</td></tr>
+            <tr><td>青铜</td><td>376</td><td>51.1</td><td>1,277</td><td>1.95</td><td>1.22</td><td>通缩与破产并存；首次面临叛乱</td></tr>
+            <tr><td>古典</td><td>318</td><td>48.0</td><td>7,817</td><td><strong>8.15</strong></td><td>0.84</td><td>经济趋稳但叛乱爆发；政治考验期</td></tr>
+            <tr><td>封建</td><td>226</td><td>84.3</td><td>107K</td><td>6.39</td><td>2.41</td><td>双重危机——通胀+叛乱；最大"死亡谷"</td></tr>
+            <tr><td>大航海</td><td>158</td><td>90.4</td><td>99K</td><td><strong>9.27</strong></td><td>2.35</td><td>CPI最高+起义最密；幸存者的终极考验</td></tr>
+            <tr><td>启蒙</td><td>118</td><td>81.4</td><td>15.5M</td><td>0.70</td><td>0.39</td><td>渡过难关后的相对平静期</td></tr>
+            <tr><td>工业</td><td>120</td><td>77.7</td><td>40.5M</td><td>0.23</td><td>0.10</td><td>经济起飞+政治稳定；"胜利者的回报"</td></tr>
+            <tr><td>信息</td><td>144</td><td>69.5</td><td>11.3M</td><td>0.49</td><td>0.007</td><td>最稳定时期；通缩可能</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="insight">
+    <div class="insight-title">关键洞察：游戏体验存在明确的"U型曲线"</div>
+    <p><strong>前三个时代（石器/青铜/古典）</strong>是学习期但危机频发，<strong>中间两个时代（封建/大航海）</strong>是绝对的"死亡谷"，<strong>后三个时代（启蒙/工业/信息）</strong>则非常平稳。能存活到启蒙时代的玩家几乎不会再遇到严重危机。这种体验曲线可能过于极端——中期太难导致大量流失，后期太简单导致缺乏挑战。</p>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="timeline">八、时间线分析——游戏生命周期中的行为演变</h2>
+
+<div class="chart-wrap" style="height:400px;">
+    <canvas id="fullTimelineChart"></canvas>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <h4>阶段划分</h4>
+    <table>
+        <thead><tr><th>阶段</th><th>游戏年</th><th>特征</th><th>经济状态</th><th>政治状态</th></tr></thead>
+        <tbody>
+            <tr>
+                <td><span class="tag tag-green">黄金建设期</span></td>
+                <td>0-6</td>
+                <td>建设密集（7,500/年）、税收活跃、起义为零</td>
+                <td>GDP快速增长；物价温和</td>
+                <td>稳定；组织度低</td>
+            </tr>
+            <tr>
+                <td><span class="tag tag-yellow">过渡期</span></td>
+                <td>7-10</td>
+                <td>建设减速、首次起义出现、军事招募增加</td>
+                <td>物价上行压力；需求开始超过供给</td>
+                <td>底层组织度开始积累</td>
+            </tr>
+            <tr>
+                <td><span class="tag tag-orange">危机爆发期</span></td>
+                <td>11-16</td>
+                <td>建筑出售飙升、起义高峰（179次/年16）、军事扩张</td>
+                <td>通胀/国库紧张；被迫卖产</td>
+                <td>多阶层同时叛乱；政治高压</td>
+            </tr>
+            <tr>
+                <td><span class="tag tag-red">衰退循环期</span></td>
+                <td>17-27</td>
+                <td>建设持续减少、起义周期性波动、税收调整稀疏</td>
+                <td>经济低迷或缓慢恢复</td>
+                <td>周期性政治危机，~5年一轮</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<div class="section-divider"></div>
+<h2 id="recommendations">九、基于数据的系统优化建议</h2>
+
+<h3>9.1 经济系统优化</h3>
+
+<div class="fix">
+    <div class="fix-title">建议 E-R1：引入"建设规划顾问"——缓解住房过度投资</div>
+    <ul>
+        <li>当住房/人口比过高且食物库存天数 &lt; 7天时，弹出警告："人口增长过快，食物供给跟不上"</li>
+        <li>在建筑面板中添加"推荐建设"指标，基于当前供需缺口提示最需要的建筑类型</li>
+        <li>考虑让住房类建筑的效用递减，避免玩家无脑堆叠住房</li>
+    </ul>
+</div>
+
+<div class="fix">
+    <div class="fix-title">建议 E-R2：产业链可视化引导——解决工具/铁矿价格畸高</div>
+    <ul>
+        <li>工具价格是食物的 25 倍，说明玩家不理解产业链依赖关系</li>
+        <li>在价格面板中增加"产业链瓶颈"标识，高亮显示哪个中游环节是当前物价的主要推手</li>
+        <li>考虑在建筑购买界面显示"此建筑需要的上游资源当前库存天数"</li>
+    </ul>
+</div>
+
+<div class="fix">
+    <div class="fix-title">建议 E-R3：封建/大航海时代经济难度平滑</div>
+    <ul>
+        <li>封建时代危机密度 2.41/会话，大航海 2.35——难度曲线过于陡峭</li>
+        <li>考虑在时代升级时提供"过渡补贴"（如首 30 天免除关税、降低新消费品需求增速）</li>
+        <li>或者将部分新消费品的解锁延迟到时代中期而非开始就全部激活</li>
+    </ul>
+</div>
+
+<h3>9.2 政治系统优化</h3>
+
+<div class="fix">
+    <div class="fix-title">建议 P-R1：增强叛乱预警和策略行动可见性——只有 3.5% 的起义被主动处理</div>
+    <ul>
+        <li>当阶层组织度跨 30%（酝酿）时，主界面应有持续性提示而非一次性弹窗</li>
+        <li>在政治面板中增加"阶层危险度仪表盘"，用红绿灯标识各阶层状态</li>
+        <li>策略行动（镇压/收买/分化/承诺）应在阶层行即可点击，而非隐藏在子菜单中</li>
+        <li>考虑加入"政治顾问"系统——自动建议最佳应对策略</li>
+    </ul>
+</div>
+
+<div class="fix">
+    <div class="fix-title">建议 P-R2：降低底层劳动者的组织度增速——三巨头占 56% 起义过于集中</div>
+    <ul>
+        <li>伐木工/农民/矿工的起义频率是其他阶层的 2-3 倍，建议检查他们的组织度增速公式</li>
+        <li>考虑给底层阶层增加一个"满足基本需求即可大幅降低组织度"的机制，奖励玩家做好基本民生</li>
+        <li>伐木工的升级效率 4.49（酝酿→起义）异常高，建议检查是否存在重复触发 bug</li>
+    </ul>
+</div>
+
+<div class="fix">
+    <div class="fix-title">建议 P-R3：解决失业者"狼来了"效应</div>
+    <ul>
+        <li>失业者 1,567 次酝酿但只有 13 次起义——频繁的无效警告会让玩家忽视真正的危险</li>
+        <li>建议：石器时代直接屏蔽失业者的组织度事件弹窗，或大幅降低石器时代失业者的组织度增速</li>
+        <li>如果失业者不会真的起义，就不应该浪费玩家注意力</li>
+    </ul>
+</div>
+
+<h3>9.3 经济-政治联动优化</h3>
+
+<div class="fix">
+    <div class="fix-title">建议 X-R1：为"崩溃螺旋"添加减速器</div>
+    <ul>
+        <li>当前系统存在明确的正反馈死亡螺旋：经济恶化 → 政治危机 → 军事压力 → 经济更差</li>
+        <li>建议引入"底线机制"：当多个阶层同时叛乱时，降低组织度增速（内乱分散注意力）</li>
+        <li>考虑在国库极低时启用"紧急借贷"机制，避免玩家陷入完全无解的困境</li>
+        <li>叛乱成功建立叛军国家后，给玩家一个恢复期（如 60 天内叛乱增速降低 50%）</li>
+    </ul>
+</div>
+
+<div class="fix">
+    <div class="fix-title">建议 X-R2：中后期税收 UI 简化——税收参与度从年0的 869 次降到年20的 185 次</div>
+    <ul>
+        <li>玩家在最需要精细管理税收的时候反而放弃了，说明 UI 复杂度超过了信息处理能力</li>
+        <li>建议增加"一键平衡税率"或"税收模板"功能（如：亲商/均等/福利 等预设）</li>
+        <li>在税收面板增加"税收健康度"总评分，让玩家快速判断是否需要调整</li>
+    </ul>
+</div>
+
+<div class="fix">
+    <div class="fix-title">建议 X-R3：平滑"U型难度曲线"——前期学习后期无聊</div>
+    <ul>
+        <li>前三时代流失过半，而工业/信息时代几乎没有挑战（起义密度 &lt; 0.5/会话）</li>
+        <li>早期：增加教程引导，降低青铜/古典的叛乱难度（如延长酝酿→起义的时间窗口）</li>
+        <li>后期：增加新的挑战类型（如大国博弈、全球经济危机、意识形态冲突等），避免"赢了就无聊"</li>
+    </ul>
+</div>
+
+<!-- 总结 -->
+<div class="section-divider"></div>
+<div class="card" style="background: linear-gradient(135deg, rgba(56,189,248,0.1), rgba(167,139,250,0.1)); border-color: var(--accent);">
+    <h3 style="color: var(--accent); margin-top: 0;">总结：玩家行为对系统的三大核心影响</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
+        <div>
+            <h4 style="color: var(--yellow);">1. "住房优先"驱动通胀循环</h4>
+            <p>玩家的核心经济决策——优先建设住房——直接导致人口超过供给能力，驱动系统性通胀（CPI 85-90），进而引发连锁的民生危机。</p>
+        </div>
+        <div>
+            <h4 style="color: var(--red);">2. 政治管理的"参与缺失"</h4>
+            <p>面对 12,000+ 次起义，仅 3.5% 得到主动处理。叛乱系统对游戏节奏有巨大影响，但玩家几乎放弃了政治管理工具的使用，说明工具可见性和可用性严重不足。</p>
+        </div>
+        <div>
+            <h4 style="color: var(--purple);">3. 经济-政治"死亡螺旋"主导中期体验</h4>
+            <p>建设繁荣→通胀→叛乱→军费→卖建筑→更多短缺的正反馈循环，在游戏年 11-26 主导了多数玩家的体验。封建/大航海时代成为50%玩家的终点。</p>
+        </div>
+    </div>
+</div>
+
+</div><!-- /.container -->
+
+<script>
+const COLORS = {
+    accent: '#38bdf8', green: '#4ade80', red: '#f87171', yellow: '#fbbf24',
+    purple: '#a78bfa', orange: '#fb923c', pink: '#f472b6', muted: '#94a3b8',
+    surface: '#1e293b', surface2: '#334155'
+};
+
+Chart.defaults.color = COLORS.muted;
+Chart.defaults.borderColor = COLORS.surface2;
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+// 事件大类分布
+new Chart(document.getElementById('categoryChart'), {
+    type: 'bar',
+    data: {
+        labels: ['经济采样', '价格采样', '建筑操作', '军事', '人口', '外交', '稳定度', 'UI', '游戏周期', '事件选择', '叛乱', '税收', '贸易', '科技'],
+        datasets: [{
+            label: '事件数量',
+            data: [841121, 654648, 630262, 329396, 233844, 233792, 209318, 106919, 74688, 36688, 25360, 22640, 22329, 20642],
+            backgroundColor: [COLORS.green, COLORS.green, COLORS.purple, COLORS.orange, COLORS.green, COLORS.purple, COLORS.green, COLORS.muted, COLORS.yellow, COLORS.accent, COLORS.red, COLORS.purple, COLORS.purple, COLORS.purple],
+            borderRadius: 6
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false }, title: { display: true, text: '行为事件分布（TOP 14）', color: COLORS.accent } },
+        scales: { x: { grid: { color: 'rgba(51,65,85,0.3)' } }, y: { grid: { display: false } } }
+    }
+});
+
+// 税收调整分布
+new Chart(document.getElementById('taxChart'), {
+    type: 'bar',
+    data: {
+        labels: ['商人', '工匠', '农民', '伐木工', '教士', '矿工', '文士', '官员', '农场税', '工人', '失业者'],
+        datasets: [{
+            label: '人头税调整',
+            data: [1097, 800, 766, 715, 670, 641, 629, 583, 0, 428, 369],
+            backgroundColor: COLORS.accent,
+            borderRadius: 4
+        }, {
+            label: '营业税调整',
+            data: [0, 0, 0, 0, 0, 0, 0, 0, 468, 0, 0],
+            backgroundColor: COLORS.purple,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        plugins: { title: { display: true, text: '税收调整次数分布', color: COLORS.accent } },
+        scales: {
+            x: { grid: { display: false } },
+            y: { grid: { color: 'rgba(51,65,85,0.3)' } }
+        }
+    }
+});
+
+// CPI 各时代对比
+new Chart(document.getElementById('cpiChart'), {
+    type: 'bar',
+    data: {
+        labels: ['石器', '青铜', '古典', '封建', '大航海', '启蒙', '工业', '信息', '未来'],
+        datasets: [{
+            label: '平均 CPI',
+            data: [85.6, 51.1, 48.0, 84.3, 90.4, 81.4, 77.7, 69.5, 78.3],
+            backgroundColor: [COLORS.orange, COLORS.green, COLORS.green, COLORS.red, COLORS.red, COLORS.yellow, COLORS.yellow, COLORS.green, COLORS.yellow],
+            borderRadius: 6
+        }, {
+            label: '平均 PPI',
+            data: [69.1, 48.6, 44.9, 80.5, 87.8, 78.1, 76.6, 80.7, 80.7],
+            backgroundColor: 'rgba(167,139,250,0.5)',
+            borderRadius: 6
+        }]
+    },
+    options: {
+        plugins: { title: { display: true, text: '各时代平均 CPI vs PPI', color: COLORS.accent } },
+        scales: {
+            x: { grid: { display: false } },
+            y: { grid: { color: 'rgba(51,65,85,0.3)' }, suggestedMin: 0, suggestedMax: 120 }
+        }
+    }
+});
+
+// 经济危机时代分布
+new Chart(document.getElementById('crisisEpochChart'), {
+    type: 'bar',
+    data: {
+        labels: ['石器', '青铜', '古典', '封建', '大航海', '启蒙', '工业', '信息'],
+        datasets: [{
+            label: '恶性通胀',
+            data: [646, 233, 106, 453, 273, 30, 12, 1],
+            backgroundColor: COLORS.red,
+            borderRadius: 4
+        }, {
+            label: '国库破产',
+            data: [8, 226, 160, 92, 99, 16, 0, 0],
+            backgroundColor: COLORS.yellow,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        plugins: { title: { display: true, text: '经济危机类型的时代分布', color: COLORS.accent } },
+        scales: {
+            x: { stacked: true, grid: { display: false } },
+            y: { stacked: true, grid: { color: 'rgba(51,65,85,0.3)' } }
+        }
+    }
+});
+
+// 叛乱阶层分布
+new Chart(document.getElementById('rebellionChart'), {
+    type: 'bar',
+    data: {
+        labels: ['伐木工', '农民', '矿工', '工匠', '商人', '教士', '地主', '文士', '工人', '士兵', '工程师'],
+        datasets: [{
+            label: '酝酿',
+            data: [543, 685, 591, 469, 430, 369, 196, 438, 285, 290, 112],
+            backgroundColor: COLORS.yellow,
+            borderRadius: 4
+        }, {
+            label: '密谋',
+            data: [506, 680, 626, 837, 525, 493, 76, 391, 296, 195, 146],
+            backgroundColor: COLORS.orange,
+            borderRadius: 4
+        }, {
+            label: '起义',
+            data: [2437, 2316, 2051, 1356, 1164, 1044, 674, 448, 242, 189, 115],
+            backgroundColor: COLORS.red,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        plugins: { title: { display: true, text: '各阶层叛乱阶段分布', color: COLORS.accent } },
+        scales: {
+            x: { stacked: true, grid: { display: false } },
+            y: { stacked: true, grid: { color: 'rgba(51,65,85,0.3)' } }
+        }
+    }
+});
+
+// 叛乱时代密度
+new Chart(document.getElementById('rebellionEpochChart'), {
+    type: 'line',
+    data: {
+        labels: ['石器', '青铜', '古典', '封建', '大航海', '启蒙', '工业', '信息'],
+        datasets: [{
+            label: '起义密度 (次/会话)',
+            data: [0, 1.95, 8.15, 6.39, 9.27, 0.70, 0.23, 0.49],
+            borderColor: COLORS.red,
+            backgroundColor: 'rgba(248,113,113,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 6,
+            pointBackgroundColor: COLORS.red
+        }, {
+            label: '经济危机密度 (次/会话)',
+            data: [0.29, 1.22, 0.84, 2.41, 2.35, 0.39, 0.10, 0.007],
+            borderColor: COLORS.yellow,
+            backgroundColor: 'rgba(251,191,36,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 6,
+            pointBackgroundColor: COLORS.yellow
+        }]
+    },
+    options: {
+        plugins: { title: { display: true, text: '各时代危机密度对比（每会话发生次数）', color: COLORS.accent } },
+        scales: {
+            x: { grid: { display: false } },
+            y: { grid: { color: 'rgba(51,65,85,0.3)' } }
+        }
+    }
+});
+
+// 时间线：建设 vs 起义 vs 卖出
+new Chart(document.getElementById('timelineChart'), {
+    type: 'line',
+    data: {
+        labels: Array.from({length: 28}, (_, i) => `年${i}`),
+        datasets: [{
+            label: '建筑购买',
+            data: [5474,5522,6694,7094,7307,7438,7494,6987,7212,6116,5216,4829,5173,4455,5400,4736,4985,4929,4201,5153,4049,3631,2931,4008,3806,2956,3348,2334],
+            borderColor: COLORS.green,
+            backgroundColor: 'rgba(74,222,128,0.08)',
+            fill: true,
+            tension: 0.3,
+            yAxisID: 'y'
+        }, {
+            label: '建筑出售',
+            data: [206,180,64,64,71,92,47,81,117,143,162,256,272,323,188,597,502,269,156,368,215,56,78,251,127,169,389,180],
+            borderColor: COLORS.yellow,
+            tension: 0.3,
+            yAxisID: 'y'
+        }, {
+            label: '起义次数',
+            data: [14,8,3,1,0,0,9,77,23,37,57,54,57,52,76,154,179,69,57,116,90,144,135,112,75,224,144,81],
+            borderColor: COLORS.red,
+            backgroundColor: 'rgba(248,113,113,0.08)',
+            fill: true,
+            tension: 0.3,
+            yAxisID: 'y1'
+        }]
+    },
+    options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: { title: { display: true, text: '游戏年度行为演变：建设 vs 出售 vs 起义', color: COLORS.accent } },
+        scales: {
+            x: { grid: { display: false } },
+            y: { position: 'left', grid: { color: 'rgba(51,65,85,0.3)' }, title: { display: true, text: '建筑操作数', color: COLORS.muted } },
+            y1: { position: 'right', grid: { display: false }, title: { display: true, text: '起义次数', color: COLORS.red } }
+        }
+    }
+});
+
+// 税收时间线
+new Chart(document.getElementById('taxTimelineChart'), {
+    type: 'line',
+    data: {
+        labels: Array.from({length: 28}, (_, i) => `年${i}`),
+        datasets: [{
+            label: '税收调整次数',
+            data: [869,896,734,569,651,450,469,504,377,356,308,532,250,243,252,275,270,350,216,178,185,180,150,171,144,227,156,236],
+            borderColor: COLORS.purple,
+            backgroundColor: 'rgba(167,139,250,0.08)',
+            fill: true,
+            tension: 0.3,
+            yAxisID: 'y'
+        }, {
+            label: '军事招募次数',
+            data: [25,69,61,97,88,89,135,120,86,222,159,124,140,218,134,228,179,88,229,272,204,169,81,203,44,226,214,104],
+            borderColor: COLORS.orange,
+            tension: 0.3,
+            yAxisID: 'y1'
+        }]
+    },
+    options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: { title: { display: true, text: '税收调整 vs 军事招募的时间演变', color: COLORS.accent } },
+        scales: {
+            x: { grid: { display: false } },
+            y: { position: 'left', grid: { color: 'rgba(51,65,85,0.3)' }, title: { display: true, text: '税收调整次数', color: COLORS.purple } },
+            y1: { position: 'right', grid: { display: false }, title: { display: true, text: '军事招募次数', color: COLORS.orange } }
+        }
+    }
+});
+
+// 时代总览
+new Chart(document.getElementById('epochOverviewChart'), {
+    type: 'radar',
+    data: {
+        labels: ['CPI通胀', '起义密度', '经济危机', '人口规模(log)', '军队规模(log)'],
+        datasets: [{
+            label: '封建',
+            data: [84.3/90*100, 6.39/9.3*100, 2.41/2.5*100, 65, 30],
+            borderColor: COLORS.red,
+            backgroundColor: 'rgba(248,113,113,0.15)',
+            pointBackgroundColor: COLORS.red
+        }, {
+            label: '大航海',
+            data: [90.4/90*100, 9.27/9.3*100, 2.35/2.5*100, 60, 40],
+            borderColor: COLORS.orange,
+            backgroundColor: 'rgba(251,146,60,0.15)',
+            pointBackgroundColor: COLORS.orange
+        }, {
+            label: '工业',
+            data: [77.7/90*100, 0.23/9.3*100, 0.1/2.5*100, 90, 80],
+            borderColor: COLORS.green,
+            backgroundColor: 'rgba(74,222,128,0.15)',
+            pointBackgroundColor: COLORS.green
+        }, {
+            label: '信息',
+            data: [69.5/90*100, 0.49/9.3*100, 0.007/2.5*100, 85, 95],
+            borderColor: COLORS.accent,
+            backgroundColor: 'rgba(56,189,248,0.15)',
+            pointBackgroundColor: COLORS.accent
+        }]
+    },
+    options: {
+        plugins: { title: { display: true, text: '关键时代雷达图对比', color: COLORS.accent } },
+        scales: {
+            r: {
+                angleLines: { color: 'rgba(51,65,85,0.3)' },
+                grid: { color: 'rgba(51,65,85,0.3)' },
+                pointLabels: { color: COLORS.muted },
+                ticks: { display: false },
+                suggestedMin: 0,
+                suggestedMax: 100
+            }
+        }
+    }
+});
+
+// 完整时间线
+new Chart(document.getElementById('fullTimelineChart'), {
+    type: 'line',
+    data: {
+        labels: Array.from({length: 28}, (_, i) => `年${i}`),
+        datasets: [{
+            label: '建筑购买',
+            data: [5474,5522,6694,7094,7307,7438,7494,6987,7212,6116,5216,4829,5173,4455,5400,4736,4985,4929,4201,5153,4049,3631,2931,4008,3806,2956,3348,2334],
+            borderColor: COLORS.green,
+            tension: 0.3,
+            pointRadius: 2,
+            yAxisID: 'y'
+        }, {
+            label: '起义',
+            data: [14,8,3,1,0,0,9,77,23,37,57,54,57,52,76,154,179,69,57,116,90,144,135,112,75,224,144,81],
+            borderColor: COLORS.red,
+            tension: 0.3,
+            pointRadius: 2,
+            yAxisID: 'y1'
+        }, {
+            label: '税收调整',
+            data: [869,896,734,569,651,450,469,504,377,356,308,532,250,243,252,275,270,350,216,178,185,180,150,171,144,227,156,236],
+            borderColor: COLORS.purple,
+            tension: 0.3,
+            pointRadius: 2,
+            borderDash: [5,5],
+            yAxisID: 'y'
+        }, {
+            label: '建筑出售',
+            data: [206,180,64,64,71,92,47,81,117,143,162,256,272,323,188,597,502,269,156,368,215,56,78,251,127,169,389,180],
+            borderColor: COLORS.yellow,
+            tension: 0.3,
+            pointRadius: 2,
+            borderDash: [3,3],
+            yAxisID: 'y'
+        }]
+    },
+    options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            title: { display: true, text: '游戏全生命周期行为综合时间线', color: COLORS.accent },
+            annotation: {
+                annotations: {
+                    box1: { type: 'box', xMin: 0, xMax: 6, backgroundColor: 'rgba(74,222,128,0.05)', label: { content: '黄金期', display: true, position: 'start' } },
+                    box2: { type: 'box', xMin: 7, xMax: 10, backgroundColor: 'rgba(251,191,36,0.05)' },
+                    box3: { type: 'box', xMin: 11, xMax: 16, backgroundColor: 'rgba(248,113,113,0.05)' }
+                }
+            }
+        },
+        scales: {
+            x: { grid: { display: false } },
+            y: { position: 'left', grid: { color: 'rgba(51,65,85,0.3)' }, title: { display: true, text: '操作数', color: COLORS.muted } },
+            y1: { position: 'right', grid: { display: false }, title: { display: true, text: '起义数', color: COLORS.red } }
+        }
+    }
+});
+</script>
+
+</body>
+</html>
