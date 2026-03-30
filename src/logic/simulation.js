@@ -2112,12 +2112,18 @@ export const simulateTick = ({
                     wageCost += avgPaidWage * slots;
                 });
 
-                const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const ownerWage = previousWages[role];
-                const ownerIncomeBase = (Number.isFinite(ownerWage) && ownerWage > 0)
-                    ? ownerWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
-                    : headBase;
-                const headTaxCost = ownerIncomeBase * getHeadTaxRate(role) * effectiveTaxModifier;
+                const ownerHeadRate = getHeadTaxRate(role);
+                let headTaxCost;
+                if (ownerHeadRate > 0) {
+                    const ownerIncomeBase = (Number.isFinite(ownerWage) && ownerWage > 0)
+                        ? ownerWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+                    headTaxCost = ownerIncomeBase * ownerHeadRate * effectiveTaxModifier;
+                } else if (ownerHeadRate < 0) {
+                    headTaxCost = ownerHeadRate * effectiveTaxModifier;
+                } else {
+                    headTaxCost = 0;
+                }
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
                 const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
@@ -2307,78 +2313,9 @@ export const simulateTick = ({
     const effectiveNeedsReduction = Math.max(-2, Math.min(0.95, needsReduction || 0));
     const needsRequirementMultiplier = 1 - effectiveNeedsReduction;
 
-    // [FIX] 保存税前存款快照，用于后续TaxShock计算
-    // 这样即使税收榨干了存款，也能正确计算税收占比来触发惩?
-    const preTaxWealth = {};
-    Object.keys(STRATA).forEach(key => {
-        preTaxWealth[key] = wealth[key] || 0;
-    });
-
-    perfStart('headTax');
+    // classApproval 初始化（与 headTax 无关，保持在 preProduction 阶段）
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') return;
-        const count = popStructure[key] || 0;
-        if (count === 0) return;
-        const def = STRATA[key];
-        if (wealth[key] === undefined) {
-            wealth[key] = def.startingWealth || 0;
-        }
-        const headRate = getHeadTaxRate(key);
-        const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-        const stratumWage = previousWages[key];
-        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
-        let incomeBase;
-        if (Number.isFinite(stratumWage) && stratumWage > 0) {
-            incomeBase = stratumWage * taxRatio;
-        } else if (headRate < 0 && defaultWageEstimate > 0) {
-            incomeBase = defaultWageEstimate * taxRatio;
-        } else {
-            incomeBase = headBase;
-        }
-        const plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
-        const available = Math.max(0, wealth[key] || 0);
-        const maxPerCapitaTax = available / Math.max(1, count);
-        const effectivePerCapitaTax = plannedPerCapitaTax >= 0
-            ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
-            : plannedPerCapitaTax;
-        const due = count * effectivePerCapitaTax;
-
-        // [DEBUG] 人头税征收调试日?
-        // if (Math.abs(headRate) > 5) { // 只在税率异常高时输出
-        //     console.log(`[HEAD TAX DEBUG] ${key}:`, {
-        //         人口: count,
-        //         财富总额: available.toFixed(2),
-        //         人均财富: maxPerCapitaTax.toFixed(2),
-        //         税率倍数: headRate.toFixed(2),
-        //         计划人均税额: plannedPerCapitaTax.toFixed(2),
-        //         实际人均税额: effectivePerCapitaTax.toFixed(2),
-        //         应缴总额: due.toFixed(2),
-        //         实际支付: Math.min(available, due).toFixed(2),
-        //         是否受限: plannedPerCapitaTax > maxPerCapitaTax ? '? : '?
-        //     });
-        // }
-
-        if (due !== 0) {
-            if (due > 0) {
-                const paid = Math.min(available, due);
-                ledger.transfer(key, 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
-                // 记录人头税支?(本地追踪用于逻辑判断)
-                roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
-                roleExpense[key] = (roleExpense[key] || 0) + paid;
-                roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid;
-            } else {
-                const subsidyNeeded = -due;
-                const treasury = res.silver || 0;
-                if (treasury >= subsidyNeeded) {
-                    ledger.transfer('state', key, subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
-                    roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
-                    roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded;
-                    if (classFinancialData[key]) {
-                        classFinancialData[key].income.headTaxSubsidy = (classFinancialData[key].income.headTaxSubsidy || 0) + subsidyNeeded;
-                    }
-                }
-            }
-        }
         classApproval[key] = previousApproval[key] ?? 50;
         if ((classApproval[key] || 0) <= 0) {
             zeroApprovalClasses[key] = true;
@@ -3458,9 +3395,67 @@ export const simulateTick = ({
             });
         }
     });
-    perfEnd('headTax');
     perfEnd('passiveGains');
     perfEnd('productionLoop');
+
+    // ========== 人头税收取（移到 productionLoop 之后，保证基于本 tick 实际收入） ==========
+    // [FIX] 保存税前存款快照，用于后续 TaxShock 计算
+    const preTaxWealth = {};
+    Object.keys(STRATA).forEach(key => {
+        preTaxWealth[key] = wealth[key] || 0;
+    });
+
+    perfStart('headTax');
+    Object.keys(STRATA).forEach(key => {
+        if (key === 'official') return;
+        const count = popStructure[key] || 0;
+        if (count === 0) return;
+        const def = STRATA[key];
+        if (wealth[key] === undefined) {
+            wealth[key] = def.startingWealth || 0;
+        }
+        const headRate = getHeadTaxRate(key);
+        const stratumWage = previousWages[key];
+        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+        let plannedPerCapitaTax;
+        if (headRate > 0) {
+            const incomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
+                ? stratumWage * taxRatio : 0;
+            plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
+        } else if (headRate < 0) {
+            plannedPerCapitaTax = headRate * effectiveTaxModifier;
+        } else {
+            plannedPerCapitaTax = 0;
+        }
+        const available = Math.max(0, wealth[key] || 0);
+        const maxPerCapitaTax = available / Math.max(1, count);
+        const effectivePerCapitaTax = plannedPerCapitaTax >= 0
+            ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
+            : plannedPerCapitaTax;
+        const due = count * effectivePerCapitaTax;
+
+        if (due !== 0) {
+            if (due > 0) {
+                const paid = Math.min(available, due);
+                ledger.transfer(key, 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
+                roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
+                roleExpense[key] = (roleExpense[key] || 0) + paid;
+                roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid;
+            } else {
+                const subsidyNeeded = -due;
+                const treasury = res.silver || 0;
+                if (treasury >= subsidyNeeded) {
+                    ledger.transfer('state', key, subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+                    roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
+                    roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded;
+                    if (classFinancialData[key]) {
+                        classFinancialData[key].income.headTaxSubsidy = (classFinancialData[key].income.headTaxSubsidy || 0) + subsidyNeeded;
+                    }
+                }
+            }
+        }
+    });
+    perfEnd('headTax');
 
     // === 新军费计算系?===
     // [FIX] 合并散兵(army)和军?militaryCorps)内的所有单位，统一计算军饷
@@ -4469,14 +4464,20 @@ export const simulateTick = ({
         // [DEBUG] 追踪财富变化 - 商品消费后（人头税之前）
         const debugAfterGoodsConsumption = currentWealth;
 
-        // 人头税：官员拥有独立财富，因此在此单独结算（按收入比例）
+        // 人头税：官员拥有独立财富，因此在此单独结算
         const headRate = getHeadTaxRate('official');
-        const headBase = STRATA.official?.headTaxBase ?? 0.01;
         const officialWage = previousWages['official'];
-        const officialIncomeBase = (Number.isFinite(officialWage) && officialWage > 0)
-            ? officialWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
-            : headBase;
-        const plannedPerCapitaTax = officialIncomeBase * headRate * effectiveTaxModifier;
+        const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+        let plannedPerCapitaTax;
+        if (headRate > 0) {
+            const officialIncomeBase = (Number.isFinite(officialWage) && officialWage > 0)
+                ? officialWage * taxRatioOff : 0;
+            plannedPerCapitaTax = officialIncomeBase * headRate * effectiveTaxModifier;
+        } else if (headRate < 0) {
+            plannedPerCapitaTax = headRate * effectiveTaxModifier;
+        } else {
+            plannedPerCapitaTax = 0;
+        }
         if (plannedPerCapitaTax !== 0) {
             if (plannedPerCapitaTax > 0) {
                 const taxPaid = Math.min(currentWealth, plannedPerCapitaTax);
@@ -7704,12 +7705,18 @@ export const simulateTick = ({
                 });
 
                 // 计算税费成本（人头税按收入比例 + 营业税按利润比例）
-                const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const roleWageEst = updatedWages?.[role] ?? market?.wages?.[role];
-                const roleIncomeBase = (Number.isFinite(roleWageEst) && roleWageEst > 0)
-                    ? roleWageEst * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
-                    : headBase;
-                const headTaxCost = roleIncomeBase * getHeadTaxRate(role) * effectiveTaxModifier;
+                const priceEstHeadRate = getHeadTaxRate(role);
+                let headTaxCost;
+                if (priceEstHeadRate > 0) {
+                    const roleIncomeBase = (Number.isFinite(roleWageEst) && roleWageEst > 0)
+                        ? roleWageEst * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+                    headTaxCost = roleIncomeBase * priceEstHeadRate * effectiveTaxModifier;
+                } else if (priceEstHeadRate < 0) {
+                    headTaxCost = priceEstHeadRate * effectiveTaxModifier;
+                } else {
+                    headTaxCost = 0;
+                }
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
                 const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
@@ -7762,12 +7769,18 @@ export const simulateTick = ({
                 }
 
                 // 计算税后工资（按收入比例）
-                const headBaseFb = STRATA[role]?.headTaxBase ?? 0.01;
                 const wageForTax = estimatedWage > 0 ? estimatedWage : (previousWages[role] || 0);
-                const headIncBase = (Number.isFinite(wageForTax) && wageForTax > 0)
-                    ? wageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
-                    : headBaseFb;
-                const taxCost = headIncBase * getHeadTaxRate(role) * effectiveTaxModifier;
+                const empHeadRate = getHeadTaxRate(role);
+                let taxCost;
+                if (empHeadRate > 0) {
+                    const headIncBase = (Number.isFinite(wageForTax) && wageForTax > 0)
+                        ? wageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+                    taxCost = headIncBase * empHeadRate * effectiveTaxModifier;
+                } else if (empHeadRate < 0) {
+                    taxCost = empHeadRate * effectiveTaxModifier;
+                } else {
+                    taxCost = 0;
+                }
                 const netWage = estimatedWage - taxCost;
 
                 employeeWage += netWage * roleSlots * count;
@@ -7808,12 +7821,18 @@ export const simulateTick = ({
         const netIncome = totalIncome - totalExpense + capitalOutlayAdjustment;
         const netIncomePerCapita = netIncome / Math.max(1, pop);
         const roleWage = updatedWages[role] || getExpectedWage(role);
-        const headTaxFallback = STRATA[role]?.headTaxBase ?? 0.01;
         const roleWageForTax = updatedWages[role] || getExpectedWage(role);
-        const headIncomeBase = (Number.isFinite(roleWageForTax) && roleWageForTax > 0)
-            ? roleWageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
-            : headTaxFallback;
-        const taxCostPerCapita = headIncomeBase * getHeadTaxRate(role) * effectiveTaxModifier;
+        const sumHeadRate = getHeadTaxRate(role);
+        let taxCostPerCapita;
+        if (sumHeadRate > 0) {
+            const headIncomeBase = (Number.isFinite(roleWageForTax) && roleWageForTax > 0)
+                ? roleWageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+            taxCostPerCapita = headIncomeBase * sumHeadRate * effectiveTaxModifier;
+        } else if (sumHeadRate < 0) {
+            taxCostPerCapita = sumHeadRate * effectiveTaxModifier;
+        } else {
+            taxCostPerCapita = 0;
+        }
         const disposableWage = roleWage - taxCostPerCapita;
         const lastTickIncome = getLastTickNetIncomePerCapita(role);
         const effectivePerCapDelta = role === 'merchant' ? netIncomePerCapita : perCapWealthDelta;

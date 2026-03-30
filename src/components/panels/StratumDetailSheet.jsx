@@ -114,7 +114,11 @@ const StratumDetailSheetComponent = ({
                 totalEssentialCost += Math.max(0, consumption - luxuryPart);
             });
             return {
-                income: { salary: totalSalary, ownerRevenue: totalPropertyIncome, wage: 0, subsidy: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
+                income: {
+                    salary: totalSalary, ownerRevenue: totalPropertyIncome, wage: 0, subsidy: 0,
+                    headTaxSubsidy: classFinancialData?.official?.income?.headTaxSubsidy || 0,
+                    militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0
+                },
                 expense: {
                     headTax: totalHeadTax,
                     essentialNeeds: totalEssentialCost > 0 ? { _total: { cost: totalEssentialCost, quantity: 0 } } : {},
@@ -336,9 +340,11 @@ const StratumDetailSheetComponent = ({
     }
 
 
-    // 人头税 UI 用百分比，内部存系数
+    // 人头税：正值 = 税收（百分比），负值 = 补贴（银币/人/日绝对值）
     const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
-    const displayHeadPercent = headTaxMultiplier * headBaseRate * 100;
+    const isSubsidyMode = headTaxMultiplier < 0;
+    const displayHeadPercent = isSubsidyMode ? 0 : headTaxMultiplier * headBaseRate * 100;
+    const displaySubsidyValue = isSubsidyMode ? Math.abs(headTaxMultiplier) : 0;
     const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
 
     const handleDraftChange = (raw) => {
@@ -349,12 +355,17 @@ const StratumDetailSheetComponent = ({
         if (draftMultiplier === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftMultiplier);
         if (Number.isNaN(parsed)) { setDraftMultiplier(null); return; }
-        const multiplier = headPercentToMultiplier(parsed);
+        let storeValue;
+        if (isSubsidyMode) {
+            storeValue = -(Math.max(0, Math.abs(parsed)));
+        } else {
+            storeValue = headPercentToMultiplier(Math.max(0, parsed));
+        }
         onUpdateTaxPolicies(prev => ({
             ...prev,
             headTaxRates: {
                 ...(prev?.headTaxRates || {}),
-                [stratumKey]: multiplier,
+                [stratumKey]: storeValue,
             },
         }));
         setDraftMultiplier(null);
@@ -613,33 +624,40 @@ const StratumDetailSheetComponent = ({
                             </h3>
                             <div className="grid grid-cols-2 gap-2 items-center">
                                 <div>
-                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">税率 (%)</div>
+                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">
+                                        {isSubsidyMode ? '补贴 (银币/人/日)' : '税率 (%)'}
+                                    </div>
                                     <div className="flex items-center gap-1">
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const currentPct = parseFloat(draftMultiplier ?? displayHeadPercent);
-                                                const newPct = isNaN(currentPct) ? -displayHeadPercent : -currentPct;
-                                                const newMultiplier = headPercentToMultiplier(newPct);
+                                                const newValue = isSubsidyMode ? 1.0 : -0.05;
                                                 onUpdateTaxPolicies(prev => ({
                                                     ...prev,
                                                     headTaxRates: {
                                                         ...(prev?.headTaxRates || {}),
-                                                        [stratumKey]: newMultiplier,
+                                                        [stratumKey]: newValue,
                                                     },
                                                 }));
                                                 setDraftMultiplier(null);
                                             }}
-                                            className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
-                                            title="切换正负值（税收/补贴）"
+                                            className={`btn-compact flex-shrink-0 w-6 h-6 border rounded text-xs font-bold flex items-center justify-center transition-colors ${
+                                                isSubsidyMode
+                                                    ? 'bg-green-900/50 hover:bg-green-800/50 border-green-600 text-green-300'
+                                                    : 'bg-gray-700 hover:bg-gray-600 border-gray-500 text-gray-300'
+                                            }`}
+                                            title={isSubsidyMode ? '切换到税收模式' : '切换到补贴模式'}
                                         >
-                                            ±
+                                            {isSubsidyMode ? '补' : '税'}
                                         </button>
                                         <input
                                             type="text"
                                             inputMode="decimal"
-                                            step="1"
-                                            value={draftMultiplier ?? (Number.isInteger(displayHeadPercent) ? displayHeadPercent : displayHeadPercent.toFixed(1))}
+                                            step={isSubsidyMode ? '0.01' : '1'}
+                                            value={draftMultiplier ?? (isSubsidyMode
+                                                ? displaySubsidyValue.toFixed(2)
+                                                : (Number.isInteger(displayHeadPercent) ? displayHeadPercent : displayHeadPercent.toFixed(1))
+                                            )}
                                             onChange={(e) => handleDraftChange(e.target.value)}
                                             onBlur={commitDraft}
                                             onKeyDown={(e) => {
@@ -649,33 +667,32 @@ const StratumDetailSheetComponent = ({
                                                 }
                                             }}
                                             className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                            placeholder="收入税率%"
+                                            placeholder={isSubsidyMode ? '银币/人/日' : '收入税率%'}
                                         />
                                     </div>
                                 </div>
                                 <div>
                                     {(() => {
-                                        const isTax = displayHeadPercent > 0;
-                                        const isSubsidy = displayHeadPercent < 0;
-                                        const actualHeadTaxPerCapita = isSubsidy
+                                        const isTax = !isSubsidyMode && displayHeadPercent > 0;
+                                        const actualHeadTaxPerCapita = isSubsidyMode
                                             ? (incomeData.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1)
                                             : (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
                                         return (
                                             <>
-                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">{isSubsidy ? '实际补贴' : '实际税额'} (每人每日)</div>
+                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">{isSubsidyMode ? '实际补贴' : '实际税额'} (每人每日)</div>
                                                 <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
-                                                    <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidy ? 'text-green-300' : 'text-gray-400'}`}>
-                                                        {isSubsidy ? '补贴 ' : ''}{Math.abs(actualHeadTaxPerCapita).toFixed(3)}
+                                                    <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidyMode ? 'text-green-300' : 'text-gray-400'}`}>
+                                                        {isSubsidyMode ? '补贴 ' : ''}{Math.abs(actualHeadTaxPerCapita).toFixed(3)}
                                                     </span>
                                                     <Icon
                                                         name="Coins"
                                                         size={12}
-                                                        className={`inline-block ml-1 ${isTax ? 'text-yellow-400' : isSubsidy ? 'text-green-400' : 'text-gray-500'}`}
+                                                        className={`inline-block ml-1 ${isTax ? 'text-yellow-400' : isSubsidyMode ? 'text-green-400' : 'text-gray-500'}`}
                                                     />
                                                 </div>
                                                 {Math.abs((effectiveTaxModifier || 1) - 1) > 0.001 && (
                                                     <div className="text-[11px] text-gray-500 mt-1 text-center">
-                                                        含税收修正 ×{(effectiveTaxModifier || 1).toFixed(2)}
+                                                        {isSubsidyMode ? '含补贴效率修正' : '含税收修正'} ×{(effectiveTaxModifier || 1).toFixed(2)}
                                                     </div>
                                                 )}
                                             </>
@@ -1217,11 +1234,12 @@ const StratumDetailSheetComponent = ({
                         const wage = (incomeData.wage || 0) / safeDayScale / Math.max(count, 1);
                         const ownerRevenue = (incomeData.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
                         const subsidy = (incomeData.subsidy || 0) / safeDayScale / Math.max(count, 1);
+                        const headTaxSubsidySum = (incomeData.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1);
                         const salary = (incomeData.salary || 0) / safeDayScale / Math.max(count, 1);
                         const militaryPay = (incomeData.militaryPay || 0) / safeDayScale / Math.max(count, 1);
                         const tradeImportRevenue = (incomeData.tradeImportRevenue || 0) / safeDayScale / Math.max(count, 1);
                         const layoffTransferIn = (incomeData.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
-                        const totalIncomeCalc = wage + ownerRevenue + subsidy + salary + militaryPay + tradeImportRevenue + layoffTransferIn;
+                        const totalIncomeCalc = wage + ownerRevenue + subsidy + headTaxSubsidySum + salary + militaryPay + tradeImportRevenue + layoffTransferIn;
 
                         // 计算支出总计
                         const headTax = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
@@ -1296,11 +1314,12 @@ const StratumDetailSheetComponent = ({
                             const wage = (data.wage || 0) / safeDayScale / Math.max(count, 1);
                             const ownerRevenue = (data.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const subsidy = (data.subsidy || 0) / safeDayScale / Math.max(count, 1);
+                            const headTaxSubsidyInc = (data.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1);
                             const salary = (data.salary || 0) / safeDayScale / Math.max(count, 1);
                             const militaryPay = (data.militaryPay || 0) / safeDayScale / Math.max(count, 1);
                             const tradeImportRevenue = (data.tradeImportRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const layoffTransferIn = (data.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
-                            const hasAnyIncome = wage > 0.001 || ownerRevenue > 0.001 || subsidy > 0.001 || salary > 0.001 || militaryPay > 0.001 || tradeImportRevenue > 0.001 || layoffTransferIn > 0.001;
+                            const hasAnyIncome = wage > 0.001 || ownerRevenue > 0.001 || subsidy > 0.001 || headTaxSubsidyInc > 0.001 || salary > 0.001 || militaryPay > 0.001 || tradeImportRevenue > 0.001 || layoffTransferIn > 0.001;
 
                             return (
                                 <div className="space-y-1.5">
@@ -1332,6 +1351,12 @@ const StratumDetailSheetComponent = ({
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="text-gray-300">政府补贴</span>
                                             <span className="text-green-400 font-mono">+{subsidy.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {headTaxSubsidyInc > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">人头税补贴</span>
+                                            <span className="text-green-400 font-mono">+{headTaxSubsidyInc.toFixed(2)}</span>
                                         </div>
                                     )}
                                     {tradeImportRevenue > 0.001 && (
