@@ -2680,26 +2680,33 @@ export const useGameState = () => {
         const loadedTaxPolicies = data.taxPolicies || {};
         if (!loadedTaxPolicies._headTaxVersion && loadedTaxPolicies.headTaxRates) {
             const htr = loadedTaxPolicies.headTaxRates;
+            const HEAD_TAX_BASE = 0.05;
             const HEAD_TAX_RATIO = 0.10;
-            const MAX_SAFE_PERCENT = 10;
-            const maxSafeMultiplier = MAX_SAFE_PERCENT / (HEAD_TAX_RATIO * 100);
+            const MAX_NEW_RATE = 5.0;
+            const savedWages = data.market?.wages || {};
             Object.keys(htr).forEach(key => {
                 if (key.startsWith('_')) return;
-                const val = htr[key];
-                if (val > 0) {
-                    const effectivePercent = val * HEAD_TAX_RATIO * 100;
-                    if (effectivePercent > MAX_SAFE_PERCENT) {
-                        htr[key] = maxSafeMultiplier;
-                        console.log(`[Save Migration] headTaxRates.${key}: old multiplier ${val} (=${effectivePercent.toFixed(0)}%) -> capped to ${maxSafeMultiplier} (=${MAX_SAFE_PERCENT}%)`);
+                const oldRate = htr[key];
+                if (oldRate > 0) {
+                    const oldTaxPerCapita = oldRate * (STRATA[key]?.headTaxBase ?? HEAD_TAX_BASE);
+                    const wage = savedWages[key];
+                    if (wage > 0) {
+                        const incomeShare = oldTaxPerCapita / wage;
+                        const newRate = incomeShare / HEAD_TAX_RATIO;
+                        htr[key] = Math.min(newRate, MAX_NEW_RATE);
+                        console.log(`[Save Migration] headTaxRates.${key}: old ${oldRate}×${HEAD_TAX_BASE}=${oldTaxPerCapita.toFixed(3)}/人/日, wage=${wage.toFixed(3)}, share=${(incomeShare * 100).toFixed(1)}% -> newRate=${htr[key].toFixed(3)}`);
+                    } else {
+                        htr[key] = Math.min(oldRate, 1.0);
+                        console.log(`[Save Migration] headTaxRates.${key}: no wage data, old ${oldRate} -> capped ${htr[key]}`);
                     }
-                } else if (val < 0) {
-                    const oldVal = val;
-                    htr[key] = -(Math.abs(oldVal) * (STRATA[key]?.headTaxBase ?? 0.05));
-                    console.log(`[Save Migration] headTaxRates.${key}: old subsidy multiplier ${oldVal} -> new absolute ${htr[key]}`);
+                } else if (oldRate < 0) {
+                    const oldSubsidy = Math.abs(oldRate) * (STRATA[key]?.headTaxBase ?? HEAD_TAX_BASE);
+                    htr[key] = -oldSubsidy;
+                    console.log(`[Save Migration] headTaxRates.${key}: old subsidy multiplier ${oldRate} -> absolute -${oldSubsidy.toFixed(4)}`);
                 }
             });
             loadedTaxPolicies._headTaxVersion = 2;
-            console.log('[Save Migration] headTaxRates migrated to v2 format');
+            console.log('[Save Migration] headTaxRates migrated to v2 (income-proportional)');
         }
         setTaxPolicies({
             ...defaultTaxPolicies,
