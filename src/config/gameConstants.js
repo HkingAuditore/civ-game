@@ -1127,6 +1127,6 @@ export const TAX_LIMITS = {
 };
 
 export const TAX_BASE_RATES = {
-    HEAD_TAX_INCOME_RATIO: 0.10,        // 人头税：按阶层日均收入的 10% 征收
-    BUSINESS_TAX_REVENUE_RATIO: 0.08,   // 营业税：按建筑营收（产值）的 8% 征收
+    HEAD_TAX_INCOME_RATIO: 0.05,        // 人头税：按阶层日均收入的 5% 征收
+    BUSINESS_TAX_REVENUE_RATIO: 0.03,   // 营业税：按建筑营收（产值）的 3% 征收
 };

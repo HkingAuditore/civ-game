@@ -104,7 +104,7 @@ const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, ma
 
         // 营业税（按营收比例）
         const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
-        const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+        const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
 
         // 建筑净利润 = 产出 - 投入 - 营业税
         const buildingNetProfit = outputValue - inputValue - businessTax;
@@ -841,7 +841,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes, gameState]);
 
     // 营业税逻辑（按营收比例）- UI 用百分比，内部用系数
-    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
+    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
     const businessTaxMultiplier = clampBusinessTaxRate(taxPolicies?.businessTaxRates?.[building.id] ?? 1);
     const displayBizPercent = businessTaxMultiplier * bizBaseRate * 100;
 
@@ -1089,6 +1089,40 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         ))}
                                     </div>
                                 )}
+                                {/* 利润不足明细 */}
+                                {buildingFinance?.marginDetail && reductionReasons.some(r => r.type === 'margin') && (() => {
+                                    const md = buildingFinance.marginDetail;
+                                    const perBuilding = count > 0 ? 1 / count : 0;
+                                    return (
+                                        <div className="mt-1.5 p-2 bg-red-950/30 border border-red-800/30 rounded text-xs space-y-0.5">
+                                            <div className="text-red-300 font-semibold mb-1">📊 利润分析（全部 {count} 栋估算）</div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">预计总营收</span>
+                                                <span className="text-emerald-300 font-mono">{formatNumberShortCN(md.estimatedRevenue)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">原料成本</span>
+                                                <span className="text-rose-300 font-mono">-{formatNumberShortCN(md.estimatedInputCost)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">工资支出</span>
+                                                <span className="text-rose-300 font-mono">-{formatNumberShortCN(md.estimatedWageCost)}</span>
+                                            </div>
+                                            {md.estimatedBusinessTax > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-400">营业税</span>
+                                                    <span className="text-rose-300 font-mono">-{formatNumberShortCN(md.estimatedBusinessTax)}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between border-t border-red-800/40 pt-0.5 mt-0.5">
+                                                <span className="text-gray-300 font-semibold">每栋预计</span>
+                                                <span className={`font-mono font-semibold ${md.projectedLossPerBuilding >= 0 ? 'text-emerald-300' : 'text-red-400'}`}>
+                                                    {md.projectedLossPerBuilding >= 0 ? '+' : ''}{formatNumberShortCN(md.projectedLossPerBuilding)} <Icon name="Coins" size={10} className="inline text-yellow-200" />
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                             <div>
                                 <div className="text-xs uppercase text-rose-300 mb-1 tracking-wide">总投入</div>

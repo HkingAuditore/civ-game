@@ -40,9 +40,10 @@ export const computeLivingCosts = (
         const headRate = Math.max(0, getHeadTaxRate(key, headTaxRates));
         const prevWage = previousWages[key];
         const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)
-            ? prevWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+            ? prevWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05)
             : 0;
-        taxCost += incomeBase * headRate;
+        const rawHeadTaxCost = incomeBase * headRate;
+        taxCost += Math.min(rawHeadTaxCost, needsCost * 0.5);
         breakdown[key] = {
             needsCost: Number.isFinite(needsCost) ? needsCost : 0,
             taxCost: Number.isFinite(taxCost) ? taxCost : 0,

@@ -225,6 +225,8 @@ import {
     MAX_CONCURRENT_WARS,
     GLOBAL_WAR_COOLDOWN,
     TECH_MAP,
+    CRITICAL_SHORTAGE_THRESHOLD,
+    CRITICAL_RESOURCES,
     // Helper functions
     clamp,
     isTradableResource,
@@ -1583,6 +1585,9 @@ export const simulateTick = ({
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + amount;
             // 使用 Ledger 记录收入
             ledger.transfer('void', ownerKey, amount, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
+            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
+                buildingFinancialData[currentBuildingId].ownerRevenue += amount;
+            }
             return;
         }
         if (amount <= 0) return;
@@ -1620,6 +1625,10 @@ export const simulateTick = ({
 
             // 使用 Ledger 记录收入
             ledger.transfer('void', ownerKey, netIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
+
+            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
+                buildingFinancialData[currentBuildingId].ownerRevenue += netIncome;
+            }
         }
     };
 
@@ -2113,7 +2122,7 @@ export const simulateTick = ({
                 let headTaxCost;
                 if (ownerHeadRate > 0) {
                     const ownerIncomeBase = (Number.isFinite(ownerWage) && ownerWage > 0)
-                        ? ownerWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+                        ? ownerWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
                     headTaxCost = ownerIncomeBase * ownerHeadRate * effectiveTaxModifier;
                 } else if (ownerHeadRate < 0) {
                     headTaxCost = ownerHeadRate * effectiveTaxModifier;
@@ -2121,7 +2130,7 @@ export const simulateTick = ({
                     headTaxCost = 0;
                 }
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxRate;
+                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
                     ? businessTaxCost * effectiveEfficiency
                     : businessTaxCost;
@@ -2194,11 +2203,19 @@ export const simulateTick = ({
     };
 
     // [FIX] 智能工资获取：当岗位人数少时，用预估潜力代替历史工资吸引人
+    // 生存资源严重短缺时，该资源生产者也使用实时预估（即使人口已多）
+    const criticalProducerRoles = new Set();
+    for (const resKey of CRITICAL_RESOURCES) {
+        const stock = res[resKey] || 0;
+        if (stock < population * 0.5) {
+            const producer = RESOURCES[resKey]?.defaultOwner;
+            if (producer) criticalProducerRoles.add(producer);
+        }
+    }
+
     const getSmartExpectedWage = (role) => {
         const currentPop = popStructure[role] || 0;
-        // 当人数低于 LOW_POP_THRESHOLD 时，使用"画饼"模式（预估潜力）来吸引人
-        // 这对新行业冷启动至关重要
-        if (currentPop <= LOW_POP_THRESHOLD) {
+        if (currentPop <= LOW_POP_THRESHOLD || criticalProducerRoles.has(role)) {
             const potential = estimatePotentialIncomeForVacancy(role);
             const standard = getExpectedWage(role);
             return Math.max(potential, standard);
@@ -2478,6 +2495,7 @@ export const simulateTick = ({
                 ownerRevenue: 0,
                 productionCosts: 0,
                 businessTaxPaid: 0,
+                marginDetail: null,
             };
         }
 
@@ -2707,9 +2725,9 @@ export const simulateTick = ({
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         let estimatedBusinessTax;
         if (businessTaxMultiplier >= 0) {
-            estimatedBusinessTax = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+            estimatedBusinessTax = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
         } else {
-            const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
+            const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
             const flatSubsidyPerBuilding = Math.abs(businessTaxMultiplier) * bizBaseRate * 100;
             estimatedBusinessTax = -(flatSubsidyPerBuilding * count);
         }
@@ -2743,8 +2761,8 @@ export const simulateTick = ({
             // - 即使总成本（含工资）> 总收入，只要边际收益 > 0，生产可以减少亏?
             // - 只有当边际收?< 0 时，才应该停?
 
-            // 可变成本 = 原料成本 + 营业税（补贴为负，减少成本）
-            const variableCost = estimatedInputCost + estimatedBusinessTax;
+            // 可变成本 = 原料成本（营业税是利润分配，不影响生产决策）
+            const variableCost = estimatedInputCost;
             // 边际收益 = 产出价?- 可变成本
             const marginalRevenue = estimatedRevenue - variableCost;
 
@@ -2798,6 +2816,18 @@ export const simulateTick = ({
                 valueAvailableForLabor,
                 wagePlans,
             };
+
+            if (debugMarginRatio !== null && debugMarginRatio < 1) {
+                buildingFinancialData[b.id].marginDetail = {
+                    estimatedRevenue,
+                    estimatedInputCost,
+                    estimatedWageCost: actualPayableWageCost,
+                    estimatedBusinessTax,
+                    estimatedCost,
+                    marginalRevenue,
+                    projectedLossPerBuilding: count > 0 ? (estimatedRevenue - estimatedCost) / count : 0,
+                };
+            }
         }
         if (actualOperatingCostPerMultiplier > 0) {
             // 检查所?owner 的财富是否足够支付运营成?
@@ -3320,9 +3350,9 @@ export const simulateTick = ({
             let totalBusinessTax;
             if (businessTaxMultiplier > 0) {
                 const actualOutputValue = outputValuePerMultiplier * actualMultiplier;
-                totalBusinessTax = Math.max(0, actualOutputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+                totalBusinessTax = Math.max(0, actualOutputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
             } else {
-                const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
+                const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
                 const flatSubsidyPerBuilding = Math.abs(businessTaxMultiplier) * bizBaseRate * 100;
                 totalBusinessTax = -(flatSubsidyPerBuilding * count);
             }
@@ -3337,8 +3367,7 @@ export const simulateTick = ({
                         ledger.transfer(oKey, 'state', ownerTax, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, { buildingId: b.id });
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
-                        // [FIX] 移除手动累加：ledger.transfer 已通过 _updateSystemStats 更新 businessTaxPaid
-                        // 之前此处重复 += ownerTax 导致正税路径金额翻倍
+                        buildingFinancialData[b.id].businessTaxPaid += ownerTax;
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
                         recordAggregatedLog(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }
@@ -3423,7 +3452,7 @@ export const simulateTick = ({
         // previousWages 是每个岗位的工资信号，若就业率 < 100%，会远高于人均实际收入，
         // 导致"20% 税率"实际收取的金额远超每人收入的 20%。
         const actualPerCapitaWage = count > 0 ? (roleWagePayout[key] || 0) / count : 0;
-        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
         let plannedPerCapitaTax;
         if (headRate > 0) {
             const incomeBase = (Number.isFinite(actualPerCapitaWage) && actualPerCapitaWage > 0)
@@ -3964,7 +3993,8 @@ export const simulateTick = ({
                     } else if (!canAfford && inStock) {
                         reason = 'unaffordable'; // 有货但买不起
                     }
-                    shortages.push({ resource: resKey, reason });
+                    const isBasic = !!(def.needs && def.needs.hasOwnProperty(resKey));
+                    shortages.push({ resource: resKey, reason, isBasic });
                 }
             } else {
                 const amount = Math.min(requirement, available);
@@ -3978,7 +4008,8 @@ export const simulateTick = ({
                 tracked += 1;
                 if (ratio < 0.99) {
                     // 非交易资源只可能是缺货
-                    shortages.push({ resource: resKey, reason: 'outOfStock' });
+                    const isBasic = !!(def.needs && def.needs.hasOwnProperty(resKey));
+                    shortages.push({ resource: resKey, reason: 'outOfStock', isBasic });
                 }
             }
         }
@@ -4475,7 +4506,7 @@ export const simulateTick = ({
         // 人头税：官员拥有独立财富，因此在此单独结算
         // [FIX] 使用本 tick 官员实际到手薪俸，而非 previousWages 工资信号
         const headRate = getHeadTaxRate('official');
-        const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+        const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
         let plannedPerCapitaTax;
         if (headRate > 0) {
             const officialIncomeBase = (Number.isFinite(officialThisTickIncome) && officialThisTickIncome > 0)
@@ -7263,7 +7294,7 @@ export const simulateTick = ({
                     // 计算营业税成本（按营收比例，用上一tick市价估算营收）
                     const businessTaxMultiplier = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
                     const estimatedRevenue = outputAmount * (priceMap[resource] || getBasePrice(resource));
-                    const businessTaxCost = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+                    const rawBusinessTaxCost = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
 
                     // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
                     let ownerLivingCost = 0;
@@ -7272,8 +7303,12 @@ export const simulateTick = ({
                         ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
                     }
 
-                    // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本 + 业主生活需求成本) / 产出数量
-                    const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
+                    // 限制营业税对成本价的贡献不超过非税成本的 30%，打断价格-税收正反馈螺旋
+                    const nonTaxCost = inputCost + laborCost + ownerLivingCost;
+                    const cappedBusinessTaxCost = Math.min(rawBusinessTaxCost, nonTaxCost * 0.3);
+
+                    // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本(capped) + 业主生活需求成本) / 产出数量
+                    const totalCost = nonTaxCost + cappedBusinessTaxCost;
                     // 负营业税（补贴）可能使 totalCost 为负，成本价保底为0，避免扰乱价格模型
                     const costPrice = Math.max(0, totalCost / outputAmount);
 
@@ -7718,7 +7753,7 @@ export const simulateTick = ({
                 let headTaxCost;
                 if (priceEstHeadRate > 0) {
                     const roleIncomeBase = (Number.isFinite(roleWageEst) && roleWageEst > 0)
-                        ? roleWageEst * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+                        ? roleWageEst * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
                     headTaxCost = roleIncomeBase * priceEstHeadRate * effectiveTaxModifier;
                 } else if (priceEstHeadRate < 0) {
                     headTaxCost = priceEstHeadRate * effectiveTaxModifier;
@@ -7726,7 +7761,7 @@ export const simulateTick = ({
                     headTaxCost = 0;
                 }
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxRate;
+                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
                     ? businessTaxCost * effectiveEfficiency
                     : businessTaxCost;
@@ -7782,7 +7817,7 @@ export const simulateTick = ({
                 let taxCost;
                 if (empHeadRate > 0) {
                     const headIncBase = (Number.isFinite(wageForTax) && wageForTax > 0)
-                        ? wageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+                        ? wageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
                     taxCost = headIncBase * empHeadRate * effectiveTaxModifier;
                 } else if (empHeadRate < 0) {
                     taxCost = empHeadRate * effectiveTaxModifier;
@@ -7834,7 +7869,7 @@ export const simulateTick = ({
         let taxCostPerCapita;
         if (sumHeadRate > 0) {
             const headIncomeBase = (Number.isFinite(roleWageForTax) && roleWageForTax > 0)
-                ? roleWageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) : 0;
+                ? roleWageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
             taxCostPerCapita = headIncomeBase * sumHeadRate * effectiveTaxModifier;
         } else if (sumHeadRate < 0) {
             taxCostPerCapita = sumHeadRate * effectiveTaxModifier;
@@ -7917,6 +7952,7 @@ export const simulateTick = ({
         reserveBuildingVacancyForRole,
         logs,
         migrationCooldowns,
+        supplyDemandRatio,
     });
     // 更新迁移后的状?
     Object.assign(popStructure, migrationResult.popStructure);

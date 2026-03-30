@@ -3,7 +3,7 @@
 // 支持8种承诺类型和两阶段机制（达成期限 + 保持期限）
 
 import { STRATA } from '../config/strata';
-import { RESOURCES } from '../config';
+import { RESOURCES, TAX_BASE_RATES } from '../config';
 import { isResourceUnlocked } from '../utils/resources';
 
 // 获取资源的中文名称
@@ -255,10 +255,15 @@ function calculateTaxBurden(stratumKey, context) {
     const income = classIncome?.[stratumKey] || 1;
     const stratum = STRATA[stratumKey];
 
-    // 1. 计算人头税
-    const headTaxBase = stratum?.headTaxBase ?? 0;
+    // 1. 计算人头税（收入比例公式）
     const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
-    const headTaxPerCapita = headTaxBase * headTaxRate;
+    const count = context?.popStructure?.[stratumKey] || 1;
+    const incomePerCapita = income / Math.max(count, 1);
+    let headTaxPerCapita = 0;
+    if (headTaxRate > 0 && incomePerCapita > 0) {
+        const incomeBase = incomePerCapita * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05);
+        headTaxPerCapita = incomeBase * headTaxRate;
+    }
 
     // 2. 估算交易税（基于阶层消费的资源类型）
     let tradeTaxEstimate = 0;
@@ -276,9 +281,6 @@ function calculateTaxBurden(stratumKey, context) {
     const totalTaxPerCapita = headTaxPerCapita + tradeTaxEstimate;
 
     // 4. 计算税负占收入的比例（使用人均收入）
-    const count = context?.popStructure?.[stratumKey] || 1;
-    const incomePerCapita = income / Math.max(count, 1);
-
     if (incomePerCapita <= 0) {
         return totalTaxPerCapita > 0 ? 1 : 0;
     }

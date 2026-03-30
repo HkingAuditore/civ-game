@@ -108,7 +108,7 @@ export const collectHeadTax = ({
 
         const headRate = getHeadTaxRate(key, headTaxRates);
         const prevWage = previousWages[key];
-        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
         let plannedPerCapitaTax;
         if (headRate > 0) {
             const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)

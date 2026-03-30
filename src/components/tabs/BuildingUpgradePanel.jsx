@@ -159,7 +159,7 @@ const getRoleIncomesForConfig = (config, building, market, taxPolicies = {}) => 
 
     // 营业税（按营收比例）
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
-    const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+    const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
 
     // 计算可用于支付工资的利润空间
     const valueAvailableForLabor = Math.max(0, outputValue - inputValue - businessTax);

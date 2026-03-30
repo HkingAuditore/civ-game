@@ -406,7 +406,7 @@ const PoliticsTabComponent = ({
 
     // Tax Draft Handlers (Keeping existing logic)
     // 人头税：UI 用百分比，存储用系数
-    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
     const headMultiplierToPercent = (m) => (m ?? 1) * headBaseRate * 100;
     const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
 
@@ -462,7 +462,7 @@ const PoliticsTabComponent = ({
     };
 
     // 营业税：UI 用百分比，存储用系数
-    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
+    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
     const bizMultiplierToPercent = (m) => (m ?? 1) * bizBaseRate * 100;
     const bizPercentToMultiplier = (pct) => pct / (bizBaseRate * 100);
 
@@ -700,7 +700,7 @@ const PoliticsTabComponent = ({
                         <div className="space-y-3">
                             <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
                                 <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">人头税说明</span></summary>
-                                <p className="mt-1">按阶层日均收入的比例征收（基准{((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) * 100).toFixed(0)}%）。税额 = 日均收入 × {((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) * 100).toFixed(0)}% × 系数 × 税收修正。系数越高税收越多，但影响满意度。负值为补贴。</p>
+                                <p className="mt-1">按阶层日均收入的比例征收（基准{((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) * 100).toFixed(0)}%）。税额 = 日均收入 × {((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) * 100).toFixed(0)}% × 系数 × 税收修正。系数越高税收越多，但影响满意度。负值为补贴。</p>
                             </details>
                             {Object.entries(STRATA_GROUPS).map(([groupKey, groupInfo]) => {
                                 const groupStrata = strataToDisplay.filter(key => groupInfo.keys.includes(key));

@@ -3,7 +3,7 @@
  * Handles job allocation, vacancy management, and job migration
  */
 
-import { STRATA } from '../../config';
+import { STRATA, TAX_BASE_RATES } from '../../config';
 import {
     ROLE_PRIORITY,
     JOB_MIGRATION_RATIO,
@@ -23,7 +23,14 @@ import {
     VACANCY_FILL_RATIO_PER_TICK,
     // Lucky promotion
     LUCKY_PROMOTION_CHANCE,
+    // Survival migration
+    CRITICAL_SHORTAGE_THRESHOLD,
+    CRITICAL_RESOURCES,
+    SHORTAGE_MIGRATION_BONUS,
+    EMERGENCY_MIGRATION_RATIO,
 } from '../utils/constants';
+
+import { RESOURCES } from '../../config';
 
 // [FIX] Import safeWealth for wealth overflow protection
 import { safeWealth } from '../utils/helpers';
@@ -241,8 +248,15 @@ export const fillVacancies = ({
     // Estimate net income for each role
     const estimateRoleNetIncome = (role) => {
         const wage = getExpectedWage(role);
-        const headBase = STRATA[role]?.headTaxBase ?? 0.01;
-        const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
+        const headRate = getHeadTaxRate(role);
+        let taxCost = 0;
+        if (headRate > 0) {
+            const incomeBase = (Number.isFinite(wage) && wage > 0)
+                ? wage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+            taxCost = incomeBase * headRate * effectiveTaxModifier;
+        } else if (headRate < 0) {
+            taxCost = headRate * effectiveTaxModifier;
+        }
         return wage - Math.max(0, taxCost);
     };
 
@@ -459,9 +473,23 @@ export const handleJobMigration = ({
     reserveBuildingVacancyForRole,
     logs,
     migrationCooldowns = {},  // Track cooldowns for each role
-    wealthChangeLog = null    // Optional: for tracking wealth changes
+    wealthChangeLog = null,   // Optional: for tracking wealth changes
+    supplyDemandRatio = {},   // Supply/demand ratio per resource for survival migration
 }) => {
     if (JOB_MIGRATION_RATIO <= 0) return { popStructure, wealth, migrationCooldowns };
+
+    // ============== 生存转职检测 ==============
+    // 当生存物资（food/cloth）严重供不应求时，查找生产该资源的角色作为紧急转职目标
+    const criticalShortageRoles = new Set();
+    let hasCriticalShortage = false;
+    for (const res of CRITICAL_RESOURCES) {
+        const ratio = supplyDemandRatio[res];
+        if (ratio !== undefined && ratio < CRITICAL_SHORTAGE_THRESHOLD) {
+            hasCriticalShortage = true;
+            const producer = RESOURCES[res]?.defaultOwner;
+            if (producer) criticalShortageRoles.add(producer);
+        }
+    }
 
     // Decrease all cooldowns by 1 each tick
     const updatedCooldowns = {};
@@ -489,12 +517,14 @@ export const handleJobMigration = ({
         .filter(r => hasBuildingVacancyForRole(r.role))
         .reduce((max, r) => Math.max(max, r.potentialIncome), 0);
 
-    // Find source candidate (struggling role) - exclude roles on cooldown
+    // Find source candidate (struggling role) - exclude roles on cooldown (unless survival crisis)
     const sourceCandidate = activeRoleMetrics
         .filter(r => {
             if (r.pop <= 0 || r.role === 'soldier') return false;
-            // Check cooldown - role cannot be source if on cooldown
-            if (updatedCooldowns[r.role] && updatedCooldowns[r.role] > 0) return false;
+            // 生存危机时跳过冷却限制，允许紧急转职
+            if (!hasCriticalShortage) {
+                if (updatedCooldowns[r.role] && updatedCooldowns[r.role] > 0) return false;
+            }
 
             const percentageThreshold = r.perCap * 0.05;
             const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
@@ -536,18 +566,22 @@ export const handleJobMigration = ({
         const targetTier = STRATUM_TIERS[targetRole] ?? 0;
         const tierDiff = targetTier - sourceTier;
 
+        let resistance;
         if (tierDiff > 0) {
-            // Upward migration - easier (bonus)
-            return UPGRADE_MIGRATION_BONUS;
+            resistance = UPGRADE_MIGRATION_BONUS;
         } else if (tierDiff === 0) {
-            // Same tier migration - harder (resistance)
-            return SAME_TIER_MIGRATION_RESISTANCE;
+            resistance = SAME_TIER_MIGRATION_RESISTANCE;
         } else {
-            // Downward migration - much harder
-            // Apply additional penalty for each tier below
             const tiersBelowCount = Math.abs(tierDiff);
-            return DOWNGRADE_MIGRATION_RESISTANCE * Math.pow(MULTI_TIER_DOWNGRADE_PENALTY, tiersBelowCount - 1);
+            resistance = DOWNGRADE_MIGRATION_RESISTANCE * Math.pow(MULTI_TIER_DOWNGRADE_PENALTY, tiersBelowCount - 1);
         }
+
+        // 生存危机时，转向紧缺资源生产者的阻力大幅降低
+        if (hasCriticalShortage && criticalShortageRoles.has(targetRole)) {
+            resistance *= SHORTAGE_MIGRATION_BONUS;
+        }
+
+        return resistance;
     };
 
     // Calculate effective attractiveness for a target role
@@ -600,10 +634,16 @@ export const handleJobMigration = ({
     if (!targetCandidate) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     // Execute migration with low population guarantee
-    // When source role has low population, use higher migration ratio to ensure quick reallocation
-    const effectiveMigrationRatio = sourceCandidate.pop < LOW_POP_THRESHOLD
-        ? JOB_MIGRATION_LOW_POP_GUARANTEE
-        : JOB_MIGRATION_RATIO;
+    // 生存危机 + 目标是紧缺资源生产者时使用紧急迁移速率
+    const isSurvivalMigration = hasCriticalShortage && criticalShortageRoles.has(targetCandidate.role);
+    let effectiveMigrationRatio;
+    if (sourceCandidate.pop < LOW_POP_THRESHOLD) {
+        effectiveMigrationRatio = JOB_MIGRATION_LOW_POP_GUARANTEE;
+    } else if (isSurvivalMigration) {
+        effectiveMigrationRatio = EMERGENCY_MIGRATION_RATIO;
+    } else {
+        effectiveMigrationRatio = JOB_MIGRATION_RATIO;
+    }
     let migrants = Math.floor(sourceCandidate.pop * effectiveMigrationRatio);
     if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
     migrants = Math.min(migrants, targetCandidate.vacancy);
