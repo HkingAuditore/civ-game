@@ -4,9 +4,20 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.4',
+        version: '2.3.5',
         date: '2026-03-30',
         isLatest: true,
+        highlights: [
+            '修复升级时代界面成本显示不含人口规模系数导致"条件全满却无法升级"的问题',
+        ],
+        changes: [
+            { type: 'fix', text: '时代升级成本 UI 现已同步人口规模缩放系数，显示的成本与实际检查完全一致，不再出现"条件全绿却无法升级"的困惑。' },
+        ],
+    },
+    {
+        version: '2.3.4',
+        date: '2026-03-30',
+        isLatest: false,
         highlights: [
             '税制改革：营业税按营收比例、人头税按收入比例，UI 所见即所得',
             '理念联动可视化：选理念时直接看到搭配对象与机制效果',
