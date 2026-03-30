@@ -238,7 +238,8 @@ const buildDriverContext = (stratumKey, {
     classLivingStandard = {},
     livingStandardStreaks = {},
     currentDay = 0,
-    rulingCoalition = [], // 新增：执政联盟成员
+    rulingCoalition = [],
+    effectiveTaxModifier = 1,
 } = {}) => {
     const stratum = STRATA[stratumKey] || {};
     const basicNeeds = stratum.needs || {};
@@ -283,22 +284,20 @@ const buildDriverContext = (stratumKey, {
     const incomePerCapita = (classIncome[stratumKey] || 0) / population;
     const expensePerCapitaRaw = classExpense[stratumKey] || 0;
     const expensePerCapita = expensePerCapitaRaw > 0 ? expensePerCapitaRaw / population : 0;
-    const headTaxBase = stratum.headTaxBase ?? 0;
     const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    const effectiveTaxMod = effectiveTaxModifier ?? 1;
     const stratumWage = market?.wages?.[stratumKey];
     const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
-    let headIncomeBase;
-    if (Number.isFinite(stratumWage) && stratumWage > 0) {
-        headIncomeBase = stratumWage * taxRatio;
+    let headTaxPerCapita;
+    if (headTaxRate > 0) {
+        const headIncomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
+            ? stratumWage * taxRatio : 0;
+        headTaxPerCapita = headIncomeBase * headTaxRate * effectiveTaxMod;
     } else if (headTaxRate < 0) {
-        const allWages = market?.wages || {};
-        const wVals = Object.values(allWages).filter(w => Number.isFinite(w) && w > 0);
-        const avgW = wVals.length > 0 ? wVals.reduce((s, w) => s + w, 0) / wVals.length : 0;
-        headIncomeBase = avgW > 0 ? avgW * taxRatio : headTaxBase;
+        headTaxPerCapita = headTaxRate * effectiveTaxMod;
     } else {
-        headIncomeBase = headTaxBase;
+        headTaxPerCapita = 0;
     }
-    const headTaxPerCapita = headIncomeBase * headTaxRate;
     const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
     let tradeTaxPerCapita = 0;
     basicNeedsKeys.forEach(resource => {
@@ -729,6 +728,7 @@ export function updateAllOrganizationStates(
         rulingCoalition = [], // 执政联盟成员
         difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
         organizationGrowthMod = 0, // [NEW] 组织度增长修正
+        effectiveTaxModifier = 1,
         // 注意：classInfluence 和 totalInfluence 已经是函数参数，不需要在这里解构
     } = options || {};
     const epochValue = Number.isFinite(epoch) ? epoch : 0;
@@ -805,7 +805,8 @@ export function updateAllOrganizationStates(
             livingStandardStreaks,
             epoch: epochValue,
             currentDay,
-            rulingCoalition, // 传递执政联盟成员
+            rulingCoalition,
+            effectiveTaxModifier,
         });
 
         const currentState = organizationStates[stratumKey];

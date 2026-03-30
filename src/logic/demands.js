@@ -193,24 +193,20 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     // ========== 正确计算税负 ==========
     // 1. 人头税（数值）= 基础人头税 × 人头税倍率 × 税收效率修正（与 economy/taxes.js 保持一致）
     // 注意：实际征收还会受到“该阶层财富不足”的上限影响（无法从负资产里继续征税）
-    const headTaxBase = stratum?.headTaxBase ?? 0;
     const headTaxMultiplier = context.taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
     const effectiveTaxModifier = context.effectiveTaxModifier ?? 1;
     const stratumWage = context.market?.wages?.[stratumKey];
     const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
-    let headIncomeBase;
-    if (Number.isFinite(stratumWage) && stratumWage > 0) {
-        headIncomeBase = stratumWage * taxRatio;
+    let plannedHeadTaxPerCapita;
+    if (headTaxMultiplier > 0) {
+        const headIncomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
+            ? stratumWage * taxRatio : 0;
+        plannedHeadTaxPerCapita = headIncomeBase * headTaxMultiplier * effectiveTaxModifier;
     } else if (headTaxMultiplier < 0) {
-        const allWages = context.market?.wages || {};
-        const wVals = Object.values(allWages).filter(w => Number.isFinite(w) && w > 0);
-        const avgW = wVals.length > 0 ? wVals.reduce((s, w) => s + w, 0) / wVals.length : 0;
-        headIncomeBase = avgW > 0 ? avgW * taxRatio : headTaxBase;
+        plannedHeadTaxPerCapita = headTaxMultiplier * effectiveTaxModifier;
     } else {
-        headIncomeBase = headTaxBase;
+        plannedHeadTaxPerCapita = 0;
     }
-
-    const plannedHeadTaxPerCapita = headIncomeBase * headTaxMultiplier * effectiveTaxModifier;
 
     const wealthTotal = context.classWealth?.[stratumKey] ?? Infinity;
     const maxPerCapitaTax = Number.isFinite(wealthTotal)

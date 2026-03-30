@@ -1595,9 +1595,10 @@ export const useGameState = () => {
         headTaxRates: buildDefaultHeadTaxRates(),
         resourceTaxRates: buildDefaultResourceTaxRates(),
         businessTaxRates: buildDefaultBusinessTaxRates(),
-        exportTariffMultipliers: {}, // 初始化为空对象，避免 undefined
-        importTariffMultipliers: {}, // 初始化为空对象，避免 undefined
-        resourceTariffMultipliers: {}, // 兼容旧版
+        exportTariffMultipliers: {},
+        importTariffMultipliers: {},
+        resourceTariffMultipliers: {},
+        _headTaxVersion: 2,
     });
     const [jobFill, setJobFill] = useState({});
     const [jobsAvailable, setJobsAvailable] = useState({}); // 各阶层可用岗位数�?
@@ -2674,8 +2675,32 @@ export const useGameState = () => {
             exportTariffMultipliers: {},
             importTariffMultipliers: {},
             resourceTariffMultipliers: {},
+            _headTaxVersion: 2,
         };
         const loadedTaxPolicies = data.taxPolicies || {};
+        if (!loadedTaxPolicies._headTaxVersion && loadedTaxPolicies.headTaxRates) {
+            const htr = loadedTaxPolicies.headTaxRates;
+            const HEAD_TAX_RATIO = 0.10;
+            const MAX_SAFE_PERCENT = 10;
+            const maxSafeMultiplier = MAX_SAFE_PERCENT / (HEAD_TAX_RATIO * 100);
+            Object.keys(htr).forEach(key => {
+                if (key.startsWith('_')) return;
+                const val = htr[key];
+                if (val > 0) {
+                    const effectivePercent = val * HEAD_TAX_RATIO * 100;
+                    if (effectivePercent > MAX_SAFE_PERCENT) {
+                        htr[key] = maxSafeMultiplier;
+                        console.log(`[Save Migration] headTaxRates.${key}: old multiplier ${val} (=${effectivePercent.toFixed(0)}%) -> capped to ${maxSafeMultiplier} (=${MAX_SAFE_PERCENT}%)`);
+                    }
+                } else if (val < 0) {
+                    const oldVal = val;
+                    htr[key] = -(Math.abs(oldVal) * (STRATA[key]?.headTaxBase ?? 0.05));
+                    console.log(`[Save Migration] headTaxRates.${key}: old subsidy multiplier ${oldVal} -> new absolute ${htr[key]}`);
+                }
+            });
+            loadedTaxPolicies._headTaxVersion = 2;
+            console.log('[Save Migration] headTaxRates migrated to v2 format');
+        }
         setTaxPolicies({
             ...defaultTaxPolicies,
             ...loadedTaxPolicies,

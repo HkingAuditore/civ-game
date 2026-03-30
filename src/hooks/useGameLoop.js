@@ -5218,7 +5218,8 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         epoch: current.epoch || 0,
                         rulingCoalition: current.rulingCoalition || [], // 执政联盟
                         difficultyLevel: current.difficulty, // 游戏难度
-                        organizationGrowthMod: result.modifiers?.officialEffects?.organizationGrowthMod || 0, // [NEW] 缁勭粐搴﹀闀夸慨姝?
+                        organizationGrowthMod: result.modifiers?.officialEffects?.organizationGrowthMod || 0,
+                        effectiveTaxModifier: result.effectiveTaxModifier ?? 1, // [NEW] 缁勭粐搴﹀闀夸慨姝?
                         // 注意：classInfluence/totalInfluence 已是位置参数，无需在此重复
                     }
                 );

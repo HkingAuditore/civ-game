@@ -97,11 +97,6 @@ export const collectHeadTax = ({
     const updatedTaxBreakdown = { ...taxBreakdown };
     const res = { ...resources };
 
-    const wageValues = Object.values(previousWages).filter(w => Number.isFinite(w) && w > 0);
-    const avgEmployedWage = wageValues.length > 0
-        ? wageValues.reduce((s, w) => s + w, 0) / wageValues.length
-        : 0;
-
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
         if (count === 0) return;
@@ -112,18 +107,18 @@ export const collectHeadTax = ({
         }
 
         const headRate = getHeadTaxRate(key, headTaxRates);
-        const headBase = def?.headTaxBase ?? 0.01;
         const prevWage = previousWages[key];
         const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
-        let incomeBase;
-        if (Number.isFinite(prevWage) && prevWage > 0) {
-            incomeBase = prevWage * taxRatio;
-        } else if (headRate < 0 && avgEmployedWage > 0) {
-            incomeBase = avgEmployedWage * taxRatio;
+        let plannedPerCapitaTax;
+        if (headRate > 0) {
+            const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)
+                ? prevWage * taxRatio : 0;
+            plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
+        } else if (headRate < 0) {
+            plannedPerCapitaTax = headRate * effectiveTaxModifier;
         } else {
-            incomeBase = headBase;
+            plannedPerCapitaTax = 0;
         }
-        const plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
         const available = Math.max(0, updatedWealth[key] || 0);
         const maxPerCapitaTax = available / Math.max(1, count);
         const effectivePerCapitaTax = plannedPerCapitaTax >= 0

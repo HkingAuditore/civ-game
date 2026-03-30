@@ -416,10 +416,15 @@ const PoliticsTabComponent = ({
         if (headDrafts[key] === undefined) return;
         const parsed = parseFloat(headDrafts[key]);
         if (Number.isNaN(parsed)) { setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; }); return; }
-        const multiplier = headPercentToMultiplier(parsed);
-        const limit = TAX_LIMITS?.MAX_HEAD_TAX || 10000;
-        const clamped = clamp(multiplier, -limit, limit);
-        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates), [key]: clamped } }));
+        const currentMultiplier = headRates[key] ?? 1;
+        const isCurrentSubsidy = currentMultiplier < 0;
+        let storeValue;
+        if (isCurrentSubsidy) {
+            storeValue = -(Math.max(0, Math.abs(parsed)));
+        } else {
+            storeValue = headPercentToMultiplier(Math.max(0, parsed));
+        }
+        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates), [key]: storeValue } }));
         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
@@ -550,12 +555,15 @@ const PoliticsTabComponent = ({
     const renderStratumCard = (key) => {
         const stratumInfo = STRATA[key] || {};
         const multiplier = headRates[key] ?? 1;
-        const displayPct = headMultiplierToPercent(multiplier);
-        const showPct = Number.isInteger(displayPct) ? displayPct : displayPct.toFixed(1);
+        const isSubsidy = multiplier < 0;
+        const isTax = multiplier > 0;
+        const displayPct = isTax ? headMultiplierToPercent(multiplier) : 0;
+        const displaySubsidy = isSubsidy ? Math.abs(multiplier) : 0;
+        const showValue = isSubsidy
+            ? displaySubsidy.toFixed(2)
+            : (Number.isInteger(displayPct) ? displayPct : displayPct.toFixed(1));
         const population = popStructure[key] || 0;
         const hasPopulation = population > 0;
-        const isSubsidy = displayPct < 0;
-        const isTax = displayPct > 0;
 
         return (
             <div key={key} className={`bg-gray-900/40 p-1.5 rounded-md border text-xs flex flex-col gap-1 ${hasPopulation ? (isSubsidy ? 'border-green-700/60' : isTax ? 'border-yellow-700/60' : 'border-gray-700/60') : 'border-gray-800 opacity-60'}`}>
@@ -566,20 +574,18 @@ const PoliticsTabComponent = ({
                 </div>
                 <div className="flex items-center justify-center gap-0.5">
                     {isSubsidy ? (
-                        <><Icon name="TrendingDown" size={12} className="text-green-400" /><span className="font-mono text-green-300 whitespace-nowrap text-xs">补贴 {Math.abs(showPct)}%</span></>
+                        <><Icon name="TrendingDown" size={12} className="text-green-400" /><span className="font-mono text-green-300 whitespace-nowrap text-xs">补贴 {displaySubsidy.toFixed(2)} ₴/人/日</span></>
                     ) : isTax ? (
-                        <><Icon name="TrendingUp" size={12} className="text-yellow-400" /><span className="font-mono text-yellow-300 whitespace-nowrap text-xs">收入 {showPct}%</span></>
+                        <><Icon name="TrendingUp" size={12} className="text-yellow-400" /><span className="font-mono text-yellow-300 whitespace-nowrap text-xs">收入 {showValue}%</span></>
                     ) : (<span className="font-mono text-gray-500 whitespace-nowrap text-xs">无税收</span>)}
                 </div>
                 <div className="flex items-center gap-1">
                     <button type="button" onClick={() => {
-                        const currentPct = parseFloat(headDrafts[key] ?? showPct);
-                        const newPct = isNaN(currentPct) ? -(headBaseRate * 100) : -currentPct;
-                        const newMultiplier = headPercentToMultiplier(newPct);
-                        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates || {}), [key]: newMultiplier } }));
+                        const newValue = isSubsidy ? 1.0 : -0.05;
+                        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates || {}), [key]: newValue } }));
                         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
-                    }} className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors">±</button>
-                    <input type="text" inputMode="decimal" step="1" value={headDrafts[key] ?? showPct} onChange={(e) => handleHeadDraftChange(key, e.target.value)} onBlur={() => commitHeadDraft(key)} onKeyDown={(e) => { if (e.key === 'Enter') { commitHeadDraft(key); e.target.blur(); } }} className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" placeholder="税率%" />
+                    }} className={`btn-compact flex-shrink-0 w-5 h-5 border rounded text-xs font-bold flex items-center justify-center transition-colors ${isSubsidy ? 'bg-green-900/50 hover:bg-green-800/50 border-green-600 text-green-300' : 'bg-gray-700 hover:bg-gray-600 border-gray-500 text-gray-300'}`}>{isSubsidy ? '补' : '税'}</button>
+                    <input type="text" inputMode="decimal" step={isSubsidy ? '0.01' : '1'} value={headDrafts[key] ?? showValue} onChange={(e) => handleHeadDraftChange(key, e.target.value)} onBlur={() => commitHeadDraft(key)} onKeyDown={(e) => { if (e.key === 'Enter') { commitHeadDraft(key); e.target.blur(); } }} className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" placeholder={isSubsidy ? '银币/人/日' : '税率%'} />
                 </div>
             </div>
         );
