@@ -708,21 +708,29 @@ const IdeologyCardComponent = ({
                 </div>
             )}
 
-            {/* 联动提示 — hide in candidate mode */}
-            {!compact && !isCandidate && synergies.length > 0 && (
+            {/* 联动提示 */}
+            {!compact && synergies.length > 0 && (
                 <div className="mb-1.5">
-                    {synergies.map(s => (
-                        <div key={s.id} className={`flex items-start gap-1 text-[10px] ${
-                            s.isActive ? 'text-yellow-300' : 'text-gray-500'
-                        } ${s.mechanicEffect ? 'border-l-2 border-yellow-500/60 pl-1' : ''}`}>
-                            <Icon name={s.isActive ? 'Zap' : 'Link'} size={10} className="mt-0.5 flex-shrink-0" />
-                            <div>
-                                <span>{s.name}</span>
-                                {/* {!s.isActive && <span>(差{s.missingCount}个)</span>} */}
-                                {s.isActive && s.mechanicEffect && renderMechanicEffect(s.mechanicEffect)}
+                    {synergies.map(s => {
+                        const partnerNames = s.required
+                            .filter(id => id !== ideology.id)
+                            .map(id => IDEOLOGY_MAP[id]?.name || id)
+                            .join(' + ');
+                        return (
+                            <div key={s.id} className={`flex items-start gap-1 text-[10px] ${
+                                s.isActive ? 'text-yellow-300' : 'text-gray-500'
+                            } ${s.mechanicEffect ? 'border-l-2 border-yellow-500/60 pl-1' : ''}`}>
+                                <Icon name={s.isActive ? 'Zap' : 'Link'} size={10} className="mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <span>{s.name}</span>
+                                    {!s.isActive && partnerNames && (
+                                        <span className="text-gray-600 ml-1">({partnerNames})</span>
+                                    )}
+                                    {s.isActive && s.mechanicEffect && renderMechanicEffect(s.mechanicEffect)}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

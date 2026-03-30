@@ -73,11 +73,11 @@ export const TECHS = [
     {
         id: 'oral_tradition',
         name: "口述传统",
-        desc: "长者口述史诗，图书馆的整理效率提升 8%。",
+        desc: "长者口述史诗，图书馆效率 +8%，每人每日获得 0.001 文化。解锁长者祭坛。",
         cost: { science: 330 },
         epoch: 0,
         prerequisites: ['pottery'],
-        effects: { buildings: { library: 0.08 } },
+        effects: { buildings: { library: 0.08 }, perPopPassive: { culture: 0.001 } },
     },
     {
         id: 'communal_granary',

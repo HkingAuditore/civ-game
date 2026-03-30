@@ -48,7 +48,7 @@ export const EPOCHS = [
         color: "text-amber-300",
         bg: "bg-amber-900",
         tileColor: "bg-amber-700",
-        req: { science: 1800, population: 150, culture: 250 },
+        req: { science: 1800, population: 150 },
         cost: { food: 20000, wood: 10000, brick: 3600, silver: 5000, tools: 1200, science: 1800 },
         bonuses: {
             desc: "哲学与艺术的萌芽，文明全方位提升。",

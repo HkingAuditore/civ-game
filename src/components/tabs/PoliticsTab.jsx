@@ -5,7 +5,7 @@
 import React, { memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { STRATA, RESOURCES, EPOCHS, BUILDINGS, TAX_LIMITS } from '../../config';
+import { STRATA, RESOURCES, EPOCHS, BUILDINGS, TAX_LIMITS, TAX_BASE_RATES } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { CoalitionPanel } from '../panels/CoalitionPanel';
 import { OfficialsPanel } from '../panels/officials/OfficialsPanel';
@@ -209,18 +209,17 @@ const ResourceTaxCard = ({
         </div>
     );
 };
-// 营业税卡片组件
-const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier, onDraftChange, onCommit, onToggleSign }) => {
-    const base = building.businessTaxBase ?? 0.1; // 默认税基
-    const currentMultiplier = multiplier ?? 1;
-    const finalRate = currentMultiplier * base;
-    const isSubsidy = finalRate < 0;
-    const isTax = finalRate > 0;
+// 营业税卡片组件（按营收比例征收，UI 直接输入百分比）
+const BusinessTaxCard = ({ building, displayPercent, buildingCount, draftPercent, onDraftChange, onCommit, onToggleSign }) => {
+    const isSubsidy = displayPercent < 0;
+    const isTax = displayPercent > 0;
 
     const valueColor = isSubsidy ? 'text-green-300' : 'text-yellow-300';
     const borderColor = isSubsidy ? 'border-green-700/60' : (isTax ? 'border-yellow-700/60' : 'border-gray-700/60');
     const bgColor = building.visual?.color || 'bg-gray-700';
     const textColor = building.visual?.text || 'text-gray-200';
+
+    const showPercent = Number.isInteger(displayPercent) ? displayPercent : displayPercent.toFixed(1);
 
     return (
         <div
@@ -228,7 +227,6 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                 }`}
         >
             <div>
-                {/* 头部：Icon + 名称 + 建筑数量 */}
                 <div className="flex items-center gap-1 mb-0.5">
                     <div className={`${bgColor} ${textColor} p-0.5 rounded`}>
                         <Icon name={building.visual?.icon || 'Building'} size={14} />
@@ -239,34 +237,32 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                     <span className="text-gray-500 text-xs font-mono">{buildingCount}</span>
                 </div>
 
-                {/* 状态栏：当前税率/补贴 */}
                 <div className="text-center my-0.5">
                     {isSubsidy ? (
                         <div className="flex items-center justify-center gap-1">
                             <Icon name="TrendingDown" size={12} className="text-green-400" />
                             <span className={`${valueColor} text-sm font-semibold`}>
-                                补贴 {Math.abs(finalRate).toFixed(2)}
+                                补贴 {Math.abs(showPercent)}%
                             </span>
                         </div>
                     ) : isTax ? (
                         <div className="flex items-center justify-center gap-1">
                             <Icon name="TrendingUp" size={12} className="text-yellow-400" />
                             <span className={`${valueColor} text-sm font-semibold`}>
-                                {finalRate.toFixed(2)}
+                                {showPercent}%
                             </span>
                         </div>
                     ) : (
                         <span className="text-gray-500 text-sm">无税收</span>
                     )}
-                    <div className="text-xs text-gray-500 mt-0">银币/建筑/次 (基{base.toFixed(2)})</div>
+                    <div className="text-xs text-gray-500 mt-0">营收税率</div>
                 </div>
             </div>
 
-            {/* 控制区：输入框 + 正负切换按钮 */}
             <div className="flex items-center gap-1">
                 <button
                     type="button"
-                    onClick={() => onToggleSign && onToggleSign(building.id, draftMultiplier ?? currentMultiplier)}
+                    onClick={() => onToggleSign && onToggleSign(building.id, draftPercent ?? showPercent)}
                     className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
                     title="切换正负值（税收/补贴）"
                 >
@@ -275,8 +271,8 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                 <input
                     type="text"
                     inputMode="decimal"
-                    step="0.05"
-                    value={draftMultiplier ?? (currentMultiplier ?? 1)}
+                    step="1"
+                    value={draftPercent ?? showPercent}
                     onChange={(e) => onDraftChange(building.id, e.target.value)}
                     onBlur={() => onCommit(building.id)}
                     onKeyDown={(e) => {
@@ -286,7 +282,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                         }
                     }}
                     className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                    placeholder="税率系数"
+                    placeholder="税率%"
                 />
             </div>
         </div>
@@ -410,16 +406,19 @@ const PoliticsTabComponent = ({
     }, [unlockedStrataKeys, jobsAvailable]);
 
     // Tax Draft Handlers (Keeping existing logic)
+    // 人头税：UI 用百分比，存储用系数
+    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+    const headMultiplierToPercent = (m) => (m ?? 1) * headBaseRate * 100;
+    const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
+
     const handleHeadDraftChange = (key, raw) => setHeadDrafts(prev => ({ ...prev, [key]: raw }));
     const commitHeadDraft = (key) => {
         if (headDrafts[key] === undefined) return;
         const parsed = parseFloat(headDrafts[key]);
-        const numeric = Number.isNaN(parsed) ? 1 : parsed;
-
-        // Enforce Limit
+        if (Number.isNaN(parsed)) { setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; }); return; }
+        const multiplier = headPercentToMultiplier(parsed);
         const limit = TAX_LIMITS?.MAX_HEAD_TAX || 10000;
-        const clamped = clamp(numeric, -limit, limit);
-
+        const clamped = clamp(multiplier, -limit, limit);
         onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates), [key]: clamped } }));
         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
@@ -456,25 +455,28 @@ const PoliticsTabComponent = ({
         setExportTariffDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
+    // 营业税：UI 用百分比，存储用系数
+    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
+    const bizMultiplierToPercent = (m) => (m ?? 1) * bizBaseRate * 100;
+    const bizPercentToMultiplier = (pct) => pct / (bizBaseRate * 100);
+
     const handleBusinessDraftChange = (key, raw) => setBusinessDrafts(prev => ({ ...prev, [key]: raw }));
     const commitBusinessDraft = (key) => {
         if (businessDrafts[key] === undefined) return;
         const parsed = parseFloat(businessDrafts[key]);
-        const numeric = Number.isNaN(parsed) ? 1 : parsed;
-
-        // Enforce Limit
+        if (Number.isNaN(parsed)) { setBusinessDrafts(prev => { const next = { ...prev }; delete next[key]; return next; }); return; }
+        const multiplier = bizPercentToMultiplier(parsed);
         const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10000;
-        const clamped = clamp(numeric, -limit, limit);
-
+        const clamped = clamp(multiplier, -limit, limit);
         onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: clamped } }));
         setBusinessDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
-    // Toggle Sign Handlers
-    const toggleBusinessSign = (key, currentValue) => {
-        const parsed = parseFloat(currentValue);
-        const newValue = isNaN(parsed) ? -1 : -parsed;
-        onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: newValue } }));
+    const toggleBusinessSign = (key, currentDraftOrMultiplier) => {
+        const currentPct = parseFloat(currentDraftOrMultiplier);
+        const newPct = isNaN(currentPct) ? -(bizBaseRate * 100) : -currentPct;
+        const multiplier = bizPercentToMultiplier(newPct);
+        onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: multiplier } }));
         setBusinessDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
     const toggleImportTariffSign = (key, currentValue) => {
@@ -547,13 +549,13 @@ const PoliticsTabComponent = ({
     // Render Functions (Copied/Reused)
     const renderStratumCard = (key) => {
         const stratumInfo = STRATA[key] || {};
-        const base = stratumInfo.headTaxBase ?? 0.01;
         const multiplier = headRates[key] ?? 1;
-        const finalRate = multiplier * base;
+        const displayPct = headMultiplierToPercent(multiplier);
+        const showPct = Number.isInteger(displayPct) ? displayPct : displayPct.toFixed(1);
         const population = popStructure[key] || 0;
         const hasPopulation = population > 0;
-        const isSubsidy = finalRate < 0;
-        const isTax = finalRate > 0;
+        const isSubsidy = displayPct < 0;
+        const isTax = displayPct > 0;
 
         return (
             <div key={key} className={`bg-gray-900/40 p-1.5 rounded-md border text-xs flex flex-col gap-1 ${hasPopulation ? (isSubsidy ? 'border-green-700/60' : isTax ? 'border-yellow-700/60' : 'border-gray-700/60') : 'border-gray-800 opacity-60'}`}>
@@ -564,20 +566,20 @@ const PoliticsTabComponent = ({
                 </div>
                 <div className="flex items-center justify-center gap-0.5">
                     {isSubsidy ? (
-                        <><Icon name="TrendingDown" size={12} className="text-green-400" /><span className="font-mono text-green-300 whitespace-nowrap text-xs">补贴 {Math.abs(finalRate).toFixed(3)}/人</span></>
+                        <><Icon name="TrendingDown" size={12} className="text-green-400" /><span className="font-mono text-green-300 whitespace-nowrap text-xs">补贴 {Math.abs(showPct)}%</span></>
                     ) : isTax ? (
-                        <><Icon name="TrendingUp" size={12} className="text-yellow-400" /><span className="font-mono text-yellow-300 whitespace-nowrap text-xs">{finalRate.toFixed(3)}/人</span></>
+                        <><Icon name="TrendingUp" size={12} className="text-yellow-400" /><span className="font-mono text-yellow-300 whitespace-nowrap text-xs">收入 {showPct}%</span></>
                     ) : (<span className="font-mono text-gray-500 whitespace-nowrap text-xs">无税收</span>)}
                 </div>
                 <div className="flex items-center gap-1">
                     <button type="button" onClick={() => {
-                        const currentValue = parseFloat(headDrafts[key] ?? headRates[key] ?? 1);
-                        const newValue = isNaN(currentValue) ? -1 : -currentValue;
-                        handleHeadDraftChange(key, String(newValue));
-                        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates || {}), [key]: newValue } }));
+                        const currentPct = parseFloat(headDrafts[key] ?? showPct);
+                        const newPct = isNaN(currentPct) ? -(headBaseRate * 100) : -currentPct;
+                        const newMultiplier = headPercentToMultiplier(newPct);
+                        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates || {}), [key]: newMultiplier } }));
                         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
                     }} className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-xs font-bold text-gray-300 flex items-center justify-center transition-colors">±</button>
-                    <input type="text" inputMode="decimal" step="0.05" value={headDrafts[key] ?? (headRates[key] ?? 1)} onChange={(e) => handleHeadDraftChange(key, e.target.value)} onBlur={() => commitHeadDraft(key)} onKeyDown={(e) => { if (e.key === 'Enter') { commitHeadDraft(key); e.target.blur(); } }} className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" placeholder="系数" />
+                    <input type="text" inputMode="decimal" step="1" value={headDrafts[key] ?? showPct} onChange={(e) => handleHeadDraftChange(key, e.target.value)} onBlur={() => commitHeadDraft(key)} onKeyDown={(e) => { if (e.key === 'Enter') { commitHeadDraft(key); e.target.blur(); } }} className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-xs text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" placeholder="税率%" />
                 </div>
             </div>
         );
@@ -691,7 +693,7 @@ const PoliticsTabComponent = ({
                         <div className="space-y-3">
                             <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
                                 <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">人头税说明</span></summary>
-                                <p className="mt-1">税率越高税收越多，但影响满意度。</p>
+                                <p className="mt-1">按阶层日均收入的比例征收（基准{((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) * 100).toFixed(0)}%）。税额 = 日均收入 × {((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10) * 100).toFixed(0)}% × 系数 × 税收修正。系数越高税收越多，但影响满意度。负值为补贴。</p>
                             </details>
                             {Object.entries(STRATA_GROUPS).map(([groupKey, groupInfo]) => {
                                 const groupStrata = strataToDisplay.filter(key => groupInfo.keys.includes(key));
@@ -751,7 +753,7 @@ const PoliticsTabComponent = ({
                         <div className="space-y-3">
                             <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
                                 <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">营业税说明</span></summary>
-                                <p className="mt-1">税额 = 基准 × 系数 × 效率。负值为补贴。</p>
+                                <p className="mt-1">按建筑营业收入（产值）的比例征收（基准{((TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * 100).toFixed(0)}%）。税额 = 产值 × {((TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * 100).toFixed(0)}% × 系数。系数越高税收越多，负值为补贴。亏损建筑也需缴税。</p>
                             </details>
                             {Object.entries(buildingsByCategory).map(([catKey, catInfo]) => {
                                 if (catInfo.buildings.length === 0) return null;
@@ -763,9 +765,9 @@ const PoliticsTabComponent = ({
                                                 <BusinessTaxCard
                                                     key={building.id}
                                                     building={building}
-                                                    multiplier={businessRates[building.id]}
+                                                    displayPercent={bizMultiplierToPercent(businessRates[building.id])}
                                                     buildingCount={buildings[building.id] || 0}
-                                                    draftMultiplier={businessDrafts[building.id]}
+                                                    draftPercent={businessDrafts[building.id]}
                                                     onDraftChange={handleBusinessDraftChange}
                                                     onCommit={commitBusinessDraft}
                                                     onToggleSign={toggleBusinessSign}

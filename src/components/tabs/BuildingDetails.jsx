@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES, STRATA, EPOCHS, OWNER_TYPE_LABELS, getOwnerTypeIcon, getOwnerTypeColors, TAX_LIMITS } from '../../config';
+import { RESOURCES, STRATA, EPOCHS, OWNER_TYPE_LABELS, getOwnerTypeIcon, getOwnerTypeColors, TAX_LIMITS, TAX_BASE_RATES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
@@ -102,10 +102,9 @@ const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, ma
             (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
         );
 
-        // 营业税
+        // 营业税（按营收比例）
         const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
-        const businessTaxBase = building.businessTaxBase ?? 0.1;
-        const businessTax = businessTaxBase * businessTaxMultiplier;
+        const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
 
         // 建筑净利润 = 产出 - 投入 - 营业税
         const buildingNetProfit = outputValue - inputValue - businessTax;
@@ -841,29 +840,32 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         }).sort((a, b) => b.required - a.required);
     }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes, gameState]);
 
-    // 营业税逻辑
+    // 营业税逻辑（按营收比例）- UI 用百分比，内部用系数
+    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08;
     const businessTaxMultiplier = clampBusinessTaxRate(taxPolicies?.businessTaxRates?.[building.id] ?? 1);
-    const businessTaxBase = building.businessTaxBase ?? 0.1;
-    const actualBusinessTax = businessTaxBase * businessTaxMultiplier;
+    const displayBizPercent = businessTaxMultiplier * bizBaseRate * 100;
+
+    const bizPercentToMultiplier = (pct) => pct / (bizBaseRate * 100);
+    const maxBizPercent = (TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000) * bizBaseRate * 100;
 
     const handleDraftChange = (raw) => {
-        // 允许中间输入态，避免用户输入负号时被立即重置
         if (raw === '' || raw === '-' || raw === '.' || raw === '-.') {
             setDraftMultiplier(raw);
             return;
         }
         const parsed = Number(raw);
         if (!Number.isFinite(parsed)) return;
-        setDraftMultiplier(String(clampBusinessTaxRate(parsed)));
+        setDraftMultiplier(String(parsed));
     };
 
     const commitDraft = () => {
         if (draftMultiplier === null || !onUpdateTaxPolicies) return;
         const parsed = Number(draftMultiplier);
-        const numeric = Number.isFinite(parsed) ? clampBusinessTaxRate(parsed) : 1;
+        if (!Number.isFinite(parsed)) { setDraftMultiplier(null); return; }
+        const multiplier = clampBusinessTaxRate(bizPercentToMultiplier(parsed));
         onUpdateTaxPolicies(prev => ({
             ...prev,
-            businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: numeric },
+            businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: multiplier },
         }));
         setDraftMultiplier(null);
     };
@@ -949,21 +951,17 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 </h4>
                                 <div className="grid grid-cols-2 gap-2 items-center">
                                     <div>
-                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">税率系数</div>
+                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">税率 (%)</div>
                                         <div className="flex items-center gap-1">
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const currentValue = Number(draftMultiplier ?? businessTaxMultiplier);
-                                                    const normalizedCurrent = Number.isFinite(currentValue)
-                                                        ? clampBusinessTaxRate(currentValue)
-                                                        : 1;
-                                                    const newValue = clampBusinessTaxRate(-normalizedCurrent);
-                                                    handleDraftChange(String(newValue));
-                                                    // 直接提交
+                                                    const currentPct = Number(draftMultiplier ?? displayBizPercent);
+                                                    const newPct = Number.isFinite(currentPct) ? -currentPct : -displayBizPercent;
+                                                    const newMultiplier = clampBusinessTaxRate(bizPercentToMultiplier(newPct));
                                                     onUpdateTaxPolicies(prev => ({
                                                         ...prev,
-                                                        businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newValue },
+                                                        businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newMultiplier },
                                                     }));
                                                     setDraftMultiplier(null);
                                                 }}
@@ -975,8 +973,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                             <input
                                                 type="text"
                                                 inputMode="decimal"
-                                                step="0.05"
-                                                value={draftMultiplier ?? businessTaxMultiplier}
+                                                step="1"
+                                                value={draftMultiplier ?? (Number.isInteger(displayBizPercent) ? displayBizPercent : displayBizPercent.toFixed(1))}
                                                 onChange={(e) => handleDraftChange(e.target.value)}
                                                 onBlur={commitDraft}
                                                 onKeyDown={(e) => {
@@ -986,26 +984,40 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                                     }
                                                 }}
                                                 className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                                placeholder="税率系数"
+                                                placeholder="营收税率%"
                                             />
                                         </div>
                                         <div className="text-[10px] text-gray-500 mt-1">
-                                            限幅：{-(TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000)} ~ {TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000}
+                                            范围：-{maxBizPercent.toFixed(0)}% ~ {maxBizPercent.toFixed(0)}%
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
-                                        <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
-                                            <span className={`text-sm font-bold font-mono ${actualBusinessTax > 0 ? 'text-yellow-300' : actualBusinessTax < 0 ? 'text-green-300' : 'text-gray-400'
-                                                }`}>
-                                                {actualBusinessTax < 0 ? '补贴 ' : ''}{Math.abs(actualBusinessTax).toFixed(3)}
-                                            </span>
-                                            <Icon
-                                                name={actualBusinessTax > 0 ? "TrendingUp" : actualBusinessTax < 0 ? "TrendingDown" : "Coins"}
-                                                size={12}
-                                                className={`inline-block ml-1 ${actualBusinessTax > 0 ? 'text-yellow-400' : actualBusinessTax < 0 ? 'text-green-400' : 'text-gray-500'}`}
-                                            />
-                                        </div>
+                                        {(() => {
+                                            const perBuildingTax = buildingFinance?.businessTaxPaid != null && count > 0
+                                                ? buildingFinance.businessTaxPaid / count
+                                                : null;
+                                            const isTax = displayBizPercent > 0;
+                                            const isSubsidy = displayBizPercent < 0;
+                                            return (
+                                                <>
+                                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
+                                                    <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
+                                                        {perBuildingTax != null ? (
+                                                            <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidy ? 'text-green-300' : 'text-gray-400'}`}>
+                                                                {isSubsidy ? '补贴 ' : ''}{formatNumberShortCN(Math.abs(perBuildingTax), { decimals: 2 })}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-sm font-mono text-gray-500">—</span>
+                                                        )}
+                                                        <Icon
+                                                            name="Coins"
+                                                            size={12}
+                                                            className={`inline-block ml-1 ${isTax ? 'text-yellow-400' : isSubsidy ? 'text-green-400' : 'text-gray-500'}`}
+                                                        />
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 

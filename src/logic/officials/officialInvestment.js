@@ -200,26 +200,26 @@ export const processOfficialInvestment = (
     buildingCounts,
     difficultyLevel,
     epoch = 0,
-    techsUnlocked = []
+    techsUnlocked = [],
+    staffingRatios = {}
 ) => {
     if (!official?.investmentProfile) return null;
 
-    // 1. [NEW] 政治立场概率检查
-    // 根据官员的政治立场决定是否开启本次投资检查
-    // 默认为 0.5 (50% 概率)，极左派可能为 0 (永不投资)
     const stance = official.politicalStance;
     const stanceProb = STANCE_INVESTMENT_PROBABILITY[stance] !== undefined
         ? STANCE_INVESTMENT_PROBABILITY[stance]
         : 0.5;
 
-    // 如果概率为0（如马克思主义），直接返回
     if (stanceProb <= 0) return null;
-    // 随机检定：如果未通过，本次不投资
     if (Math.random() > stanceProb) return null;
 
     const profile = official.investmentProfile;
     if (currentDay - profile.lastInvestmentDay < INVESTMENT_COOLDOWN) return null;
     if (official.wealth < MIN_WEALTH_TO_INVEST) return null;
+
+    const maxProperties = 3 + (epoch || 0);
+    const currentPropertyCount = official.ownedProperties?.length || 0;
+    if (currentPropertyCount >= maxProperties) return null;
 
     const factionMod = cabinetStatus?.dominance?.faction === 'left' ? 0.5 : 1.0;
     const wealthRatio = Math.max(1, (official.wealth || 0) / 400);
@@ -252,6 +252,9 @@ export const processOfficialInvestment = (
             // 官员/外资不应投资这种“自给自足”的单位
             const hasEmployees = Object.keys(b.jobs || {}).some(jobStratum => jobStratum !== b.owner);
             if (!hasEmployees) return false;
+
+            const currentStaffing = staffingRatios?.[b.id] ?? 1;
+            if (currentStaffing < 0.85) return false;
 
             return true;
         })

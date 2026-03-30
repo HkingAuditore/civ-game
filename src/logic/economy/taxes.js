@@ -3,7 +3,7 @@
  * Handles tax collection, tax breakdown, and tax efficiency calculations
  */
 
-import { STRATA, TAX_LIMITS } from '../../config';
+import { STRATA, TAX_LIMITS, TAX_BASE_RATES } from '../../config';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -91,6 +91,7 @@ export const collectHeadTax = ({
     roleWagePayout,
     logs,
     onTreasuryChange,
+    previousWages = {},
 }) => {
     const updatedWealth = { ...wealth };
     const updatedTaxBreakdown = { ...taxBreakdown };
@@ -107,7 +108,11 @@ export const collectHeadTax = ({
 
         const headRate = getHeadTaxRate(key, headTaxRates);
         const headBase = def?.headTaxBase ?? 0.01;
-        const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
+        const prevWage = previousWages[key];
+        const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)
+            ? prevWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+            : headBase;
+        const plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
         const available = Math.max(0, updatedWealth[key] || 0);
         const maxPerCapitaTax = available / Math.max(1, count);
         const effectivePerCapitaTax = plannedPerCapitaTax >= 0

@@ -39,7 +39,11 @@ if (Capacitor.isNativePlatform()) {
 
 // 添加全局错误处理
 window.addEventListener('error', (event) => {
-    console.error('Global error:', event.error);
+    if (event.error) {
+        console.error('Global error:', event.error);
+    } else if (event.message) {
+        console.error('Global error (no error object):', event.message, 'at', event.filename, ':', event.lineno);
+    }
 });
 
 window.addEventListener('unhandledrejection', (event) => {

@@ -1125,3 +1125,8 @@ export const TAX_LIMITS = {
     MAX_RESOURCE_TAX: 5.0,    // 交易税率上限 (500%)
     MAX_BUSINESS_TAX: 10000,   // 营业税系数上限，防止极端负税率导致补贴爆炸
 };
+
+export const TAX_BASE_RATES = {
+    HEAD_TAX_INCOME_RATIO: 0.10,        // 人头税：按阶层日均收入的 10% 征收
+    BUSINESS_TAX_REVENUE_RATIO: 0.08,   // 营业税：按建筑营收（产值）的 8% 征收
+};
