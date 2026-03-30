@@ -3332,6 +3332,7 @@ export const simulateTick = ({
                         ledger.transfer(oKey, 'state', ownerTax, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, { buildingId: b.id });
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
+                        buildingFinancialData[b.id].businessTaxPaid += ownerTax;
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
                         recordAggregatedLog(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }
@@ -3360,12 +3361,9 @@ export const simulateTick = ({
                         const ownerSubsidyFull = subsidyAmount * proportion;
                         const ownerSubsidyActual = actualSubsidyAmount * proportion;
 
-                        // 业主只收到效?的补?
                         ledger.transfer('state', oKey, ownerSubsidyActual, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                         roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidyActual;
-
-                        // 剩余部分被腐败官员贪污（在后续腐败处理阶段统一分配?
-                        // 这里只记录补贴总额，腐败损失会在税收汇总阶段处?
+                        buildingFinancialData[b.id].businessTaxPaid -= ownerSubsidyActual;
                     });
 
                     // NOTE: taxBreakdown.subsidy is automatically updated by ledger.transfer()
@@ -3415,12 +3413,15 @@ export const simulateTick = ({
             wealth[key] = def.startingWealth || 0;
         }
         const headRate = getHeadTaxRate(key);
-        const stratumWage = previousWages[key];
+        // [FIX] 使用本 tick 实际每人工资收入，而非 previousWages（岗位工资率）。
+        // previousWages 是每个岗位的工资信号，若就业率 < 100%，会远高于人均实际收入，
+        // 导致"20% 税率"实际收取的金额远超每人收入的 20%。
+        const actualPerCapitaWage = count > 0 ? (roleWagePayout[key] || 0) / count : 0;
         const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
         let plannedPerCapitaTax;
         if (headRate > 0) {
-            const incomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
-                ? stratumWage * taxRatio : 0;
+            const incomeBase = (Number.isFinite(actualPerCapitaWage) && actualPerCapitaWage > 0)
+                ? actualPerCapitaWage * taxRatio : 0;
             plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
         } else if (headRate < 0) {
             plannedPerCapitaTax = headRate * effectiveTaxModifier;
@@ -4278,6 +4279,7 @@ export const simulateTick = ({
         let luxuryExpense = 0;
         let essentialExpense = 0;
         let headTaxPaid = 0;
+        let officialThisTickIncome = 0;
         let investmentCost = 0;
         let upgradeCost = 0;
         let managementFeeIncome = 0; // 代经营管理费收入
@@ -4292,10 +4294,10 @@ export const simulateTick = ({
         if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
             const effectiveSalary = Math.round(normalizedOfficial.salary * policySalaryMultiplier);
             if (effectiveSalary > 0) {
-                // 正常薪酬：国库支付给官员
                 currentWealth += effectiveSalary;
+                officialThisTickIncome += effectiveSalary;
                 totalOfficialIncome += effectiveSalary;
-                totalOfficialLaborIncome += effectiveSalary; // Add to labor income
+                totalOfficialLaborIncome += effectiveSalary;
                 // console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
                 // 记录俸禄到财务数?
                 if (classFinancialData.official) {
@@ -4465,13 +4467,13 @@ export const simulateTick = ({
         const debugAfterGoodsConsumption = currentWealth;
 
         // 人头税：官员拥有独立财富，因此在此单独结算
+        // [FIX] 使用本 tick 官员实际到手薪俸，而非 previousWages 工资信号
         const headRate = getHeadTaxRate('official');
-        const officialWage = previousWages['official'];
         const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
         let plannedPerCapitaTax;
         if (headRate > 0) {
-            const officialIncomeBase = (Number.isFinite(officialWage) && officialWage > 0)
-                ? officialWage * taxRatioOff : 0;
+            const officialIncomeBase = (Number.isFinite(officialThisTickIncome) && officialThisTickIncome > 0)
+                ? officialThisTickIncome * taxRatioOff : 0;
             plannedPerCapitaTax = officialIncomeBase * headRate * effectiveTaxModifier;
         } else if (headRate < 0) {
             plannedPerCapitaTax = headRate * effectiveTaxModifier;
