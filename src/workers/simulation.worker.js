@@ -12,6 +12,10 @@
  * - Worker → Main: { type: 'ERROR', error: errorMessage }
  */
 
+// ⚠️ 必须最先导入：为 Worker 环境注入 window/document 兼容垫片，
+// 防止 gameanalytics SDK 在模块初始化时因 window 不存在而崩溃。
+import './workerGlobals';
+
 import { simulateTick } from '../logic/simulation';
 
 // [PERF] Worker内部history缓存，避免每tick序列化传输大量历史数据

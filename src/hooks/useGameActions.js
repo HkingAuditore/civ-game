@@ -1,7 +1,7 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
     BUILDINGS,
     EPOCHS,
@@ -7162,38 +7162,30 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`Peace signed with ${targetNation.name}.`);
         }
     };
-    // 返回所有操作函数
-    return {
-
-        // 时代
+    // 使用稳定引用对象，避免每次渲染创建新对象导致依赖它的 useEffect 无限重触发 (React Error #185)
+    const _actionsRef = useRef(null);
+    if (!_actionsRef.current) _actionsRef.current = {};
+    Object.assign(_actionsRef.current, {
         canUpgradeEpoch,
         upgradeEpoch,
-        // 建筑
         buyBuilding,
-
         sellBuilding,
         upgradeBuilding,
         downgradeBuilding,
         batchUpgradeBuilding,
         batchDowngradeBuilding,
-        // 科技
         researchTech,
-        // 政令
         toggleDecree,
-        // 采集
         manualGather,
-        // 军事
         recruitUnit,
         handleAutoReplenishLosses,
         disbandUnit,
         disbandAllUnits,
-
         cancelTraining,
         cancelAllTraining,
         launchBattle,
         startWarAgainstPlayer,
         cleanupWarRuntimeState,
-        // 外交
         handleDiplomaticAction,
         handleEnemyPeaceAccept,
         handleEnemyPeaceReject,
@@ -7201,20 +7193,13 @@ export const useGameActions = (gameState, addLog) => {
         approveVassalDiplomacyAction,
         rejectVassalDiplomacyAction,
         issueVassalDiplomacyOrder,
-
-        // 贸易路线
         handleTradeRouteAction,
-        // 事件
         triggerRandomEvent,
         triggerDiplomaticEvent,
         handleEventOption,
-        // 战斗结果
         setBattleResult,
         setBattleNotifications,
-
-        // 添加战斗通知（非阻断式）
         addBattleNotification: (battleResult) => {
-
             const notification = {
                 id: `battle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 result: battleResult,
@@ -7222,16 +7207,12 @@ export const useGameActions = (gameState, addLog) => {
             };
             setBattleNotifications(prev => [...prev, notification]);
         },
-        // 关闭单个战斗通知
         dismissBattleNotification: (notificationId) => {
             setBattleNotifications(prev => prev.filter(n => n.id !== notificationId));
         },
-        // 关闭所有战斗通知
         dismissAllBattleNotifications: () => {
             setBattleNotifications([]);
         },
-
-        // 官员系统
         triggerOfficialSelection,
         hireNewOfficial,
         fireExistingOfficial,
@@ -7242,9 +7223,8 @@ export const useGameActions = (gameState, addLog) => {
         clearMinisterRole,
         toggleMinisterAutoExpansion,
         changeOfficialPropertyPolicy,
-        // 叛乱系统
         handleRebellionAction,
         handleRebellionWarEnd,
-
-    };
+    });
+    return _actionsRef.current;
 };
