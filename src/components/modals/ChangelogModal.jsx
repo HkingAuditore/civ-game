@@ -59,7 +59,7 @@ const VersionEntry = ({ entry, defaultOpen = false }) => {
                     )}
                     {/* 详细变更列表 */}
                     <div className="space-y-1.5">
-                        {entry.changes.map((change, idx) => {
+                        {(entry.changes || []).map((change, idx) => {
                             const typeConfig = CHANGE_TYPE_CONFIG[change.type] || CHANGE_TYPE_CONFIG.new;
                             return (
                                 <div key={idx} className="flex items-start gap-2">
