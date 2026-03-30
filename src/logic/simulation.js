@@ -2371,9 +2371,11 @@ export const simulateTick = ({
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyNeeded) {
                     ledger.transfer('state', key, subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
-                    // 记录政府补助收入 (本地追踪)
                     roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
                     roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded;
+                    if (classFinancialData[key]) {
+                        classFinancialData[key].income.headTaxSubsidy = (classFinancialData[key].income.headTaxSubsidy || 0) + subsidyNeeded;
+                    }
                 }
             }
         }
@@ -4491,7 +4493,10 @@ export const simulateTick = ({
                     ledger.transfer('state', 'official', subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                     currentWealth += subsidyNeeded;
                     totalOfficialIncome += subsidyNeeded;
-                    totalOfficialLaborIncome += subsidyNeeded; // Add to labor income
+                    totalOfficialLaborIncome += subsidyNeeded;
+                    if (classFinancialData.official) {
+                        classFinancialData.official.income.headTaxSubsidy = (classFinancialData.official.income.headTaxSubsidy || 0) + subsidyNeeded;
+                    }
                 }
             }
         }

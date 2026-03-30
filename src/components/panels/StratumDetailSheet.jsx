@@ -655,12 +655,14 @@ const StratumDetailSheetComponent = ({
                                 </div>
                                 <div>
                                     {(() => {
-                                        const actualHeadTaxPerCapita = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
                                         const isTax = displayHeadPercent > 0;
                                         const isSubsidy = displayHeadPercent < 0;
+                                        const actualHeadTaxPerCapita = isSubsidy
+                                            ? (incomeData.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1)
+                                            : (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
                                         return (
                                             <>
-                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每人每日)</div>
+                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">{isSubsidy ? '实际补贴' : '实际税额'} (每人每日)</div>
                                                 <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                                                     <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidy ? 'text-green-300' : 'text-gray-400'}`}>
                                                         {isSubsidy ? '补贴 ' : ''}{Math.abs(actualHeadTaxPerCapita).toFixed(3)}
