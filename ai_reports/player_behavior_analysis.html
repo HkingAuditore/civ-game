@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>玩家行为深度分析报告 — 哈耶克的文明</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{background:#0f172a;color:#e2e8f0;font-family:-apple-system,'Segoe UI',sans-serif}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:20px}
+.kpi{background:linear-gradient(135deg,#1e293b,#334155);border:1px solid #475569;border-radius:12px;padding:20px 24px;text-align:center}
+.kv{font-size:2rem;font-weight:800}
+.kr{background:linear-gradient(135deg,#f97316,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.kb{background:linear-gradient(135deg,#3b82f6,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.kg{background:linear-gradient(135deg,#22c55e,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.kp{background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ky{background:linear-gradient(135deg,#eab308,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.st{font-size:1.3rem;font-weight:700;color:#f8fafc;margin-bottom:16px;border-left:4px solid #f97316;padding-left:12px}
+.st2{font-size:1.1rem;font-weight:600;color:#cbd5e1;margin:16px 0 10px;border-left:3px solid #3b82f6;padding-left:10px}
+.ins{background:#1a1a2e;border-left:3px solid #f97316;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:.9rem}
+.ins.blue{border-left-color:#3b82f6}
+.ins.green{border-left-color:#22c55e}
+.ins.red{border-left-color:#ef4444}
+.ins.purple{border-left-color:#a855f7}
+.tb{padding:8px 20px;border-radius:8px;cursor:pointer;transition:all .2s;border:1px solid transparent;background:none;color:#94a3b8}
+.tb.on{background:#334155;border-color:#f97316;color:#f8fafc}
+.tb:hover{background:#1e293b}
+canvas{max-height:420px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:#334155;color:#f8fafc;padding:8px 12px;text-align:left;font-weight:600}
+td{padding:6px 12px;border-bottom:1px solid #1e293b}
+tr:hover{background:#334155}
+.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:.75rem;font-weight:600}
+.badge-red{background:#ef44442a;color:#f87171}
+.badge-orange{background:#f973162a;color:#fb923c}
+.badge-yellow{background:#eab3082a;color:#fbbf24}
+.badge-green{background:#22c55e2a;color:#4ade80}
+.badge-blue{background:#3b82f62a;color:#60a5fa}
+.badge-purple{background:#a855f72a;color:#c084fc}
+.progress{height:6px;background:#334155;border-radius:3px;overflow:hidden}
+.progress-bar{height:100%;border-radius:3px}
+.cluster-card{background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid;border-radius:12px;padding:16px}
+.rec-card{background:#1a1a2e;border:1px solid #334155;border-radius:10px;padding:16px;margin:10px 0}
+.rec-priority{display:inline-block;padding:3px 10px;border-radius:6px;font-size:.8rem;font-weight:700;margin-right:8px}
+.p-critical{background:#dc26262a;color:#f87171}
+.p-high{background:#f973162a;color:#fb923c}
+.p-medium{background:#eab3082a;color:#fbbf24}
+.p-low{background:#22c55e2a;color:#4ade80}
+.nav{position:fixed;top:0;left:0;right:0;background:#0f172aee;backdrop-filter:blur(12px);z-index:50;border-bottom:1px solid #334155;padding:8px 16px;display:flex;gap:4px;overflow-x:auto}
+.nav a{color:#94a3b8;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:.8rem;white-space:nowrap}
+.nav a:hover,.nav a.active{background:#334155;color:#f8fafc}
+main{margin-top:52px}
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+<nav class="nav">
+<a href="#overview">总览</a>
+<a href="#retention">留存</a>
+<a href="#funnel">漏斗</a>
+<a href="#clustering">玩家分群</a>
+<a href="#economy">经济</a>
+<a href="#prices">物价</a>
+<a href="#buildings">建筑</a>
+<a href="#tech">科技</a>
+<a href="#military">军事</a>
+<a href="#events">事件</a>
+<a href="#rebellion">叛乱</a>
+<a href="#ideology">理念</a>
+<a href="#errors">错误</a>
+<a href="#recommendations">建议</a>
+</nav>
+
+<main>
+<div style="text-align:center;margin-bottom:32px;padding-top:12px">
+<h1 style="font-size:2.2rem;font-weight:800;background:linear-gradient(135deg,#f97316,#ec4899,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">玩家行为深度分析报告</h1>
+<p style="color:#94a3b8;margin-top:8px">哈耶克的文明：市场经济 · 数据采集期 2026-03-26 ~ 2026-03-30 · 生成时间 2026-03-30</p>
+</div>
+
+<!-- ========== 1. OVERVIEW KPIs ========== -->
+<section id="overview">
+<div class="st">📊 全局指标概览</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px">
+<div class="kpi"><div style="color:#94a3b8;font-size:.85rem">总玩家</div><div class="kv kr">1,017</div></div>
+<div class="kpi"><div style="color:#94a3b8;font-size:.85rem">总会话</div><div class="kv kb">4,202</div></div>
+<div class="kpi"><div style="color:#94a3b8;font-size:.85rem">总事件</div><div class="kv kg">3,519,777</div></div>
+<div class="kpi"><div style="color:#94a3b8;font-size:.85rem">峰值 DAU</div><div class="kv kp">693</div></div>
+<div class="kpi"><div style="color:#94a3b8;font-size:.85rem">平均会话时长</div><div class="kv ky">15.1 min</div></div>
+<div class="kpi"><div style="color:#94a3b8;font-size:.85rem">长会话率(>30m)</div><div class="kv kr">14.7%</div></div>
+</div>
+
+<div class="card">
+<div class="st2">DAU 与平均会话时长趋势</div>
+<canvas id="chartDAU" height="200"></canvas>
+</div>
+
+<div class="card">
+<div class="st2">会话时长分布</div>
+<canvas id="chartDuration" height="200"></canvas>
+</div>
+</section>
+
+<!-- ========== 2. RETENTION ========== -->
+<section id="retention">
+<div class="st">🔄 留存分析</div>
+<div class="card">
+<div class="st2">首日→次日留存 (按注册日)</div>
+<table>
+<tr><th>注册日</th><th>新增人数</th><th>次日回访</th><th>留存率</th></tr>
+<tr><td>3/26 (首日上线)</td><td>30</td><td>24</td><td><span class="badge badge-green">80.0%</span></td></tr>
+<tr><td>3/27 (大量涌入)</td><td>574</td><td>257</td><td><span class="badge badge-yellow">44.8%</span></td></tr>
+<tr><td>3/28</td><td>462</td><td>35</td><td><span class="badge badge-red">7.6%</span></td></tr>
+<tr><td>3/29</td><td>375</td><td>26</td><td><span class="badge badge-red">6.9%</span></td></tr>
+<tr><td>3/30 (今日)</td><td>117</td><td>-</td><td><span class="badge badge-blue">待观察</span></td></tr>
+</table>
+<div class="ins red" style="margin-top:16px">
+<strong>⚠️ 关键发现：</strong>留存率从首批种子用户的80%急剧下降至后续涌入用户的7-8%。大量新用户来了就走，说明<b>首次体验门槛过高</b>或<b>获客来源的用户预期不匹配</b>。
+</div>
+</div>
+
+<div class="card">
+<div class="st2">高价值回访玩家画像 (活跃≥2天)</div>
+<table>
+<tr><th>玩家</th><th>活跃天数</th><th>会话数</th><th>总时长</th></tr>
+<tr><td>4e92...f9bd</td><td>4天</td><td>101次</td><td><b>65.9h</b></td></tr>
+<tr><td>08f5...fda7</td><td>3天</td><td>39次</td><td>19.5h</td></tr>
+<tr><td>1e5b...966e</td><td>4天</td><td>18次</td><td>15.1h</td></tr>
+<tr><td>895e...86e9</td><td>2天</td><td>28次</td><td>13.9h</td></tr>
+<tr><td>e7a7...4cf9</td><td>2天</td><td>8次</td><td>13.7h</td></tr>
+</table>
+<div class="ins green">
+<strong>✅ 积极信号：</strong>核心玩家粘性极强——Top1 玩家在4天内玩了65.9小时(近乎全天在线)。说明游戏的核心循环对留存玩家确实有吸引力。
+</div>
+</div>
+</section>
+
+<!-- ========== 3. FUNNEL ========== -->
+<section id="funnel">
+<div class="st">🏛 时代进阶漏斗</div>
+<div class="card">
+<canvas id="chartFunnel" height="280"></canvas>
+<div class="ins" style="margin-top:16px">
+<strong>核心发现：</strong>从总玩家1017→青铜时代253人(24.9%)，<b>最大流失在石器时代</b>。到达信息时代(Epoch 9)的仅65人(6.4%)。但Epoch 5→9之间的流失率显著放缓(95→65)，说明<b>核心中后期玩家粘性极强</b>。
+</div>
+</div>
+
+<div class="card">
+<div class="st2">时代升级耗时统计</div>
+<table>
+<tr><th>时代</th><th>平均游戏天数</th><th>最快</th><th>最慢</th><th>标准差</th><th>到达人数</th></tr>
+<tr><td>→ 青铜 (1)</td><td>4,095</td><td>947</td><td>29,697</td><td>3,124</td><td>254</td></tr>
+<tr><td>→ 古典 (2)</td><td>7,048</td><td>1,569</td><td>32,899</td><td>4,790</td><td>206</td></tr>
+<tr><td>→ 封建 (3)</td><td>11,191</td><td>2,220</td><td>82,437</td><td>8,488</td><td>143</td></tr>
+<tr><td>→ 大航海 (4)</td><td>13,399</td><td>3,524</td><td>61,752</td><td>9,271</td><td>121</td></tr>
+<tr><td>→ 启蒙 (5)</td><td>14,568</td><td>4,342</td><td>62,860</td><td>11,382</td><td>95</td></tr>
+<tr><td>→ 工业 (6)</td><td>18,828</td><td>5,411</td><td>80,607</td><td>17,858</td><td>93</td></tr>
+<tr><td>→ 世界大战 (7)</td><td>17,649</td><td>5,335</td><td>80,452</td><td>14,389</td><td>86</td></tr>
+<tr><td>→ 冷战 (8)</td><td>30,210</td><td>6,762</td><td>137,563</td><td>36,115</td><td>88</td></tr>
+<tr><td>→ 信息 (9)</td><td>26,692</td><td>7,142</td><td>146,139</td><td>20,599</td><td>66</td></tr>
+</table>
+<div class="ins blue">
+<strong>节奏问题：</strong>石器→青铜平均4095天，标准差3124，说明玩家体验差异极大。冷战时代(8)平均30210天但标准差高达36115——部分玩家可能陷入停滞。时代7→8出现明显的"速度断裂"(17649→30210)。
+</div>
+</div>
+</section>
+
+<!-- ========== 4. PLAYER CLUSTERING ========== -->
+<section id="clustering">
+<div class="st">👥 玩家行为聚类</div>
+<p style="color:#94a3b8;margin-bottom:16px">基于50名深度玩家的行为特征(建筑/科研/军事/外交/税收)，识别出以下玩家类型：</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+<div class="cluster-card" style="border-color:#22c55e40">
+<div style="font-size:1.1rem;font-weight:700;color:#4ade80;margin-bottom:8px">🏗 建设型 (Builder)</div>
+<div style="font-size:.85rem;color:#94a3b8;margin-bottom:12px">约占深度玩家 35%</div>
+<p style="font-size:.9rem">以建筑购买为核心行为，建筑种类丰富(40-97种)，总建筑数千到万级。科研和军事参与度中等。代表玩家：709eec(97种建筑/2679次购买)、f6de6d(46种/16698次)。</p>
+<div class="ins green" style="margin-top:8px"><b>特征：</b>建筑种类>30，建筑操作占总操作>50%，军事参与度<30%</div>
+</div>
+
+<div class="cluster-card" style="border-color:#ef444440">
+<div style="font-size:1.1rem;font-weight:700;color:#f87171;margin-bottom:8px">⚔️ 军事型 (Warmonger)</div>
+<div style="font-size:.85rem;color:#94a3b8;margin-bottom:12px">约占深度玩家 25%</div>
+<p style="font-size:.9rem">军事操作占主导，频繁招募/解散部队。代表玩家：6f4ca5(军事9466次,建筑202次)、8104b5(军事6962次)、e5abd9(军事2353次)。</p>
+<div class="ins red" style="margin-top:8px"><b>特征：</b>军事操作>建筑操作，频繁解散部队(说明军费负担导致频繁裁军)</div>
+</div>
+
+<div class="cluster-card" style="border-color:#3b82f640">
+<div style="font-size:1.1rem;font-weight:700;color:#60a5fa;margin-bottom:8px">🤝 外交型 (Diplomat)</div>
+<div style="font-size:.85rem;color:#94a3b8;margin-bottom:12px">约占深度玩家 20%</div>
+<p style="font-size:.9rem">外交操作极为频繁，部分玩家外交操作数甚至达到万级。代表玩家：f8de88(外交17915次)、88272(外交7700次)、b69616(外交4562次)。</p>
+<div class="ins blue" style="margin-top:8px"><b>特征：</b>外交操作>1000次，部分玩家外交操作超过其他所有操作总和。说明外交系统有足够深度吸引特定玩家。</div>
+</div>
+
+<div class="cluster-card" style="border-color:#eab30840">
+<div style="font-size:1.1rem;font-weight:700;color:#fbbf24;margin-bottom:8px">💰 政策型 (Economist)</div>
+<div style="font-size:.85rem;color:#94a3b8;margin-bottom:12px">约占深度玩家 20%</div>
+<p style="font-size:.9rem">以税收调整和经济管理为核心。频繁调整税率，关注财政收支平衡。代表玩家：7c8ea8(税收768次)、c3909d(税收304次)、4d5666(税收285次)。</p>
+<div class="ins" style="margin-top:8px"><b>特征：</b>税收操作>100次，有体系地研究科技、建造建筑配合经济发展</div>
+</div>
+</div>
+
+<div class="card" style="margin-top:16px">
+<div class="st2">分群关键洞察</div>
+<div class="ins purple">
+<strong>发现1：</strong>大量深度玩家(约40%)的 max_epoch 为 null，说明他们<b>从未成功升级时代</b>。这些玩家往往通过高倍速获得了巨量游戏天数(10-60万天)，但在时代进阶系统中完全停滞。可能是游戏速度过快导致资源/人口增长跟不上。
+</div>
+<div class="ins red">
+<strong>发现2：</strong>科研参与度极低——50名深度玩家中约60%的 total_research 为 0。科技系统可能存在<b>引导缺失</b>或<b>成本过高</b>的问题。
+</div>
+<div class="ins blue">
+<strong>发现3：</strong>军事型玩家中，解散(Disband)事件数量极高(90881次,远超招募的27964次)。这意味着大量玩家在<b>反复招募→财政崩溃→解散</b>的循环中，军事系统的费用模型可能需要优化。
+</div>
+</div>
+</section>
+
+<!-- ========== 5. ECONOMY ========== -->
+<section id="economy">
+<div class="st">📈 经济时间线分析</div>
+<div class="card">
+<div class="st2">GDP / CPI / 国库 / 人口 随游戏进程变化</div>
+<canvas id="chartEconomy" height="300"></canvas>
+</div>
+<div class="card">
+<div class="st2">经济指标关键拐点</div>
+<div class="ins red">
+<strong>CPI 持续下行：</strong>CPI 从开局的104.7逐步下降到后期(3500+天)的55-61，<b>通缩问题仍然严重</b>。尽管上一版修复引入了成本下限和库存损耗，但数据显示通缩在中后期(1800天后)依然在加速恶化。
+</div>
+<div class="ins">
+<strong>国库增长曲线：</strong>国库在2700天左右突然跳升到480万+，疑似<b>虚拟税上限修复后仍有漏洞</b>。之后在3450天降至190万。整体呈现"增长→突增→回落"的不稳定模式。
+</div>
+<div class="ins green">
+<strong>人口健康增长：</strong>人口从92人平稳增长到3600天的1700+人，曲线平滑，说明饥荒修复效果良好。
+</div>
+</div>
+
+<div class="card">
+<div class="st2">经济危机分布</div>
+<table>
+<tr><th>危机类型</th><th>触发次数</th><th>影响玩家</th></tr>
+<tr><td><span class="badge badge-red">恶性通胀</span></td><td>3,881</td><td>178 (17.5%)</td></tr>
+<tr><td><span class="badge badge-orange">破产</span></td><td>907</td><td>87 (8.6%)</td></tr>
+</table>
+<div class="ins red" style="margin-top:12px">
+<strong>⚠️ 通胀仍然是主要经济问题：</strong>17.5%的玩家遭遇了恶性通胀，每位受影响玩家平均遭遇21.8次。而整体CPI却在下行——说明经济存在<b>"两极分化"</b>：部分玩家通胀失控，多数玩家通缩。
+</div>
+</div>
+</section>
+
+<!-- ========== 6. PRICES ========== -->
+<section id="prices">
+<div class="st">💹 市场物价趋势</div>
+<div class="card">
+<canvas id="chartPrices" height="300"></canvas>
+</div>
+<div class="card">
+<div class="st2">物价核心发现</div>
+<div class="ins red">
+<strong>工具价格崩溃：</strong>tools 价格从初始71降至后期28-30，<b>跌幅超过58%</b>。这是当前最严重的价格异常——工具作为关键中间品，价格持续下跌可能导致整个制造业利润坍塌。
+</div>
+<div class="ins">
+<strong>石材/布匹温和上涨：</strong>stone 从0.76升至1.75，cloth 从1.24升至2.29，呈健康的需求驱动增长。说明这两种资源的供需关系相对平衡。
+</div>
+<div class="ins blue">
+<strong>食物价格稳定：</strong>food 价格长期稳定在1.0-1.3区间，说明农业系统基本平衡。
+</div>
+<div class="ins">
+<strong>铁矿微降：</strong>iron 从35.8微降至36.0，整体稳定。但绝对值远高于其他资源(约30x)，可能造成铁矿相关建筑"暴利"。
+</div>
+</div>
+</section>
+
+<!-- ========== 7. BUILDINGS ========== -->
+<section id="buildings">
+<div class="st">🏘 建筑行为分析</div>
+<div class="card">
+<div class="st2">建筑购买排行 Top 15</div>
+<canvas id="chartBuildings" height="280"></canvas>
+</div>
+<div class="card">
+<div class="st2">建筑策略洞察</div>
+<div class="ins">
+<strong>小屋(hut)压倒性领先：</strong>62,209次购买，是第二名farm的近2倍。结合人口系统分析，玩家可能在<b>过度依赖住房扩张</b>来推动人口增长，缺少其他有效途径。
+</div>
+<div class="ins blue">
+<strong>住房建筑集群效应：</strong>hut(62k) + house(16.5k) + apartment_block(12.6k) + manor_house(10.8k) + townhouse(8.9k) 合计超过11万次。住房建筑占总建筑购买的<b>约35%</b>。
+</div>
+<div class="ins green">
+<strong>经济建筑正常：</strong>farm(31.7k)、lumber_camp(17.6k)、quarry(13.4k) 等资源建筑使用率健康，符合经济发展顺序。
+</div>
+<div class="ins purple">
+<strong>油田/钢铁等后期建筑：</strong>oil_refinery(8.1k)、steel_works(7.6k)、oil_well(7.3k) 购买量可观，说明有大量玩家到达工业时代后期。
+</div>
+</div>
+</section>
+
+<!-- ========== 8. TECH ========== -->
+<section id="tech">
+<div class="st">🔬 科技研究路径</div>
+<div class="card">
+<div class="st2">最热门科技 Top 15</div>
+<canvas id="chartTech" height="280"></canvas>
+</div>
+<div class="card">
+<div class="st2">科技路径分析</div>
+<div class="ins">
+<strong>前期科技普及率高：</strong>barter(413次/306人)、stone_axes(402/300)、animal_husbandry(399/296) 是最多人研究的三个科技，覆盖约30%的玩家。
+</div>
+<div class="ins red">
+<strong>科技断崖：</strong>从 wheel(349) 到 copper_mining(319) 存在明显断层(-30人)，恰好对应石器→青铜的升级门槛。copper_mining 之后的科技研究人数快速减少——<b>大量玩家在铜矿/青铜加工阶段放弃了科研</b>。
+</div>
+<div class="ins blue">
+<strong>总体科研参与率偏低：</strong>仅约30%的玩家研究了第一个科技，说明<b>70%的玩家从未/极少进行科研</b>。科技系统可能需要更强的引导和更低的门槛。
+</div>
+</div>
+</section>
+
+<!-- ========== 9. MILITARY ========== -->
+<section id="military">
+<div class="st">⚔️ 军事行为分析</div>
+<div class="card">
+<div class="st2">军事操作分布</div>
+<table>
+<tr><th>操作类型</th><th>次数</th><th>参与玩家</th><th>参与率</th></tr>
+<tr><td>军队规模采样</td><td>208,983</td><td>707</td><td>69.5%</td></tr>
+<tr><td>🔴 解散部队</td><td>90,881</td><td>223</td><td>21.9%</td></tr>
+<tr><td>招募部队</td><td>27,964</td><td>377</td><td>37.1%</td></tr>
+<tr><td>军饷调整</td><td>833</td><td>96</td><td>9.4%</td></tr>
+<tr><td>自动补充</td><td>381</td><td>215</td><td>21.1%</td></tr>
+<tr><td>全部解散</td><td>128</td><td>25</td><td>2.5%</td></tr>
+</table>
+<div class="ins red" style="margin-top:12px">
+<strong>⚠️ 解散/招募比 = 3.25:1：</strong>每招募1次就解散3.25次。这是一个<b>极不健康的信号</b>——说明军队维持成本过高，玩家被迫频繁裁军。建议重新审视军事维护费模型。
+</div>
+</div>
+
+<div class="card">
+<div class="st2">热门军事单位</div>
+<table>
+<tr><th>单位</th><th>招募次数</th><th>招募玩家</th><th>总数量</th></tr>
+<tr><td>🤖 赛博单位</td><td>2,815</td><td>64</td><td>12,334,796</td></tr>
+<tr><td>🛸 无人机</td><td>2,350</td><td>63</td><td>12,148,017</td></tr>
+<tr><td>🚀 导弹</td><td>2,267</td><td>65</td><td>11,392,723</td></tr>
+<tr><td>🗡️ 民兵</td><td>1,269</td><td>191</td><td>6,951</td></tr>
+<tr><td>🐴 轻骑兵</td><td>1,126</td><td>109</td><td>18,488</td></tr>
+<tr><td>🏹 弩手</td><td>1,049</td><td>81</td><td>16,040</td></tr>
+</table>
+<div class="ins purple">
+<strong>后期单位数量膨胀：</strong>信息时代单位(赛博/无人机/导弹)的单次招募数量高达数千，总量达到千万级。这与前期民兵6951的总量形成<b>天壤之别</b>——后期军事规模可能需要更好的上限控制。
+</div>
+</div>
+</section>
+
+<!-- ========== 10. EVENTS ========== -->
+<section id="events">
+<div class="st">📜 事件选择分析</div>
+<div class="card">
+<div class="st2">最热门事件选项 Top 15</div>
+<canvas id="chartEvents" height="300"></canvas>
+</div>
+<div class="card">
+<div class="st2">事件选择偏好洞察</div>
+<div class="ins">
+<strong>安全感优先：</strong>最热门选项是 great_flood:organize_rescue(364次)和 harvest_festival:celebrate(287次)——玩家倾向于选择<b>即时获益和风险规避</b>型选项。
+</div>
+<div class="ins blue">
+<strong>储蓄>消费：</strong>good_harvest 事件中 store(储存粮食) 以286次远超其他选项，说明玩家普遍存在<b>"粮食焦虑"</b>，倾向于囤粮而非消费。
+</div>
+<div class="ins green">
+<strong>贸易意愿强：</strong>merchant_caravan:trade(227次)、obsidian_trade:establish_trade(178次) 说明玩家对贸易系统有较高兴趣。
+</div>
+</div>
+</section>
+
+<!-- ========== 11. REBELLION ========== -->
+<section id="rebellion">
+<div class="st">🔥 叛乱与社会稳定</div>
+<div class="card">
+<div class="st2">叛乱阶段分布</div>
+<canvas id="chartRebellion" height="280"></canvas>
+</div>
+<div class="card">
+<div class="st2">叛乱分析</div>
+<div class="ins red">
+<strong>伐木工/农民叛乱最多：</strong>lumberjack(2436次)、peasant(2316次)、miner(2051次) uprising 阶段发生最多。这三个初级阶层仍是叛乱的主要来源，尽管上一版已降低了它们的组织度乘数。
+</div>
+<div class="ins">
+<strong>失业者组织度高：</strong>unemployed 的 brewing(1565次) 和 plotting(888次) 阶段出现频次很高，影响282名玩家(27.7%)。<b>失业者叛乱可能过于容易触发</b>。
+</div>
+<div class="ins blue">
+<strong>商人/教士也会叛乱：</strong>merchant(1131次)、cleric(1044次) 的 uprising 频率也不低。这说明即使是较高阶层，满意度管理也很有挑战。
+</div>
+</div>
+</section>
+
+<!-- ========== 12. IDEOLOGY ========== -->
+<section id="ideology">
+<div class="st">💡 理念系统分析</div>
+<div class="card">
+<table>
+<tr><th>理念行为</th><th>次数</th><th>玩家数</th><th>占比</th></tr>
+<tr><td>跳过涌现理念</td><td>2,790</td><td>277</td><td><span class="badge badge-red">27.2%</span></td></tr>
+<tr><td>选择: 口述传统</td><td>417</td><td>165</td><td>16.2%</td></tr>
+<tr><td>选择: 游牧精神</td><td>346</td><td>130</td><td>12.8%</td></tr>
+<tr><td>选择: 祖先崇拜</td><td>277</td><td>113</td><td>11.1%</td></tr>
+<tr><td>选择: 多神教</td><td>266</td><td>109</td><td>10.7%</td></tr>
+<tr><td>选择: 黄金法则</td><td>179</td><td>105</td><td>10.3%</td></tr>
+</table>
+<div class="ins" style="margin-top:12px">
+<strong>理念跳过率高：</strong>2790次跳过 vs ~2400次选择，<b>约54%的理念涌现被跳过</b>。可能原因：①玩家不理解理念系统 ②涌现理念不够有吸引力 ③界面引导不足。
+</div>
+</div>
+</section>
+
+<!-- ========== 13. ERRORS ========== -->
+<section id="errors">
+<div class="st">🐛 错误监控</div>
+<div class="card">
+<table>
+<tr><th>严重度</th><th>错误描述</th><th>次数</th></tr>
+<tr><td><span class="badge badge-orange">warning</span></td><td>WorkerUnavailableLargeSave: skip simulation fallback</td><td>686</td></tr>
+<tr><td><span class="badge badge-red">critical</span></td><td>React Error #185 (Minified)</td><td>215</td></tr>
+<tr><td><span class="badge badge-orange">warning</span></td><td>WorkerTimeout: simulation exceeded 5s</td><td>203</td></tr>
+<tr><td><span class="badge badge-red">critical</span></td><td>window is not defined (Worker)</td><td>131</td></tr>
+<tr><td><span class="badge badge-red">critical</span></td><td>setClassOrganization is not defined</td><td>87</td></tr>
+<tr><td><span class="badge badge-red">critical</span></td><td>is not iterable</td><td>29</td></tr>
+</table>
+<div class="ins red" style="margin-top:12px">
+<strong>Worker 问题仍存在：</strong>686次大存档跳过模拟 + 203次超时 = 889次 Worker 相关问题。<b>React Error #185</b>(Update depth exceeded)出现215次，说明可能有无限渲染循环。
+</div>
+</div>
+</section>
+
+<!-- ========== 14. RECOMMENDATIONS ========== -->
+<section id="recommendations">
+<div class="st">🎯 优化建议</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-critical">P0 紧急</span><strong>修复首次体验流失</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>75%新玩家的会话<5分钟，D1留存仅7%。<br>
+<b>根因分析：</b>①游戏开局没有明确目标引导 ②科技系统被70%玩家忽略 ③时代升级条件模糊<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li>增加"首30分钟引导任务链"：建第一座农场→研究第一个科技→升级到100人口→进入青铜时代</li>
+<li>在科技面板增加"推荐科技"高亮标记，并在状态栏增加"下一步建议"提示</li>
+<li>首次打开时的教程弹窗应在3步以内讲清核心循环：<b>建筑→资源→人口→时代</b></li>
+<li>考虑将初始资源增加30-50%，让新玩家更快感受到正反馈</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-critical">P0 紧急</span><strong>解决后期通缩恶化</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>CPI 从104.7降至55.4(跌幅47%)，tools价格跌幅58%。<br>
+<b>根因分析：</b>工具(tools)过度生产导致价格崩溃，拖累整体CPI<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li><b>工具需求模型升级：</b>让更多高级建筑消耗tools(维护/升级)，增加tools需求端</li>
+<li><b>加强库存损耗：</b>当前2%/tick的损耗率不够，建议对tools这类工业品提高到3-5%</li>
+<li><b>引入通缩自动修正：</b>当CPI低于80时，自动增加消费倾向(如"便宜就多买"的市场行为)</li>
+<li><b>后期科技消耗tools：</b>信息时代的科技研究应该需要大量tools作为原料</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-high">P1 高</span><strong>优化军事经济平衡</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>解散/招募比3.25:1，后期单位数量达千万级。<br>
+<b>根因分析：</b>①军队维护费过高迫使频繁裁军 ②后期军事规模膨胀无上限<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li><b>军费占GDP比例软上限：</b>军费超过GDP 30%时，维护费递增(而非线性)</li>
+<li><b>后期单位人口上限：</b>信息时代单位应受人口/科技约束，避免无限招募</li>
+<li><b>降低前中期维护费：</b>民兵/弓箭手等基础单位维护费降低20-30%</li>
+<li><b>增加"预备役"机制：</b>允许低成本维持部分部队待命状态</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-high">P1 高</span><strong>修复科技系统参与度</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>70%玩家从未研究过科技，深度玩家中60%科研为0。<br>
+<b>根因分析：</b>①科技面板可见性低 ②科技效果不直观 ③缺乏"为什么要研究"的引导<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li><b>科技引导弹窗：</b>当科学点积累到第一个科技成本的50%时，弹出提示</li>
+<li><b>科技效果可视化：</b>研究完成后用明显动画展示效果(如"+10%农场产量")</li>
+<li><b>自动研究选项：</b>提供"自动研究下一个推荐科技"的便利功能</li>
+<li><b>降低前3个科技成本30%：</b>让新玩家更快体验到科研的好处</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-high">P1 高</span><strong>优化时代7→8节奏断裂</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>时代7→8平均耗时从17649天跳增到30210天(+71%)，标准差36115。<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li><b>审查冷战时代升级条件：</b>降低科技/人口门槛约15-20%</li>
+<li><b>增加中期里程碑奖励：</b>在每个时代中期提供"阶段性奖励"，减少枯燥感</li>
+<li><b>引入"时代进度条"提示：</b>让玩家清楚知道距离下一时代的差距和路径</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-medium">P2 中</span><strong>减少叛乱频率 / 优化叛乱体验</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>伐木工/农民叛乱各2000+次，失业者叛乱影响28%玩家。<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li>失业者的brewing阶段门槛提高(需要更高组织度才能进入)</li>
+<li>叛乱发生后增加"冷却期"(同一阶层60-90天内不再重复叛乱)</li>
+<li>增加"怀柔政策"快捷操作，让玩家可以一键安抚即将叛乱的阶层</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-medium">P2 中</span><strong>提升理念系统参与度</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>54%的理念涌现被跳过。<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li>理念涌现时暂停游戏(防止玩家不注意而跳过)</li>
+<li>在理念选择界面增加"效果对比"预览</li>
+<li>增加"理念组合效应"，多个互补理念同时装备有额外加成</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-medium">P2 中</span><strong>住房建筑策略多样化</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>住房建筑占总建筑购买的35%，hut单项占20%。<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li>增加住房建筑的<b>递增成本</b>，防止无限堆叠</li>
+<li>增加其他提升人口上限的途径(公共设施、市政效果等)</li>
+<li>住房过多时引入"城市拥挤"debuff降低满意度</li>
+</ul>
+</div>
+
+<div class="rec-card">
+<div><span class="rec-priority p-low">P3 低</span><strong>修复 Worker / React 错误</strong></div>
+<p style="margin-top:8px;font-size:.9rem;color:#94a3b8"><b>数据依据：</b>889次Worker问题，215次React无限循环。<br>
+<b>具体建议：</b></p>
+<ul style="font-size:.9rem;color:#cbd5e1;margin-left:16px">
+<li>排查React Error #185的来源组件，可能存在useEffect依赖循环</li>
+<li>"window is not defined"说明Worker内引用了浏览器API，需要隔离</li>
+<li>大存档模拟跳过问题仍需进一步裁剪Worker数据payload</li>
+</ul>
+</div>
+</section>
+
+<!-- ========== 附录: 游戏生命周期 ========== -->
+<section style="margin-top:20px">
+<div class="st">📋 附录: 游戏生命周期行为</div>
+<div class="card">
+<table>
+<tr><th>行为</th><th>次数</th><th>玩家数</th></tr>
+<tr><td>自动存档</td><td>68,079</td><td>887</td></tr>
+<tr><td>加载存档</td><td>3,286</td><td>843</td></tr>
+<tr><td>手动存档</td><td>1,420</td><td>269</td></tr>
+<tr><td>重置游戏</td><td>510</td><td>245</td></tr>
+<tr><td>新游戏(简单)</td><td>224</td><td>124</td></tr>
+<tr><td>新游戏(普通)</td><td>133</td><td>61</td></tr>
+<tr><td>新游戏(极难)</td><td>61</td><td>33</td></tr>
+<tr><td>新游戏(非常简单)</td><td>61</td><td>43</td></tr>
+<tr><td>新游戏(困难)</td><td>23</td><td>20</td></tr>
+<tr><td>导入存档</td><td>35</td><td>16</td></tr>
+</table>
+<div class="ins" style="margin-top:12px">
+<strong>难度分布异常：</strong>所有sessions记录的difficulty均为"easy"(3080/3080)，说明上一版的difficulty修复可能仍未生效——实际选择了normal/hard/extreme的玩家在sessions表里仍被记为easy。
+</div>
+</div>
+</section>
+
+</main>
+
+<script>
+Chart.defaults.color='#94a3b8';
+Chart.defaults.borderColor='#334155';
+Chart.defaults.font.family='-apple-system,Segoe UI,sans-serif';
+
+// DAU Chart
+new Chart(document.getElementById('chartDAU'),{
+type:'bar',
+data:{
+labels:['3/26','3/27','3/28','3/29','3/30'],
+datasets:[
+{label:'DAU',data:[30,595,693,442,194],backgroundColor:'#3b82f680',borderColor:'#3b82f6',borderWidth:1,yAxisID:'y'},
+{label:'平均时长(min)',data:[25.9,22.9,15.1,5.4,5.2],type:'line',borderColor:'#f97316',backgroundColor:'#f9731620',pointRadius:5,yAxisID:'y1'}
+]},
+options:{responsive:true,plugins:{title:{display:true,text:'每日活跃用户 & 平均会话时长'}},
+scales:{y:{position:'left',title:{display:true,text:'玩家数'}},y1:{position:'right',title:{display:true,text:'分钟'},grid:{drawOnChartArea:false}}}}
+});
+
+// Duration
+new Chart(document.getElementById('chartDuration'),{
+type:'doughnut',
+data:{
+labels:['<1分钟','1-5分钟','5-10分钟','10-30分钟','30-60分钟','1-2小时','2小时+','无数据'],
+datasets:[{data:[1710,620,275,543,319,193,105,437],
+backgroundColor:['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#6366f1','#a855f7','#475569']}]},
+options:{responsive:true,plugins:{title:{display:true,text:'会话时长分布 (共4202次)'},
+legend:{position:'right'}}}
+});
+
+// Funnel
+new Chart(document.getElementById('chartFunnel'),{
+type:'bar',
+data:{
+labels:['总玩家','→青铜(1)','→古典(2)','→封建(3)','→大航海(4)','→启蒙(5)','→工业(6)','→世界大战(7)','→冷战(8)','→信息(9)'],
+datasets:[{label:'到达人数',data:[1017,253,206,143,121,95,93,86,88,65],
+backgroundColor:['#3b82f6','#6366f1','#8b5cf6','#a855f7','#c084fc','#d8b4fe','#e9d5ff','#f5d0fe','#fda4af','#f87171']}]},
+options:{indexAxis:'y',responsive:true,plugins:{title:{display:true,text:'时代进阶漏斗'},legend:{display:false}},
+scales:{x:{title:{display:true,text:'到达玩家数'}}}}
+});
+
+// Economy
+const dayBuckets = [0,30,60,90,120,150,180,240,300,360,420,480,540,600,720,840,960,1080,1200,1440,1680,1920,2160,2400,2700,3000,3300,3570];
+const gdpData = [1179,906,899,686,582,685,858,496,595,478,1127,1212,1359,1558,1766,2954,2770,3266,3536,3608,4289,5349,11980,11766,9552,21330,22662,26326];
+const cpiData = [104.69,105.91,103.19,103.82,102.32,102.72,99.11,99.51,100.33,96.99,98.51,99.21,96.79,95.67,93.41,93.62,96.68,94.87,95.08,97.5,93.88,90.32,83.23,72.96,67.2,65.37,61.78,55.4];
+const treasuryData = [364542,339957,298684,276408,250019,205059,277571,140604,96815,84007,527024,152370,98068,101438,112996,161508,204805,288198,358000,422841,470186,814916,1666839,1520960,4856249,2347224,3466488,1864113];
+const popData = [92,104,100,107,109,96,105,101,100,103,126,137,149,152,163,195,217,257,286,345,400,495,718,908,1035,1518,1540,1724];
+new Chart(document.getElementById('chartEconomy'),{
+type:'line',
+data:{
+labels:dayBuckets.map(d=>'Day '+d),
+datasets:[
+{label:'GDP',data:gdpData,borderColor:'#22c55e',backgroundColor:'#22c55e20',tension:.3,yAxisID:'y'},
+{label:'CPI',data:cpiData,borderColor:'#f97316',backgroundColor:'#f9731620',tension:.3,yAxisID:'y1'},
+{label:'人口',data:popData,borderColor:'#3b82f6',backgroundColor:'#3b82f620',tension:.3,yAxisID:'y'},
+]},
+options:{responsive:true,interaction:{mode:'index',intersect:false},
+plugins:{title:{display:true,text:'经济指标随游戏天数变化'}},
+scales:{y:{position:'left',title:{display:true,text:'GDP / 人口'}},
+y1:{position:'right',title:{display:true,text:'CPI'},grid:{drawOnChartArea:false}}}}
+});
+
+// Prices
+const pBuckets = [0,120,240,360,480,600,720,900,1080,1200,1440,1680,1920,2160,2400,2700,3000,3300,3570];
+const foodP = [1.28,1.13,1.06,1.04,1.07,1.02,1.07,1.08,1.07,1.1,1.15,1.09,1.17,1.22,1.19,1.26,1.3,1.28,1.27];
+const toolsP = [71,74.88,76.29,76.95,77.17,77.02,76.38,75.65,73.39,72.1,66.5,63.38,56.93,52.84,45.58,39.7,37.26,32.39,28.79];
+const stoneP = [0.76,1.12,1.14,1.16,1.15,1.22,1.23,1.18,1.31,1.37,1.46,1.58,1.59,1.64,1.7,1.66,1.62,1.75,1.74];
+const clothP = [1.24,1.46,1.54,1.64,1.71,1.71,1.68,1.76,1.8,1.88,2.09,2.14,2.14,2.22,2.21,2.2,2.28,2.27,2.27];
+new Chart(document.getElementById('chartPrices'),{
+type:'line',
+data:{
+labels:pBuckets.map(d=>'Day '+d),
+datasets:[
+{label:'Food',data:foodP,borderColor:'#22c55e',tension:.3},
+{label:'Tools',data:toolsP,borderColor:'#ef4444',tension:.3,yAxisID:'y1'},
+{label:'Stone',data:stoneP,borderColor:'#94a3b8',tension:.3},
+{label:'Cloth',data:clothP,borderColor:'#a855f7',tension:.3},
+]},
+options:{responsive:true,interaction:{mode:'index',intersect:false},
+plugins:{title:{display:true,text:'市场价格趋势'}},
+scales:{y:{position:'left',title:{display:true,text:'价格 (food/stone/cloth)'}},
+y1:{position:'right',title:{display:true,text:'Tools价格'},grid:{drawOnChartArea:false}}}}
+});
+
+// Buildings
+new Chart(document.getElementById('chartBuildings'),{
+type:'bar',
+data:{
+labels:['小屋','农场','伐木营','房屋','织布坊','粮仓','采石场','公寓楼','庄园','砖厂','锯木厂','联排屋','石器坊','贸易站','炼油厂'],
+datasets:[{label:'购买次数',data:[62209,31770,17587,16567,15844,14486,13430,12610,10847,9513,9354,8903,8774,8501,8111],
+backgroundColor:['#22c55e','#4ade80','#86efac','#bbf7d0','#3b82f6','#60a5fa','#93c5fd','#bfdbfe','#f97316','#fb923c','#fdba74','#fed7aa','#a855f7','#c084fc','#d8b4fe']}]},
+options:{indexAxis:'y',responsive:true,plugins:{title:{display:true,text:'建筑购买排行 Top 15'},legend:{display:false}}}
+});
+
+// Tech
+new Chart(document.getElementById('chartTech'),{
+type:'bar',
+data:{
+labels:['barter','stone_axes','animal_husbandry','flint_knapping','pottery','tool_making','basic_irrigation','communal_granary','oral_tradition','river_fishing','wheel','copper_mining','tools','early_admin','bronze_working'],
+datasets:[{label:'研究次数',data:[413,402,399,394,381,376,376,363,363,351,349,319,304,301,296],
+backgroundColor:'#6366f180',borderColor:'#6366f1',borderWidth:1}]},
+options:{indexAxis:'y',responsive:true,plugins:{title:{display:true,text:'科技研究排行 Top 15'},legend:{display:false}}}
+});
+
+// Events
+new Chart(document.getElementById('chartEvents'),{
+type:'bar',
+data:{
+labels:['大洪水:救援','丰收节:庆祝','好收成:存粮','冬备:鼓励','萨满:大仪式','节日:盛典','商队:贸易','观星:支持','蝗灾:灭虫','联姻:接受','时尚:跟风','建筑潮:支持','学术:赞助','黑曜石:贸易','灾害:救济'],
+datasets:[{label:'选择次数',data:[364,287,286,254,244,237,227,220,213,213,192,185,181,178,177],
+backgroundColor:'#f9731660',borderColor:'#f97316',borderWidth:1}]},
+options:{indexAxis:'y',responsive:true,plugins:{title:{display:true,text:'事件选项偏好 Top 15'},legend:{display:false}}}
+});
+
+// Rebellion
+const rebStrata=['伐木工','农民','矿工','失业者','工匠','商人','教士','抄写员','地主'];
+const rebUprising=[2436,2316,2051,0,1356,1131,1044,448,674];
+const rebBrewing=[543,685,591,1565,469,0,0,0,0];
+const rebPlotting=[506,680,626,888,837,524,493,0,0];
+new Chart(document.getElementById('chartRebellion'),{
+type:'bar',
+data:{
+labels:rebStrata,
+datasets:[
+{label:'起义(Uprising)',data:rebUprising,backgroundColor:'#ef444480'},
+{label:'酝酿(Brewing)',data:rebBrewing,backgroundColor:'#f9731660'},
+{label:'密谋(Plotting)',data:rebPlotting,backgroundColor:'#eab30850'},
+]},
+options:{responsive:true,plugins:{title:{display:true,text:'各阶层叛乱阶段分布'}},
+scales:{x:{stacked:true},y:{stacked:true}}}
+});
+
+// Nav highlight
+document.querySelectorAll('.nav a').forEach(a=>{
+a.addEventListener('click',function(){
+document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active'));
+this.classList.add('active');
+});});
+</script>
+</body>
+</html>
