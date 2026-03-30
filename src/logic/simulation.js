@@ -7240,9 +7240,10 @@ export const simulateTick = ({
                         });
                     }
 
-                    // 计算营业税成本（按营收比例）
+                    // 计算营业税成本（按营收比例，用上一tick市价估算营收）
                     const businessTaxMultiplier = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                    const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
+                    const estimatedRevenue = outputAmount * (priceMap[resource] || getBasePrice(resource));
+                    const businessTaxCost = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
 
                     // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
                     let ownerLivingCost = 0;
