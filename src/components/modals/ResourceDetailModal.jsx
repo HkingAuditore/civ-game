@@ -1350,28 +1350,30 @@ const ResourceDetailContent = ({
             baseSupplyTotal += baseAmount;
 
             // 建筑产出加成 - 使用加法叠加（与 simulation.js 一致）
-            // 现在直接存储加成百分比（如 0.25 = +25%）
             const techBuildingPct = sources.techBuildingBonus?.[building.id] || 0;
             const eventBuildingPct = sources.eventBuildingProduction?.[building.id] || 0;
             const techCategoryPct = sources.techCategoryBonus?.[building.cat] || 0;
             const eventCategoryPct = sources.eventBuildingProduction?.[building.cat] || 0;
+            // 政令/buff 全局加成（按建筑类别区分）
+            const industryBonusPct = building.cat === 'industry' ? (sources.industryBonus || 0) : 0;
+            const productionBonusPct = (building.cat === 'gather' || building.cat === 'civic') ? (sources.productionBonus || 0) : 0;
             // 加法叠加：所有百分比相加
-            const totalBonusPct = techBuildingPct + eventBuildingPct + techCategoryPct + eventCategoryPct;
+            const totalBonusPct = techBuildingPct + eventBuildingPct + techCategoryPct + eventCategoryPct + industryBonusPct + productionBonusPct;
             const buildingMultiplier = 1 + totalBonusPct;
 
             const theoreticalAmount = baseAmount * buildingMultiplier * resourceSupplyMultiplier;
-            // [修复] 使用实际产出数据，如果没有数据(undefined)才回退到理论值
-            // 当建筑因为某些原因（如业主财富不足）停产时，实际产出应显示为0或真实值，而非理论值
             const actualAmount = realProduction !== undefined ? realProduction : theoreticalAmount;
 
             actualSupplyTotal += actualAmount;
             theoreticalSupplyTotal += theoreticalAmount;
 
             const modList = [];
-            if (techBuildingPct !== 0) modList.push(`科技 +${(techBuildingPct * 100).toFixed(0)}%`);
-            if (eventBuildingPct !== 0) modList.push(`事件 +${(eventBuildingPct * 100).toFixed(0)}%`);
-            if (techCategoryPct !== 0) modList.push(`类别科技 +${(techCategoryPct * 100).toFixed(0)}%`);
-            if (eventCategoryPct !== 0) modList.push(`类别事件 +${(eventCategoryPct * 100).toFixed(0)}%`);
+            if (techBuildingPct !== 0) modList.push(`科技 ${techBuildingPct > 0 ? '+' : ''}${(techBuildingPct * 100).toFixed(0)}%`);
+            if (eventBuildingPct !== 0) modList.push(`事件 ${eventBuildingPct > 0 ? '+' : ''}${(eventBuildingPct * 100).toFixed(0)}%`);
+            if (techCategoryPct !== 0) modList.push(`类别科技 ${techCategoryPct > 0 ? '+' : ''}${(techCategoryPct * 100).toFixed(0)}%`);
+            if (eventCategoryPct !== 0) modList.push(`类别事件 ${eventCategoryPct > 0 ? '+' : ''}${(eventCategoryPct * 100).toFixed(0)}%`);
+            if (industryBonusPct !== 0) modList.push(`工业加成 ${industryBonusPct > 0 ? '+' : ''}${(industryBonusPct * 100).toFixed(0)}%`);
+            if (productionBonusPct !== 0) modList.push(`生产加成 ${productionBonusPct > 0 ? '+' : ''}${(productionBonusPct * 100).toFixed(0)}%`);
             // 战争减产：前线产出惩罚
             if (warProductionPenalty > 0.001) {
                 modList.push(`⚔️前线减产 -${(warProductionPenalty * 100).toFixed(0)}%`);

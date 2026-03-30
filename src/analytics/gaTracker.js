@@ -489,14 +489,16 @@ export function trackAIToAIPeace(nationA, nationB) {
 
 export function trackAINationSampling(nations) {
     if (!Array.isArray(nations)) return;
-    for (const n of nations) {
-        if (!n || !n.id || n.isRebelNation) continue;
+    const MAX_SAMPLE = 5;
+    const sorted = nations
+        .filter(n => n && n.id && !n.isRebelNation)
+        .sort((a, b) => (b.population || 0) - (a.population || 0))
+        .slice(0, MAX_SAMPLE);
+    for (const n of sorted) {
         const nid = sanitizeSegment(n.id);
         if (n.population !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_POP}:${nid}`, Math.round(n.population));
         if (n.wealth !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_WEALTH}:${nid}`, Math.round(n.wealth));
-        if (n.militaryStrength !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_MILITARY}:${nid}`, Math.round(n.militaryStrength * 100));
         if (n.relation !== undefined) trackDesign(`${GA_EVENTS.AI_NATION_RELATION}:${nid}`, Math.round(n.relation));
-        if (n.isAtWar) trackDesign(`${GA_EVENTS.AI_NATION_AT_WAR}:${nid}`, 1);
     }
 }
 

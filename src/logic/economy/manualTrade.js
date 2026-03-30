@@ -167,7 +167,10 @@ export const processManualTradeRoutes = ({
             }
 
             const shortageCap = Math.max(0, tradeStatus.shortageAmount || 0);
-            const exportCap = isForceSell ? mySurplus : Math.min(mySurplus, shortageCap);
+            // 强卖也受目标国经济规模约束，防止无限倾销
+            const targetEcoScale = Math.max(100, nation?.population ?? 500);
+            const forceSellCap = isForceSell ? Math.min(mySurplus, targetEcoScale * 0.03) : Math.min(mySurplus, shortageCap);
+            const exportCap = forceSellCap;
             const exportAmount = exportCap * TRADE_SPEED;
 
             if (exportAmount < MIN_TRADE_AMOUNT) {
@@ -216,7 +219,12 @@ export const processManualTradeRoutes = ({
 
             const normalImportCap = Math.max(0, tradeStatus.surplusAmount || 0);
             const forcedBaseline = Math.max(10, tradeStatus.target || 0);
-            const importCap = isForceBuy ? forcedBaseline : normalImportCap;
+            // 强制进口也受目标国库存和经济规模约束
+            const nationInventory = nation?.inventory?.[resource] ?? 0;
+            const nationWealth = nation?.wealth ?? 0;
+            const economyScale = Math.max(100, nation?.population ?? 500);
+            const forcedCap = isForceBuy ? Math.min(forcedBaseline, Math.max(5, nationInventory * 0.3), economyScale * 0.02) : normalImportCap;
+            const importCap = isForceBuy ? forcedCap : normalImportCap;
             const importAmount = importCap * TRADE_SPEED;
 
             if (importAmount < MIN_TRADE_AMOUNT) {

@@ -1075,18 +1075,54 @@ export const useGameActions = (gameState, addLog) => {
         const selected = option || {};
         trackEventChoice(eventId, selected.id || 0);
 
+        const effectSummary = [];
+
         if (selected.effects) {
+            const eff = filterEventEffects(selected.effects, epoch, techsUnlocked) || {};
             applyEventEffects(selected.effects);
+            // 收集确定效果摘要
+            if (eff.resources) {
+                Object.entries(eff.resources).forEach(([k, v]) => {
+                    if (typeof v === 'number' && v !== 0) {
+                        const name = RESOURCES[k]?.name || k;
+                        effectSummary.push(`${name} ${v > 0 ? '+' : ''}${v}`);
+                    }
+                });
+            }
+            if (eff.resourcePercent) {
+                Object.entries(eff.resourcePercent).forEach(([k, v]) => {
+                    if (typeof v === 'number' && v !== 0) {
+                        const name = RESOURCES[k]?.name || k;
+                        effectSummary.push(`${name} ${v > 0 ? '+' : ''}${(v * 100).toFixed(0)}%`);
+                    }
+                });
+            }
+            if (typeof eff.population === 'number' && eff.population !== 0) effectSummary.push(`人口 ${eff.population > 0 ? '+' : ''}${eff.population}`);
+            if (typeof eff.stability === 'number' && eff.stability !== 0) effectSummary.push(`稳定度 ${eff.stability > 0 ? '+' : ''}${eff.stability}`);
+            if (eff.approval) {
+                Object.entries(eff.approval).forEach(([k, v]) => {
+                    if (typeof v === 'number' && v !== 0) effectSummary.push(`${k}满意度 ${v > 0 ? '+' : ''}${v}`);
+                });
+            }
         }
 
         if (Array.isArray(selected.randomEffects)) {
             selected.randomEffects.forEach(effect => {
                 if (!effect || typeof effect !== 'object') return;
                 const chance = typeof effect.chance === 'number' ? effect.chance : 0;
+                const desc = effect.description || `概率事件(${(chance * 100).toFixed(0)}%)`;
                 if (Math.random() <= chance) {
                     applyEventEffects(effect.effects || {});
+                    effectSummary.push(`✓ ${desc} → 触发成功`);
+                } else {
+                    effectSummary.push(`✗ ${desc} → 未触发`);
                 }
             });
+        }
+
+        // 将效果摘要通过返回值传递给 App.jsx 的日志
+        if (effectSummary.length > 0) {
+            addLog(`📋 事件效果：${effectSummary.join('；')}`);
         }
 
         if (typeof selected.callback === 'function') {

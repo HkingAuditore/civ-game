@@ -4,8 +4,8 @@
 const API_URL = import.meta.env.VITE_ANALYTICS_API_URL;
 const API_KEY = import.meta.env.VITE_ANALYTICS_API_KEY;
 
-const FLUSH_INTERVAL_MS = 10_000;
-const FLUSH_THRESHOLD = 50;
+const FLUSH_INTERVAL_MS = 30_000;
+const FLUSH_THRESHOLD = 200;
 const USER_ID_KEY = 'civ_analytics_uid';
 
 // ── 匿名用户 ID ──
@@ -78,7 +78,7 @@ export function initCustomBackend({ difficulty = null, scenario = null } = {}) {
             difficulty: sessionDimensions.difficulty,
             scenario: sessionDimensions.scenario,
         });
-    }, 60_000);
+    }, 120_000);
 
     window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') flush();

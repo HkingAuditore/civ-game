@@ -839,8 +839,13 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     const businessTaxRate = 1.0;
     const businessTaxCost = businessTaxBase * businessTaxRate;
 
-    // 5. 总利润（扣除营业税）
-    const profit = outputValue - inputCost - wageCost - businessTaxCost - tariffCost;
+    // 5. 市场规模因子：小国市场无法支撑完全产出
+    const targetPopulation = targetNation?.population || 100;
+    const marketScaleFactor = Math.min(1.0, Math.max(0.05, Math.sqrt(targetPopulation / 5000)));
+
+    // 6. 总利润（扣除营业税，乘以市场规模因子）
+    const rawProfit = outputValue - inputCost - wageCost - businessTaxCost - tariffCost;
+    const profit = rawProfit * marketScaleFactor;
 
     return {
         outputValue,

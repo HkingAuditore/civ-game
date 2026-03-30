@@ -1119,7 +1119,8 @@ function GameApp({ gameState }) {
         ? taxes.breakdown.totalFiscalIncome
         : baseFiscalIncome * incomePercentMultiplier;
     const fiscalIncomeBonus = totalFiscalIncome - baseFiscalIncome;
-    const netSilverPerDay = taxes.total + fiscalIncomeBonus + tradeTax -
+    const buildingSilverIncome = gameState.stateBuildingSilverOutput || 0;
+    const netSilverPerDay = taxes.total + fiscalIncomeBonus + tradeTax + buildingSilverIncome -
         actualArmyUpkeep - playerInstallmentExpense - forcedSubsidyExpense - officialSalaryPerDay;
     const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
     const netChipClasses = netSilverPerDay >= 0
@@ -1406,7 +1407,7 @@ function GameApp({ gameState }) {
             </div>
             {/* 移动端游戏控制            {/* 移动端游戏控制 - 位于底部导航栏右上方，留有间距 */}
             <div className="lg:hidden fixed bottom-[68px] right-2 z-40 game-controls-landscape" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                <div className="scale-[0.9] origin-bottom-right">
+                <div className="origin-bottom-right">
                     <GameControls
                         isPaused={gameState.isPaused}
                         gameSpeed={gameState.gameSpeed}
@@ -1785,9 +1786,31 @@ function GameApp({ gameState }) {
                                                 // 官员系统 props
                                                 officials={gameState.officials}
                                                 candidates={gameState.officialCandidates}
-                                                capacity={Math.min(gameState.jobsAvailable?.official || 0, gameState.officialCapacity ?? 2)}
-                                                // [NEW] 传递详细容量信息用于显示
-                                                jobCapacity={gameState.jobsAvailable?.official || 0}
+                                                capacity={(() => {
+                                                    // 如果 simulation 尚未计算 jobsAvailable.official，从建筑配置直接计算兜底值
+                                                    let officialJobs = gameState.jobsAvailable?.official || 0;
+                                                    if (officialJobs === 0) {
+                                                        BUILDINGS.forEach(b => {
+                                                            const cnt = gameState.buildings?.[b.id] || 0;
+                                                            if (cnt > 0 && b.jobs?.official) {
+                                                                officialJobs += b.jobs.official * cnt;
+                                                            }
+                                                        });
+                                                    }
+                                                    return Math.min(officialJobs, gameState.officialCapacity ?? 2);
+                                                })()}
+                                                jobCapacity={(() => {
+                                                    let officialJobs = gameState.jobsAvailable?.official || 0;
+                                                    if (officialJobs === 0) {
+                                                        BUILDINGS.forEach(b => {
+                                                            const cnt = gameState.buildings?.[b.id] || 0;
+                                                            if (cnt > 0 && b.jobs?.official) {
+                                                                officialJobs += b.jobs.official * cnt;
+                                                            }
+                                                        });
+                                                    }
+                                                    return officialJobs;
+                                                })()}
                                                 maxCapacity={gameState.officialCapacity ?? 2}
 
                                                 lastSelectionDay={gameState.lastSelectionDay}
@@ -1942,6 +1965,8 @@ function GameApp({ gameState }) {
                                                         gameState.setResourceDetailView(key);
                                                     }
                                                 }}
+                                                // 事件效果
+                                                activeEventEffects={gameState.activeEventEffects}
                                                 // 日志
                                                 logs={deferredLogs}
                                             />

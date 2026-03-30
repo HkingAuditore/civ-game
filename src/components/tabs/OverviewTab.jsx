@@ -37,6 +37,8 @@ export const OverviewTab = React.memo(({
     market = {},
     epoch = 0,
     onResourceDetailClick,
+    // 事件效果
+    activeEventEffects = {},
     // 日志
     logs = [],
 }) => {
@@ -105,6 +107,61 @@ export const OverviewTab = React.memo(({
                     />
                 </div>
             </section>
+
+            {/* 当前事件效果 */}
+            {(() => {
+                const effectItems = [];
+                if (activeEventEffects?.approval?.length > 0) {
+                    activeEventEffects.approval.forEach((e, i) => {
+                        effectItems.push({ key: `approval-${i}`, label: `${e.stratum || '全体'}满意度`, value: e.currentValue, remaining: e.remainingDays });
+                    });
+                }
+                if (activeEventEffects?.stability?.length > 0) {
+                    activeEventEffects.stability.forEach((e, i) => {
+                        effectItems.push({ key: `stability-${i}`, label: '稳定度', value: e.currentValue, remaining: e.remainingDays });
+                    });
+                }
+                if (activeEventEffects?.resourceDemandMod) {
+                    Object.entries(activeEventEffects.resourceDemandMod).forEach(([res, e]) => {
+                        if (e?.currentValue) effectItems.push({ key: `resDemand-${res}`, label: `${res}需求`, value: e.currentValue, remaining: e.remainingDays });
+                    });
+                }
+                if (activeEventEffects?.buildingProductionMod) {
+                    Object.entries(activeEventEffects.buildingProductionMod).forEach(([cat, e]) => {
+                        if (e?.currentValue) effectItems.push({ key: `bldProd-${cat}`, label: `${cat}产出`, value: e.currentValue, remaining: e.remainingDays });
+                    });
+                }
+                if (activeEventEffects?.forcedSubsidy?.length > 0) {
+                    activeEventEffects.forcedSubsidy.forEach((e, i) => {
+                        effectItems.push({ key: `subsidy-${i}`, label: '强制补贴', value: e.currentValue || e.amount, remaining: e.remainingDays });
+                    });
+                }
+                if (effectItems.length === 0) return null;
+                return (
+                    <section className="glass-epic rounded-lg border border-ancient-gold/20 shadow-epic overflow-hidden">
+                        <div className="px-2 py-1 border-b border-ancient-gold/20 bg-gradient-to-r from-violet-500/10 to-transparent flex items-center gap-1.5">
+                            <Icon name="Clock" size={12} className="text-violet-400" />
+                            <span className="text-xs font-bold text-violet-400 font-decorative">当前事件效果</span>
+                            <span className="ml-auto text-xs text-gray-500">{effectItems.length} 项</span>
+                        </div>
+                        <div className="p-2 space-y-1">
+                            {effectItems.map(item => (
+                                <div key={item.key} className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-300">{item.label}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`font-mono font-semibold ${item.value > 0 ? 'text-green-300' : item.value < 0 ? 'text-red-300' : 'text-gray-400'}`}>
+                                            {item.value > 0 ? '+' : ''}{typeof item.value === 'number' && Math.abs(item.value) < 2 ? `${(item.value * 100).toFixed(0)}%` : item.value?.toFixed?.(1) ?? item.value}
+                                        </span>
+                                        {item.remaining != null && (
+                                            <span className="text-gray-500 text-[10px]">{item.remaining}天</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                );
+            })()}
 
             {/* 事件日志窗口 - 使用 glass-epic 风格，更紧凑 */}
             <section className="glass-epic rounded-lg border border-ancient-gold/20 shadow-epic overflow-hidden">

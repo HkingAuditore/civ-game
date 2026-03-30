@@ -3,10 +3,13 @@
 const DEFAULT_DEBUG_FLAGS = {
     console: false,
     event: false, // DO NOT ENABLE - causes lag
+    fiscal: false,
     gameLoop: false,
     mainThread: false,
+    perf: false,
     simulation: false,
     trade: false,
+    vassal: false,
     demands: false,
 };
 
