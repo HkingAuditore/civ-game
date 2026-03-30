@@ -4,9 +4,21 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.12',
+        version: '2.3.13',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            'APP 启动时自动清理旧版本 OTA 缓存，防止存储空间膨胀',
+        ],
+        changes: [
+            { type: 'improve', text: '新增 OTA 旧 bundle 自动清理：每次启动后识别当前使用的 bundle，删除所有非当前版本的旧包（每个约 29MB），频繁更新不再导致缓存持续增长。' },
+            { type: 'improve', text: 'Capacitor 配置补充 autoDeleteFailed 和 autoDeletePrevious，双重保障原生层也主动清理失败和过期的 bundle。' },
+        ],
+    },
+    {
+        version: '2.3.12',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '移除资源数值硬上限（1000兆），资源积累不再被人为封顶',
         ],
