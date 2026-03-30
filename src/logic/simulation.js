@@ -688,20 +688,16 @@ export const simulateTick = ({
         // Actually trackSilverChange is defined below. We will call it there.
     }
 
-    const SAFE_VALUE_CAP = 1e15;
-
     // Helper: modify res[resourceType] AND track the change in one call (for traceability)
     const applyResourceChange = (resourceType, amount, reason) => {
         if (amount === 0) return;
         if (!Number.isFinite(amount)) return;
-        const clamped = Math.max(-SAFE_VALUE_CAP, Math.min(SAFE_VALUE_CAP, amount));
-        const newVal = (res[resourceType] || 0) + clamped;
+        const newVal = (res[resourceType] || 0) + amount;
         // 银币可以为负（欠债），其他资源不可低于 0
-        const safeVal = Math.max(-SAFE_VALUE_CAP, Math.min(SAFE_VALUE_CAP, newVal));
-        res[resourceType] = resourceType === 'silver' ? safeVal : Math.max(0, safeVal);
-        trackResourceChange(resourceType, clamped, reason);
+        res[resourceType] = resourceType === 'silver' ? newVal : Math.max(0, newVal);
+        trackResourceChange(resourceType, amount, reason);
         if (resourceType === 'silver') {
-            trackSilverChange(clamped, reason);
+            trackSilverChange(amount, reason);
         }
     };
 
