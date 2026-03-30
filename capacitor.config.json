@@ -11,6 +11,8 @@
             "updateUrl": "https://civ-game-ota-1258335979.cos-website.ap-guangzhou.myqcloud.com/ota/production/updates.json",
             "statsUrl": "",
             "autoDeleteBundles": true,
+            "autoDeleteFailed": true,
+            "autoDeletePrevious": true,
             "resetWhenUpdate": false
         }
     }

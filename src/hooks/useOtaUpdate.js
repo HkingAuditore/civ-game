@@ -56,10 +56,40 @@ function showOtaToast(message, level = 'info', duration = TOAST_MS) {
 }
 
 /**
+ * 清理非当前使用的旧 OTA bundle，释放存储空间。
+ * 每个 bundle 约 29MB，频繁更新后旧包堆积会导致缓存膨胀。
+ */
+async function cleanupOldBundles(currentBundleId) {
+    try {
+        const { bundles } = await CapacitorUpdater.list();
+        if (!bundles || bundles.length === 0) return;
+
+        let cleaned = 0;
+        for (const bundle of bundles) {
+            if (bundle.id === currentBundleId) continue;
+            if (bundle.status === 'downloading') continue;
+            try {
+                await CapacitorUpdater.delete({ id: bundle.id });
+                cleaned++;
+                console.log('[OTA] 已删除旧 bundle:', bundle.id, bundle.version);
+            } catch (e) {
+                console.warn('[OTA] 删除旧 bundle 失败:', bundle.id, e);
+            }
+        }
+        if (cleaned > 0) {
+            console.log(`[OTA] 清理完成，共删除 ${cleaned} 个旧 bundle`);
+        }
+    } catch (e) {
+        console.warn('[OTA] cleanupOldBundles 失败:', e);
+    }
+}
+
+/**
  * OTA 热更新 Hook —— 手动 GET 模式。
  *
  * 由于 COS 静态托管不支持 POST，我们绕过 Capgo 的 autoUpdate，
  * 自行用 GET 拉取 updates.json，比较版本后调用插件 download/set API。
+ * 每次启动还会主动清理旧 bundle 以防缓存膨胀。
  */
 export function useOtaUpdate() {
     const hasRun = useRef(false);
@@ -82,15 +112,20 @@ export function useOtaUpdate() {
 
             if (cancelled) return;
 
-            // 2. 获取当前 bundle 版本
+            // 2. 获取当前 bundle 版本并清理旧 bundle
             let currentVersion = 'builtin';
+            let currentBundleId = null;
             try {
                 const current = await CapacitorUpdater.current();
                 currentVersion = current?.bundle?.version || 'builtin';
+                currentBundleId = current?.bundle?.id || null;
                 console.log('[OTA] 当前 bundle:', JSON.stringify(current?.bundle));
             } catch (e) {
                 console.warn('[OTA] current() failed:', e);
             }
+
+            // 启动时主动清理旧 bundle（不阻塞更新检查）
+            cleanupOldBundles(currentBundleId);
 
             // 3. GET 拉取 updates.json
             let serverData;
