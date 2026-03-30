@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES, STRATA } from '../../config';
+import { RESOURCES, STRATA, TAX_BASE_RATES } from '../../config';
 import { calculateSilverCost } from '../../utils/economy';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { BUILDING_UPGRADES, getUpgradeCost, getMaxUpgradeLevel, getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
@@ -157,10 +157,9 @@ const getRoleIncomesForConfig = (config, building, market, taxPolicies = {}) => 
         (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
     );
 
-    // 营业税
+    // 营业税（按营收比例）
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
-    const businessTaxBase = building.businessTaxBase ?? 0.1;
-    const businessTax = businessTaxBase * businessTaxMultiplier;
+    const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
 
     // 计算可用于支付工资的利润空间
     const valueAvailableForLabor = Math.max(0, outputValue - inputValue - businessTax);

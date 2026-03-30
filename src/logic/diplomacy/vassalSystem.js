@@ -1766,7 +1766,9 @@ export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, 
     // 检查关系要求（战争状态下通过战争分数判断）
     if (nation.isAtWar) {
         const baseScore = 800;
-        const requiredScore = vassalCount >= 3 ? baseScore + (vassalCount - 3) * 400 : baseScore;
+        const requiredScore = vassalCount < 3
+            ? baseScore
+            : Math.min(2500, baseScore + Math.floor(400 * Math.log2(vassalCount - 1)));
         if ((warScore || 0) < requiredScore) {
             return { canEstablish: false, reason: `战争分数不足（需要 ${requiredScore}）` };
         }

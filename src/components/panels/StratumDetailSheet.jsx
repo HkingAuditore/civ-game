@@ -1,6 +1,6 @@
 import React, { useState, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { STRATA, RESOURCES } from '../../config';
+import { STRATA, RESOURCES, TAX_BASE_RATES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
@@ -336,6 +336,11 @@ const StratumDetailSheetComponent = ({
     }
 
 
+    // 人头税 UI 用百分比，内部存系数
+    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+    const displayHeadPercent = headTaxMultiplier * headBaseRate * 100;
+    const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
+
     const handleDraftChange = (raw) => {
         setDraftMultiplier(raw);
     };
@@ -343,12 +348,13 @@ const StratumDetailSheetComponent = ({
     const commitDraft = () => {
         if (draftMultiplier === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftMultiplier);
-        const numeric = Number.isNaN(parsed) ? 1 : parsed; // 如果输入无效，重置为1
+        if (Number.isNaN(parsed)) { setDraftMultiplier(null); return; }
+        const multiplier = headPercentToMultiplier(parsed);
         onUpdateTaxPolicies(prev => ({
             ...prev,
             headTaxRates: {
                 ...(prev?.headTaxRates || {}),
-                [stratumKey]: numeric,
+                [stratumKey]: multiplier,
             },
         }));
         setDraftMultiplier(null);
@@ -607,20 +613,19 @@ const StratumDetailSheetComponent = ({
                             </h3>
                             <div className="grid grid-cols-2 gap-2 items-center">
                                 <div>
-                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">税率系数</div>
+                                    <div className="text-xs text-gray-400 mb-0.5 leading-none">税率 (%)</div>
                                     <div className="flex items-center gap-1">
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const currentValue = parseFloat(draftMultiplier ?? headTaxMultiplier);
-                                                const newValue = isNaN(currentValue) ? -1 : -currentValue;
-                                                handleDraftChange(String(newValue));
-                                                // 直接提交
+                                                const currentPct = parseFloat(draftMultiplier ?? displayHeadPercent);
+                                                const newPct = isNaN(currentPct) ? -displayHeadPercent : -currentPct;
+                                                const newMultiplier = headPercentToMultiplier(newPct);
                                                 onUpdateTaxPolicies(prev => ({
                                                     ...prev,
                                                     headTaxRates: {
                                                         ...(prev?.headTaxRates || {}),
-                                                        [stratumKey]: newValue,
+                                                        [stratumKey]: newMultiplier,
                                                     },
                                                 }));
                                                 setDraftMultiplier(null);
@@ -633,8 +638,8 @@ const StratumDetailSheetComponent = ({
                                         <input
                                             type="text"
                                             inputMode="decimal"
-                                            step="0.05"
-                                            value={draftMultiplier ?? headTaxMultiplier}
+                                            step="1"
+                                            value={draftMultiplier ?? (Number.isInteger(displayHeadPercent) ? displayHeadPercent : displayHeadPercent.toFixed(1))}
                                             onChange={(e) => handleDraftChange(e.target.value)}
                                             onBlur={commitDraft}
                                             onKeyDown={(e) => {
@@ -644,32 +649,31 @@ const StratumDetailSheetComponent = ({
                                                 }
                                             }}
                                             className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                            placeholder="税率系数"
+                                            placeholder="收入税率%"
                                         />
                                     </div>
                                 </div>
                                 <div>
                                     {(() => {
-                                        const taxBasePerCapita = (stratum.headTaxBase || 0.01) * headTaxMultiplier;
-                                        const displayedPerCapitaTax = taxBasePerCapita * (effectiveTaxModifier || 1);
+                                        const actualHeadTaxPerCapita = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
+                                        const isTax = displayHeadPercent > 0;
+                                        const isSubsidy = displayHeadPercent < 0;
                                         return (
                                             <>
-                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每人每日, 含税收修正)</div>
+                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">实际税额 (每人每日)</div>
                                                 <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
-                                                    <span className={`text-sm font-bold font-mono ${displayedPerCapitaTax > 0 ? 'text-yellow-300' : displayedPerCapitaTax < 0 ? 'text-green-300' : 'text-gray-400'
-                                                        }`}>
-                                                        {displayedPerCapitaTax < 0 ? '补贴 ' : ''}{Math.abs(displayedPerCapitaTax).toFixed(3)}
+                                                    <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidy ? 'text-green-300' : 'text-gray-400'}`}>
+                                                        {isSubsidy ? '补贴 ' : ''}{Math.abs(actualHeadTaxPerCapita).toFixed(3)}
                                                     </span>
                                                     <Icon
-                                                        name={displayedPerCapitaTax > 0 ? "TrendingUp" : displayedPerCapitaTax < 0 ? "TrendingDown" : "Coins"}
+                                                        name="Coins"
                                                         size={12}
-                                                        className={`inline-block ml-1 ${displayedPerCapitaTax > 0 ? 'text-yellow-400' : displayedPerCapitaTax < 0 ? 'text-green-400' : 'text-gray-500'
-                                                            }`}
+                                                        className={`inline-block ml-1 ${isTax ? 'text-yellow-400' : isSubsidy ? 'text-green-400' : 'text-gray-500'}`}
                                                     />
                                                 </div>
                                                 {Math.abs((effectiveTaxModifier || 1) - 1) > 0.001 && (
                                                     <div className="text-[11px] text-gray-500 mt-1 text-center">
-                                                        基准税额 {Math.abs(taxBasePerCapita).toFixed(3)} × 税收修正 {(effectiveTaxModifier || 1).toFixed(2)}
+                                                        含税收修正 ×{(effectiveTaxModifier || 1).toFixed(2)}
                                                     </div>
                                                 )}
                                             </>

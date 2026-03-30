@@ -4,7 +4,7 @@
  */
 
 import { STRATA } from '../config/strata';
-import { RESOURCES } from '../config';
+import { RESOURCES, TAX_BASE_RATES } from '../config';
 import { debugLog } from '../utils/debugFlags';
 import { trackDemandGenerate, trackDemandComplete, trackDemandFail } from '../analytics/gaTracker';
 
@@ -196,8 +196,12 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     const headTaxBase = stratum?.headTaxBase ?? 0;
     const headTaxMultiplier = context.taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
     const effectiveTaxModifier = context.effectiveTaxModifier ?? 1;
+    const stratumWage = context.market?.wages?.[stratumKey];
+    const headIncomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
+        ? stratumWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+        : headTaxBase;
 
-    const plannedHeadTaxPerCapita = headTaxBase * headTaxMultiplier * effectiveTaxModifier;
+    const plannedHeadTaxPerCapita = headIncomeBase * headTaxMultiplier * effectiveTaxModifier;
 
     const wealthTotal = context.classWealth?.[stratumKey] ?? Infinity;
     const maxPerCapitaTax = Number.isFinite(wealthTotal)

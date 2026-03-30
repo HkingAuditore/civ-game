@@ -3,7 +3,7 @@
 // 基于《叛乱与阶层机制改进方案V3》
 
 import { STRATA } from '../config/strata';
-import { RESOURCES } from '../config';
+import { RESOURCES, TAX_BASE_RATES } from '../config';
 import { REBELLION_PHASE } from '../config/events/rebellionEvents';
 import { PASSIVE_DEMAND_TYPES } from './demands';
 import { trackOrganizationPhase, trackRebellionCoalition } from '../analytics/gaTracker';
@@ -285,7 +285,11 @@ const buildDriverContext = (stratumKey, {
     const expensePerCapita = expensePerCapitaRaw > 0 ? expensePerCapitaRaw / population : 0;
     const headTaxBase = stratum.headTaxBase ?? 0;
     const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
-    const headTaxPerCapita = headTaxBase * headTaxRate;
+    const stratumWage = market?.wages?.[stratumKey];
+    const headIncomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
+        ? stratumWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+        : headTaxBase;
+    const headTaxPerCapita = headIncomeBase * headTaxRate;
     const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
     let tradeTaxPerCapita = 0;
     basicNeedsKeys.forEach(resource => {

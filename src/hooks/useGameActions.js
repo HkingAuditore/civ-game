@@ -99,7 +99,7 @@ import { calculateReputationChange, calculateNaturalRecovery } from '../config/r
 import { BUILDING_CHAINS } from '../config/buildingChains';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
 import { IDEOLOGY_SCORE_TRIGGERS } from '../config/ideologies';
-import { getEpochTechRequirementStatus } from '../utils/epochUpgrade';
+import { getEpochTechRequirementStatus, getEpochScaleMultiplier } from '../utils/epochUpgrade';
 
 const getCompletedChainIds = (buildingState = {}) => {
     if (!BUILDING_CHAINS || typeof BUILDING_CHAINS !== 'object') return [];
@@ -1354,17 +1354,17 @@ export const useGameActions = (gameState, addLog) => {
         if (nextEpoch.req.culture && resources.culture < nextEpoch.req.culture) return false;
         if (!techRequirement.isTechRequirementMet) return false;
 
-        // 检查升级成本
+        // 检查升级成本（含规模缩放）
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
+        const scaleMultiplier = getEpochScaleMultiplier(population, epoch);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0)) * scaleMultiplier;
 
         for (let k in nextEpoch.cost) {
-            if (k === 'silver') continue; // silver checked as part of silverCost below
+            if (k === 'silver') continue;
             const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
             if ((resources[k] || 0) < cost) return false;
         }
 
-        // 检查银币成本: direct silver + non-silver materials at market price
         let silverCost = Math.ceil((nextEpoch.cost.silver || 0) * techCostMultiplier);
         Object.entries(nextEpoch.cost).forEach(([resource, amount]) => {
             if (resource === 'silver') return;
@@ -1391,9 +1391,9 @@ export const useGameActions = (gameState, addLog) => {
         const newRes = { ...latestResources };
 
         const difficulty = gameState.difficulty || 'normal';
-        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0));
+        const scaleMultiplier = getEpochScaleMultiplier(population, epoch);
+        const techCostMultiplier = getTechCostMultiplier(difficulty) * Math.max(0.5, 1 + (modifiers?.ideologyRuleMods?.techCostMod || 0)) * scaleMultiplier;
 
-        // [FIX] 银币成本: 直接银币 + 非银币材料的市场价折算
         let silverCost = Math.ceil((nextEpoch.cost.silver || 0) * techCostMultiplier);
         Object.entries(nextEpoch.cost).forEach(([resource, amount]) => {
             if (resource === 'silver') return;

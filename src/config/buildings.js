@@ -421,6 +421,22 @@ export const BUILDINGS = [
     },
 
     {
+        id: 'elder_altar',
+        name: "长者祭坛",
+        desc: "部族长者主持祭祀仪式，传承口述历史与传统习俗。",
+        baseCost: { stone: 60, wood: 40 },
+        input: { food: 0.3 },
+        output: { culture: 2 },
+        jobs: { cleric: 2, peasant: 1 },
+        owner: 'cleric',
+        epoch: 1,
+        cat: 'civic',
+        businessTaxBase: 0.05,
+        requiresTech: 'oral_tradition',
+        visual: { icon: 'Flame', color: 'bg-purple-900', text: 'text-purple-200' }
+    },
+
+    {
         id: 'town_hall',
         name: "市政厅",
         desc: "官员办公地，提供官员岗位，需要少量维护。",

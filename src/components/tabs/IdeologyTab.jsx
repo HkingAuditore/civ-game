@@ -67,9 +67,19 @@ function formatSynergyEffects(effects = {}) {
 /**
  * 联动效果展示条
  */
+const MECHANIC_LABELS = {
+    auto_build: m => `自动建造 ${m.buildingId || ''}（每${m.intervalDays || '?'}天）`,
+    resource_echo: m => `${m.sourceResource || '?'} → ${m.echoResource || '?'}（${((m.ratio || 0) * 100).toFixed(1)}%回声）`,
+    crisis_immunity: m => `免疫: ${m.immuneTo === 'on_stability_crisis' ? '稳定度危机' : (m.immuneTo || '?')}`,
+    epoch_rush: m => `时代升级费用 -${((m.costReduction || 0) * 100).toFixed(0)}%`,
+};
+
 const SynergyBar = ({ synergy, isActive }) => {
     const effectText = formatSynergyEffects(synergy.effects);
     const requiredNames = synergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ');
+    const mechanicLabel = synergy.mechanicEffect
+        ? (MECHANIC_LABELS[synergy.mechanicEffect.type]?.(synergy.mechanicEffect) || synergy.mechanicEffect.type)
+        : null;
     return (
         <div className={`px-2 py-1.5 rounded-lg border text-xs transition-all ${
             isActive
@@ -84,12 +94,25 @@ const SynergyBar = ({ synergy, isActive }) => {
                     : <span className="text-gray-500 text-[10px]">需要: {requiredNames}</span>
                 }
             </div>
-            {/* 效果详情 */}
+            {synergy.desc && (
+                <div className={`mt-0.5 ml-5 text-[10px] italic ${
+                    isActive ? 'text-yellow-200/60' : 'text-gray-600'
+                }`}>
+                    {synergy.desc}
+                </div>
+            )}
             {effectText && (
                 <div className={`mt-0.5 ml-5 text-[10px] ${
                     isActive ? 'text-yellow-300/80' : 'text-gray-600'
                 }`}>
                     {effectText}
+                </div>
+            )}
+            {mechanicLabel && (
+                <div className={`mt-0.5 ml-5 text-[10px] ${
+                    isActive ? 'text-amber-400/90' : 'text-gray-600'
+                }`}>
+                    ⚙ {mechanicLabel}
                 </div>
             )}
         </div>
@@ -116,7 +139,13 @@ const AntiSynergyBar = ({ antiSynergy, isActive }) => {
                     : <span className="text-gray-500 text-[10px]">冲突: {requiredNames}</span>
                 }
             </div>
-            {/* 惩罚效果详情 */}
+            {antiSynergy.desc && (
+                <div className={`mt-0.5 ml-5 text-[10px] italic ${
+                    isActive ? 'text-red-200/60' : 'text-gray-600'
+                }`}>
+                    {antiSynergy.desc}
+                </div>
+            )}
             {effectText && (
                 <div className={`mt-0.5 ml-5 text-[10px] ${
                     isActive ? 'text-red-300/80' : 'text-gray-600'

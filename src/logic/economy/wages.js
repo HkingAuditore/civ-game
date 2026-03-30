@@ -3,7 +3,7 @@
  * Handles wage estimation, living cost computation, and related economic calculations
  */
 
-import { STRATA, RESOURCES, ECONOMIC_INFLUENCE } from '../../config';
+import { STRATA, RESOURCES, ECONOMIC_INFLUENCE, TAX_BASE_RATES } from '../../config';
 import { getHeadTaxRate } from './taxes';
 import { PRICE_FLOOR, BASE_WAGE_REFERENCE } from '../utils/constants';
 import { getBasePrice } from '../utils/helpers';
@@ -18,7 +18,8 @@ import { getBasePrice } from '../utils/helpers';
 export const computeLivingCosts = (
     priceMap = {},
     headTaxRates = {},
-    resourceTaxRates = {}
+    resourceTaxRates = {},
+    previousWages = {}
 ) => {
     const breakdown = {};
     Object.entries(STRATA).forEach(([key, def]) => {
@@ -36,11 +37,13 @@ export const computeLivingCosts = (
             needsCost += perCapita * price;
             taxCost += perCapita * price * taxRate;
         });
-        // [FIX] 使用与 collectHeadTax 一致的线性公式：headBase * headRate
-        // 之前用饱和曲线导致高税率时感知成本远低于实际征收，百姓"不知道税重"
         const headBase = Math.max(0, def.headTaxBase ?? 0);
         const headRate = Math.max(0, getHeadTaxRate(key, headTaxRates));
-        taxCost += headBase * headRate;
+        const prevWage = previousWages[key];
+        const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)
+            ? prevWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+            : headBase;
+        taxCost += incomeBase * headRate;
         breakdown[key] = {
             needsCost: Number.isFinite(needsCost) ? needsCost : 0,
             taxCost: Number.isFinite(taxCost) ? taxCost : 0,

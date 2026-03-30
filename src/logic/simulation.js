@@ -27,7 +27,7 @@ import {
 import { getPolityEffects } from '../config/polityEffects';
 import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateVassalPolicyReputationChange } from '../config/reputationSystem';
 import { aggregateWarDamagedBuildings, calculateMilitaryIndustryBoost, calculateWartimeTradeDisruption } from './diplomacy/warEconomy';
-import { WAR_ECONOMY } from '../config/gameConstants';
+import { WAR_ECONOMY, TAX_BASE_RATES } from '../config/gameConstants';
 import { applyIdeologyEffects, evaluateTriggerEffects, evaluateSynergyEffects, evaluateAntiSynergyEffects, applyConverters, applyRuleMods, mergeRuleMods } from './ideology/ideologyEffects';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from './ideology/ideologyEventBus';
 import { buildIdeologyScalingContext, scaleLegacyMilestoneThreshold } from './ideology/ideologyScaling.js';
@@ -829,7 +829,8 @@ export const simulateTick = ({
     const headTaxRates = policies.headTaxRates || {};
     const resourceTaxRates = policies.resourceTaxRates || {};
     const businessTaxRates = policies.businessTaxRates || {};
-    const livingCostBreakdown = computeLivingCosts(priceMap, headTaxRates, resourceTaxRates);
+    const previousWages = market?.wages || {};
+    const livingCostBreakdown = computeLivingCosts(priceMap, headTaxRates, resourceTaxRates, previousWages);
     const priceLivingCosts = buildLivingCostMap(
         livingCostBreakdown,
         ECONOMIC_INFLUENCE?.price || {}
@@ -838,9 +839,6 @@ export const simulateTick = ({
         livingCostBreakdown,
         ECONOMIC_INFLUENCE?.wage || {}
     );
-    // 注意：不再在此处全局解构 market 参数，而是在价格计算循环中动态获?
-    // 这样可以支持每个资源使用不同的经济参数配?
-    const previousWages = market?.wages || {};
     const getLivingCostFloor = (role) => {
         const base = wageLivingCosts?.[role];
         if (!Number.isFinite(base) || base <= 0) {
@@ -2115,15 +2113,16 @@ export const simulateTick = ({
                 });
 
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
-                const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
-                const businessTaxBase = building.businessTaxBase ?? 0.1;
+                const ownerWage = previousWages[role];
+                const ownerIncomeBase = (Number.isFinite(ownerWage) && ownerWage > 0)
+                    ? ownerWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+                    : headBase;
+                const headTaxCost = ownerIncomeBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
-                const businessTaxCost = businessTaxBase * businessTaxRate;
-                // 如果是补贴（负数），实际到账金额受税收效率影?
+                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
-                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影?
-                    : businessTaxCost;                        // 正税全额支付
+                    ? businessTaxCost * effectiveEfficiency
+                    : businessTaxCost;
 
                 const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
@@ -2326,7 +2325,11 @@ export const simulateTick = ({
         }
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-        const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
+        const stratumWage = previousWages[key];
+        const incomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
+            ? stratumWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+            : headBase;
+        const plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
         const available = Math.max(0, wealth[key] || 0);
         const maxPerCapitaTax = available / Math.max(1, count);
         const effectivePerCapitaTax = plannedPerCapitaTax >= 0
@@ -2757,18 +2760,11 @@ export const simulateTick = ({
         const wageCostPerMultiplier = baseWageCostPerMultiplier * wagePressure;
         const estimatedWageCost = wageCostPerMultiplier * simTargetMultiplier;
 
-        // 预估营业税成?
-        // 军事类建筑不收营业税
-        // 居住类建筑（无owner且产出maxPop的civic建筑）不收营业税
+        // 营业税（按营收比例征收）
         const isHousingBuilding = b.cat === 'civic' && !b.owner && b.output?.maxPop > 0;
         const isMilitaryBuilding = b.cat === 'military';
-        // 营业税额 = 建筑基准税额 × 税率系数
-        // businessTaxBase 默认为0.1，税率系数由玩家设置（默认1）
-        const businessTaxBase = b.businessTaxBase ?? 0.1;
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
-        const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
-        // [FIX] 营业税只与建筑是否在运营相关（有工人在岗），与产量无?
-        // 使用 staffingRatio 确保预估和实际征收逻辑一?
+        const businessTaxPerBuilding = Math.max(0, outputValuePerMultiplier) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
         const effectiveStaffingRatio = staffingRatio || 0;
         const estimatedBusinessTax = businessTaxPerBuilding * count * effectiveStaffingRatio;
 
@@ -3374,10 +3370,8 @@ export const simulateTick = ({
             }
         }
 
-        // 营业税收取：每次建筑产出时收取固定银币?
-        // businessTaxPerBuilding 已在上面声明，直接使?
-        // 营业税只与建筑是否在运营相关（有工人在岗），与产量无?
-        // 使用 staffingRatio 确保只对有工人的建筑征税/发补?
+        // 营业税收取：按营收比例，每次建筑产出时扣除
+        // 使用 staffingRatio 确保只对有工人的建筑征税/发补贴
         // 空置建筑（staffingRatio=0）不产生税收/补贴
         if (businessTaxPerBuilding !== 0 && count > 0) {
             const effectiveStaffingRatio = staffingRatio || 0;
@@ -4467,10 +4461,14 @@ export const simulateTick = ({
         // [DEBUG] 追踪财富变化 - 商品消费后（人头税之前）
         const debugAfterGoodsConsumption = currentWealth;
 
-        // 人头税：官员拥有独立财富，因此在此单独结?
+        // 人头税：官员拥有独立财富，因此在此单独结算（按收入比例）
         const headRate = getHeadTaxRate('official');
         const headBase = STRATA.official?.headTaxBase ?? 0.01;
-        const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
+        const officialWage = previousWages['official'];
+        const officialIncomeBase = (Number.isFinite(officialWage) && officialWage > 0)
+            ? officialWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+            : headBase;
+        const plannedPerCapitaTax = officialIncomeBase * headRate * effectiveTaxModifier;
         if (plannedPerCapitaTax !== 0) {
             if (plannedPerCapitaTax > 0) {
                 const taxPaid = Math.min(currentWealth, plannedPerCapitaTax);
@@ -4703,7 +4701,8 @@ export const simulateTick = ({
                 builds,
                 difficulty,
                 epoch,
-                techsUnlocked
+                techsUnlocked,
+                buildingStaffingRatios
             );
         }
 
@@ -7241,12 +7240,11 @@ export const simulateTick = ({
                         });
                     }
 
-                    // 计算营业税成?
+                    // 计算营业税成本（按营收比例）
                     const businessTaxMultiplier = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                    const businessTaxBase = building.businessTaxBase ?? 0.1;
-                    const businessTaxCost = businessTaxBase * businessTaxMultiplier;
+                    const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxMultiplier;
 
-                    // 计算业主生活需求成?- 使用升级后的 jobs 中的 owner 数量
+                    // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
                     let ownerLivingCost = 0;
                     if (ownerKey) {
                         const ownerLivingCostBase = resourceSpecificWageLivingCosts[ownerKey] || 0;
@@ -7693,19 +7691,19 @@ export const simulateTick = ({
                     wageCost += avgPaidWage * slots;
                 });
 
-                // 计算税费成本（人头税 + 营业?补贴?
+                // 计算税费成本（人头税按收入比例 + 营业税按利润比例）
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
-                const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
-                const businessTaxBase = building.businessTaxBase ?? 0.1;
+                const roleWageEst = updatedWages?.[role] ?? market?.wages?.[role];
+                const roleIncomeBase = (Number.isFinite(roleWageEst) && roleWageEst > 0)
+                    ? roleWageEst * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+                    : headBase;
+                const headTaxCost = roleIncomeBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                // [FIX] 营业税可以是负数（补贴），负数时应该增加收入
-                const businessTaxCost = businessTaxBase * businessTaxRate;
-                // 如果是补贴（负数），实际到账金额受税收效率影?
+                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.08) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
-                    ? businessTaxCost * effectiveEfficiency  // 补贴受效率影?
-                    : businessTaxCost;                        // 正税全额支付
+                    ? businessTaxCost * effectiveEfficiency
+                    : businessTaxCost;
 
-                // 业主净收入 = 产出 - 原材?- 雇员工资 - 税费（补贴为负，增加收入?
                 const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
 
@@ -7751,9 +7749,13 @@ export const simulateTick = ({
                     }
                 }
 
-                // 计算税后工资
-                const headBase = STRATA[role]?.headTaxBase ?? 0.01;
-                const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
+                // 计算税后工资（按收入比例）
+                const headBaseFb = STRATA[role]?.headTaxBase ?? 0.01;
+                const wageForTax = estimatedWage > 0 ? estimatedWage : (previousWages[role] || 0);
+                const headIncBase = (Number.isFinite(wageForTax) && wageForTax > 0)
+                    ? wageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+                    : headBaseFb;
+                const taxCost = headIncBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const netWage = estimatedWage - taxCost;
 
                 employeeWage += netWage * roleSlots * count;
@@ -7794,8 +7796,12 @@ export const simulateTick = ({
         const netIncome = totalIncome - totalExpense + capitalOutlayAdjustment;
         const netIncomePerCapita = netIncome / Math.max(1, pop);
         const roleWage = updatedWages[role] || getExpectedWage(role);
-        const headTaxBase = STRATA[role]?.headTaxBase ?? 0.01;
-        const taxCostPerCapita = headTaxBase * getHeadTaxRate(role) * effectiveTaxModifier;
+        const headTaxFallback = STRATA[role]?.headTaxBase ?? 0.01;
+        const roleWageForTax = updatedWages[role] || getExpectedWage(role);
+        const headIncomeBase = (Number.isFinite(roleWageForTax) && roleWageForTax > 0)
+            ? roleWageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
+            : headTaxFallback;
+        const taxCostPerCapita = headIncomeBase * getHeadTaxRate(role) * effectiveTaxModifier;
         const disposableWage = roleWage - taxCostPerCapita;
         const lastTickIncome = getLastTickNetIncomePerCapita(role);
         const effectivePerCapDelta = role === 'merchant' ? netIncomePerCapita : perCapWealthDelta;
