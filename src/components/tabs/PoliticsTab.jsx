@@ -412,6 +412,7 @@ const PoliticsTabComponent = ({
     const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
 
     const handleHeadDraftChange = (key, raw) => setHeadDrafts(prev => ({ ...prev, [key]: raw }));
+    const maxHeadPercent = (TAX_LIMITS?.MAX_HEAD_TAX || 100) * headBaseRate * 100;
     const commitHeadDraft = (key) => {
         if (headDrafts[key] === undefined) return;
         const parsed = parseFloat(headDrafts[key]);
@@ -422,7 +423,8 @@ const PoliticsTabComponent = ({
         if (isCurrentSubsidy) {
             storeValue = -(Math.max(0, Math.abs(parsed)));
         } else {
-            storeValue = headPercentToMultiplier(Math.max(0, parsed));
+            const clampedPct = Math.min(Math.max(0, parsed), maxHeadPercent);
+            storeValue = headPercentToMultiplier(clampedPct);
         }
         onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates), [key]: storeValue } }));
         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });

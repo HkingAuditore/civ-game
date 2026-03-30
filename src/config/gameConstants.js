@@ -1121,9 +1121,9 @@ export const AI_WAR_DECISION = {
 };
 
 export const TAX_LIMITS = {
-    MAX_HEAD_TAX: 1000000,      // 人头税系数上限
-    MAX_RESOURCE_TAX: 5.0,    // 交易税率上限 (500%)
-    MAX_BUSINESS_TAX: 10000,   // 营业税系数上限，防止极端负税率导致补贴爆炸
+    MAX_HEAD_TAX: 100,          // 人头税系数上限 → UI 1000%
+    MAX_RESOURCE_TAX: 5.0,      // 交易税率上限 (500%)
+    MAX_BUSINESS_TAX: 125,      // 营业税系数上限 → UI 1000%
 };
 
 export const TAX_BASE_RATES = {
