@@ -2326,9 +2326,15 @@ export const simulateTick = ({
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
         const stratumWage = previousWages[key];
-        const incomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
-            ? stratumWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
-            : headBase;
+        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+        let incomeBase;
+        if (Number.isFinite(stratumWage) && stratumWage > 0) {
+            incomeBase = stratumWage * taxRatio;
+        } else if (headRate < 0 && defaultWageEstimate > 0) {
+            incomeBase = defaultWageEstimate * taxRatio;
+        } else {
+            incomeBase = headBase;
+        }
         const plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
         const available = Math.max(0, wealth[key] || 0);
         const maxPerCapitaTax = available / Math.max(1, count);
