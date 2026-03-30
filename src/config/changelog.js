@@ -4,9 +4,20 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.11',
+        version: '2.3.12',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '移除资源数值硬上限（1000兆），资源积累不再被人为封顶',
+        ],
+        changes: [
+            { type: 'fix', text: '移除 simulation 中 SAFE_VALUE_CAP (1e15) 对资源总量的硬性钳制。此前资源通过 applyResourceChange 路径变动时，单次增量和累计总量均被限制在 ±1e15（1000兆），后期高产能经济体资源会卡在上限无法增长。现在仅保留 NaN/Infinity 防护，不再设置数值天花板。' },
+        ],
+    },
+    {
+        version: '2.3.11',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '营业税补贴改为每栋固定金额，告别"按比例补贴越亏越补"的怪圈',
             '修复营业税正税金额翻倍 bug 与多个事件效果崩溃',
