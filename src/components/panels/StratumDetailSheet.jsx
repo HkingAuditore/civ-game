@@ -1,6 +1,6 @@
 import React, { useState, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { STRATA, RESOURCES, TAX_BASE_RATES } from '../../config';
+import { STRATA, RESOURCES, TAX_BASE_RATES, TAX_LIMITS } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
@@ -351,6 +351,7 @@ const StratumDetailSheetComponent = ({
         setDraftMultiplier(raw);
     };
 
+    const maxHeadPercent = (TAX_LIMITS?.MAX_HEAD_TAX || 100) * headBaseRate * 100;
     const commitDraft = () => {
         if (draftMultiplier === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftMultiplier);
@@ -359,7 +360,8 @@ const StratumDetailSheetComponent = ({
         if (isSubsidyMode) {
             storeValue = -(Math.max(0, Math.abs(parsed)));
         } else {
-            storeValue = headPercentToMultiplier(Math.max(0, parsed));
+            const clampedPct = Math.min(Math.max(0, parsed), maxHeadPercent);
+            storeValue = headPercentToMultiplier(clampedPct);
         }
         onUpdateTaxPolicies(prev => ({
             ...prev,
