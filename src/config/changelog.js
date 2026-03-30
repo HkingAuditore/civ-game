@@ -4,15 +4,22 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.5',
+        version: '2.3.6',
         date: '2026-03-30',
         isLatest: true,
         highlights: [
-            '修复升级时代界面成本显示不含人口规模系数导致"条件全满却无法升级"的问题',
+            '修复人头税补贴金额在阶层详情中显示为 0 的问题',
+            '修复升级时代界面成本不含人口规模系数的问题',
         ],
         changes: [
+            { type: 'fix', text: '阶层详情面板的补贴金额不再显示 0.000——新增 headTaxSubsidy 数据追踪，UI 在补贴模式下正确读取实际发放金额。' },
             { type: 'fix', text: '时代升级成本 UI 现已同步人口规模缩放系数，显示的成本与实际检查完全一致，不再出现"条件全绿却无法升级"的困惑。' },
         ],
+    },
+    {
+        version: '2.3.5',
+        date: '2026-03-30',
+        isLatest: false,
     },
     {
         version: '2.3.4',
