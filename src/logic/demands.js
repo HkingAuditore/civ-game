@@ -197,9 +197,18 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     const headTaxMultiplier = context.taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
     const effectiveTaxModifier = context.effectiveTaxModifier ?? 1;
     const stratumWage = context.market?.wages?.[stratumKey];
-    const headIncomeBase = (Number.isFinite(stratumWage) && stratumWage > 0)
-        ? stratumWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10)
-        : headTaxBase;
+    const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.10;
+    let headIncomeBase;
+    if (Number.isFinite(stratumWage) && stratumWage > 0) {
+        headIncomeBase = stratumWage * taxRatio;
+    } else if (headTaxMultiplier < 0) {
+        const allWages = context.market?.wages || {};
+        const wVals = Object.values(allWages).filter(w => Number.isFinite(w) && w > 0);
+        const avgW = wVals.length > 0 ? wVals.reduce((s, w) => s + w, 0) / wVals.length : 0;
+        headIncomeBase = avgW > 0 ? avgW * taxRatio : headTaxBase;
+    } else {
+        headIncomeBase = headTaxBase;
+    }
 
     const plannedHeadTaxPerCapita = headIncomeBase * headTaxMultiplier * effectiveTaxModifier;
 
