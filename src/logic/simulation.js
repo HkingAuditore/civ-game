@@ -606,6 +606,8 @@ export const simulateTick = ({
     startTickBudget();
 
     const res = { ...resources };
+    const _resSilverAtSpread = res.silver || 0; // [DIAG] immediately after spread copy
+    const _earlyStartingSilver = res.silver || 0; // [FIX] capture before any modifications
     const getSlice = (list, slices) => {
         if (!Array.isArray(list) || list.length === 0) return [];
         if (!slices || slices <= 1 || list.length <= slices) return list;
@@ -761,7 +763,24 @@ export const simulateTick = ({
         }
     };
 
-    const startingSilver = res.silver || 0;
+    const _resSilverAfterCopy = res.silver || 0; // [DIAG] right after trade route deltas
+    const startingSilver = _earlyStartingSilver; // [FIX] use pre-modification baseline
+
+    // [DIAGNOSTIC] Silver audit checkpoint helper
+    let _lastCheckpointSilver = res.silver || 0;
+    let _lastCheckpointAudit = Array.from(silverChangeTotals.values()).reduce((s, v) => s + v, 0);
+    const _silverCheckpoint = (phase) => {
+        const curSilver = res.silver || 0;
+        const auditSum = Array.from(silverChangeTotals.values()).reduce((s, v) => s + v, 0);
+        const silverDelta = curSilver - _lastCheckpointSilver;
+        const auditDelta = auditSum - _lastCheckpointAudit;
+        const phaseGap = silverDelta - auditDelta;
+        if (Math.abs(phaseGap) > 0.1) {
+            console.warn(`🟡 [SIM检查点:${phase}] 阶段差异: ${phaseGap.toFixed(2)} | silver变化: ${silverDelta.toFixed(2)} | 审计变化: ${auditDelta.toFixed(2)}`);
+        }
+        _lastCheckpointSilver = curSilver;
+        _lastCheckpointAudit = auditSum;
+    };
 
     // === Process Overseas & Foreign Investments (Worker Side) ===
     let updatedOverseasInvestments = [...overseasInvestments];
@@ -3428,6 +3447,7 @@ export const simulateTick = ({
     });
     perfEnd('passiveGains');
     perfEnd('productionLoop');
+    _silverCheckpoint('productionLoop');
 
     // ========== 人头税收取（移到 productionLoop 之后，保证基于本 tick 实际收入） ==========
     // [FIX] 保存税前存款快照，用于后续 TaxShock 计算
@@ -3490,6 +3510,7 @@ export const simulateTick = ({
         }
     });
     perfEnd('headTax');
+    _silverCheckpoint('headTax');
 
     // === 新军费计算系?===
     // [FIX] 合并散兵(army)和军?militaryCorps)内的所有单位，统一计算军饷
@@ -3697,6 +3718,7 @@ export const simulateTick = ({
             }
         }
         perfEnd('armyMaintenance');
+        _silverCheckpoint('armyMaintenance');
     }
 
     // console.log('[TICK] Production loop completed.'); // Commented for performance
@@ -4076,6 +4098,7 @@ export const simulateTick = ({
         // logs.push('劳动力因需求未满足而效率下降');
     }
     perfEnd('needsConsumption');
+    _silverCheckpoint('needsConsumption');
 
     // Decree approval modifiers now come from `activeDecrees` (timed system)
     const decreesFromActiveForApproval = activeDecrees
@@ -5054,6 +5077,7 @@ export const simulateTick = ({
     roleLivingExpense.official = roleExpense.official; // Capture all official living expenses (Head Tax + Consumption)
     roleLaborIncome.official = totalOfficialLaborIncome;
     perfEnd('officialsSim');
+    _silverCheckpoint('officialsSim');
     } else {
     // [FIX] When officialSim is skipped, restore wealth.official from individual officials
     // wealth.official was cleared to 0 at init; without this, classWealth.official stays 0 in UI
@@ -5517,6 +5541,7 @@ export const simulateTick = ({
     }
     perfEnd('socialEconomy');
     perfEnd('approvalCalc');
+    _silverCheckpoint('socialEconomy+approvalCalc');
 
 
     let nextPopulation = population;
@@ -6248,6 +6273,7 @@ export const simulateTick = ({
         return next;
     });
     perfEnd('aiNationUpdate');
+    _silverCheckpoint('aiNationUpdate');
 
 
     // REFACTORED: Using module function for foreign relations initialization
@@ -6848,6 +6874,7 @@ export const simulateTick = ({
         updatedForeignInvestments = annexedCapitalMigration.foreignInvestments;
     }
     perfEnd('diplomacyAI');
+    _silverCheckpoint('diplomacyAI');
 
     // Population fertility calculations (uses constants from ./utils/constants)
     // Famine-fertility penalty: reduce birth rate when food satisfaction is low
@@ -7497,6 +7524,7 @@ export const simulateTick = ({
         perfEnd('marketUpdate');
     }
     perfEnd('marketEconomy');
+    _silverCheckpoint('marketEconomy');
 
     const getLastTickNetIncomePerCapita = (role) => {
         const history = (classWealthHistory || {})[role];
@@ -8560,6 +8588,8 @@ export const simulateTick = ({
         },
     };
 
+    _silverCheckpoint('fiscal+corruption');
+
     // === 官员独立财务计算 ===
     // Official processing moved to early simulation phase (before living standards)
     // Set official income for UI report (after applyRoleIncomeToWealth to avoid double count in wealth)
@@ -8952,6 +8982,21 @@ export const simulateTick = ({
         }
     });
 
+    // [DIAGNOSTIC] Simulation internal audit check
+    const simEndingSilver = res.silver || 0;
+    const simActualDelta = simEndingSilver - startingSilver;
+    const auditLogArr = silverChangeLog.toArray();
+    const simAuditSum = auditLogArr.reduce((s, e) => s + Number(e?.amount || 0), 0);
+    const simInternalGap = simActualDelta - simAuditSum;
+    if (Math.abs(simInternalGap) > 0.1) {
+        console.warn('🔴 [SIM内部审计] 差异:', simInternalGap.toFixed(2),
+            '| 实际Δ:', simActualDelta.toFixed(2),
+            '| 审计Σ:', simAuditSum.toFixed(2),
+            '| 起始:', startingSilver.toFixed(2),
+            '| 结束:', simEndingSilver.toFixed(2));
+        console.warn('🔴 [SIM内部审计] 各通道明细:', auditLogArr.map(e => `${e.reason}: ${Number(e.amount).toFixed(2)}`));
+    }
+
     return {
         officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
         _perf: {
@@ -9128,6 +9173,9 @@ export const simulateTick = ({
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
         _auditLog: silverChangeLog.toArray(),
         _auditStartingSilver: startingSilver,
+        _auditEndingSilver: res.silver || 0,
+        _auditSilverAtSpread: _resSilverAtSpread,
+        _auditSilverAfterTradeRoute: _resSilverAfterCopy,
         _debug: _simDebugEnabled ? {
             freeMarket: _freeMarketDebug,
             classWealthChangeLog,

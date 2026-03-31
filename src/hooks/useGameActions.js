@@ -2864,16 +2864,19 @@ export const useGameActions = (gameState, addLog) => {
     /**
      * 解散单位
      * @param {string} unitId - 单位ID
+     * @param {number} [count=1] - 解散数量
      */
-    const disbandUnit = (unitId) => {
-        if ((army[unitId] || 0) > 0) {
-            setArmy(prev => ({
-                ...prev,
-                [unitId]: prev[unitId] - 1
-            }));
-            addLog(`解散了 ${UNIT_TYPES[unitId].name}`);
-            trackDisband(unitId, 1);
-        }
+    const disbandUnit = (unitId, count = 1) => {
+        const current = army[unitId] || 0;
+        const actual = Math.min(Math.max(1, count), current);
+        if (actual <= 0) return;
+        setArmy(prev => ({
+            ...prev,
+            [unitId]: Math.max(0, (prev[unitId] || 0) - actual)
+        }));
+        const unitName = UNIT_TYPES[unitId]?.name || unitId;
+        addLog(actual === 1 ? `解散了 ${unitName}` : `解散了 ${actual} 个 ${unitName}`);
+        trackDisband(unitId, actual);
     };
 
     /**
