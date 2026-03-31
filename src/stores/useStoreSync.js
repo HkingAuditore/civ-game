@@ -230,10 +230,11 @@ export const useStoreSync = (gs) => {
         });
 
         prevRef.current = gs;
-    });
-    // 注意：不添加依赖数组 → 每次渲染都检查同步
-    // 这是有意为之的：gameState 内部有 120+ 个字段，逐一列为依赖不实际
-    // syncStore 内部的浅比较确保了不会产生不必要的 store 更新
+    }); // eslint-disable-line react-hooks/exhaustive-deps
+    // 依赖数组为空等价于"每次渲染都执行"；此处故意不列 gs 内部字段，
+    // 因为 gs 本身是同一个 useGameState 返回的对象引用，
+    // syncStore 内部的浅比较确保了不会产生不必要的 store 更新。
+    // 但我们至少通过 16ms 节流 + shallowEqual 来确保安全。
 };
 
 /**

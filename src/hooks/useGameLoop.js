@@ -1031,7 +1031,7 @@ difficulty, // 游戏难度
     // [PERF] 高速模式 UI 降频：>=3x 时大部分 setState 和昂贵计算每 N tick 才执行一次
     // 模拟每 tick 照常运行（保证游戏逻辑正确），但 React 渲染频率降至 ~1/s
     const highSpeedUICounterRef = useRef(0);
-    const HIGH_SPEED_UI_INTERVAL = 5;
+    const HIGH_SPEED_UI_INTERVAL = 1;
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
@@ -1140,101 +1140,67 @@ difficulty, // 游戏难度
     // The latest classWealth value is available via stateRef.current.classWealth
 
     // 监听国家列表变化，自动清理无效的贸易路线和商人派驻
-    const lastCleanupRef = useRef({ tradeRoutesLength: 0, merchantAssignmentsKeys: '', pendingTradesLength: 0 });
+    // [FIX] 通过 ref 读取 tradeRoutes/merchantState，避免 effect 依赖自己要写入的 state 导致 React #185
+    const tradeRoutesRef = useRef(tradeRoutes);
+    tradeRoutesRef.current = tradeRoutes;
+    const merchantStateRef = useRef(merchantState);
+    merchantStateRef.current = merchantState;
 
     useEffect(() => {
         if (!nations) return;
 
-        // Filter valid nations (exclude annexed and zero-population nations)
+        const currentTradeRoutes = tradeRoutesRef.current;
+        const currentMerchantState = merchantStateRef.current;
+
         const validNationIds = new Set(
             nations
                 .filter(n => !n.isAnnexed && (n.population || 0) > 0)
                 .map(n => n.id)
         );
 
-        let needsUpdate = false;
-
         // Clean up trade routes
-        if (tradeRoutes?.routes?.length) {
-            const currentLength = tradeRoutes.routes.length;
-            if (currentLength !== lastCleanupRef.current.tradeRoutesLength) {
-                const validRoutes = tradeRoutes.routes.filter(r => validNationIds.has(r.nationId));
-                if (validRoutes.length !== currentLength) {
-                    setTradeRoutes(prev => ({
-                        ...prev,
-                        routes: validRoutes
-                    }));
-                    lastCleanupRef.current.tradeRoutesLength = validRoutes.length;
-                    needsUpdate = true;
-                } else {
-                    lastCleanupRef.current.tradeRoutesLength = currentLength;
-                }
+        if (currentTradeRoutes?.routes?.length) {
+            const validRoutes = currentTradeRoutes.routes.filter(r => validNationIds.has(r.nationId));
+            if (validRoutes.length !== currentTradeRoutes.routes.length) {
+                setTradeRoutes(prev => ({ ...prev, routes: validRoutes }));
             }
         }
 
         // Clean up merchant assignments
-        if (merchantState?.merchantAssignments && typeof merchantState.merchantAssignments === 'object') {
-            const assignments = merchantState.merchantAssignments;
-            const currentKeys = Object.keys(assignments).sort().join(',');
+        if (currentMerchantState?.merchantAssignments && typeof currentMerchantState.merchantAssignments === 'object') {
+            const assignments = currentMerchantState.merchantAssignments;
+            const validAssignments = {};
+            let hasInvalidAssignments = false;
 
-            if (currentKeys !== lastCleanupRef.current.merchantAssignmentsKeys) {
-                const validAssignments = {};
-                let hasInvalidAssignments = false;
-
-                Object.entries(assignments).forEach(([nationId, count]) => {
-                    if (validNationIds.has(nationId)) {
-                        validAssignments[nationId] = count;
-                    } else {
-                        hasInvalidAssignments = true;
-                    }
-                });
-
-                if (hasInvalidAssignments) {
-                    // [FIX] If all assignments are invalid, clear merchantAssignments completely
-                    // This allows the system to rebuild assignments from scratch
-                    const finalAssignments = Object.keys(validAssignments).length > 0
-                        ? validAssignments
-                        : {};
-
-                    setMerchantState(prev => ({
-                        ...prev,
-                        merchantAssignments: finalAssignments
-                    }));
-                    lastCleanupRef.current.merchantAssignmentsKeys = Object.keys(finalAssignments).sort().join(',');
-                    needsUpdate = true;
-
-                    // Log cleanup action
-                    if (Object.keys(validAssignments).length === 0) {
-                        console.log('[商人系统] 已清空所有无效的商人派驻，系统将重新分配商人');
-                    }
+            Object.entries(assignments).forEach(([nationId, count]) => {
+                if (validNationIds.has(nationId)) {
+                    validAssignments[nationId] = count;
                 } else {
-                    lastCleanupRef.current.merchantAssignmentsKeys = currentKeys;
+                    hasInvalidAssignments = true;
+                }
+            });
+
+            if (hasInvalidAssignments) {
+                const finalAssignments = Object.keys(validAssignments).length > 0
+                    ? validAssignments
+                    : {};
+                setMerchantState(prev => ({ ...prev, merchantAssignments: finalAssignments }));
+                if (Object.keys(validAssignments).length === 0) {
+                    console.log('[商人系统] 已清空所有无效的商人派驻，系统将重新分配商人');
                 }
             }
         }
 
         // Clean up pending trades with destroyed nations
-        if (merchantState?.pendingTrades && Array.isArray(merchantState.pendingTrades)) {
-            const currentLength = merchantState.pendingTrades.length;
-
-            if (currentLength !== lastCleanupRef.current.pendingTradesLength) {
-                const validPendingTrades = merchantState.pendingTrades.filter(trade =>
-                    !trade.partnerId || validNationIds.has(trade.partnerId)
-                );
-
-                if (validPendingTrades.length !== currentLength) {
-                    setMerchantState(prev => ({
-                        ...prev,
-                        pendingTrades: validPendingTrades
-                    }));
-                    lastCleanupRef.current.pendingTradesLength = validPendingTrades.length;
-                    needsUpdate = true;
-                } else {
-                    lastCleanupRef.current.pendingTradesLength = currentLength;
-                }
+        if (currentMerchantState?.pendingTrades && Array.isArray(currentMerchantState.pendingTrades)) {
+            const validPendingTrades = currentMerchantState.pendingTrades.filter(trade =>
+                !trade.partnerId || validNationIds.has(trade.partnerId)
+            );
+            if (validPendingTrades.length !== currentMerchantState.pendingTrades.length) {
+                setMerchantState(prev => ({ ...prev, pendingTrades: validPendingTrades }));
             }
         }
-    }, [nations, tradeRoutes, merchantState, setTradeRoutes, setMerchantState]);
+    }, [nations, setTradeRoutes, setMerchantState]);
 
     // 游戏核心循环
     useEffect(() => {
