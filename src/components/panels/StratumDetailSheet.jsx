@@ -115,7 +115,8 @@ const StratumDetailSheetComponent = ({
             });
             return {
                 income: {
-                    salary: totalSalary, ownerRevenue: totalPropertyIncome, wage: 0, subsidy: 0,
+                    salary: totalSalary, ownerRevenue: totalPropertyIncome, wage: 0,
+                    subsidy: classFinancialData?.official?.income?.subsidy || 0,
                     headTaxSubsidy: classFinancialData?.official?.income?.headTaxSubsidy || 0,
                     militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0
                 },
@@ -1235,13 +1236,13 @@ const StratumDetailSheetComponent = ({
                         // 计算收入总计
                         const wage = (incomeData.wage || 0) / safeDayScale / Math.max(count, 1);
                         const ownerRevenue = (incomeData.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
+                        // income.subsidy 已经包含人头税补贴（ledger 自动记账），不再单独加 headTaxSubsidy
                         const subsidy = (incomeData.subsidy || 0) / safeDayScale / Math.max(count, 1);
-                        const headTaxSubsidySum = (incomeData.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1);
                         const salary = (incomeData.salary || 0) / safeDayScale / Math.max(count, 1);
                         const militaryPay = (incomeData.militaryPay || 0) / safeDayScale / Math.max(count, 1);
                         const tradeImportRevenue = (incomeData.tradeImportRevenue || 0) / safeDayScale / Math.max(count, 1);
                         const layoffTransferIn = (incomeData.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
-                        const totalIncomeCalc = wage + ownerRevenue + subsidy + headTaxSubsidySum + salary + militaryPay + tradeImportRevenue + layoffTransferIn;
+                        const totalIncomeCalc = wage + ownerRevenue + subsidy + salary + militaryPay + tradeImportRevenue + layoffTransferIn;
 
                         // 计算支出总计
                         const headTax = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
@@ -1315,13 +1316,14 @@ const StratumDetailSheetComponent = ({
                             const data = finData.income || {};
                             const wage = (data.wage || 0) / safeDayScale / Math.max(count, 1);
                             const ownerRevenue = (data.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
-                            const subsidy = (data.subsidy || 0) / safeDayScale / Math.max(count, 1);
+                            // income.subsidy 已包含人头税补贴，拆分为：人头税补贴 + 其他补贴
                             const headTaxSubsidyInc = (data.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1);
+                            const otherSubsidy = Math.max(0, ((data.subsidy || 0) - (data.headTaxSubsidy || 0))) / safeDayScale / Math.max(count, 1);
                             const salary = (data.salary || 0) / safeDayScale / Math.max(count, 1);
                             const militaryPay = (data.militaryPay || 0) / safeDayScale / Math.max(count, 1);
                             const tradeImportRevenue = (data.tradeImportRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const layoffTransferIn = (data.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
-                            const hasAnyIncome = wage > 0.001 || ownerRevenue > 0.001 || subsidy > 0.001 || headTaxSubsidyInc > 0.001 || salary > 0.001 || militaryPay > 0.001 || tradeImportRevenue > 0.001 || layoffTransferIn > 0.001;
+                            const hasAnyIncome = wage > 0.001 || ownerRevenue > 0.001 || otherSubsidy > 0.001 || headTaxSubsidyInc > 0.001 || salary > 0.001 || militaryPay > 0.001 || tradeImportRevenue > 0.001 || layoffTransferIn > 0.001;
 
                             return (
                                 <div className="space-y-1.5">
@@ -1349,16 +1351,16 @@ const StratumDetailSheetComponent = ({
                                             <span className="text-green-400 font-mono">+{ownerRevenue.toFixed(2)}</span>
                                         </div>
                                     )}
-                                    {subsidy > 0.001 && (
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="text-gray-300">政府补贴</span>
-                                            <span className="text-green-400 font-mono">+{subsidy.toFixed(2)}</span>
-                                        </div>
-                                    )}
                                     {headTaxSubsidyInc > 0.001 && (
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="text-gray-300">人头税补贴</span>
                                             <span className="text-green-400 font-mono">+{headTaxSubsidyInc.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {otherSubsidy > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">政府补贴</span>
+                                            <span className="text-green-400 font-mono">+{otherSubsidy.toFixed(2)}</span>
                                         </div>
                                     )}
                                     {tradeImportRevenue > 0.001 && (

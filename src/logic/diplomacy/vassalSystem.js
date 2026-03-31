@@ -1021,9 +1021,11 @@ export const calculateEnhancedTribute = (vassalNation) => {
         }
     }
 
-    const TRIBUTE_HARD_CAP = 100000;
+    const capCfg = config.hardCap || { base: 100000, referenceGDP: 1000, exponent: 0.5 };
+    const gdpRatio = Math.max(1, vassalGDP / capCfg.referenceGDP);
+    const dynamicCap = Math.floor(capCfg.base * Math.pow(gdpRatio, capCfg.exponent));
     return {
-        silver: Math.min(Math.floor(baseTribute), TRIBUTE_HARD_CAP),
+        silver: Math.min(Math.floor(baseTribute), dynamicCap),
         resources,
     };
 };
