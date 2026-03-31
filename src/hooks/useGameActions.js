@@ -1144,7 +1144,7 @@ export const useGameActions = (gameState, addLog) => {
             });
         }
 
-        if (pendingDiplomaticEvents.length > 0) {
+        if (Array.isArray(pendingDiplomaticEvents) && pendingDiplomaticEvents.length > 0) {
             const [next, ...rest] = pendingDiplomaticEvents;
             setPendingDiplomaticEvents(rest);
             setCurrentEvent(next);
