@@ -27,30 +27,74 @@ let _historyCache = {
 // [PERF] 调试模式标志：关闭时从传输payload中剔除大量调试数据
 let _debugEnabled = false;
 
+// [PERF] tick 计数器：用于降频传输大型 UI 数据
+// 每 tick postMessage 的结构化克隆是移动端 OOM 的主因（每次 1-3MB）
+let _tickCounter = 0;
+// 基础间隔：每 10 tick 传输一次完整 UI 数据
+// 实际间隔 = BASE_UI_INTERVAL × gameSpeed，使高速模式下传输更稀疏
+const BASE_UI_INTERVAL = 10;
+let _gameSpeed = 1;
+
 /**
- * [PERF] 剥离调试数据，减少Worker→主线程的传输体积
- * 在非调试模式下移除 buildingDebugData、_perf.sections、modifiers.sources 等
- * @param {Object} result - simulateTick的完整返回值
- * @returns {Object} 精简后的返回值
+ * [PERF] 剥离非必要数据，大幅减少 Worker→主线程的 postMessage 序列化体积
+ *
+ * 移动端 WebView 堆内存有限（256-512MB），每 tick 通过 postMessage
+ * 深拷贝（structured clone）传输完整 simulation 结果是 OOM 的首要原因。
+ *
+ * 策略：
+ * - 调试数据每 tick 都剥离（buildingDebugData, _perf.sections, modifiers.sources）
+ * - 大型 UI-only 数据每 UI_DATA_INTERVAL tick 才传输一次，其余 tick 设为 null
+ *   （主线程已有降频机制，不影响显示）
  */
-function stripDebugData(result) {
+function stripPayloadForTransfer(result) {
     if (!result || _debugEnabled) return result;
 
     const stripped = { ...result };
-    // 移除大型调试字段
+
+    // === 每 tick 都剥离的调试字段 ===
     delete stripped.buildingDebugData;
 
-    // 保留 _perf.totalMs 但移除详细 sections
     if (stripped._perf) {
         stripped._perf = { totalMs: stripped._perf.totalMs };
     }
 
-    // 精简 modifiers：保留功能字段但移除 sources 分解
     if (stripped.modifiers) {
         const { sources: _sources, ...functionalModifiers } = stripped.modifiers;
         stripped.modifiers = functionalModifiers;
     }
 
+    // === 降频传输的大型 UI 数据 ===
+    // 这些字段仅供面板/图表显示，不影响下一 tick 的 simulation 计算
+    const uiInterval = BASE_UI_INTERVAL * Math.max(1, _gameSpeed);
+    const isFullTick = (_tickCounter % uiInterval) === 0;
+    if (!isFullTick) {
+        // buildingFinancialData: 每栋建筑的财务明细（主线程也只每10tick消费一次）
+        stripped.buildingFinancialData = null;
+        // classFinancialData: 每阶层的财务明细
+        stripped.classFinancialData = null;
+        // approvalBreakdown: 每阶层支持度分解
+        stripped.approvalBreakdown = null;
+        // needsReport 较小（仅 satisfactionRatio × 阶层数），保留每 tick 传输
+
+        // market 子字段：保留 prices/demand/supply/wages（simulation 必需），
+        // 剥离仅 UI 用的大型 breakdown
+        if (stripped.market) {
+            stripped.market = {
+                prices: stripped.market.prices,
+                demand: stripped.market.demand,
+                supply: stripped.market.supply,
+                wages: stripped.market.wages,
+                needsShortages: stripped.market.needsShortages,
+                // 以下字段仅供 UI 面板，降频传输
+                stratumConsumption: null,
+                supplyBreakdown: null,
+                demandBreakdown: null,
+                resourceLossBreakdown: null,
+            };
+        }
+    }
+
+    stripped._isFullTick = isFullTick;
     return stripped;
 }
 
@@ -62,6 +106,8 @@ self.onmessage = function(event) {
     
     if (type === 'SIMULATE') {
         try {
+            // [PERF] 同步游戏速度（用于动态调整 UI 数据传输频率）
+            if (payload._gameSpeed) _gameSpeed = payload._gameSpeed;
             // [PERF] 从worker缓存注入history数据，无需主线程每tick传输
             const enrichedPayload = {
                 ...payload,
@@ -71,11 +117,12 @@ self.onmessage = function(event) {
 
             // Execute the simulation
             const result = simulateTick(enrichedPayload);
+            _tickCounter++;
             
-            // [PERF] 剥离调试数据后再传输，减少postMessage序列化开销
+            // [PERF] 剥离非必要数据后再传输，大幅减少postMessage序列化开销
             self.postMessage({
                 type: 'RESULT',
-                payload: stripDebugData(result)
+                payload: stripPayloadForTransfer(result)
             });
         } catch (error) {
             // Send error back to main thread
