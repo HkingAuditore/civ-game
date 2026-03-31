@@ -76,7 +76,7 @@ const MECHANIC_LABELS = {
 
 const SynergyBar = ({ synergy, isActive }) => {
     const effectText = formatSynergyEffects(synergy.effects);
-    const requiredNames = synergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ');
+    const requiredNames = (synergy.required || []).map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ');
     const mechanicLabel = synergy.mechanicEffect
         ? (MECHANIC_LABELS[synergy.mechanicEffect.type]?.(synergy.mechanicEffect) || synergy.mechanicEffect.type)
         : null;
@@ -124,7 +124,7 @@ const SynergyBar = ({ synergy, isActive }) => {
  */
 const AntiSynergyBar = ({ antiSynergy, isActive }) => {
     const effectText = formatSynergyEffects(antiSynergy.effects);
-    const requiredNames = antiSynergy.required.map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ');
+    const requiredNames = (antiSynergy.required || []).map(id => IDEOLOGY_MAP[id]?.name || id).join(' + ');
     return (
         <div className={`px-2 py-1.5 rounded-lg border text-xs transition-all ${
             isActive

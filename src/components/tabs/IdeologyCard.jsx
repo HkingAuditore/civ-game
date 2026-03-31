@@ -712,7 +712,7 @@ const IdeologyCardComponent = ({
             {!compact && synergies.length > 0 && (
                 <div className="mb-1.5">
                     {synergies.map(s => {
-                        const partnerNames = s.required
+                        const partnerNames = (s.required || [])
                             .filter(id => id !== ideology.id)
                             .map(id => IDEOLOGY_MAP[id]?.name || id)
                             .join(' + ');

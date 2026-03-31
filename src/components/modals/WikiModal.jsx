@@ -1302,7 +1302,7 @@ function buildWikiData() {
             const cond = polity.conditions || {};
             let conditionDesc = '';
             if (cond.exactCoalition) {
-                const names = cond.exactCoalition.map(k => STRATA[k]?.name || k).join('、');
+                const names = (cond.exactCoalition || []).map(k => STRATA[k]?.name || k).join('、');
                 conditionDesc = `仅选择【${names}】`;
             } else if (cond.maxSize === 1) {
                 conditionDesc = '只选择1个阶层';
@@ -1315,15 +1315,15 @@ function buildWikiData() {
             } else {
                 const parts = [];
                 if (cond.includes) {
-                    const names = cond.includes.map(k => STRATA[k]?.name || k).join('、');
+                    const names = (cond.includes || []).map(k => STRATA[k]?.name || k).join('、');
                     parts.push(`包含${names}`);
                 }
                 if (cond.includesAny) {
-                    const names = cond.includesAny.map(k => STRATA[k]?.name || k).join('/');
+                    const names = (cond.includesAny || []).map(k => STRATA[k]?.name || k).join('/');
                     parts.push(`包含${names}其一`);
                 }
                 if (cond.excludes) {
-                    const names = cond.excludes.map(k => STRATA[k]?.name || k).join('、');
+                    const names = (cond.excludes || []).map(k => STRATA[k]?.name || k).join('、');
                     parts.push(`排除${names}`);
                 }
                 if (cond.minCategoryShare) {
@@ -1334,7 +1334,7 @@ function buildWikiData() {
                 }
                 if (cond.includesGroup) {
                     const groupNames = { upper: '上层', middle: '中层', lower: '下层' };
-                    const names = cond.includesGroup.map(g => groupNames[g] || g).join('/');
+                    const names = (cond.includesGroup || []).map(g => groupNames[g] || g).join('/');
                     parts.push(`包含${names}阶层`);
                 }
                 conditionDesc = parts.length > 0 ? parts.join('，') : '默认';
@@ -2200,7 +2200,7 @@ const renderEventDetails = (data) => {
                         </div>
                     )}
                     {option.randomEffects &&
-                        option.randomEffects.map((rand, i) => (
+                        (Array.isArray(option.randomEffects) ? option.randomEffects : []).map((rand, i) => (
                             <div
                                 key={i}
                                 className="bg-gray-900/60 p-2 rounded-lg border border-dashed border-purple-700/60"
