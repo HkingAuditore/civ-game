@@ -1024,6 +1024,10 @@ difficulty, // 游戏难度
     const cachedClassFinancialDataRef = useRef({});
     const cachedSupplyBreakdownRef = useRef({});
     const cachedDemandBreakdownRef = useRef({});
+    // [PERF] 主线程模式下的财务数据节流计数器
+    // Worker 路径由 stripPayloadForTransfer 降频，主线程路径需自行节流
+    const mainThreadFinancialCounterRef = useRef(0);
+    const MAIN_THREAD_FINANCIAL_INTERVAL = 10;
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
@@ -1469,9 +1473,9 @@ difficulty, // 游戏难度
                 activeDebuffs: current.activeDebuffs,
 
                 // [PERF] 历史数据不再每tick传输，改用worker内部缓存；
-                // 主线程直接调用时仍传入（非worker模式回退）
-                classWealthHistory: isUsingWorker ? undefined : classWealthHistoryRef.current,
-                classNeedsHistory: isUsingWorker ? undefined : classNeedsHistoryRef.current,
+                // 主线程直接调用时仍传入（非worker模式回退，包括 __SIM_DISABLE_WORKER 强制主线程场景）
+                classWealthHistory: (isUsingWorker && !window.__SIM_DISABLE_WORKER) ? undefined : classWealthHistoryRef.current,
+                classNeedsHistory: (isUsingWorker && !window.__SIM_DISABLE_WORKER) ? undefined : classNeedsHistoryRef.current,
                 // 鏃堕棿鍜岃妭鏃?
                 daysElapsed: current.daysElapsed,
                 lastFestivalYear: current.lastFestivalYear,
@@ -3072,11 +3076,20 @@ difficulty, // 游戏难度
                 _apMark('history+ideology_events');
 
                 unstable_batchedUpdates(() => {
+                    // [PERF] 面板数据降频 setState（approvalBreakdown / classFinancialData / buildingFinancialData）
+                    // Worker 路径：stripPayloadForTransfer 已降频（非 full tick 传 null）→ 此处跳过 null
+                    // 主线程路径：simulation 每 tick 都返回数据 → 用计数器节流，每 10 tick 更新一次
+                    mainThreadFinancialCounterRef.current++;
+                    const shouldUpdatePanelData = result._isFullTick ||
+                        (mainThreadFinancialCounterRef.current % MAIN_THREAD_FINANCIAL_INTERVAL === 0);
+
                     setPopStructure(nextPopStructure);
                     setMaxPop(result.maxPop);
                     setRates(result.rates || {});
                     setClassApproval(result.classApproval);
-                    if (result.approvalBreakdown) setApprovalBreakdown(result.approvalBreakdown);
+                    if (result.approvalBreakdown && shouldUpdatePanelData) {
+                        setApprovalBreakdown(result.approvalBreakdown);
+                    }
                     const adjustedInfluence = { ...(result.classInfluence || {}) };
                     Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
                         if (!delta) return;
@@ -3092,12 +3105,10 @@ difficulty, // 游戏难度
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
-                    // [PERF] Worker 降频传输大型 UI 数据（_isFullTick 标记），
-                    // 仅在 full tick 时才 setState，避免用 null 覆盖上次的有效数据
-                    if (result.classFinancialData) {
+                    if (result.classFinancialData && shouldUpdatePanelData) {
                         setClassFinancialData(result.classFinancialData);
                     }
-                    if (result.buildingFinancialData) {
+                    if (result.buildingFinancialData && shouldUpdatePanelData) {
                         setBuildingFinancialData(result.buildingFinancialData);
                     }
                     if (typeof setStateBuildingSilverOutput === 'function') {
