@@ -597,7 +597,10 @@ export const useGameActions = (gameState, addLog) => {
             gameState.setIsPaused(true);
         }
         setCurrentEvent(event);
-        setEventHistory(prev => [...(prev || []), event.id]);
+        setEventHistory(prev => {
+            const next = [...(prev || []), event.id];
+            return next.length > 200 ? next.slice(-200) : next;
+        });
     };
 
     const triggerDiplomaticEvent = (event) => {
@@ -1130,9 +1133,15 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         if (current) {
-            setEventHistory(prev => [...(prev || []), current.id]);
+            setEventHistory(prev => {
+                const next = [...(prev || []), current.id];
+                return next.length > 200 ? next.slice(-200) : next;
+            });
         } else if (fallback?.id) {
-            setEventHistory(prev => [...(prev || []), fallback.id]);
+            setEventHistory(prev => {
+                const next = [...(prev || []), fallback.id];
+                return next.length > 200 ? next.slice(-200) : next;
+            });
         }
 
         if (pendingDiplomaticEvents.length > 0) {
@@ -7205,7 +7214,10 @@ export const useGameActions = (gameState, addLog) => {
                 result: battleResult,
                 timestamp: Date.now(),
             };
-            setBattleNotifications(prev => [...prev, notification]);
+            setBattleNotifications(prev => {
+                const next = [...prev, notification];
+                return next.length > 20 ? next.slice(-20) : next;
+            });
         },
         dismissBattleNotification: (notificationId) => {
             setBattleNotifications(prev => prev.filter(n => n.id !== notificationId));

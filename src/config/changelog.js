@@ -4,9 +4,27 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.18',
+        version: '2.3.19',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '5 倍速挂机闪退深度修复：UI 渲染降至 ~1 次/秒，内存分配大幅减少',
+            '补贴建筑不再误停产：补贴收入正确计入边际收益判定',
+            '人头税负税率（补贴）计算修正',
+        ],
+        changes: [
+            { type: 'improve', text: '高速模式（≥3x）UI 深度降频：每 5 tick 才执行一次完整 UI 更新（popStructure、rates、classInfluence、jobFill 等 20+ 项展示数据），中间 tick 仅更新模拟关键状态（resources、buildings、nations、market 等）。React 渲染频率从 5 次/秒降至 ~1 次/秒。' },
+            { type: 'improve', text: '经济指标计算降频：calculateAllIndicators、updatePriceHistory、calculateEquilibriumPrices 在高速模式下仅每 5 tick 执行一次，消除最大的单次 CPU + 内存开销。' },
+            { type: 'improve', text: '高速模式 nations 零拷贝：主线程模拟时 simulationParams.nations 直接引用原数组，跳过每 tick 全表 .map() + spread 产生的 GC 压力。' },
+            { type: 'fix', text: '修复 eventHistory 和 battleNotifications 运行时无上限增长：长时间游戏中事件历史可无限累积，现加入运行时硬上限（eventHistory 200 条、battleNotifications 20 条）。' },
+            { type: 'fix', text: '修复受补贴建筑误停产：此前补贴收入未计入边际收益判定，导致即使政府给予高额补贴，建筑仍因"市场价亏损"而停产。现将补贴视为保底收入纳入有效收益计算。' },
+            { type: 'fix', text: '修复人头税负税率场景下税后工资计算错误：此前 Math.max(0, taxCost) 在补贴场景下将负税成本截断为 0，导致补贴未实际增加工人净收入。' },
+        ],
+    },
+    {
+        version: '2.3.18',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '营业税所见即所得：输入50就是50%税率，输入-500就是每栋补贴500🪙',
             '移除补贴金额上限，玩家可自由设定任意补贴额度',

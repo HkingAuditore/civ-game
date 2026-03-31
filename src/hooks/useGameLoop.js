@@ -1028,6 +1028,10 @@ difficulty, // 游戏难度
     // Worker 路径由 stripPayloadForTransfer 降频，主线程路径需自行节流
     const mainThreadFinancialCounterRef = useRef(0);
     const MAIN_THREAD_FINANCIAL_INTERVAL = 10;
+    // [PERF] 高速模式 UI 降频：>=3x 时大部分 setState 和昂贵计算每 N tick 才执行一次
+    // 模拟每 tick 照常运行（保证游戏逻辑正确），但 React 渲染频率降至 ~1/s
+    const highSpeedUICounterRef = useRef(0);
+    const HIGH_SPEED_UI_INTERVAL = 5;
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
@@ -1393,17 +1397,20 @@ difficulty, // 游戏难度
                 epoch: current.epoch,
                 techsUnlocked: current.techsUnlocked,
                 decrees: current.decrees,
-                nations: (current.nations || []).map(n => {
-                    if (n.isDefeated || n.population <= 0) {
-                        return { id: n.id, name: n.name, isDefeated: true, population: 0 };
-                    }
-                    // Trim heavy history arrays from AI nations to reduce payload size
-                    if (!n.isPlayer) {
-                        const { tradeHistory, priceHistory, resourceHistory, ...trimmedNation } = n;
-                        return trimmedNation;
-                    }
-                    return n;
-                }),
+                // [PERF] 主线程模式下直接引用原数组，避免每 tick 全表 map+spread 产生 GC 压力
+                // Worker 路径仍需 trim history 以减少 postMessage 序列化体积
+                nations: (gameSpeed >= 3)
+                    ? (current.nations || [])
+                    : (current.nations || []).map(n => {
+                        if (n.isDefeated || n.population <= 0) {
+                            return { id: n.id, name: n.name, isDefeated: true, population: 0 };
+                        }
+                        if (!n.isPlayer) {
+                            const { tradeHistory, priceHistory, resourceHistory, ...trimmedNation } = n;
+                            return trimmedNation;
+                        }
+                        return n;
+                    }),
                 diplomacyOrganizations: current.diplomacyOrganizations,
                 classWealth: current.classWealth,
                 classApproval: current.classApproval,
@@ -1628,8 +1635,15 @@ difficulty, // 游戏难度
                 let _apLast = _apStart;
                 const _apMark = (label) => { const now = _ap(); _apSections[label] = now - _apLast; _apLast = now; };
 
+                // [PERF] 高速 UI 降频：>=3x 时仅每 HIGH_SPEED_UI_INTERVAL 个 tick 做完整 UI 更新
+                // 中间 tick 仅更新模拟关键状态（stateRef + 必要 setState），跳过昂贵的指标计算和纯展示 setState
+                highSpeedUICounterRef.current++;
+                const _isHighSpeed = gameSpeed >= 3;
+                const _shouldUpdateUI = !_isHighSpeed ||
+                    (highSpeedUICounterRef.current % HIGH_SPEED_UI_INTERVAL === 0);
+
                 // 更新 Modifiers 状态供 UI 显示
-                setModifiers(result.modifiers || {});
+                if (_shouldUpdateUI) setModifiers(result.modifiers || {});
 
                 const soldierPopulationAfterEvents = Number.isFinite(result.popStructure?.soldier)
                     ? result.popStructure.soldier
@@ -2038,8 +2052,18 @@ difficulty, // 游戏难度
                 _apMark('fiscal');
 
                 // ========== 经济指标计算 ==========
+                // [PERF] 缓存 ref 每 tick 更新，确保下次 UI tick 用最新数据
+                if (result.classFinancialData) cachedClassFinancialDataRef.current = result.classFinancialData;
+                if (result.market?.supplyBreakdown) cachedSupplyBreakdownRef.current = result.market.supplyBreakdown;
+                if (result.market?.demandBreakdown) cachedDemandBreakdownRef.current = result.market.demandBreakdown;
+
+                // [PERF] 高速模式下跳过昂贵的指标计算 + 价格历史更新（每 N tick 才做一次）
+                let updatedPriceHistory = priceHistory;
+                let currentEquilibriumPrices = equilibriumPrices;
+
+                if (_shouldUpdateUI) {
                 // 1. 更新价格历史（每天）
-                const updatedPriceHistory = updatePriceHistory({
+                updatedPriceHistory = updatePriceHistory({
                     priceHistory,
                     currentPrices: market.prices,
                     maxLength: ECONOMIC_INDICATOR_CONFIG.priceHistory.maxLength,
@@ -2047,7 +2071,6 @@ difficulty, // 游戏难度
                 setPriceHistory(updatedPriceHistory);
 
                 // 2. 计算均衡价格（每10天）
-                let currentEquilibriumPrices = equilibriumPrices;
                 if (daysElapsed % ECONOMIC_INDICATOR_CONFIG.equilibriumPrice.updateInterval === 0) {
                     currentEquilibriumPrices = calculateEquilibriumPrices({
                         priceHistory: updatedPriceHistory,
@@ -2070,11 +2093,6 @@ difficulty, // 游戏难度
                         marketPrices: market.prices,
                     });
                 }
-
-                // [PERF] Worker 降频传输时更新缓存，非 full-tick 沿用上次值
-                if (result.classFinancialData) cachedClassFinancialDataRef.current = result.classFinancialData;
-                if (result.market?.supplyBreakdown) cachedSupplyBreakdownRef.current = result.market.supplyBreakdown;
-                if (result.market?.demandBreakdown) cachedDemandBreakdownRef.current = result.market.demandBreakdown;
 
                 const indicators = calculateAllIndicators({
                     priceHistory: updatedPriceHistory,
@@ -2101,6 +2119,7 @@ difficulty, // 游戏难度
                     console.groupEnd();
                 }
                 setEconomicIndicators(indicators);
+                } // end _shouldUpdateUI — 经济指标
 
                 // 税收政策变化采集：仅在实际变化时上报，避免高频噪音。
                 const nextTaxSnapshot = normalizeTaxPolicySnapshot(current.taxPolicies || taxPolicies || {});
@@ -2118,9 +2137,9 @@ difficulty, // 游戏难度
                     const pop = result.population || current.population;
                     const stab = result.stability;
                     trackPeriodicMetrics({
-                        gdp: indicators.gdp?.total,
-                        cpi: indicators.cpi?.index,
-                        ppi: indicators.ppi?.index,
+                        gdp: economicIndicators?.gdp?.total,
+                        cpi: economicIndicators?.cpi?.index,
+                        ppi: economicIndicators?.ppi?.index,
                         population: pop,
                         stability: stab,
                         treasury: result.resources?.silver,
@@ -3083,9 +3102,12 @@ difficulty, // 游戏难度
                     const shouldUpdatePanelData = result._isFullTick ||
                         (mainThreadFinancialCounterRef.current % MAIN_THREAD_FINANCIAL_INTERVAL === 0);
 
-                    setPopStructure(nextPopStructure);
-                    setMaxPop(result.maxPop);
-                    setRates(result.rates || {});
+                    // [PERF] 高速模式：纯展示 setState 仅每 N tick 更新一次
+                    if (_shouldUpdateUI) {
+                        setPopStructure(nextPopStructure);
+                        setMaxPop(result.maxPop);
+                        setRates(result.rates || {});
+                    }
                     setClassApproval(result.classApproval);
                     if (result.approvalBreakdown && shouldUpdatePanelData) {
                         setApprovalBreakdown(result.approvalBreakdown);
@@ -3095,31 +3117,36 @@ difficulty, // 游戏难度
                         if (!delta) return;
                         adjustedInfluence[key] = (adjustedInfluence[key] || 0) + delta;
                     });
-                    setClassInfluence(adjustedInfluence);
+                    if (_shouldUpdateUI) setClassInfluence(adjustedInfluence);
+                    stateRef.current.classInfluence = adjustedInfluence;
                     const wealthDelta = {};
                     Object.keys(adjustedClassWealth).forEach(key => {
                         const prevWealth = current.classWealth?.[key] || 0;
                         wealthDelta[key] = adjustedClassWealth[key] - prevWealth;
                     });
                     setClassWealth(adjustedClassWealth, { reason: 'tick_class_wealth_update', meta: { day: current.daysElapsed || 0 } });
-                    setClassWealthDelta(wealthDelta);
-                    setClassIncome(result.classIncome || {});
-                    setClassExpense(result.classExpense || {});
+                    if (_shouldUpdateUI) {
+                        setClassWealthDelta(wealthDelta);
+                        setClassIncome(result.classIncome || {});
+                        setClassExpense(result.classExpense || {});
+                    }
                     if (result.classFinancialData && shouldUpdatePanelData) {
                         setClassFinancialData(result.classFinancialData);
                     }
                     if (result.buildingFinancialData && shouldUpdatePanelData) {
                         setBuildingFinancialData(result.buildingFinancialData);
                     }
-                    if (typeof setStateBuildingSilverOutput === 'function') {
+                    if (_shouldUpdateUI && typeof setStateBuildingSilverOutput === 'function') {
                         setStateBuildingSilverOutput(result.stateBuildingSilverOutput || 0);
                     }
                     if (typeof window !== 'undefined' && result.buildingDebugData) {
                         window.__buildingDebugData = result.buildingDebugData;
                     }
                     // 鍘嗗彶鏁版嵁鏇存柊宸茬Щ鑷充笂鏂?Ref 绠＄悊閮ㄥ垎锛屾澶勪笉鍐嶉噸澶嶈皟鐢?
-                    setTotalInfluence(result.totalInfluence);
-                    setTotalWealth(adjustedTotalWealth);
+                    if (_shouldUpdateUI) {
+                        setTotalInfluence(result.totalInfluence);
+                        setTotalWealth(adjustedTotalWealth);
+                    }
                     setActiveBuffs(result.activeBuffs);
                     setActiveDebuffs(result.activeDebuffs);
                     setStability(result.stability);
@@ -3144,8 +3171,10 @@ difficulty, // 游戏难度
                         efficiency: 1,
                     });
                     setMarket(adjustedMarket);
-                    setClassShortages(result.needsShortages || {});
-                    setClassLivingStandard(result.classLivingStandard || {});
+                    if (_shouldUpdateUI) {
+                        setClassShortages(result.needsShortages || {});
+                        setClassLivingStandard(result.classLivingStandard || {});
+                    }
                     if (result.army) {
                         setArmy(result.army); // 保存战斗损失
                     }
@@ -3190,9 +3219,15 @@ difficulty, // 游戏难度
                     if (typeof result.effectiveOfficialCapacity === 'number' && typeof setOfficialCapacity === 'function') {
                         setOfficialCapacity(result.effectiveOfficialCapacity);
                     }
-                    setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
-                    setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
-                    setTaxShock(result.taxShock || current.taxShock || {}); // [NEW] 更新累积税收冲击
+                    if (_shouldUpdateUI) {
+                        setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
+                        setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
+                        setTaxShock(result.taxShock || current.taxShock || {});
+                    }
+                    // stateRef 直写确保模拟正确性
+                    stateRef.current.livingStandardStreaks = result.livingStandardStreaks || current.livingStandardStreaks || {};
+                    stateRef.current.migrationCooldowns = result.migrationCooldowns || current.migrationCooldowns || {};
+                    stateRef.current.taxShock = result.taxShock || current.taxShock || {};
                     setMerchantState(prev => {
                         const base = prev || current.merchantState || { pendingTrades: [], lastTradeTime: 0, merchantAssignments: {} };
                         const incoming = result.merchantState || current.merchantState || {};
@@ -3210,18 +3245,19 @@ difficulty, // 游戏难度
                         if (prev === nextState) return prev;
                         return nextState;
                     });
-                    if (result.tradeRoutes) {
+                    if (result.tradeRoutes && _shouldUpdateUI) {
                         setTradeRoutes(result.tradeRoutes);
                     }
-                    if (result.overseasInvestments) {
+                    if (result.overseasInvestments && _shouldUpdateUI) {
                         setOverseasInvestments(result.overseasInvestments);
                     }
-                    if (result.foreignInvestments) {
+                    if (result.foreignInvestments && _shouldUpdateUI) {
                         setForeignInvestments(result.foreignInvestments);
                     }
-                    // Update trade route tax stats
-                    const calculatedTradeRouteTax = result.taxes?.breakdown?.tradeRouteTax || 0;
-                    setTradeStats(prev => ({ ...prev, tradeRouteTax: calculatedTradeRouteTax }));
+                    if (_shouldUpdateUI) {
+                        const calculatedTradeRouteTax = result.taxes?.breakdown?.tradeRouteTax || 0;
+                        setTradeStats(prev => ({ ...prev, tradeRouteTax: calculatedTradeRouteTax }));
+                    }
 
                     if (nextNations) {
                         setNations(nextNations);
@@ -3229,9 +3265,11 @@ difficulty, // 游戏难度
                         // Without this, vassal population/wealth growth is lost because each tick starts from stale data
                         stateRef.current.nations = nextNations;
                     }
-                    // [NEW] Update diplomatic reputation (natural recovery)
-                    if (result.diplomaticReputation !== undefined && typeof setDiplomaticReputation === 'function') {
-                        setDiplomaticReputation(result.diplomaticReputation);
+                    if (result.diplomaticReputation !== undefined) {
+                        stateRef.current.diplomaticReputation = result.diplomaticReputation;
+                        if (_shouldUpdateUI && typeof setDiplomaticReputation === 'function') {
+                            setDiplomaticReputation(result.diplomaticReputation);
+                        }
                     }
                     // [NEW] Update military corps & battle system states
                     if (result.militaryCorps && typeof setMilitaryCorps === 'function') {
@@ -3284,13 +3322,13 @@ difficulty, // 游戏难度
                             organizations: result.diplomacyOrganizations.organizations || prev?.organizations || []
                         }));
                     }
-                    if (result.jobFill) {
+                    if (result.jobFill && _shouldUpdateUI) {
                         setJobFill(result.jobFill);
                     }
-                    if (result.jobsAvailable) {
+                    if (result.jobsAvailable && _shouldUpdateUI) {
                         setJobsAvailable(result.jobsAvailable);
                     }
-                    if (result.buildingJobsRequired) {
+                    if (result.buildingJobsRequired && _shouldUpdateUI) {
                         setBuildingJobsRequired(result.buildingJobsRequired);
                     }
                     // [FIX] Save military expense data from simulation

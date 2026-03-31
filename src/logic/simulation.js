@@ -2763,29 +2763,30 @@ export const simulateTick = ({
 
             // 可变成本 = 原料成本（营业税是利润分配，不影响生产决策）
             const variableCost = estimatedInputCost;
-            // 边际收益 = 产出价?- 可变成本
-            const marginalRevenue = estimatedRevenue - variableCost;
+            // 补贴视为保底收入：政府给钱让你生产，不受市场价格影响
+            const subsidyIncome = estimatedBusinessTax < 0 ? Math.abs(estimatedBusinessTax) : 0;
+            // 有效收益 = 产出市场价值 + 补贴收入 - 可变成本
+            const marginalRevenue = estimatedRevenue + subsidyIncome - variableCost;
 
-            // 总成本（用于调试和UI显示?
+            // 总成本（用于调试和UI显示）
             const estimatedCost = estimatedInputCost + actualPayableWageCost + estimatedBusinessTax;
 
-            if (estimatedRevenue <= 0) {
-                // 产出没有价值，停产
+            if (estimatedRevenue <= 0 && subsidyIncome <= 0) {
+                // 产出没有价值且无补贴，停产
                 actualMultiplier = 0;
                 debugMarginRatio = 0;
             } else if (marginalRevenue < 0) {
-                // 边际收益为负，生产越多亏损越大，停产
+                // 有效收益为负（即使算上补贴仍亏损），停产
                 actualMultiplier = 0;
                 debugMarginRatio = 0;
             } else if (marginalRevenue < actualPayableWageCost * 0.5) {
-                // 边际收益太低，无法覆盖一半的工资成本
-                // 按比例减产（边际收益 / 工资成本?
+                // 有效收益太低，无法覆盖一半的工资成本，按比例减产
                 const marginRatio = Math.max(0, Math.min(1, marginalRevenue / actualPayableWageCost));
                 debugMarginRatio = marginRatio;
                 actualMultiplier = targetMultiplier * marginRatio;
                 simActualMultiplier = simTargetMultiplier * marginRatio;
             } else {
-                // 边际收益为正且足够，满负荷生?
+                // 有效收益为正且足够，满负荷生产
                 debugMarginRatio = estimatedCost > 0 ? estimatedRevenue / estimatedCost : null;
             }
             if (_simDebugEnabled) {
