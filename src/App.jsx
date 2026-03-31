@@ -7,7 +7,8 @@ import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
 import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS, useOtaUpdate } from './hooks';
-import { useStoreSync } from './stores/useStoreSync';
+// [PERF] useStoreSync 禁用：11 个 Zustand store 当前零消费者，同步纯属浪费
+// import { useStoreSync } from './stores/useStoreSync';
 import { useTutorialSystem } from './hooks/useTutorialSystem';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
 import {
@@ -87,8 +88,11 @@ import {
     trackIdeologyEmergenceSelect,
     trackIdeologyEmergenceSkip,
     trackProgressionStart,
+    trackErrorCritical,
+    trackErrorWarning,
 } from './analytics/gaTracker';
-import { initCustomBackend, updateDimensions } from './analytics/customBackend';
+import { initCustomBackend, updateDimensions, bufferErrorEvent } from './analytics/customBackend';
+import { setReportCallback } from './utils/crashReporter';
 
 const EPOCH_DIMENSIONS = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
 
@@ -209,8 +213,8 @@ function GameApp({ gameState }) {
     // 初始化设备性能检测（自动启用低端设备优化）
     useDevicePerformance();
 
-    // 将 gameState 同步到 Zustand stores（渐进迁移桥接层）
-    useStoreSync(gameState);
+    // [PERF] useStoreSync 禁用：11 个 Zustand store 当前零消费者
+    // useStoreSync(gameState);
 
     // OTA 热更新（仅原生平台生效）
     useOtaUpdate();
@@ -249,7 +253,6 @@ function GameApp({ gameState }) {
     // GameAnalytics 初始化
     useEffect(() => {
         initGA();
-        // Don't send difficulty at init (it's still the default 'easy' before save loads)
         initCustomBackend({
             difficulty: null,
             scenario: 'freeplay',
@@ -261,6 +264,28 @@ function GameApp({ gameState }) {
             epoch: EPOCH_DIMENSIONS[gameState.epoch] || 'stone',
         });
         trackProgressionStart(gameState.epoch || 0);
+
+        // 将 crashReporter 的实时上报回调接入 analytics
+        setReportCallback((record) => {
+            const msg = `[CrashReporter] ${record.type}: ${record.message}`;
+            trackErrorCritical(msg.slice(0, 256));
+        });
+
+        // 上报上次会话遗留的崩溃日志
+        const pendingCrash = window.__CIV_PENDING_CRASH__;
+        const abnormalExit = window.__CIV_ABNORMAL_EXIT__;
+        if (pendingCrash) {
+            const msg = `[PrevSession] ${pendingCrash.type}: ${pendingCrash.message} (v${pendingCrash.appVersion}, mem=${pendingCrash.memoryMB}MB)`;
+            trackErrorCritical(msg.slice(0, 256));
+            bufferErrorEvent('critical', msg.slice(0, 1024));
+            delete window.__CIV_PENDING_CRASH__;
+        }
+        if (abnormalExit && !pendingCrash) {
+            const msg = `[PrevSession] abnormal_exit: session not properly closed (possible OOM/force-kill, lastAlive=${new Date(abnormalExit.lastAliveAt).toISOString()})`;
+            trackErrorWarning(msg.slice(0, 256));
+            bufferErrorEvent('warning', msg.slice(0, 1024));
+            delete window.__CIV_ABNORMAL_EXIT__;
+        }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Update analytics difficulty when it changes or after save load stabilizes

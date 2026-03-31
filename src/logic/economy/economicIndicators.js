@@ -17,7 +17,7 @@ import { RESOURCES } from '../../config';
 export const ECONOMIC_INDICATOR_CONFIG = {
   // 价格历史
   priceHistory: {
-    maxLength: 365,           // 最多保留365天
+    maxLength: 90,            // [PERF] 从 365 降至 90 天，减少每 tick 数组创建量
     updateInterval: 1,        // 每天更新
   },
   
@@ -113,23 +113,15 @@ export function updatePriceHistory({
   const updated = { ...priceHistory };
   
   Object.entries(currentPrices).forEach(([resource, price]) => {
-    // 验证价格有效性
     if (!Number.isFinite(price) || price < 0) {
       return;
     }
     
-    // 初始化资源历史
-    if (!updated[resource]) {
-      updated[resource] = [];
-    }
-    
-    // 添加当前价格
-    updated[resource] = [...updated[resource], price];
-    
-    // 限制长度
-    if (updated[resource].length > maxLength) {
-      updated[resource] = updated[resource].slice(-maxLength);
-    }
+    const arr = updated[resource] || [];
+    // [PERF] 单次分配：直接构建最终数组
+    updated[resource] = arr.length >= maxLength
+      ? [...arr.slice(-(maxLength - 1)), price]
+      : [...arr, price];
   });
   
   return updated;

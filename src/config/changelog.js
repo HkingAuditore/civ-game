@@ -4,9 +4,36 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.20',
+        version: '2.3.21',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '内存持续增长全面治理：消除 6 类泄漏源，长时间游戏不再卡顿',
+            '新增崩溃上报系统：闪退、OOM 等异常自动记录并上报',
+            '修复腐败收入双重扣款导致的国库异常',
+        ],
+        changes: [
+            { type: 'improve', text: '禁用零消费者的 Zustand store 同步（useStoreSync），每次渲染减少 90+ 字段对象创建与完整 gameState 深比较开销。' },
+            { type: 'improve', text: '游戏循环中 6 处动态 import() 改为静态 import，消除每 tick 的 Promise 创建、微任务调度与闭包累积。' },
+            { type: 'improve', text: 'stateRef 改为 Object.assign 就地更新，避免依赖变化时重建 90+ 字段新对象。' },
+            { type: 'improve', text: 'IndexedDB 存档连接单例化，避免每次存档操作重复打开连接导致资源泄漏。' },
+            { type: 'improve', text: '移除无 UI 消费者的 resourceChangeLog 与 classWealthChangeLog 审计日志，减少每 tick 数十个临时对象分配。' },
+            { type: 'improve', text: 'treasuryChangeLog 改为批量写入，多条日志合并为单次 setState 调用。' },
+            { type: 'improve', text: 'nations 清理增强：每 100 tick 同步清除已亡国家的外交关系、海外投资、活跃前线等关联数据，防止数组无限膨胀。' },
+            { type: 'improve', text: 'priceHistory 最大长度从 365 降至 90 天，数组更新改为单次分配，减少每 tick 内存创建量。' },
+            { type: 'improve', text: 'window 全局调试变量（__PERF_STATS、__APPLY_SECTIONS）仅在 __PERF_LOG 开启时写入，正常游戏零开销。' },
+            { type: 'new', text: '新增崩溃上报系统（crashReporter）：自动捕获 JS 错误与未处理 Promise 拒绝，通过 GA + 自研后端上报。' },
+            { type: 'new', text: '新增 AppErrorBoundary：React 渲染崩溃时展示友好错误页面并上报，不再白屏。' },
+            { type: 'new', text: '应用启动时自动检测上次会话是否异常退出（OOM/强杀），并在 analytics 初始化后上报崩溃日志。' },
+            { type: 'fix', text: '修复 Ledger._deduct 未返回实际扣除金额，导致余额不足时记账金额与实际扣款不一致。' },
+            { type: 'fix', text: '修复腐败收入处理中 applySilverChange 与 ledger.transfer 双重扣除国库，改为仅通过 ledger.transfer 执行一次扣除+记账。' },
+            { type: 'fix', text: '修复动态 import 改静态后投资代码引用未初始化变量 adjustedMarket 导致 ReferenceError。' },
+        ],
+    },
+    {
+        version: '2.3.20',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '修复玩家中途闪退：消除贸易清理与成就系统引发的 React 无限渲染循环',
             '高速模式 UI 不再卡顿：数据展示与逻辑同步更新，告别延迟感',
