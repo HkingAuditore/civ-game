@@ -45,45 +45,65 @@ const hasIndexedDb = () => typeof indexedDB !== 'undefined';
 const IDB_OPEN_TIMEOUT_MS = 8000;
 const IDB_REQUEST_TIMEOUT_MS = 10000;
 
-const openSaveDb = () => new Promise((resolve, reject) => {
-    if (!hasIndexedDb()) {
-        reject(new Error('IndexedDB not available'));
-        return;
-    }
+// [PERF] 单例缓存 IndexedDB 连接，避免每次存档操作都 open 新连接导致泄漏
+let _dbInstance = null;
+let _dbOpenPromise = null;
 
-    let settled = false;
-    const timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        reject(new Error('IndexedDB open timeout'));
-    }, IDB_OPEN_TIMEOUT_MS);
+const openSaveDb = () => {
+    if (_dbInstance) return Promise.resolve(_dbInstance);
+    if (_dbOpenPromise) return _dbOpenPromise;
 
-    const settle = (handler) => (value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeoutId);
-        handler(value);
-    };
-
-    let request;
-    try {
-        request = indexedDB.open(SAVE_IDB_NAME, 1);
-    } catch (error) {
-        clearTimeout(timeoutId);
-        reject(error);
-        return;
-    }
-
-    request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(SAVE_IDB_STORE)) {
-            db.createObjectStore(SAVE_IDB_STORE);
+    _dbOpenPromise = new Promise((resolve, reject) => {
+        if (!hasIndexedDb()) {
+            reject(new Error('IndexedDB not available'));
+            return;
         }
-    };
-    request.onsuccess = settle(() => resolve(request.result));
-    request.onerror = settle(() => reject(request.error || new Error('Failed to open IndexedDB')));
-    request.onblocked = settle(() => reject(new Error('IndexedDB open blocked')));
-});
+
+        let settled = false;
+        const timeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            _dbOpenPromise = null;
+            reject(new Error('IndexedDB open timeout'));
+        }, IDB_OPEN_TIMEOUT_MS);
+
+        const settle = (handler) => (value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            handler(value);
+        };
+
+        let request;
+        try {
+            request = indexedDB.open(SAVE_IDB_NAME, 1);
+        } catch (error) {
+            clearTimeout(timeoutId);
+            _dbOpenPromise = null;
+            reject(error);
+            return;
+        }
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(SAVE_IDB_STORE)) {
+                db.createObjectStore(SAVE_IDB_STORE);
+            }
+        };
+        request.onsuccess = settle(() => {
+            const db = request.result;
+            db.onclose = () => { _dbInstance = null; _dbOpenPromise = null; };
+            db.onversionchange = () => { db.close(); _dbInstance = null; _dbOpenPromise = null; };
+            _dbInstance = db;
+            _dbOpenPromise = null;
+            resolve(db);
+        });
+        request.onerror = settle(() => { _dbOpenPromise = null; reject(request.error || new Error('Failed to open IndexedDB')); });
+        request.onblocked = settle(() => { _dbOpenPromise = null; reject(new Error('IndexedDB open blocked')); });
+    });
+
+    return _dbOpenPromise;
+};
 
 const readSaveFromIndexedDb = async (key) => {
     const db = await openSaveDb();
@@ -1353,8 +1373,6 @@ export const useGameState = () => {
         forcedSubsidyUnpaid: 0,
     });
     const [treasuryChangeLog, setTreasuryChangeLog] = useState([]);
-    const [resourceChangeLog, setResourceChangeLog] = useState([]);
-    const [classWealthChangeLog, setClassWealthChangeLog] = useState([]);
 
     // [FIX] 每日军队维护成本（simulation返回的完整数据）
     const [dailyMilitaryExpense, setDailyMilitaryExpense] = useState(null);
@@ -1362,27 +1380,14 @@ export const useGameState = () => {
     // ========== 时间状�?==========
     const [daysElapsed, setDaysElapsed] = useState(0);
 
+    // [PERF] 批量追加 treasury 日志，减少 setState 调用次数
+    const appendTreasuryChangeLogBatch = (batch) => {
+        if (!Array.isArray(batch) || batch.length === 0) return;
+        setTreasuryChangeLog(prev => [...prev, ...batch].slice(-300));
+    };
+
     const appendTreasuryChangeLog = (entry) => {
-        setTreasuryChangeLog(prev => {
-            const next = [...prev, entry];
-            return next.slice(-300);
-        });
-    };
-
-    const appendResourceChangeLog = (entries) => {
-        if (!Array.isArray(entries) || entries.length === 0) return;
-        setResourceChangeLog(prev => {
-            const next = [...prev, ...entries];
-            return next.slice(-600);
-        });
-    };
-
-    const appendClassWealthChangeLog = (entries) => {
-        if (!Array.isArray(entries) || entries.length === 0) return;
-        setClassWealthChangeLog(prev => {
-            const next = [...prev, ...entries];
-            return next.slice(-600);
-        });
+        setTreasuryChangeLog(prev => [...prev, entry].slice(-300));
     };
 
     const setResources = (updater, options = {}) => {
@@ -1401,43 +1406,19 @@ export const useGameState = () => {
             const logDay = Number.isFinite(meta?.day) ? meta.day : daysElapsed;
             const metaSource = meta && typeof meta === 'object' ? meta.source : undefined;
             if (audit) {
-                const resourceEntries = [];
-                const allKeys = new Set([
-                    ...Object.keys(prev || {}),
-                    ...Object.keys(next || {}),
-                ]);
-                const timestamp = Date.now();
-                allKeys.forEach((key) => {
-                    const beforeValue = Number(prev?.[key] || 0);
-                    const afterValue = Number(next?.[key] || 0);
-                    if (!Number.isFinite(beforeValue) && !Number.isFinite(afterValue)) return;
-                    if (beforeValue === afterValue) return;
-                    resourceEntries.push({
-                        timestamp,
-                        day: logDay,
-                        resource: key,
-                        amount: afterValue - beforeValue,
-                        before: beforeValue,
-                        after: afterValue,
-                        reason,
-                        meta,
-                    });
-                });
-                if (resourceEntries.length > 0) {
-                    appendResourceChangeLog(resourceEntries);
-                }
-
+                const batch = [];
                 const entries = Array.isArray(auditEntries) ? auditEntries : [];
                 if (entries.length > 0 && Number.isFinite(after)) {
                     let running = Number.isFinite(auditStartingSilver) ? auditStartingSilver : before;
                     let entryTotal = 0;
+                    const timestamp = Date.now();
                     entries.forEach((entry) => {
                         const amount = Number(entry?.amount || 0);
                         if (!Number.isFinite(amount) || Math.abs(amount) < 0.01) return;
                         const entryBefore = running;
                         const entryAfter = entryBefore + amount;
-                        appendTreasuryChangeLog({
-                            timestamp: Date.now(),
+                        batch.push({
+                            timestamp,
                             day: logDay,
                             amount,
                             before: entryBefore,
@@ -1450,7 +1431,7 @@ export const useGameState = () => {
                     });
                     const residual = (after - before) - entryTotal;
                     if (Number.isFinite(residual) && Math.abs(residual) > 0.01) {
-                        appendTreasuryChangeLog({
+                        batch.push({
                             timestamp: Date.now(),
                             day: logDay,
                             amount: residual,
@@ -1461,7 +1442,7 @@ export const useGameState = () => {
                         });
                     }
                 } else if (Number.isFinite(after) && after !== before) {
-                    appendTreasuryChangeLog({
+                    batch.push({
                         timestamp: Date.now(),
                         day: logDay,
                         amount: after - before,
@@ -1471,41 +1452,18 @@ export const useGameState = () => {
                         meta,
                     });
                 }
+                if (batch.length > 0) {
+                    appendTreasuryChangeLogBatch(batch);
+                }
             }
             return next;
         });
     };
 
     const setClassWealth = (updater, options = {}) => {
-        const { reason = 'unknown', meta = null, audit = true } = options || {};
         setClassWealthState(prev => {
             const next = typeof updater === 'function' ? updater(prev) : updater;
             if (!next || typeof next !== 'object') return prev;
-            if (audit) {
-                const entries = [];
-                const timestamp = Date.now();
-                const allKeys = new Set([
-                    ...Object.keys(prev || {}),
-                    ...Object.keys(next || {}),
-                ]);
-                allKeys.forEach((key) => {
-                    const beforeValue = Number(prev?.[key] || 0);
-                    const afterValue = Number(next?.[key] || 0);
-                    if (!Number.isFinite(beforeValue) && !Number.isFinite(afterValue)) return;
-                    if (beforeValue === afterValue) return;
-                    entries.push({
-                        timestamp,
-                        day: daysElapsed,
-                        stratum: key,
-                        amount: afterValue - beforeValue,
-                        before: beforeValue,
-                        after: afterValue,
-                        reason,
-                        meta,
-                    });
-                });
-                appendClassWealthChangeLog(entries);
-            }
             return next;
         });
     };
@@ -3734,7 +3692,6 @@ export const useGameState = () => {
         resources,
         setResources,
         treasuryChangeLog,
-        resourceChangeLog,
         market,
         setMarket,
 
@@ -3854,7 +3811,6 @@ export const useGameState = () => {
         setClassInfluence,
         classWealth,
         setClassWealth,
-        classWealthChangeLog,
         classWealthDelta,
         setClassWealthDelta,
         classIncome,

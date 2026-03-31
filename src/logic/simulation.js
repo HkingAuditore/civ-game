@@ -4776,7 +4776,7 @@ export const simulateTick = ({
         if (investmentDecision && investmentDecision.cost <= investBudget) {
             if (isStateManagedPolicy) {
                 // 代经营制：从国库扣费，建筑记录到 managedBuildings
-                res.silver = Math.max(0, (res.silver || 0) - investmentDecision.cost);
+                applySilverChange(-investmentDecision.cost, 'state_managed_investment');
                 investmentCost = investmentDecision.cost;
             } else {
                 // 私产制：从个人财富扣费
@@ -6268,21 +6268,38 @@ export const simulateTick = ({
     // Remove annexed nations with zero population every 100 days to reduce memory usage
     // ========================================================================
     const isCleanupTick = tick % 100 === 0;
+    let cleanedNationIds = null;
     if (isCleanupTick) {
         const beforeCount = updatedNations.length;
+        const removedIds = new Set();
         updatedNations = updatedNations.filter(n => {
-            // Always keep player
             if (n.id === 'player') return true;
-            // Remove annexed nations with zero or negative population
-            if (n.isAnnexed && (n.population || 0) <= 0) {
-                logs.push(`🗑️ 国家 "${n.name}" 已被完全清除（已吞并且人口为0）。`);
+            if ((n.isAnnexed && (n.population || 0) <= 0) || (n.isDefeated && n.isAnnexed)) {
+                removedIds.add(n.id);
                 return false;
             }
             return true;
         });
-        const removedCount = beforeCount - updatedNations.length;
-        if (removedCount > 0) {
-            logs.push(`♻️ 系统清理：移除了 ${removedCount} 个已消失的国家，优化性能。`);
+        if (removedIds.size > 0) {
+            // 清理存活国家的 foreignRelations 中对已删国家的残留引用
+            updatedNations = updatedNations.map(n => {
+                if (!n.foreignRelations) return n;
+                const cleanedRelations = {};
+                let changed = false;
+                for (const [key, val] of Object.entries(n.foreignRelations)) {
+                    if (removedIds.has(key)) { changed = true; continue; }
+                    cleanedRelations[key] = val;
+                }
+                return changed ? { ...n, foreignRelations: cleanedRelations } : n;
+            });
+            // 清理 overseasInvestments 中指向被删国家的投资
+            if (Array.isArray(updatedOverseasInvestments)) {
+                updatedOverseasInvestments = updatedOverseasInvestments.filter(inv =>
+                    !removedIds.has(inv.targetNationId) && !removedIds.has(inv.ownerNationId)
+                );
+            }
+            cleanedNationIds = [...removedIds];
+            logs.push(`♻️ 系统清理：移除了 ${removedIds.size} 个已消失的国家及其关联数据。`);
         }
     }
 
@@ -8364,18 +8381,15 @@ export const simulateTick = ({
         });
 
         if (distributed > 0) {
-            // Corruption is treated as real embezzlement: money is taken from the treasury and ends up in officials' wealth.
-            // 1) Reduce treasury silver
-            applySilverChange(-distributed, 'corruption');
-
-            // 2) Increase officials wealth snapshot (used by UI)
-            totalOfficialWealth += distributed;
-            wealth.official = totalOfficialWealth;
-            classWealthResult.official = Math.max(0, wealth.official);
-            totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
+            // Corruption: money is taken from the treasury and ends up in officials' wealth.
+            // [FIX] 仅通过 ledger.transfer 执行一次扣除+记账。
+            // ledger._deduct 减少国库，ledger._add 增加 wealth.official，
+            // _recordExpense 写入 silverChangeLog。无需额外调用 applySilverChange。
+            // 注意：individual official.wealth 已在上面循环中逐个增加了 share，
+            // 所以这里 ledger._add 对 wealth.official 的增加恰好覆盖了聚合变化。
             totalOfficialIncome += distributed;
 
-            // 3) Record the flow in the ledger (state -> official)
+            // Execute the single state->official transfer (debit state + credit official + log)
             ledger.transfer(
                 'state',
                 'official',
@@ -8383,6 +8397,11 @@ export const simulateTick = ({
                 TRANSACTION_CATEGORIES.INCOME.CORRUPTION,
                 TRANSACTION_CATEGORIES.INCOME.CORRUPTION
             );
+
+            // Sync tracking vars after ledger has updated wealth.official
+            totalOfficialWealth = wealth.official;
+            classWealthResult.official = Math.max(0, wealth.official);
+            totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
         }
     }
 
@@ -9099,6 +9118,7 @@ export const simulateTick = ({
         militaryCorps, // [NEW] 军团状?
         generals, // [NEW] 将领状?
         activeFronts, // [NEW] 活跃战线
+        _cleanedNationIds: cleanedNationIds,
         activeBattles, // [NEW] 进行中的战斗
         officials: updatedOfficials, // 更新后的官员列表（含财务数据?
         // 计算有效官员容量（基于时代、政体、科技和理念）

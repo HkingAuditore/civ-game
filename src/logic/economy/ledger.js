@@ -70,10 +70,11 @@ export class EconomyLedger {
     transfer(from, to, amount, category, subCategory, metadata = {}) {
         if (amount <= 0) return;
 
-        // 1. 扣款
+        // 1. 扣款 — _deduct 返回实际扣除金额（可能因余额不足而小于 amount）
+        let actualDeducted = amount;
         if (from !== 'void') {
-            this._deduct(from, amount, subCategory, metadata);
-            this._recordExpense(from, amount, subCategory, metadata);
+            actualDeducted = this._deduct(from, amount, subCategory, metadata);
+            this._recordExpense(from, actualDeducted, subCategory, metadata);
         }
 
         // 2. 入账
@@ -110,28 +111,17 @@ export class EconomyLedger {
 
     _deduct(entity, amount, reason, metadata = {}) {
         if (entity === 'state') {
-            this.resources.silver = Math.max(0, (this.resources.silver || 0) - amount);
+            const before = this.resources.silver || 0;
+            this.resources.silver = Math.max(0, before - amount);
+            return before - this.resources.silver;
         } else if (entity === 'official_pool') {
-             // 官员总池扣款逻辑比较复杂，因为官员是独立的。
-             // 通常我们不从 'official_pool' 扣款，而是遍历 officials 扣。
-             // 如果调用者传了 'official_pool'，说明是统计层面的，或者已经处理了个体扣款。
-             // 这里暂时假设调用者已经处理了个体，只更新总池统计?
-             // 不，Ledger 应该负责数据一致性。
-             // 如果 entity 是具体的 officialId (e.g. 'official_1'), 那就好办。
-             // 但 simulation 中通常用 class key ('peasant', 'official').
-             // 对于 'official' class key， simulation.js 中 wealth.official 是总和，只读/统计用。
-             // 实际财富在 officials[i].wealth。
-             // **关键策略**：Ledger 操作 'official' 时，必须明确是指 "Official Class Aggregate" 还是 "Specific Official"。
-             // 如果是 Class Aggregate，我们需要知道如何分配。
-             // 简单起见，Simulation 目前是先算个体，再汇总到 wealth.official。
-             // 所以 Ledger 如果操作 wealth.official，可能只是更新统计。
-             // **为了完备性**，建议 Ledger 仅用于 Simulation 主循环中 "类" 级别的操作。
-             // 官员个体的操作应单独封装，或者 Ledger 支持传入 official 引用。
+            return amount;
         } else {
-            // 普通阶层
-            this.wealth[entity] = Math.max(0, (this.wealth[entity] || 0) - amount);
-            // Track the wealth change
-            this._trackClassWealthChange(entity, -amount, reason);
+            const before = this.wealth[entity] || 0;
+            this.wealth[entity] = Math.max(0, before - amount);
+            const actual = before - this.wealth[entity];
+            this._trackClassWealthChange(entity, -actual, reason);
+            return actual;
         }
     }
 
