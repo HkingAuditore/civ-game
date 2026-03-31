@@ -681,6 +681,13 @@ export const TRIBUTE_CONFIG = {
         baseAmount: 10,                  // 基础资源数量
         resources: ['food', 'wood', 'iron', 'cloth'],  // 可朝贡的资源类型
     },
+
+    // 朝贡硬上限（亚线性缩放，随附庸GDP增长但慢于线性）
+    hardCap: {
+        base: 100000,           // 基准上限（当附庸GDP等于referenceGDP时的上限）
+        referenceGDP: 1000,     // 参考GDP基准值
+        exponent: 0.5,          // 缩放指数：0.5=平方根，保证增速始终低于线性
+    },
 };
 
 /**

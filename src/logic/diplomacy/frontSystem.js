@@ -33,16 +33,18 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 // ========== Checkpoint Zone System ==========
 
 /**
- * 7 zones from defender core (0) to attacker core (100)
- * linePosition 0 = defender fully controls, 100 = attacker fully controls
+ * 6 zones from attacker homeland (0) to defender homeland (100).
+ * linePosition 0 = defender fully controls (pushed into attacker core),
+ * linePosition 100 = attacker fully controls (pushed into defender core).
+ * ownerSide indicates whose HOMELAND the zone represents.
  */
 export const FRONT_ZONES = [
-    { id: 0, name: '守方核心区', start: 0, end: 15, ownerSide: 'defender', category: 'capital', buildingCats: ['gather', 'industry', 'civic', 'military'] },
-    { id: 1, name: '守方经济区', start: 15, end: 35, ownerSide: 'defender', category: 'economic', buildingCats: ['industry', 'civic'] },
-    { id: 2, name: '守方前沿', start: 35, end: 50, ownerSide: 'defender', category: 'frontier', buildingCats: ['military', 'gather'] },
-    { id: 3, name: '攻方前沿', start: 50, end: 65, ownerSide: 'attacker', category: 'frontier', buildingCats: ['military', 'gather'] },
-    { id: 4, name: '攻方经济区', start: 65, end: 85, ownerSide: 'attacker', category: 'economic', buildingCats: ['industry', 'civic'] },
-    { id: 5, name: '攻方核心区', start: 85, end: 100, ownerSide: 'attacker', category: 'capital', buildingCats: ['gather', 'industry', 'civic', 'military'] },
+    { id: 0, name: '攻方核心区', start: 0, end: 15, ownerSide: 'attacker', category: 'capital', buildingCats: ['gather', 'industry', 'civic', 'military'] },
+    { id: 1, name: '攻方经济区', start: 15, end: 35, ownerSide: 'attacker', category: 'economic', buildingCats: ['industry', 'civic'] },
+    { id: 2, name: '攻方前沿', start: 35, end: 50, ownerSide: 'attacker', category: 'frontier', buildingCats: ['military', 'gather'] },
+    { id: 3, name: '守方前沿', start: 50, end: 65, ownerSide: 'defender', category: 'frontier', buildingCats: ['military', 'gather'] },
+    { id: 4, name: '守方经济区', start: 65, end: 85, ownerSide: 'defender', category: 'economic', buildingCats: ['industry', 'civic'] },
+    { id: 5, name: '守方核心区', start: 85, end: 100, ownerSide: 'defender', category: 'capital', buildingCats: ['gather', 'industry', 'civic', 'military'] },
 ];
 
 export const CHECKPOINTS = [15, 35, 50, 65, 85];
@@ -724,13 +726,13 @@ export const generateFront = (attackerId, defenderId, epoch, attackerEconomy, de
     const attackerBuildings = attackerEconomy?.buildings || {};
     const defenderBuildings = defenderEconomy?.buildings || {};
 
-    // Zone 2 (defender frontier): use defender's buildings
-    zones[2].resourceNodes = generateZoneResources(FRONT_ZONES[2], defenderBuildings, epoch, defenderId);
-    zones[2].infrastructure = generateZoneInfrastructure(FRONT_ZONES[2], defenderBuildings, epoch, defenderId);
+    // Zone 2 (attacker frontier): attacker's forward-deployed resources
+    zones[2].resourceNodes = generateZoneResources(FRONT_ZONES[2], attackerBuildings, epoch, attackerId);
+    zones[2].infrastructure = generateZoneInfrastructure(FRONT_ZONES[2], attackerBuildings, epoch, attackerId);
 
-    // Zone 3 (attacker frontier): use attacker's buildings
-    zones[3].resourceNodes = generateZoneResources(FRONT_ZONES[3], attackerBuildings, epoch, attackerId);
-    zones[3].infrastructure = generateZoneInfrastructure(FRONT_ZONES[3], attackerBuildings, epoch, attackerId);
+    // Zone 3 (defender frontier): defender's forward-deployed resources
+    zones[3].resourceNodes = generateZoneResources(FRONT_ZONES[3], defenderBuildings, epoch, defenderId);
+    zones[3].infrastructure = generateZoneInfrastructure(FRONT_ZONES[3], defenderBuildings, epoch, defenderId);
 
     // Build aggregated top-level views
     const resourceNodes = Object.values(zones).flatMap(z => z.resourceNodes);
