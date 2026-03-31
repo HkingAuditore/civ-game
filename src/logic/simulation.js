@@ -7186,15 +7186,6 @@ export const simulateTick = ({
                 }
             }
 
-            // Inventory decay: excess stock (>3x target) decays at 2%/tick (spoilage, theft, etc.)
-            if (adjustedDemand > 0) {
-                const decayThreshold = adjustedDemand * inventoryTargetDays * 3;
-                const currentStockForDecay = res[resource] || 0;
-                if (currentStockForDecay > decayThreshold) {
-                    const decayAmount = (currentStockForDecay - decayThreshold) * 0.02;
-                    res[resource] = currentStockForDecay - decayAmount;
-                }
-            }
 
 
             // 计算当前库存可以支撑多少?
