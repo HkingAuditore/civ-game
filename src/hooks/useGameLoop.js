@@ -2061,6 +2061,8 @@ difficulty, // 游戏难度
                 let updatedPriceHistory = priceHistory;
                 let currentEquilibriumPrices = equilibriumPrices;
 
+                let indicators = economicIndicators;
+
                 if (_shouldUpdateUI) {
                 // 1. 更新价格历史（每天）
                 updatedPriceHistory = updatePriceHistory({
@@ -2094,7 +2096,7 @@ difficulty, // 游戏难度
                     });
                 }
 
-                const indicators = calculateAllIndicators({
+                indicators = calculateAllIndicators({
                     priceHistory: updatedPriceHistory,
                     equilibriumPrices: currentEquilibriumPrices,
                     marketPrices: market.prices,
