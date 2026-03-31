@@ -1,7 +1,7 @@
 // 游戏状态管理钩�?
 // 集中管理所有游戏状态，避免App.jsx中状态定义过�?
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
 import { HISTORY_STORAGE_LIMIT, LOG_STORAGE_LIMIT } from '../config/gameConstants';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
@@ -3668,7 +3668,7 @@ export const useGameState = () => {
         window.location.reload();
     };
 
-    const unlockAchievement = (achievement) => {
+    const unlockAchievement = useCallback((achievement) => {
         if (!achievement?.id) return;
         setUnlockedAchievements(prev => {
             if (prev.some(item => item.id === achievement.id)) return prev;
@@ -3692,9 +3692,9 @@ export const useGameState = () => {
             ]);
             return next;
         });
-    };
+    }, []);
 
-    const incrementAchievementProgress = (key, amount = 1) => {
+    const incrementAchievementProgress = useCallback((key, amount = 1) => {
         if (!key) return;
         setAchievementProgress(prev => {
             const nextValue = (prev?.[key] || 0) + amount;
@@ -3708,11 +3708,11 @@ export const useGameState = () => {
             }
             return next;
         });
-    };
+    }, []);
 
-    const dismissAchievementNotification = (notificationId) => {
+    const dismissAchievementNotification = useCallback((notificationId) => {
         setAchievementNotifications(prev => prev.filter(item => item.id !== notificationId));
-    };
+    }, []);
 
     const hasAutoSave = () => {
         if (typeof window === 'undefined') return false;
