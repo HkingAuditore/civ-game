@@ -4,9 +4,30 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.14',
+        version: '2.3.15',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '移动端闪退修复：大幅削减每 tick 内存分配，缓解长时间运行后 OOM 崩溃',
+            '调试数据按需生成：非开发模式不再创建大量冗余对象',
+            '财务面板更新降频：减少 React state 更新频率，降低 GC 压力',
+        ],
+        changes: [
+            { type: 'fix', text: '修复移动端运行约 10 分钟后渐进式卡死直至被系统强杀的问题。根因是每 tick 无条件创建大量调试对象（buildingDebugData、silverChangeLog、classWealthChangeLog、militaryDebug、freeMarketDebug 等），在手机 WebView 有限堆内存下 GC 追不上分配速度导致 OOM。' },
+            { type: 'improve', text: 'simulation.js 中所有调试数据（buildingDebugData、classWealthChangeLog、resourceChangeLog、militaryDebug、freeMarketDebug）改为仅在 isDebugEnabled("simulation") 时生成，正常游戏时为 null/no-op，每 tick 节省约 50-200KB 对象分配。' },
+            { type: 'improve', text: 'silverChangeLog 从 _debug 块提取为独立的 _auditLog 字段（财政审计仍可用），其余 _debug 数据仅 debug 模式下返回。' },
+            { type: 'improve', text: 'buildingFinancialData 和 classFinancialData 的 React state 更新从每 tick 降频到每 10 tick，大幅减少 React 渲染和 GC 压力，UI 感知几乎无影响。' },
+            { type: 'improve', text: 'window.__buildingDebugData 不再每 tick 强制覆盖空对象，仅在有数据时挂载，消除全局对象泄漏。' },
+            { type: 'improve', text: 'supplyBreakdown 历史保留量从 30 条缩减至 10 条（每条含全资源×全建筑的完整 breakdown），节省约 20-60KB 内存。' },
+            { type: 'improve', text: '理念系统指标历史深度从 90 缩减至 30（METRIC_HISTORY_LIMIT），均值窗口从 30 缩至 15，减少长期驻留内存。' },
+            { type: 'improve', text: 'EconomyLedger 的 classWealthChangeLog 追踪增加 null 保护，非调试模式下不产生任何对象分配。' },
+            { type: 'improve', text: '建筑生产循环中的 ownerDetails 数组改为按需创建（仅 debug 时收集），正常游戏时跳过该分配。' },
+        ],
+    },
+    {
+        version: '2.3.14',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '粮荒死循环终结：缺粮缺布时价格加速暴涨，劳动力自动转向种地',
             '税制大幅减负：人头税基准 10%→5%，营业税基准 8%→3%',

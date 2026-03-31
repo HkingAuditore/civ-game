@@ -1016,9 +1016,10 @@ difficulty, // 游戏难度
     }, []);
 
     // ========== 历史数据节流 ==========
-    // 姣?HISTORY_UPDATE_INTERVAL 涓?tick 鎵嶆洿鏂颁竴娆″巻鍙叉暟鎹?State
     const historyUpdateCounterRef = useRef(0);
-    const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick同步一次历史数据到UI
+    const HISTORY_UPDATE_INTERVAL = 5;
+    const financialDataCounterRef = useRef(0);
+    const FINANCIAL_DATA_UPDATE_INTERVAL = 10;
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
@@ -1859,8 +1860,10 @@ difficulty, // 游戏难度
                     debugLog('fiscal', '💵 实际净变化:', netTreasuryChange.toFixed(2), '银币');
                 }
 
-                if (_fiscalDebug && result._debug?.militaryDebugInfo) {
-                    debugLog('fiscal', '⚔️ [GameLoop] Military Debug:', result._debug.militaryDebugInfo);
+                if (_fiscalDebug && result._debug) {
+                    if (result._debug.militaryDebugInfo) {
+                        debugLog('fiscal', '⚔️ [GameLoop] Military Debug:', result._debug.militaryDebugInfo);
+                    }
                 }
                 const armyCostSim = result.dailyMilitaryExpense?.dailyExpense || 0;
                 if (_fiscalDebug) debugLog('fiscal', '⚔️ [GameLoop] Reported Military Cost:', armyCostSim);
@@ -1903,9 +1906,9 @@ difficulty, // 游戏难度
                 // }
 
                 const auditEntries = [];
-                if (Array.isArray(result?._debug?.silverChangeLog) && result._debug.silverChangeLog.length > 0) {
+                if (Array.isArray(result?._auditLog) && result._auditLog.length > 0) {
                     const aggregated = new Map();
-                    result._debug.silverChangeLog.forEach((entry) => {
+                    result._auditLog.forEach((entry) => {
                         if (!entry) return;
                         const amount = Number(entry.amount || 0);
                         if (!Number.isFinite(amount) || amount === 0) return;
@@ -2169,8 +2172,8 @@ difficulty, // 游戏难度
                     };
                 });
 
-                const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
-                    ? result._debug.startingSilver
+                const auditStartingSilver = Number.isFinite(result?._auditStartingSilver)
+                    ? result._auditStartingSilver
                     : treasuryAtTickStart;
                 // [FIX] 使用函数更新器合并 tick 期间新产生的玩家操作资源增量
                 setResources(prev => {
@@ -2783,7 +2786,7 @@ difficulty, // 游戏难度
                     }
                     mHist.supplyBreakdown.push(result.market.supplyBreakdown);
                     // 淇濈暀鏈€杩?0天的数据（用于PPI绡瓙璁＄畻锛?
-                    const MAX_SUPPLY_BREAKDOWN_DAYS = 30;
+                    const MAX_SUPPLY_BREAKDOWN_DAYS = 10;
                     if (mHist.supplyBreakdown.length > MAX_SUPPLY_BREAKDOWN_DAYS) {
                         mHist.supplyBreakdown.shift();
                     }
@@ -3072,14 +3075,17 @@ difficulty, // 游戏难度
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
-                    setClassFinancialData(result.classFinancialData || {});
-                    setBuildingFinancialData(result.buildingFinancialData || {});
+                    financialDataCounterRef.current++;
+                    if (financialDataCounterRef.current >= FINANCIAL_DATA_UPDATE_INTERVAL) {
+                        financialDataCounterRef.current = 0;
+                        setClassFinancialData(result.classFinancialData || {});
+                        setBuildingFinancialData(result.buildingFinancialData || {});
+                    }
                     if (typeof setStateBuildingSilverOutput === 'function') {
                         setStateBuildingSilverOutput(result.stateBuildingSilverOutput || 0);
                     }
-                    // DEBUG: Store building debug data for UI display
-                    if (typeof window !== 'undefined') {
-                        window.__buildingDebugData = result.buildingDebugData || {};
+                    if (typeof window !== 'undefined' && result.buildingDebugData) {
+                        window.__buildingDebugData = result.buildingDebugData;
                     }
                     // 鍘嗗彶鏁版嵁鏇存柊宸茬Щ鑷充笂鏂?Ref 绠＄悊閮ㄥ垎锛屾澶勪笉鍐嶉噸澶嶈皟鐢?
                     setTotalInfluence(result.totalInfluence);
@@ -3286,10 +3292,7 @@ difficulty, // 游戏难度
                     ) {
                         setLastMinisterExpansionDay(result.lastMinisterExpansionDay);
                     }
-                    // [DEBUG] 临时日志 - 追踪自由市场机制问题
-                    if (result._debug) {
-                        // console.log('[FREE MARKET DEBUG]', result._debug.freeMarket);
-                    }
+                    
                     // Update building upgrades from owner auto-upgrade
                     if (nextBuildingUpgrades) {
                         setBuildingUpgrades(prev => mergeLateBuildingUpgradeChanges(
