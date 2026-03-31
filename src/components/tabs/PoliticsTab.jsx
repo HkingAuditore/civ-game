@@ -461,28 +461,33 @@ const PoliticsTabComponent = ({
         setExportTariffDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
-    // 营业税：UI 用百分比，存储用系数
-    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
-    const bizMultiplierToPercent = (m) => (m ?? 1) * bizBaseRate * 100;
-    const bizPercentToMultiplier = (pct) => pct / (bizBaseRate * 100);
+    // 营业税 WYSIWYG：正值=税率%(输入50→存0.5)，负值=每栋补贴🪙(输入-500→存-500)
+    const bizDefaultRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
+    const bizRateToDisplay = (r) => {
+        const v = r ?? bizDefaultRate;
+        return v < 0 ? v : v * 100;
+    };
+    const bizDisplayToRate = (val) => {
+        return val < 0 ? val : val / 100;
+    };
 
     const handleBusinessDraftChange = (key, raw) => setBusinessDrafts(prev => ({ ...prev, [key]: raw }));
     const commitBusinessDraft = (key) => {
         if (businessDrafts[key] === undefined) return;
         const parsed = parseFloat(businessDrafts[key]);
         if (Number.isNaN(parsed)) { setBusinessDrafts(prev => { const next = { ...prev }; delete next[key]; return next; }); return; }
-        const multiplier = bizPercentToMultiplier(parsed);
-        const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10000;
-        const clamped = clamp(multiplier, -limit, limit);
+        const rate = bizDisplayToRate(parsed);
+        const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10;
+        const clamped = rate < 0 ? rate : Math.min(rate, limit);
         onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: clamped } }));
         setBusinessDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
     const toggleBusinessSign = (key, currentDraftOrMultiplier) => {
-        const currentPct = parseFloat(currentDraftOrMultiplier);
-        const newPct = isNaN(currentPct) ? -(bizBaseRate * 100) : -currentPct;
-        const multiplier = bizPercentToMultiplier(newPct);
-        onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: multiplier } }));
+        const currentVal = parseFloat(currentDraftOrMultiplier);
+        const newVal = isNaN(currentVal) ? -1 : -currentVal;
+        const rate = bizDisplayToRate(newVal);
+        onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: rate } }));
         setBusinessDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
     const toggleImportTariffSign = (key, currentValue) => {
@@ -772,7 +777,7 @@ const PoliticsTabComponent = ({
                                                 <BusinessTaxCard
                                                     key={building.id}
                                                     building={building}
-                                                    displayPercent={bizMultiplierToPercent(businessRates[building.id])}
+                                                    displayPercent={bizRateToDisplay(businessRates[building.id])}
                                                     buildingCount={buildings[building.id] || 0}
                                                     draftPercent={businessDrafts[building.id]}
                                                     onDraftChange={handleBusinessDraftChange}

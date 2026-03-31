@@ -1123,10 +1123,10 @@ export const AI_WAR_DECISION = {
 export const TAX_LIMITS = {
     MAX_HEAD_TAX: 100,          // 人头税系数上限 → UI 1000%
     MAX_RESOURCE_TAX: 5.0,      // 交易税率上限 (500%)
-    MAX_BUSINESS_TAX: 125,      // 营业税系数上限 → UI 1000%
+    MAX_BUSINESS_TAX: 10,       // 营业税率上限 (10 = 1000%)
 };
 
 export const TAX_BASE_RATES = {
     HEAD_TAX_INCOME_RATIO: 0.05,        // 人头税：按阶层日均收入的 5% 征收
-    BUSINESS_TAX_REVENUE_RATIO: 0.03,   // 营业税：按建筑营收（产值）的 3% 征收
+    BUSINESS_TAX_REVENUE_RATIO: 0.03,   // 营业税默认税率 3%（仅作为未设置时的缺省值）
 };

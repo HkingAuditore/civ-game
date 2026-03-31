@@ -102,9 +102,11 @@ const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, ma
             (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
         );
 
-        // 营业税（按营收比例）
-        const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
-        const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
+        // 营业税 WYSIWYG：正值=直接税率，负值=每栋固定补贴
+        const businessTaxRate = taxPolicies?.businessTaxRates?.[building.id] ?? (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03);
+        const businessTax = businessTaxRate < 0
+            ? businessTaxRate
+            : Math.max(0, outputValue) * businessTaxRate;
 
         // 建筑净利润 = 产出 - 投入 - 营业税
         const buildingNetProfit = outputValue - inputValue - businessTax;
@@ -493,7 +495,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const limit = TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000;
         const numeric = Number(rate);
         if (!Number.isFinite(numeric)) return 1;
-        return Math.max(-limit, Math.min(limit, numeric));
+        return numeric < 0 ? numeric : Math.min(numeric, limit);
     }, []);
 
     const [activeSection, setActiveSection] = useState('overview');
@@ -840,32 +842,32 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         }).sort((a, b) => b.required - a.required);
     }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes, gameState]);
 
-    // 营业税逻辑（按营收比例）- UI 用百分比，内部用系数
-    const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
-    const businessTaxMultiplier = clampBusinessTaxRate(taxPolicies?.businessTaxRates?.[building.id] ?? 1);
-    const displayBizPercent = businessTaxMultiplier * bizBaseRate * 100;
+    // 营业税 WYSIWYG：正值=税率%(输入50→存0.5)，负值=每栋补贴🪙(输入-500→存-500)
+    const bizDefaultRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
+    const rawRate = clampBusinessTaxRate(taxPolicies?.businessTaxRates?.[building.id] ?? bizDefaultRate);
+    const displayBizPercent = rawRate < 0 ? rawRate : rawRate * 100;
 
-    const bizPercentToMultiplier = (pct) => pct / (bizBaseRate * 100);
-    const maxBizPercent = (TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10000) * bizBaseRate * 100;
+    const bizDisplayToRate = (val) => val < 0 ? val : val / 100;
+    const maxBizPercent = (TAX_LIMITS?.MAX_BUSINESS_TAX ?? 10) * 100;
 
     const handleDraftChange = (raw) => {
-        if (raw === '' || raw === '-' || raw === '.' || raw === '-.') {
+        if (/^-?\.?$/.test(raw) || /^-?\d*\.$/.test(raw) || /^-?\d*\.\d*$/.test(raw)) {
             setDraftMultiplier(raw);
             return;
         }
         const parsed = Number(raw);
         if (!Number.isFinite(parsed)) return;
-        setDraftMultiplier(String(parsed));
+        setDraftMultiplier(raw);
     };
 
     const commitDraft = () => {
         if (draftMultiplier === null || !onUpdateTaxPolicies) return;
         const parsed = Number(draftMultiplier);
         if (!Number.isFinite(parsed)) { setDraftMultiplier(null); return; }
-        const multiplier = clampBusinessTaxRate(bizPercentToMultiplier(parsed));
+        const rate = clampBusinessTaxRate(bizDisplayToRate(parsed));
         onUpdateTaxPolicies(prev => ({
             ...prev,
-            businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: multiplier },
+            businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: rate },
         }));
         setDraftMultiplier(null);
     };
@@ -960,7 +962,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                                 onClick={() => {
                                                     const currentPct = Number(draftMultiplier ?? displayBizPercent);
                                                     const newPct = Number.isFinite(currentPct) ? -currentPct : -displayBizPercent;
-                                                    const newMultiplier = clampBusinessTaxRate(bizPercentToMultiplier(newPct));
+                                                    const newMultiplier = clampBusinessTaxRate(bizDisplayToRate(newPct));
                                                     onUpdateTaxPolicies(prev => ({
                                                         ...prev,
                                                         businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newMultiplier },
@@ -991,27 +993,29 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         </div>
                                         <div className="text-[10px] text-gray-500 mt-1">
                                             {displayBizPercent < 0
-                                                ? `负数=补贴(🪙/栋)，正数=税率(%)`
-                                                : `范围：-${maxBizPercent.toFixed(0)} ~ ${maxBizPercent.toFixed(0)}%`
+                                                ? `负数=补贴(🪙/栋，无上限)，正数=税率(%)`
+                                                : `正数税率上限${maxBizPercent.toFixed(0)}%，负数=补贴(🪙/栋，无上限)`
                                             }
                                         </div>
                                     </div>
                                     <div>
                                         {(() => {
-                                            const perBuildingTax = buildingFinance?.businessTaxPaid != null && count > 0
-                                                ? buildingFinance.businessTaxPaid / count
-                                                : null;
                                             const isTax = displayBizPercent > 0;
                                             const isSubsidy = displayBizPercent < 0;
+                                            const displayValue = isSubsidy
+                                                ? Math.abs(displayBizPercent)
+                                                : (buildingFinance?.businessTaxPaid != null && count > 0
+                                                    ? buildingFinance.businessTaxPaid / count
+                                                    : null);
                                             return (
                                                 <>
                                                     <div className="text-xs text-gray-400 mb-0.5 leading-none">
-                                                        {isSubsidy ? '实际补贴 (每栋/产出)' : '实际税额 (每次产出)'}
+                                                        {isSubsidy ? '设定补贴 (每栋/产出)' : '实际税额 (每次产出)'}
                                                     </div>
                                                     <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
-                                                        {perBuildingTax != null ? (
+                                                        {displayValue != null ? (
                                                             <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidy ? 'text-green-300' : 'text-gray-400'}`}>
-                                                                {isSubsidy ? '补贴 ' : ''}{formatNumberShortCN(Math.abs(perBuildingTax), { decimals: 2 })}
+                                                                {isSubsidy ? '补贴 ' : ''}{formatNumberShortCN(Math.abs(displayValue), { decimals: 2 })}
                                                             </span>
                                                         ) : (
                                                             <span className="text-sm font-mono text-gray-500">—</span>

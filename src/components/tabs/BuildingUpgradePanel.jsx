@@ -157,9 +157,11 @@ const getRoleIncomesForConfig = (config, building, market, taxPolicies = {}) => 
         (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
     );
 
-    // 营业税（按营收比例）
-    const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
-    const businessTax = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
+    // 营业税 WYSIWYG：正值=直接税率，负值=每栋固定补贴
+    const businessTaxRate = taxPolicies?.businessTaxRates?.[building.id] ?? (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03);
+    const businessTax = businessTaxRate < 0
+        ? businessTaxRate
+        : Math.max(0, outputValue) * businessTaxRate;
 
     // 计算可用于支付工资的利润空间
     const valueAvailableForLabor = Math.max(0, outputValue - inputValue - businessTax);

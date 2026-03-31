@@ -2129,7 +2129,9 @@ export const simulateTick = ({
                     headTaxCost = 0;
                 }
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxRate;
+                const businessTaxCost = businessTaxRate < 0
+                    ? businessTaxRate
+                    : Math.max(0, outputValue) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
                     ? businessTaxCost * effectiveEfficiency
                     : businessTaxCost;
@@ -2724,11 +2726,9 @@ export const simulateTick = ({
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         let estimatedBusinessTax;
         if (businessTaxMultiplier >= 0) {
-            estimatedBusinessTax = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
+            estimatedBusinessTax = Math.max(0, estimatedRevenue) * businessTaxMultiplier;
         } else {
-            const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
-            const flatSubsidyPerBuilding = Math.abs(businessTaxMultiplier) * bizBaseRate * 100;
-            estimatedBusinessTax = -(flatSubsidyPerBuilding * count);
+            estimatedBusinessTax = businessTaxMultiplier * count;
         }
 
         const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
@@ -3349,11 +3349,9 @@ export const simulateTick = ({
             let totalBusinessTax;
             if (businessTaxMultiplier > 0) {
                 const actualOutputValue = outputValuePerMultiplier * actualMultiplier;
-                totalBusinessTax = Math.max(0, actualOutputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
+                totalBusinessTax = Math.max(0, actualOutputValue) * businessTaxMultiplier;
             } else {
-                const bizBaseRate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
-                const flatSubsidyPerBuilding = Math.abs(businessTaxMultiplier) * bizBaseRate * 100;
-                totalBusinessTax = -(flatSubsidyPerBuilding * count);
+                totalBusinessTax = businessTaxMultiplier * count;
             }
 
             if (totalBusinessTax > 0) {
@@ -7282,10 +7280,12 @@ export const simulateTick = ({
                         });
                     }
 
-                    // 计算营业税成本（按营收比例，用上一tick市价估算营收）
+                    // 计算营业税成本（正值=按营收比例，负值=每栋固定补贴直存）
                     const businessTaxMultiplier = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
                     const estimatedRevenue = outputAmount * (priceMap[resource] || getBasePrice(resource));
-                    const rawBusinessTaxCost = Math.max(0, estimatedRevenue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxMultiplier;
+                    const rawBusinessTaxCost = businessTaxMultiplier < 0
+                        ? businessTaxMultiplier
+                        : Math.max(0, estimatedRevenue) * businessTaxMultiplier;
 
                     // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
                     let ownerLivingCost = 0;
@@ -7752,7 +7752,9 @@ export const simulateTick = ({
                     headTaxCost = 0;
                 }
                 const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
-                const businessTaxCost = Math.max(0, outputValue) * (TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03) * businessTaxRate;
+                const businessTaxCost = businessTaxRate < 0
+                    ? businessTaxRate
+                    : Math.max(0, outputValue) * businessTaxRate;
                 const effectiveBusinessTaxCost = businessTaxCost < 0
                     ? businessTaxCost * effectiveEfficiency
                     : businessTaxCost;
