@@ -3670,9 +3670,11 @@ export const useGameState = () => {
 
     const unlockAchievement = useCallback((achievement) => {
         if (!achievement?.id) return;
+        let didUnlock = false;
+        const unlockedAt = Date.now();
         setUnlockedAchievements(prev => {
             if (prev.some(item => item.id === achievement.id)) return prev;
-            const unlockedAt = Date.now();
+            didUnlock = true;
             const next = [...prev, { id: achievement.id, unlockedAt }];
             if (typeof window !== 'undefined') {
                 try {
@@ -3681,6 +3683,12 @@ export const useGameState = () => {
                     console.warn('Failed to save achievements:', error);
                 }
             }
+            return next;
+        });
+        // [FIX] 将通知 setState 移到 updater 外面，避免嵌套 setState 导致渲染风暴
+        // 使用 queueMicrotask 确保在当前批量更新完成后再追加通知
+        queueMicrotask(() => {
+            if (!didUnlock) return;
             setAchievementNotifications(list => [
                 ...list,
                 {
@@ -3690,14 +3698,15 @@ export const useGameState = () => {
                     icon: achievement.icon,
                 },
             ]);
-            return next;
         });
     }, []);
 
     const incrementAchievementProgress = useCallback((key, amount = 1) => {
         if (!key) return;
         setAchievementProgress(prev => {
-            const nextValue = (prev?.[key] || 0) + amount;
+            const current = prev?.[key] || 0;
+            const nextValue = current + amount;
+            if (nextValue === current) return prev;
             const next = { ...(prev || {}), [key]: nextValue };
             if (typeof window !== 'undefined') {
                 try {

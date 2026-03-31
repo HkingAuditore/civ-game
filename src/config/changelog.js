@@ -4,9 +4,28 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.19',
+        version: '2.3.20',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '修复玩家中途闪退：消除贸易清理与成就系统引发的 React 无限渲染循环',
+            '高速模式 UI 不再卡顿：数据展示与逻辑同步更新，告别延迟感',
+            '防御性容错：.map 未定义、解构崩溃等边界场景加固',
+        ],
+        changes: [
+            { type: 'fix', text: '修复贸易路线清理 effect 导致 React #185 (Maximum update depth exceeded) 闪退。根因是 useEffect 依赖了自己写入的 tradeRoutes/merchantState state，国家吞并时触发清理→setState→重跑 effect→无限循环。改为通过 ref 读取最新值，effect 仅依赖 nations 变化。' },
+            { type: 'fix', text: '修复成就解锁时嵌套 setState 引发额外渲染风暴。此前 setAchievementNotifications 被放在 setUnlockedAchievements 的 updater 内部调用，React 批处理期间的嵌套 setState 导致不可预测的重渲染。改为 queueMicrotask 延迟通知更新。' },
+            { type: 'fix', text: '修复 incrementAchievementProgress 每次调用都创建新 state 对象。当 amount=0 或值无变化时现在直接返回旧引用，避免触发不必要的重渲染。' },
+            { type: 'fix', text: '修复成就函数（unlockAchievement / incrementAchievementProgress / dismissAchievementNotification）每次渲染创建新引用，导致依赖它们的 useEffect 无限重触发。已包裹 useCallback 稳定引用。' },
+            { type: 'fix', text: '修复经济指标变量 indicators 在高速模式下 ReferenceError：原 const 声明位于 if (_shouldUpdateUI) 块内，高速 tick 跳过该块后后续代码引用未定义变量。已提升 let 声明到块外。' },
+            { type: 'fix', text: '新增防御性保护：WikiModal 中 .map 调用前检查数组存在、IdeologyCard/IdeologyTab 中解构前添加空值兜底、useGameActions 中阵列操作容错。' },
+            { type: 'improve', text: '高速模式 UI 更新频率从每 5 tick 一次提升至每 tick 同步更新。由于组件每 tick 已因 15+ 个非降频 setState 而重渲染，额外 setState 通过 React 批处理合并，实际渲染开销几乎不变，但数据展示延迟从最多 4 tick 降至 0。' },
+        ],
+    },
+    {
+        version: '2.3.19',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '5 倍速挂机闪退深度修复：UI 渲染降至 ~1 次/秒，内存分配大幅减少',
             '补贴建筑不再误停产：补贴收入正确计入边际收益判定',
