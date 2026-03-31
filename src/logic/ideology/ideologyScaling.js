@@ -1,7 +1,7 @@
 import { EPOCHS } from '../../config/epochs.js';
 
-const METRIC_HISTORY_LIMIT = 90;
-const RECENT_AVERAGE_WINDOW = 30;
+const METRIC_HISTORY_LIMIT = 30;
+const RECENT_AVERAGE_WINDOW = 15;
 
 const POPULATION_BANDS = [
     { threshold: 250, multiplier: 1.00 },

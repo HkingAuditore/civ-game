@@ -12,7 +12,7 @@ import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMu
 import { calculateLivingStandards } from './population/needs';
 import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinetSynergy';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
-import { debugLog } from '../utils/debugFlags';
+import { debugLog, isDebugEnabled } from '../utils/debugFlags';
 import { processPriceConvergence } from './diplomacy/treatyEffects';
 import { MINISTER_EXPANSION_CONFIG } from '../config/ministerExpansion';
 import {
@@ -643,6 +643,8 @@ export const simulateTick = ({
         }
     }
 
+    const _simDebugEnabled = isDebugEnabled('simulation');
+
     // === 资源变化追踪系统 ===
     // Silver change log (aggregated for performance)
     // 使用 Map 聚合：每?reason 只维护一个累加值，而不是记录每一?
@@ -675,14 +677,15 @@ export const simulateTick = ({
     // 国有建筑银币产出累加器（用于财政估算）
     let stateBuildingSilverOutput = 0;
 
-    // General resource change log (for all resource types)
-    const resourceChangeLog = {};
-    const trackResourceChange = (resourceType, amount, reason) => {
-        if (!resourceChangeLog[resourceType]) {
-            resourceChangeLog[resourceType] = [];
-        }
-        resourceChangeLog[resourceType].push({ amount, reason, balance: res[resourceType] || 0 });
-    };
+    const trackResourceChange = _simDebugEnabled
+        ? (() => {
+            const _log = {};
+            return (resourceType, amount, reason) => {
+                if (!_log[resourceType]) _log[resourceType] = [];
+                _log[resourceType].push({ amount, reason, balance: res[resourceType] || 0 });
+            };
+        })()
+        : () => {};
 
     // Track trade tax in silver log if any
     if (calculatedTradeRouteTax > 0) {
@@ -731,15 +734,13 @@ export const simulateTick = ({
         applyResourceChange(resourceType, delta, reason);
     };
 
-    // === 阶层财富变化追踪系统 ===
-    // Class wealth change log (for financial reporting)
-    const classWealthChangeLog = {};
-    const trackClassWealthChange = (stratumKey, amount, reason) => {
-        if (!classWealthChangeLog[stratumKey]) {
-            classWealthChangeLog[stratumKey] = [];
+    const classWealthChangeLog = _simDebugEnabled ? {} : null;
+    const trackClassWealthChange = _simDebugEnabled
+        ? (stratumKey, amount, reason) => {
+            if (!classWealthChangeLog[stratumKey]) classWealthChangeLog[stratumKey] = [];
+            classWealthChangeLog[stratumKey].push({ amount, reason, balance: wealth[stratumKey] || 0 });
         }
-        classWealthChangeLog[stratumKey].push({ amount, reason, balance: wealth[stratumKey] || 0 });
-    };
+        : () => {};
 
     // Helper: modify wealth[stratumKey] AND track the change in one call (for traceability)
     // Used for non-ledger wealth changes (layoffs, decay, capital flight, etc.)
@@ -790,9 +791,7 @@ export const simulateTick = ({
     //   businessTaxPaid: totalBusinessTaxPaid,
     // }
     const buildingFinancialData = {};
-
-    // DEBUG: Building production debug data
-    const buildingDebugData = {};
+    const buildingDebugData = _simDebugEnabled ? {} : null;
 
     if (Object.keys(STRATA).length > 0) {
         Object.keys(STRATA).forEach(key => {
@@ -2740,6 +2739,7 @@ export const simulateTick = ({
 
         let debugMarginRatio = null;
         let debugData = null;
+        let _localAffordableMultiplier = undefined;
 
         // BUG FIX: 实际可支付的工资不能超过 (收入 - 原料成本)
         // 如果市场工资过高，建筑只会支付它能支付的部分，而不是削减产?
@@ -2788,34 +2788,34 @@ export const simulateTick = ({
                 // 边际收益为正且足够，满负荷生?
                 debugMarginRatio = estimatedCost > 0 ? estimatedRevenue / estimatedCost : null;
             }
-            // DEBUG: 存储调试数据到局部变?
-            debugData = {
-                baseMultiplier,
-                resourceLimit,
-                targetMultiplier,
-                estimatedRevenue,
-                estimatedInputCost,
-                estimatedWageCost,
-                actualPayableWageCost, // 新增：实际可支付的工资成?
-                actualWageCostPerMultiplier, // 新增：实际每单位工资成本
-                actualOperatingCostPerMultiplier, // 新增：实际运营成?
-                estimatedBusinessTax,
-                estimatedCost,
-                marginRatio: debugMarginRatio,
-                actualMultiplierAfterMargin: actualMultiplier,
-                outputValuePerMultiplier,
-                inputCostPerMultiplier,
-                wageCostPerMultiplier,
-                count,
-                // Additional debug info for wage investigation
-                expectedWageBillBase,
-                baseWageCostPerMultiplier,
-                wagePressure,
-                baseWageCost,
-                wageCoverage,
-                valueAvailableForLabor,
-                wagePlans,
-            };
+            if (_simDebugEnabled) {
+                debugData = {
+                    baseMultiplier,
+                    resourceLimit,
+                    targetMultiplier,
+                    estimatedRevenue,
+                    estimatedInputCost,
+                    estimatedWageCost,
+                    actualPayableWageCost,
+                    actualWageCostPerMultiplier,
+                    actualOperatingCostPerMultiplier,
+                    estimatedBusinessTax,
+                    estimatedCost,
+                    marginRatio: debugMarginRatio,
+                    actualMultiplierAfterMargin: actualMultiplier,
+                    outputValuePerMultiplier,
+                    inputCostPerMultiplier,
+                    wageCostPerMultiplier,
+                    count,
+                    expectedWageBillBase,
+                    baseWageCostPerMultiplier,
+                    wagePressure,
+                    baseWageCost,
+                    wageCoverage,
+                    valueAvailableForLabor,
+                    wagePlans,
+                };
+            }
 
             if (debugMarginRatio !== null && debugMarginRatio < 1) {
                 buildingFinancialData[b.id].marginDetail = {
@@ -2833,21 +2833,21 @@ export const simulateTick = ({
             // 检查所?owner 的财富是否足够支付运营成?
             // BUG FIX: 使用实际可支付的运营成本，而不是基于市场工资的成本
             let minAffordableMultiplier = Infinity;
-            const ownerDetails = [];
+            const ownerDetails = debugData ? [] : null;
             Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                 const ownerProportion = group.totalCount / count;
                 const ownerOperatingCost = actualOperatingCostPerMultiplier * ownerProportion;
                 const ownerCash = wealth[oKey] || 0;
                 const ownerAffordable = ownerOperatingCost > 0 ? ownerCash / ownerOperatingCost : Infinity;
                 minAffordableMultiplier = Math.min(minAffordableMultiplier, ownerAffordable);
-                ownerDetails.push({ owner: oKey, proportion: ownerProportion, operatingCost: ownerOperatingCost, cash: ownerCash, affordable: ownerAffordable });
+                if (ownerDetails) ownerDetails.push({ owner: oKey, proportion: ownerProportion, operatingCost: ownerOperatingCost, cash: ownerCash, affordable: ownerAffordable });
             });
             const affordableMultiplier = minAffordableMultiplier === Infinity ? targetMultiplier : minAffordableMultiplier;
             const simAffordableMultiplier = minAffordableMultiplier === Infinity ? simTargetMultiplier : minAffordableMultiplier;
 
             actualMultiplier = Math.min(actualMultiplier, Math.max(0, affordableMultiplier));
             simActualMultiplier = Math.min(simActualMultiplier, Math.max(0, simAffordableMultiplier));
-            // DEBUG: 更新调试数据
+            _localAffordableMultiplier = affordableMultiplier;
             if (debugData) {
                 debugData.totalOperatingCostPerMultiplier = totalOperatingCostPerMultiplier;
                 debugData.minAffordableMultiplier = minAffordableMultiplier;
@@ -2856,8 +2856,7 @@ export const simulateTick = ({
                 debugData.ownerDetails = ownerDetails;
             }
         }
-        // 存储调试数据?buildingDebugData
-        if (debugData) {
+        if (debugData && buildingDebugData) {
             buildingDebugData[b.id] = debugData;
         }
 
@@ -2904,8 +2903,8 @@ export const simulateTick = ({
         if (debugMarginRatio !== null && debugMarginRatio < 1) {
             reductionReasons.push({ type: 'margin', label: '利润不足', factor: debugMarginRatio });
         }
-        if (debugData?.affordableMultiplier !== undefined && debugData.affordableMultiplier < targetMultiplier) {
-            reductionReasons.push({ type: 'cashflow', label: '现金流不足', factor: debugData.affordableMultiplier / targetMultiplier });
+        if (_localAffordableMultiplier !== undefined && _localAffordableMultiplier < targetMultiplier) {
+            reductionReasons.push({ type: 'cashflow', label: '现金流不足', factor: _localAffordableMultiplier / targetMultiplier });
         }
         if (approvalMultiplier < 1) {
             reductionReasons.push({ type: 'approval', label: '满意度不足', factor: approvalMultiplier });
@@ -3519,13 +3518,13 @@ export const simulateTick = ({
         resourceConsumption: {},
     };
 
-    let militaryDebug = {
+    let militaryDebug = _simDebugEnabled ? {
         totalArmyCost: 0,
         availableSilver: res.silver,
         applied: false,
         reason: null,
         logSizeBefore: silverChangeLog.length
-    };
+    } : null;
 
     if (hasArmyUnits || hasArmyQueue) {
         // 1. 获取军队资源维护需?
@@ -3638,14 +3637,15 @@ export const simulateTick = ({
             resourceConsumption: armyResourceConsumption
         };
 
-        // [DEBUG] Military Logic Inspection
-        militaryDebug = {
-            totalArmyCost,
-            availableSilver: res.silver,
-            applied: false,
-            reason: null,
-            logSizeBefore: silverChangeLog.length
-        };
+        if (_simDebugEnabled) {
+            militaryDebug = {
+                totalArmyCost,
+                availableSilver: res.silver,
+                applied: false,
+                reason: null,
+                logSizeBefore: silverChangeLog.length
+            };
+        }
 
         if (totalArmyCost > 0) {
             // [DEBUG] Military Log Trace
@@ -3655,8 +3655,10 @@ export const simulateTick = ({
                 // [FIX] Use Ledger for correct wealth transfer (State -> Soldier)
                 ledger.transfer('state', 'soldier', totalArmyCost, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
 
-                militaryDebug.applied = true;
-                militaryDebug.reason = 'expense_army_maintenance';
+                if (militaryDebug) {
+                    militaryDebug.applied = true;
+                    militaryDebug.reason = 'expense_army_maintenance';
+                }
 
                 rates.silver = (rates.silver || 0) - totalArmyCost;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
@@ -3666,10 +3668,11 @@ export const simulateTick = ({
                     classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
                 }
 
-                // [DEBUG] Verify Log Immediate
-                const logLast = silverChangeLog.toArray().pop(); // .toArray() returns copy, get last
-                militaryDebug.logEntryFound = logLast && logLast.reason === TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE;
-                militaryDebug.logSizeAfter = silverChangeLog.length;
+                if (militaryDebug) {
+                    const logLast = silverChangeLog.toArray().pop();
+                    militaryDebug.logEntryFound = logLast && logLast.reason === TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE;
+                    militaryDebug.logSizeAfter = silverChangeLog.length;
+                }
 
                 // [FIX Bug5] 标记军饷支付状?
                 armyExpenseResult.isUnderPaid = false;
@@ -4107,8 +4110,7 @@ export const simulateTick = ({
     // ====================================================================================================
 
     // [PERF] 内阁机制属于deferred级，按配置频率执行
-    // _freeMarketDebug 在守卫外声明，确保 return 语句可安全引用
-    let _freeMarketDebug = {};
+    let _freeMarketDebug = null;
     const shouldUpdateCabinet = shouldRunThisTick(tick, 'cabinet');
     if (shouldUpdateCabinet) {
     perfStart('cabinetMechanics');
@@ -4169,32 +4171,30 @@ export const simulateTick = ({
     // --- Right Dominance: Free Market (Owner Expansion) ---
     // Owners automatically build new buildings using their wealth.
     let newBuildingsCount = { ...buildings };
-    // [DEBUG] 临时调试信息 - 追踪自由市场机制问题
-    _freeMarketDebug = {
-        // 传入?cabinetStatus
-        cabinetStatusReceived: {
-            hasCabinetStatus: !!cabinetStatus,
-            hasDominance: !!cabinetStatus?.dominance,
-            dominanceFaction: cabinetStatus?.dominance?.faction,
-            synergy: cabinetStatus?.synergy,
-            level: cabinetStatus?.level,
-        },
-        // expansionSettings 检?
-        expansionSettings: {
-            hasSettings: !!expansionSettings,
-            settingsKeys: expansionSettings ? Object.keys(expansionSettings) : [],
-            allowedCount: expansionSettings
-                ? Object.values(expansionSettings).filter(s => s?.allowed).length
-                : 0,
-        },
-        // 最终条件判?
-        conditionCheck: {
-            isDominanceRight: cabinetStatus?.dominance?.faction === 'right',
-            hasExpansionSettings: !!expansionSettings,
-            willProcess: cabinetStatus?.dominance?.faction === 'right' && !!expansionSettings,
-        },
-        epochParam: epoch,
-    };
+    if (_simDebugEnabled) {
+        _freeMarketDebug = {
+            cabinetStatusReceived: {
+                hasCabinetStatus: !!cabinetStatus,
+                hasDominance: !!cabinetStatus?.dominance,
+                dominanceFaction: cabinetStatus?.dominance?.faction,
+                synergy: cabinetStatus?.synergy,
+                level: cabinetStatus?.level,
+            },
+            expansionSettings: {
+                hasSettings: !!expansionSettings,
+                settingsKeys: expansionSettings ? Object.keys(expansionSettings) : [],
+                allowedCount: expansionSettings
+                    ? Object.values(expansionSettings).filter(s => s?.allowed).length
+                    : 0,
+            },
+            conditionCheck: {
+                isDominanceRight: cabinetStatus?.dominance?.faction === 'right',
+                hasExpansionSettings: !!expansionSettings,
+                willProcess: cabinetStatus?.dominance?.faction === 'right' && !!expansionSettings,
+            },
+            epochParam: epoch,
+        };
+    }
 
     // [NEW DEBUG] 详细输出传入的参?
     // console.log('[FREE MARKET SIMULATION DEBUG]', {
@@ -9112,21 +9112,15 @@ export const simulateTick = ({
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
-        // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
-        _debug: {
+        _auditLog: silverChangeLog.toArray(),
+        _auditStartingSilver: startingSilver,
+        _debug: _simDebugEnabled ? {
             freeMarket: _freeMarketDebug,
-            // [DEBUG] Log the log - 使用聚合后的数据
-            silverChangeLog: (() => {
-                const logArray = silverChangeLog.toArray();
-                const hasMilitary = logArray.some(e => e.reason === 'expense_army_maintenance');
-                // console.log('[Simulation End] silverChangeLog has military?', hasMilitary, 'Entries:', logArray.length);
-                return logArray;
-            })(),
-            classWealthChangeLog, // 阶层财富变化追踪日志
-            startingSilver,  // tick开始时的银?
-            endingSilver: res.silver || 0, // tick结束时的银币
-            militaryDebugInfo: militaryDebug // [DEBUG] Pass explicit debug info
-        },
+            classWealthChangeLog,
+            startingSilver,
+            endingSilver: res.silver || 0,
+            militaryDebugInfo: militaryDebug,
+        } : null,
     };
 };
 

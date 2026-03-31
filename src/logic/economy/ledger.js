@@ -95,15 +95,12 @@ export class EconomyLedger {
      * @param {string} reason - Reason for the change (e.g. 'wage', 'headTax')
      */
     _trackClassWealthChange(entity, amount, reason) {
-        // Skip state and void entities
         if (entity === 'state' || entity === 'void') return;
+        if (!this.classWealthChangeLog) return;
         
-        // Initialize log array for this entity if needed
         if (!this.classWealthChangeLog[entity]) {
             this.classWealthChangeLog[entity] = [];
         }
-        
-        // Add the change record
         this.classWealthChangeLog[entity].push({
             amount,
             reason,
