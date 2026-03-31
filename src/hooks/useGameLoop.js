@@ -1030,6 +1030,7 @@ difficulty, // 游戏难度
     const cachedClassFinancialDataRef = useRef({});
     const cachedSupplyBreakdownRef = useRef({});
     const cachedDemandBreakdownRef = useRef({});
+    const cachedStratumConsumptionRef = useRef({});
     // [PERF] 主线程模式下的财务数据节流计数器
     // Worker 路径由 stripPayloadForTransfer 降频，主线程路径需自行节流
     const mainThreadFinancialCounterRef = useRef(0);
@@ -1499,6 +1500,8 @@ difficulty, // 游戏难度
                 ? performance.now()
                 : Date.now();
             const perfDay = current.daysElapsed || 0;
+            // [FIX] 在同步区捕获起始银币，防止 Worker 异步期间 stateRef 被 React 更新导致审计基线漂移
+            const _tickStartSilver = Number(mergedResources?.silver || 0);
             simInFlightRef.current = true;
             runSimulation(simulationParams).then(result => {
                 // console.log('??? [GAME-LOOP] runSimulation 完成! result:', result ? 'OK' : 'NULL', 'skipped:', result?.__skipped);
@@ -1598,9 +1601,9 @@ difficulty, // 游戏难度
                 const resourceShortages = {}; // 记录资源短缺（由 simulation 记录时这里为空）
 
                 // --- Realized fiscal tracking (must match visible treasury changes) ---
-                // We must baseline against the treasury BEFORE this tick starts (current.resources.silver).
-                // Otherwise we would only measure extra deductions done in this hook, not the full tick delta.
-                const treasuryAtTickStart = Number(current.resources?.silver || 0);
+                // [FIX] 使用同步区预先捕获的 _tickStartSilver，而非从 current.resources 读取
+                // 因为 Worker 异步期间 stateRef.current.resources 可能被 React 重渲染更新
+                const treasuryAtTickStart = _tickStartSilver;
                 let officialSalaryPaid = 0;
                 let forcedSubsidyPaid = 0;
                 let forcedSubsidyUnpaid = 0;
@@ -1970,7 +1973,7 @@ difficulty, // 游戏难度
                             gap: gap.toFixed(2),
                             officialSalaryPaid,
                             forcedSubsidyPaid,
-                            pendingDelta: mergedResources ? (mergedResources.silver || 0) - treasuryAtTickStart : 0,
+                            pendingDelta: consumedPendingDeltas?.resourceDeltas?.silver || 0,
                             auditEntryCount: auditEntries.length,
                             auditEntries: auditEntries.map(e => `${e.reason}: ${Number(e.amount).toFixed(2)}`),
                         });
@@ -1984,6 +1987,7 @@ difficulty, // 游戏难度
                 if (result.classFinancialData) cachedClassFinancialDataRef.current = result.classFinancialData;
                 if (result.market?.supplyBreakdown) cachedSupplyBreakdownRef.current = result.market.supplyBreakdown;
                 if (result.market?.demandBreakdown) cachedDemandBreakdownRef.current = result.market.demandBreakdown;
+                if (result.market?.stratumConsumption) cachedStratumConsumptionRef.current = result.market.stratumConsumption;
 
                 // [PERF] 高速模式下跳过昂贵的指标计算 + 价格历史更新（每 N tick 才做一次）
                 let updatedPriceHistory = priceHistory;
@@ -2144,12 +2148,15 @@ difficulty, // 游戏难度
                 const auditStartingSilver = Number.isFinite(result?._auditStartingSilver)
                     ? result._auditStartingSilver
                     : treasuryAtTickStart;
+                // [FIX] 快照 adjustedResources 防止后续代码（战斗补给扣除等）修改闭包引用
+                // React 18 批量处理 setState，updater 延迟执行时 adjustedResources 可能已被修改
+                const resourceSnapshot = { ...adjustedResources };
                 // [FIX] 使用函数更新器合并 tick 期间新产生的玩家操作资源增量
+                const snapshotSilver = Number(resourceSnapshot.silver || 0);
+                const mergedSilver = Number(mergedResources?.silver || 0);
                 setResources(prev => {
-                    // adjustedResources 已包含 tick 启动时消费的 pending delta
-                    // 但 tick 运行期间可能有新的 buyBuilding 消耗资源
-                    // 通过 diff(prev, mergedResources) 检测新增量
-                    const result2 = { ...adjustedResources };
+                    // resourceSnapshot 是 setResources 调用时的快照，不受后续修改影响
+                    const result2 = { ...resourceSnapshot };
                     if (mergedResources) {
                         Object.keys(prev).forEach(rid => {
                             const prevVal = prev[rid] || 0;
@@ -2166,6 +2173,7 @@ difficulty, // 游戏难度
                     meta: { day: current.daysElapsed || 0, source: 'game_loop' },
                     auditEntries,
                     auditStartingSilver,
+                    _diag: { snapshotSilver, mergedSilver },
                 });
 
                 // [FIX] 不要在这里单独setNations，会被后面的nextNations覆盖
@@ -2752,6 +2760,7 @@ difficulty, // 游戏难度
                     // [PERF] 非 full-tick 时 Worker 不传 breakdown/consumption，用缓存填充
                     supplyBreakdown: result.market?.supplyBreakdown || cachedSupplyBreakdownRef.current,
                     demandBreakdown: result.market?.demandBreakdown || cachedDemandBreakdownRef.current,
+                    stratumConsumption: result.market?.stratumConsumption || cachedStratumConsumptionRef.current,
                     priceHistory: mHist.price,
                     supplyHistory: mHist.supply,
                     demandHistory: mHist.demand,

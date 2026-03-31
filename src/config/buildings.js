@@ -429,7 +429,7 @@ export const BUILDINGS = [
         output: { culture: 2 },
         jobs: { cleric: 2, peasant: 1 },
         owner: 'cleric',
-        epoch: 1,
+        epoch: 0,
         cat: 'civic',
         businessTaxBase: 0.05,
         requiresTech: 'oral_tradition',

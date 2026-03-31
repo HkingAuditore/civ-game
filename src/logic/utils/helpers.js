@@ -21,17 +21,16 @@ export const clamp = (value, min, max) => {
 };
 
 /**
- * Maximum safe wealth value (1 trillion = 1兆)
- * Values above this can cause calculation overflow and UI issues
+ * Maximum safe wealth value — 仅过滤 NaN / Infinity，不限制正常数值增长。
+ * Number.MAX_VALUE ≈ 1.8e308，是 JS 双精度浮点能表示的最大有限值。
  */
-export const MAX_SAFE_WEALTH = 1e12;
+export const MAX_SAFE_WEALTH = Number.MAX_VALUE;
 
 /**
- * Ensure a wealth value is within safe bounds
- * Handles NaN, Infinity, and extreme values
+ * 确保财富值在安全范围内（仅过滤 NaN / Infinity / 负数）
  * @param {number} value - Wealth value to sanitize
  * @param {number} defaultValue - Default value if invalid (default: 0)
- * @returns {number} Safe wealth value between 0 and MAX_SAFE_WEALTH
+ * @returns {number} Safe wealth value, >= 0
  */
 export const safeWealth = (value, defaultValue = 0) => {
     if (!Number.isFinite(value)) return defaultValue;

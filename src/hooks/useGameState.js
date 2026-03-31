@@ -1397,6 +1397,7 @@ export const useGameState = () => {
             audit = true,
             auditEntries = null,
             auditStartingSilver = null,
+            _diag = null,
         } = options || {};
         setResourcesState(prev => {
             const before = Number(prev?.silver || 0);
@@ -1429,7 +1430,13 @@ export const useGameState = () => {
                         running = entryAfter;
                         entryTotal += amount;
                     });
-                    const residual = (after - before) - entryTotal;
+                    // [FIX] entryTotal 以 auditStartingSilver 为基线（模拟实际起点），
+                    // 而 (after - before) 以 prev.silver 为基线（React 状态）。
+                    // 当存在 pending delta 或 tick 重叠时，两个基线可能不同。
+                    // 使用 auditStartingSilver 作为 effectiveBefore 统一基线。
+                    const lateActionDelta = _diag ? (before - (_diag.mergedSilver || before)) : 0;
+                    const effectiveBefore = Number.isFinite(auditStartingSilver) ? auditStartingSilver : before;
+                    const residual = (after - effectiveBefore) - entryTotal - lateActionDelta;
                     if (Number.isFinite(residual) && Math.abs(residual) > 0.01) {
                         batch.push({
                             timestamp: Date.now(),

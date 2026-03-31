@@ -343,7 +343,7 @@ const StratumDetailSheetComponent = ({
 
     // 人头税：正值 = 税收（百分比），负值 = 补贴（银币/人/日绝对值）
     const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
-    const isSubsidyMode = headTaxMultiplier < 0;
+    const isSubsidyMode = headTaxMultiplier < 0 || Object.is(headTaxMultiplier, -0);
     const displayHeadPercent = isSubsidyMode ? 0 : headTaxMultiplier * headBaseRate * 100;
     const displaySubsidyValue = isSubsidyMode ? Math.abs(headTaxMultiplier) : 0;
     const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
@@ -373,6 +373,32 @@ const StratumDetailSheetComponent = ({
         }));
         setDraftMultiplier(null);
     };
+
+    // 组件卸载时自动提交未保存的 draft
+    const draftRef = React.useRef(null);
+    draftRef.current = { draftMultiplier, isSubsidyMode, maxHeadPercent, headPercentToMultiplier, onUpdateTaxPolicies, stratumKey };
+    React.useEffect(() => {
+        return () => {
+            const ctx = draftRef.current;
+            if (ctx.draftMultiplier === null || !ctx.onUpdateTaxPolicies) return;
+            const parsed = parseFloat(ctx.draftMultiplier);
+            if (Number.isNaN(parsed)) return;
+            let storeValue;
+            if (ctx.isSubsidyMode) {
+                storeValue = -(Math.max(0, Math.abs(parsed)));
+            } else {
+                const clampedPct = Math.min(Math.max(0, parsed), ctx.maxHeadPercent);
+                storeValue = ctx.headPercentToMultiplier(clampedPct);
+            }
+            ctx.onUpdateTaxPolicies(prev => ({
+                ...prev,
+                headTaxRates: {
+                    ...(prev?.headTaxRates || {}),
+                    [ctx.stratumKey]: storeValue,
+                },
+            }));
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
     const getApprovalColor = (value) => {
