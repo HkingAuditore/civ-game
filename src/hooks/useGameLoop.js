@@ -1018,8 +1018,12 @@ difficulty, // 游戏难度
     // ========== 历史数据节流 ==========
     const historyUpdateCounterRef = useRef(0);
     const HISTORY_UPDATE_INTERVAL = 5;
-    const financialDataCounterRef = useRef(0);
-    const FINANCIAL_DATA_UPDATE_INTERVAL = 10;
+
+    // [PERF] Worker 降频传输大型 UI 数据的缓存 ref
+    // 非 full-tick 时使用上一次的有效值，避免指标计算出现空数据
+    const cachedClassFinancialDataRef = useRef({});
+    const cachedSupplyBreakdownRef = useRef({});
+    const cachedDemandBreakdownRef = useRef({});
     const ideologyMetricsRef = useRef(createEmptyIdeologyMetrics());
     // 保存上一tick的在战国家列表，用于检测战争结束（war_result理念分数触发）
     const prevWarNationsRef = useRef([]);
@@ -1536,6 +1540,8 @@ difficulty, // 游戏难度
                 antiSynergies: ANTI_SYNERGIES || [],
                 // [PERF] 性能模式信息，供 simulation 中动态频率调整使用
                 _isLowPerformance: isLowPerformance(),
+                // [PERF] 传入实际游戏速度，供 Worker 动态调整 UI 数据传输频率
+                _gameSpeed: gameSpeed,
             };
 
             const perfEnabled = typeof window !== 'undefined' && !!window.__PERF_LOG;
@@ -1556,6 +1562,13 @@ difficulty, // 游戏难度
                     status: 'running',
                     sections: null,
                 };
+            }
+
+            // [PERF] 高速模式自动切换主线程模拟，避免 postMessage 结构化克隆导致 OOM
+            // 5x 速度 = 5 tick/秒 × 1-3MB/tick 的深拷贝 = 300-900MB/分钟，移动端必崩
+            // 主线程直接调用 simulateTick 零拷贝开销，以少量 UI 卡顿换取内存安全
+            if (typeof window !== 'undefined') {
+                window.__SIM_DISABLE_WORKER = gameSpeed >= 3;
             }
 
             // Skip if a simulation is still running to avoid flooding the worker
@@ -2054,22 +2067,25 @@ difficulty, // 游戏难度
                     });
                 }
 
+                // [PERF] Worker 降频传输时更新缓存，非 full-tick 沿用上次值
+                if (result.classFinancialData) cachedClassFinancialDataRef.current = result.classFinancialData;
+                if (result.market?.supplyBreakdown) cachedSupplyBreakdownRef.current = result.market.supplyBreakdown;
+                if (result.market?.demandBreakdown) cachedDemandBreakdownRef.current = result.market.demandBreakdown;
+
                 const indicators = calculateAllIndicators({
-                    // 价格数据
                     priceHistory: updatedPriceHistory,
                     equilibriumPrices: currentEquilibriumPrices,
                     marketPrices: market.prices,
 
-                    // GDP数据
-                    classFinancialData: result.classFinancialData,
+                    classFinancialData: result.classFinancialData || cachedClassFinancialDataRef.current,
                     dailyInvestment: result.dailyInvestment || 0,
                     dailyOwnerRevenue: result.dailyOwnerRevenue || 0, // 鏂板锛氬缓绛戜骇鍑烘敹鍏?
                     dailyMilitaryExpense: result.dailyMilitaryExpense || 0,
                     stateBuildingSilverOutput: result.stateBuildingSilverOutput || 0,
                     officials: current.officials,
                     taxBreakdown: result.taxes?.breakdown || {},
-                    demandBreakdown: result.market?.demandBreakdown || {}, // [FIX] 使用simulation返回的新数据
-                    supplyBreakdown: result.market?.supplyBreakdown || {}, // [FIX] 使用simulation返回的新数据
+                    demandBreakdown: result.market?.demandBreakdown || cachedDemandBreakdownRef.current,
+                    supplyBreakdown: result.market?.supplyBreakdown || cachedSupplyBreakdownRef.current,
 
                     // 历史数据
                     previousIndicators: economicIndicators,
@@ -2794,8 +2810,9 @@ difficulty, // 游戏难度
 
                 const adjustedMarket = {
                     ...(result.market || {}),
-                    // Use Ref data for consistency, but this object is recreated every tick.
-                    // The cost is just object creation, not React render (until setState).
+                    // [PERF] 非 full-tick 时 Worker 不传 breakdown/consumption，用缓存填充
+                    supplyBreakdown: result.market?.supplyBreakdown || cachedSupplyBreakdownRef.current,
+                    demandBreakdown: result.market?.demandBreakdown || cachedDemandBreakdownRef.current,
                     priceHistory: mHist.price,
                     supplyHistory: mHist.supply,
                     demandHistory: mHist.demand,
@@ -3059,7 +3076,7 @@ difficulty, // 游戏难度
                     setMaxPop(result.maxPop);
                     setRates(result.rates || {});
                     setClassApproval(result.classApproval);
-                    setApprovalBreakdown(result.approvalBreakdown || {}); // [NEW] 保存满意度分解数据供 UI 分析使用
+                    if (result.approvalBreakdown) setApprovalBreakdown(result.approvalBreakdown);
                     const adjustedInfluence = { ...(result.classInfluence || {}) };
                     Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
                         if (!delta) return;
@@ -3075,11 +3092,13 @@ difficulty, // 游戏难度
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
-                    financialDataCounterRef.current++;
-                    if (financialDataCounterRef.current >= FINANCIAL_DATA_UPDATE_INTERVAL) {
-                        financialDataCounterRef.current = 0;
-                        setClassFinancialData(result.classFinancialData || {});
-                        setBuildingFinancialData(result.buildingFinancialData || {});
+                    // [PERF] Worker 降频传输大型 UI 数据（_isFullTick 标记），
+                    // 仅在 full tick 时才 setState，避免用 null 覆盖上次的有效数据
+                    if (result.classFinancialData) {
+                        setClassFinancialData(result.classFinancialData);
+                    }
+                    if (result.buildingFinancialData) {
+                        setBuildingFinancialData(result.buildingFinancialData);
                     }
                     if (typeof setStateBuildingSilverOutput === 'function') {
                         setStateBuildingSilverOutput(result.stateBuildingSilverOutput || 0);
@@ -3224,12 +3243,28 @@ difficulty, // 游戏难度
                             }
                             return normalized;
                         });
-                        setActiveFronts(normalizedFronts);
-                        stateRef.current.activeFronts = normalizedFronts;
+                        // [FIX] 使用函数式更新合并，防止覆盖 tick 运行期间用户创建的 front
+                        // 典型场景：用户宣战 createFrontForWar 排入队列 → tick 结果覆盖 → front 丢失
+                        const simFrontIds = new Set(normalizedFronts.map(f => f.id));
+                        setActiveFronts(prev => {
+                            const existing = Array.isArray(prev) ? prev : [];
+                            const userCreatedFronts = existing.filter(f => !simFrontIds.has(f.id));
+                            const merged = [...normalizedFronts, ...userCreatedFronts];
+                            // 同步 stateRef 使下一个 tick 能读到完整数据
+                            stateRef.current.activeFronts = merged;
+                            return merged;
+                        });
                     }
                     if (result.activeBattles && typeof setActiveBattles === 'function') {
-                        setActiveBattles(result.activeBattles);
-                        stateRef.current.activeBattles = result.activeBattles;
+                        // [FIX] 同理：函数式更新合并，防止覆盖 tick 期间新增的 battle
+                        const simBattleIds = new Set((result.activeBattles || []).map(b => b.id));
+                        setActiveBattles(prev => {
+                            const existing = Array.isArray(prev) ? prev : [];
+                            const userCreatedBattles = existing.filter(b => !simBattleIds.has(b.id));
+                            const merged = [...(result.activeBattles || []), ...userCreatedBattles];
+                            stateRef.current.activeBattles = merged;
+                            return merged;
+                        });
                     }
                     if (result.diplomacyOrganizations) {
                         setDiplomacyOrganizations(prev => ({

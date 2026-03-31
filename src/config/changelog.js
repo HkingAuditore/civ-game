@@ -4,9 +4,25 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.16',
+        version: '2.3.17',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '修复宣战后军事界面空白的竞态 bug',
+            '高倍速（≥3x）自动切换主线程模拟，根治移动端 OOM 闪退',
+            'Worker 传输动态降频，进一步降低内存分配压力',
+        ],
+        changes: [
+            { type: 'fix', text: '修复宣战确认后跳转军事界面显示空白的 bug。根因是游戏循环用直接赋值（setActiveFronts(simResult)）覆盖了用户在 tick 运行期间创建的新战线/会战，改为函数式合并更新后新建的战线不再被吞掉。' },
+            { type: 'improve', text: '游戏速度 ≥3x 时自动禁用 Web Worker，改为主线程直接执行模拟。彻底消除 postMessage 结构化克隆带来的内存开销（5x 速度下从 300-900MB/分钟降至接近零），以少量 UI 卡顿换取内存安全，根治高倍速挂机闪退。' },
+            { type: 'improve', text: 'Worker 输出数据按游戏速度动态降频：大型 UI 面板数据（财务明细、支持度分解、市场 breakdown）改为每 10×gameSpeed tick 传输一次，其余 tick 设为 null 并由主线程使用缓存值，1-2x 速度下也显著降低内存分配。' },
+            { type: 'improve', text: '条件化 setState：approvalBreakdown、classFinancialData、buildingFinancialData 仅在 Worker 传回有效数据时更新 React state，避免空值覆盖导致面板闪烁。' },
+        ],
+    },
+    {
+        version: '2.3.16',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '移除资源库存自然衰减机制，囤积资源不再无故损耗',
         ],
