@@ -3469,7 +3469,15 @@ export const simulateTick = ({
         // [FIX] 使用本 tick 实际每人工资收入，而非 previousWages（岗位工资率）。
         // previousWages 是每个岗位的工资信号，若就业率 < 100%，会远高于人均实际收入，
         // 导致"20% 税率"实际收取的金额远超每人收入的 20%。
-        const actualPerCapitaWage = count > 0 ? (roleWagePayout[key] || 0) / count : 0;
+        let actualPerCapitaWage = count > 0 ? (roleWagePayout[key] || 0) / count : 0;
+        // 军人收入（军饷）在人头税之后才发放，此时 roleWagePayout.soldier 为 0；
+        // 用上一 tick 的工资信号（对军人来说已是人均值）作为课税基数
+        if (actualPerCapitaWage <= 0 && key === 'soldier') {
+            const prevSoldierWage = previousWages[key];
+            if (Number.isFinite(prevSoldierWage) && prevSoldierWage > 0) {
+                actualPerCapitaWage = prevSoldierWage;
+            }
+        }
         const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
         let plannedPerCapitaTax;
         if (headRate > 0) {

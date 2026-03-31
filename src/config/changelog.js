@@ -4,9 +4,31 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.23',
+        version: '2.3.24',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '修复银币审计残差虚报：统一审计基线，消除 Worker 异步与 React 竞态导致的误差',
+            '税率面板切换标签页不再丢失未提交的设置',
+            '移除经济数值硬上限，高阶经济体正常运转不再被截断',
+            '供需分析面板正确显示事件全局产出加成',
+        ],
+        changes: [
+            { type: 'fix', text: '修复财政审计基线漂移：Worker 异步计算期间 stateRef 被 React 重渲染更新，导致银币审计起点偏移产生虚假残差。改为在同步区预捕获起始银币作为基线。' },
+            { type: 'fix', text: '修复资源快照竞态：adjustedResources 对象在 setResources updater 延迟执行前被战斗补给扣除等后续代码修改，导致资源写回不正确。改为提前创建快照。' },
+            { type: 'fix', text: '修复审计残差计算基线不一致：entryTotal 以 auditStartingSilver 为基线，而差值以 prev.silver 为基线，存在 pending delta 时两者偏移产生虚假残差。统一使用 auditStartingSilver 并扣除延迟操作增量。' },
+            { type: 'fix', text: '修复军人人头税课税基数为零：军饷在人头税之后才发放导致 actualPerCapitaWage=0、军人阶层免税。回退使用上一 tick 工资信号作为课税基数。' },
+            { type: 'fix', text: '修复税率面板切换标签页丢失设置：PoliticsTab 和 StratumDetailSheet 中正在编辑的税率 draft 在组件卸载时自动提交，不再因切换页签而丢失。' },
+            { type: 'fix', text: '修复人头税补贴判定遗漏 JavaScript 负零（-0）的情况，补贴模式切换更可靠。' },
+            { type: 'fix', text: '修复供需分析面板未显示事件全局产出修正（buildingProductionMod: all），补充对 all 键的读取和「事件全局」标签展示。' },
+            { type: 'improve', text: '移除 Ledger 银币 ±1e15 硬上限和财富 1e12 硬上限，改为仅过滤 NaN/Infinity/负数，高阶经济体长期运行不再因数值溢出被截断。' },
+            { type: 'improve', text: '补全 stratumConsumption 缓存：非 full-tick 模式下阶层消费数据不再丢失，供需面板数据完整性提升。' },
+        ],
+    },
+    {
+        version: '2.3.23',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '修复战线推进到敌方领地时己方建筑仍被摧毁的严重 bug',
             '阶层收入面板补贴显示修正，人头税补贴不再重复计入',

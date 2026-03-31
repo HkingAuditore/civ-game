@@ -1354,11 +1354,12 @@ const ResourceDetailContent = ({
             const eventBuildingPct = sources.eventBuildingProduction?.[building.id] || 0;
             const techCategoryPct = sources.techCategoryBonus?.[building.cat] || 0;
             const eventCategoryPct = sources.eventBuildingProduction?.[building.cat] || 0;
+            const eventAllPct = sources.eventBuildingProduction?.['all'] || 0;
             // 政令/buff 全局加成（按建筑类别区分）
             const industryBonusPct = building.cat === 'industry' ? (sources.industryBonus || 0) : 0;
             const productionBonusPct = (building.cat === 'gather' || building.cat === 'civic') ? (sources.productionBonus || 0) : 0;
             // 加法叠加：所有百分比相加
-            const totalBonusPct = techBuildingPct + eventBuildingPct + techCategoryPct + eventCategoryPct + industryBonusPct + productionBonusPct;
+            const totalBonusPct = techBuildingPct + eventBuildingPct + techCategoryPct + eventCategoryPct + eventAllPct + industryBonusPct + productionBonusPct;
             const buildingMultiplier = 1 + totalBonusPct;
 
             const theoreticalAmount = baseAmount * buildingMultiplier * resourceSupplyMultiplier;
@@ -1372,6 +1373,7 @@ const ResourceDetailContent = ({
             if (eventBuildingPct !== 0) modList.push(`事件 ${eventBuildingPct > 0 ? '+' : ''}${(eventBuildingPct * 100).toFixed(0)}%`);
             if (techCategoryPct !== 0) modList.push(`类别科技 ${techCategoryPct > 0 ? '+' : ''}${(techCategoryPct * 100).toFixed(0)}%`);
             if (eventCategoryPct !== 0) modList.push(`类别事件 ${eventCategoryPct > 0 ? '+' : ''}${(eventCategoryPct * 100).toFixed(0)}%`);
+            if (eventAllPct !== 0) modList.push(`事件全局 ${eventAllPct > 0 ? '+' : ''}${(eventAllPct * 100).toFixed(0)}%`);
             if (industryBonusPct !== 0) modList.push(`工业加成 ${industryBonusPct > 0 ? '+' : ''}${(industryBonusPct * 100).toFixed(0)}%`);
             if (productionBonusPct !== 0) modList.push(`生产加成 ${productionBonusPct > 0 ? '+' : ''}${(productionBonusPct * 100).toFixed(0)}%`);
             // 战争减产：前线产出惩罚

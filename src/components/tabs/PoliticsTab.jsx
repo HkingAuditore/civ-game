@@ -385,6 +385,9 @@ const PoliticsTabComponent = ({
     const [exportTariffDrafts, setExportTariffDrafts] = React.useState({});
     const [businessDrafts, setBusinessDrafts] = React.useState({});
 
+    const draftsRef = React.useRef({ headDrafts, resourceDrafts, importTariffDrafts, exportTariffDrafts, businessDrafts });
+    draftsRef.current = { headDrafts, resourceDrafts, importTariffDrafts, exportTariffDrafts, businessDrafts };
+
     // 获取所有已解锁的阶层
     const unlockedStrataKeys = React.useMemo(() => {
         return Object.keys(STRATA).filter(key => {
@@ -417,7 +420,7 @@ const PoliticsTabComponent = ({
         const parsed = parseFloat(headDrafts[key]);
         if (Number.isNaN(parsed)) { setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; }); return; }
         const currentMultiplier = headRates[key] ?? 1;
-        const isCurrentSubsidy = currentMultiplier < 0;
+        const isCurrentSubsidy = currentMultiplier < 0 || Object.is(currentMultiplier, -0);
         let storeValue;
         if (isCurrentSubsidy) {
             storeValue = -(Math.max(0, Math.abs(parsed)));
@@ -503,6 +506,71 @@ const PoliticsTabComponent = ({
         setExportTariffDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
+    // 组件卸载时自动提交所有未保存的 draft，防止切换标签页时丢失设置
+    const commitFnsRef = React.useRef(null);
+    commitFnsRef.current = { headRates, headBaseRate, maxHeadPercent, headPercentToMultiplier, onUpdateTaxPolicies, bizDisplayToRate };
+    React.useEffect(() => {
+        return () => {
+            const d = draftsRef.current;
+            const fn = commitFnsRef.current;
+            if (!fn?.onUpdateTaxPolicies) return;
+
+            const headUpdates = {};
+            for (const [key, raw] of Object.entries(d.headDrafts)) {
+                const parsed = parseFloat(raw);
+                if (Number.isNaN(parsed)) continue;
+                const currentMultiplier = fn.headRates[key] ?? 1;
+                const isCurrentSubsidy = currentMultiplier < 0 || Object.is(currentMultiplier, -0);
+                if (isCurrentSubsidy) {
+                    headUpdates[key] = -(Math.max(0, Math.abs(parsed)));
+                } else {
+                    const clampedPct = Math.min(Math.max(0, parsed), fn.maxHeadPercent);
+                    headUpdates[key] = fn.headPercentToMultiplier(clampedPct);
+                }
+            }
+            const resourceUpdates = {};
+            for (const [key, raw] of Object.entries(d.resourceDrafts)) {
+                const parsed = parseFloat(raw);
+                const rateValue = (Number.isNaN(parsed) ? 0 : parsed) / 100;
+                const limit = TAX_LIMITS?.MAX_RESOURCE_TAX || 5.0;
+                resourceUpdates[key] = clamp(rateValue, -limit, limit);
+            }
+            const importTariffUpdates = {};
+            for (const [key, raw] of Object.entries(d.importTariffDrafts)) {
+                const parsed = parseFloat(raw);
+                importTariffUpdates[key] = (Number.isNaN(parsed) ? 0 : parsed) / 100;
+            }
+            const exportTariffUpdates = {};
+            for (const [key, raw] of Object.entries(d.exportTariffDrafts)) {
+                const parsed = parseFloat(raw);
+                exportTariffUpdates[key] = (Number.isNaN(parsed) ? 0 : parsed) / 100;
+            }
+            const businessUpdates = {};
+            for (const [key, raw] of Object.entries(d.businessDrafts)) {
+                const parsed = parseFloat(raw);
+                if (Number.isNaN(parsed)) continue;
+                const rate = fn.bizDisplayToRate(parsed);
+                const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10;
+                businessUpdates[key] = rate < 0 ? rate : Math.min(rate, limit);
+            }
+
+            const hasAny = Object.keys(headUpdates).length + Object.keys(resourceUpdates).length +
+                Object.keys(importTariffUpdates).length + Object.keys(exportTariffUpdates).length +
+                Object.keys(businessUpdates).length;
+            if (hasAny > 0) {
+                fn.onUpdateTaxPolicies(prev => {
+                    const next = { ...prev };
+                    if (Object.keys(headUpdates).length) next.headTaxRates = { ...(prev?.headTaxRates), ...headUpdates };
+                    if (Object.keys(resourceUpdates).length) next.resourceTaxRates = { ...(prev?.resourceTaxRates), ...resourceUpdates };
+                    if (Object.keys(importTariffUpdates).length) next.importTariffMultipliers = { ...(prev?.importTariffMultipliers), ...importTariffUpdates };
+                    if (Object.keys(exportTariffUpdates).length) next.exportTariffMultipliers = { ...(prev?.exportTariffMultipliers), ...exportTariffUpdates };
+                    if (Object.keys(businessUpdates).length) next.businessTaxRates = { ...(prev?.businessTaxRates), ...businessUpdates };
+                    return next;
+                });
+            }
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Unlocked Resources Logic
     const unlockedResourceKeys = React.useMemo(() => {
         return Object.keys(RESOURCES).filter(key => {
@@ -561,7 +629,7 @@ const PoliticsTabComponent = ({
     const renderStratumCard = (key) => {
         const stratumInfo = STRATA[key] || {};
         const multiplier = headRates[key] ?? 1;
-        const isSubsidy = multiplier < 0;
+        const isSubsidy = multiplier < 0 || Object.is(multiplier, -0);
         const isTax = multiplier > 0;
         const displayPct = isTax ? headMultiplierToPercent(multiplier) : 0;
         const displaySubsidy = isSubsidy ? Math.abs(multiplier) : 0;
