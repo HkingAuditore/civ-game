@@ -4,9 +4,25 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.21',
+        version: '2.3.22',
         date: '2026-03-31',
         isLatest: true,
+        highlights: [
+            '修复解散部队必定卡死闪退的严重 bug',
+            '财政审计诊断增强：自动定位银币收支差异来源',
+        ],
+        changes: [
+            { type: 'fix', text: '修复批量解散部队（x10/x100/x1000）时游戏卡死闪退。根因是 for 循环逐个调用 disbandUnit，每次触发 setArmy + addLog 状态更新，最多排队 2000-3000 次 React 状态更新导致主线程阻塞。改为 disbandUnit 支持 count 参数，单次调用完成全部解散。' },
+            { type: 'fix', text: '修复关税补贴审计条目在已存在普通补贴条目时重复计入，导致财政审计差异报警。' },
+            { type: 'fix', text: '修复 simulation 内 startingSilver 基线在贸易路线修改 res.silver 之后才捕获，导致审计起点偏移、差异虚报。改为在 spread copy 后立即记录。' },
+            { type: 'improve', text: '财政审计诊断增强：simulation 内新增 10 个阶段检查点（生产、税收、军费、消费、官员、市场等），差异 >0.1 时自动输出阶段级告警，快速定位银币泄漏源。' },
+            { type: 'improve', text: 'gameLoop 审计诊断细化：不一致时拆分 sim 内部差异与 gameLoop 层差异，并输出 silverAtSpread/silverAfterTradeRoute 等关键快照，便于排查。' },
+        ],
+    },
+    {
+        version: '2.3.21',
+        date: '2026-03-31',
+        isLatest: false,
         highlights: [
             '内存持续增长全面治理：消除 6 类泄漏源，长时间游戏不再卡顿',
             '新增崩溃上报系统：闪退、OOM 等异常自动记录并上报',

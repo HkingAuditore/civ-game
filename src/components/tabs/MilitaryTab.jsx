@@ -490,11 +490,10 @@ const MilitaryTabComponent = ({
         const { triggered } = longPressRef.current;
         clearLongPress();
         if (!triggered) {
-            // 批量解散指定数量
             const currentCount = army[unitId] || 0;
             const actualDisbandCount = Math.min(disbandCount, currentCount);
-            for (let i = 0; i < actualDisbandCount; i++) {
-                onDisband(unitId);
+            if (actualDisbandCount > 0) {
+                onDisband(unitId, actualDisbandCount);
             }
         }
     };

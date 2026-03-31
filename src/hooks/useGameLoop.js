@@ -1892,7 +1892,7 @@ difficulty, // 游戏难度
                     addAuditEntry(-fallbackSubsidy, 'subsidy');
                 }
                 const fallbackTariffSubsidy = Number(breakdown?.tariffSubsidy || 0);
-                if (fallbackTariffSubsidy > 0 && !hasAnyReason(['tariff_subsidy'])) {
+                if (fallbackTariffSubsidy > 0 && !hasAnyReason(['tariff_subsidy', 'subsidy'])) {
                     addAuditEntry(-fallbackTariffSubsidy, 'tariff_subsidy');
                 }
                 const incomePercentMultiplier = Number.isFinite(breakdown?.incomePercentMultiplier)
@@ -1946,18 +1946,30 @@ difficulty, // 游戏难度
                     debugLog('fiscal', '📋 审计净变化:', auditDelta.toFixed(2), '银币');
                     const gap = netTreasuryChange - auditDelta;
                     if (Math.abs(gap) > 0.1) {
-                        console.warn('⚠️ 警告：审计净变化与实际净变化不一致！差异:', gap.toFixed(2));
+                        const simStart = Number(result._auditStartingSilver || 0);
+                        const simEnd = Number(result._auditEndingSilver || result._debug?.endingSilver || 0);
+                        const simActualDelta = simEnd - simStart;
+                        const simAuditSum = (result._auditLog || []).reduce((s, e) => s + Number(e?.amount || 0), 0);
+                        const simInternalGap = simActualDelta - simAuditSum;
+                        const gameLoopGap = gap - simInternalGap;
+                        console.warn('⚠️ 警告：审计净变化与实际净变化不一致！差异:', gap.toFixed(2),
+                            '| sim内部差异:', simInternalGap.toFixed(2),
+                            '| gameLoop差异:', gameLoopGap.toFixed(2));
                         console.warn('🔍 [审计诊断]', {
                             treasuryAtTickStart,
-                            simStartingSilver: result._auditStartingSilver,
-                            simEndingSilver: result._debug?.endingSilver,
+                            silverAtSpread: result._auditSilverAtSpread,
+                            silverAfterTradeRoute: result._auditSilverAfterTradeRoute,
+                            simStart,
+                            simEnd,
+                            simActualDelta: simActualDelta.toFixed(2),
+                            simAuditSum: simAuditSum.toFixed(2),
+                            simInternalGap: simInternalGap.toFixed(2),
                             treasuryAfterDeductions,
                             netTreasuryChange: netTreasuryChange.toFixed(2),
                             auditDelta: auditDelta.toFixed(2),
                             gap: gap.toFixed(2),
                             officialSalaryPaid,
                             forcedSubsidyPaid,
-                            mergedResourcesSilver: mergedResources?.silver,
                             pendingDelta: mergedResources ? (mergedResources.silver || 0) - treasuryAtTickStart : 0,
                             auditEntryCount: auditEntries.length,
                             auditEntries: auditEntries.map(e => `${e.reason}: ${Number(e.amount).toFixed(2)}`),
