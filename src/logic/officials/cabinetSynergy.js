@@ -771,12 +771,11 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {},
         (sum, [res, val]) => sum + getPrice(res, true) * val, 0
     );
 
-    // 营业税（通过模块函数获取，确保 clamp 在合法范围内）
-    const businessTaxMultiplier = getBusinessTaxRate(building.id, taxPolicies?.businessTaxRates || {});
-    const businessTaxBase = building.businessTaxBase ?? 0.1;
-    const rawBusinessTax = businessTaxBase * businessTaxMultiplier;
-    // When businessTax < 0 (subsidy), actual payout is reduced by taxEfficiency (corruption eats part of it).
-    // When businessTax >= 0 (normal tax), use full amount (efficiency already applied elsewhere).
+    // 营业税 WYSIWYG：正值=直接税率(如0.5=50%)，负值=每栋固定补贴🪙
+    const businessTaxRate = getBusinessTaxRate(building.id, taxPolicies?.businessTaxRates || {});
+    const rawBusinessTax = businessTaxRate < 0
+        ? businessTaxRate
+        : outputValue * businessTaxRate;
     const businessTax = rawBusinessTax < 0 ? rawBusinessTax * Math.max(0, Math.min(1, taxEfficiency)) : rawBusinessTax;
 
     // 雇员工资（不含业主）

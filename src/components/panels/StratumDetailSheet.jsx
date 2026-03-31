@@ -676,15 +676,15 @@ const StratumDetailSheetComponent = ({
                                 <div>
                                     {(() => {
                                         const isTax = !isSubsidyMode && displayHeadPercent > 0;
-                                        const actualHeadTaxPerCapita = isSubsidyMode
-                                            ? (incomeData.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1)
+                                        const displayValue = isSubsidyMode
+                                            ? displaySubsidyValue
                                             : (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
                                         return (
                                             <>
-                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">{isSubsidyMode ? '实际补贴' : '实际税额'} (每人每日)</div>
+                                                <div className="text-xs text-gray-400 mb-0.5 leading-none">{isSubsidyMode ? '设定补贴' : '实际税额'} (每人每日)</div>
                                                 <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                                                     <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidyMode ? 'text-green-300' : 'text-gray-400'}`}>
-                                                        {isSubsidyMode ? '补贴 ' : ''}{Math.abs(actualHeadTaxPerCapita).toFixed(3)}
+                                                        {isSubsidyMode ? '补贴 ' : ''}{isSubsidyMode ? displayValue.toFixed(2) : Math.abs(displayValue).toFixed(3)}
                                                     </span>
                                                     <Icon
                                                         name="Coins"
@@ -692,9 +692,9 @@ const StratumDetailSheetComponent = ({
                                                         className={`inline-block ml-1 ${isTax ? 'text-yellow-400' : isSubsidyMode ? 'text-green-400' : 'text-gray-500'}`}
                                                     />
                                                 </div>
-                                                {Math.abs((effectiveTaxModifier || 1) - 1) > 0.001 && (
+                                                {!isSubsidyMode && Math.abs((effectiveTaxModifier || 1) - 1) > 0.001 && (
                                                     <div className="text-[11px] text-gray-500 mt-1 text-center">
-                                                        {isSubsidyMode ? '含补贴效率修正' : '含税收修正'} ×{(effectiveTaxModifier || 1).toFixed(2)}
+                                                        含税收修正 ×{(effectiveTaxModifier || 1).toFixed(2)}
                                                     </div>
                                                 )}
                                             </>

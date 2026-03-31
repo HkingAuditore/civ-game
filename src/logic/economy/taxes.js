@@ -73,11 +73,10 @@ export const getResourceTaxRate = (resource, resourceTaxRates = {}) => {
  */
 export const getBusinessTaxRate = (buildingId, businessTaxRates = {}) => {
     let rate = businessTaxRates[buildingId];
-    if (typeof rate !== 'number') rate = 1;
+    if (typeof rate !== 'number') rate = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03;
 
-    // Limit check
-    const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10000;
-    return Math.max(-limit, Math.min(limit, rate));
+    const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10;
+    return rate < 0 ? rate : Math.min(rate, limit);
 };
 export const collectHeadTax = ({
     popStructure,
