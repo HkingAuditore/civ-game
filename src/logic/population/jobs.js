@@ -257,7 +257,7 @@ export const fillVacancies = ({
         } else if (headRate < 0) {
             taxCost = headRate * effectiveTaxModifier;
         }
-        return wage - Math.max(0, taxCost);
+        return wage - taxCost;
     };
 
     // Get the wealth requirement to enter a target role
