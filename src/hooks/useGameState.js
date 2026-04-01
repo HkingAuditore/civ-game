@@ -637,8 +637,13 @@ const migrateForeignInvestments = (investments) => {
     };
 
     const merged = new Map();
+    const nonOperating = []; // nationalized / suspended 等非运营记录单独保留，不参与 count 合并
     investments.forEach((raw) => {
         const inv = normalize(raw);
+        if (inv.status !== 'operating') {
+            nonOperating.push(inv);
+            return;
+        }
         const key = getGroupKey(inv);
         if (!merged.has(key)) {
             merged.set(key, inv);
@@ -653,7 +658,7 @@ const migrateForeignInvestments = (investments) => {
         });
     });
 
-    return Array.from(merged.values());
+    return [...Array.from(merged.values()), ...nonOperating];
 };
 
 const trimMarketSnapshot = (market, limit) => {

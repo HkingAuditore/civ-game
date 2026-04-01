@@ -3,7 +3,7 @@
  * Unifies Overseas Investment (Outgoing) and Foreign Investment (Incoming) management.
  */
 
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, useEffect, memo } from 'react';
 import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon, Tabs, Card, Button, Badge } from '../common/UnifiedUI';
 import { BUILDINGS, RESOURCES } from '../../config';
@@ -15,6 +15,8 @@ import {
 } from '../../logic/diplomacy/overseasInvestment';
 
 // --- Configuration ---
+
+const PAGE_SIZE = 20;
 
 const TABS = [
     { id: 'assets', label: '海外资产', icon: 'Globe' },
@@ -32,10 +34,6 @@ const STRATUM_CONFIG = {
 const ResourceFlowBadge = ({ type, resource, amount }) => {
     const isLocal = type === 'local';
     const isHome = type === 'home';
-    // For Assets: Home = Player (Import/Export), Local = Foreign
-    // For Capital: Home = AI (Import/Export), Local = Player
-
-    // Using generic terms: "Local" vs "Cross-Border"
     return (
         <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${
             isHome
@@ -52,7 +50,6 @@ const ResourceFlowBadge = ({ type, resource, amount }) => {
 };
 
 const FlowVisualizer = ({ building, decisions }) => {
-    // decisions: { inputs: { res: 'local'|'home' }, outputs: { res: 'local'|'home' } }
     if (!building) return null;
 
     const inputEntries = Object.entries(building.input || {});
@@ -96,6 +93,9 @@ const FlowVisualizer = ({ building, decisions }) => {
  * Tab 1: Overseas Assets (Outgoing)
  */
 const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
+    const [page, setPage] = useState(1);
+    const [expandedIds, setExpandedIds] = useState(new Set());
+
     const activeInvestments = useMemo(() => {
         const grouped = new Map();
         overseasInvestments
@@ -147,6 +147,27 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
             .sort((a, b) => b.investmentAmount - a.investmentAmount);
     }, [overseasInvestments, nations]);
 
+    // 数据变化时重置到第一页
+    useEffect(() => {
+        setPage(1);
+        setExpandedIds(new Set());
+    }, [overseasInvestments]);
+
+    const totalPages = Math.max(1, Math.ceil(activeInvestments.length / PAGE_SIZE));
+    const pagedInvestments = activeInvestments.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    const toggleExpand = (id) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
     return (
         <div className="space-y-4">
              {/* Summary Cards */}
@@ -175,75 +196,138 @@ const OverseasAssetsTab = ({ overseasInvestments, nations, summary }) => {
             <div className="bg-gray-800/30 rounded-lg border border-white/5 overflow-hidden">
                 <div className="px-3 py-2 bg-white/5 border-b border-white/5 flex justify-between items-center">
                     <span className="text-xs font-bold text-gray-300">资产列表</span>
-                    <span className="text-xs text-gray-500">显示最近30天内的运营状态</span>
+                    <span className="text-xs text-gray-500">
+                        共 {activeInvestments.length} 类 · 点击条目展开流程
+                    </span>
                 </div>
-                <div className="divide-y divide-white/5 max-h-[50vh] overflow-y-auto">
-                    {activeInvestments.length > 0 ? activeInvestments.map(inv => (
-                        <div key={inv.id} className="px-3 py-2 hover:bg-white/5 transition-colors">
-                            <div className="flex justify-between items-start mb-1.5">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                        <Icon name={inv.building?.visual?.icon || "Building"} size={14} className="text-gray-300"/>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                                            {inv.buildingName}
-                                            <Badge variant="neutral" className="text-xs scale-90">
-                                                {STRATUM_CONFIG[inv.ownerStratum]?.name || inv.ownerStratum}
-                                            </Badge>
-                                            {inv.count > 1 && (
-                                                <Badge variant="secondary" className="text-xs scale-90">
-                                                    ×{inv.count}
+                <div className="divide-y divide-white/5">
+                    {pagedInvestments.length > 0 ? pagedInvestments.map(inv => {
+                        const isExpanded = expandedIds.has(inv.id);
+                        return (
+                            <div key={inv.id} className="px-3 py-2 hover:bg-white/5 transition-colors">
+                                {/* Clickable header row */}
+                                <div
+                                    className="flex justify-between items-start mb-1.5 cursor-pointer"
+                                    onClick={() => toggleExpand(inv.id)}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-7 h-7 rounded bg-gray-700 flex items-center justify-center flex-shrink-0">
+                                            <Icon name={inv.building?.visual?.icon || "Building"} size={14} className="text-gray-300"/>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-bold text-gray-200 flex items-center gap-2">
+                                                {inv.buildingName}
+                                                <Badge variant="neutral" className="text-xs scale-90">
+                                                    {STRATUM_CONFIG[inv.ownerStratum]?.name || inv.ownerStratum}
                                                 </Badge>
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-gray-400 flex items-center gap-1">
-                                            <Icon name="MapPin" size={10}/>
-                                            <span className={inv.nationColor}>{inv.nationName}</span>
+                                                {inv.count > 1 && (
+                                                    <Badge variant="secondary" className="text-xs scale-90">
+                                                        ×{inv.count}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-400 flex items-center gap-1">
+                                                <Icon name="MapPin" size={10}/>
+                                                <span className={inv.nationColor}>{inv.nationName}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className={`text-sm font-mono font-bold ${inv.repatriatedPerDay >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        {inv.repatriatedPerDay >= 0 ? '+' : ''}{inv.repatriatedPerDay.toFixed(1)}/日
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-right">
+                                            <div className={`text-sm font-mono font-bold ${inv.repatriatedPerDay >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {inv.repatriatedPerDay >= 0 ? '+' : ''}{Math.round(inv.repatriatedPerDay)}/日
+                                            </div>
+                                            <div className="text-xs text-gray-500">净汇回</div>
+                                        </div>
+                                        <Icon
+                                            name={isExpanded ? "ChevronUp" : "ChevronDown"}
+                                            size={14}
+                                            className="text-gray-500 flex-shrink-0"
+                                        />
                                     </div>
-                                    <div className="text-xs text-gray-500">净汇回</div>
                                 </div>
-                            </div>
 
-                            {/* Tax line */}
-                            <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
-                                <span>外资利润税/汇回税</span>
-                                <span>
-                                    <span className="text-gray-400">税率</span> <span className="text-amber-300 font-mono">{(inv.effectiveTaxRate * 100).toFixed(1)}%</span>
-                                    <span className="mx-2 text-gray-600">|</span>
-                                    <span className="text-gray-400">日税额</span> <span className="text-red-300 font-mono">-{inv.taxPerDay.toFixed(1)}</span>
-                                </span>
-                            </div>
+                                {/* Tax line */}
+                                <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
+                                    <span>外资利润税/汇回税</span>
+                                    <span>
+                                        <span className="text-gray-400">税率</span> <span className="text-amber-300 font-mono">{(inv.effectiveTaxRate * 100).toFixed(1)}%</span>
+                                        <span className="mx-2 text-gray-600">|</span>
+                                        <span className="text-gray-400">日税额</span> <span className="text-red-300 font-mono">-{Math.round(inv.taxPerDay)}</span>
+                                    </span>
+                                </div>
 
-                            {/* Visual Flow */}
-                            <FlowVisualizer building={inv.building} decisions={inv.decisions} />
-                        </div>
-                    )) : (
+                                {/* Visual Flow — 懒展开 */}
+                                {isExpanded && (
+                                    <FlowVisualizer building={inv.building} decisions={inv.decisions} />
+                                )}
+                            </div>
+                        );
+                    }) : (
                         <div className="p-8 text-center text-gray-500 italic text-xs">
                             暂无海外投资项目。请在外交界面选择国家进行投资。
                         </div>
                     )}
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="px-3 py-2 bg-white/5 border-t border-white/5 flex items-center justify-between">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <Icon name="ChevronLeft" size={12} />
+                            上一页
+                        </button>
+                        <span className="text-xs text-gray-500">
+                            {page} / {totalPages}
+                            <span className="ml-1 text-gray-600">
+                                （{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, activeInvestments.length)} / {activeInvestments.length}）
+                            </span>
+                        </span>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page === totalPages}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                            下一页
+                            <Icon name="ChevronRight" size={12} />
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
+const NATION_PAGE_SIZE = 5;
+
 /**
  * Tab 2: Foreign Capital (Incoming)
  */
 const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolicyChange, onNationalize }) => {
-    // Group logic similar to original panel but improved
+    const [nationPage, setNationPage] = useState(1);
+    const [expandedInvIds, setExpandedInvIds] = useState(new Set());
+
+    const toggleInv = (key) => {
+        setExpandedInvIds(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    };
+
+    // 按国家分组，国家内按 buildingId 二次合并
     const investmentsByNation = useMemo(() => {
         const groups = {};
         foreignInvestments.forEach(inv => {
-            if(inv.status !== 'operating') return;
+            if (inv.status !== 'operating') return;
             const nationId = inv.ownerNationId;
             if (!groups[nationId]) {
                 const nation = nations.find(n => n.id === nationId);
@@ -251,21 +335,56 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                     nationId,
                     nationName: nation?.name || '未知国家',
                     nationColor: nation?.color || 'text-gray-300',
-                    investments: [],
+                    mergedMap: {},
                     totalProfit: 0,
                     totalTax: 0,
                     totalJobs: 0,
                     totalCount: 0
                 };
             }
-            groups[nationId].investments.push(inv);
-            groups[nationId].totalProfit += (inv.dailyProfit || 0);
-            groups[nationId].totalTax += (inv.operatingData?.taxPaid || 0);
-            groups[nationId].totalJobs += (inv.jobsProvided || 0);
-            groups[nationId].totalCount += (inv.count || 1);
+            const g = groups[nationId];
+            g.totalProfit += (inv.dailyProfit || 0);
+            g.totalTax += (inv.operatingData?.taxPaid || 0);
+            g.totalJobs += (inv.jobsProvided || 0);
+            g.totalCount += (inv.count || 1);
+
+            // 按 buildingId 合并
+            const bid = inv.buildingId;
+            if (!g.mergedMap[bid]) {
+                g.mergedMap[bid] = {
+                    buildingId: bid,
+                    count: 0,
+                    dailyProfit: 0,
+                    jobsProvided: 0,
+                    operatingData: inv.operatingData,
+                };
+            }
+            const m = g.mergedMap[bid];
+            m.count += (inv.count || 1);
+            m.dailyProfit += (inv.dailyProfit || 0);
+            m.jobsProvided += (inv.jobsProvided || 0);
         });
-        return Object.values(groups).sort((a,b) => b.totalProfit - a.totalProfit);
+
+        return Object.values(groups)
+            .map(g => ({
+                ...g,
+                mergedInvestments: Object.values(g.mergedMap)
+                    .sort((a, b) => b.dailyProfit - a.dailyProfit),
+            }))
+            .sort((a, b) => b.totalProfit - a.totalProfit);
     }, [foreignInvestments, nations]);
+
+    // 数据变化时重置分页和展开状态
+    useEffect(() => {
+        setNationPage(1);
+        setExpandedInvIds(new Set());
+    }, [foreignInvestments]);
+
+    const totalNationPages = Math.max(1, Math.ceil(investmentsByNation.length / NATION_PAGE_SIZE));
+    const pagedNations = investmentsByNation.slice(
+        (nationPage - 1) * NATION_PAGE_SIZE,
+        nationPage * NATION_PAGE_SIZE
+    );
 
     return (
         <div className="space-y-4">
@@ -286,19 +405,19 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
             </div>
 
             {/* List */}
-             <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-                    {investmentsByNation.length > 0 ? investmentsByNation.map(group => (
+            <div className="space-y-3">
+                {pagedNations.length > 0 ? pagedNations.map(group => (
                     <div key={group.nationId} className="bg-gray-800/30 rounded-lg border border-gray-700/40 overflow-hidden">
                         {/* Header */}
                         <div className="px-3 py-2 bg-white/5 flex justify-between items-center">
-                             <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5">
                                 <Icon name="Flag" size={14} className={group.nationColor} />
                                 <span className="text-xs font-bold text-gray-200">{group.nationName}</span>
                                 <Badge variant="neutral" className="text-xs">
                                     {group.totalCount} 处资产
                                 </Badge>
-                             </div>
-                             <div className="text-right text-xs text-gray-400">
+                            </div>
+                            <div className="text-right text-xs text-gray-400">
                                 <div className="flex flex-col items-end">
                                     <div className="flex gap-2">
                                         <span>纳税: <span className="text-green-400">+{formatNumberShortCN(group.totalTax)}</span></span>
@@ -308,45 +427,88 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                                         实际税率: {group.totalProfit > 0 ? ((group.totalTax / group.totalProfit) * 100).toFixed(1) : 0}%
                                     </div>
                                 </div>
-                             </div>
+                            </div>
                         </div>
 
-                        {/* Items */}
+                        {/* Merged Items — 点击展开 FlowVisualizer */}
                         <div className="divide-y divide-gray-700/30">
-                            {group.investments.map(inv => {
-                                const building = BUILDINGS.find(b => b.id === inv.buildingId);
+                            {group.mergedInvestments.map(merged => {
+                                const building = BUILDINGS.find(b => b.id === merged.buildingId);
+                                const expandKey = `${group.nationId}_${merged.buildingId}`;
+                                const isExpanded = expandedInvIds.has(expandKey);
                                 return (
-                                    <div key={inv.id} className="px-3 py-2">
+                                    <div
+                                        key={expandKey}
+                                        className="px-3 py-2 cursor-pointer hover:bg-white/5 transition-colors"
+                                        onClick={() => toggleInv(expandKey)}
+                                    >
                                         <div className="flex justify-between mb-1">
                                             <div className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                                                {building?.name || inv.buildingId}
-                                        <span className="text-xs font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
-                                            提供岗位: {inv.jobsProvided}
-                                        </span>
-                                        {(inv.count || 1) > 1 && (
-                                            <span className="text-xs font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
-                                                ×{inv.count}
-                                            </span>
-                                        )}
+                                                {building?.name || merged.buildingId}
+                                                <span className="text-xs font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
+                                                    岗位: {merged.jobsProvided}
+                                                </span>
+                                                {merged.count > 1 && (
+                                                    <span className="text-xs font-normal text-gray-500 bg-gray-900/50 px-1.5 rounded">
+                                                        ×{merged.count}
+                                                    </span>
+                                                )}
                                             </div>
-                                            <div className="text-xs font-mono text-amber-400">
-                                                利润: {formatNumberShortCN(inv.dailyProfit)}
+                                            <div className="flex items-center gap-1">
+                                                <div className="text-xs font-mono text-amber-400">
+                                                    利润: {formatNumberShortCN(merged.dailyProfit)}
+                                                </div>
+                                                <Icon
+                                                    name={isExpanded ? "ChevronUp" : "ChevronDown"}
+                                                    size={12}
+                                                    className="text-gray-500"
+                                                />
                                             </div>
                                         </div>
-                                        <FlowVisualizer building={building} decisions={inv.operatingData?.decisions} />
+                                        {isExpanded && (
+                                            <FlowVisualizer building={building} decisions={merged.operatingData?.decisions} />
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
                 )) : (
-                     <div className="p-8 text-center text-gray-500 italic text-xs bg-gray-800/20 rounded-xl border border-dashed border-gray-700">
+                    <div className="p-8 text-center text-gray-500 italic text-xs bg-gray-800/20 rounded-xl border border-dashed border-gray-700">
                         目前国内没有外资企业。
                         <br/>
                         <span className="opacity-70 mt-1 block">与其他国家签署【投资协议】可吸引外资。</span>
                     </div>
                 )}
-             </div>
+            </div>
+
+            {/* Nation Pagination */}
+            {totalNationPages > 1 && (
+                <div className="px-3 py-2 bg-white/5 border border-white/5 rounded-lg flex items-center justify-between">
+                    <button
+                        onClick={() => setNationPage(p => Math.max(1, p - 1))}
+                        disabled={nationPage === 1}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <Icon name="ChevronLeft" size={12} />
+                        上一页
+                    </button>
+                    <span className="text-xs text-gray-500">
+                        {nationPage} / {totalNationPages}
+                        <span className="ml-1 text-gray-600">
+                            （{investmentsByNation.length} 个来源国）
+                        </span>
+                    </span>
+                    <button
+                        onClick={() => setNationPage(p => Math.min(totalNationPages, p + 1))}
+                        disabled={nationPage === totalNationPages}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                        下一页
+                        <Icon name="ChevronRight" size={12} />
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -373,7 +535,6 @@ export const InternationalEconomyPanel = memo(({
     }, [overseasInvestments]);
 
     // Calculate Summary for Incoming
-    // (Simplified, mostly needed for badge counts if desired)
     const incomingCount = foreignInvestments
         .filter(i => i.status === 'operating')
         .reduce((sum, inv) => sum + (inv.count || 1), 0);

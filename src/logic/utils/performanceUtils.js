@@ -54,10 +54,16 @@ export const RATE_LIMIT_CONFIG = {
     priceConvergenceFrequency: 5,
 
     // === 新增：batch级频率配置（超低频） ===
-    // 海外投资结算：每N个tick执行一次
+    // 海外投资结算：每N个tick执行一次（仅用于升级逻辑的低频守卫）
     overseasInvestmentFrequency: 20,
-    // 外国投资结算：每N个tick执行一次
+    // 外国投资结算：每N个tick执行一次（仅用于升级逻辑的低频守卫）
     foreignInvestmentFrequency: 20,
+
+    // === 投资结算切片化配置 ===
+    // 海外资产利润结算切片数：每tick处理1/N的海外资产，N个tick轮转一次全部
+    overseasInvestmentSlices: 5,
+    // 外资企业利润结算切片数：每tick处理1/N的外资企业，N个tick轮转一次全部
+    foreignInvestmentSlices: 5,
 
     // === 新增：历史数据更新频率 ===
     historyUpdateFrequency: 5,
@@ -222,9 +228,11 @@ export const PERF_SEGMENT_PRIORITY = {
     rebellionDaily:       TICK_PRIORITY.DEFERRED,
     priceConvergence:     TICK_PRIORITY.DEFERRED,
 
-    // === BATCH级：超低频执行 ===
+    // === BATCH级：超低频执行（升级逻辑仍保持低频） ===
+    overseasInvestment:   TICK_PRIORITY.BATCH, // shouldRunThisTick key（单数形式）
     overseasInvestments:  TICK_PRIORITY.BATCH,
     overseasUpgrades:     TICK_PRIORITY.BATCH,
+    foreignInvestment:    TICK_PRIORITY.BATCH, // shouldRunThisTick key（单数形式）
     foreignInvestments:   TICK_PRIORITY.BATCH,
     foreignUpgrades:      TICK_PRIORITY.BATCH,
     manualTrade:          TICK_PRIORITY.BATCH,

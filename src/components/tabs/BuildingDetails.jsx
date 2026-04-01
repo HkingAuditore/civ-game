@@ -11,7 +11,7 @@ import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier } from '../.
 import { formatNumberShortCN } from '../../utils/numberFormat';
 // 最低工资下限
 const MIN_ROLE_WAGE = 0.1;
-const BUILD_BUY_COUNT_LIMIT = 9999;
+const BUILD_BUY_COUNT_LIMIT = 999999;
 
 /**
  * 获取角色的市场工资（直接从 market.wages 获取）

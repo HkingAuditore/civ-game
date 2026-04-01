@@ -52,7 +52,7 @@ import { tickCooldowns } from '../logic/ideology/ideologySlots';
 import { checkAndAwardIdeologyScore, checkEmergence } from '../logic/ideology/ideologyScoring';
 import { generateEmergenceCandidates } from '../logic/ideology/ideologyEmergence';
 import { selectOutboundInvestmentsBatch, selectInboundInvestmentsBatch, resetInvestmentCache } from '../logic/diplomacy/autonomousInvestment';
-import { mergeOverseasInvestments } from '../logic/diplomacy/overseasInvestment';
+import { mergeOverseasInvestments, createForeignInvestment, mergeForeignInvestments } from '../logic/diplomacy/overseasInvestment';
 import { processDecreeExpiry, getAllTimedDecrees } from '../logic/officials/cabinetSynergy';
 // 鏂扮増缁勭粐搴︾郴缁?
 import {
@@ -2414,42 +2414,94 @@ difficulty, // 游戏难度
                         // 鏇存柊鎵规鐘舵€?
                         inboundInvestmentBatchRef.current.offset = nextOffset;
                         if (!hasMore) {
-                            // 本周期处理完毕，清空 lastProcessDay
+                            // 本周期处理完毕，重置为当前天数；下次需等满10天才重新触发
                             debugLog('trade', '[INBOUND-CYCLE] 本周期处理完毕');
-                            inboundInvestmentBatchRef.current.lastProcessDay = null;
+                            inboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
                         }
 
                         if (investments.length === 0) {
-                            debugLog('trade', '鉂?[INBOUND-CYCLE] 没有投资决策');
+                            debugLog('trade', '[INBOUND-CYCLE] 没有投资决策');
                         } else {
                             debugLog('trade', '[INBOUND-CYCLE] 执行', investments.length, '个投资');
 
+                            // [FIX P0] 同步构建所有新记录，一次性批量 merge 写入
+                            // 避免多次异步 handleDiplomaticAction 均读取旧快照，绕过合并上限检查
+                            const newRecords = [];
+                            const nationUpdates = {}; // nationId -> 需要更新的字段
+                            const buildingUpdates = {}; // buildingId -> 新增数量
+
                             investments.forEach(decision => {
                                 const { investorNation, building, cost, investmentPolicy } = decision;
-                                const actionsRef = current.actions;
-                                if (actionsRef && actionsRef.handleDiplomaticAction) {
-                                    actionsRef.handleDiplomaticAction(investorNation.id, 'accept_foreign_investment', {
-                                        buildingId: building.id,
-                                        ownerStratum: 'capitalist',
-                                        operatingMode: 'local',
-                                        investmentAmount: cost,
-                                        investmentPolicy,
-                                        trackAnalytics: false,
-                                    });
+                                const newInvestment = createForeignInvestment({
+                                    buildingId: building.id,
+                                    ownerNationId: investorNation.id,
+                                    investorStratum: 'capitalist',
+                                });
+                                if (!newInvestment) return;
+                                newInvestment.operatingMode = 'local';
+                                newInvestment.investmentAmount = cost;
+                                newInvestment.createdDay = effectiveDaysElapsed;
+                                newInvestment.status = 'operating';
+                                newRecords.push(newInvestment);
 
-                                    setNations(prev => prev.map(n => (
-                                        n.id === investorNation.id
-                                            ? {
-                                                ...n,
-                                                lastForeignInvestmentDay: effectiveDaysElapsed,
-                                                lastForeignSampleDay: effectiveDaysElapsed
-                                            }
-                                            : n
-                                    )));
+                                // 记录建筑增量
+                                buildingUpdates[building.id] = (buildingUpdates[building.id] || 0) + 1;
 
-                                    addLog('[外资建设] ' + investorNation.name + ' 在本国投资建设了 ' + building.name + '。');
+                                // 记录外资国状态更新
+                                const existing = nationUpdates[investorNation.id] || {};
+                                let relationChange = 5;
+                                let unrestChange = 0;
+                                if (investmentPolicy === 'guided') { relationChange = 3; unrestChange = 2; }
+                                else if (investmentPolicy === 'forced') { relationChange = 1; unrestChange = 5; }
+                                nationUpdates[investorNation.id] = {
+                                    wealth: (existing.wealth || 0) - cost,
+                                    relation: (existing.relation || 0) + relationChange,
+                                    unrest: (existing.unrest || 0) + unrestChange,
+                                    lastForeignInvestmentDay: effectiveDaysElapsed,
+                                    lastForeignSampleDay: effectiveDaysElapsed,
+                                };
+
+                                addLog('[外资建设] ' + investorNation.name + ' 在本国投资建设了 ' + building.name + '。');
+                                if (investmentPolicy === 'guided' || investmentPolicy === 'forced') {
+                                    addLog(`⚠️ 由于${investmentPolicy === 'forced' ? '强制' : '引导'}投资政策，${investorNation.name} 国内出现不满。`);
                                 }
                             });
+
+                            if (newRecords.length > 0) {
+                                // 批量 merge：将所有新记录依次归并到当前列表中
+                                setForeignInvestments(prev => {
+                                    let result = prev;
+                                    newRecords.forEach(rec => {
+                                        result = mergeForeignInvestments(result, rec);
+                                    });
+                                    return result;
+                                });
+
+                                // 批量更新建筑数量
+                                if (Object.keys(buildingUpdates).length > 0) {
+                                    setBuildings(prev => {
+                                        const next = { ...prev };
+                                        Object.entries(buildingUpdates).forEach(([bid, delta]) => {
+                                            next[bid] = (next[bid] || 0) + delta;
+                                        });
+                                        return next;
+                                    });
+                                }
+
+                                // 批量更新外资国状态
+                                setNations(prev => prev.map(n => {
+                                    const upd = nationUpdates[n.id];
+                                    if (!upd) return n;
+                                    return {
+                                        ...n,
+                                        wealth: Math.max(0, (n.wealth || 0) + upd.wealth),
+                                        relation: Math.min(100, (n.relation || 0) + upd.relation),
+                                        unrest: (n.unrest || 0) + upd.unrest,
+                                        lastForeignInvestmentDay: upd.lastForeignInvestmentDay,
+                                        lastForeignSampleDay: upd.lastForeignSampleDay,
+                                    };
+                                }));
+                            }
                         }
                     } catch (err) { console.warn('AI investment error:', err); }
                 }
@@ -8229,6 +8281,6 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
             }
         }, tickInterval); // 根据游戏速度动态调整执行频率
         return () => clearInterval(timer);
-    }, [gameSpeed, isPaused, setFestivalModal, setLastFestivalYear, lastFestivalYear, setIsPaused]); // Dependencies: game speed, pause state, and annual report related state
+    }, [gameSpeed, isPaused, setFestivalModal, setLastFestivalYear, setIsPaused]); // Dependencies: game speed, pause state, and annual report related state
 };
 

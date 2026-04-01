@@ -637,6 +637,12 @@ export const StatusBar = React.memo(({
                                                                     <span className="text-green-300 font-mono">+{formatNumberShortCN(adjustedWarIndemnity, { decimals: 1 })}</span>
                                                                 </div>
                                                             )}
+                                                            {(taxes.breakdown?.foreignInvestmentTax || 0) > 0 && (
+                                                                <div className="stat-item-compact">
+                                                                    <span className="text-ancient-stone">外资税收</span>
+                                                                    <span className="text-green-300 font-mono">+{formatNumberShortCN(taxes.breakdown.foreignInvestmentTax, { decimals: 1 })}</span>
+                                                                </div>
+                                                            )}
 
                                                             <div className="epic-divider" />
 

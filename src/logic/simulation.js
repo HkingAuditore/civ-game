@@ -794,12 +794,12 @@ export const simulateTick = ({
     let updatedOverseasInvestments = overseasInvestments;
     let updatedForeignInvestments = foreignInvestments;
     let investmentLogs = [];
-    // [PERF] batch级：投资结算频率守卫（默认每20tick结算一次）
-    const shouldSettleOverseasInvestment = shouldRunThisTick(tick, 'overseasInvestment');
-    const shouldSettleForeignInvestment = shouldRunThisTick(tick, 'foreignInvestment');
-    // 计算累积tick数：用于批量结算时将收益乘以累积周期
-    const overseasInvestmentFreq = RATE_LIMIT_CONFIG.overseasInvestmentFrequency || 20;
-    const foreignInvestmentFreq = RATE_LIMIT_CONFIG.foreignInvestmentFrequency || 20;
+    // [PERF] 投资升级仍保持低频守卫（默认每20tick执行一次）
+    const shouldUpgradeOverseasInvestment = shouldRunThisTick(tick, 'overseasInvestment');
+    const shouldUpgradeForeignInvestment = shouldRunThisTick(tick, 'foreignInvestment');
+    // [PERF] 切片化：利润结算每tick执行一个切片，切片数作为倍率补偿轮转间隔
+    const oiSliceCount = Math.max(1, RATE_LIMIT_CONFIG.overseasInvestmentSlices || 5);
+    const fiSliceCount = Math.max(1, RATE_LIMIT_CONFIG.foreignInvestmentSlices || 5);
     // NEW: Track supply source breakdown
     const supplyBreakdown = {};
     const resourceLossBreakdown = {};
@@ -935,29 +935,41 @@ export const simulateTick = ({
     // === Execute Investment Logic (Now that Wealth/Ledger is ready) ===
 
     // 1. Overseas Investments (Player -> AI)
-    // [PERF] batch级守卫：仅在结算tick执行，一次结算N个tick的量
-    if (overseasInvestments.length > 0 && shouldSettleOverseasInvestment) {
+    // [PERF] 切片轮转：每tick结算一个切片，切片数作为倍率补偿轮转间隔
+    if (overseasInvestments.length > 0) {
         perfStart('overseasInvestments');
+        // 切片化：将投资列表分成 oiSliceCount 个切片，每tick只处理一个
+        const oiSlicedInvestments = getSlice(overseasInvestments, oiSliceCount);
+        // 实际切片数：当投资数 <= 切片数时退化为全量（ticksElapsed=1）
+        const oiEffectiveSlices = (overseasInvestments.length <= oiSliceCount) ? 1 : oiSliceCount;
+
         const oiResult = processOverseasInvestments({
-            overseasInvestments, // Use original input
+            overseasInvestments: oiSlicedInvestments,
             nations,
             organizations: diplomacyOrganizations?.organizations || [],
             resources: res,
             marketPrices: priceMap,
-            classWealth: wealth, // Use the working wealth object (simulating direct mutation)
+            classWealth: wealth,
             taxPolicies: policies,
             daysElapsed: tick,
-            ticksElapsed: overseasInvestmentFreq, // 批量结算：利润/税收乘以累积tick数
+            ticksElapsed: oiEffectiveSlices, // 切片化：用切片数替代原频率值作为倍率
         });
 
-        updatedOverseasInvestments = oiResult.updatedInvestments;
+        // 合并更新：切片结果只包含本切片的投资，需与未处理的投资合并
+        if (oiEffectiveSlices <= 1) {
+            // 全量模式：直接使用返回结果
+            updatedOverseasInvestments = oiResult.updatedInvestments;
+        } else {
+            // 切片模式：将切片结果合并回完整列表
+            const updatedMap = new Map(oiResult.updatedInvestments.map(inv => [inv.id, inv]));
+            updatedOverseasInvestments = overseasInvestments.map(inv => updatedMap.get(inv.id) || inv);
+        }
         investmentLogs.push(...oiResult.logs);
 
         // Apply profits to wealth
         if (oiResult.profitByStratum) {
             Object.entries(oiResult.profitByStratum).forEach(([stratum, profit]) => {
                 if (profit > 0) {
-                    // Update wealth directly
                     wealth[stratum] = (wealth[stratum] || 0) + profit;
                 }
             });
@@ -967,9 +979,7 @@ export const simulateTick = ({
         if (oiResult.costsByStratum) {
             Object.entries(oiResult.costsByStratum).forEach(([stratum, costs]) => {
                 if (classFinancialData[stratum]) {
-                    // 记录销售收入（outputValue?
                     classFinancialData[stratum].income.ownerRevenue = (classFinancialData[stratum].income.ownerRevenue || 0) + costs.outputValue;
-                    // 记录各项成本
                     classFinancialData[stratum].expense.productionCosts = (classFinancialData[stratum].expense.productionCosts || 0) + costs.inputCost;
                     classFinancialData[stratum].expense.wages = (classFinancialData[stratum].expense.wages || 0) + costs.wageCost;
                     classFinancialData[stratum].expense.businessTax = (classFinancialData[stratum].expense.businessTax || 0) + costs.businessTaxCost;
@@ -990,14 +1000,12 @@ export const simulateTick = ({
         // Apply market/player resource changes
         if (oiResult.playerInventoryChanges) {
             Object.entries(oiResult.playerInventoryChanges).forEach(([key, delta]) => {
-                // [FIX] Use applyResourceChange to ensure tracking (especially for silver)
                 applyResourceChange(key, delta, 'overseas_investment_return');
             });
         }
 
         // [FIX] Apply market changes to target nations (supply/demand impact)
         if (oiResult.marketChanges) {
-            // marketChanges structure: { [nationId]: { [resource]: amount } }
             Object.entries(oiResult.marketChanges).forEach(([nationId, changes]) => {
                 const nation = nations.find(n => n.id === nationId);
                 if (nation && nation.inventory) {
@@ -1008,19 +1016,20 @@ export const simulateTick = ({
             });
         }
 
-        // [NEW] 将投资效果传递到附庸国对象，用于动态阶层经济计?
+        // [NEW] 将投资效果传递到附庸国对象，用于动态阶层经济计算
         if (oiResult.nationInvestmentEffects) {
             Object.entries(oiResult.nationInvestmentEffects).forEach(([nationId, effects]) => {
                 const nation = nations.find(n => n.id === nationId);
                 if (nation) {
-                    // 存储投资效果?updateSocialClasses 使用
                     nation._investmentEffects = effects;
                 }
             });
         }
         perfEnd('overseasInvestments');
+    }
 
-        // Process Upgrades
+    // 海外投资升级：保持低频执行（与利润结算独立）
+    if (overseasInvestments.length > 0 && shouldUpgradeOverseasInvestment) {
         perfStart('overseasUpgrades');
         const upgradeResult = processOverseasInvestmentUpgrades({
             overseasInvestments: updatedOverseasInvestments,
@@ -1033,10 +1042,8 @@ export const simulateTick = ({
         if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
             updatedOverseasInvestments = upgradeResult.updatedInvestments;
             investmentLogs.push(...upgradeResult.logs);
-            // Deduct costs
             if (upgradeResult.wealthChanges) {
                 Object.entries(upgradeResult.wealthChanges).forEach(([stratum, delta]) => {
-                    // delta is negative for cost
                     wealth[stratum] = Math.max(0, (wealth[stratum] || 0) + delta);
                 });
             }
@@ -8587,11 +8594,16 @@ export const simulateTick = ({
     }
 
     // 2. Foreign Investments (AI -> Player) - Executed AFTER jobFill is populated
-    // [PERF] batch级守卫：仅在结算tick执行
-    if (foreignInvestments.length > 0 && shouldSettleForeignInvestment) {
+    // [PERF] 切片轮转：每tick结算一个切片，切片数作为倍率补偿轮转间隔
+    if (foreignInvestments.length > 0) {
         perfStart('foreignInvestments');
+        // 切片化：将外资企业列表分成 fiSliceCount 个切片，每tick只处理一个
+        const fiSlicedInvestments = getSlice(updatedForeignInvestments, fiSliceCount);
+        // 实际切片数：当投资数 <= 切片数时退化为全量（ticksElapsed=1）
+        const fiEffectiveSlices = (foreignInvestments.length <= fiSliceCount) ? 1 : fiSliceCount;
+
         const fiResult = processForeignInvestments({
-            foreignInvestments: updatedForeignInvestments,
+            foreignInvestments: fiSlicedInvestments,
             nations: updatedNations, // Use updated nations
             organizations: diplomacyOrganizations?.organizations || [],
             playerMarket: { prices: updatedPrices },
@@ -8601,14 +8613,23 @@ export const simulateTick = ({
             daysElapsed: tick,
             jobFill: buildingJobFill,
             buildings: builds,
-            ticksElapsed: foreignInvestmentFreq, // 批量结算：利润/税收乘以累积tick数
+            ticksElapsed: fiEffectiveSlices, // 切片化：用切片数替代原频率值作为倍率
         });
 
-        updatedForeignInvestments = fiResult.updatedInvestments;
+        // 合并更新：切片结果只包含本切片的投资，需与未处理的投资合并
+        if (fiEffectiveSlices <= 1) {
+            // 全量模式：直接使用返回结果
+            updatedForeignInvestments = fiResult.updatedInvestments;
+        } else {
+            // 切片模式：将切片结果合并回完整列表
+            const updatedMap = new Map(fiResult.updatedInvestments.map(inv => [inv.id, inv]));
+            updatedForeignInvestments = updatedForeignInvestments.map(inv => updatedMap.get(inv.id) || inv);
+        }
         investmentLogs.push(...fiResult.logs);
 
         if (fiResult.taxRevenue > 0) {
             applySilverChange(fiResult.taxRevenue, 'foreign_investment_tax');
+            taxBreakdown.foreignInvestmentTax = (taxBreakdown.foreignInvestmentTax || 0) + fiResult.taxRevenue;
         }
         if (fiResult.tariffRevenue > 0) {
             applySilverChange(fiResult.tariffRevenue, 'foreign_investment_tariff');
@@ -8620,15 +8641,9 @@ export const simulateTick = ({
         }
 
         // Apply market changes (from foreign operation)
+        // 注意：marketChanges 的 delta 未乘 ticksElapsed（仅乘了 count），切片化后行为不变
         if (fiResult.marketChanges) {
             Object.entries(fiResult.marketChanges).forEach(([key, delta]) => {
-                // If it's resource accumulation/depletion in player market
-                // Note: processForeignInvestments returns 'marketChanges' for player resource changes
-                // But wait, the function modifies playerResources directly? No, it takes it as input.
-                // It returns marketChanges.
-                // Let's verify `processForeignInvestments` implementation.
-                // It calculates profit but does NOT modify `playerResources` in place inside calculation.
-                // It returns `marketChanges`.
                 // [FIX] Silver produced by foreign investors belongs to them (profit), not the state treasury.
                 if (key === 'silver') return;
 
@@ -8637,8 +8652,11 @@ export const simulateTick = ({
             });
         }
 
-        // Foreign Upgrades
         perfEnd('foreignInvestments');
+    }
+
+    // Foreign Upgrades - 保持低频独立执行，不随利润结算切片化
+    if (foreignInvestments.length > 0 && shouldUpgradeForeignInvestment) {
         perfStart('foreignUpgrades');
         const upgradeResult = processForeignInvestmentUpgrades({
             foreignInvestments: updatedForeignInvestments,
@@ -8653,10 +8671,6 @@ export const simulateTick = ({
         if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
             updatedForeignInvestments = upgradeResult.updatedInvestments;
             investmentLogs.push(...upgradeResult.logs);
-            // Costs are deducted from owner nation wealth inside updateNations?
-            // No, processForeignInvestmentUpgrades just returns the result. We need to update nations.
-            // But we already finished mapping updatedNations.
-            // We should update `updatedNations` again.
             upgradeResult.upgrades.forEach(u => {
                 const nation = updatedNations.find(n => n.id === u.ownerNationId);
                 if (nation) {
@@ -8934,8 +8948,10 @@ export const simulateTick = ({
             exodusAndPenalties: typeof shouldUpdateExodus !== 'undefined' ? shouldUpdateExodus : true,
             rebellionDaily: shouldUpdateRebellion,
             priceConvergence: shouldUpdatePriceConvergence,
-            overseasInvestments: shouldSettleOverseasInvestment,
-            foreignInvestments: shouldSettleForeignInvestment,
+            overseasInvestments: true, // 切片化后每tick都执行利润结算
+            foreignInvestments: true, // 切片化后每tick都执行利润结算
+            overseasInvestmentUpgrades: shouldUpgradeOverseasInvestment,
+            foreignInvestmentUpgrades: shouldUpgradeForeignInvestment,
             aiNationUpdate: shouldUpdateAI,
             diplomacyAI: shouldUpdateDiplomacy,
         });

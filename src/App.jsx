@@ -1796,6 +1796,7 @@ function GameApp({ gameState }) {
                                                 corpsReplenishQueue={gameState.corpsReplenishQueue}
                                                 onUpdateCorpsReplenishQueue={gameState.setCorpsReplenishQueue}
                                                 warfrontFocusRequest={warfrontFocusRequest}
+                                                onDiplomaticAction={actions.handleDiplomaticAction}
                                             />
                                         )}
 
@@ -2444,6 +2445,8 @@ function GameApp({ gameState }) {
                     maxPop={gameState.maxPop}
                     popStructure={gameState.popStructure}
                     history={gameState.history}
+                    jobsAvailable={gameState.jobsAvailable}
+                    buildingJobFill={gameState.jobFill}
                 />
             )}
 
