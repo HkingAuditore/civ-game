@@ -110,6 +110,8 @@ export function updatePriceHistory({
     return priceHistory || {};
   }
   
+  // [PERF] Reuse existing object shell, only create new arrays when necessary
+  // This eliminates ~50 array allocations per tick (one per resource)
   const updated = { ...priceHistory };
   
   Object.entries(currentPrices).forEach(([resource, price]) => {
@@ -117,11 +119,18 @@ export function updatePriceHistory({
       return;
     }
     
-    const arr = updated[resource] || [];
-    // [PERF] 单次分配：直接构建最终数组
-    updated[resource] = arr.length >= maxLength
-      ? [...arr.slice(-(maxLength - 1)), price]
-      : [...arr, price];
+    let arr = updated[resource];
+    if (!arr) {
+      updated[resource] = [price];
+    } else if (arr.length >= maxLength) {
+      // [PERF] Shift in place + push instead of creating a new array with spread
+      // For a 90-element array this avoids allocating a brand new array each tick
+      arr.shift();
+      arr.push(price);
+      // No need to reassign — same reference in `updated`
+    } else {
+      arr.push(price);
+    }
   });
   
   return updated;
@@ -243,18 +252,18 @@ export function calculateGDP({
   // 出口数据从demandBreakdown获取（需求侧：资源被出口消耗）
   // 进口数据从supplyBreakdown获取（供给侧：资源通过进口增加）
   
-  // [DEBUG] 输出breakdown结构
-  console.group('🌍 [NET EXPORTS DEBUG]');
-  console.log('📦 demandBreakdown keys:', Object.keys(demandBreakdown || {}));
-  console.log('📦 demandBreakdown sample:', Object.entries(demandBreakdown || {}).slice(0, 3).map(([k, v]) => ({
-    resource: k,
-    data: v,
-  })));
-  console.log('📦 supplyBreakdown keys:', Object.keys(supplyBreakdown || {}));
-  console.log('📦 supplyBreakdown sample:', Object.entries(supplyBreakdown || {}).slice(0, 3).map(([k, v]) => ({
-    resource: k,
-    data: v,
-  })));
+  // [DEBUG] 输出breakdown结构 (commented for performance - was leaking memory via console retention)
+  // console.group('🌍 [NET EXPORTS DEBUG]');
+  // console.log('📦 demandBreakdown keys:', Object.keys(demandBreakdown || {}));
+  // console.log('📦 demandBreakdown sample:', Object.entries(demandBreakdown || {}).slice(0, 3).map(([k, v]) => ({
+  //   resource: k,
+  //   data: v,
+  // })));
+  // console.log('📦 supplyBreakdown keys:', Object.keys(supplyBreakdown || {}));
+  // console.log('📦 supplyBreakdown sample:', Object.entries(supplyBreakdown || {}).slice(0, 3).map(([k, v]) => ({
+  //   resource: k,
+  //   data: v,
+  // })));
   
   let exports = 0;
   let imports = 0;
@@ -283,8 +292,8 @@ export function calculateGDP({
   
   const netExports = exports - imports;
   
-  console.log('✅ Net Exports Result:', { exports, imports, netExports });
-  console.groupEnd();
+  // console.log('✅ Net Exports Result:', { exports, imports, netExports });
+  // console.groupEnd();
   
   const GDP_COMPONENT_CAP = 1e12;
   const clampGDP = v => Math.max(-GDP_COMPONENT_CAP, Math.min(GDP_COMPONENT_CAP, Number.isFinite(v) ? v : 0));
@@ -646,19 +655,19 @@ export function calculateAllIndicators(params) {
     basket: Object.keys(dynamicPPIBasket).length > 0 ? dynamicPPIBasket : null,
   });
   
-  // [DEBUG] 输出分层CPI数据
-  console.group('📊 [CPI BY TIER DEBUG]');
-  console.log('🔵 Lower CPI:', cpiByTier.lower);
-  console.log('🟢 Middle CPI:', cpiByTier.middle);
-  console.log('🟣 Upper CPI:', cpiByTier.upper);
-  console.log('📦 Dynamic Baskets:', dynamicBaskets);
-  console.groupEnd();
+  // [DEBUG] 输出分层CPI数据 (commented for performance)
+  // console.group('📊 [CPI BY TIER DEBUG]');
+  // console.log('🔵 Lower CPI:', cpiByTier.lower);
+  // console.log('🟢 Middle CPI:', cpiByTier.middle);
+  // console.log('🟣 Upper CPI:', cpiByTier.upper);
+  // console.log('📦 Dynamic Baskets:', dynamicBaskets);
+  // console.groupEnd();
   
-  // [DEBUG] 输出动态PPI篮子
-  console.group('🏭 [DYNAMIC PPI BASKET DEBUG]');
-  console.log('📦 Dynamic PPI Basket:', dynamicPPIBasket);
-  console.log('📊 PPI Result:', ppi);
-  console.groupEnd();
+  // [DEBUG] 输出动态PPI篮子 (commented for performance)
+  // console.group('🏭 [DYNAMIC PPI BASKET DEBUG]');
+  // console.log('📦 Dynamic PPI Basket:', dynamicPPIBasket);
+  // console.log('📊 PPI Result:', ppi);
+  // console.groupEnd();
   
   return {
     gdp,

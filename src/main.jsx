@@ -23,28 +23,53 @@ if (previousCrash || abnormalExit) {
 const muteConsoleNoise = () => {
     if (isDebugEnabled('console')) return;
     const noop = () => {};
-    // 保留 console.error，确保崩溃信息不丢
-    console.log = noop;
-    console.warn = noop;
+    // 保留 console.error 和 console.assert，确保崩溃信息不丢
+    // 静默所有其他 console 方法，避免浏览器控制台持有对象引用导致内存泄漏
+    const methodsToMute = [
+        'log', 'warn', 'info', 'debug',
+        'group', 'groupEnd', 'groupCollapsed',
+        'table', 'dir', 'dirxml', 'trace', 'clear',
+        'time', 'timeEnd', 'timeLog',
+        'count', 'countReset',
+        'profile', 'profileEnd',
+    ];
+    methodsToMute.forEach(method => {
+        if (typeof console[method] === 'function') {
+            console[method] = noop;
+        }
+    });
 };
 
 muteConsoleNoise();
 
-// 禁用 Performance.measure 以避免大对象克隆导致的内存溢出
-// React DevTools 在开发模式下会尝试使用 performance.measure 记录组件渲染
-// 当游戏状态过大时会导致 DataCloneError
-if (typeof Performance !== 'undefined' && Performance.prototype.measure) {
-    const originalMeasure = Performance.prototype.measure;
-    Performance.prototype.measure = function(...args) {
-        try {
-            return originalMeasure.apply(this, args);
-        } catch (error) {
-            if (error.name === 'DataCloneError') {
-                return undefined;
-            }
-            throw error;
+// 禁用 Performance.measure/mark 以避免对象堆积导致内存泄漏
+// 堆快照显示 89,040 个 PerformanceMeasure + 150,940 个 StackFrameInfo 驻留内存
+// React DevTools 和 simulation.js 的 perf timing 是主要创建源
+if (typeof Performance !== 'undefined') {
+    // 当 __PERF_USER_TIMING 显式开启时保留原始行为（用于性能调试）
+    if (!(typeof window !== 'undefined' && window.__PERF_USER_TIMING === true)) {
+        const noopMeasure = () => undefined;
+        const noopMark = () => undefined;
+        if (Performance.prototype.measure) {
+            Performance.prototype.measure = noopMeasure;
         }
-    };
+        if (Performance.prototype.mark) {
+            Performance.prototype.mark = noopMark;
+        }
+    } else if (Performance.prototype.measure) {
+        // 即使开启了 user timing，也要防止 DataCloneError
+        const originalMeasure = Performance.prototype.measure;
+        Performance.prototype.measure = function(...args) {
+            try {
+                return originalMeasure.apply(this, args);
+            } catch (error) {
+                if (error.name === 'DataCloneError') {
+                    return undefined;
+                }
+                throw error;
+            }
+        };
+    }
 }
 
 // 在原生平台上隐藏状态栏

@@ -370,14 +370,14 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
     };
 
     if (!officials || officials.length === 0) {
-        console.log('[DOMINANCE DEBUG] No officials:', debugInfo);
+        // console.log('[DOMINANCE DEBUG] No officials:', debugInfo);
         return null;
     }
 
     // 前置条件1: 时代至少为启蒙时代 (epoch >= 5)
     if (epoch < DOMINANCE_MIN_EPOCH) {
         debugInfo.result = 'Epoch requirement not met';
-        console.log('[DOMINANCE DEBUG] Epoch not met:', debugInfo);
+        // console.log('[DOMINANCE DEBUG] Epoch not met:', debugInfo);
         return null;
     }
 
@@ -386,7 +386,7 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
     debugInfo.capacityMet = officials.length >= minRequired;
     if (!debugInfo.capacityMet) {
         debugInfo.result = `Need ${minRequired} officials (have ${officials.length})`;
-        console.log('[DOMINANCE DEBUG] Capacity not met:', debugInfo);
+        // console.log('[DOMINANCE DEBUG] Capacity not met:', debugInfo);
         return null;
     }
 
@@ -416,7 +416,7 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
 
     if (maxPercent >= threshold && dominant) {
         debugInfo.result = 'SUCCESS';
-        console.log('[DOMINANCE DEBUG] Dominance activated:', debugInfo);
+        // console.log('[DOMINANCE DEBUG] Dominance activated:', debugInfo);
         return {
             faction: dominant,
             percentage: Math.round(maxPercent * 100),
@@ -425,7 +425,7 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
     }
 
     debugInfo.result = 'Percent threshold not met';
-    console.log('[DOMINANCE DEBUG] Percent not met:', debugInfo);
+    // console.log('[DOMINANCE DEBUG] Percent not met:', debugInfo);
     return null;
 };
 
@@ -875,11 +875,7 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
     const wealthDeductions = {};
 
     if (!buildings || !classWealth || !expansionSettings) {
-        console.log('[FREE MARKET] processOwnerExpansions early return:', {
-            hasBuildings: !!buildings,
-            hasClassWealth: !!classWealth,
-            hasExpansionSettings: !!expansionSettings
-        });
+        // console.log('[FREE MARKET] processOwnerExpansions early return:', { ... });
         return { expansions, wealthDeductions };
     }
 
@@ -934,13 +930,13 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         }
     }
 
-    // [DEBUG] 输出详细诊断信息
-    console.log('[FREE MARKET] processOwnerExpansions:', {
-        totalBuildingsChecked: buildings.filter(b => b.owner).length,
-        candidatesFound: candidates.length,
-        candidates: candidates.map(c => ({ id: c.buildingId, profit: c.profit.toFixed(2), roi: (c.roi * 100).toFixed(1) + '%', weight: c.weight.toFixed(2) })),
-        firstFewRejections: rejectionReasons.slice(0, 5)
-    });
+    // [DEBUG] 输出详细诊断信息 (commented for performance — was creating objects every tick)
+    // console.log('[FREE MARKET] processOwnerExpansions:', {
+    //     totalBuildingsChecked: buildings.filter(b => b.owner).length,
+    //     candidatesFound: candidates.length,
+    //     candidates: candidates.map(c => ({ id: c.buildingId, profit: c.profit.toFixed(2), roi: (c.roi * 100).toFixed(1) + '%', weight: c.weight.toFixed(2) })),
+    //     firstFewRejections: rejectionReasons.slice(0, 5)
+    // });
 
     if (candidates.length > 0) {
         const selectedForOwners = [];
@@ -999,16 +995,16 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         });
 
         if (selectedForOwners.length > 0) {
-            console.log('[FREE MARKET] Selected for expansion:', selectedForOwners.map(selected => ({
-                buildingId: selected.buildingId,
-                owner: selected.owner,
-                profit: selected.profit.toFixed(2),
-                roi: (selected.roi * 100).toFixed(1) + '%',
-                weight: selected.weight.toFixed(2),
-                metric: selected._debug.metric,
-                tierIndex: selected._debug.tierIndex,
-                probability: selected._debug.probability.toFixed(1) + '%',
-            })));
+            // console.log('[FREE MARKET] Selected for expansion:', selectedForOwners.map(selected => ({
+            //     buildingId: selected.buildingId,
+            //     owner: selected.owner,
+            //     profit: selected.profit.toFixed(2),
+            //     roi: (selected.roi * 100).toFixed(1) + '%',
+            //     weight: selected.weight.toFixed(2),
+            //     metric: selected._debug.metric,
+            //     tierIndex: selected._debug.tierIndex,
+            //     probability: selected._debug.probability.toFixed(1) + '%',
+            // })));
 
             selectedForOwners.forEach(selected => {
                 expansions.push(selected);

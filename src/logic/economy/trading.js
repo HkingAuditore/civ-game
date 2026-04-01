@@ -1136,13 +1136,17 @@ export const simulateMerchantTrade = ({
         
         // [NEW] Don't filter per-partner - collect ALL candidates for global ranking
         // Add all candidates to global opportunity pool with partner context
+        // [MEMORY FIX] Only store lightweight data — avoid caching full partner objects
+        // and closure functions that prevent GC of nation data
         candidates.forEach(candidate => {
             sliceOpportunities.push({
-                partner,
-                partnerBatch,
+                partnerId: partner.id,
+                partnerBatchNationId: partnerBatch.nationId,
+                partnerBatchCount: partnerBatch.count,
+                partnerBatchExplicitCount: partnerBatch.explicitCount,
+                partnerBatchIdleCount: partnerBatch.idleCount,
+                partnerBatchBatches: partnerBatch.batches,
                 candidate,
-                getPartnerImportTaxRate,
-                getPartnerExportTaxRate,
                 tradeEfficiencyMultiplier,
             });
         });
@@ -1155,7 +1159,7 @@ export const simulateMerchantTrade = ({
         _opportunityCache.partnerOpportunities[pb.nationId] = [];
     }
     sliceOpportunities.forEach(opp => {
-        const nid = opp.partnerBatch?.nationId || opp.partner?.id;
+        const nid = opp.partnerBatchNationId || opp.partnerId;
         if (nid) {
             if (!_opportunityCache.partnerOpportunities[nid]) {
                 _opportunityCache.partnerOpportunities[nid] = [];
@@ -1403,13 +1407,21 @@ const executeCachedTrades = ({
         const allocation = merchantAllocations[i];
         const { candidate, merchantCount: allocatedMerchants } = allocation;
         
-        // Re-resolve partner from nations array (cache may hold stale references)
-        const partner = Array.isArray(nations) ? nations.find(n => n?.id === allocation.partner?.id) : allocation.partner;
+        // Re-resolve partner from nations array using cached partnerId
+        const partnerId = allocation.partnerId || allocation.partner?.id;
+        const partner = Array.isArray(nations) ? nations.find(n => n?.id === partnerId) : null;
         if (!partner) continue;
         // [FIX] Skip undiscovered nations — cannot create trades with nations we haven't found
         if (partner.relation === null || partner.relation === undefined) continue;
         
-        const partnerBatch = allocation.partnerBatch;
+        // Reconstruct partnerBatch from cached lightweight data
+        const partnerBatch = allocation.partnerBatch || {
+            nationId: allocation.partnerBatchNationId || partnerId,
+            count: allocation.partnerBatchCount || 0,
+            explicitCount: allocation.partnerBatchExplicitCount || 0,
+            idleCount: allocation.partnerBatchIdleCount || 0,
+            batches: allocation.partnerBatchBatches || 0,
+        };
         
         // Re-calculate treaty effects for this partner
         const treatyEffects = getTreatyEffects(partner, tick);
@@ -1977,14 +1989,14 @@ const executeExportTrade = ({
             // Tariff rate is now used directly as percentage (1 = 100% tariff)
             const baseTaxPaid = cost * baseRate * batchMultiplier;
             const tariffPaid = appliedTariff * batchMultiplier;
-            // DEBUG: 调试关税
-            console.log('[EXPORT TRADE DEBUG]', resourceKey, {
-                tariffRate,
-                tariffPaid,
-                cost,
-                batchMultiplier,
-                'taxPolicies?.exportTariffMultipliers': taxPolicies?.exportTariffMultipliers,
-            });
+            // [DEBUG] 调试关税 (commented for performance - was leaking memory via console retention)
+            // console.log('[EXPORT TRADE DEBUG]', resourceKey, {
+            //     tariffRate,
+            //     tariffPaid,
+            //     cost,
+            //     batchMultiplier,
+            //     'taxPolicies?.exportTariffMultipliers': taxPolicies?.exportTariffMultipliers,
+            // });
 
             // 记录关税（无论总税收正负，关税都要独立记录）
             if (tariffPaid > 0) {

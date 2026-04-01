@@ -969,7 +969,7 @@ function calculateVassalWageCost(building, nation, operatingFactor = 1) {
 
         const stratumConfig = STRATA[stratumId];
         if (!stratumConfig) {
-            console.log(`[Overseas] Missing stratum config for ${stratumId}. STRATA keys: ${Object.keys(STRATA || {})}`);
+            // console.log(`[Overseas] Missing stratum config for ${stratumId}. STRATA keys: ${Object.keys(STRATA || {})}`);
             return;
         }
 

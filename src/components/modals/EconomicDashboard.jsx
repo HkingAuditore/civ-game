@@ -55,20 +55,20 @@ export const EconomicDashboard = ({
   const [isCPIExpanded, setIsCPIExpanded] = useState(false);
   const [isPPIExpanded, setIsPPIExpanded] = useState(false);
 
-  // 🎯 调试日志：当面板打开时输出所有数据
-  React.useEffect(() => {
-    if (isOpen) {
-      console.group('💰 [ECONOMIC DASHBOARD OPENED]');
-      console.log('📊 Economic Indicators:', economicIndicators);
-      console.log('🔍 CPI By Tier:', economicIndicators?.cpiByTier);
-      console.log('💵 Treasury:', treasury);
-      console.log('📈 Daily Income:', dailyTreasuryIncome);
-      console.log('🏷️ Market Prices:', marketPrices);
-      console.log('⚖️ Equilibrium Prices:', equilibriumPrices);
-      console.log('👥 Class Financial Data:', classFinancialData);
-      console.groupEnd();
-    }
-  }, [isOpen, economicIndicators, treasury, dailyTreasuryIncome, marketPrices, equilibriumPrices, classFinancialData]);
+  // 🎯 调试日志：当面板打开时输出所有数据 (commented for performance — was leaking memory via console retention)
+  // React.useEffect(() => {
+  //   if (isOpen) {
+  //     console.group('💰 [ECONOMIC DASHBOARD OPENED]');
+  //     console.log('📊 Economic Indicators:', economicIndicators);
+  //     console.log('🔍 CPI By Tier:', economicIndicators?.cpiByTier);
+  //     console.log('💵 Treasury:', treasury);
+  //     console.log('📈 Daily Income:', dailyTreasuryIncome);
+  //     console.log('🏷️ Market Prices:', marketPrices);
+  //     console.log('⚖️ Equilibrium Prices:', equilibriumPrices);
+  //     console.log('👥 Class Financial Data:', classFinancialData);
+  //     console.groupEnd();
+  //   }
+  // }, [isOpen, economicIndicators, treasury, dailyTreasuryIncome, marketPrices, equilibriumPrices, classFinancialData]);
 
   if (!isOpen) return null;
 

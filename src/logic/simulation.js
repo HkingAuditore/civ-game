@@ -120,9 +120,8 @@ const migrateAnnexedNationCapital = ({
 const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange, playerWealth }) => {
     const treaties = Array.isArray(nation.treaties) ? nation.treaties : [];
 
-    // Debug: log treaties being processed
-    if (treaties.length > 0) {
-        console.log('[TREATY MAINTENANCE DEBUG]', {
+    if (treaties.length > 0 && isDebugEnabled('simulation')) {
+        debugLog('simulation', '[TREATY MAINTENANCE DEBUG]', {
             nationName: nation.name,
             treatyCount: treaties.length,
             treaties: treaties.map(t => ({
@@ -587,6 +586,10 @@ export const simulateTick = ({
         const measureName = `sim:${label}`;
         performance.mark(endMark);
         performance.measure(measureName, startMark, endMark);
+        // 立即清理 marks 和 measures 防止内存堆积
+        performance.clearMarks(startMark);
+        performance.clearMarks(endMark);
+        performance.clearMeasures(measureName);
     };
     const perfStartAll = perfTime();
     const perfStart = (label) => {
@@ -775,8 +778,8 @@ export const simulateTick = ({
         const silverDelta = curSilver - _lastCheckpointSilver;
         const auditDelta = auditSum - _lastCheckpointAudit;
         const phaseGap = silverDelta - auditDelta;
-        if (Math.abs(phaseGap) > 0.1) {
-            console.warn(`🟡 [SIM检查点:${phase}] 阶段差异: ${phaseGap.toFixed(2)} | silver变化: ${silverDelta.toFixed(2)} | 审计变化: ${auditDelta.toFixed(2)}`);
+        if (Math.abs(phaseGap) > 0.1 && _simDebugEnabled) {
+            debugLog('simulation', `🟡 [SIM检查点:${phase}] 阶段差异: ${phaseGap.toFixed(2)} | silver变化: ${silverDelta.toFixed(2)} | 审计变化: ${auditDelta.toFixed(2)}`);
         }
         _lastCheckpointSilver = curSilver;
         _lastCheckpointAudit = auditSum;
@@ -2627,6 +2630,7 @@ export const simulateTick = ({
         const simBaseMultiplier = baseMultiplier > 0 ? baseMultiplier : potentialMultiplierBeforeStaffing;
 
         let resourceLimit = 1;
+        let resourceLimitingKey = null; // 记录导致 resourceLimit 下降的具体资源
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
 
@@ -2677,8 +2681,13 @@ export const simulateTick = ({
                 const available = res[resKey] || 0;
                 if (available <= 0) {
                     resourceLimit = 0;
+                    resourceLimitingKey = resKey;
                 } else {
-                    resourceLimit = Math.min(resourceLimit, available / requiredAtBase);
+                    const ratio = available / requiredAtBase;
+                    if (ratio < resourceLimit) {
+                        resourceLimit = ratio;
+                        resourceLimitingKey = resKey;
+                    }
                 }
                 if (isTradableResource(resKey)) {
                     const price = getPrice(resKey);
@@ -2918,7 +2927,10 @@ export const simulateTick = ({
             reductionReasons.push({ type: 'staffing', label: '人员不足', factor: staffingRatio });
         }
         if (resourceLimit < 1) {
-            const shortageLabel = effectiveOps.input?.electricity ? '电力不足' : '原料不足';
+            const shortageResName = resourceLimitingKey
+                ? (RESOURCES[resourceLimitingKey]?.name || resourceLimitingKey)
+                : (effectiveOps.input?.electricity ? '电力' : '原料');
+            const shortageLabel = shortageResName + '不足';
             reductionReasons.push({ type: 'resource', label: shortageLabel, factor: resourceLimit });
         }
         if (debugMarginRatio !== null && debugMarginRatio < 1) {
@@ -6438,12 +6450,11 @@ export const simulateTick = ({
         return result;
     });
 
-    // [DEBUG] Log vassal state before processVassalUpdates
-    if (tick % 10 === 0) {
+    if (tick % 10 === 0 && isDebugEnabled('vassal')) {
         vassalTargetIds.forEach(vassalId => {
             const vassal = updatedNations.find(n => n.id === vassalId);
             if (vassal) {
-                console.log(`[Before Process] ${vassal.name}: pop=${vassal.population}, wealth=${vassal.wealth}`);
+                debugLog('vassal', `[Before Process] ${vassal.name}: pop=${vassal.population}, wealth=${vassal.wealth}`);
             }
         });
     }
@@ -6463,25 +6474,23 @@ export const simulateTick = ({
         logs,
     });
 
-    // [DEBUG] Log vassal state before and after processVassalUpdates
-    if (tick % 10 === 0) {
+    if (tick % 10 === 0 && isDebugEnabled('vassal')) {
         vassalTargetIds.forEach(vassalId => {
             const before = updatedNations.find(n => n.id === vassalId);
             const after = vassalResult.nations.find(n => n.id === vassalId);
             if (before && after && (before.wealth !== after.wealth || before.population !== after.population)) {
-                console.log(`[Vassal After Process] ${after.name}: pop ${before.population}->${after.population}, wealth ${before.wealth}->${after.wealth}`);
+                debugLog('vassal', `[Vassal After Process] ${after.name}: pop ${before.population}->${after.population}, wealth ${before.wealth}->${after.wealth}`);
             }
         });
     }
 
     updatedNations = vassalResult.nations;
 
-    // [DEBUG] Verify vassal data after assignment
-    if (tick % 10 === 0) {
+    if (tick % 10 === 0 && isDebugEnabled('vassal')) {
         vassalTargetIds.forEach(vassalId => {
             const vassal = updatedNations.find(n => n.id === vassalId);
             if (vassal) {
-                console.log(`[Vassal Final State] ${vassal.name}: pop=${vassal.population}, wealth=${vassal.wealth}`);
+                debugLog('vassal', `[Vassal Final State] ${vassal.name}: pop=${vassal.population}, wealth=${vassal.wealth}`);
             }
         });
     }
@@ -6849,7 +6858,7 @@ export const simulateTick = ({
     let remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
     if (remainingCapacity > 0) {
         const popGrowthMultiplier = getPopulationGrowthMultiplier(difficulty);
-        if (Math.random() < 0.01) console.log(`[DEBUG] PopGrowth: diff=${difficulty}, mult=${popGrowthMultiplier}`);
+        // if (Math.random() < 0.01) console.log(`[DEBUG] PopGrowth: diff=${difficulty}, mult=${popGrowthMultiplier}`);
         const baselineContribution = Math.max(0, population || 0) * FERTILITY_BASELINE_RATE * popGrowthMultiplier * famineFertilityPenalty;
         birthAccumulator += baselineContribution;
         if (population < LOW_POP_THRESHOLD) {
@@ -7163,7 +7172,11 @@ export const simulateTick = ({
             const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
             const adjustedDemand = dem + virtualDemandBaseline;
 
-            if (resourceDef?.storageMode === 'volatile') {
+            // volatile 资源（如电力）：库存上限 + 供需流量定价信号
+            const isVolatile = resourceDef?.storageMode === 'volatile';
+            let volatileFlowMultiplier = 1.0;
+
+            if (isVolatile) {
                 const maxInventoryDays = Math.max(0, resourceDef.maxInventoryDays ?? 0);
                 const minOperationalBuffer = Math.max(0, resourceDef.minOperationalBuffer ?? 0);
                 const allowedStock = Math.max(minOperationalBuffer, adjustedDemand * maxInventoryDays);
@@ -7175,6 +7188,12 @@ export const simulateTick = ({
                     rates[resource] = (rates[resource] || 0) - overflow;
                     resourceLossBreakdown[resource] = (resourceLossBreakdown[resource] || 0) + overflow;
                 }
+
+                // 电力等 volatile 资源使用供需流量比直接定价（类似现实电力现货市场）
+                // 库存信号对不可存储资源无意义，用当期供给/需求比代替
+                const flowRatio = adjustedDemand > 0 ? sup / adjustedDemand : (sup > 0 ? 5.0 : 1.0);
+                const clampedFlow = Math.max(0.2, Math.min(5.0, flowRatio));
+                volatileFlowMultiplier = 1.0 / clampedFlow;
             }
 
 
@@ -7334,15 +7353,24 @@ export const simulateTick = ({
                         priceMultiplier = Math.min(priceMultiplier, maxAllowed);
                     }
 
-                    // 2. 获取基础价格（市场认可的合理价格?
+                    // volatile 资源（电力等）：用供需流量比定价，替代库存信号
+                    // 库存被人为压低的 volatile 资源，inventoryRatio 会误判为"短缺"
+                    if (isVolatile) {
+                        priceMultiplier = volatileFlowMultiplier;
+                    }
+
+                    // 2. 获取基础价格（市场认可的合理价格）
                     const basePrice = getBasePrice(resource);
 
-                    // 3. 计算市场价格（基于basePrice和供需关系?
+                    // 3. 计算市场价格（基于basePrice和供需关系）
                     let marketBasedPrice = basePrice * priceMultiplier;
 
                     // 4. 最终价格 = max(市场价格, 成本底线)
-                    // 价格不能长期低于成本的 50%，否则会造成系统性通缩
-                    let sellingPrice = Math.max(marketBasedPrice, costPrice * 0.5);
+                    // volatile 资源在供过于求时成本底线大幅降低（过剩电力价值趋近于零）
+                    const costFloor = (isVolatile && volatileFlowMultiplier < 1.0)
+                        ? costPrice * 0.1
+                        : costPrice * 0.5;
+                    let sellingPrice = Math.max(marketBasedPrice, costFloor);
 
                     // 不超过物价限?
                     const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
@@ -7391,6 +7419,10 @@ export const simulateTick = ({
                     priceMultiplier = 0.85 - (inventoryRatio - 2.0) * 0.2;
                 } else if (inventoryRatio > 1.0) {
                     priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
+                }
+
+                if (isVolatile) {
+                    priceMultiplier = volatileFlowMultiplier;
                 }
 
                 marketPrice = basePrice * priceMultiplier;
@@ -8936,13 +8968,13 @@ export const simulateTick = ({
     const auditLogArr = silverChangeLog.toArray();
     const simAuditSum = auditLogArr.reduce((s, e) => s + Number(e?.amount || 0), 0);
     const simInternalGap = simActualDelta - simAuditSum;
-    if (Math.abs(simInternalGap) > 0.1) {
-        console.warn('🔴 [SIM内部审计] 差异:', simInternalGap.toFixed(2),
+    if (Math.abs(simInternalGap) > 0.1 && _simDebugEnabled) {
+        debugLog('simulation', '🔴 [SIM内部审计] 差异:', simInternalGap.toFixed(2),
             '| 实际Δ:', simActualDelta.toFixed(2),
             '| 审计Σ:', simAuditSum.toFixed(2),
             '| 起始:', startingSilver.toFixed(2),
             '| 结束:', simEndingSilver.toFixed(2));
-        console.warn('🔴 [SIM内部审计] 各通道明细:', auditLogArr.map(e => `${e.reason}: ${Number(e.amount).toFixed(2)}`));
+        debugLog('simulation', '🔴 [SIM内部审计] 各通道明细:', auditLogArr.map(e => `${e.reason}: ${Number(e.amount).toFixed(2)}`));
     }
 
     return {

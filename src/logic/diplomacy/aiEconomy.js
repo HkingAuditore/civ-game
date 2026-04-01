@@ -199,7 +199,7 @@ export const initializeAIDevelopmentBaseline = ({
         next.economyTraits.ownBasePopulation = Math.max(5, Math.round(
             currentPop > 10 ? currentPop : 16 * templateFactor * (0.8 + Math.random() * 0.4)
         ));
-        console.log(`[Legacy Fix] Initialized ownBasePopulation for ${next.name || next.id}: ${next.economyTraits.ownBasePopulation}`);
+        // console.log(`[Legacy Fix] Initialized ownBasePopulation for ${next.name || next.id}: ${next.economyTraits.ownBasePopulation}`);
     }
     
     // Initialize ownBaseWealth if missing or invalid
@@ -229,11 +229,11 @@ export const initializeAIDevelopmentBaseline = ({
         next.economyTraits.lastGrowthTick < 0) {
         // Set to current tick minus a small amount to trigger immediate growth check
         next.economyTraits.lastGrowthTick = Math.max(0, safeTick - 15);
-        console.log(`[Legacy Fix] Initialized missing lastGrowthTick for ${next.name || next.id}`);
+        // console.log(`[Legacy Fix] Initialized missing lastGrowthTick for ${next.name || next.id}`);
     }
     if (Number.isFinite(next.economyTraits.lastGrowthTick) && next.economyTraits.lastGrowthTick > safeTick) {
         next.economyTraits.lastGrowthTick = Math.max(0, safeTick - 15);
-        console.log(`[Legacy Fix] Clamped future lastGrowthTick for ${next.name || next.id}`);
+        // console.log(`[Legacy Fix] Clamped future lastGrowthTick for ${next.name || next.id}`);
     }
 
     if (next.economyTraits.lastDevelopmentTick === undefined ||
@@ -249,7 +249,7 @@ export const initializeAIDevelopmentBaseline = ({
     // This fixes old saves where population might be 0 or undefined
     if (!next.population || !Number.isFinite(next.population) || next.population < 1) {
         next.population = next.economyTraits.ownBasePopulation;
-        console.log(`[Legacy Fix] Synced population for ${next.name || next.id}: ${next.population}`);
+        // console.log(`[Legacy Fix] Synced population for ${next.name || next.id}: ${next.population}`);
     }
 };
 
@@ -275,10 +275,10 @@ export const processAIIndependentGrowth = ({
     const ownBaseWealth = next.economyTraits.ownBaseWealth;
     const developmentRate = (next.economyTraits.developmentRate || 1.0) * multiplier;
 
-    // [DEBUG] Log ownBasePopulation at start
-    if (next.vassalOf === 'player') {
-        console.log(`[Growth Start] ${next.name}: ownBasePopulation=${ownBasePopulation}, population=${next.population}`);
-    }
+    // [DEBUG] Log ownBasePopulation at start (commented for performance)
+    // if (next.vassalOf === 'player') {
+    //     console.log(`[Growth Start] ${next.name}: ownBasePopulation=${ownBasePopulation}, population=${next.population}`);
+    // }
 
     // [FIX v2] Handle invalid lastGrowthTick more robustly
     const lastGrowthTick = Number.isFinite(next.economyTraits.lastGrowthTick) 
@@ -413,10 +413,10 @@ export const processAIIndependentGrowth = ({
         next.population = actualNewPopulation;
         next.wealth = finalWealth;
         
-        // [DEBUG] Log ownBasePopulation after update
-        if (next.vassalOf === 'player') {
-            console.log(`[Growth End] ${next.name}: ownBasePopulation=${next.economyTraits.ownBasePopulation}, population=${next.population}`);
-        }
+        // [DEBUG] Log ownBasePopulation after update (commented for performance)
+        // if (next.vassalOf === 'player') {
+        //     console.log(`[Growth End] ${next.name}: ownBasePopulation=${next.economyTraits.ownBasePopulation}, population=${next.population}`);
+        // }
         
         next.economyTraits.lastGrowthTick = tick;
     }
@@ -544,7 +544,7 @@ export const updateAIDevelopment = ({
         const deaths = Math.floor(next.population * starvationRate * tickScaleFactor);
         next.population = Math.max(3, next.population - deaths);
         
-        console.warn(`[FAMINE] ${next.name}: 人均财富${wealthPerCapita.toFixed(4)}过低，触发饥荒，人口损失${deaths}（${(starvationRate*100).toFixed(1)}%）`);
+        // console.warn(`[FAMINE] ${next.name}: 人均财富${wealthPerCapita.toFixed(4)}过低，触发饥荒，人口损失${deaths}（${(starvationRate*100).toFixed(1)}%）`);
     } else if (wealthPerCapita < 2) {
         // 严重贫困：每次更新损失1-3%人口
         const povertyRate = 0.01 + (2 - wealthPerCapita) / 1.5 * 0.02;  // 1%-3%
