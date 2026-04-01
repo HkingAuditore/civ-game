@@ -868,6 +868,30 @@ export const checkAIPeaceRequest = ({
         tributeMultiplier = 0.3;
     }
 
+    // === 战线兜底：战线被压制到极端位置时强制提升求和意愿 ===
+    // averageRelativePosition 是 AI 视角的相对位置（越低表示被压得越惨）
+    if (frontContext.frontCount > 0) {
+        const aiPos = frontContext.averageRelativePosition; // AI 视角，越低越被压
+        if (aiPos <= 15) {
+            // 战线被推到 85%+ → 强制兜底：不论 willingness 是否为 0，直接求和
+            const warScore = Math.abs(next.warScore || 0);
+            const enemyLosses = next.enemyLosses || 0;
+            const availableWealth = Math.max(0, next.wealth || 0);
+            const baseTribute = calculateAIPeaceTribute(Math.max(warScore, 5), enemyLosses, next.warDuration || 0, availableWealth);
+            const tribute = Math.floor(baseTribute);
+            logs.push(`🤝 ${next.name} 首都已岌岌可危，被迫请求和平，愿意支付 ${tribute.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。`);
+            next.isPeaceRequesting = true;
+            next.peaceTribute = tribute;
+            next.lastPeaceRequestDay = tick;
+            return true;
+        }
+        // 战线被压到 15~35 时（战线在 65~85%），大幅提升 willingness
+        if (aiPos <= 35) {
+            const compressionBonus = Math.min(0.5, (35 - aiPos) / 20 * 0.5);
+            willingness = Math.max(willingness, compressionBonus);
+        }
+    }
+
     if (willingness <= 0) {
         return false;
     }
@@ -884,6 +908,7 @@ export const checkAIPeaceRequest = ({
         }
     }
 
+    // currentFrontPenalty：仅在 AI 占优时扣减意愿（averageRelativePosition > 50 才有惩罚）
     const currentFrontPenalty = frontContext.frontCount > 0
         ? Math.max(0, (frontContext.averageRelativePosition - 50) / 18) + Math.max(0, (frontContext.strengthRatio - 1) * 0.12)
         : 0;
