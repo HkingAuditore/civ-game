@@ -1141,6 +1141,7 @@ export const simulateMerchantTrade = ({
         candidates.forEach(candidate => {
             sliceOpportunities.push({
                 partnerId: partner.id,
+                partnerName: partner.name,
                 partnerBatchNationId: partnerBatch.nationId,
                 partnerBatchCount: partnerBatch.count,
                 partnerBatchExplicitCount: partnerBatch.explicitCount,
@@ -1224,7 +1225,7 @@ export const simulateMerchantTrade = ({
     if (tradeConfig.enableDebugLog) {
         debugLog('trade', `[全局排序] 选择最赚钱的前 ${topGlobalOpportunities.length} 个贸易机会 (slice ${sliceIdx + 1}/${partnerSliceCount})`, {
             top5: topGlobalOpportunities.slice(0, 5).map(o => ({
-                partner: o.partner.name,
+                partner: o.partnerName || o.partnerId,
                 resource: o.candidate.resourceKey,
                 type: o.candidate.type,
                 score: o.candidate.score.toFixed(2),
@@ -1391,7 +1392,7 @@ const executeCachedTrades = ({
     if (tradeConfig.enableDebugLog) {
         debugLog('trade', `[商人分配] 按利润比例分配 ${totalMerchants} 个商人`, {
             allocations: merchantAllocations.map(a => ({
-                partner: a.partner.name,
+                partner: a.partnerName || a.partnerId,
                 resource: a.candidate.resourceKey,
                 type: a.candidate.type,
                 score: a.candidate.score.toFixed(2),
