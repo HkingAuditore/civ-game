@@ -4,9 +4,28 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.28',
+        version: '2.3.29',
         date: '2026-04-01',
         isLatest: true,
+        highlights: [
+            '修复外资入境投资批处理竞态：多决策不再互相覆盖，合并上限检查生效',
+            '投资结算改为每tick切片滚动，帧率在高投资数量时更稳定',
+            '国际经济面板新增分页，大国投资列表不再卡顿',
+        ],
+        changes: [
+            { type: 'fix', text: '【P0修复】外资入境投资（AI自主投资）批处理改为同步构建全部新记录后一次性批量 merge 写入，修复多次调用 handleDiplomaticAction 均读取旧快照导致合并上限失效、记录互相覆盖的竞态问题。' },
+            { type: 'fix', text: '修复 inbound 周期处理完毕后 lastProcessDay 被错误重置为 null，导致下一轮立即重新触发（应等满10天）的节奏错误。' },
+            { type: 'fix', text: '修复 useGameActions 中玩家手动建立海外投资时 investorStratum 错误写为 "state" 而非 "capitalist"，导致与 AI 自主投资路径 groupKey 不一致、合并判断失效。' },
+            { type: 'fix', text: '清除 useGameActions 海外投资流程中大量遗留调试 console.log，避免高频 tick 下日志刷屏影响性能。' },
+            { type: 'improve', text: '海外投资与外资投资结算从"低频批结算"改为"每 tick 切片滚动结算"，将投资列表分为若干切片，每 tick 只处理当前切片的利润计算，帧率在外资数量较多时更为平稳。投资升级逻辑独立保持低频，不受切片化影响。' },
+            { type: 'improve', text: '国际经济面板（海外资产 & 外资企业）新增分页控件（每页20条），数据发生变化时自动重置到第一页，大幅改善大国后期投资列表的渲染性能。' },
+            { type: 'improve', text: '移除 useGameLoop 年度节庆 useEffect 中多余的 lastFestivalYear 依赖，避免节庆触发后重新注册定时器造成的不必要副作用。' },
+        ],
+    },
+    {
+        version: '2.3.28',
+        date: '2026-04-01',
+        isLatest: false,
         highlights: [
             '修复战线推进到 85%+ 后 AI 依然不求和的问题',
             '战线突破 85% 时 AI 现在会主动被迫求和，首都岌岌可危时强制触发',

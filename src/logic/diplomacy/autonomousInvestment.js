@@ -54,14 +54,25 @@ const computeInboundSignature = (nations, diplomacyOrganizations, daysElapsed) =
     const nCount = nations?.length || 0;
     const orgCount = diplomacyOrganizations?.organizations?.length || 0;
     const dayBucket = Math.floor(daysElapsed / CACHE_REFRESH_INTERVAL);
-    return `${nCount}|${orgCount}|${dayBucket}`;
+    // [FIX P2] 加入各国条约总数，条约签订/终止时立即刷新缓存，避免30天内新签条约不生效
+    const treatyCount = nations?.reduce((sum, n) => {
+        const t = n.treaties;
+        if (!t) return sum;
+        return sum + (Array.isArray(t) ? t.length : Object.keys(t).length);
+    }, 0) || 0;
+    return `${nCount}|${orgCount}|${dayBucket}|${treatyCount}`;
 };
 
 const computeOutboundSignature = (nations, diplomacyOrganizations, daysElapsed) => {
     const nCount = nations?.length || 0;
     const orgCount = diplomacyOrganizations?.organizations?.length || 0;
     const dayBucket = Math.floor(daysElapsed / CACHE_REFRESH_INTERVAL);
-    return `out|${nCount}|${orgCount}|${dayBucket}`;
+    const treatyCount = nations?.reduce((sum, n) => {
+        const t = n.treaties;
+        if (!t) return sum;
+        return sum + (Array.isArray(t) ? t.length : Object.keys(t).length);
+    }, 0) || 0;
+    return `out|${nCount}|${orgCount}|${dayBucket}|${treatyCount}`;
 };
 
 const computeBuildingSignature = (targetBuildings, epoch, daysElapsed) => {

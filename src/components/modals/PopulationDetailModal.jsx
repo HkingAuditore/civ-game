@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
@@ -13,6 +13,8 @@ export const PopulationDetailModal = ({
     maxPop = 0,
     popStructure = {},
     history = {},
+    jobsAvailable = {},
+    buildingJobFill = {},
 }) => {
     // Removed isAnimatingOut as framer-motion handles it
 
@@ -35,6 +37,51 @@ export const PopulationDetailModal = ({
         })
         .filter(item => item.count > 0)
         .sort((a, b) => b.count - a.count);
+
+    // 计算岗位就业数据：按阶层聚合 buildingJobFill
+    const jobStats = useMemo(() => {
+        // filledByStratum: 各阶层实际在岗人数（来自 buildingJobFill 聚合）
+        const filledByStratum = {};
+        Object.values(buildingJobFill).forEach(slotMap => {
+            if (!slotMap || typeof slotMap !== 'object') return;
+            Object.entries(slotMap).forEach(([role, count]) => {
+                filledByStratum[role] = (filledByStratum[role] || 0) + (Number(count) || 0);
+            });
+        });
+
+        // 汇总所有有岗位或有人口的阶层
+        const allRoles = new Set([
+            ...Object.keys(jobsAvailable).filter(k => (jobsAvailable[k] || 0) > 0),
+            ...Object.keys(filledByStratum).filter(k => (filledByStratum[k] || 0) > 0),
+        ]);
+
+        // 排除 unemployed
+        allRoles.delete('unemployed');
+
+        const result = Array.from(allRoles).map(role => {
+            const available = Math.round(jobsAvailable[role] || 0);
+            const filled = Math.round(filledByStratum[role] || 0);
+            const gap = Math.max(0, available - filled);
+            const fillRate = available > 0 ? Math.min(1, filled / available) : 1;
+            return {
+                role,
+                name: STRATA[role]?.name || role,
+                icon: STRATA[role]?.icon || 'Briefcase',
+                available,
+                filled,
+                gap,
+                fillRate,
+            };
+        }).filter(item => item.available > 0 || item.filled > 0)
+          .sort((a, b) => b.available - a.available);
+
+        const totalAvailable = result.reduce((s, i) => s + i.available, 0);
+        const totalFilled = result.reduce((s, i) => s + i.filled, 0);
+        const totalGap = Math.max(0, totalAvailable - totalFilled);
+        const overallRate = totalAvailable > 0 ? Math.min(1, totalFilled / totalAvailable) : 1;
+
+        return { items: result, totalAvailable, totalFilled, totalGap, overallRate };
+    }, [jobsAvailable, buildingJobFill]);
 
     return createPortal(
         <AnimatePresence>
@@ -127,6 +174,67 @@ export const PopulationDetailModal = ({
                                     )}
                                 </div>
                             </div>
+
+                            {/* 岗位就业总览 */}
+                            {jobStats.items.length > 0 && (
+                                <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+                                    <div className="mb-1.5 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs uppercase tracking-wide text-gray-500 leading-none">岗位就业总览</p>
+                                            <p className="text-sm font-semibold text-white leading-tight mt-0.5">
+                                                综合到岗率 <span className={jobStats.overallRate >= 0.9 ? 'text-green-300' : jobStats.overallRate >= 0.7 ? 'text-yellow-300' : 'text-red-300'}>
+                                                    {(jobStats.overallRate * 100).toFixed(1)}%
+                                                </span>
+                                                {jobStats.totalGap > 0 && (
+                                                    <span className="text-red-400 ml-2 text-xs">缺口 {formatNumberShortCN(jobStats.totalGap, { decimals: 0 })} 人</span>
+                                                )}
+                                            </p>
+                                        </div>
+                                        <Icon name="Briefcase" size={16} className="text-amber-300" />
+                                    </div>
+                                    {/* 汇总进度条 */}
+                                    <div className="mb-2 h-1.5 rounded-full bg-gray-800">
+                                        <div
+                                            className={`h-full rounded-full transition-all ${jobStats.overallRate >= 0.9 ? 'bg-green-400' : jobStats.overallRate >= 0.7 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                                            style={{ width: `${Math.min(jobStats.overallRate * 100, 100)}%` }}
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        {jobStats.items.map(item => (
+                                            <div key={item.role}>
+                                                <div className="flex items-center justify-between text-xs mb-0.5">
+                                                    <div className="flex items-center gap-1.5 text-gray-300">
+                                                        <Icon name={item.icon} size={12} className="text-amber-300 flex-shrink-0" />
+                                                        <span>{item.name}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 font-mono text-gray-400">
+                                                        <span>
+                                                            {formatNumberShortCN(item.filled, { decimals: 0 })}
+                                                            <span className="text-gray-600"> / </span>
+                                                            {formatNumberShortCN(item.available, { decimals: 0 })}
+                                                        </span>
+                                                        <span className={`w-10 text-right font-semibold ${item.fillRate >= 0.9 ? 'text-green-300' : item.fillRate >= 0.7 ? 'text-yellow-300' : 'text-red-300'}`}>
+                                                            {(item.fillRate * 100).toFixed(0)}%
+                                                        </span>
+                                                        {item.gap > 0 && (
+                                                            <span className="text-red-400 w-14 text-right">
+                                                                -缺{formatNumberShortCN(item.gap, { decimals: 0 })}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="h-1 rounded-full bg-gray-800">
+                                                    <div
+                                                        className={`h-full rounded-full ${item.fillRate >= 0.9 ? 'bg-green-400/70' : item.fillRate >= 0.7 ? 'bg-yellow-400/70' : 'bg-red-400/70'}`}
+                                                        style={{ width: `${Math.min(item.fillRate * 100, 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-600 mt-2">在岗数 / 岗位数 · 颜色表示到岗率（绿≥90% 黄≥70% 红&lt;70%）</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* 底部按钮 */}
@@ -145,3 +253,4 @@ export const PopulationDetailModal = ({
         document.body
     );
 };
+

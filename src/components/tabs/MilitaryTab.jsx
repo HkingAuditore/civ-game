@@ -354,8 +354,9 @@ const MilitaryTabComponent = ({
     corpsReplenishQueue = {},
     onUpdateCorpsReplenishQueue,
     warfrontFocusRequest = null,
+    onDiplomaticAction,
 }) => {
-    const RECRUIT_COUNT_LIMIT = 9999;
+    const RECRUIT_COUNT_LIMIT = 999999;
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
@@ -1293,6 +1294,7 @@ const MilitaryTabComponent = ({
                                         onSetBattleTactic={onSetBattleTactic}
                                         onCreateBattle={onCreateBattle}
                                         onSetPosture={onSetPosture}
+                                        onProposePeace={onDiplomaticAction ? (enemyId) => onDiplomaticAction(enemyId, 'peace') : null}
                                     />
                                 )}
                             </div>
@@ -1329,6 +1331,10 @@ const MilitaryTabComponent = ({
                         onSetBattleTactic={onSetBattleTactic}
                         onCreateBattle={onCreateBattle}
                         onSetPosture={onSetPosture}
+                        onProposePeace={onDiplomaticAction ? (enemyId) => {
+                            setIsFrontDetailSheetOpen(false);
+                            setTimeout(() => onDiplomaticAction(enemyId, 'peace'), 200);
+                        } : null}
                     />
                 </BottomSheet>
             )}

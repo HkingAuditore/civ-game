@@ -10,6 +10,7 @@ import { PlannedEconomyPanel } from './PlannedEconomyPanel';
 import { FreeMarketPanel } from './FreeMarketPanel';
 import { ReformDecreePanel } from './ReformDecreePanel';
 import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH, calculatePolicySlots, getCentristCabinetDecrees } from '../../../logic/officials/cabinetSynergy';
+import { PROPERTY_POLICY_CONFIG } from '../../../config/officials';
 import { EPOCHS } from '../../../config/epochs';
 import { OfficialDetailModal } from '../../modals/OfficialDetailModal';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
@@ -98,6 +99,7 @@ export const OfficialsPanel = ({
     const [pageSize, setPageSize] = useState(12);
     const [page, setPage] = useState(1);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
+    const [showBatchPolicyPanel, setShowBatchPolicyPanel] = useState(false);
     useEffect(() => {
         if (!selectedOfficial?.id) return;
         const latest = officials.find(official => official.id === selectedOfficial.id);
@@ -640,7 +642,39 @@ export const OfficialsPanel = ({
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 display-inline-block"></span>
                     在任官员
+                    {officials.length > 0 && onChangeOfficialPolicy && (
+                        <button
+                            onClick={() => setShowBatchPolicyPanel(v => !v)}
+                            className={`ml-auto flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${showBatchPolicyPanel ? 'bg-amber-900/40 border-amber-500/60 text-amber-200' : 'bg-gray-800/60 border-gray-700/50 text-gray-400 hover:text-gray-200 hover:border-gray-600'}`}
+                        >
+                            <Icon name="Settings" size={11} />
+                            全局官员设置
+                        </button>
+                    )}
                 </h4>
+                {/* 批量产业政策折叠面板 */}
+                {showBatchPolicyPanel && officials.length > 0 && onChangeOfficialPolicy && (
+                    <div className="mb-2 bg-gray-900/50 rounded-lg p-3 border border-amber-700/30 animate-fade-in-fast">
+                        <p className="text-xs text-gray-400 mb-2">一键将所有 <span className="text-white font-semibold">{officials.length}</span> 名在任官员的产业政策统一设置为：</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {Object.entries(PROPERTY_POLICY_CONFIG).map(([key, config]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => {
+                                        if (window.confirm(`确定将所有 ${officials.length} 名官员的产业政策统一设置为「${config.name}」？`)) {
+                                            officials.forEach(o => onChangeOfficialPolicy(o.id, key));
+                                            setShowBatchPolicyPanel(false);
+                                        }
+                                    }}
+                                    className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg text-xs font-semibold border border-gray-700/50 bg-gray-800/50 hover:bg-amber-900/30 hover:border-amber-500/50 transition-all text-gray-300 hover:text-white"
+                                >
+                                    <span>{config.name}</span>
+                                    <span className="text-gray-500 font-normal text-[10px] leading-tight text-center">{config.description?.slice(0, 16)}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div className="bg-gray-800/30 p-2 rounded-lg border border-gray-700/30 mb-2 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                         <div className="flex-1 min-w-[160px]">
