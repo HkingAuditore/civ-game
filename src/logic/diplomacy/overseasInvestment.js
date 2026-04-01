@@ -182,7 +182,6 @@ export function createOverseasInvestment({
             laborShortage: 0,
             supplyShortage: false,
             frozenProfit: 0,        // 因战争冻结的利润
-            profitHistory: [],
         },
 
         status: 'operating',        // 'operating' | 'suspended' | 'nationalized'
@@ -193,6 +192,65 @@ export const getOverseasInvestmentGroupKey = (investment) => {
     if (!investment) return '';
     const strategy = investment.strategy || 'PROFIT_MAX';
     return `${investment.targetNationId}::${investment.buildingId}::${investment.ownerStratum || 'capitalist'}::${strategy}`;
+};
+
+/**
+ * 运行时简并：将海外投资数组按 groupKey 合并，减少对象数量。
+ * 相同 groupKey 的条目合并为一条（count 累加、investmentAmount 累加、取最早 createdDay）。
+ * operatingData 保留最后一个有效值。
+ */
+export const consolidateOverseasInvestments = (investments = []) => {
+    if (!investments || investments.length <= 1) return investments;
+    const map = new Map();
+    for (const inv of investments) {
+        if (!inv) continue;
+        const key = getOverseasInvestmentGroupKey(inv);
+        if (map.has(key)) {
+            const existing = map.get(key);
+            existing.count = (existing.count || 1) + (inv.count || 1);
+            existing.investmentAmount = (existing.investmentAmount || 0) + (inv.investmentAmount || 0);
+            existing.createdDay = Math.min(existing.createdDay || inv.createdDay || 0, inv.createdDay || 0);
+            // 保留有 operatingData 的最后一个
+            if (inv.operatingData && !existing.operatingData) {
+                existing.operatingData = inv.operatingData;
+            }
+            // 保留有 upgradeLevel 的最高等级
+            if ((inv.upgradeLevel || 0) > (existing.upgradeLevel || 0)) {
+                existing.upgradeLevel = inv.upgradeLevel;
+                existing.lastUpgradeDay = inv.lastUpgradeDay;
+            }
+        } else {
+            map.set(key, { ...inv });
+        }
+    }
+    return Array.from(map.values());
+};
+
+/**
+ * 运行时简并：将外资投资数组按 groupKey 合并。
+ */
+export const consolidateForeignInvestments = (investments = []) => {
+    if (!investments || investments.length <= 1) return investments;
+    const map = new Map();
+    for (const inv of investments) {
+        if (!inv) continue;
+        const key = getForeignInvestmentGroupKey(inv);
+        if (map.has(key)) {
+            const existing = map.get(key);
+            existing.count = (existing.count || 1) + (inv.count || 1);
+            existing.investmentAmount = (existing.investmentAmount || 0) + (inv.investmentAmount || 0);
+            if (inv.operatingData && !existing.operatingData) {
+                existing.operatingData = inv.operatingData;
+            }
+            if ((inv.upgradeLevel || 0) > (existing.upgradeLevel || 0)) {
+                existing.upgradeLevel = inv.upgradeLevel;
+                existing.lastUpgradeDay = inv.lastUpgradeDay;
+            }
+        } else {
+            map.set(key, { ...inv });
+        }
+    }
+    return Array.from(map.values());
 };
 
 export const mergeOverseasInvestments = (existingInvestments = [], incomingInvestment) => {
@@ -1031,6 +1089,9 @@ export function processOverseasInvestments({
     const profitByStratum = {};
     const updatedInvestments = [];
 
+    // [PERF] 预建国家索引，避免循环内 nations.find
+    const nationMap = new Map((nations || []).map(n => [n?.id, n]));
+
     // 资源变更汇总
     const marketChanges = {}; // { nationId: { resourceKey: delta } }
     const playerInventoryChanges = {}; // { resourceKey: delta }
@@ -1050,7 +1111,7 @@ export function processOverseasInvestments({
 
         const multiplier = investment.count || 1;
 
-        const targetNation = nations.find(n => n.id === investment.targetNationId);
+        const targetNation = nationMap.get(investment.targetNationId);
         if (!targetNation) {
             updatedInvestments.push({ ...investment, status: 'suspended' });
             return;
@@ -1168,17 +1229,7 @@ export function processOverseasInvestments({
         // 更新投资记录
         const updated = { ...investment };
 
-        // 维护利润历史记录（保留最近30天）
-        const profitHistory = [...(investment.operatingData?.profitHistory || [])];
-        profitHistory.push({
-            day: daysElapsed,
-            profit: scaledProfit,
-            repatriated: repatriatedProfit,
-        });
-        // 只保留最近30条记录
-        if (profitHistory.length > 30) {
-            profitHistory.shift();
-        }
+        // profitHistory 已移除（无组件读取，consecutiveLossDays 已单独追踪）
 
         // 自动撤资逻辑 (Autonomous Divestment - Probabilistic)
         const isUnprofitable = repatriatedProfit <= 0;
@@ -1217,8 +1268,8 @@ export function processOverseasInvestments({
             }
         }
 
+        // 只保留 UI 和逻辑必需的标量字段，不继承旧 operatingData 中可能存在的中间对象
         updated.operatingData = {
-            ...updated.operatingData,
             outputValue: scaledOutput,
             inputCost: scaledInput,
             wageCost: scaledWage,
@@ -1230,10 +1281,11 @@ export function processOverseasInvestments({
             profit: scaledProfit,
             repatriatedProfit,
             retainedProfit,
-            effectiveTaxRate: targetTaxRate, // Store the actual tax rate used
+            effectiveTaxRate: targetTaxRate,
             decisions: profitResult.decisions,
-            profitHistory,
-            consecutiveLossDays, // Update counter
+            consecutiveLossDays,
+            laborShortage: profitResult.inputAvailable === false ? 1 : 0,
+            frozenProfit: updated.operatingData?.frozenProfit || 0,
         };
 
         // 累加利润
@@ -1307,7 +1359,7 @@ export function processOverseasInvestments({
     }
 
     return {
-        updatedInvestments,
+        updatedInvestments: consolidateOverseasInvestments(updatedInvestments),
         totalProfit,
         tariffRevenue: totalTariffRevenue,
         tariffSubsidy: totalTariffSubsidy,
@@ -1511,6 +1563,9 @@ export function processForeignInvestments({
     const updatedInvestments = [];
     const policyConfig = FOREIGN_INVESTMENT_POLICIES[foreignInvestmentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
 
+    // [PERF] 预建国家索引
+    const nationMap = new Map((nations || []).map(n => [n?.id, n]));
+
     // 追踪玩家市场变化 (被外资买入/卖出)
     const marketChanges = {}; // { resourceKey: delta }
 
@@ -1530,7 +1585,7 @@ export function processForeignInvestments({
 
         // 1. 准备上下文
         // 投资国 (Owner) -> 相当于 "Home"
-        const ownerNation = nations.find(n => n.id === investment.ownerNationId);
+        const ownerNation = nationMap.get(investment.ownerNationId);
         // 如果找不到投资国，假设它有基础价格和无限库存
         // [FIX] AI国家的价格存储在 nationPrices 字段，需要添加到查询链
         const homePrices = ownerNation?.market?.prices || ownerNation?.nationPrices || ownerNation?.prices || {};
@@ -1688,7 +1743,6 @@ export function processForeignInvestments({
                         dailyProfit: dailyProfit * (remainingCount / unitCount),
                         jobsProvided: jobsProvided * (remainingCount / unitCount),
                         operatingData: {
-                            ...profitResult,
                             outputValue: (profitResult.outputValue || 0) * remainingCount,
                             inputCost: (profitResult.inputCost || 0) * remainingCount,
                             wageCost: (profitResult.wageCost || 0) * remainingCount,
@@ -1703,6 +1757,7 @@ export function processForeignInvestments({
                             staffingRatio,
                             theoreticalProfit: theoreticalProfit * (remainingCount / unitCount),
                             profit: dailyProfit * (remainingCount / unitCount),
+                            decisions: profitResult.decisions,
                         },
                     });
                 } else {
@@ -1712,13 +1767,12 @@ export function processForeignInvestments({
             }
         }
 
-        // 更新投资记录
+        // 更新投资记录（只存储 UI 必需的标量字段，不存 wageBreakdown/resourceChanges 等中间对象）
         updatedInvestments.push({
-            ...invWithStrategy, // 保留 strategy
+            ...invWithStrategy,
             dailyProfit: dailyProfit,
             jobsProvided: jobsProvided,
             operatingData: {
-                ...profitResult, // 包含 decisions, inputCost, outputValue 等
                 outputValue: (profitResult.outputValue || 0) * multiplier,
                 inputCost: (profitResult.inputCost || 0) * multiplier,
                 wageCost: (profitResult.wageCost || 0) * multiplier,
@@ -1729,11 +1783,11 @@ export function processForeignInvestments({
                 tariffSubsidy: scaledTariffSubsidy,
                 taxPaid: taxAmount,
                 profitRepatriated: profitAfterTax,
-                consecutiveLossDays, // Update counter
-                // [NEW] 到岗率相关数据
+                consecutiveLossDays,
                 staffingRatio,
                 theoreticalProfit,
-                profit: dailyProfit, // 覆盖为实际利润（已乘以到岗率）
+                profit: dailyProfit,
+                decisions: profitResult.decisions,
             },
         });
     });
@@ -1744,7 +1798,7 @@ export function processForeignInvestments({
     }
 
     return {
-        updatedInvestments,
+        updatedInvestments: consolidateForeignInvestments(updatedInvestments),
         taxRevenue: totalTaxRevenue,
         tariffRevenue: totalTariffRevenue,
         tariffSubsidy: totalTariffSubsidy,
@@ -1780,6 +1834,9 @@ export function processForeignInvestmentUpgrades({
     const MIN_ROI_FOR_UPGRADE = 0.05; // Minimum 5% ROI to consider upgrade
     const MIN_NATION_WEALTH_FOR_UPGRADE = 10000; // Investor nation must have this much wealth
 
+    // [PERF] 预建国家索引
+    const nationMap = new Map((nations || []).map(n => [n?.id, n]));
+
     foreignInvestments.forEach((investment, index) => {
         if (investment.status !== 'operating') return;
 
@@ -1799,7 +1856,7 @@ export function processForeignInvestmentUpgrades({
         if (maxLevel <= 0) return;
 
         // Get investor nation wealth
-        const investorNation = nations.find(n => n.id === investment.ownerNationId);
+        const investorNation = nationMap.get(investment.ownerNationId);
         const nationWealth = investorNation?.wealth || 0;
         if (nationWealth < MIN_NATION_WEALTH_FOR_UPGRADE) return;
 
@@ -1883,7 +1940,7 @@ export function processForeignInvestmentUpgrades({
     });
 
     return {
-        updatedInvestments,
+        updatedInvestments: consolidateForeignInvestments(updatedInvestments),
         upgrades,
         logs,
     };
@@ -2033,6 +2090,9 @@ export function processOverseasInvestmentUpgrades({
     const updatedInvestments = [...overseasInvestments];
     const wealthChanges = {}; // { stratum: delta }
 
+    // [PERF] 预建国家索引
+    const nationMap = new Map((nations || []).map(n => [n?.id, n]));
+
     // Constants for upgrade logic
     const UPGRADE_COOLDOWN = 60; // Days between upgrades per investment
     const UPGRADE_CHANCE_PER_CHECK = 0.03; // 3% chance per day per eligible investment
@@ -2069,7 +2129,7 @@ export function processOverseasInvestmentUpgrades({
         const nextLevel = currentLevel + 1;
 
         // Get target nation for market prices
-        const targetNation = nations.find(n => n.id === investment.targetNationId);
+        const targetNation = nationMap.get(investment.targetNationId);
         const targetPrices = targetNation?.market?.prices || targetNation?.prices || {};
 
         // Get upgrade cost
@@ -2147,7 +2207,7 @@ export function processOverseasInvestmentUpgrades({
     });
 
     return {
-        updatedInvestments,
+        updatedInvestments: consolidateOverseasInvestments(updatedInvestments),
         upgrades,
         wealthChanges,
         logs,

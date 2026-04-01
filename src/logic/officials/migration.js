@@ -1,11 +1,36 @@
 import { generateInvestmentProfile } from './officialInvestment';
 import { LOYALTY_CONFIG } from '../../config/officials';
 
+// 从旧 ownedProperties 数组构建 _propertySummary（一次性迁移用）
+function buildPropertySummaryFromLegacy(legacyProps) {
+    const arr = Array.isArray(legacyProps) ? legacyProps : [];
+    const summary = { byBuilding: {}, byBuildingLevel: {}, totalCount: arr.length };
+    arr.forEach((prop) => {
+        if (!prop?.buildingId) return;
+        summary.byBuilding[prop.buildingId] = (summary.byBuilding[prop.buildingId] || 0) + 1;
+        if (!summary.byBuildingLevel[prop.buildingId]) summary.byBuildingLevel[prop.buildingId] = {};
+        const lvl = prop.level || 0;
+        summary.byBuildingLevel[prop.buildingId][lvl] = (summary.byBuildingLevel[prop.buildingId][lvl] || 0) + 1;
+    });
+    return summary;
+}
+
+// 从旧 managedBuildings 数组构建 _managedSummary（一次性迁移用）
+function buildManagedSummaryFromLegacy(legacyManaged) {
+    const arr = Array.isArray(legacyManaged) ? legacyManaged : [];
+    const summary = { byBuilding: {}, totalCount: arr.length };
+    arr.forEach((mb) => {
+        if (!mb?.buildingId) return;
+        summary.byBuilding[mb.buildingId] = (summary.byBuilding[mb.buildingId] || 0) + 1;
+    });
+    return summary;
+}
+
 export const migrateOfficialForInvestment = (official, currentDay = 0) => {
     if (!official || typeof official !== 'object') return official;
 
     const hasInvestmentProfile = !!official.investmentProfile;
-    const hasOwnedProperties = Array.isArray(official.ownedProperties);
+    const hasPropertySummary = !!official._propertySummary;
 
     // 检测是否需要忠诚度迁移
     // 如果 loyalty 字段不存在或为 undefined，设置为默认值 75
@@ -20,7 +45,7 @@ export const migrateOfficialForInvestment = (official, currentDay = 0) => {
     const hasPropertyPolicy = typeof official.propertyPolicy === 'string';
 
     // 如果所有字段都已存在且不需要忠诚度迁移和薪资迁移，直接返回
-    if (hasInvestmentProfile && hasOwnedProperties && !needsLoyaltyMigration && hasSalary && hasPropertyPolicy) {
+    if (hasInvestmentProfile && hasPropertySummary && !needsLoyaltyMigration && hasSalary && hasPropertyPolicy) {
         return official;
     }
 
@@ -45,15 +70,18 @@ export const migrateOfficialForInvestment = (official, currentDay = 0) => {
         investmentProfile: hasInvestmentProfile
             ? official.investmentProfile
             : generateInvestmentProfile(sourceStratum, politicalStance, currentDay),
-        ownedProperties: hasOwnedProperties ? official.ownedProperties : [],
+        // 产业简并：从旧 ownedProperties 构建 _propertySummary（一次性迁移）
+        _propertySummary: official._propertySummary || buildPropertySummaryFromLegacy(official.ownedProperties),
+        // 移除旧的逐条数组
+        ownedProperties: undefined,
+        managedBuildings: undefined,
+        _managedSummary: official._managedSummary || buildManagedSummaryFromLegacy(official.managedBuildings),
         lastDayPropertyIncome: typeof official.lastDayPropertyIncome === 'number'
             ? official.lastDayPropertyIncome
             : 0,
         // 忠诚度系统字段迁移
         loyalty: loyaltyValue,
         lowLoyaltyDays: needsLoyaltyMigration ? 0 : (official.lowLoyaltyDays ?? 0),
-        // 代经营制相关字段迁移
-        managedBuildings: Array.isArray(official.managedBuildings) ? official.managedBuildings : [],
         lastDayManagementFee: typeof official.lastDayManagementFee === 'number'
             ? official.lastDayManagementFee
             : 0,

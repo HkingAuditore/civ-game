@@ -1879,3 +1879,6 @@ export const BUILDINGS = [
         visual: { icon: 'HardDrive', color: 'bg-zinc-800', text: 'text-zinc-200' }
     },
 ];
+
+/** O(1) 按 id 查找建筑配置；替代 BUILDINGS.find(b => b.id === x) */
+export const BUILDINGS_BY_ID = new Map(BUILDINGS.map(b => [b.id, b]));

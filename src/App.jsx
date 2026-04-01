@@ -607,9 +607,9 @@ function GameApp({ gameState }) {
         const reportData = modal?.reportData;
         const reportGrade = reportData?.scoring?.grade;
         const ideologyReward = ANNUAL_REPORT_IDEOLOGY_REWARD[reportGrade] || 0;
-        // Archive report to history (keep max 50 years to limit save size)
+        // Archive report to history (keep max 10 years to save memory)
         if (reportYear && reportData) {
-            const MAX_REPORT_HISTORY = 50;
+            const MAX_REPORT_HISTORY = 10;
             gameState.setAnnualReportHistory(prev => {
                 const next = [...prev, { year: reportYear, epoch: gameState.epoch, reportData }];
                 return next.length > MAX_REPORT_HISTORY ? next.slice(-MAX_REPORT_HISTORY) : next;

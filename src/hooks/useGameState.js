@@ -2621,7 +2621,7 @@ export const useGameState = () => {
         setAnnualReportBaseline(data.annualReportBaseline || null);
         setAnnualReportAccumulator(data.annualReportAccumulator || createAnnualReportAccumulator());
         setLastFestivalYear(data.lastFestivalYear || 1);
-        setAnnualReportHistory(Array.isArray(data.annualReportHistory) ? data.annualReportHistory : []);
+        setAnnualReportHistory((Array.isArray(data.annualReportHistory) ? data.annualReportHistory : []).slice(-10));
         setShowTutorial(data.showTutorial ?? true);
         setCurrentEvent(data.currentEvent || null);
         setEventHistory(trimArray(data.eventHistory || [], AUTO_SAVE_LIMITS.eventHistory));

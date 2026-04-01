@@ -218,7 +218,7 @@ export const processOfficialInvestment = (
     if (official.wealth < MIN_WEALTH_TO_INVEST) return null;
 
     const maxProperties = 3 + (epoch || 0);
-    const currentPropertyCount = official.ownedProperties?.length || 0;
+    const currentPropertyCount = official._propertySummary?.totalCount || 0;
     if (currentPropertyCount >= maxProperties) return null;
 
     const factionMod = cabinetStatus?.dominance?.faction === 'left' ? 0.5 : 1.0;
@@ -305,7 +305,8 @@ export const processOfficialBuildingUpgrade = (
     epoch = 0,
     techsUnlocked = []
 ) => {
-    if (!official.ownedProperties?.length) return null;
+    const summary = official._propertySummary;
+    if (!summary?.totalCount) return null;
     const lastUpgradeDay = official.investmentProfile?.lastUpgradeDay || 0;
     if (currentDay - lastUpgradeDay < UPGRADE_COOLDOWN) return null;
     if (official.wealth < 200) return null;
@@ -316,41 +317,43 @@ export const processOfficialBuildingUpgrade = (
     const growthFactor = getBuildingCostGrowthFactor(difficultyLevel) || 1.15;
     const candidates = [];
 
-    official.ownedProperties.forEach((prop, index) => {
-        const building = BUILDINGS.find(b => b.id === prop.buildingId);
+    // 遍历 summary 中的 byBuildingLevel 而非逐条 ownedProperties
+    Object.entries(summary.byBuildingLevel || {}).forEach(([buildingId, levels]) => {
+        const building = BUILDINGS.find(b => b.id === buildingId);
         if (!building) return;
-
         const maxLevel = getMaxUpgradeLevel(building.id);
-        const currentLevel = prop.level || 0;
-        const nextLevel = currentLevel + 1;
-        if (nextLevel > maxLevel) return;
 
-        // 检查目标等级的输入资源是否已解锁
-        const { unlocked: inputsUnlocked } = areUpgradeInputsUnlocked(
-            building.id, nextLevel, epoch, techsUnlocked
-        );
-        if (!inputsUnlocked) return;
+        Object.entries(levels).forEach(([levelStr, count]) => {
+            if (!count || count <= 0) return;
+            const currentLevel = Number(levelStr);
+            const nextLevel = currentLevel + 1;
+            if (nextLevel > maxLevel) return;
 
-        const totalCount = buildingCounts?.[building.id] || 0;
-        const levelCounts = buildingUpgrades?.[building.id] || {};
-        const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(nextLevel, totalCount, levelCounts);
-        const upgradeCost = getUpgradeCost(building.id, nextLevel, existingUpgradeCount, growthFactor);
-        if (!upgradeCost) return;
+            const { unlocked: inputsUnlocked } = areUpgradeInputsUnlocked(
+                building.id, nextLevel, epoch, techsUnlocked
+            );
+            if (!inputsUnlocked) return;
 
-        const cost = calculateCostInSilver(upgradeCost, market);
-        if (cost > official.wealth * 0.5) return;
+            const totalCount = buildingCounts?.[building.id] || 0;
+            const levelCounts = buildingUpgrades?.[building.id] || {};
+            const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(nextLevel, totalCount, levelCounts);
+            const upgradeCost = getUpgradeCost(building.id, nextLevel, existingUpgradeCount, growthFactor);
+            if (!upgradeCost) return;
 
-        const profitGain = calculateUpgradeProfitGain(building, currentLevel, nextLevel, market, taxPolicies);
-        if (profitGain <= 0) return;
+            const cost = calculateCostInSilver(upgradeCost, market);
+            if (cost > official.wealth * 0.5) return;
 
-        candidates.push({
-            propertyIndex: index,
-            buildingId: building.id,
-            fromLevel: currentLevel,
-            toLevel: nextLevel,
-            cost,
-            profitGain,
-            roi: profitGain / cost,
+            const profitGain = calculateUpgradeProfitGain(building, currentLevel, nextLevel, market, taxPolicies);
+            if (profitGain <= 0) return;
+
+            candidates.push({
+                buildingId: building.id,
+                fromLevel: currentLevel,
+                toLevel: nextLevel,
+                cost,
+                profitGain,
+                roi: profitGain / cost,
+            });
         });
     });
 

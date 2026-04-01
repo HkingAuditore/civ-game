@@ -147,17 +147,16 @@ export const OfficialDetailModal = ({
         }
     }, [official, isOpen, isEditingSalary, isEditingName]);
 
-    // 产业汇总
+    // 产业汇总：直接读取 _propertySummary（simulation 已维护）
     const propertySummary = useMemo(() => {
+        const ps = official?._propertySummary;
+        if (!ps) return {};
         const summary = {};
-        (official?.ownedProperties || []).forEach(prop => {
-            if (!prop?.buildingId) return;
-            if (!summary[prop.buildingId]) {
-                summary[prop.buildingId] = { count: 0, levels: {} };
-            }
-            summary[prop.buildingId].count += 1;
-            const level = prop.level || 0;
-            summary[prop.buildingId].levels[level] = (summary[prop.buildingId].levels[level] || 0) + 1;
+        Object.entries(ps.byBuildingLevel || {}).forEach(([buildingId, levels]) => {
+            summary[buildingId] = { count: ps.byBuilding?.[buildingId] || 0, levels: levels || {} };
+        });
+        Object.entries(ps.byBuilding || {}).forEach(([buildingId, count]) => {
+            if (!summary[buildingId]) summary[buildingId] = { count, levels: { 0: count } };
         });
         return summary;
     }, [official]);
@@ -176,33 +175,29 @@ export const OfficialDetailModal = ({
     }, [propertySummary]);
 
     const propertyProfitRows = useMemo(() => {
+        const ps = official?._propertySummary;
+        if (!ps?.byBuilding) return [];
         const rows = {};
-        (official?.ownedProperties || []).forEach(prop => {
-            if (!prop?.buildingId) return;
-            if (!rows[prop.buildingId]) {
-                const finance = buildingFinancialData?.[prop.buildingId];
-                const ownerRevenue = finance?.ownerRevenue || 0;
-                const productionCosts = finance?.productionCosts || 0;
-                const businessTaxPaid = finance?.businessTaxPaid || 0;
-                const totalWagesPaid = Object.values(finance?.wagesByRole || {})
-                    .reduce((sum, val) => sum + (Number.isFinite(val) ? val : 0), 0);
-                const totalProfit = ownerRevenue - productionCosts - businessTaxPaid - totalWagesPaid;
-                const totalCount = buildingCounts?.[prop.buildingId] || 0;
-                const perBuildingProfit = totalCount > 0 ? totalProfit / totalCount : 0;
-                const building = BUILDINGS.find(b => b.id === prop.buildingId);
-                rows[prop.buildingId] = {
-                    buildingId: prop.buildingId,
-                    buildingName: building?.name || prop.buildingId,
-                    count: 0,
-                    perBuildingProfit,
-                    profit: 0,
-                    hasActual: !!finance,
-                };
-            }
-            rows[prop.buildingId].count += 1;
-        });
-        Object.values(rows).forEach(row => {
-            row.profit = row.perBuildingProfit * row.count;
+        Object.entries(ps.byBuilding).forEach(([buildingId, count]) => {
+            if (!count) return;
+            const finance = buildingFinancialData?.[buildingId];
+            const ownerRevenue = finance?.ownerRevenue || 0;
+            const productionCosts = finance?.productionCosts || 0;
+            const businessTaxPaid = finance?.businessTaxPaid || 0;
+            const totalWagesPaid = Object.values(finance?.wagesByRole || {})
+                .reduce((sum, val) => sum + (Number.isFinite(val) ? val : 0), 0);
+            const totalProfit = ownerRevenue - productionCosts - businessTaxPaid - totalWagesPaid;
+            const totalBuildingCount = buildingCounts?.[buildingId] || 0;
+            const perBuildingProfit = totalBuildingCount > 0 ? totalProfit / totalBuildingCount : 0;
+            const building = BUILDINGS.find(b => b.id === buildingId);
+            rows[buildingId] = {
+                buildingId,
+                buildingName: building?.name || buildingId,
+                count,
+                perBuildingProfit,
+                profit: perBuildingProfit * count,
+                hasActual: !!finance,
+            };
         });
         return Object.values(rows)
             .sort((a, b) => b.profit - a.profit);
@@ -384,8 +379,8 @@ export const OfficialDetailModal = ({
     // 产业政策相关计算（Tab2共用）
     const officialPolicy = official?.propertyPolicy || 'private';
     const policyConfig = PROPERTY_POLICY_CONFIG[officialPolicy] || PROPERTY_POLICY_CONFIG.private;
-    const managedBuildings = Array.isArray(official?.managedBuildings) ? official.managedBuildings : [];
-    const managedCount = managedBuildings.length;
+    const managedSummaryData = official?._managedSummary || { byBuilding: {}, totalCount: 0 };
+    const managedCount = managedSummaryData.totalCount || 0;
     const managementFee = typeof official?.lastDayManagementFee === 'number' ? official.lastDayManagementFee : 0;
     const cooldownRemaining = Math.max(0, (policyConfig.switchCooldown || 90) - (currentDay - (official?.lastPolicyChangeDay ?? -999)));
     const canSwitch = cooldownRemaining <= 0;
@@ -763,11 +758,7 @@ export const OfficialDetailModal = ({
                                         <div>
                                             <div className="text-xs text-amber-400 mb-1">代管建筑 ({managedCount})</div>
                                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                                                {Object.entries(managedBuildings.reduce((acc, mb) => {
-                                                    if (!mb?.buildingId) return acc;
-                                                    acc[mb.buildingId] = (acc[mb.buildingId] || 0) + 1;
-                                                    return acc;
-                                                }, {})).map(([buildingId, count]) => {
+                                                {Object.entries(managedSummaryData.byBuilding || {}).map(([buildingId, count]) => {
                                                     const buildingName = BUILDINGS.find(b => b.id === buildingId)?.name || buildingId;
                                                     return (
                                                         <div key={buildingId} className="flex items-center justify-between text-xs text-amber-200 px-2 py-1 bg-amber-900/20 rounded">

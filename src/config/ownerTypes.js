@@ -87,17 +87,18 @@ export function calculateEffectiveJobs(building, ownershipList) {
 export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, foreignInvestments, building) {
     const ownershipList = [];
     
-    // 1. 统计官员私产数量
+    // 1. 统计官员私产数量（从 _propertySummary 读取）
     let officialCount = 0;
     const officialOwners = {}; // { officialId: count }
     (officials || []).forEach(official => {
-        (official.ownedProperties || []).forEach(prop => {
-            if (prop.buildingId === buildingId) {
-                officialCount += 1;
-                const ownerId = official.id || official.name || 'unknown';
-                officialOwners[ownerId] = (officialOwners[ownerId] || 0) + 1;
-            }
-        });
+        const summary = official._propertySummary;
+        if (!summary) return;
+        const count = summary.byBuilding?.[buildingId] || 0;
+        if (count > 0) {
+            officialCount += count;
+            const ownerId = official.id || official.name || 'unknown';
+            officialOwners[ownerId] = (officialOwners[ownerId] || 0) + count;
+        }
     });
     
     if (officialCount > 0) {
