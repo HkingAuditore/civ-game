@@ -51,14 +51,20 @@ function stripPayloadForTransfer(result) {
 
     const stripped = { ...result };
 
-    // === 每 tick 都剥离的调试字段 ===
+    // === 每 tick 都剥离的调试/审计字段 ===
     delete stripped.buildingDebugData;
+    delete stripped._debug;
+    // NOTE: _auditLog must be preserved — it is the core data source for the
+    // fiscal breakdown panel (财政收支). Only strip the debug-only audit fields.
+    delete stripped._auditSilverAtSpread;
+    delete stripped._auditSilverAfterTradeRoute;
 
     if (stripped._perf) {
         stripped._perf = { totalMs: stripped._perf.totalMs };
     }
 
     if (stripped.modifiers) {
+        // Strip the large `sources` sub-object (only used by debug UI)
         const { sources: _sources, ...functionalModifiers } = stripped.modifiers;
         stripped.modifiers = functionalModifiers;
     }
@@ -92,6 +98,34 @@ function stripPayloadForTransfer(result) {
                 resourceLossBreakdown: null,
             };
         }
+    }
+
+    // [PERF] Nations data stripping: reduce structured clone overhead
+    // Always strip defeated nations to minimal stubs;
+    // on non-full ticks, also strip heavy sub-fields from AI nations.
+    if (Array.isArray(stripped.nations)) {
+        stripped.nations = stripped.nations.map(n => {
+            if (n.isDefeated || (n.population || 0) <= 0) {
+                return { id: n.id, name: n.name, isDefeated: true, population: 0 };
+            }
+            // Keep all fields for player nation
+            if (n.isPlayer || n.id === 'player') return n;
+            if (!isFullTick) {
+                // Aggressive strip: remove heavy diagnostic + economy sub-objects
+                const {
+                    buildingProfile: _bp,
+                    foreignPower: _fp,
+                    economyTraits: _et,
+                    warHistory: _wh,
+                    tradeHistory: _th,
+                    priceHistory: _ph,
+                    resourceHistory: _rh,
+                    ...liteNation
+                } = n;
+                return liteNation;
+            }
+            return n;
+        });
     }
 
     stripped._isFullTick = isFullTick;

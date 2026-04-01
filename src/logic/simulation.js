@@ -483,6 +483,9 @@ const calculatePlayerComparableWealth = (resources = {}, classWealth = {}) => {
     );
 };
 
+// [PERF] Module-level reusable Map for silverChangeTotals — avoids allocating a new Map every tick
+const _reusableSilverMap = new Map();
+
 export const simulateTick = ({
     resources,
     buildings,
@@ -652,8 +655,9 @@ export const simulateTick = ({
 
     // === 资源变化追踪系统 ===
     // Silver change log (aggregated for performance)
-    // 使用 Map 聚合：每?reason 只维护一个累加值，而不是记录每一?
-    const silverChangeTotals = new Map();
+    // [PERF] Reuse module-level Map to avoid creating a new Map every tick (reduces GC pressure)
+    _reusableSilverMap.clear();
+    const silverChangeTotals = _reusableSilverMap;
     const silverChangeLog = {
         // 记录方法：累加到对应?key
         record: (amount, reason) => {
@@ -5851,25 +5855,24 @@ export const simulateTick = ({
         }
         const isDestroyedNation = nation.isAnnexed || (nation.population || 0) <= 0;
         if (isDestroyedNation) {
-            // 已灭亡国家：仅在需要清理战争状态时才创建拷贝
-            if (nation.isAtWar || nation.foreignWars || nation.installmentPayment) {
-                const next = { ...nation };
-                if (next.isAtWar) {
-                    next.isAtWar = false;
-                    next.warScore = 0;
-                    next.warDuration = 0;
-                    next.warStartDay = null;
-                    next.enemyLosses = 0;
-                    next.warTarget = null;
-                    next.isPeaceRequesting = false;
-                    next.peaceTribute = null;
-                    next.warTotalExpense = 0;
-                }
-                if (next.foreignWars) next.foreignWars = {};
-                if (next.installmentPayment) next.installmentPayment = null;
-                return next;
-            }
-            return nation;
+            // [PERF] Defeated nations: return minimal stub to save memory.
+            // Only keep essential identification fields and clear war state.
+            return {
+                id: nation.id,
+                name: nation.name,
+                isDefeated: true,
+                isAnnexed: nation.isAnnexed || false,
+                population: 0,
+                wealth: 0,
+                relation: nation.relation || 0,
+                vassalOf: nation.vassalOf || null,
+                isRebelNation: nation.isRebelNation || false,
+                appearEpoch: nation.appearEpoch,
+                expireEpoch: nation.expireEpoch,
+                isAtWar: false,
+                foreignWars: {},
+                installmentPayment: null,
+            };
         }
 
         // 以下为正常国家，需要浅拷贝
@@ -8977,6 +8980,21 @@ export const simulateTick = ({
         debugLog('simulation', '🔴 [SIM内部审计] 各通道明细:', auditLogArr.map(e => `${e.reason}: ${Number(e.amount).toFixed(2)}`));
     }
 
+    // [PERF] Pre-compute merged production input cost to avoid IIFE closure in return object
+    const _mergedProductionInputCost = {};
+    const _officialPIC = bonuses.officialProductionInputCost || {};
+    const _stancePIC = bonuses.stanceProductionInputCost || {};
+    const _picKeys = Object.keys(_officialPIC);
+    for (let i = 0; i < _picKeys.length; i++) {
+        _mergedProductionInputCost[_picKeys[i]] = (_officialPIC[_picKeys[i]] || 0) + (_stancePIC[_picKeys[i]] || 0);
+    }
+    const _stanceKeys = Object.keys(_stancePIC);
+    for (let i = 0; i < _stanceKeys.length; i++) {
+        if (!(_stanceKeys[i] in _mergedProductionInputCost)) {
+            _mergedProductionInputCost[_stanceKeys[i]] = _stancePIC[_stanceKeys[i]] || 0;
+        }
+    }
+
     return {
         officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
         _perf: {
@@ -9084,17 +9102,7 @@ export const simulateTick = ({
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
                 // 建筑原料消耗修正（官员效果 + 政治立场效果，累加合并）
-                productionInputCost: (() => {
-                    const merged = {};
-                    const official = bonuses.officialProductionInputCost || {};
-                    const stance = bonuses.stanceProductionInputCost || {};
-                    // 合并所?key
-                    const allKeys = new Set([...Object.keys(official), ...Object.keys(stance)]);
-                    allKeys.forEach(key => {
-                        merged[key] = (official[key] || 0) + (stance[key] || 0);
-                    });
-                    return merged;
-                })(),
+                productionInputCost: _mergedProductionInputCost,
                 // 战争经济：建筑战损统计和前线产出惩罚
                 warDamagedBuildings: warDamagedBuildings || {},
                 frontlineProductionPenalty: frontlineProductionPenalty || 0,
@@ -9151,11 +9159,13 @@ export const simulateTick = ({
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
-        _auditLog: silverChangeLog.toArray(),
+        // [PERF] Only serialize full audit log in debug mode; otherwise return aggregated totals only.
+        // The full toArray() creates dozens of objects per tick that are immediately structured-cloned.
+        _auditLog: _simDebugEnabled ? silverChangeLog.toArray() : auditLogArr,
         _auditStartingSilver: startingSilver,
         _auditEndingSilver: res.silver || 0,
-        _auditSilverAtSpread: _resSilverAtSpread,
-        _auditSilverAfterTradeRoute: _resSilverAfterCopy,
+        _auditSilverAtSpread: _simDebugEnabled ? _resSilverAtSpread : undefined,
+        _auditSilverAfterTradeRoute: _simDebugEnabled ? _resSilverAfterCopy : undefined,
         _debug: _simDebugEnabled ? {
             freeMarket: _freeMarketDebug,
             classWealthChangeLog,

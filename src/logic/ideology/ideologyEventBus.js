@@ -223,6 +223,36 @@ class IdeologyEventBus {
     }
 
     /**
+     * [PERF] Periodic cleanup of expired cooldown entries to prevent unbounded Map growth.
+     * Call every ~100 ticks from the game loop.
+     * @param {number} currentTick - Current game tick
+     * @param {number} [maxAge=360] - Max age in ticks before a cooldown entry is considered stale
+     */
+    cleanupStaleCooldowns(currentTick, maxAge = 360) {
+        // Remove cooldown entries older than maxAge ticks
+        for (const [key, lastTick] of this._cooldowns.entries()) {
+            if (currentTick - lastTick > maxAge) {
+                this._cooldowns.delete(key);
+            }
+        }
+        // Trim triggerCounts: remove entries for handlers that no longer exist
+        const activeHandlerPrefixes = new Set();
+        for (const [, handlers] of this._handlers.entries()) {
+            for (const h of handlers) {
+                activeHandlerPrefixes.add(h.ideologyId + ':');
+            }
+        }
+        if (activeHandlerPrefixes.size > 0) {
+            for (const key of this._triggerCounts.keys()) {
+                const prefix = key.split(':').slice(0, 1).join(':') + ':';
+                if (!activeHandlerPrefixes.has(prefix)) {
+                    this._triggerCounts.delete(key);
+                }
+            }
+        }
+    }
+
+    /**
      * Emit an event, triggering all matching handlers.
      * @param {string} eventId - one of IDEOLOGY_EVENTS values
      * @param {Object} eventData - context data for the event

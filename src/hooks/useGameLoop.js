@@ -866,8 +866,8 @@ difficulty, // 游戏难度
 
     // 使用ref淇濆瓨鏈€鏂扮姸鎬侊紝閬垮厤闂寘闂
     const tickProcessingRef = useRef(false); // re-entrancy guard for high-speed ticks
-    // 记录已触发政变的官员ID，防止同一官员在状态更新前重复触发政变
-    const coupTriggeredOfficialIds = useRef(new Set());
+    // [PERF] Use Map<id, addedDay> instead of Set + setTimeout to avoid timer accumulation
+    const coupTriggeredOfficialIds = useRef(new Map());
     const stateRef = useRef({        resources,
         market,
         buildings,
@@ -1300,8 +1300,10 @@ difficulty, // 游戏难度
                 epoch: current.epoch,
                 techsUnlocked: current.techsUnlocked,
                 decrees: current.decrees,
-                // [PERF] 主线程模式下直接引用原数组，避免每 tick 全表 map+spread 产生 GC 压力
-                // Worker 路径仍需 trim history 以减少 postMessage 序列化体积
+                // [PERF] Always trim nations to reduce memory footprint.
+                // In high-speed mode (gameSpeed >= 3), simulation runs on main thread
+                // so we skip the map+spread to avoid creating N copies per tick.
+                // The main thread path doesn't need serialization-safe copies.
                 nations: (gameSpeed >= 3)
                     ? (current.nations || [])
                     : (current.nations || []).map(n => {
@@ -2542,9 +2544,17 @@ difficulty, // 游戏难度
                             if (coupTriggeredOfficialIds.current.has(targetId)) {
                                 // 该官员已触发政变，跳过
                             } else {
-                                coupTriggeredOfficialIds.current.add(targetId);
-                                // 60秒后清除记录（防止内存泄漏，实际上官员已被移除）
-                                setTimeout(() => coupTriggeredOfficialIds.current.delete(targetId), 60000);
+                                coupTriggeredOfficialIds.current.set(targetId, current.daysElapsed || 0);
+                                // [PERF] Tick-based cleanup: remove entries older than 180 ticks (~half a year)
+                                // Replaces setTimeout to avoid timer accumulation
+                                if (coupTriggeredOfficialIds.current.size > 10) {
+                                    const expireThreshold = (current.daysElapsed || 0) - 180;
+                                    for (const [id, addedDay] of coupTriggeredOfficialIds.current.entries()) {
+                                        if (addedDay < expireThreshold) {
+                                            coupTriggeredOfficialIds.current.delete(id);
+                                        }
+                                    }
+                                }
                             const newOfficials = officialsList.filter(o => o && o.id && o.id !== targetId);
                             const newBuildings = { ...(result.buildings || {}) };
                             const newBuildingUpgrades = { ...(result.buildingUpgrades || {}) };
@@ -4592,6 +4602,10 @@ difficulty, // 游戏难度
 
                     // Flush ideology event bus logs and effects (outside battle if-block so it runs every tick)
                     {
+                        // [PERF] Periodic cleanup of stale cooldown/trigger entries (every 100 ticks)
+                        if ((current.daysElapsed || 0) % 100 === 0) {
+                            ideologyEventBus.cleanupStaleCooldowns(current.daysElapsed || 0);
+                        }
                         const ideologyLogs = ideologyEventBus.flushLogs();
                         if (ideologyLogs.length > 0) {
                             ideologyLogs.forEach(log => addLog(log));
