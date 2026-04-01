@@ -96,7 +96,7 @@ const findNationByIdOrName = (identifier, nations = []) => {
  * @param {Function} addLog - Function to add log messages
  */
 export const initCheatCodes = (gameState, addLog, setters = {}) => {
-    const { setMerchantState, setTradeRoutes } = setters;
+    const { setMerchantState } = setters;
 
     // Create cheat object on window
     window.cheat = {
@@ -874,11 +874,11 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
         },
 
         /**
-         * 🧹 Clean invalid merchant assignments and trade routes
+         * 🧹 Clean invalid merchant assignments
          * Removes all merchants assigned to destroyed/annexed nations
          */
         cleanMerchants: () => {
-            if (!setMerchantState || !setTradeRoutes) {
+            if (!setMerchantState) {
                 console.error('❌ Merchant cleaning not available - setters not provided');
                 return;
             }
@@ -910,17 +910,6 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
                 }
             });
 
-            // Clean trade routes
-            const currentRoutes = gameState.tradeRoutes || [];
-            const validRoutes = currentRoutes.filter(route => {
-                if (!route.partnerId || validNationIds.has(route.partnerId)) {
-                    return true;
-                }
-                const partner = nations.find(n => n.id === route.partnerId);
-                console.log(`  ❌ Cancelled trade with: ${partner?.name || route.partnerId} (destroyed)`);
-                return false;
-            });
-
             // Clean pending trades
             const currentPending = gameState.merchantState?.pendingTrades || [];
             const validPending = currentPending.filter(trade => {
@@ -937,20 +926,16 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
                 pendingTrades: validPending
             }));
 
-            setTradeRoutes(validRoutes);
-
             // Summary
             console.log('%c✅ Cleanup Complete!', 'color: #00ff00; font-size: 14px; font-weight: bold;');
             console.log(`  📦 Removed ${removedAssignments} invalid assignments`);
             console.log(`  👥 Freed ${freedMerchants} merchants`);
-            console.log(`  🚫 Cancelled ${currentRoutes.length - validRoutes.length} trade routes`);
             console.log(`  🚫 Cancelled ${currentPending.length - validPending.length} pending trades`);
             console.log(`  ✓ Valid assignments: ${Object.keys(validAssignments).length}`);
-            console.log(`  ✓ Valid routes: ${validRoutes.length}`);
             console.log(`  ✓ Valid pending: ${validPending.length}`);
 
             if (addLog) {
-                addLog(`🧹 商人系统清理完成：释放 ${freedMerchants} 个商人，取消 ${currentRoutes.length - validRoutes.length} 条贸易路线`);
+                addLog(`🧹 商人系统清理完成：释放 ${freedMerchants} 个商人，取消 ${currentPending.length - validPending.length} 笔进行中交易`);
             }
 
             return {

@@ -1068,7 +1068,6 @@ function GameApp({ gameState }) {
                         classWealth: gameState.classWealth,
                         classApproval: gameState.classApproval,
                         needsReport: {},
-                        tradeRoutes: gameState.tradeRoutes,
                         classIncome: gameState.classIncome || {},
                         popStructure: gameState.popStructure,
                         classShortages: gameState.classShortages || {},
@@ -1165,10 +1164,9 @@ function GameApp({ gameState }) {
     // });
     // 优先使用simulation数据，fallback到本地计算
     const silverUpkeepPerDay = simulationMilitaryExpense?.dailyExpense || armyExpenseData.dailyExpense;
-    const tradeStats = gameState.tradeStats || { tradeTax: 0, tradeRouteTax: 0 };
+    const tradeStats = gameState.tradeStats || { tradeTax: 0 };
     const tradeTax = tradeStats.tradeTax || 0;
-    const tradeRouteTax = taxes.breakdown?.tradeRouteTax ?? tradeStats.tradeRouteTax ?? 0;
-    const tradeTaxForAchievements = tradeTax + tradeRouteTax;
+    const tradeTaxForAchievements = tradeTax;
     const playerInstallmentExpense = (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0)
         ? gameState.playerInstallmentPayment.amount
         : 0;
@@ -1981,9 +1979,7 @@ function GameApp({ gameState }) {
                                                 resources={gameState.resources}
                                                 daysElapsed={gameState.daysElapsed}
                                                 onDiplomaticAction={actions.handleDiplomaticAction}
-                                                tradeRoutes={gameState.tradeRoutes}
                                                 tradeOpportunities={gameState.tradeOpportunities} // [NEW] Backend-driven opportunities
-                                                onTradeRouteAction={actions.handleTradeRouteAction}
                                                 merchantState={gameState.merchantState}
                                                 onMerchantStateChange={gameState.setMerchantState}
                                                 playerInstallmentPayment={gameState.playerInstallmentPayment}
@@ -2572,7 +2568,7 @@ function GameApp({ gameState }) {
                                 logVisibility: {
                                     ...((prev || {}).logVisibility || {}),
                                     showMerchantTradeLogs: enabled,
-                                    showTradeRouteLogs: enabled,
+                                    showTradeLogs: enabled,
                                 },
                             }))}
                             showOfficialLogs={gameState.eventEffectSettings?.logVisibility?.showOfficialLogs ?? true}

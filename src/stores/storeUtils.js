@@ -172,7 +172,6 @@ export const getStoreSnapshot = () => {
 
         // 贸易
         merchantState: trade.merchantState,
-        tradeRoutes: trade.tradeRoutes,
         tradeStats: trade.tradeStats,
     };
 };
@@ -314,7 +313,6 @@ export const applyStoreSnapshot = (data) => {
     // 贸易
     useTradeStore.setState({
         ...(data.merchantState !== undefined && { merchantState: data.merchantState }),
-        ...(data.tradeRoutes !== undefined && { tradeRoutes: data.tradeRoutes }),
         ...(data.tradeStats !== undefined && { tradeStats: data.tradeStats }),
     });
 };

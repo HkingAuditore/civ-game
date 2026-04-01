@@ -199,7 +199,6 @@ export const useAchievements = (gameState, { netSilverPerDay, tradeTax, taxes })
         gameState.taxPolicies,
         gameState.decrees,
         gameState.classApproval,
-        gameState.tradeRoutes,
         gameState.rulingCoalition,
         gameState.legitimacy,
         gameState.achievementProgress,

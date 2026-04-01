@@ -11,7 +11,7 @@ const DEFAULT_EVENT_EFFECT_SETTINGS = {
     buildingProduction: { duration: 45, decayRate: 0.025 },
     logVisibility: {
         showMerchantTradeLogs: true,
-        showTradeRouteLogs: true,
+        showTradeLogs: true,
     },
 };
 

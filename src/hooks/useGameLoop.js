@@ -791,8 +791,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
         saveGame,
         merchantState,
         setMerchantState,
-        tradeRoutes,
-        setTradeRoutes,
         diplomacyOrganizations,
         vassalDiplomacyQueue,
         setVassalDiplomacyQueue,
@@ -908,7 +906,6 @@ difficulty, // 游戏难度
         isAutoSaveEnabled,
         lastAutoSaveTime,
         merchantState,
-        tradeRoutes,
         diplomacyOrganizations,
         vassalDiplomacyQueue,
         vassalDiplomacyHistory,
@@ -1062,7 +1059,7 @@ difficulty, // 游戏难度
         classNeedsHistory, militaryWageRatio, classApproval, daysElapsed,
         annualReportBaseline, annualReportAccumulator, lastFestivalYear,
         economicIndicators, taxes, fiscalActual, isPaused, autoSaveInterval,
-        isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes,
+        isAutoSaveEnabled, lastAutoSaveTime, merchantState,
         diplomacyOrganizations, vassalDiplomacyQueue, vassalDiplomacyHistory,
         actions, tradeStats, actionCooldowns, actionUsage, promiseTasks,
         activeEventEffects, eventEffectSettings, rebellionStates, classInfluence,
@@ -1076,17 +1073,14 @@ difficulty, // 游戏难度
         pendingIdeologyEmergence, ideologyEmergenceRarityBonus,
     });
 
-    // 监听国家列表变化，自动清理无效的贸易路线和商人派驻
-    // [FIX] 通过 ref 读取 tradeRoutes/merchantState，避免 effect 依赖自己要写入的 state 导致 React #185
-    const tradeRoutesRef = useRef(tradeRoutes);
-    tradeRoutesRef.current = tradeRoutes;
+    // 监听国家列表变化，自动清理无效的商人派驻
+    // [FIX] 通过 ref 读取 merchantState，避免 effect 依赖自己要写入的 state 导致 React #185
     const merchantStateRef = useRef(merchantState);
     merchantStateRef.current = merchantState;
 
     useEffect(() => {
         if (!nations) return;
 
-        const currentTradeRoutes = tradeRoutesRef.current;
         const currentMerchantState = merchantStateRef.current;
 
         const validNationIds = new Set(
@@ -1094,14 +1088,6 @@ difficulty, // 游戏难度
                 .filter(n => !n.isAnnexed && (n.population || 0) > 0)
                 .map(n => n.id)
         );
-
-        // Clean up trade routes
-        if (currentTradeRoutes?.routes?.length) {
-            const validRoutes = currentTradeRoutes.routes.filter(r => validNationIds.has(r.nationId));
-            if (validRoutes.length !== currentTradeRoutes.routes.length) {
-                setTradeRoutes(prev => ({ ...prev, routes: validRoutes }));
-            }
-        }
 
         // Clean up merchant assignments
         if (currentMerchantState?.merchantAssignments && typeof currentMerchantState.merchantAssignments === 'object') {
@@ -1143,7 +1129,7 @@ difficulty, // 游戏难度
     useEffect(() => {
         // 初始化作弊码系统
         if (process.env.NODE_ENV !== 'production') {
-            initCheatCodes(gameState, addLog, { setMerchantState, setTradeRoutes });
+            initCheatCodes(gameState, addLog, { setMerchantState });
         }
 
         // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独管理
@@ -1375,9 +1361,7 @@ difficulty, // 游戏难度
 
                 // 贸易
                 merchantState: current.merchantState,
-                tradeRoutes: current.tradeRoutes,
                 tradeStats: current.tradeStats,
-                tradeRouteTax: current.tradeStats?.tradeRouteTax || 0, // Pass last tick's value for continuity, but worker re-calculates
                 ideologyMetrics: ideologyMetricsRef.current,
 
                 // Buff/Debuff
@@ -1684,7 +1668,6 @@ difficulty, // 游戏难度
                 // console.log('  钀ヤ笟绋?', (breakdown.businessTax || 0).toFixed(2));
                 // console.log('  关税:', (breakdown.tariff || 0).toFixed(2));
                 // if (breakdown.warIndemnity) console.log('  战争赔款收入:', breakdown.warIndemnity.toFixed(2));
-                // if (breakdown.tradeRouteTax) console.log('  贸易路线税收:', breakdown.tradeRouteTax.toFixed(2));
                 // if (breakdown.policyIncome) console.log('  政令收益:', breakdown.policyIncome.toFixed(2));
                 // if (breakdown.priceControlIncome) console.log('  价格管制收入:', breakdown.priceControlIncome.toFixed(2));
                 const effectiveFiscalIncome = typeof breakdown.totalFiscalIncome === 'number'
@@ -1692,8 +1675,7 @@ difficulty, // 游戏难度
                     : (breakdown.headTax || 0) + (breakdown.industryTax || 0) +
                     (breakdown.businessTax || 0) + (breakdown.tariff || 0) +
                     (breakdown.warIndemnity || 0);
-                const totalIncome = effectiveFiscalIncome + (breakdown.priceControlIncome || 0) +
-                    (breakdown.tradeRouteTax || 0);
+                const totalIncome = effectiveFiscalIncome + (breakdown.priceControlIncome || 0);
                 // console.log('  鉁?鎬绘敹鍏?', totalIncome.toFixed(2));
                 // if (typeof breakdown.incomePercentMultiplier === 'number') {
                 //     console.log('  📌 收入加成倍率:', `×${breakdown.incomePercentMultiplier.toFixed(2)}`);
@@ -1963,7 +1945,6 @@ difficulty, // 游戏难度
                         console.warn('🔍 [审计诊断]', {
                             treasuryAtTickStart,
                             silverAtSpread: result._auditSilverAtSpread,
-                            silverAfterTradeRoute: result._auditSilverAfterTradeRoute,
                             simStart,
                             simEnd,
                             simActualDelta: simActualDelta.toFixed(2),
@@ -2216,7 +2197,7 @@ difficulty, // 游戏难度
                 // 2. 理念分数检查（同步执行，不再使用异步 import）
                 {
                     const latestState = stateRef.current;
-                    const _tradeVolume = (latestState.tradeRoutes?.routes || []).reduce((sum, r) => sum + (r.value || r.amount || 0), 0);
+                    const _tradeVolume = (latestState.merchantState?.pendingTrades || []).reduce((sum, t) => sum + (t.value || t.amount || 0), 0);
                     const _curWarNations = (latestState.nations || [])
                         .filter(n => n.isAtWar && !n.isRebelNation)
                         .map(n => ({ id: n.id, warScore: n.warScore || 0, eventId: `${n.id}_${n.warStartDay || 0}` }));
@@ -2882,10 +2863,10 @@ difficulty, // 游戏难度
                             + (result.taxes?.breakdown?.warIndemnity || 0)
                         ),
                     trade: Math.max(
-                        ((result.tradeRoutes?.routes || current.tradeRoutes?.routes || []).reduce((sum, route) => (
-                            sum + (route?.value || route?.amount || 0)
+                        ((current.merchantState?.pendingTrades || []).reduce((sum, t) => (
+                            sum + (t?.value || t?.amount || 0)
                         ), 0)),
-                        (result.taxes?.breakdown?.tariff || 0) + (result.taxes?.breakdown?.tradeRouteTax || 0)
+                        (result.taxes?.breakdown?.tariff || 0)
                     ),
                     science: Math.max(0, result.rates?.science || 0),
                     culture: Math.max(0, result.rates?.culture || 0),
@@ -3219,18 +3200,11 @@ difficulty, // 游戏难度
                         if (prev === nextState) return prev;
                         return nextState;
                     });
-                    if (result.tradeRoutes && _shouldUpdateUI) {
-                        setTradeRoutes(result.tradeRoutes);
-                    }
                     if (result.overseasInvestments && _shouldUpdateUI) {
                         setOverseasInvestments(result.overseasInvestments);
                     }
                     if (result.foreignInvestments && _shouldUpdateUI) {
                         setForeignInvestments(result.foreignInvestments);
-                    }
-                    if (_shouldUpdateUI) {
-                        const calculatedTradeRouteTax = result.taxes?.breakdown?.tradeRouteTax || 0;
-                        setTradeStats(prev => ({ ...prev, tradeRouteTax: calculatedTradeRouteTax }));
                     }
 
                     if (nextNations) {
@@ -5752,7 +5726,6 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         taxPolicies: current.taxPolicies || {},
                         classWealth: result.classWealth || current.classWealth || {},
                         needsReport: result.needsReport || {},
-                        tradeRoutes: current.tradeRoutes || {},
                         classIncome: result.classIncome || {},
                         popStructure: result.popStructure || current.popStructure || {},
                     });
@@ -7102,7 +7075,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                     }
 
                                     // 鐢熸垚璇︾粏鐨勮锤鏄撴棩蹇楋紙鐜╁鏀垮簻鍙敹鍏崇◣锛?
-                                    // 这些属于"贸易路线/市场贸易"类日志，受 showTradeRouteLogs 控制
+                                    // 这些属于"市场贸易"类日志，受 showTradeLogs 控制
                                     if (isDebugEnabled('trade')) {
                                         if (eventData.tradeType === 'export') {
                                             // 玩家出口：资源减少，只收关税

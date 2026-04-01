@@ -3,7 +3,8 @@ import {
     createOverseasInvestment,
     createForeignInvestment,
     hasActiveTreaty, // [NEW] Use shared helper
-    getInvestableBuildings // [NEW] Dynamic building list for stratum
+    getInvestableBuildings, // [NEW] Dynamic building list for stratum
+    OVERSEAS_INVESTMENT_CONFIGS, // [FIX] 用于入境冷却期配置
 } from './overseasInvestment';
 import { BUILDINGS, RESOURCES } from '../../config';
 import { INDEPENDENCE_CONFIG } from '../../config/diplomacy';
@@ -358,7 +359,9 @@ export function selectInboundInvestmentsBatch({
             if (!canForeignInvestInPlayer(n, playerState, diplomacyOrganizations, daysElapsed)) { skipPermission++; continue; }
 
             const lastDay = n.lastForeignInvestmentDay ?? -Infinity;
-            if (daysElapsed - lastDay < 60) { skipCooldown++; continue; }
+            // [FIX] 使用配置常量替代硬编码60天，缩短入境冷却期
+            const { investmentCooldown } = OVERSEAS_INVESTMENT_CONFIGS.limits;
+            if (daysElapsed - lastDay < investmentCooldown) { skipCooldown++; continue; }
 
             eligibleInvestors.push(n);
         }
@@ -746,21 +749,19 @@ export function processAIInvestment({
             const buildingStaffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
             if (buildingStaffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) continue;
 
-            // [FIX] Use target nation's market prices instead of base prices
-            // This ensures AI investors respond to price spikes (high demand = high profit opportunity)
-            const investorMarketPrices = {};
-            Object.keys(RESOURCES).forEach(key => {
-                // For player target, use player market prices; otherwise use base prices
-                investorMarketPrices[key] = (target.id === 'player' && market?.prices?.[key]) 
-                    ? market.prices[key] 
-                    : (RESOURCES[key].basePrice || 1);
-            });
+            // [FIX] 使用 AI 投资国的市场价格作为"母国"(home)价格
+            // playerMarketPrices 参数代表投资者的母国市场，不是 target 所在地
+            // 之前错误地使用了 player 市场价格（即 target 市场），导致关税和贸易流向计算错误
+            const investorHomePrices = investorNation?.market?.prices
+                || investorNation?.nationPrices
+                || investorNation?.prices
+                || {};
 
             const profitResult = calculateOverseasProfit(
                 { buildingId: building.id, strategy: 'PROFIT_MAX' },
                 target,
                 {},
-                investorMarketPrices,
+                investorHomePrices,
                 {
                     taxPolicies,
                     organizations: diplomacyOrganizations?.organizations || [],
