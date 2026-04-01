@@ -4,9 +4,26 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.25',
+        version: '2.3.26',
         date: '2026-04-01',
         isLatest: true,
+        highlights: [
+            '内存优化第二轮：主线程模式结果剥离、Worker 更激进的数据裁剪、审计日志按需生成',
+            '高速模式（≥3x）内存占用预计再降 30-40%',
+        ],
+        changes: [
+            { type: 'fix', text: '【紧急修复】内存优化误删 _auditLog 导致财政收支明细面板数据丢失（关税、军饷维护等条目消失）。现已恢复 _auditLog 传输，仅剥离纯调试字段。' },
+            { type: 'improve', text: '【关键修复】高速模式（≥3x）下 simulateTick 结果现在也会剥离 modifiers.sources、buildingDebugData 等调试数据。此前这些数据仅在 Worker 路径被剥离，主线程路径完全保留，是高速模式内存居高不下的主因。' },
+            { type: 'improve', text: 'Worker stripPayloadForTransfer 新增：每 tick 剥离 _auditLog/_debug/_auditSilverAtSpread 等审计字段；AI 国家在非完整 tick 时额外剥离 economyTraits/warHistory 等重字段。' },
+            { type: 'improve', text: 'simulation.js 返回的 _auditLog 在非调试模式下使用已聚合的 auditLogArr（诊断检查已计算的结果），避免重复调用 silverChangeLog.toArray()。' },
+            { type: 'improve', text: 'modifiers.sources.productionInputCost 从 IIFE 闭包改为预计算变量，消除每 tick 创建 Set + 闭包的 GC 开销。' },
+            { type: 'improve', text: '高速模式下 simulationParams.nations 直接传引用（不做 map+spread），因为主线程模式不需要序列化安全副本。' },
+        ],
+    },
+    {
+        version: '2.3.25',
+        date: '2026-04-01',
+        isLatest: false,
         highlights: [
             '全面修复内存泄漏：清除无条件 console 调用 + 全局变量守卫，生产包零 console 残留',
             '历史数据数组改为原地更新，每次同步减少约 52 次数组分配',
