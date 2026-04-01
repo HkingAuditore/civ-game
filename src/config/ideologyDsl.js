@@ -309,19 +309,24 @@ export function normalizeSynergyDefinitions(entries = [], kind = 'synergy') {
     };
 }
 
+const MAX_DSL_ISSUES = 100;
+
 export function reportIdeologyDslIssues(scope, issues = []) {
     if (!Array.isArray(issues) || issues.length === 0) return;
 
     if (typeof window !== 'undefined') {
         const existing = Array.isArray(window.__IDEOLOGY_DSL_ISSUES) ? window.__IDEOLOGY_DSL_ISSUES : [];
-        window.__IDEOLOGY_DSL_ISSUES = [...existing, ...issues.map(issue => `${scope}: ${issue}`)];
+        if (existing.length < MAX_DSL_ISSUES) {
+            const newItems = issues.slice(0, MAX_DSL_ISSUES - existing.length).map(issue => `${scope}: ${issue}`);
+            window.__IDEOLOGY_DSL_ISSUES = existing.concat(newItems);
+        }
     }
 
     console.error(`[Ideology DSL] ${scope} detected ${issues.length} issue(s)`);
-    issues.slice(0, 20).forEach(issue => {
+    issues.slice(0, 5).forEach(issue => {
         console.error(`[Ideology DSL] ${scope} ${issue}`);
     });
-    if (issues.length > 20) {
-        console.error(`[Ideology DSL] ${scope} 其余 ${issues.length - 20} 条已省略`);
+    if (issues.length > 5) {
+        console.error(`[Ideology DSL] ${scope} 其余 ${issues.length - 5} 条已省略`);
     }
 }

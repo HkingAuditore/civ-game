@@ -4,9 +4,30 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.25',
+        date: '2026-04-01',
+        isLatest: true,
+        highlights: [
+            '全面修复内存泄漏：清除无条件 console 调用 + 全局变量守卫，生产包零 console 残留',
+            '历史数据数组改为原地更新，每次同步减少约 52 次数组分配',
+            '电力等不可储存资源改用供需流量比定价，解决电价虚高问题',
+            '建筑产出不足时提示具体短缺资源名称，不再笼统显示"原料不足"',
+        ],
+        changes: [
+            { type: 'fix', text: 'simulation.js / vassalSystem.js / useGameLoop.js 中约 16 处无条件 console.log/group/warn 改为 debugLog + isDebugEnabled 守卫。Chrome DevTools 打开时不再保留海量对象引用，堆内存预计降低 60-80%。' },
+            { type: 'fix', text: 'window.__buildingDebugData 改为仅在 isDebugEnabled(\'simulation\') 时赋值，不再每 tick 无条件挂载大型调试对象到全局作用域。' },
+            { type: 'fix', text: 'window.__IDEOLOGY_DSL_ISSUES 添加 100 条上限并用 concat 替代 spread 展开，消除无限累积的全局数组泄漏。' },
+            { type: 'fix', text: 'pendingDiplomaticEvents 队列添加 50 条硬上限，防止事件堆积时无界增长导致内存膨胀。' },
+            { type: 'fix', text: '电力等 volatile 资源定价改用供需流量比（当期供给/需求）替代库存信号。库存被人为压低的不可储存资源不再被误判为"短缺"导致电价虚高；供过于求时成本底线降至 10%，价格可自然回落。' },
+            { type: 'improve', text: 'setHistory 历史数据同步从每次创建新数组（[...series, value]）改为原地 push+shift，每次同步减少约 52 次数组分配，显著降低 GC 压力。' },
+            { type: 'improve', text: 'Vite 生产构建新增 esbuild.drop: [\'console\', \'debugger\']，生产包主 bundle 仅余 1 个 console.error，Worker bundle 零 console 调用。' },
+            { type: 'improve', text: '建筑产出受限时记录具体瓶颈资源（resourceLimitingKey），产出降低提示从笼统的"原料不足"改为"铁矿不足""电力不足"等精确提示。' },
+        ],
+    },
+    {
         version: '2.3.24',
         date: '2026-03-31',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '修复银币审计残差虚报：统一审计基线，消除 Worker 异步与 React 竞态导致的误差',
             '税率面板切换标签页不再丢失未提交的设置',

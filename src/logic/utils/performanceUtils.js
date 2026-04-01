@@ -513,7 +513,9 @@ export function resetAllDirty() {
  * 追踪tick执行帧率，检测到持续低帧率时提供回调通知
  */
 const _fpsMonitor = {
-    tickTimes: [],       // 最近N个tick的时间戳
+    tickTimes: new Float64Array(30), // 固定长度环形缓冲
+    head: 0,                  // 写入指针
+    count: 0,                 // 有效元素数量
     windowSize: 30,      // 滑动窗口大小
     lowFpsThreshold: 15, // 低帧率阈值（ticks/second）
     lowFpsCount: 0,      // 连续低帧率计数
@@ -528,20 +530,22 @@ const _fpsMonitor = {
  */
 export function recordTickComplete() {
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    _fpsMonitor.tickTimes.push(now);
-
-    // 保持滑动窗口大小
-    if (_fpsMonitor.tickTimes.length > _fpsMonitor.windowSize) {
-        _fpsMonitor.tickTimes.shift();
+    // 环形缓冲写入
+    _fpsMonitor.tickTimes[_fpsMonitor.head] = now;
+    _fpsMonitor.head = (_fpsMonitor.head + 1) % _fpsMonitor.windowSize;
+    if (_fpsMonitor.count < _fpsMonitor.windowSize) {
+        _fpsMonitor.count++;
     }
 
     // 窗口未满时不计算
-    if (_fpsMonitor.tickTimes.length < _fpsMonitor.windowSize) {
+    if (_fpsMonitor.count < _fpsMonitor.windowSize) {
         return null;
     }
 
-    // 计算帧率：N个tick / 总时间（秒）
-    const totalTimeMs = now - _fpsMonitor.tickTimes[0];
+    // 计算帧率：最旧的时间点是 head 位置（刚被覆盖的下一个就是最旧的）
+    const oldestIdx = _fpsMonitor.head % _fpsMonitor.windowSize; // head 刚写完后指向下一个，即最旧的
+    const oldest = _fpsMonitor.tickTimes[oldestIdx];
+    const totalTimeMs = now - oldest;
     const fps = totalTimeMs > 0 ? ((_fpsMonitor.windowSize - 1) / totalTimeMs) * 1000 : 0;
     const isLowFps = fps < _fpsMonitor.lowFpsThreshold;
 
@@ -570,9 +574,12 @@ export function recordTickComplete() {
  * @returns {number} 当前帧率，窗口未满时返回-1
  */
 export function getCurrentFps() {
-    if (_fpsMonitor.tickTimes.length < _fpsMonitor.windowSize) return -1;
-    const now = _fpsMonitor.tickTimes[_fpsMonitor.tickTimes.length - 1];
-    const totalTimeMs = now - _fpsMonitor.tickTimes[0];
+    if (_fpsMonitor.count < _fpsMonitor.windowSize) return -1;
+    const newestIdx = (_fpsMonitor.head - 1 + _fpsMonitor.windowSize) % _fpsMonitor.windowSize;
+    const oldestIdx = _fpsMonitor.head % _fpsMonitor.windowSize;
+    const now = _fpsMonitor.tickTimes[newestIdx];
+    const oldest = _fpsMonitor.tickTimes[oldestIdx];
+    const totalTimeMs = now - oldest;
     return totalTimeMs > 0 ? Math.round(((_fpsMonitor.windowSize - 1) / totalTimeMs) * 1000 * 10) / 10 : 0;
 }
 
@@ -596,8 +603,9 @@ export function logTickSegments(tick, segmentStatus) {
         }
     });
 
-    console.groupCollapsed(`[PerfLog] Tick ${tick}: 执行=${executed.length} 跳过=${skipped.length}`);
-    console.log('执行:', executed.join(', '));
-    console.log('跳过:', skipped.join(', '));
-    console.groupEnd();
+    // [DEBUG] PerfLog (commented for performance)
+    // console.groupCollapsed(`[PerfLog] Tick ${tick}: 执行=${executed.length} 跳过=${skipped.length}`);
+    // console.log('执行:', executed.join(', '));
+    // console.log('跳过:', skipped.join(', '));
+    // console.groupEnd();
 }

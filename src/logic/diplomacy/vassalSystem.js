@@ -3,6 +3,7 @@
  * 附庸系统：处理保护国、朝贡国、傀儡国、殖民地的逻辑
  */
 
+import { isDebugEnabled, debugLog } from '../../utils/debugFlags';
 import {
     VASSAL_TYPE_CONFIGS,
     calculateIndependenceDesire,
@@ -589,9 +590,8 @@ export const processVassalUpdates = ({
             return nation;
         }
 
-        // [DEBUG] Log input values
-        if (daysElapsed % 10 === 0) {
-            console.log(`[Vassal Process Input] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
+        if (daysElapsed % 10 === 0 && isDebugEnabled('vassal')) {
+            debugLog('vassal', `[Vassal Process Input] ${nation.name}: pop=${nation.population}, wealth=${nation.wealth}`);
         }
 
         const updated = { ...nation };
@@ -833,9 +833,8 @@ export const processVassalUpdates = ({
             updated.wealth = Math.max(0, (updated.wealth || 0) - dailySilver);
             const afterTribute = updated.wealth;
             
-            // [DEBUG] Log tribute deduction
-            if (daysElapsed % 10 === 0) {
-                console.log(`[Vassal Tribute] ${updated.name}: wealth ${beforeTribute}→${afterTribute} (tribute: -${dailySilver})`);
+            if (daysElapsed % 10 === 0 && isDebugEnabled('vassal')) {
+                debugLog('vassal', `[Vassal Tribute] ${updated.name}: wealth ${beforeTribute}→${afterTribute} (tribute: -${dailySilver})`);
             }
         }
 
@@ -918,9 +917,8 @@ export const processVassalUpdates = ({
             logs.push(`⚠️ ${updated.name} 发动独立战争！`);
         }
 
-        // [DEBUG] Log output values
-        if (daysElapsed % 10 === 0) {
-            console.log(`[Vassal Process Output] ${updated.name}: pop=${updated.population}, wealth=${updated.wealth}`);
+        if (daysElapsed % 10 === 0 && isDebugEnabled('vassal')) {
+            debugLog('vassal', `[Vassal Process Output] ${updated.name}: pop=${updated.population}, wealth=${updated.wealth}`);
         }
 
         return updated;
@@ -1186,15 +1184,16 @@ const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
  * @returns {Object} 独立度变化的详细分解
  */
 export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = [], suzereainWealth = 10000, suzereainPopulation = 1000000, difficultyLevel = 'normal') => {
-    // [DEBUG] 调试日志 - 记录传入参数（带明显标记）
-    console.log(`%c🔴 [UI getIndependenceChangeBreakdown] ${nation?.name}`, 'color: red; font-weight: bold', {
-        epoch,
-        suzereainWealth,
-        suzereainPopulation,
-        difficultyLevel,
-        vassalWealth: nation?.wealth,
-        vassalPopulation: nation?.population,
-    });
+    if (isDebugEnabled('vassal')) {
+        debugLog('vassal', `[UI getIndependenceChangeBreakdown] ${nation?.name}`, {
+            epoch,
+            suzereainWealth,
+            suzereainPopulation,
+            difficultyLevel,
+            vassalWealth: nation?.wealth,
+            vassalPopulation: nation?.population,
+        });
+    }
     
     const cfg = INDEPENDENCE_CHANGE_CONFIG;
     const vassalPolicy = nation?.vassalPolicy || {};
@@ -1414,15 +1413,15 @@ export const getIndependenceChangeBreakdown = (nation, epoch = 1, officials = []
         adjustedIncrease = totalIncrease * difficultyMultiplier;
     }
     
-    // [DEBUG] 调试日志 - 输出计算结果
-    console.log(`%c🔴 [UI getIndependenceChangeBreakdown RESULT] ${nation?.name}`, 'color: red; font-weight: bold', {
-        totalIncrease,
-        totalDecrease,
-        difficultyMultiplier,
-        adjustedIncrease,
-        dailyChange,
-        '难度系数是否应用': dailyChange > 0 ? '是（净变化为正）' : '否（净变化为负或零）',
-    });
+    // [DEBUG] 调试日志 - 输出计算结果 (commented for performance)
+    // console.log(`%c🔴 [UI getIndependenceChangeBreakdown RESULT] ${nation?.name}`, 'color: red; font-weight: bold', {
+    //     totalIncrease,
+    //     totalDecrease,
+    //     difficultyMultiplier,
+    //     adjustedIncrease,
+    //     dailyChange,
+    //     '难度系数是否应用': dailyChange > 0 ? '是（净变化为正）' : '否（净变化为负或零）',
+    // });
     
     const currentIndependence = nation?.independencePressure || 0;
     // [FIXED] 独立上限永远是100%

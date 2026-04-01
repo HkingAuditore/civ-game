@@ -686,7 +686,7 @@ export const RESOURCES = {
         unlockTech: 'power_generation',
         tags: ['industrial', 'energy'],
         storageMode: 'volatile',
-        maxInventoryDays: 0.75,
+        maxInventoryDays: 1.0,
         minOperationalBuffer: 1,
         allowForeignTrade: false,
         // 电力仍走国内市场，但更接近即时供能资源

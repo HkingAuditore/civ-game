@@ -150,7 +150,7 @@ export function checkCoalitionRebellion(
         if (pop > 0 && organization >= COALITION_REBELLION_CONFIG.MIN_ORGANIZATION_TO_JOIN) {
             coalitionStrata.push(stratumKey);
             coalitionInfluence += classInfluence[stratumKey] || 0;
-            console.log(`[COALITION] ${stratumKey} qualifies for coalition (org: ${organization.toFixed(1)}%)`);
+            // console.log(`[COALITION] ${stratumKey} qualifies for coalition (org: ${organization.toFixed(1)}%)`);
         }
     });
 
@@ -158,8 +158,8 @@ export function checkCoalitionRebellion(
     const isCoalition = coalitionStrata.length > 1;
 
     if (isCoalition) {
-        console.log(`[COALITION] Found ${coalitionStrata.length} strata eligible for coalition rebellion:`, coalitionStrata);
-        console.log(`[COALITION] Total influence share: ${(totalInfluenceShare * 100).toFixed(1)}%`);
+        // console.log(`[COALITION] Found ${coalitionStrata.length} strata eligible for coalition rebellion:`, coalitionStrata);
+        // console.log(`[COALITION] Total influence share: ${(totalInfluenceShare * 100).toFixed(1)}%`);
         trackRebellionCoalition(primaryStratumKey);
     }
 

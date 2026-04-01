@@ -1745,19 +1745,19 @@ difficulty, // 游戏难度
                         }
                     });
 
-                    if (Object.keys(maintenanceResources).length > 0) {
-                        console.group('  鍐涢槦缁存姢锛堟湰鍦拌绠?- 仅供参考）');
+                    if (Object.keys(maintenanceResources).length > 0 && isDebugEnabled('fiscal')) {
+                        debugLog('fiscal', '  军队维护（本地计算 - 仅供参考）');
                         Object.entries(maintenanceResources).forEach(([resource, cost]) => {
                             if (resource === 'silver') {
-                                console.log(`    ${resource}: ${cost.toFixed(2)}`);
+                                debugLog('fiscal', `    ${resource}: ${cost.toFixed(2)}`);
                             } else {
                                 const price = result.market?.prices?.[resource] || 1;
                                 const silverValue = cost * price;
-                                console.log(`    ${resource}: ${cost.toFixed(2)} (价值: ${silverValue.toFixed(2)} 银币)`);
+                                debugLog('fiscal', `    ${resource}: ${cost.toFixed(2)} (价值: ${silverValue.toFixed(2)} 银币)`);
                             }
                         });
-                        console.log(`    💰 总价值: ${totalMaintenanceSilverValue.toFixed(2)} 银币`);
-                        console.groupEnd();
+                        debugLog('fiscal', `    💰 总价值: ${totalMaintenanceSilverValue.toFixed(2)} 银币`);
+                        
                     }
                 }
 
@@ -2779,39 +2779,34 @@ difficulty, // 游戏难度
 
                     // Sync Global History (Legacy structure)
                     setHistory(prevHistory => {
-                        const appendValue = (series = [], value) => {
-                            const nextSeries = [...series, value];
-                            if (nextSeries.length > MAX_POINTS) {
-                                nextSeries.shift();
-                            }
-                            return nextSeries;
+                        const appendInPlace = (series, value) => {
+                            if (!series) return [value];
+                            series.push(value);
+                            if (series.length > MAX_POINTS) series.shift();
+                            return series;
                         };
 
                         const safeHistory = prevHistory || {};
-                        const nextHistory = {
-                            ...safeHistory,
-                            treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
-                            tax: appendValue(safeHistory.tax, treasuryIncome || 0),
-                            fiscalNetIncome: appendValue(safeHistory.fiscalNetIncome, netTreasuryChange || 0),
-                            population: appendValue(safeHistory.population, nextPopulation || 0),
-                            // 经济指标历史
-                            gdp: appendValue(safeHistory.gdp, indicators.gdp?.total || 0),
-                            cpi: appendValue(safeHistory.cpi, indicators.cpi?.index || 100),
-                            ppi: appendValue(safeHistory.ppi, indicators.ppi?.index || 100),
-                        };
 
-                        const previousClassHistory = safeHistory.class || {};
-                        const classHistory = { ...previousClassHistory };
+                        appendInPlace(safeHistory.treasury || (safeHistory.treasury = []), result.resources?.silver || 0);
+                        appendInPlace(safeHistory.tax || (safeHistory.tax = []), treasuryIncome || 0);
+                        appendInPlace(safeHistory.fiscalNetIncome || (safeHistory.fiscalNetIncome = []), netTreasuryChange || 0);
+                        appendInPlace(safeHistory.population || (safeHistory.population = []), nextPopulation || 0);
+                        appendInPlace(safeHistory.gdp || (safeHistory.gdp = []), indicators.gdp?.total || 0);
+                        appendInPlace(safeHistory.cpi || (safeHistory.cpi = []), indicators.cpi?.index || 100);
+                        appendInPlace(safeHistory.ppi || (safeHistory.ppi = []), indicators.ppi?.index || 100);
+
+                        if (!safeHistory.class) safeHistory.class = {};
+                        const classHistory = safeHistory.class;
                         Object.keys(STRATA).forEach(key => {
-                            const entry = previousClassHistory[key] || { pop: [], income: [], expense: [] };
-                            classHistory[key] = {
-                                pop: appendValue(entry.pop, nextPopStructure?.[key] || 0),
-                                income: appendValue(entry.income, result.classIncome?.[key] || 0),
-                                expense: appendValue(entry.expense, result.classExpense?.[key] || 0),
-                            };
+                            if (!classHistory[key]) classHistory[key] = { pop: [], income: [], expense: [] };
+                            const entry = classHistory[key];
+                            appendInPlace(entry.pop, nextPopStructure?.[key] || 0);
+                            appendInPlace(entry.income, result.classIncome?.[key] || 0);
+                            appendInPlace(entry.expense, result.classExpense?.[key] || 0);
                         });
-                        nextHistory.class = classHistory;
-                        return nextHistory;
+
+                        return { ...safeHistory };
                     });
                 }
 
@@ -3056,7 +3051,7 @@ difficulty, // 游戏难度
                     if (_shouldUpdateUI && typeof setStateBuildingSilverOutput === 'function') {
                         setStateBuildingSilverOutput(result.stateBuildingSilverOutput || 0);
                     }
-                    if (typeof window !== 'undefined' && result.buildingDebugData) {
+                    if (typeof window !== 'undefined' && result.buildingDebugData && isDebugEnabled('simulation')) {
                         window.__buildingDebugData = result.buildingDebugData;
                     }
                     // 鍘嗗彶鏁版嵁鏇存柊宸茬Щ鑷充笂鏂?Ref 绠＄悊閮ㄥ垎锛屾澶勪笉鍐嶉噸澶嶈皟鐢?

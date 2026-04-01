@@ -738,18 +738,18 @@ export const calculateNegotiationAcceptChance = ({
         acceptChance += stanceBonus;
     }
 
-    // Debug log
-    console.log('🎯 Negotiation Calculation:', {
-        stance,
-        relation,
-        playerPower,
-        targetPower,
-        playerWealth,
-        targetWealth,
-        stanceBonus,
-        acceptChanceBefore: acceptChance - stanceBonus,
-        acceptChanceAfter: acceptChance,
-    });
+    // [DEBUG] Negotiation log (commented for performance)
+    // console.log('🎯 Negotiation Calculation:', {
+    //     stance,
+    //     relation,
+    //     playerPower,
+    //     targetPower,
+    //     playerWealth,
+    //     targetWealth,
+    //     stanceBonus,
+    //     acceptChanceBefore: acceptChance - stanceBonus,
+    //     acceptChanceAfter: acceptChance,
+    // });
 
     // Type-specific relation gates - stricter requirements for exploitative treaties
     const typeRelationRequirements = {

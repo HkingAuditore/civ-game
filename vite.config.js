@@ -41,8 +41,8 @@ export default defineConfig(({ mode }) => ({
             },
         },
     },
-    // esbuild 也需要设置目标
     esbuild: {
         target: 'es2018',
+        ...(mode === 'production' ? { drop: ['console', 'debugger'] } : {}),
     },
 }))

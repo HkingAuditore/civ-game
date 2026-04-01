@@ -586,7 +586,10 @@ export const useGameActions = (gameState, addLog) => {
     const launchDiplomaticEvent = (event) => {
         if (!event) return;
         if (currentEvent) {
-            setPendingDiplomaticEvents(prev => [...prev, event]);
+            setPendingDiplomaticEvents(prev => {
+                const next = [...prev, event];
+                return next.length > 50 ? next.slice(-50) : next;
+            });
             return;
         }
         // 事件弹出时自动暂停游戏，保存触发前的暂停状态
