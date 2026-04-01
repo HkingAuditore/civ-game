@@ -26,9 +26,6 @@ export const RATE_LIMIT_CONFIG = {
     // Merchant trade generation: every N ticks (separate from AI trade)
     merchantTradeFrequency: 1, // Changed from 5 to 1 to enable per-tick rotation
 
-    // Manual trade routes: every N ticks
-    manualTradeFrequency: 3,
-    
     // Diplomatic relation updates: every N ticks (OPTIMIZED: 5 -> 10 for better performance)
     diplomacyUpdateFrequency: 10,
 
@@ -36,7 +33,6 @@ export const RATE_LIMIT_CONFIG = {
     aiNationUpdateSlices: 3,
     vassalUpdateSlices: 3,
     diplomacyUpdateSlices: 3,
-    manualTradeSlices: 3,
     
     // Building upgrade distribution cache validation: every N ticks
     buildingCacheValidation: 10,
@@ -235,7 +231,6 @@ export const PERF_SEGMENT_PRIORITY = {
     foreignInvestment:    TICK_PRIORITY.BATCH, // shouldRunThisTick key（单数形式）
     foreignInvestments:   TICK_PRIORITY.BATCH,
     foreignUpgrades:      TICK_PRIORITY.BATCH,
-    manualTrade:          TICK_PRIORITY.BATCH,
 };
 
 /**

@@ -31,7 +31,6 @@ export const GA_EVENTS = {
     DIPLOMACY_DECLARE_WAR: 'Diplomacy:DeclareWar',
     DIPLOMACY_PEACE: 'Diplomacy:Peace',
     DIPLOMACY_TREATY: 'Diplomacy:Treaty',
-    DIPLOMACY_TRADE_ROUTE: 'Diplomacy:TradeRoute',
     DIPLOMACY_ALLIANCE: 'Diplomacy:Alliance',
     DIPLOMACY_VASSAL: 'Diplomacy:Vassal',
     DIPLOMACY_GIFT: 'Diplomacy:Gift',

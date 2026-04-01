@@ -57,7 +57,6 @@ function stripPayloadForTransfer(result) {
     // NOTE: _auditLog must be preserved — it is the core data source for the
     // fiscal breakdown panel (财政收支). Only strip the debug-only audit fields.
     delete stripped._auditSilverAtSpread;
-    delete stripped._auditSilverAfterTradeRoute;
 
     if (stripped._perf) {
         stripped._perf = { totalMs: stripped._perf.totalMs };

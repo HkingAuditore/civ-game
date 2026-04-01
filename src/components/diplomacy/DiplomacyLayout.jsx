@@ -33,7 +33,6 @@ const DiplomacyLayout = ({
     diplomacyOrganizations,
     overseasInvestments,
     foreignInvestments,
-    tradeRoutes,
     tradeOpportunities,
 
     // Actions Handlers
@@ -264,7 +263,6 @@ const DiplomacyLayout = ({
                         onOverseasInvestment={onOverseasInvestment}
                         onOpenVassalSheet={handleOpenVassalSheet}
                         diplomacyOrganizations={diplomacyOrganizations}
-                        tradeRoutes={tradeRoutes}
                         merchantState={merchantState}
                         onMerchantStateChange={(nationId, count) => {
                             if (onMerchantStateChange) {
@@ -294,7 +292,6 @@ const DiplomacyLayout = ({
                         silver={resources?.silver || 0}
                         resources={resources}
                         daysElapsed={daysElapsed}
-                        tradeRoutes={tradeRoutes}
                         tradeOpportunities={tradeOpportunities}
                         onDiplomaticAction={onDiplomaticAction}
                         onViewOrganization={onViewOrganization}

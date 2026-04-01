@@ -160,8 +160,6 @@ export const useGameActions = (gameState, addLog) => {
         setPopulation,
         setMaxPop,
         setMaxPopBonus,
-        tradeRoutes,
-        setTradeRoutes,
         diplomacyOrganizations,
         setDiplomacyOrganizations,
         vassalDiplomacyQueue,
@@ -3320,84 +3318,6 @@ export const useGameActions = (gameState, addLog) => {
      * @param {Object} payload - 附加参数
      */
 
-    const handleTradeRouteAction = (nationId, action, payload = {}) => {
-        if (typeof setTradeRoutes !== 'function') return;
-        const resourceKey = payload.resourceKey || payload.resource;
-        const type = payload.type;
-        const mode = payload.mode || 'normal';
-
-        if (!nationId || !resourceKey || !type) {
-            addLog('Invalid trade route request.');
-            return;
-        }
-        if (!RESOURCES[resourceKey] || RESOURCES[resourceKey].type === 'virtual' || resourceKey === 'silver') {
-            addLog('Resource cannot be traded.');
-            return;
-        }
-        if (type !== 'import' && type !== 'export') {
-            addLog('Invalid trade route type.');
-            return;
-        }
-        if (!isResourceUnlocked(resourceKey, epoch, techsUnlocked)) {
-            addLog('Resource not unlocked yet.');
-            return;
-        }
-
-        setTradeRoutes(prev => {
-            const current = prev && typeof prev === 'object' ? prev : { routes: [] };
-            const routes = Array.isArray(current.routes) ? current.routes : [];
-            const matcher = (route) =>
-                route.nationId === nationId &&
-                route.resource === resourceKey &&
-                route.type === type;
-
-            if (action === 'create') {
-                const existing = routes.find(matcher);
-                if (existing) {
-                    if (existing.mode !== mode) {
-                        return {
-                            ...current,
-                            routes: routes.map(route => (matcher(route) ? { ...route, mode } : route)),
-                        };
-                    }
-                    return current;
-                }
-                return {
-                    ...current,
-                    routes: [
-                        ...routes,
-                        {
-                            nationId,
-                            resource: resourceKey,
-                            type,
-                            mode,
-                            createdAt: daysElapsed,
-                        },
-                    ],
-                };
-            }
-
-            if (action === 'cancel') {
-                return {
-                    ...current,
-                    routes: routes.filter(route => !matcher(route)),
-                };
-            }
-
-            return current;
-        });
-
-        const logVisibility = eventEffectSettings?.logVisibility || {};
-        const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
-        if (shouldLogTradeRoutes) {
-            if (action === 'create') {
-                addLog(`Trade route created: ${resourceKey} ${type}.`);
-            } else if (action === 'cancel') {
-                addLog(`Trade route canceled: ${resourceKey} ${type}.`);
-            }
-        }
-    };
-
     const handleDiplomaticAction = (nationId, action, payload = {}) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation && nationId !== 'player') return;
@@ -3551,7 +3471,7 @@ export const useGameActions = (gameState, addLog) => {
                 ));
 
                 const logVisibility = eventEffectSettings?.logVisibility || {};
-                const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
+                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? true;
                 if (shouldLogTradeRoutes) {
                     addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${payout.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
                 }
@@ -3616,7 +3536,7 @@ export const useGameActions = (gameState, addLog) => {
                 ));
 
                 const logVisibility = eventEffectSettings?.logVisibility || {};
-                const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
+                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? true;
                 if (shouldLogTradeRoutes) {
                     addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
                 }
@@ -3868,12 +3788,6 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`${targetNation.name} 拒绝了你的勒索${escalate ? '，并向你宣战！' : '。'}`);
                 }
                 break;
-            }
-            case 'trade_route': {
-                const routeAction = payload?.action;
-                handleTradeRouteAction(nationId, routeAction, payload || {});
-                break;
-
             }
             case 'provoke': {
                 // 挑拨关系：花费银币离间两个国家
@@ -7187,7 +7101,6 @@ export const useGameActions = (gameState, addLog) => {
         approveVassalDiplomacyAction,
         rejectVassalDiplomacyAction,
         issueVassalDiplomacyOrder,
-        handleTradeRouteAction,
         triggerRandomEvent,
         triggerDiplomaticEvent,
         handleEventOption,

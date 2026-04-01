@@ -831,7 +831,6 @@ const buildMinimalAutoSavePayload = (payload) => {
             supplyHistory: {},
             demandHistory: {},
         } : undefined,
-        tradeRoutes: payload.tradeRoutes,
         overseasBuildings: payload.overseasBuildings || [],
         rebellionStates: payload.rebellionStates,
         rulingCoalition: payload.rulingCoalition,
@@ -923,7 +922,7 @@ const DEFAULT_EVENT_EFFECT_SETTINGS = {
     // UI / Log visibility settings
     logVisibility: {
         showMerchantTradeLogs: true,
-        showTradeRouteLogs: true,
+        showTradeLogs: true,
         showMusicPlayer: false,
     },
 };
@@ -937,13 +936,6 @@ const buildInitialEventEffects = () => ({
     buildingProduction: [],  // target: building category or id, currentValue: percentage modifier
     // Forced subsidies from rebel ultimatums
     forcedSubsidy: [],       // { id, name, stratumKey, dailyAmount, remainingDays, createdAt }
-});
-
-// 初始化贸易路线状�?
-const buildInitialTradeRoutes = () => ({
-    // 贸易路线数组，每个路线包含：
-    // { nationId, resource, type: 'import'|'export', createdAt }
-    routes: [],
 });
 
 const buildInitialDiplomacyOrganizations = () => ({
@@ -1507,9 +1499,8 @@ export const useGameState = () => {
     // ========== 商人交易状�?==========
     const [merchantState, setMerchantState] = useState(buildInitialMerchantState); // 商人交易状态：买入-持有-卖出周期
 
-    // ========== 贸易路线状�?==========
-    const [tradeRoutes, setTradeRoutes] = useState(buildInitialTradeRoutes); // 玩家创建的贸易路�?
-    const [tradeStats, setTradeStats] = useState({ tradeTax: 0, tradeRouteTax: 0 }); // 每日贸易路线税收
+    // ========== 贸易统计状态 ==========
+    const [tradeStats, setTradeStats] = useState({ tradeTax: 0 }); // 每日贸易税收
     const [diplomacyOrganizations, setDiplomacyOrganizations] = useState(buildInitialDiplomacyOrganizations);
     const [vassalDiplomacyQueue, setVassalDiplomacyQueue] = useState([]);
     const [vassalDiplomacyHistory, setVassalDiplomacyHistory] = useState([]);
@@ -1962,7 +1953,6 @@ export const useGameState = () => {
                 jobFill,
                 market,
                 merchantState,
-                tradeRoutes,
                 tradeStats,
                 diplomacyOrganizations,
                 vassalDiplomacyQueue,
@@ -2704,8 +2694,7 @@ export const useGameState = () => {
                 ? loadedMerchantStateRaw.merchantAssignments
                 : (loadedMerchantStateRaw?.assignments && typeof loadedMerchantStateRaw.assignments === 'object' ? loadedMerchantStateRaw.assignments : {}),
         });
-        setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
-        setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
+        setTradeStats(data.tradeStats || { tradeTax: 0 });
         setDiplomacyOrganizations(migrateDiplomacyOrganizations(data.diplomacyOrganizations));
         setVassalDiplomacyQueue(Array.isArray(data.vassalDiplomacyQueue) ? data.vassalDiplomacyQueue : []);
         setVassalDiplomacyHistory(Array.isArray(data.vassalDiplomacyHistory) ? data.vassalDiplomacyHistory : []);
@@ -3935,9 +3924,7 @@ export const useGameState = () => {
         merchantState,
         setMerchantState,
 
-        // 贸易路线系统
-        tradeRoutes,
-        setTradeRoutes,
+        // 贸易统计
         tradeStats,
         setTradeStats,
         diplomacyOrganizations,

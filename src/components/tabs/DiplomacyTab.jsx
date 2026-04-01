@@ -37,9 +37,7 @@ const DiplomacyTabComponent = ({
     resources = {},
     daysElapsed = 0,
     onDiplomaticAction,
-    tradeRoutes = { routes: [] },
     tradeOpportunities = { exports: [], imports: [] },
-    onTradeRouteAction,
     merchantState = { merchantAssignments: {} },
     onMerchantStateChange,
     playerInstallmentPayment = null,
@@ -431,7 +429,6 @@ const DiplomacyTabComponent = ({
                 diplomacyOrganizations={diplomacyOrganizations}
                 overseasInvestments={overseasInvestments}
                 foreignInvestments={foreignInvestments}
-                tradeRoutes={tradeRoutes}
                 tradeOpportunities={tradeOpportunities}
                 merchantState={merchantState}
                 onMerchantStateChange={(nationId, count) => {
@@ -526,7 +523,6 @@ const DiplomacyTabComponent = ({
 
             {showTradeRoutesModal && (
                 <TradeRoutesModal
-                    tradeRoutes={tradeRoutes}
                     nations={visibleNations}
                     resources={resources}
                     market={market}

@@ -53,7 +53,6 @@ const NationDetailView = ({
     onOverseasInvestment,
     onOpenVassalSheet,
     diplomacyOrganizations,
-    tradeRoutes,
     merchantState,
     onMerchantStateChange,
     overseasInvestments = [],

@@ -225,7 +225,6 @@ export const useStoreSync = (gs) => {
         // 同步 Trade Store
         syncStore(useTradeStore, {
             merchantState: gs.merchantState,
-            tradeRoutes: gs.tradeRoutes,
             tradeStats: gs.tradeStats,
         });
 
@@ -328,6 +327,6 @@ export const syncAllStoresToSnapshot = (data) => {
     const evtFields = pick(['currentEvent', 'eventHistory', 'unlockedAchievements', 'achievementProgress']);
     if (Object.keys(evtFields).length > 0) useEventStore.setState(evtFields);
 
-    const tradeFields = pick(['merchantState', 'tradeRoutes', 'tradeStats']);
+    const tradeFields = pick(['merchantState', 'tradeStats']);
     if (Object.keys(tradeFields).length > 0) useTradeStore.setState(tradeFields);
 };

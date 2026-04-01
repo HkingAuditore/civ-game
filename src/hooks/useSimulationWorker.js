@@ -151,7 +151,6 @@ export function useSimulationWorker() {
         delete result.buildingDebugData;
         delete result._debug;
         delete result._auditSilverAtSpread;
-        delete result._auditSilverAfterTradeRoute;
         if (result._perf) {
             result._perf = { totalMs: result._perf.totalMs };
         }

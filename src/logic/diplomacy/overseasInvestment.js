@@ -26,7 +26,7 @@ export const OVERSEAS_INVESTMENT_CONFIGS = {
     limits: {
         maxInvestmentRatio: 0.2,          // 最大投资占附庸GDP比例
         minRelationForInvestment: 30,      // 最低外交关系要求
-        investmentCooldown: 30,            // 两次投资间隔（天）
+        investmentCooldown: 15,            // 两次投资间隔（天）— 缩短以加速外资入境
     },
 
     // 运营配置 (灵活配置)

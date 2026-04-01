@@ -98,7 +98,7 @@ export const TASK_PHASE = {
  */
 export function selectPromiseType(stratumKey, context) {
     const candidates = [];
-    const { nations, taxPolicies, market, classWealth, needsReport, tradeRoutes } = context || {};
+    const { nations, taxPolicies, market, classWealth, needsReport, merchantState } = context || {};
 
     // 1. 军事阶层：检查战争需求
     if (['soldier'].includes(stratumKey)) {
@@ -475,7 +475,7 @@ export function createApprovalPromiseTask({
  */
 function isTargetAchieved(task, context) {
     const { classApproval = {}, market = {}, nations = [], taxPolicies = {},
-        classWealth = {}, needsReport = {}, tradeRoutes = {} } = context;
+        classWealth = {}, needsReport = {}, merchantState = {} } = context;
 
     switch (task.type) {
         case PROMISE_TASK_TYPES.DECLARE_WAR: {
@@ -484,8 +484,9 @@ function isTargetAchieved(task, context) {
         }
 
         case PROMISE_TASK_TYPES.ESTABLISH_TRADE: {
-            const routes = tradeRoutes?.routes || [];
-            return routes.some(r => r.resource === task.targetResource && r.active);
+            // Check if merchant auto-trade has active trades for the target resource
+            const pendingTrades = merchantState?.pendingTrades || [];
+            return pendingTrades.some(t => t.resource === task.targetResource);
         }
 
         case PROMISE_TASK_TYPES.TAX_RELIEF: {

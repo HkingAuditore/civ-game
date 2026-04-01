@@ -458,7 +458,6 @@ import {
     getForeignInvestmentGroupKey,
 } from './diplomacy/overseasInvestment';
 import { getFrontlineEconomicModifiers, getEffectiveFrontWarScore } from './diplomacy/frontSystem';
-import { processManualTradeRoutes } from './economy/manualTrade';
 
 // V2: Helper — compute average approval across all strata
 function _calcAvgApproval(classApproval) {
@@ -512,7 +511,6 @@ export const simulateTick = ({
     classWealthHistory,
     classNeedsHistory,
     merchantState = { pendingTrades: [], lastTradeTime: 0 },
-    tradeRouteTax: initialTradeRouteTax = 0,
     maxPopBonus = 0,
     eventApprovalModifiers = {},
     eventStabilityModifier = 0,
@@ -543,7 +541,6 @@ export const simulateTick = ({
     eventEffectSettings = {}, // [NEW] Event effect settings including log visibility
     foreignInvestments = [], // [NEW] Foreign investments for profit calculation
     overseasInvestments = [], // [NEW] Overseas investments for processing
-    tradeRoutes = {}, // [NEW] Trade routes for manual trade processing
     foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
     diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
@@ -622,34 +619,6 @@ export const simulateTick = ({
         return list.slice(start, start + size);
     };
     const priceMap = { ...(market?.prices || {}) };
-    let calculatedTradeRouteTax = 0;
-
-    // === Process Manual Trade Routes (Worker Side) ===
-    let tradeRouteSummary = null;
-    const shouldUpdateManualTrade = shouldRunThisTick(tick, 'manualTrade');
-    if (shouldUpdateManualTrade && tradeRoutes && tradeRoutes.routes && tradeRoutes.routes.length > 0) {
-        perfStart('manualTrade');
-        const manualTradeSlices = Math.max(1, RATE_LIMIT_CONFIG.manualTradeSlices || 1);
-        const slicedRoutes = getSlice(tradeRoutes.routes, manualTradeSlices);
-        tradeRouteSummary = processManualTradeRoutes({
-            tradeRoutes: { ...tradeRoutes, routes: slicedRoutes },
-            nations,
-            resources: res, // Pass current resources snapshot
-            daysElapsed: tick,
-            market: { prices: priceMap },
-            popStructure: previousPopStructure,
-            taxPolicies,
-            diplomacyOrganizations
-        });
-        perfEnd('manualTrade');
-
-        if (tradeRouteSummary) {
-            calculatedTradeRouteTax = tradeRouteSummary.tradeTax || 0;
-
-            // [MOVED] Resource deltas application moved to after log system initialization
-            // to ensure silver changes are properly tracked.
-        }
-    }
 
     const _simDebugEnabled = isDebugEnabled('simulation');
 
@@ -770,7 +739,6 @@ export const simulateTick = ({
         }
     };
 
-    const _resSilverAfterCopy = res.silver || 0; // [DIAG] right after trade route deltas
     const startingSilver = _earlyStartingSilver; // [FIX] use pre-modification baseline
 
     // [DIAGNOSTIC] Silver audit checkpoint helper
@@ -1471,8 +1439,8 @@ export const simulateTick = ({
             }
         }
 
-        // --- V2: trade volume estimation from trade routes ---
-        const tradeVolume = (tradeRoutes?.routes || []).reduce((sum, r) => sum + (r.value || r.amount || 0), 0);
+        // --- V2: trade volume estimation from merchant auto-trade ---
+        const tradeVolume = (merchantState?.pendingTrades || []).reduce((sum, t) => sum + (t.value || t.amount || 0), 0);
 
         const ideologyTriggerState = {
             popStructure: previousPopStructure,
@@ -8528,17 +8496,11 @@ export const simulateTick = ({
 
     const priceControlIncome = taxBreakdown.priceControlIncome || 0;
     const priceControlExpense = taxBreakdown.priceControlExpense || 0;
-    const effectiveTradeRouteTax = Number.isFinite(tradeRouteTax) ? tradeRouteTax : 0;
 
     // Price control income is added to silver here (expense was deducted in real-time)
     if (priceControlIncome !== 0) {
         applySilverChange(priceControlIncome, 'income_price_control');
         rates.silver = (rates.silver || 0) + priceControlIncome;
-    }
-
-    if (effectiveTradeRouteTax !== 0) {
-        applySilverChange(effectiveTradeRouteTax, 'income_trade_route');
-        rates.silver = (rates.silver || 0) + effectiveTradeRouteTax;
     }
 
     const netTax = totalCollectedTax
@@ -8547,7 +8509,6 @@ export const simulateTick = ({
         + warIndemnityIncome
         + decreeSilverIncome
         - decreeSilverExpense
-        + effectiveTradeRouteTax
         + priceControlIncome
         - priceControlExpense;
     const taxes = {
@@ -8565,7 +8526,7 @@ export const simulateTick = ({
             policyExpense: decreeSilverExpense,
             priceControlIncome: priceControlIncome,
             priceControlExpense: priceControlExpense,
-            tradeRouteTax: effectiveTradeRouteTax,
+            tradeRouteTax: 0,
             baseFiscalIncome,
             totalFiscalIncome,
             incomePercentMultiplier,
@@ -8686,12 +8647,6 @@ export const simulateTick = ({
     if (showOfficialLogsForInvestment) {
         logs.push(...investmentLogs);
     }
-    // Add manual trade logs
-    if (tradeRouteSummary?.tradeLog) {
-        // Gated by log settings? Usually handled in UI, but simulation just returns them.
-        logs.push(...tradeRouteSummary.tradeLog);
-    }
-
     // Trade Opportunities Analysis (Throttled: every 10 ticks)
     const tradeOpportunities = (tick % 10 === 0)
         ? analyzeTradeOpportunities({
@@ -9018,7 +8973,6 @@ export const simulateTick = ({
             sections: perfSections,
         },
         tradeOpportunities,
-        tradeRoutes: tradeRoutes ? { ...tradeRoutes, routes: tradeRoutes.routes.filter(r => !tradeRouteSummary?.routesToRemove?.includes(r)) } : undefined,
         overseasInvestments: updatedOverseasInvestments,
         foreignInvestments: updatedForeignInvestments,
         resources: res,
@@ -9181,7 +9135,6 @@ export const simulateTick = ({
         _auditStartingSilver: startingSilver,
         _auditEndingSilver: res.silver || 0,
         _auditSilverAtSpread: _simDebugEnabled ? _resSilverAtSpread : undefined,
-        _auditSilverAfterTradeRoute: _simDebugEnabled ? _resSilverAfterCopy : undefined,
         _debug: _simDebugEnabled ? {
             freeMarket: _freeMarketDebug,
             classWealthChangeLog,

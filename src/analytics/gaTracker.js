@@ -231,7 +231,6 @@ const DIPLOMACY_ACTION_MAP = {
     propose_peace: GA_EVENTS.DIPLOMACY_PEACE,
     finalize_peace: GA_EVENTS.DIPLOMACY_PEACE,
     peace: GA_EVENTS.DIPLOMACY_PEACE,
-    trade_route: GA_EVENTS.DIPLOMACY_TRADE_ROUTE,
     propose_alliance: GA_EVENTS.DIPLOMACY_ALLIANCE,
     break_alliance: GA_EVENTS.DIPLOMACY_ALLIANCE,
     establish_vassal: GA_EVENTS.DIPLOMACY_VASSAL,
