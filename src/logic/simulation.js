@@ -783,8 +783,9 @@ export const simulateTick = ({
     };
 
     // === Process Overseas & Foreign Investments (Worker Side) ===
-    let updatedOverseasInvestments = [...overseasInvestments];
-    let updatedForeignInvestments = [...foreignInvestments];
+    // COW: 不预先拷贝，由后续处理函数返回新数组
+    let updatedOverseasInvestments = overseasInvestments;
+    let updatedForeignInvestments = foreignInvestments;
     let investmentLogs = [];
     // [PERF] batch级：投资结算频率守卫（默认每20tick结算一次）
     const shouldSettleOverseasInvestment = shouldRunThisTick(tick, 'overseasInvestment');
@@ -4610,37 +4611,17 @@ export const simulateTick = ({
             return actualProfitCache[buildingId];
         };
 
-        const ownedPropertiesList = Array.isArray(normalizedOfficial.ownedProperties)
-            ? normalizedOfficial.ownedProperties
-            : [];
-        const managedBuildingsList = Array.isArray(normalizedOfficial.managedBuildings)
-            ? normalizedOfficial.managedBuildings
-            : [];
-        const incomeSourceList = isStateManagedPolicy ? managedBuildingsList : ownedPropertiesList;
-
+        // 产业数据统一用 summary 结构
         let propertySummary = normalizedOfficial._propertySummary;
-        const expectedSummaryCount = ownedPropertiesList.length;
-        if (!isStateManagedPolicy && (!propertySummary || propertySummary.totalCount !== expectedSummaryCount)) {
-            const summary = { byBuilding: {}, byBuildingLevel: {}, totalCount: expectedSummaryCount };
-            ownedPropertiesList.forEach((prop) => {
-                if (!prop?.buildingId) return;
-                summary.byBuilding[prop.buildingId] = (summary.byBuilding[prop.buildingId] || 0) + 1;
-                if (!summary.byBuildingLevel[prop.buildingId]) {
-                    summary.byBuildingLevel[prop.buildingId] = {};
-                }
-                const lvl = prop.level || 0;
-                summary.byBuildingLevel[prop.buildingId][lvl] = (summary.byBuildingLevel[prop.buildingId][lvl] || 0) + 1;
-            });
-            propertySummary = summary;
+        if (!propertySummary) {
+            // 存档兼容 fallback（旧存档无 _propertySummary 时创建空 summary）
+            propertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 };
         }
-        const incomeSourceSummary = {
-            byBuilding: {},
-            totalCount: incomeSourceList.length,
-        };
-        incomeSourceList.forEach((prop) => {
-            if (!prop?.buildingId) return;
-            incomeSourceSummary.byBuilding[prop.buildingId] = (incomeSourceSummary.byBuilding[prop.buildingId] || 0) + 1;
-        });
+        let managedSummary = normalizedOfficial._managedSummary;
+        if (!managedSummary) {
+            managedSummary = { byBuilding: {}, totalCount: 0 };
+        }
+        const incomeSourceSummary = isStateManagedPolicy ? managedSummary : propertySummary;
 
         Object.entries(incomeSourceSummary.byBuilding || {}).forEach(([buildingId, count]) => {
             if (!count) return;
@@ -4787,17 +4768,10 @@ export const simulateTick = ({
             );
         }
 
-        const ownedProperties = Array.isArray(normalizedOfficial.ownedProperties)
-            ? [...normalizedOfficial.ownedProperties]
-            : [];
-        const managedBuildings = Array.isArray(normalizedOfficial.managedBuildings)
-            ? [...normalizedOfficial.managedBuildings]
-            : [];
-        let nextPropertySummary = propertySummary ? {
-            byBuilding: { ...(propertySummary.byBuilding || {}) },
-            byBuildingLevel: { ...(propertySummary.byBuildingLevel || {}) },
-            totalCount: propertySummary.totalCount ?? ownedProperties.length,
-        } : null;
+        let nextPropertySummary = propertySummary;
+        let nextManagedSummary = managedSummary;
+        let _summaryCopied = false;
+        let _managedCopied = false;
         const investmentProfile = { ...normalizedOfficial.investmentProfile };
 
         const MAX_INVEST_SPEND_RATIO = 0.25;
@@ -4819,36 +4793,27 @@ export const simulateTick = ({
                 }
             }
             if (investmentCost > 0) {
-            const instanceId = `${investmentDecision.buildingId}_off_${normalizedOfficial.id}_${tick}_${Math.floor(Math.random() * 1000)}`;
+            const bid = investmentDecision.buildingId;
             if (isStateManagedPolicy) {
-                managedBuildings.push({
-                    buildingId: investmentDecision.buildingId,
-                    instanceId,
-                    purchaseDay: tick,
-                    purchaseCost: investmentDecision.cost,
-                    level: 0,
-                    ownerType: 'state',
-                    managedBy: normalizedOfficial.id,
-                });
+                if (!_managedCopied) {
+                    nextManagedSummary = { byBuilding: { ...managedSummary.byBuilding }, totalCount: managedSummary.totalCount };
+                    _managedCopied = true;
+                }
+                nextManagedSummary.byBuilding[bid] = (nextManagedSummary.byBuilding[bid] || 0) + 1;
+                nextManagedSummary.totalCount += 1;
             } else {
-                ownedProperties.push({
-                    buildingId: investmentDecision.buildingId,
-                    instanceId,
-                    purchaseDay: tick,
-                    purchaseCost: investmentDecision.cost,
-                    level: 0,
-                });
-                if (!nextPropertySummary) {
-                    nextPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: ownedProperties.length };
+                if (!_summaryCopied) {
+                    nextPropertySummary = {
+                        byBuilding: { ...propertySummary.byBuilding },
+                        byBuildingLevel: { ...propertySummary.byBuildingLevel },
+                        totalCount: propertySummary.totalCount,
+                    };
+                    _summaryCopied = true;
                 }
-                nextPropertySummary.byBuilding[investmentDecision.buildingId] =
-                    (nextPropertySummary.byBuilding[investmentDecision.buildingId] || 0) + 1;
-                if (!nextPropertySummary.byBuildingLevel[investmentDecision.buildingId]) {
-                    nextPropertySummary.byBuildingLevel[investmentDecision.buildingId] = {};
-                }
-                nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] =
-                    (nextPropertySummary.byBuildingLevel[investmentDecision.buildingId][0] || 0) + 1;
-                nextPropertySummary.totalCount = ownedProperties.length;
+                nextPropertySummary.byBuilding[bid] = (nextPropertySummary.byBuilding[bid] || 0) + 1;
+                nextPropertySummary.byBuildingLevel[bid] = { ...(nextPropertySummary.byBuildingLevel[bid] || {}) };
+                nextPropertySummary.byBuildingLevel[bid][0] = (nextPropertySummary.byBuildingLevel[bid][0] || 0) + 1;
+                nextPropertySummary.totalCount += 1;
             }
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
@@ -4861,9 +4826,9 @@ export const simulateTick = ({
             } // end if (investmentCost > 0)
         }
 
-        // 产业升级决策（高薪养廉模式下跳过）
+        // 产业升级决策（高薪养廉模式下跳过）— 传入 summary 而非数组
         const upgradeDecision = isHighSalaryPolicy ? null : processOfficialBuildingUpgrade(
-            { ...normalizedOfficial, wealth: currentWealth, ownedProperties, investmentProfile },
+            { ...normalizedOfficial, wealth: currentWealth, _propertySummary: nextPropertySummary, investmentProfile },
             tick,
             officialMarketSnapshot,
             taxPolicies,
@@ -4880,29 +4845,28 @@ export const simulateTick = ({
         if (upgradeDecision && upgradeDecision.cost <= upgradeBudget && currentWealth >= upgradeDecision.cost) {
             currentWealth = Math.max(0, currentWealth - upgradeDecision.cost);
             upgradeCost = upgradeDecision.cost;
-            const targetProp = ownedProperties[upgradeDecision.propertyIndex];
-            if (targetProp) {
-                const fromLevel = targetProp.level || 0;
-                targetProp.level = upgradeDecision.toLevel;
-                investmentProfile.lastUpgradeDay = tick;
-                pendingOfficialUpgrades.push({
-                    buildingId: upgradeDecision.buildingId,
-                    fromLevel: upgradeDecision.fromLevel,
-                    toLevel: upgradeDecision.toLevel,
-                    officialName: normalizedOfficial.name,
-                    cost: upgradeDecision.cost,
-                });
-                if (nextPropertySummary?.byBuildingLevel?.[upgradeDecision.buildingId]) {
-                    const levelMap = nextPropertySummary.byBuildingLevel[upgradeDecision.buildingId];
-                    if (levelMap[fromLevel]) {
-                        levelMap[fromLevel] = Math.max(0, levelMap[fromLevel] - 1);
-                        if (levelMap[fromLevel] <= 0) {
-                            delete levelMap[fromLevel];
-                        }
-                    }
-                    levelMap[upgradeDecision.toLevel] = (levelMap[upgradeDecision.toLevel] || 0) + 1;
-                }
+            investmentProfile.lastUpgradeDay = tick;
+            pendingOfficialUpgrades.push({
+                buildingId: upgradeDecision.buildingId,
+                fromLevel: upgradeDecision.fromLevel,
+                toLevel: upgradeDecision.toLevel,
+                officialName: normalizedOfficial.name,
+                cost: upgradeDecision.cost,
+            });
+            if (!_summaryCopied) {
+                nextPropertySummary = {
+                    byBuilding: { ...propertySummary.byBuilding },
+                    byBuildingLevel: { ...propertySummary.byBuildingLevel },
+                    totalCount: propertySummary.totalCount,
+                };
+                _summaryCopied = true;
             }
+            nextPropertySummary.byBuildingLevel[upgradeDecision.buildingId] = { ...(nextPropertySummary.byBuildingLevel[upgradeDecision.buildingId] || {}) };
+            const levelMap = nextPropertySummary.byBuildingLevel[upgradeDecision.buildingId];
+            const fromLevel = upgradeDecision.fromLevel;
+            levelMap[fromLevel] = Math.max(0, (levelMap[fromLevel] || 0) - 1);
+            if (levelMap[fromLevel] <= 0) delete levelMap[fromLevel];
+            levelMap[upgradeDecision.toLevel] = (levelMap[upgradeDecision.toLevel] || 0) + 1;
         }
 
         // [DEBUG] 追踪财富变化 - 投资/升级?
@@ -5031,8 +4995,8 @@ export const simulateTick = ({
             lastDayExpense: dailyExpense,
             lastDayHeadTaxPaid: headTaxPaid,
             financialSatisfaction: combinedSatisfaction,
-            ownedProperties,
-            managedBuildings,
+            _propertySummary: nextPropertySummary,
+            _managedSummary: nextManagedSummary,
             investmentProfile,
             lastDayPropertyIncome: isStateManagedPolicy ? managementFeeIncome : totalPropertyIncome,
             lastDayManagementFee: managementFeeIncome,
@@ -5043,12 +5007,7 @@ export const simulateTick = ({
             lastDayUpgradeCost: upgradeCost,
             lastDayNetChange: currentWealth - debugInitialWealth,
             lastDayCorruptionIncome: 0,
-            _propertySummary: nextPropertySummary ? {
-                ...nextPropertySummary,
-                byBuilding: { ...(nextPropertySummary.byBuilding || {}) },
-                byBuildingLevel: { ...(nextPropertySummary.byBuildingLevel || {}) },
-                totalCount: nextPropertySummary.totalCount ?? ownedProperties.length,
-            } : propertySummary,
+            // _propertySummary 已在上方设置，此处删除旧的独立字段
             // 忠诚度系?
             loyalty: newLoyalty,
             lowLoyaltyDays: newLowLoyaltyDays,
@@ -5870,8 +5829,39 @@ export const simulateTick = ({
     // });
 
     let updatedNations = (nations || []).map(nation => {
+        const shouldProcessAIForNation = nation.id === 'player' || aiTargetIds.has(nation.id);
+
+        // [PERF] 对未出现或已灭亡的国家跳过浅拷贝，直接返回原引用
+        const hasAppeared = visibleEpoch >= (nation.appearEpoch ?? 0);
+        if (!hasAppeared) {
+            // 未出现国家不参与模拟，直接返回（保留原引用）
+            return nation;
+        }
+        const isDestroyedNation = nation.isAnnexed || (nation.population || 0) <= 0;
+        if (isDestroyedNation) {
+            // 已灭亡国家：仅在需要清理战争状态时才创建拷贝
+            if (nation.isAtWar || nation.foreignWars || nation.installmentPayment) {
+                const next = { ...nation };
+                if (next.isAtWar) {
+                    next.isAtWar = false;
+                    next.warScore = 0;
+                    next.warDuration = 0;
+                    next.warStartDay = null;
+                    next.enemyLosses = 0;
+                    next.warTarget = null;
+                    next.isPeaceRequesting = false;
+                    next.peaceTribute = null;
+                    next.warTotalExpense = 0;
+                }
+                if (next.foreignWars) next.foreignWars = {};
+                if (next.installmentPayment) next.installmentPayment = null;
+                return next;
+            }
+            return nation;
+        }
+
+        // 以下为正常国家，需要浅拷贝
         const next = { ...nation };
-        const shouldProcessAIForNation = next.id === 'player' || aiTargetIds.has(next.id);
 
         // [UI COMPATIBILITY] Derive alliedWithPlayer from organization membership
         next.alliedWithPlayer = updatedOrganizations.some(org =>
@@ -5893,58 +5883,8 @@ export const simulateTick = ({
             }
         }
 
-        // [MODIFIED] AI国家不再因时代过期而消失，发展完全独立
-        const hasAppeared = visibleEpoch >= (nation.appearEpoch ?? 0);
+        // 过期国家（已出现但已过期）：仅清理战争状态
         const isExpiredNation = nation.expireEpoch != null && visibleEpoch > nation.expireEpoch;
-        if (!hasAppeared) {
-            if (next.isAtWar) {
-                next.isAtWar = false;
-                next.warScore = 0;
-                next.warDuration = 0;
-                next.warStartDay = null;
-                next.enemyLosses = 0;
-                next.warTarget = null;
-                next.isPeaceRequesting = false;
-                next.peaceTribute = null;
-            }
-            return next;
-        }
-
-        // ========================================================================
-        // [PERFORMANCE OPTIMIZATION] Skip all AI logic for destroyed nations
-        // Annexed nations or nations with zero population should not execute any simulation
-        // This prevents "unknown nations" in alliances and reduces CPU usage
-        // ========================================================================
-        const isDestroyedNation = next.isAnnexed || (next.population || 0) <= 0;
-        if (isDestroyedNation) {
-            // Clear any ongoing wars or diplomatic actions
-            if (next.isAtWar) {
-                next.isAtWar = false;
-                next.warScore = 0;
-                next.warDuration = 0;
-                next.warStartDay = null;
-                next.enemyLosses = 0;
-                next.warTarget = null;
-                next.isPeaceRequesting = false;
-                next.peaceTribute = null;
-                next.warTotalExpense = 0;
-            }
-            // Clear foreign wars
-            if (next.foreignWars) {
-                next.foreignWars = {};
-            }
-            // Clear installment payments
-            if (next.installmentPayment) {
-                next.installmentPayment = null;
-            }
-            // Clear any diplomatic actions
-            next.relation = 0;
-            next.alliedWithPlayer = false;
-
-            // Skip all AI simulation for this nation
-            return next;
-        }
-
         if (isExpiredNation && next.isAtWar) {
             next.isAtWar = false;
             next.warScore = 0;

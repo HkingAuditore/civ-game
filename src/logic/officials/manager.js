@@ -98,7 +98,7 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
         financialSatisfaction: 'satisfied',
         baseSalary: candidate.salary,
         investmentProfile: generateInvestmentProfile(candidate.sourceStratum, candidate.politicalStance, currentDay),
-        ownedProperties: [],
+        _propertySummary: { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 },
         lastDayPropertyIncome: 0,
         // 忠诚度系统
         loyalty: initialLoyalty,
@@ -439,10 +439,10 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
 };
 
 /**
- * 计算单个官员的“绝对影响力”（用于把官员数量少的问题，通过质量/资历放大）
+ * 计算单个官员的"绝对影响力"（用于把官员数量少的问题，通过质量/资历放大）
  * 设计目标：
  * - 影响力主要由：出身阶层、个人财富、产业规模、在位时间 决定
- * - 输出是一个“绝对值”，后续会换算成对出身阶层的百分比加成
+ * - 输出是一个"绝对值"，后续会换算成对出身阶层的百分比加成
  */
 export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
     if (!official) return 0;
@@ -453,12 +453,15 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
     const sourceStratum = official.sourceStratum;
 
     const wealth = Math.max(0, official.wealth || 0);
-    const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
+    const propertySummary = official._propertySummary || { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 };
 
-    // 产业规模：数量与等级共同反映“势力网络”
-    const propertyCount = ownedProperties.length;
-    const propertyLevelSum = ownedProperties.reduce((sum, p) => sum + Math.max(0, p?.level || 0), 0);
-    const propertyValue = ownedProperties.reduce((sum, prop) => sum + Math.max(0, prop?.purchaseCost || 0), 0);
+    // 产业规模：数量与等级共同反映"势力网络"
+    const propertyCount = propertySummary.totalCount || 0;
+    const propertyLevelSum = Object.values(propertySummary.byBuildingLevel || {}).reduce(
+        (sum, levels) => sum + Object.entries(levels || {}).reduce((s, [lvl, cnt]) => s + Number(lvl) * cnt, 0), 0
+    );
+    // 产值用数量×估算单价（无逐条 purchaseCost，用 totalCount 作为影响因子）
+    const propertyValue = propertyCount * 100;
 
     // 任期：采用对数增长（前期提升明显，后期边际递减），避免无限膨胀
     const daysInOffice = official.hireDate != null ? Math.max(0, currentDay - official.hireDate) : 0;
@@ -466,8 +469,8 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
     const tenureFactor = 1 + Math.min(2.5, Math.log2(tenureYears + 1) * 0.9); // 最多 ~3.5x
 
     // 出身阶层基座：
-    // 1) 先给一个“阶层固有基座”（让贵族/资本出身天然更有盘根错节的影响力）
-    // 2) 再与“该阶层当前影响力”挂钩：阶层越强，培养/供养出的官员天然更能撬动权力
+    // 1) 先给一个"阶层固有基座"（让贵族/资本出身天然更有盘根错节的影响力）
+    // 2) 再与"该阶层当前影响力"挂钩：阶层越强，培养/供养出的官员天然更能撬动权力
     const stratumBase = {
         // 上层与新兴精英
         capitalist: 260,
@@ -493,7 +496,7 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
     };
     const staticBase = stratumBase[sourceStratum] ?? 100;
 
-    // classInfluence 在 simulation 中的定义是“绝对影响力值”（不是占比），量级通常在几十~几百+
+    // classInfluence 在 simulation 中的定义是"绝对影响力值"（不是占比），量级通常在几十~几百+
     // 用对数把它压到一个温和区间，避免阶层影响力巨大时把官员绝对值推爆
     const classInfluence = context.classInfluence || {};
     const currentStratumInfluence = Math.max(0, classInfluence[sourceStratum] || 0);
@@ -503,7 +506,7 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
 
     // 财富/产业采用对数，保证数量级增长但不至于爆炸
     const wealthScore = Math.log10(wealth + 1) * 60;               // 0~(随财富增长)
-    const propertyCountScore = Math.sqrt(propertyCount) * 55;      // 产业数量带来的“关系网”
+    const propertyCountScore = Math.sqrt(propertyCount) * 55;      // 产业数量带来的"关系网"
     const propertyLevelScore = Math.sqrt(propertyLevelSum) * 45;   // 升级越高越像大庄园/大工厂
     const propertyValueScore = Math.log10(propertyValue + 1) * 40; // 总资产规模
 
@@ -511,7 +514,7 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
     const officialCapacity = Math.max(0, polityEffects.officialCapacity || 0);
     const bureaucracyFactor = 1 + Math.min(1.2, officialCapacity * 0.05); // 最多2.2x
 
-    // 官员个体天赋（旧字段兼容）：stratumInfluenceBonus 本来是百分比，这里当作“额外权威”折算
+    // 官员个体天赋（旧字段兼容）：stratumInfluenceBonus 本来是百分比，这里当作"额外权威"折算
     const legacyBonus = Math.max(0, official.stratumInfluenceBonus || 0);
     const legacyScore = legacyBonus * 120; // 0~30(若0.25)，用于保持原有差异
 
@@ -538,8 +541,8 @@ export const getOfficialInfluencePoints = (officials, isPaid = true, context = {
     const payMultiplier = isPaid ? 1 : 0.5;
 
     // 设计目标：
-    // - 官员数量少时也能在后期显著“抬升”其出身阶层影响力
-    // - 直接返回“绝对影响力点数”，由 simulation 采用加法叠加
+    // - 官员数量少时也能在后期显著"抬升"其出身阶层影响力
+    // - 直接返回"绝对影响力点数"，由 simulation 采用加法叠加
     // - 单官员加点上限，避免极端财富导致离谱
     const MAX_SINGLE_OFFICIAL_POINTS = 20000; // 单人最多 +2万（原25万，大幅下调）
 
@@ -549,12 +552,12 @@ export const getOfficialInfluencePoints = (officials, isPaid = true, context = {
         const stratum = official.sourceStratum;
         const absoluteInfluence = calculateOfficialAbsoluteInfluence(official, context);
 
-        // 轻微“派系份额”修正：大派系官僚体系更容易把官员力量制度化
+        // 轻微"派系份额"修正：大派系官僚体系更容易把官员力量制度化
         const baseStratumInfluence = Math.max(0, classInfluence[stratum] || 0);
         const factionShare = totalInfluence > 0 ? (baseStratumInfluence / totalInfluence) : 0;
         const factionMultiplier = 1 + Math.min(0.35, factionShare * 0.7); // 上限+35%
 
-        // 缩放：把 absoluteInfluence 映射到“可见的后期加点”区间
+        // 缩放：把 absoluteInfluence 映射到"可见的后期加点"区间
         // absoluteInfluence 基于 log(财富)，通常在 500-1500 之间
         // SCALE = 10 -> 单人贡献约 5000 - 15000 点影响力
         // 相当于 1 个官员 = 1万 - 3万 平民的影响力
@@ -581,7 +584,7 @@ export const getOfficialInfluencePoints = (officials, isPaid = true, context = {
 };
 
 /**
- * 旧接口：返回“百分比加成”。
+ * 旧接口：返回"百分比加成"。
  * 为了兼容可能的UI/旧逻辑保留，但 simulation 已切换到方案A。
  */
 export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}) => {
@@ -918,20 +921,22 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
     }
     const newOfficials = currentOfficials.filter(o => o && o.id && o.id !== targetId);
 
-    const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
+    const propertySummary = official._propertySummary || { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 };
+    const propertyCount = propertySummary.totalCount || 0;
 
     // 处死：产业转交给原始业主阶层；解雇/流放：产业倒闭（消失）
     const propertyOutcome = disposalType === 'execute' ? 'transfer' : 'collapse';
 
+    // 简并后从 summary 构建转交列表（无逐条数据，按建筑类型聚合转交）
     const propertyTransfers = propertyOutcome === 'transfer'
-        ? ownedProperties.map(prop => {
-            const building = BUILDINGS.find(b => b.id === prop.buildingId);
+        ? Object.entries(propertySummary.byBuilding || {}).map(([buildingId, count]) => {
+            const building = BUILDINGS.find(b => b.id === buildingId);
             return {
-                buildingId: prop.buildingId,
-                instanceId: prop.instanceId,
-                level: prop.level || 0,
+                buildingId,
+                count: count || 0,
                 targetStratum: building?.owner || official.sourceStratum,
-                value: prop.purchaseCost || 0,
+                // 产值用数量×估算单价
+                value: (count || 0) * 100,
             };
         })
         : [];
@@ -954,10 +959,8 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
         if (finalLoyalty <= 0) coupChance *= 2;
 
         // 检查是否有资本发动政变
-        const propertyValue = ownedProperties
-            .reduce((sum, p) => sum + (p.purchaseCost || 0), 0);
+        const propertyValue = propertyCount * 100;
         const wealthScore = (official.wealth || 0) + propertyValue;
-        const propertyCount = ownedProperties.length;
 
         // 必须有一定资本才能发动政变
         const hasCapital = wealthScore >= LOYALTY_CONFIG.COUP_WEALTH_THRESHOLD * 0.5 ||
@@ -979,7 +982,7 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
         },
         logMessage: consequences.logMessage,
         propertyOutcome,
-        propertyCount: ownedProperties.length,
+        propertyCount,
         propertyTransfer: propertyOutcome === 'transfer' ? {
             transfers: propertyTransfers,
             totalValue: propertyTransferTotal,
@@ -1046,15 +1049,19 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
     }
 
     let newWealth = official.wealth || 0;
-    let newOwnedProperties = [...(official.ownedProperties || [])];
-    let newManagedBuildings = [...(official.managedBuildings || [])];
+    let newPropertySummary = official._propertySummary
+        ? { byBuilding: { ...(official._propertySummary.byBuilding || {}) }, byBuildingLevel: { ...(official._propertySummary.byBuildingLevel || {}) }, totalCount: official._propertySummary.totalCount || 0 }
+        : { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 };
+    let newManagedSummary = official._managedSummary
+        ? { byBuilding: { ...(official._managedSummary.byBuilding || {}) }, totalCount: official._managedSummary.totalCount || 0 }
+        : { byBuilding: {}, totalCount: 0 };
 
     // 处理存量产业
-    if (fromPolicy === 'private' && newOwnedProperties.length > 0) {
+    if (fromPolicy === 'private' && (newPropertySummary.totalCount || 0) > 0) {
         if (toPolicy === 'high_salary') {
             // 私产制 → 高薪养廉：没收产业
             if (confiscationMode === 'compensate') {
-                const compensation = newOwnedProperties.reduce((sum, p) => sum + (p.purchaseCost || 0) * 0.5, 0);
+                const compensation = (newPropertySummary.totalCount || 0) * 50;
                 newWealth += compensation;
                 treasuryChange -= compensation;
                 logMessages.push(`补偿${official.name}产业没收费 ${Math.ceil(compensation)} 银`);
@@ -1062,29 +1069,30 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
                 loyaltyChange -= 15;
                 logMessages.push(`强制没收${official.name}的全部产业`);
             }
-            newOwnedProperties = [];
+            newPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 };
         } else if (toPolicy === 'state_managed') {
             // 私产制 → 代经营制：产权转为国有，官员改为代管人
-            newManagedBuildings = newOwnedProperties.map(p => ({
-                ...p,
-                ownerType: 'state',
-                managedBy: official.id,
-            }));
-            newOwnedProperties = [];
-            logMessages.push(`${official.name}的${newManagedBuildings.length}处产业转为国有代管`);
+            newManagedSummary = {
+                byBuilding: { ...newPropertySummary.byBuilding },
+                totalCount: newPropertySummary.totalCount,
+            };
+            newPropertySummary = { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 };
+            logMessages.push(`${official.name}的${newManagedSummary.totalCount}处产业转为国有代管`);
         }
     }
 
     // 从代经营制切换走：清除代管关系
     if (fromPolicy === 'state_managed') {
         if (toPolicy === 'private') {
-            newOwnedProperties = [
-                ...newOwnedProperties,
-                ...newManagedBuildings.map(b => ({ ...b, ownerType: 'official' }))
-            ];
-            newManagedBuildings = [];
+            // 代管→私产：代管建筑转为私产
+            newPropertySummary = {
+                byBuilding: { ...newPropertySummary.byBuilding, ...newManagedSummary.byBuilding },
+                byBuildingLevel: { ...newPropertySummary.byBuildingLevel },
+                totalCount: (newPropertySummary.totalCount || 0) + (newManagedSummary.totalCount || 0),
+            };
+            newManagedSummary = { byBuilding: {}, totalCount: 0 };
         } else {
-            newManagedBuildings = [];
+            newManagedSummary = { byBuilding: {}, totalCount: 0 };
         }
     }
 
@@ -1098,8 +1106,8 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
         lastPolicyChangeDay: currentDay,
         loyalty: newLoyalty,
         wealth: newWealth,
-        ownedProperties: newOwnedProperties,
-        managedBuildings: newManagedBuildings,
+        _propertySummary: newPropertySummary,
+        _managedSummary: newManagedSummary,
     };
 
     return {

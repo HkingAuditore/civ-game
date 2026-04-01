@@ -1696,29 +1696,34 @@ export const useGameActions = (gameState, addLog) => {
                 const holders = [];
 
                 officials.forEach((off, idx) => {
-                    const propCount = (off.ownedProperties || []).filter(p => p.buildingId === id && (p.level || 0) === targetLevel).length;
+                    const propCount = off._propertySummary?.byBuildingLevel?.[id]?.[targetLevel] || 0;
                     if (propCount > 0) {
                         totalOwnedByOfficials += propCount;
                         holders.push({ index: idx, count: propCount, official: off });
                     }
                 });
 
-                // 如果官员持有总数 > 国家剩余总数，需要移除官员私产
+                // 如果官员持有总数 > 国家剩余总数，需要移除官员私产（从 summary 中扣减）
                 if (totalOwnedByOfficials > remainingGlobalCount) {
                     const victimEntry = holders[Math.floor(Math.random() * holders.length)];
 
                     setOfficials(prev => {
                         const newOfficials = [...prev];
                         const victim = { ...newOfficials[victimEntry.index] };
-                        const props = [...(victim.ownedProperties || [])];
-
-                        const removeIdx = props.findIndex(p => p.buildingId === id && (p.level || 0) === targetLevel);
-                        if (removeIdx !== -1) {
-                            props.splice(removeIdx, 1);
-                            victim.ownedProperties = props;
-                            newOfficials[victimEntry.index] = victim;
+                        const summary = victim._propertySummary
+                            ? { byBuilding: { ...victim._propertySummary.byBuilding }, byBuildingLevel: { ...victim._propertySummary.byBuildingLevel }, totalCount: victim._propertySummary.totalCount }
+                            : { byBuilding: {}, byBuildingLevel: {}, totalCount: 0 };
+                        const levels = { ...(summary.byBuildingLevel[id] || {}) };
+                        if (levels[targetLevel] > 0) {
+                            levels[targetLevel] -= 1;
+                            if (levels[targetLevel] <= 0) delete levels[targetLevel];
+                            summary.byBuildingLevel[id] = levels;
+                            summary.byBuilding[id] = Math.max(0, (summary.byBuilding[id] || 0) - 1);
+                            if (summary.byBuilding[id] <= 0) delete summary.byBuilding[id];
+                            summary.totalCount = Math.max(0, summary.totalCount - 1);
                         }
-
+                        victim._propertySummary = summary;
+                        newOfficials[victimEntry.index] = victim;
                         return newOfficials;
                     });
                 }
@@ -2448,8 +2453,8 @@ export const useGameActions = (gameState, addLog) => {
                 officialId, officialName: official.name, role: official.role
             }, daysElapsed);
 
-            if (official.ownedProperties?.length) {
-                addLog(`官员产业已全部倒闭（${official.ownedProperties.length} 处）`);
+            if (official._propertySummary?.totalCount) {
+                addLog(`官员产业已全部倒闭（${official._propertySummary.totalCount} 处）`);
             }
 
             // 更新人口结构：从官员阶层移回来源阶层（或无业）

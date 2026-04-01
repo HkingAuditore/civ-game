@@ -318,12 +318,12 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const officialOwnership = useMemo(() => {
         const summary = { count: 0, owners: {} };
         (officials || []).forEach(official => {
-            (official.ownedProperties || []).forEach(prop => {
-                if (prop.buildingId !== building.id) return;
-                summary.count += 1;
+            const cnt = official._propertySummary?.byBuilding?.[building.id] || 0;
+            if (cnt > 0) {
+                summary.count += cnt;
                 const ownerName = official.name || official.id || '未知官员';
-                summary.owners[ownerName] = (summary.owners[ownerName] || 0) + 1;
-            });
+                summary.owners[ownerName] = (summary.owners[ownerName] || 0) + cnt;
+            }
         });
         return summary;
     }, [officials, building.id]);
@@ -346,12 +346,12 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const stateOwnership = useMemo(() => {
         const summary = { count: 0, managers: {} };
         (officials || []).forEach(official => {
-            (official.managedBuildings || []).forEach(mb => {
-                if (mb.buildingId !== building.id) return;
-                summary.count += 1;
+            const cnt = official._managedSummary?.byBuilding?.[building.id] || 0;
+            if (cnt > 0) {
+                summary.count += cnt;
                 const managerName = official.name || official.id || '未知官员';
-                summary.managers[managerName] = (summary.managers[managerName] || 0) + 1;
-            });
+                summary.managers[managerName] = (summary.managers[managerName] || 0) + cnt;
+            }
         });
         return summary;
     }, [officials, building.id]);

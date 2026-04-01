@@ -201,24 +201,16 @@ const OfficialCardInner = ({
             : loyalty >= 25 ? 'text-orange-400'
                 : 'text-red-400';
 
-    const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
-    const managedBuildings = Array.isArray(official.managedBuildings) ? official.managedBuildings : [];
     const officialPolicy = official.propertyPolicy || 'private';
     const policyInfo = PROPERTY_POLICY_CONFIG[officialPolicy] || PROPERTY_POLICY_CONFIG.private;
-    const propertyCount = ownedProperties.length;
-    const managedCount = managedBuildings.length;
+    const pSummary = official._propertySummary || { byBuilding: {}, totalCount: 0 };
+    const mSummary = official._managedSummary || { byBuilding: {}, totalCount: 0 };
+    const propertyCount = pSummary.totalCount || 0;
+    const managedCount = mSummary.totalCount || 0;
     const propertyIncome = typeof official.lastDayPropertyIncome === 'number' ? official.lastDayPropertyIncome : 0;
     const managementFeeIncome = typeof official.lastDayManagementFee === 'number' ? official.lastDayManagementFee : 0;
-    const propertyBreakdown = ownedProperties.reduce((acc, prop) => {
-        if (!prop?.buildingId) return acc;
-        acc[prop.buildingId] = (acc[prop.buildingId] || 0) + 1;
-        return acc;
-    }, {});
-    const managedBreakdown = managedBuildings.reduce((acc, mb) => {
-        if (!mb?.buildingId) return acc;
-        acc[mb.buildingId] = (acc[mb.buildingId] || 0) + 1;
-        return acc;
-    }, {});
+    const propertyBreakdown = pSummary.byBuilding || {};
+    const managedBreakdown = mSummary.byBuilding || {};
     const propertyEntries = Object.entries(propertyBreakdown)
         .map(([buildingId, count]) => {
             const buildingName = BUILDINGS.find(b => b.id === buildingId)?.name || buildingId;
@@ -1108,16 +1100,15 @@ const officialCardPropsAreEqual = (prevProps, nextProps) => {
         }
     }
 
-    // Compare ownedProperties array length (shallow check)
-    const prevProps_count = Array.isArray(prevOfficial.ownedProperties) ? prevOfficial.ownedProperties.length : 0;
-    const nextProps_count = Array.isArray(nextOfficial.ownedProperties) ? nextOfficial.ownedProperties.length : 0;
+    // Compare property summary counts
+    const prevProps_count = prevOfficial._propertySummary?.totalCount || 0;
+    const nextProps_count = nextOfficial._propertySummary?.totalCount || 0;
     if (prevProps_count !== nextProps_count) {
         return false;
     }
 
-    // Compare managedBuildings array length
-    const prevManaged = Array.isArray(prevOfficial.managedBuildings) ? prevOfficial.managedBuildings.length : 0;
-    const nextManaged = Array.isArray(nextOfficial.managedBuildings) ? nextOfficial.managedBuildings.length : 0;
+    const prevManaged = prevOfficial._managedSummary?.totalCount || 0;
+    const nextManaged = nextOfficial._managedSummary?.totalCount || 0;
     if (prevManaged !== nextManaged) {
         return false;
     }

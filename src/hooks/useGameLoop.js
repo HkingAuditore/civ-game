@@ -2490,11 +2490,13 @@ difficulty, // 游戏难度
                         COUP_PROPERTY_THRESHOLD, COUP_INFLUENCE_THRESHOLD } = LOYALTY_CONFIG;
 
                     const candidates = officialsList
-                        .filter(official => official && official.ownedProperties?.length)
+                        .filter(official => official && (official._propertySummary?.totalCount || 0) > 0)
                         .map(official => {
-                            const propertyValue = official.ownedProperties.reduce((sum, prop) => sum + (prop.purchaseCost || 0), 0);
+                            const ps = official._propertySummary || {};
+                            const propertyCount = ps.totalCount || 0;
+                            // 产值用数量×估算单价
+                            const propertyValue = propertyCount * 100;
                             const wealthScore = (official.wealth || 0) + propertyValue;
-                            const propertyCount = (official.ownedProperties || []).length;
                             const stratumInfluence = influenceShare(official.sourceStratum || 'official');
                             return {
                                 official,
@@ -2549,15 +2551,15 @@ difficulty, // 游戏难度
                             const newPopStructure = { ...(result.popStructure || {}) };
                             let populationLoss = 1;
 
-                            (target.official.ownedProperties || []).forEach(prop => {
-                                const buildingId = prop.buildingId;
-                                const level = prop.level || 0;
+                            // 从 _propertySummary 计算政变后的建筑/人口损失
+                            const coupPropertySummary = target.official._propertySummary || {};
+                            Object.entries(coupPropertySummary.byBuilding || {}).forEach(([buildingId, count]) => {
                                 const building = BUILDINGS.find(b => b.id === buildingId);
                                 if (building) {
-                                    const config = getBuildingEffectiveConfig(building, level);
+                                    const config = getBuildingEffectiveConfig(building, 0);
                                     Object.entries(config.jobs || {}).forEach(([role, slots]) => {
                                         if (!slots) return;
-                                        const loss = Math.min(newPopStructure[role] || 0, slots);
+                                        const loss = Math.min(newPopStructure[role] || 0, slots * count);
                                         if (loss > 0) {
                                             newPopStructure[role] = Math.max(0, (newPopStructure[role] || 0) - loss);
                                             populationLoss += loss;
@@ -2566,19 +2568,9 @@ difficulty, // 游戏难度
                                 }
 
                                 if (newBuildings[buildingId]) {
-                                    newBuildings[buildingId] = Math.max(0, newBuildings[buildingId] - 1);
+                                    newBuildings[buildingId] = Math.max(0, newBuildings[buildingId] - count);
                                     if (newBuildings[buildingId] === 0) {
                                         delete newBuildings[buildingId];
-                                    }
-                                }
-
-                                if (newBuildingUpgrades[buildingId] && level > 0) {
-                                    newBuildingUpgrades[buildingId][level] = Math.max(0, (newBuildingUpgrades[buildingId][level] || 0) - 1);
-                                    if (newBuildingUpgrades[buildingId][level] <= 0) {
-                                        delete newBuildingUpgrades[buildingId][level];
-                                    }
-                                    if (Object.keys(newBuildingUpgrades[buildingId]).length === 0) {
-                                        delete newBuildingUpgrades[buildingId];
                                     }
                                 }
                             });
