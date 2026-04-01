@@ -1123,7 +1123,7 @@ difficulty, // 游戏难度
                 setMerchantState(prev => ({ ...prev, pendingTrades: validPendingTrades }));
             }
         }
-    }, [nations, setTradeRoutes, setMerchantState]);
+    }, [nations, setMerchantState]);
 
     // 游戏核心循环
     useEffect(() => {

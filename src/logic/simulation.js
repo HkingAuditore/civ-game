@@ -665,12 +665,6 @@ export const simulateTick = ({
         })()
         : () => {};
 
-    // Track trade tax in silver log if any
-    if (calculatedTradeRouteTax > 0) {
-        // We add it to 'rates' later, but for 'trackSilverChange' purposes we should log it?
-        // Actually trackSilverChange is defined below. We will call it there.
-    }
-
     // Helper: modify res[resourceType] AND track the change in one call (for traceability)
     const applyResourceChange = (resourceType, amount, reason) => {
         if (amount === 0) return;
@@ -689,22 +683,9 @@ export const simulateTick = ({
         applyResourceChange('silver', amount, reason);
     };
 
-    // Record trade tax if calculated
-    if (calculatedTradeRouteTax > 0) {
-        // Note: Manual trade logic adds the *resources* (import/export), but the tax revenue
-        // is usually handled as a separate silver addition.
-    }
-    // [FIX] Trade tax is calculated per-tick based on active routes.
-    // Do not add initialTradeRouteTax (previous tick's value) to avoid double counting/accumulation.
-    const tradeRouteTax = calculatedTradeRouteTax;
-
-    // [FIXED] Apply trade route resource deltas AFTER log system is initialized
-    if (tradeRouteSummary && tradeRouteSummary.resourceDelta) {
-        Object.entries(tradeRouteSummary.resourceDelta).forEach(([key, delta]) => {
-            // Use applyResourceChange to ensure logging (especially for silver)
-            applyResourceChange(key, delta, 'trade_route_transaction');
-        });
-    }
+    // [FIX] 贸易系统已在 simulateMerchantTrade 中直接结算资源、国家库存与关税。
+    // 旧的 tradeRouteSummary / calculatedTradeRouteTax 链路已被移除，避免残留引用和重复结算。
+    const tradeRouteTax = 0;
 
     // Adapter callback for external modules (different argument order)
     // External modules call: onResourceChange(delta, reason, resourceType)
@@ -5859,19 +5840,6 @@ export const simulateTick = ({
             org.members.includes(nation.id) &&
             org.members.includes('player')
         );
-
-        // Apply manual trade deltas (from processManualTradeRoutes)
-        if (tradeRouteSummary?.nationDelta && tradeRouteSummary.nationDelta[nation.id]) {
-            const delta = tradeRouteSummary.nationDelta[nation.id];
-            next.budget = Math.max(0, (next.budget || 0) + (delta.budget || 0));
-            next.relation = Math.min(100, Math.max(-100, (next.relation || 0) + (delta.relation || 0)));
-            if (delta.inventory) {
-                next.inventory = next.inventory || {};
-                Object.entries(delta.inventory).forEach(([k, v]) => {
-                    next.inventory[k] = Math.max(0, (next.inventory[k] || 0) + v);
-                });
-            }
-        }
 
         // 过期国家（已出现但已过期）：仅清理战争状态
         const isExpiredNation = nation.expireEpoch != null && visibleEpoch > nation.expireEpoch;
