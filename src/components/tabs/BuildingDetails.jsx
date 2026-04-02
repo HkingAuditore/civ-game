@@ -226,11 +226,11 @@ const BuildingHeroImage = ({ building, hasImage, onImageLoad, onImageError }) =>
                         {building.owner && (
                             <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-yellow-200 bg-yellow-900/60 border border-yellow-600/40 rounded-full px-2.5 py-0.5 backdrop-blur-sm">
                                 <Icon name="User" size={10} />
-                                <span className="font-semibold">业主: {STRATA[building.owner]?.name || building.owner}</span>
+                                <span className="font-semibold">业主: {building.owner === 'state' ? '国有' : (STRATA[building.owner]?.name || building.owner)}</span>
                             </div>
                         )}
                     </div>
-                </div>
+                    {/* 建筑描述 */}                </div>
             </div>
 
             {/* 装饰性边框 */}
@@ -895,7 +895,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         {building.owner && (
                             <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded-full px-2.5 py-1">
                                 <Icon name="User" size={12} />
-                                <span className="font-semibold">业主: {STRATA[building.owner]?.name || building.owner}</span>
+                                <span className="font-semibold">业主: {building.owner === 'state' ? '国有' : (STRATA[building.owner]?.name || building.owner)}</span>
                             </div>
                         )}
                     </div>
@@ -1251,7 +1251,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                             </span>
                                         </div>
                                         <div className="mt-1 text-xs text-gray-400">
-                                            由 {STRATA[building.owner]?.name || building.owner} 阶层经营，提供 {stratumCount * (building.jobs?.[building.owner] || 0)} 个业主岗位
+                                            由 {building.owner === 'state' ? '国家' : (STRATA[building.owner]?.name || building.owner)} 阶层经营，提供 {stratumCount * (building.jobs?.[building.owner] || 0)} 个业主岗位
                                         </div>
                                     </div>
                                 ) : null;

@@ -2,7 +2,7 @@
 // 提供便捷的导入方式
 
 // 基础配置
-export { GAME_SPEEDS, RESOURCES, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TAX_LIMITS, TAX_BASE_RATES, LOG_STORAGE_LIMIT, HISTORY_STORAGE_LIMIT } from './gameConstants.js';
+export { GAME_SPEEDS, RESOURCES, ECONOMIC_INFLUENCE, TAX_LIMITS, TAX_BASE_RATES, LOG_STORAGE_LIMIT, HISTORY_STORAGE_LIMIT } from './gameConstants.js';
 export { EPOCHS } from './epochs.js';
 export { STRATA } from './strata.js';
 export { BUILDINGS } from './buildings.js';

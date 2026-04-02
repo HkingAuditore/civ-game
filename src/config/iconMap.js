@@ -245,6 +245,7 @@ import {
   BadgeDollarSign,
   Wallet,
   Quote,
+  Shell,
 } from 'lucide-react';
 
 export const iconMap = {
@@ -499,6 +500,7 @@ export const iconMap = {
   BadgeDollarSign,
   Wallet,
   Quote,
+  Shell,
   // Fallback 映射（lucide-react 中不存在的图标）
   Dog: Crosshair,      // 用 Crosshair 替代
   Bone: Skull,          // 用 Skull 替代

@@ -110,6 +110,15 @@ export const TECHS = [
 
     // 青铜时代
     {
+        id: 'minting',
+        name: "铸币术",
+        desc: "掌握金属铸造标准化货币的技术，解锁铸币所。财政收入 +3%。",
+        cost: { science: 900 },
+        epoch: 1,
+        prerequisites: ['barter', 'copper_mining'],
+        effects: { taxIncome: 0.03 },
+    },
+    {
         id: 'sailing',
         name: "航海术",
         desc: "解锁港口建设，开启沿海贸易。财政收入 +3%，每人每日获得 0.02 粮食。",
@@ -429,6 +438,15 @@ export const TECHS = [
     },
     // 探索时代
     {
+        id: 'monetary_reform',
+        name: "货币改革",
+        desc: "统一度量衡与货币标准，解锁皇家铸币厂。铸币效率大幅提升。",
+        cost: { science: 7200 },
+        epoch: 4,
+        prerequisites: ['minting', 'charter_companies'],
+        effects: { taxIncome: 0.05 },
+    },
+    {
         id: 'cartography',
         name: "海图绘制",
         desc: "解锁船坞建设，开启远洋贸易。船坞香料获取 +18%。",
@@ -577,6 +595,15 @@ export const TECHS = [
     },
 
     // 工业时代
+    {
+        id: 'central_banking',
+        name: "中央银行制度",
+        desc: "建立国家级银行体系，通过纸币发行和信用管理调控经济。解锁中央银行。",
+        cost: { science: 28000 },
+        epoch: 6,
+        prerequisites: ['monetary_reform', 'industrialization'],
+        effects: { taxIncome: 0.06 },
+    },
     {
         id: 'coal_gasification',
         name: "煤气化",
@@ -1059,6 +1086,16 @@ export const TECHS = [
     },
 
     // 原子时代 (Epoch 8) 知识树
+    // V3: Modern monetary tech
+    {
+        id: 'modern_monetary',
+        name: "现代货币理论",
+        desc: "电子化货币管理与精确的宏观经济调控，解锁联邦储备系统。",
+        cost: { science: 35000 },
+        epoch: 8,
+        prerequisites: ['central_banking', 'electrification'],
+        effects: { taxIncome: 0.08 },
+    },
     // 第一批：原料/基础
     {
         id: 'nuclear_physics',

@@ -650,7 +650,7 @@ export const simulateMerchantTrade = ({
         if (trade.daysRemaining <= 0) {
             // [REFACTORED] Use Ledger for revenue (Income)
             if (ledger) {
-                ledger.transfer('void', 'merchant', trade.revenue, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
+                ledger.transfer('void', 'merchant', trade.revenue, TRANSACTION_CATEGORIES.INCOME.TRADE_EXPORT_REVENUE, TRANSACTION_CATEGORIES.INCOME.TRADE_EXPORT_REVENUE);
             }
             // Keep roleWagePayout for other stats
             roleWagePayout.merchant = (roleWagePayout.merchant || 0) + trade.revenue;
@@ -1662,12 +1662,16 @@ const executeExportTradeV2 = ({
     if ((res[resourceKey] || 0) < totalAmount) return { success: false };
 
     // [REFACTORED] Use Ledger for transactions
-    // 1. Pay Base Cost (to Void/Market)
+    // 1. Export Base Cost — inventory already paid for via productionPurchase,
+    //    no silver deduction, no expense recording. Only track for GDP/stats.
     const baseCost = cost * batchMultiplier;
     if (ledger) {
-        ledger.transfer('merchant', 'void', baseCost, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT);
+        // Record to internal field for GDP tracking only (not displayed as expense)
+        const merchantExp = ledger.classFinancialData['merchant']?.expense;
+        if (merchantExp) {
+            merchantExp._tradeExportCost = (merchantExp._tradeExportCost || 0) + baseCost;
+        }
     }
-    roleExpense.merchant = (roleExpense.merchant || 0) + baseCost;
 
     // 2. Pay Base Tax (Resource Tax)
     const baseTaxPaid = cost * baseRate * batchMultiplier;
@@ -1805,7 +1809,7 @@ const executeImportTradeV2 = ({
     // 1. Pay Foreigner (Import Cost)
     const importCostValue = totalImportCost;
     if (ledger) {
-        ledger.transfer('merchant', 'void', importCostValue, TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT, TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT);
+        ledger.transfer('merchant', 'void', importCostValue, TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT_PAYMENT, TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT_PAYMENT);
     }
     roleExpense.merchant = (roleExpense.merchant || 0) + importCostValue;
 
@@ -1984,7 +1988,7 @@ const executeExportTrade = ({
         const totalAppliedTax = appliedTax * batchMultiplier;
 
         if ((wealth.merchant || 0) >= totalOutlay && (res[resourceKey] || 0) >= totalAmount) {
-            wealth.merchant -= totalOutlay;
+            // [FIX] Removed direct `wealth.merchant -= totalOutlay` — Ledger transfers below already deduct from wealth
 
             // Separate tariff from base transaction tax for taxBreakdown
             // Tariff rate is now used directly as percentage (1 = 100% tariff)
@@ -2156,7 +2160,7 @@ const executeImportTrade = ({
         const totalAppliedTax = appliedTax * batchMultiplier;
 
         if ((wealth.merchant || 0) >= totalCost) {
-            wealth.merchant -= totalCost;
+            // [FIX] Removed direct `wealth.merchant -= totalCost` — Ledger transfers below already deduct from wealth
             roleExpense.merchant = (roleExpense.merchant || 0) + totalCost;
             applyForeignInventoryDeltaAll(resourceKey, -totalAmount);
 

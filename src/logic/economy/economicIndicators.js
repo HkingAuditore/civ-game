@@ -225,8 +225,15 @@ export function calculateGDP({
         const cost = need.cost || need.totalCost || 0;
         return total + (Number.isFinite(cost) ? cost : 0);
       }, 0);
+
+    // Merchant self-consumption (inventory loss, not monetary expense, but still GDP consumption)
+    const selfConsumption = Object.values(classData.expense?._selfConsumption || {})
+      .reduce((total, need) => {
+        const cost = need.cost || need.totalCost || 0;
+        return total + (Number.isFinite(cost) ? cost : 0);
+      }, 0);
     
-    return sum + essentialConsumption + luxuryConsumption;
+    return sum + essentialConsumption + luxuryConsumption + selfConsumption;
   }, 0);
   
   // 2. 投资 (Investment - I)

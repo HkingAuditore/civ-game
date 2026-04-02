@@ -924,7 +924,9 @@ export const EconomicDashboard = ({
                     const totalIncome = Object.values(data.income || {}).reduce((sum, val) => sum + (val || 0), 0);
                     
                     // 修复：正确计算总支出（处理嵌套对象）
-                    const totalExpense = Object.values(data.expense || {}).reduce((sum, val) => {
+                    const totalExpense = Object.entries(data.expense || {}).reduce((sum, [key, val]) => {
+                      // Skip internal tracking fields (e.g. _selfConsumption)
+                      if (key.startsWith('_')) return sum;
                       if (typeof val === 'object' && val !== null) {
                         // 如果是对象（如essentialNeeds），计算其中所有项的cost总和
                         const objTotal = Object.values(val).reduce((objSum, item) => {
@@ -982,7 +984,7 @@ export const EconomicDashboard = ({
                             查看支出明细
                           </summary>
                           <div className="mt-2 pl-4 space-y-1">
-                            {Object.entries(data.expense || {}).map(([key, value]) => {
+                            {Object.entries(data.expense || {}).filter(([key]) => !key.startsWith('_')).map(([key, value]) => {
                               // 如果是对象（如essentialNeeds），计算总和
                               if (typeof value === 'object' && value !== null) {
                                 const total = Object.values(value).reduce((sum, item) => {

@@ -74,7 +74,9 @@ export const DIFFICULTY_CONFIG = {
             lumber_camp: 2,
             quarry: 1,
             loom_house: 1,
-            market: 1
+            market: 1,
+            trading_post: 1,
+stone_mint: 1,  // V3: shell collection for initial currency supply
         },
     },
     [DIFFICULTY_LEVELS.EASY]: {
@@ -129,7 +131,9 @@ export const DIFFICULTY_CONFIG = {
         initialBuildings: {
             farm: 2,
             lumber_camp: 2,
-            loom_house: 1
+            loom_house: 1,
+            trading_post: 1,
+stone_mint: 1,  // V3: shell collection for initial currency supply
         },
     },
 [DIFFICULTY_LEVELS.NORMAL]: {
@@ -183,7 +187,8 @@ export const DIFFICULTY_CONFIG = {
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1,
-            lumber_camp: 1
+            lumber_camp: 1,
+            trading_post: 1,  // V3: initial merchant building
         },
     },
 [DIFFICULTY_LEVELS.HARD]: {
@@ -237,7 +242,8 @@ export const DIFFICULTY_CONFIG = {
         vassalIndependenceWarChance: 2.5,      // 250% independence war trigger chance (was 2.0)
         // [NEW] Initial Buildings
         initialBuildings: {
-            farm: 1
+            farm: 1,
+            trading_post: 1,  // V3: initial merchant building
         },
     },
 [DIFFICULTY_LEVELS.VERY_HARD]: {

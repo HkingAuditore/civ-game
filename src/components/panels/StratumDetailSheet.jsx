@@ -135,14 +135,19 @@ const StratumDetailSheetComponent = ({
     const expenseData = finData.expense || {};
 
     // Calculate total income from detailed breakdown
-    const wageInc = (incomeData.wage || 0);
+    // [FIX] V3: Ledger records wage income as 'wageIncome', not 'wage'; also include V3 income types
+    const wageInc = (incomeData.wageIncome || 0) + (incomeData.wage || 0);
     const ownerRev = (incomeData.ownerRevenue || 0);
-    const subsidyInc = (incomeData.subsidy || 0);
+    const productionSaleInc = (incomeData.productionSale || 0);
+    const consumerPurchaseInc = (incomeData.consumerPurchase || 0);
+    const tradeExportRevInc = (incomeData.tradeExportRevenue || 0);
+    const subsidyInc = (incomeData.subsidy || 0) + (incomeData.subsidyToMerchant || 0);
     const salaryInc = (incomeData.salary || 0);
     const militaryInc = (incomeData.militaryPay || 0);
     const tradeImportRevInc = (incomeData.tradeImportRevenue || 0);
     const layoffTransferInInc = (incomeData.layoffTransfer || 0);
-    const calculatedTotalIncome = (wageInc + ownerRev + subsidyInc + salaryInc + militaryInc + tradeImportRevInc + layoffTransferInInc) / safeDayScale;
+    const mintOutputInc = (incomeData.mintOutput || 0);
+    const calculatedTotalIncome = (wageInc + ownerRev + productionSaleInc + consumerPurchaseInc + tradeExportRevInc + subsidyInc + salaryInc + militaryInc + tradeImportRevInc + layoffTransferInInc + mintOutputInc) / safeDayScale;
 
     // Calculate total expense from detailed breakdown
     const headTaxExp = (expenseData.headTax || 0);
@@ -150,9 +155,13 @@ const StratumDetailSheetComponent = ({
     const bizTaxExp = (expenseData.businessTax || 0);
     const tariffsExp = (expenseData.tariffs || 0);
     const prodCostsExp = (expenseData.productionCosts || 0);
+    const prodPurchaseExp = (expenseData.productionPurchase || 0);
     const wagesExp = (expenseData.wages || 0);
+    const wagePaymentExp = (expenseData.wagePayment || 0);
+    const consumerSpendingExp = (expenseData.consumerSpending || 0);
     const decayExp = (expenseData.decay || 0);
     const tradeExportPurchaseExp = (expenseData.tradeExportPurchase || 0);
+    const tradeImportPaymentExp = (expenseData.tradeImportPayment || 0);
     const capitalFlightExp = (expenseData.capitalFlight || 0);
     const buildingCostExp = (expenseData.buildingCost || 0);
     const layoffTransferOutExp = (expenseData.layoffTransfer || 0);
@@ -165,7 +174,7 @@ const StratumDetailSheetComponent = ({
         ? Object.values(expenseData.luxuryNeeds).reduce((sum, entry) => sum + (typeof entry === 'object' ? entry.cost : entry || 0), 0)
         : 0;
 
-    const calculatedTotalExpense = (headTaxExp + transTaxExp + bizTaxExp + tariffsExp + prodCostsExp + wagesExp + decayExp + essentialNeedsExp + luxuryNeedsExp + tradeExportPurchaseExp + capitalFlightExp + buildingCostExp + layoffTransferOutExp) / safeDayScale;
+    const calculatedTotalExpense = (headTaxExp + transTaxExp + bizTaxExp + tariffsExp + prodCostsExp + prodPurchaseExp + wagesExp + wagePaymentExp + consumerSpendingExp + decayExp + essentialNeedsExp + luxuryNeedsExp + tradeExportPurchaseExp + tradeImportPaymentExp + capitalFlightExp + buildingCostExp + layoffTransferOutExp) / safeDayScale;
 
     // Use calculated values if available (non-zero or if we trust finData structure is present), fall back to props if purely empty
     // We prefer the calculated one to match Finance tab
@@ -1260,15 +1269,20 @@ const StratumDetailSheetComponent = ({
                         const expenseData = finData.expense || {};
 
                         // 计算收入总计
-                        const wage = (incomeData.wage || 0) / safeDayScale / Math.max(count, 1);
+                        // [FIX] V3: Ledger records wage income as 'wageIncome', not 'wage'; also include V3 income types
+                        const wage = ((incomeData.wageIncome || 0) + (incomeData.wage || 0)) / safeDayScale / Math.max(count, 1);
                         const ownerRevenue = (incomeData.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
+                        const productionSale = (incomeData.productionSale || 0) / safeDayScale / Math.max(count, 1);
+                        const consumerPurchase = (incomeData.consumerPurchase || 0) / safeDayScale / Math.max(count, 1);
+                        const tradeExportRevenue = (incomeData.tradeExportRevenue || 0) / safeDayScale / Math.max(count, 1);
                         // income.subsidy 已经包含人头税补贴（ledger 自动记账），不再单独加 headTaxSubsidy
-                        const subsidy = (incomeData.subsidy || 0) / safeDayScale / Math.max(count, 1);
+                        const subsidy = ((incomeData.subsidy || 0) + (incomeData.subsidyToMerchant || 0)) / safeDayScale / Math.max(count, 1);
                         const salary = (incomeData.salary || 0) / safeDayScale / Math.max(count, 1);
                         const militaryPay = (incomeData.militaryPay || 0) / safeDayScale / Math.max(count, 1);
                         const tradeImportRevenue = (incomeData.tradeImportRevenue || 0) / safeDayScale / Math.max(count, 1);
                         const layoffTransferIn = (incomeData.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
-                        const totalIncomeCalc = wage + ownerRevenue + subsidy + salary + militaryPay + tradeImportRevenue + layoffTransferIn;
+                        const mintOutput = (incomeData.mintOutput || 0) / safeDayScale / Math.max(count, 1);
+                        const totalIncomeCalc = wage + ownerRevenue + productionSale + consumerPurchase + tradeExportRevenue + subsidy + salary + militaryPay + tradeImportRevenue + layoffTransferIn + mintOutput;
 
                         // 计算支出总计
                         const headTax = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
@@ -1276,9 +1290,13 @@ const StratumDetailSheetComponent = ({
                         const businessTax = (expenseData.businessTax || 0) / safeDayScale / Math.max(count, 1);
                         const tariffs = (expenseData.tariffs || 0) / safeDayScale / Math.max(count, 1);
                         const productionCosts = (expenseData.productionCosts || 0) / safeDayScale / Math.max(count, 1);
+                        const productionPurchase = (expenseData.productionPurchase || 0) / safeDayScale / Math.max(count, 1);
                         const wagesExpense = (expenseData.wages || 0) / safeDayScale / Math.max(count, 1);
+                        const wagePayment = (expenseData.wagePayment || 0) / safeDayScale / Math.max(count, 1);
+                        const consumerSpending = (expenseData.consumerSpending || 0) / safeDayScale / Math.max(count, 1);
                         const decay = (expenseData.decay || 0) / safeDayScale / Math.max(count, 1);
                         const tradeExportPurchase = (expenseData.tradeExportPurchase || 0) / safeDayScale / Math.max(count, 1);
+                        const tradeImportPayment = (expenseData.tradeImportPayment || 0) / safeDayScale / Math.max(count, 1);
                         const capitalFlight = (expenseData.capitalFlight || 0) / safeDayScale / Math.max(count, 1);
                         const buildingCost = (expenseData.buildingCost || 0) / safeDayScale / Math.max(count, 1);
                         const layoffTransferOut = (expenseData.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
@@ -1299,7 +1317,7 @@ const StratumDetailSheetComponent = ({
                             : 0;
                         const luxuryNeeds = luxuryNeedsRaw / safeDayScale / Math.max(count, 1);
 
-                        const totalExpenseCalc = headTax + transactionTax + businessTax + tariffs + productionCosts + wagesExpense + decay + essentialNeeds + luxuryNeeds + tradeExportPurchase + capitalFlight + buildingCost + layoffTransferOut;
+                        const totalExpenseCalc = headTax + transactionTax + businessTax + tariffs + productionCosts + productionPurchase + wagesExpense + wagePayment + consumerSpending + decay + essentialNeeds + luxuryNeeds + tradeExportPurchase + tradeImportPayment + capitalFlight + buildingCost + layoffTransferOut;
                         const netIncome = totalIncomeCalc - totalExpenseCalc;
 
                         return (
@@ -1340,16 +1358,21 @@ const StratumDetailSheetComponent = ({
                         </h3>
                         {(() => {
                             const data = finData.income || {};
-                            const wage = (data.wage || 0) / safeDayScale / Math.max(count, 1);
+                            // [FIX] V3: read 'wageIncome' (Ledger field) + legacy 'wage'
+                            const wage = ((data.wageIncome || 0) + (data.wage || 0)) / safeDayScale / Math.max(count, 1);
                             const ownerRevenue = (data.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
+                            const productionSale = (data.productionSale || 0) / safeDayScale / Math.max(count, 1);
+                            const consumerPurchase = (data.consumerPurchase || 0) / safeDayScale / Math.max(count, 1);
+                            const tradeExportRevenue = (data.tradeExportRevenue || 0) / safeDayScale / Math.max(count, 1);
                             // income.subsidy 已包含人头税补贴，拆分为：人头税补贴 + 其他补贴
                             const headTaxSubsidyInc = (data.headTaxSubsidy || 0) / safeDayScale / Math.max(count, 1);
-                            const otherSubsidy = Math.max(0, ((data.subsidy || 0) - (data.headTaxSubsidy || 0))) / safeDayScale / Math.max(count, 1);
+                            const otherSubsidy = Math.max(0, ((data.subsidy || 0) + (data.subsidyToMerchant || 0) - (data.headTaxSubsidy || 0))) / safeDayScale / Math.max(count, 1);
                             const salary = (data.salary || 0) / safeDayScale / Math.max(count, 1);
                             const militaryPay = (data.militaryPay || 0) / safeDayScale / Math.max(count, 1);
                             const tradeImportRevenue = (data.tradeImportRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const layoffTransferIn = (data.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
-                            const hasAnyIncome = wage > 0.001 || ownerRevenue > 0.001 || otherSubsidy > 0.001 || headTaxSubsidyInc > 0.001 || salary > 0.001 || militaryPay > 0.001 || tradeImportRevenue > 0.001 || layoffTransferIn > 0.001;
+                            const mintOutput = (data.mintOutput || 0) / safeDayScale / Math.max(count, 1);
+                            const hasAnyIncome = wage > 0.001 || ownerRevenue > 0.001 || productionSale > 0.001 || consumerPurchase > 0.001 || tradeExportRevenue > 0.001 || otherSubsidy > 0.001 || headTaxSubsidyInc > 0.001 || salary > 0.001 || militaryPay > 0.001 || tradeImportRevenue > 0.001 || layoffTransferIn > 0.001 || mintOutput > 0.001;
 
                             return (
                                 <div className="space-y-1.5">
@@ -1389,10 +1412,34 @@ const StratumDetailSheetComponent = ({
                                             <span className="text-green-400 font-mono">+{otherSubsidy.toFixed(2)}</span>
                                         </div>
                                     )}
+                                    {productionSale > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">生产销售收入</span>
+                                            <span className="text-green-400 font-mono">+{productionSale.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {consumerPurchase > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">商品销售收入</span>
+                                            <span className="text-green-400 font-mono">+{consumerPurchase.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {tradeExportRevenue > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">贸易出口收入</span>
+                                            <span className="text-green-400 font-mono">+{tradeExportRevenue.toFixed(2)}</span>
+                                        </div>
+                                    )}
                                     {tradeImportRevenue > 0.001 && (
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="text-gray-300">贸易进口收入</span>
                                             <span className="text-green-400 font-mono">+{tradeImportRevenue.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {mintOutput > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">铸币产出</span>
+                                            <span className="text-green-400 font-mono">+{mintOutput.toFixed(2)}</span>
                                         </div>
                                     )}
                                     {layoffTransferIn > 0.001 && (
@@ -1452,12 +1499,15 @@ const StratumDetailSheetComponent = ({
 
                             // 新增支出项
                             const tradeExportPurchase = (data.tradeExportPurchase || 0) / safeDayScale / Math.max(count, 1);
+                            const tradeImportPayment = (data.tradeImportPayment || 0) / safeDayScale / Math.max(count, 1);
+                            const productionPurchase = (data.productionPurchase || 0) / safeDayScale / Math.max(count, 1);
+                            const wagePayment = (data.wagePayment || 0) / safeDayScale / Math.max(count, 1);
                             const capitalFlight = (data.capitalFlight || 0) / safeDayScale / Math.max(count, 1);
                             const buildingCost = (data.buildingCost || 0) / safeDayScale / Math.max(count, 1);
                             const layoffTransferOut = (data.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
 
                             // Calculate 'Other' based on total roleExpense vs tracked items
-                            const trackedTotal = headTax + transactionTax + businessTax + tariffs + essentialNeeds + luxuryNeeds + decay + productionCosts + wages + tradeExportPurchase + capitalFlight + buildingCost + layoffTransferOut;
+                            const trackedTotal = headTax + transactionTax + businessTax + tariffs + essentialNeeds + luxuryNeeds + decay + productionCosts + productionPurchase + wages + wagePayment + tradeExportPurchase + tradeImportPayment + capitalFlight + buildingCost + layoffTransferOut;
                             const other = Math.max(0, expensePerCapita - trackedTotal);
 
                             return (
@@ -1586,6 +1636,24 @@ const StratumDetailSheetComponent = ({
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="text-gray-300">资本外逃</span>
                                             <span className="text-red-400 font-mono">-{capitalFlight.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {tradeImportPayment > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">贸易进口成本</span>
+                                            <span className="text-red-400 font-mono">-{tradeImportPayment.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {productionPurchase > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">采购生产品</span>
+                                            <span className="text-red-400 font-mono">-{productionPurchase.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {wagePayment > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">工资支出</span>
+                                            <span className="text-red-400 font-mono">-{wagePayment.toFixed(2)}</span>
                                         </div>
                                     )}
                                     {buildingCost > 0.001 && (

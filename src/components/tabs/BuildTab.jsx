@@ -105,7 +105,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                 {building.owner && (
                     <div className="text-xs text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded px-2 py-1 mb-2 inline-flex items-center gap-1">
                         <Icon name="User" size={10} className="text-yellow-300" />
-                        业主: {STRATA[building.owner]?.name || building.owner}
+                        业主: {building.owner === 'state' ? '国有' : (STRATA[building.owner]?.name || building.owner)}
                     </div>
                 )}
 

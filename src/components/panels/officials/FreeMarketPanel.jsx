@@ -68,7 +68,7 @@ const BuildingExpansionRow = ({
                 <div>
                     <div className="text-xs text-gray-200">{building.name}</div>
                     <div className="text-xs text-gray-500">
-                        {ownerDef?.name || building.owner}
+                        {building.owner === 'state' ? '国有' : (ownerDef?.name || building.owner)}
                     </div>
                 </div>
             </div>

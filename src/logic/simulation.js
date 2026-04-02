@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { BUILDING_CHAINS } from '../config/buildingChains';
@@ -334,6 +334,7 @@ import {
     getBuildingCostBaseMultiplier
 } from '../config/difficulty';
 import { EconomyLedger, TRANSACTION_CATEGORIES } from './economy/ledger';
+import { calculateMonetaryStats, DEFAULT_MONETARY_STATS } from './economy/monetary';
 import {
     calculateFinancialStatus,
     calculateOfficialPropertyProfit,
@@ -554,6 +555,8 @@ export const simulateTick = ({
     ideologySynergies = [],   // 联动配置数组
     antiSynergies = [],       // 反协同配置数组
     ideologyMetrics = null,
+    // V3 货币量追踪
+    previousMonetaryStats = null,
     // [PERF] 性能模式标志，主线程传入
     _isLowPerformance = false,
 }) => {
@@ -771,7 +774,7 @@ export const simulateTick = ({
     if (Object.keys(STRATA).length > 0) {
         Object.keys(STRATA).forEach(key => {
             classFinancialData[key] = {
-                income: { wage: 0, ownerRevenue: 0, subsidy: 0, salary: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
+                income: { wage: 0, wageIncome: 0, ownerRevenue: 0, productionSale: 0, consumerPurchase: 0, tradeExportRevenue: 0, mintOutput: 0, subsidy: 0, subsidyToMerchant: 0, salary: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
                 expense: {
                     headTax: 0,
                     transactionTax: 0,
@@ -781,8 +784,12 @@ export const simulateTick = ({
                     luxuryNeeds: {},     // 奢侈需求消费 { resource: cost }
                     decay: 0,
                     productionCosts: 0,
+                    productionPurchase: 0, // V3: merchant buys production
                     wages: 0,  // 工资支出（业主支付给工人?
+                    wagePayment: 0, // V3: owner pays wage to worker
+                    consumerSpending: 0, // V3: consumer pays merchant
                     tradeExportPurchase: 0, // 贸易出口购买成本
+                    tradeImportPayment: 0, // V3: silver outflow for imports
                     transportCost: 0, // 海外投资运输成本
                     capitalFlight: 0, // 资本外?
                     buildingCost: 0, // 建筑建?升级成本
@@ -1330,7 +1337,8 @@ export const simulateTick = ({
     // Apply active buffs (Strata bonuses)
     if (Array.isArray(productionBuffs)) {
         productionBuffs.forEach(buff => {
-            // Ideology-sourced buffs: route taxIncome to virtualTaxIncome (phantom silver)
+    // V3: Ideology taxIncome now routes to bonuses.virtualTaxIncome for mint efficiency
+            // (no longer generates phantom silver; instead boosts mint output)
             if (buff.source === 'ideology' && typeof buff.taxIncome === 'number') {
                 const { taxIncome: taxVal, ...restBuff } = buff;
                 applyEffects(restBuff, bonuses);
@@ -1557,25 +1565,40 @@ export const simulateTick = ({
     // When producing a building, we set this so sellProduction can attribute revenue to that building.
     let currentBuildingId = null;
 
+    // V3: Deferred production revenue queue for merchant budget system
+    const _deferredProductionRevenue = [];
+
+    // V3: Track total mint output for monetary conservation verification
+    let _totalMintOutput = 0;
+
     const sellProduction = (resource, amount, ownerKey) => {
-        // 特殊处理银币产出：直接作为所有者收入，不进入国库，不交?
+        // V3: Silver output from mints goes directly to state treasury
         if (resource === 'silver' && amount > 0) {
-            roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + amount;
-            // 使用 Ledger 记录收入
-            ledger.transfer('void', ownerKey, amount, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
+            // V3: Apply mint efficiency bonus from taxIncome (ideology + officials + decrees + techs)
+            const mintEfficiency = 1 + (taxBonus || 0) + (bonuses.virtualTaxIncome || 0);
+            const boostedAmount = amount * Math.max(0, mintEfficiency);
+            roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + boostedAmount;
+            // Mint output: void→state (currency creation)
+            if (ownerKey === 'state') {
+                ledger.transfer('void', 'state', boostedAmount, TRANSACTION_CATEGORIES.INCOME.MINT_OUTPUT, TRANSACTION_CATEGORIES.INCOME.MINT_OUTPUT, { buildingId: currentBuildingId });
+                _totalMintOutput += boostedAmount; // V3: track for conservation
+            } else {
+                // Non-state silver output (legacy buildings, will be removed in Phase 1b)
+                ledger.transfer('void', ownerKey, boostedAmount, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
+            }
             if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
-                buildingFinancialData[currentBuildingId].ownerRevenue += amount;
+                buildingFinancialData[currentBuildingId].ownerRevenue += boostedAmount;
             }
             return;
         }
         if (amount <= 0) return;
+        // V3: Resources still enter the pool (physical goods unaffected by payment)
         res[resource] = (res[resource] || 0) + amount;
         if (isTradableResource(resource)) {
             supply[resource] = (supply[resource] || 0) + amount;
             const marketPrice = getPrice(resource);
 
             // [NEW] 价格管制检查（出售侧）：政府保底收购或收超额利润税
-            // 只有左派主导且启用时才生?
             const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
             const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentBuyPrices?.[resource] !== undefined;
 
@@ -1598,16 +1621,52 @@ export const simulateTick = ({
             const grossIncome = effectivePrice * amount;
             const netIncome = grossIncome;
 
-            // 记录owner的净销售收?(本地追踪)
-            roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
+            // V3: Defer payment — accumulate for budget-ratio settlement after all buildings
+            _deferredProductionRevenue.push({
+                ownerKey,
+                amount: netIncome,
+                buildingId: currentBuildingId,
+            });
+        }
+    };
 
-            // 使用 Ledger 记录收入
-            ledger.transfer('void', ownerKey, netIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
+    // V3: Settle all deferred production revenue using merchant budget system
+    // Called after all buildings have been processed
+    const _settleProductionRevenue = () => {
+        if (_deferredProductionRevenue.length === 0) return;
 
-            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
-                buildingFinancialData[currentBuildingId].ownerRevenue += netIncome;
+        // Calculate total owed to all producers
+        let totalOwed = 0;
+        for (let i = 0; i < _deferredProductionRevenue.length; i++) {
+            totalOwed += _deferredProductionRevenue[i].amount;
+        }
+
+        // V3 budget ratio: merchant pays what they can afford
+        const merchantWealth = wealth.merchant || 0;
+        const budgetRatio = totalOwed > 0 ? Math.min(1.0, merchantWealth / totalOwed) : 1.0;
+
+        // Settle each deferred payment
+        for (let i = 0; i < _deferredProductionRevenue.length; i++) {
+            const entry = _deferredProductionRevenue[i];
+            const actualPayment = entry.amount * budgetRatio;
+
+            if (actualPayment > 0) {
+                // V3: merchant→owner (or merchant→state for state-owned buildings)
+                ledger.transfer('merchant', entry.ownerKey, actualPayment,
+                    TRANSACTION_CATEGORIES.EXPENSE.PRODUCTION_PURCHASE,
+                    TRANSACTION_CATEGORIES.INCOME.PRODUCTION_SALE,
+                    { buildingId: entry.buildingId });
+
+                roleWagePayout[entry.ownerKey] = (roleWagePayout[entry.ownerKey] || 0) + actualPayment;
+
+                if (entry.buildingId && buildingFinancialData[entry.buildingId]) {
+                    buildingFinancialData[entry.buildingId].ownerRevenue += actualPayment;
+                }
             }
         }
+
+        // Clear the queue
+        _deferredProductionRevenue.length = 0;
     };
 
     perfStart('preProduction');
@@ -3190,7 +3249,8 @@ export const simulateTick = ({
                 const disposableWealth = Math.max(0, available - reservedWealth);
                 const paid = Math.min(disposableWealth, ownerBill);
 
-                ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
+                // V3: owner pays wages directly (no void intermediary)
+                ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGE_PAYMENT, TRANSACTION_CATEGORIES.EXPENSE.WAGE_PAYMENT, { buildingId: b.id });
                 roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
 
                 ownerPaidRatio[oKey] = ownerBill > 0 ? paid / ownerBill : 0;
@@ -3215,8 +3275,8 @@ export const simulateTick = ({
                 buildingFinancialData[b.id].wagesByRole[plan.role] =
                     (buildingFinancialData[b.id].wagesByRole[plan.role] || 0) + payout;
 
-                // 使用 Ledger 发放工资
-                ledger.transfer('void', plan.role, payout, TRANSACTION_CATEGORIES.INCOME.WAGE, TRANSACTION_CATEGORIES.INCOME.WAGE, { buildingId: b.id });
+                // V3: worker receives wage directly from owner (owner→worker)
+                ledger.transfer('void', plan.role, payout, TRANSACTION_CATEGORIES.INCOME.WAGE_INCOME, TRANSACTION_CATEGORIES.INCOME.WAGE_INCOME, { buildingId: b.id });
 
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
                 roleLaborIncome[plan.role] = (roleLaborIncome[plan.role] || 0) + payout; // Wages are labor income
@@ -3310,7 +3370,7 @@ export const simulateTick = ({
                             const levelBaseOutput = resOutputs[resKey] || 0;
                             if (levelBaseOutput <= 0) return;
 
-                            // 计算该等?即该owner)应得的份?
+                            // 计算该等级(即该owner)应得的份额
                             const baseTotal = totalAmount * actualMultiplier;
                             const proportion = baseTotal > 0 ? levelBaseOutput / baseTotal : 0;
                             const levelAmount = amount * proportion;
@@ -3321,12 +3381,18 @@ export const simulateTick = ({
                             const ownerKey = config.owner || 'state';
 
                             if (ownerKey === 'state') {
+                                // V3: Mint output goes to state treasury
                                 applyResourceChange(resKey, levelAmount, 'building_production_direct');
                                 stateBuildingSilverOutput += levelAmount;
                             } else {
-                                ledger.transfer('void', ownerKey, levelAmount, 'building_production_direct', 'building_production_direct', { buildingId: b.id });
+                                // V3: Non-state silver output (legacy, will be removed in Phase 1b)
+                                ledger.transfer('void', ownerKey, levelAmount, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: b.id });
                             }
                         });
+                        // [FIX] Update rates & supplyBreakdown so UI displays silver output correctly
+                        rates[resKey] = (rates[resKey] || 0) + amount;
+                        if (!supplyBreakdown[resKey]) supplyBreakdown[resKey] = { buildings: {}, imports: 0 };
+                        supplyBreakdown[resKey].buildings[b.id] = (supplyBreakdown[resKey].buildings[b.id] || 0) + amount;
                     } else {
                         applyResourceChange(resKey, amount, 'building_production_direct');
                     }
@@ -3416,6 +3482,10 @@ export const simulateTick = ({
     });
     perfEnd('passiveGains');
     perfEnd('productionLoop');
+
+    // V3: Settle all deferred production revenue using merchant budget system
+    _settleProductionRevenue();
+
     _silverCheckpoint('productionLoop');
 
     // ========== 人头税收取（移到 productionLoop 之后，保证基于本 tick 实际收入） ==========
@@ -3966,10 +4036,30 @@ export const simulateTick = ({
                     const isEssential = def.needs && def.needs.hasOwnProperty(resKey);
                     const expenseCat = isEssential ? TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION;
 
-                    ledger.transfer(key, 'void', totalCost, expenseCat, expenseCat, { resource: resKey, quantity: amount, price: finalEffectivePrice });
+                    // V3: Merchant intermediary — consumers pay merchant, not void
+                    if (key === 'merchant') {
+                        // Merchant self-consumption: goods already paid for via productionPurchase.
+                        // Record to separate 'selfConsumption' field for GDP tracking,
+                        // but NOT as a monetary expense (no silver deduction, no roleExpense).
+                        if (ledger && ledger.classFinancialData['merchant']) {
+                            const selfCons = ledger.classFinancialData['merchant'].expense;
+                            if (!selfCons._selfConsumption) selfCons._selfConsumption = {};
+                            if (!selfCons._selfConsumption[resKey]) selfCons._selfConsumption[resKey] = { cost: 0, quantity: 0, price: 0 };
+                            selfCons._selfConsumption[resKey].cost += totalCost;
+                            selfCons._selfConsumption[resKey].quantity += amount;
+                            selfCons._selfConsumption[resKey].price = finalEffectivePrice;
+                        }
+                    } else {
+                        // Non-merchant: stratum→merchant (consumer pays merchant for goods)
+                        ledger.transfer(key, 'merchant', totalCost, expenseCat, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE, { resource: resKey, quantity: amount, price: finalEffectivePrice });
+                    }
 
-                    roleExpense[key] = (roleExpense[key] || 0) + totalCost;
-                    roleLivingExpense[key] = (roleLivingExpense[key] || 0) + totalCost; // Needs consumption is living expense
+                    // Only accumulate expense/living expense for non-merchant strata
+                    // Merchant self-consumption is inventory loss, not a new monetary expense
+                    if (key !== 'merchant') {
+                        roleExpense[key] = (roleExpense[key] || 0) + totalCost;
+                        roleLivingExpense[key] = (roleLivingExpense[key] || 0) + totalCost;
+                    }
                     satisfied = amount;
 
                     // 统计实际消费的需求量，而不是原始需求量
@@ -4249,9 +4339,10 @@ export const simulateTick = ({
             });
 
             // Apply wealth deductions
+            // V3: Building cost flows to merchant (purchasing building materials through market)
             Object.entries(wealthDeductions).forEach(([stratum, amount]) => {
                 if (wealth[stratum]) {
-                    ledger.transfer(stratum, 'void', amount, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
+                    ledger.transfer(stratum, 'merchant', amount, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE);
                 }
             });
             // Update the main `builds` object for the rest of the tick
@@ -4454,9 +4545,9 @@ export const simulateTick = ({
                 if (!stratumConsumption.official) stratumConsumption.official = {};
                 stratumConsumption.official[resource] = (stratumConsumption.official[resource] || 0) + amount;
 
-                // 使用 Ledger 记录支出 (更新 classFinancialData ?aggregate wealth)
+                // V3: Official consumption goes through merchant intermediary
                 const expenseCat = isLuxury ? TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION;
-                ledger.transfer('official', 'void', totalCost, expenseCat, expenseCat, { resource, quantity: amount, price });
+                ledger.transfer('official', 'merchant', totalCost, expenseCat, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE, { resource, quantity: amount, price });
             } else {
                 const amount = Math.min(requirement, available);
                 if (amount > 0) {
@@ -5476,70 +5567,12 @@ export const simulateTick = ({
     let nextPopulation = population;
     let raidPopulationLoss = 0;
 
-    // Wealth Decay (Lifestyle Inflation)
-    // Prevents infinite accumulation by "burning" a small percentage of wealth daily
-    // representing maintenance, services, and non-goods consumption.
-    // NEW: Decay is based on per-capita wealth percentage, not total wealth
+    // V3: Wealth decay (lifestyle inflation) has been removed.
+    // In the V3 merchant intermediary model, money supply is controlled by minting,
+    // and wealth naturally circulates through the merchant→owner→worker→merchant loop.
     perfStart('wealthDecay');
-    Object.keys(STRATA).forEach(key => {
-        const currentWealth = wealth[key] || 0;
-        const population = popStructure[key] || 0;
-
-        if (currentWealth > 0 && population > 0) {
-            // Check living standard to see if decay should apply
-            // Only apply decay if living standard is at least "Comfortable" (小康)
-            // Levels: 赤贫 (Destitute), 贫困 (Poor), 温饱 (Subsistence), 小康 (Comfortable)...
-            const standard = classLivingStandard[key];
-            const level = standard?.level;
-
-            // Skip decay for Destitute, Poor, and Subsistence
-            if (level === '赤贫' || level === '贫困' || level === '温饱') {
-                return;
-            }
-
-            // Calculate per-capita wealth and apply decay rate
-            // 根据生活水平档位设置不同的挥霍率，刚进入小康时挥霍很?
-            const perCapitaWealth = currentWealth / population;
-            const wealthRatio = WEALTH_BASELINE > 0 ? perCapitaWealth / WEALTH_BASELINE : 0;
-
-            // Safeguard: Only apply decay if they have accumulated some wealth buffer (e.g. > 120% baseline)
-            // This prevents "newly comfortable" strata from immediately losing their savings
-            if (wealthRatio < 1.2 && level !== '奢华') {
-                return;
-            }
-
-            let decayRate = WEALTH_DECAY_RATE; // 默认0.5% (奢华)
-            if (level === '小康') {
-                decayRate = 0.001; // 0.1% - 刚进入小康，挥霍很少
-            } else if (level === '富裕') {
-                decayRate = 0.003; // 0.3% - 开始享受生?
-            }
-            // '奢华' 保持默认?.5%
-
-            const perCapitaDecay = perCapitaWealth * decayRate;
-            // Removed Math.max(1, floor(...)) to allow fractional decay and prevent subsidy waste
-            // Use toFixed(2) for clean display and deduction
-            const rawDecay = perCapitaDecay * population;
-            let decay = parseFloat(rawDecay.toFixed(2));
-
-            // [NEW] Cap decay at 50% of current tick's luxury spending
-            // Represents that lavish spending (waste) cannot exceed a fraction of actual luxury consumption
-            let totalLuxurySpend = 0;
-            if (classFinancialData[key] && classFinancialData[key].expense && classFinancialData[key].expense.luxuryNeeds) {
-                Object.values(classFinancialData[key].expense.luxuryNeeds).forEach(item => {
-                    totalLuxurySpend += (item.cost || 0);
-                });
-            }
-            const maxDecay = parseFloat((totalLuxurySpend * 0.5).toFixed(2));
-            decay = Math.min(decay, maxDecay);
-
-            if (decay > 0) {
-                ledger.transfer(key, 'void', decay, TRANSACTION_CATEGORIES.EXPENSE.DECAY, TRANSACTION_CATEGORIES.EXPENSE.DECAY);
-                // Record decay as expense so UI balances
-                roleExpense[key] = (roleExpense[key] || 0) + decay;
-            }
-        }
-    });
+    // [REMOVED] WEALTH_DECAY_RATE mechanism
+    perfEnd('wealthDecay');
 
     perfStart('influenceCalc');
     // [FIX] Apply safe wealth limit to ALL strata wealth values before returning
@@ -8179,7 +8212,8 @@ export const simulateTick = ({
             });
 
             // 2. Deduct cost from owner's wealth
-            ledger.transfer(ownerKey, 'void', totalSilverCost, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
+            // V3: Building upgrade cost flows to merchant (purchasing materials through market)
+            ledger.transfer(ownerKey, 'merchant', totalSilverCost, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE);
 
             // 3. Update building upgrade levels
             if (!updatedBuildingUpgrades[buildingId]) {
@@ -8445,18 +8479,9 @@ export const simulateTick = ({
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
 
-    // 8. Virtual tax income from ideologies (phantom silver, not taken from any stratum)
-    const virtualTaxRate = Math.min(bonuses.virtualTaxIncome || 0, 0.5);
-    let virtualTaxIncome = 0;
-    if (virtualTaxRate > 0 && totalCollectedTax > 0) {
-        virtualTaxIncome = totalCollectedTax * virtualTaxRate;
-        // Cap based on current tax revenue, NOT treasury balance (prevents exponential growth)
-        const virtualTaxCap = Math.max(10000, totalCollectedTax * 0.5);
-        virtualTaxIncome = Math.min(virtualTaxIncome, virtualTaxCap);
-        applySilverChange(virtualTaxIncome, 'income_ideology_virtual_tax');
-        rates.silver = (rates.silver || 0) + virtualTaxIncome;
-    }
-    taxBreakdown.virtualTaxIncome = virtualTaxIncome;
+    // 8. V3: Virtual tax income removed — ideology taxIncome now boosts mint efficiency
+    // (see sellProduction: mintEfficiency = 1 + taxBonus + virtualTaxIncome)
+    taxBreakdown.virtualTaxIncome = 0; // Kept for backward compatibility
 
     // [FIX] totalFiscalIncome 不应该乘?incomePercentMultiplier
     // 因为税收和战争赔款都已经是实际入库金?
@@ -8927,6 +8952,15 @@ export const simulateTick = ({
         }
     }
 
+    // V3: Calculate monetary stats (total money supply tracking)
+    const monetaryStats = calculateMonetaryStats({
+        wealth: classWealthResult,
+        treasurySilver: res.silver || 0,
+        previousMonetaryStats,
+        mintOutput: ledger.v3MintOutput || _totalMintOutput,
+        tradeBalance: (ledger.v3TradeExportRevenue || 0) - (ledger.v3TradeImportPayment || 0),
+    });
+
     return {
         officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
         _perf: {
@@ -9090,6 +9124,7 @@ export const simulateTick = ({
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
+        monetaryStats, // V3: Money supply tracking
         // [PERF] Only serialize full audit log in debug mode; otherwise return aggregated totals only.
         // The full toArray() creates dozens of objects per tick that are immediately structured-cloned.
         _auditLog: _simDebugEnabled ? silverChangeLog.toArray() : auditLogArr,

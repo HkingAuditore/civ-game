@@ -944,6 +944,8 @@ difficulty, // 游戏难度
         pendingIdeologyEmergence,
         ideologyEmergenceRarityBonus,
         lastEmergenceWasSkipped,
+        // V3: Monetary stats tracking
+        monetaryStats: null,
     });
     const autoReplenishTickRef = useRef({ day: null, key: '' });
     const capacityTrimLogRef = useRef({ day: null });
@@ -1363,6 +1365,8 @@ difficulty, // 游戏难度
                 merchantState: current.merchantState,
                 tradeStats: current.tradeStats,
                 ideologyMetrics: ideologyMetricsRef.current,
+                // V3: Monetary stats tracking
+                previousMonetaryStats: current.monetaryStats || null,
 
                 // Buff/Debuff
                 activeBuffs: current.activeBuffs,
@@ -3222,6 +3226,10 @@ difficulty, // 游戏难度
                         if (_shouldUpdateUI && typeof setDiplomaticReputation === 'function') {
                             setDiplomaticReputation(result.diplomaticReputation);
                         }
+                    }
+                    // V3: Store monetary stats for next tick
+                    if (result.monetaryStats) {
+                        stateRef.current.monetaryStats = result.monetaryStats;
                     }
                     // [NEW] Update military corps & battle system states
                     if (result.militaryCorps && typeof setMilitaryCorps === 'function') {

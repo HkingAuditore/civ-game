@@ -1412,6 +1412,14 @@ export const useGameActions = (gameState, addLog) => {
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
         _resourcesRef.current = newRes;
 
+        // V3: Epoch upgrade cost flows to merchant (state purchases materials through market)
+        if (silverCost > 0) {
+            setClassWealthWithReason(prev => ({
+                ...prev,
+                merchant: (prev.merchant || 0) + silverCost,
+            }), 'state_epoch_upgrade', { epoch: epoch + 1, silverCost });
+        }
+
         // 时代升级时为新解锁的资源补充少量初始库存，缓解过渡期通胀
         const newEpochIndex = epoch + 1;
         Object.entries(RESOURCES).forEach(([key, def]) => {
@@ -1529,6 +1537,14 @@ export const useGameActions = (gameState, addLog) => {
         });
         // Deduct total silver cost (direct + material procurement)
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+
+        // V3: Building purchase cost flows to merchant (state buys materials through market)
+        if (silverCost > 0) {
+            setClassWealthWithReason(prev => ({
+                ...prev,
+                merchant: (prev.merchant || 0) + silverCost,
+            }), 'state_build_purchase', { buildingId: id, count: finalCount, silverCost });
+        }
 
         // 立即更新 ref，确保下一次快速调用能读到最新值
         _resourcesRef.current = newRes;
@@ -1864,6 +1880,15 @@ export const useGameActions = (gameState, addLog) => {
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
         // 立即更新 ref，确保下一次快速调用能读到最新值
         _resourcesRef.current = newRes;
+
+        // V3: Building upgrade cost flows to merchant (state purchases materials through market)
+        if (silverCost > 0) {
+            setClassWealthWithReason(prev => ({
+                ...prev,
+                merchant: (prev.merchant || 0) + silverCost,
+            }), 'state_building_upgrade', { buildingId, silverCost });
+        }
+
         setResourcesWithReason(newRes, 'building_upgrade', { buildingId, count: 1 });
 
         // 5. 更新升级等级（新格式：等级计数）
@@ -2130,6 +2155,15 @@ export const useGameActions = (gameState, addLog) => {
         newRes.silver = Math.max(0, (newRes.silver || 0) - actualSilverCost);
         // 立即更新 ref，确保下一次快速调用能读到最新值
         _resourcesRef.current = newRes;
+
+        // V3: Batch upgrade cost flows to merchant (state purchases materials through market)
+        if (actualSilverCost > 0) {
+            setClassWealthWithReason(prev => ({
+                ...prev,
+                merchant: (prev.merchant || 0) + actualSilverCost,
+            }), 'state_building_upgrade_batch', { buildingId, count: successCount, silverCost: actualSilverCost });
+        }
+
         setResourcesWithReason(newRes, 'building_upgrade_batch', { buildingId, count: successCount });
 
         // 更新升级等级（新格式：等级计数）
@@ -2295,6 +2329,14 @@ export const useGameActions = (gameState, addLog) => {
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
         _resourcesRef.current = newRes;
+
+        // V3: Tech research cost flows to merchant (state purchases research materials through market)
+        if (silverCost > 0) {
+            setClassWealthWithReason(prev => ({
+                ...prev,
+                merchant: (prev.merchant || 0) + silverCost,
+            }), 'state_tech_research', { techId: id, silverCost });
+        }
 
         setResourcesWithReason(newRes, 'tech_research', { techId: id });
         setTechsUnlocked(prev => [...prev, id]);

@@ -133,14 +133,14 @@ export const BUILDING_UPGRADES = {
             name: "商铺",
             cost: { wood: 100, stone: 40, silver: 400 },
             input: { tools: 0.01 },
-            output: { food: 10.4, silver: 4.16 }, // 1.3x of base 4 / 1.6
+            output: { food: 14 }, // V3: removed silver, compensated with +food
             jobs: { merchant: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "商会",
             cost: { plank: 80, brick: 60, silver: 900 },
             input: { tools: 0.02, papyrus: 0.01 },
-            output: { food: 18, silver: 7.2, spice: 0.02 }, // 2.25x of base 4 / 1.6 + 异域贸易
+            output: { food: 24, spice: 0.05 }, // V3: removed silver, compensated with +food +spice
             jobs: { merchant: 3 }, // +1 merchant only
         },
     ],
@@ -247,14 +247,14 @@ export const BUILDING_UPGRADES = {
             name: "大剧场",
             cost: { stone: 120, brick: 40, silver: 400 },
             input: { fine_clothes: 0.09, dye: 0.0225 }, // 降低消耗
-            output: { culture: 9.75, silver: 1.2 }, // 1.2x
+            output: { culture: 12 }, // V3: removed silver, compensated with +culture
             jobs: { cleric: 2, worker: 1 }, // 减少岗位，提升人均效率
         },
         {
             name: "宏伟剧场",
             cost: { brick: 80, furniture: 20, silver: 900 },
             input: { fine_clothes: 0.12, ale: 0.045, dye: 0.0375 }, // 降低消耗
-            output: { culture: 13.5, silver: 2.25 }, // 1.6x + 高额门票
+            output: { culture: 18 }, // V3: removed silver, compensated with +culture
             jobs: { cleric: 2, worker: 1 }, // 适度增加
         },
     ],
@@ -413,14 +413,14 @@ export const BUILDING_UPGRADES = {
             name: "大教堂",
             cost: { brick: 80, furniture: 25, silver: 500 },
             input: { furniture: 0.1, fine_clothes: 0.08 }, // 1.3x基础输入
-            output: { culture: 20.8, silver: 5.7597 }, // 1.3x culture + 奉献收入
+            output: { culture: 28 }, // V3: removed silver, compensated with +culture
             jobs: { cleric: 3, worker: 3 }, // 减少岗位
         },
         {
             name: "主教座堂",
             cost: { brick: 150, furniture: 40, silver: 1200 },
             input: { furniture: 0.14, fine_clothes: 0.11, papyrus: 0.04 }, // 2.25x基础输入
-            output: { culture: 36, silver: 9.5995, science: 0.3 }, // 2.25x culture + 高额奉献 + 神学
+            output: { culture: 48, science: 0.8 }, // V3: removed silver, compensated with +culture +science
             jobs: { cleric: 4, worker: 4 }, // 恢复岗位
         },
     ],
@@ -516,7 +516,7 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 200, iron: 40, silver: 1100 },
             input: { wood: 0.6, tools: 0.03, cloth: 0.06 }, // 需要帆布
             // Level 2 should never regress vs Level 1: keep the 2.25x spice progression and add bonus outputs
-            output: { spice: 1.55, silver: 0.25, science: 0.05 }, // 2.25x + 贸易利润&航海测绘
+            output: { spice: 1.8, science: 0.15 }, // V3: removed silver, compensated with +spice +science
             jobs: { navigator: 3, worker: 2, merchant: 1 }, // +1 navigator only
         },
     ],
@@ -545,14 +545,14 @@ export const BUILDING_UPGRADES = {
             name: "繁荣港口",
             cost: { plank: 150, spice: 30, silver: 600 },
             input: { spice: 0.45 },
-            output: { food: 93.6, silver: 2.6 }, // 1.3x of base 2.6667
+            output: { food: 100 }, // V3: removed silver, compensated with +food
             jobs: { merchant: 4, worker: 6 }, // keep same, efficiency upgrade
         },
         {
             name: "贸易枢纽",
             cost: { plank: 120, spice: 60, silver: 1300 },
             input: { spice: 0.70, cloth: 0.10 }, // 需要帆布
-            output: { food: 162, silver: 4.5 }, // 2.25x of base 2.6667 + 贸易利润
+            output: { food: 175 }, // V3: removed silver, compensated with +food
             jobs: { merchant: 5, worker: 8 }, // +1 merchant only
         },
     ],
@@ -640,14 +640,14 @@ export const BUILDING_UPGRADES = {
             name: "文人咖啡馆",
             cost: { plank: 80, coffee: 25, silver: 400 },
             input: { coffee: 0.4, delicacies: 0.16 }, // 降低消耗
-            output: { culture: 14.4, science: 5.1989, silver: 1.2 }, // 1.2x + 消费收入
+            output: { culture: 16, science: 6.5 }, // V3: removed silver, compensated with +culture +science
             jobs: { merchant: 1, scribe: 5 }, // 减少scribe岗位
         },
         {
             name: "沙龙",
             cost: { brick: 60, furniture: 25, silver: 900 },
             input: { coffee: 0.45, delicacies: 0.15 }, // 降低消耗
-            output: { culture: 15.75, science: 6.7498, silver: 1.8 }, // 1.75x + 高端消费
+            output: { culture: 18, science: 8.5 }, // V3: removed silver, compensated with +culture +science
             jobs: { merchant: 1, scribe: 5 }, // 适度增加
         },
     ],
@@ -733,14 +733,14 @@ export const BUILDING_UPGRADES = {
             name: "大蒸馏厂",
             cost: { brick: 150, copper: 50, silver: 600 },
             input: { food: 6.90, coal: 0.68 },
-            output: { ale: 17.85, silver: 2.90 },
+            output: { ale: 21 }, // V3: removed silver, compensated with +ale
             jobs: { worker: 11, capitalist: 1 },
         },
         {
             name: "酒业公司",
             cost: { brick: 250, copper: 80, silver: 1300 },
             input: { food: 8.10, coal: 0.82 },
-            output: { ale: 21.45, silver: 3.80, culture: 0.18 },
+            output: { ale: 26, culture: 0.5 }, // V3: removed silver, compensated with +ale +culture
             jobs: { worker: 12, capitalist: 1 },
         },
     ],
@@ -788,14 +788,14 @@ export const BUILDING_UPGRADES = {
             name: "大歌剧院",
             cost: { brick: 250, furniture: 50, silver: 700 },
             input: { fine_clothes: 0.625, delicacies: 0.375 },
-            output: { culture: 14.2188, silver: 4.0625 },
+            output: { culture: 20, science: 2 }, // V3: removed silver, compensated with +culture +science
             jobs: { cleric: 5, worker: 10, scribe: 5 },
         },
         {
             name: "皇家歌剧院",
             cost: { brick: 400, furniture: 80, silver: 1500 },
             input: { fine_clothes: 0.9583, delicacies: 0.575, coffee: 0.2556 },
-            output: { culture: 25.1564, silver: 7.1875, science: 0.4792 },
+            output: { culture: 35, science: 3 }, // V3: removed silver, compensated with +culture +science
             jobs: { cleric: 6, worker: 11, scribe: 6 },
         },
     ],
@@ -990,14 +990,14 @@ export const BUILDING_UPGRADES = {
             name: "大市场",
             cost: { brick: 300, papyrus: 60, cloth: 15, silver: 1000 },
             input: { papyrus: 0.12, coffee: 0.075 },
-            output: { food: 5.2, silver: 1.5 },
+            output: { food: 7, culture: 0.5 }, // V3: removed silver, compensated with +food +culture
             jobs: { merchant: 4, scribe: 1 },
         },
         {
             name: "交易所",
             cost: { steel: 200, papyrus: 120, delicacies: 30, silver: 2200 },
             input: { papyrus: 0.18, coffee: 0.12 },
-            output: { food: 6.75, silver: 1.8, culture: 0.225 },
+            output: { food: 9, culture: 1 }, // V3: removed silver, compensated with +food +culture
             jobs: { merchant: 5, scribe: 1 },
         },
     ],
@@ -1008,14 +1008,14 @@ export const BUILDING_UPGRADES = {
             name: "大铁路站",
             cost: { steel: 120, coal: 80, silver: 850 },
             input: { coal: 0.55, ale: 0.15, delicacies: 0.08, science: 0.08 },
-            output: { silver: 62.2222, maxPop: 34.5 },
+            output: { maxPop: 50, food: 2 }, // V3: removed silver, compensated with +maxPop +food
             jobs: { engineer: 6, scribe: 5, capitalist: 1 },
         },
         {
             name: "铁路枢纽",
             cost: { steel: 220, coal: 150, silver: 1900 },
             input: { coal: 0.60, ale: 0.18, delicacies: 0.10, science: 0.10 },
-            output: { silver: 80, maxPop: 37.5, food: 0.75, culture: 0.15 },
+            output: { maxPop: 60, food: 3, culture: 1 }, // V3: removed silver, compensated with +maxPop +food +culture
             jobs: { engineer: 6, scribe: 5, capitalist: 1 },
         },
     ],
@@ -1572,14 +1572,14 @@ export const BUILDING_UPGRADES = {
             name: "电梯公寓",
             cost: { silver: 5000, steel: 60, brick: 70, stone: 40, science: 150 },
             input: { electricity: 0.12 },
-            output: { maxPop: 156, silver: 1.5 }, // 1.3x
+            output: { maxPop: 170 }, // V3: removed silver, compensated with +maxPop
             jobs: { worker: 2 },
         },
         {
             name: "豪华公寓",
             cost: { silver: 10000, steel: 100, brick: 120, stone: 70, science: 300 },
             input: { electricity: 0.18 },
-            output: { maxPop: 270, silver: 2.5 }, // 2.25x
+            output: { maxPop: 300 }, // V3: removed silver, compensated with +maxPop
             jobs: { worker: 3 },
         },
     ],
@@ -1663,14 +1663,14 @@ export const BUILDING_UPGRADES = {
             name: "虚拟化集群",
             cost: { silver: 12000, steel: 60, brick: 40, semiconductors: 8, science: 350 },
             input: { semiconductors: 0.24, electricity: 2.34, steel: 0.144, composites: 0.1 },
-            output: { silver: 94.5, science: 9.2 }, // 1.3x
+            output: { science: 20 }, // V3: removed silver, compensated with +science
             jobs: { technician: 13, scientist: 4, engineer: 5, capitalist: 1 },
         },
         {
             name: "量子计算中心",
             cost: { silver: 25000, steel: 100, brick: 70, semiconductors: 15, science: 700 },
             input: { semiconductors: 0.32, electricity: 3.12, steel: 0.192, composites: 0.1333 },
-            output: { silver: 126, science: 12.4 }, // 2.25x
+            output: { science: 30 }, // V3: removed silver, compensated with +science
             jobs: { technician: 12, scientist: 5, engineer: 5, capitalist: 1 },
         },
     ],
@@ -1681,14 +1681,14 @@ export const BUILDING_UPGRADES = {
             name: "移动互联",
             cost: { silver: 10000, electronics: 12, software: 5, science: 250 },
             input: { software: 0.378, electricity: 1.5333 },
-            output: { silver: 75, culture: 3.8334 }, // 1.3x
+            output: { culture: 12, science: 5 }, // V3: removed silver, compensated with +culture +science
             jobs: { scientist: 7, scribe: 15, capitalist: 1 },
         },
         {
             name: "元宇宙平台",
             cost: { silver: 20000, electronics: 25, software: 10, science: 500 },
             input: { software: 0.54, electricity: 2.1977 },
-            output: { silver: 107.1429, culture: 5.4945 }, // 2.25x
+            output: { culture: 18, science: 8 }, // V3: removed silver, compensated with +culture +science
             jobs: { scientist: 8, scribe: 14, capitalist: 1 },
         },
     ],
@@ -1753,14 +1753,14 @@ export const BUILDING_UPGRADES = {
             name: "高频交易",
             cost: { silver: 14000, software: 8, electronics: 12, steel: 20, science: 350 },
             input: { software: 0.414, electricity: 1.6611 },
-            output: { silver: 100 }, // 1.3x
+            output: { culture: 8, science: 5 }, // V3: removed silver, compensated with culture+science
             jobs: { scribe: 23, capitalist: 2 },
         },
         {
             name: "去中心化金融",
             cost: { silver: 28000, software: 15, electronics: 25, steel: 35, science: 700 },
             input: { software: 0.72, electricity: 2.9133 },
-            output: { silver: 180 }, // 2.25x
+            output: { culture: 15, science: 10 }, // V3: removed silver, compensated with culture+science
             jobs: { scribe: 30, capitalist: 3 },
         },
     ],

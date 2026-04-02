@@ -8,3 +8,4 @@ export * from './prices';
 export * from './taxes';
 export * from './trading';
 export * from './resourceBuildingIndex';
+export * from './monetary';

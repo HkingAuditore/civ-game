@@ -6,10 +6,16 @@
 export const TRANSACTION_CATEGORIES = {
     INCOME: {
         WAGE: 'wage',
+        WAGE_INCOME: 'wageIncome', // V3: worker receives wage from owner
         SALARY: 'salary', // 官员薪水
         MILITARY_PAY: 'militaryPay', // 军饷
         OWNER_REVENUE: 'ownerRevenue', // 业主经营收入
+        PRODUCTION_SALE: 'productionSale', // V3: producer sells to merchant
+        CONSUMER_PURCHASE: 'consumerPurchase', // V3: merchant receives from consumer
+        TRADE_EXPORT_REVENUE: 'tradeExportRevenue', // V3: foreign currency inflow from exports
+        MINT_OUTPUT: 'mintOutput', // V3: mint produces silver → state
         SUBSIDY: 'subsidy', // 政府补贴
+        SUBSIDY_TO_MERCHANT: 'subsidyToMerchant', // V3: state subsidizes merchant liquidity
         CORRUPTION: 'corruption', // 腐败收入
         TRADE_IMPORT: 'tradeImport', // 贸易进口（视为收入的一种形式？不，这是支出，但如果转手卖就是收入。这里指贸易获利）
         // 修正：贸易获利通常计入 OWNER_REVENUE
@@ -22,13 +28,17 @@ export const TRANSACTION_CATEGORIES = {
         RESOURCE_TAX: 'transactionTax', // 交易税/资源税
         TARIFF: 'tariffs',
         PRODUCTION_COST: 'productionCosts',
+        PRODUCTION_PURCHASE: 'productionPurchase', // V3: merchant buys production from producer
         WAGES_PAID: 'wages', // 业主支付给工人的工资
+        WAGE_PAYMENT: 'wagePayment', // V3: owner pays wage to worker
         ESSENTIAL_CONSUMPTION: 'essentialNeeds',
         LUXURY_CONSUMPTION: 'luxuryNeeds',
+        CONSUMER_SPENDING: 'consumerSpending', // V3: consumer pays merchant for goods
         DECAY: 'decay', // 财富自然衰减
         MAINTENANCE: 'maintenance', // 维护费
         TRADE_EXPORT: 'tradeExport', // 贸易出口支出
         TRADE_EXPORT_PURCHASE: 'tradeExportPurchase', // 贸易出口购买成本
+        TRADE_IMPORT_PAYMENT: 'tradeImportPayment', // V3: silver outflow for imports
         CAPITAL_FLIGHT: 'capitalFlight', // 资本外逃
         BUILDING_COST: 'buildingCost', // 建筑建造/升级成本
         LAYOFF_TRANSFER: 'layoffTransfer', // 裁员时随人口转移的财富
@@ -56,6 +66,11 @@ export class EconomyLedger {
         // 投资统计 (用于GDP计算)
         this.dailyInvestment = 0; // 当日总投资额（建筑建造+升级）
         this.dailyOwnerRevenue = 0; // 当日建筑产出收入（用于存货变动计算）
+
+        // V3: Monetary conservation tracking
+        this.v3MintOutput = 0; // Total silver created by mints this tick
+        this.v3TradeExportRevenue = 0; // Total silver inflow from exports
+        this.v3TradeImportPayment = 0; // Total silver outflow for imports
     }
 
     /**
@@ -71,10 +86,15 @@ export class EconomyLedger {
         if (amount <= 0) return;
 
         // 1. 扣款 — _deduct 返回实际扣除金额（可能因余额不足而小于 amount）
+        // [FIX] Use `category` for expense recording (sender's expense type),
+        //       and `subCategory` for income recording (receiver's income type).
+        //       Previously both used `subCategory`, causing cross-category transfers
+        //       (e.g. merchant→owner with PRODUCTION_PURCHASE/PRODUCTION_SALE)
+        //       to silently fail recording the sender's expense.
         let actualDeducted = amount;
         if (from !== 'void') {
-            actualDeducted = this._deduct(from, amount, subCategory, metadata);
-            this._recordExpense(from, actualDeducted, subCategory, metadata);
+            actualDeducted = this._deduct(from, amount, category, metadata);
+            this._recordExpense(from, actualDeducted, category, metadata);
         }
 
         // 2. 入账
@@ -213,6 +233,17 @@ export class EconomyLedger {
         // 建筑产出收入统计 (用于存货变动计算)
         if (from === 'void' && type === TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE) {
             this.dailyOwnerRevenue += amount;
+        }
+
+        // V3: Track mint output and trade flows for monetary conservation
+        if (from === 'void' && type === TRANSACTION_CATEGORIES.INCOME.MINT_OUTPUT) {
+            this.v3MintOutput += amount;
+        }
+        if (from === 'void' && type === TRANSACTION_CATEGORIES.INCOME.TRADE_EXPORT_REVENUE) {
+            this.v3TradeExportRevenue += amount;
+        }
+        if (to === 'void' && type === TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT_PAYMENT) {
+            this.v3TradeImportPayment += amount;
         }
 
         // 建筑统计 (如果有 metadata.buildingId)
