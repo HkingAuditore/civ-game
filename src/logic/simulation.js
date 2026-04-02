@@ -557,6 +557,8 @@ export const simulateTick = ({
     ideologyMetrics = null,
     // V3 货币量追踪
     previousMonetaryStats = null,
+    // [FIX] 上一 tick 的阶层财务数据，用于商人人头税税基计算
+    prevClassFinancialData = null,
     // [PERF] 性能模式标志，主线程传入
     _isLowPerformance = false,
 }) => {
@@ -1634,6 +1636,14 @@ export const simulateTick = ({
     // Called after all buildings have been processed
     const _settleProductionRevenue = () => {
         if (_deferredProductionRevenue.length === 0) return;
+
+        // V3: No merchant population → no market intermediary → no production revenue settlement
+        const merchantPop = popStructure.merchant || 0;
+        if (merchantPop <= 0) {
+            // Clear the queue without paying anyone — economy stalls without merchants
+            _deferredProductionRevenue.length = 0;
+            return;
+        }
 
         // Calculate total owed to all producers
         let totalOwed = 0;
@@ -3249,8 +3259,8 @@ export const simulateTick = ({
                 const disposableWealth = Math.max(0, available - reservedWealth);
                 const paid = Math.min(disposableWealth, ownerBill);
 
-                // V3: owner pays wages directly (no void intermediary)
-                ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGE_PAYMENT, TRANSACTION_CATEGORIES.EXPENSE.WAGE_PAYMENT, { buildingId: b.id });
+                // V3: owner pays wages directly — actual transfer happens per-role below
+                // (no ledger.transfer here; owner→worker transfers are done in the per-plan loop)
                 roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
 
                 ownerPaidRatio[oKey] = ownerBill > 0 ? paid / ownerBill : 0;
@@ -3276,7 +3286,7 @@ export const simulateTick = ({
                     (buildingFinancialData[b.id].wagesByRole[plan.role] || 0) + payout;
 
                 // V3: worker receives wage directly from owner (owner→worker)
-                ledger.transfer('void', plan.role, payout, TRANSACTION_CATEGORIES.INCOME.WAGE_INCOME, TRANSACTION_CATEGORIES.INCOME.WAGE_INCOME, { buildingId: b.id });
+                ledger.transfer(plan.ownerKey, plan.role, payout, TRANSACTION_CATEGORIES.EXPENSE.WAGE_PAYMENT, TRANSACTION_CATEGORIES.INCOME.WAGE_INCOME, { buildingId: b.id });
 
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
                 roleLaborIncome[plan.role] = (roleLaborIncome[plan.role] || 0) + payout; // Wages are labor income
@@ -3498,6 +3508,9 @@ export const simulateTick = ({
     perfStart('headTax');
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') return;
+        // [FIX] 商人的人头税延迟到消费循环之后征收，因为此时商人 wealth ≈ 0
+        // （商人的主要收入来自消费者购买，发生在 needsConsumption 阶段）
+        if (key === 'merchant') return;
         const count = popStructure[key] || 0;
         if (count === 0) return;
         const def = STRATA[key];
@@ -3505,23 +3518,21 @@ export const simulateTick = ({
             wealth[key] = def.startingWealth || 0;
         }
         const headRate = getHeadTaxRate(key);
-        // [FIX] 使用本 tick 实际每人工资收入，而非 previousWages（岗位工资率）。
-        // previousWages 是每个岗位的工资信号，若就业率 < 100%，会远高于人均实际收入，
-        // 导致"20% 税率"实际收取的金额远超每人收入的 20%。
-        let actualPerCapitaWage = count > 0 ? (roleWagePayout[key] || 0) / count : 0;
+        // 使用本 tick 实际每人工资收入作为课税基数
+        let actualPerCapitaIncome = count > 0 ? (roleWagePayout[key] || 0) / count : 0;
         // 军人收入（军饷）在人头税之后才发放，此时 roleWagePayout.soldier 为 0；
         // 用上一 tick 的工资信号（对军人来说已是人均值）作为课税基数
-        if (actualPerCapitaWage <= 0 && key === 'soldier') {
+        if (actualPerCapitaIncome <= 0 && key === 'soldier') {
             const prevSoldierWage = previousWages[key];
             if (Number.isFinite(prevSoldierWage) && prevSoldierWage > 0) {
-                actualPerCapitaWage = prevSoldierWage;
+                actualPerCapitaIncome = prevSoldierWage;
             }
         }
         const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
         let plannedPerCapitaTax;
         if (headRate > 0) {
-            const incomeBase = (Number.isFinite(actualPerCapitaWage) && actualPerCapitaWage > 0)
-                ? actualPerCapitaWage * taxRatio : 0;
+            const incomeBase = (Number.isFinite(actualPerCapitaIncome) && actualPerCapitaIncome > 0)
+                ? actualPerCapitaIncome * taxRatio : 0;
             plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
         } else if (headRate < 0) {
             plannedPerCapitaTax = headRate * effectiveTaxModifier;
@@ -4037,6 +4048,7 @@ export const simulateTick = ({
                     const expenseCat = isEssential ? TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION;
 
                     // V3: Merchant intermediary — consumers pay merchant, not void
+                    const hasMerchants = (popStructure.merchant || 0) > 0;
                     if (key === 'merchant') {
                         // Merchant self-consumption: goods already paid for via productionPurchase.
                         // Record to separate 'selfConsumption' field for GDP tracking,
@@ -4049,9 +4061,12 @@ export const simulateTick = ({
                             selfCons._selfConsumption[resKey].quantity += amount;
                             selfCons._selfConsumption[resKey].price = finalEffectivePrice;
                         }
-                    } else {
+                    } else if (hasMerchants) {
                         // Non-merchant: stratum→merchant (consumer pays merchant for goods)
                         ledger.transfer(key, 'merchant', totalCost, expenseCat, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE, { resource: resKey, quantity: amount, price: finalEffectivePrice });
+                    } else {
+                        // No merchants: consumer pays to void (barter economy fallback)
+                        ledger.transfer(key, 'void', totalCost, expenseCat, expenseCat, { resource: resKey, quantity: amount, price: finalEffectivePrice });
                     }
 
                     // Only accumulate expense/living expense for non-merchant strata
@@ -4166,6 +4181,69 @@ export const simulateTick = ({
     }
     perfEnd('needsConsumption');
     _silverCheckpoint('needsConsumption');
+
+    // ========== 商人延迟人头税（消费循环后征收，此时商人已收到消费者购买收入） ==========
+    {
+        const key = 'merchant';
+        const count = popStructure[key] || 0;
+        if (count > 0) {
+            // 更新商人的税前财富快照（此时商人已收到消费者购买收入）
+            preTaxWealth[key] = wealth[key] || 0;
+            if (wealth[key] === undefined) {
+                wealth[key] = STRATA[key].startingWealth || 0;
+            }
+            const headRate = getHeadTaxRate(key);
+            // 使用上一 tick 的商业收入作为税基（当前 tick 的 classFinancialData 尚在累积中）
+            let actualPerCapitaIncome = 0;
+            if (prevClassFinancialData?.merchant) {
+                const mIncome = prevClassFinancialData.merchant.income;
+                const commercialIncome = (mIncome.consumerPurchase || 0)
+                    + (mIncome.tradeExportRevenue || 0)
+                    + (mIncome.productionSale || 0)
+                    + (mIncome.tradeImportRevenue || 0);
+                actualPerCapitaIncome = count > 0 ? commercialIncome / count : 0;
+            }
+            const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
+            let plannedPerCapitaTax;
+            if (headRate > 0) {
+                const incomeBase = (Number.isFinite(actualPerCapitaIncome) && actualPerCapitaIncome > 0)
+                    ? actualPerCapitaIncome * taxRatio : 0;
+                plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
+            } else if (headRate < 0) {
+                plannedPerCapitaTax = headRate * effectiveTaxModifier;
+            } else {
+                plannedPerCapitaTax = 0;
+            }
+            const available = Math.max(0, wealth[key] || 0);
+            const maxPerCapitaTax = available / Math.max(1, count);
+            const effectivePerCapitaTax = plannedPerCapitaTax >= 0
+                ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
+                : plannedPerCapitaTax;
+            const due = count * effectivePerCapitaTax;
+
+            if (due !== 0) {
+                if (due > 0) {
+                    const paid = Math.min(available, due);
+                    ledger.transfer(key, 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
+                    roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
+                    roleExpense[key] = (roleExpense[key] || 0) + paid;
+                    roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid;
+                } else {
+                    const subsidyNeeded = -due;
+                    const treasury = res.silver || 0;
+                    if (treasury >= subsidyNeeded) {
+                        ledger.transfer('state', key, subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+                        roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
+                        roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded;
+                        if (classFinancialData[key]) {
+                            classFinancialData[key].income.headTaxSubsidy = (classFinancialData[key].income.headTaxSubsidy || 0) + subsidyNeeded;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    _silverCheckpoint('merchantHeadTax');
 
     // Decree approval modifiers now come from `activeDecrees` (timed system)
     const decreesFromActiveForApproval = activeDecrees
@@ -4340,9 +4418,14 @@ export const simulateTick = ({
 
             // Apply wealth deductions
             // V3: Building cost flows to merchant (purchasing building materials through market)
+            const _hasMerchantsForBuild = (popStructure.merchant || 0) > 0;
             Object.entries(wealthDeductions).forEach(([stratum, amount]) => {
                 if (wealth[stratum]) {
-                    ledger.transfer(stratum, 'merchant', amount, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE);
+                    if (_hasMerchantsForBuild) {
+                        ledger.transfer(stratum, 'merchant', amount, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE);
+                    } else {
+                        ledger.transfer(stratum, 'void', amount, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
+                    }
                 }
             });
             // Update the main `builds` object for the rest of the tick
@@ -4547,7 +4630,12 @@ export const simulateTick = ({
 
                 // V3: Official consumption goes through merchant intermediary
                 const expenseCat = isLuxury ? TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION;
-                ledger.transfer('official', 'merchant', totalCost, expenseCat, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE, { resource, quantity: amount, price });
+                if ((popStructure.merchant || 0) > 0) {
+                    ledger.transfer('official', 'merchant', totalCost, expenseCat, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE, { resource, quantity: amount, price });
+                } else {
+                    // No merchants: official pays to void (barter economy fallback)
+                    ledger.transfer('official', 'void', totalCost, expenseCat, expenseCat, { resource, quantity: amount, price });
+                }
             } else {
                 const amount = Math.min(requirement, available);
                 if (amount > 0) {
@@ -8213,7 +8301,11 @@ export const simulateTick = ({
 
             // 2. Deduct cost from owner's wealth
             // V3: Building upgrade cost flows to merchant (purchasing materials through market)
-            ledger.transfer(ownerKey, 'merchant', totalSilverCost, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE);
+            if ((popStructure.merchant || 0) > 0) {
+                ledger.transfer(ownerKey, 'merchant', totalSilverCost, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.INCOME.CONSUMER_PURCHASE);
+            } else {
+                ledger.transfer(ownerKey, 'void', totalSilverCost, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
+            }
 
             // 3. Update building upgrade levels
             if (!updatedBuildingUpgrades[buildingId]) {

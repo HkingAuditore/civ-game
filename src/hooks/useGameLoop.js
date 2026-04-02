@@ -1367,6 +1367,8 @@ difficulty, // 游戏难度
                 ideologyMetrics: ideologyMetricsRef.current,
                 // V3: Monetary stats tracking
                 previousMonetaryStats: current.monetaryStats || null,
+                // [FIX] Pass previous tick's classFinancialData for merchant head tax base
+                prevClassFinancialData: cachedClassFinancialDataRef.current || null,
 
                 // Buff/Debuff
                 activeBuffs: current.activeBuffs,

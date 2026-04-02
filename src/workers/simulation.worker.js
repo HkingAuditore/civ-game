@@ -24,6 +24,9 @@ let _historyCache = {
     classNeedsHistory: {},
 };
 
+// [FIX] Worker内部缓存上一tick的classFinancialData，用于商人人头税税基计算
+let _prevClassFinancialData = null;
+
 // [PERF] 调试模式标志：关闭时从传输payload中剔除大量调试数据
 let _debugEnabled = false;
 
@@ -146,11 +149,18 @@ self.onmessage = function(event) {
                 ...payload,
                 classWealthHistory: _historyCache.classWealthHistory,
                 classNeedsHistory: _historyCache.classNeedsHistory,
+                // [FIX] 注入上一tick的classFinancialData，用于商人人头税税基计算
+                prevClassFinancialData: _prevClassFinancialData,
             };
 
             // Execute the simulation
             const result = simulateTick(enrichedPayload);
             _tickCounter++;
+
+            // [FIX] 缓存本tick的classFinancialData供下一tick使用
+            if (result.classFinancialData) {
+                _prevClassFinancialData = result.classFinancialData;
+            }
             
             // [PERF] 剥离非必要数据后再传输，大幅减少postMessage序列化开销
             self.postMessage({
