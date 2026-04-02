@@ -581,7 +581,7 @@ const FrontViewPanel = ({
                                 title="发起和谈，结束与该国的战争"
                             >
                                 <Icon name="Flag" size={14} className="text-purple-300" />
-                                发起求和
+                                发起议和
                             </button>
                         )}
                     </div>
