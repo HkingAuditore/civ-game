@@ -55,9 +55,9 @@ export const applyBuildingCostModifier = (cost = {}, modifier = 0, baseCost = nu
             const penalty = Math.max(0, totalAmount - baseAmount);
             // 对数量惩罚部分应用减免，确保不低于0
             const adjustedPenalty = Math.max(0, penalty * (1 + modifier));
-            // [FIX] 确保高额减免时仍保留至少30%的数量惩罚梯度，
+            // [FIX] 确保高额减免时仍保留至少50%的数量惩罚梯度，
             // 防止成本退化为常数（修正前 penalty 被完全抵消 → 成本=baseAmount）
-            const minPenalty = penalty * 0.3;
+            const minPenalty = penalty * 0.5;
             const finalPenalty = Math.max(minPenalty, adjustedPenalty);
             adjusted[key] = baseAmount + finalPenalty;
         } else {

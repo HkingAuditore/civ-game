@@ -666,7 +666,7 @@ export const TRIBUTE_CONFIG = {
     // 基础朝贡计算参数
     baseAmount: 20,                     // 固定保底，避免极小附庸完全没有现金朝贡
     // playerWealthRate Removed: Tribute should not depend on overlord wealth
-    vassalGDPRate: 0.18,                // 温和下调：减轻附庸发展期被持续抽血
+    vassalGDPRate: 0.005,               // 基于财富存量计算（存量量级远大于GDP流量，系数相应缩小）
 
     // 附庸规模系数
     sizeMultipliers: {
@@ -678,7 +678,7 @@ export const TRIBUTE_CONFIG = {
     // 资源朝贡配置
     resourceTribute: {
         enabled: true,
-        baseAmount: 10,                  // 基础资源数量
+        baseAmount: 10000,                  // 基础资源数量，配合对数函数控制整体量级
         resources: ['food', 'wood', 'iron', 'cloth'],  // 可朝贡的资源类型
     },
 

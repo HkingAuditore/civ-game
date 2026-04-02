@@ -1686,7 +1686,6 @@ export const checkVassalRequests = (vassals, tick, logs) => {
             const lastRequest = v.lastInvestRequestDay || 0;
             if (tick - lastRequest > 365 && Math.random() < 0.01) {
                 v.lastInvestRequestDay = tick;
-                logs.push(`📈 ${v.name} 局势稳定，邀请宗主国资本家进场投资以带动经济。`);
             }
         }
     });

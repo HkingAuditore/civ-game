@@ -76,7 +76,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     building_cost_reduction: {
         type: 'buildingCostMod',
         category: 'economy',
-        valueRange: [-0.35, -0.10], // 大幅提升
+        valueRange: [-0.15, -0.05], // nerf: 削弱至原来的约40%，防止多官员叠加过强
         weight: 12,
         costMultiplier: 1.2,
         description: (val) => `建筑成本 ${(val * 100).toFixed(0)}%`,

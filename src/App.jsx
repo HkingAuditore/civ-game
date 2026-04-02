@@ -2562,23 +2562,6 @@ function GameApp({ gameState }) {
                             onClose={() => setIsSettingsOpen(false)}
                             eventConfirmationEnabled={gameState.eventConfirmationEnabled}
                             onToggleEventConfirmation={gameState.setEventConfirmationEnabled}
-                            showMerchantTradeLogs={gameState.eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? false}
-                            onToggleMerchantTradeLogs={(enabled) => gameState.setEventEffectSettings(prev => ({
-                                ...(prev || {}),
-                                logVisibility: {
-                                    ...((prev || {}).logVisibility || {}),
-                                    showMerchantTradeLogs: enabled,
-                                    showTradeLogs: enabled,
-                                },
-                            }))}
-                            showOfficialLogs={gameState.eventEffectSettings?.logVisibility?.showOfficialLogs ?? false}
-                            onToggleOfficialLogs={(enabled) => gameState.setEventEffectSettings(prev => ({
-                                ...(prev || {}),
-                                logVisibility: {
-                                    ...((prev || {}).logVisibility || {}),
-                                    showOfficialLogs: enabled,
-                                }
-                            }))}
                             showMusicPlayer={gameState.eventEffectSettings?.logVisibility?.showMusicPlayer ?? false}
                             onToggleMusicPlayer={(enabled) => gameState.setEventEffectSettings(prev => ({
                                 ...(prev || {}),

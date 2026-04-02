@@ -545,7 +545,7 @@ const STANCE_TEMPLATES = {
         stratumWeights: { artisan: 2.5, worker: 2.0, engineer: 1.5 },
         activeEffects: {
             industryBonus: 0.12,
-            buildingCostMod: -0.08,
+            buildingCostMod: -0.04, // nerf: 削弱官员建筑成本效果
             productionInputCost: { sawmill: -0.15, brickworks: -0.15, metallurgy_workshop: -0.18 }
         },
         unsatisfiedPenalty: { approval: { artisan: -2 } },
@@ -652,7 +652,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_size_below', 'legitimacy_above'],
         preferredStrata: ['official', 'landowner'],
         stratumWeights: { official: 2.0 },
-        activeEffects: { taxEfficiency: 0.15, buildingCostMod: -0.12 },
+        activeEffects: { taxEfficiency: 0.15, buildingCostMod: -0.06 }, // nerf: 削弱官员建筑成本效果
         unsatisfiedPenalty: {},
     },
 
@@ -717,7 +717,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_size_below', 'legitimacy_above', 'stability_above'],
         preferredStrata: ['official', 'scribe', 'engineer'],
         stratumWeights: { official: 2.0, scribe: 2.0, engineer: 1.5 },
-        activeEffects: { researchSpeed: 0.18, buildingCostMod: -0.08 },
+        activeEffects: { researchSpeed: 0.18, buildingCostMod: -0.04 }, // nerf: 削弱官员建筑成本效果
         unsatisfiedPenalty: {},
     },
     conservatism: {
