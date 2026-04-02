@@ -3471,7 +3471,7 @@ export const useGameActions = (gameState, addLog) => {
                 ));
 
                 const logVisibility = eventEffectSettings?.logVisibility || {};
-                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? true;
+                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? false;
                 if (shouldLogTradeRoutes) {
                     addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${payout.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
                 }
@@ -3536,7 +3536,7 @@ export const useGameActions = (gameState, addLog) => {
                 ));
 
                 const logVisibility = eventEffectSettings?.logVisibility || {};
-                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? true;
+                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? false;
                 if (shouldLogTradeRoutes) {
                     addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
                 }

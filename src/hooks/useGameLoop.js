@@ -2321,8 +2321,10 @@ difficulty, // 游戏难度
                                     [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
                                 }), { reason: 'autonomous_investment_cost', meta: { stratum } });
                                 setOverseasInvestments(prev => mergeOverseasInvestments(prev, investment));
-                                const stratumName = STRATA[stratum]?.name || stratum;
-                                addLog('[自治投资] ' + stratumName + ' 在 ' + targetNation.name + ' 投资 ' + building.name + '（预计日回报 ' + dailyProfit.toFixed(1) + '），注资 ' + formatNumberShortCN(cost) + '。');
+                                if (current.eventEffectSettings?.logVisibility?.showTradeLogs ?? false) {
+                                    const stratumName = STRATA[stratum]?.name || stratum;
+                                    addLog('[自治投资] ' + stratumName + ' 在 ' + targetNation.name + ' 投资 ' + building.name + '（预计日回报 ' + dailyProfit.toFixed(1) + '），注资 ' + formatNumberShortCN(cost) + '。');
+                                }
                             });
 
                             setNations(prev => prev.map(n => {
@@ -2442,9 +2444,11 @@ difficulty, // 游戏难度
                                     lastForeignSampleDay: effectiveDaysElapsed,
                                 };
 
-                                addLog('[外资建设] ' + investorNation.name + ' 在本国投资建设了 ' + building.name + '。');
-                                if (investmentPolicy === 'guided' || investmentPolicy === 'forced') {
-                                    addLog(`⚠️ 由于${investmentPolicy === 'forced' ? '强制' : '引导'}投资政策，${investorNation.name} 国内出现不满。`);
+                                if (current.eventEffectSettings?.logVisibility?.showTradeLogs ?? false) {
+                                    addLog('[外资建设] ' + investorNation.name + ' 在本国投资建设了 ' + building.name + '。');
+                                    if (investmentPolicy === 'guided' || investmentPolicy === 'forced') {
+                                        addLog(`⚠️ 由于${investmentPolicy === 'forced' ? '强制' : '引导'}投资政策，${investorNation.name} 国内出现不满。`);
+                                    }
                                 }
                             });
 
@@ -6068,7 +6072,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
 
                     // Filter and transform technical logs to human-readable format
                     const logVisibility = current?.eventEffectSettings?.logVisibility || {};
-                    const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
+                    const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? false;
                     const processedLogs = _logs.map(log => {
                         if (typeof log !== 'string') return log;
 

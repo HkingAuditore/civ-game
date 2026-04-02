@@ -4789,7 +4789,7 @@ export const simulateTick = ({
             }
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
-            if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
+            if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? false)) {
                 // Log investment
                 const investLogPrefix = isStateManagedPolicy ? '🏛️ 国有' : '🏗️ 官员';
                 const investLogSuffix = isStateManagedPolicy ? '（国库出资）' : `（花费${Math.ceil(investmentDecision.cost)} 银）`;
@@ -7539,11 +7539,11 @@ export const simulateTick = ({
         merchantTradePreferences: merchantState.merchantTradePreferences || null,
 
         // Control whether to log merchant trade initiation messages
-        shouldLogMerchantTrades: eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? true,
+        shouldLogMerchantTrades: eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? false,
         // Throttle new trades to reduce workload
         allowNewTrades: shouldUpdateMerchantTrade,
         // [NEW] Control official logs
-        shouldLogOfficialEvents: eventEffectSettings?.logVisibility?.showOfficialLogs ?? true,
+        shouldLogOfficialEvents: eventEffectSettings?.logVisibility?.showOfficialLogs ?? false,
 
         // Treasury change callback for resource tracking
         onTreasuryChange: applySilverChange,
@@ -8056,7 +8056,7 @@ export const simulateTick = ({
             expansionLogs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
         }
 
-        if (expansionLogs.length > 0 && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? true)) {
+        if (expansionLogs.length > 0 && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? false)) {
             expansionLogs.forEach((entry) => logs.push(entry));
         }
     }
@@ -8611,7 +8611,7 @@ export const simulateTick = ({
     }
 
     // Merge investment logs (gated by official log visibility setting)
-    const showOfficialLogsForInvestment = eventEffectSettings?.logVisibility?.showOfficialLogs ?? true;
+    const showOfficialLogsForInvestment = eventEffectSettings?.logVisibility?.showOfficialLogs ?? false;
     if (showOfficialLogsForInvestment) {
         logs.push(...investmentLogs);
     }

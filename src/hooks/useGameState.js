@@ -921,8 +921,9 @@ const DEFAULT_EVENT_EFFECT_SETTINGS = {
 
     // UI / Log visibility settings
     logVisibility: {
-        showMerchantTradeLogs: true,
-        showTradeLogs: true,
+        showMerchantTradeLogs: false,
+        showTradeLogs: false,
+        showOfficialLogs: false,
         showMusicPlayer: false,
     },
 };
