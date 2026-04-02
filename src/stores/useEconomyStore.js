@@ -10,8 +10,9 @@ const DEFAULT_EVENT_EFFECT_SETTINGS = {
     stratumDemand: { duration: 60, decayRate: 0.02 },
     buildingProduction: { duration: 45, decayRate: 0.025 },
     logVisibility: {
-        showMerchantTradeLogs: true,
-        showTradeLogs: true,
+        showMerchantTradeLogs: false,
+        showTradeLogs: false,
+        showOfficialLogs: false,
     },
 };
 
