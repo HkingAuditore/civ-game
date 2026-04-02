@@ -784,7 +784,9 @@ const getNationFrontPeaceContext = (nationId, fronts = []) => {
 
 const getNationNegotiationContext = (nation, activeFronts = []) => {
     const frontContext = getNationFrontPeaceContext(nation?.id, activeFronts);
-    const playerAdvantageScore = Number(nation?.warScore || 0);
+    // warScore 正值 = 攻击方（AI）优势，负值 = 防御方（玩家）优势
+    // playerAdvantageScore 正值应表示玩家占优，所以需要取反
+    const playerAdvantageScore = -Number(nation?.warScore || 0);
     const aiAdvantageScore = -playerAdvantageScore;
     const aiDominantOnFront = frontContext.frontCount > 0 && (
         frontContext.isPressingPlayerCore
@@ -829,7 +831,7 @@ export const checkAIPeaceRequest = ({
             const availableWealth = Math.max(0, next.wealth || 0);
             const baseTribute = calculateAIPeaceTribute(Math.max(warScore, 5), enemyLosses, next.warDuration || 0, availableWealth);
             const tribute = Math.floor(baseTribute);
-            logs.push(`🤝 ${next.name} 首都已岌岌可危，被迫请求和平，愿意支付 ${tribute.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。`);
+            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tribute.toLocaleString('fullwide', { useGrouping: false })} 银币作为赔款。首都已岌岌可危，被迫求和。`);
             next.isPeaceRequesting = true;
             next.peaceTribute = tribute;
             next.lastPeaceRequestDay = tick;

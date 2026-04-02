@@ -4,9 +4,22 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.30',
+        version: '2.3.31',
         date: '2026-04-02',
         isLatest: true,
+        highlights: [
+            '修正 AI 求和谈判中战争分数与「玩家优势」符号，意愿与战况一致',
+            '首都危急强制求和日志合并赔款说明与处境提示',
+        ],
+        changes: [
+            { type: 'fix', text: '修复 getNationNegotiationContext 将 nation.warScore 直接当作玩家优势分的问题：规则上正值表示攻击方（AI）占优、负值表示防御方（玩家）占优，现对 warScore 取反得到 playerAdvantageScore，使分数驱动求和路径、与战线联动的门槛判断与实际局势一致。' },
+            { type: 'improve', text: '战线危急触发的强制求和日志在保留赔款数额的前提下，合并为一句同时说明请求和谈、赔款与「首都岌岌可危」处境，减少重复前缀。' },
+        ],
+    },
+    {
+        version: '2.3.30',
+        date: '2026-04-02',
+        isLatest: false,
         highlights: [
             '附庸现金朝贡改按财富存量计算，资源朝贡用对数曲线更平滑',
             'AI 战线危急求和提前于冷却判定，分片演算时也会强制触发',
