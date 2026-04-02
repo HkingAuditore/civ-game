@@ -1211,7 +1211,6 @@ export const useGameActions = (gameState, addLog) => {
         // [FIX] 如果容量为0，直接返回，防止无限招兵
         if (capacity <= 0) {
             debugLog('gameLoop', `[AUTO_REPLENISH] Failed: No military capacity (capacity=0)`);
-            addLog('⚠️ 无军事容量，自动补兵已禁用。请建造兵营。');
             return;
         }
 
@@ -1232,7 +1231,6 @@ export const useGameActions = (gameState, addLog) => {
 
         if (availableSlots <= 0) {
             debugLog('gameLoop', `[AUTO_REPLENISH] Failed: Capacity full (Cap: ${capacity}, ProjectedArmy: ${projectedArmyCount})`);
-            addLog('⚠️ 军事容量不足，自动补兵已暂停。');
             return;
         }
 
@@ -1279,7 +1277,6 @@ export const useGameActions = (gameState, addLog) => {
 
         if (!canAfford) {
             debugLog('gameLoop', `[AUTO_REPLENISH] Failed: Cannot afford (Cost: ${totalSilverCost}, Silver: ${resources.silver})`);
-            addLog(`❌ 资金或资源不足，已取消本次自动补兵（需 ${Math.ceil(totalSilverCost)} 银币）。`);
             return;
         }
 
@@ -1314,11 +1311,6 @@ export const useGameActions = (gameState, addLog) => {
         if (replenishItems.length > 0) {
             debugLog('gameLoop', `[AUTO_REPLENISH] Success: Adding ${replenishItems.length} items to queue`);
             setMilitaryQueue(prev => [...prev, ...replenishItems]);
-            const summary = Object.entries(replenishCounts)
-                .filter(([_, count]) => count > 0)
-                .map(([unitId, count]) => `${UNIT_TYPES[unitId]?.name || unitId} ×${count}`)
-                .join('、');
-            addLog(`🔄 自动补兵：已花费资金招募 ${summary} 加入训练队列。`);
         }
 
         if (capacity > 0) {
@@ -3470,11 +3462,6 @@ export const useGameActions = (gameState, addLog) => {
                         : n
                 ));
 
-                const logVisibility = eventEffectSettings?.logVisibility || {};
-                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? false;
-                if (shouldLogTradeRoutes) {
-                    addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${payout.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
-                }
                 break;
             }
 
@@ -3535,11 +3522,6 @@ export const useGameActions = (gameState, addLog) => {
                         : n
                 ));
 
-                const logVisibility = eventEffectSettings?.logVisibility || {};
-                const shouldLogTradeRoutes = logVisibility.showTradeLogs ?? false;
-                if (shouldLogTradeRoutes) {
-                    addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
-                }
                 break;
             }
 

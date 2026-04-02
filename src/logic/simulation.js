@@ -742,7 +742,6 @@ export const simulateTick = ({
     // COW: 不预先拷贝，由后续处理函数返回新数组
     let updatedOverseasInvestments = overseasInvestments;
     let updatedForeignInvestments = foreignInvestments;
-    let investmentLogs = [];
     // [PERF] 投资升级仍保持低频守卫（默认每20tick执行一次）
     const shouldUpgradeOverseasInvestment = shouldRunThisTick(tick, 'overseasInvestment');
     const shouldUpgradeForeignInvestment = shouldRunThisTick(tick, 'foreignInvestment');
@@ -913,8 +912,6 @@ export const simulateTick = ({
             const updatedMap = new Map(oiResult.updatedInvestments.map(inv => [inv.id, inv]));
             updatedOverseasInvestments = overseasInvestments.map(inv => updatedMap.get(inv.id) || inv);
         }
-        investmentLogs.push(...oiResult.logs);
-
         // Apply profits to wealth
         if (oiResult.profitByStratum) {
             Object.entries(oiResult.profitByStratum).forEach(([stratum, profit]) => {
@@ -990,7 +987,6 @@ export const simulateTick = ({
 
         if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
             updatedOverseasInvestments = upgradeResult.updatedInvestments;
-            investmentLogs.push(...upgradeResult.logs);
             if (upgradeResult.wealthChanges) {
                 Object.entries(upgradeResult.wealthChanges).forEach(([stratum, delta]) => {
                     wealth[stratum] = Math.max(0, (wealth[stratum] || 0) + delta);
@@ -4789,12 +4785,6 @@ export const simulateTick = ({
             }
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
-            if (investmentDecision.buildingId && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? false)) {
-                // Log investment
-                const investLogPrefix = isStateManagedPolicy ? '🏛️ 国有' : '🏗️ 官员';
-                const investLogSuffix = isStateManagedPolicy ? '（国库出资）' : `（花费${Math.ceil(investmentDecision.cost)} 银）`;
-                logs.push(`${investLogPrefix}${normalizedOfficial.name}投资了${investmentDecision.buildingId}${investLogSuffix}`);
-            }
             } // end if (investmentCost > 0)
         }
 
@@ -6029,6 +6019,21 @@ export const simulateTick = ({
         }
 
         if (!shouldProcessAIForNation) {
+            // 即使不在当前分片，战线被推到极端位置（85%+）时也必须强制求和
+            if (next.isAtWar && !isExpiredNation && shouldUpdateAI) {
+                const emergencyFronts = (activeFronts || []).filter(f =>
+                    f?.status === 'active' && (f.attackerId === next.id || f.defenderId === next.id)
+                );
+                if (emergencyFronts.length > 0) {
+                    const avgPos = emergencyFronts.reduce((sum, f) => {
+                        const s = f.attackerId === next.id ? 'attacker' : 'defender';
+                        return sum + (s === 'attacker' ? Number(f.linePosition || 50) : 100 - Number(f.linePosition || 50));
+                    }, 0) / emergencyFronts.length;
+                    if (avgPos <= 15) {
+                        checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs, activeFronts });
+                    }
+                }
+            }
             return next;
         }
 
@@ -7543,7 +7548,7 @@ export const simulateTick = ({
         // Throttle new trades to reduce workload
         allowNewTrades: shouldUpdateMerchantTrade,
         // [NEW] Control official logs
-        shouldLogOfficialEvents: eventEffectSettings?.logVisibility?.showOfficialLogs ?? false,
+        shouldLogOfficialEvents: false,
 
         // Treasury change callback for resource tracking
         onTreasuryChange: applySilverChange,
@@ -7973,7 +7978,6 @@ export const simulateTick = ({
         let remainingBudget = Math.max(0, Math.min(treasurySilver, budgetByRatio, budgetByCap));
         let builtCount = 0;
         const builtByRole = {};
-        const expansionLogs = [];
 
         const findBestCandidate = () => {
             let bestCandidate = null;
@@ -8053,12 +8057,8 @@ export const simulateTick = ({
                 global: tick,
                 [bestCandidate.role]: tick,
             };
-            expansionLogs.push(`🏛️ ${MINISTER_LABELS[bestCandidate.role] || bestCandidate.role} 扩建了${bestCandidate.building.name}（花费${Math.ceil(bestCandidate.silverCost)} 银币）`);
         }
 
-        if (expansionLogs.length > 0 && (eventEffectSettings?.logVisibility?.showOfficialLogs ?? false)) {
-            expansionLogs.forEach((entry) => logs.push(entry));
-        }
     }
 
     const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
@@ -8554,7 +8554,6 @@ export const simulateTick = ({
             const updatedMap = new Map(fiResult.updatedInvestments.map(inv => [inv.id, inv]));
             updatedForeignInvestments = updatedForeignInvestments.map(inv => updatedMap.get(inv.id) || inv);
         }
-        investmentLogs.push(...fiResult.logs);
 
         if (fiResult.taxRevenue > 0) {
             applySilverChange(fiResult.taxRevenue, 'foreign_investment_tax');
@@ -8599,7 +8598,6 @@ export const simulateTick = ({
 
         if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
             updatedForeignInvestments = upgradeResult.updatedInvestments;
-            investmentLogs.push(...upgradeResult.logs);
             upgradeResult.upgrades.forEach(u => {
                 const nation = updatedNations.find(n => n.id === u.ownerNationId);
                 if (nation) {
@@ -8610,11 +8608,6 @@ export const simulateTick = ({
         perfEnd('foreignUpgrades');
     }
 
-    // Merge investment logs (gated by official log visibility setting)
-    const showOfficialLogsForInvestment = eventEffectSettings?.logVisibility?.showOfficialLogs ?? false;
-    if (showOfficialLogsForInvestment) {
-        logs.push(...investmentLogs);
-    }
     // Trade Opportunities Analysis (Throttled: every 10 ticks)
     const tradeOpportunities = (tick % 10 === 0)
         ? analyzeTradeOpportunities({

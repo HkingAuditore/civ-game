@@ -28,7 +28,7 @@ import {
     getVassalIndependenceMultiplier,
     getVassalIndependenceWarChance,
 } from '../../config/difficulty.js';
-import { getNationGDP } from './economyUtils.js';
+import { getNationGDP, getNationWealthStock } from './economyUtils.js';
 
 const getGovernancePolicyConfig = (vassalPolicy = {}) => {
     const policyId = vassalPolicy?.governance || 'autonomous';
@@ -953,12 +953,13 @@ export const calculateEnhancedTribute = (vassalNation) => {
     const config = TRIBUTE_CONFIG;
     const tributeRate = vassalNation.tributeRate || 0;
     const vassalGDP = getNationGDP(vassalNation, 1000);
+    // 使用财富存量（而非GDP流量）作为进贡基数，避免进贡金额因GDP量级偏小而微乎其微
+    const vassalWealth = getNationWealthStock(vassalNation, vassalGDP);
     const governanceTributeMod = getGovernanceTributeMod(vassalNation?.vassalPolicy);
 
     // 计算基础朝贡金额
-    // 公式: 基础值 + 附庸GDP * 比例
-    // 完全移除玩家财富依赖，确保自洽性 (Updated per user request)
-    const vassalBasedTribute = vassalGDP * config.vassalGDPRate;
+    // 公式: 基础值 + 附庸财富存量 * 比例
+    const vassalBasedTribute = vassalWealth * config.vassalGDPRate;
 
     let baseTribute = config.baseAmount + vassalBasedTribute;
 
@@ -1005,12 +1006,10 @@ export const calculateEnhancedTribute = (vassalNation) => {
         for (let i = 0; i < maxTributeTypes; i++) {
             const [resourceKey, inventory] = inventoryEntries[i];
             
-            // 基于库存和朝贡率计算资源朝贡
+            // 用对数函数计算资源进贡：增速随库存增大而递减（一阶导逐渐变小）
+            // log(inventory) 保证小库存时进贡少，大库存时进贡多但增速放缓
             const resourceAmount = Math.floor(
-                Math.min(
-                    inventory * 0.15,  // 最多朝贡15%库存（提高到15%）
-                    config.resourceTribute.baseAmount * tributeRate * sizeMultiplier * governanceTributeMod * 3 // 提高基础数量3倍
-                ) * resistanceFactor
+                Math.log(inventory + 1) * config.resourceTribute.baseAmount * tributeRate * sizeMultiplier * governanceTributeMod * resistanceFactor
             );
             
             if (resourceAmount > 0) {

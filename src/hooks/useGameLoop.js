@@ -2321,7 +2321,7 @@ difficulty, // 游戏难度
                                     [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
                                 }), { reason: 'autonomous_investment_cost', meta: { stratum } });
                                 setOverseasInvestments(prev => mergeOverseasInvestments(prev, investment));
-                                if (current.eventEffectSettings?.logVisibility?.showTradeLogs ?? false) {
+                if (false) {
                                     const stratumName = STRATA[stratum]?.name || stratum;
                                     addLog('[自治投资] ' + stratumName + ' 在 ' + targetNation.name + ' 投资 ' + building.name + '（预计日回报 ' + dailyProfit.toFixed(1) + '），注资 ' + formatNumberShortCN(cost) + '。');
                                 }
@@ -2444,7 +2444,7 @@ difficulty, // 游戏难度
                                     lastForeignSampleDay: effectiveDaysElapsed,
                                 };
 
-                                if (current.eventEffectSettings?.logVisibility?.showTradeLogs ?? false) {
+                if (false) {
                                     addLog('[外资建设] ' + investorNation.name + ' 在本国投资建设了 ' + building.name + '。');
                                     if (investmentPolicy === 'guided' || investmentPolicy === 'forced') {
                                         addLog(`⚠️ 由于${investmentPolicy === 'forced' ? '强制' : '引导'}投资政策，${investorNation.name} 国内出现不满。`);
@@ -7926,20 +7926,9 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
 
                                 if (replenishItems.length > 0) {
                                     baseQueue = [...baseQueue, ...replenishItems];
-                                    const summary = Object.entries(replenishCounts)
-                                        .filter(([_, count]) => count > 0)
-                                        .map(([unitId, count]) => (UNIT_TYPES[unitId]?.name || unitId) + ' x' + count)
-                                        .join('、');
-                                    addLog('[自动补兵] 已花费资金招募 ' + summary + ' 并加入训练队列。');
                                 }
-                            } else if (!canAfford && Object.keys(replenishCounts).length > 0) {
-                                addLog('[自动补兵取消] 资金或资源不足（需 ' + Math.ceil(totalSilverCost) + ' 银币）。');
                             }
-                        } else if (availableSlotsForReplenish <= 0 && Object.keys(allAutoReplenishLosses).length > 0) {
-                            addLog('[自动补兵暂停] 军事容量不足。');
                         }
-                    } else if (shouldProcessAutoReplenish && militaryCapacity <= 0) {
-                        addLog('[自动补兵禁用] 无军事容量，请先建设兵营。');
                     }
 
                     // 原有的队列裁剪逻辑
@@ -8122,8 +8111,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 corpsAssignSummary[key] = (corpsAssignSummary[key] || 0) + 1;
                             });
                             for (const [key, count] of Object.entries(corpsAssignSummary)) {
-                                const [corpsName, unitName] = key.split(':');
-                                addLog(`[自动补兵] ${unitName} x${count} 已补充到 ${corpsName}`);
+                                // suppress auto-replenish log
                             }
                         }
 
