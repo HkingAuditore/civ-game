@@ -7,7 +7,9 @@
  * Communication Protocol:
  * - Main → Worker: { type: 'SIMULATE', payload: gameState }
  * - Main → Worker: { type: 'SYNC_HISTORY', payload: { classWealthHistory, classNeedsHistory } }
+ * - Main → Worker: { type: 'SYNC_CONFIG', payload: { equippedIdeologies, ideologySynergies, antiSynergies } }
  * - Main → Worker: { type: 'SET_DEBUG', payload: { enabled: boolean } }
+ * - Main → Worker: { type: 'SET_UI_INTERVAL', payload: { interval: number } }
  * - Worker → Main: { type: 'RESULT', payload: simulationResult }
  * - Worker → Main: { type: 'ERROR', error: errorMessage }
  */
@@ -27,12 +29,85 @@ let _historyCache = {
 // [PERF] 调试模式标志：关闭时从传输payload中剔除大量调试数据
 let _debugEnabled = false;
 
+// [PERF] Worker内部静态配置缓存，避免每tick序列化传输不变的配置数据
+// 仅在用户操作（装备/卸载理念等）时通过 SYNC_CONFIG 消息更新
+let _configCache = {
+    equippedIdeologies: null,
+    ideologySynergies: null,
+    antiSynergies: null,
+};
+
 // [PERF] tick 计数器：用于降频传输大型 UI 数据
 // 每 tick postMessage 的结构化克隆是移动端 OOM 的主因（每次 1-3MB）
 let _tickCounter = 0;
-// 基础间隔：每 10 tick 传输一次完整 UI 数据
-// 实际间隔 = BASE_UI_INTERVAL × gameSpeed，使高速模式下传输更稀疏
-const BASE_UI_INTERVAL = 10;
+
+// [PERF] Delta Encoding：存储上一次传输的完整结果，用于计算增量
+let _lastStrippedResult = null;
+
+// Delta encoding 不参与比较的字段（每 tick 必定变化或为元数据）
+const DELTA_SKIP_KEYS = new Set([
+    '_perf', '_isFullTick', '_isDelta', '_auditLog',
+    '_auditStartingSilver', '_auditEndingSilver', 'logs',
+    'vassalDiplomacyRequests', '_cleanedNationIds',
+]);
+
+/**
+ * [PERF] 计算当前结果与上一次结果的增量（顶层浅比较）
+ * 仅传输发生变化的字段，大幅减少 structured clone 体积。
+ * @param {Object} current - 当前 stripped 结果
+ * @param {Object} last - 上一次传输的完整结果
+ * @returns {{ delta: Object, fieldCount: number, totalFields: number }}
+ */
+function computeDelta(current, last) {
+    if (!last) return { delta: current, fieldCount: Infinity, totalFields: 1 };
+
+    const delta = {};
+    let fieldCount = 0;
+    let totalFields = 0;
+
+    for (const key in current) {
+        if (!Object.prototype.hasOwnProperty.call(current, key)) continue;
+        totalFields++;
+
+        // 元数据/每tick必变字段始终包含
+        if (DELTA_SKIP_KEYS.has(key)) {
+            delta[key] = current[key];
+            fieldCount++;
+            continue;
+        }
+
+        const curVal = current[key];
+        const lastVal = last[key];
+
+        // 引用相等 → 跳过
+        if (curVal === lastVal) continue;
+
+        // null 比较
+        if (curVal == null || lastVal == null) {
+            delta[key] = curVal;
+            fieldCount++;
+            continue;
+        }
+
+        // 原始类型比较
+        if (typeof curVal !== 'object') {
+            if (curVal !== lastVal) {
+                delta[key] = curVal;
+                fieldCount++;
+            }
+            continue;
+        }
+
+        // 对象/数组：始终包含（深度比较成本太高）
+        delta[key] = curVal;
+        fieldCount++;
+    }
+
+    return { delta, fieldCount, totalFields };
+}
+// 基础间隔：每 N tick 传输一次完整 UI 数据（可由内存监控动态调整）
+// 实际间隔 = _uiInterval × gameSpeed，使高速模式下传输更稀疏
+let _uiInterval = 10;
 let _gameSpeed = 1;
 
 /**
@@ -70,7 +145,7 @@ function stripPayloadForTransfer(result) {
 
     // === 降频传输的大型 UI 数据 ===
     // 这些字段仅供面板/图表显示，不影响下一 tick 的 simulation 计算
-    const uiInterval = BASE_UI_INTERVAL * Math.max(1, _gameSpeed);
+    const uiInterval = _uiInterval * Math.max(1, _gameSpeed);
     const isFullTick = (_tickCounter % uiInterval) === 0;
     if (!isFullTick) {
         // buildingFinancialData: 每栋建筑的财务明细（主线程也只每10tick消费一次）
@@ -81,20 +156,35 @@ function stripPayloadForTransfer(result) {
         stripped.approvalBreakdown = null;
         // needsReport 较小（仅 satisfactionRatio × 阶层数），保留每 tick 传输
 
-        // market 子字段：保留 prices/demand/supply/wages（simulation 必需），
-        // 剥离仅 UI 用的大型 breakdown
+        // [PERF] 额外剥离仅 UI 用的大型字段，主线程使用 fullTickCacheRef 缓存
+        stripped.officials = null;
+        stripped.activeFronts = null;
+        stripped.activeBattles = null;
+        stripped.foreignInvestmentStats = null;
+        stripped.tradeOpportunities = null;
+
+        // market 子字段：仅保留 prices/wages（simulation 下一 tick 必需），
+        // 剥离 demand/supply/needsShortages 及所有 breakdown（仅 UI 用）
         if (stripped.market) {
             stripped.market = {
                 prices: stripped.market.prices,
-                demand: stripped.market.demand,
-                supply: stripped.market.supply,
                 wages: stripped.market.wages,
-                needsShortages: stripped.market.needsShortages,
                 // 以下字段仅供 UI 面板，降频传输
+                demand: null,
+                supply: null,
+                needsShortages: null,
                 stratumConsumption: null,
                 supplyBreakdown: null,
                 demandBreakdown: null,
                 resourceLossBreakdown: null,
+            };
+        }
+
+        // [PERF] modifiers: 非 full tick 仅保留 simulation 必需子集
+        if (stripped.modifiers) {
+            stripped.modifiers = {
+                ideologyRuleMods: stripped.modifiers.ideologyRuleMods || null,
+                officialEffects: stripped.modifiers.officialEffects || null,
             };
         }
     }
@@ -141,22 +231,51 @@ self.onmessage = function(event) {
         try {
             // [PERF] 同步游戏速度（用于动态调整 UI 数据传输频率）
             if (payload._gameSpeed) _gameSpeed = payload._gameSpeed;
-            // [PERF] 从worker缓存注入history数据，无需主线程每tick传输
+
+            // [PERF] 预计算 isFullTick，传入 simulateTick 以便跳过非必要计算
+            const uiInterval = _uiInterval * Math.max(1, _gameSpeed);
+            const isFullTickForSim = ((_tickCounter) % uiInterval) === 0;
+
+            // [PERF] 从worker缓存注入history和静态配置数据，无需主线程每tick传输
             const enrichedPayload = {
                 ...payload,
                 classWealthHistory: _historyCache.classWealthHistory,
                 classNeedsHistory: _historyCache.classNeedsHistory,
+                _isFullTick: isFullTickForSim,
             };
+            // [PERF] 注入缓存的静态配置（仅当主线程未传入时使用缓存）
+            if (_configCache.equippedIdeologies != null && enrichedPayload.equippedIdeologies == null) {
+                enrichedPayload.equippedIdeologies = _configCache.equippedIdeologies;
+            }
+            if (_configCache.ideologySynergies != null && enrichedPayload.ideologySynergies == null) {
+                enrichedPayload.ideologySynergies = _configCache.ideologySynergies;
+            }
+            if (_configCache.antiSynergies != null && enrichedPayload.antiSynergies == null) {
+                enrichedPayload.antiSynergies = _configCache.antiSynergies;
+            }
 
             // Execute the simulation
             const result = simulateTick(enrichedPayload);
             _tickCounter++;
             
             // [PERF] 剥离非必要数据后再传输，大幅减少postMessage序列化开销
-            self.postMessage({
-                type: 'RESULT',
-                payload: stripPayloadForTransfer(result)
-            });
+            const stripped = stripPayloadForTransfer(result);
+
+            // [PERF] Delta Encoding：仅传输与上一次结果不同的字段
+            const { delta, fieldCount, totalFields } = computeDelta(stripped, _lastStrippedResult);
+            // 如果 delta 字段数 >= 总字段数的 80%，回退到完整传输（delta 收益不大）
+            const useDelta = _lastStrippedResult != null && totalFields > 0 && fieldCount < totalFields * 0.8;
+
+            if (useDelta) {
+                delta._isDelta = true;
+                self.postMessage({ type: 'RESULT', payload: delta });
+            } else {
+                stripped._isDelta = false;
+                self.postMessage({ type: 'RESULT', payload: stripped });
+            }
+
+            // 缓存本次完整结果供下一 tick delta 比较
+            _lastStrippedResult = stripped;
         } catch (error) {
             // Send error back to main thread
             self.postMessage({
@@ -174,9 +293,27 @@ self.onmessage = function(event) {
                 _historyCache.classNeedsHistory = payload.classNeedsHistory;
             }
         }
+    } else if (type === 'SYNC_CONFIG') {
+        // [PERF] 低频同步：主线程仅在配置变化时发送静态配置更新
+        if (payload) {
+            if (payload.equippedIdeologies !== undefined) {
+                _configCache.equippedIdeologies = payload.equippedIdeologies;
+            }
+            if (payload.ideologySynergies !== undefined) {
+                _configCache.ideologySynergies = payload.ideologySynergies;
+            }
+            if (payload.antiSynergies !== undefined) {
+                _configCache.antiSynergies = payload.antiSynergies;
+            }
+        }
     } else if (type === 'SET_DEBUG') {
         // 主线程可通知worker开启/关闭调试模式
         _debugEnabled = !!(payload && payload.enabled);
+    } else if (type === 'SET_UI_INTERVAL') {
+        // [PERF] 内存监控动态调整 UI 数据传输间隔
+        if (payload && typeof payload.interval === 'number' && payload.interval >= 1) {
+            _uiInterval = Math.max(1, Math.round(payload.interval));
+        }
     } else if (type === 'PING') {
         // Health check - used to verify worker is responsive
         self.postMessage({ type: 'PONG' });

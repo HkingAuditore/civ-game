@@ -1,13 +1,25 @@
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
-import { trackErrorWarning } from '../analytics/gaTracker';
+import { trackErrorWarning, trackErrorCritical } from '../analytics/gaTracker';
+import { initOtaInfo, getOtaInfoSync } from '../utils/otaInfo';
+import { getOtaErrorStreak } from '../utils/crashReporter';
 
 const UPDATE_URL = 'https://civ-game-ota-1258335979.cos-website.ap-guangzhou.myqcloud.com/ota/production/updates.json';
 const TOAST_MS = 4000;
 const TOAST_LONG_MS = 10000;
 const DELETE_RETRY_COUNT = 3;
 const DELETE_RETRY_DELAY_MS = 1000;
+// Delay OTA check to avoid memory overlap with game initialization
+const OTA_CHECK_DELAY_MS = 10000;
+// Memory usage threshold — skip OTA download if heap usage exceeds this ratio
+const OTA_MEMORY_THRESHOLD = 0.6;
+// Auto-rollback: max errors allowed within the monitoring window before triggering rollback
+const ROLLBACK_ERROR_THRESHOLD = 3;
+// Auto-rollback: monitoring window duration (ms) after app startup
+const ROLLBACK_WINDOW_MS = 30000;
+// localStorage key to prevent infinite rollback loops
+const ROLLBACK_DONE_KEY = 'civ_ota_rollback_done';
 
 let toastEl = null;
 let hideTimer = null;
@@ -101,7 +113,8 @@ async function cleanupOldBundles(protectedIds) {
             return { cleaned: 0, failed: 0, total: 0 };
         }
 
-        const SKIP_STATUSES = new Set(['downloading', 'pending']);
+        // Skip bundles that are downloading, pending, or already set for next launch
+        const SKIP_STATUSES = new Set(['downloading', 'pending', 'set']);
         const toDelete = bundles.filter(b =>
             !protectedIds.has(b.id) && !SKIP_STATUSES.has(b.status)
         );
@@ -165,6 +178,48 @@ async function getCurrentBundleInfo() {
     return { currentVersion, protectedIds };
 }
 
+// ── OTA startup diagnostic persistence ──
+const OTA_DIAG_LOG_KEY = 'civ_crash_log';
+const OTA_DIAG_HISTORY_KEY = 'civ_crash_history';
+const MAX_DIAG_HISTORY = 20;
+
+function _safeGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function _safeSet(key, v) { try { localStorage.setItem(key, v); } catch { /* ignore */ } }
+
+/**
+ * Persist an OTA diagnostic event to civ_crash_log + history.
+ * Records bundle info, URLs, and memory snapshot for post-mortem analysis.
+ */
+function persistOtaDiagnostic(eventType, extra = {}) {
+    const otaInfo = getOtaInfoSync();
+    const mem = performance?.memory;
+    const record = {
+        type: eventType,
+        message: extra.error || eventType,
+        timestamp: Date.now(),
+        appVersion: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'unknown',
+        isOTA: otaInfo.isOTA,
+        bundleVersion: otaInfo.bundleVersion,
+        bundleId: otaInfo.bundleId,
+        baseURI: typeof document !== 'undefined' ? document.baseURI : '',
+        locationHref: typeof location !== 'undefined' ? location.href : '',
+        importMetaUrl: import.meta.url,
+        memoryMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null,
+        heapLimitMB: mem ? Math.round(mem.jsHeapSizeLimit / 1048576) : null,
+        ...extra,
+    };
+    // Write latest diagnostic
+    _safeSet(OTA_DIAG_LOG_KEY, JSON.stringify(record));
+    // Append to history ring buffer
+    try {
+        const raw = _safeGet(OTA_DIAG_HISTORY_KEY);
+        const history = raw ? JSON.parse(raw) : [];
+        history.push(record);
+        while (history.length > MAX_DIAG_HISTORY) history.shift();
+        _safeSet(OTA_DIAG_HISTORY_KEY, JSON.stringify(history));
+    } catch { /* ignore */ }
+}
+
 /**
  * OTA 热更新 Hook —— 手动 GET 模式。
  *
@@ -194,8 +249,49 @@ export function useOtaUpdate() {
                 console.log('[OTA] notifyAppReady OK');
             } catch (e) {
                 console.warn('[OTA] notifyAppReady failed:', e);
+                persistOtaDiagnostic('ota_notify_fail', { error: e?.message || String(e) });
             }
 
+            if (cancelled) return;
+
+            // 1.1 Initialize shared OTA info cache & write startup diagnostic
+            await initOtaInfo();
+            persistOtaDiagnostic('ota_startup');
+
+            // 1.2 Check for consecutive OTA errors — warn user if pattern detected
+            const otaStreak = getOtaErrorStreak();
+            if (otaStreak >= 3) {
+                showOtaToast('OTA 更新可能存在问题，建议重新安装 APP', 'error', TOAST_LONG_MS);
+                trackErrorWarning(`OTA_ConsecutiveErrors: ${otaStreak} consecutive OTA errors detected`);
+            }
+
+            // 1.5. Delay OTA check to let game finish initialization and stabilize memory
+            console.log(`[OTA] Delaying update check by ${OTA_CHECK_DELAY_MS / 1000}s to avoid memory overlap with game init...`);
+            await new Promise((resolve) => {
+                const timer = setTimeout(resolve, OTA_CHECK_DELAY_MS);
+                // If user switches to background during delay, wait for foreground resume
+                const checkVisibility = () => {
+                    if (document.visibilityState === 'hidden') {
+                        clearTimeout(timer);
+                        const onVisible = () => {
+                            if (document.visibilityState === 'visible') {
+                                document.removeEventListener('visibilitychange', onVisible);
+                                // Restart the delay timer after returning to foreground
+                                setTimeout(resolve, OTA_CHECK_DELAY_MS);
+                            }
+                        };
+                        document.removeEventListener('visibilitychange', checkVisibility);
+                        document.addEventListener('visibilitychange', onVisible);
+                    }
+                };
+                document.addEventListener('visibilitychange', checkVisibility);
+                // Cleanup listener when timer fires normally
+                const origResolve = resolve;
+                resolve = () => {
+                    document.removeEventListener('visibilitychange', checkVisibility);
+                    origResolve();
+                };
+            });
             if (cancelled) return;
 
             // 2. 获取当前 bundle 信息
@@ -241,7 +337,20 @@ export function useOtaUpdate() {
                 return;
             }
 
-            // 6. 下载新 bundle
+            // 6. Memory guard: skip download if heap usage is too high
+            if (performance?.memory) {
+                const { usedJSHeapSize, jsHeapSizeLimit } = performance.memory;
+                const memRatio = usedJSHeapSize / jsHeapSizeLimit;
+                console.log(`[OTA] Memory check: ${(memRatio * 100).toFixed(1)}% used (${(usedJSHeapSize / 1048576).toFixed(1)}MB / ${(jsHeapSizeLimit / 1048576).toFixed(1)}MB)`);
+                if (memRatio > OTA_MEMORY_THRESHOLD) {
+                    console.warn(`[OTA] Memory usage ${(memRatio * 100).toFixed(1)}% exceeds ${OTA_MEMORY_THRESHOLD * 100}% threshold, skipping download`);
+                    showOtaToast('内存不足，更新将在下次启动时进行', 'warn', TOAST_LONG_MS);
+                    trackErrorWarning(`OTA_SkippedHighMemory: ${(memRatio * 100).toFixed(1)}% used, threshold ${OTA_MEMORY_THRESHOLD * 100}%`);
+                    return;
+                }
+            }
+
+            // 7. 下载新 bundle
             console.log('[OTA] 发现新版本:', serverData.version, '→ 开始下载');
             showOtaToast(`发现新版本，正在下载...`, 'info', 0);
 
@@ -266,9 +375,12 @@ export function useOtaUpdate() {
                 await CapacitorUpdater.set(bundle);
                 showOtaToast('更新已就绪，重启 APP 即可生效 🚀', 'success', TOAST_LONG_MS);
 
-                // 8. 下载成功后立即清理：新 bundle 加入保护列表，旧的当前 bundle 可以删除
+                // 8. 下载成功后立即清理：保护新 bundle + 当前正在运行的 bundle
                 if (bundle?.id) {
-                    const postDownloadProtected = new Set([bundle.id]);
+                    // BUG FIX: 必须同时保护当前 bundle 和新 bundle，
+                    // 否则当前正在运行的 bundle 会被误删，导致资源缺失闪退
+                    const { protectedIds: currentIds } = await getCurrentBundleInfo();
+                    const postDownloadProtected = new Set([bundle.id, ...currentIds]);
                     protectedIdsRef.current = postDownloadProtected;
                     const postCleanup = await cleanupOldBundles(postDownloadProtected);
                     if (postCleanup.cleaned > 0) {
@@ -284,6 +396,76 @@ export function useOtaUpdate() {
         }
 
         checkAndUpdate();
+
+        // ── OTA Auto-Rollback Protection ──
+        // Monitor uncaught errors within ROLLBACK_WINDOW_MS after startup.
+        // If error count >= ROLLBACK_ERROR_THRESHOLD and running from OTA bundle,
+        // auto-rollback to builtin bundle to recover from a broken OTA update.
+        let rollbackErrorCount = 0;
+        let rollbackTimer = null;
+        let rollbackErrorHandler = null;
+        let rollbackRejectionHandler = null;
+
+        function cleanupRollbackMonitor() {
+            if (rollbackTimer) { clearTimeout(rollbackTimer); rollbackTimer = null; }
+            if (rollbackErrorHandler) { window.removeEventListener('error', rollbackErrorHandler); rollbackErrorHandler = null; }
+            if (rollbackRejectionHandler) { window.removeEventListener('unhandledrejection', rollbackRejectionHandler); rollbackRejectionHandler = null; }
+        }
+
+        async function triggerAutoRollback() {
+            cleanupRollbackMonitor();
+            const otaInfo = getOtaInfoSync();
+            // Only rollback if running from OTA bundle (not builtin)
+            if (!otaInfo.isOTA) return;
+            // Prevent infinite rollback loop: if we already rolled back once, don't do it again
+            try {
+                if (localStorage.getItem(ROLLBACK_DONE_KEY) === 'true') {
+                    console.warn('[OTA Rollback] Already rolled back once, skipping to avoid infinite loop');
+                    return;
+                }
+            } catch { /* ignore */ }
+
+            console.error(`[OTA Rollback] ${rollbackErrorCount} errors in ${ROLLBACK_WINDOW_MS / 1000}s, rolling back to builtin bundle`);
+            showOtaToast('检测到异常，正在回滚到稳定版本', 'error', TOAST_LONG_MS);
+            trackErrorCritical(`OTA_AutoRollback: ${rollbackErrorCount} errors within ${ROLLBACK_WINDOW_MS / 1000}s, bundle=${otaInfo.bundleVersion}`);
+            persistOtaDiagnostic('ota_auto_rollback', {
+                errorCount: rollbackErrorCount,
+                windowMs: ROLLBACK_WINDOW_MS,
+            });
+
+            try {
+                // Mark rollback as done to prevent loop
+                localStorage.setItem(ROLLBACK_DONE_KEY, 'true');
+            } catch { /* ignore */ }
+
+            try {
+                await CapacitorUpdater.reset();
+                // reset() triggers app restart to builtin bundle
+            } catch (e) {
+                console.error('[OTA Rollback] CapacitorUpdater.reset() failed:', e);
+            }
+        }
+
+        function onRollbackError() {
+            rollbackErrorCount++;
+            if (rollbackErrorCount >= ROLLBACK_ERROR_THRESHOLD) {
+                triggerAutoRollback();
+            }
+        }
+
+        // Install rollback monitors
+        rollbackErrorHandler = onRollbackError;
+        rollbackRejectionHandler = onRollbackError;
+        window.addEventListener('error', rollbackErrorHandler);
+        window.addEventListener('unhandledrejection', rollbackRejectionHandler);
+
+        // Clear rollback-done flag on successful startup (no errors within window)
+        rollbackTimer = setTimeout(() => {
+            cleanupRollbackMonitor();
+            // Startup was stable — clear the rollback-done flag so future OTA updates can rollback if needed
+            try { localStorage.removeItem(ROLLBACK_DONE_KEY); } catch { /* ignore */ }
+            console.log(`[OTA Rollback] Monitoring window passed (${ROLLBACK_WINDOW_MS / 1000}s), ${rollbackErrorCount} errors — no rollback needed`);
+        }, ROLLBACK_WINDOW_MS);
 
         // APP 从后台恢复时再清理一次
         function handleResume() {
@@ -304,6 +486,7 @@ export function useOtaUpdate() {
         return () => {
             cancelled = true;
             resumeListener?.remove();
+            cleanupRollbackMonitor();
         };
     }, []);
 }

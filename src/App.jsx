@@ -1502,7 +1502,6 @@ function GameApp({ gameState }) {
                         }}
                         onTutorial={handleReopenTutorial}
                         onWiki={() => setIsWikiOpen(true)}
-                        onDonate={() => setShowDonateModal(true)}
                         onChangelog={() => setShowChangelogModal(true)}
                         menuDirection="up"
                         onTriggerEvent={actions.triggerRandomEvent}
