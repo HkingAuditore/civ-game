@@ -4,9 +4,22 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.32',
+        date: '2026-04-03',
+        isLatest: true,
+        highlights: [
+            '修复 useGameActions 中未定义回调引发的 React 无限循环（#185）',
+            '叛乱战争结束与分期赔款处理新增防御性守卫，避免空引用崩溃',
+        ],
+        changes: [
+            { type: 'fix', text: '修复 useGameActions.js 中 handleRebellionWarEnd 调用路径上存在未定义回调时触发 React #185 无限循环的问题：在调用前添加防御性守卫，确保 callback 存在后再执行，避免渲染阶段异常重入。' },
+            { type: 'fix', text: '修复玩家分期赔款处理逻辑中 paidAmount 更新与 addLog 调用在 callback 未定义时抛出空引用错误的问题：补充 undefined 检查，保证分期支付流程在各状态下均可安全执行。' },
+        ],
+    },
+    {
         version: '2.3.31',
         date: '2026-04-02',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '修正 AI 求和谈判中战争分数与「玩家优势」符号，意愿与战况一致',
             '首都危急强制求和日志合并赔款说明与处境提示',
