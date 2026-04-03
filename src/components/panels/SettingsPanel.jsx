@@ -2,10 +2,14 @@
 // 控制自动存档、读档方式及跨设备备份
 
 import React, { useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Icon } from '../common/UIComponents';
 import { useSound, useDevicePerformance, PERFORMANCE_MODES } from '../../hooks';
 import { DIFFICULTY_LEVELS, getDifficultyOptions } from '../../config/difficulty';
 import { setAnalyticsConsent, getAnalyticsConsent } from '../../analytics/gaInit';
+
+// localStorage key for OTA update toggle (must match useOtaUpdate.js)
+const OTA_UPDATE_ENABLED_KEY = 'civ_ota_update_enabled';
 
 
 /**
@@ -152,6 +156,54 @@ const AnalyticsToggleSection = () => {
                     <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
                     <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${enabled ? 'translate-x-5' : ''}`} />
                 </label>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * OTA 联网更新开关组件
+ * Only rendered on native APP (Android/iOS). Hidden on web.
+ */
+const OtaUpdateSection = () => {
+    // Default disabled — user must explicitly enable
+    const [enabled, setEnabled] = useState(() => {
+        try { return localStorage.getItem(OTA_UPDATE_ENABLED_KEY) === 'true'; } catch { return false; }
+    });
+
+    // Only show on native platform
+    if (!Capacitor.isNativePlatform()) return null;
+
+    const handleToggle = () => {
+        const next = !enabled;
+        setEnabled(next);
+        try { localStorage.setItem(OTA_UPDATE_ENABLED_KEY, next ? 'true' : 'false'); } catch { /* ignore */ }
+    };
+
+    return (
+        <div className="border-t border-gray-700 pt-3 space-y-2">
+            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                <Icon name="RefreshCw" size={14} /> 自动更新
+            </h4>
+            <p className="text-xs text-gray-400 leading-relaxed">
+                开启后，APP 启动时将自动检查并下载热更新。默认关闭。
+            </p>
+            <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-300">自动检查更新</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={enabled}
+                        onChange={handleToggle}
+                    />
+                    <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+                    <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${enabled ? 'translate-x-5' : ''}`} />
+                </label>
+            </div>
+            <div className="text-xs text-gray-400 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${enabled ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+                {enabled ? '已开启，下次启动时检查更新' : '已关闭，不会自动下载更新'}
             </div>
         </div>
     );
@@ -495,6 +547,9 @@ export const SettingsPanel = ({
 
             {/* 性能模式设置 */}
             <PerformanceModeSection />
+
+            {/* 联网更新设置（仅原生APP显示） */}
+            <OtaUpdateSection />
 
             {/* Debug选项 */}
             <div className="border-t border-gray-700 pt-3 space-y-2">

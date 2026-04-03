@@ -20,6 +20,8 @@ const ROLLBACK_ERROR_THRESHOLD = 3;
 const ROLLBACK_WINDOW_MS = 30000;
 // localStorage key to prevent infinite rollback loops
 const ROLLBACK_DONE_KEY = 'civ_ota_rollback_done';
+// localStorage key for user-controlled OTA update toggle (default: disabled)
+const OTA_UPDATE_ENABLED_KEY = 'civ_ota_update_enabled';
 
 let toastEl = null;
 let hideTimer = null;
@@ -254,11 +256,20 @@ export function useOtaUpdate() {
 
             if (cancelled) return;
 
-            // 1.1 Initialize shared OTA info cache & write startup diagnostic
+            // 1.1 Check user OTA toggle — skip all update logic if disabled (default: disabled)
+            try {
+                const otaEnabled = localStorage.getItem(OTA_UPDATE_ENABLED_KEY);
+                if (otaEnabled !== 'true') {
+                    console.log('[OTA] Update disabled by user setting, skipping OTA check.');
+                    return;
+                }
+            } catch { /* ignore localStorage errors */ }
+
+            // 1.2 Initialize shared OTA info cache & write startup diagnostic
             await initOtaInfo();
             persistOtaDiagnostic('ota_startup');
 
-            // 1.2 Check for consecutive OTA errors — warn user if pattern detected
+            // 1.3 Check for consecutive OTA errors — warn user if pattern detected
             const otaStreak = getOtaErrorStreak();
             if (otaStreak >= 3) {
                 showOtaToast('OTA 更新可能存在问题，建议重新安装 APP', 'error', TOAST_LONG_MS);
