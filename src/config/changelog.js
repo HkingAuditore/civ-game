@@ -4,9 +4,21 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.35',
+        version: '2.3.36',
         date: '2026-04-03',
         isLatest: true,
+        highlights: [
+            '设置中新增"联网更新"开关，默认关闭，适合流量受限环境',
+        ],
+        changes: [
+            { type: 'new', text: '设置面板新增"联网更新"开关（仅 APP 端显示）：默认关闭，开启后 APP 启动时才会自动检查并下载热更新；关闭状态下完全跳过 OTA 检查，不消耗任何流量。' },
+            { type: 'improve', text: '开关状态持久化到本地存储，重启后保持用户选择；切换后下次启动即生效，无需重装。' },
+        ],
+    },
+    {
+        version: '2.3.35',
+        date: '2026-04-03',
+        isLatest: false,
         highlights: [
             '修复 OTA 启动后误弹"建议重新安装"警告的问题',
         ],
