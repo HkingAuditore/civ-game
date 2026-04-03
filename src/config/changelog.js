@@ -4,9 +4,35 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.32',
+        version: '2.3.33',
         date: '2026-04-03',
         isLatest: true,
+        highlights: [
+            '修复 OTA 热更新后闪退：延迟检查、重置策略与 bundle 清理逻辑全面加固',
+            '理念卡牌正确显示各级 triggerEffects 与 converter 继承状态，升级路径更清晰',
+            '内存优化：Worker 降频剥离大字段 + full tick 缓存，后期帧率更稳定',
+            '移动端菜单隐藏打赏入口，桌面端功能不变',
+        ],
+        changes: [
+            { type: 'fix', text: '修复 OTA 更新后 bundle 清理逻辑中 postDownloadProtected 未包含当前 bundle ID 的问题，避免正在使用的 bundle 被误删导致闪退；cleanupOldBundles 新增对 status=set 的 bundle 的跳过保护。' },
+            { type: 'fix', text: '将 capacitor.config.json 的 resetWhenUpdate 改为 true，确保 OTA 更新后 WebView 完整重置，避免旧 JS 上下文残留引发的启动崩溃。' },
+            { type: 'fix', text: '修复 vite.config.js 将 console.error/warn 一并 drop 的问题，改为仅 drop console.log/debug/info，保留错误日志以便 OTA 环境下的崩溃诊断。' },
+            { type: 'improve', text: 'OTA 检查延迟 10 秒（OTA_CHECK_DELAY_MS）启动，避免与游戏初始化内存峰值叠加；下载前新增内存占用检查，超过 60% 时跳过本次下载并提示。' },
+            { type: 'improve', text: '新增 OTA 启动诊断记录（civ_crash_log）：记录 bundle 版本/ID、baseURI、初始内存；Worker 启动成功/失败均写入日志，连续 3 次失败自动切换主线程模式。' },
+            { type: 'improve', text: '新增 OTA 主动回滚保护：启动后 30 秒内未捕获异常 ≥ 3 次时自动调用 CapacitorUpdater.reset() 回滚到内置 bundle，防止无限崩溃循环。' },
+            { type: 'fix', text: '修复理念卡牌顶部"特殊效果"区域仅读取顶层 triggerEffects（通常为空）的问题：新增 getAggregatedTriggerEffects 函数，聚合当前等级及以下所有 levels 的 triggerEffects 后展示。' },
+            { type: 'improve', text: '理念卡牌"效果递进"区域新增 getLevelInheritedItems 辅助函数，正确显示 converters/ruleMods/triggerEffects 的继承状态（"🔁 继承"/"⚡ 继承前级"），避免玩家误以为升级后效果消失。' },
+            { type: 'improve', text: '理念卡牌递进区域增量标签新增"▲ 新增"视觉标识，叠加感更直观；修复"无新增数值"误判：存在继承项时不再显示该提示。' },
+            { type: 'improve', text: 'Worker stripPayloadForTransfer 扩展：非 full tick 时额外剥离 officials/activeFronts/activeBattles/foreignInvestmentStats/tradeOpportunities 等大型 UI-only 字段；market 仅保留 prices/wages。' },
+            { type: 'improve', text: 'useGameLoop 新增 fullTickCacheRef 缓存机制：full tick 时写入 UI 专用字段，非 full tick 时从缓存读取，跳过对应 setState 调用，减少无效渲染。' },
+            { type: 'improve', text: '新增 useMemoryMonitor hook：每 30 秒检测内存占用，70% 时自动降低 UI 刷新频率，85% 时暂停游戏并提示保存，连续 3 次危险时强制降速至 1x。' },
+            { type: 'improve', text: '移动端（< 1024px）菜单隐藏"打赏作者"入口，桌面端功能保持不变；利用现有 {onDonate && ...} 条件渲染，不传入 prop 即完全不渲染按钮。' },
+        ],
+    },
+    {
+        version: '2.3.32',
+        date: '2026-04-03',
+        isLatest: false,
         highlights: [
             '修复 useGameActions 中未定义回调引发的 React 无限循环（#185）',
             '叛乱战争结束与分期赔款处理新增防御性守卫，避免空引用崩溃',
