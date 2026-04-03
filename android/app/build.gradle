@@ -7,7 +7,7 @@ android {
         applicationId "com.ToyEmpires.civgame"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 173
+        versionCode 174
         versionName "2.3.36"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
