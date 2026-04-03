@@ -678,7 +678,7 @@ export const TRIBUTE_CONFIG = {
     // 资源朝贡配置
     resourceTribute: {
         enabled: true,
-        baseAmount: 10000,                  // 基础资源数量，配合对数函数控制整体量级
+        baseAmount: 10000 ,                  // 基础资源数量，配合对数函数控制整体量级
         resources: ['food', 'wood', 'iron', 'cloth'],  // 可朝贡的资源类型
     },
 

@@ -13,10 +13,70 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { simulateTick } from '../logic/simulation';
 import { trackErrorWarning, trackErrorError } from '../analytics/gaTracker';
+import { getOtaInfoSync } from '../utils/otaInfo';
 
 // Import worker using Vite's worker import syntax
 // This tells Vite to bundle the worker separately
 import SimulationWorker from '../workers/simulation.worker.js?worker';
+
+// ── Worker health tracking constants ──
+const WORKER_FAIL_COUNT_KEY = 'civ_worker_fail_count';
+const WORKER_DISABLED_KEY = 'civ_worker_disabled';
+const WORKER_MAX_CONSECUTIVE_FAILS = 3;
+const CRASH_LOG_KEY = 'civ_crash_log';
+const CRASH_HISTORY_KEY = 'civ_crash_history';
+const MAX_CRASH_HISTORY = 20;
+
+/** Safe localStorage helpers (same pattern as crashReporter.js) */
+function _safeGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function _safeSet(key, v) { try { localStorage.setItem(key, v); } catch { /* ignore */ } }
+
+/** Check if Worker has been disabled by consecutive-failure circuit breaker */
+function isWorkerCircuitBroken() {
+    return _safeGet(WORKER_DISABLED_KEY) === 'true';
+}
+
+/** Increment fail counter; if >= threshold, set disabled flag */
+function recordWorkerFail() {
+    const count = (parseInt(_safeGet(WORKER_FAIL_COUNT_KEY), 10) || 0) + 1;
+    _safeSet(WORKER_FAIL_COUNT_KEY, String(count));
+    if (count >= WORKER_MAX_CONSECUTIVE_FAILS) {
+        _safeSet(WORKER_DISABLED_KEY, 'true');
+        console.warn(`[SimulationWorker] Circuit breaker: disabled after ${count} consecutive failures`);
+    }
+    return count;
+}
+
+/** Reset fail counter on successful Worker startup */
+function resetWorkerFailCount() {
+    _safeSet(WORKER_FAIL_COUNT_KEY, '0');
+}
+
+/** Persist a Worker health event to civ_crash_log + history (mirrors crashReporter pattern) */
+function persistWorkerHealthEvent(eventType, details = {}) {
+    const otaInfo = getOtaInfoSync();
+    const record = {
+        type: eventType,
+        message: details.message || eventType,
+        timestamp: Date.now(),
+        appVersion: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'unknown',
+        isOTA: otaInfo.isOTA,
+        bundleVersion: otaInfo.bundleVersion,
+        importMetaUrl: details.importMetaUrl || '',
+        baseURI: typeof document !== 'undefined' ? document.baseURI : '',
+        ...details.extra,
+    };
+    // Write to civ_crash_log (latest)
+    _safeSet(CRASH_LOG_KEY, JSON.stringify(record));
+    // Append to history ring buffer
+    try {
+        const raw = _safeGet(CRASH_HISTORY_KEY);
+        const history = raw ? JSON.parse(raw) : [];
+        history.push(record);
+        while (history.length > MAX_CRASH_HISTORY) history.shift();
+        _safeSet(CRASH_HISTORY_KEY, JSON.stringify(history));
+    } catch { /* ignore */ }
+}
 
 /**
  * Hook to manage simulation execution with Worker fallback
@@ -32,32 +92,63 @@ export function useSimulationWorker() {
     const isInitializedRef = useRef(false);
     const lastExecTimeRef = useRef(1000);
     const sendTimeRef = useRef(0);
+    // [PERF] Delta Encoding: 存储上一次完整结果，用于合并 Worker 发来的增量
+    const lastFullResultRef = useRef(null);
 
     // Initialize worker on mount
     useEffect(() => {
         if (isInitializedRef.current) return;
         isInitializedRef.current = true;
 
-        try {
-            // Create worker instance
-            const worker = new SimulationWorker();
-            
-            // Set up message handler
+        // Circuit breaker: skip Worker entirely if it failed too many times in a row
+        if (isWorkerCircuitBroken()) {
+            console.warn('[SimulationWorker] Circuit breaker active — skipping Worker, using main thread');
+            setWorkerError('Worker disabled by circuit breaker (consecutive failures)');
+            setIsUsingWorker(false);
+            persistWorkerHealthEvent('worker_circuit_broken', {
+                message: 'Worker disabled by circuit breaker, using main thread',
+                importMetaUrl: import.meta.url,
+            });
+            return;
+        }
+
+        // OTA fallback Worker filename (must match vite.config.js worker.rollupOptions.output.entryFileNames)
+        const OTA_WORKER_FILENAME = 'assets/simulation.worker.js';
+
+        /**
+         * Attach standard message/error handlers to a Worker instance.
+         */
+        function attachWorkerHandlers(worker) {
             worker.onmessage = (event) => {
                 const { type, payload, error } = event.data;
-                
+
                 switch (type) {
                     case 'READY':
                         setIsUsingWorker(true);
-                        console.log('[SimulationWorker] Worker ready');
+                        console.warn('[SimulationWorker] Worker ready');
+                        // Health: reset fail counter & persist success event
+                        resetWorkerFailCount();
+                        persistWorkerHealthEvent('worker_ready', {
+                            message: 'Worker initialized successfully',
+                            importMetaUrl: import.meta.url,
+                        });
                         break;
-                        
-                    case 'RESULT':
+
+                    case 'RESULT': {
                         if (sendTimeRef.current > 0) {
                             lastExecTimeRef.current = Math.max(500, Date.now() - sendTimeRef.current);
                         }
+                        // [PERF] Delta Encoding: 如果收到的是增量，合并到上一次完整结果
+                        let resolvedPayload = payload;
+                        if (payload && payload._isDelta === true && lastFullResultRef.current) {
+                            resolvedPayload = { ...lastFullResultRef.current, ...payload };
+                        }
+                        // 缓存完整结果供下次 delta 合并
+                        if (resolvedPayload && resolvedPayload._isDelta !== undefined) {
+                            lastFullResultRef.current = resolvedPayload;
+                        }
                         if (pendingResolveRef.current) {
-                            pendingResolveRef.current(payload);
+                            pendingResolveRef.current(resolvedPayload);
                             pendingResolveRef.current = null;
                             pendingRejectRef.current = null;
                         }
@@ -78,7 +169,7 @@ export function useSimulationWorker() {
                             }
                         }
                         break;
-                        
+                    }
                     case 'ERROR':
                         console.error('[SimulationWorker] Worker error:', error);
                         if (pendingRejectRef.current) {
@@ -91,19 +182,26 @@ export function useSimulationWorker() {
                             pendingLatestRef.current = null;
                         }
                         break;
-                        
+
                     case 'PONG':
                         // Worker is alive - used for health checks
                         break;
                 }
             };
-            
-            // Handle worker errors
-            worker.onerror = (error) => {
-                console.error('[SimulationWorker] Worker crashed:', error);
-                setWorkerError(error.message || 'Worker crashed');
+
+            worker.onerror = (workerErr) => {
+                console.error('[SimulationWorker] Worker crashed:', workerErr);
+                setWorkerError(workerErr.message || 'Worker crashed');
                 setIsUsingWorker(false);
-                
+
+                // Health: record failure for circuit breaker
+                const failCount = recordWorkerFail();
+                persistWorkerHealthEvent('worker_crash', {
+                    message: `Worker crashed (fail #${failCount}): ${workerErr.message || 'unknown'}`,
+                    importMetaUrl: import.meta.url,
+                    extra: { failCount },
+                });
+
                 // Reject any pending promise
                 if (pendingRejectRef.current) {
                     pendingRejectRef.current(new Error('Worker crashed'));
@@ -115,14 +213,58 @@ export function useSimulationWorker() {
                     pendingLatestRef.current = null;
                 }
             };
-            
+        }
+
+        /**
+         * Try creating Worker via OTA fallback path using document.baseURI.
+         * Returns the Worker instance or null if it also fails.
+         */
+        function tryOtaFallbackWorker() {
+            try {
+                const base = document.baseURI || location.href;
+                const fallbackUrl = new URL(OTA_WORKER_FILENAME, base).href;
+                console.warn('[SimulationWorker] Trying OTA fallback path:', fallbackUrl);
+                const fallbackWorker = new Worker(fallbackUrl, { type: 'module' });
+                return fallbackWorker;
+            } catch (fallbackErr) {
+                console.error('[SimulationWorker] OTA fallback path also failed:', fallbackErr);
+                trackErrorWarning(
+                    `WorkerOTAPathFail: ${fallbackErr.message || 'fallback failed'} | importMetaUrl=${import.meta.url} | baseURI=${document.baseURI}`
+                );
+                return null;
+            }
+        }
+
+        try {
+            // Primary: create worker via Vite's ?worker import
+            const worker = new SimulationWorker();
+            attachWorkerHandlers(worker);
             workerRef.current = worker;
-            
-        } catch (error) {
-            console.warn('[SimulationWorker] Failed to create worker, using main thread:', error);
-            trackErrorWarning(`WorkerError: ${error.message || 'Failed to create worker'}`);
-            setWorkerError(error.message || 'Failed to create worker');
-            setIsUsingWorker(false);
+        } catch (primaryError) {
+            console.warn('[SimulationWorker] Primary worker creation failed, trying OTA fallback:', primaryError);
+
+            // OTA fallback: use document.baseURI + fixed filename
+            const fallbackWorker = tryOtaFallbackWorker();
+            if (fallbackWorker) {
+                attachWorkerHandlers(fallbackWorker);
+                workerRef.current = fallbackWorker;
+                trackErrorWarning(
+                    `WorkerOTAPathOK: primary failed but fallback succeeded | importMetaUrl=${import.meta.url} | baseURI=${document.baseURI}`
+                );
+            } else {
+            // Both paths failed → main thread fallback
+                trackErrorWarning(`WorkerError: ${primaryError.message || 'Failed to create worker'}`);
+                setWorkerError(primaryError.message || 'Failed to create worker');
+                setIsUsingWorker(false);
+
+                // Health: record creation failure for circuit breaker
+                const failCount = recordWorkerFail();
+                persistWorkerHealthEvent('worker_create_fail', {
+                    message: `Worker creation failed (fail #${failCount}): ${primaryError.message || 'unknown'}`,
+                    importMetaUrl: import.meta.url,
+                    extra: { failCount },
+                });
+            }
         }
         
         // Cleanup on unmount
@@ -143,7 +285,11 @@ export function useSimulationWorker() {
      * [PERF] Strip non-essential data from simulation result in main-thread mode.
      * The Worker has its own stripPayloadForTransfer; this is the equivalent for
      * the disableWorker (gameSpeed >= 3) path where simulateTick runs directly.
+     * 
+     * 主线程模式下也实施降频剥离，减少 GC 压力和 React setState 开销。
      */
+    const mainThreadTickCounterRef = useRef(0);
+    const MAIN_THREAD_UI_INTERVAL = 10;
     const stripMainThreadResult = useCallback((result) => {
         if (!result) return result;
         // Strip debug fields (same as Worker's stripPayloadForTransfer)
@@ -165,6 +311,40 @@ export function useSimulationWorker() {
                 }
                 return n;
             });
+        }
+
+        // [PERF] 主线程模式降频剥离：与 Worker 端 stripPayloadForTransfer 一致
+        mainThreadTickCounterRef.current++;
+        const isFullTick = (mainThreadTickCounterRef.current % MAIN_THREAD_UI_INTERVAL) === 0;
+        result._isFullTick = isFullTick;
+        if (!isFullTick) {
+            result.buildingFinancialData = null;
+            result.classFinancialData = null;
+            result.approvalBreakdown = null;
+            result.officials = null;
+            result.activeFronts = null;
+            result.activeBattles = null;
+            result.foreignInvestmentStats = null;
+            result.tradeOpportunities = null;
+            if (result.market) {
+                result.market = {
+                    prices: result.market.prices,
+                    wages: result.market.wages,
+                    demand: null,
+                    supply: null,
+                    needsShortages: null,
+                    stratumConsumption: null,
+                    supplyBreakdown: null,
+                    demandBreakdown: null,
+                    resourceLossBreakdown: null,
+                };
+            }
+            if (result.modifiers) {
+                result.modifiers = {
+                    ideologyRuleMods: result.modifiers.ideologyRuleMods || null,
+                    officialEffects: result.modifiers.officialEffects || null,
+                };
+            }
         }
         return result;
     }, []);
@@ -266,6 +446,25 @@ export function useSimulationWorker() {
     }, [isUsingWorker]);
 
     /**
+     * [PERF] 低频同步静态配置到worker缓存
+     * 避免每tick都通过postMessage传输不变的配置数据（如理念、协同等）
+     * @param {Object} configData - { equippedIdeologies, ideologySynergies, antiSynergies }
+     */
+    const syncConfig = useCallback((configData) => {
+        if (workerRef.current && isUsingWorker) {
+            try {
+                workerRef.current.postMessage({
+                    type: 'SYNC_CONFIG',
+                    payload: configData
+                });
+            } catch (e) {
+                // 同步失败不影响主流程
+                console.warn('[SimulationWorker] syncConfig failed:', e);
+            }
+        }
+    }, [isUsingWorker]);
+
+    /**
      * [PERF] 控制Worker端调试数据传输开关
      * 关闭时worker会从返回payload中剔除buildingDebugData、_perf.sections、modifiers.sources
      * @param {boolean} enabled - 是否启用调试数据传输
@@ -283,10 +482,30 @@ export function useSimulationWorker() {
         }
     }, [isUsingWorker]);
 
+    /**
+     * [PERF] 动态调整 Worker 端 UI 数据传输间隔
+     * 由内存监控 hook 调用：内存压力大时翻倍间隔，恢复时还原
+     * @param {number} interval - 新的 UI 数据传输间隔（tick 数）
+     */
+    const setUiInterval = useCallback((interval) => {
+        if (workerRef.current && isUsingWorker) {
+            try {
+                workerRef.current.postMessage({
+                    type: 'SET_UI_INTERVAL',
+                    payload: { interval }
+                });
+            } catch (e) {
+                console.warn('[SimulationWorker] setUiInterval failed:', e);
+            }
+        }
+    }, [isUsingWorker]);
+
     return {
         runSimulation,
         syncHistory,
+        syncConfig,
         setDebugMode,
+        setUiInterval,
         isUsingWorker,
         workerError
     };

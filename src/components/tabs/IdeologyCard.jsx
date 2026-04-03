@@ -469,6 +469,42 @@ function getNewArrayItems(currentItems = [], previousItems = []) {
     return currentItems.filter(item => !previousSet.has(JSON.stringify(item)));
 }
 
+/**
+ * 计算某等级继承自上一级（未新增）的数组项
+ * 返回 levels[index][key] 中与 levels[index-1][key] 完全相同的项
+ */
+function getLevelInheritedItems(levels = [], index = 0, key = '') {
+    if (index === 0) return [];
+    const currentItems = levels[index]?.[key] || [];
+    const previousItems = levels[index - 1]?.[key] || [];
+    if (!currentItems.length || !previousItems.length) return [];
+    const previousSet = new Set(previousItems.map(item => JSON.stringify(item)));
+    // 继承项 = 当前有、且在上一级也存在的项
+    return currentItems.filter(item => previousSet.has(JSON.stringify(item)));
+}
+
+/**
+ * 聚合当前等级及以下所有等级的 triggerEffects
+ * 同时合并顶层 ideology.effects.triggerEffects（向后兼容）
+ */
+function getAggregatedTriggerEffects(ideology, level) {
+    const levels = ideology.effects?.levels || [];
+    const topLevel = ideology.effects?.triggerEffects || [];
+    const seen = new Set(topLevel.map(te => JSON.stringify(te)));
+    const result = [...topLevel];
+    for (let i = 0; i < level && i < levels.length; i++) {
+        const levelTriggers = levels[i]?.triggerEffects || [];
+        for (const te of levelTriggers) {
+            const key = JSON.stringify(te);
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(te);
+            }
+        }
+    }
+    return result;
+}
+
 function getLevelIncrementalEffects(levels = [], index = 0) {
     const currentEffects = levels[index] || {};
     if (index === 0) return currentEffects;
@@ -507,7 +543,7 @@ function getLevelIncrementalEffects(levels = [], index = 0) {
             continue;
         }
 
-        if (key === 'onEvents' || key === 'converters' || key === 'ruleMods') {
+        if (key === 'onEvents' || key === 'converters' || key === 'ruleMods' || key === 'triggerEffects') {
             const newItems = getNewArrayItems(value || [], previousEffects[key] || []);
             if (newItems.length > 0) {
                 delta[key] = newItems;
@@ -691,22 +727,27 @@ const IdeologyCardComponent = ({
                 </div>
             )}
 
-            {/* 条件触发效果摘要 — 始终显示 */}
-            {ideology.effects?.triggerEffects?.length > 0 && (
-                <div className="mb-1.5">
-                    {ideology.effects.triggerEffects.slice(0, compact ? 1 : isCandidate ? 2 : 3).map((te, i) => (
-                        <p key={i} className="text-[10px] text-purple-300 leading-tight">
-                            <Icon name="Zap" size={9} className="inline text-purple-400 mr-0.5" />
-                            {describeTriggerEffect(te)}
-                        </p>
-                    ))}
-                    {ideology.effects.triggerEffects.length > (compact ? 1 : isCandidate ? 2 : 3) && (
-                        <p className="text-[10px] text-gray-500 leading-tight">
-                            +{ideology.effects.triggerEffects.length - (compact ? 1 : isCandidate ? 2 : 3)} 个特殊效果
-                        </p>
-                    )}
-                </div>
-            )}
+            {/* 条件触发效果摘要 — 始终显示（聚合所有等级的 triggerEffects） */}
+            {(() => {
+                const aggregated = getAggregatedTriggerEffects(ideology, displayLevel);
+                if (!aggregated.length) return null;
+                const limit = compact ? 1 : isCandidate ? 2 : 3;
+                return (
+                    <div className="mb-1.5">
+                        {aggregated.slice(0, limit).map((te, i) => (
+                            <p key={i} className="text-[10px] text-purple-300 leading-tight">
+                                <Icon name="Zap" size={9} className="inline text-purple-400 mr-0.5" />
+                                {describeTriggerEffect(te)}
+                            </p>
+                        ))}
+                        {aggregated.length > limit && (
+                            <p className="text-[10px] text-gray-500 leading-tight">
+                                +{aggregated.length - limit} 个特殊效果
+                            </p>
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* 联动提示 */}
             {!compact && synergies.length > 0 && (
@@ -798,10 +839,17 @@ const IdeologyCardComponent = ({
 
                     {/* 各等级效果 */}
                     <div className="bg-gray-900/60 rounded p-2">
-                        <p className="text-[10px] text-gray-400 mb-1">效果递进</p>
+                        <p className="text-[10px] text-gray-400 mb-1">效果递进（每级在前一级基础上叠加）</p>
                         {ideology.effects?.levels?.map((lvlEffect, i) => {
                             const levelDiff = getLevelIncrementalEffects(ideology.effects.levels, i);
                             const lvlTags = effectsToTags(levelDiff);
+                            // 继承项（与上一级相同、非新增）
+                            const inheritedConverters = getLevelInheritedItems(ideology.effects.levels, i, 'converters');
+                            const inheritedRuleMods = getLevelInheritedItems(ideology.effects.levels, i, 'ruleMods');
+                            const inheritedTriggers = getLevelInheritedItems(ideology.effects.levels, i, 'triggerEffects');
+                            const hasNewSpecial = levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0 || levelDiff.triggerEffects?.length > 0;
+                            const hasInherited = inheritedConverters.length > 0 || inheritedRuleMods.length > 0 || inheritedTriggers.length > 0;
+                            const hasAnything = lvlTags.length > 0 || hasNewSpecial || hasInherited;
                             return (
                                 <div key={i} className={`mb-1.5 ${i + 1 === level ? 'opacity-100' : 'opacity-50'}`}>
                                     <div className="flex items-start gap-1.5">
@@ -812,18 +860,74 @@ const IdeologyCardComponent = ({
                                             </span>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {lvlTags.map((tag, j) => <EffectTag key={j} {...tag} />)}
-                                            {lvlTags.length === 0 && !(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
+                                            {lvlTags.map((tag, j) => (
+                                                <span key={j} className="inline-flex items-center gap-0.5">
+                                                    {i > 0 && <span className="text-[9px] text-green-500 font-bold">▲</span>}
+                                                    <EffectTag {...tag} />
+                                                </span>
+                                            ))}
+                                            {!hasAnything && (
                                                 <span className="text-[10px] text-gray-500">无新增数值</span>
                                             )}
                                         </div>
                                     </div>
-                                    {/* New effect types for this level */}
-                                    {(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
+                                    {/* 新增的特殊效果 */}
+                                    {hasNewSpecial && (
                                         <div className="ml-6 mt-0.5 space-y-0.5">
                                             {renderOnEvents(levelDiff.onEvents)}
-                                            {renderConverters(levelDiff.converters)}
-                                            {renderRuleMods(levelDiff.ruleMods)}
+                                            {levelDiff.converters?.map((c, j) => (
+                                                <p key={j} className="text-[10px] text-blue-300 leading-tight">
+                                                    🔄 <span className="text-blue-400 font-semibold">新增：</span>{describeConverter(c)}
+                                                </p>
+                                            ))}
+                                            {levelDiff.ruleMods?.map((rm, j) => {
+                                                const label = RULE_MOD_LABELS[rm.type] || rm.type;
+                                                const scopeName = rm.scope && rm.scope !== '_global'
+                                                    ? (CATEGORY_LABELS[rm.scope] || RESOURCE_LABELS[rm.scope] || UNIT_CATEGORY_LABELS[rm.scope] || rm.scope)
+                                                    : '';
+                                                const scopeText = scopeName ? `(${scopeName})` : '';
+                                                const valText = rm.value > 0 ? `+${(rm.value * 100).toFixed(0)}%` : `${(rm.value * 100).toFixed(0)}%`;
+                                                return (
+                                                    <p key={j} className="text-[10px] text-cyan-300 leading-tight">
+                                                        ⚙️ <span className="text-cyan-400 font-semibold">新增：</span>{label}{scopeText}: {valText}
+                                                    </p>
+                                                );
+                                            })}
+                                            {levelDiff.triggerEffects?.map((te, j) => (
+                                                <p key={j} className="text-[10px] text-purple-300 leading-tight">
+                                                    <Icon name="Zap" size={9} className="inline text-purple-400 mr-0.5" />
+                                                    <span className="text-purple-400 font-semibold">新增：</span>{describeTriggerEffect(te)}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {/* 继承自上一级的特殊效果 */}
+                                    {hasInherited && (
+                                        <div className="ml-6 mt-0.5 space-y-0.5">
+                                            {inheritedConverters.map((c, j) => (
+                                                <p key={`ic-${j}`} className="text-[10px] text-blue-300/60 leading-tight">
+                                                    🔄 <span className="text-blue-300/60">继承：</span>{describeConverter(c)}
+                                                </p>
+                                            ))}
+                                            {inheritedRuleMods.map((rm, j) => {
+                                                const label = RULE_MOD_LABELS[rm.type] || rm.type;
+                                                const scopeName = rm.scope && rm.scope !== '_global'
+                                                    ? (CATEGORY_LABELS[rm.scope] || RESOURCE_LABELS[rm.scope] || UNIT_CATEGORY_LABELS[rm.scope] || rm.scope)
+                                                    : '';
+                                                const scopeText = scopeName ? `(${scopeName})` : '';
+                                                const valText = rm.value > 0 ? `+${(rm.value * 100).toFixed(0)}%` : `${(rm.value * 100).toFixed(0)}%`;
+                                                return (
+                                                    <p key={`ir-${j}`} className="text-[10px] text-cyan-300/60 leading-tight">
+                                                        ⚙️ <span className="text-cyan-300/60">继承：</span>{label}{scopeText}: {valText}
+                                                    </p>
+                                                );
+                                            })}
+                                            {inheritedTriggers.length > 0 && (
+                                                <p className="text-[10px] text-purple-300/60 leading-tight">
+                                                    <Icon name="Zap" size={9} className="inline text-purple-400/60 mr-0.5" />
+                                                    <span className="text-purple-300/60">继承前级特殊效果（{inheritedTriggers.length}项）</span>
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -831,17 +935,22 @@ const IdeologyCardComponent = ({
                         })}
                     </div>
 
-                    {/* 条件触发效果 */}
-                    {ideology.effects?.triggerEffects?.length > 0 && (
-                        <div className="bg-purple-900/30 rounded p-2">
-                            <p className="text-[10px] text-gray-400 mb-0.5">特殊效果</p>
-                            {ideology.effects.triggerEffects.map((te, i) => (
-                                <p key={i} className="text-xs text-purple-300">
-                                    {describeTriggerEffect(te)}
-                                </p>
-                            ))}
-                        </div>
-                    )}
+                    {/* 条件触发效果（聚合所有已解锁等级） */}
+                    {(() => {
+                        const aggregated = getAggregatedTriggerEffects(ideology, displayLevel);
+                        if (!aggregated.length) return null;
+                        return (
+                            <div className="bg-purple-900/30 rounded p-2">
+                                <p className="text-[10px] text-gray-400 mb-0.5">特殊效果</p>
+                                {aggregated.map((te, i) => (
+                                    <p key={i} className="text-xs text-purple-300">
+                                        <Icon name="Zap" size={9} className="inline text-purple-400 mr-0.5" />
+                                        {describeTriggerEffect(te)}
+                                    </p>
+                                ))}
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
 
@@ -859,6 +968,11 @@ const IdeologyCardComponent = ({
                             {ideology.effects?.levels?.map((_, i) => {
                                 const levelDiff = getLevelIncrementalEffects(ideology.effects.levels, i);
                                 const lvlTags = effectsToTags(levelDiff);
+                                const inheritedConverters = getLevelInheritedItems(ideology.effects.levels, i, 'converters');
+                                const inheritedRuleMods = getLevelInheritedItems(ideology.effects.levels, i, 'ruleMods');
+                                const inheritedTriggers = getLevelInheritedItems(ideology.effects.levels, i, 'triggerEffects');
+                                const hasNewSpecial = levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0 || levelDiff.triggerEffects?.length > 0;
+                                const hasInherited = inheritedConverters.length > 0 || inheritedRuleMods.length > 0 || inheritedTriggers.length > 0;
                                 return (
                                     <div key={i} className="rounded-lg bg-black/25 px-2 py-1.5">
                                         <div className="flex items-center gap-2 mb-1">
@@ -866,13 +980,43 @@ const IdeologyCardComponent = ({
                                             <span className="text-[10px] text-gray-400">{LEVEL_STAGE_LABELS[i] || `${i + 1}级`}</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {lvlTags.map((tag, j) => <EffectTag key={j} {...tag} />)}
+                                            {lvlTags.map((tag, j) => (
+                                                <span key={j} className="inline-flex items-center gap-0.5">
+                                                    {i > 0 && <span className="text-[9px] text-green-500 font-bold">▲</span>}
+                                                    <EffectTag {...tag} />
+                                                </span>
+                                            ))}
                                         </div>
-                                        {(levelDiff.onEvents?.length > 0 || levelDiff.converters?.length > 0 || levelDiff.ruleMods?.length > 0) && (
+                                        {hasNewSpecial && (
                                             <div className="mt-1 space-y-0.5">
                                                 {renderOnEvents(levelDiff.onEvents)}
-                                                {renderConverters(levelDiff.converters)}
-                                                {renderRuleMods(levelDiff.ruleMods)}
+                                                {levelDiff.converters?.map((c, j) => (
+                                                    <p key={j} className="text-[10px] text-blue-300 leading-tight">
+                                                        🔄 <span className="text-blue-400 font-semibold">新增：</span>{describeConverter(c)}
+                                                    </p>
+                                                ))}
+                                                {levelDiff.ruleMods && renderRuleMods(levelDiff.ruleMods)}
+                                                {levelDiff.triggerEffects?.map((te, j) => (
+                                                    <p key={j} className="text-[10px] text-purple-300 leading-tight">
+                                                        <Icon name="Zap" size={9} className="inline text-purple-400 mr-0.5" />
+                                                        <span className="text-purple-400 font-semibold">新增：</span>{describeTriggerEffect(te)}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {hasInherited && (
+                                            <div className="mt-0.5 space-y-0.5">
+                                                {inheritedConverters.map((c, j) => (
+                                                    <p key={`ic-${j}`} className="text-[10px] text-blue-300/60 leading-tight">
+                                                        🔄 <span className="text-blue-300/60">继承：</span>{describeConverter(c)}
+                                                    </p>
+                                                ))}
+                                                {inheritedTriggers.length > 0 && (
+                                                    <p className="text-[10px] text-purple-300/60 leading-tight">
+                                                        <Icon name="Zap" size={9} className="inline text-purple-400/60 mr-0.5" />
+                                                        <span className="text-purple-300/60">继承前级特殊效果（{inheritedTriggers.length}项）</span>
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
                                     </div>

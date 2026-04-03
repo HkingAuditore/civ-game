@@ -1028,6 +1028,21 @@ difficulty, // 游戏难度
     const cachedSupplyBreakdownRef = useRef({});
     const cachedDemandBreakdownRef = useRef({});
     const cachedStratumConsumptionRef = useRef({});
+    // [PERF] Full tick UI 数据缓存：非 full tick 时被 stripPayloadForTransfer 剥离的字段
+    // 主线程使用此缓存填充，避免 UI 出现空白
+    const fullTickCacheRef = useRef({
+        officials: null,
+        activeFronts: null,
+        activeBattles: null,
+        foreignInvestmentStats: null,
+        tradeOpportunities: null,
+        // market 子字段缓存
+        marketDemand: null,
+        marketSupply: null,
+        marketNeedsShortages: null,
+        // modifiers 完整缓存
+        modifiers: null,
+    });
     // [PERF] 主线程模式下的财务数据节流计数器
     // Worker 路径由 stripPayloadForTransfer 降频，主线程路径需自行节流
     const mainThreadFinancialCounterRef = useRef(0);
@@ -1042,12 +1057,34 @@ difficulty, // 游戏难度
     // NOTE: prevTechsRef / prevEpochRef removed — tech/epoch ideology scoring
     // is now handled proactively in useGameActions (researchTech / advanceEpoch).
 
-    const { runSimulation, syncHistory, isUsingWorker } = useSimulationWorker();
+    const { runSimulation, syncHistory, syncConfig, isUsingWorker } = useSimulationWorker();
 
     const saveGameRef = useRef(gameState.saveGame);
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
     }, [gameState.saveGame]);
+
+    // [PERF] 检测理念配置变化时同步到 Worker 缓存，避免每 tick 传输静态配置
+    const prevEquippedIdeologiesRef = useRef(null);
+    useEffect(() => {
+        if (!isUsingWorker || !syncConfig) return;
+        const equipped = gameState.equippedIdeologies;
+        const collection = gameState.ideologyCollection;
+        // 简单引用比较：equippedIdeologies 数组变化时触发同步
+        if (equipped !== prevEquippedIdeologiesRef.current) {
+            prevEquippedIdeologiesRef.current = equipped;
+            const collectionMap = {};
+            for (const entry of (collection || [])) { collectionMap[entry.id] = entry; }
+            const resolved = (equipped || [])
+                .filter(id => IDEOLOGY_MAP[id] && collectionMap[id])
+                .map(id => ({ ...IDEOLOGY_MAP[id], level: collectionMap[id].level || 1 }));
+            syncConfig({
+                equippedIdeologies: resolved,
+                ideologySynergies: IDEOLOGY_SYNERGIES || [],
+                antiSynergies: ANTI_SYNERGIES || [],
+            });
+        }
+    }, [gameState.equippedIdeologies, gameState.ideologyCollection, isUsingWorker, syncConfig]);
 
     // [PERF] 就地更新 stateRef，避免每次依赖变化时创建 90+ 字段新对象
     Object.assign(stateRef.current, {
@@ -1425,7 +1462,9 @@ difficulty, // 游戏难度
                 activeBattles: current.activeBattles || [], // [NEW] Active battles
 
                 // 理念系统
-                equippedIdeologies: (() => {
+                // [PERF] Worker 模式下静态配置通过 SYNC_CONFIG 缓存，不再每 tick 传输
+                // 非 Worker 模式（主线程回退）仍需每 tick 传入
+                equippedIdeologies: (isUsingWorker && !window.__SIM_DISABLE_WORKER) ? undefined : (() => {
                     // 将equippedIds解析为完整理念对象（含等级），供simulation中的applyIdeologyEffects使用
                     const collection = current.ideologyCollection || [];
                     const equipped = current.equippedIdeologies || [];
@@ -1436,8 +1475,8 @@ difficulty, // 游戏难度
                         .filter(id => IDEOLOGY_MAP[id] && collectionMap[id])
                         .map(id => ({ ...IDEOLOGY_MAP[id], level: collectionMap[id].level || 1 }));
                 })(),
-                ideologySynergies: IDEOLOGY_SYNERGIES || [],
-                antiSynergies: ANTI_SYNERGIES || [],
+                ideologySynergies: (isUsingWorker && !window.__SIM_DISABLE_WORKER) ? undefined : (IDEOLOGY_SYNERGIES || []),
+                antiSynergies: (isUsingWorker && !window.__SIM_DISABLE_WORKER) ? undefined : (ANTI_SYNERGIES || []),
                 // [PERF] 性能模式信息，供 simulation 中动态频率调整使用
                 _isLowPerformance: isLowPerformance(),
                 // [PERF] 传入实际游戏速度，供 Worker 动态调整 UI 数据传输频率
@@ -3061,16 +3100,54 @@ difficulty, // 游戏难度
                     const shouldUpdatePanelData = result._isFullTick ||
                         (mainThreadFinancialCounterRef.current % MAIN_THREAD_FINANCIAL_INTERVAL === 0);
 
+                    // [PERF] Full tick 缓存机制：写入/读取被 stripPayloadForTransfer 剥离的 UI-only 字段
+                    const ftc = fullTickCacheRef.current;
+                    if (result._isFullTick) {
+                        // Full tick: 缓存所有 UI-only 字段
+                        if (result.officials != null) ftc.officials = result.officials;
+                        if (result.activeFronts != null) ftc.activeFronts = result.activeFronts;
+                        if (result.activeBattles != null) ftc.activeBattles = result.activeBattles;
+                        if (result.foreignInvestmentStats != null) ftc.foreignInvestmentStats = result.foreignInvestmentStats;
+                        if (result.tradeOpportunities != null) ftc.tradeOpportunities = result.tradeOpportunities;
+                        if (result.market?.demand != null) ftc.marketDemand = result.market.demand;
+                        if (result.market?.supply != null) ftc.marketSupply = result.market.supply;
+                        if (result.market?.needsShortages != null) ftc.marketNeedsShortages = result.market.needsShortages;
+                        if (result.modifiers) ftc.modifiers = result.modifiers;
+                    } else {
+                        // 非 full tick: 从缓存填充被剥离的字段
+                        if (result.officials == null) result.officials = ftc.officials;
+                        if (result.activeFronts == null) result.activeFronts = ftc.activeFronts;
+                        if (result.activeBattles == null) result.activeBattles = ftc.activeBattles;
+                        if (result.foreignInvestmentStats == null) result.foreignInvestmentStats = ftc.foreignInvestmentStats;
+                        if (result.tradeOpportunities == null) result.tradeOpportunities = ftc.tradeOpportunities;
+                        if (result.market) {
+                            if (result.market.demand == null) result.market.demand = ftc.marketDemand;
+                            if (result.market.supply == null) result.market.supply = ftc.marketSupply;
+                            if (result.market.needsShortages == null) result.market.needsShortages = ftc.marketNeedsShortages;
+                        }
+                        // modifiers: 非 full tick 仅有 ideologyRuleMods + officialEffects，合并缓存的完整数据
+                        if (ftc.modifiers && result.modifiers) {
+                            result.modifiers = {
+                                ...ftc.modifiers,
+                                // 覆盖 simulation 必需的实时子集
+                                ideologyRuleMods: result.modifiers.ideologyRuleMods || ftc.modifiers.ideologyRuleMods,
+                                officialEffects: result.modifiers.officialEffects || ftc.modifiers.officialEffects,
+                            };
+                        }
+                    }
+
                     // [PERF] 高速模式：纯展示 setState 仅每 N tick 更新一次
+                    // 非 UI 更新 tick 仅写 stateRef，完全跳过 setState 减少 GC 压力
                     if (_shouldUpdateUI) {
                         setPopStructure(nextPopStructure);
                         setMaxPop(result.maxPop);
                         setRates(result.rates || {});
+                        setClassApproval(result.classApproval);
+                        if (result.approvalBreakdown && shouldUpdatePanelData) {
+                            setApprovalBreakdown(result.approvalBreakdown);
+                        }
                     }
-                    setClassApproval(result.classApproval);
-                    if (result.approvalBreakdown && shouldUpdatePanelData) {
-                        setApprovalBreakdown(result.approvalBreakdown);
-                    }
+                    stateRef.current.classApproval = result.classApproval;
                     const adjustedInfluence = { ...(result.classInfluence || {}) };
                     Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
                         if (!delta) return;
@@ -3106,13 +3183,19 @@ difficulty, // 游戏难度
                         setTotalInfluence(result.totalInfluence);
                         setTotalWealth(adjustedTotalWealth);
                     }
-                    setActiveBuffs(result.activeBuffs);
-                    setActiveDebuffs(result.activeDebuffs);
-                    setStability(result.stability);
-                    // 鏇存柊鎵ф斂鑱旂洘鍚堟硶鎬?
-                    if (typeof setLegitimacy === 'function' && result.legitimacy !== undefined) {
-                        setLegitimacy(result.legitimacy);
+                    if (_shouldUpdateUI) {
+                        setActiveBuffs(result.activeBuffs);
+                        setActiveDebuffs(result.activeDebuffs);
+                        setStability(result.stability);
+                        if (typeof setLegitimacy === 'function' && result.legitimacy !== undefined) {
+                            setLegitimacy(result.legitimacy);
+                        }
                     }
+                    // stateRef 直写确保模拟正确性（高速模式下也需要）
+                    stateRef.current.activeBuffs = result.activeBuffs;
+                    stateRef.current.activeDebuffs = result.activeDebuffs;
+                    stateRef.current.stability = result.stability;
+                    if (result.legitimacy !== undefined) stateRef.current.legitimacy = result.legitimacy;
                     // DEBUG: 璋冭瘯鍏崇◣鍊?
                     const mainThreadDebug = isDebugEnabled('mainThread');
                     if (mainThreadDebug && result.taxes?.breakdown) {
@@ -3124,12 +3207,17 @@ difficulty, // 游戏难度
                             resourceTariffMultipliers: current.taxPolicies?.resourceTariffMultipliers,
                         });
                     }
-                    setTaxes(result.taxes || {
+                    const effectiveTaxes = result.taxes || {
                         total: 0,
                         breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
                         efficiency: 1,
-                    });
-                    setMarket(adjustedMarket);
+                    };
+                    stateRef.current.taxes = effectiveTaxes;
+                    stateRef.current.market = adjustedMarket;
+                    if (_shouldUpdateUI) {
+                        setTaxes(effectiveTaxes);
+                        setMarket(adjustedMarket);
+                    }
                     if (_shouldUpdateUI) {
                         setClassShortages(result.needsShortages || {});
                         setClassLivingStandard(result.classLivingStandard || {});

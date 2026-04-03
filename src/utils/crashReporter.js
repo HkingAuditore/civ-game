@@ -2,12 +2,15 @@
 // 设计原则：不依赖任何第三方 SDK，在 React 挂载之前即可工作
 // 崩溃信息写入 localStorage，下次启动时读取并上报
 
+import { getOtaInfoSync } from './otaInfo';
+
 const CRASH_LOG_KEY = 'civ_crash_log';
 const CRASH_HISTORY_KEY = 'civ_crash_history';
 const MAX_HISTORY = 20;
 const MAX_STACK_LEN = 2048;
 const SESSION_ALIVE_KEY = 'civ_session_alive';
 const MEMORY_SAMPLE_KEY = 'civ_last_memory_mb';
+const OTA_ERROR_STREAK_THRESHOLD = 3;
 
 let _reportCallback = null;
 let _memoryPollTimer = null;
@@ -27,6 +30,7 @@ function safeRemoveItem(key) {
 // ── 崩溃记录结构 ──
 
 function buildCrashRecord(type, message, extra = {}) {
+    const otaInfo = getOtaInfoSync();
     return {
         type,
         message: (message || 'unknown').slice(0, 1024),
@@ -38,6 +42,8 @@ function buildCrashRecord(type, message, extra = {}) {
         appVersion: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'unknown',
         memoryMB: extra.memoryMB || getLastMemorySample(),
         sessionDuration: getSessionDuration(),
+        isOTA: otaInfo.isOTA,
+        bundleVersion: otaInfo.bundleVersion,
         ...extra.custom,
     };
 }
@@ -213,4 +219,21 @@ export function clearCrashHistory() {
 
 export function getLastMemoryMB() {
     return getLastMemorySample();
+}
+
+/**
+ * Check if the last N crash history entries are all OTA-related errors.
+ * Returns the streak count if >= threshold, otherwise 0.
+ */
+export function getOtaErrorStreak() {
+    try {
+        const raw = safeGetItem(CRASH_HISTORY_KEY);
+        if (!raw) return 0;
+        const history = JSON.parse(raw);
+        if (!Array.isArray(history) || history.length < OTA_ERROR_STREAK_THRESHOLD) return 0;
+        // Check the last N entries from the tail
+        const tail = history.slice(-OTA_ERROR_STREAK_THRESHOLD);
+        const allOta = tail.every(r => r.isOTA === true);
+        return allOta ? tail.length : 0;
+    } catch { return 0; }
 }

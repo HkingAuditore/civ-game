@@ -13,7 +13,7 @@
             "autoDeleteBundles": true,
             "autoDeleteFailed": true,
             "autoDeletePrevious": true,
-            "resetWhenUpdate": false
+            "resetWhenUpdate": true
         }
     }
 }

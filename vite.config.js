@@ -21,6 +21,16 @@ export default defineConfig(({ mode }) => ({
         exclude: [],
         entries: ['index.html'],
     },
+    // Fix Worker output filename for OTA fallback path resolution
+    worker: {
+        format: 'es',
+        rollupOptions: {
+            output: {
+                // Use fixed filename so OTA fallback can locate the worker via document.baseURI
+                entryFileNames: 'assets/simulation.worker.js',
+            },
+        },
+    },
     build: {
         // 目标 ES2018，兼容 Android 8.0+ (Chrome 62+) 的 WebView
         target: 'es2018',
@@ -43,6 +53,10 @@ export default defineConfig(({ mode }) => ({
     },
     esbuild: {
         target: 'es2018',
-        ...(mode === 'production' ? { drop: ['console', 'debugger'] } : {}),
+        ...(mode === 'production' ? {
+            drop: ['debugger'],
+            // Keep console.error and console.warn for OTA crash diagnostics
+            pure: ['console.log', 'console.debug', 'console.info'],
+        } : {}),
     },
 }))

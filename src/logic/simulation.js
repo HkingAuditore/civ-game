@@ -485,6 +485,26 @@ const calculatePlayerComparableWealth = (resources = {}, classWealth = {}) => {
 // [PERF] Module-level reusable Map for silverChangeTotals — avoids allocating a new Map every tick
 const _reusableSilverMap = new Map();
 
+// [PERF] Module-level reusable objects for building production loop — avoids allocating per-building per-tick
+const _reusableEffectiveOps = { input: {}, output: {}, jobs: {} };
+const _reusableOwnerLevelGroups = {};
+
+// [PERF] Module-level reusable objects for high-frequency temporary variables
+// 避免每 tick 分配新对象，减少 GC 压力
+const _reusableSupplyBreakdown = {};
+const _reusableResourceLossBreakdown = {};
+const _reusableRoleLaborIncome = {};
+const _reusableRoleExpense = {};
+const _reusableRoleHeadTaxPaid = {};
+const _reusableRoleBusinessTaxPaid = {};
+
+/** Clear all own keys from a plain object (reuse without allocation) */
+function _clearObj(obj) {
+    for (const k in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, k)) delete obj[k];
+    }
+}
+
 export const simulateTick = ({
     resources,
     buildings,
@@ -556,6 +576,8 @@ export const simulateTick = ({
     ideologyMetrics = null,
     // [PERF] 性能模式标志，主线程传入
     _isLowPerformance = false,
+    // [PERF] Full tick 标志：非 full tick 时跳过 buildingFinancialData 等详细计算
+    _isFullTick = true,
 }) => {
     if (!Number.isFinite(tick)) {
         const parsedTick = Number(tick);
@@ -621,6 +643,10 @@ export const simulateTick = ({
     const priceMap = { ...(market?.prices || {}) };
 
     const _simDebugEnabled = isDebugEnabled('simulation');
+
+    // [PERF] 非 full tick 时跳过 buildingFinancialData / classFinancialData 等详细计算
+    // 这些数据仅供 UI 面板显示，主线程有 fullTickCacheRef 缓存上一次 full tick 的值
+    const _shouldComputeFinancialDetail = _isFullTick || _simDebugEnabled;
 
     // === 资源变化追踪系统 ===
     // Silver change log (aggregated for performance)
@@ -749,8 +775,11 @@ export const simulateTick = ({
     const oiSliceCount = Math.max(1, RATE_LIMIT_CONFIG.overseasInvestmentSlices || 5);
     const fiSliceCount = Math.max(1, RATE_LIMIT_CONFIG.foreignInvestmentSlices || 5);
     // NEW: Track supply source breakdown
-    const supplyBreakdown = {};
-    const resourceLossBreakdown = {};
+    // [PERF] 复用模块级对象，避免每 tick 分配新对象
+    _clearObj(_reusableSupplyBreakdown);
+    const supplyBreakdown = _reusableSupplyBreakdown;
+    _clearObj(_reusableResourceLossBreakdown);
+    const resourceLossBreakdown = _reusableResourceLossBreakdown;
 
     // NEW: Detailed financial tracking
     const classFinancialData = {};
@@ -1675,7 +1704,9 @@ export const simulateTick = ({
 
     // [FIX] Separate Labor Income vs Total Income for Wage Calculation
     // role WagePayout includes owner revenue, which distorts wage expectations if used for labor market logic.
-    const roleLaborIncome = {};
+    // [PERF] 复用模块级对象，避免每 tick 分配新对象
+    _clearObj(_reusableRoleLaborIncome);
+    const roleLaborIncome = _reusableRoleLaborIncome;
     const roleLivingExpense = {};
     ROLE_PRIORITY.forEach(role => {
         roleLaborIncome[role] = 0;
@@ -1683,19 +1714,22 @@ export const simulateTick = ({
     });
 
     // Track class expenses (spending on resources)
-    const roleExpense = {};
+    _clearObj(_reusableRoleExpense);
+    const roleExpense = _reusableRoleExpense;
     Object.keys(STRATA).forEach(key => {
         roleExpense[key] = 0;
     });
 
     // Track head tax paid separately (not part of living expenses)
-    const roleHeadTaxPaid = {};
+    _clearObj(_reusableRoleHeadTaxPaid);
+    const roleHeadTaxPaid = _reusableRoleHeadTaxPaid;
     Object.keys(STRATA).forEach(key => {
         roleHeadTaxPaid[key] = 0;
     });
 
     // Track business tax paid separately (not part of living expenses)
-    const roleBusinessTaxPaid = {};
+    _clearObj(_reusableRoleBusinessTaxPaid);
+    const roleBusinessTaxPaid = _reusableRoleBusinessTaxPaid;
     Object.keys(STRATA).forEach(key => {
         roleBusinessTaxPaid[key] = 0;
     });
@@ -2332,11 +2366,17 @@ export const simulateTick = ({
             buildingUpgrades,
             count
         );
-        const effectiveOps = { input: {}, output: {}, jobs: {} };
+        // [PERF] 复用模块级对象，避免每栋建筑每tick分配新对象
+        _clearObj(_reusableEffectiveOps.input);
+        _clearObj(_reusableEffectiveOps.output);
+        _clearObj(_reusableEffectiveOps.jobs);
+        const effectiveOps = _reusableEffectiveOps;
 
         // === 构建 owner 分组映射 ===
         // 每个 owner 可能拥有不同等级的建筑，记录 { ownerKey: { levels: { lvl: count }, totalCount: N } }
-        const ownerLevelGroups = {};
+        // [PERF] 复用模块级对象
+        _clearObj(_reusableOwnerLevelGroups);
+        const ownerLevelGroups = _reusableOwnerLevelGroups;
         Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
             if (lvlCount <= 0) return;
             const lvl = parseInt(lvlStr);
@@ -8927,6 +8967,51 @@ export const simulateTick = ({
         }
     }
 
+    // [PERF] Pre-compute merged modifiers to avoid spread operators in return object
+    // resourceDemand: merge decreeResourceDemandMod + eventResourceDemandModifiers
+    const _mergedResourceDemand = {};
+    for (const k in decreeResourceDemandMod) {
+        if (Object.prototype.hasOwnProperty.call(decreeResourceDemandMod, k)) {
+            _mergedResourceDemand[k] = decreeResourceDemandMod[k];
+        }
+    }
+    for (const k in eventResourceDemandModifiers) {
+        if (Object.prototype.hasOwnProperty.call(eventResourceDemandModifiers, k)) {
+            _mergedResourceDemand[k] = (_mergedResourceDemand[k] || 0) + eventResourceDemandModifiers[k];
+        }
+    }
+
+    // stratumDemand: merge decreeStratumDemandMod + eventStratumDemandModifiers
+    const _mergedStratumDemand = {};
+    for (const k in decreeStratumDemandMod) {
+        if (Object.prototype.hasOwnProperty.call(decreeStratumDemandMod, k)) {
+            _mergedStratumDemand[k] = decreeStratumDemandMod[k];
+        }
+    }
+    for (const k in eventStratumDemandModifiers) {
+        if (Object.prototype.hasOwnProperty.call(eventStratumDemandModifiers, k)) {
+            _mergedStratumDemand[k] = (_mergedStratumDemand[k] || 0) + eventStratumDemandModifiers[k];
+        }
+    }
+
+    // buildingProduction: merge buildingBonuses + eventBuildingProductionModifiers
+    const _mergedBuildingProduction = {};
+    for (const k in buildingBonuses) {
+        if (Object.prototype.hasOwnProperty.call(buildingBonuses, k)) {
+            _mergedBuildingProduction[k] = buildingBonuses[k];
+        }
+    }
+    for (const k in eventBuildingProductionModifiers) {
+        if (Object.prototype.hasOwnProperty.call(eventBuildingProductionModifiers, k)) {
+            _mergedBuildingProduction[k] = (_mergedBuildingProduction[k] || 0) + (eventBuildingProductionModifiers[k] || 0);
+        }
+    }
+
+    // diplomacyOrganizations: pre-merge to avoid spread in return
+    const _mergedDiplomacyOrgs = diplomacyState
+        ? { ...diplomacyState, organizations: updatedOrganizations }
+        : { organizations: updatedOrganizations };
+
     return {
         officialsSimCursor: 0, // 保留字段以兼容旧存档，但不再使用
         _perf: {
@@ -8944,7 +9029,7 @@ export const simulateTick = ({
         population: nextPopulation,
         birthAccumulator,
         classApproval,
-        approvalBreakdown,
+        approvalBreakdown: _shouldComputeFinancialDetail ? approvalBreakdown : null,
         classInfluence,
         classWealth: classWealthResult,
         classLivingStandard, // 各阶层生活水平数?
@@ -8965,18 +9050,18 @@ export const simulateTick = ({
             wages: mirroredWages,
             needsShortages: classShortages,
             stratumConsumption, // NEW: Return actual consumption breakdown
-            supplyBreakdown,    // NEW: Return supply breakdown
+            supplyBreakdown: { ...supplyBreakdown },    // [PERF] 浅拷贝复用对象
             demandBreakdown,    // NEW: Return demand breakdown
-            resourceLossBreakdown,
+            resourceLossBreakdown: { ...resourceLossBreakdown }, // [PERF] 浅拷贝复用对象
         },
         classIncome: roleWagePayout,
-        classExpense: roleExpense,
+        classExpense: { ...roleExpense }, // [PERF] 浅拷贝复用对象
         jobFill: buildingJobFill,
         jobsAvailable,
         buildingJobsRequired, // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位?
         taxes,
-        classFinancialData, // NEW: Return detailed financial data
-        buildingFinancialData, // NEW: Per-building realized financial stats for UI
+        classFinancialData: _shouldComputeFinancialDetail ? classFinancialData : null,
+        buildingFinancialData: _shouldComputeFinancialDetail ? buildingFinancialData : null,
         buildingDebugData,  // DEBUG: Building production debug data
         dailyMilitaryExpense: armyExpenseResult,
         dailyInvestment: ledger.dailyInvestment || 0,
@@ -8991,31 +9076,20 @@ export const simulateTick = ({
         buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
         migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状?
         migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状?
-        diplomacyOrganizations: {
-            ...diplomacyState,
-            organizations: updatedOrganizations,
-        },
+        diplomacyOrganizations: _mergedDiplomacyOrgs,
         taxShock: updatedTaxShock, // [NEW] 各阶层累积税收冲击?
         // 加成修饰符数据，供UI显示"谁吃到了buff"
         modifiers: {
-            // 需求修饰符
-            resourceDemand: {
-                ...decreeResourceDemandMod, ...Object.fromEntries(
-                    Object.entries(eventResourceDemandModifiers).map(([k, v]) => [k, (decreeResourceDemandMod[k] || 0) + v])
-                )
-            },
-            stratumDemand: {
-                ...decreeStratumDemandMod, ...Object.fromEntries(
-                    Object.entries(eventStratumDemandModifiers).map(([k, v]) => [k, (decreeStratumDemandMod[k] || 0) + v])
-                )
-            },
+            // 需求修饰符（已预计算，避免 spread + Object.fromEntries 链式调用）
+            resourceDemand: _mergedResourceDemand,
+            stratumDemand: _mergedStratumDemand,
             // 供给修饰?
             resourceSupply: decreeResourceSupplyMod,
-            // 建筑产出修饰?
-            buildingProduction: { ...buildingBonuses, ...eventBuildingProductionModifiers },
+            // 建筑产出修饰?（已预计算）
+            buildingProduction: _mergedBuildingProduction,
             categoryProduction: categoryBonuses,
             // 来源分解（用于显示哪些是政令/事件加成?
-            sources: {
+            sources: _shouldComputeFinancialDetail ? {
                 decreeResourceDemand: decreeResourceDemandMod,
                 decreeStratumDemand: decreeStratumDemandMod,
                 decreeResourceSupply: decreeResourceSupplyMod,
@@ -9037,7 +9111,7 @@ export const simulateTick = ({
                 // 战争经济：建筑战损统计和前线产出惩罚
                 warDamagedBuildings: warDamagedBuildings || {},
                 frontlineProductionPenalty: frontlineProductionPenalty || 0,
-            },
+            } : null,
             // 官员效果修饰符（供外部使用）
             // V2: 理念 ruleMods 数据（供 hooks 层消费）
             ideologyRuleMods: {
