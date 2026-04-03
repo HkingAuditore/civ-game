@@ -4,9 +4,20 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.33',
+        version: '2.3.35',
         date: '2026-04-03',
         isLatest: true,
+        highlights: [
+            '修复 OTA 启动后误弹"建议重新安装"警告的问题',
+        ],
+        changes: [
+            { type: 'fix', text: '修复 getOtaErrorStreak 将正常的 ota_startup 诊断记录误计入"连续 OTA 错误"的问题：连续启动 3 次 OTA 版本会触发误报弹窗；现改为仅统计真实错误类型（crash/ota_auto_rollback/ota_notify_fail/unhandled_error），正常启动记录不再计入，彻底消除误报。' },
+        ],
+    },
+    {
+        version: '2.3.33',
+        date: '2026-04-03',
+        isLatest: false,
         highlights: [
             '修复 OTA 热更新后闪退：延迟检查、重置策略与 bundle 清理逻辑全面加固',
             '理念卡牌正确显示各级 triggerEffects 与 converter 继承状态，升级路径更清晰',

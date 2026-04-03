@@ -309,7 +309,6 @@ export function useOtaUpdate() {
             // 4. GET 拉取 updates.json
             let serverData;
             try {
-                showOtaToast('检查更新中...', 'info', TOAST_MS);
                 const resp = await fetch(UPDATE_URL, {
                     method: 'GET',
                     cache: 'no-store',
@@ -333,7 +332,6 @@ export function useOtaUpdate() {
             // 5. 版本比较
             if (!serverData.version || serverData.version === currentVersion) {
                 console.log('[OTA] 无需更新 (当前:', currentVersion, '服务器:', serverData.version, ')');
-                showOtaToast('当前已是最新版本 ✓', 'success');
                 return;
             }
 

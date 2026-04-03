@@ -230,10 +230,13 @@ export function getOtaErrorStreak() {
         const raw = safeGetItem(CRASH_HISTORY_KEY);
         if (!raw) return 0;
         const history = JSON.parse(raw);
-        if (!Array.isArray(history) || history.length < OTA_ERROR_STREAK_THRESHOLD) return 0;
-        // Check the last N entries from the tail
-        const tail = history.slice(-OTA_ERROR_STREAK_THRESHOLD);
-        const allOta = tail.every(r => r.isOTA === true);
-        return allOta ? tail.length : 0;
+        if (!Array.isArray(history)) return 0;
+        // Only count actual errors/crashes, not normal diagnostic events like ota_startup
+        const ERROR_TYPES = new Set(['crash', 'ota_auto_rollback', 'ota_notify_fail', 'unhandled_error']);
+        const otaErrors = history.filter(r => r.isOTA === true && ERROR_TYPES.has(r.type));
+        if (otaErrors.length < OTA_ERROR_STREAK_THRESHOLD) return 0;
+        // Check the last N error entries
+        const tail = otaErrors.slice(-OTA_ERROR_STREAK_THRESHOLD);
+        return tail.length;
     } catch { return 0; }
 }
