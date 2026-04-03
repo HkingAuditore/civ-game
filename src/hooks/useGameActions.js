@@ -3576,6 +3576,27 @@ export const useGameActions = (gameState, addLog) => {
                         'peace_only',         // 无条件求和（玩家主动低头）
                     ];
                     const playerVictory = !defeatOptions.includes(type);
+
+                    // 处理玩家支付赔款（叛乱路径同样需要扣除银币）
+                    const payment = Math.floor(value || 0);
+                    if (['pay_high', 'pay_standard', 'pay_moderate'].includes(type) && payment > 0) {
+                        setResourcesWithReason(r => ({ ...r, silver: Math.max(0, (r.silver || 0) - payment) }), 'war_reparation_pay', { nationId });
+                        addLog(`支付战争赔款 ${payment} 银币`);
+                    } else if (type === 'pay_installment' || type === 'pay_installment_moderate') {
+                        // 分期付款：设置玩家分期支付状态
+                        if (typeof setPlayerInstallmentPayment === 'function' && payment > 0) {
+                            const durationDays = INSTALLMENT_CONFIG?.DURATION_DAYS || 365;
+                            setPlayerInstallmentPayment({
+                                nationId,
+                                amount: payment,
+                                remainingDays: durationDays,
+                                totalAmount: payment * durationDays,
+                                paidAmount: 0,
+                            });
+                            addLog(`同意分期支付赔款，每日 ${payment} 银币`);
+                        }
+                    }
+
                     handleRebellionWarEnd(nationId, playerVictory);
 
                     return;
