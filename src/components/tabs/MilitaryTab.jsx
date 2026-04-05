@@ -362,6 +362,14 @@ const MilitaryTabComponent = ({
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
+
+    // 组件卸载时清理长按定时器和 RAF
+    useEffect(() => {
+        return () => {
+            if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
+            if (longPressRef.current.raf) cancelAnimationFrame(longPressRef.current.raf);
+        };
+    }, []);
     const goMilitarySection = useCallback((section) => {
         trackSubTabSwitch('military', section);
         setActiveSection(section);

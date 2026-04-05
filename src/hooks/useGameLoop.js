@@ -8321,10 +8321,10 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     }
                 }
             }).catch(error => {
-                console.error('[GameLoop] Simulation error:', error);
-            }).catch((error) => {
+                // [FIX] 必须在 catch 里重置 simInFlightRef，否则 Worker reject 时
+                // simInFlightRef 永远是 true，导致后续所有 tick 被跳过（游戏卡死）
                 simInFlightRef.current = false;
-                console.error('[GameLoop] Simulation failed:', error);
+                console.error('[GameLoop] Simulation error:', error);
             }).finally(() => {
                 tickProcessingRef.current = false;
             });

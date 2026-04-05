@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import DiplomacyDashboard from './DiplomacyDashboard';
 import NationList from './NationList';
 import NationDetailView from './NationDetailView';
@@ -9,6 +9,295 @@ import { VassalOverviewPanel } from '../panels/VassalOverviewPanel';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { COLORS } from '../../config/unifiedStyles';
+import { BottomSheet } from '../tabs/BottomSheet';
+import {
+    TRADE_POLICY_DEFINITIONS,
+    LABOR_POLICY_DEFINITIONS,
+    GOVERNANCE_POLICY_DEFINITIONS,
+    MILITARY_POLICY_DEFINITIONS,
+} from '../../config/diplomacy';
+
+// 外交控制政策（枚举值直接来自 adjustVassalPolicy 逻辑）
+const DIPLOMATIC_CONTROL_DEFINITIONS = {
+    autonomous: { id: 'autonomous', name: '自治', description: '附庸可自主开展外交' },
+    guided:     { id: 'guided',     name: '引导', description: '宗主指导外交方向' },
+    puppet:     { id: 'puppet',     name: '傀儡', description: '完全服从宗主外交意志' },
+};
+// 投资政策（枚举值直接来自 adjustVassalPolicy 逻辑）
+const INVESTMENT_POLICY_DEFINITIONS = {
+    autonomous: { id: 'autonomous', name: '自主投资', description: '附庸自主决定投资方向' },
+    guided:     { id: 'guided',     name: '引导投资', description: '宗主提供投资建议' },
+    forced:     { id: 'forced',     name: '强制投资', description: '宗主指令投资项目' },
+};
+
+// ==================== 附属国批量政策面板 ====================
+/**
+ * 附属国批量政策设置底部面板
+ * 允许对所有附属国统一调整各维度政策
+ */
+const VASSAL_POLICY_DIMS = [
+    {
+        key: 'diplomaticControl',
+        label: '外交控制',
+        icon: 'Globe',
+        color: 'text-blue-400',
+        defs: DIPLOMATIC_CONTROL_DEFINITIONS,
+        order: ['autonomous', 'guided', 'puppet'],
+    },
+    {
+        key: 'tradePolicy',
+        label: '贸易政策',
+        icon: 'TrendingUp',
+        color: 'text-green-400',
+        defs: TRADE_POLICY_DEFINITIONS,
+        order: ['free', 'preferential', 'monopoly', 'exclusive', 'dumping', 'looting'],
+    },
+    {
+        key: 'labor',
+        label: '劳工政策',
+        icon: 'Hammer',
+        color: 'text-orange-400',
+        defs: LABOR_POLICY_DEFINITIONS,
+        order: ['standard', 'exploitation', 'slavery'],
+    },
+    {
+        key: 'governance',
+        label: '治理政策',
+        icon: 'Landmark',
+        color: 'text-purple-400',
+        defs: GOVERNANCE_POLICY_DEFINITIONS,
+        order: ['autonomous', 'puppet_govt', 'direct_rule'],
+    },
+    {
+        key: 'military',
+        label: '军事政策',
+        icon: 'Sword',
+        color: 'text-red-400',
+        defs: MILITARY_POLICY_DEFINITIONS,
+        order: ['autonomous', 'call_to_arms', 'auto_join'],
+    },
+    {
+        key: 'investmentPolicy',
+        label: '投资政策',
+        icon: 'BarChart2',
+        color: 'text-yellow-400',
+        defs: INVESTMENT_POLICY_DEFINITIONS,
+        order: ['autonomous', 'guided', 'forced'],
+    },
+];
+
+const VassalBatchSheet = memo(({ isOpen, onClose, nations = [], onDiplomaticAction }) => {
+    const vassalNations = nations.filter(n => n.vassalOf === 'player' && !n.isAnnexed);
+    const vassalCount = vassalNations.length;
+
+    // 记录各维度草稿值
+    const [batchPolicy, setBatchPolicy] = React.useState({});
+    // 记录哪些维度被勾选（将被应用）
+    const [enabledFields, setEnabledFields] = React.useState(new Set());
+    // 朝贡率草稿（相对于基础值的百分比，50~150）
+    const [tributePct, setTributePct] = React.useState(100);
+    const [tributeEnabled, setTributeEnabled] = React.useState(false);
+    const [feedback, setFeedback] = React.useState('');
+
+    const showFeedback = (msg) => {
+        setFeedback(msg);
+        setTimeout(() => setFeedback(''), 2500);
+    };
+
+    const handleClose = () => {
+        setBatchPolicy({});
+        setEnabledFields(new Set());
+        setTributePct(100);
+        setTributeEnabled(false);
+        setFeedback('');
+        onClose();
+    };
+
+    const toggleField = (key) => {
+        setEnabledFields(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    const setDimValue = (key, value) => {
+        setBatchPolicy(prev => ({ ...prev, [key]: value }));
+        // 选择值时自动勾选该维度
+        setEnabledFields(prev => {
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+        });
+    };
+
+    const handleApply = () => {
+        if (vassalCount === 0) { showFeedback('❌ 当前没有附属国'); return; }
+        if (enabledFields.size === 0 && !tributeEnabled) { showFeedback('❌ 请至少选择一项要应用的政策'); return; }
+
+        // 构建要应用的 policy 对象
+        const filteredPolicy = {};
+        enabledFields.forEach(key => {
+            if (batchPolicy[key] !== undefined) {
+                filteredPolicy[key] = batchPolicy[key];
+            }
+        });
+
+        // 朝贡率：以基础值 0.1 为参考，范围 50%~150% → 0.05~0.15
+        if (tributeEnabled) {
+            const baseTributeRate = 0.1;
+            filteredPolicy.tributeRate = baseTributeRate * (tributePct / 100);
+        }
+
+        if (Object.keys(filteredPolicy).length === 0) { showFeedback('❌ 请先为已勾选的维度选择值'); return; }
+
+        vassalNations.forEach(n => {
+            onDiplomaticAction?.(n.id, 'adjust_vassal_policy', { policy: filteredPolicy });
+        });
+
+        const policyKeys = Object.keys(filteredPolicy).join('、');
+        showFeedback(`✅ 已对 ${vassalCount} 个附属国批量应用：${policyKeys}`);
+    };
+
+    const selectAllDims = () => {
+        const allKeys = VASSAL_POLICY_DIMS.map(d => d.key);
+        setEnabledFields(new Set(allKeys));
+        setTributeEnabled(true);
+    };
+    const clearAllDims = () => {
+        setEnabledFields(new Set());
+        setTributeEnabled(false);
+    };
+
+    return (
+        <BottomSheet isOpen={isOpen} onClose={handleClose} title="👑 附属国批量政策">
+            <div className="space-y-4 p-1">
+                {/* 反馈提示 */}
+                {feedback && (
+                    <div className="text-center text-sm text-green-300 bg-green-900/30 border border-green-700/40 rounded-lg py-2 px-3">
+                        {feedback}
+                    </div>
+                )}
+
+                {/* 附属国数量提示 */}
+                <div className="flex items-center justify-between bg-purple-900/20 border border-purple-700/30 rounded-xl p-3">
+                    <div className="flex items-center gap-2">
+                        <Icon name="Crown" size={16} className="text-purple-400" />
+                        <span className="text-sm font-bold text-purple-300">当前附属国</span>
+                    </div>
+                    <span className="text-lg font-bold text-white">{vassalCount} 个</span>
+                </div>
+
+                {vassalCount === 0 && (
+                    <div className="text-center text-gray-400 text-sm py-4">
+                        <Icon name="ShieldQuestion" size={32} className="mx-auto mb-2 opacity-50" />
+                        暂无附属国，无法批量设置
+                    </div>
+                )}
+
+                {vassalCount > 0 && (
+                    <>
+                        <p className="text-xs text-gray-400 leading-relaxed">
+                            勾选要修改的维度，选择目标值，点击"批量应用"后将统一应用到所有 {vassalCount} 个附属国。
+                        </p>
+
+                        <div className="flex gap-2">
+                            <button onClick={selectAllDims} className="flex-1 py-1.5 text-xs bg-gray-700/50 hover:bg-gray-600/60 border border-gray-600/50 text-gray-300 rounded-lg transition-colors">全选</button>
+                            <button onClick={clearAllDims} className="flex-1 py-1.5 text-xs bg-gray-700/50 hover:bg-gray-600/60 border border-gray-600/50 text-gray-300 rounded-lg transition-colors">清除</button>
+                        </div>
+
+                        {/* 各维度选择器 */}
+                        <div className="space-y-2">
+                            {VASSAL_POLICY_DIMS.map(dim => {
+                                const defs = dim.defs || {};
+                                const isEnabled = enabledFields.has(dim.key);
+                                const currentVal = batchPolicy[dim.key];
+                                const options = dim.order.filter(k => defs[k]);
+                                return (
+                                    <div key={dim.key} className={`rounded-xl border p-3 transition-colors ${isEnabled ? 'border-ancient-gold/40 bg-gray-800/50' : 'border-gray-700/40 bg-gray-900/30 opacity-70'}`}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <button
+                                                onClick={() => toggleField(dim.key)}
+                                                className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${isEnabled ? 'bg-yellow-500/80 border-yellow-400' : 'bg-gray-700 border-gray-500'}`}
+                                            >
+                                                {isEnabled && <Icon name="Check" size={10} className="text-white" />}
+                                            </button>
+                                            <Icon name={dim.icon} size={13} className={dim.color} />
+                                            <span className="text-sm font-semibold text-gray-200">{dim.label}</span>
+                                            {currentVal && (
+                                                <span className="ml-auto text-xs text-ancient-gold bg-ancient-gold/10 px-2 py-0.5 rounded-full">
+                                                    {defs[currentVal]?.name || currentVal}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                                            {options.map(optKey => {
+                                                const def = defs[optKey];
+                                                if (!def) return null;
+                                                const isSelected = currentVal === optKey;
+                                                return (
+                                                    <button
+                                                        key={optKey}
+                                                        onClick={() => setDimValue(dim.key, optKey)}
+                                                        className={`text-left px-2 py-1.5 rounded-lg border text-xs transition-colors ${isSelected ? 'bg-ancient-gold/20 border-ancient-gold/60 text-ancient-parchment' : 'bg-gray-800/60 border-gray-700/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'}`}
+                                                    >
+                                                        <div className="font-semibold">{def.name}</div>
+                                                        {def.description && <div className="text-gray-500 mt-0.5 leading-tight text-xs">{def.description.slice(0, 20)}{def.description.length > 20 ? '…' : ''}</div>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {/* 朝贡率滑块 */}
+                            <div className={`rounded-xl border p-3 transition-colors ${tributeEnabled ? 'border-ancient-gold/40 bg-gray-800/50' : 'border-gray-700/40 bg-gray-900/30 opacity-70'}`}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <button
+                                        onClick={() => setTributeEnabled(p => !p)}
+                                        className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${tributeEnabled ? 'bg-yellow-500/80 border-yellow-400' : 'bg-gray-700 border-gray-500'}`}
+                                    >
+                                        {tributeEnabled && <Icon name="Check" size={10} className="text-white" />}
+                                    </button>
+                                    <Icon name="Coins" size={13} className="text-yellow-400" />
+                                    <span className="text-sm font-semibold text-gray-200">朝贡率</span>
+                                    <span className="ml-auto text-xs text-ancient-gold font-mono">{tributePct}% 基础值</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-gray-500 flex-shrink-0">50%</span>
+                                    <input
+                                        type="range"
+                                        min={50}
+                                        max={150}
+                                        step={5}
+                                        value={tributePct}
+                                        onChange={e => { setTributePct(Number(e.target.value)); setTributeEnabled(true); }}
+                                        className="flex-grow accent-yellow-500"
+                                    />
+                                    <span className="text-xs text-gray-500 flex-shrink-0">150%</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">基础朝贡率约为 GDP 增量的 10%，此处调整其倍率</p>
+                            </div>
+                        </div>
+
+                        {/* 应用按钮 */}
+                        <button
+                            onClick={handleApply}
+                            disabled={vassalCount === 0}
+                            className="w-full py-3 bg-purple-700/60 hover:bg-purple-600/70 disabled:opacity-50 disabled:cursor-not-allowed border border-purple-600/50 text-purple-100 text-sm rounded-xl font-bold transition-colors active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <Icon name="Layers" size={16} />
+                            批量应用到 {vassalCount} 个附属国
+                        </button>
+                    </>
+                )}
+            </div>
+        </BottomSheet>
+    );
+});
+VassalBatchSheet.displayName = 'VassalBatchSheet';
 
 /**
  * 外交界面主布局 (DiplomacyLayout)
@@ -64,6 +353,9 @@ const DiplomacyLayout = ({
     // 附庸管理面板状态
     const [vassalSheetOpen, setVassalSheetOpen] = useState(false);
     const [vassalSheetNationId, setVassalSheetNationId] = useState(null);
+
+    // 附属国批量政策面板状态
+    const [vassalBatchOpen, setVassalBatchOpen] = useState(false);
 
     // 实时获取最新的附庸国数据
     const vassalSheetNation = vassalSheetNationId
@@ -240,6 +532,10 @@ const DiplomacyLayout = ({
                             <Icon name="Crown" size={14} className="mr-1" />
                             附庸管理
                         </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setVassalBatchOpen(true)} className="w-full sm:w-auto">
+                            <Icon name="Layers" size={14} className="mr-1" />
+                            批量政策
+                        </Button>
                     </div>
                 </div>
 
@@ -333,6 +629,14 @@ const DiplomacyLayout = ({
                 onSelectVassal={handleSelectVassal}
                 onAdjustPolicy={handleSelectVassal}
                 onReleaseVassal={(nation) => onDiplomaticAction?.(nation.id, 'release_vassal')}
+            />
+
+            {/* 附属国批量政策 Bottom Sheet */}
+            <VassalBatchSheet
+                isOpen={vassalBatchOpen}
+                onClose={() => setVassalBatchOpen(false)}
+                nations={nations}
+                onDiplomaticAction={onDiplomaticAction}
             />
 
 

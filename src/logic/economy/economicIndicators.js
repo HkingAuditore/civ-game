@@ -230,13 +230,12 @@ export function calculateGDP({
   }, 0);
   
   // 2. 投资 (Investment - I)
-  // 投资 = 固定资产投资 + 存货变动
-  // - 固定资产投资：建筑建造和升级成本（从ledger统计）
-  // - 存货变动：建筑产出收入 - 居民消费
-  //   （建筑生产的产品进入市场，如果没被消费，就是存货增加）
+  // 投资 = 固定资产投资（建筑建造和升级成本，从ledger统计）
+  // 注：存货变动不再单独计入，因为 dailyOwnerRevenue 已隐含在消费(C)的价格机制中
+  // 若将 (dailyOwnerRevenue - consumption) 计入 I，会使 C 在加总时被双重抵消，导致 GDP 失真
   const fixedInvestment = Number.isFinite(dailyInvestment) ? dailyInvestment : 0;
-  const inventoryChange = (Number.isFinite(dailyOwnerRevenue) ? dailyOwnerRevenue : 0) - consumption;
-  const investment = fixedInvestment + inventoryChange;  
+  const inventoryChange = 0; // [FIX] 移除存货变动以避免 C 被重复计算
+  const investment = fixedInvestment + inventoryChange;
   // 3. 政府支出 (Government Spending - G)
   // 军队维护费 + 官员薪水 + 政府补贴
   const militaryExpense = Number.isFinite(dailyMilitaryExpense) ? dailyMilitaryExpense : 0;
@@ -295,10 +294,10 @@ export function calculateGDP({
   // console.log('✅ Net Exports Result:', { exports, imports, netExports });
   // console.groupEnd();
   
-  const GDP_COMPONENT_CAP = 1e12;
-  const clampGDP = v => Math.max(-GDP_COMPONENT_CAP, Math.min(GDP_COMPONENT_CAP, Number.isFinite(v) ? v : 0));
+  // GDP 不设人造上限，仅过滤 NaN/Infinity，让总量随经济真实增长
+  const safeComponent = v => (Number.isFinite(v) ? v : 0);
 
-  const total = clampGDP(consumption) + clampGDP(investment) + clampGDP(government) + clampGDP(netExports);
+  const total = safeComponent(consumption) + safeComponent(investment) + safeComponent(government) + safeComponent(netExports);
   
   const change = previousGDP > 0 
     ? ((total - previousGDP) / previousGDP) * 100 

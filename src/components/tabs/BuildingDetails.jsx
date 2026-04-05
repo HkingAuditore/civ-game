@@ -1002,20 +1002,36 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                         {(() => {
                                             const isTax = displayBizPercent > 0;
                                             const isSubsidy = displayBizPercent < 0;
-                                            const displayValue = isSubsidy
-                                                ? Math.abs(displayBizPercent)
-                                                : (buildingFinance?.businessTaxPaid != null && count > 0
-                                                    ? buildingFinance.businessTaxPaid / count
-                                                    : null);
+                                            // 优先使用 buildingFinancialData 实测税额
+                                            let displayValue = null;
+                                            let isEstimated = false;
+                                            if (isSubsidy) {
+                                                displayValue = Math.abs(displayBizPercent);
+                                            } else if (buildingFinance?.businessTaxPaid != null && count > 0) {
+                                                displayValue = buildingFinance.businessTaxPaid / count;
+                                            } else if (isTax && rawRate > 0) {
+                                                // buildingFinancialData 尚未加载时，用 averageBuilding 产出估算单栋税额
+                                                const getPrice = (key) => {
+                                                    if (!key || key === 'silver') return 1;
+                                                    return market?.prices?.[key] ?? (RESOURCES[key]?.basePrice || 0);
+                                                };
+                                                const avgOutputValue = Object.entries(averageBuilding.output || {}).reduce(
+                                                    (sum, [res, val]) => sum + getPrice(res) * val, 0
+                                                );
+                                                if (avgOutputValue > 0) {
+                                                    displayValue = avgOutputValue * rawRate;
+                                                    isEstimated = true;
+                                                }
+                                            }
                                             return (
                                                 <>
                                                     <div className="text-xs text-gray-400 mb-0.5 leading-none">
-                                                        {isSubsidy ? '设定补贴 (每栋/产出)' : '实际税额 (每次产出)'}
+                                                        {isSubsidy ? '设定补贴 (每栋/产出)' : (isEstimated ? '预估税额 (每次产出)' : '实际税额 (每次产出)')}
                                                     </div>
                                                     <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                                                         {displayValue != null ? (
                                                             <span className={`text-sm font-bold font-mono ${isTax ? 'text-yellow-300' : isSubsidy ? 'text-green-300' : 'text-gray-400'}`}>
-                                                                {isSubsidy ? '补贴 ' : ''}{formatNumberShortCN(Math.abs(displayValue), { decimals: 2 })}
+                                                                {isSubsidy ? '补贴 ' : isEstimated ? '≈' : ''}{formatNumberShortCN(Math.abs(displayValue), { decimals: 2 })}
                                                             </span>
                                                         ) : (
                                                             <span className="text-sm font-mono text-gray-500">—</span>

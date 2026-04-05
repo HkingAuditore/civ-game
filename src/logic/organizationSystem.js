@@ -4,6 +4,7 @@
 
 import { STRATA } from '../config/strata';
 import { RESOURCES, TAX_BASE_RATES } from '../config';
+import { calculateWeightedAverageWage } from './economy/wages';
 import { REBELLION_PHASE } from '../config/events/rebellionEvents';
 import { PASSIVE_DEMAND_TYPES } from './demands';
 import { trackOrganizationPhase, trackRebellionCoalition } from '../analytics/gaTracker';
@@ -281,7 +282,14 @@ const buildDriverContext = (stratumKey, {
         };
     }
 
-    const incomePerCapita = (classIncome[stratumKey] || 0) / population;
+    let incomePerCapita = (classIncome[stratumKey] || 0) / population;
+    // 失业者没有工作收入，用全社会加权平均工资作为人头税课税基数估算
+    if (incomePerCapita <= 0 && stratumKey === 'unemployed') {
+        const avgWage = calculateWeightedAverageWage(popStructure, market?.wages || {});
+        if (Number.isFinite(avgWage) && avgWage > 0) {
+            incomePerCapita = avgWage;
+        }
+    }
     const expensePerCapitaRaw = classExpense[stratumKey] || 0;
     const expensePerCapita = expensePerCapitaRaw > 0 ? expensePerCapitaRaw / population : 0;
     const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;

@@ -3362,7 +3362,7 @@ export const IDEOLOGIES = [
                     ] },
                 { needsReduction: 0.18, stability: 12, cultureBonus: 0.12,
                     converters: [
-                        { source: 'unemployment', sourceType: 'unemployment', ratio: 0.05, target: 'stability', cap: 8 },
+                        { source: 'unemployment', sourceType: 'unemployment', ratio: 0.008, target: 'stability', cap: 50 },
                         { source: 'stability', sourceType: 'stability', ratio: 0.005, target: 'cultureBonus', cap: 0.35 },
                         { source: 'cleric', sourceType: 'population', ratio: 0.000005, target: 'stability', cap: 15 },
                     ],

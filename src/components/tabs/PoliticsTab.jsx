@@ -11,6 +11,7 @@ import { CoalitionPanel } from '../panels/CoalitionPanel';
 import { OfficialsPanel } from '../panels/officials/OfficialsPanel';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { trackSubTabSwitch } from '../../analytics/gaTracker';
+import { BottomSheet } from './BottomSheet';
 
 // Helper to clamp values
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -47,6 +48,236 @@ const RESOURCE_GROUPS = {
     }
 };
 const ALL_GROUPED_RESOURCES = new Set(Object.values(RESOURCE_GROUPS).flatMap(g => g.keys));
+
+// ==================== 税收批量设置面板 ====================
+/**
+ * 税收批量设置底部面板
+ * 允许一键统一设置所有阶层/资源/建筑的税率
+ */
+const TaxBatchSheet = memo(({
+    isOpen,
+    onClose,
+    strataToDisplay = [],
+    taxableResourceKeys = [],
+    builtBuildingIds = [],
+    onUpdateTaxPolicies,
+    headBaseRate,
+    headPercentToMultiplier,
+    bizDisplayToRate,
+}) => {
+    const [headPct, setHeadPct] = React.useState('');
+    const [resourcePct, setResourcePct] = React.useState('');
+    const [bizPct, setBizPct] = React.useState('');
+    const [importTariffPct, setImportTariffPct] = React.useState('');
+    const [exportTariffPct, setExportTariffPct] = React.useState('');
+    const [feedback, setFeedback] = React.useState('');
+
+    const showFeedback = (msg) => {
+        setFeedback(msg);
+        setTimeout(() => setFeedback(''), 2000);
+    };
+
+    const handleClose = () => {
+        setHeadPct('');
+        setResourcePct('');
+        setBizPct('');
+        setImportTariffPct('');
+        setExportTariffPct('');
+        setFeedback('');
+        onClose();
+    };
+
+    // 批量应用人头税
+    const applyHeadTax = () => {
+        const parsed = parseFloat(headPct);
+        if (isNaN(parsed)) { showFeedback('❌ 请输入有效数值'); return; }
+        const multiplier = headPercentToMultiplier(Math.max(0, parsed));
+        onUpdateTaxPolicies(prev => {
+            const updated = { ...(prev?.headTaxRates || {}) };
+            strataToDisplay.forEach(key => { updated[key] = multiplier; });
+            return { ...prev, headTaxRates: updated };
+        });
+        showFeedback(`✅ 已将 ${strataToDisplay.length} 个阶层人头税统一设为 ${parsed.toFixed(1)}%`);
+    };
+
+    // 批量应用交易税
+    const applyResourceTax = () => {
+        const parsed = parseFloat(resourcePct);
+        if (isNaN(parsed)) { showFeedback('❌ 请输入有效数值'); return; }
+        const limit = TAX_LIMITS?.MAX_RESOURCE_TAX || 5.0;
+        const rateValue = Math.max(-limit, Math.min(limit, parsed / 100));
+        onUpdateTaxPolicies(prev => {
+            const updated = { ...(prev?.resourceTaxRates || {}) };
+            taxableResourceKeys.forEach(key => { updated[key] = rateValue; });
+            return { ...prev, resourceTaxRates: updated };
+        });
+        showFeedback(`✅ 已将 ${taxableResourceKeys.length} 种资源交易税统一设为 ${parsed.toFixed(1)}%`);
+    };
+
+    // 批量应用营业税
+    const applyBizTax = () => {
+        const parsed = parseFloat(bizPct);
+        if (isNaN(parsed)) { showFeedback('❌ 请输入有效数值'); return; }
+        const rate = bizDisplayToRate(parsed);
+        const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10;
+        const clamped = rate < 0 ? rate : Math.min(rate, limit);
+        onUpdateTaxPolicies(prev => {
+            const updated = { ...(prev?.businessTaxRates || {}) };
+            builtBuildingIds.forEach(id => { updated[id] = clamped; });
+            return { ...prev, businessTaxRates: updated };
+        });
+        showFeedback(`✅ 已将 ${builtBuildingIds.length} 类建筑营业税统一设为 ${parsed.toFixed(1)}`);
+    };
+
+    // 批量应用进口关税
+    const applyImportTariff = () => {
+        const parsed = parseFloat(importTariffPct);
+        if (isNaN(parsed)) { showFeedback('❌ 请输入有效数值'); return; }
+        const rateValue = parsed / 100;
+        onUpdateTaxPolicies(prev => {
+            const updated = { ...(prev?.importTariffMultipliers || {}) };
+            taxableResourceKeys.forEach(key => { updated[key] = rateValue; });
+            return { ...prev, importTariffMultipliers: updated };
+        });
+        showFeedback(`✅ 已将所有资源进口关税统一设为 ${parsed.toFixed(1)}%`);
+    };
+
+    // 批量应用出口关税
+    const applyExportTariff = () => {
+        const parsed = parseFloat(exportTariffPct);
+        if (isNaN(parsed)) { showFeedback('❌ 请输入有效数值'); return; }
+        const rateValue = parsed / 100;
+        onUpdateTaxPolicies(prev => {
+            const updated = { ...(prev?.exportTariffMultipliers || {}) };
+            taxableResourceKeys.forEach(key => { updated[key] = rateValue; });
+            return { ...prev, exportTariffMultipliers: updated };
+        });
+        showFeedback(`✅ 已将所有资源出口关税统一设为 ${parsed.toFixed(1)}%`);
+    };
+
+    // 全部重置为默认
+    const resetAll = () => {
+        onUpdateTaxPolicies(prev => {
+            const headUpdated = { ...(prev?.headTaxRates || {}) };
+            strataToDisplay.forEach(key => { headUpdated[key] = 1; });
+            const resUpdated = { ...(prev?.resourceTaxRates || {}) };
+            taxableResourceKeys.forEach(key => { resUpdated[key] = 0; });
+            const bizUpdated = { ...(prev?.businessTaxRates || {}) };
+            builtBuildingIds.forEach(id => { bizUpdated[id] = TAX_BASE_RATES?.BUSINESS_TAX_REVENUE_RATIO || 0.03; });
+            const importUpdated = { ...(prev?.importTariffMultipliers || {}) };
+            taxableResourceKeys.forEach(key => { importUpdated[key] = 0; });
+            const exportUpdated = { ...(prev?.exportTariffMultipliers || {}) };
+            taxableResourceKeys.forEach(key => { exportUpdated[key] = 0; });
+            return {
+                ...prev,
+                headTaxRates: headUpdated,
+                resourceTaxRates: resUpdated,
+                businessTaxRates: bizUpdated,
+                importTariffMultipliers: importUpdated,
+                exportTariffMultipliers: exportUpdated,
+            };
+        });
+        showFeedback('✅ 已重置所有税收至默认值');
+    };
+
+    const inputCls = 'flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-sm text-gray-200 rounded-lg px-3 py-2 focus:ring-1 focus:ring-yellow-500 focus:border-yellow-500 text-center';
+    const applyBtnCls = 'flex-shrink-0 px-4 py-2 bg-yellow-700/60 hover:bg-yellow-600/70 border border-yellow-600/50 text-yellow-100 text-sm rounded-lg font-semibold transition-colors active:scale-95';
+
+    return (
+        <BottomSheet isOpen={isOpen} onClose={handleClose} title="⚡ 税收批量设置">
+            <div className="space-y-4 p-1">
+                {/* 反馈提示 */}
+                {feedback && (
+                    <div className="text-center text-sm text-green-300 bg-green-900/30 border border-green-700/40 rounded-lg py-2 px-3">
+                        {feedback}
+                    </div>
+                )}
+
+                <p className="text-xs text-gray-400 leading-relaxed">
+                    批量统一设置，输入值后点击对应"应用"。<span className="text-yellow-300">负值 = 补贴</span>。不影响未填写的项目。
+                </p>
+
+                {/* 人头税 */}
+                <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icon name="Users" size={14} className="text-yellow-400" />
+                        <span className="text-sm font-bold text-yellow-300">人头税倍率</span>
+                        <span className="text-xs text-gray-500 ml-auto">{strataToDisplay.length} 个阶层</span>
+                    </div>
+                    <p className="text-xs text-gray-500">输入收入百分比（1× 基准={((headBaseRate||0.05)*100).toFixed(0)}% 收入）。例如：输入 100 = 1.0× 基准税率</p>
+                    <div className="flex gap-2">
+                        <input type="number" value={headPct} onChange={e => setHeadPct(e.target.value)} className={inputCls} placeholder="税率% (如 100)" />
+                        <button onClick={applyHeadTax} className={applyBtnCls}>应用</button>
+                    </div>
+                </div>
+
+                {/* 交易税 */}
+                <div className="bg-blue-900/20 border border-blue-700/30 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icon name="Package" size={14} className="text-blue-400" />
+                        <span className="text-sm font-bold text-blue-300">资源交易税</span>
+                        <span className="text-xs text-gray-500 ml-auto">{taxableResourceKeys.length} 种资源</span>
+                    </div>
+                    <p className="text-xs text-gray-500">输入百分比，正值征税，负值补贴。例如：10 = 10% 交易税</p>
+                    <div className="flex gap-2">
+                        <input type="number" value={resourcePct} onChange={e => setResourcePct(e.target.value)} className={inputCls} placeholder="税率% (如 10)" />
+                        <button onClick={applyResourceTax} className={applyBtnCls.replace('yellow', 'blue')}>应用</button>
+                    </div>
+                </div>
+
+                {/* 营业税 */}
+                <div className="bg-green-900/20 border border-green-700/30 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icon name="Building" size={14} className="text-green-400" />
+                        <span className="text-sm font-bold text-green-300">建筑营业税</span>
+                        <span className="text-xs text-gray-500 ml-auto">{builtBuildingIds.length} 类建筑</span>
+                    </div>
+                    <p className="text-xs text-gray-500">正值=税率%（50=收产值50%），负值=每栋固定补贴🪙</p>
+                    <div className="flex gap-2">
+                        <input type="number" value={bizPct} onChange={e => setBizPct(e.target.value)} className={inputCls} placeholder="税率% 或 -补贴额" />
+                        <button onClick={applyBizTax} className={applyBtnCls.replace('yellow', 'green')}>应用</button>
+                    </div>
+                </div>
+
+                {/* 进口关税 */}
+                <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icon name="ArrowDownLeft" size={14} className="text-purple-400" />
+                        <span className="text-sm font-bold text-purple-300">进口关税</span>
+                    </div>
+                    <p className="text-xs text-gray-500">正值征税，负值补贴进口商。例如：20 = 20% 进口关税</p>
+                    <div className="flex gap-2">
+                        <input type="number" value={importTariffPct} onChange={e => setImportTariffPct(e.target.value)} className={inputCls} placeholder="关税% (如 20)" />
+                        <button onClick={applyImportTariff} className={applyBtnCls.replace('yellow', 'purple')}>应用</button>
+                    </div>
+                </div>
+
+                {/* 出口关税 */}
+                <div className="bg-indigo-900/20 border border-indigo-700/30 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icon name="ArrowUpRight" size={14} className="text-indigo-400" />
+                        <span className="text-sm font-bold text-indigo-300">出口关税</span>
+                    </div>
+                    <p className="text-xs text-gray-500">正值征税，负值补贴出口商。例如：10 = 10% 出口关税</p>
+                    <div className="flex gap-2">
+                        <input type="number" value={exportTariffPct} onChange={e => setExportTariffPct(e.target.value)} className={inputCls} placeholder="关税% (如 10)" />
+                        <button onClick={applyExportTariff} className={applyBtnCls.replace('yellow', 'indigo')}>应用</button>
+                    </div>
+                </div>
+
+                {/* 全部重置 */}
+                <button
+                    onClick={resetAll}
+                    className="w-full py-2.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 text-red-300 text-sm rounded-xl font-semibold transition-colors active:scale-95 flex items-center justify-center gap-2"
+                >
+                    <Icon name="RotateCcw" size={14} />
+                    全部重置为默认值
+                </button>
+            </div>
+        </BottomSheet>
+    );
+});
+TaxBatchSheet.displayName = 'TaxBatchSheet';
 
 // 紧凑型资源税卡片
 const ResourceTaxCard = ({
@@ -372,6 +603,7 @@ const PoliticsTabComponent = ({
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
     const [activeSection, setActiveSection] = React.useState('government'); // 'government', 'tax', 'officials'
+    const [showTaxBatch, setShowTaxBatch] = React.useState(false); // 税收批量设置面板
 
     const headRates = taxPolicies?.headTaxRates || {};
     const resourceRates = taxPolicies?.resourceTaxRates || {};
@@ -414,7 +646,6 @@ const PoliticsTabComponent = ({
     const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
 
     const handleHeadDraftChange = (key, raw) => setHeadDrafts(prev => ({ ...prev, [key]: raw }));
-    const maxHeadPercent = (TAX_LIMITS?.MAX_HEAD_TAX || 100) * headBaseRate * 100;
     const commitHeadDraft = (key) => {
         if (headDrafts[key] === undefined) return;
         const parsed = parseFloat(headDrafts[key]);
@@ -425,8 +656,9 @@ const PoliticsTabComponent = ({
         if (isCurrentSubsidy) {
             storeValue = -(Math.max(0, Math.abs(parsed)));
         } else {
-            const clampedPct = Math.min(Math.max(0, parsed), maxHeadPercent);
-            storeValue = headPercentToMultiplier(clampedPct);
+            // 人头税不设上限，仅保证非负
+            const validPct = Math.max(0, parsed);
+            storeValue = headPercentToMultiplier(validPct);
         }
         onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates), [key]: storeValue } }));
         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
@@ -508,7 +740,7 @@ const PoliticsTabComponent = ({
 
     // 组件卸载时自动提交所有未保存的 draft，防止切换标签页时丢失设置
     const commitFnsRef = React.useRef(null);
-    commitFnsRef.current = { headRates, headBaseRate, maxHeadPercent, headPercentToMultiplier, onUpdateTaxPolicies, bizDisplayToRate };
+    commitFnsRef.current = { headRates, headBaseRate, headPercentToMultiplier, onUpdateTaxPolicies, bizDisplayToRate };
     React.useEffect(() => {
         return () => {
             const d = draftsRef.current;
@@ -524,8 +756,9 @@ const PoliticsTabComponent = ({
                 if (isCurrentSubsidy) {
                     headUpdates[key] = -(Math.max(0, Math.abs(parsed)));
                 } else {
-                    const clampedPct = Math.min(Math.max(0, parsed), fn.maxHeadPercent);
-                    headUpdates[key] = fn.headPercentToMultiplier(clampedPct);
+                    // 人头税不设上限，仅保证非负
+                    const validPct = Math.max(0, parsed);
+                    headUpdates[key] = fn.headPercentToMultiplier(validPct);
                 }
             }
             const resourceUpdates = {};
@@ -762,6 +995,14 @@ const PoliticsTabComponent = ({
                     <h3 className="text-xs font-bold mb-2 flex items-center gap-1.5 text-gray-300 font-decorative">
                         <Icon name="DollarSign" size={14} className="text-yellow-400" />
                         税收政策调节
+                        <button
+                            onClick={() => setShowTaxBatch(true)}
+                            className="ml-auto flex items-center gap-1 px-2 py-1 bg-yellow-800/40 hover:bg-yellow-700/50 border border-yellow-600/40 text-yellow-300 text-xs rounded-lg font-semibold transition-colors active:scale-95"
+                            title="批量统一设置所有税率"
+                        >
+                            <Icon name="Zap" size={11} />
+                            批量设置
+                        </button>
                     </h3>
                     <div className="flex flex-nowrap gap-1.5 mb-3 border-b border-gray-700 overflow-x-auto scrollbar-thin">
                         <button onClick={() => { trackSubTabSwitch('politics', 'tax_head'); setActiveTaxTab('head'); }} className={`flex-1 min-w-[80px] px-3 py-1.5 text-xs font-semibold transition-all ${activeTaxTab === 'head' ? 'text-yellow-300 border-b-2 border-yellow-400' : 'text-gray-400 hover:text-gray-300'}`}><div className="flex items-center gap-1.5"><Icon name="Users" size={12} />人头税</div></button>
@@ -861,6 +1102,19 @@ const PoliticsTabComponent = ({
                     )}
                 </div>
             )}
+
+            {/* 税收批量设置底部面板 */}
+            <TaxBatchSheet
+                isOpen={showTaxBatch}
+                onClose={() => setShowTaxBatch(false)}
+                strataToDisplay={strataToDisplay}
+                taxableResourceKeys={taxableResources.map(([key]) => key)}
+                builtBuildingIds={builtBuildings.map(b => b.id)}
+                onUpdateTaxPolicies={onUpdateTaxPolicies}
+                headBaseRate={headBaseRate}
+                headPercentToMultiplier={headPercentToMultiplier}
+                bizDisplayToRate={bizDisplayToRate}
+            />
 
             {/* Official Panel (Replaces Decrees) */}
             {activeSection === 'officials' && (

@@ -38,7 +38,15 @@ export const computeLivingCosts = (
             taxCost += perCapita * price * taxRate;
         });
         const headRate = Math.max(0, getHeadTaxRate(key, headTaxRates));
-        const prevWage = previousWages[key];
+        let prevWage = previousWages[key];
+        // 失业者没有工作收入，用 previousWages 中各阶层的简单平均工资作为回退
+        if ((!Number.isFinite(prevWage) || prevWage <= 0) && key === 'unemployed') {
+            let wageSum = 0, wageCount = 0;
+            for (const w of Object.values(previousWages)) {
+                if (Number.isFinite(w) && w > 0) { wageSum += w; wageCount++; }
+            }
+            if (wageCount > 0) prevWage = wageSum / wageCount;
+        }
         const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)
             ? prevWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05)
             : 0;

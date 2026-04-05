@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 import { UNIT_CATEGORIES } from '../../config/militaryUnits';
@@ -45,6 +45,14 @@ export const UnitDetailSheet = ({
   const hasUnits = currentCount > 0;
   const [longPressState, setLongPressState] = React.useState({ active: false, progress: 0 });
   const longPressRef = React.useRef({ timer: null, raf: null, start: 0, triggered: false });
+
+  // 组件卸载时清理长按定时器和 RAF，防止内存泄漏和卡死
+  useEffect(() => {
+    return () => {
+      if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
+      if (longPressRef.current.raf) cancelAnimationFrame(longPressRef.current.raf);
+    };
+  }, []);
 
   // 获取类别信息
   const categoryInfo = UNIT_CATEGORIES[unit.category] || {};
