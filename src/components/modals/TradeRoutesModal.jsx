@@ -314,8 +314,10 @@ const TradeRoutesModal = ({
     // ===== useMemo hooks =====
     const assignedTotal = useMemo(() => {
         if (!merchantAssignments || typeof merchantAssignments !== 'object') return 0;
-        return Object.values(merchantAssignments).reduce((sum, v) => sum + Math.max(0, Math.floor(Number(v) || 0)), 0);
-    }, [merchantAssignments]);
+        const raw = Object.values(merchantAssignments).reduce((sum, v) => sum + Math.max(0, Math.floor(Number(v) || 0)), 0);
+        // [FIX] 已派驻不应超过总商人数
+        return Math.min(raw, merchantCount || 0);
+    }, [merchantAssignments, merchantCount]);
 
     const remainingMerchants = Math.max(0, (merchantCount || 0) - assignedTotal);
 

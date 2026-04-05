@@ -5,6 +5,7 @@
 
 import { STRATA } from '../config/strata';
 import { RESOURCES, TAX_BASE_RATES } from '../config';
+import { calculateWeightedAverageWage } from './economy/wages';
 import { debugLog } from '../utils/debugFlags';
 import { trackDemandGenerate, trackDemandComplete, trackDemandFail } from '../analytics/gaTracker';
 
@@ -188,7 +189,17 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     const safeDayScale = Math.max(context.dayScale ?? 1, 0.0001);
     const incomeTotalPerDay = (context.classIncome?.[stratumKey] || 0) / safeDayScale;
     const count = context.popStructure?.[stratumKey] || 1;
-    const incomePerCapita = incomeTotalPerDay / Math.max(count, 1);
+    let incomePerCapita = incomeTotalPerDay / Math.max(count, 1);
+    // 失业者没有工作收入，用全社会加权平均工资作为人头税课税基数估算
+    if (incomePerCapita <= 0 && stratumKey === 'unemployed') {
+        const avgWage = calculateWeightedAverageWage(
+            context.popStructure || {},
+            context.market?.wages || {}
+        );
+        if (Number.isFinite(avgWage) && avgWage > 0) {
+            incomePerCapita = avgWage;
+        }
+    }
 
     // ========== 正确计算税负 ==========
     // 1. 人头税（数值）= 基础人头税 × 人头税倍率 × 税收效率修正（与 economy/taxes.js 保持一致）

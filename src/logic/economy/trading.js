@@ -199,6 +199,29 @@ const normalizeMerchantAssignments = ({ merchantAssignments, nations, merchantCo
             normalized[nationId] = count;
         }
     });
+
+    // [FIX] 总分配量不能超过实际商人数，按比例缩减
+    const totalNormalized = Object.values(normalized).reduce((sum, v) => sum + v, 0);
+    if (totalNormalized > merchantCount && merchantCount > 0) {
+        const scale = merchantCount / totalNormalized;
+        let remaining = merchantCount;
+        const keys = Object.keys(normalized);
+        keys.forEach((nid, i) => {
+            if (i === keys.length - 1) {
+                // 最后一个直接用剩余值，避免舍入误差
+                normalized[nid] = Math.max(0, remaining);
+            } else {
+                const clamped = Math.max(0, Math.floor(normalized[nid] * scale));
+                normalized[nid] = clamped;
+                remaining -= clamped;
+            }
+        });
+        // 删除归零项
+        Object.keys(normalized).forEach(nid => {
+            if (normalized[nid] <= 0) delete normalized[nid];
+        });
+    }
+
     return Object.keys(normalized).length > 0 ? normalized : null;
 };
 
@@ -574,6 +597,7 @@ export const simulateMerchantTrade = ({
     getLocalPrice,
     roleExpense,
     roleWagePayout,
+    roleTaxableIncome, // [FIX] 应税收入追踪（商人贸易收入应税）
     pendingTrades = [],
     lastTradeTime = 0,
     gameSpeed = 1,
@@ -654,6 +678,10 @@ export const simulateMerchantTrade = ({
             }
             // Keep roleWagePayout for other stats
             roleWagePayout.merchant = (roleWagePayout.merchant || 0) + trade.revenue;
+            // [FIX] 商人贸易收入（买卖收入）应税
+            if (roleTaxableIncome) {
+                roleTaxableIncome.merchant = (roleTaxableIncome.merchant || 0) + trade.revenue;
+            }
 
             if (trade.type === 'import') {
                 res[trade.resource] = (res[trade.resource] || 0) + trade.amount;

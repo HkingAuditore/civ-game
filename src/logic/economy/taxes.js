@@ -45,9 +45,8 @@ export const getHeadTaxRate = (key, headTaxRates = {}) => {
     if (typeof rate !== 'number') {
         rate = 1;
     }
-    // Limit check
-    const limit = TAX_LIMITS?.MAX_HEAD_TAX || 10000;
-    return Math.max(-limit, Math.min(limit, rate));
+    // 人头税不设上限，直接返回系数
+    return rate;
 };
 
 /**
@@ -91,6 +90,7 @@ export const collectHeadTax = ({
     logs,
     onTreasuryChange,
     previousWages = {},
+    defaultWageEstimate = 0,
 }) => {
     const updatedWealth = { ...wealth };
     const updatedTaxBreakdown = { ...taxBreakdown };
@@ -106,7 +106,13 @@ export const collectHeadTax = ({
         }
 
         const headRate = getHeadTaxRate(key, headTaxRates);
-        const prevWage = previousWages[key];
+        let prevWage = previousWages[key];
+        // 失业者没有工作收入，用全社会加权平均工资作为人头税课税基数
+        if ((!Number.isFinite(prevWage) || prevWage <= 0) && key === 'unemployed') {
+            if (Number.isFinite(defaultWageEstimate) && defaultWageEstimate > 0) {
+                prevWage = defaultWageEstimate;
+            }
+        }
         const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
         let plannedPerCapitaTax;
         if (headRate > 0) {

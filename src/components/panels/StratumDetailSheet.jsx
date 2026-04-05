@@ -1,6 +1,6 @@
 import React, { useState, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { STRATA, RESOURCES, TAX_BASE_RATES, TAX_LIMITS } from '../../config';
+import { STRATA, RESOURCES, TAX_BASE_RATES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
 import { formatNumberShortCN } from '../../utils/numberFormat';
@@ -352,7 +352,6 @@ const StratumDetailSheetComponent = ({
         setDraftMultiplier(raw);
     };
 
-    const maxHeadPercent = (TAX_LIMITS?.MAX_HEAD_TAX || 100) * headBaseRate * 100;
     const commitDraft = () => {
         if (draftMultiplier === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftMultiplier);
@@ -361,8 +360,9 @@ const StratumDetailSheetComponent = ({
         if (isSubsidyMode) {
             storeValue = -(Math.max(0, Math.abs(parsed)));
         } else {
-            const clampedPct = Math.min(Math.max(0, parsed), maxHeadPercent);
-            storeValue = headPercentToMultiplier(clampedPct);
+            // 人头税不设上限，仅保证非负
+            const validPct = Math.max(0, parsed);
+            storeValue = headPercentToMultiplier(validPct);
         }
         onUpdateTaxPolicies(prev => ({
             ...prev,
@@ -376,7 +376,7 @@ const StratumDetailSheetComponent = ({
 
     // 组件卸载时自动提交未保存的 draft
     const draftRef = React.useRef(null);
-    draftRef.current = { draftMultiplier, isSubsidyMode, maxHeadPercent, headPercentToMultiplier, onUpdateTaxPolicies, stratumKey };
+    draftRef.current = { draftMultiplier, isSubsidyMode, headPercentToMultiplier, onUpdateTaxPolicies, stratumKey };
     React.useEffect(() => {
         return () => {
             const ctx = draftRef.current;
@@ -387,8 +387,9 @@ const StratumDetailSheetComponent = ({
             if (ctx.isSubsidyMode) {
                 storeValue = -(Math.max(0, Math.abs(parsed)));
             } else {
-                const clampedPct = Math.min(Math.max(0, parsed), ctx.maxHeadPercent);
-                storeValue = ctx.headPercentToMultiplier(clampedPct);
+                // 人头税不设上限，仅保证非负
+                const validPct = Math.max(0, parsed);
+                storeValue = ctx.headPercentToMultiplier(validPct);
             }
             ctx.onUpdateTaxPolicies(prev => ({
                 ...prev,

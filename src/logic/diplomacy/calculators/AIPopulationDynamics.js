@@ -57,9 +57,13 @@ export const calculateAIPopulationDynamics = ({
     const epochFloor = [40, 90, 180, 320, 520, 850, 1300, 1800][Math.min(7, Math.max(0, epoch))] || 1800;
     const playerReferenceWeight = getPlayerReferenceWeight(difficultyMultiplier);
     const populationSoftCapBoost = getPopulationSoftCapBoost(difficultyMultiplier);
+    // [FIX] 对 ownBasePopulation 做合理性上限：防止旧存档/多路径写入的异常大值
+    // 通过 capacityFloor 公式（× 12 + softCapBoost × 8 ≈ × 20）将 carryingCapacity 推至天文数字
+    const epochPopCeiling = [2000, 6000, 20000, 60000, 150000, 400000, 800000][Math.min(7, Math.max(0, epoch))] || 800000;
+    const rawOwnBasePopulation = safeNumber(state.basePopulation ?? nation.economyTraits?.ownBasePopulation, population);
     const ownBasePopulation = Math.max(
         1,
-        safeNumber(state.basePopulation ?? nation.economyTraits?.ownBasePopulation, population)
+        Math.min(rawOwnBasePopulation, Math.max(epochPopCeiling, population * 50, safeNumber(playerPopulation, 0) * 5))
     );
     const playerPopulationFloor = Math.max(0, safeNumber(playerPopulation, 0) * playerReferenceWeight);
     const capacityFloor = Math.max(

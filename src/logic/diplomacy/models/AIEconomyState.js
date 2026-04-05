@@ -25,7 +25,12 @@ export class AIEconomyState {
         
         // === Timestamps ===
         this.lastUpdateTick = initialData.lastUpdateTick || 0;
-        this.lastGrowthTick = initialData.lastGrowthTick || 0;
+        // [FIX] 当 lastGrowthTick 为 undefined/null 时使用 -1（哨兵值），
+        // AIEconomyService 检测到 -1 时会将其设为 tick - updateInterval，
+        // 防止首次 update 时 ticksSinceLastUpdate = tick（可能数千），导致 tickScale 满值运行"补算"逻辑。
+        this.lastGrowthTick = (initialData.lastGrowthTick != null && initialData.lastGrowthTick >= 0)
+            ? initialData.lastGrowthTick
+            : -1;
         this.lastEpochUpgradeTick = initialData.lastEpochUpgradeTick || 0;
         
         // === State Flags ===

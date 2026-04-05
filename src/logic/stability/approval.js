@@ -5,6 +5,7 @@
 
 import { STRATA, TAX_BASE_RATES } from '../../config';
 import { getTaxToleranceMultiplier } from '../../config/difficulty';
+import { calculateWeightedAverageWage } from '../economy/wages';
 
 /**
  * Calculate class approval for all strata
@@ -59,7 +60,14 @@ export const calculateClassApproval = ({
 
         // Tax Burden Logic — 使用收入比例公式
         const headRate = getHeadTaxRate(key);
-        const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
+        let incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
+        // 失业者没有工作收入，用全社会加权平均工资作为人头税课税基数估算
+        if (incomePerCapita <= 0 && key === 'unemployed') {
+            const avgWage = calculateWeightedAverageWage(popStructure, roleWagePayout);
+            if (Number.isFinite(avgWage) && avgWage > 0) {
+                incomePerCapita = avgWage;
+            }
+        }
         let taxPerCapita = 0;
         if (headRate > 0) {
             const incomeBase = incomePerCapita > 0

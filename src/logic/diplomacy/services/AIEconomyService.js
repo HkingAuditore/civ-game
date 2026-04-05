@@ -109,6 +109,14 @@ export class AIEconomyService {
             playerPopulation,
         });
         
+        // [FIX] lastGrowthTick = -1 是哨兵值，表示该国家从未做过增长更新（新国家/旧存档）。
+        // 将其修正为 tick - updateInterval，使本次 ticksSinceLastUpdate = updateInterval（正常一个周期），
+        // 防止 ticksSinceLastUpdate = tick（数千），导致 tickScale 满值运行"补算"。
+        const updateInterval = getConfig('growth.updateInterval', 10);
+        if (state.lastGrowthTick < 0) {
+            state.lastGrowthTick = Math.max(0, tick - updateInterval);
+        }
+        
         const virtualState = ensureForeignEconomyState(nation);
         const beforePop = state.population;
         const beforeWealth = state.wealth;
@@ -335,6 +343,21 @@ export class AIEconomyService {
     }
 
     static _normalizeLegacyOutliers(state, nation, { epoch, difficulty, playerPopulation }) {
+        // [FIX] 在计算 carryingCapacity 之前，先对 basePopulation 做合理性限制。
+        // 若 basePopulation 为异常大值（旧存档或多路径写入导致），会通过 capacityFloor 公式
+        // 将 carryingCapacity 推至天文数字，继而使 hardPopulationCap 爆炸，直接把人口 clamp 上去。
+        // 合理上限：max(当前人口×50, 玩家人口×5, 时代最低值)，兼顾大型 AI 国家的正常规模。
+        const epochPopCeiling = [2000, 6000, 20000, 60000, 150000, 400000, 800000][Math.min(epoch, 6)];
+        const sanityBasePopCap = Math.max(
+            epochPopCeiling,
+            state.population * 50,
+            playerPopulation * 5
+        );
+        const sanitizedBasePopulation = Math.min(
+            Math.max(20, state.basePopulation || state.population),
+            sanityBasePopCap
+        );
+
         const capacityInfo = calculateAINationCapacity({
             nation: {
                 ...nation,
@@ -344,7 +367,7 @@ export class AIEconomyService {
                 inventory: state.inventory,
                 economyTraits: {
                     ...(nation.economyTraits || {}),
-                    ownBasePopulation: state.basePopulation,
+                    ownBasePopulation: sanitizedBasePopulation,
                     developmentRate: state.developmentRate,
                 },
             },

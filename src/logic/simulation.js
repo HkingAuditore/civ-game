@@ -497,6 +497,7 @@ const _reusableRoleLaborIncome = {};
 const _reusableRoleExpense = {};
 const _reusableRoleHeadTaxPaid = {};
 const _reusableRoleBusinessTaxPaid = {};
+const _reusableRoleTaxableIncome = {}; // [FIX] 应税收入追踪（工资+业主收入+军饷，不含补贴）
 
 /** Clear all own keys from a plain object (reuse without allocation) */
 function _clearObj(obj) {
@@ -1590,6 +1591,7 @@ export const simulateTick = ({
         // 特殊处理银币产出：直接作为所有者收入，不进入国库，不交?
         if (resource === 'silver' && amount > 0) {
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + amount;
+            roleTaxableIncome[ownerKey] = (roleTaxableIncome[ownerKey] || 0) + amount; // 业主银币产出应税
             // 使用 Ledger 记录收入
             ledger.transfer('void', ownerKey, amount, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
             if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
@@ -1629,6 +1631,7 @@ export const simulateTick = ({
 
             // 记录owner的净销售收?(本地追踪)
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
+            roleTaxableIncome[ownerKey] = (roleTaxableIncome[ownerKey] || 0) + netIncome; // 业主销售收入应税
 
             // 使用 Ledger 记录收入
             ledger.transfer('void', ownerKey, netIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
@@ -1711,6 +1714,14 @@ export const simulateTick = ({
     ROLE_PRIORITY.forEach(role => {
         roleLaborIncome[role] = 0;
         roleLivingExpense[role] = 0;
+    });
+
+    // [FIX] 应税收入追踪：只包含工资、业主收入、军饷等应税项目，补贴不计入
+    // 用于人头税课税基数计算，替代包含补贴的 roleWagePayout
+    _clearObj(_reusableRoleTaxableIncome);
+    const roleTaxableIncome = _reusableRoleTaxableIncome;
+    ROLE_PRIORITY.forEach(role => {
+        roleTaxableIncome[role] = 0;
     });
 
     // Track class expenses (spending on resources)
@@ -3260,6 +3271,7 @@ export const simulateTick = ({
 
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
                 roleLaborIncome[plan.role] = (roleLaborIncome[plan.role] || 0) + payout; // Wages are labor income
+                roleTaxableIncome[plan.role] = (roleTaxableIncome[plan.role] || 0) + payout; // 劳动工资应税
             }
         });
 
@@ -3475,23 +3487,29 @@ export const simulateTick = ({
             wealth[key] = def.startingWealth || 0;
         }
         const headRate = getHeadTaxRate(key);
-        // [FIX] 使用本 tick 实际每人工资收入，而非 previousWages（岗位工资率）。
-        // previousWages 是每个岗位的工资信号，若就业率 < 100%，会远高于人均实际收入，
-        // 导致"20% 税率"实际收取的金额远超每人收入的 20%。
-        let actualPerCapitaWage = count > 0 ? (roleWagePayout[key] || 0) / count : 0;
-        // 军人收入（军饷）在人头税之后才发放，此时 roleWagePayout.soldier 为 0；
-        // 用上一 tick 的工资信号（对军人来说已是人均值）作为课税基数
-        if (actualPerCapitaWage <= 0 && key === 'soldier') {
+        // [FIX] 使用本 tick 应税收入（roleTaxableIncome）计算课税基数。
+        // roleTaxableIncome 仅包含工资 + 业主收入，不含任何补贴类收入。
+        // 补贴（资源补贴、营业税补贴、消费补贴、人头税补贴）全部免税。
+        let actualPerCapitaTaxableIncome = count > 0 ? (roleTaxableIncome[key] || 0) / count : 0;
+        // 军人收入（军饷）在人头税之后才发放，此时 roleTaxableIncome.soldier 为 0；
+        // 用上一 tick 的工资信号（对军人来说就是人均军饷）作为课税基数
+        if (actualPerCapitaTaxableIncome <= 0 && key === 'soldier') {
             const prevSoldierWage = previousWages[key];
             if (Number.isFinite(prevSoldierWage) && prevSoldierWage > 0) {
-                actualPerCapitaWage = prevSoldierWage;
+                actualPerCapitaTaxableIncome = prevSoldierWage;
+            }
+        }
+        // 失业者没有工作收入，用全社会加权平均工资作为人头税课税基数
+        if (actualPerCapitaTaxableIncome <= 0 && key === 'unemployed') {
+            if (Number.isFinite(defaultWageEstimate) && defaultWageEstimate > 0) {
+                actualPerCapitaTaxableIncome = defaultWageEstimate;
             }
         }
         const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
         let plannedPerCapitaTax;
         if (headRate > 0) {
-            const incomeBase = (Number.isFinite(actualPerCapitaWage) && actualPerCapitaWage > 0)
-                ? actualPerCapitaWage * taxRatio : 0;
+            const incomeBase = (Number.isFinite(actualPerCapitaTaxableIncome) && actualPerCapitaTaxableIncome > 0)
+                ? actualPerCapitaTaxableIncome * taxRatio : 0;
             plannedPerCapitaTax = incomeBase * headRate * effectiveTaxModifier;
         } else if (headRate < 0) {
             plannedPerCapitaTax = headRate * effectiveTaxModifier;
@@ -3700,6 +3718,7 @@ export const simulateTick = ({
                 rates.silver = (rates.silver || 0) - totalArmyCost;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
                 roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
+                roleTaxableIncome.soldier = (roleTaxableIncome.soldier || 0) + totalArmyCost; // 军饷应税
                 // [FIX] 同步?classFinancialData 以保持概览和财务面板数据一?
                 if (classFinancialData.soldier) {
                     classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
@@ -3723,6 +3742,7 @@ export const simulateTick = ({
 
                     rates.silver = (rates.silver || 0) - partialPay;
                     roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
+                    roleTaxableIncome.soldier = (roleTaxableIncome.soldier || 0) + partialPay; // 军饷部分支付应税
                     // [FIX] 同步?classFinancialData 以保持概览和财务面板数据一?
                     if (classFinancialData.soldier) {
                         classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + partialPay;
@@ -7570,6 +7590,7 @@ export const simulateTick = ({
         getLocalPrice: getPrice,
         roleExpense,
         roleWagePayout,
+        roleTaxableIncome, // [FIX] 传入应税收入追踪
         pendingTrades: merchantState.pendingTrades || [],
         lastTradeTime: merchantState.lastTradeTime || 0,
         gameSpeed,
@@ -8050,20 +8071,11 @@ export const simulateTick = ({
                     if (silverCost > remainingBudget) return;
                     if ((res.silver || 0) < silverCost) return;
 
+                    // 缺口驱动：shortageScore > 0 已由上方守护，此处直接计算 ROI 用于候选排序
                     const profitResult = calculateBuildingProfit(building, marketForMinister, taxPolicies);
                     const profit = profitResult?.profit ?? 0;
                     const operatingCost = (profitResult?.inputValue ?? 0) + (profitResult?.wageCost ?? 0) + (profitResult?.businessTax ?? 0);
                     const roi = operatingCost > 0 ? profit / operatingCost : 0;
-
-                    const outputRes = Object.keys(building.output || {})[0];
-                    if (outputRes) {
-                        const supplyRatio = supplyDemandRatio[outputRes];
-                        if (supplyRatio && supplyRatio > ministerExpansionCfg.maxSupplyDemandRatio) {
-                            return;
-                        }
-                    }
-
-                    if (roi <= ministerExpansionCfg.minRoi) return;
 
                     if (!bestCandidate || shortageScore > bestCandidate.shortageScore ||
                         (shortageScore === bestCandidate.shortageScore && roi > bestCandidate.roi) ||
