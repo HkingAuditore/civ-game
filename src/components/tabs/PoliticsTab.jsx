@@ -88,16 +88,19 @@ const TaxBatchSheet = memo(({
     };
 
     // 批量应用人头税
+    // 正值：税率%（通过 headPercentToMultiplier 转换为倍率）
+    // 负值：固定补贴（直接存储负数，单位与单项税收一致）
     const applyHeadTax = () => {
         const parsed = parseFloat(headPct);
         if (isNaN(parsed)) { showFeedback('❌ 请输入有效数值'); return; }
-        const multiplier = headPercentToMultiplier(Math.max(0, parsed));
+        const storeValue = parsed < 0 ? parsed : headPercentToMultiplier(parsed);
         onUpdateTaxPolicies(prev => {
             const updated = { ...(prev?.headTaxRates || {}) };
-            strataToDisplay.forEach(key => { updated[key] = multiplier; });
+            strataToDisplay.forEach(key => { updated[key] = storeValue; });
             return { ...prev, headTaxRates: updated };
         });
-        showFeedback(`✅ 已将 ${strataToDisplay.length} 个阶层人头税统一设为 ${parsed.toFixed(1)}%`);
+        const label = parsed < 0 ? `固定补贴 ${Math.abs(parsed).toFixed(1)}` : `${parsed.toFixed(1)}%`;
+        showFeedback(`✅ 已将 ${strataToDisplay.length} 个阶层人头税统一设为 ${label}`);
     };
 
     // 批量应用交易税
@@ -204,9 +207,9 @@ const TaxBatchSheet = memo(({
                         <span className="text-sm font-bold text-yellow-300">人头税倍率</span>
                         <span className="text-xs text-gray-500 ml-auto">{strataToDisplay.length} 个阶层</span>
                     </div>
-                    <p className="text-xs text-gray-500">输入收入百分比（1× 基准={((headBaseRate||0.05)*100).toFixed(0)}% 收入）。例如：输入 100 = 1.0× 基准税率</p>
+                    <p className="text-xs text-gray-500">输入收入百分比（1× 基准={((headBaseRate||0.05)*100).toFixed(0)}% 收入）。例如：100 = 1.0× 基准税率；<span className="text-yellow-300">负值 = 固定补贴</span></p>
                     <div className="flex gap-2">
-                        <input type="number" value={headPct} onChange={e => setHeadPct(e.target.value)} className={inputCls} placeholder="税率% (如 100)" />
+                        <input type="number" value={headPct} onChange={e => setHeadPct(e.target.value)} className={inputCls} placeholder="税率% (如 100) 或 -补贴" />
                         <button onClick={applyHeadTax} className={applyBtnCls}>应用</button>
                     </div>
                 </div>
@@ -247,7 +250,7 @@ const TaxBatchSheet = memo(({
                     </div>
                     <p className="text-xs text-gray-500">正值征税，负值补贴进口商。例如：20 = 20% 进口关税</p>
                     <div className="flex gap-2">
-                        <input type="number" value={importTariffPct} onChange={e => setImportTariffPct(e.target.value)} className={inputCls} placeholder="关税% (如 20)" />
+                        <input type="number" value={importTariffPct} onChange={e => setImportTariffPct(e.target.value)} className={inputCls} placeholder="关税% (如 20) 或 -补贴%" />
                         <button onClick={applyImportTariff} className={applyBtnCls.replace('yellow', 'purple')}>应用</button>
                     </div>
                 </div>
@@ -260,7 +263,7 @@ const TaxBatchSheet = memo(({
                     </div>
                     <p className="text-xs text-gray-500">正值征税，负值补贴出口商。例如：10 = 10% 出口关税</p>
                     <div className="flex gap-2">
-                        <input type="number" value={exportTariffPct} onChange={e => setExportTariffPct(e.target.value)} className={inputCls} placeholder="关税% (如 10)" />
+                        <input type="number" value={exportTariffPct} onChange={e => setExportTariffPct(e.target.value)} className={inputCls} placeholder="关税% (如 10) 或 -补贴%" />
                         <button onClick={applyExportTariff} className={applyBtnCls.replace('yellow', 'indigo')}>应用</button>
                     </div>
                 </div>
