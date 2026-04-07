@@ -1028,6 +1028,8 @@ difficulty, // 游戏难度
     const cachedSupplyBreakdownRef = useRef({});
     const cachedDemandBreakdownRef = useRef({});
     const cachedStratumConsumptionRef = useRef({});
+    const cachedMarketSupplyRef = useRef({});
+    const cachedMarketDemandRef = useRef({});
     // [PERF] Full tick UI 数据缓存：非 full tick 时被 stripPayloadForTransfer 剥离的字段
     // 主线程使用此缓存填充，避免 UI 出现空白
     const fullTickCacheRef = useRef({
@@ -2010,6 +2012,8 @@ difficulty, // 游戏难度
                 if (result.market?.supplyBreakdown) cachedSupplyBreakdownRef.current = result.market.supplyBreakdown;
                 if (result.market?.demandBreakdown) cachedDemandBreakdownRef.current = result.market.demandBreakdown;
                 if (result.market?.stratumConsumption) cachedStratumConsumptionRef.current = result.market.stratumConsumption;
+                if (result.market?.supply) cachedMarketSupplyRef.current = result.market.supply;
+                if (result.market?.demand) cachedMarketDemandRef.current = result.market.demand;
 
                 // [PERF] 高速模式下跳过昂贵的指标计算 + 价格历史更新（每 N tick 才做一次）
                 let updatedPriceHistory = priceHistory;
@@ -2786,6 +2790,8 @@ difficulty, // 游戏难度
 
                 // 1. Market History Ref Update
                 const mHist = marketHistoryRef.current;
+                const effectiveSupply = result.market?.supply || cachedMarketSupplyRef.current;
+                const effectiveDemand = result.market?.demand || cachedMarketDemandRef.current;
                 Object.keys(result.market?.prices || {}).forEach(resource => {
                     // Price
                     if (!mHist.price[resource]) mHist.price[resource] = [];
@@ -2794,12 +2800,12 @@ difficulty, // 游戏难度
 
                     // Supply
                     if (!mHist.supply[resource]) mHist.supply[resource] = [];
-                    mHist.supply[resource].push(result.market?.supply?.[resource] || 0);
+                    mHist.supply[resource].push(effectiveSupply?.[resource] || 0);
                     if (mHist.supply[resource].length > MAX_POINTS) mHist.supply[resource].shift();
 
                     // Demand
                     if (!mHist.demand[resource]) mHist.demand[resource] = [];
-                    mHist.demand[resource].push(result.market?.demand?.[resource] || 0);
+                    mHist.demand[resource].push(effectiveDemand?.[resource] || 0);
                     if (mHist.demand[resource].length > MAX_POINTS) mHist.demand[resource].shift();
                 });
 
@@ -2835,7 +2841,9 @@ difficulty, // 游戏难度
 
                 const adjustedMarket = {
                     ...(result.market || {}),
-                    // [PERF] 非 full-tick 时 Worker 不传 breakdown/consumption，用缓存填充
+                    // [PERF] 非 full-tick 时 Worker 不传 breakdown/consumption/supply/demand，用缓存填充
+                    supply: result.market?.supply || cachedMarketSupplyRef.current,
+                    demand: result.market?.demand || cachedMarketDemandRef.current,
                     supplyBreakdown: result.market?.supplyBreakdown || cachedSupplyBreakdownRef.current,
                     demandBreakdown: result.market?.demandBreakdown || cachedDemandBreakdownRef.current,
                     stratumConsumption: result.market?.stratumConsumption || cachedStratumConsumptionRef.current,
