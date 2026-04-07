@@ -290,7 +290,21 @@ export function useSimulationWorker() {
      */
     const mainThreadTickCounterRef = useRef(0);
     const MAIN_THREAD_UI_INTERVAL = 10;
-    const stripMainThreadResult = useCallback((result) => {
+
+    /**
+     * [FIX] Run simulateTick on main thread with correct _isFullTick injection.
+     * Must compute isFullTick BEFORE calling simulateTick so that simulation
+     * knows whether to include classFinancialData etc. in its return value.
+     * Then strip the result for transfer (same as Worker's stripPayloadForTransfer).
+     */
+    const runMainThreadSimulation = useCallback((gameState) => {
+        // Compute isFullTick BEFORE simulateTick, matching Worker behavior
+        const isFullTick = (mainThreadTickCounterRef.current % MAIN_THREAD_UI_INTERVAL) === 0;
+        const enrichedState = { ...gameState, _isFullTick: isFullTick };
+        const result = simulateTick(enrichedState);
+        // Increment AFTER simulateTick + strip, matching Worker's _tickCounter++ placement
+        mainThreadTickCounterRef.current++;
+
         if (!result) return result;
         // Strip debug fields (same as Worker's stripPayloadForTransfer)
         // NOTE: _auditLog must be preserved — it feeds the fiscal breakdown panel (财政收支).
@@ -314,8 +328,7 @@ export function useSimulationWorker() {
         }
 
         // [PERF] 主线程模式降频剥离：与 Worker 端 stripPayloadForTransfer 一致
-        mainThreadTickCounterRef.current++;
-        const isFullTick = (mainThreadTickCounterRef.current % MAIN_THREAD_UI_INTERVAL) === 0;
+        // isFullTick already computed above, reuse it
         result._isFullTick = isFullTick;
         if (!isFullTick) {
             result.buildingFinancialData = null;
@@ -352,7 +365,7 @@ export function useSimulationWorker() {
     const runSimulation = useCallback((gameState) => {
         const disableWorker = typeof window !== 'undefined' && window.__SIM_DISABLE_WORKER === true;
         if (disableWorker) {
-            return Promise.resolve(stripMainThreadResult(simulateTick(gameState)));
+            return Promise.resolve(runMainThreadSimulation(gameState));
         }
         // If worker is available and no pending operation
         if (workerRef.current && isUsingWorker && !pendingResolveRef.current) {
@@ -373,7 +386,7 @@ export function useSimulationWorker() {
                         
                         trackErrorWarning(`WorkerTimeout: simulation exceeded ${adaptiveTimeout}ms`);
                         try {
-                            const result = stripMainThreadResult(simulateTick(gameState));
+                            const result = runMainThreadSimulation(gameState);
                             resolve(result);
                         } catch (error) {
                             trackErrorError(`SimulationError: ${error.message}`);
@@ -396,7 +409,7 @@ export function useSimulationWorker() {
                     trackErrorWarning(`WorkerPostMessageError: ${error.message}`);
                     
                     try {
-                        const result = stripMainThreadResult(simulateTick(gameState));
+                        const result = runMainThreadSimulation(gameState);
                         resolve(result);
                     } catch (simError) {
                         trackErrorError(`SimulationError: ${simError.message}`);
@@ -423,8 +436,8 @@ export function useSimulationWorker() {
         }
         
         // Fallback: run on main thread
-        return Promise.resolve(stripMainThreadResult(simulateTick(gameState)));
-    }, [isUsingWorker, stripMainThreadResult]);
+        return Promise.resolve(runMainThreadSimulation(gameState));
+    }, [isUsingWorker, runMainThreadSimulation]);
 
     /**
      * [PERF] 低频同步history数据到worker缓存
