@@ -11,7 +11,12 @@ export class AIEconomyState {
         this.epoch = initialData.epoch || 0;
         
         // === Growth Baseline ===
-        this.basePopulation = initialData.basePopulation || this.population;
+        // [FIX] Don't fall back to this.population - basePopulation should remain a small "seed" value
+        // that grows slowly. Falling back to population causes ownBasePopulation inflation which
+        // inflates capacityFloor in AIPopulationDynamics, leading to runaway growth.
+        // Use a reasonable epoch-scaled default instead.
+        const epochBasePopDefault = [20, 40, 80, 160, 300, 500, 800][Math.min(this.epoch, 6)] || 20;
+        this.basePopulation = initialData.basePopulation || epochBasePopDefault;
         this.baseWealth = initialData.baseWealth || this.wealth;
         
         // === Resource System ===

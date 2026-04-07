@@ -633,14 +633,17 @@ const PoliticsTabComponent = ({
         });
     }, [epoch, techsUnlocked]);
 
-    // 筛选出有岗位提供的阶层（用于人头税面板显示）
+    // 筛选出有岗位提供或有人口的阶层（用于人头税面板显示）
+    // [FIX] 暂停时 jobsAvailable 可能尚未被 simulation 填充，回退到 popStructure 判断
     const strataToDisplay = React.useMemo(() => {
         return unlockedStrataKeys.filter(key => {
             if (key === 'unemployed') return true;
             const jobSlots = jobsAvailable[key] || 0;
-            return jobSlots > 0;
+            if (jobSlots > 0) return true;
+            const pop = popStructure[key] || 0;
+            return pop > 0;
         });
-    }, [unlockedStrataKeys, jobsAvailable]);
+    }, [unlockedStrataKeys, jobsAvailable, popStructure]);
 
     // Tax Draft Handlers (Keeping existing logic)
     // 人头税：UI 用百分比，存储用系数

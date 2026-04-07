@@ -38,6 +38,7 @@ export const calculateAIPopulationDynamics = ({
     capacityState = {},
     playerPopulation = 0,
     difficultyMultiplier = 1,
+    hardCapacityLimit = 0,
 }) => {
     const population = Math.max(1, Math.round(safeNumber(state.population ?? nation.population, 1)));
     const wealth = Math.max(0, safeNumber(state.wealth ?? nation.wealth, 0));
@@ -60,7 +61,8 @@ export const calculateAIPopulationDynamics = ({
     // [FIX] 对 ownBasePopulation 做合理性上限：防止旧存档/多路径写入的异常大值
     // 通过 capacityFloor 公式（× 12 + softCapBoost × 8 ≈ × 20）将 carryingCapacity 推至天文数字
     const epochPopCeiling = [2000, 6000, 20000, 60000, 150000, 400000, 800000][Math.min(7, Math.max(0, epoch))] || 800000;
-    const rawOwnBasePopulation = safeNumber(state.basePopulation ?? nation.economyTraits?.ownBasePopulation, population);
+    const epochBasePopDefault = [20, 40, 80, 160, 300, 500, 800][Math.min(7, Math.max(0, epoch))] || 20;
+    const rawOwnBasePopulation = safeNumber(state.basePopulation ?? nation.economyTraits?.ownBasePopulation, epochBasePopDefault);
     const ownBasePopulation = Math.max(
         1,
         Math.min(rawOwnBasePopulation, Math.max(epochPopCeiling, population * 50, safeNumber(playerPopulation, 0) * 5))
@@ -71,10 +73,17 @@ export const calculateAIPopulationDynamics = ({
         ownBasePopulation * (12 + populationSoftCapBoost * 8),
         playerPopulationFloor * populationSoftCapBoost
     );
+    // [FIX] Use hardCapacityLimit from _normalizeLegacyOutliers (calculateAINationCapacity) to prevent
+    // capacityFloor from diverging wildly from the structural capacity.
+    // Without this cap, capacityFloor = ownBasePopulation * ~21 can be 10x+ larger than the structural
+    // capacity, causing the growth model to think population is far below capacity and grow at max rate.
+    const effectiveCapacityFloor = hardCapacityLimit > 0
+        ? Math.min(capacityFloor, hardCapacityLimit * 2.5)
+        : capacityFloor;
     const carryingCapacity = Math.max(
         epochFloor,
         Math.round(foodCapacity + civicCapacity + wealthCapacity),
-        Math.round(capacityFloor)
+        Math.round(effectiveCapacityFloor)
     );
 
     const foodNeed = Math.max(25, population * 0.18);

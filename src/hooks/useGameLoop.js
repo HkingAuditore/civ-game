@@ -961,6 +961,12 @@ difficulty, // 游戏难度
         overseasInvestmentsRef.current = overseasInvestments;
     }, [overseasInvestments]);
 
+    // [FIX] Foreign Investment Ref to track latest state updates (same race condition fix as overseas)
+    const foreignInvestmentsRef = useRef(foreignInvestments);
+    useEffect(() => {
+        foreignInvestmentsRef.current = foreignInvestments;
+    }, [foreignInvestments]);
+
     useEffect(() => {
         const collectionMap = {};
         (ideologyCollection || []).forEach((entry) => {
@@ -1454,7 +1460,7 @@ difficulty, // 游戏难度
                 ministerAssignments: current.ministerAssignments || {},
                 ministerAutoExpansion: current.ministerAutoExpansion || {},
                 lastMinisterExpansionDay: current.lastMinisterExpansionDay ?? 0,
-                foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
+                foreignInvestments: foreignInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition (same as overseas)
                 overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
                 foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal', // [NEW] Pass policy
                 diplomaticReputation: current.diplomaticReputation ?? 50, // [NEW] Pass diplomatic reputation
@@ -2427,7 +2433,7 @@ difficulty, // 游戏难度
                             market: simMarket,
                             epoch: current.epoch,
                             daysElapsed: effectiveDaysElapsed,
-                            foreignInvestments: current.foreignInvestments || [],
+                        foreignInvestments: foreignInvestmentsRef.current || [],
                             taxPolicies: current.taxPolicies || {},
                             batchSize: 2,
                             batchOffset: inboundInvestmentBatchRef.current.offset,
@@ -2495,13 +2501,15 @@ difficulty, // 游戏难度
                                 }
                             });
 
-                            if (newRecords.length > 0) {
+            if (newRecords.length > 0) {
                                 // 批量 merge：将所有新记录依次归并到当前列表中
                                 setForeignInvestments(prev => {
                                     let result = prev;
                                     newRecords.forEach(rec => {
                                         result = mergeForeignInvestments(result, rec);
                                     });
+                                    // [FIX] Immediately sync ref to prevent simulation from reading stale data
+                                    foreignInvestmentsRef.current = result;
                                     return result;
                                 });
 
@@ -3301,10 +3309,23 @@ difficulty, // 游戏难度
                         return nextState;
                     });
                     if (result.overseasInvestments && _shouldUpdateUI) {
-                        setOverseasInvestments(result.overseasInvestments);
+                        // [FIX] Use functional update to prevent race condition with outbound investment writes
+                        setOverseasInvestments(prev => {
+                            const simResult = result.overseasInvestments;
+                            if (prev && prev.length > simResult.length) return prev;
+                            return simResult;
+                        });
                     }
                     if (result.foreignInvestments && _shouldUpdateUI) {
-                        setForeignInvestments(result.foreignInvestments);
+                        // [FIX] Use functional update to merge simulation results with latest state,
+                        // preventing race condition where inbound investment writes get overwritten
+                        setForeignInvestments(prev => {
+                            const simResult = result.foreignInvestments;
+                            // If prev has more records than simResult, it means inbound investment
+                            // added new records after simulation started — keep the newer state
+                            if (prev && prev.length > simResult.length) return prev;
+                            return simResult;
+                        });
                     }
 
                     if (nextNations) {
