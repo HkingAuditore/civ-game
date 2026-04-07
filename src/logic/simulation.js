@@ -6064,7 +6064,9 @@ export const simulateTick = ({
         }
 
         if (!isExpiredNation && !next.isRebelNation) {
+            const _popBefore = next.population;
             const migratedNation = migrateNationEconomy(next);
+            const _popAfterMigrate = migratedNation.population;
             const updatedNation = AIEconomyService.update({
                 nation: migratedNation,
                 tick,
@@ -6075,6 +6077,11 @@ export const simulateTick = ({
                 gameSpeed,
                 allowHeavyUpdate: shouldProcessAIForNation,
             });
+            const _popAfterService = updatedNation.population;
+            // [DEBUG] Track large population jumps through the pipeline
+            if (_popBefore > 0 && Math.abs(_popAfterService - _popBefore) > Math.max(50, _popBefore * 0.1)) {
+                console.warn(`[SIM POP TRACE] ${next.name}: before=${_popBefore}, afterMigrate=${_popAfterMigrate}, afterService=${_popAfterService}, ownBasePop=${next.economyTraits?.ownBasePopulation}->${updatedNation.economyTraits?.ownBasePopulation}, lastGrowthTick=${next.economyTraits?.lastGrowthTick}->${updatedNation.economyTraits?.lastGrowthTick}, tick=${tick}, heavy=${shouldProcessAIForNation}`);
+            }
             Object.assign(next, updatedNation);
         }
 

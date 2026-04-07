@@ -23,7 +23,11 @@ const sanitizeMigratedState = (state) => {
     );
 
     state.population = Math.min(Math.max(1, Math.round(state.population || 1)), populationCap);
-    state.basePopulation = Math.max(20, Math.round(state.basePopulation || state.population));
+    // [FIX] Don't fall back to state.population for basePopulation - this causes ownBasePopulation
+    // to inflate to current population, which then inflates capacityFloor in AIPopulationDynamics.
+    // basePopulation should remain a small "seed" value that grows slowly via the 0.965/0.035 blend.
+    const epochBasePopDefault = [20, 40, 80, 160, 300, 500, 800][Math.min(state.epoch || 0, 6)] || 20;
+    state.basePopulation = Math.max(20, Math.round(state.basePopulation || epochBasePopDefault));
 
     const perCapitaCap = getPerCapitaWealthCap(epoch);
     const targetPerCapita = getTargetPerCapitaWealth(epoch);
@@ -98,6 +102,8 @@ const buildMigratedMetrics = (nation, state) => {
 
 export function migrateNationEconomy(nation) {
     // Create new state
+    const beforePop = nation.population;
+    const beforeOwnBasePop = nation.economyTraits?.ownBasePopulation;
     const state = sanitizeMigratedState(AIEconomyState.fromLegacyFormat(nation));
     
     // Validate
@@ -108,6 +114,13 @@ export function migrateNationEconomy(nation) {
     }
     
     const metrics = buildMigratedMetrics(nation, state);
+    
+    // [DEBUG] Track population changes during migration
+    const afterPop = state.population;
+    const afterBasePop = state.basePopulation;
+    if (beforePop > 0 && Math.abs(afterPop - beforePop) > Math.max(50, beforePop * 0.1)) {
+        console.warn(`[MIGRATE POP] ${nation.name}: pop ${beforePop} -> ${afterPop}, basePop ${beforeOwnBasePop} -> ${afterBasePop}`);
+    }
     
     // Convert back to legacy format and mark as migrated
     return {

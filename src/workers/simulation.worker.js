@@ -256,10 +256,13 @@ self.onmessage = function(event) {
 
             // Execute the simulation
             const result = simulateTick(enrichedPayload);
-            _tickCounter++;
             
             // [PERF] 剥离非必要数据后再传输，大幅减少postMessage序列化开销
+            // NOTE: must strip BEFORE incrementing _tickCounter, so that
+            // stripPayloadForTransfer's isFullTick check uses the same
+            // counter value as isFullTickForSim above.
             const stripped = stripPayloadForTransfer(result);
+            _tickCounter++;
 
             // [PERF] Delta Encoding：仅传输与上一次结果不同的字段
             const { delta, fieldCount, totalFields } = computeDelta(stripped, _lastStrippedResult);

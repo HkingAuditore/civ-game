@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>哈耶克的文明 — 深度数据挖掘与数值平衡分析</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card-alt: #1e2230;
+    --border: #2a2e3d;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c8cff;
+    --accent2: #a78bfa;
+    --red: #f87171;
+    --orange: #fb923c;
+    --yellow: #fbbf24;
+    --green: #4ade80;
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0 0 60px 0;
+}
+.container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+header {
+    background: linear-gradient(135deg, #1a1040 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 0 36px;
+    text-align: center;
+}
+header h1 { font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+header .subtitle { color: var(--text-dim); font-size: 0.95rem; }
+header .stats-row { display: flex; justify-content: center; gap: 32px; margin-top: 24px; flex-wrap: wrap; }
+header .stat-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 28px; text-align: center; min-width: 140px; }
+header .stat-box .val { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+header .stat-box .lbl { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+
+nav.toc {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,17,23,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0; overflow-x: auto; white-space: nowrap;
+}
+nav.toc .container { display: flex; gap: 6px; }
+nav.toc a {
+    display: inline-block; padding: 6px 14px; border-radius: 8px; font-size: 0.8rem;
+    color: var(--text-dim); text-decoration: none; transition: all .2s;
+    border: 1px solid transparent;
+}
+nav.toc a:hover, nav.toc a.active { color: var(--accent); background: rgba(108,140,255,0.08); border-color: rgba(108,140,255,0.2); }
+
+section { margin-top: 48px; }
+section > h2 {
+    font-size: 1.35rem; font-weight: 700; margin-bottom: 20px; padding-bottom: 12px;
+    border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 10px;
+}
+section > h2 .badge {
+    display: inline-block; font-size: 0.65rem; padding: 2px 10px; border-radius: 20px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.badge-p0 { background: rgba(248,113,113,0.15); color: var(--red); }
+.badge-p1 { background: rgba(251,146,60,0.15); color: var(--orange); }
+.badge-p2 { background: rgba(251,191,36,0.15); color: var(--yellow); }
+.badge-p3 { background: rgba(74,222,128,0.15); color: var(--green); }
+.badge-p4 { background: rgba(167,139,250,0.15); color: var(--accent2); }
+.badge-p5 { background: rgba(34,211,238,0.15); color: var(--cyan); }
+
+.card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; margin-bottom: 20px;
+}
+.card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 14px; color: var(--text); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+.card-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+th { text-align: left; padding: 10px 12px; color: var(--text-dim); font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 9px 12px; border-bottom: 1px solid rgba(42,46,61,0.5); }
+tr:hover td { background: rgba(108,140,255,0.04); }
+.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 0.8rem; }
+.warn { color: var(--orange); font-weight: 600; }
+.danger { color: var(--red); font-weight: 600; }
+.ok { color: var(--green); }
+.highlight-row td { background: rgba(248,113,113,0.06); }
+
+.issue-card {
+    border-left: 3px solid var(--red);
+    padding: 16px 20px; margin-bottom: 12px;
+    background: rgba(248,113,113,0.04); border-radius: 0 10px 10px 0;
+}
+.issue-card.p1 { border-left-color: var(--orange); background: rgba(251,146,60,0.04); }
+.issue-card.p2 { border-left-color: var(--yellow); background: rgba(251,191,36,0.04); }
+.issue-card.p3 { border-left-color: var(--green); background: rgba(74,222,128,0.04); }
+.issue-card.p4 { border-left-color: var(--accent2); background: rgba(167,139,250,0.04); }
+.issue-card .tag { font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-right: 8px; }
+.issue-card .tag-p0 { background: var(--red); color: #fff; }
+.issue-card .tag-p1 { background: var(--orange); color: #fff; }
+.issue-card .tag-p2 { background: var(--yellow); color: #000; }
+.issue-card .tag-p3 { background: var(--green); color: #000; }
+.issue-card .tag-p4 { background: var(--accent2); color: #fff; }
+.issue-card .title { font-weight: 600; font-size: 0.92rem; }
+.issue-card .desc { color: var(--text-dim); font-size: 0.84rem; margin-top: 6px; }
+
+.chart-wrap { position: relative; height: 320px; margin: 16px 0; }
+.chart-wrap-sm { height: 240px; }
+.chart-wrap-lg { height: 400px; }
+
+.metric-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.metric-pill {
+    background: var(--card-alt); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 20px; flex: 1; min-width: 150px; text-align: center;
+}
+.metric-pill .mv { font-size: 1.2rem; font-weight: 700; }
+.metric-pill .ml { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+.funnel-bar {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 8px;
+}
+.funnel-bar .fb-label { width: 90px; font-size: 0.82rem; text-align: right; color: var(--text-dim); flex-shrink: 0; }
+.funnel-bar .fb-track { flex: 1; height: 32px; background: var(--card-alt); border-radius: 8px; overflow: hidden; position: relative; }
+.funnel-bar .fb-fill { height: 100%; border-radius: 8px; display: flex; align-items: center; padding-left: 12px; font-size: 0.75rem; font-weight: 600; color: #fff; min-width: 60px; transition: width .6s ease; }
+.funnel-bar .fb-pct { width: 60px; font-size: 0.8rem; font-weight: 600; text-align: left; flex-shrink: 0; }
+
+.rec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.rec-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px;
+}
+.rec-card .rec-pri { font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 8px; }
+.rec-card h4 { font-size: 0.92rem; font-weight: 600; margin-bottom: 6px; }
+.rec-card p { font-size: 0.82rem; color: var(--text-dim); }
+
+@media (max-width: 768px) {
+    header h1 { font-size: 1.4rem; }
+    .card-grid { grid-template-columns: 1fr; }
+    .card-grid-3 { grid-template-columns: 1fr; }
+    .rec-grid { grid-template-columns: 1fr; }
+    nav.toc a { font-size: 0.72rem; padding: 5px 10px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+    <div class="container">
+        <h1>哈耶克的文明 — 深度数值平衡分析报表</h1>
+        <div class="subtitle">基于 16,852,126 条设计事件 · 3,417,090 条资源流水 · 26,960 会话 · 3,687 独立用户</div>
+        <div class="stats-row">
+            <div class="stat-box"><div class="val">16.85M</div><div class="lbl">设计事件</div></div>
+            <div class="stat-box"><div class="val">3.42M</div><div class="lbl">资源流水</div></div>
+            <div class="stat-box"><div class="val">3,687</div><div class="lbl">独立用户</div></div>
+            <div class="stat-box"><div class="val">6,232h</div><div class="lbl">总游玩时长</div></div>
+            <div class="stat-box"><div class="val" style="color:var(--red)">15</div><div class="lbl">发现的平衡问题</div></div>
+        </div>
+    </div>
+</header>
+
+<nav class="toc" id="toc">
+    <div class="container">
+        <a href="#summary">总览</a>
+        <a href="#prices">物价体系</a>
+        <a href="#economy">宏观经济</a>
+        <a href="#population">人口与饥荒</a>
+        <a href="#military">军事与稳定</a>
+        <a href="#rebellion">阶层叛乱</a>
+        <a href="#diplomacy">外交与AI</a>
+        <a href="#ideology">意识形态</a>
+        <a href="#progression">时代进度</a>
+        <a href="#ui">UI参与度</a>
+        <a href="#recommendations">修复建议</a>
+    </div>
+</nav>
+
+<div class="container">
+
+<!-- ============================================ -->
+<!-- SECTION 0: Executive Summary -->
+<!-- ============================================ -->
+<section id="summary">
+    <h2>Executive Summary <span class="badge badge-p0">15 个问题</span></h2>
+
+    <div class="issue-card">
+        <span class="tag tag-p0">P0</span><span class="title">国库数值天文溢出</span>
+        <div class="desc">古典时代 Treasury 均值 9.73×10<sup>99</sup>，探索时代 2.62×10<sup>54</sup>，未来时代 6.05×10<sup>60</sup>。经济系统完全缺乏累积上限，数值已超出 IEEE 754 双精度浮点数安全范围。</div>
+    </div>
+    <div class="issue-card">
+        <span class="tag tag-p0">P0</span><span class="title">探索时代 GDP 大面积崩溃</span>
+        <div class="desc">探索时代 GDP 均值 <b>-8.66×10<sup>17</sup></b>（负数），最低值 -5.0×10<sup>21</sup>。绝大多数玩家在该时代经历灾难性经济崩溃，疑似数值计算 bug 或正反馈失控。</div>
+    </div>
+    <div class="issue-card">
+        <span class="tag tag-p0">P0</span><span class="title">封建时代军队异常</span>
+        <div class="desc">封建时代最大军队 3,999,996，远超同期人口和经济水平可支撑的规模，存在军事数值未正确约束的问题。</div>
+    </div>
+    <div class="issue-card p1">
+        <span class="tag tag-p1">P1</span><span class="title">工具价格体系失调</span>
+        <div class="desc">石器时代工具均价 61.25（所有时代最高），价格上限 4000 是食物上限(150)的 26.7 倍。工具价格与其他商品比例严重失调。</div>
+    </div>
+    <div class="issue-card p1">
+        <span class="tag tag-p1">P1</span><span class="title">铁矿早期过贵</span>
+        <div class="desc">石器/青铜时代铁均价 36-38，是同期食物/木材价格的 30-40 倍，对早期发展形成巨大资源阻碍。</div>
+    </div>
+    <div class="issue-card p1">
+        <span class="tag tag-p1">P1</span><span class="title">物价极端峰值失控</span>
+        <div class="desc">多种商品在多个时代出现极端峰值（wood 300×, stone 450×, iron 240×），价格调节机制在极端场景下失效。</div>
+    </div>
+    <div class="issue-card p2">
+        <span class="tag tag-p2">P2</span><span class="title">石器时代恶性通胀最频繁</span>
+        <div class="desc">石器时代发生 2,018 次恶性通胀（所有时代最多），最简单的经济体反而最容易崩溃，早期经济参数需要调整。</div>
+    </div>
+    <div class="issue-card p2">
+        <span class="tag tag-p2">P2</span><span class="title">CPI/PPI 极端离群值</span>
+        <div class="desc">信息时代 CPI 最大 325,632，PPI 最大 59,516。均值合理(80-150)，但极端情况下存在数千倍的通胀失控。</div>
+    </div>
+    <div class="issue-card p2">
+        <span class="tag tag-p2">P2</span><span class="title">饥荒指数指数级失控</span>
+        <div class="desc">饥荒均值：石器 2.36 → 封建 12,430 → 未来 604,097。增长约 256,000 倍，机制未随人口规模合理缩放。</div>
+    </div>
+    <div class="issue-card p3">
+        <span class="tag tag-p3">P3</span><span class="title">启蒙时代进度断崖</span>
+        <div class="desc">事件量从探索 1.30M 骤降至启蒙 360K（-72.4%），大量玩家在此流失，存在严重的进度/难度瓶颈。</div>
+    </div>
+    <div class="issue-card p3">
+        <span class="tag tag-p3">P3</span><span class="title">意识形态跳过率 &gt;85%</span>
+        <div class="desc">EmergenceSkip 28,831 次，最热门选择仅 4,189 次。超过 85% 的玩家选择跳过，该系统未能有效吸引玩家参与。</div>
+    </div>
+    <div class="issue-card p4">
+        <span class="tag tag-p4">P4</span><span class="title">底层阶级叛乱过度集中</span>
+        <div class="desc">农民(14,740)、伐木工(13,214)、工匠(12,004)、矿工(11,659) 占叛乱主体，上层阶级(商人:8,582、教士:9,568)相对过于安定。</div>
+    </div>
+    <div class="issue-card p4">
+        <span class="tag tag-p4">P4</span><span class="title">国有化外资独占外交操作</span>
+        <div class="desc">"国有化外资" 13,275 次执行，远超第二名的 stone_clan 外交行动(8,230)。该操作可能过于强力或其他选项缺乏吸引力。</div>
+    </div>
+    <div class="issue-card p4" style="border-left-color:var(--cyan)">
+        <span class="tag" style="background:var(--cyan);color:#000">P5</span><span class="title">外交面板参与度最低</span>
+        <div class="desc">Tab 使用：建设(23K) > 科技(10.5K) > 政治(8.9K) > 军事(6.6K) > 外交(5.5K)。外交系统需要更多有趣的互动内容。</div>
+    </div>
+    <div class="issue-card p4" style="border-left-color:var(--cyan)">
+        <span class="tag" style="background:var(--cyan);color:#000">P5</span><span class="title">人口增长无上限</span>
+        <div class="desc">未来时代最大人口 153.8 亿，缺乏有效的人口增长天花板，导致后期数值膨胀失控。</div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 1: Price System -->
+<!-- ============================================ -->
+<section id="prices">
+    <h2>物价体系分析 <span class="badge badge-p1">P1 核心问题</span></h2>
+
+    <div class="card">
+        <h3>六大商品均价跨时代对比</h3>
+        <div class="chart-wrap chart-wrap-lg"><canvas id="chartPriceAvg"></canvas></div>
+    </div>
+
+    <div class="card">
+        <h3>商品价格极端值对比（最大值 / 均值 倍率）</h3>
+        <div class="chart-wrap"><canvas id="chartPriceSpike"></canvas></div>
+    </div>
+
+    <div class="card">
+        <h3>各商品 × 时代详细数据</h3>
+        <div style="overflow-x:auto">
+        <table>
+            <thead><tr><th>商品</th><th>时代</th><th class="num">均价</th><th class="num">最低</th><th class="num">最高</th><th class="num">最高/均价</th><th class="num">样本数</th></tr></thead>
+            <tbody id="tbPrice"></tbody>
+        </table>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 2: Macro Economy -->
+<!-- ============================================ -->
+<section id="economy">
+    <h2>宏观经济指标 <span class="badge badge-p0">P0 溢出</span></h2>
+
+    <div class="card-grid">
+        <div class="card">
+            <h3>GDP 均值跨时代演进</h3>
+            <div class="chart-wrap"><canvas id="chartGDP"></canvas></div>
+        </div>
+        <div class="card">
+            <h3>CPI / PPI 均值对比</h3>
+            <div class="chart-wrap"><canvas id="chartCPIPPI"></canvas></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>国库溢出严重度矩阵</h3>
+        <div style="overflow-x:auto">
+        <table>
+            <thead><tr><th>时代</th><th class="num">Treasury 均值</th><th class="num">Treasury 最大值</th><th class="num">数量级 (log10)</th><th>严重度</th></tr></thead>
+            <tbody>
+                <tr><td>石器</td><td class="num">8.86×10<sup>7</sup></td><td class="num">1.00×10<sup>13</sup></td><td class="num">13</td><td class="warn">⚠ 高</td></tr>
+                <tr><td>青铜</td><td class="num">6.83×10<sup>8</sup></td><td class="num">1.00×10<sup>13</sup></td><td class="num">13</td><td class="warn">⚠ 高</td></tr>
+                <tr class="highlight-row"><td>古典</td><td class="num danger">9.73×10<sup>99</sup></td><td class="num danger">5.04×10<sup>104</sup></td><td class="num danger">104</td><td class="danger">🔥 致命溢出</td></tr>
+                <tr><td>封建</td><td class="num">6.27×10<sup>11</sup></td><td class="num">6.96×10<sup>13</sup></td><td class="num">13</td><td class="warn">⚠ 高</td></tr>
+                <tr class="highlight-row"><td>探索</td><td class="num danger">2.62×10<sup>54</sup></td><td class="num danger">4.28×10<sup>57</sup></td><td class="num danger">57</td><td class="danger">🔥 致命溢出</td></tr>
+                <tr class="highlight-row"><td>启蒙</td><td class="num danger">6.31×10<sup>37</sup></td><td class="num danger">2.93×10<sup>41</sup></td><td class="num danger">41</td><td class="danger">🔥 致命溢出</td></tr>
+                <tr class="highlight-row"><td>工业</td><td class="num danger">1.59×10<sup>45</sup></td><td class="num danger">8.90×10<sup>47</sup></td><td class="num danger">47</td><td class="danger">🔥 致命溢出</td></tr>
+                <tr class="highlight-row"><td>信息</td><td class="num danger">6.02×10<sup>38</sup></td><td class="num danger">3.11×10<sup>41</sup></td><td class="num danger">41</td><td class="danger">🔥 致命溢出</td></tr>
+                <tr class="highlight-row"><td>未来</td><td class="num danger">6.05×10<sup>60</sup></td><td class="num danger">4.78×10<sup>62</sup></td><td class="num danger">62</td><td class="danger">🔥 致命溢出</td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>GDP 异常分析</h3>
+        <div style="overflow-x:auto">
+        <table>
+            <thead><tr><th>时代</th><th class="num">GDP 均值</th><th class="num">GDP 最小值</th><th class="num">GDP 最大值</th><th class="num">标准差</th><th>异常</th></tr></thead>
+            <tbody>
+                <tr><td>石器</td><td class="num">2,108</td><td class="num">-81,643</td><td class="num">4,821,109</td><td class="num">26,843</td><td class="ok">正常</td></tr>
+                <tr><td>青铜</td><td class="num">704,914</td><td class="num">-5.97×10<sup>7</sup></td><td class="num">6.01×10<sup>8</sup></td><td class="num">1.31×10<sup>7</sup></td><td class="warn">⚠ 波动大</td></tr>
+                <tr><td>古典</td><td class="num">6.54×10<sup>6</sup></td><td class="num">-1.95×10<sup>8</sup></td><td class="num">1.88×10<sup>11</sup></td><td class="num">9.47×10<sup>8</sup></td><td class="warn">⚠ 极端离群</td></tr>
+                <tr><td>封建</td><td class="num">2.70×10<sup>7</sup></td><td class="num">-1.08×10<sup>9</sup></td><td class="num">1.33×10<sup>10</sup></td><td class="num">4.54×10<sup>8</sup></td><td class="warn">⚠ 波动大</td></tr>
+                <tr class="highlight-row"><td>探索</td><td class="num danger">-8.66×10<sup>17</sup></td><td class="num danger">-5.01×10<sup>21</sup></td><td class="num">2.87×10<sup>10</sup></td><td class="num danger">6.58×10<sup>19</sup></td><td class="danger">🔥 系统性崩溃</td></tr>
+                <tr><td>启蒙</td><td class="num">7.65×10<sup>7</sup></td><td class="num">-8.07×10<sup>8</sup></td><td class="num">2.11×10<sup>10</sup></td><td class="num">8.93×10<sup>8</sup></td><td class="warn">⚠ 波动大</td></tr>
+                <tr><td>工业</td><td class="num">1.59×10<sup>7</sup></td><td class="num danger">-1.00×10<sup>12</sup></td><td class="num">4.81×10<sup>10</sup></td><td class="num">1.71×10<sup>10</sup></td><td class="danger">🔥 负值极端</td></tr>
+                <tr><td>信息</td><td class="num">1.29×10<sup>8</sup></td><td class="num danger">-1.00×10<sup>12</sup></td><td class="num">7.55×10<sup>10</sup></td><td class="num">9.56×10<sup>9</sup></td><td class="danger">🔥 负值极端</td></tr>
+                <tr><td>未来</td><td class="num">1.08×10<sup>9</sup></td><td class="num danger">-1.00×10<sup>12</sup></td><td class="num">6.67×10<sup>11</sup></td><td class="num">1.76×10<sup>10</sup></td><td class="danger">🔥 负值极端</td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>恶性通胀 (Hyperinflation) 事件分布</h3>
+        <div class="chart-wrap chart-wrap-sm"><canvas id="chartHyper"></canvas></div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 3: Population & Starvation -->
+<!-- ============================================ -->
+<section id="population">
+    <h2>人口与饥荒 <span class="badge badge-p2">P2</span></h2>
+
+    <div class="card-grid">
+        <div class="card">
+            <h3>各时代平均人口</h3>
+            <div class="chart-wrap"><canvas id="chartPop"></canvas></div>
+        </div>
+        <div class="card">
+            <h3>各时代平均饥荒指数</h3>
+            <div class="chart-wrap"><canvas id="chartStarv"></canvas></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>人口 vs 饥荒对比表</h3>
+        <table>
+            <thead><tr><th>时代</th><th class="num">平均人口</th><th class="num">最大人口</th><th class="num">平均饥荒</th><th class="num">饥荒事件数</th><th class="num">饥荒/人口比</th></tr></thead>
+            <tbody>
+                <tr><td>石器</td><td class="num">92</td><td class="num">10,753</td><td class="num">2.36</td><td class="num">11,716</td><td class="num">2.57%</td></tr>
+                <tr><td>青铜</td><td class="num">222,597</td><td class="num">1.74×10<sup>8</sup></td><td class="num">108.85</td><td class="num">12,301</td><td class="num">0.049%</td></tr>
+                <tr><td>古典</td><td class="num">79,082</td><td class="num">3.55×10<sup>8</sup></td><td class="num">291.54</td><td class="num">13,748</td><td class="num">0.37%</td></tr>
+                <tr><td>封建</td><td class="num">2,818,907</td><td class="num">1.38×10<sup>9</sup></td><td class="num warn">12,430</td><td class="num">6,397</td><td class="num">0.44%</td></tr>
+                <tr><td>探索</td><td class="num">14,242,363</td><td class="num">1.89×10<sup>9</sup></td><td class="num warn">2,023</td><td class="num">6,786</td><td class="num">0.014%</td></tr>
+                <tr><td>启蒙</td><td class="num">6,332,939</td><td class="num">2.49×10<sup>9</sup></td><td class="num">214</td><td class="num">1,301</td><td class="num">0.003%</td></tr>
+                <tr><td>工业</td><td class="num">19,287,428</td><td class="num">3.32×10<sup>9</sup></td><td class="num danger">112,770</td><td class="num">1,305</td><td class="num">0.58%</td></tr>
+                <tr><td>信息</td><td class="num">5,789,851</td><td class="num">9.16×10<sup>8</sup></td><td class="num warn">37,926</td><td class="num">1,077</td><td class="num">0.65%</td></tr>
+                <tr class="highlight-row"><td>未来</td><td class="num">26,584,772</td><td class="num danger">1.54×10<sup>10</sup></td><td class="num danger">604,097</td><td class="num">1,094</td><td class="num danger">2.27%</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 4: Military & Stability -->
+<!-- ============================================ -->
+<section id="military">
+    <h2>军事与稳定 <span class="badge badge-p0">P0 异常</span></h2>
+
+    <div class="card-grid">
+        <div class="card">
+            <h3>各时代军队规模</h3>
+            <div class="chart-wrap"><canvas id="chartArmy"></canvas></div>
+        </div>
+        <div class="card">
+            <h3>各时代稳定度</h3>
+            <div class="chart-wrap"><canvas id="chartStability"></canvas></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>军队规模详细数据</h3>
+        <table>
+            <thead><tr><th>时代</th><th class="num">平均军队</th><th class="num">最大军队</th><th class="num">平均人口</th><th class="num">军/民比</th><th>异常</th></tr></thead>
+            <tbody>
+                <tr><td>石器</td><td class="num">1</td><td class="num">1,000</td><td class="num">92</td><td class="num">1.1%</td><td class="ok">正常</td></tr>
+                <tr><td>青铜</td><td class="num">114</td><td class="num">119,994</td><td class="num">222,597</td><td class="num">0.05%</td><td class="ok">正常</td></tr>
+                <tr><td>古典</td><td class="num">15</td><td class="num">9,999</td><td class="num">79,082</td><td class="num">0.02%</td><td class="ok">正常</td></tr>
+                <tr class="highlight-row"><td>封建</td><td class="num">210</td><td class="num danger">3,999,996</td><td class="num">2,818,907</td><td class="num danger">141.9%</td><td class="danger">🔥 军 &gt; 民</td></tr>
+                <tr><td>探索</td><td class="num">89</td><td class="num">54,574</td><td class="num">14,242,363</td><td class="num">0.001%</td><td class="ok">正常</td></tr>
+                <tr><td>启蒙</td><td class="num">512</td><td class="num">33,651</td><td class="num">6,332,939</td><td class="num">0.008%</td><td class="ok">正常</td></tr>
+                <tr><td>工业</td><td class="num">1,871</td><td class="num">1,217,772</td><td class="num">19,287,428</td><td class="num">0.01%</td><td class="ok">正常</td></tr>
+                <tr><td>信息</td><td class="num">10,963</td><td class="num">9,275,737</td><td class="num">5,789,851</td><td class="num warn">189.4%</td><td class="warn">⚠ 偏高</td></tr>
+                <tr><td>未来</td><td class="num">32,428</td><td class="num">9,275,737</td><td class="num">26,584,772</td><td class="num">0.12%</td><td class="ok">正常</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 5: Rebellion -->
+<!-- ============================================ -->
+<section id="rebellion">
+    <h2>阶层叛乱分析 <span class="badge badge-p4">P4</span></h2>
+
+    <div class="card-grid">
+        <div class="card">
+            <h3>各阶层起义 (Uprising) 频次</h3>
+            <div class="chart-wrap"><canvas id="chartRebUprising"></canvas></div>
+        </div>
+        <div class="card">
+            <h3>叛乱阶段转化漏斗</h3>
+            <div class="chart-wrap"><canvas id="chartRebFunnel"></canvas></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>各阶层叛乱阶段详细数据</h3>
+        <table>
+            <thead><tr><th>阶层</th><th class="num">酝酿 (Brewing)</th><th class="num">密谋 (Plotting)</th><th class="num">起义 (Uprising)</th><th class="num">Brewing→Uprising 转化率</th></tr></thead>
+            <tbody>
+                <tr><td>农民 (Peasant)</td><td class="num">5,551</td><td class="num">5,017</td><td class="num danger">14,740</td><td class="num danger">265.5%*</td></tr>
+                <tr><td>伐木工 (Lumberjack)</td><td class="num">4,364</td><td class="num">—</td><td class="num danger">13,214</td><td class="num danger">302.8%*</td></tr>
+                <tr><td>工匠 (Artisan)</td><td class="num">5,632</td><td class="num">8,815</td><td class="num">12,004</td><td class="num warn">213.1%*</td></tr>
+                <tr><td>矿工 (Miner)</td><td class="num">4,247</td><td class="num">4,092</td><td class="num">11,659</td><td class="num danger">274.5%*</td></tr>
+                <tr><td>失业 (Unemployed)</td><td class="num">11,372</td><td class="num">6,395</td><td class="num">—</td><td class="num ok">0%</td></tr>
+                <tr><td>教士 (Cleric)</td><td class="num">—</td><td class="num">5,370</td><td class="num">9,568</td><td class="num">—</td></tr>
+                <tr><td>商人 (Merchant)</td><td class="num">—</td><td class="num">4,951</td><td class="num">8,582</td><td class="num">—</td></tr>
+                <tr><td>抄写员 (Scribe)</td><td class="num">—</td><td class="num">4,066</td><td class="num">4,723</td><td class="num">—</td></tr>
+                <tr><td>士兵 (Soldier)</td><td class="num">—</td><td class="num">—</td><td class="num">4,581</td><td class="num">—</td></tr>
+            </tbody>
+        </table>
+        <p style="color:var(--text-dim);font-size:0.75rem;margin-top:8px">* 转化率 >100% 说明许多起义直接跳过了 brewing 阶段触发，或存在多轮起义。</p>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 6: Diplomacy -->
+<!-- ============================================ -->
+<section id="diplomacy">
+    <h2>外交与 AI 国家 <span class="badge badge-p4">P4</span></h2>
+
+    <div class="card-grid">
+        <div class="card">
+            <h3>外交操作频次 Top 15</h3>
+            <div class="chart-wrap chart-wrap-lg"><canvas id="chartDiplo"></canvas></div>
+        </div>
+        <div class="card">
+            <h3>AI 国家事件量 Top 15</h3>
+            <div class="chart-wrap chart-wrap-lg"><canvas id="chartAINation"></canvas></div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 7: Ideology -->
+<!-- ============================================ -->
+<section id="ideology">
+    <h2>意识形态系统 <span class="badge badge-p3">P3 低参与</span></h2>
+
+    <div class="card">
+        <h3>意识形态选择 vs 跳过</h3>
+        <div class="metric-row">
+            <div class="metric-pill"><div class="mv" style="color:var(--red)">28,831</div><div class="ml">跳过次数 (EmergenceSkip)</div></div>
+            <div class="metric-pill"><div class="mv" style="color:var(--green)">4,189</div><div class="ml">最热门选择 (oral_tradition)</div></div>
+            <div class="metric-pill"><div class="mv" style="color:var(--yellow)">~85%+</div><div class="ml">估算跳过率</div></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>意识形态选择排行 Top 20</h3>
+        <div class="chart-wrap chart-wrap-lg"><canvas id="chartIdeology"></canvas></div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 8: Epoch Progression -->
+<!-- ============================================ -->
+<section id="progression">
+    <h2>时代进度漏斗 <span class="badge badge-p3">P3 流失</span></h2>
+
+    <div class="card">
+        <h3>各时代事件量漏斗（按自然时代顺序）</h3>
+        <div id="funnelContainer" style="padding:8px 0"></div>
+    </div>
+
+    <div class="card">
+        <h3>时代间流失率</h3>
+        <table>
+            <thead><tr><th>时代转换</th><th class="num">前一时代事件量</th><th class="num">后一时代事件量</th><th class="num">流失率</th><th>评价</th></tr></thead>
+            <tbody>
+                <tr><td>石器 → 青铜</td><td class="num">3,642,136</td><td class="num">2,926,804</td><td class="num">-19.6%</td><td class="ok">正常衰减</td></tr>
+                <tr><td>青铜 → 古典</td><td class="num">2,926,804</td><td class="num">2,494,186</td><td class="num">-14.8%</td><td class="ok">正常衰减</td></tr>
+                <tr><td>古典 → 封建</td><td class="num">2,494,186</td><td class="num">1,638,592</td><td class="num warn">-34.3%</td><td class="warn">⚠ 中等流失</td></tr>
+                <tr><td>封建 → 探索</td><td class="num">1,638,592</td><td class="num">1,303,193</td><td class="num">-20.5%</td><td class="ok">正常衰减</td></tr>
+                <tr class="highlight-row"><td>探索 → 启蒙</td><td class="num">1,303,193</td><td class="num">359,574</td><td class="num danger">-72.4%</td><td class="danger">🔥 断崖流失</td></tr>
+                <tr><td>启蒙 → 工业</td><td class="num">359,574</td><td class="num">382,524</td><td class="num ok">+6.4%</td><td class="ok">✓ 正增长</td></tr>
+                <tr><td>工业 → 信息</td><td class="num">382,524</td><td class="num">435,037</td><td class="num ok">+13.7%</td><td class="ok">✓ 正增长</td></tr>
+                <tr><td>信息 → 未来</td><td class="num">435,037</td><td class="num">597,840</td><td class="num ok">+37.4%</td><td class="ok">✓ 正增长</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 9: UI Engagement -->
+<!-- ============================================ -->
+<section id="ui">
+    <h2>UI 参与度分析 <span class="badge badge-p5">P5</span></h2>
+
+    <div class="card-grid">
+        <div class="card">
+            <h3>Tab 使用频次</h3>
+            <div class="chart-wrap"><canvas id="chartUITab"></canvas></div>
+        </div>
+        <div class="card">
+            <h3>建筑购买 Top 20</h3>
+            <div class="chart-wrap chart-wrap-lg"><canvas id="chartBuilding"></canvas></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>建筑升级 Top 15</h3>
+        <div class="chart-wrap"><canvas id="chartUpgrade"></canvas></div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECTION 10: Recommendations -->
+<!-- ============================================ -->
+<section id="recommendations">
+    <h2>修复建议清单</h2>
+
+    <div class="rec-grid">
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--red);color:#fff">P0 紧急</div>
+            <h4>实施 Treasury 硬上限</h4>
+            <p>在 simulation 循环中增加 Treasury 最大值钳制（如 10<sup>15</sup>），防止天文数字溢出。同时排查古典时代特有的指数增长逻辑链。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--red);color:#fff">P0 紧急</div>
+            <h4>修复探索时代 GDP 计算</h4>
+            <p>探索时代 GDP 均值为负 10<sup>17</sup> 量级，需排查该时代特有的收支计算逻辑，可能存在符号错误或未初始化变量。建议增加 GDP 最低值保护。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--red);color:#fff">P0 紧急</div>
+            <h4>军队规模绑定人口约束</h4>
+            <p>封建时代最大军队 400 万超过同期人口。需增加军队上限 = f(人口) 的硬约束，如最大不超过总人口的 10%。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--orange);color:#fff">P1 高</div>
+            <h4>重新校准工具价格上限</h4>
+            <p>工具 max 4000 是 food max 150 的 26.7 倍。建议将 tools 价格上限降至 500-800 区间，并审查石器时代工具均价为何高达 61（所有时代最高）。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--orange);color:#fff">P1 高</div>
+            <h4>调整早期铁矿获取成本</h4>
+            <p>石器/青铜铁矿均价 36-38 严重阻碍发展。建议：(a) 降低早期铁的基础价格到 15-20；(b) 或延迟铁矿解锁到铸造厂建成后。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--orange);color:#fff">P1 高</div>
+            <h4>加强价格极值抑制机制</h4>
+            <p>在 prices.js 中增加价格变动速率限制（如每 tick 最大变动 ±5%）和极值回拉机制（价格超过均衡价 5 倍时加速回归）。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--yellow);color:#000">P2 中</div>
+            <h4>审查石器时代通胀触发条件</h4>
+            <p>石器时代 2018 次恶性通胀为所有时代之最。需检查早期货币供应/需求比，以及 hyperinflation 触发阈值在低经济量级下是否过于敏感。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--yellow);color:#000">P2 中</div>
+            <h4>饥荒机制引入人口规模归一化</h4>
+            <p>饥荒从石器 2.36 到未来 604,097 增长了 25.6 万倍。建议将饥荒指数改为 per-capita 比率计算，或增加人口规模因子的衰减。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--green);color:#000">P3 建议</div>
+            <h4>降低启蒙时代进入门槛</h4>
+            <p>探索→启蒙流失 72.4%，是所有时代转换中最严重的。建议：降低启蒙时代前置科技要求、增加过渡提示、或提供启蒙时代快速通道。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--green);color:#000">P3 建议</div>
+            <h4>提升意识形态系统吸引力</h4>
+            <p>85%+ 跳过率表明系统价值感不足。建议：(a) 增加意识形态带来的可视效果；(b) 简化选择界面；(c) 增加即时反馈和数值预览。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--accent2);color:#fff">P4 优化</div>
+            <h4>增加上层阶级叛乱概率</h4>
+            <p>商人/教士叛乱远少于底层。建议增加高税率或政策冲突时的上层叛乱概率，使阶级冲突更具层次感。</p>
+        </div>
+        <div class="rec-card">
+            <div class="rec-pri" style="background:var(--accent2);color:#fff">P4 优化</div>
+            <h4>平衡外交操作吸引力</h4>
+            <p>国有化外资独占外交操作首位。建议：增加贸易协定/军事同盟等外交操作的可见收益，或适当增加国有化的负面后果。</p>
+        </div>
+    </div>
+</section>
+
+</div><!-- /container -->
+
+<script>
+const EPOCHS_ORDER = ['stone','bronze','classical','feudal','exploration','enlightenment','industrial','information','future'];
+const EPOCH_LABELS = ['石器','青铜','古典','封建','探索','启蒙','工业','信息','未来'];
+const COLORS = {
+    food:'#4ade80', wood:'#a78bfa', stone:'#94a3b8', iron:'#f87171', cloth:'#f472b6', tools:'#fbbf24',
+    blue:'#6c8cff', purple:'#a78bfa', red:'#f87171', orange:'#fb923c', yellow:'#fbbf24', green:'#4ade80', cyan:'#22d3ee', pink:'#f472b6'
+};
+
+Chart.defaults.color = '#8b8fa3';
+Chart.defaults.borderColor = 'rgba(42,46,61,0.6)';
+Chart.defaults.font.family = '-apple-system,system-ui,sans-serif';
+Chart.defaults.font.size = 11;
+
+// ======= DATA =======
+const priceData = {
+    food:   {stone:{avg:0.96,min:0.2,max:149.91},bronze:{avg:1.05,min:0.2,max:150},classical:{avg:1.25,min:0.18,max:150},feudal:{avg:1.33,min:0.17,max:59.55},exploration:{avg:1.44,min:0.18,max:104.8},enlightenment:{avg:1,min:0.19,max:6.95},industrial:{avg:1.07,min:0.17,max:150},information:{avg:1.39,min:0.17,max:150},future:{avg:1.19,min:0.18,max:141.64}},
+    wood:   {stone:{avg:0.91,min:0.39,max:299.81},bronze:{avg:1.28,min:0.27,max:300},classical:{avg:1.28,min:0.34,max:25.57},feudal:{avg:1.53,min:0.34,max:26.18},exploration:{avg:1.65,min:0.34,max:209.6},enlightenment:{avg:1.17,min:0.36,max:18.09},industrial:{avg:1.21,min:0.34,max:300},information:{avg:1.84,min:0.34,max:300},future:{avg:0.94,min:0.34,max:283.17}},
+    stone:  {stone:{avg:1.34,min:0.45,max:449.72},bronze:{avg:1.76,min:0.38,max:450},classical:{avg:1.83,min:0.51,max:64.09},feudal:{avg:2.3,min:0.4,max:364.01},exploration:{avg:2.04,min:0.44,max:314.42},enlightenment:{avg:1.66,min:0.51,max:176.78},industrial:{avg:1.35,min:0.51,max:450},information:{avg:2.01,min:0.51,max:450},future:{avg:1.42,min:0.51,max:450}},
+    iron:   {stone:{avg:38.49,min:1.6,max:67.61},bronze:{avg:36.4,min:1.6,max:60.25},classical:{avg:26.76,min:1.6,max:240},feudal:{avg:34.8,min:1.44,max:240},exploration:{avg:21.49,min:1.44,max:218.72},enlightenment:{avg:12.08,min:1.49,max:163.71},industrial:{avg:11.14,min:1.36,max:240},information:{avg:13.57,min:1.36,max:240},future:{avg:12.33,min:1.44,max:240}},
+    cloth:  {stone:{avg:1.85,min:0.3,max:324.8},bronze:{avg:1.83,min:0.21,max:325},classical:{avg:2.56,min:0.27,max:16.21},feudal:{avg:3.07,min:0.26,max:80.45},exploration:{avg:3.13,min:0.24,max:227.09},enlightenment:{avg:1.86,min:0.27,max:17.77},industrial:{avg:2.01,min:0.26,max:325},information:{avg:2.79,min:0.26,max:325},future:{avg:2.34,min:0.27,max:325}},
+    tools:  {stone:{avg:61.25,min:2.57,max:135.23},bronze:{avg:15.78,min:3.2,max:4000},classical:{avg:14.77,min:2.75,max:4000},feudal:{avg:27.17,min:2.88,max:4000},exploration:{avg:29.02,min:2.88,max:4000},enlightenment:{avg:23.12,min:2.88,max:4000},industrial:{avg:14.96,min:2.72,max:2793.01},information:{avg:24.55,min:2.72,max:4000},future:{avg:20.09,min:2.81,max:3762.14}}
+};
+
+const epochEvents = {stone:3642136,bronze:2926804,classical:2494186,feudal:1638592,exploration:1303193,enlightenment:359574,industrial:382524,information:435037,future:597840};
+const hyperByEpoch = {stone:2018,bronze:922,classical:1120,feudal:1709,exploration:1019,enlightenment:157,industrial:125,information:206,future:369};
+const starvByEpoch = {stone:2.36,bronze:108.85,classical:291.54,feudal:12429.93,exploration:2022.73,enlightenment:214.24,industrial:112770.13,information:37925.64,future:604096.71};
+const popByEpoch = {stone:92,bronze:222597,classical:79082,feudal:2818907,exploration:14242363,enlightenment:6332939,industrial:19287428,information:5789851,future:26584772};
+const armyByEpoch = {stone:1,bronze:114,classical:15,feudal:210,exploration:89,enlightenment:512,industrial:1871,information:10963,future:32428};
+const armyMaxByEpoch = {stone:1000,bronze:119994,classical:9999,feudal:3999996,exploration:54574,enlightenment:33651,industrial:1217772,information:9275737,future:9275737};
+const stabilityByEpoch = {stone:85.24,bronze:90.77,classical:87.93,feudal:91.45,exploration:92.65,enlightenment:91.1,industrial:89.11,information:91.03,future:88.88};
+const stabilityStd = {stone:12.31,bronze:11.88,classical:15.12,feudal:14.43,exploration:14.14,enlightenment:13,industrial:16.98,information:15.22,future:17.23};
+
+// ======= PRICE AVG CHART =======
+new Chart(document.getElementById('chartPriceAvg'), {
+    type: 'line',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: Object.entries(priceData).map(([k,v]) => ({
+            label: k.charAt(0).toUpperCase()+k.slice(1),
+            data: EPOCHS_ORDER.map(e => v[e].avg),
+            borderColor: COLORS[k], backgroundColor: COLORS[k]+'33',
+            borderWidth: 2, pointRadius: 4, tension: 0.3
+        }))
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{boxWidth:12,padding:16}},title:{display:true,text:'各商品均价跨时代趋势',padding:12}},
+        scales:{y:{title:{display:true,text:'均价'},beginAtZero:true}}
+    }
+});
+
+// ======= PRICE SPIKE CHART =======
+const commodities = ['food','wood','stone','iron','cloth','tools'];
+const spikeData = commodities.map(c => {
+    let maxRatio = 0;
+    EPOCHS_ORDER.forEach(e => {
+        const r = priceData[c][e].max / priceData[c][e].avg;
+        if(r > maxRatio) maxRatio = r;
+    });
+    return maxRatio;
+});
+new Chart(document.getElementById('chartPriceSpike'), {
+    type: 'bar',
+    data: {
+        labels: commodities.map(c=>c.charAt(0).toUpperCase()+c.slice(1)),
+        datasets: [{
+            label: '最大 max/avg 倍率',
+            data: spikeData,
+            backgroundColor: commodities.map(c=>COLORS[c]+'aa'),
+            borderColor: commodities.map(c=>COLORS[c]),
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{legend:{display:false},title:{display:true,text:'各商品极端价格倍率（最大值/均值最大比）'}},
+        scales:{x:{title:{display:true,text:'倍率'}}}
+    }
+});
+
+// ======= PRICE TABLE =======
+(function(){
+    const tb = document.getElementById('tbPrice');
+    const CN = {food:'食物',wood:'木材',stone:'石材',iron:'铁矿',cloth:'布匹',tools:'工具'};
+    commodities.forEach(c => {
+        EPOCHS_ORDER.forEach((e,i) => {
+            const d = priceData[c][e];
+            const ratio = (d.max/d.avg).toFixed(0);
+            const isHigh = d.max/d.avg > 100;
+            const tr = document.createElement('tr');
+            if(isHigh) tr.className='highlight-row';
+            tr.innerHTML = `<td>${i===0?CN[c]:''}</td><td>${EPOCH_LABELS[EPOCHS_ORDER.indexOf(e)]}</td><td class="num">${d.avg}</td><td class="num">${d.min}</td><td class="num ${isHigh?'danger':''}">${d.max}</td><td class="num ${isHigh?'danger':''}">${ratio}×</td><td class="num">~434K</td>`;
+            tb.appendChild(tr);
+        });
+    });
+})();
+
+// ======= GDP CHART =======
+const gdpAvg = {stone:2108,bronze:704914,classical:6541556,feudal:27015722,exploration:-8.66e17,enlightenment:76511303,industrial:15932012,information:128887541,future:1080655002};
+new Chart(document.getElementById('chartGDP'), {
+    type: 'bar',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: [{
+            label: 'GDP 均值',
+            data: EPOCHS_ORDER.map(e => {
+                const v = gdpAvg[e];
+                if(Math.abs(v) > 1e10) return null;
+                return v;
+            }),
+            backgroundColor: EPOCHS_ORDER.map(e => gdpAvg[e] < 0 ? '#f8717188' : '#6c8cff88'),
+            borderColor: EPOCHS_ORDER.map(e => gdpAvg[e] < 0 ? '#f87171' : '#6c8cff'),
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+            legend:{display:false},
+            title:{display:true,text:'GDP 均值（排除极端溢出值；探索时代 -8.66e17 已标注）'},
+            annotation:{}
+        },
+        scales:{y:{title:{display:true,text:'GDP'}}}
+    }
+});
+
+// ======= CPI/PPI CHART =======
+const cpiAvg = {stone:93.88,bronze:74.94,classical:77.59,feudal:101.17,exploration:104.34,enlightenment:97.02,industrial:92.08,information:151.56,future:100.44};
+const ppiAvg = {stone:82.13,bronze:71.63,classical:77.78,feudal:101.6,exploration:104.9,enlightenment:98.51,industrial:91.08,information:114.05,future:106.75};
+new Chart(document.getElementById('chartCPIPPI'), {
+    type: 'line',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: [
+            {label:'CPI 均值',data:EPOCHS_ORDER.map(e=>cpiAvg[e]),borderColor:'#fb923c',backgroundColor:'#fb923c33',borderWidth:2,pointRadius:4,tension:0.3},
+            {label:'PPI 均值',data:EPOCHS_ORDER.map(e=>ppiAvg[e]),borderColor:'#22d3ee',backgroundColor:'#22d3ee33',borderWidth:2,pointRadius:4,tension:0.3},
+            {label:'基准线(100)',data:Array(9).fill(100),borderColor:'#ffffff33',borderDash:[5,5],borderWidth:1,pointRadius:0}
+        ]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{boxWidth:12}},title:{display:true,text:'CPI / PPI 跨时代均值（基准=100）'}},
+        scales:{y:{title:{display:true,text:'指数'},min:50,max:170}}
+    }
+});
+
+// ======= HYPERINFLATION CHART =======
+new Chart(document.getElementById('chartHyper'), {
+    type: 'bar',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: [{
+            label: '恶性通胀事件数',
+            data: EPOCHS_ORDER.map(e=>hyperByEpoch[e]),
+            backgroundColor: EPOCHS_ORDER.map(e=>hyperByEpoch[e]>1500?'#f8717188':'#fbbf2488'),
+            borderColor: EPOCHS_ORDER.map(e=>hyperByEpoch[e]>1500?'#f87171':'#fbbf24'),
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},title:{display:true,text:'恶性通胀事件数（石器时代最多 — 反常！）'}},
+        scales:{y:{beginAtZero:true}}
+    }
+});
+
+// ======= POPULATION CHART =======
+new Chart(document.getElementById('chartPop'), {
+    type: 'bar',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: [{
+            label: '平均人口',
+            data: EPOCHS_ORDER.map(e=>popByEpoch[e]),
+            backgroundColor: '#6c8cff66', borderColor: '#6c8cff', borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},title:{display:true,text:'各时代平均人口'}},
+        scales:{y:{type:'logarithmic',title:{display:true,text:'人口（对数尺度）'}}}
+    }
+});
+
+// ======= STARVATION CHART =======
+new Chart(document.getElementById('chartStarv'), {
+    type: 'bar',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: [{
+            label: '平均饥荒指数',
+            data: EPOCHS_ORDER.map(e=>starvByEpoch[e]),
+            backgroundColor: EPOCHS_ORDER.map(e=>starvByEpoch[e]>10000?'#f8717188':'#fb923c88'),
+            borderColor: EPOCHS_ORDER.map(e=>starvByEpoch[e]>10000?'#f87171':'#fb923c'),
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},title:{display:true,text:'各时代平均饥荒指数（指数级增长！）'}},
+        scales:{y:{type:'logarithmic',title:{display:true,text:'饥荒指数（对数尺度）'}}}
+    }
+});
+
+// ======= ARMY CHART =======
+new Chart(document.getElementById('chartArmy'), {
+    type: 'bar',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: [
+            {label:'平均军队',data:EPOCHS_ORDER.map(e=>armyByEpoch[e]),backgroundColor:'#6c8cff66',borderColor:'#6c8cff',borderWidth:1},
+            {label:'最大军队',data:EPOCHS_ORDER.map(e=>armyMaxByEpoch[e]),backgroundColor:'#f8717144',borderColor:'#f87171',borderWidth:1}
+        ]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{boxWidth:12}},title:{display:true,text:'军队规模（注意封建时代极端值）'}},
+        scales:{y:{type:'logarithmic',title:{display:true,text:'军队数量（对数尺度）'}}}
+    }
+});
+
+// ======= STABILITY CHART =======
+new Chart(document.getElementById('chartStability'), {
+    type: 'line',
+    data: {
+        labels: EPOCH_LABELS,
+        datasets: [
+            {label:'平均稳定度',data:EPOCHS_ORDER.map(e=>stabilityByEpoch[e]),borderColor:'#4ade80',backgroundColor:'#4ade8033',fill:true,borderWidth:2,pointRadius:4,tension:0.3},
+            {label:'±1σ 上界',data:EPOCHS_ORDER.map(e=>Math.min(100,stabilityByEpoch[e]+stabilityStd[e])),borderColor:'#4ade8044',borderDash:[3,3],borderWidth:1,pointRadius:0,fill:false},
+            {label:'±1σ 下界',data:EPOCHS_ORDER.map(e=>stabilityByEpoch[e]-stabilityStd[e]),borderColor:'#4ade8044',borderDash:[3,3],borderWidth:1,pointRadius:0,fill:'-1'}
+        ]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{boxWidth:12}},title:{display:true,text:'各时代稳定度（均值 ± 标准差）'}},
+        scales:{y:{min:60,max:105,title:{display:true,text:'稳定度'}}}
+    }
+});
+
+// ======= REBELLION UPRISING CHART =======
+const rebData = [
+    {name:'农民',val:14740},{name:'伐木工',val:13214},{name:'工匠',val:12004},{name:'矿工',val:11659},
+    {name:'教士',val:9568},{name:'商人',val:8582},{name:'抄写员',val:4723},{name:'士兵',val:4581}
+];
+new Chart(document.getElementById('chartRebUprising'), {
+    type: 'bar',
+    data: {
+        labels: rebData.map(r=>r.name),
+        datasets: [{
+            label: '起义次数',
+            data: rebData.map(r=>r.val),
+            backgroundColor: rebData.map((_,i)=>i<4?'#f8717188':'#a78bfa88'),
+            borderColor: rebData.map((_,i)=>i<4?'#f87171':'#a78bfa'),
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{legend:{display:false},title:{display:true,text:'各阶层起义次数（底层显著偏高）'}},
+        scales:{x:{beginAtZero:true}}
+    }
+});
+
+// ======= REBELLION FUNNEL CHART =======
+const rebPhases = {
+    peasant:{brewing:5551,plotting:5017,uprising:14740},
+    artisan:{brewing:5632,plotting:8815,uprising:12004},
+    miner:{brewing:4247,plotting:4092,uprising:11659},
+    lumberjack:{brewing:4364,plotting:0,uprising:13214},
+    unemployed:{brewing:11372,plotting:6395,uprising:0}
+};
+new Chart(document.getElementById('chartRebFunnel'), {
+    type: 'bar',
+    data: {
+        labels: ['农民','工匠','矿工','伐木工','失业'],
+        datasets: [
+            {label:'酝酿',data:[5551,5632,4247,4364,11372],backgroundColor:'#fbbf2488',borderColor:'#fbbf24',borderWidth:1},
+            {label:'密谋',data:[5017,8815,4092,0,6395],backgroundColor:'#fb923c88',borderColor:'#fb923c',borderWidth:1},
+            {label:'起义',data:[14740,12004,11659,13214,0],backgroundColor:'#f8717188',borderColor:'#f87171',borderWidth:1}
+        ]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{boxWidth:12}},title:{display:true,text:'叛乱阶段（酝酿→密谋→起义）'}},
+        scales:{y:{beginAtZero:true}}
+    }
+});
+
+// ======= DIPLOMACY CHART =======
+const diploData = [
+    {name:'国有化外资',val:13275},{name:'stone_clan',val:8230},{name:'high_kingdom',val:7399},
+    {name:'dawn_tribe',val:6987},{name:'saffron_city',val:6509},{name:'lumiere_republic',val:6300},
+    {name:'sunset_armada',val:5925},{name:'marble_league',val:5578},{name:'silk_empire',val:4763},
+    {name:'industrial_consortium',val:4604},{name:'desert_caravan',val:4598},{name:'shogunate',val:4397},
+    {name:'steppe_horde',val:4292},{name:'british_empire',val:4248},{name:'player自身',val:4128}
+];
+new Chart(document.getElementById('chartDiplo'), {
+    type: 'bar',
+    data: {
+        labels: diploData.map(d=>d.name),
+        datasets: [{
+            label: '操作次数',
+            data: diploData.map(d=>d.val),
+            backgroundColor: diploData.map((_,i)=>i===0?'#f8717188':'#6c8cff66'),
+            borderColor: diploData.map((_,i)=>i===0?'#f87171':'#6c8cff'),
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{legend:{display:false},title:{display:true,text:'外交操作频次 Top 15（国有化外资遥遥领先）'}},
+        scales:{x:{beginAtZero:true}}
+    }
+});
+
+// ======= AI NATION CHART =======
+const aiNationData = [
+    {name:'pacific_federation',val:113989},{name:'digital_sultanate',val:113527},{name:'silicon_commons',val:110861},
+    {name:'northern_energy_union',val:105600},{name:'industrial_consortium',val:84781},
+    {name:'southern_agri_bloc',val:53376},{name:'global_agro_logistics',val:51930},
+    {name:'academy_principalities',val:51716},{name:'free_city_network',val:51711},
+    {name:'highland_mining',val:50735},{name:'artisan_luxury_cartel',val:50253},
+    {name:'equatorial_spice_union',val:48352},{name:'river_delta_metropolis',val:47937},
+    {name:'continental_rail_republic',val:47665},{name:'dawn_tribe',val:24908}
+];
+new Chart(document.getElementById('chartAINation'), {
+    type: 'bar',
+    data: {
+        labels: aiNationData.map(d=>d.name),
+        datasets: [{
+            label: '事件量(Relation)',
+            data: aiNationData.map(d=>d.val),
+            backgroundColor: '#a78bfa66', borderColor: '#a78bfa', borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{legend:{display:false},title:{display:true,text:'AI 国家事件量 Top 15（关系事件数）'}},
+        scales:{x:{beginAtZero:true}}
+    }
+});
+
+// ======= IDEOLOGY CHART =======
+const ideoData = [
+    {name:'oral_tradition',val:4189},{name:'nomadic_spirit',val:3367},{name:'ancestor_worship',val:3355},
+    {name:'polytheism',val:2359},{name:'golden_rule',val:1823},{name:'folk_tradition',val:1616},
+    {name:'legalism',val:1135},{name:'shamanism',val:1049},{name:'calligraphy',val:1043},
+    {name:'confucianism',val:992},{name:'divine_right',val:824},{name:'natural_philosophy',val:802},
+    {name:'militarism',val:739},{name:'taoism',val:630},{name:'caste_system',val:623},
+    {name:'tributary_system',val:612},{name:'monotheism',val:589},{name:'buddhism',val:505},
+    {name:'invisible_hand',val:429},{name:'humanism',val:384}
+];
+new Chart(document.getElementById('chartIdeology'), {
+    type: 'bar',
+    data: {
+        labels: ideoData.map(d=>d.name),
+        datasets: [{
+            label: '选择次数',
+            data: ideoData.map(d=>d.val),
+            backgroundColor: ideoData.map((_,i) => {
+                const t = i/20;
+                return `rgba(${107+Math.round(t*140)},${140-Math.round(t*50)},${255-Math.round(t*100)},0.6)`;
+            }),
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{legend:{display:false},title:{display:true,text:'意识形态选择 Top 20（EmergenceSelect）'}},
+        scales:{x:{beginAtZero:true}}
+    }
+});
+
+// ======= EPOCH FUNNEL =======
+(function(){
+    const container = document.getElementById('funnelContainer');
+    const maxVal = Math.max(...Object.values(epochEvents));
+    const funnelColors = ['#6c8cff','#818cf8','#a78bfa','#c084fc','#e879f9','#f472b6','#fb923c','#fbbf24','#4ade80'];
+    EPOCHS_ORDER.forEach((e,i) => {
+        const val = epochEvents[e];
+        const pct = (val/maxVal*100).toFixed(1);
+        const prev = i>0 ? epochEvents[EPOCHS_ORDER[i-1]] : null;
+        const drop = prev ? ((val-prev)/prev*100).toFixed(1) : null;
+        const isDanger = drop && parseFloat(drop) < -50;
+        const div = document.createElement('div');
+        div.className = 'funnel-bar';
+        div.innerHTML = `
+            <div class="fb-label">${EPOCH_LABELS[i]}</div>
+            <div class="fb-track"><div class="fb-fill" style="width:${pct}%;background:${funnelColors[i]}">${(val/1e6).toFixed(2)}M</div></div>
+            <div class="fb-pct" style="color:${isDanger?'var(--red)':drop&&parseFloat(drop)<-25?'var(--orange)':'var(--text-dim)'}">${drop!==null?(drop>0?'+':'')+drop+'%':'—'}</div>
+        `;
+        container.appendChild(div);
+    });
+})();
+
+// ======= UI TAB CHART =======
+const uiTabData = [{name:'建设 (Build)',val:23111},{name:'科技 (Tech)',val:10514},{name:'政治 (Politics)',val:8873},{name:'军事 (Military)',val:6612},{name:'外交 (Diplo)',val:5478}];
+new Chart(document.getElementById('chartUITab'), {
+    type: 'doughnut',
+    data: {
+        labels: uiTabData.map(d=>d.name),
+        datasets: [{
+            data: uiTabData.map(d=>d.val),
+            backgroundColor: ['#6c8cff','#a78bfa','#4ade80','#f87171','#fbbf24'],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'right',labels:{boxWidth:12,padding:12}},title:{display:true,text:'Tab 使用频次分布'}}
+    }
+});
+
+// ======= BUILDING CHART =======
+const bldData = [
+    {name:'hut',val:406498},{name:'farm',val:207131},{name:'lumber_camp',val:111365},{name:'house',val:108602},
+    {name:'loom_house',val:104370},{name:'granary',val:103731},{name:'quarry',val:83968},{name:'sawmill',val:71018},
+    {name:'brickworks',val:70683},{name:'manor_house',val:62131},{name:'trading_post',val:53596},{name:'townhouse',val:51044},
+    {name:'copper_mine',val:49908},{name:'library',val:49867},{name:'stone_tool_ws',val:48349},{name:'dye_works',val:43595},
+    {name:'mine',val:35326},{name:'culinary_kitchen',val:35153},{name:'large_estate',val:33297},{name:'bronze_foundry',val:33216}
+];
+new Chart(document.getElementById('chartBuilding'), {
+    type: 'bar',
+    data: {
+        labels: bldData.map(d=>d.name),
+        datasets: [{
+            label: '购买次数',
+            data: bldData.map(d=>d.val),
+            backgroundColor: bldData.map((_,i) => `rgba(108,140,255,${0.3+0.7*(1-i/20)})`),
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{legend:{display:false},title:{display:true,text:'建筑购买 Top 20（Hut 遥遥领先）'}},
+        scales:{x:{beginAtZero:true}}
+    }
+});
+
+// ======= UPGRADE CHART =======
+const upgData = [
+    {name:'farm',val:19041},{name:'lumber_camp',val:18104},{name:'loom_house',val:16325},{name:'brickworks',val:15945},
+    {name:'sawmill',val:15601},{name:'quarry',val:13186},{name:'copper_mine',val:9687},{name:'culinary_kitchen',val:8940},
+    {name:'dockyard',val:8089},{name:'iron_tool_ws',val:7670},{name:'mine',val:6699},{name:'stone_tool_ws',val:6081},
+    {name:'dye_works',val:5931},{name:'furniture_ws',val:5645},{name:'bronze_foundry',val:5631}
+];
+new Chart(document.getElementById('chartUpgrade'), {
+    type: 'bar',
+    data: {
+        labels: upgData.map(d=>d.name),
+        datasets: [{
+            label: '升级次数',
+            data: upgData.map(d=>d.val),
+            backgroundColor: '#22d3ee66', borderColor: '#22d3ee', borderWidth: 1
+        }]
+    },
+    options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{legend:{display:false},title:{display:true,text:'建筑升级 Top 15'}},
+        scales:{x:{beginAtZero:true}}
+    }
+});
+
+// ======= STICKY NAV HIGHLIGHT =======
+(function(){
+    const sections = document.querySelectorAll('section[id]');
+    const links = document.querySelectorAll('nav.toc a');
+    window.addEventListener('scroll', () => {
+        let cur = '';
+        sections.forEach(s => { if(window.scrollY >= s.offsetTop - 120) cur = s.id; });
+        links.forEach(l => { l.classList.toggle('active', l.getAttribute('href') === '#'+cur); });
+    });
+})();
+</script>
+
+</body>
+</html>

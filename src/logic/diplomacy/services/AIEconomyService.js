@@ -96,6 +96,12 @@ export class AIEconomyService {
         // Convert to new data model
         const state = AIEconomyState.fromLegacyFormat(nation);
         
+        // [DEBUG] Log every tick for specific nation to track population changes
+        const _debugName = nation.name;
+        const _debugPop = state.population;
+        const _debugBasePop = state.basePopulation;
+        const _debugOwnBasePop = nation.economyTraits?.ownBasePopulation;
+        
         // Validate data
         const validation = state.validate();
         if (!validation.isValid) {
@@ -108,6 +114,11 @@ export class AIEconomyService {
             difficulty,
             playerPopulation,
         });
+        
+        // [DEBUG] Log if population changed after normalization
+        if (state.population !== _debugPop) {
+            console.warn(`[NORM POP CHANGE] ${_debugName}: ${_debugPop} -> ${state.population} (ownBasePop=${_debugOwnBasePop}, basePop=${_debugBasePop}, cap=${capacityInfo.carryingCapacity}, hardCap=${Math.round(capacityInfo.carryingCapacity * 1.15)})`);
+        }
         
         // [FIX] lastGrowthTick = -1 是哨兵值，表示该国家从未做过增长更新（新国家/旧存档）。
         // 将其修正为 tick - updateInterval，使本次 ticksSinceLastUpdate = updateInterval（正常一个周期），
@@ -135,10 +146,17 @@ export class AIEconomyService {
                 allowHeavyUpdate,
                 cachedVirtualLabor: virtualState.virtualLabor,
                 cachedVirtualEconomy: virtualState.virtualEconomy,
+                hardCapacityLimit: capacityInfo.carryingCapacity,
             })
             : null;
 
         if (developmentResult) {
+            // [DEBUG] Track large population jumps
+            const popDelta = developmentResult.population - beforePop;
+            const popRatio = beforePop > 0 ? developmentResult.population / beforePop : 999;
+            if (Math.abs(popDelta) > Math.max(50, beforePop * 0.1)) {
+                console.warn(`[POP JUMP] ${nation.name}: ${beforePop} -> ${developmentResult.population} (delta=${popDelta}, ratio=${popRatio.toFixed(2)}x, ticksSince=${ticksSinceLastUpdate}, shouldGrow=${shouldGrow}, basePop=${state.basePopulation}, ownBasePop=${nation.economyTraits?.ownBasePopulation}, cap=${capacityInfo.carryingCapacity}, remainders=${JSON.stringify(state.growthRemainders)})`);
+            }
             state.population = developmentResult.population;
             state.wealth = developmentResult.wealth;
             state.basePopulation = Math.max(20, Math.round(state.basePopulation * 0.965 + developmentResult.population * 0.035));
@@ -353,8 +371,9 @@ export class AIEconomyService {
             state.population * 50,
             playerPopulation * 5
         );
+        const epochBasePopDefault = [20, 40, 80, 160, 300, 500, 800][Math.min(epoch, 6)] || 20;
         const sanitizedBasePopulation = Math.min(
-            Math.max(20, state.basePopulation || state.population),
+            Math.max(20, state.basePopulation || epochBasePopDefault),
             sanityBasePopCap
         );
 
@@ -378,11 +397,13 @@ export class AIEconomyService {
 
         const hardPopulationCap = Math.max(60, Math.round(capacityInfo.carryingCapacity * 1.15));
         if (state.population > hardPopulationCap) {
+            // [DEBUG] Track population cap enforcement
+            console.warn(`[POP CAP] ${nation.name}: capping pop ${state.population} -> ${hardPopulationCap} (carryingCap=${capacityInfo.carryingCapacity}, basePop=${sanitizedBasePopulation}, epoch=${epoch})`);
             state.population = hardPopulationCap;
         }
 
         state.basePopulation = Math.min(
-            Math.max(20, state.basePopulation || state.population),
+            Math.max(20, state.basePopulation || epochBasePopDefault),
             Math.max(state.population, hardPopulationCap)
         );
 

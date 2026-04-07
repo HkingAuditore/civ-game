@@ -106,6 +106,7 @@ export class AIDevelopmentService {
         allowHeavyUpdate = true,
         cachedVirtualLabor = null,
         cachedVirtualEconomy = null,
+        hardCapacityLimit = 0,
     }) {
         const difficultyMultiplier = getAIDevelopmentMultiplier(difficulty);
         const hasCachedEconomy = Boolean(nation.aiDevelopment && cachedVirtualLabor && cachedVirtualEconomy);
@@ -126,6 +127,7 @@ export class AIDevelopmentService {
             capacityState,
             playerPopulation,
             difficultyMultiplier,
+            hardCapacityLimit,
         });
 
         const currentPopulation = Math.max(1, Math.round(safeNumber(state.population ?? nation.population, 1)));
