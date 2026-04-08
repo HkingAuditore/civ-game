@@ -2903,44 +2903,6 @@ export const useGameState = () => {
             });
         }
 
-        const finalVisibleNations = normalizedLoadedNations.filter((nation) => (
-            nation
-            && nation.id !== 'player'
-            && nation.isRebelNation !== true
-            && nation.isAnnexed !== true
-            && (nation.appearEpoch ?? 0) <= currentEpoch
-            && (nation.expireEpoch == null || currentEpoch <= nation.expireEpoch)
-            && (nation.vassalOf === 'player' || nation.discovered === true)
-            && nation.visible !== false
-        ));
-        console.warn('[Load Debug] nation roster summary', {
-            epoch: currentEpoch,
-            rawNationCount: Array.isArray(data.nations) ? data.nations.length : null,
-            rebuilt: recoveredNationRoster.rebuilt,
-            severeRosterLoss: recoveredNationRoster.severeRosterLoss,
-            recoveredNationCount: recoveredNationRoster.nations.length,
-            appearedNationCount: appearedNations.length,
-            visibleNationCount: finalVisibleNations.length,
-            referencedAppearedNationCount,
-            visibleReferencedNationCount,
-            poisonedDiscoveryState,
-            referencedNationIds: Array.from(referencedNationIds),
-            visibleNationIds: finalVisibleNations.slice(0, 20).map((nation) => nation.id),
-            hiddenSamples: normalizedLoadedNations
-                .filter((nation) => nation && nation.id !== 'player')
-                .slice(0, 20)
-                .map((nation) => ({
-                    id: nation.id,
-                    discovered: nation.discovered,
-                    appearEpoch: nation.appearEpoch,
-                    expireEpoch: nation.expireEpoch,
-                    isAnnexed: nation.isAnnexed,
-                    visible: nation.visible,
-                    vassalOf: nation.vassalOf,
-                    recovered: nation._recoveredFromTemplate === true,
-                })),
-        });
-
         setNations(normalizedLoadedNations);
         setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0, data.officialPropertyPolicy));
         setOfficialsSimCursor(data.officialsSimCursor ?? 0);
