@@ -101,6 +101,28 @@ const DiplomacyTabComponent = ({
         [nations, epoch]
     );
 
+    useEffect(() => {
+        if (!Array.isArray(nations) || nations.length === 0) return;
+        console.warn('[Diplomacy Debug] visibility snapshot', {
+            epoch,
+            totalNationCount: nations.length,
+            visibleNationCount: visibleNations.length,
+            visibleNationIds: visibleNations.map((nation) => nation.id),
+            hiddenSamples: nations
+                .filter((nation) => !isNationVisible(nation, epoch))
+                .slice(0, 20)
+                .map((nation) => ({
+                    id: nation.id,
+                    discovered: nation.discovered,
+                    appearEpoch: nation.appearEpoch,
+                    expireEpoch: nation.expireEpoch,
+                    isAnnexed: nation.isAnnexed,
+                    visible: nation.visible,
+                    vassalOf: nation.vassalOf,
+                })),
+        });
+    }, [epoch, nations, visibleNations]);
+
     const checkNationSelection = () => {
         // Only reset if the currently selected nation is no longer visible (e.g. destroyed)
         if (selectedNationId && !visibleNations.some((n) => n.id === selectedNationId)) {

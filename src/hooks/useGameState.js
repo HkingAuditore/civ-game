@@ -24,6 +24,7 @@ const SAVE_SLOT_COUNT = 10; // 手动存档槽位数量
 const SAVE_SLOT_PREFIX = 'civ_game_save_slot_';
 const AUTOSAVE_KEY = 'civ_game_autosave_v1';
 const SAVE_FORMAT_VERSION = 1;
+const DISCOVERY_SAVE_VERSION = 1;
 const SAVE_FILE_EXTENSION = 'cgsave';
 const SAVE_OBFUSCATION_KEY = 'civ_game_simple_mask_v1';
 // Lower soft limit to prefer IndexedDB earlier (localStorage quota issues)
@@ -435,6 +436,81 @@ const INITIAL_RESOURCES = {
     culture: 300
 };
 
+const COUNTRY_IDS = COUNTRIES.map((country) => country.id);
+const COUNTRY_ID_SET = new Set(COUNTRY_IDS);
+const COUNTRY_TEMPLATE_MAP = new Map(COUNTRIES.map((country) => [country.id, country]));
+const LEGACY_NATION_ID_ALIASES = {
+    highland_mining: 'highland_mining_consortium',
+    academy_principality: 'academy_principalities',
+    mountain_clan: 'mountain_clans',
+};
+
+const normalizeNationId = (nationId) => {
+    if (nationId === null || nationId === undefined) {
+        return nationId;
+    }
+
+    if (nationId === 0 || nationId === '0' || nationId === 'player') {
+        return 'player';
+    }
+
+    const rawId = String(nationId);
+    if (COUNTRY_ID_SET.has(rawId)) {
+        return rawId;
+    }
+
+    const aliasedId = LEGACY_NATION_ID_ALIASES[rawId];
+    if (aliasedId && COUNTRY_ID_SET.has(aliasedId)) {
+        return aliasedId;
+    }
+
+    const prefixMatches = COUNTRY_IDS.filter((countryId) => countryId.startsWith(rawId));
+    if (prefixMatches.length === 1) {
+        return prefixMatches[0];
+    }
+
+    return rawId;
+};
+
+const mergeCountryTemplate = (nation) => {
+    if (!nation || nation.id === 'player' || nation.isRebelNation) {
+        return nation;
+    }
+
+    const normalizedNationId = normalizeNationId(nation.id);
+    const template = COUNTRY_TEMPLATE_MAP.get(normalizedNationId);
+    if (!template) {
+        return {
+            ...nation,
+            id: normalizedNationId,
+        };
+    }
+
+    return {
+        ...template,
+        ...nation,
+        id: normalizedNationId,
+        appearEpoch: template.appearEpoch ?? nation.appearEpoch ?? 0,
+        expireEpoch: template.expireEpoch ?? nation.expireEpoch ?? null,
+        relation: Number.isFinite(nation.relation) ? nation.relation : 50,
+        culturalTraits: {
+            ...(template.culturalTraits || {}),
+            ...(nation.culturalTraits || {}),
+        },
+        economyTraits: {
+            ...(template.economyTraits || {}),
+            ...(nation.economyTraits || {}),
+            resourceBias: {
+                ...(template.economyTraits?.resourceBias || {}),
+                ...(nation.economyTraits?.resourceBias || {}),
+            },
+        },
+        specialAbilities: Array.isArray(nation.specialAbilities)
+            ? nation.specialAbilities
+            : (Array.isArray(template.specialAbilities) ? template.specialAbilities : []),
+    };
+};
+
 const buildInitialWealth = () => {
     const wealth = {};
     Object.keys(STRATA).forEach(key => {
@@ -660,6 +736,387 @@ const migrateForeignInvestments = (investments) => {
 
     return [...Array.from(merged.values()), ...nonOperating];
 };
+
+const normalizeNationKeyedRecord = (record, valueMapper = (value) => value) => {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) {
+        return record;
+    }
+
+    const normalized = {};
+    Object.entries(record).forEach(([nationId, value]) => {
+        normalized[normalizeNationId(nationId)] = valueMapper(value);
+    });
+    return normalized;
+};
+
+const normalizeNationObject = (nation) => {
+    if (!nation || typeof nation !== 'object') {
+        return nation;
+    }
+
+    return {
+        ...nation,
+        id: normalizeNationId(nation.id),
+        warTarget: normalizeNationId(nation.warTarget),
+        vassalOf: normalizeNationId(nation.vassalOf),
+        overlordId: normalizeNationId(nation.overlordId),
+        foreignRelations: normalizeNationKeyedRecord(nation.foreignRelations),
+        foreignWars: normalizeNationKeyedRecord(nation.foreignWars, (war) => {
+            if (!war || typeof war !== 'object') {
+                return war;
+            }
+
+            return {
+                ...war,
+                attackerId: normalizeNationId(war.attackerId),
+                defenderId: normalizeNationId(war.defenderId),
+                targetNationId: normalizeNationId(war.targetNationId),
+            };
+        }),
+    };
+};
+
+const normalizeOrganizationState = (diplomacyOrganizations) => {
+    if (!diplomacyOrganizations || typeof diplomacyOrganizations !== 'object') {
+        return diplomacyOrganizations;
+    }
+
+    return {
+        ...diplomacyOrganizations,
+        organizations: Array.isArray(diplomacyOrganizations.organizations)
+            ? diplomacyOrganizations.organizations.map((org) => {
+                if (!org || typeof org !== 'object') {
+                    return org;
+                }
+
+                return {
+                    ...org,
+                    founderId: normalizeNationId(org.founderId),
+                    leaderId: normalizeNationId(org.leaderId),
+                    members: Array.isArray(org.members) ? org.members.map((memberId) => normalizeNationId(memberId)) : org.members,
+                };
+            })
+            : [],
+    };
+};
+
+const normalizeInvestmentRecord = (investment) => {
+    if (!investment || typeof investment !== 'object') {
+        return investment;
+    }
+
+    return {
+        ...investment,
+        targetNationId: normalizeNationId(investment.targetNationId),
+        ownerNationId: normalizeNationId(investment.ownerNationId),
+    };
+};
+
+const normalizeFrontRecord = (front) => {
+    if (!front || typeof front !== 'object') {
+        return front;
+    }
+
+    const attackerId = normalizeNationId(front.attackerId);
+    const defenderId = normalizeNationId(front.defenderId);
+
+    return {
+        ...front,
+        attackerId,
+        defenderId,
+        warId: typeof front.warId === 'string' && front.warId.includes('_vs_')
+            ? `${attackerId}_vs_${defenderId}`
+            : front.warId,
+        resourceNodes: Array.isArray(front.resourceNodes)
+            ? front.resourceNodes.map((node) => (
+                node && typeof node === 'object'
+                    ? {
+                        ...node,
+                        owner: normalizeNationId(node.owner),
+                    }
+                    : node
+            ))
+            : front.resourceNodes,
+        infrastructure: Array.isArray(front.infrastructure)
+            ? front.infrastructure.map((item) => (
+                item && typeof item === 'object'
+                    ? {
+                        ...item,
+                        owner: normalizeNationId(item.owner),
+                    }
+                    : item
+            ))
+            : front.infrastructure,
+        destroyedBuildings: normalizeNationKeyedRecord(front.destroyedBuildings),
+    };
+};
+
+const normalizeBattleRecord = (battle) => {
+    if (!battle || typeof battle !== 'object') {
+        return battle;
+    }
+
+    return {
+        ...battle,
+        attackerId: normalizeNationId(battle.attackerId),
+        defenderId: normalizeNationId(battle.defenderId),
+        attackerNationId: normalizeNationId(battle.attackerNationId),
+        defenderNationId: normalizeNationId(battle.defenderNationId),
+        winnerId: normalizeNationId(battle.winnerId),
+        loserId: normalizeNationId(battle.loserId),
+    };
+};
+
+const normalizeTradeRecord = (trade) => {
+    if (!trade || typeof trade !== 'object') {
+        return trade;
+    }
+
+    return {
+        ...trade,
+        partnerId: normalizeNationId(trade.partnerId),
+        nationId: normalizeNationId(trade.nationId),
+        targetNationId: normalizeNationId(trade.targetNationId),
+        ownerNationId: normalizeNationId(trade.ownerNationId),
+    };
+};
+
+const normalizeVassalDiplomacyEntry = (entry) => {
+    if (!entry || typeof entry !== 'object') {
+        return entry;
+    }
+
+    return {
+        ...entry,
+        nationId: normalizeNationId(entry.nationId),
+        vassalId: normalizeNationId(entry.vassalId),
+        overlordId: normalizeNationId(entry.overlordId),
+        targetId: normalizeNationId(entry.targetId),
+        targetNationId: normalizeNationId(entry.targetNationId),
+    };
+};
+
+const normalizeLoadedSaveData = (rawData) => {
+    if (!rawData || typeof rawData !== 'object') {
+        return rawData;
+    }
+
+    const merchantState = rawData.merchantState && typeof rawData.merchantState === 'object'
+        ? {
+            ...rawData.merchantState,
+            merchantAssignments: normalizeNationKeyedRecord(rawData.merchantState.merchantAssignments),
+            assignments: normalizeNationKeyedRecord(rawData.merchantState.assignments),
+            pendingTrades: Array.isArray(rawData.merchantState.pendingTrades)
+                ? rawData.merchantState.pendingTrades.map(normalizeTradeRecord)
+                : rawData.merchantState.pendingTrades,
+        }
+        : rawData.merchantState;
+
+    const market = rawData.market && typeof rawData.market === 'object'
+        ? {
+            ...rawData.market,
+            activeTrades: Array.isArray(rawData.market.activeTrades) ? rawData.market.activeTrades.map(normalizeTradeRecord) : rawData.market.activeTrades,
+            tradeHistory: Array.isArray(rawData.market.tradeHistory) ? rawData.market.tradeHistory.map(normalizeTradeRecord) : rawData.market.tradeHistory,
+            completedTrades: Array.isArray(rawData.market.completedTrades) ? rawData.market.completedTrades.map(normalizeTradeRecord) : rawData.market.completedTrades,
+        }
+        : rawData.market;
+
+    return {
+        ...rawData,
+        selectedTarget: normalizeNationId(rawData.selectedTarget),
+        nations: Array.isArray(rawData.nations) ? rawData.nations.map(normalizeNationObject) : rawData.nations,
+        diplomacyOrganizations: normalizeOrganizationState(rawData.diplomacyOrganizations),
+        overseasInvestments: Array.isArray(rawData.overseasInvestments) ? rawData.overseasInvestments.map(normalizeInvestmentRecord) : rawData.overseasInvestments,
+        foreignInvestments: Array.isArray(rawData.foreignInvestments) ? rawData.foreignInvestments.map(normalizeInvestmentRecord) : rawData.foreignInvestments,
+        activeFronts: Array.isArray(rawData.activeFronts) ? rawData.activeFronts.map(normalizeFrontRecord) : rawData.activeFronts,
+        activeBattles: Array.isArray(rawData.activeBattles) ? rawData.activeBattles.map(normalizeBattleRecord) : rawData.activeBattles,
+        militaryCorps: Array.isArray(rawData.militaryCorps)
+            ? rawData.militaryCorps.map((corps) => (
+                corps && typeof corps === 'object'
+                    ? {
+                        ...corps,
+                        nationId: normalizeNationId(corps.nationId),
+                    }
+                    : corps
+            ))
+            : rawData.militaryCorps,
+        generals: Array.isArray(rawData.generals)
+            ? rawData.generals.map((general) => (
+                general && typeof general === 'object'
+                    ? {
+                        ...general,
+                        nationId: normalizeNationId(general.nationId),
+                    }
+                    : general
+            ))
+            : rawData.generals,
+        merchantState,
+        market,
+        vassalDiplomacyQueue: Array.isArray(rawData.vassalDiplomacyQueue) ? rawData.vassalDiplomacyQueue.map(normalizeVassalDiplomacyEntry) : rawData.vassalDiplomacyQueue,
+        vassalDiplomacyHistory: Array.isArray(rawData.vassalDiplomacyHistory) ? rawData.vassalDiplomacyHistory.map(normalizeVassalDiplomacyEntry) : rawData.vassalDiplomacyHistory,
+    };
+};
+
+const collectReferencedNationIds = (data) => {
+    const referencedNationIds = new Set();
+    const addNationId = (nationId) => {
+        const normalizedNationId = normalizeNationId(nationId);
+        if (COUNTRY_ID_SET.has(normalizedNationId)) {
+            referencedNationIds.add(normalizedNationId);
+        }
+    };
+
+    addNationId(data.selectedTarget);
+
+    const organizations = data.diplomacyOrganizations?.organizations || [];
+    organizations.forEach((org) => {
+        addNationId(org?.founderId);
+        addNationId(org?.leaderId);
+        if (Array.isArray(org?.members)) {
+            org.members.forEach(addNationId);
+        }
+    });
+
+    (data.overseasInvestments || []).forEach((investment) => {
+        addNationId(investment?.targetNationId);
+        addNationId(investment?.ownerNationId);
+    });
+
+    (data.foreignInvestments || []).forEach((investment) => {
+        addNationId(investment?.targetNationId);
+        addNationId(investment?.ownerNationId);
+    });
+
+    (data.activeFronts || []).forEach((front) => {
+        addNationId(front?.attackerId);
+        addNationId(front?.defenderId);
+    });
+
+    (data.activeBattles || []).forEach((battle) => {
+        addNationId(battle?.attackerId);
+        addNationId(battle?.defenderId);
+        addNationId(battle?.winnerId);
+        addNationId(battle?.loserId);
+    });
+
+    (data.militaryCorps || []).forEach((corps) => addNationId(corps?.nationId));
+    (data.generals || []).forEach((general) => addNationId(general?.nationId));
+
+    Object.keys(data.merchantState?.merchantAssignments || {}).forEach(addNationId);
+    (data.merchantState?.pendingTrades || []).forEach((trade) => {
+        addNationId(trade?.partnerId);
+        addNationId(trade?.nationId);
+        addNationId(trade?.targetNationId);
+        addNationId(trade?.ownerNationId);
+    });
+
+    ['activeTrades', 'tradeHistory', 'completedTrades'].forEach((key) => {
+        (data.market?.[key] || []).forEach((trade) => {
+            addNationId(trade?.partnerId);
+            addNationId(trade?.nationId);
+            addNationId(trade?.targetNationId);
+            addNationId(trade?.ownerNationId);
+        });
+    });
+
+    (data.vassalDiplomacyQueue || []).forEach((entry) => {
+        addNationId(entry?.nationId);
+        addNationId(entry?.vassalId);
+        addNationId(entry?.overlordId);
+        addNationId(entry?.targetId);
+        addNationId(entry?.targetNationId);
+    });
+
+    (data.vassalDiplomacyHistory || []).forEach((entry) => {
+        addNationId(entry?.nationId);
+        addNationId(entry?.vassalId);
+        addNationId(entry?.overlordId);
+        addNationId(entry?.targetId);
+        addNationId(entry?.targetNationId);
+    });
+
+    return referencedNationIds;
+};
+
+const rebuildLoadedNationRoster = ({
+    rawNations,
+    referencedNationIds,
+    playerState,
+}) => {
+    const loadedNationList = Array.isArray(rawNations)
+        ? rawNations
+            .filter((nation) => nation && typeof nation === 'object')
+            .map(normalizeNationObject)
+            .filter((nation) => nation?.id && nation.id !== 'player')
+        : [];
+
+    const loadedNationMap = new Map();
+    loadedNationList.forEach((nation) => {
+        if (!loadedNationMap.has(nation.id)) {
+            loadedNationMap.set(nation.id, nation);
+        }
+    });
+
+    const validLoadedNationIds = new Set(
+        Array.from(loadedNationMap.keys()).filter((nationId) => COUNTRY_ID_SET.has(nationId))
+    );
+    const missingReferencedNationIds = Array.from(referencedNationIds)
+        .filter((nationId) => !validLoadedNationIds.has(nationId));
+    const currentEpoch = playerState?.epoch ?? 0;
+    const severeRosterLoss = (
+        !Array.isArray(rawNations)
+        || validLoadedNationIds.size <= 1
+    );
+    const shouldRebuildRoster = (
+        !Array.isArray(rawNations)
+        || validLoadedNationIds.size === 0
+        || missingReferencedNationIds.length > 0
+    );
+
+    if (!shouldRebuildRoster) {
+        return {
+            nations: loadedNationList,
+            missingReferencedNationIds,
+            rebuilt: false,
+            severeRosterLoss,
+        };
+    }
+
+    const bootstrapNations = buildInitialNations(playerState).map((nation) => {
+        const loadedNation = loadedNationMap.get(nation.id);
+        const appearEpoch = nation.appearEpoch ?? 0;
+        const isExpired = nation.expireEpoch != null && currentEpoch > nation.expireEpoch;
+        const fallbackDiscovered = severeRosterLoss
+            ? (!isExpired && appearEpoch <= currentEpoch)
+            : referencedNationIds.has(nation.id);
+        if (loadedNation) {
+            if (!severeRosterLoss) {
+                return loadedNation;
+            }
+
+            return {
+                ...loadedNation,
+                discovered: fallbackDiscovered,
+                _recoveredFromTemplate: true,
+            };
+        }
+
+        return {
+            ...nation,
+            discovered: fallbackDiscovered,
+            _recoveredFromTemplate: true,
+        };
+    });
+
+    const extraLoadedNations = loadedNationList.filter((nation) => !COUNTRY_ID_SET.has(nation.id));
+
+        return {
+            nations: [...bootstrapNations, ...extraLoadedNations],
+            missingReferencedNationIds,
+            rebuilt: true,
+            severeRosterLoss,
+        };
+    };
 
 const trimMarketSnapshot = (market, limit) => {
     if (!market || typeof market !== 'object') {
@@ -1992,6 +2449,7 @@ export const useGameState = () => {
                 ideologyMilestones,
                 pendingIdeologyEmergence,
                 ideologyEmergenceRarityBonus,
+                discoveryVersion: DISCOVERY_SAVE_VERSION,
                 // AI balance version marker - increment to trigger re-migration of old saves
                 // v1: initial migration for too-strong/too-weak AI
                 // v2: fix missing economyTraits fields that prevent AI development
@@ -1999,7 +2457,8 @@ export const useGameState = () => {
                 // v4: fix infinite growth bug (populationBasedMinimum loop)
                 // v5: economy migration + display split
                 // v6: battle/front/corps load reconciliation
-                aiBalanceVersion: 6,
+                // v7: hydrate trimmed legacy nation saves from COUNTRIES templates
+                aiBalanceVersion: 7,
             },
             nextLastAuto,
         };
@@ -2009,6 +2468,7 @@ export const useGameState = () => {
         if (!data || typeof data !== 'object') {
             throw new Error('存档数据无效');
         }
+        data = normalizeLoadedSaveData(data);
         setResources(data.resources || INITIAL_RESOURCES, { reason: 'load_game', audit: false });
 
         // [FIX] 存档人口同步修复：防止population和popStructure不一致导致的恶性扣减循�?
@@ -2087,14 +2547,38 @@ export const useGameState = () => {
 
         // [FIX] Legacy save migration: Fix AI nations with broken population/wealth from old versions
         // Only apply to saves WITHOUT aiBalanceVersion marker (old saves before this fix)
-        const loadedNations = (data.nations || buildInitialNations()).map((nation) => {
+        const nationBootstrapState = {
+            population: loadedPopulation,
+            classWealth: data.classWealth,
+            resources: data.resources,
+            epoch: data.epoch ?? 0,
+        };
+        const referencedNationIds = collectReferencedNationIds(data);
+        const recoveredNationRoster = rebuildLoadedNationRoster({
+            rawNations: data.nations,
+            referencedNationIds,
+            playerState: nationBootstrapState,
+        });
+        if (recoveredNationRoster.rebuilt) {
+            console.warn(
+                `[Save Migration] Rebuilt nation roster from templates. ` +
+                `loaded=${Array.isArray(data.nations) ? data.nations.length : 0}, ` +
+                `missingReferenced=${recoveredNationRoster.missingReferencedNationIds.join(', ') || 'none'}`
+            );
+        }
+        const loadedNations = recoveredNationRoster.nations.map((nation) => {
             if (!nation || nation.id === 'player') return nation;
-            return ensureAIMilitaryState(migrateNationEconomy(nation), data.epoch ?? 0);
+            const mergedNation = mergeCountryTemplate(nation);
+            return ensureAIMilitaryState(migrateNationEconomy(mergedNation), data.epoch ?? 0);
         });
         const playerPop = loadedPopulation; // Use player population loaded above
         const playerWealth = (data.resources?.silver) || 1000;
         const currentEpoch = data.epoch ?? 0;
         const loadedTick = data.daysElapsed || 0;
+        const saveDiscoveryVersion = Number.isFinite(data.discoveryVersion)
+            ? data.discoveryVersion
+            : Number(data.discoveryVersion) || 0;
+        const needsDiscoveryMigration = saveDiscoveryVersion < DISCOVERY_SAVE_VERSION;
         
         let migratedNations = loadedNations;
         // [FIX v2] Check if save version is outdated (missing OR less than current version)
@@ -2311,33 +2795,153 @@ export const useGameState = () => {
             return next;
         });
 
-        setNations(migratedNations.map(n => {
-            const normalizedNation = n.id === 'player' ? n : migrateNationEconomy(n);
+        let normalizedLoadedNations = migratedNations.map(n => {
+            const mergedNation = n.id === 'player' ? n : mergeCountryTemplate(n);
+            const normalizedNation = mergedNation.id === 'player'
+                ? mergedNation
+                : migrateNationEconomy(mergedNation);
             // 旧存档兼容：迁移 discovered 字段
             const currentEpoch = data.epoch ?? 0;
-            const hasDiscoveredField = Object.prototype.hasOwnProperty.call(n, 'discovered');
+            const hasDiscoveredField = Object.prototype.hasOwnProperty.call(mergedNation, 'discovered');
+            const isLegacyTrimmedNation = (
+                saveAIVersion < 7
+                && mergedNation.id !== 'player'
+                && !Object.prototype.hasOwnProperty.call(n, 'relation')
+                && !Object.prototype.hasOwnProperty.call(n, 'appearEpoch')
+                && !Object.prototype.hasOwnProperty.call(n, 'expireEpoch')
+            );
+            const isRecoveredNation = mergedNation._recoveredFromTemplate === true;
             let discovered;
-            if (hasDiscoveredField) {
-                discovered = n.discovered;
+            if (isRecoveredNation) {
+                discovered = mergedNation.discovered === true;
+            } else if (needsDiscoveryMigration) {
+                const appearEpoch = mergedNation.appearEpoch ?? 0;
+                const isExpired = mergedNation.expireEpoch != null && currentEpoch > mergedNation.expireEpoch;
+                discovered = !isExpired && appearEpoch <= currentEpoch;
+            } else if (hasDiscoveredField) {
+                if (mergedNation.discovered === false && isLegacyTrimmedNation) {
+                    discovered = (mergedNation.appearEpoch ?? 0) <= currentEpoch;
+                } else {
+                    discovered = mergedNation.discovered;
+                }
             } else {
-                // 旧存档：已有 relation 值或 appearEpoch <= currentEpoch 的国家视为已发现
-                const appearEpoch = n.appearEpoch ?? 0;
-                discovered = (appearEpoch <= currentEpoch) && (n.relation !== undefined && n.relation !== null);
+                // 旧精简存档可能缺 relation/appearEpoch 等字段，这里用模板补全后的数据兜底。
+                const appearEpoch = mergedNation.appearEpoch ?? 0;
+                const hasLegacyDiplomacyState = (
+                    mergedNation.relation !== undefined
+                    || Array.isArray(mergedNation.treaties)
+                    || mergedNation.isAtWar === true
+                    || mergedNation.vassalOf === 'player'
+                    || Number.isFinite(mergedNation.lastGiftToPlayerDay)
+                );
+                discovered = appearEpoch <= currentEpoch && hasLegacyDiplomacyState;
             }
             return {
-            ...normalizedNation,
-            discovered,
-            treaties: Array.isArray(n.treaties) ? n.treaties : [],
-            openMarketUntil: Object.prototype.hasOwnProperty.call(n, 'openMarketUntil') ? n.openMarketUntil : null,
-            peaceTreatyUntil: Object.prototype.hasOwnProperty.call(n, 'peaceTreatyUntil') ? n.peaceTreatyUntil : null,
-            vassalOf: Object.prototype.hasOwnProperty.call(n, 'vassalOf') ? n.vassalOf : DEFAULT_VASSAL_STATUS.vassalOf,
-            vassalType: Object.prototype.hasOwnProperty.call(n, 'vassalType') ? n.vassalType : DEFAULT_VASSAL_STATUS.vassalType,
-            tributeRate: Number.isFinite(n.tributeRate) ? n.tributeRate : DEFAULT_VASSAL_STATUS.tributeRate,
-            independencePressure: Number.isFinite(n.independencePressure) ? n.independencePressure : DEFAULT_VASSAL_STATUS.independencePressure,
-            organizationMemberships: Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [],
-            overseasAssets: Array.isArray(n.overseasAssets) ? n.overseasAssets : [],
+                ...normalizedNation,
+                discovered,
+                treaties: Array.isArray(mergedNation.treaties) ? mergedNation.treaties : [],
+                openMarketUntil: Object.prototype.hasOwnProperty.call(mergedNation, 'openMarketUntil') ? mergedNation.openMarketUntil : null,
+                peaceTreatyUntil: Object.prototype.hasOwnProperty.call(mergedNation, 'peaceTreatyUntil') ? mergedNation.peaceTreatyUntil : null,
+                vassalOf: Object.prototype.hasOwnProperty.call(mergedNation, 'vassalOf') ? mergedNation.vassalOf : DEFAULT_VASSAL_STATUS.vassalOf,
+                vassalType: Object.prototype.hasOwnProperty.call(mergedNation, 'vassalType') ? mergedNation.vassalType : DEFAULT_VASSAL_STATUS.vassalType,
+                tributeRate: Number.isFinite(mergedNation.tributeRate) ? mergedNation.tributeRate : DEFAULT_VASSAL_STATUS.tributeRate,
+                independencePressure: Number.isFinite(mergedNation.independencePressure) ? mergedNation.independencePressure : DEFAULT_VASSAL_STATUS.independencePressure,
+                organizationMemberships: Array.isArray(mergedNation.organizationMemberships) ? mergedNation.organizationMemberships : [],
+                overseasAssets: Array.isArray(mergedNation.overseasAssets) ? mergedNation.overseasAssets : [],
             };
-        }));
+        });
+
+        const appearedNations = normalizedLoadedNations.filter((nation) => {
+            if (!nation || nation.id === 'player' || nation.isRebelNation || nation.isAnnexed) {
+                return false;
+            }
+            const appearEpoch = nation.appearEpoch ?? 0;
+            if (appearEpoch > currentEpoch) return false;
+            if (nation.expireEpoch != null && currentEpoch > nation.expireEpoch) return false;
+            return true;
+        });
+        const visibleNationCount = appearedNations.filter((nation) => (
+            nation.vassalOf === 'player' || nation.discovered === true
+        )).length;
+        const referencedAppearedNationCount = appearedNations.filter((nation) => (
+            referencedNationIds.has(nation.id)
+        )).length;
+        const visibleReferencedNationCount = appearedNations.filter((nation) => (
+            referencedNationIds.has(nation.id)
+            && (nation.vassalOf === 'player' || nation.discovered === true)
+        )).length;
+        const poisonedDiscoveryState = (
+            appearedNations.length >= 8
+            && referencedAppearedNationCount >= 5
+            && visibleNationCount <= 1
+            && visibleReferencedNationCount <= 1
+        );
+
+        if (appearedNations.length > 0 && (visibleNationCount === 0 || poisonedDiscoveryState)) {
+            const restoreReason = visibleNationCount === 0
+                ? 'no_visible_nations'
+                : 'poisoned_discovery_state';
+            console.warn(
+                `[Save Migration] Restoring discovered state for appeared nations. ` +
+                `reason=${restoreReason}, appeared=${appearedNations.length}, ` +
+                `visible=${visibleNationCount}, referencedAppeared=${referencedAppearedNationCount}, ` +
+                `visibleReferenced=${visibleReferencedNationCount}`
+            );
+            normalizedLoadedNations = normalizedLoadedNations.map((nation) => {
+                if (!nation || nation.id === 'player' || nation.isRebelNation || nation.isAnnexed) {
+                    return nation;
+                }
+                const appearEpoch = nation.appearEpoch ?? 0;
+                const isExpired = nation.expireEpoch != null && currentEpoch > nation.expireEpoch;
+                if (appearEpoch > currentEpoch || isExpired) {
+                    return nation;
+                }
+                return {
+                    ...nation,
+                    discovered: true,
+                };
+            });
+        }
+
+        const finalVisibleNations = normalizedLoadedNations.filter((nation) => (
+            nation
+            && nation.id !== 'player'
+            && nation.isRebelNation !== true
+            && nation.isAnnexed !== true
+            && (nation.appearEpoch ?? 0) <= currentEpoch
+            && (nation.expireEpoch == null || currentEpoch <= nation.expireEpoch)
+            && (nation.vassalOf === 'player' || nation.discovered === true)
+            && nation.visible !== false
+        ));
+        console.warn('[Load Debug] nation roster summary', {
+            epoch: currentEpoch,
+            rawNationCount: Array.isArray(data.nations) ? data.nations.length : null,
+            rebuilt: recoveredNationRoster.rebuilt,
+            severeRosterLoss: recoveredNationRoster.severeRosterLoss,
+            recoveredNationCount: recoveredNationRoster.nations.length,
+            appearedNationCount: appearedNations.length,
+            visibleNationCount: finalVisibleNations.length,
+            referencedAppearedNationCount,
+            visibleReferencedNationCount,
+            poisonedDiscoveryState,
+            referencedNationIds: Array.from(referencedNationIds),
+            visibleNationIds: finalVisibleNations.slice(0, 20).map((nation) => nation.id),
+            hiddenSamples: normalizedLoadedNations
+                .filter((nation) => nation && nation.id !== 'player')
+                .slice(0, 20)
+                .map((nation) => ({
+                    id: nation.id,
+                    discovered: nation.discovered,
+                    appearEpoch: nation.appearEpoch,
+                    expireEpoch: nation.expireEpoch,
+                    isAnnexed: nation.isAnnexed,
+                    visible: nation.visible,
+                    vassalOf: nation.vassalOf,
+                    recovered: nation._recoveredFromTemplate === true,
+                })),
+        });
+
+        setNations(normalizedLoadedNations);
         setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0, data.officialPropertyPolicy));
         setOfficialsSimCursor(data.officialsSimCursor ?? 0);
         setOfficialCandidates(data.officialCandidates || []);
