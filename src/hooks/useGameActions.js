@@ -48,6 +48,7 @@ import { getEnemyUnitsForEpoch, calculateProportionalLoot } from '../config/mili
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost, INSTALLMENT_CONFIG } from '../utils/diplomaticUtils';
 import { applyWarRelationCap } from '../utils/diplomacyUtils';
+import { isNationVisible } from '../utils/nationVisibility';
 import { filterEventEffects } from '../utils/eventEffectFilter';
 import {
     clampPopulationAtFloor,
@@ -95,6 +96,7 @@ import {
 import { MINISTER_ROLES, MINISTER_LABELS, ECONOMIC_MINISTER_ROLES } from '../logic/officials/ministers';
 import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
 import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
+import { discoverNationsOnEpochChange } from '../logic/diplomacy/nationDiscovery';
 import { calculateReputationChange, calculateNaturalRecovery } from '../config/reputationSystem';
 import { BUILDING_CHAINS } from '../config/buildingChains';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from '../logic/ideology/ideologyEventBus';
@@ -747,15 +749,7 @@ export const useGameActions = (gameState, addLog) => {
         launchDiplomaticEvent(eventToLaunch);
     };
 
-    const getVisibleNations = () => (nations || []).filter(n => {
-        if (!n || n.visible === false) return false;
-        if (n.isAnnexed) return false; // 排除已被吞并的国家
-        const appearEpoch = n.appearEpoch ?? 0;
-        const expireEpoch = n.expireEpoch;
-        if (epoch < appearEpoch) return false;
-        if (expireEpoch != null && epoch > expireEpoch) return false;
-        return true;
-    });
+    const getVisibleNations = () => (nations || []).filter(n => isNationVisible(n, epoch));
 
     const isPlayerProtectedEventNation = (nation) => {
         if (!nation || nation.id === 'player') return true;
@@ -1423,7 +1417,32 @@ export const useGameActions = (gameState, addLog) => {
 
         setResourcesWithReason(newRes, 'upgrade_epoch');
         setEpoch(newEpochIndex);
+        console.warn(`[upgradeEpoch] ✅ Epoch upgraded to ${newEpochIndex}`);
         addLog(`🎉 文明进入 ${nextEpoch.name}！`);
+
+        // 渐进式发现：玩家升时代时随机发现部分新国家
+        // 直接 mutate 原始 nations 对象，确保 stateRef.current.nations 同步可见
+        // 然后用浅拷贝触发 React 重渲染
+        const discoveryLogs = [];
+        const currentNations = nations || [];
+        const result = discoverNationsOnEpochChange({
+            nations: currentNations,
+            newEpoch: newEpochIndex,
+            logs: discoveryLogs,
+            discoverer: 'player',
+        });
+        // [TEMP DEBUG] 确认发现逻辑执行情况
+        console.warn(`[upgradeEpoch] epoch ${epoch} → ${newEpochIndex}, nations=${currentNations.length}, pool=${currentNations.filter(n => (n.appearEpoch ?? 0) === newEpochIndex && !n.isAnnexed && n.discovered !== true).length}, discovered=${result?.discoveredNations?.length || 0}: ${result?.discoveredNations?.map(n => n.name).join(', ') || 'none'}`);
+        // 将新发现的国家 ID 写入全局标记，供 useGameLoop 合并逻辑使用
+        // 这是跨 hook 通信的可靠方式，防止 simulation 回调覆盖 discovered 状态
+        if (result?.discoveredNations?.length > 0) {
+            const ids = result.discoveredNations.map(n => n.id);
+            const existing = window.__pendingDiscoveredNationIds || [];
+            window.__pendingDiscoveredNationIds = [...new Set([...existing, ...ids])];
+        }
+        // 浅拷贝触发 React 重渲染，同时 stateRef 中的对象引用已被 mutate
+        setNations([...currentNations]);
+        discoveryLogs.forEach(log => addLog(log));
 
         trackProgressionComplete(epoch);
         trackProgressionStart(epoch + 1);

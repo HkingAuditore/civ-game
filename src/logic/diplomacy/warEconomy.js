@@ -30,7 +30,10 @@ const getNationInventoryWeight = (resourceKey) => (
     AI_ECONOMY_CONFIG.inventory.resourceWeights[resourceKey] || AI_ECONOMY_CONFIG.inventory.resourceWeights.default
 );
 
-const AI_BUILDING_EPOCH_CAPS = {
+// [FIX] Epoch baselines: minimum building count per epoch (floor, not hard cap).
+// The actual cap is dynamically computed from population to prevent large AI nations
+// from being starved of buildings when their population outgrows the old hard caps.
+const AI_BUILDING_EPOCH_BASELINES = {
     0: 120,
     1: 220,
     2: 360,
@@ -41,9 +44,27 @@ const AI_BUILDING_EPOCH_CAPS = {
     7: 3200,
 };
 
-const getAIBuildingEpochCap = (epoch = 0) => {
+// Population-per-building ratio by epoch: how many people one building "serves".
+// Earlier epochs need more buildings per capita (less efficient); later epochs are more efficient.
+const AI_BUILDING_POP_RATIO = {
+    0: 4,    // 1 building per 4 people
+    1: 5,    // 1 building per 5 people
+    2: 6,    // 1 building per 6 people
+    3: 7,    // 1 building per 7 people
+    4: 8,    // 1 building per 8 people
+    5: 10,   // 1 building per 10 people
+    6: 12,   // 1 building per 12 people
+    7: 15,   // 1 building per 15 people
+};
+
+const getAIBuildingEpochCap = (epoch = 0, population = 0) => {
     const normalizedEpoch = clampNumber(Math.floor(safeNumber(epoch, 0)), 0, 7);
-    return AI_BUILDING_EPOCH_CAPS[normalizedEpoch] || AI_BUILDING_EPOCH_CAPS[7];
+    const epochBaseline = AI_BUILDING_EPOCH_BASELINES[normalizedEpoch] || AI_BUILDING_EPOCH_BASELINES[7];
+    const popRatio = AI_BUILDING_POP_RATIO[normalizedEpoch] || 10;
+    const safePop = Math.max(0, safeNumber(population, 0));
+    // Dynamic cap: population-driven building need, floored by epoch baseline
+    const populationDrivenCap = Math.ceil(safePop / popRatio);
+    return Math.max(epochBaseline, populationDrivenCap);
 };
 
 const getAIBuildingTargetTotal = (nation, epoch = 0) => {
@@ -67,7 +88,17 @@ const getAIBuildingTargetTotal = (nation, epoch = 0) => {
     const minBuildings = actualPop <= 3 ? 1 : actualPop <= 8 ? 2 : 3;
     const scaledTarget = Math.max(minBuildings, Math.round(baseBuildings * wealthMultiplier));
 
-    return Math.round(clampNumber(scaledTarget, minBuildings, getAIBuildingEpochCap(effectiveEpoch)));
+    const epochCap = getAIBuildingEpochCap(effectiveEpoch, actualPop);
+    // [FIX v5] 使用建筑惯性：如果国家有上一次的建筑目标记录，限制每次最多减少 10%
+    const lastTarget = safeNumber(nation?.economyTraits?.lastBuildingTarget, 0);
+    let finalTarget = Math.round(clampNumber(scaledTarget, minBuildings, epochCap));
+    if (lastTarget > 0 && finalTarget < lastTarget) {
+        // 建筑惯性：最多每次减少 10%，防止人口下降时建筑骤减导致恶性循环
+        const inertiaFloor = Math.max(minBuildings, Math.round(lastTarget * 0.9));
+        finalTarget = Math.min(epochCap, Math.max(finalTarget, inertiaFloor));
+    }
+
+    return finalTarget;
 };
 
 const buildLocalBuildingProfile = (profile = {}, foreignProfile = {}) => {
@@ -770,6 +801,10 @@ export const generateAIBuildingProfile = (nation, epoch = 0, options = {}) => {
 
     const effectiveEpoch = epoch != null ? epoch : (nation.epoch ?? 0);
     const targetLocalBuildings = getAIBuildingTargetTotal(nation, effectiveEpoch);
+    // [FIX v5] 记录建筑目标，供下次调用时的建筑惯性机制使用
+    if (nation.economyTraits) {
+        nation.economyTraits.lastBuildingTarget = targetLocalBuildings;
+    }
     const overseasInvestments = options.overseasInvestments;
     const foreignProfile = {};
     if (Array.isArray(overseasInvestments)) {
@@ -918,6 +953,10 @@ export const processAIBuildingRecovery = (nation, epoch, day) => {
 
     const effectiveEpoch = epoch != null ? epoch : (nation.epoch ?? 0);
     const targetTotal = getAIBuildingTargetTotal(nation, effectiveEpoch);
+    // [FIX v5] 记录建筑目标，供建筑惯性机制使用
+    if (nation.economyTraits) {
+        nation.economyTraits.lastBuildingTarget = targetTotal;
+    }
     const foreign = nation.virtualBuildingsForeign || {};
 
     // 先修正旧档中已经膨胀的本地建筑画像，避免异常值长期停留在 UI 和经济链路中

@@ -68,6 +68,12 @@ export const DIFFICULTY_CONFIG = {
         // Vassal independence modifiers
         vassalIndependenceMultiplier: 0.5,     // 50% independence growth (was 0.3)
         vassalIndependenceWarChance: 0.4,      // 40% independence war trigger chance (was 0.2)
+        // [NEW] AI Development Scaling (player-relative caps/floors)
+        aiGrowthRateMultiplier: 0.6,           // 60% AI base growth rate
+        aiPopulationCapMultiplier: 1.0,        // AI pop cap = 1.0x player pop
+        aiPopulationFloorMultiplier: 0.2,      // AI pop floor = 0.2x player pop
+        aiWealthCapMultiplier: 0.8,            // AI per-capita wealth cap = 0.8x player
+        aiWealthFloorMultiplier: 0.15,         // AI per-capita wealth floor = 0.15x player
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 2,
@@ -125,6 +131,12 @@ export const DIFFICULTY_CONFIG = {
         // Vassal independence modifiers
         vassalIndependenceMultiplier: 0.8,     // 80% independence growth (was 0.6)
         vassalIndependenceWarChance: 0.7,      // 70% independence war trigger chance (was 0.5)
+        // [NEW] AI Development Scaling (player-relative caps/floors)
+        aiGrowthRateMultiplier: 0.8,           // 80% AI base growth rate
+        aiPopulationCapMultiplier: 1.5,        // AI pop cap = 1.5x player pop
+        aiPopulationFloorMultiplier: 0.3,      // AI pop floor = 0.3x player pop
+        aiWealthCapMultiplier: 1.0,            // AI per-capita wealth cap = 1.0x player
+        aiWealthFloorMultiplier: 0.2,          // AI per-capita wealth floor = 0.2x player
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 2,
@@ -132,7 +144,7 @@ export const DIFFICULTY_CONFIG = {
             loom_house: 1
         },
     },
-[DIFFICULTY_LEVELS.NORMAL]: {
+    [DIFFICULTY_LEVELS.NORMAL]: {
         id: DIFFICULTY_LEVELS.NORMAL,
         name: '普通',
         description: '标准游戏体验，有一定挑战性',
@@ -180,13 +192,19 @@ export const DIFFICULTY_CONFIG = {
         // Vassal independence modifiers
         vassalIndependenceMultiplier: 1.3,     // 130% independence growth (was 1.0)
         vassalIndependenceWarChance: 1.3,      // 130% independence war trigger chance (was 1.0)
+        // [NEW] AI Development Scaling (player-relative caps/floors)
+        aiGrowthRateMultiplier: 1.0,           // 100% AI base growth rate (baseline)
+        aiPopulationCapMultiplier: 2.5,        // AI pop cap = 2.5x player pop
+        aiPopulationFloorMultiplier: 0.4,      // AI pop floor = 0.4x player pop
+        aiWealthCapMultiplier: 1.5,            // AI per-capita wealth cap = 1.5x player
+        aiWealthFloorMultiplier: 0.3,          // AI per-capita wealth floor = 0.3x player
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1,
             lumber_camp: 1
         },
     },
-[DIFFICULTY_LEVELS.HARD]: {
+    [DIFFICULTY_LEVELS.HARD]: {
         id: DIFFICULTY_LEVELS.HARD,
         name: '困难',
         description: '高难度挑战，内忧外患不断，需要精心策划',
@@ -235,12 +253,18 @@ export const DIFFICULTY_CONFIG = {
         // Vassal independence modifiers
         vassalIndependenceMultiplier: 2.5,     // 250% independence growth (was 2.0)
         vassalIndependenceWarChance: 2.5,      // 250% independence war trigger chance (was 2.0)
+        // [NEW] AI Development Scaling (player-relative caps/floors)
+        aiGrowthRateMultiplier: 1.4,           // 140% AI base growth rate
+        aiPopulationCapMultiplier: 4.0,        // AI pop cap = 4.0x player pop
+        aiPopulationFloorMultiplier: 0.6,      // AI pop floor = 0.6x player pop
+        aiWealthCapMultiplier: 2.5,            // AI per-capita wealth cap = 2.5x player
+        aiWealthFloorMultiplier: 0.5,          // AI per-capita wealth floor = 0.5x player
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1
         },
     },
-[DIFFICULTY_LEVELS.VERY_HARD]: {
+    [DIFFICULTY_LEVELS.VERY_HARD]: {
         id: DIFFICULTY_LEVELS.VERY_HARD,
         name: '灾厄',
         description: '极高难度，四面楚歌，只有最精妙的策略才能存活',
@@ -289,10 +313,16 @@ export const DIFFICULTY_CONFIG = {
         // Vassal independence modifiers
         vassalIndependenceMultiplier: 3.5,     // 350% independence growth (was 2.8)
         vassalIndependenceWarChance: 3.5,      // 350% independence war trigger chance (was 2.8)
+        // [NEW] AI Development Scaling (player-relative caps/floors)
+        aiGrowthRateMultiplier: 1.7,           // 170% AI base growth rate
+        aiPopulationCapMultiplier: 6.0,        // AI pop cap = 6.0x player pop
+        aiPopulationFloorMultiplier: 0.7,      // AI pop floor = 0.7x player pop
+        aiWealthCapMultiplier: 4.0,            // AI per-capita wealth cap = 4.0x player
+        aiWealthFloorMultiplier: 0.6,          // AI per-capita wealth floor = 0.6x player
         // [NEW] Initial Buildings
         initialBuildings: {},                  // No starting buildings (was farm: 1)
     },
-[DIFFICULTY_LEVELS.EXTREME]: {
+    [DIFFICULTY_LEVELS.EXTREME]: {
         id: DIFFICULTY_LEVELS.EXTREME,
         name: '地狱',
         description: '绝望的深渊，每一步都是生死抉择，几乎无法通关',
@@ -341,6 +371,12 @@ export const DIFFICULTY_CONFIG = {
         // Vassal independence modifiers
         vassalIndependenceMultiplier: 5.5,     // 550% independence growth (was 4.0)
         vassalIndependenceWarChance: 5.5,      // 550% independence war trigger chance (was 4.0)
+        // [NEW] AI Development Scaling (player-relative caps/floors)
+        aiGrowthRateMultiplier: 2.0,           // 200% AI base growth rate
+        aiPopulationCapMultiplier: 10.0,       // AI pop cap = 10.0x player pop
+        aiPopulationFloorMultiplier: 0.8,      // AI pop floor = 0.8x player pop
+        aiWealthCapMultiplier: 6.0,            // AI per-capita wealth cap = 6.0x player
+        aiWealthFloorMultiplier: 0.7,          // AI per-capita wealth floor = 0.7x player
         // [NEW] Initial Buildings
         initialBuildings: {},                  // No starting buildings (was loom_house: 1)
     },
@@ -578,6 +614,12 @@ export default {
     getVassalIndependenceWarChance,
     // AI Military Strength settings
     getAIMilitaryStrengthMultiplier,
+    // AI Development Scaling (player-relative caps/floors)
+    getAIGrowthRateMultiplier,
+    getAIPopulationCapMultiplier,
+    getAIPopulationFloorMultiplier,
+    getAIWealthCapMultiplier,
+    getAIWealthFloorMultiplier,
 };
 
 /**
@@ -759,4 +801,60 @@ export function getVassalIndependenceWarChance(difficultyLevel) {
 export function getAIMilitaryStrengthMultiplier(difficultyLevel) {
     const config = getDifficultyConfig(difficultyLevel);
     return config.aiMilitaryStrengthMultiplier || 1.0;
+}
+
+/**
+ * Get AI growth rate multiplier based on difficulty
+ * Affects base population growth rate and wealth accumulation speed
+ * Clamped to [0.5, 2.0] range (50%~200% of normal)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getAIGrowthRateMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return Math.min(2.0, Math.max(0.5, config.aiGrowthRateMultiplier ?? 1.0));
+}
+
+/**
+ * Get AI population cap multiplier relative to player population
+ * AI pop soft cap = playerPopulation × this multiplier
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 2.5, normal difficulty)
+ */
+export function getAIPopulationCapMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.aiPopulationCapMultiplier ?? 2.5;
+}
+
+/**
+ * Get AI population floor multiplier relative to player population
+ * AI pop catch-up threshold = playerPopulation × this multiplier
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 0.4, normal difficulty)
+ */
+export function getAIPopulationFloorMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.aiPopulationFloorMultiplier ?? 0.4;
+}
+
+/**
+ * Get AI per-capita wealth cap multiplier relative to player per-capita wealth
+ * AI wealth soft cap = playerPerCapitaWealth × this multiplier
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.5, normal difficulty)
+ */
+export function getAIWealthCapMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.aiWealthCapMultiplier ?? 1.5;
+}
+
+/**
+ * Get AI per-capita wealth floor multiplier relative to player per-capita wealth
+ * AI wealth catch-up threshold = playerPerCapitaWealth × this multiplier
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 0.3, normal difficulty)
+ */
+export function getAIWealthFloorMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.aiWealthFloorMultiplier ?? 0.3;
 }

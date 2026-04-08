@@ -90,17 +90,12 @@ export class AIEconomyService {
         epoch,
         difficulty,
         playerPopulation,
+        playerPerCapitaWealth = 0,
         gameSpeed = 1.0,
         allowHeavyUpdate = true,
     }) {
         // Convert to new data model
         const state = AIEconomyState.fromLegacyFormat(nation);
-        
-        // [DEBUG] Log every tick for specific nation to track population changes
-        const _debugName = nation.name;
-        const _debugPop = state.population;
-        const _debugBasePop = state.basePopulation;
-        const _debugOwnBasePop = nation.economyTraits?.ownBasePopulation;
         
         // Validate data
         const validation = state.validate();
@@ -114,11 +109,6 @@ export class AIEconomyService {
             difficulty,
             playerPopulation,
         });
-        
-        // [DEBUG] Log if population changed after normalization
-        if (state.population !== _debugPop) {
-            console.warn(`[NORM POP CHANGE] ${_debugName}: ${_debugPop} -> ${state.population} (ownBasePop=${_debugOwnBasePop}, basePop=${_debugBasePop}, cap=${capacityInfo.carryingCapacity}, hardCap=${Math.round(capacityInfo.carryingCapacity * 1.15)})`);
-        }
         
         // [FIX] lastGrowthTick = -1 是哨兵值，表示该国家从未做过增长更新（新国家/旧存档）。
         // 将其修正为 tick - updateInterval，使本次 ticksSinceLastUpdate = updateInterval（正常一个周期），
@@ -142,6 +132,7 @@ export class AIEconomyService {
                 epoch,
                 difficulty,
                 playerPopulation,
+                playerPerCapitaWealth,
                 ticksSinceUpdate: ticksSinceLastUpdate,
                 allowHeavyUpdate,
                 cachedVirtualLabor: virtualState.virtualLabor,
@@ -154,12 +145,34 @@ export class AIEconomyService {
             // [DEBUG] Track large population jumps
             const popDelta = developmentResult.population - beforePop;
             const popRatio = beforePop > 0 ? developmentResult.population / beforePop : 999;
-            if (Math.abs(popDelta) > Math.max(50, beforePop * 0.1)) {
-                console.warn(`[POP JUMP] ${nation.name}: ${beforePop} -> ${developmentResult.population} (delta=${popDelta}, ratio=${popRatio.toFixed(2)}x, ticksSince=${ticksSinceLastUpdate}, shouldGrow=${shouldGrow}, basePop=${state.basePopulation}, ownBasePop=${nation.economyTraits?.ownBasePopulation}, cap=${capacityInfo.carryingCapacity}, remainders=${JSON.stringify(state.growthRemainders)})`);
+            // [FIX] Raise POP JUMP warning threshold from 10% to 20% to reduce noise
+            if (Math.abs(popDelta) > Math.max(50, beforePop * 0.2)) {
+                console.warn(`[POP JUMP] ${nation.name}: ${beforePop} -> ${developmentResult.population} (delta=${popDelta}, ratio=${popRatio.toFixed(2)}x, ticksSince=${ticksSinceLastUpdate}, basePop=${state.basePopulation}, cap=${capacityInfo.carryingCapacity}, capRatio=${developmentResult.populationDynamics?.capacityRatio}, crowding=${developmentResult.populationDynamics?.crowdingFactor}, growthRate=${developmentResult.populationDynamics?.netGrowthRate})`);
             }
-            state.population = developmentResult.population;
+            // [FIX] Safety clamp: prevent population from changing more than 20% per growth cycle
+            // Relaxed from 10% to 20% to allow normal growth while still catching anomalies
+            const maxPopChange = Math.max(50, Math.round(beforePop * 0.20));
+            const clampedPop = Math.max(1, Math.min(
+                beforePop + maxPopChange,
+                Math.max(beforePop - maxPopChange, developmentResult.population)
+            ));
+            if (clampedPop !== developmentResult.population) {
+                console.warn(`[POP CLAMP] ${nation.name}: clamping ${developmentResult.population} -> ${clampedPop} (before=${beforePop}, maxChange=${maxPopChange})`);
+            }
+            state.population = clampedPop;
             state.wealth = developmentResult.wealth;
-            state.basePopulation = Math.max(20, Math.round(state.basePopulation * 0.965 + developmentResult.population * 0.035));
+            // [FIX] basePopulation grows independently to drive carryingCapacity upward over time.
+            // Raised from 0.5%→1.5% per cycle and ceiling from 0.5→0.8 of carryingCapacity
+            // to break the "pop capped → basePop stuck → capacity stuck → no growth" deadlock.
+            // Guard: if basePop growth would push carryingCapacity up >5% in one cycle, clamp it.
+            const basePopGrowthRate = clampedPop > state.basePopulation ? 0.015 : 0;
+            const rawNextBasePop = Math.max(20, Math.round(state.basePopulation * (1 + basePopGrowthRate)));
+            // Cap at 80% of structural carrying capacity to prevent runaway
+            const basePopCeiling = Math.max(
+                state.basePopulation,
+                Math.round(capacityInfo.carryingCapacity * 0.8)
+            );
+            state.basePopulation = Math.min(rawNextBasePop, basePopCeiling);
             state.baseWealth = Math.max(120, Math.round(state.baseWealth * 0.955 + developmentResult.wealth * 0.045));
             state.growthRemainders = developmentResult.growthRemainders || state.growthRemainders;
             state.lastGrowthTick = tick;
@@ -295,7 +308,7 @@ export class AIEconomyService {
         };
         
         // Convert back to legacy format
-        return {
+        const _finalResult = {
             ...nation,
             ...state.toLegacyFormat(),
             gdp: economyMetrics.annualOutput,
@@ -305,6 +318,8 @@ export class AIEconomyService {
             economyDirtyFlags: refreshedDirtyFlags,
             aiEconomyMetrics: economyMetrics,
         };
+        
+        return _finalResult;
     }
     
     /**
@@ -395,11 +410,17 @@ export class AIEconomyService {
             playerPopulation,
         });
 
-        const hardPopulationCap = Math.max(60, Math.round(capacityInfo.carryingCapacity * 1.15));
+        // [FIX] Raise hard cap from 1.15x to 1.5x carryingCapacity so normal growth isn't capped every tick.
+        // Only truly anomalous populations (>1.5x capacity) get capped, and smoothly (max 10%/tick drop).
+        const hardPopulationCap = Math.max(60, Math.round(capacityInfo.carryingCapacity * 1.5));
         if (state.population > hardPopulationCap) {
-            // [DEBUG] Track population cap enforcement
-            console.warn(`[POP CAP] ${nation.name}: capping pop ${state.population} -> ${hardPopulationCap} (carryingCap=${capacityInfo.carryingCapacity}, basePop=${sanitizedBasePopulation}, epoch=${epoch})`);
-            state.population = hardPopulationCap;
+            // Limit population drop to at most 10% per tick to prevent sudden crashes
+            const maxDrop = Math.max(50, Math.round(state.population * 0.10));
+            const smoothedCap = Math.max(hardPopulationCap, state.population - maxDrop);
+            if (state.population - smoothedCap > 5) {
+                console.warn(`[POP CAP] ${nation.name}: capping pop ${state.population} -> ${smoothedCap} (hardCap=${hardPopulationCap}, carryingCap=${capacityInfo.carryingCapacity}, basePop=${sanitizedBasePopulation}, epoch=${epoch})`);
+            }
+            state.population = smoothedCap;
         }
 
         state.basePopulation = Math.min(
@@ -484,14 +505,15 @@ export class AIEconomyService {
         const economyDerivedOutput = safeNumber(economyState.effectiveOutput, 0) * 6.5
             + safeNumber(economyState.localValueAdded, 0) * 2.2
             + safeNumber(developmentState.wealthGeneration?.tradeIncome, 0) * 8;
-        const annualOutput = Math.max(
-            1,
-            Math.round(
-                economyDerivedOutput > 0
-                    ? economyDerivedOutput * structuralFactor
-                    : state.population * targetPerCapita * employedShare * productivityFactor * structuralFactor * 1.1
-            )
-        );
+        // [FIX] Building-derived output alone severely underestimates GDP when building count
+        // is capped (AI_BUILDING_EPOCH_CAPS) far below population scale. A nation of 100k+ pop
+        // with only ~3000 buildings produces negligible per-capita output.
+        // Fix: always compute a population-based output floor and take the max of both.
+        // The pop-based estimate represents baseline economic activity (subsistence farming,
+        // informal trade, services) that exists regardless of formal building infrastructure.
+        const buildingDrivenOutput = economyDerivedOutput * structuralFactor;
+        const populationDrivenOutput = state.population * targetPerCapita * employedShare * productivityFactor * structuralFactor * 1.1;
+        const annualOutput = Math.max(1, Math.round(Math.max(buildingDrivenOutput, populationDrivenOutput)));
         const treasury = Math.max(0, Math.round(Math.max(state.budget || 0, safeNumber(economyState.treasuryIncome, 0))));
         const householdWealth = Math.max(0, Math.round(state.wealth - treasury));
         const treasuryRatio = treasury / Math.max(1, state.wealth);

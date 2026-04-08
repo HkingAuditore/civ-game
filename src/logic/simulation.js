@@ -27,7 +27,8 @@ import {
 import { getPolityEffects } from '../config/polityEffects';
 import { calculateNaturalRecovery, calculatePeriodicReputationChange, calculateVassalPolicyReputationChange } from '../config/reputationSystem';
 import { aggregateWarDamagedBuildings, calculateMilitaryIndustryBoost, calculateWartimeTradeDisruption } from './diplomacy/warEconomy';
-import { WAR_ECONOMY, TAX_BASE_RATES } from '../config/gameConstants';
+import { WAR_ECONOMY, TAX_BASE_RATES, DISCOVERY_CONFIG } from '../config/gameConstants';
+import { isNationVisible, isAppearedButUndiscovered } from '../utils/nationVisibility';
 import { applyIdeologyEffects, evaluateTriggerEffects, evaluateSynergyEffects, evaluateAntiSynergyEffects, applyConverters, applyRuleMods, mergeRuleMods } from './ideology/ideologyEffects';
 import { ideologyEventBus, IDEOLOGY_EVENTS } from './ideology/ideologyEventBus';
 import { buildIdeologyScalingContext, scaleLegacyMilestoneThreshold } from './ideology/ideologyScaling.js';
@@ -427,6 +428,11 @@ import {
     EconomyDebugger,
     checkAIEpochProgression,
     scaleNewlyUnlockedNation,
+    // Nation Discovery functions
+    processGradualDiscovery,
+    processAINationDiscovery,
+    discoverOnWar,
+    discoverNationsOnEpochChange,
     initializeRebelEconomy,
     processPostWarRecovery,
     processInstallmentPayment,
@@ -801,7 +807,7 @@ export const simulateTick = ({
     if (Object.keys(STRATA).length > 0) {
         Object.keys(STRATA).forEach(key => {
             classFinancialData[key] = {
-                income: { wage: 0, ownerRevenue: 0, subsidy: 0, salary: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
+                income: { wage: 0, ownerRevenue: 0, subsidy: 0, salary: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0, taxableIncome: 0 },
                 expense: {
                     headTax: 0,
                     transactionTax: 0,
@@ -1399,6 +1405,10 @@ export const simulateTick = ({
     // Apply Ideology effects（理念效果：基础数值 + 条件触发 + 联动 + 转化引擎 + 规则修改）
     let ideologySynergyResult = null;
     let ideologyRuleMods = {};
+    // Snapshot bonuses before ideology effects for delta tracking
+    const _preIdeoCatBonuses = { ...bonuses.categoryBonuses };
+    const _preIdeoProductionBonus = bonuses.productionBonus;
+    const _preIdeoIndustryBonus = bonuses.industryBonus;
     if (equippedIdeologies && equippedIdeologies.length > 0) {
         applyIdeologyEffects(equippedIdeologies, bonuses);
 
@@ -1555,6 +1565,15 @@ export const simulateTick = ({
         // diplomatic_influence: 全局外交影响力
         bonuses.ideoDiplomaticInfluence = ideologyRuleMods.diplomatic_influence?._global || 0;
     }
+    // Compute ideology-specific contribution deltas for UI display
+    const _ideologyCategoryBonus = {
+        gather: (bonuses.categoryBonuses.gather || 0) - (_preIdeoCatBonuses.gather || 0),
+        industry: (bonuses.categoryBonuses.industry || 0) - (_preIdeoCatBonuses.industry || 0),
+        civic: (bonuses.categoryBonuses.civic || 0) - (_preIdeoCatBonuses.civic || 0),
+        military: (bonuses.categoryBonuses.military || 0) - (_preIdeoCatBonuses.military || 0),
+    };
+    const _ideologyProductionBonus = bonuses.productionBonus - _preIdeoProductionBonus;
+    const _ideologyIndustryBonus = bonuses.industryBonus - _preIdeoIndustryBonus;
 
     // Apply Epoch bonuses
     if (EPOCHS && EPOCHS[epoch] && EPOCHS[epoch].bonuses) {
@@ -2079,11 +2098,13 @@ export const simulateTick = ({
     // 使用上一tick的合法性计算税收修正（避免循环依赖?
     let legitimacyTaxModifier = getLegitimacyTaxModifier(previousLegitimacy);
 
-    // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正?
-    // bonuses.taxBonus 是来?effects.taxIncome 的累加值（如庆典效果、政令效果等?
-    const effectiveTaxModifier = Math.max(
-        0,
-        taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0) + (bonuses.ideoTaxModifier || 0))
+    // 税收征收效率：基础效率 = taxModifier × legitimacyTaxModifier（范围 [0.3, 1.0]）
+    // taxBonus/ideoTaxModifier 用于恢复效率损耗（如官员加成减少腐败），而非凭空增加税收
+    // 公式：effectiveTaxModifier = base + (1 - base) × bonusRecovery，结果永远 ≤ 1.0
+    const baseTaxEfficiency = taxModifier * legitimacyTaxModifier; // [0.3, 1.0]
+    const bonusRecovery = Math.max(0, Math.min(1, (bonuses.taxBonus || 0) + (bonuses.ideoTaxModifier || 0)));
+    const effectiveTaxModifier = Math.min(1.0,
+        baseTaxEfficiency + (1 - baseTaxEfficiency) * bonusRecovery
     );
 
     // [FIX] 提前定义空岗位收入预估函数，用于 fillVacancies 时的智能工资判断
@@ -2145,7 +2166,7 @@ export const simulateTick = ({
                 let headTaxCost;
                 if (ownerHeadRate > 0) {
                     const ownerIncomeBase = (Number.isFinite(ownerWage) && ownerWage > 0)
-                        ? ownerWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+                        ? ownerWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0) : 0;
                     headTaxCost = ownerIncomeBase * ownerHeadRate * effectiveTaxModifier;
                 } else if (ownerHeadRate < 0) {
                     headTaxCost = ownerHeadRate * effectiveTaxModifier;
@@ -3478,6 +3499,12 @@ export const simulateTick = ({
     });
 
     perfStart('headTax');
+    // [FIX] 商人贸易收入在人头税之后才结算（trading.js），导致贸易收入未被征税。
+    // 使用上一 tick 的贸易收入作为本 tick 的征税基数（类似军人使用 previousWages 的方案）。
+    const previousMerchantTradeRevenue = merchantState?.tradeRevenueThisTick || 0;
+    if (previousMerchantTradeRevenue > 0) {
+        roleTaxableIncome.merchant = (roleTaxableIncome.merchant || 0) + previousMerchantTradeRevenue;
+    }
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') return;
         const count = popStructure[key] || 0;
@@ -3491,6 +3518,10 @@ export const simulateTick = ({
         // roleTaxableIncome 仅包含工资 + 业主收入，不含任何补贴类收入。
         // 补贴（资源补贴、营业税补贴、消费补贴、人头税补贴）全部免税。
         let actualPerCapitaTaxableIncome = count > 0 ? (roleTaxableIncome[key] || 0) / count : 0;
+        // [FIX] Save taxable income to classFinancialData so UI can display the actual tax base
+        if (classFinancialData[key]) {
+            classFinancialData[key].income.taxableIncome = roleTaxableIncome[key] || 0;
+        }
         // 军人收入（军饷）在人头税之后才发放，此时 roleTaxableIncome.soldier 为 0；
         // 用上一 tick 的工资信号（对军人来说就是人均军饷）作为课税基数
         if (actualPerCapitaTaxableIncome <= 0 && key === 'soldier') {
@@ -3505,7 +3536,7 @@ export const simulateTick = ({
                 actualPerCapitaTaxableIncome = defaultWageEstimate;
             }
         }
-        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
+        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
         let plannedPerCapitaTax;
         if (headRate > 0) {
             const incomeBase = (Number.isFinite(actualPerCapitaTaxableIncome) && actualPerCapitaTaxableIncome > 0)
@@ -4565,7 +4596,7 @@ export const simulateTick = ({
         // 人头税：官员拥有独立财富，因此在此单独结算
         // [FIX] 使用本 tick 官员实际到手薪俸，而非 previousWages 工资信号
         const headRate = getHeadTaxRate('official');
-        const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
+        const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
         let plannedPerCapitaTax;
         if (headRate > 0) {
             const officialIncomeBase = (Number.isFinite(officialThisTickIncome) && officialThisTickIncome > 0)
@@ -5859,6 +5890,19 @@ export const simulateTick = ({
             // 未出现国家不参与模拟，直接返回（保留原引用）
             return nation;
         }
+        // 已出现但未被玩家发现的国家：仅执行最小化后台增长
+        if (isAppearedButUndiscovered(nation, visibleEpoch) && !nation.isRebelNation) {
+            const undiscNext = { ...nation };
+            // 最小化后台人口增长
+            if (undiscNext.population > 0) {
+                undiscNext.population = Math.floor(undiscNext.population * (1 + 0.0005));
+            }
+            // 最小化后台财富增长
+            if (undiscNext.wealth > 0) {
+                undiscNext.wealth = Math.floor(undiscNext.wealth * (1 + 0.0003));
+            }
+            return undiscNext;
+        }
         const isDestroyedNation = nation.isAnnexed || (nation.population || 0) <= 0;
         if (isDestroyedNation) {
             // [PERF] Defeated nations: return minimal stub to save memory.
@@ -6041,8 +6085,8 @@ export const simulateTick = ({
             }));
             next.economyTraits = {
                 ...(next.economyTraits || {}),
-                basePopulation: basePopInit,
-                baseWealth: baseWealthInit,
+                ownBasePopulation: basePopInit,
+                ownBaseWealth: baseWealthInit,
             };
             foreignPowerProfile.populationFactor = popFactor;
             foreignPowerProfile.wealthFactor = wealthFactor;
@@ -6064,9 +6108,7 @@ export const simulateTick = ({
         }
 
         if (!isExpiredNation && !next.isRebelNation) {
-            const _popBefore = next.population;
             const migratedNation = migrateNationEconomy(next);
-            const _popAfterMigrate = migratedNation.population;
             const updatedNation = AIEconomyService.update({
                 nation: migratedNation,
                 tick,
@@ -6074,14 +6116,12 @@ export const simulateTick = ({
                 difficulty,
                 playerPopulation: playerPopulationBaseline,
                 playerWealth: playerWealthBaseline,
+                playerPerCapitaWealth: playerPopulationBaseline > 0
+                    ? playerWealthBaseline / playerPopulationBaseline
+                    : 0,
                 gameSpeed,
                 allowHeavyUpdate: shouldProcessAIForNation,
             });
-            const _popAfterService = updatedNation.population;
-            // [DEBUG] Track large population jumps through the pipeline
-            if (_popBefore > 0 && Math.abs(_popAfterService - _popBefore) > Math.max(50, _popBefore * 0.1)) {
-                console.warn(`[SIM POP TRACE] ${next.name}: before=${_popBefore}, afterMigrate=${_popAfterMigrate}, afterService=${_popAfterService}, ownBasePop=${next.economyTraits?.ownBasePopulation}->${updatedNation.economyTraits?.ownBasePopulation}, lastGrowthTick=${next.economyTraits?.lastGrowthTick}->${updatedNation.economyTraits?.lastGrowthTick}, tick=${tick}, heavy=${shouldProcessAIForNation}`);
-            }
             Object.assign(next, updatedNation);
         }
 
@@ -6109,7 +6149,13 @@ export const simulateTick = ({
             processAIBuildingRecovery(next, next.epoch || epoch, tick);
 
             // Check for epoch progression
+            const prevEpoch = next.epoch;
             checkAIEpochProgression(next, logs, tick);
+
+            // AI 升时代后标记，用于后续触发发现机制
+            if (next.epoch !== prevEpoch) {
+                next._epochJustUpgraded = next.epoch;
+            }
 
             // 时代升级后重新规划建筑配比
             if (next._needsBuildingReplan) {
@@ -6253,10 +6299,43 @@ export const simulateTick = ({
     perfEnd('aiNationUpdate');
     _silverCheckpoint('aiNationUpdate');
 
+    // AI 升时代后触发发现机制：为升时代的 AI 国家发现部分同时代国家
+    updatedNations.forEach(nation => {
+        if (nation._epochJustUpgraded != null) {
+            discoverNationsOnEpochChange({
+                nations: updatedNations,
+                newEpoch: nation._epochJustUpgraded,
+                logs,
+                discoverer: nation.id,
+            });
+            delete nation._epochJustUpgraded;
+        }
+    });
 
     // REFACTORED: Using module function for foreign relations initialization
     updatedNations = initializeForeignRelations(updatedNations);
 
+    // 渐进式国家发现：逐步发现机制（tick 驱动）
+    if (tick % DISCOVERY_CONFIG.GRADUAL_DISCOVERY_TICK_INTERVAL === 0) {
+        processGradualDiscovery({
+            nations: updatedNations,
+            tick,
+            epoch: visibleEpoch,
+            navigatorPop: population?.navigator || 0,
+            logs,
+        });
+        // AI 国家间逐步发现
+        updatedNations.forEach(nation => {
+            if (nation.id === 'player' || nation.isAnnexed || nation.isRebelNation) return;
+            if (visibleEpoch < (nation.appearEpoch ?? 0)) return;
+            processAINationDiscovery({
+                nation,
+                allNations: updatedNations,
+                tick,
+                epoch: visibleEpoch,
+            });
+        });
+    }
 
     // REFACTORED: Using module function for monthly relation decay
     const isMonthTick = tick % 30 === 0;
@@ -6593,10 +6672,8 @@ export const simulateTick = ({
     // This ensures visibleNations holds references to the current updatedNations objects,
     // so modifications in processAIPlayerInteraction will be persisted correctly
     const visibleNations = updatedNations.filter(n =>
-        epoch >= (n.appearEpoch ?? 0)
-        && (n.expireEpoch == null || epoch <= n.expireEpoch)
+        isNationVisible(n, epoch)
         && !n.isRebelNation
-        && !n.isAnnexed // 排除已被吞并的国?
     );
     // [PERF] 动态分片：外交AI根据国家数量动态调整
     const diplomacySliceCount = aliveNationCount > 10
@@ -7577,6 +7654,8 @@ export const simulateTick = ({
 
     // 【修复】在转职评估前先执行商人交易，确保商人收入被正确计算
     const previousMerchantWealth = classWealthResult.merchant || 0;
+    // [FIX] 记录贸易前的应税收入，用于计算本 tick 贸易收入增量
+    const merchantTaxableIncomeBeforeTrade = roleTaxableIncome.merchant || 0;
     // DEBUG: 调试商人贸易调用
     debugLog('simulation', '[SIMULATION DEBUG] Calling simulateMerchantTrade, policies:', {
         hasExportTariff: !!policies.exportTariffMultipliers,
@@ -7627,6 +7706,18 @@ export const simulateTick = ({
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
     updatedMerchantState.lockedCapital = merchantLockedCapital;
+    // [FIX] 记录本 tick 商人贸易收入，供下一 tick 人头税征收使用
+    updatedMerchantState.tradeRevenueThisTick = Math.max(0, (roleTaxableIncome.merchant || 0) - merchantTaxableIncomeBeforeTrade);
+    // [FIX] 同步更新 UI 显示的应税收入：
+    // 人头税时刻（L3504）写入的 taxableIncome = 建筑产出 + 上一tick贸易收入(previousMerchantTradeRevenue)
+    // 但 UI 同时显示本 tick 的 tradeImportRevenue（通过 Ledger 写入），两者时间基准不同会导致用户困惑。
+    // 修正：将 taxableIncome 中的"上一tick贸易收入"替换为"本tick贸易收入"，使 UI 显示一致。
+    if (classFinancialData.merchant) {
+        const previousTradeInTaxable = previousMerchantTradeRevenue; // 人头税时已加入的上一tick贸易收入
+        const currentTradeRevenue = updatedMerchantState.tradeRevenueThisTick; // 本tick实际贸易收入
+        classFinancialData.merchant.income.taxableIncome =
+            (classFinancialData.merchant.income.taxableIncome || 0) - previousTradeInTaxable + currentTradeRevenue;
+    }
     const merchantCapitalInvested = updatedMerchantState.capitalInvestedThisTick || 0;
     if ('capitalInvestedThisTick' in updatedMerchantState) {
         delete updatedMerchantState.capitalInvestedThisTick;
@@ -7789,7 +7880,7 @@ export const simulateTick = ({
                 let headTaxCost;
                 if (priceEstHeadRate > 0) {
                     const roleIncomeBase = (Number.isFinite(roleWageEst) && roleWageEst > 0)
-                        ? roleWageEst * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+                        ? roleWageEst * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0) : 0;
                     headTaxCost = roleIncomeBase * priceEstHeadRate * effectiveTaxModifier;
                 } else if (priceEstHeadRate < 0) {
                     headTaxCost = priceEstHeadRate * effectiveTaxModifier;
@@ -7855,7 +7946,7 @@ export const simulateTick = ({
                 let taxCost;
                 if (empHeadRate > 0) {
                     const headIncBase = (Number.isFinite(wageForTax) && wageForTax > 0)
-                        ? wageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+                        ? wageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0) : 0;
                     taxCost = headIncBase * empHeadRate * effectiveTaxModifier;
                 } else if (empHeadRate < 0) {
                     taxCost = empHeadRate * effectiveTaxModifier;
@@ -7907,7 +7998,7 @@ export const simulateTick = ({
         let taxCostPerCapita;
         if (sumHeadRate > 0) {
             const headIncomeBase = (Number.isFinite(roleWageForTax) && roleWageForTax > 0)
-                ? roleWageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+                        ? roleWageForTax * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0) : 0;
             taxCostPerCapita = headIncomeBase * sumHeadRate * effectiveTaxModifier;
         } else if (sumHeadRate < 0) {
             taxCostPerCapita = sumHeadRate * effectiveTaxModifier;
@@ -9107,7 +9198,7 @@ export const simulateTick = ({
             // 建筑产出修饰?（已预计算）
             buildingProduction: _mergedBuildingProduction,
             categoryProduction: categoryBonuses,
-            // 来源分解（用于显示哪些是政令/事件加成?
+            // 来源分解（用于显示哪些是政令/事件加成）
             sources: _shouldComputeFinancialDetail ? {
                 decreeResourceDemand: decreeResourceDemandMod,
                 decreeStratumDemand: decreeStratumDemandMod,
@@ -9117,7 +9208,11 @@ export const simulateTick = ({
                 eventBuildingProduction: eventBuildingProductionModifiers,
                 techBuildingBonus: buildingBonuses,
                 techCategoryBonus: categoryBonuses,
-                // 全局生产加成（来自政令和节日?
+                // 理念专属加成（从总加成中分离，供UI独立显示）
+                ideologyCategoryBonus: _ideologyCategoryBonus,
+                ideologyProductionBonus: _ideologyProductionBonus,
+                ideologyIndustryBonus: _ideologyIndustryBonus,
+                // 全局生产加成（来自政令和节日）
                 productionBonus: productionBonus,
                 industryBonus: industryBonus,
                 // 军事加成

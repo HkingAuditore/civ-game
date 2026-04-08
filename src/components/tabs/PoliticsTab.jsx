@@ -207,7 +207,7 @@ const TaxBatchSheet = memo(({
                         <span className="text-sm font-bold text-yellow-300">人头税倍率</span>
                         <span className="text-xs text-gray-500 ml-auto">{strataToDisplay.length} 个阶层</span>
                     </div>
-                    <p className="text-xs text-gray-500">输入收入百分比（1× 基准={((headBaseRate||0.05)*100).toFixed(0)}% 收入）。例如：100 = 1.0× 基准税率；<span className="text-yellow-300">负值 = 固定补贴</span></p>
+                    <p className="text-xs text-gray-500">输入收入百分比。例如：5 = 征收收入的5%；100 = 全额征收；<span className="text-yellow-300">负值 = 固定补贴</span></p>
                     <div className="flex gap-2">
                         <input type="number" value={headPct} onChange={e => setHeadPct(e.target.value)} className={inputCls} placeholder="税率% (如 100) 或 -补贴" />
                         <button onClick={applyHeadTax} className={applyBtnCls}>应用</button>
@@ -647,8 +647,8 @@ const PoliticsTabComponent = ({
 
     // Tax Draft Handlers (Keeping existing logic)
     // 人头税：UI 用百分比，存储用系数
-    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
-    const headMultiplierToPercent = (m) => (m ?? 1) * headBaseRate * 100;
+    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
+    const headMultiplierToPercent = (m) => (m ?? 0.05) * headBaseRate * 100;
     const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
 
     const handleHeadDraftChange = (key, raw) => setHeadDrafts(prev => ({ ...prev, [key]: raw }));
@@ -656,7 +656,7 @@ const PoliticsTabComponent = ({
         if (headDrafts[key] === undefined) return;
         const parsed = parseFloat(headDrafts[key]);
         if (Number.isNaN(parsed)) { setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; }); return; }
-        const currentMultiplier = headRates[key] ?? 1;
+        const currentMultiplier = headRates[key] ?? 0.05;
         const isCurrentSubsidy = currentMultiplier < 0 || Object.is(currentMultiplier, -0);
         let storeValue;
         if (isCurrentSubsidy) {
@@ -757,7 +757,7 @@ const PoliticsTabComponent = ({
             for (const [key, raw] of Object.entries(d.headDrafts)) {
                 const parsed = parseFloat(raw);
                 if (Number.isNaN(parsed)) continue;
-                const currentMultiplier = fn.headRates[key] ?? 1;
+                const currentMultiplier = fn.headRates[key] ?? 0.05;
                 const isCurrentSubsidy = currentMultiplier < 0 || Object.is(currentMultiplier, -0);
                 if (isCurrentSubsidy) {
                     headUpdates[key] = -(Math.max(0, Math.abs(parsed)));
@@ -867,7 +867,7 @@ const PoliticsTabComponent = ({
     // Render Functions (Copied/Reused)
     const renderStratumCard = (key) => {
         const stratumInfo = STRATA[key] || {};
-        const multiplier = headRates[key] ?? 1;
+        const multiplier = headRates[key] ?? 0.05;
         const isSubsidy = multiplier < 0 || Object.is(multiplier, -0);
         const isTax = multiplier > 0;
         const displayPct = isTax ? headMultiplierToPercent(multiplier) : 0;
@@ -1020,7 +1020,7 @@ const PoliticsTabComponent = ({
                         <div className="space-y-3">
                             <details className="bg-blue-900/20 border border-blue-500/30 p-2 rounded-lg text-xs text-blue-100">
                                 <summary className="flex items-center gap-2 cursor-pointer"><Icon name="Info" size={12} className="text-blue-400" /><span className="font-semibold">人头税说明</span></summary>
-                                <p className="mt-1">按阶层日均收入的比例征收（基准{((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) * 100).toFixed(0)}%）。税额 = 日均收入 × {((TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) * 100).toFixed(0)}% × 系数 × 税收修正。系数越高税收越多，但影响满意度。负值为补贴。</p>
+                                <p className="mt-1">按阶层日均收入的比例征收。税额 = 日均收入 × 税率% × 税收修正。税率越高税收越多，但影响满意度。负值为补贴。</p>
                             </details>
                             {Object.entries(STRATA_GROUPS).map(([groupKey, groupInfo]) => {
                                 const groupStrata = strataToDisplay.filter(key => groupInfo.keys.includes(key));

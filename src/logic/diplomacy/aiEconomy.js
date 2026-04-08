@@ -27,9 +27,9 @@ const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
 };
 
 const getAIPlayerInfluenceFactor = (difficultyMultiplier = 1) => clamp(
-    0.12 + Math.max(0, difficultyMultiplier - 1) * 0.06,
-    0.10,
-    0.20
+    0.25 + Math.max(0, difficultyMultiplier - 1) * 0.08,
+    0.20,
+    0.40
 );
 
 const getAIPopulationSoftCapBoost = (difficultyMultiplier = 1) => clamp(

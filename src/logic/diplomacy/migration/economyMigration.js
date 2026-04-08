@@ -102,9 +102,8 @@ const buildMigratedMetrics = (nation, state) => {
 
 export function migrateNationEconomy(nation) {
     // Create new state
-    const beforePop = nation.population;
-    const beforeOwnBasePop = nation.economyTraits?.ownBasePopulation;
-    const state = sanitizeMigratedState(AIEconomyState.fromLegacyFormat(nation));
+    const rawState = AIEconomyState.fromLegacyFormat(nation);
+    const state = sanitizeMigratedState(rawState);
     
     // Validate
     const validation = state.validate();
@@ -114,13 +113,6 @@ export function migrateNationEconomy(nation) {
     }
     
     const metrics = buildMigratedMetrics(nation, state);
-    
-    // [DEBUG] Track population changes during migration
-    const afterPop = state.population;
-    const afterBasePop = state.basePopulation;
-    if (beforePop > 0 && Math.abs(afterPop - beforePop) > Math.max(50, beforePop * 0.1)) {
-        console.warn(`[MIGRATE POP] ${nation.name}: pop ${beforePop} -> ${afterPop}, basePop ${beforeOwnBasePop} -> ${afterBasePop}`);
-    }
     
     // Convert back to legacy format and mark as migrated
     return {

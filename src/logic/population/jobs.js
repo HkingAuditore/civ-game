@@ -252,7 +252,7 @@ export const fillVacancies = ({
         let taxCost = 0;
         if (headRate > 0) {
             const incomeBase = (Number.isFinite(wage) && wage > 0)
-                ? wage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+            ? wage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0) : 0;
             taxCost = incomeBase * headRate * effectiveTaxModifier;
         } else if (headRate < 0) {
             taxCost = headRate * effectiveTaxModifier;

@@ -5,6 +5,8 @@ import { RESOURCES } from '../../config';
 import { isDiplomacyUnlocked } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { getReputationTierInfo, getAllReputationEffects } from '../../config/reputationSystem';
+import { isNationVisible } from '../../utils/nationVisibility';
+import { getUndiscoveredCount } from '../../logic/diplomacy/nationDiscovery';
 import { CreateOrganizationModal } from '../modals/CreateOrganizationModal';
 import { BottomSheet } from '../tabs/BottomSheet';
 
@@ -47,10 +49,7 @@ const DiplomacyDashboard = ({
     const visibleNations = useMemo(() => {
 
         return (nations || []).filter(
-            (nation) =>
-                epoch >= (nation.appearEpoch ?? 0) &&
-                (nation.expireEpoch == null || epoch <= nation.expireEpoch) &&
-                !nation.isAnnexed // 排除已被吞并的国家
+            (nation) => isNationVisible(nation, epoch)
         );
     }, [nations, epoch]);
 
@@ -63,6 +62,8 @@ const DiplomacyDashboard = ({
     const playerOrgs = organizations.filter((org) =>
         Array.isArray(org?.members) && org.members.includes('player')
     );
+
+    const undiscoveredCount = useMemo(() => getUndiscoveredCount(nations || [], epoch), [nations, epoch]);
 
     const totalInvestments = overseasInvestments
         ? overseasInvestments.reduce((sum, inv) => sum + (inv.count || 1), 0)
@@ -104,7 +105,16 @@ const DiplomacyDashboard = ({
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+                <DashboardCard
+                    title="已知文明"
+                    value={visibleNations.length}
+                    subValue={undiscoveredCount > 0 ? `还有 ${undiscoveredCount} 个待发现` : '已全部发现'}
+                    icon="Globe"
+                    color="text-cyan-400"
+                    borderColor="border-cyan-500/30"
+                    bg="bg-cyan-900/10"
+                />
                 <DashboardCard
                     title="当前战争"
                     value={wars.length}

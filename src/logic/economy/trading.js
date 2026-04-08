@@ -672,9 +672,9 @@ export const simulateMerchantTrade = ({
         trade.daysRemaining -= 1;
 
         if (trade.daysRemaining <= 0) {
-            // [REFACTORED] Use Ledger for revenue (Income)
+            // [REFACTORED] Use Ledger for trade revenue (separate from building ownerRevenue)
             if (ledger) {
-                ledger.transfer('void', 'merchant', trade.revenue, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
+                ledger.transfer('void', 'merchant', trade.revenue, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE);
             }
             // Keep roleWagePayout for other stats
             roleWagePayout.merchant = (roleWagePayout.merchant || 0) + trade.revenue;
@@ -2064,9 +2064,8 @@ const executeExportTrade = ({
                     if (totalTaxPaid > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + totalTaxPaid;
                 }
 
-                if (profit > 0) {
-                    classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + profit * batchMultiplier;
-                }
+                // [FIX] Trade profit is recorded via Ledger when trade completes (tradeImportRevenue).
+                // Do NOT double-record profit here at initiation time.
 
                 const subsidy = totalAppliedTax < 0 ? Math.abs(totalAppliedTax) : 0;
                 if (subsidy > 0) {
@@ -2230,10 +2229,8 @@ const executeImportTrade = ({
                     if (totalTaxPaid > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + totalTaxPaid;
                 }
 
-                const profit = totalNetRevenue - totalCost;
-                if (profit > 0) {
-                    classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + profit;
-                }
+                // [FIX] Trade profit is recorded via Ledger when trade completes (tradeImportRevenue).
+                // Do NOT double-record profit here at initiation time.
 
                 const subsidy = totalAppliedTax < 0 ? Math.abs(totalAppliedTax) : 0;
                 if (subsidy > 0) {

@@ -4,6 +4,7 @@
 import { EPOCHS, STRATA, RESOURCES, TECHS } from '../config';
 import { EVENTS, BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS, STATIC_DIPLOMATIC_EVENTS } from '../config/events';
 import { IDEOLOGIES } from '../config/ideologies';
+import { discoverNationsOnEpochChange } from '../logic/diplomacy/nationDiscovery';
 
 const EPOCH_ALIASES = {
     stone: 0,
@@ -711,6 +712,17 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
             if (currentIndex < EPOCHS.length - 1) {
                 const nextIdx = currentIndex + 1;
                 gameState.setEpoch(nextIdx);
+                // Trigger nation discovery on epoch change
+                const currentNations = gameState.nations || [];
+                const discoveryLogs = [];
+                discoverNationsOnEpochChange({
+                    nations: currentNations,
+                    newEpoch: nextIdx,
+                    logs: discoveryLogs,
+                    discoverer: 'player',
+                });
+                gameState.setNations([...currentNations]);
+                discoveryLogs.forEach(log => addLog(log));
                 const nextName = EPOCHS[nextIdx]?.name || `时代 ${nextIdx}`;
                 addLog(`🏛️ 作弊码：进入 ${nextName}`);
                 console.log(`✅ Advanced to epoch #${nextIdx} (${nextName})`);
@@ -729,6 +741,17 @@ export const initCheatCodes = (gameState, addLog, setters = {}) => {
                 return;
             }
             gameState.setEpoch(targetIndex);
+            // Trigger nation discovery on epoch change
+            const currentNations = gameState.nations || [];
+            const discoveryLogs = [];
+            discoverNationsOnEpochChange({
+                nations: currentNations,
+                newEpoch: targetIndex,
+                logs: discoveryLogs,
+                discoverer: 'player',
+            });
+            gameState.setNations([...currentNations]);
+            discoveryLogs.forEach(log => addLog(log));
             const epochName = EPOCHS[targetIndex]?.name || `时代 ${targetIndex}`;
             addLog(`🏛️ 作弊码：设置时代为 ${epochName}`);
             console.log(`✅ Set epoch to #${targetIndex} (${epochName})`);

@@ -784,6 +784,8 @@ const buildMinimalAutoSavePayload = (payload) => {
             id: nation.id,
             name: nation.name,
             isPlayer: nation.isPlayer,
+            discovered: nation.discovered,
+            _discoveredBy: nation._discoveredBy,
             resources: nation.resources,
             population: nation.population,
             wealth: nation.wealth,
@@ -1067,7 +1069,7 @@ const buildInitialMarket = () => {
 const buildDefaultHeadTaxRates = () => {
     const rates = {};
     Object.keys(STRATA).forEach(key => {
-        rates[key] = 1;
+        rates[key] = 0.05; // 默认 5% 税率（直接存储比率，所见即所得）
     });
     return rates;
 };
@@ -1184,6 +1186,8 @@ const buildInitialNations = (playerState = null) => {
         return {
             ...nation,
             relation: 50,
+            // 渐进式发现：初始时代国家默认已发现，其余待发现
+            discovered: appearEpoch <= currentEpoch,
             treaties: Array.isArray(nation.treaties) ? nation.treaties : [],
             openMarketUntil: nation.openMarketUntil ?? null,
             peaceTreatyUntil: nation.peaceTreatyUntil ?? null,
@@ -1560,7 +1564,7 @@ export const useGameState = () => {
         exportTariffMultipliers: {},
         importTariffMultipliers: {},
         resourceTariffMultipliers: {},
-        _headTaxVersion: 2,
+        _headTaxVersion: 3,
     });
     const [jobFill, setJobFill] = useState({});
     const [jobsAvailable, setJobsAvailable] = useState({}); // 各阶层可用岗位数�?
@@ -2309,8 +2313,20 @@ export const useGameState = () => {
 
         setNations(migratedNations.map(n => {
             const normalizedNation = n.id === 'player' ? n : migrateNationEconomy(n);
+            // 旧存档兼容：迁移 discovered 字段
+            const currentEpoch = data.epoch ?? 0;
+            const hasDiscoveredField = Object.prototype.hasOwnProperty.call(n, 'discovered');
+            let discovered;
+            if (hasDiscoveredField) {
+                discovered = n.discovered;
+            } else {
+                // 旧存档：已有 relation 值或 appearEpoch <= currentEpoch 的国家视为已发现
+                const appearEpoch = n.appearEpoch ?? 0;
+                discovered = (appearEpoch <= currentEpoch) && (n.relation !== undefined && n.relation !== null);
+            }
             return {
             ...normalizedNation,
+            discovered,
             treaties: Array.isArray(n.treaties) ? n.treaties : [],
             openMarketUntil: Object.prototype.hasOwnProperty.call(n, 'openMarketUntil') ? n.openMarketUntil : null,
             peaceTreatyUntil: Object.prototype.hasOwnProperty.call(n, 'peaceTreatyUntil') ? n.peaceTreatyUntil : null,
@@ -2636,7 +2652,7 @@ export const useGameState = () => {
             exportTariffMultipliers: {},
             importTariffMultipliers: {},
             resourceTariffMultipliers: {},
-            _headTaxVersion: 2,
+            _headTaxVersion: 3,
         };
         const loadedTaxPolicies = data.taxPolicies || {};
         if (!loadedTaxPolicies._headTaxVersion && loadedTaxPolicies.headTaxRates) {
@@ -2668,6 +2684,24 @@ export const useGameState = () => {
             });
             loadedTaxPolicies._headTaxVersion = 2;
             console.log('[Save Migration] headTaxRates migrated to v2 (income-proportional)');
+        }
+        // v2 → v3: HEAD_TAX_INCOME_RATIO 从 0.05 改为 1.0，headTaxRates 直接存储税率比率
+        // 旧 v2 格式: rate 是 multiplier, 实际税率 = 0.05 × multiplier
+        // 新 v3 格式: rate 直接是税率比率, 实际税率 = 1.0 × rate = rate
+        // 迁移: newRate = oldMultiplier × 0.05
+        if (loadedTaxPolicies._headTaxVersion === 2 && loadedTaxPolicies.headTaxRates) {
+            const htr = loadedTaxPolicies.headTaxRates;
+            const OLD_BASE = 0.05;
+            Object.keys(htr).forEach(key => {
+                if (key.startsWith('_')) return;
+                const oldMultiplier = htr[key];
+                if (oldMultiplier >= 0) {
+                    htr[key] = oldMultiplier * OLD_BASE;
+                }
+                // 负值（补贴模式）保持不变，因为补贴是绝对值
+            });
+            loadedTaxPolicies._headTaxVersion = 3;
+            console.log('[Save Migration] headTaxRates migrated to v3 (direct ratio, HEAD_TAX_INCOME_RATIO=1.0)');
         }
         setTaxPolicies({
             ...defaultTaxPolicies,

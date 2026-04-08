@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { Card, Button, Modal } from '../common/UnifiedUI';
 import { ORGANIZATION_TYPE_CONFIGS, getOrganizationEffectDescriptions, calculateLeaveOrganizationCost, getOrganizationMaxMembers } from '../../logic/diplomacy/organizationDiplomacy';
+import { isNationVisible } from '../../utils/nationVisibility';
 
 const OrganizationDetailsModal = ({
     isOpen,
@@ -62,9 +63,27 @@ const OrganizationDetailsModal = ({
                     };
                 }
                 const nation = nations.find(n => n.id === memberId);
-                // Filter out destroyed/annexed nations (those not found in nations list)
+                // Nation not found: either destroyed/annexed or undiscovered
                 if (!nation) {
-                    return null;
+                    return {
+                        id: memberId,
+                        name: '未知国家',
+                        isPlayer: false,
+                        isFounder: false,
+                        relation: null,
+                        isUnknown: true,
+                    };
+                }
+                // Undiscovered nations shown as unknown
+                if (!isNationVisible(nation, epoch)) {
+                    return {
+                        id: memberId,
+                        name: '未知国家',
+                        isPlayer: false,
+                        isFounder: false,
+                        relation: null,
+                        isUnknown: true,
+                    };
                 }
                 return {
                     id: memberId,
@@ -74,8 +93,8 @@ const OrganizationDetailsModal = ({
                     relation: nation.relation || 0,
                 };
             })
-            .filter(member => member !== null); // Remove null entries (destroyed nations)
-    }, [organization.members, nations, playerNationId, organization.founderId, organization.leaderId, empireName]);
+            .filter(member => member !== null);
+    }, [organization.members, nations, playerNationId, organization.founderId, organization.leaderId, empireName, epoch]);
 
     const effects = useMemo(() => {
         return getOrganizationEffectDescriptions(organization.type);
@@ -154,18 +173,18 @@ const OrganizationDetailsModal = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
                         {memberList.map(member => {
-                            const rInfo = relationInfoHelper(member.relation);
+                            const rInfo = member.isUnknown ? null : relationInfoHelper(member.relation);
                             return (
                                 <div key={member.id} className={`
                                     flex items-center justify-between px-2 py-1.5 rounded border
-                                    ${member.isPlayer ? 'bg-ancient-gold/10 border-ancient-gold/40' : 'bg-ancient-ink/20 border-white/5'}
+                                    ${member.isPlayer ? 'bg-ancient-gold/10 border-ancient-gold/40' : member.isUnknown ? 'bg-ancient-ink/10 border-white/5 opacity-60' : 'bg-ancient-ink/20 border-white/5'}
                                 `}>
                                     <div className="flex items-center gap-1.5">
-                                        <div className="w-5 h-5 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 text-xs font-bold text-ancient-parchment">
-                                            {member.name.charAt(0)}
+                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center border text-xs font-bold ${member.isUnknown ? 'bg-ancient-stone/10 border-ancient-stone/20 text-ancient-stone/50' : 'bg-ancient-stone/20 border-ancient-stone/30 text-ancient-parchment'}`}>
+                                            {member.isUnknown ? '?' : member.name.charAt(0)}
                                         </div>
                                         <div>
-                                            <div className="text-xs font-medium text-ancient-parchment flex items-center gap-1">
+                                            <div className={`text-xs font-medium flex items-center gap-1 ${member.isUnknown ? 'text-ancient-stone/50 italic' : 'text-ancient-parchment'}`}>
                                                 {member.name}
                                                 {member.isFounder && (
                                                     <Icon name="Crown" size={12} className="text-amber-400" />
@@ -176,7 +195,7 @@ const OrganizationDetailsModal = ({
                                             </div>
                                         </div>
                                     </div>
-                                    {!member.isPlayer && (
+                                    {!member.isPlayer && !member.isUnknown && rInfo && (
                                         <div className={`text-xs px-2 py-0.5 rounded bg-black/30 ${rInfo.color}`}>
                                             {rInfo.label}
                                         </div>

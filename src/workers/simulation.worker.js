@@ -117,7 +117,8 @@ let _gameSpeed = 1;
  * 深拷贝（structured clone）传输完整 simulation 结果是 OOM 的首要原因。
  *
  * 策略：
- * - 调试数据每 tick 都剥离（buildingDebugData, _perf.sections, modifiers.sources）
+ * - 调试数据每 tick 都剥离（buildingDebugData, _perf.sections）
+ * - modifiers.sources 保留（供 BuildingDetails / ResourceDetailModal 显示加成明细）
  * - 大型 UI-only 数据每 UI_DATA_INTERVAL tick 才传输一次，其余 tick 设为 null
  *   （主线程已有降频机制，不影响显示）
  */
@@ -137,11 +138,10 @@ function stripPayloadForTransfer(result) {
         stripped._perf = { totalMs: stripped._perf.totalMs };
     }
 
-    if (stripped.modifiers) {
-        // Strip the large `sources` sub-object (only used by debug UI)
-        const { sources: _sources, ...functionalModifiers } = stripped.modifiers;
-        stripped.modifiers = functionalModifiers;
-    }
+    // NOTE: modifiers.sources is NOT stripped here — it is needed by
+    // BuildingDetails and ResourceDetailModal for bonus breakdown display.
+    // It is already gated by _isFullTick in simulation.js (null on non-full ticks),
+    // and the fullTickCacheRef in useGameLoop.js caches it for non-full ticks.
 
     // === 降频传输的大型 UI 数据 ===
     // 这些字段仅供面板/图表显示，不影响下一 tick 的 simulation 计算
@@ -200,11 +200,15 @@ function stripPayloadForTransfer(result) {
             // Keep all fields for player nation
             if (n.isPlayer || n.id === 'player') return n;
             if (!isFullTick) {
-                // Aggressive strip: remove heavy diagnostic + economy sub-objects
+                // Aggressive strip: remove heavy diagnostic/history sub-objects
+                // NOTE: economyTraits MUST be preserved — it contains critical persistent
+                // state (ownBasePopulation, lastGrowthTick, developmentRate, etc.) that
+                // the AI economy system needs every tick.
+                // NOTE: foreignPower MUST be preserved — simulation.js uses it every tick
+                // (24 references) for AI nation economy calculations. Stripping it causes
+                // foreignPower to be re-initialized every non-full tick, resetting AI data.
                 const {
                     buildingProfile: _bp,
-                    foreignPower: _fp,
-                    economyTraits: _et,
                     warHistory: _wh,
                     tradeHistory: _th,
                     priceHistory: _ph,

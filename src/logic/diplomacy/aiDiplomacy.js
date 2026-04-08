@@ -82,6 +82,21 @@ export const initializeForeignRelations = (nations) => {
         nations.forEach(otherNation => {
             if (otherNation.id === nation.id) return;
 
+            // 渐进式发现：仅对互相已发现的国家初始化外交关系
+            const mutuallyDiscovered = (() => {
+                if (nation.id === 'player' || otherNation.id === 'player') {
+                    // 玩家与 AI：检查 AI 是否被玩家发现
+                    const aiNation = nation.id === 'player' ? otherNation : nation;
+                    return aiNation.discovered === true;
+                }
+                // AI 之间：检查双方是否互相发现
+                const aKnowsB = nation._discoveredBy?.[otherNation.id] === true;
+                const bKnowsA = otherNation._discoveredBy?.[nation.id] === true;
+                return aKnowsB || bKnowsA;
+            })();
+
+            if (!mutuallyDiscovered) return;
+
             if (nation.foreignRelations[otherNation.id] === undefined) {
                 const avgAggression = ((nation.aggression || 0.3) + (otherNation.aggression || 0.3)) / 2;
                 nation.foreignRelations[otherNation.id] = Math.floor(50 - avgAggression * 30 + (Math.random() - 0.5) * 20);

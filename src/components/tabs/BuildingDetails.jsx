@@ -656,11 +656,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             if (debuff.production) productionPct += debuff.production;
             if (debuff.industryBonus) industryPct += debuff.industryBonus;
         });
-        // 政令加成
-        const productionBonus = modifierSources.productionBonus || 0;
-        const industryBonus = modifierSources.industryBonus || 0;
-        productionPct += productionBonus;
-        industryPct += industryBonus;
+        // 政令加成（分离理念贡献）
+        const totalProductionBonus = modifierSources.productionBonus || 0;
+        const totalIndustryBonus = modifierSources.industryBonus || 0;
+        const ideoProductionBonus = modifierSources.ideologyProductionBonus || 0;
+        const ideoIndustryBonus = modifierSources.ideologyIndustryBonus || 0;
+        // 非理念部分的生产/工业加成
+        productionPct += (totalProductionBonus - ideoProductionBonus);
+        industryPct += (totalIndustryBonus - ideoIndustryBonus);
 
         if ((b.cat === 'gather' || b.cat === 'civic') && productionPct !== 0) {
             bonusSum += productionPct;
@@ -671,14 +674,29 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             modList.push({ label: '工业修正', pct: industryPct });
         }
 
-        // 3. 类别加成 - 来自科技（现在直接存储加成百分比，如 0.25 = +25%）
-        const techCategoryBonus = modifierSources.techCategoryBonus?.[b.cat] || 0;
+        // 3. 理念加成（独立显示：类别加成 + 生产/工业加成）
+        const ideoCatBonus = modifierSources.ideologyCategoryBonus?.[b.cat] || 0;
+        let ideologyPct = ideoCatBonus;
+        if ((b.cat === 'gather' || b.cat === 'civic') && ideoProductionBonus !== 0) {
+            ideologyPct += ideoProductionBonus;
+        }
+        if (b.cat === 'industry' && ideoIndustryBonus !== 0) {
+            ideologyPct += ideoIndustryBonus;
+        }
+        if (ideologyPct !== 0) {
+            bonusSum += ideologyPct;
+            modList.push({ label: '理念加成', pct: ideologyPct });
+        }
+
+        // 4. 类别加成 - 来自科技等（排除理念贡献）
+        const totalCategoryBonus = modifierSources.techCategoryBonus?.[b.cat] || 0;
+        const techCategoryBonus = totalCategoryBonus - ideoCatBonus;
         if (techCategoryBonus !== 0) {
             bonusSum += techCategoryBonus;
             modList.push({ label: '类别科技', pct: techCategoryBonus });
         }
 
-        // 4. 事件加成
+        // 5. 事件加成
         const eventBuildingMod = modifierSources.eventBuildingProduction?.[b.id] || 0;
         const eventCategoryMod = modifierSources.eventBuildingProduction?.[b.cat] || 0;
         const eventAllMod = modifierSources.eventBuildingProduction?.['all'] || 0;
@@ -695,7 +713,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             modList.push({ label: '事件(全局)', pct: eventAllMod });
         }
 
-        // 5. 建筑特定科技加成（现在直接存储加成百分比，如 0.25 = +25%）
+        // 6. 建筑特定科技加成（现在直接存储加成百分比，如 0.25 = +25%）
         const techBuildingBonus = modifierSources.techBuildingBonus?.[b.id] || 0;
         if (techBuildingBonus !== 0) {
             bonusSum += techBuildingBonus;

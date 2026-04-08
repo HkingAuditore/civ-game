@@ -71,7 +71,7 @@ export const calculateClassApproval = ({
         let taxPerCapita = 0;
         if (headRate > 0) {
             const incomeBase = incomePerCapita > 0
-                ? incomePerCapita * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05) : 0;
+                ? incomePerCapita * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0) : 0;
             taxPerCapita = incomeBase * headRate * effectiveTaxModifier;
         }
 

@@ -7,6 +7,7 @@ import React, { memo, useMemo, useState } from 'react';
 import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
+import { isNationVisible } from '../../utils/nationVisibility';
 
 const ACTION_LABELS = {
     trade: '贸易协定',
@@ -35,6 +36,7 @@ export const VassalDiplomacyPanel = memo(({
     queue = [],
     history = [],
     currentDay = 0,
+    epoch = 0,
     onApprove,
     onReject,
     onIssueOrder,
@@ -54,10 +56,9 @@ export const VassalDiplomacyPanel = memo(({
         if (!selectedVassal) return [];
         return nations.filter(n => 
             n.id !== selectedVassal.id && 
-            !n.isAnnexed && 
-            n.visible !== false
+            isNationVisible(n, epoch)
         );
-    }, [nations, selectedVassal]);
+    }, [nations, selectedVassal, epoch]);
 
     const warTargets = useMemo(() => {
         if (!selectedVassal || !selectedVassal.foreignWars) return [];
