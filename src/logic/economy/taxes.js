@@ -1,6 +1,12 @@
 /**
  * Tax Calculation Module
  * Handles tax collection, tax breakdown, and tax efficiency calculations
+ *
+ * effectiveTaxModifier 语义：征收效率系数，范围 [0, 1.0]，永远不超过 1.0。
+ * 公式：baseTaxEfficiency + (1 - baseTaxEfficiency) × bonusRecovery
+ * - baseTaxEfficiency = taxModifier × legitimacyTaxModifier（合法性越高效率越高）
+ * - bonusRecovery = clamp(taxBonus + ideoTaxModifier, 0, 1)（官员/科技/政令恢复效率损耗）
+ * 含义：民众被扣了 X 银币，国库实际收到 X × effectiveTaxModifier 银币（差额为腐败等损耗）。
  */
 
 import { STRATA, TAX_LIMITS, TAX_BASE_RATES } from '../../config';
@@ -43,9 +49,9 @@ export const initializeTaxBreakdown = () => ({
 export const getHeadTaxRate = (key, headTaxRates = {}) => {
     let rate = headTaxRates[key];
     if (typeof rate !== 'number') {
-        rate = 1;
+        rate = 0.05; // 默认 5% 税率（直接比率）
     }
-    // 人头税不设上限，直接返回系数
+    // 人头税不设上限，直接返回税率
     return rate;
 };
 
@@ -113,7 +119,7 @@ export const collectHeadTax = ({
                 prevWage = defaultWageEstimate;
             }
         }
-        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
+        const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
         let plannedPerCapitaTax;
         if (headRate > 0) {
             const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)
@@ -162,6 +168,8 @@ export const collectHeadTax = ({
 
 /**
  * Calculate final tax collection with efficiency
+ * @deprecated 当前未被 simulation.js 调用，腐败/效率逻辑已内联到 simulation.js 中。
+ * 保留备用，如需重构税收系统可复用此函数。
  * @param {Object} taxBreakdown - Tax breakdown
  * @param {number} efficiency - Tax collection efficiency (0-1)
  * @param {number} warIndemnityIncome - War indemnity income

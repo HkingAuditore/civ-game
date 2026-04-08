@@ -48,7 +48,7 @@ export const computeLivingCosts = (
             if (wageCount > 0) prevWage = wageSum / wageCount;
         }
         const incomeBase = (Number.isFinite(prevWage) && prevWage > 0)
-            ? prevWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05)
+            ? prevWage * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0)
             : 0;
         const rawHeadTaxCost = incomeBase * headRate;
         taxCost += Math.min(rawHeadTaxCost, needsCost * 0.5);

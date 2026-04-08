@@ -18,6 +18,7 @@ import {
 import { calculateNegotiationAcceptChance } from '../../logic/diplomacy/negotiation';
 import { getCorpsTotalUnits } from '../../logic/diplomacy/corpsSystem';
 import { getEffectiveRelationValue } from '../../utils/diplomacyUtils';
+import { isNationVisible } from '../../utils/nationVisibility';
 
 // Constants
 const NEGOTIATION_MAX_ROUNDS = 3;
@@ -95,18 +96,7 @@ const DiplomacyTabComponent = ({
     const visibleNations = useMemo(
         () =>
             nations.filter(
-                (nation) => {
-                    const isPlayerVassal = nation?.vassalOf === 'player';
-                    const isInEpochRange =
-                        epoch >= (nation.appearEpoch ?? 0) &&
-                        (nation.expireEpoch == null || epoch <= nation.expireEpoch);
-                    return (
-                        // 附庸不受时代可见性限制，避免升时代后在外交/贸易界面丢失
-                        (isInEpochRange || isPlayerVassal) &&
-                        !nation.isAnnexed && // 排除已被吞并的国家
-                        nation.relation !== undefined && nation.relation !== null // 只显示已发现的国家
-                    );
-                }
+                (nation) => isNationVisible(nation, epoch)
             ),
         [nations, epoch]
     );

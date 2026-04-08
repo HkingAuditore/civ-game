@@ -1,6 +1,11 @@
 import { RESOURCES } from '../../../config/index.js';
-import { getAIDevelopmentMultiplier } from '../../../config/difficulty.js';
-import { getConfig, getPerCapitaWealthCap } from '../config/aiEconomyConfig.js';
+import {
+    getAIDevelopmentMultiplier,
+    getAIGrowthRateMultiplier,
+    getAIWealthCapMultiplier,
+    getAIWealthFloorMultiplier,
+} from '../../../config/difficulty.js';
+import { getConfig, getPerCapitaWealthCap, getTargetPerCapitaWealth } from '../config/aiEconomyConfig.js';
 import { calculateDevelopmentCapacity } from '../calculators/DevelopmentCapacityCalculator.js';
 import { calculateAIPopulationDynamics } from '../calculators/AIPopulationDynamics.js';
 import {
@@ -102,6 +107,7 @@ export class AIDevelopmentService {
         epoch,
         difficulty = 'normal',
         playerPopulation = 0,
+        playerPerCapitaWealth = 0,
         ticksSinceUpdate = 10,
         allowHeavyUpdate = true,
         cachedVirtualLabor = null,
@@ -128,6 +134,7 @@ export class AIDevelopmentService {
             playerPopulation,
             difficultyMultiplier,
             hardCapacityLimit,
+            difficulty,
         });
 
         const currentPopulation = Math.max(1, Math.round(safeNumber(state.population ?? nation.population, 1)));
@@ -157,6 +164,11 @@ export class AIDevelopmentService {
         }
 
         const nextPopulation = Math.max(1, currentPopulation + populationChange);
+        
+        // [DEBUG] Track large population changes
+        if (currentPopulation > 0 && Math.abs(populationChange) > Math.max(50, currentPopulation * 0.1)) {
+            console.warn(`[DEV POP DETAIL] ${nation.name}: curPop=${currentPopulation}, change=${populationChange}, rawDelta=${rawPopulationDelta.toFixed(2)}, accum=${populationAccumulator.toFixed(2)}, remainder=${safeNumber(currentRemainders.population, 0).toFixed(4)}, dynPop=${populationDynamics.population}, dynCap=${populationDynamics.carryingCapacity}, hardCapLimit=${hardCapacityLimit}, ticksSince=${ticksSinceUpdate}`);
+        }
         const virtualLabor = shouldUseHeavyUpdate
             ? calculateAIVirtualLabor({
                 ...nation,
@@ -225,8 +237,53 @@ export class AIDevelopmentService {
             - maintenanceCostPenalty
             - warLoss
             - profitOutflow;
+        // [FIX v5] Subsistence income 保底：当建筑产出不足以支撑人口时，
+        // 提供基于人口规模的最低正向收入，代表自给自足经济活动，防止恶性循环。
+        const targetPerCapita = getTargetPerCapitaWealth(epoch);
+        // 难度驱动的 subsistence income 调节
+        const growthRateMultiplier = getAIGrowthRateMultiplier(difficulty);
+        let subsistenceIncome = nextPopulation * targetPerCapita * 0.003 * tickScale * growthRateMultiplier;
+
+        // === 玩家相对财富下限：追赶加成 ===
+        // 当 AI 人均财富低于 playerPerCapitaWealth × floorMultiplier 时，增强 subsistence income
+        const safePlayerPCW = Math.max(0, safeNumber(playerPerCapitaWealth, 0));
+        let wealthCatchUpBonus = 1.0;
+        if (safePlayerPCW > 0 && !nation.isAtWar) {
+            const wealthFloorMult = getAIWealthFloorMultiplier(difficulty);
+            const nationWealthFactor = safeNumber(nation.foreignPower?.wealthFactor, 1);
+            const wealthFloorThreshold = safePlayerPCW * wealthFloorMult * nationWealthFactor;
+            const aiPerCapitaWealth = safeNumber(state.wealth, 0) / Math.max(1, nextPopulation);
+            if (aiPerCapitaWealth < wealthFloorThreshold && wealthFloorThreshold > 0) {
+                // 追赶强度随差距增大而增强，最高 3x
+                const deficit = (wealthFloorThreshold - aiPerCapitaWealth) / wealthFloorThreshold;
+                wealthCatchUpBonus = 1.0 + clamp(deficit * 3.0, 0, 2.0); // max 3x total
+            }
+        }
+        subsistenceIncome *= wealthCatchUpBonus;
+
+        let effectiveSavingsFlow = Math.max(subsistenceIncome, grossSavingsFlow);
+
+        // === 玩家相对财富上限：软约束 ===
+        // 当 AI 人均财富超过 playerPerCapitaWealth × capMultiplier × 80% 时，递减惩罚
+        if (safePlayerPCW > 0 && effectiveSavingsFlow > 0) {
+            const wealthCapMult = getAIWealthCapMultiplier(difficulty);
+            const nationWealthFactor = safeNumber(nation.foreignPower?.wealthFactor, 1);
+            const wealthCapThreshold = safePlayerPCW * wealthCapMult * nationWealthFactor;
+            const softCapStart = wealthCapThreshold * 0.8;
+            const aiPerCapitaWealth = safeNumber(state.wealth, 0) / Math.max(1, nextPopulation);
+            if (aiPerCapitaWealth > softCapStart && wealthCapThreshold > 0) {
+                // 从 80% 到 100% 线性递减到 0.1（保留 10% 最低流入）
+                const overageRatio = clamp(
+                    (aiPerCapitaWealth - softCapStart) / (wealthCapThreshold - softCapStart),
+                    0, 1
+                );
+                const capPenalty = 1.0 - overageRatio * 0.9; // min 0.1
+                effectiveSavingsFlow *= Math.max(0.1, capPenalty);
+            }
+        }
+
         const wealthMomentum = safeNumber(virtualEconomy.effectiveOutput, 0) * 0.014;
-        const baseValueFlow = grossSavingsFlow + wealthMomentum;
+        const baseValueFlow = effectiveSavingsFlow + wealthMomentum;
         const rawWealthDelta = baseValueFlow * tickScale;
         const wealthAccumulator = safeNumber(currentRemainders.wealth, 0) + rawWealthDelta;
         let wealthDelta = wealthAccumulator >= 0
@@ -293,6 +350,8 @@ export class AIDevelopmentService {
         };
         aiDevelopment.wealthDeltaBreakdown = {
             grossSavingsFlow: Number(grossSavingsFlow.toFixed(2)),
+            effectiveSavingsFlow: Number(effectiveSavingsFlow.toFixed(2)),
+            subsistenceIncome: Number(subsistenceIncome.toFixed(2)),
             localValueAdded: Number(localValueAdded.toFixed(2)),
             tradeIncome: Number(tradeIncome.toFixed(2)),
             resourceSurplusMonetization: Number(resourceSurplusMonetization.toFixed(2)),

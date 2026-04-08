@@ -1,6 +1,8 @@
 // Event utility functions
 // Helper functions for event triggering and selection
 
+import { isNationVisible } from '../../utils/nationVisibility';
+
 /**
  * 检查事件是否可以触发
  * @param {Object} event - 事件对象
@@ -97,23 +99,8 @@ export function canTriggerEvent(event, gameState) {
 function resolveRandomNationInEvent(event, nations, epoch = 0) {
     if (!nations || nations.length === 0) return event;
 
-    // 过滤可见且在当前时代存在的国家
-    const visibleNations = nations.filter(n => {
-        // 基础可见性检查
-        if (n.visible === false) return false;
-
-        // 排除已被吞并的国家
-        if (n.isAnnexed) return false;
-
-        // 时代检查
-        const appearEpoch = n.appearEpoch ?? 0;
-        const expireEpoch = n.expireEpoch;
-
-        if (epoch < appearEpoch) return false;
-        if (expireEpoch != null && epoch > expireEpoch) return false;
-
-        return true;
-    });
+    // 过滤可见且在当前时代存在的国家（使用统一的发现系统）
+    const visibleNations = nations.filter(n => isNationVisible(n, epoch));
 
     if (visibleNations.length === 0) return event;
 

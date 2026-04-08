@@ -314,9 +314,9 @@ export function useSimulationWorker() {
         if (result._perf) {
             result._perf = { totalMs: result._perf.totalMs };
         }
-        if (result.modifiers) {
-            delete result.modifiers.sources;
-        }
+        // NOTE: modifiers.sources is preserved — needed by BuildingDetails / ResourceDetailModal.
+        // It is already null on non-full ticks (gated by _isFullTick in simulation.js),
+        // and fullTickCacheRef in useGameLoop.js caches it for non-full ticks.
         // Defeated nations → minimal stubs
         if (Array.isArray(result.nations)) {
             result.nations = result.nations.map(n => {
@@ -479,7 +479,7 @@ export function useSimulationWorker() {
 
     /**
      * [PERF] 控制Worker端调试数据传输开关
-     * 关闭时worker会从返回payload中剔除buildingDebugData、_perf.sections、modifiers.sources
+     * 关闭时worker会从返回payload中剔除buildingDebugData、_perf.sections等调试数据
      * @param {boolean} enabled - 是否启用调试数据传输
      */
     const setDebugMode = useCallback((enabled) => {

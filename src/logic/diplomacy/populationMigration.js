@@ -9,6 +9,7 @@
  */
 
 import { isDiplomacyUnlocked } from '../../config/diplomacy';
+import { isNationVisible } from '../../utils/nationVisibility';
 
 // 人口流动配置
 export const MIGRATION_CONFIGS = {
@@ -207,6 +208,8 @@ export const processMonthlyMigration = ({
     if (Array.isArray(nations)) {
         for (const nation of nations) {
             if (!nation || nation.id === 'player') continue;
+            // 未被玩家发现的国家不产生移民事件
+            if (!isNationVisible(nation, epoch)) continue;
 
             // 1. Economic Migration (Inbound)
             // 经济移民

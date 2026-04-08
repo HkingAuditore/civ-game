@@ -7,6 +7,7 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 import { useLongPress } from '../../hooks/useLongPress';
 import { trackMerchantAssign, trackTradePreference, trackTradeRouteMode } from '../../analytics/gaTracker';
+import { isNationVisible } from '../../utils/nationVisibility';
 
 // Separate component for assignment row to properly use hooks
 const AssignmentRow = ({
@@ -387,15 +388,9 @@ const TradeRoutesModal = ({
     const visibleNations = useMemo(() => {
         return nations.filter(
             (nation) => {
-                const isPlayerVassal = nation?.vassalOf === 'player';
-                const isInEpochRange =
-                    epoch >= (nation.appearEpoch ?? 0) &&
-                    (nation.expireEpoch == null || epoch <= nation.expireEpoch);
                 return (
-                    // 附庸不受时代窗口限制，确保升时代后仍可在贸易路线中管理
-                    (isInEpochRange || isPlayerVassal) &&
-                    !nation.isAtWar && // Exclude nations at war
-                    nation.relation !== undefined && nation.relation !== null // Only show discovered nations
+                    isNationVisible(nation, epoch) &&
+                    !nation.isAtWar // Exclude nations at war
                 );
             }
         );

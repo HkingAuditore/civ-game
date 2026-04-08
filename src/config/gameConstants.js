@@ -1127,6 +1127,39 @@ export const TAX_LIMITS = {
 };
 
 export const TAX_BASE_RATES = {
-    HEAD_TAX_INCOME_RATIO: 0.05,        // 人头税：按阶层日均收入的 5% 征收
+    HEAD_TAX_INCOME_RATIO: 1.0,         // 人头税：headTaxRates 直接存储税率比率（所见即所得）
     BUSINESS_TAX_REVENUE_RATIO: 0.03,   // 营业税默认税率 3%（仅作为未设置时的缺省值）
+};
+
+/**
+ * 渐进式国家发现系统配置
+ * 控制时代升级时的国家解锁数量和后续逐步发现节奏
+ */
+export const DISCOVERY_CONFIG = {
+    // 时代升级时初始解锁比例（从该时代可解锁国家池中随机选取的比例）
+    EPOCH_UNLOCK_RATIO: 0.5,
+    // 每时代最小解锁数量（若可解锁数 ≤ 此值则全部解锁）
+    MIN_UNLOCK_COUNT: 2,
+    // 每时代最大解锁数量上限（防止大时代一次解锁过多）
+    MAX_UNLOCK_COUNT: 6,
+
+    // 逐步发现的 tick 间隔（每隔多少 tick 检查一次是否发现新国家）
+    GRADUAL_DISCOVERY_TICK_INTERVAL: 30,
+    // 基础发现概率（每次检查时发现新国家的概率）
+    BASE_DISCOVERY_CHANCE: 0.08,
+    // 航海家人口对发现概率的加成系数（每100航海家人口增加的概率）
+    NAVIGATOR_POP_BONUS_PER_100: 0.02,
+    // 航海家加成上限
+    NAVIGATOR_BONUS_CAP: 0.15,
+    // 时代对发现概率的加成（每个时代增加的概率）
+    EPOCH_DISCOVERY_BONUS: 0.02,
+    // 探索时代（Epoch 4）及以上的额外发现概率加成
+    EXPLORATION_ERA_BONUS: 0.05,
+
+    // AI 国家间发现配置
+    AI_DISCOVERY_CHANCE_BASE: 0.06,
+    // 相邻时代（时代差 ≤ 1）的发现概率加成
+    AI_ADJACENT_EPOCH_BONUS: 0.04,
+    // AI 每时代升级时解锁比例
+    AI_EPOCH_UNLOCK_RATIO: 0.4,
 };

@@ -1034,6 +1034,7 @@ difficulty, // 游戏难度
     const cachedSupplyBreakdownRef = useRef({});
     const cachedDemandBreakdownRef = useRef({});
     const cachedStratumConsumptionRef = useRef({});
+    const cachedResourceLossBreakdownRef = useRef({});
     const cachedMarketSupplyRef = useRef({});
     const cachedMarketDemandRef = useRef({});
     // [PERF] Full tick UI 数据缓存：非 full tick 时被 stripPayloadForTransfer 剥离的字段
@@ -1054,7 +1055,7 @@ difficulty, // 游戏难度
     // [PERF] 主线程模式下的财务数据节流计数器
     // Worker 路径由 stripPayloadForTransfer 降频，主线程路径需自行节流
     const mainThreadFinancialCounterRef = useRef(0);
-    const MAIN_THREAD_FINANCIAL_INTERVAL = 10;
+    const MAIN_THREAD_FINANCIAL_INTERVAL = 3;
     // [PERF] 高速模式 UI 降频：>=3x 时大部分 setState 和昂贵计算每 N tick 才执行一次
     // 模拟每 tick 照常运行（保证游戏逻辑正确），但 React 渲染频率降至 ~1/s
     const highSpeedUICounterRef = useRef(0);
@@ -2018,6 +2019,7 @@ difficulty, // 游戏难度
                 if (result.market?.supplyBreakdown) cachedSupplyBreakdownRef.current = result.market.supplyBreakdown;
                 if (result.market?.demandBreakdown) cachedDemandBreakdownRef.current = result.market.demandBreakdown;
                 if (result.market?.stratumConsumption) cachedStratumConsumptionRef.current = result.market.stratumConsumption;
+                if (result.market?.resourceLossBreakdown) cachedResourceLossBreakdownRef.current = result.market.resourceLossBreakdown;
                 if (result.market?.supply) cachedMarketSupplyRef.current = result.market.supply;
                 if (result.market?.demand) cachedMarketDemandRef.current = result.market.demand;
 
@@ -2855,10 +2857,13 @@ difficulty, // 游戏难度
                     supplyBreakdown: result.market?.supplyBreakdown || cachedSupplyBreakdownRef.current,
                     demandBreakdown: result.market?.demandBreakdown || cachedDemandBreakdownRef.current,
                     stratumConsumption: result.market?.stratumConsumption || cachedStratumConsumptionRef.current,
+                    resourceLossBreakdown: result.market?.resourceLossBreakdown || cachedResourceLossBreakdownRef.current,
                     priceHistory: mHist.price,
                     supplyHistory: mHist.supply,
                     demandHistory: mHist.demand,
-                    modifiers: result.modifiers || {},
+                    // NOTE: modifiers is assigned AFTER fullTickCache restore (see below)
+                    // to ensure non-full-tick modifiers include cached sources/categoryProduction etc.
+                    modifiers: {},
                 };
 
                 // ========== 历史数据节流同步 ==========
@@ -3152,6 +3157,11 @@ difficulty, // 游戏难度
                         }
                     }
 
+                    // [FIX] Assign modifiers to adjustedMarket AFTER fullTickCache restore,
+                    // so non-full-tick modifiers include cached sources/categoryProduction etc.
+                    // Without this, BuildingDetails sees empty sources on non-full ticks ("一闪而过" bug).
+                    adjustedMarket.modifiers = result.modifiers || {};
+
                     // [PERF] 高速模式：纯展示 setState 仅每 N tick 更新一次
                     // 非 UI 更新 tick 仅写 stateRef，完全跳过 setState 减少 GC 压力
                     if (_shouldUpdateUI) {
@@ -3329,10 +3339,42 @@ difficulty, // 游戏难度
                     }
 
                     if (nextNations) {
-                        setNations(nextNations);
+                        // [FIX] 合并 discovered 字段，防止 simulation 返回的旧数据
+                        // 覆盖 upgradeEpoch 中设置的 discovered=true（discovered 只能 false→true，不可逆）
+                        // 数据源1: stateRef.current.nations 中已有的 discovered 状态
+                        // 数据源2: window.__pendingDiscoveredNationIds（upgradeEpoch 写入的全局标记）
+                        const prevNations = stateRef.current.nations || [];
+                        const pendingIds = window.__pendingDiscoveredNationIds || [];
+                        const discoveredIds = new Set(pendingIds);
+                        for (const n of prevNations) {
+                            if (n.discovered === true) discoveredIds.add(n.id);
+                        }
+                        let mergedNations = nextNations;
+                        if (discoveredIds.size > 0) {
+                            let needsMerge = false;
+                            for (const n of nextNations) {
+                                if (n.discovered !== true && discoveredIds.has(n.id)) {
+                                    needsMerge = true;
+                                    break;
+                                }
+                            }
+                            if (needsMerge) {
+                                mergedNations = nextNations.map(n => {
+                                    if (n.discovered !== true && discoveredIds.has(n.id)) {
+                                        return { ...n, discovered: true };
+                                    }
+                                    return n;
+                                });
+                            }
+                        }
+                        // 清除已处理的全局标记
+                        if (pendingIds.length > 0) {
+                            window.__pendingDiscoveredNationIds = [];
+                        }
+                        setNations(mergedNations);
                         // [CRITICAL FIX] Update stateRef immediately to ensure next tick uses updated nations
                         // Without this, vassal population/wealth growth is lost because each tick starts from stale data
-                        stateRef.current.nations = nextNations;
+                        stateRef.current.nations = mergedNations;
                     }
                     if (result.diplomaticReputation !== undefined) {
                         stateRef.current.diplomaticReputation = result.diplomaticReputation;

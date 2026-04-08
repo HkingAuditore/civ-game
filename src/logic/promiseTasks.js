@@ -256,12 +256,12 @@ function calculateTaxBurden(stratumKey, context) {
     const stratum = STRATA[stratumKey];
 
     // 1. 计算人头税（收入比例公式）
-    const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 0.05;
     const count = context?.popStructure?.[stratumKey] || 1;
     const incomePerCapita = income / Math.max(count, 1);
     let headTaxPerCapita = 0;
     if (headTaxRate > 0 && incomePerCapita > 0) {
-        const incomeBase = incomePerCapita * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05);
+        const incomeBase = incomePerCapita * (TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0);
         headTaxPerCapita = incomeBase * headTaxRate;
     }
 

@@ -14,6 +14,7 @@ import FrontViewPanel from '../panels/FrontViewPanel';
 import ActiveBattlePanel from '../panels/ActiveBattlePanel';
 import WarfrontCard from '../panels/WarfrontCard';
 import { BottomSheet } from './BottomSheet';
+import { isNationVisible } from '../../utils/nationVisibility';
 import { calculateFrontEconomicImpact } from '../../logic/diplomacy/frontSystem';
 import { trackSubTabSwitch, trackAutoReplenish, trackWageRatio } from '../../analytics/gaTracker';
 
@@ -604,8 +605,7 @@ const MilitaryTabComponent = ({
     // 只显示可见且处于战争状态的国家
     const warringNations = useMemo(() => (nations || []).filter((nation) =>
         nation.isAtWar &&
-        epoch >= (nation.appearEpoch ?? 0) &&
-        (nation.expireEpoch == null || epoch <= nation.expireEpoch)
+        isNationVisible(nation, epoch)
     ), [nations, epoch]);
     const activeNation =
         warringNations.find((nation) => nation.id === selectedTarget) || warringNations[0] || null;

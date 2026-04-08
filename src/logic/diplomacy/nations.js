@@ -1216,35 +1216,8 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
         };
     }
 
-    // [FIX] REMOVED INDEPENDENT GROWTH - Population growth is now handled ONLY by 
-    // processAIIndependentGrowth in aiEconomy.js using logistic growth model
-    // This duplicate growth logic was causing MULTIPLE GROWTH BUG!
-    const ticksSinceLastGrowth = tick - (nation.economyTraits.lastGrowthTick || 0);
-    if (ticksSinceLastGrowth >= 10) {
-        // [FIX] Only update wealth base, NOT population
-        // Population is handled by logistic growth model
-        if (!nation.isAtWar) {
-            const developmentRate = nation.economyTraits.developmentRate || 1.0;
-            const tickScale = Math.min(ticksSinceLastGrowth / 30, 1.5);  // [FIX] Very conservative scaling
-            
-            // [FIX] Apply per-capita wealth cap to prevent infinite wealth growth
-            const perCapitaWealthCap = Math.min(100000, 5000 * Math.pow(2, Math.min(epoch, 4)));
-            const currentPopulation = nation.population || 1;
-            const currentPerCapitaWealth = (nation.economyTraits.ownBaseWealth || 1000) / currentPopulation;
-            
-            // Only grow wealth base if below per-capita cap
-            if (currentPerCapitaWealth < perCapitaWealthCap) {
-                // [FIX] Only grow wealth base slowly (1-2% per update)
-                const wealthGrowthRate = 1 + (0.01 + (developmentRate - 1) * 0.005) * tickScale;
-                const newBaseWealth = Math.round(nation.economyTraits.ownBaseWealth * wealthGrowthRate);
-                // Ensure new per-capita wealth doesn't exceed cap
-                const maxBaseWealth = currentPopulation * perCapitaWealthCap;
-                nation.economyTraits.ownBaseWealth = Math.min(newBaseWealth, maxBaseWealth);
-            }
-            // [FIX] DO NOT modify ownBasePopulation here - it's handled by logistic model
-        }
-        nation.economyTraits.lastGrowthTick = tick;
-    }
+    // [FIX v5] ownBaseWealth / lastGrowthTick 的更新已完全移交给 AIEconomyService，
+    // 此处不再修改，避免双重路径冲突导致 AIEconomyService._shouldUpdateGrowth 被跳过。
 
     // Calculate target values
     // [FIX v4] Reduced era growth factor from 0.15 to 0.08 to slow late-game growth
@@ -1273,73 +1246,9 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     nation.economyTraits.basePopulation = desiredPopulation;
     nation.economyTraits.baseWealth = desiredWealth;
 
-    // [FIX] REMOVED POPULATION DRIFT - Population is now handled ONLY by processAIIndependentGrowth in aiEconomy.js
-    // This function should only update economy traits and wealth targets, NOT directly modify population
-    // Having multiple functions modify population caused TRIPLE GROWTH BUG!
-    
-    // [FIX] Track tick intervals (for reference only, no longer used for growth)
-    const lastDevTick = nation.economyTraits?.lastDevelopmentTick || 0;
-    const ticksSinceDev = Math.max(1, tick - lastDevTick);
-    const tickScaleFactor = Math.min(ticksSinceDev / 10, 2);
-    nation.economyTraits.lastDevelopmentTick = tick;
-    
-    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 2.2);
-
-    // [FIX] Only apply war casualty to population, don't drift towards target
-    const currentPopulation = nation.population ?? desiredPopulation;
-    if (nation.isAtWar) {
-        const warCasualty = currentPopulation * 0.006 * tickScaleFactor;
-        nation.population = Math.max(3, Math.round(currentPopulation - warCasualty));
-    }
-
-    // [FIX] Wealth still uses drift but with much more conservative rate
-    const currentWealth = nation.wealth ?? desiredWealth;
-    const previousWealth = Number.isFinite(nation._lastWealth) ? nation._lastWealth : currentWealth;
-    
-    // [FIX v4] Apply per-capita wealth cap check before drift (reduced caps)
-    // Per-capita cap: Stone=2k, Ancient=4k, Medieval=8k, Industrial=16k, Modern=32k
-    const perCapitaWealthCapForDrift = Math.min(50000, 2000 * Math.pow(2, Math.min(epoch, 4)));
-    const currentPerCapitaWealthForDrift = currentWealth / Math.max(1, currentPopulation);
-    const maxWealthForDrift = currentPopulation * perCapitaWealthCapForDrift;
-    
-    // [FIX] Very conservative wealth drift: 2% max
-    const baseWealthDriftRate = (nation.isAtWar ? 0.01 : 0.02) * driftMultiplier;
-    const wealthDriftRate = Math.min(0.03, baseWealthDriftRate * tickScaleFactor);
-    
-    let adjustedWealth = currentWealth;
-    
-    // Only allow drift towards desiredWealth if below per-capita cap
-    if (currentPerCapitaWealthForDrift < perCapitaWealthCapForDrift) {
-        // Cap desiredWealth to respect per-capita limit
-        const cappedDesiredWealth = Math.min(desiredWealth, maxWealthForDrift);
-        const wealthNoise = (Math.random() - 0.5) * currentWealth * 0.02;
-        adjustedWealth = currentWealth + (cappedDesiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
-    } else {
-        // At or above cap - apply slight decay
-        const decayRate = 0.002 * tickScaleFactor;
-        adjustedWealth = currentWealth - currentWealth * decayRate;
-    }
-    
-    if (nation.isAtWar) {
-        adjustedWealth -= currentWealth * 0.008 * tickScaleFactor;
-    }
-    
-    // Hard cap on wealth
-    adjustedWealth = Math.min(adjustedWealth, maxWealthForDrift);
-    nation.wealth = Math.max(100, Math.round(adjustedWealth));
-
-    // ========== 计算GDP（稳健版：平滑的正向财富增量） ==========
-    // 设计：GDP 作为“流量”指标，不等同于财富存量
-    // gdp = gdp * 0.9 + max(0, wealthDelta) * 0.1
-    const rawWealthDelta = nation.wealth - previousWealth;
-    const positiveDelta = Math.max(0, rawWealthDelta);
-    const gdpSmoothing = 0.9;
-    const gdpBaseline = Number.isFinite(nation.gdp)
-        ? nation.gdp
-        : Math.max(1, previousWealth * 0.05);
-    nation.gdp = Math.max(1, gdpBaseline * gdpSmoothing + positiveDelta * (1 - gdpSmoothing));
-    nation._lastWealth = nation.wealth;
-
+    // [FIX v5] 人口、财富、GDP 的更新已完全移交给 AIEconomyService / AIDevelopmentService，
+    // 此处不再修改 nation.population / nation.wealth / nation.gdp / nation._lastWealth，
+    // 避免双重路径冲突。战时伤亡也由 AIPopulationDynamics 统一处理。
     // Update budget
     const dynamicBudgetTarget = nation.wealth * 0.45;
     const workingBudget = Number.isFinite(nation.budget) ? nation.budget : dynamicBudgetTarget;

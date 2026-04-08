@@ -96,6 +96,11 @@ const StratumDetailSheetComponent = ({
     const approval = classApproval[stratumKey] || 50;
     const influence = classInfluence[stratumKey] || 0;
     const wealthValue = classWealth[stratumKey] ?? 0;
+    // Head tax policy variables (used by tax rate UI and display logic)
+    const rawHeadTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 0.05;
+    const headTaxMultiplier = (Number.isFinite(rawHeadTaxMultiplier) ? rawHeadTaxMultiplier : 1);
+    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
+    const isSubsidyMode = headTaxMultiplier < 0 || Object.is(headTaxMultiplier, -0);
     // Use classFinancialData for overview consistent with finance tab
     // Special case for 'official': classFinancialData is reset every tick but officialSim only runs every 5 ticks,
     // so we aggregate from the persistent lastDay* fields on each official object instead.
@@ -145,6 +150,7 @@ const StratumDetailSheetComponent = ({
     const calculatedTotalIncome = (wageInc + ownerRev + subsidyInc + salaryInc + militaryInc + tradeImportRevInc + layoffTransferInInc) / safeDayScale;
 
     // Calculate total expense from detailed breakdown
+    // Read actual head tax from simulation (classFinancialData.expense.headTax)
     const headTaxExp = (expenseData.headTax || 0);
     const transTaxExp = (expenseData.transactionTax || 0);
     const bizTaxExp = (expenseData.businessTax || 0);
@@ -177,9 +183,7 @@ const StratumDetailSheetComponent = ({
     // Wealth delta includes many other factors (market trades, events, etc.)
     const netIncomePerCapita = incomePerCapita - expensePerCapita;
     const shortages = classShortages[stratumKey] || [];
-    const rawHeadTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
-    // 安全检查：处理 Infinity、NaN 等异常值
-    const headTaxMultiplier = (Number.isFinite(rawHeadTaxMultiplier) ? rawHeadTaxMultiplier : 1);
+    // headTaxMultiplier already defined above (before headTaxExp calculation)
     const stratumRebellionState = rebellionStates[stratumKey] || {};
     const currentOrganization = stratumRebellionState.organization ?? 0;
     const derivedDemands =
@@ -342,8 +346,7 @@ const StratumDetailSheetComponent = ({
 
 
     // 人头税：正值 = 税收（百分比），负值 = 补贴（银币/人/日绝对值）
-    const headBaseRate = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
-    const isSubsidyMode = headTaxMultiplier < 0 || Object.is(headTaxMultiplier, -0);
+    // headBaseRate, isSubsidyMode already defined above (before headTaxExp calculation)
     const displayHeadPercent = isSubsidyMode ? 0 : headTaxMultiplier * headBaseRate * 100;
     const displaySubsidyValue = isSubsidyMode ? Math.abs(headTaxMultiplier) : 0;
     const headPercentToMultiplier = (pct) => pct / (headBaseRate * 100);
@@ -704,9 +707,13 @@ const StratumDetailSheetComponent = ({
                                 <div>
                                     {(() => {
                                         const isTax = !isSubsidyMode && displayHeadPercent > 0;
+                                        // Read actual head tax per capita from simulation data
+                                        const actualHeadTaxPerCapita = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
+                                        // Read actual taxable income (tax base) from simulation
+                                        const taxableIncomePerCapita = (incomeData.taxableIncome || 0) / safeDayScale / Math.max(count, 1);
                                         const displayValue = isSubsidyMode
                                             ? displaySubsidyValue
-                                            : (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
+                                            : actualHeadTaxPerCapita;
                                         return (
                                             <>
                                                 <div className="text-xs text-gray-400 mb-0.5 leading-none">{isSubsidyMode ? '设定补贴' : '实际税额'} (每人每日)</div>
@@ -722,7 +729,12 @@ const StratumDetailSheetComponent = ({
                                                 </div>
                                                 {!isSubsidyMode && Math.abs((effectiveTaxModifier || 1) - 1) > 0.001 && (
                                                     <div className="text-[11px] text-gray-500 mt-1 text-center">
-                                                        含税收修正 ×{(effectiveTaxModifier || 1).toFixed(2)}
+                                                        征收效率: {((effectiveTaxModifier || 1) * 100).toFixed(0)}%
+                                                    </div>
+                                                )}
+                                                {!isSubsidyMode && taxableIncomePerCapita > 0.01 && (
+                                                    <div className="text-[11px] text-gray-500 mt-1 text-center" title="人头税的应税收入（建筑产出+工资+上一tick贸易收入，不含补贴）">
+                                                        应税收入: {taxableIncomePerCapita.toFixed(2)}/人/日
                                                     </div>
                                                 )}
                                             </>
@@ -1272,6 +1284,7 @@ const StratumDetailSheetComponent = ({
                         const totalIncomeCalc = wage + ownerRevenue + subsidy + salary + militaryPay + tradeImportRevenue + layoffTransferIn;
 
                         // 计算支出总计
+                        // Read actual head tax from simulation data
                         const headTax = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
                         const transactionTax = (expenseData.transactionTax || 0) / safeDayScale / Math.max(count, 1);
                         const businessTax = (expenseData.businessTax || 0) / safeDayScale / Math.max(count, 1);
@@ -1350,6 +1363,10 @@ const StratumDetailSheetComponent = ({
                             const militaryPay = (data.militaryPay || 0) / safeDayScale / Math.max(count, 1);
                             const tradeImportRevenue = (data.tradeImportRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const layoffTransferIn = (data.layoffTransfer || 0) / safeDayScale / Math.max(count, 1);
+                            // Taxable income from simulation (the actual tax base used for head tax)
+                            const taxableIncome = (data.taxableIncome || 0) / safeDayScale / Math.max(count, 1);
+                            const displayedIncome = wage + ownerRevenue + otherSubsidy + headTaxSubsidyInc + salary + militaryPay + tradeImportRevenue + layoffTransferIn;
+                            const taxBaseMismatch = taxableIncome > 0.01 && Math.abs(taxableIncome - displayedIncome) > 0.1;
                             const hasAnyIncome = wage > 0.001 || ownerRevenue > 0.001 || otherSubsidy > 0.001 || headTaxSubsidyInc > 0.001 || salary > 0.001 || militaryPay > 0.001 || tradeImportRevenue > 0.001 || layoffTransferIn > 0.001;
 
                             return (
@@ -1392,7 +1409,7 @@ const StratumDetailSheetComponent = ({
                                     )}
                                     {tradeImportRevenue > 0.001 && (
                                         <div className="flex justify-between items-center text-xs">
-                                            <span className="text-gray-300">贸易进口收入</span>
+                                            <span className="text-gray-300">贸易收入</span>
                                             <span className="text-green-400 font-mono">+{tradeImportRevenue.toFixed(2)}</span>
                                         </div>
                                     )}
@@ -1404,6 +1421,14 @@ const StratumDetailSheetComponent = ({
                                     )}
                                     {!hasAnyIncome && (
                                         <div className="text-gray-500 text-xs italic text-center">暂无显著收入</div>
+                                    )}
+                                    {taxableIncome > 0.01 && (
+                                        <div className="mt-1 pt-1 border-t border-gray-600/40">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-500" title="人头税的征税基数（建筑产出+工资+上一tick贸易收入，不含补贴）">应税收入</span>
+                                                <span className="text-gray-500 font-mono">{taxableIncome.toFixed(2)}</span>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             );
@@ -1418,6 +1443,7 @@ const StratumDetailSheetComponent = ({
                         </h3>
                         {(() => {
                             const data = finData.expense || {};
+                            // Read actual head tax from simulation data
                             const headTax = (data.headTax || 0) / safeDayScale / Math.max(count, 1);
                             const transactionTax = (data.transactionTax || 0) / safeDayScale / Math.max(count, 1);
                             const businessTax = (data.businessTax || 0) / safeDayScale / Math.max(count, 1);

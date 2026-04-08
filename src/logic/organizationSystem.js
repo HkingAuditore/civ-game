@@ -292,10 +292,10 @@ const buildDriverContext = (stratumKey, {
     }
     const expensePerCapitaRaw = classExpense[stratumKey] || 0;
     const expensePerCapita = expensePerCapitaRaw > 0 ? expensePerCapitaRaw / population : 0;
-    const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 0.05;
     const effectiveTaxMod = effectiveTaxModifier ?? 1;
     // [FIX] 使用实际人均收入而非 market.wages 岗位工资信号
-    const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 0.05;
+    const taxRatio = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
     let headTaxPerCapita;
     if (headTaxRate > 0) {
         const headIncomeBase = (Number.isFinite(incomePerCapita) && incomePerCapita > 0)

@@ -11,6 +11,7 @@ import { Button } from '../common/UnifiedUI';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { isDebugEnabled } from '../../utils/debugFlags';
 import { VASSAL_TYPE_LABELS, VASSAL_TYPE_CONFIGS, INDEPENDENCE_CONFIG, VASSAL_POLICY_SATISFACTION_EFFECTS, MILITARY_POLICY_DEFINITIONS, GOVERNANCE_POLICY_DEFINITIONS } from '../../config/diplomacy';
+import { isNationVisible } from '../../utils/nationVisibility';
 
 /**
  * Error Boundary to catch rendering errors in policy tab
@@ -1671,11 +1672,7 @@ const DiplomacyTab = memo(({
         if (!nation) return [];
         return nations.filter(n =>
             n.id !== nation.id &&
-            !n.isAnnexed &&
-            (n.visible !== false) &&
-            // [FIX] Ensure nation is active in current epoch
-            (epoch >= (n.appearEpoch ?? 0)) &&
-            (n.expireEpoch == null || epoch <= n.expireEpoch)
+            isNationVisible(n, epoch)
         );
     }, [nations, nation, epoch]);
 

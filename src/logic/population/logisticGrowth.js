@@ -220,11 +220,16 @@ export const calculateAINationCapacity = ({
         epochMinimumCap,
         Math.round((wealthTemplate / 800) * (18 + epoch * 10))
     );
+    // [FIX] Relaxed upper bound: templatePopulation * 4 → * 10, and also consider
+    // currentPopulation * 2 so that already-grown AI nations aren't retroactively capped.
     const structuralBasePopulation = Math.min(
         Math.max(epochMinimumCap, ownBasePopulation || templatePopulation),
-        templatePopulation * 4
+        Math.max(templatePopulation * 10, currentPopulation * 2)
     );
-    const playerReferenceCap = Math.max(epochMinimumCap, playerPopulation * 0.2);
+
+    // [FIX] Player reference cap: increased from playerPopulation * 0.2 to * 0.6
+    // so that player development meaningfully lifts AI carrying capacity.
+    const playerReferenceCap = Math.max(epochMinimumCap, playerPopulation * 0.6);
 
     // Stronger AI nations can get closer to the upper bound, but not ignore domestic scale.
     const developmentModifier = 0.8 + developmentRate * 0.25;
@@ -239,27 +244,38 @@ export const calculateAINationCapacity = ({
     // Nation power modifier (from foreignPower settings)
     const populationFactor = nation.foreignPower?.populationFactor || 1.0;
 
-    // Higher difficulty can widen AI headroom, but should not dominate the cap.
+    // [FIX] Use difficulty config's aiPopulationCapMultiplier instead of the old
+    // conservative difficultyCapMap. Import is dynamic to avoid circular dependency.
     const difficultyCapMap = {
-        'veryEasy': 0.85,
-        'easy': 0.92,
-        'normal': 1.0,
-        'hard': 1.08,
-        'veryHard': 1.15,
-        'impossible': 1.22,
-        'extreme': 1.22
+        'veryEasy': 1.0,
+        'easy': 1.5,
+        'normal': 2.5,
+        'hard': 4.0,
+        'veryHard': 6.0,
+        'impossible': 10.0,
+        'extreme': 10.0
     };
-    const difficultyCapMultiplier = difficultyCapMap[difficulty] || 1.0;
+    const difficultyCapMultiplier = difficultyCapMap[difficulty] || 2.5;
     
     // === FINAL CARRYING CAPACITY ===
     const domesticCapacity = structuralBasePopulation * developmentModifier * epochModifier;
-    const blendedBaseCapacity = domesticCapacity * 0.85 + playerReferenceCap * 0.15;
-    const carryingCapacity = Math.floor(
+    // [FIX] Increased player blend weight from 15% to 35% so player growth
+    // meaningfully pulls AI capacity upward, preventing the "AI stuck at 2000" problem.
+    const blendedBaseCapacity = domesticCapacity * 0.65 + playerReferenceCap * 0.35;
+    const rawCarryingCapacity = Math.floor(
         blendedBaseCapacity
         * foodModifier 
         * populationFactor
-        * difficultyCapMultiplier
     );
+
+    // [FIX] Player-relative minimum: AI carrying capacity should be at least
+    // playerPopulation × (difficultyCapMultiplier × 0.15) to ensure AI nations
+    // can grow proportionally to the player. This replaces the old approach of
+    // multiplying the entire capacity by a tiny difficulty factor.
+    const playerRelativeFloor = Math.floor(
+        playerPopulation * difficultyCapMultiplier * 0.15 * populationFactor
+    );
+    const carryingCapacity = Math.max(rawCarryingCapacity, playerRelativeFloor);
     
     const epochMinimumFinal = [60, 180, 500, 1500, 4500, 10000, 20000][Math.min(epoch, 6)];
     return {
