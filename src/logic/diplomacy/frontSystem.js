@@ -23,6 +23,17 @@ let frontIdCounter = 0;
 const FRONT_MIN_POSITION = 5;
 const FRONT_MAX_POSITION = 95;
 
+// [PERF] Tick-level cache for summarizeFrontState to avoid redundant computation within same tick
+const _frontStateCache = { tick: -1, cache: new Map() };
+export const invalidateFrontStateCache = (tick) => {
+    if (tick !== _frontStateCache.tick) {
+        _frontStateCache.tick = tick;
+        _frontStateCache.cache.clear();
+    }
+};
+export const getCachedFrontState = (frontId) => _frontStateCache.cache.get(frontId);
+export const setCachedFrontState = (frontId, state) => _frontStateCache.cache.set(frontId, state);
+
 const generateFrontId = () => {
     frontIdCounter += 1;
     return `front_${Date.now()}_${frontIdCounter}`;
@@ -308,6 +319,10 @@ const deriveDetailedPhase = (linePosition, pressure, supplyRatio, contestedZone)
 };
 
 export const summarizeFrontState = (front, attackerCorps = [], defenderCorps = []) => {
+    // [PERF] Check tick-level cache first
+    const cached = getCachedFrontState(front?.id);
+    if (cached) return cached;
+
     const normalizedFront = ensureFrontDefaults(front);
     const attackerUnits = getTotalUnitsFromCorps(attackerCorps);
     const defenderUnits = getTotalUnitsFromCorps(defenderCorps);
@@ -444,7 +459,7 @@ export const summarizeFrontState = (front, attackerCorps = [], defenderCorps = [
     const contestedZone = getZoneRiskLabel(normalizedFront.linePosition, ownSide || 'attacker');
     const phase = deriveDetailedPhase(normalizedFront.linePosition, pressure, playerState.supplyRatio, contestedZone);
 
-    return {
+    const result = {
         pressure: Math.round(pressure),
         raidIntensity: Math.round(raidIntensity),
         entrenchment,
@@ -475,6 +490,10 @@ export const summarizeFrontState = (front, attackerCorps = [], defenderCorps = [
             enemyReserve: Math.round(enemyReserve),
         },
     };
+
+    // [PERF] Store result in tick-level cache
+    setCachedFrontState(normalizedFront.id, result);
+    return result;
 };
 
 const getAdvanceNarrative = (front, delta) => {

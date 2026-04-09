@@ -1139,13 +1139,21 @@ export const useGameActions = (gameState, addLog) => {
             });
         }
 
-        if (Array.isArray(pendingDiplomaticEvents) && pendingDiplomaticEvents.length > 0) {
-            const [next, ...rest] = pendingDiplomaticEvents;
-            setPendingDiplomaticEvents(rest);
-            setCurrentEvent(next);
-        } else {
-            setCurrentEvent(null);
-        }
+        // [FIX] Use functional update to read the latest pendingDiplomaticEvents,
+        // because selected.callback() above may have enqueued new events (e.g. peace
+        // rejection) via triggerDiplomaticEvent → setPendingDiplomaticEvents, and the
+        // closure value is stale within the same synchronous execution frame.
+        setPendingDiplomaticEvents(prev => {
+            const queue = Array.isArray(prev) ? prev : [];
+            if (queue.length > 0) {
+                const [next, ...rest] = queue;
+                setCurrentEvent(next);
+                return rest;
+            } else {
+                setCurrentEvent(null);
+                return queue;
+            }
+        });
     };
 
     const getMarketPrice = (resource) => {
@@ -1167,9 +1175,15 @@ export const useGameActions = (gameState, addLog) => {
     };
 
     // [FIX Bug9] 统计所有军事单位：散兵 + 训练队列 + 军团内单位
+    // [PERF] Batched queue: sum batch.count instead of array length
     const getTotalArmyCount = (armyState = army, queueState = militaryQueue) => {
         const armyCount = Object.values(armyState || {}).reduce((sum, count) => sum + (count || 0), 0);
-        const queueCount = Array.isArray(queueState) ? queueState.length : 0;
+        let queueCount = 0;
+        if (Array.isArray(queueState)) {
+            for (let i = 0; i < queueState.length; i++) {
+                queueCount += queueState[i]?.count || 1;
+            }
+        }
         let corpsCount = 0;
         if (Array.isArray(militaryCorps)) {
             for (const corps of militaryCorps) {
@@ -1283,28 +1297,30 @@ export const useGameActions = (gameState, addLog) => {
             return next;
         }, 'auto_replenish_cost');
 
-        const replenishItems = [];
+        // [PERF] Batched queue: create one batch per unitId instead of individual items
+        const replenishBatches = [];
+        let replenishItemCount = 0;
         Object.entries(replenishCounts).forEach(([unitId, count]) => {
             const unit = UNIT_TYPES[unitId];
-            if (!unit) return;
+            if (!unit || count <= 0) return;
             const trainingSpeedBonus = modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
             const trainingMultiplier = Math.max(0.5, 1 - trainingSpeedBonus);
             const baseTrainTime = unit.trainingTime || unit.trainDays || 1;
             const trainTime = Math.max(1, Math.ceil(baseTrainTime * trainingMultiplier));
-            for (let i = 0; i < count; i++) {
-                replenishItems.push({
-                    unitId,
-                    status: 'waiting',
-                    totalTime: trainTime,
-                    remainingTime: trainTime,
-                    isAutoReplenish: true,
-                });
-            }
+            replenishBatches.push({
+                unitId,
+                count,
+                status: 'waiting',
+                totalTime: trainTime,
+                remainingTime: trainTime,
+                isAutoReplenish: true,
+            });
+            replenishItemCount += count;
         });
 
-        if (replenishItems.length > 0) {
-            debugLog('gameLoop', `[AUTO_REPLENISH] Success: Adding ${replenishItems.length} items to queue`);
-            setMilitaryQueue(prev => [...prev, ...replenishItems]);
+        if (replenishBatches.length > 0) {
+            debugLog('gameLoop', `[AUTO_REPLENISH] Success: Adding ${replenishItemCount} items (${replenishBatches.length} batches) to queue`);
+            setMilitaryQueue(prev => [...prev, ...replenishBatches]);
         }
 
         if (capacity > 0) {
@@ -2862,15 +2878,26 @@ export const useGameActions = (gameState, addLog) => {
         const baseTrainingTime = unit.trainingTime || 1;
         const effectiveTrainingTime = Math.max(1, Math.ceil(baseTrainingTime * trainingMultiplier));
 
-        // 加入训练队列
-        const newQueueItems = Array(recruitCount).fill(null).map(() => ({
-            unitId,
-            status: 'waiting',
-            remainingTime: effectiveTrainingTime,
-            totalTime: effectiveTrainingTime
-        }));
-
-        setMilitaryQueue(prev => [...prev, ...newQueueItems]);
+        // [PERF] Batched queue: merge into existing batch or create new one
+        setMilitaryQueue(prev => {
+            const newQueue = [...prev];
+            // Try to merge with an existing waiting batch of the same unitId and totalTime
+            const existingIdx = newQueue.findIndex(
+                b => b.unitId === unitId && b.status === 'waiting' && b.totalTime === effectiveTrainingTime && !b.isAutoReplenish
+            );
+            if (existingIdx >= 0) {
+                newQueue[existingIdx] = { ...newQueue[existingIdx], count: (newQueue[existingIdx].count || 1) + recruitCount };
+            } else {
+                newQueue.push({
+                    unitId,
+                    count: recruitCount,
+                    status: 'waiting',
+                    remainingTime: effectiveTrainingTime,
+                    totalTime: effectiveTrainingTime
+                });
+            }
+            return newQueue;
+        });
 
         if (!silent) {
             addLog(`开始招募 ${recruitCount} 个 ${unit.name}，等待人员填补岗位...`);
@@ -2897,37 +2924,38 @@ export const useGameActions = (gameState, addLog) => {
     };
 
     /**
-     * 取消训练队列中的单位
-     * @param {number} queueIndex - 队列索引
+     * 取消训练队列中的单位（批次模式：从指定批次中减少1个）
+     * @param {number} queueIndex - 队列批次索引
+     * @param {number} [cancelCount=1] - 取消数量
      */
-    const cancelTraining = (queueIndex) => {
+    const cancelTraining = (queueIndex, cancelCount = 1) => {
         setMilitaryQueue(prev => {
             if (queueIndex < 0 || queueIndex >= prev.length) {
                 return prev;
             }
 
-            const item = prev[queueIndex];
-            const unit = UNIT_TYPES[item.unitId];
-            trackCancelTraining(item.unitId);
+            const batch = prev[queueIndex];
+            const unit = UNIT_TYPES[batch.unitId];
+            const batchCount = batch.count || 1;
+            const actual = Math.min(cancelCount, batchCount);
+            if (actual <= 0) return prev;
 
-            // 移除该项
-            const newQueue = prev.filter((_, idx) => idx !== queueIndex);
+            for (let i = 0; i < actual; i++) trackCancelTraining(batch.unitId);
 
-            // 如果是等待状态或训练状态，返还部分资源（50%）
-            if (item.status === 'waiting' || item.status === 'training') {
+            // Refund resources for cancelled units (50%)
+            if (batch.status === 'waiting' || batch.status === 'training') {
                 const refundResources = {};
                 for (let resource in unit.recruitCost) {
-                    if (resource === 'silver') continue; // silver refunded via silverCost
-                    refundResources[resource] = Math.floor(unit.recruitCost[resource] * 0.5);
+                    if (resource === 'silver') continue;
+                    refundResources[resource] = Math.floor(unit.recruitCost[resource] * 0.5) * actual;
                 }
 
-                // [FIX] Refund silver = direct silver cost + material market value
-                let silverCost = (unit.recruitCost.silver || 0);
+                let silverCostPerUnit = (unit.recruitCost.silver || 0);
                 Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
                     if (resource === 'silver') return;
-                    silverCost += amount * getMarketPrice(resource);
+                    silverCostPerUnit += amount * getMarketPrice(resource);
                 });
-                const refundSilver = Math.floor(silverCost * 0.5);
+                const refundSilver = Math.floor(silverCostPerUnit * 0.5) * actual;
 
                 setResourcesWithReason(prev => {
                     const newRes = { ...prev };
@@ -2936,43 +2964,55 @@ export const useGameActions = (gameState, addLog) => {
                     }
                     newRes.silver = (newRes.silver || 0) + refundSilver;
                     return newRes;
-                }, 'cancel_training_refund', { unitId: item.unitId, queueIndex });
+                }, 'cancel_training_refund', { unitId: batch.unitId, queueIndex, cancelCount: actual });
 
-                addLog(`取消训练 ${unit.name}，返还50%资源`);
+                addLog(actual === 1
+                    ? `取消训练 ${unit.name}，返还50%资源`
+                    : `取消训练 ${actual} 个 ${unit.name}，返还50%资源`);
             }
 
-            return newQueue;
+            // [PERF] Decrement batch count; remove batch if empty
+            if (actual >= batchCount) {
+                return prev.filter((_, idx) => idx !== queueIndex);
+            } else {
+                const newQueue = [...prev];
+                newQueue[queueIndex] = { ...batch, count: batchCount - actual };
+                return newQueue;
+            }
         });
     };
 
     /**
      * 一键取消所有训练队列
      */
+    // [PERF] Batched queue: iterate batches instead of individual items
     const cancelAllTraining = () => {
         setMilitaryQueue(prev => {
             if (prev.length === 0) return prev;
-            trackCancelAllTraining(prev.length);
-
+            let totalUnits = 0;
             let totalRefundSilver = 0;
             const totalRefundResources = {};
 
-            // Calculate total refund for all items
-            prev.forEach(item => {
-                const unit = UNIT_TYPES[item.unitId];
-                if (item.status === 'waiting' || item.status === 'training') {
+            // Calculate total refund for all batches
+            prev.forEach(batch => {
+                const unit = UNIT_TYPES[batch.unitId];
+                const cnt = batch.count || 1;
+                totalUnits += cnt;
+                if (batch.status === 'waiting' || batch.status === 'training') {
                     for (let resource in unit.recruitCost) {
-                        if (resource === 'silver') continue; // silver refunded via silverCost
-                        totalRefundResources[resource] = (totalRefundResources[resource] || 0) + Math.floor(unit.recruitCost[resource] * 0.5);
+                        if (resource === 'silver') continue;
+                        totalRefundResources[resource] = (totalRefundResources[resource] || 0) + Math.floor(unit.recruitCost[resource] * 0.5) * cnt;
                     }
-                    // [FIX] silver = direct silver cost + material market value
                     let silverCost = (unit.recruitCost.silver || 0);
                     Object.entries(unit.recruitCost).forEach(([resource, amount]) => {
                         if (resource === 'silver') return;
                         silverCost += amount * getMarketPrice(resource);
                     });
-                    totalRefundSilver += Math.floor(silverCost * 0.5);
+                    totalRefundSilver += Math.floor(silverCost * 0.5) * cnt;
                 }
             });
+
+            trackCancelAllTraining(totalUnits);
 
             // Refund all resources
             setResourcesWithReason(prevRes => {
@@ -2984,7 +3024,7 @@ export const useGameActions = (gameState, addLog) => {
                 return newRes;
             }, 'cancel_all_training_refund');
 
-            addLog(`一键取消了 ${prev.length} 个训练任务，返还50%资源`);
+            addLog(`一键取消了 ${totalUnits} 个训练任务，返还50%资源`);
             return [];
         });
     };
@@ -6707,7 +6747,7 @@ export const useGameActions = (gameState, addLog) => {
             );
             triggerDiplomaticEvent(annexEvent);
 
-            addLog(`Annexed ${targetNation.name}.`);
+addLog(`🕊️ 吞并了 ${targetNation.name}。`);
             return;
         }
         if (proposalType === 'population') {
@@ -6724,7 +6764,7 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 population: reducePopulationWithFloor(basePopulation, transferPopulation),
             });
-            addLog(`${targetNation.name} ceded ${transferPopulation} population.`);
+addLog(`🕊️ ${targetNation.name} 割让了 ${transferPopulation} 人口，战争结束。`);
             return;
         }
         if (proposalType === 'installment') {
@@ -6736,7 +6776,7 @@ export const useGameActions = (gameState, addLog) => {
                     paidAmount: 0,
                 },
             });
-            addLog(`${targetNation.name} agreed to pay installments.`);
+addLog(`🕊️ ${targetNation.name} 同意分期赔款，战争结束。`);
             return;
         }
 
@@ -6754,7 +6794,7 @@ export const useGameActions = (gameState, addLog) => {
                 openMarketUntil: daysElapsed + paymentAmount,
                 treaties: nextTreaties,
             });
-            addLog(`${targetNation.name} opened its market.`);
+addLog(`🕊️ ${targetNation.name} 被迫开放市场，战争结束。`);
             return;
         }
         if (proposalType === 'vassal') {
@@ -6799,14 +6839,14 @@ export const useGameActions = (gameState, addLog) => {
             if (n.id !== nationId) return n;
             return { ...n, relation: Math.max(0, (n.relation || 0) - 5) };
         }));
-        addLog(`Rejected peace request from ${targetNation.name}.`);
+        addLog(`拒绝了 ${targetNation.name} 的求和请求。`);
     };
     const handlePlayerPeaceProposal = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
         trackPeacePropose(nationId);
         if (proposalType === 'cancel') {
-            addLog(`Peace proposal to ${targetNation.name} canceled.`);
+            addLog(`取消了与 ${targetNation.name} 的和谈提议。`);
             return;
         }
         // [FIX] Prefer frontWarScore over nation.warScore to match what UI showed
@@ -6867,14 +6907,14 @@ export const useGameActions = (gameState, addLog) => {
             if (proposalType.startsWith('pay_')) {
                 const currentSilver = resources?.silver || 0;
                 if (currentSilver < paymentAmount) {
-                    addLog(`Not enough silver to make the offer (${paymentAmount}).`);
+                addLog(`银币不足，无法支付赔款（需要 ${paymentAmount}）。`);
                     return;
                 }
             }
             if (proposalType === 'offer_population') {
 
                 if ((population || 0) < paymentAmount + 10) {
-                    addLog(`Not enough population to cede (${paymentAmount}).`);
+                addLog(`人口不足，无法割让（需要 ${paymentAmount}）。`);
 
                     return;
                 }
@@ -6886,7 +6926,7 @@ export const useGameActions = (gameState, addLog) => {
                 if (n.id !== nationId) return n;
                 return { ...n, relation: Math.max(0, (n.relation || 0) - 5) };
             }));
-            addLog(`${targetNation.name} rejected your peace proposal.`);
+            addLog(`❌ ${targetNation.name} 拒绝了你的和谈提议。`);
             triggerDiplomaticEvent(createPeaceProposalRejectedEvent(
                 targetNation,
                 proposalType,
@@ -6934,7 +6974,7 @@ export const useGameActions = (gameState, addLog) => {
                 () => { }
             );
             triggerDiplomaticEvent(annexEvent);
-            addLog(`Annexed ${targetNation.name}.`);
+addLog(`🕊️ 吞并了 ${targetNation.name}。`);
             return;
 
         }
@@ -6955,7 +6995,7 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 population: reducePopulationWithFloor(basePopulation, transferPopulation),
             });
-            addLog(`${targetNation.name} ceded ${transferPopulation} population.`);
+addLog(`🕊️ ${targetNation.name} 割让了 ${transferPopulation} 人口，战争结束。`);
             return;
 
         }
@@ -6974,7 +7014,7 @@ export const useGameActions = (gameState, addLog) => {
                 openMarketUntil: daysElapsed + paymentAmount,
                 treaties: nextTreaties,
             });
-            addLog(`${targetNation.name} opened its market.`);
+addLog(`🕊️ ${targetNation.name} 被迫开放市场，战争结束。`);
             return;
         }
 
@@ -7002,7 +7042,7 @@ export const useGameActions = (gameState, addLog) => {
                     paidAmount: 0,
                 },
             });
-            addLog(`${targetNation.name} agreed to pay installments.`);
+addLog(`🕊️ ${targetNation.name} 同意分期赔款，战争结束。`);
             return;
 
         }
@@ -7018,7 +7058,7 @@ export const useGameActions = (gameState, addLog) => {
                 wealth: Math.max(0, (targetNation.wealth || 0) - paymentAmount),
             });
 
-            addLog(`${targetNation.name} paid ${paymentAmount} silver.`);
+addLog(`🕊️ ${targetNation.name} 支付了 ${paymentAmount} 银币赔款，战争结束。`);
             return;
         }
         if (proposalType === 'pay_high' || proposalType === 'pay_standard' || proposalType === 'pay_moderate') {
@@ -7030,7 +7070,7 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 wealth: (targetNation.wealth || 0) + paymentAmount,
             });
-            addLog(`Paid ${paymentAmount} silver to ${targetNation.name}.`);
+addLog(`🕊️ 向 ${targetNation.name} 支付了 ${paymentAmount} 银币赔款，战争结束。`);
             return;
         }
         if (proposalType === 'pay_installment' || proposalType === 'pay_installment_moderate') {
@@ -7045,7 +7085,7 @@ export const useGameActions = (gameState, addLog) => {
                 });
             }
             endWarWithNation(nationId);
-            addLog(`Agreed to pay installments to ${targetNation.name}.`);
+addLog(`🕊️ 同意向 ${targetNation.name} 分期赔款，战争结束。`);
             return;
         }
 
@@ -7083,13 +7123,13 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 population: (targetNation.population || 0) + paymentAmount,
             });
-            addLog(`Ceded ${paymentAmount} population to ${targetNation.name}.`);
+addLog(`🕊️ 割让了 ${paymentAmount} 人口给 ${targetNation.name}，战争结束。`);
             return;
         }
 
         if (proposalType === 'peace_only') {
             endWarWithNation(nationId);
-            addLog(`Peace signed with ${targetNation.name}.`);
+addLog(`🕊️ 与 ${targetNation.name} 签署和平协议，战争结束。`);
         }
     };
     // 使用稳定引用对象，避免每次渲染创建新对象导致依赖它的 useEffect 无限重触发 (React Error #185)

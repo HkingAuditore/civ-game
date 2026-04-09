@@ -2980,7 +2980,26 @@ export const useGameState = () => {
             : Number(data.daysElapsed);
         setDaysElapsed(Number.isFinite(parsedDaysElapsed) ? parsedDaysElapsed : 0);
         setArmy(data.army || {});
-        setMilitaryQueue(data.militaryQueue || []);
+        // [PERF] Batched queue migration: convert old flat array to batched format
+        const rawQueue = data.militaryQueue || [];
+        if (rawQueue.length > 0 && rawQueue[0] && !('count' in rawQueue[0])) {
+            // Old format: each item is a single unit. Merge into batches.
+            const batchMap = new Map(); // key -> batch object
+            for (const item of rawQueue) {
+                if (!item?.unitId) continue;
+                const key = `${item.unitId}|${item.status}|${item.remainingTime}|${item.totalTime}|${item.isAutoReplenish || false}`;
+                if (batchMap.has(key)) {
+                    batchMap.get(key).count += 1;
+                } else {
+                    batchMap.set(key, { ...item, count: 1 });
+                }
+            }
+            const migratedQueue = Array.from(batchMap.values());
+            console.log(`[Save Migration] Converted flat militaryQueue (${rawQueue.length} items) to batched format (${migratedQueue.length} batches)`);
+            setMilitaryQueue(migratedQueue);
+        } else {
+            setMilitaryQueue(rawQueue);
+        }
         setCorpsReplenishQueue(data.corpsReplenishQueue || {});
         const rawMilitaryCorps = Array.isArray(data.militaryCorps) ? data.militaryCorps : [];
         if (rawMilitaryCorps.length > MAX_LOADED_MILITARY_CORPS) {

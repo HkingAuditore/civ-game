@@ -1264,34 +1264,72 @@ export const calculateNationBattlePower = (nation, epoch, deploymentRatio = 1.0,
     return calculateBattlePower(army, epoch, militaryBuffs);
 };
 
-// 计算兵种克制效果
+// 5×5 类别克制矩阵：CATEGORY_COUNTER_MATRIX[attacker][defender] = bonus multiplier
+// 从所有兵种的 counters 字段中提取并取各时代平均值归纳而成
+const CATEGORY_COUNTER_MATRIX = {
+    infantry:  { infantry: 1.0, cavalry: 1.7, archer: 1.0, gunpowder: 1.0, siege: 1.35 },
+    cavalry:   { infantry: 1.0, cavalry: 1.0, archer: 1.85, gunpowder: 1.6, siege: 1.0 },
+    archer:    { infantry: 1.55, cavalry: 1.0, archer: 1.0, gunpowder: 1.0, siege: 1.35 },
+    gunpowder: { infantry: 1.75, cavalry: 1.6, archer: 1.0, gunpowder: 1.0, siege: 1.6 },
+    siege:     { infantry: 1.8, cavalry: 1.0, archer: 1.0, gunpowder: 1.75, siege: 1.65 },
+};
+
+// 计算兵种克制效果（基于类别比例，O(5×5) 复杂度）
 export const calculateCounterBonus = (attackerArmy, defenderArmy) => {
-    let bonusMultiplier = 1.0;
+    // 按类别聚合双方兵力
+    const attackerCats = { infantry: 0, cavalry: 0, archer: 0, gunpowder: 0, siege: 0 };
+    const defenderCats = { infantry: 0, cavalry: 0, archer: 0, gunpowder: 0, siege: 0 };
+    let attackerTotal = 0;
+    let defenderTotal = 0;
+
+    for (const [unitId, count] of Object.entries(attackerArmy)) {
+        if (count <= 0) continue;
+        const unit = UNIT_TYPES[unitId];
+        if (!unit) continue;
+        attackerCats[unit.category] = (attackerCats[unit.category] || 0) + count;
+        attackerTotal += count;
+    }
+    for (const [unitId, count] of Object.entries(defenderArmy)) {
+        if (count <= 0) continue;
+        const unit = UNIT_TYPES[unitId];
+        if (!unit) continue;
+        defenderCats[unit.category] = (defenderCats[unit.category] || 0) + count;
+        defenderTotal += count;
+    }
+
+    if (attackerTotal <= 0 || defenderTotal <= 0) {
+        return { multiplier: 1.0, counterCount: 0, counters: {} };
+    }
+
+    // 用比例计算克制加权 multiplier
+    let weightedBonus = 0;
     let counterCount = 0;
+    const counters = {};
 
-    Object.entries(attackerArmy).forEach(([attackerId, attackerCount]) => {
-        if (attackerCount <= 0) return;
+    for (const atkCat of Object.keys(attackerCats)) {
+        const atkRatio = attackerCats[atkCat] / attackerTotal;
+        if (atkRatio <= 0) continue;
+        const matrixRow = CATEGORY_COUNTER_MATRIX[atkCat];
+        if (!matrixRow) continue;
 
-        const attackerUnit = UNIT_TYPES[attackerId];
-        if (!attackerUnit) return;
-
-        Object.entries(defenderArmy).forEach(([defenderId, defenderCount]) => {
-            if (defenderCount <= 0) return;
-
-            const defenderUnit = UNIT_TYPES[defenderId];
-            if (!defenderUnit) return;
-
-            // 检查类别克制
-            if (attackerUnit.counters[defenderUnit.category]) {
-                const counterBonus = attackerUnit.counters[defenderUnit.category];
-                const weight = (attackerCount * defenderCount) / 100; // 权重
-                bonusMultiplier += (counterBonus - 1) * weight;
+        for (const defCat of Object.keys(defenderCats)) {
+            const defRatio = defenderCats[defCat] / defenderTotal;
+            if (defRatio <= 0) continue;
+            const bonus = matrixRow[defCat] || 1.0;
+            if (bonus > 1.0) {
+                // 克制权重 = 攻方该类别占比 × 守方该类别占比 × (克制系数 - 1)
+                weightedBonus += atkRatio * defRatio * (bonus - 1);
                 counterCount++;
+                counters[defCat] = (counters[defCat] || 1) + (bonus - 1) * atkRatio;
             }
-        });
-    });
+        }
+    }
 
-    return { multiplier: bonusMultiplier, counterCount };
+    return {
+        multiplier: 1.0 + weightedBonus,
+        counterCount,
+        counters,
+    };
 };
 
 const ATTACK_ABILITY_BONUS = {

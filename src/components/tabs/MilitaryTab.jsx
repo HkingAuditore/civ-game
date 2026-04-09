@@ -229,6 +229,7 @@ const TrainingQueueItem = memo(({ item, index, onCancelTraining }) => {
     const unit = UNIT_TYPES[item.unitId];
     const isWaiting = item.status === 'waiting';
     const progress = isWaiting ? 0 : ((item.totalTime - item.remainingTime) / item.totalTime) * 100;
+    const batchCount = item.count || 1;
 
     return (
         <div
@@ -243,6 +244,7 @@ const TrainingQueueItem = memo(({ item, index, onCancelTraining }) => {
                 />
                 <span className={`text-sm ${isWaiting ? 'text-gray-400' : 'text-white'}`}>
                     {unit?.name || item.unitId}
+                    {batchCount > 1 && <span className="text-yellow-400 ml-1">×{batchCount}</span>}
                 </span>
                 {isWaiting && (
                     <span className="text-xs text-yellow-400">等待人员...</span>
@@ -269,9 +271,9 @@ const TrainingQueueItem = memo(({ item, index, onCancelTraining }) => {
                 )}
                 {/* 取消按钮 */}
                 <button
-                    onClick={() => onCancelTraining && onCancelTraining(index)}
+                    onClick={() => onCancelTraining && onCancelTraining(index, batchCount)}
                     className="ml-2 p-1 rounded hover:bg-red-900/30 text-red-400 hover:text-red-300 transition-colors"
-                    title="取消训练（返还50%资源）"
+                    title={batchCount > 1 ? `取消全部 ${batchCount} 个训练（返还50%资源）` : '取消训练（返还50%资源）'}
                 >
                     <Icon name="X" size={14} />
                 </button>
@@ -279,7 +281,6 @@ const TrainingQueueItem = memo(({ item, index, onCancelTraining }) => {
         </div>
     );
 }, (prevProps, nextProps) => {
-    // Custom comparison - only re-render if relevant props changed
     const prevItem = prevProps.item;
     const nextItem = nextProps.item;
     return (
@@ -287,6 +288,7 @@ const TrainingQueueItem = memo(({ item, index, onCancelTraining }) => {
         prevItem.status === nextItem.status &&
         prevItem.remainingTime === nextItem.remainingTime &&
         prevItem.totalTime === nextItem.totalTime &&
+        (prevItem.count || 1) === (nextItem.count || 1) &&
         prevProps.index === nextProps.index
     );
 });
@@ -416,13 +418,18 @@ const MilitaryTabComponent = ({
         window.localStorage.setItem('civ_military_recruit_count', String(normalized));
     }, [recruitCount, RECRUIT_COUNT_LIMIT]);
     
-    // Memoize queue counts to prevent recalculation on every render
+    // [PERF] Batched queue: sum batch.count for queue counts
     const queueCounts = useMemo(() => {
-        return (militaryQueue || []).reduce((acc, item) => {
-            if (!item?.unitId) return acc;
-            acc[item.unitId] = (acc[item.unitId] || 0) + 1;
+        return (militaryQueue || []).reduce((acc, batch) => {
+            if (!batch?.unitId) return acc;
+            acc[batch.unitId] = (acc[batch.unitId] || 0) + (batch.count || 1);
             return acc;
         }, {});
+    }, [militaryQueue]);
+
+    // [PERF] Total units in queue (sum of all batch counts)
+    const totalQueueUnits = useMemo(() => {
+        return (militaryQueue || []).reduce((sum, batch) => sum + (batch?.count || 1), 0);
     }, [militaryQueue]);
 
     const targetEntries = useMemo(() => {
@@ -549,17 +556,18 @@ const MilitaryTabComponent = ({
         return Object.values(allMilitaryUnits).reduce((sum, count) => sum + count, 0);
     }, [allMilitaryUnits]);
     
-    // Memoize queue statistics
+    // [PERF] Batched queue statistics: sum batch.count
     const { waitingCount, trainingCount, queuePopulation } = useMemo(() => {
         const queue = militaryQueue || [];
         let waiting = 0;
         let training = 0;
         let queuePop = 0;
-        for (const item of queue) {
-            if (item.status === 'waiting') waiting++;
-            else if (item.status === 'training') training++;
-            const unit = UNIT_TYPES[item.unitId];
-            queuePop += unit?.populationCost || 1;
+        for (const batch of queue) {
+            const cnt = batch.count || 1;
+            if (batch.status === 'waiting') waiting += cnt;
+            else if (batch.status === 'training') training += cnt;
+            const unit = UNIT_TYPES[batch.unitId];
+            queuePop += (unit?.populationCost || 1) * cnt;
         }
         return { waitingCount: waiting, trainingCount: training, queuePopulation: queuePop };
     }, [militaryQueue]);
@@ -819,7 +827,7 @@ const MilitaryTabComponent = ({
                                     <Icon name="Clock" size={14} className="text-yellow-400" />
                                     <span className="text-xs text-gray-400">训练中</span>
                                 </div>
-<p className="text-base font-bold text-white">{militaryQueue.length}</p>
+<p className="text-base font-bold text-white">{totalQueueUnits}</p>
                             </div>
                         </div>
 
@@ -1160,13 +1168,13 @@ const MilitaryTabComponent = ({
                     </div>
 
                     {/* 训练队列 */}
-                    {militaryQueue.length > 0 && (
+                    {totalQueueUnits > 0 && (
 <div className="glass-ancient p-3 rounded-lg border border-ancient-gold/30">
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
                                     <Icon name="Clock" size={16} className="text-yellow-400" />
                                     训练队列
-                                    <span className="text-xs text-gray-500 font-normal">({militaryQueue.length})</span>
+                                    <span className="text-xs text-gray-500 font-normal">({totalQueueUnits})</span>
                                 </h3>
                                 <button
                                     onClick={() => onCancelAllTraining && onCancelAllTraining()}
@@ -1186,40 +1194,39 @@ const MilitaryTabComponent = ({
                                     e.stopPropagation();
                                 }}
                             >
-                                {/* Performance optimization: when queue is large (>20), show summary instead of individual items */}
+                                {/* [PERF] Batched queue: each item is already a batch with count */}
                                 {militaryQueue.length <= 20 ? (
-                                    // Normal mode: render each item individually
-                                    militaryQueue.map((item, idx) => (
+                                    // Normal mode: render each batch
+                                    militaryQueue.map((batch, idx) => (
                                         <TrainingQueueItem
-                                            key={`${item.unitId}-${idx}-${item.status}`}
-                                            item={item}
+                                            key={`${batch.unitId}-${idx}-${batch.status}-${batch.count || 1}`}
+                                            item={batch}
                                             index={idx}
                                             onCancelTraining={onCancelTraining}
                                         />
                                     ))
                                 ) : (
-                                    // Summary mode: group items by unit type for performance
+                                    // Summary mode: show first 5 batches + summary of rest
                                     <>
-                                        {/* Show first 5 training items with progress */}
-                                        {militaryQueue.slice(0, 5).map((item, idx) => (
+                                        {militaryQueue.slice(0, 5).map((batch, idx) => (
                                             <TrainingQueueItem
-                                                key={`${item.unitId}-${idx}-${item.status}`}
-                                                item={item}
+                                                key={`${batch.unitId}-${idx}-${batch.status}-${batch.count || 1}`}
+                                                item={batch}
                                                 index={idx}
                                                 onCancelTraining={onCancelTraining}
                                             />
                                         ))}
                                         
-                                        {/* Summary of remaining items grouped by unit type */}
+                                        {/* Summary of remaining batches */}
                                         <div className="mt-3 p-3 rounded bg-gray-800/50 border border-gray-700">
                                             <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
                                                 <Icon name="List" size={12} />
-                                                队列中还有 {militaryQueue.length - 5} 个单位等待训练：
+                                                队列中还有 {militaryQueue.slice(5).reduce((sum, b) => sum + (b.count || 1), 0)} 个单位等待训练：
                                             </div>
                                             <div className="flex flex-wrap gap-2">
                                                 {Object.entries(
-                                                    militaryQueue.slice(5).reduce((acc, item) => {
-                                                        acc[item.unitId] = (acc[item.unitId] || 0) + 1;
+                                                    militaryQueue.slice(5).reduce((acc, batch) => {
+                                                        acc[batch.unitId] = (acc[batch.unitId] || 0) + (batch.count || 1);
                                                         return acc;
                                                     }, {})
                                                 ).map(([unitId, count]) => (
