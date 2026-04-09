@@ -794,6 +794,10 @@ export const generateFront = (attackerId, defenderId, epoch, attackerEconomy, de
         lastOccupationScoreDay: 0,
         lastWarEconomyDamageDay: 0,
         activeBattleId: null,
+        activeBattleType: null,
+        lastBattleEndDay: 0,
+        _lastBattleDay: 0, // Will be compared against startDay/createdDay for initial cooldown
+        _battleCooldown: 45 + Math.floor(Math.random() * 60),
         recentBattleReports: [],
         economicDamageBreakdown: {
             supplyLineDamage: 0,
@@ -1392,6 +1396,12 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     // Preconditions: both sides must have corps, no active battle
     if (!playerCorps?.length || !enemyCorps?.length) return null;
     const normalizedFront = ensureFrontDefaults(front);
+
+    // Grace period: no friction for the first 3 days after front creation
+    // This prevents sudden mass casualties on the very first tick of a new war
+    const frontStartDay = Math.max(Number(normalizedFront.startDay || 0), Number(normalizedFront.createdDay || 0));
+    const FRICTION_GRACE_DAYS = 3;
+    if (frontStartDay > 0 && day - frontStartDay < FRICTION_GRACE_DAYS) return null;
     const postureCfg = getFrontPostureConfig(posture);
     const playerRaidStrength = getRoleWeightedStrength(playerCorps, 'raid');
     const enemyRaidStrength = getRoleWeightedStrength(enemyCorps, 'raid');
@@ -1432,10 +1442,34 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
     const template = FRICTION_EVENT_TEMPLATES[Math.floor(Math.random() * FRICTION_EVENT_TEMPLATES.length)];
 
     // 摩擦战只会动用前沿接触兵力，而不是把整条战线的总兵力都卷进来。
-    // 否则超大军团会因为基数过大而在“暂无会战”时出现反直觉的巨额伤亡。
+    // 否则超大军团会因为基数过大而在"暂无会战"时出现反直觉的巨额伤亡。
+    // contactWidth 基于军团数量 + 兵力规模 + 时代系数动态计算，不再硬编码。
     const epoch = Math.max(0, Number(normalizedFront.epoch || 0));
     const frontlineDepth = Math.abs(Number(normalizedFront.linePosition || 50) - 50);
-    const baseContactWidth = 800 + epoch * 900;
+
+    // 双方军团数量：每个军团代表一个独立指挥单元，能展开独立接触面
+    const playerCorpsCount = playerCorps.length;
+    const enemyCorpsCount = enemyCorps.length;
+    const totalCorpsCount = playerCorpsCount + enemyCorpsCount;
+    const totalArmySize = playerTotal + enemyTotal;
+
+    // 军团贡献：每个军团提供基础接触面，边际递减（前几个军团贡献最大）
+    // 1个军团=1.0, 2个=1.7, 4个=2.6, 8个=3.8, 16个=5.2
+    const corpsWidthFactor = Math.pow(totalCorpsCount, 0.72);
+
+    // 兵力规模贡献：大军能覆盖更宽前沿，但用 sqrt 缩放防止线性爆炸
+    // 1000兵=31, 10000兵=100, 100000兵=316, 1000000兵=1000
+    const armySizeContribution = Math.sqrt(totalArmySize);
+
+    // 时代系数：技术进步扩大战场接触面（通信/机动/火力投射范围）
+    const epochMultiplier = 1.0 + epoch * 0.15;
+
+    // 基础接触宽度 = 军团因子 × 兵力因子 × 时代系数
+    // 典型值：2军团×1万兵×epoch5 → 1.7 × 141 × 1.75 ≈ 420
+    // 典型值：6军团×10万兵×epoch5 → 3.5 × 447 × 1.75 ≈ 2740
+    // 典型值：10军团×100万兵×epoch9 → 5.2 × 1414 × 2.35 ≈ 17300
+    const baseContactWidth = corpsWidthFactor * armySizeContribution * epochMultiplier;
+
     const zoneContactBonus = frontlineDepth >= 15 ? 1.15 : 1.0;
     const postureContactBonus = normalizePostureId(posture) === 'offensive'
         ? 1.15
@@ -1444,7 +1478,10 @@ export const processFrontFriction = (front, playerCorps, enemyCorps, day, postur
             : normalizePostureId(posture) === 'raid'
                 ? 0.9
                 : 1.0;
-    const contactWidth = Math.max(200, Math.round(baseContactWidth * zoneContactBonus * postureContactBonus));
+    // 接触宽度下限200，上限不超过较小方总兵力的60%（防止小规模摩擦变成全面交战）
+    const rawContactWidth = Math.round(baseContactWidth * zoneContactBonus * postureContactBonus);
+    const contactWidthCap = Math.max(200, Math.round(smallerForce * 0.6));
+    const contactWidth = Math.max(200, Math.min(rawContactWidth, contactWidthCap));
     const weakerEngagedUnits = Math.max(1, Math.min(smallerForce, contactWidth));
     const strongerEngagedUnits = Math.max(
         1,

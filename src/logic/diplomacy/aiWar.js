@@ -2678,9 +2678,12 @@ export const syncAINationMilitary = ({
 }) => {
     const nextNation = ensureAIMilitaryState(nation, epoch);
     const doctrine = AI_DOCTRINES[nextNation.military?.doctrine] || pickDoctrine(nextNation, epoch);
+    // [FIX] 保留所有 AI 军团（含兵力为 0 的被打残军团），不再过滤掉它们。
+    // 被打残的军团通过限速回填慢慢恢复，而非被过滤后触发"缺少军团→立即创建满编新军团"。
     const nationCorps = (militaryCorps || [])
-        .filter((corps) => corps?.isAI && corps.nationId === nextNation.id)
-        .filter((corps) => getCorpsTotalUnits(corps) > 0);
+        .filter((corps) => corps?.isAI && corps.nationId === nextNation.id);
+    // activeNationCorps 用于计算维护需求和战力（空军团不消耗资源、不参战）
+    const activeNationCorps = nationCorps.filter((corps) => getCorpsTotalUnits(corps) > 0);
     const nationGenerals = (generals || []).filter((general) => nationCorps.some((corps) => corps.generalId === general.id));
     const targetCorps = clamp(
         Math.round(Number(nextNation.military?.forcePool?.targetCorps || 1)),
@@ -2694,7 +2697,7 @@ export const syncAINationMilitary = ({
     const baseFoodPulse = Math.max(1, Math.round((nextNation.population || 0) * 0.03));
     const materielKey = getMaterielResourceForEpoch(epoch);
     // 计算 AI 军队实际维护需求，按需补充各类资源
-    const nationArmyUnits = nationCorps.reduce((army, corps) => {
+    const nationArmyUnits = activeNationCorps.reduce((army, corps) => {
         Object.entries(corps?.units || {}).forEach(([unitId, count]) => {
             if (count > 0) army[unitId] = (army[unitId] || 0) + count;
         });
@@ -2748,8 +2751,15 @@ export const syncAINationMilitary = ({
 
     const newCorps = [];
     const newGenerals = [];
-    if (updatedCorps.length < targetCorps) {
-        const missing = targetCorps - updatedCorps.length;
+    // [FIX] 新军团创建加冷却：战时每 30 天最多创建 1 个新军团，和平时期无限制。
+    // 用 nationCorps.length（含空军团）判断是否真正缺少军团编制。
+    const isAtWar = updatedNation.isAtWar || Object.values(updatedNation.foreignWars || {}).some(w => w?.isAtWar);
+    const lastCorpsCreatedDay = updatedNation.military?._lastCorpsCreatedDay || 0;
+    const corpsCreationCooldown = isAtWar ? 30 : 0;
+    const canCreateCorps = (currentDay - lastCorpsCreatedDay) >= corpsCreationCooldown;
+    if (updatedCorps.length < targetCorps && canCreateCorps) {
+        // 战时每次只创建 1 个，和平时期可补满
+        const missing = isAtWar ? 1 : (targetCorps - updatedCorps.length);
         for (let i = 0; i < missing; i += 1) {
             const corps = generateAICorps(updatedNation, epoch);
             corps.id = `ai_corps_${updatedNation.id}_${currentDay}_${i}_${Date.now()}`;
@@ -2769,6 +2779,10 @@ export const syncAINationMilitary = ({
 
             newCorps.push(corps);
         }
+        updatedNation.military = {
+            ...updatedNation.military,
+            _lastCorpsCreatedDay: currentDay,
+        };
     }
 
     const allNationCorps = [...updatedCorps, ...newCorps];
@@ -2783,20 +2797,82 @@ export const syncAINationMilitary = ({
     let totalUnits = allNationCorps.reduce((sum, corps) => sum + getCorpsTotalUnits(corps), 0);
 
     const sustainableTemplateArmy = generateNationArmy(updatedNation, epoch, 1.0, 1.0);
-    const sustainableArmy = Math.max(
+    let sustainableArmy = Math.max(
         10,
         Object.values(sustainableTemplateArmy).reduce((sum, count) => sum + (count || 0), 0)
     );
 
-    // 低兵力回填：旧存档中已存在的 AI 军团也要向可持续兵力靠拢，避免长期停留在个位数。
-    // [PERF] 批量分配代替逐个+1循环，O(corps) 替代 O(deficit)
+    // --- [需求3] 本土压力影响sustainableArmy ---
+    // _warHomelandPressure 由 useGameLoop.js 和 simulation.js 写入，范围 0~1+
+    // pressure >= 0.67 (约等于本土压力80) 时开始缩减军队目标
+    const homelandPressure = updatedNation._warHomelandPressure || 0;
+    if (homelandPressure >= 0.67) {
+        // sustainableArmy *= (1 - (pressure - 0.67) / 0.53)
+        // pressure=0.67: ×1.0, pressure=0.89(核心区): ×0.58, pressure=1.0: ×0.38
+        const pressureReduction = Math.min(0.7, (homelandPressure - 0.67) / 0.53);
+        sustainableArmy = Math.max(10, Math.round(sustainableArmy * (1 - pressureReduction)));
+    }
+
+    // --- [需求4] 经济崩溃状态：wealth极低时大幅缩减军队目标 ---
+    const nationWealth = updatedNation.wealth || 0;
+    const nationPop = updatedNation.population || 100;
+    if (nationWealth < nationPop * 0.3) {
+        // 经济崩溃：sustainableArmy减半，迫使AI裁军
+        sustainableArmy = Math.max(10, Math.round(sustainableArmy * 0.5));
+    }
+
+    // 低兵力回填：AI 军团向可持续兵力靠拢，但每 tick 有回填上限，模拟征兵/训练需要时间。
+    // 回填速度与国家真实发展水平挂钩：人口规模、时代、经济产出决定征兵效率。
+    // 回填基于缺额（deficit）而非满编兵力，确保接近满编时回填极慢。
     if (allNationCorps.length > 0 && totalUnits < sustainableArmy) {
         const deficit = sustainableArmy - totalUnits;
+        const isAtWar = updatedNation.isAtWar || Object.values(updatedNation.foreignWars || {}).some(w => w?.isAtWar);
+        // --- Development-scaled refill rate (applied to DEFICIT, not sustainableArmy) ---
+        // Base: peacetime 0.8% of deficit/tick, wartime 0.05% of deficit/tick
+        const baseRefillRate = isAtWar ? 0.0005 : 0.008;
+        // Epoch bonus: higher era → better mobilization infrastructure (0~+0.05%)
+        const epochBonus = Math.min(0.0005, (epoch || 0) * 0.0001);
+        // Population scale bonus: larger nations have deeper manpower reserves (0~+0.03%)
+        const pop = Math.max(1, updatedNation.population || 100);
+        const popBonus = Math.min(0.0003, pop > 100 ? Math.log10(pop / 100) * 0.0001 : 0);
+        // Economic output bonus: richer nations fund faster conscription (0~+0.03%)
+        const annualOutput = getNationAnnualOutput(updatedNation, 0);
+        const econBonus = Math.min(0.0003, annualOutput > 500 ? Math.log10(annualOutput / 500) * 0.00015 : 0);
+        // Combined rate on deficit, capped: peacetime max 1.2%, wartime max 0.12%
+        const maxRate = isAtWar ? 0.0012 : 0.012;
+        const refillRate = Math.min(maxRate, Math.max(baseRefillRate, baseRefillRate + epochBonus + popBonus + econBonus));
+        // Apply rate to deficit (not sustainableArmy): army near full → tiny refill; army devastated → larger refill
+        const maxRefillPerTick = Math.max(1, Math.ceil(deficit * refillRate));
+        // [FIX] Absolute per-tick cap based on population: max 0.1% of population per tick
+        // This prevents massive refill when deficit is huge (e.g. 8M deficit → 9600/tick uncapped)
+        const popBasedCap = Math.max(5, Math.ceil((updatedNation.population || 100) * 0.001));
+        let actualRefill = Math.min(deficit, maxRefillPerTick, popBasedCap);
+
+        // --- AI回填经济消耗：征兵需要花费wealth，且减少人口 ---
+        const currentWealth = updatedNation.wealth || 0;
+        const costPerUnit = 0.5 * (1 + (epoch || 0) * 0.3);
+        const wealthSafetyThreshold = (updatedNation.population || 100) * 0.5;
+        if (currentWealth < wealthSafetyThreshold) {
+            // wealth低于安全阈值，完全停止回填，优先保障经济
+            actualRefill = 0;
+        } else {
+            // 按wealth可承受量缩减回填
+            const affordableRefill = Math.floor(currentWealth / costPerUnit);
+            actualRefill = Math.min(actualRefill, affordableRefill);
+        }
+        // 扣除征兵费用，wealth不低于100
+        const refillCost = actualRefill * costPerUnit;
+        updatedNation.wealth = Math.max(100, currentWealth - refillCost);
+        // [FIX] AI征兵也消耗人口（兵源来自平民）
+        if (actualRefill > 0) {
+            updatedNation.population = Math.max(100, (updatedNation.population || 100) - actualRefill);
+        }
+
         const reinforcementUnitId = Object.entries(sustainableTemplateArmy)
             .sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] || 'militia';
         const receiverCorps = [...allNationCorps].sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
-        const perCorps = Math.floor(deficit / receiverCorps.length);
-        const remainder = deficit % receiverCorps.length;
+        const perCorps = Math.floor(actualRefill / receiverCorps.length);
+        const remainder = actualRefill % receiverCorps.length;
         for (let i = 0; i < receiverCorps.length; i++) {
             const add = perCorps + (i < remainder ? 1 : 0);
             if (add > 0) {

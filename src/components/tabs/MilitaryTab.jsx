@@ -590,6 +590,23 @@ const MilitaryTabComponent = ({
         return cap;
     }, [buildings]);
 
+    // 训练吞吐量：军事建筑越多，每tick可同时训练的单位数量越大
+    const trainingThroughput = useMemo(() => {
+        const BASE_THROUGHPUT = 5;
+        const MAX_THROUGHPUT = 50;
+        let militaryBuildingCount = 0;
+        Object.entries(buildings).forEach(([buildingId, count]) => {
+            if (!count) return;
+            const building = BUILDINGS.find(b => b.id === buildingId);
+            if (building?.output?.militaryCapacity) {
+                militaryBuildingCount += count;
+            }
+        });
+        if (militaryBuildingCount <= 0) return BASE_THROUGHPUT;
+        const throughput = Math.floor(BASE_THROUGHPUT * (1 + Math.log2(Math.max(1, militaryBuildingCount)) * 0.5));
+        return Math.min(MAX_THROUGHPUT, throughput);
+    }, [buildings]);
+
     // [FIX] 使用合并后的 allMilitaryUnits 计算维护费（包含军团内的单位）
     const maintenance = useMemo(() => calculateArmyMaintenance(allMilitaryUnits), [allMilitaryUnits]);
     // 新军费计算系统：完整军费包含资源成本、时代加成、规模惩罚
@@ -790,7 +807,7 @@ const MilitaryTabComponent = ({
                             军队概览
                         </h3>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                             {/* 总兵力 */}
                             <div className="bg-gray-700/50 p-3 rounded">
                                 <div className="flex items-center gap-2 mb-1">
@@ -828,6 +845,18 @@ const MilitaryTabComponent = ({
                                     <span className="text-xs text-gray-400">训练中</span>
                                 </div>
 <p className="text-base font-bold text-white">{totalQueueUnits}</p>
+                            </div>
+
+                            {/* 训练容量 */}
+                            <div className="bg-gray-700/50 p-3 rounded">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Icon name="Zap" size={14} className="text-orange-400" />
+                                    <span className="text-xs text-gray-400">训练容量</span>
+                                </div>
+<p className={`text-base font-bold ${trainingCount >= trainingThroughput ? 'text-orange-400' : 'text-white'}`}>
+                                    {trainingCount} / {trainingThroughput}
+                                    <span className="text-xs text-gray-500 font-normal ml-1">/天</span>
+                                </p>
                             </div>
                         </div>
 

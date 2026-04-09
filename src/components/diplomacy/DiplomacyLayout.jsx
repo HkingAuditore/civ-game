@@ -33,6 +33,9 @@ const DiplomacyLayout = ({
     diplomacyOrganizations,
     overseasInvestments,
     foreignInvestments,
+    foreignInvestmentPolicy,
+    foreignInvestmentPolicyOverrides = {},
+    onPolicyOverrideChange,
     tradeOpportunities,
 
     // Actions Handlers
@@ -278,6 +281,9 @@ const DiplomacyLayout = ({
                         popStructure={gameState?.popStructure} // Ensure popStructure is passed
                         overseasInvestments={overseasInvestments}
                         foreignInvestments={foreignInvestments}
+                        foreignInvestmentPolicy={foreignInvestmentPolicy}
+                        foreignInvestmentPolicyOverrides={foreignInvestmentPolicyOverrides}
+                        onPolicyOverrideChange={onPolicyOverrideChange}
                         taxPolicies={gameState?.taxPolicies}
                     />
                 ) : (

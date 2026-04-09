@@ -210,9 +210,17 @@ export class AIDevelopmentService {
             });
 
         const tradeIncome = safeNumber(capacityState.capacityByCategory?.civic, 0) * 0.12;
-        const warLoss = nation.isAtWar
-            ? safeNumber(virtualEconomy.maintenanceCost, 0) * 0.55 + nextPopulation * 0.006
-            : 0;
+        // --- 战线入侵深度影响战争损失 ---
+        const homelandPressure = safeNumber(nation._warHomelandPressure, 0);
+        let warLoss = 0;
+        if (nation.isAtWar) {
+            // 基础战争损失
+            warLoss = safeNumber(virtualEconomy.maintenanceCost, 0) * 0.55 + nextPopulation * 0.006;
+            // 本土压力加成：被入侵越深，战争损失越大
+            // pressure=0: ×1.0, pressure=0.5: ×1.8, pressure=1.0: ×3.5
+            const warLossMultiplier = 1 + Math.pow(homelandPressure, 1.2) * 2.5;
+            warLoss *= warLossMultiplier;
+        }
         const tickScale = Math.min(2, Math.max(0.5, ticksSinceUpdate / 10));
         const savingsRate = calculateAISavingsRate({
             nation,
@@ -227,8 +235,16 @@ export class AIDevelopmentService {
             epoch,
             tickScale,
         });
-        const localValueAdded = safeNumber(virtualEconomy.localValueAdded, 0);
+        let localValueAdded = safeNumber(virtualEconomy.localValueAdded, 0);
         const maintenanceCost = safeNumber(virtualEconomy.maintenanceCost, 0);
+
+        // --- 本土压力削减建筑产出 ---
+        // 战区经济破坏：被入侵越深，建筑产出越低（模拟基础设施破坏、劳动力流失、物流中断）
+        if (homelandPressure > 0 && nation.isAtWar) {
+            // pressure=0.33(边境): ×0.85, pressure=0.78(经济区): ×0.45, pressure=0.93(核心): ×0.15
+            const outputRetention = Math.max(0.10, 1 - Math.pow(homelandPressure, 0.9) * 0.90);
+            localValueAdded *= outputRetention;
+        }
         const profitOutflow = safeNumber(virtualEconomy.profitOutflow, 0);
         const maintenanceCostPenalty = maintenanceCost * (0.35 + clamp(safeNumber(nation.marketVolatility ?? nation.foreignPower?.volatility, 0.3), 0.1, 0.9) * 0.2);
         const grossSavingsFlow = localValueAdded * savingsRate
@@ -243,6 +259,14 @@ export class AIDevelopmentService {
         // 难度驱动的 subsistence income 调节
         const growthRateMultiplier = getAIGrowthRateMultiplier(difficulty);
         let subsistenceIncome = nextPopulation * targetPerCapita * 0.003 * tickScale * growthRateMultiplier;
+
+        // --- 本土压力削减 subsistenceIncome ---
+        // 被入侵时，自给自足经济也会受到严重影响
+        if (homelandPressure > 0 && nation.isAtWar) {
+            // pressure=0.33(边境): ×0.80, pressure=0.78(经济区): ×0.30, pressure=0.93(核心): ×0.05
+            const subsistenceRetention = Math.max(0.05, 1 - Math.pow(homelandPressure, 0.8) * 0.95);
+            subsistenceIncome *= subsistenceRetention;
+        }
 
         // === 玩家相对财富下限：追赶加成 ===
         // 当 AI 人均财富低于 playerPerCapitaWealth × floorMultiplier 时，增强 subsistence income
@@ -261,7 +285,23 @@ export class AIDevelopmentService {
         }
         subsistenceIncome *= wealthCatchUpBonus;
 
-        let effectiveSavingsFlow = Math.max(subsistenceIncome, grossSavingsFlow);
+        // --- 本土压力下取消保底 ---
+        // 正常情况下 subsistenceIncome 作为保底防止经济恶性循环
+        // 但被深入入侵时（pressure > 0.5），保底应该被削弱甚至取消，允许负增长
+        let effectiveSavingsFlow;
+        if (homelandPressure > 0.5 && nation.isAtWar) {
+            // pressure=0.5: 保底保留50%, pressure=0.78: 保底保留22%, pressure=1.0: 保底保留0%
+            const floorRetention = Math.max(0, 1 - (homelandPressure - 0.5) * 2);
+            const adjustedFloor = subsistenceIncome * floorRetention;
+            if (floorRetention <= 0) {
+                // 保底完全取消：允许 grossSavingsFlow 为负值（经济崩溃）
+                effectiveSavingsFlow = grossSavingsFlow;
+            } else {
+                effectiveSavingsFlow = Math.max(adjustedFloor, grossSavingsFlow);
+            }
+        } else {
+            effectiveSavingsFlow = Math.max(subsistenceIncome, grossSavingsFlow);
+        }
 
         // === 玩家相对财富上限：软约束 ===
         // 当 AI 人均财富超过 playerPerCapitaWealth × capMultiplier × 80% 时，递减惩罚

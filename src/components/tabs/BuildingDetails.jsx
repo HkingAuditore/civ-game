@@ -735,11 +735,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         // 理论满员产量 = 配置产出 × 科技加成乘数（用于tooltip比较）
         const theoreticalFullOutput = baseAmount * buildingModifiers.totalMultiplier;
         
-        // 特殊处理：maxPop 和 militaryCapacity 不在 supplyBreakdown 中，直接使用理论值
+        // 特殊处理：maxPop 和 militaryCapacity 是容量属性，不受生产加成影响
+        // maxPop 的百分比加成由 maxPopPercent 单独处理，这里只显示基础值
         if (resKey === 'maxPop' || resKey === 'militaryCapacity') {
-            const actualAmount = theoreticalFullOutput;
-            const hasBonus = buildingModifiers.hasBonus;
-            return [resKey, actualAmount, theoreticalFullOutput, hasBonus, false];
+            const actualAmount = baseAmount;
+            return [resKey, actualAmount, baseAmount, false, false];
         }
         
         // 实际产出：直接从 supplyBreakdown 获取，没有则为0

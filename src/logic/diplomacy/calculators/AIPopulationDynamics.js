@@ -120,9 +120,28 @@ export const calculateAIPopulationDynamics = ({
             ? Math.min(rawUnemploymentRate, 0.3)
             : rawUnemploymentRate;
     const employmentFactor = clamp(1.02 - effectiveUnemploymentRate * 0.45, 0.7, 1.05);
-    const warFactor = nation.isAtWar
-        ? clamp(0.82 + Math.max(0, difficultyMultiplier - 1) * 0.08, 0.78, 0.92)
-        : 1;
+    // --- 战线入侵深度影响增长 ---
+    // _warHomelandPressure 由 useGameLoop.js 和 simulation.js 写入，范围 0~1+
+    const homelandPressure = safeNumber(nation._warHomelandPressure, 0);
+    let warFactor;
+    if (!nation.isAtWar) {
+        warFactor = 1;
+    } else if (homelandPressure > 0.93) {
+        // 极端入侵（>93%战线）：增长完全停止，转为衰减
+        warFactor = 0;
+    } else if (homelandPressure > 0.78) {
+        // 核心区被入侵：增长大幅削减
+        warFactor = clamp(0.15 + Math.max(0, difficultyMultiplier - 1) * 0.03, 0.10, 0.20);
+    } else if (homelandPressure > 0.33) {
+        // 经济区被入侵：增长显著削减
+        warFactor = clamp(0.45 + Math.max(0, difficultyMultiplier - 1) * 0.05, 0.40, 0.55);
+    } else if (homelandPressure > 0) {
+        // 边境区被入侵：轻微削减
+        warFactor = clamp(0.70 + Math.max(0, difficultyMultiplier - 1) * 0.06, 0.65, 0.80);
+    } else {
+        // 战争中但无本土入侵（AI在进攻）
+        warFactor = clamp(0.82 + Math.max(0, difficultyMultiplier - 1) * 0.08, 0.78, 0.92);
+    }
     const capacityRatio = population / Math.max(1, carryingCapacity);
     // [FIX] Flatter crowding curve: old formula (1.08 - ratio*0.28) dropped to 0.856 at ratio=0.8,
     // choking growth too early. New formula keeps ~0.94 at ratio=0.8 (stable growth phase),
@@ -181,7 +200,15 @@ export const calculateAIPopulationDynamics = ({
     // [FIX v5] 战时直接伤亡：补偿从 updateNationEconomy 移除的 warCasualty 逻辑，
     // 确保战争期间人口有明确的下降压力（约 0.4%/周期），而非仅靠增长率降低。
     if (nation.isAtWar) {
-        const warCasualtyRate = 0.004 * tickScale;
+        // 基础战争伤亡
+        let warCasualtyRate = 0.004 * tickScale;
+        // 本土压力加成：被入侵越深，伤亡越大
+        // pressure=0: +0%, pressure=0.5: +0.3%, pressure=1.0: +1.2%
+        warCasualtyRate += Math.pow(homelandPressure, 1.5) * 0.012 * tickScale;
+        // 极端入侵（>93%）：额外人口崩溃
+        if (homelandPressure > 0.93) {
+            warCasualtyRate += 0.008 * tickScale;
+        }
         netGrowthRate -= warCasualtyRate;
     }
 

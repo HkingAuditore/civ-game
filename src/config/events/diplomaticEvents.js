@@ -1298,35 +1298,22 @@ export function createAllyColdEvent(nation, currentRelation, callback) {
 export function createAllyAttackedEvent(ally, attacker, callback) {
     return {
         id: `ally_attacked_${ally.id}_${Date.now()}`,
-        name: `盟友${ally.name}求援!`,
+        name: `盟友${ally.name}遭到攻击!`,
         icon: 'AlertTriangle',
         image: null,
-        description: `紧急!你的盟友${ally.name}遭到${attacker.name}的攻击!他们派遣使节前来请求军事援助。
+        description: `紧急!你的盟友${ally.name}遭到${attacker.name}的攻击!
 
-作为盟友,你有义务伸出援手。但如果你选择袖手旁观,将会:
-• 与${ally.name}的关系大幅下降(-40)
-• 同盟关系解除
-• 与所有国家的关系下降(-10)
-• "背叛盟友"的名声将影响未来的外交
-
-你的选择?`,
+根据军事同盟条约，你已自动对${attacker.name}宣战。你的军队需要立即做好应战准备。`,
         isDiplomaticEvent: true,
         options: [
             {
-                id: 'intervene',
-                text: '履行盟约,参战!',
-                description: `与${attacker.name}进入战争状态`,
+                id: 'acknowledge',
+                text: '应战',
+                description: `已自动与${attacker.name}进入战争状态(稳定度-5)`,
                 effects: {
                     stability: -5,
                 },
                 callback: () => callback(true),
-            },
-            {
-                id: 'abandon',
-                text: '袖手旁观',
-                description: '背叛盟友,承受声誉损失',
-                effects: {},
-                callback: () => callback(false),
             },
         ],
     };

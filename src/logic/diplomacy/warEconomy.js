@@ -380,6 +380,93 @@ export const aggregateWarDamagedBuildings = (activeFronts = [], nationId = 'play
 // ========== 建筑破坏判定 ==========
 
 /**
+ * 根据双方兵力计算破坏效率参数
+ * 综合兵力比（ratio）和兵力差（gap）两个维度：
+ * - 兵力比影响破坏概率（渐近曲线，永不触顶）
+ * - 兵力差影响破坏上限（渐近曲线，绝对碾压力持续增长）
+ * - 两者综合决定经济损伤倍率（渐近曲线，无硬上限）
+ *
+ * 所有映射均使用 f(x) = A * x / (x + k) 渐近函数：
+ * - 斜率随 x 增大而单调递减，但永不为零
+ * - 当 x = k 时 f = A/2（半值点），x → ∞ 时 f → A（渐近线）
+ *
+ * @param {Object} params
+ * @param {number} params.attackerUnits - 进攻方兵力绝对值
+ * @param {number} params.defenderUnits - 防守方兵力绝对值
+ * @param {number} params.baseProbability - 基础破坏概率（来自 WAR_ECONOMY 配置）
+ * @param {number} params.baseMaxDestroy - 基础最大破坏数（来自 WAR_ECONOMY 配置）
+ * @param {number} [params.raidMod=1.0] - 姿态的 raidMod 系数
+ * @param {boolean} [params.isPlayerTarget=false] - 目标是否为玩家（玩家侧有保护折扣）
+ * @returns {Object} { destroyChance, maxDestroy, economyMultiplier, ratio, gap, ratioBonus, gapBonus }
+ */
+export const calculateDestructionEfficiency = ({
+    attackerUnits = 0,
+    defenderUnits = 0,
+    baseProbability = WAR_ECONOMY.BUILDING_DESTROY_BASE_PROBABILITY,
+    baseMaxDestroy = WAR_ECONOMY.MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT,
+    raidMod = 1.0,
+    isPlayerTarget = false,
+}) => {
+    // 渐近函数：f(x) = asymptote * x / (x + halfPoint)
+    // x=0→0, x=halfPoint→asymptote/2, x→∞→asymptote（永不触顶）
+    const asymptotic = (x, asymptote, halfPoint) => asymptote * x / (x + halfPoint);
+
+    const safeAttacker = Math.max(0, safeNumber(attackerUnits));
+    const safeDefender = Math.max(0, safeNumber(defenderUnits));
+
+    // === 维度1：兵力比 (ratio) → ratioBonus ===
+    // 渐近线4，半值点ratio=8（即9:1时bonus≈3.12）
+    // 1:1→1.0, 3:1→1.80, 5:1→2.33, 10:1→3.12, 80:1→4.63, 200:1→4.85
+    const ratio = safeDefender > 0 ? safeAttacker / safeDefender : (safeAttacker > 0 ? 200.0 : 1.0);
+    const ratioExcess = Math.max(0, ratio - 1); // 超出1:1的部分
+    const ratioBonus = 1.0 + asymptotic(ratioExcess, 4, 8);
+
+    // === 维度2：兵力差 (gap) → gapBonus（破坏上限加成） ===
+    // 以万人为单位，渐近线60，半值点200万（200万差时bonus≈30）
+    // 20万差→5.5, 79万差→17.0, 200万差→30, 650万差→45.9, 790万差→47.9
+    const gap = Math.max(0, safeAttacker - safeDefender);
+    const gapInWan = gap / 10000; // 转换为"万人"单位
+    const gapBonus = asymptotic(gapInWan, 60, 200);
+
+    // === 综合经济损伤倍率 ===
+    // ratioBonus [1, ~5) 和 gapBonus [0, ~60) 各贡献一部分
+    // gapBonus 归一化到 [0, ~3) 后加权组合
+    const normalizedGap = asymptotic(gapBonus, 3, 15); // gapBonus 15→1.5, 30→2.0, 48→2.29
+    const economyMultiplier = ratioBonus * 0.7 + normalizedGap * 1.2 + 0.3;
+
+    // === 计算最终破坏概率 ===
+    // 以 baseProbability 为1:1时的锚点，兵力优势通过渐近函数提升概率
+    // 概率 = base + (1-base) * asymptotic(boost, 1, 2)，永远 < 1.0
+    // 1:1→0.35, 3:1→0.54, 10:1→0.68, 80:1→0.77, 200:1→0.78
+    const boost = (ratioBonus - 1) * raidMod;
+    const rawDestroyChance = baseProbability + (1 - baseProbability) * asymptotic(boost, 1, 2);
+
+    // === 计算最终破坏上限 ===
+    const rawMaxDestroy = baseMaxDestroy + Math.floor(gapBonus);
+
+    // === 玩家侧保护折扣 ===
+    let destroyChance, maxDestroy;
+    if (isPlayerTarget) {
+        // 玩家侧：概率折扣 + 上限压缩（同样用渐近函数而非硬cap）
+        destroyChance = rawDestroyChance * 0.55;
+        maxDestroy = Math.max(1, Math.floor(asymptotic(rawMaxDestroy, 8, 10)));
+    } else {
+        destroyChance = rawDestroyChance;
+        maxDestroy = rawMaxDestroy;
+    }
+
+    return {
+        destroyChance,
+        maxDestroy,
+        economyMultiplier,
+        ratio,
+        gap,
+        ratioBonus,
+        gapBonus,
+    };
+};
+
+/**
  * 在战线 checkpoint crossing 时判定建筑破坏（真实销毁）
  * 破坏速度与敌方兵力绝对值和兵力比相关
  * @param {Object} params
@@ -414,22 +501,16 @@ export const calculateWarBuildingDamage = ({
         narrative: '',
     };
 
-    // Force ratio bonus: steeper curve for overwhelming force
-    // 1:1→×1.0, 3:1→×1.8, 5:1→×2.3, 10:1→×3.0, 20:1+→×3.5 (cap)
-    const ratioBonus = Math.min(3.5, 1.0 + Math.pow(Math.max(0, unitRatio - 1), 0.55) * 0.8);
-    // Absolute strength bonus: +1 slot per 500 troops (was 1000)
-    const unitsBonus = Math.floor(enemyUnits / 500);
-
-    const baseProbability = WAR_ECONOMY.BUILDING_DESTROY_BASE_PROBABILITY;
-    const destroyChance = Math.min(0.92, baseProbability * raidMod * ratioBonus);
-    // Destruction cap: base + units bonus, max 12
-    const maxDestroy = Math.min(12, WAR_ECONOMY.MAX_BUILDINGS_DESTROYED_PER_CHECKPOINT + unitsBonus);
-    const effectiveDestroyChance = isPlayerNation
-        ? Math.min(0.65, destroyChance * 0.55)
-        : destroyChance;
-    const effectiveMaxDestroy = isPlayerNation
-        ? Math.max(1, Math.min(5, Math.ceil(maxDestroy * 0.5)))
-        : maxDestroy;
+    // 通过统一的破坏效率函数计算所有破坏参数
+    // 从 unitRatio 反推防守方兵力：defenderUnits = enemyUnits / unitRatio
+    const defenderUnits = unitRatio > 0 ? enemyUnits / unitRatio : 0;
+    const efficiency = calculateDestructionEfficiency({
+        attackerUnits: enemyUnits,
+        defenderUnits,
+        raidMod,
+        isPlayerTarget: isPlayerNation,
+    });
+    const { destroyChance, maxDestroy, economyMultiplier } = efficiency;
 
     const allowedCats = zoneCategory === 'capital'
         ? ['gather', 'industry', 'civic', 'military']
@@ -466,8 +547,9 @@ export const calculateWarBuildingDamage = ({
         let destroyCount = 0;
         const narratives = [];
 
-        for (let i = 0; i < effectiveMaxDestroy && candidates.length > 0; i++) {
-            if (Math.random() > effectiveDestroyChance) continue;
+        // destroyChance 已在 calculateDestructionEfficiency 中应用玩家折扣
+        for (let i = 0; i < maxDestroy && candidates.length > 0; i++) {
+            if (Math.random() > destroyChance) continue;
             const idx = Math.floor(Math.random() * candidates.length);
             const target = candidates[idx];
             result.destroyedBuildings[target.id] = (result.destroyedBuildings[target.id] || 0) + 1;
@@ -492,8 +574,8 @@ export const calculateWarBuildingDamage = ({
             : 0;
         const narratives = [];
 
-        for (let i = 0; i < effectiveMaxDestroy && candidates.length > 0; i++) {
-            if (Math.random() > effectiveDestroyChance) continue;
+        for (let i = 0; i < maxDestroy && candidates.length > 0; i++) {
+            if (Math.random() > destroyChance) continue;
             const idx = Math.floor(Math.random() * candidates.length);
             const target = candidates[idx];
             result.destroyedBuildings[target.id] = (result.destroyedBuildings[target.id] || 0) + 1;
@@ -504,9 +586,9 @@ export const calculateWarBuildingDamage = ({
             narratives.push(target.name);
         }
 
-        // 兵力比越大，经济损伤越大
-        result.wealthLoss = nationWealth * wealthPenaltyRate * ratioBonus;
-        result.milStrLoss = milStrPenaltyRate * ratioBonus;
+        // 兵力差+兵力比综合决定经济损伤
+        result.wealthLoss = nationWealth * wealthPenaltyRate * economyMultiplier;
+        result.milStrLoss = milStrPenaltyRate * economyMultiplier;
         if (narratives.length > 0) {
             result.narrative = `攻势摧毁了敌方${narratives.join('、')}（共${narratives.length}座建筑被拆除）`;
         } else {

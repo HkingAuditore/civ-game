@@ -173,6 +173,8 @@ export const useGameActions = (gameState, addLog) => {
         setForeignInvestments,
         foreignInvestmentPolicy,
         setForeignInvestmentPolicy,
+        foreignInvestmentPolicyOverrides,
+        setForeignInvestmentPolicyOverrides,
         setClassWealth,
         jobsAvailable,
         eventEffectSettings,
@@ -6280,10 +6282,37 @@ export const useGameActions = (gameState, addLog) => {
                     break;
 
                 }
-                const policyLabels = { normal: 'normal tax', increased_tax: 'higher tax', heavy_tax: 'heavy tax' };
+                const policyLabels = { preferential: '优惠税率', normal: '正常税率', increased_tax: '加税', heavy_tax: '重税' };
                 setForeignInvestmentPolicy(policy);
-                addLog(`Foreign investment policy set to ${policyLabels[policy] || policy}.`);
+                addLog(`📋 外资利润税政策已调整为：${policyLabels[policy] || policy}`);
 
+                break;
+            }
+
+            case 'set_foreign_investment_policy_override': {
+                // 逐国税率覆盖
+                const { nationId, policy: overridePolicy } = payload || {};
+                if (!nationId) {
+                    addLog('逐国税率设置失败：缺少国家ID');
+                    break;
+                }
+                const policyLabels = { preferential: '优惠税率', normal: '正常税率', increased_tax: '加税', heavy_tax: '重税' };
+                setForeignInvestmentPolicyOverrides(prev => {
+                    const next = { ...prev };
+                    if (!overridePolicy || overridePolicy === 'follow_global') {
+                        delete next[nationId];
+                    } else {
+                        next[nationId] = overridePolicy;
+                    }
+                    return next;
+                });
+                const targetNation = nations.find(n => n.id === nationId);
+                const nationName = targetNation?.name || nationId;
+                if (!overridePolicy || overridePolicy === 'follow_global') {
+                    addLog(`📋 ${nationName} 的外资税率已恢复为跟随全局`);
+                } else {
+                    addLog(`📋 ${nationName} 的外资税率已单独设为：${policyLabels[overridePolicy] || overridePolicy}`);
+                }
                 break;
             }
 

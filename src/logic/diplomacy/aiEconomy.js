@@ -38,11 +38,33 @@ const getAIPopulationSoftCapBoost = (difficultyMultiplier = 1) => clamp(
     1.50
 );
 
-const getAIWarGrowthRetention = (difficultyMultiplier = 1) => clamp(
-    0.55 + Math.max(0, difficultyMultiplier - 1) * 0.08,
-    0.50,
-    0.72
-);
+const getAIWarGrowthRetention = (difficultyMultiplier = 1, homelandPressure = 0) => {
+    // 基础保留率（无战线入侵时）
+    const baseRetention = clamp(
+        0.55 + Math.max(0, difficultyMultiplier - 1) * 0.08,
+        0.50,
+        0.72
+    );
+    // 如果没有本土压力，使用基础保留率
+    if (!homelandPressure || homelandPressure <= 0) return baseRetention;
+    // 根据战线入侵深度动态调整保留率（需求2）
+    // pressure 0~0.33(边境区): 保留率0.60
+    // pressure 0.33~0.78(经济区): 保留率0.30
+    // pressure 0.78~0.93(核心区): 保留率0.10
+    // pressure >0.93(极端): 保留率0.0
+    let frontRetention;
+    if (homelandPressure > 0.93) {
+        frontRetention = 0.0;
+    } else if (homelandPressure > 0.78) {
+        frontRetention = 0.10;
+    } else if (homelandPressure > 0.33) {
+        frontRetention = 0.30;
+    } else {
+        frontRetention = 0.60;
+    }
+    // 取基础保留率和战线保留率中更严格的那个
+    return Math.min(baseRetention, frontRetention);
+};
 
 /**
  * Update AI nation economy (resources, budget, inventory)
@@ -291,7 +313,9 @@ export const processAIIndependentGrowth = ({
     if (ticksSinceLastGrowth >= 10) {
         // [FIX v2] Growth should happen even during war, just at reduced rate
         // Old behavior completely blocked growth during war, causing stagnation
-        const warPenalty = next.isAtWar ? getAIWarGrowthRetention(multiplier) : 1.0;
+        // [需求2] 战线入侵深度影响增长保留率
+        const homelandPressure = next._warHomelandPressure || 0;
+        const warPenalty = next.isAtWar ? getAIWarGrowthRetention(multiplier, homelandPressure) : 1.0;
         
         const currentPopulation = next.population || ownBasePopulation;
         
@@ -333,10 +357,35 @@ export const processAIIndependentGrowth = ({
         // Apply war penalty to minimum growth too
         minGrowth = Math.floor(minGrowth * warPenalty);
         
+        // [需求2] 极端战线位置（>93%）：GDP负增长 + 人口衰减
+        if (homelandPressure > 0.93 && warPenalty <= 0) {
+            // 经济崩溃：人口每次更新衰减0.3%
+            const collapseDecline = Math.max(1, Math.floor(currentPopulation * 0.003));
+            next.economyTraits.ownBasePopulation = Math.max(1, currentPopulation - collapseDecline);
+            next.population = Math.max(1, currentPopulation - collapseDecline);
+            // GDP负增长：wealth每次更新衰减0.5%
+            const wealthDecline = Math.max(1, Math.floor((next.wealth || 100) * 0.005));
+            next.wealth = Math.max(100, (next.wealth || 100) - wealthDecline);
+            next.economyTraits.lastGrowthTick = tick;
+            return; // 跳过正常增长逻辑
+        }
+
+        // [需求3] 本土压力≥100时（pressure≈0.83+），停止人口增长并施加衰减
+        if (homelandPressure >= 0.83) {
+            // 人口增长抑制：保留系数 = 1 - pressure/1.2（pressure=1.0时保留率≈0.17）
+            minGrowth = 0; // 停止最低增长保障
+        }
+
         // Calculate actual population with war penalty and minimum growth
         const growthFromModel = newPopulation - currentPopulation;
         const warAdjustedGrowth = Math.trunc(growthFromModel * warPenalty);
         let adjustedGrowth = warAdjustedGrowth;
+
+        // [需求3] 本土压力影响人口增长：人口增长率乘以 (1 - homelandPressure / 1.2)
+        if (homelandPressure > 0) {
+            const popRetention = Math.max(0, 1 - homelandPressure / 1.2);
+            adjustedGrowth = Math.trunc(adjustedGrowth * popRetention);
+        }
 
         if (adjustedGrowth >= 0) {
             adjustedGrowth = Math.max(minGrowth, adjustedGrowth);

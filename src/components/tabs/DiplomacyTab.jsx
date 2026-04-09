@@ -53,6 +53,7 @@ const DiplomacyTabComponent = ({
     population = {},
     foreignInvestments = [],
     foreignInvestmentPolicy = 'normal',
+    foreignInvestmentPolicyOverrides = {},
     vassalDiplomacyQueue = [],
     vassalDiplomacyHistory = [],
     onApproveVassalDiplomacy,
@@ -419,6 +420,13 @@ const DiplomacyTabComponent = ({
                 diplomacyOrganizations={diplomacyOrganizations}
                 overseasInvestments={overseasInvestments}
                 foreignInvestments={foreignInvestments}
+                foreignInvestmentPolicy={foreignInvestmentPolicy}
+                foreignInvestmentPolicyOverrides={foreignInvestmentPolicyOverrides}
+                onPolicyOverrideChange={(nationId, policy) => {
+                    if (typeof onDiplomaticAction === 'function') {
+                        onDiplomaticAction('player', 'set_foreign_investment_policy_override', { nationId, policy });
+                    }
+                }}
                 tradeOpportunities={tradeOpportunities}
                 merchantState={merchantState}
                 onMerchantStateChange={(nationId, count) => {
@@ -605,9 +613,15 @@ const DiplomacyTabComponent = ({
                 playerMarket={market}
                 playerResources={resources}
                 currentPolicy={foreignInvestmentPolicy}
+                policyOverrides={foreignInvestmentPolicyOverrides}
                 onPolicyChange={(policy) => {
                     if (typeof onDiplomaticAction === 'function') {
                         onDiplomaticAction('player', 'set_foreign_investment_policy', { policy });
+                    }
+                }}
+                onPolicyOverrideChange={(nationId, policy) => {
+                    if (typeof onDiplomaticAction === 'function') {
+                        onDiplomaticAction('player', 'set_foreign_investment_policy_override', { nationId, policy });
                     }
                 }}
                 onNationalize={() => {

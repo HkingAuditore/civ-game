@@ -1530,12 +1530,46 @@ export function calculateOverseasInvestmentSummary(overseasInvestments, targetNa
 
 /**
  * 外资税率政策配置
+ * taxRate: 玩家设定的附加税率（与外交规则税率取较高值）
+ * relationImpact: 每月对有投资国家的关系影响
+ * investmentMultiplier: AI投资概率乘数
  */
 export const FOREIGN_INVESTMENT_POLICIES = {
-    normal: { taxRate: 0.10, relationImpact: 0 },
-    increased_tax: { taxRate: 0.25, relationImpact: -5 },
-    heavy_tax: { taxRate: 0.50, relationImpact: -15 },
-};/**
+    preferential: {
+        taxRate: 0.05,
+        relationImpact: 2,
+        investmentMultiplier: 1.5,
+        label: '优惠税率',
+        description: '降低税率吸引外资，改善与投资国关系',
+        color: 'green',
+    },
+    normal: {
+        taxRate: 0.10,
+        relationImpact: 0,
+        investmentMultiplier: 1.0,
+        label: '正常税率',
+        description: '默认税率档位，无额外外交影响',
+        color: 'gray',
+    },
+    increased_tax: {
+        taxRate: 0.25,
+        relationImpact: -5,
+        investmentMultiplier: 0.5,
+        label: '加税',
+        description: '提高税收收入，但会恶化与投资国关系',
+        color: 'yellow',
+    },
+    heavy_tax: {
+        taxRate: 0.50,
+        relationImpact: -15,
+        investmentMultiplier: 0.1,
+        label: '重税',
+        description: '大幅提高税收，严重恶化外交关系并抑制外资',
+        color: 'red',
+    },
+};
+
+/**
  * 处理外资建筑每日更新 (Dynamic Logic)
  * 使用 calculateOverseasProfit 动态决定供应链（本地采购 vs 进口）
  * @param {Object} params - 参数
@@ -1548,6 +1582,7 @@ export function processForeignInvestments({
     playerMarket = {},
     playerResources = {},
     foreignInvestmentPolicy = 'normal',
+    foreignInvestmentPolicyOverrides = {},
     taxPolicies = {},
     daysElapsed = 0,
     // [NEW] 用于计算实际到岗率
@@ -1561,7 +1596,16 @@ export function processForeignInvestments({
     let totalTariffRevenue = 0;
     let totalTariffSubsidy = 0;
     const updatedInvestments = [];
-    const policyConfig = FOREIGN_INVESTMENT_POLICIES[foreignInvestmentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
+    const globalPolicyConfig = FOREIGN_INVESTMENT_POLICIES[foreignInvestmentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
+
+    // Helper: 获取某国的有效税率政策配置（逐国覆盖优先，否则全局默认）
+    const getEffectivePolicyConfig = (nationId) => {
+        const override = foreignInvestmentPolicyOverrides[nationId];
+        if (override && FOREIGN_INVESTMENT_POLICIES[override]) {
+            return FOREIGN_INVESTMENT_POLICIES[override];
+        }
+        return globalPolicyConfig;
+    };
 
     // [PERF] 预建国家索引
     const nationMap = new Map((nations || []).map(n => [n?.id, n]));
@@ -1569,11 +1613,17 @@ export function processForeignInvestments({
     // 追踪玩家市场变化 (被外资买入/卖出)
     const marketChanges = {}; // { resourceKey: delta }
 
+    // 收集有投资的国家ID，用于计算关系影响
+    const investingNationIds = new Set();
+
     foreignInvestments.forEach(investment => {
         if (investment.status !== 'operating') {
             updatedInvestments.push(investment);
             return;
         }
+
+        // 记录有投资的国家
+        if (investment.ownerNationId) investingNationIds.add(investment.ownerNationId);
 
         const building = BUILDINGS.find(b => b.id === investment.buildingId);
         if (!building) {
@@ -1663,36 +1713,27 @@ export function processForeignInvestments({
         const scaledTariffCost = theoreticalTariffCost * staffingRatio * ticksElapsed;
 
         // 计算税收 (Strict Rules Logic for Foreign Investment)
-        let effectiveTaxRate = 0.60; // 默认惩罚性税率 60%
+        // Step 1: 外交规则决定的基础税率
+        let diplomaticTaxRate = 0.60; // 默认惩罚性税率 60%
         const isVassal = ownerNation && ownerNation.vassalOf === 'player';
         const hasTreaty = ownerNation ? hasActiveTreaty(ownerNation, 'investment_pact', daysElapsed) : false;
         const inBloc = isInSameBloc(ownerNation, organizations);
 
-        // [DEBUG] Log tax rate determination for foreign investment in player's nation
-        // console.log(`[Foreign Tax] Determining tax for ${ownerNation?.name || 'unknown'}'s investment in player's nation:`, {
-        //     ownerId: ownerNation?.id,
-        //     isVassal,
-        //     hasTreaty,
-        //     inBloc,
-        //     organizationsCount: organizations?.length || 0,
-        // });
-
         if (isVassal) {
-            // 附庸国在宗主国投资：宗主国通常可以收税
-            effectiveTaxRate = 0.25;
-            if (inBloc) effectiveTaxRate = 0.10;
-            // console.log(`[Foreign Tax] Using VASSAL rate: ${(effectiveTaxRate * 100).toFixed(1)}%`);
+            diplomaticTaxRate = 0.25;
+            if (inBloc) diplomaticTaxRate = 0.10;
         } else if (inBloc) {
-            effectiveTaxRate = 0.10;
-            // console.log(`[Foreign Tax] Using ECONOMIC BLOC rate: 10%`);
+            diplomaticTaxRate = 0.10;
         } else if (hasTreaty) {
-            effectiveTaxRate = 0.25;
-            // console.log(`[Foreign Tax] Using TREATY rate: 25%`);
+            diplomaticTaxRate = 0.25;
         } else {
-            // 无条约：惩罚性税率 60%
-            effectiveTaxRate = 0.60;
-            // console.log(`[Foreign Tax] Using DEFAULT rate: 60%`);
+            diplomaticTaxRate = 0.60;
         }
+
+        // Step 2: 获取该国的有效税率政策（逐国覆盖优先）
+        const policyConfig = getEffectivePolicyConfig(investment.ownerNationId);
+        // 外交规则是下限，玩家只能在此基础上加税，不能低于外交规则
+        const effectiveTaxRate = Math.max(diplomaticTaxRate, policyConfig.taxRate);
 
         const taxAmount = dailyProfit > 0 ? dailyProfit * effectiveTaxRate : 0;
         const profitAfterTax = dailyProfit > 0 ? dailyProfit * (1 - effectiveTaxRate) : 0;
@@ -1758,6 +1799,9 @@ export function processForeignInvestments({
                             theoreticalProfit: theoreticalProfit * (remainingCount / unitCount),
                             profit: dailyProfit * (remainingCount / unitCount),
                             decisions: profitResult.decisions,
+                            diplomaticTaxRate,
+                            policyTaxRate: policyConfig.taxRate,
+                            effectiveTaxRate,
                         },
                     });
                 } else {
@@ -1788,6 +1832,9 @@ export function processForeignInvestments({
                 theoreticalProfit,
                 profit: dailyProfit,
                 decisions: profitResult.decisions,
+                diplomaticTaxRate,
+                policyTaxRate: policyConfig.taxRate,
+                effectiveTaxRate,
             },
         });
     });
@@ -1797,6 +1844,16 @@ export function processForeignInvestments({
         logs.push(`🏭 外资月报: 税收+${(totalTaxRevenue * 30).toFixed(0)}, 利润外流-${(totalProfitOutflow * 30).toFixed(0)}`);
     }
 
+    // 计算关系影响：逐国使用各自有效档位的 relationImpact，每日1/30月度影响
+    const relationChanges = [];
+    investingNationIds.forEach(nationId => {
+        const nationPolicyConfig = getEffectivePolicyConfig(nationId);
+        if (nationPolicyConfig.relationImpact !== 0) {
+            const dailyImpact = nationPolicyConfig.relationImpact / 30;
+            relationChanges.push({ nationId, change: dailyImpact });
+        }
+    });
+
     return {
         updatedInvestments: consolidateForeignInvestments(updatedInvestments),
         taxRevenue: totalTaxRevenue,
@@ -1805,6 +1862,8 @@ export function processForeignInvestments({
         profitOutflow: totalProfitOutflow,
         logs,
         marketChanges, // 返回给 GameLoop 使用 (如果支持)
+        relationChanges, // 税率政策对投资国的关系影响
+        currentPolicy: foreignInvestmentPolicy, // 当前政策标识，供日志使用
     };
 }
 
@@ -2032,7 +2091,7 @@ function calculateSimpleBuildingProfit(building, effectiveConfig, market) {
  * @param {Array} existingInvestments - 现有外资
  * @returns {Object|null} - 投资决策或null
  */
-export function aiDecideForeignInvestment(nation, playerState, existingInvestments = []) {
+export function aiDecideForeignInvestment(nation, playerState, existingInvestments = [], foreignInvestmentPolicy = 'normal', foreignInvestmentPolicyOverrides = {}) {
     // 检查是否有投资协议
     const hasInvestmentPact = hasActiveTreaty(nation, 'investment_pact', playerState?.daysElapsed || 0);
 
@@ -2050,8 +2109,14 @@ export function aiDecideForeignInvestment(nation, playerState, existingInvestmen
     const maxInvestments = Math.floor(nationWealth / 10000) + 1;
     if (currentInvestments.length >= maxInvestments) return null;
 
-    // 随机决定是否投资（每月10%概率）
-    if (Math.random() > 0.10 / 30) return null;
+    // 玩家税率政策影响投资概率（逐国覆盖优先）
+    const effectivePolicy = foreignInvestmentPolicyOverrides[nation.id] || foreignInvestmentPolicy;
+    const policyConfig = FOREIGN_INVESTMENT_POLICIES[effectivePolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
+    const baseChance = 0.10 / 30;
+    const adjustedChance = baseChance * (policyConfig.investmentMultiplier || 1.0);
+
+    // 随机决定是否投资
+    if (Math.random() > adjustedChance) return null;
 
     // 选择投资建筑（偏好采集类）
     const preferredBuildings = ['farm', 'mine', 'lumber_camp', 'iron_mine', 'coal_mine', 'factory'];
