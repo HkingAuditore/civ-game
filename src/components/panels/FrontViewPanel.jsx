@@ -562,22 +562,20 @@ const FrontViewPanel = ({
     return (
         <div className="space-y-4 rounded-2xl border border-cyan-700/30 bg-gradient-to-br from-gray-950/95 via-cyan-950/10 to-gray-950/95 p-4 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
             <section className="rounded-2xl border border-gray-800 bg-black/20 p-4">
-                <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Icon name="MapPin" size={16} className="text-red-400" />
-                            <h3 className="text-base font-bold text-white">对 {enemyName} 战区</h3>
-                            <span className="rounded-full border border-gray-700 px-2 py-0.5 text-xs text-gray-300">{phaseText}</span>
-                            <span className="rounded-full border border-cyan-400/40 bg-cyan-950/20 px-2.5 py-0.5 text-xs font-semibold text-cyan-100">
-                                当前区域 {currentZone?.name || summary.contestedZone}
-                            </span>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-400">战线已持续 {day - (front.startDay || 0)} 天，当前态势 {playerLineVelocityText}</p>
+                <div className="mb-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Icon name="MapPin" size={16} className="text-red-400" />
+                        <h3 className="text-base font-bold text-white">对 {enemyName} 战区</h3>
+                        <span className="rounded-full border border-gray-700 px-2 py-0.5 text-xs text-gray-300">{phaseText}</span>
+                        <span className="rounded-full border border-cyan-400/40 bg-cyan-950/20 px-2.5 py-0.5 text-xs font-semibold text-cyan-100">
+                            当前区域 {currentZone?.name || summary.contestedZone}
+                        </span>
+                        <span className="text-xs text-gray-400">· 战线已持续 {day - (front.startDay || 0)} 天，当前态势 {playerLineVelocityText}</span>
                         {onProposePeace && (
                             <button
                                 type="button"
                                 onClick={() => onProposePeace(enemyId)}
-                                className="mt-2 flex items-center gap-1.5 rounded-lg border border-purple-500/60 bg-purple-900/40 px-3 py-1.5 text-sm font-semibold text-purple-200 hover:bg-purple-800/60 hover:border-purple-400/80 hover:text-white active:scale-95 transition-all shadow-sm"
+                                className="ml-auto flex items-center gap-1.5 rounded-lg border border-purple-500/60 bg-purple-900/40 px-3 py-1.5 text-sm font-semibold text-purple-200 hover:bg-purple-800/60 hover:border-purple-400/80 hover:text-white active:scale-95 transition-all shadow-sm"
                                 title="发起和谈，结束与该国的战争"
                             >
                                 <Icon name="Flag" size={14} className="text-purple-300" />

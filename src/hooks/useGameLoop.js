@@ -121,6 +121,7 @@ import {
     getEffectiveFrontWarScore,
     getWarScoreBreakdownTotal,
     invalidateFrontStateCache,
+    getFrontlineEconomicModifiers,
 } from '../logic/diplomacy/frontSystem';
 import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic, processReinforcement, isBattleActive } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits, findBestReplenishTarget } from '../logic/diplomacy/corpsSystem';
@@ -162,6 +163,27 @@ const getMilitaryCapacity = (buildingState = {}) => {
         }
     });
     return capacity;
+};
+
+// 训练吞吐量：军事建筑越多，每tick可同时训练的单位数量越大
+const getTrainingThroughput = (buildingState = {}) => {
+    const BASE_THROUGHPUT = 10;
+    let militaryBuildingCount = 0;
+    let totalMilitaryCapacity = 0;
+    Object.entries(buildingState || {}).forEach(([buildingId, count]) => {
+        if (!count) return;
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (building?.output?.militaryCapacity) {
+            militaryBuildingCount += count;
+            totalMilitaryCapacity += building.output.militaryCapacity * count;
+        }
+    });
+    if (militaryBuildingCount <= 0) return BASE_THROUGHPUT;
+    // Throughput scales linearly with military capacity: 1 throughput per 10 capacity
+    // This means barracks(cap 10) → +1, training_ground(cap 20) → +2, fortress(cap 40) → +4
+    // 800k barracks = 8M capacity → 800k throughput (no artificial cap)
+    const capacityThroughput = Math.floor(totalMilitaryCapacity / 10);
+    return Math.max(BASE_THROUGHPUT, capacityThroughput);
 };
 
 const getTotalBuildingCount = (buildingState = {}) => (
@@ -2465,6 +2487,8 @@ difficulty, // 游戏难度
                             daysElapsed: effectiveDaysElapsed,
                         foreignInvestments: foreignInvestmentsRef.current || [],
                             taxPolicies: current.taxPolicies || {},
+                            foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal',
+                            foreignInvestmentPolicyOverrides: current.foreignInvestmentPolicyOverrides || {},
                             batchSize: 2,
                             batchOffset: inboundInvestmentBatchRef.current.offset,
                         });
@@ -3590,6 +3614,8 @@ difficulty, // 游戏难度
                         const resolvedDay = (current.daysElapsed || 0) + 1;
                         // Collect corps-level losses for auto-replenish queue
                         const pendingCorpsLossUpdates = {}; // { corpsId: { unitId: lossCount } }
+                        // 累计AI国家战斗伤亡，用于统一扣减人口
+                        const aiCombatPopCasualties = {}; // { nationId: totalCasualties }
 
                         // --- Process each active battle ---
                         updatedBattles = updatedBattles.map(battle => {
@@ -3844,6 +3870,18 @@ difficulty, // 游戏难度
                                         const totalPlayerLoss = Object.values(playerCasualties).reduce((s, c) => s + c, 0);
                                         battleLogs.push('[我军伤亡] ' + totalPlayerLoss + ' 人');
                                     }
+                                    // 累计会战中敌方AI伤亡，用于后续统一扣减AI人口
+                                    const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
+                                    const enemyNationId = playerSide === 'attacker' ? front.defenderId : front.attackerId;
+                                    const enemyCasualties = playerSide === 'attacker'
+                                        ? updatedBattle.result.defenderCasualties
+                                        : updatedBattle.result.attackerCasualties;
+                                    if (enemyNationId && enemyNationId !== 'player' && enemyCasualties) {
+                                        const totalEnemyLoss = Object.values(enemyCasualties).reduce((s, c) => s + c, 0);
+                                        if (totalEnemyLoss > 0) {
+                                            aiCombatPopCasualties[enemyNationId] = (aiCombatPopCasualties[enemyNationId] || 0) + totalEnemyLoss;
+                                        }
+                                    }
                                 }
 
                                 // Award XP to generals
@@ -4027,6 +4065,13 @@ difficulty, // 游戏难度
                                             }
                                         });
                                     });
+                                }
+                            }
+                            // 累计摩擦战中敌方AI伤亡，用于后续统一扣减AI人口
+                            if (frictionResult.casualties.enemy > 0) {
+                                const enemyNationId = playerSide === 'attacker' ? f.defenderId : f.attackerId;
+                                if (enemyNationId && enemyNationId !== 'player') {
+                                    aiCombatPopCasualties[enemyNationId] = (aiCombatPopCasualties[enemyNationId] || 0) + frictionResult.casualties.enemy;
                                 }
                             }
 
@@ -4220,6 +4265,56 @@ difficulty, // 游戏难度
                                 }));
                                 battleLogs.push(`💰 从敌方经济区持续掠夺${gain}银币`);
                             }
+
+                            // [NEW] 实物资源掠夺：从敌方nationInventories中掠夺实物资源给玩家
+                            for (const enemyId of Object.keys(plunderByEnemy)) {
+                                const enemyNation = nationById.get(enemyId);
+                                if (!enemyNation?.nationInventories) continue;
+                                const linePos = activeFronts.find(f =>
+                                    (f.attackerId === enemyId || f.defenderId === enemyId) && f.status === 'active'
+                                )?.linePosition || 50;
+                                // Determine zone type for this enemy
+                                const playerIsDef = activeFronts.find(f => f.defenderId === enemyId)?.attackerId === 'player';
+                                let resZoneType = 'none';
+                                if (playerIsDef) {
+                                    if (linePos > 85) resZoneType = 'capital';
+                                    else if (linePos > 65) resZoneType = 'economic';
+                                } else {
+                                    if (linePos < 15) resZoneType = 'capital';
+                                    else if (linePos < 35) resZoneType = 'economic';
+                                }
+                                if (resZoneType === 'none') continue;
+                                const resourceResult = calculateResourcePlunder({
+                                    resourceInventory: enemyNation.nationInventories,
+                                    zoneType: resZoneType,
+                                    efficiencyOverride: 1.0,
+                                    nationPrices: enemyNation.nationPrices || {},
+                                });
+                                if (Object.keys(resourceResult.resourcesPlundered).length > 0) {
+                                    // Deduct from enemy AI nationInventories
+                                    setNations(prev => prev.map(n => {
+                                        if (n.id !== enemyId) return n;
+                                        const newInv = { ...(n.nationInventories || {}) };
+                                        for (const [type, amount] of Object.entries(resourceResult.resourcesPlundered)) {
+                                            newInv[type] = Math.max(0, (newInv[type] || 0) - Math.floor(amount));
+                                        }
+                                        return { ...n, nationInventories: newInv };
+                                    }));
+                                    // Add to player resources
+                                    const gainRatio = WAR_ECONOMY.PLUNDER_GAIN_RATIO;
+                                    setResources(prev => {
+                                        const next = { ...prev };
+                                        for (const [type, amount] of Object.entries(resourceResult.resourcesPlundered)) {
+                                            next[type] = (next[type] || 0) + Math.floor(amount * gainRatio);
+                                        }
+                                        return next;
+                                    });
+                                    const lootDesc = Object.entries(resourceResult.resourcesPlundered)
+                                        .map(([type, amount]) => `${type} ×${Math.floor(amount * gainRatio)}`)
+                                        .join('、');
+                                    battleLogs.push(`📦 从敌方掠夺实物资源：${lootDesc}`);
+                                }
+                            }
                         }
 
                         // --- [NEW] 消费反向掠夺：AI掠夺玩家银币和实物资源 ---
@@ -4342,6 +4437,97 @@ difficulty, // 游戏难度
                             }
                         });
 
+                        // --- [NEW] 战斗伤亡扣减AI人口：摩擦战+会战伤亡统一处理 ---
+                        if (Object.keys(aiCombatPopCasualties).length > 0) {
+                            const CASUALTY_TO_POP_RATIO = 0.8; // 每个士兵阵亡对应0.8人口损失
+                            setNations(prev => prev.map(n => {
+                                const casualties = aiCombatPopCasualties[n.id];
+                                if (!casualties || casualties <= 0) return n;
+                                const popLoss = Math.max(1, Math.floor(casualties * CASUALTY_TO_POP_RATIO));
+                                return { ...n, population: reducePopulationWithFloor((n.population || 1000), popLoss) };
+                            }));
+                        }
+
+                        // --- [NEW] 玩家-AI战线持续经济衰减 ---
+                        // AI-AI战争在processAIAIWarProgression中有每tick经济衰减（wealthDecay + warExpense + popCasualties），
+                        // 但玩家-AI战线完全没有这个机制，导致AI在被推到核心区时经济依然欣欣向荣。
+                        // 此处补充：根据战线位置对AI施加持续的wealth衰减和人口压力。
+                        {
+                            const aiWarEconDecay = {}; // { nationId: { wealthDecayRate, popLossRate, maxPressure } }
+                            updatedFronts.forEach(front => {
+                                if (front.status !== 'active') return;
+                                const playerSide = getPlayerSide(front);
+                                if (!playerSide) return;
+                                const enemyId = playerSide === 'attacker' ? front.defenderId : front.attackerId;
+                                if (!enemyId || enemyId === 'player') return;
+
+                                // 从玩家视角计算AI被入侵的深度
+                                // playerSide=attacker: linePosition>50 表示推入AI领土
+                                // playerSide=defender: linePosition<50 表示推入AI领土
+                                const linePos = front.linePosition || 50;
+                                const aiHomelandPressure = playerSide === 'attacker'
+                                    ? Math.max(0, (linePos - 50) / 45)
+                                    : Math.max(0, (50 - linePos) / 45);
+
+                                // 基础战时衰减：每tick wealth × 0.3%（与AI-AI战争中的0.997衰减率一致）
+                                let wealthDecayRate = 0.003;
+                                // 本土压力加成：被入侵越深，衰减越快
+                                // pressure=0(中线): +0%, pressure=0.5(经济区): +0.3%, pressure=1.0(核心区): +0.8%
+                                wealthDecayRate += Math.pow(aiHomelandPressure, 1.3) * 0.008;
+                                // 极端战线（>88%或<12%）额外衰减
+                                if ((playerSide === 'attacker' && linePos >= 88) || (playerSide === 'defender' && linePos <= 12)) {
+                                    wealthDecayRate += 0.003;
+                                }
+
+                                // --- [需求1] 将getFrontlineEconomicModifiers的productionPenalty叠加到衰减率 ---
+                                // 使UI显示的"生产效率损失"真正影响AI经济
+                                try {
+                                    const enemyNation = nationById.get(enemyId);
+                                    const enemySilverIncome = enemyNation?.gdp || enemyNation?.wealth || 1000;
+                                    const econMods = getFrontlineEconomicModifiers(front, enemyId, currentDay, 0, enemySilverIncome);
+                                    if (econMods) {
+                                        // productionPenalty 0~0.9 → 每tick额外衰减 0~1.8%
+                                        wealthDecayRate += (econMods.productionPenalty || 0) * 0.02;
+                                    }
+                                } catch (_e) { /* 容错：getFrontlineEconomicModifiers失败不影响基础衰减 */ }
+
+                                // 人口压力：被入侵越深，人口增长越受抑制（通过直接扣减模拟）
+                                // 核心区被占领时每tick损失0.05%人口
+                                const popLossRate = Math.pow(aiHomelandPressure, 1.5) * 0.0005;
+
+                                if (!aiWarEconDecay[enemyId]) {
+                                    aiWarEconDecay[enemyId] = { wealthDecayRate: 0, popLossRate: 0, maxPressure: 0 };
+                                }
+                                // 多条战线叠加（衰减率叠加，但总衰减率有上限5%/tick防止瞬间破产）
+                                aiWarEconDecay[enemyId].wealthDecayRate += wealthDecayRate;
+                                aiWarEconDecay[enemyId].popLossRate += popLossRate;
+                                // 记录最大本土压力（供AI经济增长系统使用）
+                                if (aiHomelandPressure > aiWarEconDecay[enemyId].maxPressure) {
+                                    aiWarEconDecay[enemyId].maxPressure = aiHomelandPressure;
+                                }
+                            });
+
+                            if (Object.keys(aiWarEconDecay).length > 0) {
+                                setNations(prev => prev.map(n => {
+                                    const decay = aiWarEconDecay[n.id];
+                                    if (!decay) return n;
+                                    const currentWealth = n.wealth || 500;
+                                    const currentPop = n.population || 1000;
+                                    // 总衰减率上限5%/tick，防止AI同时与多方开战时瞬间破产
+                                    const cappedDecayRate = Math.min(0.05, decay.wealthDecayRate);
+                                    // 财富衰减 + 战争开支（基于GDP的0.1%）
+                                    const wealthLoss = currentWealth * cappedDecayRate;
+                                    const warExpense = Math.max(1, Math.round((n.gdp || currentWealth) * 0.001));
+                                    const newWealth = Math.max(100, Math.round(currentWealth - wealthLoss - warExpense));
+                                    // 人口压力
+                                    const popLoss = Math.max(0, Math.floor(currentPop * decay.popLossRate));
+                                    const newPop = popLoss > 0 ? reducePopulationWithFloor(currentPop, popLoss) : currentPop;
+                                    // 写入本土压力供AI经济增长系统使用（需求2/3依赖此值）
+                                    return { ...n, wealth: newWealth, population: newPop, _warHomelandPressure: decay.maxPressure };
+                                }));
+                            }
+                        }
+
                         // --- Process line advancement and war-front consistency ---
                         const warEconomyDamages = []; // 收集 processFrontAdvance 产生的战争经济伤害
                         updatedFronts = updatedFronts.map(front => {
@@ -4359,10 +4545,10 @@ difficulty, // 游戏难度
                             const defenderNationId = front.defenderId;
                             const attackerBuildings = attackerNationId === 'player'
                                 ? (current.buildings || {})
-                                : (nationById.get(attackerNationId)?.economy?.buildings || {});
+                                : (nationById.get(attackerNationId)?.virtualBuildings || nationById.get(attackerNationId)?.economy?.buildings || {});
                             const defenderBuildings = defenderNationId === 'player'
                                 ? (current.buildings || {})
-                                : (nationById.get(defenderNationId)?.economy?.buildings || {});
+                                : (nationById.get(defenderNationId)?.virtualBuildings || nationById.get(defenderNationId)?.economy?.buildings || {});
 
                             const attackerNation = nationById.get(front.attackerId);
                             const defenderNation = nationById.get(front.defenderId);
@@ -4543,6 +4729,46 @@ difficulty, // 游戏难度
                                     const newBuildings = { ...(n.economy?.buildings || {}) };
                                     for (const [buildingId, count] of Object.entries(buildingDamage)) {
                                         newBuildings[buildingId] = Math.max(0, (newBuildings[buildingId] || 0) - count);
+                                    }
+                                    // --- [FIX] 同步更新 virtualBuildings（实际驱动AI经济的建筑系统） ---
+                                    // 之前只更新了 economy.buildings（旧系统），导致建筑破坏不影响AI经济
+                                    const newVirtualBuildings = n.virtualBuildings ? { ...n.virtualBuildings } : null;
+                                    if (newVirtualBuildings && Object.keys(buildingDamage).length > 0) {
+                                        for (const [buildingId, count] of Object.entries(buildingDamage)) {
+                                            if (newVirtualBuildings[buildingId] != null) {
+                                                newVirtualBuildings[buildingId] = Math.max(0, (newVirtualBuildings[buildingId] || 0) - count);
+                                            }
+                                        }
+                                        // 同步处理外资建筑破坏（与 aiWar.js 中的逻辑一致）
+                                        const newForeignBuildings = n.virtualBuildingsForeign ? { ...n.virtualBuildingsForeign } : null;
+                                        if (newForeignBuildings) {
+                                            for (const [buildingId, count] of Object.entries(buildingDamage)) {
+                                                const foreignCount = newForeignBuildings[buildingId] || 0;
+                                                if (foreignCount > 0) {
+                                                    const totalBefore = (newVirtualBuildings[buildingId] || 0) + count;
+                                                    const foreignRatio = foreignCount / Math.max(1, totalBefore);
+                                                    const foreignDmg = Math.min(foreignCount, Math.round(count * foreignRatio));
+                                                    if (foreignDmg > 0) {
+                                                        newForeignBuildings[buildingId] = Math.max(0, foreignCount - foreignDmg);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        return {
+                                            ...n,
+                                            wealth: Math.max(100, Math.round((n.wealth || 500) - (dmg?.wealthLoss || 0))),
+                                            militaryStrength: Math.max(0.25, (n.militaryStrength ?? 1.0) - (dmg?.milStrLoss || 0)),
+                                            economy: { ...n.economy, buildings: newBuildings },
+                                            virtualBuildings: newVirtualBuildings,
+                                            ...(newForeignBuildings ? { virtualBuildingsForeign: newForeignBuildings } : {}),
+                                            economyDirtyFlags: {
+                                                ...(n.economyDirtyFlags || {}),
+                                                buildingsDirty: true,
+                                                laborDirty: true,
+                                                resourcesDirty: true,
+                                                warDirty: true,
+                                            },
+                                        };
                                     }
                                     return {
                                         ...n,
@@ -5156,7 +5382,8 @@ difficulty, // 游戏难度
                             const refreshedEnemyCorpsOnFront = updatedCorps.filter(c => c.isAI && c.assignedFrontId === front.id && c.nationId === enemyId);
 
                             if (!hasBattleOnFront && refreshedEnemyCorpsOnFront.length > 0 && playerCorpsOnFront.length > 0) {
-                                const lastBattleDay = front._lastBattleDay || 0;
+                                // Use front.startDay as minimum to prevent immediate battle on new fronts
+                                const lastBattleDay = Math.max(front._lastBattleDay || 0, front.startDay || 0, front.createdDay || 0);
 const battleCooldown = front._battleCooldown || (45 + Math.floor(Math.random() * 60));
                                 const cooldownMet = currentDay - lastBattleDay >= battleCooldown;
 
@@ -6575,36 +6802,42 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             }
                                         });
 
-                                        // 3. 澶勭悊鐜╁鐨勭洘鍙嬪姞鍏ユ垬浜?
+                                        // 3. 处理玩家的盟友加入战争（自动参战，与敌方联盟行为对称）
+                                        // Collect all enemy IDs: aggressor + aggressor's joined allies
+                                        const allEnemyIds = [aggressorId, ...joinedAggressorAllyIds];
                                         playerAllies.forEach(ally => {
-                                            // 鍚﹀垯锛岃鐩熷弸瀵逛镜鐣ヨ€呭強鍏剁洘鍙嬪鎴?(设置 foreignWars)
                                             const allyIdx = nextNations.findIndex(n => n.id === ally.id);
                                             if (allyIdx !== -1) {
                                                 const updatedAlly = { ...nextNations[allyIdx] };
                                                 if (!updatedAlly.foreignWars) updatedAlly.foreignWars = {};
 
-                                                // 瀵逛镜鐣ヨ€呭鎴?
-                                                updatedAlly.foreignWars[aggressorId] = {
-                                                    isAtWar: true,
-                                                    warStartDay: daysElapsed,
-                                                    warScore: 0
-                                                };
-
-                                                // 同时也需要更新侵略者的 foreignWars 状态，标记它与该盟友开战了
-                                                // 注意：aggressorIdx 鐨勫紩鐢ㄥ鏋滀笉鏇存柊锛屽彲鑳藉鑷寸姸鎬佷笉涓€鑷?
-                                                // 我们直接修改 nextNations 数组中的对象
-                                                if (!nextNations[aggressorIdx].foreignWars) nextNations[aggressorIdx].foreignWars = {};
-                                                nextNations[aggressorIdx].foreignWars[ally.id] = {
-                                                    isAtWar: true,
-                                                    warStartDay: daysElapsed,
-                                                    warScore: 0
-                                                };
+                                                // 对侵略者及其所有已参战盟友宣战（foreignWars）
+                                                allEnemyIds.forEach(enemyId => {
+                                                    if (!updatedAlly.foreignWars[enemyId]?.isAtWar) {
+                                                        updatedAlly.foreignWars[enemyId] = {
+                                                            isAtWar: true,
+                                                            warStartDay: daysElapsed,
+                                                            warScore: 0
+                                                        };
+                                                    }
+                                                    // 同时更新敌方的 foreignWars，标记与该盟友开战
+                                                    const enemyIdx = nextNations.findIndex(n => n.id === enemyId);
+                                                    if (enemyIdx !== -1) {
+                                                        if (!nextNations[enemyIdx].foreignWars) nextNations[enemyIdx].foreignWars = {};
+                                                        if (!nextNations[enemyIdx].foreignWars[ally.id]?.isAtWar) {
+                                                            nextNations[enemyIdx].foreignWars[ally.id] = {
+                                                                isAtWar: true,
+                                                                warStartDay: daysElapsed,
+                                                                warScore: 0
+                                                            };
+                                                        }
+                                                    }
+                                                });
 
                                                 nextNations[allyIdx] = updatedAlly;
-                                                addLog('[盟友支援] 你的盟友 ' + ally.name + ' 响应号召，对 ' + aggressorName + ' 宣战。');
+                                                addLog('[盟友支援] 你的盟友 ' + ally.name + ' 响应号召，对 ' + aggressorName + ' 及其盟友宣战。');
                                             }
                                         });
-
                                         // 通知共同盟友保持中立
                                         if (sharedAllianceIds.size > 0) {
                                             const neutralAllies = nextNations.filter(n => sharedAllianceIds.has(n.id));
@@ -7520,104 +7753,186 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 }
                             }
 
-                            // 检测盟友被攻击事件
+                            // 检测盟友被攻击事件 — 自动参战（方案A），弹窗仅为通知
                             if (log.includes('ALLY_ATTACKED_EVENT:')) {
                                 try {
                                     const jsonStr = log.replace('ALLY_ATTACKED_EVENT:', '');
                                     const eventData = JSON.parse(jsonStr);
                                     const ally = result.nations?.find(n => n.id === eventData.allyId);
                                     const attacker = result.nations?.find(n => n.id === eventData.attackerId);
-                                    if (ally && attacker && currentActions && currentActions.triggerDiplomaticEvent) {
-                                        const event = createAllyAttackedEvent(
-                                            ally,
-                                            attacker,
-                                            (helped) => {
-                                                if (helped) {
-                                                    // 鐜╁閫夋嫨鎻村姪鐩熷弸锛屽鏀诲嚮鑰呭鎴?
-                                                    setNations(prev => prev.map(n => {
-                                                        if (n.id === attacker.id) {
-                                                            return {
-                                                                ...n,
-                                                                isAtWar: true,
-                                                                warStartDay: current.daysElapsed,
-                                                                warDuration: 0,
-                                                                relation: Math.max(0, (n.relation || 50) - 40),
-                                                                lootReserve: (n.wealth || 500) * 1.5, // 鍒濆鍖栨帬澶哄偍澶?
-                                                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
-                                                            };
-                                                        }
-                                                        return n;
-                                                    }));
-                                                    if (typeof setActiveFronts === 'function') {
-                                                        const playerEco = {
-                                                            resources: current.resources || {},
-                                                            buildings: current.buildings || {},
-                                                            population: current.population || 0,
-                                                            wealth: current.resources?.silver || 0,
-                                                        };
-                                                        const enemyEco = {
-                                                            resources: {},
-                                                            buildings: {},
-                                                            population: attacker.population || attacker.militaryPower || 200,
-                                                            wealth: attacker.wealth || 500,
-                                                        };
-                                                        const allyWarFront = generateFront(attacker.id, 'player', current.epoch || 0, enemyEco, playerEco);
-                                                        allyWarFront.createdDay = current.daysElapsed || 0;
-                                                        allyWarFront.startDay = current.daysElapsed || 0;
-                                                        setActiveFronts(prev => {
-                                                            const existing = Array.isArray(prev) ? prev : [];
-                                                            if (existing.some(front => front.status === 'active' && (front.warId === allyWarFront.warId || front.warId === `player_vs_${attacker.id}`))) {
-                                                                return existing;
-                                                            }
-                                                            return [...existing, allyWarFront];
-                                                        });
-                                                    }
-                                                    addLog('[盟友参战] 你决定援助盟友 ' + ally.name + '，对 ' + attacker.name + ' 宣战。');
-                                                } else {
-                                                    // 鉁?鐜╁鎷掔粷鎻村姪锛氬叧绯诲ぇ骞呬笅闄嶃€侀€€鍑哄啗浜嬬粍缁囥€佽儗鍙涜€呭０瑾?
-                                                    setNations(prev => prev.map(n => {
-                                                        if (n.id === ally.id) {
-                                                            return {
-                                                                ...n,
-                                                                relation: Math.max(0, (n.relation || 50) - 40),
-                                                            };
-                                                        }
-                                                        // 其他国家也对玩家印象变差（背叛者声誉）
+                                    if (ally && attacker) {
+                                        // === 自动参战：立即设置战争状态和前线 ===
+                                        // Check war limit before auto-joining
+                                        const currentPlayerWars = (result.nations || []).filter(n =>
+                                            n.isAtWar === true && !n.isRebelNation
+                                        ).length;
+                                        const MAX_CONCURRENT_WARS = 3;
+
+                        if (currentPlayerWars < MAX_CONCURRENT_WARS && !attacker.isAtWar) {
+                                            // === 联盟连锁：攻击者的盟友也对玩家宣战，玩家的盟友也对攻击者宣战 ===
+                                            const orgs = diplomacyOrganizations?.organizations || [];
+                                            const getMilitaryOrgMembers = (nationKey) => {
+                                                const members = new Set();
+                                                orgs.forEach(org => {
+                                                    if (org?.type !== 'military_alliance') return;
+                                                    if (!Array.isArray(org.members) || !org.members.includes(nationKey)) return;
+                                                    org.members.forEach(id => {
+                                                        if (id && id !== nationKey) members.add(id);
+                                                    });
+                                                });
+                                                return Array.from(members);
+                                            };
+                                            const attackerAllianceIds = getMilitaryOrgMembers(attacker.id);
+                                            const playerAllianceIds = getMilitaryOrgMembers('player');
+                                            const sharedAllianceIds = new Set(attackerAllianceIds.filter(id => playerAllianceIds.includes(id)));
+
+                                            // 自动对攻击者及其盟友宣战
+                                            const joinedAttackerAllyIds = [];
+                                            setNations(prev => {
+                                                let updated = prev.map(n => {
+                                                    if (n.id === attacker.id) {
                                                         return {
                                                             ...n,
-                                                            relation: Math.max(0, (n.relation || 50) - 10)
+                                                            isAtWar: true,
+                                                            warStartDay: current.daysElapsed,
+                                                            warDuration: 0,
+                                                            relation: Math.max(0, (n.relation || 50) - 40),
+                                                            lootReserve: (n.wealth || 500) * 1.5,
+                                                            lastMilitaryActionDay: undefined,
                                                         };
-                                                    }));
+                                                    }
+                                                    return n;
+                                                });
 
-                                                    // 鉁?浠庡啗浜嬬粍缁囦腑閫€鍑?
-                                                    setDiplomacyOrganizations(prev => {
-                                                        if (!prev?.organizations) return prev;
-                                                        return {
-                                                            ...prev,
-                                                            organizations: prev.organizations.map(org => {
-                                                                if (org.type !== 'military_alliance') return org;
-                                                                if (!org.members?.includes('player') || !org.members?.includes(ally.id)) return org;
-                                                                // 玩家退出此组织
-                                                                return {
-                                                                    ...org,
-                                                                    members: org.members.filter(id => id !== 'player')
-                                                                };
-                                                            })
-                                                        };
+                                                // 攻击者的盟友也对玩家宣战
+                                                let warsWithPlayer = updated.filter(n => n.isAtWar === true && !n.isRebelNation).length;
+                                                const ALLY_WAR_LIMIT = 3;
+                                                updated = updated.map(n => {
+                                                    if (!attackerAllianceIds.includes(n.id)) return n;
+                                                    if (n.id === attacker.id || sharedAllianceIds.has(n.id)) return n;
+                                                    if (n.isAtWar || n.vassalOf === 'player') return n;
+                                                    if (warsWithPlayer >= ALLY_WAR_LIMIT) return n;
+                                                    warsWithPlayer++;
+                                                    joinedAttackerAllyIds.push(n.id);
+                                                    addLog('[盟友参战] ' + n.name + ' 作为 ' + attacker.name + ' 的盟友，对你宣战。');
+                                                    return {
+                                                        ...n,
+                                                        isAtWar: true,
+                                                        warStartDay: current.daysElapsed,
+                                                        warDuration: 0,
+                                                        relation: 0,
+                                                    };
+                                                });
+
+                                                // 玩家的盟友通过 foreignWars 对攻击者及其盟友宣战
+                                                const allEnemyIds = [attacker.id, ...joinedAttackerAllyIds];
+                                                updated = updated.map(n => {
+                                                    if (!playerAllianceIds.includes(n.id)) return n;
+                                                    if (sharedAllianceIds.has(n.id) || n.vassalOf === 'player') return n;
+                                                    if (n.isAtWar) return n; // 已经在与玩家交战的不处理
+                                                    const newForeignWars = { ...(n.foreignWars || {}) };
+                                                    allEnemyIds.forEach(enemyId => {
+                                                        if (!newForeignWars[enemyId]?.isAtWar) {
+                                                            newForeignWars[enemyId] = {
+                                                                isAtWar: true,
+                                                                warStartDay: current.daysElapsed,
+                                                                warScore: 0
+                                                            };
+                                                        }
                                                     });
+                                                    addLog('[盟友支援] 你的盟友 ' + n.name + ' 响应号召，对 ' + attacker.name + ' 及其盟友宣战。');
+                                                    return { ...n, foreignWars: newForeignWars };
+                                                });
 
-                                                    addLog('[拒绝援助] 你拒绝援助盟友 ' + ally.name + '，并退出与其共同军事组织。');
-                                                }
+                                                // 同时更新敌方的 foreignWars，标记与玩家盟友开战
+                                                const playerAllyIds = updated.filter(n =>
+                                                    playerAllianceIds.includes(n.id) && !sharedAllianceIds.has(n.id) && n.vassalOf !== 'player'
+                                                ).map(n => n.id);
+                                                updated = updated.map(n => {
+                                                    if (!allEnemyIds.includes(n.id)) return n;
+                                                    const newForeignWars = { ...(n.foreignWars || {}) };
+                                                    playerAllyIds.forEach(allyId => {
+                                                        if (!newForeignWars[allyId]?.isAtWar) {
+                                                            newForeignWars[allyId] = {
+                                                                isAtWar: true,
+                                                                warStartDay: current.daysElapsed,
+                                                                warScore: 0
+                                                            };
+                                                        }
+                                                    });
+                                                    return { ...n, foreignWars: newForeignWars };
+                                                });
+
+                                                return updated;
+                                            });
+                                            // 生成前线：攻击者 + 攻击者盟友
+                                            if (typeof setActiveFronts === 'function') {
+                                                const playerEco = {
+                                                    resources: current.resources || {},
+                                                    buildings: current.buildings || {},
+                                                    population: current.population || 0,
+                                                    wealth: current.resources?.silver || 0,
+                                                };
+                                                const newFronts = [];
+                                                // 主攻击者前线
+                                                const enemyEco = {
+                                                    resources: {},
+                                                    buildings: {},
+                                                    population: attacker.population || attacker.militaryPower || 200,
+                                                    wealth: attacker.wealth || 500,
+                                                };
+                                                const allyWarFront = generateFront(attacker.id, 'player', current.epoch || 0, enemyEco, playerEco);
+                                                allyWarFront.createdDay = current.daysElapsed || 0;
+                                                allyWarFront.startDay = current.daysElapsed || 0;
+                                                newFronts.push(allyWarFront);
+                                                // 攻击者盟友的前线
+                                                joinedAttackerAllyIds.forEach(allyId => {
+                                                    const allyNation = result.nations?.find(n => n.id === allyId);
+                                                    const allyEco = {
+                                                        resources: {},
+                                                        buildings: {},
+                                                        population: allyNation?.population || allyNation?.militaryPower || 200,
+                                                        wealth: allyNation?.wealth || 500,
+                                                    };
+                                                    const allyFront = generateFront(allyId, 'player', current.epoch || 0, allyEco, playerEco);
+                                                    allyFront.createdDay = current.daysElapsed || 0;
+                                                    allyFront.startDay = current.daysElapsed || 0;
+                                                    newFronts.push(allyFront);
+                                                });
+                                                setActiveFronts(prev => {
+                                                    const existing = Array.isArray(prev) ? prev : [];
+                                                    const toAdd = newFronts.filter(nf => {
+                                                        const altWarId = `player_vs_${nf.attackerId}`;
+                                                        return !existing.some(f => f.status === 'active' && (f.warId === nf.warId || f.warId === altWarId));
+                                                    });
+                                                    return [...existing, ...toAdd];
+                                                });
                                             }
-                                        );
-                                        currentActions.triggerDiplomaticEvent(event);
-                                        debugLog('event', '[EVENT DEBUG] Ally Attacked event triggered:', ally.name);
+                                            // 自动暂停，让玩家有时间部署
+                                            setIsPaused(true);
+                                            addLog('[盟友参战] 根据军事同盟条约，你自动对 ' + attacker.name + ' 宣战，援助盟友 ' + ally.name + '。');
+
+                                            // 弹出通知型事件（只有"应战"按钮）
+                                            if (currentActions && currentActions.triggerDiplomaticEvent) {
+                                                const event = createAllyAttackedEvent(
+                                                    ally,
+                                                    attacker,
+                                                    () => {
+                                                        // 通知确认，无需额外操作（参战已自动执行）
+                                                        debugLog('event', '[EVENT DEBUG] Ally war notification acknowledged');
+                                                    }
+                                                );
+                                                currentActions.triggerDiplomaticEvent(event);
+                                            }
+                                        } else {
+                                            // 已达战争上限，无法自动参战，仅通知
+                                            addLog('[盟友求援] 你的盟友 ' + ally.name + ' 遭到 ' + attacker.name + ' 攻击，但你已陷入多场战争，暂时无法援助。');
+                                        }
                                     }
                                 } catch (e) {
                                     debugError('event', '[EVENT DEBUG] Failed to parse Ally Attacked event:', e);
                                 }
                             }
-
                             // 妫€娴嬫捣澶栨姇璧勬満浼氫簨浠?
                             if (log.includes('OVERSEAS_INVESTMENT_OPPORTUNITY:')) {
                                 debugLog('trade', '[AI投资事件监听] 检测到投资机会日志:', log);
@@ -8235,24 +8550,31 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     const occupiedPopulation = currentArmyPopulation + trainingPopulation;
                     const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedPopulation);
 
+                    // 训练吞吐量限制：军事建筑越多，每tick可从waiting转training的单位数量越大
+                    // [FIX] 吞吐量是每tick新增训练的上限，不受已有training数量约束
+                    const trainingThroughput = getTrainingThroughput(current.buildings || {});
+
                     // [PERF] Batched queue: process waiting→training and countdown in O(batches) not O(units)
                     let remainingPopCapacity = availableJobsForNewTraining;
+                    let remainingThroughput = trainingThroughput; // 每tick可新增训练的槽位
                     let startedThisTick = 0;
                     const updated = [];
                     for (let i = 0; i < baseQueue.length; i++) {
                         const batch = baseQueue[i];
                         const cnt = batch.count || 1;
 
-                        if (batch.status === 'waiting' && remainingPopCapacity > 0) {
+                        if (batch.status === 'waiting' && remainingPopCapacity > 0 && remainingThroughput > 0) {
                             const unitPopCost = UNIT_TYPES[batch?.unitId]?.populationCost || 1;
                             if (unitPopCost > remainingPopCapacity) {
                                 // Can't afford even one unit of this type
                                 updated.push(batch);
                                 continue;
                             }
-                            // How many units from this batch can start training?
-                            const canStart = Math.min(cnt, Math.floor(remainingPopCapacity / unitPopCost));
+                            // How many units from this batch can start training? (受人口岗位和吞吐量双重约束)
+                            const canStartByPop = Math.floor(remainingPopCapacity / unitPopCost);
+                            const canStart = Math.min(cnt, canStartByPop, remainingThroughput);
                             remainingPopCapacity -= canStart * unitPopCost;
+                            remainingThroughput -= canStart;
                             startedThisTick += canStart;
                             if (canStart >= cnt) {
                                 // Entire batch starts training

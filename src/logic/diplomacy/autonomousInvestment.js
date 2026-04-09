@@ -5,6 +5,7 @@ import {
     hasActiveTreaty, // [NEW] Use shared helper
     getInvestableBuildings, // [NEW] Dynamic building list for stratum
     OVERSEAS_INVESTMENT_CONFIGS, // [FIX] 用于入境冷却期配置
+    FOREIGN_INVESTMENT_POLICIES, // 玩家外资税率政策配置
 } from './overseasInvestment';
 import { BUILDINGS, RESOURCES } from '../../config';
 import { INDEPENDENCE_CONFIG } from '../../config/diplomacy';
@@ -333,6 +334,8 @@ export function selectInboundInvestmentsBatch({
     daysElapsed,
     foreignInvestments = [],
     taxPolicies = {},
+    foreignInvestmentPolicy = 'normal', // 玩家外资税率政策
+    foreignInvestmentPolicyOverrides = {}, // 逐国税率覆盖
     maxInvestments = MAX_TOP_INVESTMENTS,
     batchSize = 2,
     batchOffset = 0,
@@ -407,6 +410,11 @@ export function selectInboundInvestmentsBatch({
         });
 
         if (!bestBuilding || bestBuilding.roi <= roiThreshold) continue;
+
+        // 玩家税率政策影响投资概率（逐国覆盖优先）
+        const effectivePolicy = foreignInvestmentPolicyOverrides[investorNation.id] || foreignInvestmentPolicy;
+        const policyConfig = FOREIGN_INVESTMENT_POLICIES[effectivePolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
+        if (policyConfig.investmentMultiplier < 1 && Math.random() > policyConfig.investmentMultiplier) continue;
 
         debugLog('trade', `[INBOUND] ${investorNation.name} -> ${bestBuilding.building.name} ROI=${(bestBuilding.roi * 100).toFixed(1)}%`);
 

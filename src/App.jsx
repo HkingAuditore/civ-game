@@ -1994,6 +1994,7 @@ function GameApp({ gameState }) {
                                                 classWealth={gameState.classWealth}
                                                 foreignInvestments={gameState.foreignInvestments}
                                                 foreignInvestmentPolicy={gameState.foreignInvestmentPolicy}
+                                                foreignInvestmentPolicyOverrides={gameState.foreignInvestmentPolicyOverrides}
                                                 gameState={gameState}
                                                 militaryCorps={gameState.militaryCorps}
                                                 onAfterDeclareWar={handleDeclareWarFollowUp}

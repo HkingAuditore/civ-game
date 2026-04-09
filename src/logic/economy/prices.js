@@ -275,7 +275,15 @@ export const updateMarketPrices = ({
             }
 
             // Final price = max(cost * margin, base price) * inventory adjustment
-            const minPrice = Math.max(weightedCost * 1.1, basePrice);
+            // [FIX] 成本底线随库存充裕度动态缩放：供过于求时成本底线降低
+            // 避免成本通胀时 weightedCost 完全压制供需信号
+            let costMargin = 1.1;
+            if (inventoryRatio > 1.0) {
+                // 库存超过目标时，逐步降低成本加成：
+                // ratio=1 → 1.1, ratio=2 → 0.55, ratio=3 → 0.22, ratio≥5 → 0.05
+                costMargin = Math.max(0.05, 1.1 / Math.pow(inventoryRatio, 1.2));
+            }
+            const minPrice = Math.max(weightedCost * costMargin, basePrice);
             const targetPrice = minPrice * priceMultiplier;
 
             // Smooth price transition

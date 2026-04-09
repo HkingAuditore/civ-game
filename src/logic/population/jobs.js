@@ -21,6 +21,8 @@ import {
     UPGRADE_MIGRATION_BONUS,
     MIGRATION_COOLDOWN_TICKS,
     VACANCY_FILL_RATIO_PER_TICK,
+    VACANCY_FILL_RATIO_TIER01,
+    TIER01_MIN_NET_INCOME_FLOOR,
     // Lucky promotion
     LUCKY_PROMOTION_CHANCE,
     // Survival migration
@@ -257,7 +259,13 @@ export const fillVacancies = ({
         } else if (headRate < 0) {
             taxCost = headRate * effectiveTaxModifier;
         }
-        return wage - taxCost;
+        const netIncome = wage - taxCost;
+        // Tier 0/1 岗位净收入保底：防止因工资预估不准导致排序过低
+        const tier = STRATUM_TIERS[role] ?? 0;
+        if (tier <= 1 && netIncome <= 0) {
+            return TIER01_MIN_NET_INCOME_FLOOR;
+        }
+        return netIncome;
     };
 
     // Get the wealth requirement to enter a target role
@@ -306,15 +314,24 @@ export const fillVacancies = ({
     })
         .filter(Boolean)
         .sort((a, b) => {
+            // Tier 0/1 岗位优先填补，确保基础生产岗位不会被高级岗位抢占失业者
+            const aTierGroup = a.tier <= 1 ? 0 : 1;
+            const bTierGroup = b.tier <= 1 ? 0 : 1;
+            if (aTierGroup !== bTierGroup) return aTierGroup - bTierGroup;
+            // 同组内按净收入降序排列
             if (b.netIncome !== a.netIncome) return b.netIncome - a.netIncome;
             return a.priorityIndex - b.priorityIndex;
         });
 
     // Fill vacancies with tier-based constraints
     vacancyRanking.forEach(entry => {
+        // Tier 0/1 使用更高的填补速率，确保 2 tick 内填满空缺
+        const fillRatio = entry.tier <= 1
+            ? VACANCY_FILL_RATIO_TIER01
+            : VACANCY_FILL_RATIO_PER_TICK;
         const perRoleFillCap = Math.max(
             1,
-            Math.floor(entry.vacancy * VACANCY_FILL_RATIO_PER_TICK)
+            Math.floor(entry.vacancy * fillRatio)
         );
         let remainingVacancy = Math.min(entry.vacancy, perRoleFillCap);
 

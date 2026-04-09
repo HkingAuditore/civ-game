@@ -163,6 +163,8 @@ const buildCategoryProfile = (units = {}) => {
 
     // Scale factor: when total units > 100k, scale down to prevent intermediate overflow
     // This keeps attack/defense values in a manageable range while preserving ratios
+    // NOTE: scaleFactor is stored per-profile but battle calculations use a UNIFIED
+    // scaleFactor (max of both sides) to prevent asymmetric casualty distortion.
     const scaleFactor = rawTotalUnits > 100000 ? Math.max(1, Math.floor(rawTotalUnits / 100000)) : 1;
     profile.scaleFactor = scaleFactor;
 
@@ -424,21 +426,29 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
     // 伤亡 = 敌方总火力 × 强度 / 我方单位防御力
     // attackScore / defenseScore 已包含兵种面板、克制、将领、补给、地域等所有修正
     const intensity = engagement.baseCasualtyRate * phasePressure;
-    const defPerAttackerUnit = Math.max(1, attackerState.defenseScore / attackerUnits);
-    const defPerDefenderUnit = Math.max(1, defenderState.defenseScore / defenderUnits);
 
-    // Scale-aware loss calculation: attackScore/defenseScore are scaled down by scaleFactor,
-    // so the ratio (attackScore * intensity / defPerUnit) naturally produces per-scaled-unit losses.
-    // We must multiply back by scaleFactor to get actual unit losses.
+    // FIX: Use unified scaleFactor (max of both sides) to prevent asymmetric casualty distortion.
+    // Previously each side used its own scaleFactor, causing the larger army to suffer
+    // disproportionately more casualties (e.g. 8M vs 1.5M → 8M loses 5x more per day).
     const atkScaleFactor = attackerState.profile.scaleFactor || 1;
     const defScaleFactor = defenderState.profile.scaleFactor || 1;
+    const unifiedScale = Math.max(atkScaleFactor, defScaleFactor);
 
-    const rawAttackerLoss = defenderState.attackScore * intensity
+    // Rescale attack/defense scores to unified scale so both sides are comparable
+    const atkAttackRescaled = attackerState.attackScore * (atkScaleFactor / unifiedScale);
+    const atkDefenseRescaled = attackerState.defenseScore * (atkScaleFactor / unifiedScale);
+    const defAttackRescaled = defenderState.attackScore * (defScaleFactor / unifiedScale);
+    const defDefenseRescaled = defenderState.defenseScore * (defScaleFactor / unifiedScale);
+
+    const defPerAttackerUnit = Math.max(1, atkDefenseRescaled / (attackerUnits / unifiedScale));
+    const defPerDefenderUnit = Math.max(1, defDefenseRescaled / (defenderUnits / unifiedScale));
+
+    const rawAttackerLoss = defAttackRescaled * intensity
         * defenderState.plan.casualtyInflict * attackerState.plan.casualtyTaken
-        / defPerAttackerUnit * atkScaleFactor;
-    const rawDefenderLoss = attackerState.attackScore * intensity
+        / defPerAttackerUnit * unifiedScale;
+    const rawDefenderLoss = atkAttackRescaled * intensity
         * attackerState.plan.casualtyInflict * defenderState.plan.casualtyTaken
-        / defPerDefenderUnit * defScaleFactor;
+        / defPerDefenderUnit * unifiedScale;
 
     // Ensure losses never exceed current unit count (防止超大数值导致的溢出)
     const attackerLossTarget = attackerUnits <= 1
@@ -458,12 +468,13 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
         + (lineShift > 0 ? 1 : lineShift < 0 ? -1 : 0)
     );
 
+    // Morale swing coefficient reduced from 40→20 to slow morale collapse and extend battles
     const attackerMoraleShift = Math.round(
-        -(attackerLossTarget / attackerUnits) * engagement.moraleSwing * 40 * (2 - attackerState.plan.morale)
+        -(attackerLossTarget / attackerUnits) * engagement.moraleSwing * 20 * (2 - attackerState.plan.morale)
         + (advantage > 0 ? 1 : advantage < 0 ? -2 : 0)
     );
     const defenderMoraleShift = Math.round(
-        -(defenderLossTarget / defenderUnits) * engagement.moraleSwing * 40 * (2 - defenderState.plan.morale)
+        -(defenderLossTarget / defenderUnits) * engagement.moraleSwing * 20 * (2 - defenderState.plan.morale)
         + (advantage < 0 ? 1 : advantage > 0 ? -2 : 0)
     );
 
@@ -629,8 +640,9 @@ const maybeFinalizeBattle = (battle) => {
     const attackerInitial = Math.max(1, getTotalUnits(battle.attacker.initialUnits));
     const defenderInitial = Math.max(1, getTotalUnits(battle.defender.initialUnits));
 
-    const attackerCollapseThreshold = 5;
-    const defenderCollapseThreshold = 5;
+    // Raised from 5→15 to give losing side more breathing room before morale collapse
+    const attackerCollapseThreshold = 15;
+    const defenderCollapseThreshold = 15;
 
     if (battle.attacker.withdrawRequested && battle.currentRound >= battle.attacker.withdrawRequestedDay + 3) {
         applyPursuitLosses(battle, 'defender', 'withdrawal');
@@ -906,6 +918,25 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
 
     const battleContext = buildBattleContext(b, context);
 
+    // --- Daily morale recovery: slow natural recovery to extend battle duration ---
+    // Recovery rate scales inversely with engagement intensity
+    const engagementForRecovery = ENGAGEMENT_TYPES[b.engagementType] || ENGAGEMENT_TYPES.assault;
+    const baseMoraleRecovery = engagementForRecovery.moraleSwing <= 5 ? 0.8 : engagementForRecovery.moraleSwing <= 6 ? 0.6 : 0.4;
+    if (b.attacker.morale < 100) {
+        const atkPlan = getPlan(b.battlePlan?.attacker);
+        b.attacker.morale = clamp(
+            Number(b.attacker.morale || 100) + baseMoraleRecovery * (atkPlan.morale || 1),
+            0, 100
+        );
+    }
+    if (b.defender.morale < 100) {
+        const defPlan = getPlan(b.battlePlan?.defender);
+        b.defender.morale = clamp(
+            Number(b.defender.morale || 100) + baseMoraleRecovery * (defPlan.morale || 1),
+            0, 100
+        );
+    }
+
     // [PERF] On non-settlement days, reuse cached strength scores to skip expensive calculateSideStrength
     // Only do full recalculation on settlement days or when no cache exists
     const isSettlementDay = b.phaseDaysRemaining <= 1; // will be 0 after decrement, or first round
@@ -961,15 +992,25 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
         const atkUnits = Math.max(1, getTotalUnits(b.attacker.currentUnits));
         const defUnits = Math.max(1, getTotalUnits(b.defender.currentUnits));
 
-        const defPerAtk = Math.max(1, attackerState.defenseScore / (atkUnits / (attackerProfile.scaleFactor || 1)));
-        const defPerDef = Math.max(1, defenderState.defenseScore / (defUnits / (defenderProfile.scaleFactor || 1)));
-        // Scale-aware daily loss: attackScore is scaled, defPerUnit is scaled, ratio preserves scale
-        // Multiply by scaleFactor to convert back to actual unit losses
+        // FIX: Use unified scaleFactor to prevent asymmetric casualty distortion
+        const atkSF = attackerProfile.scaleFactor || 1;
+        const defSF = defenderProfile.scaleFactor || 1;
+        const dailyUnifiedScale = Math.max(atkSF, defSF);
+
+        // Rescale scores to unified scale
+        const dailyAtkAttack = attackerState.attackScore * (atkSF / dailyUnifiedScale);
+        const dailyAtkDefense = attackerState.defenseScore * (atkSF / dailyUnifiedScale);
+        const dailyDefAttack = defenderState.attackScore * (defSF / dailyUnifiedScale);
+        const dailyDefDefense = defenderState.defenseScore * (defSF / dailyUnifiedScale);
+
+        const defPerAtk = Math.max(1, dailyAtkDefense / (atkUnits / dailyUnifiedScale));
+        const defPerDef = Math.max(1, dailyDefDefense / (defUnits / dailyUnifiedScale));
+
         const dailyAtkLoss = stochasticRound(
-            Math.min(atkUnits, defenderState.attackScore * dailyRate / defPerAtk * (attackerProfile.scaleFactor || 1))
+            Math.min(atkUnits, dailyDefAttack * dailyRate / defPerAtk * dailyUnifiedScale)
         );
         const dailyDefLoss = stochasticRound(
-            Math.min(defUnits, attackerState.attackScore * dailyRate / defPerDef * (defenderProfile.scaleFactor || 1))
+            Math.min(defUnits, dailyAtkAttack * dailyRate / defPerDef * dailyUnifiedScale)
         );
 
         if (dailyAtkLoss > 0) {

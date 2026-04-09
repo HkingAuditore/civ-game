@@ -5,7 +5,8 @@ import { RESOURCES, DIPLOMACY_ERA_UNLOCK, BUILDINGS } from '../../config';
 import { ORGANIZATION_EFFECTS, TRADE_POLICY_DEFINITIONS, VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 import { getEstimatedMilitaryStrength } from '../../logic/diplomacy/militaryUtils';
 import { getAIMilitaryStrengthMultiplier } from '../../config/difficulty';
-import { getForeignInvestmentTaxRate, hasActiveTreaty, isInSameBloc } from '../../logic/diplomacy/overseasInvestment';
+import { getForeignInvestmentTaxRate, hasActiveTreaty, isInSameBloc, FOREIGN_INVESTMENT_POLICIES } from '../../logic/diplomacy/overseasInvestment';
+import ForeignTaxPolicySelector from '../common/ForeignTaxPolicySelector';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 import { calculateForeignPrice, calculateTradeStatus, calculateMaxTradeRoutes } from '../../utils/foreignTrade';
@@ -57,6 +58,9 @@ const NationDetailView = ({
     onMerchantStateChange,
     overseasInvestments = [],
     foreignInvestments = [],
+    foreignInvestmentPolicy = 'normal',
+    foreignInvestmentPolicyOverrides = {},
+    onPolicyOverrideChange,
     gameState,
     taxPolicies,
     popStructure,
@@ -391,6 +395,9 @@ className="p-3 md:p-4 border-b border-theme-border flex-shrink-0"
                         <ForeignInvestmentFromNation
                             nation={nation}
                             foreignInvestments={foreignInvestments}
+                            foreignInvestmentPolicy={foreignInvestmentPolicy}
+                            policyOverride={foreignInvestmentPolicyOverrides[nation?.id]}
+                            onPolicyOverrideChange={onPolicyOverrideChange}
                         />
 
                         <Card className="p-0 overflow-hidden border-ancient-gold/20 bg-ancient-ink/30">
@@ -757,7 +764,8 @@ const PlayerInvestmentInNation = ({ nation, overseasInvestments = [], onOverseas
 /**
  * Component to display foreign investments from a specific nation in player's country
  */
-const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
+const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [], foreignInvestmentPolicy = 'normal', policyOverride, onPolicyOverrideChange }) => {
+    const globalPolicyConfig = FOREIGN_INVESTMENT_POLICIES[foreignInvestmentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
     // Filter investments from this nation in player's country
     const investmentsFromNation = useMemo(() => {
         return foreignInvestments.filter(inv =>
@@ -800,22 +808,33 @@ const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
 
     return (
         <Card className="p-0 overflow-hidden border-amber-700/30 bg-amber-900/10">
-            <div className="p-4 border-b border-amber-700/20 bg-black/20 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                    <Icon name="Landmark" size={20} className="text-amber-400" />
-                    <span className="font-bold text-ancient-parchment">该国在我国的投资</span>
-                    <Badge variant="neutral" className="text-xs">
-                        {totals.totalCount} 处
-                    </Badge>
+            <div className="p-4 border-b border-amber-700/20 bg-black/20">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <Icon name="Landmark" size={20} className="text-amber-400" />
+                        <span className="font-bold text-ancient-parchment">该国在我国的投资</span>
+                        <Badge variant="neutral" className="text-xs">
+                            {totals.totalCount} 处
+                        </Badge>
+                    </div>
+                    <div className="text-right text-xs text-ancient-stone">
+                        <div className="flex gap-3">
+                            <span>税收: <span className="text-green-400 font-mono">+{totals.totalTax.toFixed(1)}</span>/日</span>
+                            <span>利润流出: <span className="text-red-400 font-mono">-{(totals.totalProfit - totals.totalTax).toFixed(1)}</span>/日</span>
+                        </div>
+                        <div className="text-xs text-ancient-stone/60 mt-0.5">
+                            提供就业: {totals.totalJobs} 人
+                        </div>
+                    </div>
                 </div>
-                <div className="text-right text-xs text-ancient-stone">
-                    <div className="flex gap-3">
-                        <span>税收: <span className="text-green-400 font-mono">+{totals.totalTax.toFixed(1)}</span>/日</span>
-                        <span>利润流出: <span className="text-red-400 font-mono">-{(totals.totalProfit - totals.totalTax).toFixed(1)}</span>/日</span>
-                    </div>
-                    <div className="text-xs text-ancient-stone/60 mt-0.5">
-                        提供就业: {totals.totalJobs} 人
-                    </div>
+                {/* Per-nation tax policy override selector */}
+                <div className="mt-2">
+                    <ForeignTaxPolicySelector
+                        nationId={nation?.id}
+                        currentOverride={policyOverride}
+                        globalPolicy={foreignInvestmentPolicy}
+                        onChange={onPolicyOverrideChange}
+                    />
                 </div>
             </div>
 

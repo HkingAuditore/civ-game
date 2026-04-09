@@ -39,6 +39,12 @@ export const JOB_MIGRATION_RATIO = 0.012;
 export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
 // Limit how fast vacancies can be filled per tick to reduce oscillation
 export const VACANCY_FILL_RATIO_PER_TICK = 0.25;
+// Tier 0/1 jobs use a higher fill ratio so basic production roles fill faster
+// 基础岗位（Tier 0/1）使用更高的填补速率，确保失业者能在 2 tick 内填满空缺
+export const VACANCY_FILL_RATIO_TIER01 = 0.75;
+// Minimum net income floor for Tier 0/1 roles to prevent them from ranking last
+// 当 Tier 0/1 岗位净收入 ≤ 0 时使用此保底值，避免排序到末尾
+export const TIER01_MIN_NET_INCOME_FLOOR = 0.01;
 
 // Very small chance for random promotion ("won lottery")
 // Allows poor populations to occasionally jump tiers

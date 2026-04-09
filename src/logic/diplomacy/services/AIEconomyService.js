@@ -165,7 +165,19 @@ export class AIEconomyService {
             // Raised from 0.5%→1.5% per cycle and ceiling from 0.5→0.8 of carryingCapacity
             // to break the "pop capped → basePop stuck → capacity stuck → no growth" deadlock.
             // Guard: if basePop growth would push carryingCapacity up >5% in one cycle, clamp it.
-            const basePopGrowthRate = clampedPop > state.basePopulation ? 0.015 : 0;
+            // --- 本土压力影响 basePopulation ---
+            // 被深入入侵时，basePopulation 停止增长甚至衰减（模拟基础设施破坏、人口流失）
+            const nationHomelandPressure = safeNumber(nation._warHomelandPressure, 0);
+            let basePopGrowthRate;
+            if (nationHomelandPressure > 0.78 && nation.isAtWar) {
+                // 核心区被入侵：basePopulation 衰减 0.5~1.5%/周期
+                basePopGrowthRate = -(0.005 + (nationHomelandPressure - 0.78) * 0.045);
+            } else if (nationHomelandPressure > 0.33 && nation.isAtWar) {
+                // 经济区被入侵：basePopulation 停止增长
+                basePopGrowthRate = 0;
+            } else {
+                basePopGrowthRate = clampedPop > state.basePopulation ? 0.015 : 0;
+            }
             const rawNextBasePop = Math.max(20, Math.round(state.basePopulation * (1 + basePopGrowthRate)));
             // Cap at 80% of structural carrying capacity to prevent runaway
             const basePopCeiling = Math.max(

@@ -1355,6 +1355,7 @@ const buildMinimalAutoSavePayload = (payload) => {
         vassalDiplomacyQueue: undefined,
         vassalDiplomacyHistory: [],
         foreignInvestmentPolicy: undefined,
+        foreignInvestmentPolicyOverrides: undefined,
         eventEffectSettings: undefined,
         activeEventEffects: undefined,
         actionCooldowns: undefined,
@@ -1755,6 +1756,7 @@ export const useGameState = () => {
     const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投�?
     const [foreignInvestments, setForeignInvestments] = useState([]);
     const [foreignInvestmentPolicy, setForeignInvestmentPolicy] = useState('normal');      // 外国在玩家国的投�?
+    const [foreignInvestmentPolicyOverrides, setForeignInvestmentPolicyOverrides] = useState({});  // 逐国税率覆盖
 
     // ========== 官员系统状�?==========
     const [officials, setOfficials] = useState([]);           // 当前雇佣的官�?
@@ -2423,6 +2425,7 @@ export const useGameState = () => {
                 overseasInvestments,
                 foreignInvestments,
                 foreignInvestmentPolicy,
+                foreignInvestmentPolicyOverrides,
                 eventEffectSettings,
                 activeEventEffects,
                 rebellionStates,
@@ -3322,6 +3325,7 @@ export const useGameState = () => {
         setOverseasInvestments(migrateOverseasInvestments(data.overseasInvestments || []));
         setForeignInvestments(migrateForeignInvestments(data.foreignInvestments || []));
         setForeignInvestmentPolicy(data.foreignInvestmentPolicy || 'normal');
+        setForeignInvestmentPolicyOverrides(data.foreignInvestmentPolicyOverrides || {});
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
@@ -4559,6 +4563,8 @@ export const useGameState = () => {
         setForeignInvestments, // [FIX] Expose setter
         foreignInvestmentPolicy,
         setForeignInvestmentPolicy,
+        foreignInvestmentPolicyOverrides,
+        setForeignInvestmentPolicyOverrides,
         setOverseasBuildings, setOverseasBuildings,
 
         // 策略行动

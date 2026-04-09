@@ -8,6 +8,7 @@ import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon, Tabs, Card, Button, Badge } from '../common/UnifiedUI';
 import { BUILDINGS, RESOURCES } from '../../config';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import ForeignTaxPolicySelector from '../common/ForeignTaxPolicySelector';
 import {
     calculateOverseasInvestmentSummary,
     FOREIGN_INVESTMENT_POLICIES,
@@ -307,9 +308,12 @@ const NATION_PAGE_SIZE = 5;
 /**
  * Tab 2: Foreign Capital (Incoming)
  */
-const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolicyChange, onNationalize }) => {
+const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolicyChange, onNationalize, policyOverrides = {}, onPolicyOverrideChange }) => {
     const [nationPage, setNationPage] = useState(1);
     const [expandedInvIds, setExpandedInvIds] = useState(new Set());
+
+    const currentPolicyConfig = FOREIGN_INVESTMENT_POLICIES[currentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
+    const hasForeignInvestments = foreignInvestments.some(inv => inv.status === 'operating');
 
     const toggleInv = (key) => {
         setExpandedInvIds(prev => {
@@ -388,20 +392,70 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
 
     return (
         <div className="space-y-4">
-            {/* Global Actions */}
-            <div className="flex justify-end">
-                <button
-                    onClick={() => onNationalize?.()}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-red-900/20 border border-red-800/30 text-red-400 hover:bg-red-900/40 rounded-lg text-xs transition-colors"
-                >
-                    <Icon name="AlertTriangle" size={12} />
-                    <span>国有化所有外资</span>
-                </button>
+            {/* Tax Policy Selector */}
+            <div className="bg-gray-800/40 rounded-lg border border-gray-700/40 p-3">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                        <Icon name="Percent" size={14} className="text-amber-400" />
+                        <span className="text-xs font-bold text-gray-200">外资利润税政策</span>
+                    </div>
+                    <button
+                        onClick={() => onNationalize?.()}
+                        className="flex items-center gap-1 px-2 py-1 bg-red-900/20 border border-red-800/30 text-red-400 hover:bg-red-900/40 rounded text-xs transition-colors"
+                    >
+                        <Icon name="AlertTriangle" size={10} />
+                        <span>国有化</span>
+                    </button>
+                </div>
+                <div className={`grid grid-cols-4 gap-1.5 ${hasForeignInvestments ? '' : 'opacity-40 pointer-events-none'}`}>
+                    {Object.entries(FOREIGN_INVESTMENT_POLICIES).map(([key, policy]) => {
+                        const isActive = currentPolicy === key;
+                        const colorMap = {
+                            green: { border: 'border-green-500', bg: 'bg-green-900/30', text: 'text-green-400', activeBg: 'bg-green-800/50' },
+                            gray: { border: 'border-gray-500', bg: 'bg-gray-800/30', text: 'text-gray-300', activeBg: 'bg-gray-700/50' },
+                            yellow: { border: 'border-yellow-500', bg: 'bg-yellow-900/30', text: 'text-yellow-400', activeBg: 'bg-yellow-800/50' },
+                            red: { border: 'border-red-500', bg: 'bg-red-900/30', text: 'text-red-400', activeBg: 'bg-red-800/50' },
+                        };
+                        const colors = colorMap[policy.color] || colorMap.gray;
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => onPolicyChange?.(key)}
+                                className={`flex flex-col items-center p-2 rounded-lg border text-xs transition-all ${
+                                    isActive
+                                        ? `${colors.border} ${colors.activeBg} ring-1 ring-offset-1 ring-offset-gray-900 ${colors.border.replace('border-', 'ring-')}`
+                                        : 'border-gray-700/40 bg-gray-900/30 hover:bg-gray-800/40'
+                                }`}
+                            >
+                                <span className={`font-bold ${isActive ? colors.text : 'text-gray-400'}`}>
+                                    {policy.label}
+                                </span>
+                                <span className={`font-mono mt-0.5 ${isActive ? 'text-white' : 'text-gray-500'}`}>
+                                    {(policy.taxRate * 100).toFixed(0)}%
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+                {currentPolicy !== 'normal' && (
+                    <div className={`mt-2 text-xs px-2 py-1 rounded ${
+                        currentPolicyConfig.color === 'green'
+                            ? 'bg-green-900/20 border border-green-800/30 text-green-400'
+                            : currentPolicyConfig.color === 'yellow'
+                                ? 'bg-yellow-900/20 border border-yellow-800/30 text-yellow-400'
+                                : 'bg-red-900/20 border border-red-800/30 text-red-400'
+                    }`}>
+                        ⚡ 当前政策：{currentPolicyConfig.label}（{(currentPolicyConfig.taxRate * 100).toFixed(0)}%）
+                    </div>
+                )}
             </div>
 
             {/* Note about tax source */}
             <div className="text-xs text-gray-500 bg-gray-900/30 border border-gray-800/40 rounded-lg p-2">
-                外资利润税会在每日结算时自动扣除并计入国库（税率受条约/共同体等外交规则影响）。
+                {currentPolicy === 'normal'
+                    ? '外资利润税会在每日结算时自动扣除并计入国库（税率受条约/共同体等外交规则影响）。'
+                    : `当前执行「${currentPolicyConfig.label}」政策，有效税率取玩家政策（${(currentPolicyConfig.taxRate * 100).toFixed(0)}%）与外交规则税率中的较高值。`
+                }
             </div>
 
             {/* List */}
@@ -409,24 +463,35 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                 {pagedNations.length > 0 ? pagedNations.map(group => (
                     <div key={group.nationId} className="bg-gray-800/30 rounded-lg border border-gray-700/40 overflow-hidden">
                         {/* Header */}
-                        <div className="px-3 py-2 bg-white/5 flex justify-between items-center">
-                            <div className="flex items-center gap-1.5">
-                                <Icon name="Flag" size={14} className={group.nationColor} />
-                                <span className="text-xs font-bold text-gray-200">{group.nationName}</span>
-                                <Badge variant="neutral" className="text-xs">
-                                    {group.totalCount} 处资产
-                                </Badge>
-                            </div>
-                            <div className="text-right text-xs text-gray-400">
-                                <div className="flex flex-col items-end">
-                                    <div className="flex gap-2">
-                                        <span>纳税: <span className="text-green-400">+{formatNumberShortCN(group.totalTax)}</span></span>
-                                        <span>流出: <span className="text-red-400">-{formatNumberShortCN(group.totalProfit - group.totalTax)}</span></span>
-                                    </div>
-                                    <div className="text-xs opacity-70">
-                                        实际税率: {group.totalProfit > 0 ? ((group.totalTax / group.totalProfit) * 100).toFixed(1) : 0}%
+                        <div className="px-3 py-2 bg-white/5">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                    <Icon name="Flag" size={14} className={group.nationColor} />
+                                    <span className="text-xs font-bold text-gray-200">{group.nationName}</span>
+                                    <Badge variant="neutral" className="text-xs">
+                                        {group.totalCount} 处资产
+                                    </Badge>
+                                </div>
+                                <div className="text-right text-xs text-gray-400">
+                                    <div className="flex flex-col items-end">
+                                        <div className="flex gap-2">
+                                            <span>纳税: <span className="text-green-400">+{formatNumberShortCN(group.totalTax)}</span></span>
+                                            <span>流出: <span className="text-red-400">-{formatNumberShortCN(group.totalProfit - group.totalTax)}</span></span>
+                                        </div>
+                                        <div className="text-xs opacity-70 flex items-center gap-1">
+                                            实际税率: {group.totalProfit > 0 ? ((group.totalTax / group.totalProfit) * 100).toFixed(1) : 0}%
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                            {/* Per-nation tax policy override selector */}
+                            <div className="mt-1.5">
+                                <ForeignTaxPolicySelector
+                                    nationId={group.nationId}
+                                    currentOverride={policyOverrides[group.nationId]}
+                                    globalPolicy={currentPolicy}
+                                    onChange={onPolicyOverrideChange}
+                                />
                             </div>
                         </div>
 
@@ -526,8 +591,9 @@ export const InternationalEconomyPanel = memo(({
     currentPolicy = 'normal',
     onPolicyChange,
     onNationalize,
-}) => {
-    const [activeTab, setActiveTab] = useState('assets');
+    policyOverrides = {},
+    onPolicyOverrideChange,
+}) => {    const [activeTab, setActiveTab] = useState('assets');
 
     // Calculate Summary for Outgoing
     const outgoingSummary = useMemo(() => {
@@ -572,6 +638,8 @@ export const InternationalEconomyPanel = memo(({
                             currentPolicy={currentPolicy}
                             onPolicyChange={onPolicyChange}
                             onNationalize={onNationalize}
+                            policyOverrides={policyOverrides}
+                            onPolicyOverrideChange={onPolicyOverrideChange}
                         />
                     )}
                 </div>

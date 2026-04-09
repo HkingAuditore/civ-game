@@ -569,6 +569,7 @@ export const simulateTick = ({
     foreignInvestments = [], // [NEW] Foreign investments for profit calculation
     overseasInvestments = [], // [NEW] Overseas investments for processing
     foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
+    foreignInvestmentPolicyOverrides = {}, // [NEW] Per-nation tax policy overrides
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
     diplomaticReputation = 50, // [NEW] Player's diplomatic reputation (0-100)
     // [NEW] Military corps & battle system (pass-through for state preservation)
@@ -1788,18 +1789,17 @@ export const simulateTick = ({
                 const level = parseInt(lvlStr);
                 const config = getBuildingEffectiveConfig(b, level);
 
-                // Apply building-specific and category bonuses
-                // 加法模式：与生产循环一致（bonusSum = buildingBonus + catBonus）
-                const totalBonus = 1 + (buildingBonuses[b.id] || 0) + (categoryBonuses[b.cat] || 0);
-
-                // maxPop - 乘以该等级建筑数
+                // maxPop / militaryCapacity 是容量属性，不是生产资源
+                // 不应受生产加成（理念/科技/时代等）影响
+                // maxPop 的百分比加成由专门的 maxPopPercent 在后续统一处理
+                // maxPop - 乘以该等级建筑数（纯基础值）
                 if (config.output?.maxPop) {
-                    totalMaxPop += (config.output.maxPop * totalBonus * lvlCount);
+                    totalMaxPop += (config.output.maxPop * lvlCount);
                 }
 
-                // militaryCapacity - 乘以该等级建筑数
+                // militaryCapacity - 乘以该等级建筑数（纯基础值）
                 if (config.output?.militaryCapacity) {
-                    militaryCapacity += (config.output.militaryCapacity * totalBonus * lvlCount);
+                    militaryCapacity += (config.output.militaryCapacity * lvlCount);
                 }
 
                 // jobs - 使用升级后的配置，乘以该等级建筑数量
@@ -1932,12 +1932,13 @@ export const simulateTick = ({
         currentArmyPopNeeded += count * popCost;
     });
 
-    // 计算队列中的人口需?
+    // 计算队列中的人口需求 [FIX] 必须乘以batch.count，否则岗位需求严重低估
     const queuePopNeeded = (militaryQueue || []).reduce((sum, item) => {
         if (item.status === 'waiting' || item.status === 'training') {
             const unit = UNIT_TYPES[item.unitId];
             const popCost = unit?.populationCost || 1;
-            return sum + popCost;
+            const cnt = item.count || 1;
+            return sum + popCost * cnt;
         }
         return sum;
     }, 0);
@@ -2261,6 +2262,13 @@ export const simulateTick = ({
 
     const getSmartExpectedWage = (role) => {
         const currentPop = popStructure[role] || 0;
+        // 完全空缺（人口为0）时始终使用潜力预估，确保新建建筑岗位能吸引失业者
+        if (currentPop === 0) {
+            const potential = estimatePotentialIncomeForVacancy(role);
+            const standard = getExpectedWage(role);
+            // 取两者较大值，且至少返回一个正值保底
+            return Math.max(potential, standard, 0.01);
+        }
         if (currentPop <= LOW_POP_THRESHOLD || criticalProducerRoles.has(role)) {
             const potential = estimatePotentialIncomeForVacancy(role);
             const standard = getExpectedWage(role);
@@ -6108,6 +6116,24 @@ export const simulateTick = ({
         }
 
         if (!isExpiredNation && !next.isRebelNation) {
+            // --- 计算AI国家的战线入侵深度，供经济增长系统使用 ---
+            let maxHomelandPressure = 0;
+            if (next.isAtWar && activeFronts) {
+                activeFronts.forEach(f => {
+                    if (f?.status !== 'active') return;
+                    const isAttacker = f.attackerId === next.id;
+                    const isDefender = f.defenderId === next.id;
+                    if (!isAttacker && !isDefender) return;
+                    const linePos = Number(f.linePosition || 50);
+                    // AI作为攻击方: linePosition<50表示被入侵; AI作为防御方: linePosition>50表示被入侵
+                    const pressure = isAttacker
+                        ? Math.max(0, (50 - linePos) / 45)
+                        : Math.max(0, (linePos - 50) / 45);
+                    if (pressure > maxHomelandPressure) maxHomelandPressure = pressure;
+                });
+            }
+            next._warHomelandPressure = maxHomelandPressure;
+
             const migratedNation = migrateNationEconomy(next);
             const updatedNation = AIEconomyService.update({
                 nation: migratedNation,
@@ -6123,6 +6149,9 @@ export const simulateTick = ({
                 allowHeavyUpdate: shouldProcessAIForNation,
             });
             Object.assign(next, updatedNation);
+            // [FIX] Re-write _warHomelandPressure after Object.assign overwrites it
+            // AIEconomyService.update returns state.toLegacyFormat() which doesn't include _warHomelandPressure
+            next._warHomelandPressure = maxHomelandPressure;
         }
 
         if (!shouldProcessAIForNation) {
@@ -7461,10 +7490,17 @@ export const simulateTick = ({
                     let marketBasedPrice = basePrice * priceMultiplier;
 
                     // 4. 最终价格 = max(市场价格, 成本底线)
-                    // volatile 资源在供过于求时成本底线大幅降低（过剩电力价值趋近于零）
-                    const costFloor = (isVolatile && volatileFlowMultiplier < 1.0)
-                        ? costPrice * 0.1
-                        : costPrice * 0.5;
+                    // [FIX] 成本底线随库存充裕度动态缩放：供过于求时企业会亏本甩卖
+                    // 避免成本通胀时 costFloor 完全压制供需信号导致"库存巨大但涨价"
+                    let costFloorRatio = 0.5;
+                    if (isVolatile && volatileFlowMultiplier < 1.0) {
+                        costFloorRatio = 0.1;
+                    } else if (inventoryRatio > 1.0) {
+                        // 库存超过目标时，逐步降低成本底线：
+                        // ratio=1 → 0.5, ratio=2 → 0.25, ratio=3 → 0.1, ratio≥5 → 0.05
+                        costFloorRatio = Math.max(0.05, 0.5 / Math.pow(inventoryRatio, 1.2));
+                    }
+                    const costFloor = costPrice * costFloorRatio;
                     let sellingPrice = Math.max(marketBasedPrice, costFloor);
 
                     // 不超过物价限?
@@ -8697,6 +8733,7 @@ export const simulateTick = ({
             playerMarket: { prices: updatedPrices },
             playerResources: res,
             foreignInvestmentPolicy,
+            foreignInvestmentPolicyOverrides,
             taxPolicies: policies,
             daysElapsed: tick,
             jobFill: buildingJobFill,
@@ -8736,6 +8773,30 @@ export const simulateTick = ({
 
                 // [FIX] Use applyResourceChange to ensure tracking
                 applyResourceChange(key, delta, 'autonomous_investment_return');
+            });
+        }
+
+        // 处理税率政策对外交关系的影响
+        if (fiResult.relationChanges && fiResult.relationChanges.length > 0) {
+            const policyLabel = {
+                preferential: '优惠税率', normal: '正常税率',
+                increased_tax: '加税', heavy_tax: '重税'
+            }[fiResult.currentPolicy] || fiResult.currentPolicy;
+
+            fiResult.relationChanges.forEach(({ nationId, change }) => {
+                const nation = updatedNations.find(n => n.id === nationId);
+                if (nation) {
+                    const oldRelation = nation.relation ?? 50;
+                    nation.relation = Math.min(100, Math.max(0, oldRelation + change));
+                    // 每月生成一次外交日志
+                    if (tick % 30 === 0 && Math.abs(change * 30) >= 1) {
+                    if (change < 0) {
+                            logs.push(`⚠️ ${nation.name}对我国的外资${policyLabel}政策表示不满（关系${(change * 30).toFixed(0)}/月）`);
+                        } else if (change > 0) {
+                            logs.push(`✅ ${nation.name}对我国的外资${policyLabel}政策表示赞赏（关系+${(change * 30).toFixed(0)}/月）`);
+                        }
+                    }
+                }
             });
         }
 

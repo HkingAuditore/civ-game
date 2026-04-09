@@ -27,6 +27,8 @@ export const useDiplomacyStore = create((set, get) => ({
     setForeignInvestments: (v) => set({ foreignInvestments: typeof v === 'function' ? v(get().foreignInvestments) : v }),
     foreignInvestmentPolicy: 'normal',
     setForeignInvestmentPolicy: (v) => set({ foreignInvestmentPolicy: typeof v === 'function' ? v(get().foreignInvestmentPolicy) : v }),
+    foreignInvestmentPolicyOverrides: {},
+    setForeignInvestmentPolicyOverrides: (v) => set({ foreignInvestmentPolicyOverrides: typeof v === 'function' ? v(get().foreignInvestmentPolicyOverrides) : v }),
     overseasBuildings: [],
     setOverseasBuildings: (v) => set({ overseasBuildings: typeof v === 'function' ? v(get().overseasBuildings) : v }),
 
@@ -44,6 +46,7 @@ export const useDiplomacyStore = create((set, get) => ({
         overseasInvestments: [],
         foreignInvestments: [],
         foreignInvestmentPolicy: 'normal',
+        foreignInvestmentPolicyOverrides: {},
         overseasBuildings: [],
         playerInstallmentPayment: null,
         ...overrides,
