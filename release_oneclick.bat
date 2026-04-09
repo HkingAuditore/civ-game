@@ -284,11 +284,11 @@ if not exist "%APK_PATH%" (
 
 set "OUT_APK_DIR=%ROOT_DIR%release\apk"
 if not exist "%OUT_APK_DIR%" mkdir "%OUT_APK_DIR%" >nul 2>nul
-copy /y "%APK_PATH%" "%OUT_APK_DIR%\app-release-%APP_VERSION%.apk" >nul
+copy /y "%APK_PATH%" "%OUT_APK_DIR%\哈耶%APP_VERSION%.apk" >nul
 if errorlevel 1 (
     echo [WARN] APK built but copy to release\apk failed
 ) else (
-    echo APK output: %OUT_APK_DIR%\app-release-%APP_VERSION%.apk
+    echo APK output: %OUT_APK_DIR%\哈耶%APP_VERSION%.apk
 )
 exit /b 0
 

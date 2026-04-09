@@ -149,15 +149,31 @@ const buildCategoryProfile = (units = {}) => {
         attack: 0,
         defense: 0,
         totalUnits: 0,
+        scaleFactor: 1, // Scale factor for large army protection
     };
+
+    // First pass: count total units
+    let rawTotalUnits = 0;
+    Object.entries(units).forEach(([unitId, count]) => {
+        if (!count) return;
+        const unit = UNIT_TYPES[unitId];
+        if (!unit) return;
+        rawTotalUnits += count;
+    });
+
+    // Scale factor: when total units > 100k, scale down to prevent intermediate overflow
+    // This keeps attack/defense values in a manageable range while preserving ratios
+    const scaleFactor = rawTotalUnits > 100000 ? Math.max(1, Math.floor(rawTotalUnits / 100000)) : 1;
+    profile.scaleFactor = scaleFactor;
 
     Object.entries(units).forEach(([unitId, count]) => {
         if (!count) return;
         const unit = UNIT_TYPES[unitId];
         if (!unit) return;
-        profile.totalUnits += count;
-        profile.attack += Number(unit.attack || 0) * count;
-        profile.defense += Number(unit.defense || 0) * count;
+        const scaledCount = count / scaleFactor;
+        profile.totalUnits += count; // totalUnits stays unscaled for unit counting
+        profile.attack += Number(unit.attack || 0) * scaledCount;
+        profile.defense += Number(unit.defense || 0) * scaledCount;
         if (unit.category === 'infantry') profile.totals.infantry += count;
         if (unit.category === 'cavalry') profile.totals.cavalry += count;
         if (unit.category === 'archer') profile.totals.ranged += count;
@@ -343,11 +359,15 @@ const calculateSideStrength = ({
     role,
     battle,
     battleContext,
+    // Optional pre-built data to avoid redundant computation
+    prebuiltProfile = null,
+    prebuiltEnemyProfile = null,
+    prebuiltCounterData = null,
 }) => {
-    const profile = buildCategoryProfile(side.currentUnits);
-    const enemyProfile = buildCategoryProfile(enemy.currentUnits);
+    const profile = prebuiltProfile || buildCategoryProfile(side.currentUnits);
+    const enemyProfile = prebuiltEnemyProfile || buildCategoryProfile(enemy.currentUnits);
     const plan = getPlan(battle.battlePlan?.[role]);
-    const counterData = calculateCounterBonus(side.currentUnits || {}, enemy.currentUnits || {});
+    const counterData = prebuiltCounterData || calculateCounterBonus(side.currentUnits || {}, enemy.currentUnits || {});
     const generalBonuses = general ? getGeneralBonuses(general) : null;
     const generalAttack = generalBonuses ? (1 + generalBonuses.attackBonus) : NO_GENERAL_PENALTY;
     const generalDefense = generalBonuses ? (1 + generalBonuses.defenseBonus) : NO_GENERAL_PENALTY;
@@ -407,17 +427,24 @@ const calculatePhaseOutcome = (battle, attackerState, defenderState, battleConte
     const defPerAttackerUnit = Math.max(1, attackerState.defenseScore / attackerUnits);
     const defPerDefenderUnit = Math.max(1, defenderState.defenseScore / defenderUnits);
 
+    // Scale-aware loss calculation: attackScore/defenseScore are scaled down by scaleFactor,
+    // so the ratio (attackScore * intensity / defPerUnit) naturally produces per-scaled-unit losses.
+    // We must multiply back by scaleFactor to get actual unit losses.
+    const atkScaleFactor = attackerState.profile.scaleFactor || 1;
+    const defScaleFactor = defenderState.profile.scaleFactor || 1;
+
     const rawAttackerLoss = defenderState.attackScore * intensity
         * defenderState.plan.casualtyInflict * attackerState.plan.casualtyTaken
-        / defPerAttackerUnit;
+        / defPerAttackerUnit * atkScaleFactor;
     const rawDefenderLoss = attackerState.attackScore * intensity
         * attackerState.plan.casualtyInflict * defenderState.plan.casualtyTaken
-        / defPerDefenderUnit;
+        / defPerDefenderUnit * defScaleFactor;
 
+    // Ensure losses never exceed current unit count (防止超大数值导致的溢出)
     const attackerLossTarget = attackerUnits <= 1
-        ? 0 : stochasticRound(Math.min(attackerUnits - 1, rawAttackerLoss));
+        ? 0 : stochasticRound(Math.min(attackerUnits - 1, Math.max(0, rawAttackerLoss)));
     const defenderLossTarget = defenderUnits <= 1
-        ? 0 : stochasticRound(Math.min(defenderUnits - 1, rawDefenderLoss));
+        ? 0 : stochasticRound(Math.min(defenderUnits - 1, Math.max(0, rawDefenderLoss)));
 
     const momentumShift = clamp(Math.round(advantage * (engagement.engagementMomentum || 12)), -10, 10);
     const lineShiftRaw = advantage
@@ -878,22 +905,54 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
     b.phaseDaysRemaining = Math.max(0, Number(b.phaseDaysRemaining || 0) - 1);
 
     const battleContext = buildBattleContext(b, context);
-    const attackerState = calculateSideStrength({
-        side: b.attacker,
-        enemy: b.defender,
-        general: attackerGeneral,
-        role: 'attacker',
-        battle: b,
-        battleContext,
-    });
-    const defenderState = calculateSideStrength({
-        side: b.defender,
-        enemy: b.attacker,
-        general: defenderGeneral,
-        role: 'defender',
-        battle: b,
-        battleContext,
-    });
+
+    // [PERF] On non-settlement days, reuse cached strength scores to skip expensive calculateSideStrength
+    // Only do full recalculation on settlement days or when no cache exists
+    const isSettlementDay = b.phaseDaysRemaining <= 1; // will be 0 after decrement, or first round
+    const hasCachedStrength = b._cachedAttackerState && b._cachedDefenderState;
+
+    let attackerState, defenderState, attackerProfile, defenderProfile;
+
+    if (!isSettlementDay && hasCachedStrength) {
+        // Non-settlement day with cached data: reuse previous strength calculation
+        attackerState = b._cachedAttackerState;
+        defenderState = b._cachedDefenderState;
+        attackerProfile = attackerState.profile;
+        defenderProfile = defenderState.profile;
+    } else {
+        // Settlement day or first round: full recalculation
+        attackerProfile = buildCategoryProfile(b.attacker.currentUnits);
+        defenderProfile = buildCategoryProfile(b.defender.currentUnits);
+        const attackerCounterData = calculateCounterBonus(b.attacker.currentUnits || {}, b.defender.currentUnits || {});
+        const defenderCounterData = calculateCounterBonus(b.defender.currentUnits || {}, b.attacker.currentUnits || {});
+
+        attackerState = calculateSideStrength({
+            side: b.attacker,
+            enemy: b.defender,
+            general: attackerGeneral,
+            role: 'attacker',
+            battle: b,
+            battleContext,
+            prebuiltProfile: attackerProfile,
+            prebuiltEnemyProfile: defenderProfile,
+            prebuiltCounterData: attackerCounterData,
+        });
+        defenderState = calculateSideStrength({
+            side: b.defender,
+            enemy: b.attacker,
+            general: defenderGeneral,
+            role: 'defender',
+            battle: b,
+            battleContext,
+            prebuiltProfile: defenderProfile,
+            prebuiltEnemyProfile: attackerProfile,
+            prebuiltCounterData: defenderCounterData,
+        });
+
+        // Cache for subsequent non-settlement days
+        b._cachedAttackerState = attackerState;
+        b._cachedDefenderState = defenderState;
+    }
 
     // 每日伤亡（兰彻斯特模型）：敌方火力 × 日强度 / 我方单位防御力
     if (b.phaseDaysRemaining > 0) {
@@ -902,13 +961,15 @@ export const processCombatRound = (battle, attackerGeneral = null, defenderGener
         const atkUnits = Math.max(1, getTotalUnits(b.attacker.currentUnits));
         const defUnits = Math.max(1, getTotalUnits(b.defender.currentUnits));
 
-        const defPerAtk = Math.max(1, attackerState.defenseScore / atkUnits);
-        const defPerDef = Math.max(1, defenderState.defenseScore / defUnits);
+        const defPerAtk = Math.max(1, attackerState.defenseScore / (atkUnits / (attackerProfile.scaleFactor || 1)));
+        const defPerDef = Math.max(1, defenderState.defenseScore / (defUnits / (defenderProfile.scaleFactor || 1)));
+        // Scale-aware daily loss: attackScore is scaled, defPerUnit is scaled, ratio preserves scale
+        // Multiply by scaleFactor to convert back to actual unit losses
         const dailyAtkLoss = stochasticRound(
-            Math.min(atkUnits, defenderState.attackScore * dailyRate / defPerAtk)
+            Math.min(atkUnits, defenderState.attackScore * dailyRate / defPerAtk * (attackerProfile.scaleFactor || 1))
         );
         const dailyDefLoss = stochasticRound(
-            Math.min(defUnits, attackerState.attackScore * dailyRate / defPerDef)
+            Math.min(defUnits, attackerState.attackScore * dailyRate / defPerDef * (defenderProfile.scaleFactor || 1))
         );
 
         if (dailyAtkLoss > 0) {
@@ -1126,9 +1187,17 @@ export const calculateRoundSupplyCost = (battle, side, epoch) => {
     const normalizedBattle = ensureBattleDefaults(battle);
     const totalUnits = getTotalUnits(normalizedBattle?.[side]?.currentUnits || {});
     const plan = getPlan(normalizedBattle?.battlePlan?.[side]);
+
+    // Logarithmic scaling for large armies: beyond 100k units, supply grows sub-linearly
+    // This prevents unreasonable supply demands that would be impossible to fulfill
+    const SUPPLY_SCALE_THRESHOLD = 100000;
+    const effectiveUnits = totalUnits <= SUPPLY_SCALE_THRESHOLD
+        ? totalUnits
+        : SUPPLY_SCALE_THRESHOLD + Math.floor(Math.sqrt(totalUnits - SUPPLY_SCALE_THRESHOLD) * Math.sqrt(SUPPLY_SCALE_THRESHOLD));
+
     const cost = {
-        food: Math.ceil(totalUnits * BASE_SUPPLY_COST.food * plan.supply),
-        silver: Math.ceil(totalUnits * BASE_SUPPLY_COST.silver * plan.supply),
+        food: Math.ceil(effectiveUnits * BASE_SUPPLY_COST.food * plan.supply),
+        silver: Math.ceil(effectiveUnits * BASE_SUPPLY_COST.silver * plan.supply),
     };
 
     if (epoch >= 4) {
@@ -1138,7 +1207,10 @@ export const calculateRoundSupplyCost = (battle, side, epoch) => {
             if (unit?.category === 'gunpowder') gunpowderUnits += count;
         });
         if (gunpowderUnits > 0) {
-            cost.gunpowder = Math.ceil(gunpowderUnits * 0.3 * plan.supply);
+            const effectiveGP = gunpowderUnits <= SUPPLY_SCALE_THRESHOLD
+                ? gunpowderUnits
+                : SUPPLY_SCALE_THRESHOLD + Math.floor(Math.sqrt(gunpowderUnits - SUPPLY_SCALE_THRESHOLD) * Math.sqrt(SUPPLY_SCALE_THRESHOLD));
+            cost.gunpowder = Math.ceil(effectiveGP * 0.3 * plan.supply);
         }
     }
     if (epoch >= 5) {
@@ -1148,7 +1220,10 @@ export const calculateRoundSupplyCost = (battle, side, epoch) => {
             if (unit?.category === 'gunpowder') firearmUnits += count;
         });
         if (firearmUnits > 0) {
-            cost.ammunition = Math.ceil(firearmUnits * 0.4 * plan.supply);
+            const effectiveFA = firearmUnits <= SUPPLY_SCALE_THRESHOLD
+                ? firearmUnits
+                : SUPPLY_SCALE_THRESHOLD + Math.floor(Math.sqrt(firearmUnits - SUPPLY_SCALE_THRESHOLD) * Math.sqrt(SUPPLY_SCALE_THRESHOLD));
+            cost.ammunition = Math.ceil(effectiveFA * 0.4 * plan.supply);
         }
     }
 

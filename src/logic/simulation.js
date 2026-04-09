@@ -8036,8 +8036,17 @@ export const simulateTick = ({
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
-        // 以上一tick的人均净收入为主导，辅以小幅稳定度奖励，避免理论工资误导
-        const potentialIncome = incomeSignal + stabilityBonus;
+        // 补贴收入信号加成：当角色享受补贴（负人头税）时，额外提升收入信号
+        // 使补贴政策对人口迁移决策产生更直接的吸引力
+        const SUBSIDY_SIGNAL_BONUS = 0.5; // 补贴金额的50%作为额外收入信号
+        let subsidySignalBonus = 0;
+        if (sumHeadRate < 0 && pop > 0) {
+            // taxCostPerCapita is negative when subsidized, so negate it to get positive bonus
+            subsidySignalBonus = Math.abs(taxCostPerCapita) * SUBSIDY_SIGNAL_BONUS;
+        }
+
+        // 以上一tick的人均净收入为主导，辅以小幅稳定度奖励和补贴信号加成，避免理论工资误导
+        const potentialIncome = incomeSignal + stabilityBonus + subsidySignalBonus;
 
         return {
             role,

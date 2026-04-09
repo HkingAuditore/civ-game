@@ -60,8 +60,8 @@ export const DOWNGRADE_MIGRATION_RESISTANCE = 2.0;
 export const MULTI_TIER_DOWNGRADE_PENALTY = 1.5;
 
 // Upward migration bonus - makes it easier to move to higher-tier roles
-// Value < 1 means less income difference required
-export const UPGRADE_MIGRATION_BONUS = 0.8;
+// Value < 1 means less income difference required (closer to 1.0 = harder to trigger)
+export const UPGRADE_MIGRATION_BONUS = 0.95;
 
 // Migration cooldown per source role (in ticks)
 // After migration from a role, that role enters cooldown before another migration can occur
@@ -160,8 +160,15 @@ export const ROLE_PROMOTION_WEALTH_RATIO_OVERRIDE = {
 export const TIER_SEEK_WEALTH_THRESHOLD = 2.0;
 
 // Bonus attractiveness for higher tier jobs (per tier difference)
-// 每提升一级阶层，吸引力额外增加 20%
-export const TIER_UPGRADE_ATTRACTIVENESS_BONUS = 0.2;
+// 每提升一级阶层，吸引力额外增加 8%（降低以减缓低层向高层的盲目涌入）
+export const TIER_UPGRADE_ATTRACTIVENESS_BONUS = 0.08;
+
+// ============== Subsidy Income Signal Constants ==============
+// When a role receives subsidies (negative head tax), boost its potentialIncome signal
+// so that the subsidy policy is more visible to the migration decision system.
+// 补贴收入信号加成：当角色享受补贴（负人头税）时，额外提升其收入信号
+// 使补贴政策对人口迁移决策产生更直接的吸引力
+export const SUBSIDY_INCOME_SIGNAL_BONUS = 0.5;
 
 // 空岗位吸引力加成系数（让空岗位预估收入稍微偏高，吸引人去尝试）
 // Vacant role attractiveness bonus - makes estimated income slightly higher to encourage migration

@@ -120,6 +120,7 @@ import {
     getBoundedHomelandPressure,
     getEffectiveFrontWarScore,
     getWarScoreBreakdownTotal,
+    invalidateFrontStateCache,
 } from '../logic/diplomacy/frontSystem';
 import { processCombatRound, calculateRoundSupplyCost, createBattle, selectBattleParticipants, ensureBattleDefaults, autoSelectTactic, processReinforcement, isBattleActive } from '../logic/diplomacy/battleSystem';
 import { getCorpsGeneral, awardGeneralXP, getCorpsTotalUnits, findBestReplenishTarget } from '../logic/diplomacy/corpsSystem';
@@ -170,7 +171,13 @@ const getTotalBuildingCount = (buildingState = {}) => (
 // [FIX Bug8/9] 统计所有军事单位：散兵 + 训练队列 + 军团内单位
 const getTotalArmyCount = (armyState = {}, queueState = [], corpsState = []) => {
     const armyCount = Object.values(armyState || {}).reduce((sum, count) => sum + (count || 0), 0);
-    const queueCount = Array.isArray(queueState) ? queueState.length : 0;
+    // [PERF] Batched queue: sum batch.count instead of array length
+    let queueCount = 0;
+    if (Array.isArray(queueState)) {
+        for (let i = 0; i < queueState.length; i++) {
+            queueCount += queueState[i]?.count || 1;
+        }
+    }
     let corpsCount = 0;
     if (Array.isArray(corpsState)) {
         for (const corps of corpsState) {
@@ -375,54 +382,76 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     let queueClone = null;
     const ensureQueueClone = () => {
         if (!queueClone) {
-            queueClone = safeQueue.map(item => (item ? { ...item } : item));
+            queueClone = safeQueue.map(batch => (batch ? { ...batch } : batch));
         }
         return queueClone;
     };
 
+    // [PERF] Batched queue: each entry is a batch with count field
     const trainingEntries = [];
     let trainingPopulation = 0;
-    safeQueue.forEach((item, index) => {
-        if (!item || item.status !== 'training') return;
-        const popCost = getUnitPopulationCost(item.unitId);
-        trainingPopulation += popCost;
+    safeQueue.forEach((batch, index) => {
+        if (!batch || batch.status !== 'training') return;
+        const cnt = batch.count || 1;
+        const unitPopCost = getUnitPopulationCost(batch.unitId);
+        const totalPopCost = unitPopCost * cnt;
+        trainingPopulation += totalPopCost;
         trainingEntries.push({
             index,
-            unitId: item.unitId,
-            popCost,
-            remainingTime: item.remainingTime || 0,
+            unitId: batch.unitId,
+            unitPopCost,
+            count: cnt,
+            totalPopCost,
+            remainingTime: batch.remainingTime || 0,
         });
     });
 
     let cancelledTraining = null;
     // [FIX] 减小容差值，防止长期超员导致无限爆兵
-    // 只保留1点容差用于处理毕业时的时序问题
     const trainingTolerance = 1;
     const effectiveAvailableForTraining = available + trainingTolerance;
 
-    // console.log('[TRAINING SYNC] trainingPop:', trainingPopulation, 'available:', available,
-    //     'tolerance:', trainingTolerance, 'effectiveAvailable:', effectiveAvailableForTraining); // Commented for performance
-
     if (trainingPopulation > effectiveAvailableForTraining) {
         let manpowerToFree = trainingPopulation - effectiveAvailableForTraining;
-        // console.log('[TRAINING SYNC] INTERRUPTING! manpowerToFree:', manpowerToFree); // Commented for performance
+        // Sort by remaining time descending (cancel longest-remaining first)
         const sortedTraining = trainingEntries.sort(
             (a, b) => (b.remainingTime || 0) - (a.remainingTime || 0)
         );
 
         sortedTraining.forEach(entry => {
             if (manpowerToFree <= 0) return;
-            manpowerToFree -= entry.popCost;
-            trainingPopulation -= entry.popCost;
+            // How many units from this batch do we need to cancel?
+            const unitsToCancel = Math.min(entry.count, Math.ceil(manpowerToFree / entry.unitPopCost));
+            const popFreed = unitsToCancel * entry.unitPopCost;
+            manpowerToFree -= popFreed;
+            trainingPopulation -= popFreed;
             const clone = ensureQueueClone();
             const original = clone[entry.index] || {};
-            clone[entry.index] = {
-                ...original,
-                status: 'waiting',
-                remainingTime: original.totalTime ?? original.remainingTime ?? 0,
-            };
+            if (unitsToCancel >= entry.count) {
+                // Cancel entire batch -> revert to waiting
+                clone[entry.index] = {
+                    ...original,
+                    status: 'waiting',
+                    remainingTime: original.totalTime ?? original.remainingTime ?? 0,
+                };
+            } else {
+                // Partial cancel: split batch - reduce training count, create waiting batch
+                clone[entry.index] = {
+                    ...original,
+                    count: entry.count - unitsToCancel,
+                };
+                // Insert a new waiting batch for the cancelled portion
+                clone.push({
+                    unitId: entry.unitId,
+                    count: unitsToCancel,
+                    status: 'waiting',
+                    totalTime: original.totalTime ?? original.remainingTime ?? 0,
+                    remainingTime: original.totalTime ?? original.remainingTime ?? 0,
+                    isAutoReplenish: original.isAutoReplenish || false,
+                });
+            }
             if (!cancelledTraining) cancelledTraining = {};
-            cancelledTraining[entry.unitId] = (cancelledTraining[entry.unitId] || 0) + 1;
+            cancelledTraining[entry.unitId] = (cancelledTraining[entry.unitId] || 0) + unitsToCancel;
         });
     }
 
@@ -431,15 +460,14 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     let updatedArmy = null;
     let removedUnits = null;
     // [FIX] 移除 unitsToRequeue 逻辑 - 人口不足导致的解散不应触发自动补兵
-    // 只有战斗损失(通过 AUTO_REPLENISH_LOSSES 日志)才应触发自动补兵
 
     // [FIX] 减小容差值，只为即将毕业的单位保留容差
-    // 基础容差从3减到1，防止长期超员导致无限爆兵
-    let toleranceForNewGraduates = 1; // Base tolerance for population allocation lag
-    safeQueue.forEach(item => {
-        if (item && item.status === 'training' && item.remainingTime <= 1) {
-            const popCost = getUnitPopulationCost(item.unitId);
-            toleranceForNewGraduates += popCost;
+    let toleranceForNewGraduates = 1;
+    safeQueue.forEach(batch => {
+        if (batch && batch.status === 'training' && batch.remainingTime <= 1) {
+            const cnt = batch.count || 1;
+            const popCost = getUnitPopulationCost(batch.unitId);
+            toleranceForNewGraduates += popCost * cnt;
         }
     });
 
@@ -3541,8 +3569,19 @@ difficulty, // 游戏难度
                     let updatedCorps = [...currentCorps];
                     let updatedGenerals = [...currentGenerals];
 
+                    // [PERF] Pre-build Map indexes for O(1) lookups in combat processing loop
+                    const corpsById = new Map(updatedCorps.map(c => [c.id, c]));
+                    const frontById = new Map(updatedFronts.map(f => [f.id, f]));
+                    const nationById = new Map((current.nations || []).map(n => [n.id, n]));
+                    const generalById = new Map(currentGenerals.map(g => [g.id, g]));
+                    const generalByCorpsId = new Map(currentGenerals.filter(g => g.assignedCorpsId).map(g => [g.assignedCorpsId, g]));
+                    // Helper to sync Map after corps mutation
+                    const syncCorpsMap = (corps) => { corpsById.set(corps.id, corps); };
+
                     const _milBattleStart = _ap();
                     let _milBattleRoundsMs = 0, _milFrictionMs = 0;
+                    // [PERF] Invalidate front state cache for this tick
+                    invalidateFrontStateCache(current.daysElapsed || 0);
                     if (currentActiveBattles.length > 0 || currentActiveFronts.length > 0) {
                         let updatedArmyFromBattle = null;
                         const battleLogs = [];
@@ -3558,10 +3597,10 @@ difficulty, // 游戏难度
                             // [FIX] Skip battles already finalized (defense against stale state at high speeds)
                             if (battle.result?.finalized) return battle;
 
-                            const atkGeneral = currentGenerals.find(g => g.id === battle.attacker.generalId) || null;
-                            const defGeneral = currentGenerals.find(g => g.id === battle.defender.generalId) || null;
+                            const atkGeneral = generalById.get(battle.attacker.generalId) || null;
+                            const defGeneral = generalById.get(battle.defender.generalId) || null;
 
-                            const front = currentActiveFronts.find(f => f.id === battle.frontId);
+                            const front = frontById.get(battle.frontId);
                             const playerSide = front ? getPlayerSide(front) : null;
                             let battleContext = { front, supply: {} };
 
@@ -3715,7 +3754,7 @@ difficulty, // 游戏难度
                                     }
                                     // 多兵团：按初始兵力比例分配
                                     const corpsInitialTotals = validCorpsList.map(cid => {
-                                        const c = updatedCorps.find(x => x.id === cid);
+                                        const c = corpsById.get(cid);
                                         return Object.values(c?.units || {}).reduce((s, v) => s + v, 0);
                                     });
                                     const totalInitial = corpsInitialTotals.reduce((s, v) => s + v, 0) || 1;
@@ -3782,7 +3821,7 @@ difficulty, // 游戏难度
                                 if (playerSide) {
                                     for (const corpsId of Object.keys(preDistribSnapshot)) {
                                         const before = preDistribSnapshot[corpsId];
-                                        const afterCorps = updatedCorps.find(c => c.id === corpsId);
+                                        const afterCorps = corpsById.get(corpsId);
                                         if (!afterCorps) continue;
                                         const after = afterCorps.units || {};
                                         const allUnitIds = new Set([...Object.keys(before), ...Object.keys(after)]);
@@ -3900,15 +3939,15 @@ difficulty, // 游戏难度
                             const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
                             const playerCorpsIds = f.assignedCorps?.[playerSide] || [];
                             const enemyCorpsIds = f.assignedCorps?.[enemySide] || [];
-                            const pCorps = playerCorpsIds.map(id => updatedCorps.find(c => c.id === id)).filter(Boolean);
-                            const eCorps = enemyCorpsIds.map(id => updatedCorps.find(c => c.id === id)).filter(Boolean);
+                            const pCorps = playerCorpsIds.map(id => corpsById.get(id)).filter(Boolean);
+                            const eCorps = enemyCorpsIds.map(id => corpsById.get(id)).filter(Boolean);
 
                             // Skip if there's an active battle on this front
                             const hasBattle = updatedBattles.some(b => b.frontId === f.id && b.status === 'active');
                             if (hasBattle) return f;
 
-                            const attackerNation = (current.nations || []).find(n => n.id === f.attackerId);
-                            const defenderNation = (current.nations || []).find(n => n.id === f.defenderId);
+                            const attackerNation = nationById.get(f.attackerId);
+                            const defenderNation = nationById.get(f.defenderId);
                             const frontRuntime = {
                                 ...f,
                                 playerResources: current.resources || {},
@@ -3921,46 +3960,73 @@ difficulty, // 游戏难度
                             const frictionResult = processFrontFriction(frontRuntime, pCorps, eCorps, currentDay, f.posture || 'balanced');
                             if (!frictionResult) return f;
 
-                            // Apply casualties to corps (distribute across all corps, multiple passes)
+                            // [PERF] Apply casualties proportionally across corps and unit types in one pass
                             // Track per-corps friction losses for auto-replenish
                             if (frictionResult.casualties.player > 0 && pCorps.length > 0) {
-                                let remaining = frictionResult.casualties.player;
-                                let passes = 0;
-                                while (remaining > 0 && passes < 5) {
-                                    for (const corps of pCorps) {
-                                        if (remaining <= 0) break;
-                                        if (corps.isAI) continue;
-                                        const unitKeys = Object.keys(corps.units || {}).filter(k => (corps.units[k] || 0) > 0);
-                                        if (unitKeys.length === 0) continue;
-                                        const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
-                                        const corpsUnits = corps.units[key] || 0;
-                                        const loss = Math.min(remaining, Math.max(1, Math.ceil(corpsUnits * 0.03)));
-                                        corps.units[key] = Math.max(0, corpsUnits - loss);
-                                        remaining -= loss;
-                                        // Record friction loss per corps for auto-replenish
-                                        if (loss > 0) {
-                                            if (!pendingCorpsLossUpdates[corps.id]) pendingCorpsLossUpdates[corps.id] = {};
-                                            pendingCorpsLossUpdates[corps.id][key] = (pendingCorpsLossUpdates[corps.id][key] || 0) + loss;
-                                        }
-                                    }
-                                    passes++;
+                                let totalLoss = frictionResult.casualties.player;
+                                // Calculate total units across all player corps
+                                const corpsUnitTotals = pCorps.filter(c => !c.isAI).map(corps => {
+                                    const total = Object.values(corps.units || {}).reduce((s, v) => s + (v || 0), 0);
+                                    return { corps, total };
+                                }).filter(e => e.total > 0);
+                                const grandTotal = corpsUnitTotals.reduce((s, e) => s + e.total, 0);
+                                if (grandTotal > 0) {
+                                    let distributed = 0;
+                                    corpsUnitTotals.forEach((entry, idx) => {
+                                        // Last corps gets remainder to avoid rounding loss
+                                        const corpsShare = idx === corpsUnitTotals.length - 1
+                                            ? totalLoss - distributed
+                                            : Math.floor(totalLoss * entry.total / grandTotal);
+                                        if (corpsShare <= 0) return;
+                                        distributed += corpsShare;
+                                        // Distribute within corps by unit type proportion
+                                        const unitEntries = Object.entries(entry.corps.units || {}).filter(([, v]) => v > 0);
+                                        const corpsTotal = entry.total;
+                                        let corpsDistributed = 0;
+                                        unitEntries.forEach(([key, count], uIdx) => {
+                                            const unitLoss = uIdx === unitEntries.length - 1
+                                                ? corpsShare - corpsDistributed
+                                                : Math.floor(corpsShare * count / corpsTotal);
+                                            const actualLoss = Math.min(unitLoss, count);
+                                            if (actualLoss > 0) {
+                                                entry.corps.units[key] = Math.max(0, count - actualLoss);
+                                                corpsDistributed += actualLoss;
+                                                if (!pendingCorpsLossUpdates[entry.corps.id]) pendingCorpsLossUpdates[entry.corps.id] = {};
+                                                pendingCorpsLossUpdates[entry.corps.id][key] = (pendingCorpsLossUpdates[entry.corps.id][key] || 0) + actualLoss;
+                                            }
+                                        });
+                                    });
                                 }
                             }
                             if (frictionResult.casualties.enemy > 0 && eCorps.length > 0) {
-                                let remaining = frictionResult.casualties.enemy;
-                                let passes = 0;
-                                while (remaining > 0 && passes < 5) {
-                                    for (const corps of eCorps) {
-                                        if (remaining <= 0) break;
-                                        const unitKeys = Object.keys(corps.units || {}).filter(k => (corps.units[k] || 0) > 0);
-                                        if (unitKeys.length === 0) continue;
-                                        const key = unitKeys[Math.floor(Math.random() * unitKeys.length)];
-                                        const corpsUnits = corps.units[key] || 0;
-                                        const loss = Math.min(remaining, Math.max(1, Math.ceil(corpsUnits * 0.03)));
-                                        corps.units[key] = Math.max(0, corpsUnits - loss);
-                                        remaining -= loss;
-                                    }
-                                    passes++;
+                                let totalLoss = frictionResult.casualties.enemy;
+                                const corpsUnitTotals = eCorps.map(corps => {
+                                    const total = Object.values(corps.units || {}).reduce((s, v) => s + (v || 0), 0);
+                                    return { corps, total };
+                                }).filter(e => e.total > 0);
+                                const grandTotal = corpsUnitTotals.reduce((s, e) => s + e.total, 0);
+                                if (grandTotal > 0) {
+                                    let distributed = 0;
+                                    corpsUnitTotals.forEach((entry, idx) => {
+                                        const corpsShare = idx === corpsUnitTotals.length - 1
+                                            ? totalLoss - distributed
+                                            : Math.floor(totalLoss * entry.total / grandTotal);
+                                        if (corpsShare <= 0) return;
+                                        distributed += corpsShare;
+                                        const unitEntries = Object.entries(entry.corps.units || {}).filter(([, v]) => v > 0);
+                                        const corpsTotal = entry.total;
+                                        let corpsDistributed = 0;
+                                        unitEntries.forEach(([key, count], uIdx) => {
+                                            const unitLoss = uIdx === unitEntries.length - 1
+                                                ? corpsShare - corpsDistributed
+                                                : Math.floor(corpsShare * count / corpsTotal);
+                                            const actualLoss = Math.min(unitLoss, count);
+                                            if (actualLoss > 0) {
+                                                entry.corps.units[key] = Math.max(0, count - actualLoss);
+                                                corpsDistributed += actualLoss;
+                                            }
+                                        });
+                                    });
                                 }
                             }
 
@@ -4061,7 +4127,7 @@ difficulty, // 游戏难度
 
                             // [NEW] 持续财富掠夺：用实际敌方财富计算（玩家→AI方向）
                             const enemyIdForPlunder = playerSide === 'attacker' ? f.defenderId : f.attackerId;
-                            const enemyNationForPlunder = (current.nations || []).find(n => n.id === enemyIdForPlunder);
+                            const enemyNationForPlunder = nationById.get(enemyIdForPlunder);
                             if (enemyNationForPlunder) {
                                 // Calculate force ratio for plunder amplification
                                 const pTotal = pCorps.reduce((s, c) => s + Object.values(c.units || {}).reduce((a, b) => a + (b || 0), 0), 0);
@@ -4282,10 +4348,10 @@ difficulty, // 游戏难度
                             if (front.status !== 'active') return front;
                             const playerSide = getPlayerSide(front);
                             const attackerCorps = (front.assignedCorps?.attacker || [])
-                                .map(id => updatedCorps.find(c => c.id === id))
+                                .map(id => corpsById.get(id))
                                 .filter(Boolean);
                             const defenderCorps = (front.assignedCorps?.defender || [])
-                                .map(id => updatedCorps.find(c => c.id === id))
+                                .map(id => corpsById.get(id))
                                 .filter(Boolean);
 
                             // Determine buildings for each side
@@ -4293,13 +4359,13 @@ difficulty, // 游戏难度
                             const defenderNationId = front.defenderId;
                             const attackerBuildings = attackerNationId === 'player'
                                 ? (current.buildings || {})
-                                : ((current.nations || []).find(n => n.id === attackerNationId)?.economy?.buildings || {});
+                                : (nationById.get(attackerNationId)?.economy?.buildings || {});
                             const defenderBuildings = defenderNationId === 'player'
                                 ? (current.buildings || {})
-                                : ((current.nations || []).find(n => n.id === defenderNationId)?.economy?.buildings || {});
+                                : (nationById.get(defenderNationId)?.economy?.buildings || {});
 
-                            const attackerNation = (current.nations || []).find(n => n.id === front.attackerId);
-                            const defenderNation = (current.nations || []).find(n => n.id === front.defenderId);
+                            const attackerNation = nationById.get(front.attackerId);
+                            const defenderNation = nationById.get(front.defenderId);
                             const advancedFront = processFrontAdvance(
                                 {
                                     ...front,
@@ -4511,7 +4577,7 @@ difficulty, // 游戏难度
                         updatedFronts = updatedFronts.map(front => {
                             if (front.status !== 'active') return front;
                             const enemyId = front.attackerId === 'player' ? front.defenderId : front.attackerId;
-                            const enemyNation = (current.nations || []).find(n => n.id === enemyId);
+                            const enemyNation = nationById.get(enemyId);
                             if (!enemyNation || enemyNation.isAtWar !== true) {
                                 return { ...front, status: 'collapsed' };
                             }
@@ -4608,6 +4674,8 @@ difficulty, // 游戏难度
                                 };
                             });
                         }
+                        // [PERF] Rebuild frontById after all front mutations for the corps morale loop
+                        for (const f of updatedFronts) { frontById.set(f.id, f); }
                         updatedCorps = updatedCorps.map((corps) => {
                             if (!corps) return corps;
                             const totalUnits = getCorpsTotalUnits(corps);
@@ -4626,7 +4694,7 @@ difficulty, // 游戏难度
                             // 补给不足 → 缓慢掉士气
                             let moraleDelta = 0;
                             if (isOnFront) {
-                                const corpsOnFront = updatedFronts.find(f => f?.id === corps.assignedFrontId);
+                                const corpsOnFront = frontById.get(corps.assignedFrontId);
                                 let supplyRatio = 1;
                                 if (corpsOnFront) {
                                     const corpsSide = corps.isAI
@@ -7988,8 +8056,10 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
 
                     // [FIX] 鍦ㄩ槦鍒楀鐞嗕腑鎵ц鑷姩琛ュ叺锛岀‘淇濅娇鐢ㄦ渶鏂扮姸鎬?
                     if (shouldProcessAutoReplenish && autoRecruitEnabled && militaryCapacity > 0) {
-                        // 计算可用槽位 = 容量 - 当前军队 - 当前队列
-                        const availableSlotsForReplenish = Math.max(0, militaryCapacity - currentArmyCount - baseQueue.length);
+                        // [PERF] Batched queue: sum batch counts for total queue size
+                        let baseQueueTotalUnits = 0;
+                        for (let i = 0; i < baseQueue.length; i++) baseQueueTotalUnits += baseQueue[i]?.count || 1;
+                        const availableSlotsForReplenish = Math.max(0, militaryCapacity - currentArmyCount - baseQueueTotalUnits);
 
                         if (availableSlotsForReplenish > 0) {
                             let slotsRemaining = availableSlotsForReplenish;
@@ -8004,7 +8074,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 const q = baseQueue[i];
                                 if (!q?.isAutoReplenish) continue;
                                 if (!q?.unitId) continue;
-                                queuedAutoReplenishCounts[q.unitId] = (queuedAutoReplenishCounts[q.unitId] || 0) + 1;
+                                queuedAutoReplenishCounts[q.unitId] = (queuedAutoReplenishCounts[q.unitId] || 0) + (q.count || 1);
                             }
 
                             Object.entries(allAutoReplenishLosses).forEach(([unitId, lossCount]) => {
@@ -8064,23 +8134,22 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                     return next;
                                 }, { reason: 'auto_replenish_cost' });
 
-                                // 娣诲姞鍒伴槦鍒?
+                                // [PERF] Batched queue: create one batch per unitId
                                 Object.entries(replenishCounts).forEach(([unitId, count]) => {
                                     const unit = UNIT_TYPES[unitId];
-                                    if (!unit) return;
+                                    if (!unit || count <= 0) return;
                                     const trainingSpeedBonus = result.modifiers?.ministerEffects?.militaryTrainingSpeed || 0;
                                     const trainingMultiplier = Math.max(0.5, 1 - trainingSpeedBonus);
                                     const baseTrainTime = unit.trainingTime || unit.trainDays || 1;
                                     const trainTime = Math.max(1, Math.ceil(baseTrainTime * trainingMultiplier));
-                                    for (let i = 0; i < count; i++) {
-                                        replenishItems.push({
-                                            unitId,
-                                            status: 'waiting',
-                                            totalTime: trainTime,
-                                            remainingTime: trainTime,
-                                            isAutoReplenish: true,
-                                        });
-                                    }
+                                    replenishItems.push({
+                                        unitId,
+                                        count,
+                                        status: 'waiting',
+                                        totalTime: trainTime,
+                                        remainingTime: trainTime,
+                                        isAutoReplenish: true,
+                                    });
                                 });
 
                                 if (replenishItems.length > 0) {
@@ -8090,20 +8159,49 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         }
                     }
 
-                    // 原有的队列裁剪逻辑
+                    // [PERF] Batched queue trimming: count total units across batches
                     if (militaryCapacity > 0) {
                         const maxQueueSize = Math.max(0, militaryCapacity - currentArmyCount);
-                        if (baseQueue.length > maxQueueSize) {
-                            const trainingItems = baseQueue.filter(item => item.status === 'training');
-                            const waitingItems = baseQueue.filter(item => item.status !== 'training');
+                        let totalQueueUnits = 0;
+                        for (let i = 0; i < baseQueue.length; i++) totalQueueUnits += baseQueue[i]?.count || 1;
+                        if (totalQueueUnits > maxQueueSize) {
+                            // Separate training and waiting batches
+                            const trainingBatches = baseQueue.filter(b => b.status === 'training');
+                            const waitingBatches = baseQueue.filter(b => b.status !== 'training');
+                            let trainingTotal = 0;
+                            for (const b of trainingBatches) trainingTotal += b.count || 1;
+
                             let trimmedQueue = [];
-                            if (trainingItems.length >= maxQueueSize) {
-                                trimmedQueue = trainingItems.slice(0, maxQueueSize);
+                            if (trainingTotal >= maxQueueSize) {
+                                // Need to trim even training batches
+                                let remaining = maxQueueSize;
+                                for (const b of trainingBatches) {
+                                    const cnt = b.count || 1;
+                                    if (remaining <= 0) break;
+                                    if (cnt <= remaining) {
+                                        trimmedQueue.push(b);
+                                        remaining -= cnt;
+                                    } else {
+                                        trimmedQueue.push({ ...b, count: remaining });
+                                        remaining = 0;
+                                    }
+                                }
                             } else {
-                                const remainingSlots = maxQueueSize - trainingItems.length;
-                                trimmedQueue = [...trainingItems, ...waitingItems.slice(0, remainingSlots)];
+                                trimmedQueue = [...trainingBatches];
+                                let remaining = maxQueueSize - trainingTotal;
+                                for (const b of waitingBatches) {
+                                    const cnt = b.count || 1;
+                                    if (remaining <= 0) break;
+                                    if (cnt <= remaining) {
+                                        trimmedQueue.push(b);
+                                        remaining -= cnt;
+                                    } else {
+                                        trimmedQueue.push({ ...b, count: remaining });
+                                        remaining = 0;
+                                    }
+                                }
                             }
-                            const removedCount = baseQueue.length - trimmedQueue.length;
+                            const removedCount = totalQueueUnits - maxQueueSize;
                             if (removedCount > 0) {
                                 const currentDay = current.daysElapsed || 0;
                                 if (capacityTrimLogRef.current.day !== currentDay) {
@@ -8116,71 +8214,91 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     }
 
                     // 璁＄畻鏈夊灏戝矖浣嶅彲浠ョ敤浜庢柊璁粌锛堥伩鍏嶅娆?filter 甯︽潵鐨?O(n) 鎵弿锛?
+                    // [PERF] Batched queue: count waiting/training totals across batches
                     // [FIX] 必须考虑不同兵种的populationCost，否则会导致超员
                     let waitingCount = 0;
                     let trainingCount = 0;
-                    let trainingPopulation = 0; // [FIX] 璁粌涓崟浣嶇殑瀹為檯浜哄彛娑堣€?
+                    let trainingPopulation = 0;
                     for (let i = 0; i < baseQueue.length; i++) {
-                        const item = baseQueue[i];
-                        const s = item?.status;
-                        if (s === 'waiting') waitingCount++;
+                        const batch = baseQueue[i];
+                        const cnt = batch?.count || 1;
+                        const s = batch?.status;
+                        if (s === 'waiting') waitingCount += cnt;
                         else if (s === 'training') {
-                            trainingCount++;
-                            // [FIX] 绱姞璁粌涓崟浣嶇殑浜哄彛娑堣€?
-                            const popCost = UNIT_TYPES[item?.unitId]?.populationCost || 1;
-                            trainingPopulation += popCost;
+                            trainingCount += cnt;
+                            const popCost = UNIT_TYPES[batch?.unitId]?.populationCost || 1;
+                            trainingPopulation += popCost * cnt;
                         }
                     }
 
-                    // [FIX] 浣跨敤浜哄彛娑堣€楄€岄潪鍗曚綅鏁伴噺鏉ヨ绠楀彲鐢ㄥ矖浣?
+                    // [FIX] 使用人口消耗而非单位数量来计算可用岗位
                     const occupiedPopulation = currentArmyPopulation + trainingPopulation;
                     const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedPopulation);
 
-                    // 将等待中的项转为训练中（如果有可用岗位）
-                    // [PERF] 澶ч槦鍒楁椂閫愭潯鍐欐棩蹇椾細涓ラ噸鍗￠】锛岃繖閲屽仛鑺傛祦锛氬彧鍐欐憳瑕佹棩蹇?
-                    // [FIX] 浣跨敤浜哄彛娑堣€楄€岄潪鍗曚綅鏁伴噺鏉ュ垽鏂槸鍚﹀彲浠ュ紑濮嬭缁?
+                    // [PERF] Batched queue: process waiting→training and countdown in O(batches) not O(units)
                     let remainingPopCapacity = availableJobsForNewTraining;
                     let startedThisTick = 0;
-                    const updated = baseQueue.map(item => {
-                        if (item.status === 'waiting' && remainingPopCapacity > 0) {
-                            // [FIX] 妫€鏌ヨ鍗曚綅鐨勪汉鍙ｆ秷鑰楁槸鍚﹀湪鍙敤鑼冨洿鍐?
-                            const unitPopCost = UNIT_TYPES[item?.unitId]?.populationCost || 1;
+                    const updated = [];
+                    for (let i = 0; i < baseQueue.length; i++) {
+                        const batch = baseQueue[i];
+                        const cnt = batch.count || 1;
+
+                        if (batch.status === 'waiting' && remainingPopCapacity > 0) {
+                            const unitPopCost = UNIT_TYPES[batch?.unitId]?.populationCost || 1;
                             if (unitPopCost > remainingPopCapacity) {
-                                // 浜哄彛涓嶈冻浠ヨ缁冩鍗曚綅锛岃烦杩?
-                                return item;
+                                // Can't afford even one unit of this type
+                                updated.push(batch);
+                                continue;
                             }
-                            remainingPopCapacity -= unitPopCost;
-                            startedThisTick++;
-                            return {
-                                ...item,
-                                status: 'training',
-                                remainingTime: item.totalTime
-                            };
+                            // How many units from this batch can start training?
+                            const canStart = Math.min(cnt, Math.floor(remainingPopCapacity / unitPopCost));
+                            remainingPopCapacity -= canStart * unitPopCost;
+                            startedThisTick += canStart;
+                            if (canStart >= cnt) {
+                                // Entire batch starts training
+                                updated.push({
+                                    ...batch,
+                                    status: 'training',
+                                    remainingTime: batch.totalTime
+                                });
+                            } else {
+                                // Split: part starts training, rest stays waiting
+                                updated.push({
+                                    ...batch,
+                                    count: canStart,
+                                    status: 'training',
+                                    remainingTime: batch.totalTime
+                                });
+                                updated.push({
+                                    ...batch,
+                                    count: cnt - canStart
+                                });
+                            }
+                        } else if (batch.status === 'training') {
+                            // Countdown for training batches
+                            updated.push({
+                                ...batch,
+                                remainingTime: batch.remainingTime - 1
+                            });
+                        } else {
+                            updated.push(batch);
                         }
-                        // 鍙璁粌涓殑椤硅繘琛屽€掕鏃?
-                        if (item.status === 'training') {
-                            return {
-                                ...item,
-                                remainingTime: item.remainingTime - 1
-                            };
-                        }
-                        return item;
-                    });
+                    }
 
                     if (startedThisTick > 0) {
                         addLog('[训练开始] ' + startedThisTick + ' 个单位开始训练。');
                     }
 
-                    // 鎵惧嚭宸插畬鎴愮殑璁粌锛堥伩鍏嶅啀娆?filter 鎵弿锛?
-                    const completed = [];
+                    // [PERF] Find completed batches (remainingTime <= 0)
+                    const completed = []; // Array of { batch, index }
+                    let completedTotalUnits = 0;
                     for (let i = 0; i < updated.length; i++) {
-                        const it = updated[i];
-                        if (it?.status === 'training' && it.remainingTime <= 0) completed.push(it);
-                    }
-
-                    // [FIX] 计算可以加入军队的数量（不超过容量上限）
-                    // [FIX Bug8] 计算可以加入军队的数量（不超过容量上限）
-                    // 必须包含军团内的兵力，否则容量计算偏低导致丢兵
+                        const b = updated[i];
+                        if (b?.status === 'training' && b.remainingTime <= 0) {
+                            completed.push({ batch: b, index: i });
+                            completedTotalUnits += b.count || 1;
+                        }
+                    }                    // [FIX Bug8] 计算可以加入军队的数量（不超过容量上限）
                     let currentTotalArmy = Object.values(result.army || armyStateForQueue || {}).reduce((sum, c) => sum + c, 0);
                     const corpsForCapCheck = current.militaryCorps || [];
                     for (const cps of corpsForCapCheck) {
@@ -8189,71 +8307,106 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                     }
                     const slotsAvailableForCompletion = militaryCapacity > 0
                         ? Math.max(0, militaryCapacity - currentTotalArmy)
-                        : completed.length; // 如果没有容量限制，允许所有完成的单位加入
+                        : completedTotalUnits;
 
-                    // 只取能加入的部分
-                    const canComplete = completed.slice(0, slotsAvailableForCompletion);
-                    const mustWait = completed.slice(slotsAvailableForCompletion);
+                    // [PERF] Batched completion: determine how many units from each completed batch can join
+                    let slotsRemaining = slotsAvailableForCompletion;
+                    const canCompleteBatches = [];
+                    const mustWaitBatches = [];
+                    const completedIndexSet = new Set();
+                    const partialCompletedMap = new Map();
 
-                    if (canComplete.length > 0) {
-                        // Separate auto-replenish items from normal training completions
-                        const replenishItems = canComplete.filter(item => item.isAutoReplenish);
-                        const normalItems = canComplete.filter(item => !item.isAutoReplenish);
+                    for (const { batch, index } of completed) {
+                        const cnt = batch.count || 1;
+                        if (slotsRemaining <= 0) {
+                            mustWaitBatches.push({ batch, index });
+                            continue;
+                        }
+                        const canTake = Math.min(cnt, slotsRemaining);
+                        slotsRemaining -= canTake;
+                        canCompleteBatches.push({ batch: { ...batch, count: canTake }, index });
+                        if (canTake >= cnt) {
+                            completedIndexSet.add(index);
+                        } else {
+                            partialCompletedMap.set(index, canTake);
+                            mustWaitBatches.push({ batch: { ...batch, count: cnt - canTake }, index });
+                        }
+                    }
 
-                        // Try to assign replenish items directly to damaged corps
-                        const toArmy = [...normalItems]; // items that go to the army pool
-                        const toCorps = []; // { item, corpsId, corpsName }
+                    let canCompleteTotal = 0;
+                    for (const { batch } of canCompleteBatches) canCompleteTotal += batch.count || 1;
+                    let mustWaitTotal = completedTotalUnits - canCompleteTotal;
+
+                    if (canCompleteTotal > 0) {
+                        // [PERF] Flatten completed batches into {unitId: count} maps
+                        const replenishUnits = {};
+                        const normalUnits = {};
+                        for (const { batch } of canCompleteBatches) {
+                            const cnt = batch.count || 1;
+                            if (batch.isAutoReplenish) {
+                                replenishUnits[batch.unitId] = (replenishUnits[batch.unitId] || 0) + cnt;
+                            } else {
+                                normalUnits[batch.unitId] = (normalUnits[batch.unitId] || 0) + cnt;
+                            }
+                        }
+
+                        // Try to assign replenish units directly to damaged corps
+                        const toArmyUnits = { ...normalUnits };
+                        const toCorpsUnits = [];
                         const currentReplenishQueue = effectiveCorpsReplenishQueue;
                         const currentCorpsList = current.militaryCorps || [];
                         const currentFronts = current.activeFronts || [];
-                        // Build a working copy of the queue to track assignments within this tick
                         const workingQueue = JSON.parse(JSON.stringify(currentReplenishQueue));
 
-                        for (const item of replenishItems) {
-                            const target = findBestReplenishTarget(
-                                item.unitId,
-                                workingQueue,
-                                currentCorpsList,
-                                currentFronts
-                            );
-                            if (target) {
-                                toCorps.push({ item, corpsId: target.corpsId, corpsName: target.corps.name });
-                                // Decrement working queue so next item picks a different corps if needed
-                                if (workingQueue[target.corpsId]?.[item.unitId]) {
-                                    workingQueue[target.corpsId][item.unitId] -= 1;
-                                    if (workingQueue[target.corpsId][item.unitId] <= 0) {
-                                        delete workingQueue[target.corpsId][item.unitId];
+                        for (const [unitId, totalCount] of Object.entries(replenishUnits)) {
+                            let remaining = totalCount;
+                            while (remaining > 0) {
+                                const target = findBestReplenishTarget(
+                                    unitId,
+                                    workingQueue,
+                                    currentCorpsList,
+                                    currentFronts
+                                );
+                                if (!target) break;
+                                const corpsNeed = workingQueue[target.corpsId]?.[unitId] || 0;
+                                const assign = Math.min(remaining, corpsNeed);
+                                if (assign <= 0) break;
+                                toCorpsUnits.push({ unitId, count: assign, corpsId: target.corpsId, corpsName: target.corps.name });
+                                remaining -= assign;
+                                if (workingQueue[target.corpsId]?.[unitId]) {
+                                    workingQueue[target.corpsId][unitId] -= assign;
+                                    if (workingQueue[target.corpsId][unitId] <= 0) {
+                                        delete workingQueue[target.corpsId][unitId];
                                         if (Object.keys(workingQueue[target.corpsId]).length === 0) {
                                             delete workingQueue[target.corpsId];
                                         }
                                     }
                                 }
-                            } else {
-                                // No corps needs this unit type, fall back to army pool
-                                toArmy.push(item);
+                            }
+                            if (remaining > 0) {
+                                toArmyUnits[unitId] = (toArmyUnits[unitId] || 0) + remaining;
                             }
                         }
 
-                        // Add units to corps via setMilitaryCorps
-                        if (toCorps.length > 0) {
+                        // Add units to corps
+                        if (toCorpsUnits.length > 0) {
                             setMilitaryCorps(prevCorps => {
                                 const nextCorps = prevCorps.map(c => ({ ...c, units: { ...c.units } }));
-                                for (const { item, corpsId } of toCorps) {
+                                for (const { unitId, count, corpsId } of toCorpsUnits) {
                                     const corps = nextCorps.find(c => c.id === corpsId);
                                     if (corps) {
-                                        corps.units[item.unitId] = (corps.units[item.unitId] || 0) + 1;
+                                        corps.units[unitId] = (corps.units[unitId] || 0) + count;
                                     }
                                 }
                                 return nextCorps;
                             });
-                            // Update replenish queue: decrement deficits
                             setCorpsReplenishQueue(prev => {
                                 const next = { ...prev };
-                                for (const { item, corpsId } of toCorps) {
-                                    if (next[corpsId]?.[item.unitId]) {
-                                        next[corpsId][item.unitId] -= 1;
-                                        if (next[corpsId][item.unitId] <= 0) {
-                                            delete next[corpsId][item.unitId];
+                                for (const { unitId, count, corpsId } of toCorpsUnits) {
+                                    if (next[corpsId]?.[unitId]) {
+                                        next[corpsId][unitId] -= count;
+                                        if (next[corpsId][unitId] <= 0) {
+                                            delete next[corpsId][unitId];
                                         }
                                         if (Object.keys(next[corpsId]).length === 0) {
                                             delete next[corpsId];
@@ -8262,20 +8415,11 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 }
                                 return next;
                             });
-                            // Log corps assignments
-                            const corpsAssignSummary = {};
-                            toCorps.forEach(({ item, corpsName }) => {
-                                const unitName = UNIT_TYPES[item.unitId]?.name || item.unitId;
-                                const key = `${corpsName}:${unitName}`;
-                                corpsAssignSummary[key] = (corpsAssignSummary[key] || 0) + 1;
-                            });
-                            for (const [key, count] of Object.entries(corpsAssignSummary)) {
-                                // suppress auto-replenish log
-                            }
                         }
 
-                        // Add remaining units to army pool (normal + fallback replenish)
-                        if (toArmy.length > 0) {
+                        // Add remaining units to army pool
+                        const armyEntries = Object.entries(toArmyUnits).filter(([, c]) => c > 0);
+                        if (armyEntries.length > 0) {
                             setArmy(prevArmy => {
                                 const newArmy = { ...prevArmy };
                                 let prevTotal = Object.values(newArmy).reduce((sum, c) => sum + c, 0);
@@ -8285,48 +8429,62 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                     prevTotal += Object.values(cps?.units || {}).reduce((sum, c) => sum + c, 0);
                                 }
                                 let addedCount = 0;
-
-                                toArmy.forEach(item => {
-                                    if (militaryCapacity <= 0 || prevTotal + addedCount < militaryCapacity) {
-                                        newArmy[item.unitId] = (newArmy[item.unitId] || 0) + 1;
-                                        addedCount++;
+                                for (const [unitId, count] of armyEntries) {
+                                    const canAdd = militaryCapacity <= 0
+                                        ? count
+                                        : Math.min(count, Math.max(0, militaryCapacity - prevTotal - addedCount));
+                                    if (canAdd > 0) {
+                                        newArmy[unitId] = (newArmy[unitId] || 0) + canAdd;
+                                        addedCount += canAdd;
                                     }
-                                });
+                                }
                                 return newArmy;
                             });
                         }
-                        // [PERF] 大量单位同时毕业时逐条日志会卡顿：改为摘要 + 少量样例
+                        // [PERF] Batched completion log
                         {
-                            const total = canComplete.length;
-                            if (total <= 10) {
-                                canComplete.forEach(item => {
-                                    addLog('[训练完成] ' + UNIT_TYPES[item.unitId].name + ' 训练完成。');
-                                });
+                            if (canCompleteTotal <= 10) {
+                                for (const { batch } of canCompleteBatches) {
+                                    const unitName = UNIT_TYPES[batch.unitId]?.name || batch.unitId;
+                                    const cnt = batch.count || 1;
+                                    if (cnt === 1) {
+                                        addLog('[训练完成] ' + unitName + ' 训练完成。');
+                                    } else {
+                                        addLog('[训练完成] ' + cnt + ' 个 ' + unitName + ' 训练完成。');
+                                    }
+                                }
                             } else {
-                                const preview = canComplete
+                                const preview = canCompleteBatches
                                     .slice(0, 3)
-                                    .map(item => UNIT_TYPES[item.unitId]?.name || item.unitId)
+                                    .map(({ batch }) => UNIT_TYPES[batch.unitId]?.name || batch.unitId)
                                     .join('、');
-                                addLog('[训练完成] ' + total + ' 个单位训练完成（例如：' + preview + '...）。');
+                                addLog('[训练完成] ' + canCompleteTotal + ' 个单位训练完成（例如：' + preview + '...）。');
                             }
                         }
                     }
 
-                    if (mustWait.length > 0) {
-                        addLog('[容量已满] ' + mustWait.length + ' 个单位将在队列中等待。');
+                    if (mustWaitTotal > 0) {
+                        addLog('[容量已满] ' + mustWaitTotal + ' 个单位将在队列中等待。');
                     }
 
-                    // 返回未完成的训练（排除已完成且加入军队的），保留因容量问题未能加入的
-                    // IMPORTANT: We must remove the exact items we just added to the army.
-                    // Using indexes here is error-prone because `canComplete` is a slice of `completed`.
-                    const canCompleteSet = new Set(canComplete);
-                    return updated.filter(item => {
-                        if (item.status === 'training' && item.remainingTime <= 0) {
-                            // Remove only those completed items that were successfully applied to the army
-                            return !canCompleteSet.has(item);
+                    // [PERF] Return updated queue, removing fully completed batches and adjusting partial ones
+                    const finalQueue = [];
+                    for (let i = 0; i < updated.length; i++) {
+                        const batch = updated[i];
+                        if (batch.status === 'training' && batch.remainingTime <= 0) {
+                            if (completedIndexSet.has(i)) continue;
+                            if (partialCompletedMap.has(i)) {
+                                const consumed = partialCompletedMap.get(i);
+                                const remaining = (batch.count || 1) - consumed;
+                                if (remaining > 0) {
+                                    finalQueue.push({ ...batch, count: remaining });
+                                }
+                                continue;
+                            }
                         }
-                        return true;
-                    });
+                        finalQueue.push(batch);
+                    }
+                    return finalQueue;
                 });
 
                 _apMark('recruit+queue');
