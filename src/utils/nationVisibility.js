@@ -77,7 +77,9 @@ export const areNationsMutuallyVisible = (nationA, nationB, epoch) => {
  */
 export const isAppearedButUndiscovered = (nation, epoch) => {
     if (!nation) return false;
-    if (nation.isAnnexed) return false;
+    if (nation.isAnnexed || nation.isDefeated) return false;
+    // Safety: destroyed nations (zero population) are not undiscovered
+    if ((nation.population || 0) <= 0) return false;
 
     const appearEpoch = nation.appearEpoch ?? 0;
     if (epoch < appearEpoch) return false;

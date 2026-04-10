@@ -1,7 +1,7 @@
 {
     "name": "hayek-civilization-market-economy",
     "private": true,
-    "version": "2.3.42",
+    "version": "2.3.43",
     "type": "module",
     "scripts": {
         "dev": "vite",

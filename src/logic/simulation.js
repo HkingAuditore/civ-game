@@ -5920,6 +5920,7 @@ export const simulateTick = ({
                 name: nation.name,
                 isDefeated: true,
                 isAnnexed: nation.isAnnexed || false,
+                discovered: nation.discovered ?? false,
                 population: 0,
                 wealth: 0,
                 relation: nation.relation || 0,

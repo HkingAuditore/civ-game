@@ -360,7 +360,10 @@ const StratumDetailSheetComponent = ({
         const parsed = parseFloat(draftMultiplier);
         if (Number.isNaN(parsed)) { setDraftMultiplier(null); return; }
         let storeValue;
-        if (isSubsidyMode) {
+        if (parsed < 0) {
+            // 直接输入负数 → 自动切换为补贴模式
+            storeValue = parsed;
+        } else if (isSubsidyMode) {
             storeValue = -(Math.max(0, Math.abs(parsed)));
         } else {
             // 人头税不设上限，仅保证非负
@@ -387,7 +390,10 @@ const StratumDetailSheetComponent = ({
             const parsed = parseFloat(ctx.draftMultiplier);
             if (Number.isNaN(parsed)) return;
             let storeValue;
-            if (ctx.isSubsidyMode) {
+            if (parsed < 0) {
+                // 直接输入负数 → 自动切换为补贴模式
+                storeValue = parsed;
+            } else if (ctx.isSubsidyMode) {
                 storeValue = -(Math.max(0, Math.abs(parsed)));
             } else {
                 // 人头税不设上限，仅保证非负

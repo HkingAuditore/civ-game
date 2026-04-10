@@ -659,7 +659,10 @@ const PoliticsTabComponent = ({
         const currentMultiplier = headRates[key] ?? 0.05;
         const isCurrentSubsidy = currentMultiplier < 0 || Object.is(currentMultiplier, -0);
         let storeValue;
-        if (isCurrentSubsidy) {
+        if (parsed < 0) {
+            // 直接输入负数 → 自动切换为补贴模式
+            storeValue = parsed;
+        } else if (isCurrentSubsidy) {
             storeValue = -(Math.max(0, Math.abs(parsed)));
         } else {
             // 人头税不设上限，仅保证非负
