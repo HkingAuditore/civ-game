@@ -2097,7 +2097,12 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             if (totalStr > 0) {
                 // advanceRate 基础值 0.3~0.6/tick，根据战争强度微调
                 const advanceRate = 0.3 + warIntensity * 0.15;
-                const delta = ((nationEffStr - enemyEffStr) / totalStr) * advanceRate;
+                const strDelta = ((nationEffStr - enemyEffStr) / totalStr) * advanceRate;
+                // 战场波动噪声：模拟战场不确定性，让均势战争也有来回拉锯
+                // 噪声幅度 ±0.3~0.8，随战争强度增大；均势时噪声影响更显著
+                const noiseAmplitude = 0.3 + warIntensity * 0.25;
+                const noise = (Math.random() - 0.5) * 2 * noiseAmplitude;
+                const delta = strDelta + noise;
                 const oldLinePos = war.linePosition;
                 // linePosition > 50 表示 nation 占优（推入 enemy 领土），< 50 表示 enemy 占优
                 war.linePosition = clamp(war.linePosition + delta, 5, 95);
@@ -2243,15 +2248,31 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             // === 持续占领 warScore（每5天根据战线位置累积） ===
             if (warDuration > 0 && warDuration % 5 === 0) {
                 const posOffset = war.linePosition - 50; // >0 nation优势, <0 enemy优势
-                if (Math.abs(posOffset) > 5) {
+                if (Math.abs(posOffset) > 2) {
                     // 偏离中线越远，每5天积累越多分数（1~4分）
-                    const occupationScore = Math.round(clamp(Math.abs(posOffset) / 12, 1, 4));
+                    const occupationScore = Math.round(clamp(Math.abs(posOffset) / 10, 1, 4));
                     const occupationDir = posOffset > 0 ? 1 : -1;
                     war.warScore = (war.warScore || 0) + occupationScore * occupationDir;
                     war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + occupationScore * occupationDir;
                     if (enemy.foreignWars[nation.id]) {
                         enemy.foreignWars[nation.id].warScore = -(war.warScore);
                     }
+                }
+            }
+
+            // === 长期消耗分（每15天，战争持续超过30天后） ===
+            // 即使战线僵持在中线附近，长期战争也应缓慢累积分数（模拟消耗战的此消彼长）
+            if (warDuration > 30 && warDuration % 15 === 0) {
+                const strRatio = nationEffStr / Math.max(1, nationEffStr + enemyEffStr);
+                // 优势方获得1分消耗分；双方极度均势(0.45~0.55)时随机给一方
+                let attritionDir = 0;
+                if (strRatio > 0.55) attritionDir = 1;
+                else if (strRatio < 0.45) attritionDir = -1;
+                else attritionDir = Math.random() < 0.5 ? 1 : -1;
+                war.warScore = (war.warScore || 0) + attritionDir;
+                war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + attritionDir;
+                if (enemy.foreignWars[nation.id]) {
+                    enemy.foreignWars[nation.id].warScore = -(war.warScore);
                 }
             }
 
@@ -2302,7 +2323,18 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             // === 战争结束判定（每10天检查一次） ===
             if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
                 if (!war.endScoreThreshold) {
-                    war.endScoreThreshold = 25 + Math.floor(Math.random() * 56); // 25~80
+                    // War goal determines how decisive the war needs to be before ending
+                    // tribute/preemptive: lower threshold (quick wars), vassal/annex: higher (need decisive outcome)
+                    const goalThresholds = {
+                        tribute:      { min: 40,  max: 120 },
+                        preemptive:   { min: 35,  max: 100 },
+                        defense:      { min: 30,  max: 100 },
+                        annex_border: { min: 60,  max: 200 },
+                        vassal:       { min: 80,  max: 250 },
+                        revenge:      { min: 50,  max: 180 },
+                    };
+                    const gt = goalThresholds[war.warGoal] || goalThresholds.tribute;
+                    war.endScoreThreshold = gt.min + Math.floor(Math.random() * (gt.max - gt.min + 1));
                 }
 
                 const absoluteWarScore = Math.abs(war.warScore || 0);

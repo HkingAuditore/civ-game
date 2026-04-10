@@ -3764,6 +3764,26 @@ export const useGameActions = (gameState, addLog) => {
                                 peaceTreatyUntil: daysElapsed + 365,
                             };
                         }
+                        // When becoming vassal, end wars with all player allies
+                        if (vassalUpdates.vassalOf === 'player') {
+                            const orgs = diplomacyOrganizations?.organizations || [];
+                            const allyIds = new Set();
+                            orgs.forEach(org => {
+                                if (org?.type !== 'military_alliance') return;
+                                if (!Array.isArray(org.members) || !org.members.includes('player')) return;
+                                org.members.forEach(id => { if (id && id !== 'player') allyIds.add(id); });
+                            });
+                            prev.forEach(x => { if (x.vassalOf === 'player' && x.id !== n.id) allyIds.add(x.id); });
+                            allyIds.forEach(allyId => {
+                                if (nextForeignWars[allyId]?.isAtWar) {
+                                    nextForeignWars[allyId] = {
+                                        ...nextForeignWars[allyId],
+                                        isAtWar: false,
+                                        peaceTreatyUntil: daysElapsed + 365,
+                                    };
+                                }
+                            });
+                        }
 
                         return {
                             ...n,
@@ -3791,6 +3811,22 @@ export const useGameActions = (gameState, addLog) => {
                                     ...n.foreignWars[nationId],
                                     isAtWar: false,
                                     warScore: 0,
+                                    peaceTreatyUntil: daysElapsed + 365,
+                                },
+                            },
+                        };
+                    }
+
+                    // When target becomes vassal via finalize_peace, end wars between player allies and the new vassal
+                    const isVassalType = ['demand_vassal', 'demand_colony', 'demand_puppet', 'demand_tributary', 'demand_protectorate'].some(t => type === t || type.startsWith('demand_vassal'));
+                    if (isVassalType && n.foreignWars?.[nationId]?.isAtWar) {
+                        return {
+                            ...n,
+                            foreignWars: {
+                                ...n.foreignWars,
+                                [nationId]: {
+                                    ...n.foreignWars[nationId],
+                                    isAtWar: false,
                                     peaceTreatyUntil: daysElapsed + 365,
                                 },
                             },
@@ -6641,7 +6677,27 @@ export const useGameActions = (gameState, addLog) => {
             nationId, reason: cleanupReason
         }, daysElapsed);
 
-        setNations(prev => prev.map(n => {
+        // When a nation becomes player's vassal, it joins the player's camp.
+        // All wars between the new vassal and player's allies/other vassals must end.
+        const becomingVassal = extraUpdates.vassalOf === 'player';
+
+        setNations(prev => {
+            // Pre-collect player ally IDs for vassal peace cleanup
+            let playerAllyIds = new Set();
+            if (becomingVassal) {
+                const orgs = diplomacyOrganizations?.organizations || [];
+                orgs.forEach(org => {
+                    if (org?.type !== 'military_alliance') return;
+                    if (!Array.isArray(org.members) || !org.members.includes('player')) return;
+                    org.members.forEach(id => { if (id && id !== 'player') playerAllyIds.add(id); });
+                });
+                // Also include player's other vassals
+                prev.forEach(n => {
+                    if (n.vassalOf === 'player' && n.id !== nationId) playerAllyIds.add(n.id);
+                });
+            }
+
+            return prev.map(n => {
             if (n.id === nationId) {
                 const nextForeignWars = { ...(n.foreignWars || {}) };
                 if (nextForeignWars.player) {
@@ -6651,6 +6707,19 @@ export const useGameActions = (gameState, addLog) => {
                         warScore: 0,
                         peaceTreatyUntil: daysElapsed + 365,
                     };
+                }
+                // When becoming vassal, end wars with all player allies and other vassals
+                if (becomingVassal) {
+                    playerAllyIds.forEach(allyId => {
+                        if (nextForeignWars[allyId]?.isAtWar) {
+                            nextForeignWars[allyId] = {
+                                ...nextForeignWars[allyId],
+                                isAtWar: false,
+                                peaceTreatyUntil: daysElapsed + 365,
+                            };
+                            addLog(`📜 ${n.name} 成为附庸后，与 ${prev.find(x => x.id === allyId)?.name || '盟友'} 自动停战。`);
+                        }
+                    });
                 }
                 return {
                     ...n,
@@ -6680,8 +6749,27 @@ export const useGameActions = (gameState, addLog) => {
                 };
             }
 
+            // When target becomes vassal, end wars between player allies and the new vassal
+            if (becomingVassal && playerAllyIds.has(n.id)) {
+                const allyForeignWars = n.foreignWars?.[nationId];
+                if (allyForeignWars?.isAtWar) {
+                    return {
+                        ...n,
+                        foreignWars: {
+                            ...n.foreignWars,
+                            [nationId]: {
+                                ...allyForeignWars,
+                                isAtWar: false,
+                                peaceTreatyUntil: daysElapsed + 365,
+                            },
+                        },
+                    };
+                }
+            }
+
             return n;
-        }));
+        });
+        });
 
         if (cleanupRuntime) {
             cleanupWarRuntimeState(nationId, cleanupReason);

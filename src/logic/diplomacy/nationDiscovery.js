@@ -27,7 +27,9 @@ export const discoverNationsOnEpochChange = ({
     const undiscoveredPool = nations.filter(n => {
         const appearEpoch = n.appearEpoch ?? 0;
         if (appearEpoch !== newEpoch) return false;
-        if (n.isAnnexed) return false;
+        if (n.isAnnexed || n.isDefeated) return false;
+        // Safety: skip nations with zero population (destroyed)
+        if ((n.population || 0) <= 0) return false;
 
         if (discoverer === 'player') {
             return n.discovered !== true;
@@ -117,7 +119,9 @@ export const processGradualDiscovery = ({
         const appearEpoch = n.appearEpoch ?? 0;
         if (appearEpoch > epoch) return false; // 未来时代的国家不可发现
         if (n.expireEpoch != null && epoch > n.expireEpoch) return false;
-        if (n.isAnnexed) return false;
+        if (n.isAnnexed || n.isDefeated) return false;
+        // Safety: skip nations with zero population (destroyed)
+        if ((n.population || 0) <= 0) return false;
         return n.discovered !== true;
     });
 
@@ -184,7 +188,9 @@ export const processAINationDiscovery = ({
     // 筛选该 AI 尚未发现的国家
     const undiscovered = allNations.filter(other => {
         if (other.id === nation.id) return false;
-        if (other.isAnnexed) return false;
+        if (other.isAnnexed || other.isDefeated) return false;
+        // Safety: skip nations with zero population (destroyed)
+        if ((other.population || 0) <= 0) return false;
         const otherAppearEpoch = other.appearEpoch ?? 0;
         if (otherAppearEpoch > epoch) return false;
         if (other.expireEpoch != null && epoch > other.expireEpoch) return false;
@@ -243,7 +249,8 @@ export const getUndiscoveredCount = (nations, epoch) => {
         const appearEpoch = n.appearEpoch ?? 0;
         if (appearEpoch > epoch) return false;
         if (n.expireEpoch != null && epoch > n.expireEpoch) return false;
-        if (n.isAnnexed) return false;
+        if (n.isAnnexed || n.isDefeated) return false;
+        if ((n.population || 0) <= 0) return false;
         return n.discovered !== true;
     }).length;
 };
