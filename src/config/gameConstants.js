@@ -1118,6 +1118,21 @@ export const AI_WAR_DECISION = {
     FATIGUE_WEALTH_LOSS_RATE: 0.05,
     // 备战取消条件：军力比低于目标的此比例时取消备战
     PREPARATION_CANCEL_RATIO: 0.7,
+    // === AI-AI 战争分数僵死修复相关常量 ===
+    // 强制结束战争的天数上限（3年）
+    AI_WAR_MAX_DURATION: 1095,
+    // 长期战争加速结束的起始天数（1年）
+    AI_WAR_LONG_WAR_THRESHOLD: 365,
+    // 僵持战争降低结束阈值的天数（2年）
+    AI_WAR_STALEMATE_THRESHOLD: 730,
+    // 疲劳每次调用的最低增量
+    FATIGUE_MIN_DELTA: 0.002,
+    // occupation score 偏移基础阈值
+    OCCUPATION_BASE_THRESHOLD: 2,
+    // checkpoint 50 的基础分数（中线拉锯是常态，给予较低分数）
+    CHECKPOINT_50_BASE_SCORE: 3,
+    // checkpoint 重复跨越衰减窗口（天）
+    CHECKPOINT_REPEAT_DECAY_WINDOW: 30,
 };
 
 export const TAX_LIMITS = {

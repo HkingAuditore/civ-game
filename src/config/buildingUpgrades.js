@@ -167,24 +167,25 @@ export const BUILDING_UPGRADES = {
 
     // ========== 青铜时代建筑 ==========
 
-    // copper_mine: base output 0.5 copper, owner: miner, base jobs: miner:3
+    // copper_mine: base output 0.5 copper, owner: artisan, base jobs: miner:4 worker:1 artisan:1
     copper_mine: [
         {
             name: "深铜矿",
             cost: { wood: 120, tools: 20, silver: 350 },
             input: { tools: 0.0625, wood: 0.25, food: 0.25 }, // modest input cost
             output: { copper: 1.0834 }, // 1.3x of base 0.6667
-            jobs: { miner: 4, worker: 1 }, // keep same, efficiency upgrade
+            jobs: { miner: 4, worker: 1, artisan: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "大铜矿",
             cost: { plank: 80, tools: 40, silver: 800 },
             input: { tools: 0.12, wood: 0.42, food: 0.42 }, // reasonable input increase
             output: { copper: 1.8, stone: 0.18 }, // 2.25x of base 0.6667 + 废石利用
-            jobs: { miner: 5, worker: 1 }, // +1 miner only
+            jobs: { miner: 5, worker: 1, artisan: 1 }, // +1 miner only
         },
     ],
 
+    // dye_works:
     // dye_works: base output 0.6 dye, owner: artisan, base jobs: artisan:3
     dye_works: [
         {
@@ -464,39 +465,39 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // stone_workshop: base output stone: 14, base input tools: 0.12, owner: miner, base jobs: miner:4 worker:4
+    // stone_workshop: base output stone: 14, base input tools: 0.12, owner: artisan, base jobs: miner:4 worker:4 artisan:1
     stone_workshop: [
         {
             name: "大采石工场",
             cost: { plank: 60, iron: 25, silver: 350 },
             input: { tools: 0.136, food: 0.224 },
             output: { stone: 25.728 },
-            jobs: { miner: 4, worker: 4 },
+            jobs: { miner: 4, worker: 4, artisan: 1 },
         },
         {
             name: "皇家采石场",
             cost: { brick: 80, iron: 40, silver: 800 },
             input: { tools: 0.2167, food: 0.3667 },
             output: { stone: 36, brick: 0.3333 },
-            jobs: { miner: 5, worker: 5 },
+            jobs: { miner: 5, worker: 5, artisan: 1 },
         },
     ],
 
-    // hardwood_camp: base output 13.2 wood, owner: lumberjack, base jobs: lumberjack:5, worker:1
+    // hardwood_camp: base output 13.2 wood, owner: merchant, base jobs: lumberjack:5 worker:5 merchant:1
     hardwood_camp: [
         {
             name: "特用林场",
             cost: { plank: 80, tools: 30, silver: 450 },
             input: { tools: 0.1833, food: 0.3 },
             output: { wood: 25.3 },
-            jobs: { lumberjack: 5, worker: 5 },
+            jobs: { lumberjack: 5, worker: 5, merchant: 1 },
         },
         {
             name: "皇家御林",
             cost: { brick: 80, tools: 50, silver: 900 },
             input: { tools: 0.2743, food: 0.48 },
             output: { wood: 31.2, food: 0.6 },
-            jobs: { lumberjack: 6, worker: 6 },
+            jobs: { lumberjack: 6, worker: 6, merchant: 1 },
         },
     ],
 
@@ -557,21 +558,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // shaft_mine: base output 2.10 iron, 1.26 copper, owner: miner, base jobs: miner:6, engineer:1
+    // shaft_mine: base output 2.10 iron, 1.26 copper, owner: merchant, base jobs: miner:6 engineer:12 merchant:1
     shaft_mine: [
         {
             name: "通风矿井",
             cost: { brick: 120, tools: 45, silver: 650 },
             input: { tools: 0.3857, wood: 0.8229, science: 0.1543 },
             output: { iron: 6.21, copper: 3.7286 },
-            jobs: { miner: 6, engineer: 12 },
+            jobs: { miner: 6, engineer: 12, merchant: 1 },
         },
         {
             name: "蒸汽矿井",
             cost: { brick: 200, steel: 50, tools: 80, silver: 1200 },
             input: { tools: 0.475, coal: 0.35, wood: 0.95, science: 0.2 },
             output: { iron: 7.6, copper: 4.55, coal: 0.25 },
-            jobs: { miner: 7, engineer: 13 },
+            jobs: { miner: 7, engineer: 13, merchant: 1 },
         },
     ],
 

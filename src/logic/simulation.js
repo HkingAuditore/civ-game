@@ -3499,6 +3499,16 @@ export const simulateTick = ({
     perfEnd('productionLoop');
     _silverCheckpoint('productionLoop');
 
+    // ========== 军人岗位填充数据补全 ==========
+    // 军人(soldier)岗位不来自建筑，而是来自军队系统(army + militaryCorps + militaryQueue)，
+    // 因此 buildingJobFill 中不会有 soldier 数据。这里使用虚拟键 '_military' 补充，
+    // 使 PopulationDetailModal 的岗位就业总览能正确聚合军人在岗数。
+    const soldierAvailable = jobsAvailable.soldier || 0;
+    if (soldierAvailable > 0) {
+        const soldierFilled = Math.min(popStructure.soldier || 0, soldierAvailable);
+        buildingJobFill['_military'] = { soldier: soldierFilled };
+    }
+
     // ========== 人头税收取（移到 productionLoop 之后，保证基于本 tick 实际收入） ==========
     // [FIX] 保存税前存款快照，用于后续 TaxShock 计算
     const preTaxWealth = {};
@@ -4209,6 +4219,8 @@ export const simulateTick = ({
 
     // [PERF] 内阁机制属于deferred级，按配置频率执行
     let _freeMarketDebug = null;
+    // 代经营制下，阶层业主扩张的建筑需要分配给代经营制官员代管
+    let pendingStateManagedBuildings = {};
     const shouldUpdateCabinet = shouldRunThisTick(tick, 'cabinet');
     if (shouldUpdateCabinet) {
     perfStart('cabinetMechanics');
@@ -4346,6 +4358,14 @@ export const simulateTick = ({
                 newBuildingsCount[id] = (newBuildingsCount[id] || 0) + 1;
                 // logs.push(`- ${exp.owner} built ${id} for ${exp.cost}`);
             });
+
+            // 代经营制下，将阶层业主扩张的建筑记录到 pendingStateManagedBuildings，等待分配给代经营制官员
+            const hasStateManagedOfficials = (officials || []).some(o => (o.propertyPolicy || 'private') === 'state_managed');
+            if (hasStateManagedOfficials) {
+                expansions.forEach(exp => {
+                    pendingStateManagedBuildings[exp.buildingId] = (pendingStateManagedBuildings[exp.buildingId] || 0) + 1;
+                });
+            }
 
             // Apply wealth deductions
             Object.entries(wealthDeductions).forEach(([stratum, amount]) => {
@@ -4885,6 +4905,21 @@ export const simulateTick = ({
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
             } // end if (investmentCost > 0)
+        }
+
+        // 代经营制下，将 pendingStateManagedBuildings 中的建筑分配给第一个代经营制官员代管
+        if (isStateManagedPolicy && Object.keys(pendingStateManagedBuildings).length > 0) {
+            const firstStateManagedIndex = officialList.findIndex(o => (o.propertyPolicy || 'private') === 'state_managed');
+            if (firstStateManagedIndex === index) {
+                if (!_managedCopied) {
+                    nextManagedSummary = { byBuilding: { ...managedSummary.byBuilding }, totalCount: managedSummary.totalCount };
+                    _managedCopied = true;
+                }
+                Object.entries(pendingStateManagedBuildings).forEach(([buildingId, count]) => {
+                    nextManagedSummary.byBuilding[buildingId] = (nextManagedSummary.byBuilding[buildingId] || 0) + count;
+                    nextManagedSummary.totalCount += count;
+                });
+            }
         }
 
         // 产业升级决策（高薪养廉模式下跳过）— 传入 summary 而非数组
@@ -6935,7 +6970,7 @@ export const simulateTick = ({
     // REFACTORED: Using module functions for AI-AI war system
     if (shouldUpdateAI) {
         processCollectiveAttackWarmonger(diplomacyTargets, tick, logs, { organizations: updatedOrganizations });
-        processAIWarPreparations(diplomacyTargets, tick, logs);
+        processAIWarPreparations(diplomacyTargets, tick, logs, updatedNations);
         processAIAIWarDeclaration(
             diplomacyTargets,
             updatedNations,
@@ -6944,6 +6979,13 @@ export const simulateTick = ({
             { organizations: updatedOrganizations },
             vassalDiplomacyRequests,
         );
+    }
+    // [FIX] AI-AI 战争推进独立于 shouldUpdateAI，直接用 tick 模运算控制频率。
+    // 绕过 tick 预算保护（budgetExceeded），因为战争推进是关键游戏机制，
+    // 不能因为性能优化而被跳过（否则战线永远不动、分数永远为0）。
+    const AI_WAR_PROGRESSION_FREQ = 7;
+    if (tick % AI_WAR_PROGRESSION_FREQ === 0) {
+        console.warn(`[SIM-DEBUG] tick=${tick}, calling processAIAIWarProgression, diplomacyTargets.length=${diplomacyTargets?.length}, updatedNations.length=${updatedNations?.length}, militaryCorps.length=${militaryCorps?.length}`);
         processAIAIWarProgression(diplomacyTargets, updatedNations, tick, logs, vassalDiplomacyRequests, epoch, militaryCorps, generals);
         const annexedCapitalMigration = migrateAnnexedNationCapital({
             nations: updatedNations,

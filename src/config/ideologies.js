@@ -224,8 +224,8 @@ export const IDEOLOGIES = [
                     maxPop: 0.03,
                     scienceBonus: -0.02,
                     triggerEffects: [
-                        // 祈堂数量 → 稳定度（家族祭祀维系社会稳定）
-                        { type: 'building_specific_bonus', buildingId: 'ancestral_hall', per: 50, bonus: { stability: 0.8 }, cap: 12 },
+                        // 教堂数量 → 稳定度（宗教信仰维系社会稳定）
+                        { type: 'building_specific_bonus', buildingId: 'church', per: 50, bonus: { stability: 0.8 }, cap: 12 },
                     ],
                 },
                 {
@@ -238,8 +238,8 @@ export const IDEOLOGIES = [
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.05, target: 'stability', cap: 8 },
                     ],
                     triggerEffects: [
-                        // 祈堂数量 → 稳定度+人口（家族延续）
-                        { type: 'building_specific_bonus', buildingId: 'ancestral_hall', per: 30, bonus: { stability: 1.0, maxPop: 0.004 }, cap: 18 },
+                        // 教堂数量 → 稳定度+人口（信仰凝聚人心）
+                        { type: 'building_specific_bonus', buildingId: 'church', per: 30, bonus: { stability: 1.0, maxPop: 0.004 }, cap: 18 },
                     ],
                 },
                 {
@@ -254,8 +254,8 @@ export const IDEOLOGIES = [
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.003, target: 'cultureBonus', cap: 0.30 },
                     ],
                     triggerEffects: [
-                        // 祈堂数量 → 稳定度+人口+文化（祖先广泛保佑）
-                        { type: 'building_specific_bonus', buildingId: 'ancestral_hall', per: 20, bonus: { stability: 1.2, maxPop: 0.005, cultureBonus: 0.008 }, cap: 25 },
+                        // 教堂数量 → 稳定度+人口+文化（信仰广泛传播）
+                        { type: 'building_specific_bonus', buildingId: 'church', per: 20, bonus: { stability: 1.2, maxPop: 0.005, cultureBonus: 0.008 }, cap: 25 },
                     ],
                 },
             ],
