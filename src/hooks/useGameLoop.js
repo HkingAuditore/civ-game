@@ -3304,7 +3304,7 @@ difficulty, // 游戏难度
                         setArmy(result.army); // 保存战斗损失
                     }
                     // 更新官员状态（含独立财务数据）
-                    // [FIX] 浣跨敤鍑芥暟寮忔洿鏂帮紝鍚堝苟鏂伴泧浣ｇ殑瀹樺憳閬垮厤绔炴€佹潯浠惰鐩?
+                    // [FIX] 使用函数式更新，合并新雇佣/已解雇的官员避免竞态条件覆盖
                     if (nextOfficials) {
                         setOfficials(prevOfficials => {
                             // 如果 simulation 返回的官员列表和当前状态一致，直接使用
@@ -3312,22 +3312,38 @@ difficulty, // 游戏难度
                                 return nextOfficials;
                             }
 
-                            // 创建 simulation 缁撴灉鐨?ID 映射（用于快速查找）
+                            // 创建双向 ID 映射
                             const simOfficialMap = new Map(nextOfficials.map(o => [o?.id, o]));
+                            const prevOfficialIdSet = new Set(prevOfficials.map(o => o?.id).filter(Boolean));
 
-                            // 鎵惧嚭褰撳墠鐘舵€佷腑瀛樺湪浣?simulation 结果中没有的官员（新雇佣的）
+                            // 找出当前状态中存在但 simulation 结果中没有的官员（新雇佣的）
                             const newlyHiredOfficials = prevOfficials.filter(
                                 o => o?.id && !simOfficialMap.has(o.id)
                             );
 
-                            // 濡傛灉娌℃湁鏂伴泧浣ｇ殑瀹樺憳锛岀洿鎺ヨ繑鍥?simulation 结果
-                            if (newlyHiredOfficials.length === 0) {
+                            // [FIX] 找出 simulation 结果中存在但当前状态中没有的官员（已被解雇/处置的）
+                            // 这些官员是用户在 tick 运行期间解雇的，simulation 用的是旧快照所以还带着它们
+                            const firedOfficialIds = new Set(
+                                nextOfficials.filter(o => o?.id && !prevOfficialIdSet.has(o.id)).map(o => o.id)
+                            );
+
+                            // 如果既没有新雇佣也没有已解雇的，直接返回 simulation 结果
+                            if (newlyHiredOfficials.length === 0 && firedOfficialIds.size === 0) {
                                 return nextOfficials;
                             }
 
-                            // 合并：simulation 结果 + 新雇佣的官员（去重保护）
-                            debugLog('mainThread', `[HIRE FIX] Preserving ${newlyHiredOfficials.length} newly hired official(s) from race condition`);
-                            const merged = [...nextOfficials, ...newlyHiredOfficials];
+                            // 从 simulation 结果中排除已解雇的官员，保留更新后的财务数据
+                            let baseOfficials = nextOfficials;
+                            if (firedOfficialIds.size > 0) {
+                                debugLog('mainThread', `[FIRE FIX] Removing ${firedOfficialIds.size} fired official(s) that simulation still carried`);
+                                baseOfficials = nextOfficials.filter(o => !firedOfficialIds.has(o?.id));
+                            }
+
+                            // 合并：过滤后的 simulation 结果 + 新雇佣的官员
+                            if (newlyHiredOfficials.length > 0) {
+                                debugLog('mainThread', `[HIRE FIX] Preserving ${newlyHiredOfficials.length} newly hired official(s) from race condition`);
+                            }
+                            const merged = [...baseOfficials, ...newlyHiredOfficials];
                             // Deduplicate by id to prevent key conflicts in UI
                             const seen = new Set();
                             return merged.filter(o => {
@@ -3336,8 +3352,7 @@ difficulty, // 游戏难度
                                 return true;
                             });
                         });
-                    }
-                    if (typeof result.officialsSimCursor === 'number' && typeof setOfficialsSimCursor === 'function') {
+                    }                    if (typeof result.officialsSimCursor === 'number' && typeof setOfficialsSimCursor === 'function') {
                         setOfficialsSimCursor(result.officialsSimCursor);
                     }
                     // 更新官员容量（基于时代、政体、科技动态计算）
