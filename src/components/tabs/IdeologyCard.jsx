@@ -110,7 +110,7 @@ const UNIT_CATEGORY_LABELS = {
 const BUILDING_ID_LABELS = {
     temple: '寺庙',
     shrine: '神庙',
-    ancestral_hall: '祠堂',
+    church: '教堂',
     harbor: '港口',
     farm: '农场',
     laboratory: '实验室',

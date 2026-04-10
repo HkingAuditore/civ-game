@@ -1784,6 +1784,10 @@ const ActiveWars = ({ nation, gameState, daysElapsed, nations = [], epoch = 0 })
                                 <div className="text-right">
                                     <div className="text-xs text-red-300 font-mono">
                                         {(war.score > 0 ? '+' : '') + Math.round(war.score)} 分
+                                        {/* 僵持标签：分数为0且战争持续超过30天 */}
+                                        {Math.round(war.score) === 0 && duration > 30 && (
+                                            <span className="ml-1 px-1 py-0.5 text-xs bg-gray-600/40 text-gray-400 rounded">僵持</span>
+                                        )}
                                     </div>
                                     <div className="text-xs text-ancient-stone/60">
                                         {duration > 0 ? `持续 ${duration} 天` : '刚开战'}
@@ -2177,8 +2181,8 @@ const AIWarFrontDetail = ({ war, nation, enemy, daysElapsed, nations = [], milit
                                 {(breakdown.bonus || 0) > 0 ? '+' : ''}{breakdown.bonus || 0}
                             </div>
                         </div>
-                        <div>
-                            <div className="text-xs text-gray-500">持续占领</div>
+                        <div title="包含持续占领分和消耗分">
+                            <div className="text-xs text-gray-500">占领/消耗</div>
                             <div className={`text-xs font-semibold ${(breakdown.occupation || 0) > 0 ? 'text-emerald-400' : (breakdown.occupation || 0) < 0 ? 'text-red-400' : 'text-gray-400'}`}>
                                 {(breakdown.occupation || 0) > 0 ? '+' : ''}{breakdown.occupation || 0}
                             </div>

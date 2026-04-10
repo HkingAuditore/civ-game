@@ -1090,7 +1090,7 @@ difficulty, // 游戏难度
     // [PERF] Full tick UI 数据缓存：非 full tick 时被 stripPayloadForTransfer 剥离的字段
     // 主线程使用此缓存填充，避免 UI 出现空白
     const fullTickCacheRef = useRef({
-        officials: null,
+        // [FIX] officials 已从缓存中移除：它每 tick 都传输（包含持久状态）
         activeFronts: null,
         activeBattles: null,
         foreignInvestmentStats: null,
@@ -3177,7 +3177,7 @@ difficulty, // 游戏难度
                     const ftc = fullTickCacheRef.current;
                     if (result._isFullTick) {
                         // Full tick: 缓存所有 UI-only 字段
-                        if (result.officials != null) ftc.officials = result.officials;
+                        // [FIX] officials 不再缓存/恢复：它每 tick 都传输（包含持久状态）
                         if (result.activeFronts != null) ftc.activeFronts = result.activeFronts;
                         if (result.activeBattles != null) ftc.activeBattles = result.activeBattles;
                         if (result.foreignInvestmentStats != null) ftc.foreignInvestmentStats = result.foreignInvestmentStats;
@@ -3188,7 +3188,7 @@ difficulty, // 游戏难度
                         if (result.modifiers) ftc.modifiers = result.modifiers;
                     } else {
                         // 非 full tick: 从缓存填充被剥离的字段
-                        if (result.officials == null) result.officials = ftc.officials;
+                        // [FIX] officials 不再从缓存恢复：它每 tick 都传输（包含持久状态）
                         if (result.activeFronts == null) result.activeFronts = ftc.activeFronts;
                         if (result.activeBattles == null) result.activeBattles = ftc.activeBattles;
                         if (result.foreignInvestmentStats == null) result.foreignInvestmentStats = ftc.foreignInvestmentStats;
@@ -6363,15 +6363,19 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                             silver: (prev.silver || 0) - paymentAmount
                         }), { reason: 'installment_payment' });
 
-                        gameState.setPlayerInstallmentPayment(prev => ({
-                            ...prev,
-                            paidAmount: prev.paidAmount + paymentAmount,
-                            remainingDays: prev.remainingDays - 1
-                        }));
-
                         if (payment.remainingDays === 1) {
+                            // Last installment — clear payment directly to avoid null prev in queued updater
                             addLog('[分期支付完成] 你已完成全部分期赔款（共 ' + payment.totalAmount + ' 银币）。');
                             gameState.setPlayerInstallmentPayment(null);
+                        } else {
+                            gameState.setPlayerInstallmentPayment(prev => {
+                                if (!prev) return prev;
+                                return {
+                                    ...prev,
+                                    paidAmount: prev.paidAmount + paymentAmount,
+                                    remainingDays: prev.remainingDays - 1
+                                };
+                            });
                         }
                     } else {
                         // 银币涓嶈冻锛岃繚绾?

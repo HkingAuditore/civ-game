@@ -1489,13 +1489,16 @@ const evaluateWarGoal = (nation, target, strengthRatio, relation) => {
  * @param {number} tick
  * @param {Array} logs
  */
-export const processAIWarPreparations = (visibleNations, tick, logs) => {
+export const processAIWarPreparations = (visibleNations, tick, logs, updatedNations = null) => {
+    // [FIX] Use updatedNations (full list) for target lookup to avoid
+    // incorrectly cancelling preparations when target is in a different slice
+    const allNations = updatedNations || visibleNations;
     for (const nation of visibleNations) {
         if (!nation.warPreparation) continue;
         const prep = nation.warPreparation;
 
-        // 找到目标国
-        const target = visibleNations.find(n => n.id === prep.targetId);
+        // 找到目标国（从完整国家列表中查找，避免分片导致误取消）
+        const target = allNations.find(n => n.id === prep.targetId);
         if (!target || target.isAnnexed) {
             // 目标不存在或已灭亡，取消备战
             delete nation.warPreparation;
@@ -1532,13 +1535,18 @@ export const processAIWarPreparations = (visibleNations, tick, logs) => {
  * @param {Object} diplomacyOrganizations - Org state
  */
 export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs, diplomacyOrganizations, vassalDiplomacyRequests = null) => {
+    // [FIX] Use updatedNations for target iteration so that all nations can be
+    // considered as potential war targets, not just those in the current slice.
+    // This fixes the issue where war preparations could never complete because
+    // the attacker and target were rarely in the same diplomacy slice.
+    const targetPool = updatedNations || visibleNations;
     visibleNations.forEach(nation => {
         // [FIX] Skip annexed nations
         if (nation.isAnnexed) return;
 
         if (!nation.foreignWars) nation.foreignWars = {};
 
-        visibleNations.forEach(otherNation => {
+        targetPool.forEach(otherNation => {
             // [FIX] Skip annexed nations as targets
             if (otherNation.isAnnexed) return;
 
@@ -1577,7 +1585,7 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             let mySideStrength = calculateNationPower(nation);
             let enemySideStrength = calculateNationPower(otherNation);
 
-            visibleNations.forEach(n => {
+            targetPool.forEach(n => {
                 if (n.id === nation.id || n.id === otherNation.id) return;
                 const isMyAlly = areNationsAllied(nation.id, n.id, diplomacyOrganizations?.organizations);
                 if (isMyAlly) mySideStrength += calculateNationPower(n);
@@ -1605,13 +1613,13 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             if (otherNation.vassalOf === 'player' && !nation.isAtWar) {
                 // Calculate player side strength (all player's vassals)
                 let playerSideStrength = 0;
-                visibleNations.forEach(n => {
+                targetPool.forEach(n => {
                     if (n.vassalOf === 'player') {
                         playerSideStrength += calculateNationPower(n);
                     }
                 });
-                // Add estimated player strength (use average of visible nations as proxy)
-                const avgNationPower = visibleNations.reduce((sum, n) => sum + calculateNationPower(n), 0) / Math.max(1, visibleNations.length);
+                // Add estimated player strength (use average of all nations as proxy)
+                const avgNationPower = targetPool.reduce((sum, n) => sum + calculateNationPower(n), 0) / Math.max(1, targetPool.length);
                 playerSideStrength += avgNationPower * 2; // Player is assumed to be stronger than average
 
                 // If attacker is weaker than player side, heavily reduce war chance
@@ -1879,7 +1887,9 @@ export const getMultiWarStrengthRatio = (nation, allNations = []) => {
 
 export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs, vassalDiplomacyRequests = null, epoch = null, militaryCorps = [], generals = []) => {
     // Create a set of visible nation IDs for quick lookup
-    const visibleNationIds = new Set(visibleNations.map(n => n.id));
+    // [FIX] Use updatedNations (full list) instead of visibleNations (sliced subset)
+    // to prevent wars from being incorrectly cleaned up when the enemy is not in the current slice
+    const allNationIds = new Set(updatedNations.map(n => n.id));
 
     // === AI-AI 战争军团分配：每个国家的有限军团按战线优先级分配到各场战争 ===
     // Map<nationId, Map<enemyId, Set<corpsId>>>
@@ -1942,7 +1952,29 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
     // [FIX] Deduplicate war pairs — each A↔B war should only be processed once per tick
     const processedPairs = new Set();
 
-    visibleNations.forEach(nation => {
+    // [DEBUG] Count active wars across ALL nations (not just visible slice)
+    let _totalActiveWars = 0;
+    let _sliceActiveWars = 0;
+    for (const n of updatedNations) {
+        if (!n?.foreignWars) continue;
+        for (const [eid, w] of Object.entries(n.foreignWars)) {
+            if (w?.isAtWar && eid !== n.id) _totalActiveWars++;
+        }
+    }
+    for (const n of visibleNations) {
+        if (!n?.foreignWars) continue;
+        for (const [eid, w] of Object.entries(n.foreignWars)) {
+            if (w?.isAtWar && eid !== n.id) _sliceActiveWars++;
+        }
+    }
+    if (tick % 49 === 0) {
+        console.warn(`[AI-WAR-DIAG] tick=${tick}, visibleNations=${visibleNations.length}, totalActiveWars=${_totalActiveWars}, sliceActiveWars=${_sliceActiveWars}, nations=[${visibleNations.map(n => n.name).join(', ')}]`);
+    }
+
+    // [FIX] War progression must iterate over ALL nations, not just the diplomacy slice.
+    // The diplomacy slice (visibleNations) only contains ~4 nations per tick, so most wars
+    // would never be processed if we only iterate the slice.
+    updatedNations.forEach(nation => {
         Object.keys(nation.foreignWars || {}).forEach(enemyId => {
             // [FIX] Prevent nation from attacking itself
             if (enemyId === nation.id) {
@@ -1961,9 +1993,9 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
 
             const enemy = updatedNations.find(n => n.id === enemyId);
 
-            // Clean up war state if enemy no longer exists or is no longer visible
-            if (!enemy || !visibleNationIds.has(enemyId)) {
-                // End war with destroyed/invisible nation
+            // Clean up war state if enemy nation no longer exists (destroyed/absorbed)
+            if (!enemy || !allNationIds.has(enemyId)) {
+                // End war with destroyed nation
                 nation.foreignWars[enemyId] = { isAtWar: false };
                 if (enemy) {
                     logs.push(`⚔️ ${nation.name} 与 ${enemy.name} 的战争因对方势力消亡而结束。`);
@@ -2002,6 +2034,27 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             }
             if (!war.warEvents) {
                 war.warEvents = [];
+            }
+            // 初始化 tick 频率修复所需的计数器字段（兼容旧存档）
+            // 对于旧存档中已进行很久的战争，将计数器初始化为当前 warDuration 附近
+            // 这样下一个周期就能正常触发，而不是一次性补偿几千个周期
+            const _warDur = tick - (war.warStartDay || tick);
+            if (war._lastOccupationDay == null) {
+                war._lastOccupationDay = Math.max(0, _warDur - 5);
+            }
+            if (war._lastAttritionDay == null) {
+                war._lastAttritionDay = Math.max(0, _warDur - 15);
+            }
+            if (!war._checkpointCrossCount) {
+                war._checkpointCrossCount = {};
+            }
+            // 初始化战争结束检查计数器（兼容旧存档）
+            if (war._lastEndCheckDay == null) {
+                war._lastEndCheckDay = Math.max(0, _warDur - 10);
+            }
+            // 初始化累积偏向方向（兼容旧存档）：一旦确定，后续分数有偏向性
+            if (war._scoreMomentum == null) {
+                war._scoreMomentum = 0;
             }
             const enemyWar = enemy.foreignWars[nation.id];
             if (enemyWar && enemyWar.linePosition == null) {
@@ -2094,6 +2147,11 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 enemy.economyDirtyFlags = { ...(enemy.economyDirtyFlags || {}), resourcesDirty: true };
             }
 
+            // [DEBUG] Diagnostic log — remove after confirming war progression works
+            if (warDuration > 1000) {
+                console.warn(`[AI-WAR-DEBUG] ${nation.name} vs ${enemy.name}: linePos=${war.linePosition?.toFixed(2)}, score=${war.warScore}, totalStr=${totalStr}, nationEff=${nationEffStr}, enemyEff=${enemyEffStr}, warDur=${warDuration}, momentum=${war._scoreMomentum}`);
+            }
+
             if (totalStr > 0) {
                 // advanceRate 基础值 0.3~0.6/tick，根据战争强度微调
                 const advanceRate = 0.3 + warIntensity * 0.15;
@@ -2135,6 +2193,27 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
 
                     // warScore 增量（nation 视角正值=nation 优势）
                     const scoreDir = direction === 'forward' ? 1 : -1;
+
+                    // checkpoint 50 特殊处理：中线拉锯是常态，降低基础分数并对重复跨越衰减
+                    if (checkpoint === 50) {
+                        scoreChange = AI_WAR_DECISION.CHECKPOINT_50_BASE_SCORE; // 3分而非5分
+                    }
+                    // checkpoint 重复跨越衰减：同一 checkpoint 在短时间内被反复跨越时分数递减
+                    if (!war._checkpointCrossCount) war._checkpointCrossCount = {};
+                    const cpKey = String(checkpoint);
+                    const cpRecord = war._checkpointCrossCount[cpKey] || { count: 0, lastDay: 0 };
+                    const daysSinceLastCross = tick - cpRecord.lastDay;
+                    if (daysSinceLastCross <= AI_WAR_DECISION.CHECKPOINT_REPEAT_DECAY_WINDOW) {
+                        // 30天内重复跨越：第2次50%、第3次25%、第4次+10%
+                        const repeatCount = cpRecord.count + 1;
+                        const decayFactor = repeatCount <= 1 ? 1.0 : repeatCount === 2 ? 0.5 : repeatCount === 3 ? 0.25 : 0.1;
+                        scoreChange = Math.max(1, Math.round(scoreChange * decayFactor));
+                        war._checkpointCrossCount[cpKey] = { count: repeatCount, lastDay: tick };
+                    } else {
+                        // 超过衰减窗口，重置计数
+                        war._checkpointCrossCount[cpKey] = { count: 1, lastDay: tick };
+                    }
+
                     war.warScore = (war.warScore || 0) + scoreChange * scoreDir;
                     war.warScoreBreakdown.checkpoint = (war.warScoreBreakdown.checkpoint || 0) + scoreChange * scoreDir;
                     if (enemy.foreignWars[nation.id]) {
@@ -2245,32 +2324,105 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 }
             }
 
-            // === 持续占领 warScore（每5天根据战线位置累积） ===
-            if (warDuration > 0 && warDuration % 5 === 0) {
-                const posOffset = war.linePosition - 50; // >0 nation优势, <0 enemy优势
-                if (Math.abs(posOffset) > 2) {
-                    // 偏离中线越远，每5天积累越多分数（1~4分）
-                    const occupationScore = Math.round(clamp(Math.abs(posOffset) / 10, 1, 4));
-                    const occupationDir = posOffset > 0 ? 1 : -1;
-                    war.warScore = (war.warScore || 0) + occupationScore * occupationDir;
-                    war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + occupationScore * occupationDir;
+            // === 持续占领 warScore（基于计数器，每5天触发一次，不受tick频率影响） ===
+            if (warDuration > 0) {
+                const lastOccDay = war._lastOccupationDay || 0;
+                const daysSinceOcc = warDuration - lastOccDay;
+                if (daysSinceOcc >= 5) {
+                    // 补偿跳过的周期（每7tick调用一次可能跳过多个5天周期），但限制最多补偿3次
+                    const occTriggers = Math.min(3, Math.floor(daysSinceOcc / 5));
+                    war._lastOccupationDay = lastOccDay + occTriggers * 5;
+                    const posOffset = war.linePosition - 50; // >0 nation优势, <0 enemy优势
+                    // 动态阈值：战争越久，越小的偏移也能产生分数；超过100天阈值降为0
+                    const occThreshold = warDuration > 100 ? 0 : warDuration > 50 ? 1 : AI_WAR_DECISION.OCCUPATION_BASE_THRESHOLD;
+                    if (Math.abs(posOffset) > occThreshold) {
+                        // 偏离中线越远，每5天积累越多分数（1~4分），乘以补偿次数
+                        const occupationScore = Math.round(clamp(Math.abs(posOffset) / 10, 1, 4)) * occTriggers;
+                        const occupationDir = posOffset > 0 ? 1 : -1;
+                        war.warScore = (war.warScore || 0) + occupationScore * occupationDir;
+                        war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + occupationScore * occupationDir;
+                        // 更新动量：占领分数方向强化动量
+                        war._scoreMomentum = clamp((war._scoreMomentum || 0) + occupationDir * 0.1, -1, 1);
+                        if (enemy.foreignWars[nation.id]) {
+                            enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                        }
+                    }
+                }
+            }
+
+            // === 长期消耗分（基于计数器，每15天触发一次，不受tick频率影响） ===
+            // 即使战线僵持在中线附近，长期战争也应缓慢累积分数（模拟消耗战的此消彼长）
+            if (warDuration > 30) {
+                const lastAttrDay = war._lastAttritionDay || 0;
+                const daysSinceAttr = warDuration - lastAttrDay;
+                if (daysSinceAttr >= 15) {
+                    const attrTriggers = Math.min(3, Math.floor(daysSinceAttr / 15));
+                    war._lastAttritionDay = lastAttrDay + attrTriggers * 15;
+                    const strRatio = nationEffStr / Math.max(1, nationEffStr + enemyEffStr);
+                    // 优势方获得消耗分；均势时使用动量偏向（而非纯随机）
+                    let attritionDir = 0;
+                    if (strRatio > 0.55) attritionDir = 1;
+                    else if (strRatio < 0.45) attritionDir = -1;
+                    else {
+                        // 均势时：70%概率跟随动量方向，30%概率随机
+                        // 这确保分数不会永远在0附近震荡
+                        const momentum = war._scoreMomentum || 0;
+                        if (Math.abs(momentum) > 0.1 && Math.random() < 0.7) {
+                            attritionDir = momentum > 0 ? 1 : -1;
+                        } else {
+                            attritionDir = Math.random() < 0.5 ? 1 : -1;
+                        }
+                    }
+                    const attritionScore = attrTriggers * attritionDir;
+                    war.warScore = (war.warScore || 0) + attritionScore;
+                    war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + attritionScore;
+                    // 更新动量
+                    war._scoreMomentum = clamp((war._scoreMomentum || 0) + attritionDir * 0.05, -1, 1);
                     if (enemy.foreignWars[nation.id]) {
                         enemy.foreignWars[nation.id].warScore = -(war.warScore);
                     }
                 }
             }
 
-            // === 长期消耗分（每15天，战争持续超过30天后） ===
-            // 即使战线僵持在中线附近，长期战争也应缓慢累积分数（模拟消耗战的此消彼长）
-            if (warDuration > 30 && warDuration % 15 === 0) {
+            // === 均势僵持消耗分（战线在47~53范围内时，每次调用给微小分数漂移） ===
+            // 使用动量偏向确保分数能单向累积
+            if (warDuration > 30 && war.linePosition >= 47 && war.linePosition <= 53) {
                 const strRatio = nationEffStr / Math.max(1, nationEffStr + enemyEffStr);
-                // 优势方获得1分消耗分；双方极度均势(0.45~0.55)时随机给一方
-                let attritionDir = 0;
-                if (strRatio > 0.55) attritionDir = 1;
-                else if (strRatio < 0.45) attritionDir = -1;
-                else attritionDir = Math.random() < 0.5 ? 1 : -1;
-                war.warScore = (war.warScore || 0) + attritionDir;
-                war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + attritionDir;
+                const momentum = war._scoreMomentum || 0;
+                let stalemateDir = 0;
+                if (strRatio > 0.52) stalemateDir = 1;
+                else if (strRatio < 0.48) stalemateDir = -1;
+                else if (Math.abs(momentum) > 0.05) {
+                    // 有动量时80%概率跟随动量
+                    stalemateDir = (Math.random() < 0.8) ? (momentum > 0 ? 1 : -1) : (Math.random() < 0.5 ? 1 : -1);
+                } else {
+                    stalemateDir = Math.random() < 0.5 ? 1 : -1;
+                }
+                war.warScore = (war.warScore || 0) + stalemateDir;
+                war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + stalemateDir;
+                // 更新动量
+                war._scoreMomentum = clamp((war._scoreMomentum || 0) + stalemateDir * 0.03, -1, 1);
+                if (enemy.foreignWars[nation.id]) {
+                    enemy.foreignWars[nation.id].warScore = -(war.warScore);
+                }
+            }
+
+            // === 长期战争强制分数注入（超过1年的僵持战争，每次调用注入2~5分） ===
+            if (warDuration > AI_WAR_DECISION.AI_WAR_LONG_WAR_THRESHOLD && Math.abs(war.warScore || 0) < 30) {
+                const momentum = war._scoreMomentum || 0;
+                // 强制选择一个方向：优先跟随动量，否则跟随微小实力差
+                let forceDir;
+                if (Math.abs(momentum) > 0.1) {
+                    forceDir = momentum > 0 ? 1 : -1;
+                } else {
+                    forceDir = nationEffStr >= enemyEffStr ? 1 : -1;
+                }
+                // 注入分数随战争时长递增：1年后2分，2年后3分，3年后5分
+                const yearsPast = (warDuration - AI_WAR_DECISION.AI_WAR_LONG_WAR_THRESHOLD) / 365;
+                const forceScore = Math.round(clamp(2 + yearsPast * 1.5, 2, 5));
+                war.warScore = (war.warScore || 0) + forceScore * forceDir;
+                war.warScoreBreakdown.occupation = (war.warScoreBreakdown.occupation || 0) + forceScore * forceDir;
+                war._scoreMomentum = clamp((war._scoreMomentum || 0) + forceDir * 0.15, -1, 1);
                 if (enemy.foreignWars[nation.id]) {
                     enemy.foreignWars[nation.id].warScore = -(war.warScore);
                 }
@@ -2307,7 +2459,7 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 const nationMilRatio = clamp(1 - (nation.militaryStrength ?? 1) / Math.max(0.01, war.nationEffStr / 100), 0, 1);
                 const nationWealthRatio = clamp(1 - getNationTreasury(nation, 100) / Math.max(1, getNationAnnualOutput(nation, 500) * 0.5), 0, 1);
                 const scorePenalty = (war.warScore || 0) < -20 ? 0.002 : 0; // 劣势方额外疲劳
-                const fatigueDelta = nationMilRatio * milLossRate + nationWealthRatio * wealthLossRate + scorePenalty;
+                const fatigueDelta = Math.max(AI_WAR_DECISION.FATIGUE_MIN_DELTA, nationMilRatio * milLossRate + nationWealthRatio * wealthLossRate + scorePenalty);
                 war.warFatigue = clamp((war.warFatigue || 0) + fatigueDelta, 0, 1);
 
                 // 同步给敌方视角
@@ -2315,13 +2467,16 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                     const enemyMilRatio = clamp(1 - (enemy.militaryStrength ?? 1) / Math.max(0.01, war.enemyEffStr / 100), 0, 1);
                     const enemyWealthRatio = clamp(1 - getNationTreasury(enemy, 100) / Math.max(1, getNationAnnualOutput(enemy, 500) * 0.5), 0, 1);
                     const enemyScorePenalty = (war.warScore || 0) > 20 ? 0.002 : 0;
-                    const enemyFatigueDelta = enemyMilRatio * milLossRate + enemyWealthRatio * wealthLossRate + enemyScorePenalty;
+                    const enemyFatigueDelta = Math.max(AI_WAR_DECISION.FATIGUE_MIN_DELTA, enemyMilRatio * milLossRate + enemyWealthRatio * wealthLossRate + enemyScorePenalty);
                     enemy.foreignWars[nation.id].warFatigue = clamp((enemy.foreignWars[nation.id].warFatigue || 0) + enemyFatigueDelta, 0, 1);
                 }
             }
 
-            // === 战争结束判定（每10天检查一次） ===
-            if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
+            // === 战争结束判定（基于计数器，每10天检查一次，不受tick频率影响） ===
+            const lastEndCheckDay = war._lastEndCheckDay || 0;
+            const daysSinceEndCheck = warDuration - lastEndCheckDay;
+            if (daysSinceEndCheck >= 10 && warDuration > 0) {
+                war._lastEndCheckDay = lastEndCheckDay + Math.min(3, Math.floor(daysSinceEndCheck / 10)) * 10;
                 if (!war.endScoreThreshold) {
                     // War goal determines how decisive the war needs to be before ending
                     // tribute/preemptive: lower threshold (quick wars), vassal/annex: higher (need decisive outcome)
@@ -2351,37 +2506,56 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                 // 双方有任一方疲劳超过阈值，增加结束概率
                 const fatigueOver = Math.max(nationFatigue - fatigueThreshold, enemyFatigue - fatigueThreshold, 0);
                 const fatigueFactor = clamp(fatigueOver * 0.3 + (warDuration - 100) / 2000, 0, 0.20);
-                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 + fatigueFactor : extremePosition ? 0.02 + fatigueFactor : 0.005 + fatigueFactor;
+                // 长期战争加速结束：超过1年后 exhaustion 概率随时间递增
+                const longWarBonus = warDuration > AI_WAR_DECISION.AI_WAR_LONG_WAR_THRESHOLD
+                    ? (warDuration - AI_WAR_DECISION.AI_WAR_LONG_WAR_THRESHOLD) / 5000
+                    : 0;
+                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 + fatigueFactor + longWarBonus : extremePosition ? 0.02 + fatigueFactor + longWarBonus : 0.005 + fatigueFactor + longWarBonus;
 
-                if (absoluteWarScore >= war.endScoreThreshold || Math.random() < exhaustionEndChance) {
+                // 僵持战争降低结束阈值：超过2年且分数低于阈值50%时，强制降低阈值
+                if (warDuration > AI_WAR_DECISION.AI_WAR_STALEMATE_THRESHOLD && absoluteWarScore < war.endScoreThreshold * 0.5) {
+                    war.endScoreThreshold = Math.max(15, absoluteWarScore + 10);
+                }
+
+                // 强制结束：超过3年直接结算
+                const forceEnd = warDuration > AI_WAR_DECISION.AI_WAR_MAX_DURATION;
+
+                if (forceEnd || absoluteWarScore >= war.endScoreThreshold || Math.random() < exhaustionEndChance) {
                     const needsApproval = requiresVassalDiplomacyApproval(nation) || requiresVassalDiplomacyApproval(enemy);
-                    if (needsApproval && Array.isArray(vassalDiplomacyRequests)) {
+                    // [FIX] forceEnd（超过3年）时绕过附庸审批，直接结束战争。
+                    // 否则附庸的 puppet/guided 控制模式会导致战争永远无法结束。
+                    if (needsApproval && !forceEnd && Array.isArray(vassalDiplomacyRequests)) {
                         const requester = requiresVassalDiplomacyApproval(nation) ? nation : enemy;
                         const target = requester.id === nation.id ? enemy : nation;
 
                         // Check if requester is allowed to propose peace
                         const diplomaticControl = requester.vassalPolicy?.diplomaticControl || 'guided';
                         if (diplomaticControl === 'puppet') {
-                            // Puppet vassals cannot propose peace independently
-                            // Peace will be handled automatically or by player order
+                            // Puppet vassals: auto-resolve after 2 years without player intervention
+                            // 傀儡附庸超过2年的战争自动结束，不再无限等待玩家指令
+                            if (warDuration > 730) {
+                                // Fall through to normal war end logic below
+                            } else {
+                                return;
+                            }
+                        } else {
+                            // Guided mode: generate peace request for player approval
+                            // Only generate peace request if not already pending
+                            if (!war.pendingPeaceApproval) {
+                                vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
+                                    vassal: requester,
+                                    target,
+                                    actionType: 'propose_peace',
+                                    payload: { warScore: war.warScore || 0 },
+                                    tick,
+                                }));
+                                war.pendingPeaceApproval = true;
+                                if (enemy.foreignWars?.[nation.id]) {
+                                    enemy.foreignWars[nation.id].pendingPeaceApproval = true;
+                                }
+                            }
                             return;
                         }
-
-                        // Only generate peace request if not already pending
-                        if (!war.pendingPeaceApproval) {
-                            vassalDiplomacyRequests.push(buildVassalDiplomacyRequest({
-                                vassal: requester,
-                                target,
-                                actionType: 'propose_peace',
-                                payload: { warScore: war.warScore || 0 },
-                                tick,
-                            }));
-                            war.pendingPeaceApproval = true;
-                            if (enemy.foreignWars?.[nation.id]) {
-                                enemy.foreignWars[nation.id].pendingPeaceApproval = true;
-                            }
-                        }
-                        return;
                     }
                     const winner = (war.warScore || 0) > 0 ? nation : enemy;
                     const loser = winner.id === nation.id ? enemy : nation;

@@ -2397,7 +2397,18 @@ export const useGameActions = (gameState, addLog) => {
     const hireNewOfficial = (officialId) => {
         // 实际容量限制：取 建筑提供的岗位数 和 面板容量上限 的最小值
         // 防止在没有建造相应建筑时雇佣官员
-        const effectiveCapacity = Math.min(jobsAvailable?.official || 0, officialCapacity);
+        // [FIX] 与 App.jsx UI capacity 计算保持一致：当 jobsAvailable.official 为 0 时
+        // 从建筑配置直接计算兜底值，避免 UI 显示有空位但实际雇佣时 effectiveCapacity=0
+        let officialJobs = jobsAvailable?.official || 0;
+        if (officialJobs === 0) {
+            BUILDINGS.forEach(b => {
+                const cnt = buildings?.[b.id] || 0;
+                if (cnt > 0 && b.jobs?.official) {
+                    officialJobs += b.jobs.official * cnt;
+                }
+            });
+        }
+        const effectiveCapacity = Math.min(officialJobs, officialCapacity);
         
         // [FIX] 使用函数式更新避免竞态条件（与 simulation 的 setOfficials 冲突）
         // 问题：直接赋值 setOfficials(result.newOfficials) 可能被 simulation 返回的旧数据覆盖

@@ -157,7 +157,9 @@ function stripPayloadForTransfer(result) {
         // needsReport 较小（仅 satisfactionRatio × 阶层数），保留每 tick 传输
 
         // [PERF] 额外剥离仅 UI 用的大型字段，主线程使用 fullTickCacheRef 缓存
-        stripped.officials = null;
+        // [FIX] officials 不再剥离：它包含 simulation 下一 tick 必需的持久状态
+        // （wealth、loyalty、lowLoyaltyDays、lastDayExpense 等），剥离会导致
+        // 主线程用旧缓存覆盖状态，使忠诚度/消费变化被稀释到几乎为零
         stripped.activeFronts = null;
         stripped.activeBattles = null;
         stripped.foreignInvestmentStats = null;
