@@ -43,6 +43,33 @@
         })();
     </script>
     <script>
+        // Polyfill for Array.prototype.flat / flatMap - required for older browsers (Chrome < 69, Android WebView < 69)
+        // This must run before app modules execute because logic/config files use .flatMap() at top-level
+        (function () {
+            if (!Array.prototype.flat) {
+                Array.prototype.flat = function (depth) {
+                    var d = depth === undefined ? 1 : Math.floor(Number(depth));
+                    if (d < 1) return Array.prototype.slice.call(this);
+                    return Array.prototype.reduce.call(this, function (acc, val) {
+                        if (Array.isArray(val) && d > 0) {
+                            acc = acc.concat(Array.prototype.flat.call(val, d - 1));
+                        } else {
+                            acc.push(val);
+                        }
+                        return acc;
+                    }, []);
+                };
+                console.log('[Polyfill] Array.prototype.flat polyfill applied');
+            }
+            if (!Array.prototype.flatMap) {
+                Array.prototype.flatMap = function (callback, thisArg) {
+                    return Array.prototype.map.call(this, callback, thisArg).flat(1);
+                };
+                console.log('[Polyfill] Array.prototype.flatMap polyfill applied');
+            }
+        })();
+    </script>
+    <script>
         // Force trailing slash for relative paths to work correctly with base: './'
         (function () {
             var path = window.location.pathname;
@@ -274,7 +301,7 @@
             transform: none;
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-DEguQKXl.js"></script>
+  <script type="module" crossorigin src="./assets/index-DnCpz0qp.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/vendor-CC5Q4v7N.js">
   <link rel="modulepreload" crossorigin href="./assets/motion-BF5hIlvv.js">
   <link rel="stylesheet" crossorigin href="./assets/index-CArWDUKE.css">
