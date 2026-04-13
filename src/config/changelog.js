@@ -4,9 +4,20 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.47',
+        date: '2026-04-13',
+        isLatest: true,
+        highlights: [
+            '兼容旧版 Android WebView：补充 flat/flatMap polyfill，低版本设备不再白屏',
+        ],
+        changes: [
+            { type: 'fix', text: '为旧版浏览器（Chrome < 69 / Android WebView < 69）添加 Array.prototype.flat 与 flatMap 的 polyfill：部分低版本安卓设备因缺少该方法导致应用启动即白屏崩溃，现已在应用入口提前注入兼容补丁。' },
+        ],
+    },
+    {
         version: '2.3.46',
         date: '2026-04-10',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '官员系统再修一轮：同帧雇佣与解雇都能稳定落地，不再互相覆盖',
             'simulation 回写会同时处理“新增官员”和“已移除官员”，状态更一致',
