@@ -548,8 +548,8 @@ export const SettingsPanel = ({
             {/* 性能模式设置 */}
             <PerformanceModeSection />
 
-            {/* 联网更新设置（仅原生APP显示） */}
-            <OtaUpdateSection />
+            {/* 联网更新设置（暂时隐藏） */}
+            {/* <OtaUpdateSection /> */}
 
             {/* Debug选项 */}
             <div className="border-t border-gray-700 pt-3 space-y-2">
