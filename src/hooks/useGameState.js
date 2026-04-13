@@ -3020,15 +3020,51 @@ export const useGameState = () => {
         const shouldUseFastMilitaryLoad = (loadedMilitaryCorps.length + loadedGenerals.length) > FAST_LOAD_MILITARY_ENTITY_THRESHOLD;
         if (shouldUseFastMilitaryLoad) {
             console.warn(`[Save Migration] Large military payload detected (corps=${loadedMilitaryCorps.length}, generals=${loadedGenerals.length}), using fast-load path.`);
-            loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => ({
-                ...corps,
-                generalId: null,
-                assignedFrontId: null,
-                status: 'idle',
-            }));
+            // 快速加载：仅重置将领分配和AI兵团部署，保留玩家兵团的部署状态
+            const fastLoadFronts = (data.activeFronts || []).map(front => ensureFrontDefaults(front));
+            const fastFrontIdSet = new Set(fastLoadFronts.filter(f => f.status === 'active').map(f => f.id));
+            loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => {
+                if (corps.isAI) {
+                    // AI兵团：重置部署以节省加载时间（AI会在游戏tick中重新部署）
+                    return { ...corps, generalId: null, assignedFrontId: null, status: 'idle' };
+                }
+                // 玩家兵团：保留有效的前线分配
+                const assignedFrontId = fastFrontIdSet.has(corps.assignedFrontId) ? corps.assignedFrontId : null;
+                return {
+                    ...corps,
+                    generalId: null,  // 将领仍然重置以保持快速加载的性能优势
+                    assignedFrontId,
+                    status: assignedFrontId ? 'deployed' : 'idle',
+                };
+            });
+            // 重建前线的 assignedCorps 玩家侧列表
+            const playerCorpsByFrontFast = new Map();
+            for (const corps of loadedMilitaryCorps) {
+                if (corps.isAI || !corps.assignedFrontId) continue;
+                if (!playerCorpsByFrontFast.has(corps.assignedFrontId)) {
+                    playerCorpsByFrontFast.set(corps.assignedFrontId, []);
+                }
+                playerCorpsByFrontFast.get(corps.assignedFrontId).push(corps.id);
+            }
+            const reconciledFastFronts = fastLoadFronts.map((front) => {
+                const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
+                const playerCorpsForFront = playerCorpsByFrontFast.get(front.id) || [];
+                return {
+                    ...front,
+                    assignedCorps: {
+                        ...front.assignedCorps,
+                        [playerSide]: playerCorpsForFront,
+                    },
+                    frontlineCorpsOrder: {
+                        ...(front.frontlineCorpsOrder || {}),
+                        [playerSide]: playerCorpsForFront,
+                    },
+                    activeBattleId: null,
+                };
+            });
             setMilitaryCorps(loadedMilitaryCorps);
             setGenerals(loadedGenerals);
-            setActiveFronts([]);
+            setActiveFronts(reconciledFastFronts);
             setActiveBattles([]);
             setPendingRepairs(data.pendingRepairs || []);
         } else {
@@ -3158,18 +3194,58 @@ export const useGameState = () => {
                 });
             }
             const corpsIdSet = new Set(loadedMilitaryCorps.map((corps) => corps.id));
+            // 构建从 frontId → 各侧兵团ID 的映射，用于重建 assignedCorps
+            const playerCorpsByFront = new Map();
+            const aiCorpsByFront = new Map();
+            for (const corps of loadedMilitaryCorps) {
+                if (!corps.assignedFrontId) continue;
+                const targetMap = corps.isAI ? aiCorpsByFront : playerCorpsByFront;
+                if (!targetMap.has(corps.assignedFrontId)) {
+                    targetMap.set(corps.assignedFrontId, []);
+                }
+                targetMap.get(corps.assignedFrontId).push(corps.id);
+            }
             reconciledFronts = reconciledFronts.map((front) => {
                 const pruneList = (list = []) => list.filter((id) => corpsIdSet.has(id));
+                const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
+                const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
+                // 先修剪无效ID
+                const prunedAttacker = pruneList(front.assignedCorps?.attacker);
+                const prunedDefender = pruneList(front.assignedCorps?.defender);
+                // 从兵团数据重建玩家侧和AI侧的 assignedCorps（补全缺失的兵团ID）
+                const playerCorpsForFront = playerCorpsByFront.get(front.id) || [];
+                const aiCorpsForFront = aiCorpsByFront.get(front.id) || [];
+                const existingPlayerSet = new Set(playerSide === 'attacker' ? prunedAttacker : prunedDefender);
+                const existingEnemySet = new Set(enemySide === 'attacker' ? prunedAttacker : prunedDefender);
+                // 将缺失的兵团ID注入到对应侧
+                for (const corpsId of playerCorpsForFront) {
+                    if (!existingPlayerSet.has(corpsId)) existingPlayerSet.add(corpsId);
+                }
+                for (const corpsId of aiCorpsForFront) {
+                    if (!existingEnemySet.has(corpsId)) existingEnemySet.add(corpsId);
+                }
+                const rebuiltPlayerList = [...existingPlayerSet];
+                const rebuiltEnemyList = [...existingEnemySet];
+                const rebuiltAssignedCorps = {
+                    [playerSide]: rebuiltPlayerList,
+                    [enemySide]: rebuiltEnemyList,
+                };
+                // 同样重建 frontlineCorpsOrder
+                const prunedFrontlineAttacker = pruneList(front.frontlineCorpsOrder?.attacker);
+                const prunedFrontlineDefender = pruneList(front.frontlineCorpsOrder?.defender);
+                const existingFrontlinePlayer = new Set(playerSide === 'attacker' ? prunedFrontlineAttacker : prunedFrontlineDefender);
+                for (const corpsId of playerCorpsForFront) {
+                    if (!existingFrontlinePlayer.has(corpsId)) existingFrontlinePlayer.add(corpsId);
+                }
+                const rebuiltFrontlinePlayer = [...existingFrontlinePlayer];
+                const rebuiltFrontlineCorpsOrder = {
+                    [playerSide]: rebuiltFrontlinePlayer,
+                    [enemySide]: enemySide === 'attacker' ? prunedFrontlineAttacker : prunedFrontlineDefender,
+                };
                 return {
                     ...front,
-                    assignedCorps: {
-                        attacker: pruneList(front.assignedCorps?.attacker),
-                        defender: pruneList(front.assignedCorps?.defender),
-                    },
-                    frontlineCorpsOrder: {
-                        attacker: pruneList(front.frontlineCorpsOrder?.attacker),
-                        defender: pruneList(front.frontlineCorpsOrder?.defender),
-                    },
+                    assignedCorps: rebuiltAssignedCorps,
+                    frontlineCorpsOrder: rebuiltFrontlineCorpsOrder,
                     activeBattleId: null,
                 };
             });

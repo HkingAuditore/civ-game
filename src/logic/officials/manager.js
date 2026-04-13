@@ -24,9 +24,11 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
  * @param {Object} classInfluence - 当前影响力占比 { stratumKey: influencePercent }
  * @param {Object} market - 当前市场数据（包含 prices 等信息）
  * @param {Object} rates - 当前资源速率（用于估算规模）
+ * @param {Array} existingOfficials - 已有官员列表
+ * @param {Object|null} polityPreferences - 政体官员偏好 { stratumWeights: {}, statBonuses: {} }
  * @returns {Array} 新生成的候选人列表
  */
-export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, existingOfficials = []) => {
+export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, existingOfficials = [], polityPreferences = null) => {
     const candidates = [];
     // 收集已有官员和候选人的名字，避免重名
     const usedNames = new Set(existingOfficials.map(o => o.name).filter(Boolean));
@@ -34,7 +36,7 @@ export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, 
     let attempts = 0;
     const maxAttempts = 20; // 最多尝试20次，防止死循环
     while (candidates.length < 5 && attempts < maxAttempts) {
-        const candidate = generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length);
+        const candidate = generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length, polityPreferences);
         if (!usedNames.has(candidate.name)) {
             usedNames.add(candidate.name);
             candidates.push(candidate);
@@ -43,7 +45,7 @@ export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, 
     }
     // 如果尝试次数用完仍不足5人，直接补充（允许重名）
     while (candidates.length < 5) {
-        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length));
+        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length, polityPreferences));
     }
     return candidates;
 };

@@ -28,6 +28,11 @@ import { STRATA } from './strata';
  * - stability: 稳定度
  * - maxPop: 人口上限
  * - resourceDemandMod, stratumDemandMod: 需求修正
+ * 
+ * 官员偏好 (officialPreferences) 说明:
+ * - stratumWeights: { stratumKey: multiplier } 出身阶层权重乘数 (>1 提高概率, <1 降低概率)
+ * - statBonuses: { statKey: bonus } 额外属性加成 (叠加到对应属性值上)
+ *   statKey 可选: administrative, military, diplomacy, prestige
  */
 
 export const POLITY_DEFINITIONS = [
@@ -45,7 +50,11 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.15 },
             buildingProductionMod: { farm: 0.2, large_estate: 0.2 },
             resourceDemandMod: { food: -0.1 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { landowner: 2.5, peasant: 1.5 },
+            statBonuses: { administrative: 8, prestige: 10 },
+        },
     },
     {
         name: '垄断资本独裁',
@@ -58,7 +67,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.2,
             buildingProductionMod: { factory: 0.25, steel_works: 0.2 },
             taxIncome: 0.15,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { capitalist: 2.5, merchant: 1.8, engineer: 1.3 },
+            statBonuses: { administrative: 10 },
+        },
     },
     {
         name: '官僚集权',
@@ -72,7 +85,11 @@ export const POLITY_DEFINITIONS = [
             taxIncome: 0.12,
             cultureBonus: 0.08,
             officialCapacity: 5, // 官僚集权大幅增加官员容量
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { scribe: 2.5, merchant: 1.3 },
+            statBonuses: { administrative: 12, prestige: 5 },
+        },
     },
     {
         name: '商业寡头政治',
@@ -84,7 +101,11 @@ export const POLITY_DEFINITIONS = [
         effects: {
             buildingProductionMod: { market: 0.25, trade_port: 0.2, trading_post: 0.15 },
             taxIncome: 0.15,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { merchant: 2.5, navigator: 1.8, capitalist: 1.3 },
+            statBonuses: { diplomacy: 10, administrative: 5 },
+        },
     },
     {
         name: '神权政治',
@@ -97,7 +118,11 @@ export const POLITY_DEFINITIONS = [
             cultureBonus: 0.25,
             stability: 0.1,
             scienceBonus: -0.15,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { cleric: 2.5, scribe: 1.3 },
+            statBonuses: { prestige: 12, diplomacy: 5 },
+        },
     },
     {
         name: '军人专政',
@@ -110,7 +135,11 @@ export const POLITY_DEFINITIONS = [
             militaryBonus: 0.3,
             buildingProductionMod: { barracks: 0.25, fortress: 0.2 },
             stability: -0.05,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { soldier: 3.0, landowner: 1.5 },
+            statBonuses: { military: 15, prestige: 5 },
+        },
     },
     {
         name: '工人无产阶级专政',
@@ -123,7 +152,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.18,
             stratumDemandMod: { worker: -0.12 },
             taxIncome: -0.1,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { worker: 2.5, artisan: 1.5, engineer: 1.3 },
+            statBonuses: { administrative: 5 },
+        },
     },
     {
         name: '农民专政',
@@ -136,7 +169,11 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.2 },
             buildingProductionMod: { farm: 0.18 },
             resourceDemandMod: { food: -0.1 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { peasant: 2.5, landowner: 1.5 },
+            statBonuses: { prestige: 5 },
+        },
     },
     {
         name: '技术官僚政治',
@@ -150,7 +187,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.12,
             buildingProductionMod: { library: 0.2, university: 0.25 },
             officialCapacity: 4, // 技术官僚政治增加官员容量
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { engineer: 2.5, scribe: 1.5 },
+            statBonuses: { administrative: 10 },
+        },
     },
     {
         name: '学者治国',
@@ -163,7 +204,11 @@ export const POLITY_DEFINITIONS = [
             scienceBonus: 0.2,
             cultureBonus: 0.15,
             militaryBonus: -0.1,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { scribe: 2.5, engineer: 1.3, cleric: 1.2 },
+            statBonuses: { administrative: 8, diplomacy: 5 },
+        },
     },
     {
         name: '行会共和',
@@ -175,7 +220,11 @@ export const POLITY_DEFINITIONS = [
         effects: {
             buildingProductionMod: { loom_house: 0.25, furniture_workshop: 0.2, tailor_workshop: 0.15 },
             industry: 0.15,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { artisan: 2.5, merchant: 1.3 },
+            statBonuses: { administrative: 5 },
+        },
     },
     {
         name: '海上共和国',
@@ -187,7 +236,11 @@ export const POLITY_DEFINITIONS = [
         effects: {
             buildingProductionMod: { dockyard: 0.3, trade_port: 0.25 },
             taxIncome: 0.1,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { navigator: 2.5, merchant: 1.8 },
+            statBonuses: { diplomacy: 10 },
+        },
     },
     {
         name: '矿业工人政权',
@@ -199,7 +252,11 @@ export const POLITY_DEFINITIONS = [
         effects: {
             buildingProductionMod: { mine: 0.3, quarry: 0.25 },
             categories: { gather: 0.15 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { worker: 2.0, artisan: 1.5 },
+            statBonuses: { administrative: 5 },
+        },
     },
     {
         name: '农奴起义政权',
@@ -212,7 +269,10 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.12 },
             stratumDemandMod: { serf: -0.1 },
             stability: -0.1,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { peasant: 2.0, worker: 1.5 },
+        },
     },
     {
         name: '林业工人政权',
@@ -224,7 +284,10 @@ export const POLITY_DEFINITIONS = [
         effects: {
             buildingProductionMod: { lumber_camp: 0.3 },
             categories: { gather: 0.12 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { peasant: 2.0, worker: 1.5 },
+        },
     },
     {
         name: '技术工人苏维埃',
@@ -237,7 +300,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.20,
             buildingProductionMod: { factory: 0.15, chemical_plant: 0.20 },
             stratumDemandMod: { technician: -0.10 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { engineer: 2.0, worker: 1.5, artisan: 1.3 },
+            statBonuses: { administrative: 8 },
+        },
     },
     {
         name: '科学家委员会',
@@ -251,7 +318,11 @@ export const POLITY_DEFINITIONS = [
             buildingProductionMod: { university: 0.25, research_institute: 0.30 },
             militaryBonus: -0.10,
             officialCapacity: 3,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { engineer: 2.0, scribe: 1.8 },
+            statBonuses: { administrative: 10, diplomacy: 5 },
+        },
     },
     // 单一阶层兜底 (优先级 999)
     {
@@ -287,7 +358,10 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.12 },
             industry: 0.1,
             stratumDemandMod: { peasant: -0.08, worker: -0.08 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { worker: 2.0, peasant: 2.0, artisan: 1.3 },
+        },
     },
     {
         name: '人民民主专政',
@@ -304,7 +378,10 @@ export const POLITY_DEFINITIONS = [
             industry: 0.12,
             stratumDemandMod: { peasant: -0.15, worker: -0.15 },
             taxIncome: -0.15,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { worker: 2.0, peasant: 1.8 },
+        },
     },
 
     // 资产阶级民主
@@ -324,7 +401,11 @@ export const POLITY_DEFINITIONS = [
             taxIncome: 0.12,
             buildingProductionMod: { market: 0.1 },
             officialCapacity: 3, // 资产阶级共和国增加官员容量
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { capitalist: 2.0, merchant: 1.8, engineer: 1.3 },
+            statBonuses: { administrative: 8 },
+        },
     },
     {
         name: '资本主义寡头政治',
@@ -340,7 +421,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.18,
             taxIncome: 0.18,
             buildingProductionMod: { factory: 0.2 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { capitalist: 2.5, merchant: 1.5 },
+            statBonuses: { administrative: 8 },
+        },
     },
 
     // 贵族联盟
@@ -359,7 +444,11 @@ export const POLITY_DEFINITIONS = [
             cultureBonus: 0.15,
             stability: 0.08,
             scienceBonus: -0.1,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { cleric: 2.0, landowner: 2.0, scribe: 1.2 },
+            statBonuses: { prestige: 10 },
+        },
     },
     {
         name: '贵族寡头政治',
@@ -374,7 +463,11 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.1 },
             taxIncome: 0.12,
             stratumDemandMod: { landowner: 0.1 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { landowner: 2.0, cleric: 1.5, merchant: 1.2 },
+            statBonuses: { prestige: 8 },
+        },
     },
 
     // 军政府
@@ -392,7 +485,11 @@ export const POLITY_DEFINITIONS = [
             militaryBonus: 0.2,
             buildingProductionMod: { barracks: 0.15 },
             taxIncome: 0.08,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { soldier: 2.5, capitalist: 1.5, landowner: 1.3 },
+            statBonuses: { military: 12, prestige: 5 },
+        },
     },
     {
         name: '军人政府',
@@ -407,7 +504,11 @@ export const POLITY_DEFINITIONS = [
             militaryBonus: 0.22,
             buildingProductionMod: { barracks: 0.2 },
             stability: -0.03,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { soldier: 2.8, landowner: 1.3 },
+            statBonuses: { military: 12 },
+        },
     },
 
     // 神权贵族联盟
@@ -427,7 +528,11 @@ export const POLITY_DEFINITIONS = [
             stability: 0.12,
             scienceBonus: -0.12,
             buildingProductionMod: { farm: 0.12, large_estate: 0.12 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { cleric: 2.0, landowner: 2.0 },
+            statBonuses: { prestige: 10, diplomacy: 5 },
+        },
     },
 
     // 商业帝国
@@ -445,7 +550,11 @@ export const POLITY_DEFINITIONS = [
             buildingProductionMod: { market: 0.2, trade_port: 0.25, dockyard: 0.2 },
             taxIncome: 0.20,
             militaryBonus: 0.08,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { merchant: 2.0, navigator: 2.0, capitalist: 1.3 },
+            statBonuses: { diplomacy: 10 },
+        },
     },
 
     // 工业资本-军事联盟
@@ -464,7 +573,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.12,
             buildingProductionMod: { factory: 0.15, barracks: 0.2 },
             stability: -0.05,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { soldier: 2.5, capitalist: 2.0 },
+            statBonuses: { military: 12, administrative: 5 },
+        },
     },
 
     // 科技联盟（信息时代）
@@ -483,7 +596,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.15,
             buildingProductionMod: { factory: 0.12, research_institute: 0.25, chemical_plant: 0.15 },
             stratumDemandMod: { technician: -0.08, scientist: -0.08 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { engineer: 2.0, scribe: 1.5 },
+            statBonuses: { administrative: 10 },
+        },
     },
 
     // 知识精英联盟
@@ -502,7 +619,11 @@ export const POLITY_DEFINITIONS = [
             buildingProductionMod: { library: 0.2, university: 0.25, research_institute: 0.2 },
             officialCapacity: 5,
             militaryBonus: -0.08,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { scribe: 2.0, engineer: 2.0 },
+            statBonuses: { administrative: 10, diplomacy: 5 },
+        },
     },
 
     // 工业三角联盟
@@ -520,7 +641,11 @@ export const POLITY_DEFINITIONS = [
             buildingProductionMod: { factory: 0.20, chemical_plant: 0.18, steel_works: 0.15 },
             taxIncome: 0.10,
             stratumDemandMod: { worker: -0.06 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { capitalist: 1.8, engineer: 1.5, worker: 1.5 },
+            statBonuses: { administrative: 8 },
+        },
     },
 
     // 官商联盟
@@ -540,7 +665,11 @@ export const POLITY_DEFINITIONS = [
             cultureBonus: 0.08,
             stability: -0.05,
             officialCapacity: 4,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { merchant: 2.0, scribe: 1.8, capitalist: 1.5 },
+            statBonuses: { administrative: 10, diplomacy: 5 },
+        },
     },
 
     // 工匠-商人联盟（前工业时代）
@@ -558,7 +687,11 @@ export const POLITY_DEFINITIONS = [
             buildingProductionMod: { loom_house: 0.2, furniture_workshop: 0.18, market: 0.15 },
             industry: 0.12,
             taxIncome: 0.10,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { artisan: 2.0, merchant: 2.0 },
+            statBonuses: { administrative: 5, diplomacy: 5 },
+        },
     },
 
     // ============================================
@@ -612,7 +745,10 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.1 },
             industry: 0.1,
             stratumDemandMod: { peasant: -0.1, worker: -0.1 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { worker: 1.5, peasant: 1.5 },
+        },
     },
     {
         name: '大联盟政府',
@@ -645,7 +781,11 @@ export const POLITY_DEFINITIONS = [
             buildingProductionMod: { factory: 0.18 },
             taxIncome: 0.12,
             resourceDemandMod: { food: 0.1 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { capitalist: 2.0, engineer: 1.5, merchant: 1.3 },
+            statBonuses: { administrative: 8 },
+        },
     },
     {
         name: '劳工联合政府',
@@ -661,7 +801,10 @@ export const POLITY_DEFINITIONS = [
             industry: 0.15,
             buildingProductionMod: { loom_house: 0.12 },
             stratumDemandMod: { worker: -0.08, artisan: -0.08 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { worker: 1.8, artisan: 1.8 },
+        },
     },
     {
         name: '地主-农民联盟',
@@ -690,7 +833,11 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.18 },
             buildingProductionMod: { farm: 0.15 },
             resourceDemandMod: { food: -0.08 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { landowner: 2.0, peasant: 1.5 },
+            statBonuses: { prestige: 5 },
+        },
     },
     {
         name: '农民政府',
@@ -705,7 +852,10 @@ export const POLITY_DEFINITIONS = [
             categories: { gather: 0.18 },
             buildingProductionMod: { farm: 0.18 },
             resourceDemandMod: { food: -0.1 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { peasant: 2.0, landowner: 1.3 },
+        },
     },
     {
         name: '商业共和国',
@@ -719,7 +869,11 @@ export const POLITY_DEFINITIONS = [
         effects: {
             buildingProductionMod: { market: 0.2, trade_port: 0.18 },
             taxIncome: 0.12,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { merchant: 2.0, navigator: 1.5, capitalist: 1.3 },
+            statBonuses: { diplomacy: 8 },
+        },
     },
     {
         name: '技术精英政府',
@@ -735,7 +889,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.1,
             buildingProductionMod: { library: 0.15, university: 0.15 },
             officialCapacity: 3, // 技术精英政府增加官员容量
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { scribe: 2.0, engineer: 2.0 },
+            statBonuses: { administrative: 8 },
+        },
     },
     {
         name: '信息时代民主',
@@ -752,7 +910,11 @@ export const POLITY_DEFINITIONS = [
             buildingProductionMod: { university: 0.18, research_institute: 0.22 },
             officialCapacity: 4,
             militaryBonus: -0.05,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { engineer: 1.8, scribe: 1.5 },
+            statBonuses: { administrative: 8, diplomacy: 5 },
+        },
     },
     {
         name: '技术工业国家',
@@ -768,7 +930,11 @@ export const POLITY_DEFINITIONS = [
             industry: 0.18,
             buildingProductionMod: { factory: 0.15, chemical_plant: 0.18 },
             stratumDemandMod: { technician: -0.08, worker: -0.05 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { engineer: 2.0, worker: 1.5 },
+            statBonuses: { administrative: 8 },
+        },
     },
     // ============================================
     {
@@ -785,7 +951,10 @@ export const POLITY_DEFINITIONS = [
             industry: 0.12,
             stratumDemandMod: { peasant: -0.1, worker: -0.1 },
             taxIncome: -0.1,
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { worker: 2.0, peasant: 1.5 },
+        },
     },
     {
         name: '精英联盟政府',
@@ -799,7 +968,11 @@ export const POLITY_DEFINITIONS = [
         effects: {
             taxIncome: 0.15,
             stratumDemandMod: { landowner: 0.08, capitalist: 0.08 },
-        }
+        },
+        officialPreferences: {
+            stratumWeights: { capitalist: 1.8, landowner: 1.8, merchant: 1.3 },
+            statBonuses: { prestige: 8 },
+        },
     },
 
     // ============================================
@@ -859,6 +1032,16 @@ export const getPolityDefinition = (polityName) => {
 export const getPolityEffects = (polityName) => {
     const def = getPolityDefinition(polityName);
     return def ? def.effects : null;
+};
+
+/**
+ * 根据政体名称获取官员偏好配置
+ * @param {string} polityName - 政体名称
+ * @returns {Object|null} { stratumWeights: {}, statBonuses: {} } 或 null
+ */
+export const getPolityOfficialPreferences = (polityName) => {
+    const def = getPolityDefinition(polityName);
+    return def ? (def.officialPreferences || null) : null;
 };
 
 // 复用之前的 formatPolityEffects 函数

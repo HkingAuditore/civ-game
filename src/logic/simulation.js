@@ -2652,10 +2652,34 @@ export const simulateTick = ({
             // }
         }
 
+        // [OWNER-CAP] 业主填坑上限：owner 数量不足时，等比压缩有效建筑数
+        // 核心语义：每 X 个 owner 岗位对应 1 栋建筑，到岗 owner 不足则多余建筑停工
+        // 国有建筑（state）豁免此约束
+        let ownerFillCapMultiplier = 1;
+        if (Object.keys(ownerLevelGroups).length > 0) {
+            let minOwnerFillRate = Infinity;
+            let hasPrivateOwner = false;
+            for (const oKey of Object.keys(ownerLevelGroups)) {
+                if (oKey === 'state') continue; // 国有建筑不受 owner 填坑约束
+                hasPrivateOwner = true;
+                const totalOwnerSlotsForKey = jobsAvailable[oKey] || 0; // 该 owner 角色的全局总岗位需求
+                const ownerPopForKey = popStructure[oKey] || 0; // 该 owner 角色的实际人口
+                const ownerFillRate = totalOwnerSlotsForKey > 0
+                    ? Math.min(1, ownerPopForKey / totalOwnerSlotsForKey)
+                    : (ownerPopForKey > 0 ? 1 : 0); // 无岗位需求但有人口视为满员
+                minOwnerFillRate = Math.min(minOwnerFillRate, ownerFillRate);
+            }
+            if (hasPrivateOwner && minOwnerFillRate < Infinity) {
+                ownerFillCapMultiplier = minOwnerFillRate;
+            }
+        }
+
         // Capture multiplier BEFORE staffing application for potential calculation
         const potentialMultiplierBeforeStaffing = multiplier;
 
         multiplier *= staffingRatio;
+        // [OWNER-CAP] 应用业主填坑上限（在 staffingRatio 之后叠加）
+        multiplier *= ownerFillCapMultiplier;
 
         if (forcedLabor && (b.jobs?.serf || b.jobs?.miner)) {
             multiplier *= 1.2;
@@ -3262,7 +3286,11 @@ export const simulateTick = ({
                     reservedWealth *= 1.2;
                 }
                 // 双底线之业主底线：至少保留业主人均收入底线对应的总财富空间
-                const ownerSlots = Math.max(1, ownerSlotsByKey[oKey] || 1);
+                // [OWNER-CAP] 使用实际到岗的 owner 数量而非总岗位需求
+                // 避免 10 个 owner 被迫为 100 个岗位的保底买单
+                const ownerSlotsRequired = ownerSlotsByKey[oKey] || 1;
+                const ownerPopFilled = popStructure[oKey] || 0;
+                const ownerSlots = Math.max(1, Math.min(ownerSlotsRequired, ownerPopFilled));
                 const ownerIncomeFloorPerCapita = getOwnerIncomeFloorPerCapita(oKey);
                 const ownerIncomeReserve = ownerIncomeFloorPerCapita * ownerSlots;
                 reservedWealth = Math.max(reservedWealth, ownerIncomeReserve);
@@ -4622,13 +4650,15 @@ export const simulateTick = ({
         const debugAfterGoodsConsumption = currentWealth;
 
         // 人头税：官员拥有独立财富，因此在此单独结算
-        // [FIX] 使用本 tick 官员实际到手薪俸，而非 previousWages 工资信号
+        // [FIX] 税基 = 本 tick 薪俸 + 上一 tick 产业收入（与商人贸易收入同理，产业收入在人头税之后才结算）
         const headRate = getHeadTaxRate('official');
         const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
+        const previousPropertyIncome = normalizedOfficial.lastDayPropertyIncome || 0;
+        const officialTotalTaxableIncome = officialThisTickIncome + (previousPropertyIncome > 0 ? previousPropertyIncome : 0);
         let plannedPerCapitaTax;
         if (headRate > 0) {
-            const officialIncomeBase = (Number.isFinite(officialThisTickIncome) && officialThisTickIncome > 0)
-                ? officialThisTickIncome * taxRatioOff : 0;
+            const officialIncomeBase = (Number.isFinite(officialTotalTaxableIncome) && officialTotalTaxableIncome > 0)
+                ? officialTotalTaxableIncome * taxRatioOff : 0;
             plannedPerCapitaTax = officialIncomeBase * headRate * effectiveTaxModifier;
         } else if (headRate < 0) {
             plannedPerCapitaTax = headRate * effectiveTaxModifier;
@@ -4657,6 +4687,11 @@ export const simulateTick = ({
                     }
                 }
             }
+        }
+
+        // [FIX] 记录官员应税收入到 classFinancialData，供 UI 显示正确的税基
+        if (classFinancialData.official) {
+            classFinancialData.official.income.taxableIncome = (classFinancialData.official.income.taxableIncome || 0) + officialTotalTaxableIncome;
         }
 
         // [BUG FIX] 移除重复扣支出的代码

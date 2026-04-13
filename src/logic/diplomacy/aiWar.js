@@ -1762,7 +1762,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         logs.push(`⚖️ 你的盟友 ${nation.name} 与 ${otherNation.name} 发生冲突，你选择保持中立。`);
                     } else {
                         // Case 1: Defender (otherNation) is player's ally -被攻击
-                        if (isOtherNationPlayerAlly && !nation.isAtWar) {
+                        // [FIX] 移除 !nation.isAtWar 条件：即使攻击者已因附庸保护等原因与玩家交战，
+                        // 盟友参战的连锁反应仍应触发（useGameLoop 中会处理实际的战争状态设置）
+                        if (isOtherNationPlayerAlly) {
                             const lastRequestDay = otherNation.lastAllyRequestDay || 0;
                             if (tick - lastRequestDay >= ALLY_REQUEST_COOLDOWN) {
                                 otherNation.lastAllyRequestDay = tick;
@@ -1776,7 +1778,8 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                             }
                         }
                         // Case 2: Attacker (nation) is player's ally - 主动宣战
-                        if (isNationPlayerAlly && !otherNation.isAtWar) {
+                        // [FIX] 移除 !otherNation.isAtWar 条件：与 Case 1 同理
+                        if (isNationPlayerAlly) {
                             const lastRequestDay = nation.lastAllyRequestDay || 0;
                             if (tick - lastRequestDay >= ALLY_REQUEST_COOLDOWN) {
                                 nation.lastAllyRequestDay = tick;

@@ -7787,7 +7787,9 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                         ).length;
                                         const MAX_CONCURRENT_WARS = 3;
 
-                        if (currentPlayerWars < MAX_CONCURRENT_WARS && !attacker.isAtWar) {
+                        // [FIX] 移除 !attacker.isAtWar 条件：攻击者可能已因附庸保护等原因
+                        // 在同一 tick 中被设为与玩家交战状态，但盟友连锁参战仍应执行
+                        if (currentPlayerWars < MAX_CONCURRENT_WARS) {
                                             // === 联盟连锁：攻击者的盟友也对玩家宣战，玩家的盟友也对攻击者宣战 ===
                                             const orgs = diplomacyOrganizations?.organizations || [];
                                             const getMilitaryOrgMembers = (nationKey) => {
@@ -7810,6 +7812,8 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             setNations(prev => {
                                                 let updated = prev.map(n => {
                                                     if (n.id === attacker.id) {
+                                                        // [FIX] 如果攻击者已经与玩家交战，不重复设置战争状态（避免覆盖已有战争数据）
+                                                        if (n.isAtWar) return n;
                                                         return {
                                                             ...n,
                                                             isAtWar: true,

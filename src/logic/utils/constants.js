@@ -94,7 +94,7 @@ export const SHORTAGE_MIGRATION_BONUS = 0.3;
 export const EMERGENCY_MIGRATION_RATIO = JOB_MIGRATION_RATIO * 5;
 
 // Price calculation constants
-export const PRICE_FLOOR = 0.0001;
+export const PRICE_FLOOR = 0;
 export const BASE_WAGE_REFERENCE = 1;
 
 // Resources that cannot be traded normally

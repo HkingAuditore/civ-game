@@ -739,7 +739,7 @@ const StratumDetailSheetComponent = ({
                                                     </div>
                                                 )}
                                                 {!isSubsidyMode && taxableIncomePerCapita > 0.01 && (
-                                                    <div className="text-[11px] text-gray-500 mt-1 text-center" title="人头税的应税收入（建筑产出+工资+上一tick贸易收入，不含补贴）">
+                                                    <div className="text-[11px] text-gray-500 mt-1 text-center" title="人头税的应税收入（工资+建筑产出+产业利润+贸易收入，不含补贴）">
                                                         应税收入: {taxableIncomePerCapita.toFixed(2)}/人/日
                                                     </div>
                                                 )}

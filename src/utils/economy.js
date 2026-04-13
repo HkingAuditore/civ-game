@@ -1,4 +1,5 @@
 import { RESOURCES } from '../config';
+import { formatNumberShortCN } from './numberFormat';
 
 /**
  * 判断资源是否为可在市场交易的物资
@@ -30,16 +31,17 @@ export const calculateSilverCost = (requirements = {}, market) => {
   }, 0);
 };
 
-export const formatSilverCost = (value) => `${Math.ceil(value)} 银币`;
+/** 格式化银币成本（自动使用中文缩写：万/亿/兆） */
+export const formatSilverCost = (value) => {
+    const num = Math.ceil(value);
+    return `${formatNumberShortCN(num, { decimals: 1 })} 银币`;
+};
 
 /**
- * 格式化银币成本为紧凑形式（用于小屏幕）
- * 例如: 13804 -> "1.4万银币" 或 6500 -> "6500银币"
+ * 格式化银币成本为紧凑形式（用于按钮等窄空间）
+ * 只显示数字部分（不含"银币"后缀），使用中文缩写
  */
 export const formatSilverCostCompact = (value) => {
     const num = Math.ceil(value);
-    if (num >= 10000) {
-        return `${(num / 10000).toFixed(1).replace(/\.0$/, '')}万银币`;
-    }
-    return `${num}银币`;
+    return formatNumberShortCN(num, { decimals: 1 });
 };

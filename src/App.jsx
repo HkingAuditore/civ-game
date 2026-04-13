@@ -2417,6 +2417,10 @@ function GameApp({ gameState }) {
                     activeDebuffs={gameState.activeDebuffs}
                     buildingFinancialData={gameState.buildingFinancialData}
                     economicIndicators={gameState.economicIndicators}
+                    onNavigateToBuilding={(buildingId) => {
+                        gameState.setResourceDetailView(null);
+                        handleShowBuildingDetails(buildingId);
+                    }}
                 />
             )}
 

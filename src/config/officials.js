@@ -1425,7 +1425,7 @@ const normalizeEffectScore = (effect, market, rates) => {
     return score * typeWeight * resourceWeight * valueScale;
 };
 
-export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, batchIndex = 0) => {
+export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, batchIndex = 0, polityPreferences = null) => {
     // 1. 基本信息
     const name = generateName(epoch);
 
@@ -1436,25 +1436,45 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         'engineer', 'artisan', 'soldier', 'navigator', 'capitalist'
     ];
 
-    // 基于人口和影响力计算权重
+    // 基于人口和影响力综合计算权重
+    // 先归一化为份额，再按比例混合，确保两个维度都有实际作用
     const dynamicWeights = {};
     let totalWeight = 0;
 
+    // 第一轮：收集有效阶层的人口和影响力
+    const eligibleData = [];
+    let totalPop = 0;
+    let totalInfluence = 0;
     for (const stratum of eligibleStrata) {
         const pop = popStructure[stratum] || 0;
         const influence = classInfluence[stratum] || 0;
-
-        // 只有人口 >= 1 的阶层才能产生官员
         if (pop >= 1) {
-            // 权重 = 人口占比 + 影响力占比 (各占50%)
-            // 使用 sqrt 让人口差异不至于太极端
-            const popWeight = Math.sqrt(pop);
-            const influenceWeight = influence * 100; // 影响力占比转换为百分比权重
-            const weight = popWeight + influenceWeight;
-
-            dynamicWeights[stratum] = Math.max(1, weight); // 最低权重为1
-            totalWeight += dynamicWeights[stratum];
+            eligibleData.push({ stratum, pop, influence });
+            totalPop += pop;
+            totalInfluence += influence;
         }
+    }
+
+    // 第二轮：归一化后按比例混合
+    // 影响力占60%，人口占40%——有影响力的阶层更容易出官员，但人口大的阶层也有可观概率
+    const INFLUENCE_RATIO = 0.6;
+    const POP_RATIO = 0.4;
+
+    for (const { stratum, pop, influence } of eligibleData) {
+        const popShare = totalPop > 0 ? (pop / totalPop) : 0;
+        const influenceShare = totalInfluence > 0 ? (influence / totalInfluence) : 0;
+        let weight = popShare * POP_RATIO + influenceShare * INFLUENCE_RATIO;
+
+        // 政体偏好：叠加阶层权重乘数
+        if (polityPreferences && polityPreferences.stratumWeights) {
+            const multiplier = polityPreferences.stratumWeights[stratum];
+            if (multiplier) {
+                weight *= multiplier;
+            }
+        }
+
+        dynamicWeights[stratum] = Math.max(0.01, weight); // 最低权重0.01防止除0
+        totalWeight += dynamicWeights[stratum];
     }
 
     // 如果没有任何符合条件的阶层，使用默认阶层（兜底）
@@ -1491,6 +1511,15 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 统一属性对象
     const stats = { prestige, administrative, military, diplomacy };
+
+    // 政体偏好：叠加属性加成
+    if (polityPreferences && polityPreferences.statBonuses) {
+        for (const [stat, bonus] of Object.entries(polityPreferences.statBonuses)) {
+            if (stats[stat] !== undefined) {
+                stats[stat] = Math.min(100, Math.max(5, stats[stat] + bonus));
+            }
+        }
+    }
 
     // ========== 基于属性生成效果 ==========
     const effectResult = generateEffectsFromStats(stats, epoch, {

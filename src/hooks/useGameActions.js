@@ -84,6 +84,8 @@ import {
 import { getOrganizationStage, getPhaseFromStage } from '../logic/organizationSystem';
 import { ORGANIZATION_TYPE_CONFIGS, createOrganization, getOrganizationMaxMembers } from '../logic/diplomacy/organizationDiplomacy';
 import { getLegacyPolicyDecrees } from '../logic/officials/cabinetSynergy';
+import { getGovernmentType } from '../logic/rulingCoalition';
+import { getPolityOfficialPreferences } from '../config/polityEffects';
 import {
     triggerSelection,
     hireOfficial,
@@ -2377,7 +2379,21 @@ export const useGameActions = (gameState, addLog) => {
             addLog('选拔仍在冷却中。');
             return;
         }
-        const candidates = triggerSelection(epoch, popStructure, classInfluence, market, rates, officials || []);
+
+        // 计算当前政体的官员偏好
+        let polityPreferences = null;
+        if (rulingCoalition && rulingCoalition.length > 0) {
+            const currentPolity = getGovernmentType(
+                rulingCoalition,
+                classInfluence || {},
+                gameState.totalInfluence || 0
+            );
+            if (currentPolity && currentPolity.name) {
+                polityPreferences = getPolityOfficialPreferences(currentPolity.name);
+            }
+        }
+
+        const candidates = triggerSelection(epoch, popStructure, classInfluence, market, rates, officials || [], polityPreferences);
         setOfficialCandidates(candidates);
         setLastSelectionDay(daysElapsed);
         addLog('已举行新一轮官员选拔，请查看候选人名单。');
