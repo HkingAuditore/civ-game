@@ -4,9 +4,24 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.48',
+        version: '2.3.49',
         date: '2026-04-15',
         isLatest: true,
+        highlights: [
+            '法令冷却写回兼容性修复，旧存档与新状态字段命名保持一致',
+            'Worker 环境补齐更多 DOM 垫片，第三方模块在模拟线程初始化更稳定',
+            '开发期热更新后配置与数据恢复链路更稳，降低隐性状态错位风险',
+        ],
+        changes: [
+            { type: 'fix', text: '修复法令冷却字段命名不一致导致的状态回写风险：统一使用 setDecreeCooldowns 作为标准写入入口，并保留 setDecreCooldowns 兼容别名，避免旧调用路径在重构后出现冷却数据丢失或写错字段。' },
+            { type: 'fix', text: '修复 Worker 场景下部分依赖访问 document/window API 时的初始化异常：为 document.createElement、querySelector、head/body 挂载等接口补齐空实现与返回兜底，减少第三方模块在 Worker 启动时因 DOM 缺失触发报错。' },
+            { type: 'improve', text: '优化存档加载阶段的法令冷却恢复路径：loadGame 改为直接走标准拼写 setter，降低后续维护中因拼写差异导致的行为偏差，使状态恢复逻辑更可预期。' },
+        ],
+    },
+    {
+        version: '2.3.48',
+        date: '2026-04-15',
+        isLatest: false,
         highlights: [
             '热重载稳定性大幅提升：开发期重复定时器、重复监听与 Worker 失效导致的异常明显减少',
             '大规模状态管理重构：合并多组状态钩子，降低 Hook 数量，提升长时间开发与调试稳定性',

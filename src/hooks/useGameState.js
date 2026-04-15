@@ -1866,7 +1866,8 @@ export const useGameState = () => {
     const activeDecrees = _policyState.activeDecrees;
     const setActiveDecrees = _policySetters.setActiveDecrees;
     const decreeCooldowns = _policyState.decreeCooldowns;
-    const setDecreCooldowns = _policySetters.setDecreCooldowns;
+    const setDecreeCooldowns = _policySetters.setDecreeCooldowns;
+    const setDecreCooldowns = setDecreeCooldowns; // 兼容旧拼写调用
     const quotaTargets = _policyState.quotaTargets;
     const setQuotaTargets = _policySetters.setQuotaTargets;
     const expansionSettings = _policyState.expansionSettings;
@@ -3133,7 +3134,7 @@ export const useGameState = () => {
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
         setDecrees(Array.isArray(data.decrees) ? data.decrees : []);
         setActiveDecrees(data.activeDecrees || {});
-        setDecreCooldowns(data.decreeCooldowns || {});
+        setDecreeCooldowns(data.decreeCooldowns || {});
         // Planned economy quota controls: keep backward compatibility with older saves
         const loadedQuotaTargets = data.quotaTargets;
         const normalizedQuotaTargets = loadedQuotaTargets
@@ -4704,7 +4705,7 @@ export const useGameState = () => {
         decreeCooldowns,
         setDecreCooldowns,
         // Alias with correct spelling for callers
-        setDecreeCooldowns: setDecreCooldowns,
+        setDecreeCooldowns,
         quotaTargets,
         setQuotaTargets,
         expansionSettings,
