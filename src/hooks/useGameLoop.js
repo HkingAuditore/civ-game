@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
 import { useSimulationWorker } from './useSimulationWorker';
+import { useAutoSave } from './useAutoSave';
 import { isLowPerformance } from './useDevicePerformance';
 import {
     BUILDINGS,
@@ -932,6 +933,9 @@ difficulty, // 游戏难度
         gameSpeed,
         nations,
         classWealth,
+        livingStandardStreaks, // [FIX] Was in Object.assign but missing from init
+        migrationCooldowns, // [FIX] Was in Object.assign but missing from init
+        taxShock, // [FIX] Was in Object.assign but missing from init
         army,
         militaryQueue,
         jobFill,
@@ -975,6 +979,7 @@ difficulty, // 游戏难度
         legitimacy, // 褰撳墠鍚堟硶鎬у€?
 difficulty, // 游戏难度
         officials,
+        officialsSimCursor, // [FIX] Was in Object.assign but missing from init
         officialCapacity, // [FIX] 娣诲姞瀹樺憳瀹归噺锛岀敤浜?getCabinetStatus 计算
         ministerAssignments,
         ministerAutoExpansion,
@@ -983,6 +988,12 @@ difficulty, // 游戏难度
         quotaTargets, // [NEW] Planned Economy targets
         expansionSettings, // [NEW] Free Market settings
         priceControls, // [NEW] 价格管制设置
+        diplomaticReputation, // [FIX] Was in Object.assign but missing from init
+        militaryCorps, // [FIX] Was in Object.assign but missing from init
+        generals, // [FIX] Was in Object.assign but missing from init
+        activeFronts, // [FIX] Was in Object.assign but missing from init
+        activeBattles, // [FIX] Was in Object.assign but missing from init
+        foreignInvestments, // [FIX] Was in Object.assign but missing from init
         corpsReplenishQueue, // Corps replenish deficit queue
         // 理念系统
         equippedIdeologies,
@@ -1123,6 +1134,9 @@ difficulty, // 游戏难度
         saveGameRef.current = gameState.saveGame;
     }, [gameState.saveGame]);
 
+    // [REFACTOR] Extracted auto-save logic into independent hook for HMR safety
+    useAutoSave({ stateRef, saveGameRef, isPaused });
+
     // [PERF] 检测理念配置变化时同步到 Worker 缓存，避免每 tick 传输静态配置
     const prevEquippedIdeologiesRef = useRef(null);
     useEffect(() => {
@@ -1167,6 +1181,7 @@ difficulty, // 游戏难度
         corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore,
         ideologyScoreSpent, ideologyCooldowns, ideologyMilestones,
         pendingIdeologyEmergence, ideologyEmergenceRarityBonus,
+        lastEmergenceWasSkipped, // [FIX] Was in stateRef init but missing from sync
     });
 
     // 监听国家列表变化，自动清理无效的商人派驻
@@ -1228,22 +1243,10 @@ difficulty, // 游戏难度
             initCheatCodes(gameState, addLog, { setMerchantState });
         }
 
-        // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独管理
+        // 暂停时不设置游戏循环定时器
+        // Auto-save is now handled by useAutoSave hook independently
         if (isPaused) {
-            // 设置独立的自动保存定时器（每60秒检查一次）
-            const autoSaveTimer = setInterval(() => {
-                const current = stateRef.current;
-                if (current.isAutoSaveEnabled) {
-                    const intervalSeconds = Math.max(60, current.autoSaveInterval || 60);
-                    const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
-                    if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
-                        saveGameRef.current({ source: 'auto' });
-                        stateRef.current.lastAutoSaveTime = Date.now();
-                    }
-                }
-            }, 60000);
-
-            return () => clearInterval(autoSaveTimer);
+            return;
         }
 
         // 计算 Tick 闂撮殧锛氬熀浜庢父鎴忛€熷害鍔ㄦ€佽皟鏁?
@@ -8907,7 +8910,19 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 console.error('[GameLoop] Tick error:', err);
             }
         }, tickInterval); // 根据游戏速度动态调整执行频率
-        return () => clearInterval(timer);
+        return () => {
+            clearInterval(timer);
+            // Reset guards on cleanup (HMR/unmount) to prevent stale locks
+            tickProcessingRef.current = false;
+            simInFlightRef.current = false;
+        };
     }, [gameSpeed, isPaused, setFestivalModal, setLastFestivalYear, setIsPaused]); // Dependencies: game speed, pause state, and annual report related state
 };
+
+// ── HMR: force full refresh for core hook changes ──
+// useGameLoop has an 8900-line useEffect with complex stateRef synchronization;
+// Fast Refresh partial updates would leave stateRef out of sync. Force full reload.
+if (import.meta.hot) {
+    import.meta.hot.invalidate();
+}
 

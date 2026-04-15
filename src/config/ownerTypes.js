@@ -86,6 +86,7 @@ export function calculateEffectiveJobs(building, ownershipList) {
  */
 export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, foreignInvestments, building) {
     const ownershipList = [];
+    let remainingCount = Math.max(0, Number(totalCount) || 0);
     
     // 1. 统计官员私产数量（从 _propertySummary 读取）
     let officialCount = 0;
@@ -101,12 +102,14 @@ export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, 
         }
     });
     
-    if (officialCount > 0) {
+    if (officialCount > 0 && remainingCount > 0) {
+        const effectiveOfficialCount = Math.min(officialCount, remainingCount);
         ownershipList.push({
             ownerType: OWNER_TYPES.OFFICIAL,
-            count: officialCount,
+            count: effectiveOfficialCount,
             details: officialOwners, // 详细信息：哪个官员持有多少
         });
+        remainingCount -= effectiveOfficialCount;
     }
     
     // 2. 统计代经营（国有）建筑数量
@@ -132,12 +135,14 @@ export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, 
         }
     });
 
-    if (stateCount > 0) {
+    if (stateCount > 0 && remainingCount > 0) {
+        const effectiveStateCount = Math.min(stateCount, remainingCount);
         ownershipList.push({
             ownerType: OWNER_TYPES.STATE,
-            count: stateCount,
+            count: effectiveStateCount,
             details: stateManagedBy, // 详细信息：哪个官员代管多少
         });
+        remainingCount -= effectiveStateCount;
     }
     
     // 3. 统计外资数量
@@ -145,22 +150,25 @@ export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, 
     const foreignOwners = {}; // { nationId: count }
     (foreignInvestments || []).forEach(inv => {
         if (inv.buildingId === buildingId && inv.status === 'operating') {
-            foreignCount += 1;
+            const invCount = Math.max(0, Number(inv.count) || 1);
+            foreignCount += invCount;
             const nationId = inv.ownerNationId || 'unknown';
-            foreignOwners[nationId] = (foreignOwners[nationId] || 0) + 1;
+            foreignOwners[nationId] = (foreignOwners[nationId] || 0) + invCount;
         }
     });
     
-    if (foreignCount > 0) {
+    if (foreignCount > 0 && remainingCount > 0) {
+        const effectiveForeignCount = Math.min(foreignCount, remainingCount);
         ownershipList.push({
             ownerType: OWNER_TYPES.FOREIGN,
-            count: foreignCount,
+            count: effectiveForeignCount,
             details: foreignOwners, // 详细信息：哪个国家持有多少
         });
+        remainingCount -= effectiveForeignCount;
     }
     
     // 4. 剩余为阶层业主
-    const stratumCount = Math.max(0, totalCount - officialCount - stateCount - foreignCount);
+    const stratumCount = remainingCount;
     if (stratumCount > 0) {
         ownershipList.push({
             ownerType: OWNER_TYPES.STRATUM,

@@ -4,9 +4,28 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.48',
+        date: '2026-04-15',
+        isLatest: true,
+        highlights: [
+            '热重载稳定性大幅提升：开发期重复定时器、重复监听与 Worker 失效导致的异常明显减少',
+            '大规模状态管理重构：合并多组状态钩子，降低 Hook 数量，提升长时间开发与调试稳定性',
+            '拆除建筑后会同步回收对应外资持有量，避免出现“建筑已拆但外资残留”',
+            'AI 对 AI 多战线分兵逻辑修复，未分配兵团的战线不再错误回退到整国战力',
+        ],
+        changes: [
+            { type: 'fix', text: '修复开发期 HMR 下定时器与全局监听重复注册的问题：分析上报、崩溃上报、主循环与 Worker 生命周期新增幂等保护与销毁清理，避免多次热更新后出现重复心跳、重复上报、Worker 残留或锁死。' },
+            { type: 'improve', text: 'useGameState 大规模状态结构改造：将理念、外交、军事、政策、经济等高关联状态分组迁移到 useGroupedState（useReducer）管理，在保持外部调用方式不变的前提下显著减少 Hook 数量，提升 Fast Refresh 稳定性与维护可读性。' },
+            { type: 'fix', text: '修复建筑拆除与外资系统的数量一致性问题：当玩家拆除建筑时会同步裁剪对应 foreignInvestments 的 operating 持有量，并按剩余数量等比收缩投资与经营数据，避免“建筑归零但外资仍在运营”的状态错位。' },
+            { type: 'fix', text: '修复 AI 对 AI 战争中分兵与战线战力计算异常：军团分配改为覆盖完整国家集合，且在已有军团体系数据时，未分配到战线的国家不再回退到整国宏观战力，减少多战线下战力重复与僵持异常。' },
+            { type: 'improve', text: '新增 useAutoSave 独立钩子并改进入口与性能补丁幂等保护：自动存档与主循环解耦，主入口仅初始化一次控制台与性能补丁，降低热更新期间副作用叠加风险。' },
+            { type: 'fix', text: '修复旧业主数据转 ownershipList 的计数溢出问题：官员、代管、外资计数统一受剩余建筑数量约束，并兼容外资 count 字段，确保所有业主类型总和不超过建筑总量。' },
+        ],
+    },
+    {
         version: '2.3.47',
         date: '2026-04-13',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '兼容旧版 Android WebView：补充 flat/flatMap polyfill，低版本设备不再白屏',
         ],

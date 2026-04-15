@@ -9,6 +9,17 @@ export default defineConfig(({ mode }) => ({
     plugins: [react()],
     // 使用相对路径，使其兼容 GitHub Pages 子目录部署和自定义域名根目录部署
     base: './',
+    server: {
+        // HMR configuration: disable entirely via env var, or use optimized settings
+        hmr: process.env.VITE_DISABLE_HMR === 'true'
+            ? false
+            : {
+                // Increase timeout for large modules (useGameLoop.js is 570KB)
+                timeout: 10000,
+                // Show overlay for HMR errors to aid debugging
+                overlay: true,
+            },
+    },
     define: {
         // 仅在生产环境禁用 DevTools Hook，避免与 Fast Refresh 冲突
         ...(mode === 'production'

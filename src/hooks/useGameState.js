@@ -2,6 +2,7 @@
 // 集中管理所有游戏状态，避免App.jsx中状态定义过�?
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useGroupedState } from './useGroupedState';
 import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
 import { HISTORY_STORAGE_LIMIT, LOG_STORAGE_LIMIT } from '../config/gameConstants';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
@@ -1713,30 +1714,79 @@ export const useGameState = () => {
     const [epoch, setEpoch] = useState(0);
 
     // ========== 理念系统状态 ==========
-    const [ideologyScore, setIdeologyScore] = useState(0);
-    const [ideologyScoreSpent, setIdeologyScoreSpent] = useState(0);
-    const [ideologyCollection, setIdeologyCollection] = useState([]); // [{ id, level }]
-    const [equippedIdeologies, setEquippedIdeologies] = useState([]); // string[]
-    const [ideologySlotCount, setIdeologySlotCount] = useState(3);
-    const [ideologyCooldowns, setIdeologyCooldowns] = useState({}); // { [id]: days }
-    const [ideologyMilestones, setIdeologyMilestones] = useState([]); // string[]
-    const [pendingIdeologyEmergence, setPendingIdeologyEmergence] = useState(null); // null | { candidates }
-    const [ideologyEmergenceRarityBonus, setIdeologyEmergenceRarityBonus] = useState(0); // 跳过累积的稀有度加成（0~3）
-    const [lastEmergenceWasSkipped, setLastEmergenceWasSkipped] = useState(false); // 上次涌现是否是跳过（用于判断加成是否留存）
+    // ========== 理念系统（grouped: 10 useState → 1 useReducer） ==========
+    const { values: _ideologyState, setters: _ideologySetters, resetAll: _resetIdeologyState } = useGroupedState({
+        ideologyScore: 0,
+        ideologyScoreSpent: 0,
+        ideologyCollection: [], // [{ id, level }]
+        equippedIdeologies: [], // string[]
+        ideologySlotCount: 3,
+        ideologyCooldowns: {}, // { [id]: days }
+        ideologyMilestones: [], // string[]
+        pendingIdeologyEmergence: null, // null | { candidates }
+        ideologyEmergenceRarityBonus: 0, // 跳过累积的稀有度加成（0~3）
+        lastEmergenceWasSkipped: false, // 上次涌现是否是跳过（用于判断加成是否留存）
+    });
+    const ideologyScore = _ideologyState.ideologyScore;
+    const setIdeologyScore = _ideologySetters.setIdeologyScore;
+    const ideologyScoreSpent = _ideologyState.ideologyScoreSpent;
+    const setIdeologyScoreSpent = _ideologySetters.setIdeologyScoreSpent;
+    const ideologyCollection = _ideologyState.ideologyCollection;
+    const setIdeologyCollection = _ideologySetters.setIdeologyCollection;
+    const equippedIdeologies = _ideologyState.equippedIdeologies;
+    const setEquippedIdeologies = _ideologySetters.setEquippedIdeologies;
+    const ideologySlotCount = _ideologyState.ideologySlotCount;
+    const setIdeologySlotCount = _ideologySetters.setIdeologySlotCount;
+    const ideologyCooldowns = _ideologyState.ideologyCooldowns;
+    const setIdeologyCooldowns = _ideologySetters.setIdeologyCooldowns;
+    const ideologyMilestones = _ideologyState.ideologyMilestones;
+    const setIdeologyMilestones = _ideologySetters.setIdeologyMilestones;
+    const pendingIdeologyEmergence = _ideologyState.pendingIdeologyEmergence;
+    const setPendingIdeologyEmergence = _ideologySetters.setPendingIdeologyEmergence;
+    const ideologyEmergenceRarityBonus = _ideologyState.ideologyEmergenceRarityBonus;
+    const setIdeologyEmergenceRarityBonus = _ideologySetters.setIdeologyEmergenceRarityBonus;
+    const lastEmergenceWasSkipped = _ideologyState.lastEmergenceWasSkipped;
+    const setLastEmergenceWasSkipped = _ideologySetters.setLastEmergenceWasSkipped;
 
-    // ========== 游戏控制状�?==========
-    const [activeTab, setActiveTab] = useState('overview');
-    const [gameSpeed, setGameSpeed] = useState(1);
-    const [isPaused, setIsPaused] = useState(false);
-    const [pausedBeforeEvent, setPausedBeforeEvent] = useState(false); // 事件触发前的暂停状�?
-    const [autoSaveInterval, setAutoSaveInterval] = useState(60); // 自动存档间隔（秒�?
-    const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(true); // 自动存档开�?
-    const [lastAutoSaveTime, setLastAutoSaveTime] = useState(() => Date.now()); // 上次自动存档时间
-    const [autoSaveBlocked, setAutoSaveBlocked] = useState(false); // 自动存档因配额被禁用
-    const [isSaving, setIsSaving] = useState(false); // UI保存状态指�?
-    const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY); // 游戏难度
-    const [empireName, setEmpireName] = useState('我的帝国'); // 国家/帝国名称
-    const [eventConfirmationEnabled, setEventConfirmationEnabled] = useState(false); // 事件二次确认开�?
+    // ========== 游戏控制状态（grouped: 12 useState → 1 useReducer） ==========
+    const { values: _gameControlState, setters: _gameControlSetters, resetAll: _resetGameControlState } = useGroupedState({
+        activeTab: 'overview',
+        gameSpeed: 1,
+        isPaused: false,
+        pausedBeforeEvent: false, // 事件触发前的暂停状态
+        autoSaveInterval: 60, // 自动存档间隔（秒）
+        isAutoSaveEnabled: true, // 自动存档开关
+        lastAutoSaveTime: Date.now(), // 上次自动存档时间
+        autoSaveBlocked: false, // 自动存档因配额被禁用
+        isSaving: false, // UI保存状态指示
+        difficulty: DEFAULT_DIFFICULTY, // 游戏难度
+        empireName: '我的帝国', // 国家/帝国名称
+        eventConfirmationEnabled: false, // 事件二次确认开关
+    });
+    const activeTab = _gameControlState.activeTab;
+    const setActiveTab = _gameControlSetters.setActiveTab;
+    const gameSpeed = _gameControlState.gameSpeed;
+    const setGameSpeed = _gameControlSetters.setGameSpeed;
+    const isPaused = _gameControlState.isPaused;
+    const setIsPaused = _gameControlSetters.setIsPaused;
+    const pausedBeforeEvent = _gameControlState.pausedBeforeEvent;
+    const setPausedBeforeEvent = _gameControlSetters.setPausedBeforeEvent;
+    const autoSaveInterval = _gameControlState.autoSaveInterval;
+    const setAutoSaveInterval = _gameControlSetters.setAutoSaveInterval;
+    const isAutoSaveEnabled = _gameControlState.isAutoSaveEnabled;
+    const setIsAutoSaveEnabled = _gameControlSetters.setIsAutoSaveEnabled;
+    const lastAutoSaveTime = _gameControlState.lastAutoSaveTime;
+    const setLastAutoSaveTime = _gameControlSetters.setLastAutoSaveTime;
+    const autoSaveBlocked = _gameControlState.autoSaveBlocked;
+    const setAutoSaveBlocked = _gameControlSetters.setAutoSaveBlocked;
+    const isSaving = _gameControlState.isSaving;
+    const setIsSaving = _gameControlSetters.setIsSaving;
+    const difficulty = _gameControlState.difficulty;
+    const setDifficulty = _gameControlSetters.setDifficulty;
+    const empireName = _gameControlState.empireName;
+    const setEmpireName = _gameControlSetters.setEmpireName;
+    const eventConfirmationEnabled = _gameControlState.eventConfirmationEnabled;
+    const setEventConfirmationEnabled = _gameControlSetters.setEventConfirmationEnabled;
     const savingIndicatorTimer = useRef(null);
     const autoSaveQuotaNotifiedRef = useRef(false);
 
@@ -1748,95 +1798,189 @@ export const useGameState = () => {
         resourceDeltas: {},   // { [resourceId]: deltaAmount } 负数=消耗
     });
 
-    // ========== 政令与外交状态 ==========
-    const [nations, setNations] = useState(buildInitialNations());
-    const [diplomaticReputation, setDiplomaticReputation] = useState(50); // 国际声誉 (0-100)
-
-    // ========== 海外投资系统状�?==========
-    const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投�?
-    const [foreignInvestments, setForeignInvestments] = useState([]);
-    const [foreignInvestmentPolicy, setForeignInvestmentPolicy] = useState('normal');      // 外国在玩家国的投�?
-    const [foreignInvestmentPolicyOverrides, setForeignInvestmentPolicyOverrides] = useState({});  // 逐国税率覆盖
-
-    // ========== 官员系统状�?==========
-    const [officials, setOfficials] = useState([]);           // 当前雇佣的官�?
-    const [officialsSimCursor, setOfficialsSimCursor] = useState(0); // 官员分片模拟游标
-    const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
-    const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时�?
-    const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
-    // 注意：产业政策已迁移为逐官员字段 official.propertyPolicy（默认 'private'）
-    const [ministerAssignments, setMinisterAssignments] = useState(buildInitialMinisterAssignments());
-    const [ministerAutoExpansion, setMinisterAutoExpansion] = useState(buildInitialMinisterAutoExpansion());
-    const [lastMinisterExpansionDay, setLastMinisterExpansionDay] = useState(buildInitialMinisterExpansionCooldowns());
-    // ========== 内阁协同系统状�?==========
-    // Permanent policy decrees (legacy) - stored as array of { id, active, modifiers, ... }
-    const [decrees, setDecrees] = useState([]);
-
-    const [activeDecrees, setActiveDecrees] = useState({});           // 当前生效的临时法�?
-    const [decreeCooldowns, setDecreCooldowns] = useState({});       // 法令冷却时间
-    const [quotaTargets, setQuotaTargets] = useState({});             // 计划经济阶层配额目标
-    const [expansionSettings, setExpansionSettings] = useState({});   // 自由市场建筑扩张设置
-    // ========== 政府价格管制状态（计划经济�?==========
-    const [priceControls, setPriceControls] = useState({
-        enabled: false,              // 是否启用价格管制
-        governmentBuyPrices: {},     // 政府收购�?{ resourceKey: price }
-        governmentSellPrices: {},    // 政府出售�?{ resourceKey: price }
+    // ========== 政令与外交状态（grouped: 7 useState → 1 useReducer） ==========
+    const { values: _diplomacyState, setters: _diplomacySetters, resetAll: _resetDiplomacyState } = useGroupedState({
+        nations: buildInitialNations(),
+        diplomaticReputation: 50, // 国际声誉 (0-100)
+        overseasInvestments: [],    // 玩家在附庸国的投资
+        foreignInvestments: [],
+        foreignInvestmentPolicy: 'normal',      // 外国在玩家国的投资
+        foreignInvestmentPolicyOverrides: {},  // 逐国税率覆盖
     });
+    const nations = _diplomacyState.nations;
+    const setNations = _diplomacySetters.setNations;
+    const diplomaticReputation = _diplomacyState.diplomaticReputation;
+    const setDiplomaticReputation = _diplomacySetters.setDiplomaticReputation;
+    const overseasInvestments = _diplomacyState.overseasInvestments;
+    const setOverseasInvestments = _diplomacySetters.setOverseasInvestments;
+    const foreignInvestments = _diplomacyState.foreignInvestments;
+    const setForeignInvestments = _diplomacySetters.setForeignInvestments;
+    const foreignInvestmentPolicy = _diplomacyState.foreignInvestmentPolicy;
+    const setForeignInvestmentPolicy = _diplomacySetters.setForeignInvestmentPolicy;
+    const foreignInvestmentPolicyOverrides = _diplomacyState.foreignInvestmentPolicyOverrides;
+    const setForeignInvestmentPolicyOverrides = _diplomacySetters.setForeignInvestmentPolicyOverrides;
+
+    // ========== 官员系统（grouped: 8 useState → 1 useReducer） ==========
+    const { values: _officialState, setters: _officialSetters, resetAll: _resetOfficialState } = useGroupedState({
+        officials: [],           // 当前雇佣的官员
+        officialsSimCursor: 0, // 官员分片模拟游标
+        officialCandidates: [], // 当前候选人列表
+        lastSelectionDay: -999,   // 上次举办选拔的时间
+        officialCapacity: 2,      // 官员容量
+        ministerAssignments: buildInitialMinisterAssignments(),
+        ministerAutoExpansion: buildInitialMinisterAutoExpansion(),
+        lastMinisterExpansionDay: buildInitialMinisterExpansionCooldowns(),
+    });
+    const officials = _officialState.officials;
+    const setOfficials = _officialSetters.setOfficials;
+    const officialsSimCursor = _officialState.officialsSimCursor;
+    const setOfficialsSimCursor = _officialSetters.setOfficialsSimCursor;
+    const officialCandidates = _officialState.officialCandidates;
+    const setOfficialCandidates = _officialSetters.setOfficialCandidates;
+    const lastSelectionDay = _officialState.lastSelectionDay;
+    const setLastSelectionDay = _officialSetters.setLastSelectionDay;
+    const officialCapacity = _officialState.officialCapacity;
+    const setOfficialCapacity = _officialSetters.setOfficialCapacity;
+    // 注意：产业政策已迁移为逐官员字段 official.propertyPolicy（默认 'private'）
+    const ministerAssignments = _officialState.ministerAssignments;
+    const setMinisterAssignments = _officialSetters.setMinisterAssignments;
+    const ministerAutoExpansion = _officialState.ministerAutoExpansion;
+    const setMinisterAutoExpansion = _officialSetters.setMinisterAutoExpansion;
+    const lastMinisterExpansionDay = _officialState.lastMinisterExpansionDay;
+    const setLastMinisterExpansionDay = _officialSetters.setLastMinisterExpansionDay;
+    // ========== 内阁协同系统（grouped: 6 useState → 1 useReducer） ==========
+    const { values: _policyState, setters: _policySetters, resetAll: _resetPolicyState } = useGroupedState({
+        decrees: [],
+        activeDecrees: {},           // 当前生效的临时法令
+        decreeCooldowns: {},       // 法令冷却时间
+        quotaTargets: {},             // 计划经济阶层配额目标
+        expansionSettings: {},   // 自由市场建筑扩张设置
+        priceControls: {
+            enabled: false,
+            governmentBuyPrices: {},
+            governmentSellPrices: {},
+        },
+    });
+    const decrees = _policyState.decrees;
+    const setDecrees = _policySetters.setDecrees;
+    const activeDecrees = _policyState.activeDecrees;
+    const setActiveDecrees = _policySetters.setActiveDecrees;
+    const decreeCooldowns = _policyState.decreeCooldowns;
+    const setDecreCooldowns = _policySetters.setDecreCooldowns;
+    const quotaTargets = _policyState.quotaTargets;
+    const setQuotaTargets = _policySetters.setQuotaTargets;
+    const expansionSettings = _policyState.expansionSettings;
+    const setExpansionSettings = _policySetters.setExpansionSettings;
+    const priceControls = _policyState.priceControls;
+    const setPriceControls = _policySetters.setPriceControls;
 
 
-    // ========== 社会阶层状�?==========
-    const [classApproval, setClassApproval] = useState({});
-    const [approvalBreakdown, setApprovalBreakdown] = useState({}); // [NEW] 各阶层满意度分解数据（来�?simulation�?
-    const [classInfluence, setClassInfluence] = useState({});
+    // ========== 社会阶层（grouped: 18 useState → 1 useReducer, classWealth kept separate for custom setter） ==========
+    const { values: _socialState, setters: _socialSetters, resetAll: _resetSocialState } = useGroupedState({
+        classApproval: {},
+        approvalBreakdown: {}, // [NEW] 各阶层满意度分解数据
+        classInfluence: {},
+        classWealthDelta: {},
+        classIncome: {},
+        classExpense: {},
+        classFinancialData: {}, // Detailed financial breakdown
+        buildingFinancialData: {}, // Per-building realized financial stats
+        stateBuildingSilverOutput: 0,
+        totalInfluence: 0,
+        totalWealth: 0,
+        activeBuffs: [],
+        activeDebuffs: [],
+        classInfluenceShift: {},
+        classShortages: {},
+        classLivingStandard: {}, // 各阶层生活水平数据
+        livingStandardStreaks: buildInitialLivingStandardStreaks(),
+        migrationCooldowns: {}, // 阶层迁移冷却状态 { roleKey: ticksRemaining }
+        taxShock: {}, // [NEW] 各阶层累积税收冲击值 { roleKey: number }
+    });
+    const classApproval = _socialState.classApproval;
+    const setClassApproval = _socialSetters.setClassApproval;
+    const approvalBreakdown = _socialState.approvalBreakdown;
+    const setApprovalBreakdown = _socialSetters.setApprovalBreakdown;
+    const classInfluence = _socialState.classInfluence;
+    const setClassInfluence = _socialSetters.setClassInfluence;
     const [classWealth, setClassWealthState] = useState(buildInitialWealth());
-    const [classWealthDelta, setClassWealthDelta] = useState({});
-    const [classIncome, setClassIncome] = useState({});
-    const [classExpense, setClassExpense] = useState({});
-    const [classFinancialData, setClassFinancialData] = useState({}); // Detailed financial breakdown
-    const [buildingFinancialData, setBuildingFinancialData] = useState({}); // Per-building realized financial stats
-    const [stateBuildingSilverOutput, setStateBuildingSilverOutput] = useState(0);
+    const classWealthDelta = _socialState.classWealthDelta;
+    const setClassWealthDelta = _socialSetters.setClassWealthDelta;
+    const classIncome = _socialState.classIncome;
+    const setClassIncome = _socialSetters.setClassIncome;
+    const classExpense = _socialState.classExpense;
+    const setClassExpense = _socialSetters.setClassExpense;
+    const classFinancialData = _socialState.classFinancialData;
+    const setClassFinancialData = _socialSetters.setClassFinancialData;
+    const buildingFinancialData = _socialState.buildingFinancialData;
+    const setBuildingFinancialData = _socialSetters.setBuildingFinancialData;
+    const stateBuildingSilverOutput = _socialState.stateBuildingSilverOutput;
+    const setStateBuildingSilverOutput = _socialSetters.setStateBuildingSilverOutput;
+    const totalInfluence = _socialState.totalInfluence;
+    const setTotalInfluence = _socialSetters.setTotalInfluence;
+    const totalWealth = _socialState.totalWealth;
+    const setTotalWealth = _socialSetters.setTotalWealth;
+    const activeBuffs = _socialState.activeBuffs;
+    const setActiveBuffs = _socialSetters.setActiveBuffs;
+    const activeDebuffs = _socialState.activeDebuffs;
+    const setActiveDebuffs = _socialSetters.setActiveDebuffs;
+    const classInfluenceShift = _socialState.classInfluenceShift;
+    const setClassInfluenceShift = _socialSetters.setClassInfluenceShift;
+    const classShortages = _socialState.classShortages;
+    const setClassShortages = _socialSetters.setClassShortages;
+    const classLivingStandard = _socialState.classLivingStandard;
+    const setClassLivingStandard = _socialSetters.setClassLivingStandard;
+    const livingStandardStreaks = _socialState.livingStandardStreaks;
+    const setLivingStandardStreaks = _socialSetters.setLivingStandardStreaks;
+    const migrationCooldowns = _socialState.migrationCooldowns;
+    const setMigrationCooldowns = _socialSetters.setMigrationCooldowns;
+    const taxShock = _socialState.taxShock;
+    const setTaxShock = _socialSetters.setTaxShock;
+    // Kept as independent useState (high-frequency or special handling)
     const [classWealthHistory, setClassWealthHistory] = useState(buildInitialWealthHistory());
     const [classNeedsHistory, setClassNeedsHistory] = useState(buildInitialNeedsHistory());
-    const [totalInfluence, setTotalInfluence] = useState(0);
-    const [totalWealth, setTotalWealth] = useState(0);
-    const [activeBuffs, setActiveBuffs] = useState([]);
-    const [activeDebuffs, setActiveDebuffs] = useState([]);
-    const [classInfluenceShift, setClassInfluenceShift] = useState({});
     const [stability, setStability] = useState(50);
     const [stratumDetailView, setStratumDetailView] = useState(null);
     const [resourceDetailView, setResourceDetailView] = useState(null);
-    const [classShortages, setClassShortages] = useState({});
-    const [classLivingStandard, setClassLivingStandard] = useState({}); // 各阶层生活水平数�?
-    const [livingStandardStreaks, setLivingStandardStreaks] = useState(buildInitialLivingStandardStreaks());
-    const [migrationCooldowns, setMigrationCooldowns] = useState({}); // 阶层迁移冷却状�?{ roleKey: ticksRemaining }
-    const [taxShock, setTaxShock] = useState({}); // [NEW] 各阶层累积税收冲击�?{ roleKey: number }
     const [populationDetailView, setPopulationDetailView] = useState(false);
     const [history, setHistory] = useState(buildInitialHistory());
     
-    // ========== 经济指标 ==========
-    const [priceHistory, setPriceHistory] = useState({}); // 价格历史（最�?65天）
-    const [equilibriumPrices, setEquilibriumPrices] = useState({}); // 长期均衡价格�?0天滚动平均）
-    const [economicIndicators, setEconomicIndicators] = useState({
-        gdp: { total: 0, consumption: 0, investment: 0, government: 0, netExports: 0, change: 0 },
-        cpi: { index: 100, change: 0, breakdown: {} },
-        ppi: { index: 100, change: 0, breakdown: {} },
+    // ========== 经济指标与财政（grouped: 7 useState → 1 useReducer） ==========
+    const { values: _economicState, setters: _economicSetters, resetAll: _resetEconomicState } = useGroupedState({
+        priceHistory: {}, // 价格历史（最近65天）
+        equilibriumPrices: {}, // 长期均衡价格（30天滚动平均）
+        economicIndicators: {
+            gdp: { total: 0, consumption: 0, investment: 0, government: 0, netExports: 0, change: 0 },
+            cpi: { index: 100, change: 0, breakdown: {} },
+            ppi: { index: 100, change: 0, breakdown: {} },
+        },
+        eventEffectSettings: DEFAULT_EVENT_EFFECT_SETTINGS,
+        activeEventEffects: buildInitialEventEffects(),
+        fiscalActual: {
+            silverDelta: 0,
+            officialSalaryPaid: 0,
+            forcedSubsidyPaid: 0,
+            forcedSubsidyUnpaid: 0,
+        },
+        treasuryChangeLog: [],
+        dailyMilitaryExpense: null,
     });
-    
-    const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
-    const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());
-
-    // ========== 财政（实际口径） ==========
-    // Stores realized per-tick treasury changes and actual payments (not "planned" amounts).
-    const [fiscalActual, setFiscalActual] = useState({
-        silverDelta: 0,
-        officialSalaryPaid: 0,
-        forcedSubsidyPaid: 0,
-        forcedSubsidyUnpaid: 0,
-    });
-    const [treasuryChangeLog, setTreasuryChangeLog] = useState([]);
-
-    // [FIX] 每日军队维护成本（simulation返回的完整数据）
-    const [dailyMilitaryExpense, setDailyMilitaryExpense] = useState(null);
+    const priceHistory = _economicState.priceHistory;
+    const setPriceHistory = _economicSetters.setPriceHistory;
+    const equilibriumPrices = _economicState.equilibriumPrices;
+    const setEquilibriumPrices = _economicSetters.setEquilibriumPrices;
+    const economicIndicators = _economicState.economicIndicators;
+    const setEconomicIndicators = _economicSetters.setEconomicIndicators;
+    const eventEffectSettings = _economicState.eventEffectSettings;
+    const setEventEffectSettings = _economicSetters.setEventEffectSettings;
+    const activeEventEffects = _economicState.activeEventEffects;
+    const setActiveEventEffects = _economicSetters.setActiveEventEffects;
+    const fiscalActual = _economicState.fiscalActual;
+    const setFiscalActual = _economicSetters.setFiscalActual;
+    const treasuryChangeLog = _economicState.treasuryChangeLog;
+    const setTreasuryChangeLog = _economicSetters.setTreasuryChangeLog;
+    const dailyMilitaryExpense = _economicState.dailyMilitaryExpense;
+    const setDailyMilitaryExpense = _economicSetters.setDailyMilitaryExpense;
 
     // ========== 时间状�?==========
     const [daysElapsed, setDaysElapsed] = useState(0);
@@ -1936,60 +2080,125 @@ export const useGameState = () => {
         });
     };
 
-    // ========== 军事系统状�?==========
-    const [army, setArmy] = useState({});
-    const [militaryQueue, setMilitaryQueue] = useState([]);
-    const [selectedTarget, setSelectedTarget] = useState(null);
-    const [battleResult, setBattleResult] = useState(null);
-    const [battleNotifications, setBattleNotifications] = useState([]); // 战斗通知队列
-    const [militaryWageRatio, setMilitaryWageRatio] = useState(1.5);
-    const [autoRecruitEnabled, setAutoRecruitEnabled] = useState(false);  // 自动补兵开�?
-    const [targetArmyComposition, setTargetArmyComposition] = useState({});  // 目标军队编制
-    const [lastBattleTargetId, setLastBattleTargetId] = useState(null); // 上次攻击的目标ID
-    const [lastBattleDay, setLastBattleDay] = useState(-999); // 上次攻击的时�?
-    const [militaryCorps, setMilitaryCorps] = useState([]); // 军团列表
-    const [generals, setGenerals] = useState([]); // 将领列表
-    const [activeFronts, setActiveFronts] = useState([]); // 活跃战线
-    const [activeBattles, setActiveBattles] = useState([]); // 进行中的战斗
-    const [pendingRepairs, setPendingRepairs] = useState([]); // 战后待修复建筑[{ buildingId, count, source }]
-    const [corpsReplenishQueue, setCorpsReplenishQueue] = useState({}); // 军团补兵缺额队列 { [corpsId]: { [unitId]: deficitCount } }
+    // ========== 军事系统（grouped: 16 useState → 1 useReducer） ==========
+    const { values: _militaryState, setters: _militarySetters, resetAll: _resetMilitaryState } = useGroupedState({
+        army: {},
+        militaryQueue: [],
+        selectedTarget: null,
+        battleResult: null,
+        battleNotifications: [], // 战斗通知队列
+        militaryWageRatio: 1.5,
+        autoRecruitEnabled: false,  // 自动补兵开关
+        targetArmyComposition: {},  // 目标军队编制
+        lastBattleTargetId: null, // 上次攻击的目标ID
+        lastBattleDay: -999, // 上次攻击的时间
+        militaryCorps: [], // 军团列表
+        generals: [], // 将领列表
+        activeFronts: [], // 活跃战线
+        activeBattles: [], // 进行中的战斗
+        pendingRepairs: [], // 战后待修复建筑[{ buildingId, count, source }]
+        corpsReplenishQueue: {}, // 军团补兵缺额队列 { [corpsId]: { [unitId]: deficitCount } }
+    });
+    const army = _militaryState.army;
+    const setArmy = _militarySetters.setArmy;
+    const militaryQueue = _militaryState.militaryQueue;
+    const setMilitaryQueue = _militarySetters.setMilitaryQueue;
+    const selectedTarget = _militaryState.selectedTarget;
+    const setSelectedTarget = _militarySetters.setSelectedTarget;
+    const battleResult = _militaryState.battleResult;
+    const setBattleResult = _militarySetters.setBattleResult;
+    const battleNotifications = _militaryState.battleNotifications;
+    const setBattleNotifications = _militarySetters.setBattleNotifications;
+    const militaryWageRatio = _militaryState.militaryWageRatio;
+    const setMilitaryWageRatio = _militarySetters.setMilitaryWageRatio;
+    const autoRecruitEnabled = _militaryState.autoRecruitEnabled;
+    const setAutoRecruitEnabled = _militarySetters.setAutoRecruitEnabled;
+    const targetArmyComposition = _militaryState.targetArmyComposition;
+    const setTargetArmyComposition = _militarySetters.setTargetArmyComposition;
+    const lastBattleTargetId = _militaryState.lastBattleTargetId;
+    const setLastBattleTargetId = _militarySetters.setLastBattleTargetId;
+    const lastBattleDay = _militaryState.lastBattleDay;
+    const setLastBattleDay = _militarySetters.setLastBattleDay;
+    const militaryCorps = _militaryState.militaryCorps;
+    const setMilitaryCorps = _militarySetters.setMilitaryCorps;
+    const generals = _militaryState.generals;
+    const setGenerals = _militarySetters.setGenerals;
+    const activeFronts = _militaryState.activeFronts;
+    const setActiveFronts = _militarySetters.setActiveFronts;
+    const activeBattles = _militaryState.activeBattles;
+    const setActiveBattles = _militarySetters.setActiveBattles;
+    const pendingRepairs = _militaryState.pendingRepairs;
+    const setPendingRepairs = _militarySetters.setPendingRepairs;
+    const corpsReplenishQueue = _militaryState.corpsReplenishQueue;
+    const setCorpsReplenishQueue = _militarySetters.setCorpsReplenishQueue;
 
-    // ========== Annual report system ==========
-    const [festivalModal, setFestivalModal] = useState(null); // { reportData, year }
-    const [annualReportBaseline, setAnnualReportBaseline] = useState(null); // Year-start baseline snapshot
-    const [annualReportAccumulator, setAnnualReportAccumulator] = useState(createAnnualReportAccumulator); // 当前年度累计器
-    const [lastFestivalYear, setLastFestivalYear] = useState(1); // Last report year (starts at 1 to avoid year-1 trigger)
-    const [annualReportHistory, setAnnualReportHistory] = useState([]); // Historical reports: [{ year, epoch, reportData }]
-    // ========== 商人交易状�?==========
-    const [merchantState, setMerchantState] = useState(buildInitialMerchantState); // 商人交易状态：买入-持有-卖出周期
+    // ========== Annual report system (grouped: 5 useState → 1 useReducer) ==========
+    const { values: _annualState, setters: _annualSetters, resetAll: _resetAnnualState } = useGroupedState({
+        festivalModal: null, // { reportData, year }
+        annualReportBaseline: null, // Year-start baseline snapshot
+        annualReportAccumulator: createAnnualReportAccumulator(), // 当前年度累计器
+        lastFestivalYear: 1, // Last report year (starts at 1 to avoid year-1 trigger)
+        annualReportHistory: [], // Historical reports: [{ year, epoch, reportData }]
+    });
+    const festivalModal = _annualState.festivalModal;
+    const setFestivalModal = _annualSetters.setFestivalModal;
+    const annualReportBaseline = _annualState.annualReportBaseline;
+    const setAnnualReportBaseline = _annualSetters.setAnnualReportBaseline;
+    const annualReportAccumulator = _annualState.annualReportAccumulator;
+    const setAnnualReportAccumulator = _annualSetters.setAnnualReportAccumulator;
+    const lastFestivalYear = _annualState.lastFestivalYear;
+    const setLastFestivalYear = _annualSetters.setLastFestivalYear;
+    const annualReportHistory = _annualState.annualReportHistory;
+    const setAnnualReportHistory = _annualSetters.setAnnualReportHistory;
+    // ========== 贸易与外交组织（grouped: 6 useState → 1 useReducer） ==========
+    const { values: _tradeState, setters: _tradeSetters, resetAll: _resetTradeState } = useGroupedState({
+        merchantState: buildInitialMerchantState(), // 商人交易状态
+        tradeStats: { tradeTax: 0 }, // 每日贸易税收
+        diplomacyOrganizations: buildInitialDiplomacyOrganizations(),
+        vassalDiplomacyQueue: [],
+        vassalDiplomacyHistory: [],
+        overseasBuildings: buildInitialOverseasBuildings(),
+    });
+    const merchantState = _tradeState.merchantState;
+    const setMerchantState = _tradeSetters.setMerchantState;
+    const tradeStats = _tradeState.tradeStats;
+    const setTradeStats = _tradeSetters.setTradeStats;
+    const diplomacyOrganizations = _tradeState.diplomacyOrganizations;
+    const setDiplomacyOrganizations = _tradeSetters.setDiplomacyOrganizations;
+    const vassalDiplomacyQueue = _tradeState.vassalDiplomacyQueue;
+    const setVassalDiplomacyQueue = _tradeSetters.setVassalDiplomacyQueue;
+    const vassalDiplomacyHistory = _tradeState.vassalDiplomacyHistory;
+    const setVassalDiplomacyHistory = _tradeSetters.setVassalDiplomacyHistory;
+    const overseasBuildings = _tradeState.overseasBuildings;
+    const setOverseasBuildings = _tradeSetters.setOverseasBuildings;
 
-    // ========== 贸易统计状态 ==========
-    const [tradeStats, setTradeStats] = useState({ tradeTax: 0 }); // 每日贸易税收
-    const [diplomacyOrganizations, setDiplomacyOrganizations] = useState(buildInitialDiplomacyOrganizations);
-    const [vassalDiplomacyQueue, setVassalDiplomacyQueue] = useState([]);
-    const [vassalDiplomacyHistory, setVassalDiplomacyHistory] = useState([]);
-    const [overseasBuildings, setOverseasBuildings] = useState(buildInitialOverseasBuildings);
-
-    // ========== 和平协议状�?==========
-    // ========== 策略行动状�?==========
-    const [actionCooldowns, setActionCooldowns] = useState({});
-    const [actionUsage, setActionUsage] = useState({});
-    const [promiseTasks, setPromiseTasks] = useState([]);
-
-    const [playerInstallmentPayment, setPlayerInstallmentPayment] = useState(null); // 玩家的分期支付协�?
-
-    // ========== 叛乱系统状�?==========
-    // 追踪各阶层的叛乱状�?
-    // 格式: { [stratumKey]: { dissatisfactionDays: number, phase: string, influenceShare: number } }
-    const [rebellionStates, setRebellionStates] = useState({});
-
-    // ========== 执政联盟状�?==========
-    // 默认自耕农(peasant)为联盟成�?
-    const [rulingCoalition, setRulingCoalition] = useState(['peasant']); // 联盟成员阶层键数�?
-    const [legitimacy, setLegitimacy] = useState(0); // 合法性�?(0-100)
-
-    // ========== 游戏运算中间值（Modifiers�?==========
-    const [modifiers, setModifiers] = useState({});
+    // ========== 策略行动与事件（grouped: 8 useState → 1 useReducer） ==========
+    const { values: _eventActionState, setters: _eventActionSetters, resetAll: _resetEventActionState } = useGroupedState({
+        actionCooldowns: {},
+        actionUsage: {},
+        promiseTasks: [],
+        playerInstallmentPayment: null, // 玩家的分期支付协议
+        rebellionStates: {},
+        rulingCoalition: ['peasant'], // 联盟成员阶层键数组
+        legitimacy: 0, // 合法性值(0-100)
+        modifiers: {},
+    });
+    const actionCooldowns = _eventActionState.actionCooldowns;
+    const setActionCooldowns = _eventActionSetters.setActionCooldowns;
+    const actionUsage = _eventActionState.actionUsage;
+    const setActionUsage = _eventActionSetters.setActionUsage;
+    const promiseTasks = _eventActionState.promiseTasks;
+    const setPromiseTasks = _eventActionSetters.setPromiseTasks;
+    const playerInstallmentPayment = _eventActionState.playerInstallmentPayment;
+    const setPlayerInstallmentPayment = _eventActionSetters.setPlayerInstallmentPayment;
+    const rebellionStates = _eventActionState.rebellionStates;
+    const setRebellionStates = _eventActionSetters.setRebellionStates;
+    const rulingCoalition = _eventActionState.rulingCoalition;
+    const setRulingCoalition = _eventActionSetters.setRulingCoalition;
+    const legitimacy = _eventActionState.legitimacy;
+    const setLegitimacy = _eventActionSetters.setLegitimacy;
+    const modifiers = _eventActionState.modifiers;
+    const setModifiers = _eventActionSetters.setModifiers;
 
     // ========== 教程系统状�?==========
     const [showTutorial, setShowTutorial] = useState(() => {
@@ -4726,4 +4935,10 @@ export const useGameState = () => {
         pendingActionsRef,
     };
 };
+
+// ── HMR: force full refresh for core hook changes ──
+// Fast Refresh cannot safely preserve 138+ useState hooks; invalidate to trigger full reload.
+if (import.meta.hot) {
+    import.meta.hot.invalidate();
+}
 

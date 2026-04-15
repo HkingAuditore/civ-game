@@ -97,7 +97,25 @@ export function useSimulationWorker() {
 
     // Initialize worker on mount
     useEffect(() => {
-        if (isInitializedRef.current) return;
+        // HMR safety: if Fast Refresh preserved the ref but the old Worker
+        // was terminated during cleanup, we need to re-initialize.
+        if (isInitializedRef.current) {
+            // Check if the Worker is still alive
+            if (workerRef.current) {
+                try {
+                    workerRef.current.postMessage({ type: 'PING' });
+                    return; // Worker is still alive, skip re-init
+                } catch {
+                    // Worker was terminated or broken, fall through to re-init
+                    console.warn('[SimulationWorker] HMR: stale Worker detected, re-initializing');
+                    workerRef.current = null;
+                    setIsUsingWorker(false);
+                }
+            } else {
+                // Ref says initialized but no Worker — need to re-init
+                console.warn('[SimulationWorker] HMR: Worker ref lost, re-initializing');
+            }
+        }
         isInitializedRef.current = true;
 
         // Circuit breaker: skip Worker entirely if it failed too many times in a row
@@ -267,12 +285,29 @@ export function useSimulationWorker() {
             }
         }
         
-        // Cleanup on unmount
+        // Cleanup on unmount (including HMR)
         return () => {
+            // Reject all pending promises before terminating
+            if (pendingResolveRef.current) {
+                // Don't call reject — just silently discard to avoid error noise during HMR
+                pendingResolveRef.current = null;
+            }
+            if (pendingRejectRef.current) {
+                try { pendingRejectRef.current(new Error('Worker terminated (HMR/unmount)')); } catch { /* ignore */ }
+                pendingRejectRef.current = null;
+            }
+            if (pendingLatestRef.current) {
+                try { pendingLatestRef.current.reject(new Error('Worker terminated (HMR/unmount)')); } catch { /* ignore */ }
+                pendingLatestRef.current = null;
+            }
+
             if (workerRef.current) {
                 workerRef.current.terminate();
                 workerRef.current = null;
             }
+
+            // Reset so next mount (HMR) can re-initialize
+            isInitializedRef.current = false;
         };
     }, []);
 

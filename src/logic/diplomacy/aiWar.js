@@ -1893,11 +1893,19 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
     // [FIX] Use updatedNations (full list) instead of visibleNations (sliced subset)
     // to prevent wars from being incorrectly cleaned up when the enemy is not in the current slice
     const allNationIds = new Set(updatedNations.map(n => n.id));
+    // 预计算：是否有AI军团系统数据（用于禁止“未分兵战线回退整国宏观战力”）
+    const hasAICorpsDataByNation = new Map();
+    (militaryCorps || []).forEach((corps) => {
+        if (!corps?.isAI || !corps?.nationId) return;
+        hasAICorpsDataByNation.set(corps.nationId, true);
+    });
 
     // === AI-AI 战争军团分配：每个国家的有限军团按战线优先级分配到各场战争 ===
     // Map<nationId, Map<enemyId, Set<corpsId>>>
     const aiWarCorpsAlloc = new Map();
-    for (const nation of visibleNations) {
+    // 分配阶段必须覆盖全部国家；否则未出现在 visible slice 的国家会在后续战线推进中回退到宏观战力，
+    // 造成“每条战线战力都一样”的错觉（没有体现分兵）。
+    for (const nation of updatedNations) {
         if (!nation?.foreignWars) continue;
         const nationId = nation.id;
         const activeEnemyIds = Object.entries(nation.foreignWars)
@@ -2106,8 +2114,20 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
             const nationCorpsPower = nationCorpsOnFront.reduce((s, c) => s + calculateCorpsCombatPower(c, getCorpsGeneral(generals, c.id), epoch), 0);
             const enemyCorpsPower = enemyCorpsOnFront.reduce((s, c) => s + calculateCorpsCombatPower(c, getCorpsGeneral(generals, c.id), epoch), 0);
             // 使用本战线实际军团战力；无军团数据时回退到国家宏观公式
-            const nationEffStr = nationCorpsPower > 0 ? nationCorpsPower : (nation.militaryStrength ?? 1.0) * Math.sqrt(nation.population || 100) * (1 + (nation.aggression || 0.3));
-            const enemyEffStr = enemyCorpsPower > 0 ? enemyCorpsPower : (enemy.militaryStrength ?? 1.0) * Math.sqrt(enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+            const nationHasCorpsData = hasAICorpsDataByNation.get(nation.id) === true;
+            const enemyHasCorpsData = hasAICorpsDataByNation.get(enemy.id) === true;
+            // 约束：同一国家总兵团有限，未分配到该战线时不得凭空回退到“整国宏观战力”。
+            // 仅在旧存档/无军团系统数据时保留宏观回退。
+            const nationEffStr = nationCorpsPower > 0
+                ? nationCorpsPower
+                : (nationHasCorpsData
+                    ? 0
+                    : (nation.militaryStrength ?? 1.0) * Math.sqrt(nation.population || 100) * (1 + (nation.aggression || 0.3)));
+            const enemyEffStr = enemyCorpsPower > 0
+                ? enemyCorpsPower
+                : (enemyHasCorpsData
+                    ? 0
+                    : (enemy.militaryStrength ?? 1.0) * Math.sqrt(enemy.population || 100) * (1 + (enemy.aggression || 0.3)));
 
             // 存储分配到本战线的军团ID列表供UI显示
             war.assignedCorpsIds = nationAllocCorps ? [...nationAllocCorps] : [];

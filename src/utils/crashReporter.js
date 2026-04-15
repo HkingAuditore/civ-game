@@ -14,6 +14,8 @@ const OTA_ERROR_STREAK_THRESHOLD = 3;
 
 let _reportCallback = null;
 let _memoryPollTimer = null;
+let _aliveTimer = null;
+let _installed = false;
 
 // ── localStorage 安全读写 ──
 
@@ -167,6 +169,10 @@ function tryReport(record) {
 // ── 公开 API ──
 
 export function installCrashReporter() {
+    // Idempotent guard: prevent duplicate registration on HMR
+    if (_installed) return;
+    _installed = true;
+
     _sessionStart = Date.now();
 
     window.addEventListener('error', handleGlobalError);
@@ -176,16 +182,38 @@ export function installCrashReporter() {
     markSessionAlive();
 
     // 定期刷新存活标记
-    setInterval(markSessionAlive, 5000);
+    _aliveTimer = setInterval(markSessionAlive, 5000);
 
     // 页面正常关闭时清除存活标记
-    window.addEventListener('pagehide', () => {
-        stopMemoryMonitor();
-        clearSessionAlive();
-    });
-    window.addEventListener('beforeunload', () => {
-        clearSessionAlive();
-    });
+    window.addEventListener('pagehide', _handlePageHide);
+    window.addEventListener('beforeunload', _handleBeforeUnload);
+}
+
+// Named handlers for proper removal during HMR dispose
+function _handlePageHide() {
+    stopMemoryMonitor();
+    clearSessionAlive();
+}
+
+function _handleBeforeUnload() {
+    clearSessionAlive();
+}
+
+/**
+ * Teardown all side effects installed by installCrashReporter().
+ * Called from import.meta.hot.dispose() during HMR.
+ */
+function _teardown() {
+    if (_aliveTimer) {
+        clearInterval(_aliveTimer);
+        _aliveTimer = null;
+    }
+    stopMemoryMonitor();
+    window.removeEventListener('error', handleGlobalError);
+    window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    window.removeEventListener('pagehide', _handlePageHide);
+    window.removeEventListener('beforeunload', _handleBeforeUnload);
+    _installed = false;
 }
 
 export function setReportCallback(fn) {
@@ -239,4 +267,12 @@ export function getOtaErrorStreak() {
         const tail = otaErrors.slice(-OTA_ERROR_STREAK_THRESHOLD);
         return tail.length;
     } catch { return 0; }
+}
+
+// ── HMR dispose: clean up all module-level side effects ──
+
+if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+        _teardown();
+    });
 }
