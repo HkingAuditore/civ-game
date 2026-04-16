@@ -6390,7 +6390,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 if (!prev) return prev;
                                 return {
                                     ...prev,
-                                    paidAmount: prev.paidAmount + paymentAmount,
+                                    paidAmount: (prev.paidAmount || 0) + paymentAmount,
                                     remainingDays: prev.remainingDays - 1
                                 };
                             });

@@ -4,9 +4,27 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.50',
+        date: '2026-04-16',
+        isLatest: true,
+        highlights: [
+            '修复导致白屏闪退的 React #185 无限循环：战线部署、教程系统、移动端视口高度三条路径已堵住',
+            'Worker 模拟线程不再因第三方 SDK 访问 window 而崩溃，性能回退问题消除',
+            '错误上报系统大幅降噪：健康事件不再被标为崩溃，重复写入已修正',
+        ],
+        changes: [
+            { type: 'fix', text: '修复战线部署 effect 链导致 React #185 无限循环闪退：handleAssignCorpsToFront、focusMilitaryWarfront 等 6 个 useCallback 的依赖从不稳定的 [gameState] 整对象改为通过 useRef 读取，使下游 useEffect 引用稳定，消除战争状态下每帧重跑 → setState → 再渲染的死循环。' },
+            { type: 'fix', text: '修复教程系统 useTutorialSystem 中 onComplete 内联函数导致 nextStep 每帧重建的问题：改用 onCompleteRef 持有回调，skipTutorial 和 nextStep 的依赖不再包含 onComplete，教程激活时校验 effect 不再高频无效重跑。' },
+            { type: 'fix', text: '修复 useViewportHeight 中 [vh] 自依赖导致的移动端循环渲染：effect 改用 vhRef 比较当前值，依赖改为空数组，WebView 输入法弹出/收起不再触发 setState → effect → setState 的无限循环。' },
+            { type: 'fix', text: '修复 Worker 模拟线程 "window is not defined" 崩溃：在 Vite Worker 构建中通过 plugin 将 gaTracker、gameanalytics 等分析模块替换为空 stub，彻底避免第三方 SDK 的模块级代码在 Worker 中因访问 window 而报错。' },
+            { type: 'fix', text: '修复分期赔款 installmentPayment.paidAmount 的 null ref 崩溃风险：所有读取 paidAmount、amount、totalAmount 的路径增加 || 0 防御性兜底，兼容旧存档中字段缺失的情况。' },
+            { type: 'improve', text: '错误上报系统降噪：Worker 健康事件（worker_ready）不再覆盖崩溃日志槽位，启动时按 type 区分真实崩溃与诊断事件的上报级别，去除 bufferErrorEvent 重复调用，每条错误不再产生两条记录。' },
+        ],
+    },
+    {
         version: '2.3.49',
         date: '2026-04-15',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '法令冷却写回兼容性修复，旧存档与新状态字段命名保持一致',
             'Worker 环境补齐更多 DOM 垫片，第三方模块在模拟线程初始化更稳定',

@@ -52,7 +52,11 @@ function resetWorkerFailCount() {
     _safeSet(WORKER_FAIL_COUNT_KEY, '0');
 }
 
-/** Persist a Worker health event to civ_crash_log + history (mirrors crashReporter pattern) */
+/** Persist a Worker health event to crash history only.
+ *  Does NOT write to civ_crash_log (the "pending crash" slot) — only actual
+ *  crashes (worker_crash, worker_create_fail) should overwrite that key,
+ *  otherwise healthy events like worker_ready get reported as critical on
+ *  next session start. */
 function persistWorkerHealthEvent(eventType, details = {}) {
     const otaInfo = getOtaInfoSync();
     const record = {
@@ -66,9 +70,12 @@ function persistWorkerHealthEvent(eventType, details = {}) {
         baseURI: typeof document !== 'undefined' ? document.baseURI : '',
         ...details.extra,
     };
-    // Write to civ_crash_log (latest)
-    _safeSet(CRASH_LOG_KEY, JSON.stringify(record));
-    // Append to history ring buffer
+    // Only overwrite civ_crash_log for real error events
+    const ERROR_TYPES = new Set(['worker_crash', 'worker_create_fail', 'worker_circuit_broken']);
+    if (ERROR_TYPES.has(eventType)) {
+        _safeSet(CRASH_LOG_KEY, JSON.stringify(record));
+    }
+    // Always append to history ring buffer (useful for diagnostics)
     try {
         const raw = _safeGet(CRASH_HISTORY_KEY);
         const history = raw ? JSON.parse(raw) : [];
