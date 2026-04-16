@@ -1052,7 +1052,7 @@ difficulty, // 游戏难度
 
     // [NEW] 娴峰鎶曡祫鍒嗘壒澶勭悊鐘舵€佽拷韪?
     const outboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null });
-    const inboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null }); // [NEW] 澶栧浗瀵规垜鍥芥姇璧?
+    const inboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null, completed: false }); // [NEW] 澶栧浗瀵规垜鍥芥姇璧?
 
     // ========== 历史数据 Ref 管理 ==========
     // 使用 Ref 存储高频更新的历史数据，避免每帧触发 React 閲嶆覆鏌?
@@ -2448,7 +2448,8 @@ difficulty, // 游戏难度
                     : (effectiveDaysElapsed - lastInboundDay >= 10); // 鍚庣画瑙﹀彂锛氳窛绂讳笂娆″鐞?>= 10 澶?
                 const isInInboundCycle = lastInboundDay !== null &&
                     effectiveDaysElapsed - lastInboundDay < 10 &&
-                    effectiveDaysElapsed > lastInboundDay;
+                    effectiveDaysElapsed > lastInboundDay &&
+                    !inboundInvestmentBatchRef.current.completed;
 
                 debugLog('trade', '? [INBOUND-CYCLE] Day', effectiveDaysElapsed,
                     '- shouldStart:', shouldStartInboundCycle,
@@ -2465,6 +2466,7 @@ difficulty, // 游戏难度
                             debugLog('trade', '? [INBOUND-CYCLE] 寮€濮嬫柊鍛ㄦ湡锛岄噸缃?offset');
                             inboundInvestmentBatchRef.current.offset = 0;
                             inboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
+                            inboundInvestmentBatchRef.current.completed = false;
                         }
 
                         // [FIX] 玩家数据不在 nations 鏁扮粍涓紝鐩存帴浠?current 获取
@@ -2503,9 +2505,10 @@ difficulty, // 游戏难度
                         // 鏇存柊鎵规鐘舵€?
                         inboundInvestmentBatchRef.current.offset = nextOffset;
                         if (!hasMore) {
-                            // 本周期处理完毕，重置为当前天数；下次需等满10天才重新触发
+                            // 本周期处理完毕，标记完成；下次需等满10天才重新触发
                             debugLog('trade', '[INBOUND-CYCLE] 本周期处理完毕');
                             inboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
+                            inboundInvestmentBatchRef.current.completed = true;
                         }
 
                         if (investments.length === 0) {

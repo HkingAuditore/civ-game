@@ -162,7 +162,8 @@ const TaxBatchSheet = memo(({
     const resetAll = () => {
         onUpdateTaxPolicies(prev => {
             const headUpdated = { ...(prev?.headTaxRates || {}) };
-            strataToDisplay.forEach(key => { headUpdated[key] = 1; });
+            const defaultHeadTaxRate = headPercentToMultiplier(5);
+            strataToDisplay.forEach(key => { headUpdated[key] = defaultHeadTaxRate; });
             const resUpdated = { ...(prev?.resourceTaxRates || {}) };
             taxableResourceKeys.forEach(key => { resUpdated[key] = 0; });
             const bizUpdated = { ...(prev?.businessTaxRates || {}) };

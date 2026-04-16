@@ -62,7 +62,9 @@ const computeInboundSignature = (nations, diplomacyOrganizations, daysElapsed) =
         if (!t) return sum;
         return sum + (Array.isArray(t) ? t.length : Object.keys(t).length);
     }, 0) || 0;
-    return `${nCount}|${orgCount}|${dayBucket}|${treatyCount}`;
+    // [FIX] 加入各国投资冷却状态，避免已投资国家因缓存未失效而绕过冷却检查
+    const investDaySum = nations?.reduce((sum, n) => sum + (n.lastForeignInvestmentDay || 0), 0) || 0;
+    return `${nCount}|${orgCount}|${dayBucket}|${treatyCount}|${investDaySum}`;
 };
 
 const computeOutboundSignature = (nations, diplomacyOrganizations, daysElapsed) => {

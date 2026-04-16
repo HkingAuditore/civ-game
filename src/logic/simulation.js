@@ -1664,7 +1664,8 @@ export const simulateTick = ({
 
     perfStart('preProduction');
     const rates = {};
-    const builds = buildings;
+    const builds = { ...buildings };
+    let _buildingsModified = false;
 
     // ========== 战争经济：建筑现已真实销毁，直接使用 builds ==========
     const playerActiveFrontsForDamage = (activeFronts || []).filter(front =>
@@ -4403,6 +4404,8 @@ export const simulateTick = ({
             });
             // Update the main `builds` object for the rest of the tick
             Object.assign(builds, newBuildingsCount);
+            _buildingsModified = true;
+            console.warn('[SIM-BUILD] Free Market expanded:', expansions.map(e => e.buildingId));
         }
     }
     perfEnd('cabinetMechanics');
@@ -4939,6 +4942,8 @@ export const simulateTick = ({
             }
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
+            _buildingsModified = true;
+            console.warn('[SIM-BUILD] Official investment:', investmentDecision.buildingId, 'by', normalizedOfficial.name, 'policy:', officialPolicy);
             } // end if (investmentCost > 0)
         }
 
@@ -8322,6 +8327,8 @@ export const simulateTick = ({
 
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
+            _buildingsModified = true;
+            console.warn('[SIM-BUILD] Minister expansion:', bestCandidate.building.id, 'role:', bestCandidate.role);
             builtCount += 1;
             builtByRole[bestCandidate.role] = (builtByRole[bestCandidate.role] || 0) + 1;
             remainingBudget = Math.max(0, remainingBudget - bestCandidate.silverCost);
@@ -9423,7 +9430,7 @@ export const simulateTick = ({
         officials: updatedOfficials, // 更新后的官员列表（含财务数据?
         // 计算有效官员容量（基于时代、政体、科技和理念）
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked, bonuses.ideoOfficialCapacityBonus || 0),
-        buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
+        buildings: _buildingsModified ? builds : null, // [FIX] Only return when actually modified to prevent unnecessary state updates
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
         // [PERF] Only serialize full audit log in debug mode; otherwise return aggregated totals only.

@@ -4,9 +4,25 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.51',
+        version: '2.3.52',
         date: '2026-04-16',
         isLatest: true,
+        highlights: [
+            '税收批量重置默认值修正，重置后不再误回到 100% 人头税',
+            '外资入境分批周期完成态修复，10 天节奏恢复稳定',
+            '建筑回写改为“按改动返回”，减少无效状态覆盖与额外渲染',
+        ],
+        changes: [
+            { type: 'fix', text: '修复政治页税收批量重置的人头税默认值错误：重置逻辑从硬编码倍率 1 调整为 headPercentToMultiplier(5)，避免玩家点击“重置”后人头税被错误恢复到 100% 而不是默认 5%。' },
+            { type: 'fix', text: '修复外资入境投资分批循环在一个 10 天周期内重复触发的问题：inboundInvestmentBatchRef 新增 completed 标记，周期处理完后显式置为完成，直到下个周期开启前不再重复进入，避免同周期多次扫描。' },
+            { type: 'fix', text: '修复入境投资缓存签名未纳入国家投资冷却字段导致的失效判断偏差：computeInboundSignature 新增 lastForeignInvestmentDay 聚合参与签名，防止缓存命中后绕过冷却校验。' },
+            { type: 'improve', text: '优化 simulation 建筑状态回写策略：仅在自由市场扩建、官员投资、部长扩建等路径真实修改建筑数量时返回 buildings，否则返回 null，减少无意义 setState 与潜在覆盖。' },
+        ],
+    },
+    {
+        version: '2.3.51',
+        date: '2026-04-16',
+        isLatest: false,
         highlights: [
             '商业建筑产出重新平衡：贸易站、市场、贸易港的粮食与银币比例更合理',
             '升级链数值同步校准，与基础建筑倍率保持一致',
