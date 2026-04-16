@@ -4,9 +4,23 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.50',
+        version: '2.3.51',
         date: '2026-04-16',
         isLatest: true,
+        highlights: [
+            '商业建筑产出重新平衡：贸易站、市场、贸易港的粮食与银币比例更合理',
+            '升级链数值同步校准，与基础建筑倍率保持一致',
+        ],
+        changes: [
+            { type: 'balance', text: '贸易站基础产出从 food:4 / silver:1.6 调整为 food:1.5 / silver:2.8：降低早期贸易站的粮食溢出，提高银币收益占比，使商人阶层的经济定位更偏向货币流通而非粮食生产。' },
+            { type: 'balance', text: '市场基础产出从 food:4 调整为 food:2 / silver:1.5：市场不再是纯粮食来源，新增银币产出体现商业税收功能，并同步校准升级链"大市场"和"交易所"的产出倍率（1.3x / 2.25x）。' },
+            { type: 'balance', text: '贸易港基础产出从 food:12 / silver:2 调整为 food:5 / silver:5：大幅削减贸易港的粮食产出优势，提升银币比重，避免后期贸易港堆叠导致粮食经济过度膨胀。升级链"繁荣港口"和"贸易枢纽"产出同步重算。' },
+        ],
+    },
+    {
+        version: '2.3.50',
+        date: '2026-04-16',
+        isLatest: false,
         highlights: [
             '修复导致白屏闪退的 React #185 无限循环：战线部署、教程系统、移动端视口高度三条路径已堵住',
             'Worker 模拟线程不再因第三方 SDK 访问 window 而崩溃，性能回退问题消除',

@@ -127,21 +127,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // trading_post: base output food: 4 silver: 1.6, owner: merchant, base jobs: merchant:2
+    // trading_post: base output food: 1.5 silver: 2.8, owner: merchant, base jobs: merchant:2
     trading_post: [
         {
             name: "商铺",
             cost: { wood: 100, stone: 40, silver: 400 },
             input: { tools: 0.01 },
-            output: { food: 10.4, silver: 4.16 }, // 1.3x of base 4 / 1.6
-            jobs: { merchant: 2 }, // keep same, efficiency upgrade
+            output: { food: 1.95, silver: 3.64 }, // 1.3x of base 1.5 / 2.8
+            jobs: { merchant: 2 },
         },
         {
             name: "商会",
             cost: { plank: 80, brick: 60, silver: 900 },
             input: { tools: 0.02, papyrus: 0.01 },
-            output: { food: 18, silver: 7.2, spice: 0.02 }, // 2.25x of base 4 / 1.6 + 异域贸易
-            jobs: { merchant: 3 }, // +1 merchant only
+            output: { food: 3.375, silver: 6.3, spice: 0.02 }, // 2.25x of base 1.5 / 2.8 + 异域贸易
+            jobs: { merchant: 3 },
         },
     ],
 
@@ -540,21 +540,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // trade_port: base output food: 12 silver: 2, base input spice: 0.35, owner: merchant, base jobs: merchant:4 worker:6
+    // trade_port: base output food: 5 silver: 5, base input spice: 0.35, owner: merchant, base jobs: merchant:4 worker:6
     trade_port: [
         {
             name: "繁荣港口",
             cost: { plank: 150, spice: 30, silver: 600 },
             input: { spice: 0.45 },
-            output: { food: 93.6, silver: 2.6 }, // 1.3x of base 2.6667
-            jobs: { merchant: 4, worker: 6 }, // keep same, efficiency upgrade
+            output: { food: 6.5, silver: 6.5 }, // 1.3x of base 5 / 5
+            jobs: { merchant: 4, worker: 6 },
         },
         {
             name: "贸易枢纽",
             cost: { plank: 120, spice: 60, silver: 1300 },
-            input: { spice: 0.70, cloth: 0.10 }, // 需要帆布
-            output: { food: 162, silver: 4.5 }, // 2.25x of base 2.6667 + 贸易利润
-            jobs: { merchant: 5, worker: 8 }, // +1 merchant only
+            input: { spice: 0.70, cloth: 0.10 },
+            output: { food: 11.25, silver: 11.25 }, // 2.25x of base 5 / 5
+            jobs: { merchant: 5, worker: 8 },
         },
     ],
 
@@ -984,21 +984,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // market: base output food: ~2.0 (from trade), owner: merchant, base jobs: merchant:2
+    // market: base output food: 2 silver: 1.5, owner: merchant, base jobs: merchant:3 worker:1
     // Note: Market's primary function is trade balancing, not direct production
     market: [
         {
             name: "大市场",
             cost: { brick: 300, papyrus: 60, cloth: 15, silver: 1000 },
             input: { papyrus: 0.12, coffee: 0.075 },
-            output: { food: 5.2, silver: 1.5 },
+            output: { food: 2.6, silver: 1.95 }, // 1.3x of base 2 / 1.5
             jobs: { merchant: 4, scribe: 1 },
         },
         {
             name: "交易所",
             cost: { steel: 200, papyrus: 120, delicacies: 30, silver: 2200 },
             input: { papyrus: 0.18, coffee: 0.12 },
-            output: { food: 6.75, silver: 1.8, culture: 0.225 },
+            output: { food: 4.5, silver: 3.375, culture: 0.225 }, // 2.25x of base 2 / 1.5
             jobs: { merchant: 5, scribe: 1 },
         },
     ],
