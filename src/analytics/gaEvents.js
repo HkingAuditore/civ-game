@@ -8,6 +8,18 @@ export const GA_EVENTS = {
     GAME_SAVE: 'Game:Save',
     GAME_SAVE_AUTO: 'Game:AutoSave',
     GAME_RESET: 'Game:Reset',
+
+    // ── 存档性能观测（PR-1 引入，用于度量 saveGame 主线程开销） ──
+    // Save:Duration:{source} 以毫秒粒度（bucket 化后）上报 saveGame 完整耗时
+    SAVE_DURATION: 'Save:Duration',
+    // Save:Bytes:{source}[:{shard}] 上报每次写入的字节数（分片或整体）
+    SAVE_BYTES: 'Save:Bytes',
+    // Save:Path:{category} 上报这次 saveGame 走了哪条路径（idb_direct / localstorage / quota_blocked 等）
+    SAVE_PATH: 'Save:Path',
+    // Save:WorkerFallback 当 save.worker 不可用、回退到主线程序列化时上报
+    SAVE_WORKER_FALLBACK: 'Save:WorkerFallback',
+    // Save:Skip:{reason} 出于保护目的（inflight、tab 隐藏等）跳过本次存档时上报
+    SAVE_SKIP: 'Save:Skip',
     GAME_EXPORT: 'Game:Export',
     GAME_IMPORT: 'Game:Import',
     GAME_DIFFICULTY: 'Game:Difficulty',

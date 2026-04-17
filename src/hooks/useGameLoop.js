@@ -1261,15 +1261,9 @@ difficulty, // 游戏难度
             const current = stateRef.current;
             let effectiveCorpsReplenishQueue = current.corpsReplenishQueue || {};
 
-            // 自动存档检测：即使暂停也照常运行，避免长时间停留丢进度
-            if (current.isAutoSaveEnabled) {
-                const intervalSeconds = Math.max(60, current.autoSaveInterval || 60);
-                const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
-                if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
-                    saveGameRef.current({ source: 'auto' });
-                    stateRef.current.lastAutoSaveTime = Date.now();
-                }
-            }
+            // [PR-1] 自动存档调度已移到 useAutoSave hook 内独立跑（setTimeout + rIC）
+            // 主循环 tick 不再做 autoSave 检测，避免高速档下每 200ms 一次的重复判断、
+            // 以及 saveGame 被卡在渲染帧之中造成主线程阻塞 → WorkerTimeout。
 
             // 妫€鏌ユ槸鍚﹂渶瑕佽Е鍙戝勾搴﹀簡鍏?
             // 淇锛氭娴嬪勾浠藉彉鍖栬€岄潪鐗瑰畾鏃ユ湡锛岄伩鍏嶅姞閫熸ā寮忎笅璺宠繃瑙﹀彂鐐?

@@ -4,9 +4,29 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.52',
+        version: '2.3.53',
         date: '2026-04-16',
         isLatest: true,
+        highlights: [
+            '自动存档调度重构为“空闲时执行”，高速档卡顿与误超时风险明显下降',
+            '存档系统升级为分片 + Worker 序列化，主线程存档抖动显著减少',
+            '存档全链路新增性能埋点与回退监控，后续定位卡顿和失败更精准',
+            '新增存档 Worker 与可选 gzip 压缩通道，为后续大存档优化打好基础',
+        ],
+        changes: [
+            { type: 'improve', text: '重构自动存档调度策略：useAutoSave 从固定 setInterval 改为 setTimeout + requestIdleCallback 链式触发，并补充 inflight 防重入与页面可见性补偿，避免存档与渲染关键帧抢主线程，降低高倍速下的卡顿和 worker timeout 风险。' },
+            { type: 'new', text: '新增 save.worker 分片序列化链路：将 state/nations/history/market/social 五个分片的 JSON.stringify 从主线程迁移到专用 Worker，并支持队列合并覆盖与 superseded 快速跳过，减少连续自动存档时的主线程阻塞。' },
+            { type: 'improve', text: '存档格式升级到 v2 分片存档：IndexedDB 优先写入 shard 数据，localStorage 仅保存轻量 stub；加载侧新增分片合并与兼容读取（含旧版 v1 / 外部存储路径），删除存档时会同步清理所有 shard，降低大存档场景的写入压力与碎片残留。' },
+            { type: 'new', text: '新增存档性能观测埋点：补充 Save:Duration / Save:Bytes / Save:Path / Save:WorkerFallback / Save:Skip 事件，支持按手动/自动来源、分片字节和回退路径统计，为线上性能分析与故障归因提供直接数据。' },
+            { type: 'improve', text: '优化 saveGame 序列化与回退链路：统一“一次 stringify 多处复用”，减少重复 JSON 构建与 Blob 开销，并将配额不足时的 compact/minimal/cleanup 重试路径统一纳入可观测流程，提升极端存储压力下的成功率和一致性。' },
+            { type: 'new', text: '新增 saveWorkerClient 与 save.worker 模块，并调整 Vite worker 输出命名为 assets/[name].js：在保留 simulation.worker 固定路径兼容的同时支持多 worker 并存，且预留可选 gzip 压缩开关用于后续灰度。' },
+            { type: 'improve', text: '清理主循环中的重复自动存档检测：useGameLoop 不再每 tick 做 autoSave 判定，避免高速档下无效检查和潜在重入，自动存档职责统一收敛到 useAutoSave 专用调度器。' },
+        ],
+    },
+    {
+        version: '2.3.52',
+        date: '2026-04-16',
+        isLatest: false,
         highlights: [
             '税收批量重置默认值修正，重置后不再误回到 100% 人头税',
             '外资入境分批周期完成态修复，10 天节奏恢复稳定',

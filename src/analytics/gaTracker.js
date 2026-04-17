@@ -175,6 +175,45 @@ export function trackSaveGame(daysElapsed, source = 'manual') {
     const eventId = source === 'auto' ? GA_EVENTS.GAME_SAVE_AUTO : GA_EVENTS.GAME_SAVE;
     trackDesign(eventId, daysElapsed);
 }
+
+// ── 存档性能观测 (PR-1) ──
+// 把毫秒值分桶成少量标签，避免 GA 自定义事件维度爆炸
+function bucketDurationMs(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return 'unknown';
+    if (ms < 50) return 'lt50';
+    if (ms < 100) return '50_100';
+    if (ms < 300) return '100_300';
+    if (ms < 1000) return '300_1000';
+    return 'gt1000';
+}
+export function trackSaveDuration(source, ms) {
+    // 形如 Save:Duration:auto:100_300 —— 既能按来源分，又能看分布
+    const safeSource = source === 'auto' ? 'auto' : 'manual';
+    trackDesign(`${GA_EVENTS.SAVE_DURATION}:${safeSource}:${bucketDurationMs(ms)}`, Math.round(ms));
+}
+export function trackSaveBytes(source, bytes, shard) {
+    const safeSource = source === 'auto' ? 'auto' : 'manual';
+    const kb = Math.max(0, Math.round(Number(bytes || 0) / 1024));
+    if (shard) {
+        trackDesign(`${GA_EVENTS.SAVE_BYTES}:${safeSource}:${shard}`, kb);
+    } else {
+        trackDesign(`${GA_EVENTS.SAVE_BYTES}:${safeSource}`, kb);
+    }
+}
+export function trackSavePath(source, pathLabel) {
+    const safeSource = source === 'auto' ? 'auto' : 'manual';
+    const safeLabel = String(pathLabel || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 24);
+    trackDesign(`${GA_EVENTS.SAVE_PATH}:${safeSource}:${safeLabel}`);
+}
+export function trackSaveWorkerFallback(reason) {
+    const safeReason = String(reason || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 24);
+    trackDesign(`${GA_EVENTS.SAVE_WORKER_FALLBACK}:${safeReason}`);
+}
+export function trackSaveSkip(source, reason) {
+    const safeSource = source === 'auto' ? 'auto' : 'manual';
+    const safeReason = String(reason || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 24);
+    trackDesign(`${GA_EVENTS.SAVE_SKIP}:${safeSource}:${safeReason}`);
+}
 export function trackResetGame(daysElapsed) {
     trackDesign(GA_EVENTS.GAME_RESET, daysElapsed);
 }

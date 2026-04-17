@@ -32,12 +32,15 @@ export default defineConfig(({ mode }) => ({
         exclude: [],
         entries: ['index.html'],
     },
-    // Fix Worker output filename for OTA fallback path resolution
+    // Fix Worker output filename for OTA fallback path resolution.
+    // 使用 [name] 保留每个 worker 的原始基名：simulation.worker.js / save.worker.js
+    // 这样既保持 useSimulationWorker.js 对 "assets/simulation.worker.js" 的硬编码路径可用，
+    // 又允许后续的 save.worker 各自输出独立 chunk（PR-4）
     worker: {
         format: 'es',
         rollupOptions: {
             output: {
-                entryFileNames: 'assets/simulation.worker.js',
+                entryFileNames: 'assets/[name].js',
             },
         },
         plugins: () => [
