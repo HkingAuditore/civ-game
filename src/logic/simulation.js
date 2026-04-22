@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { BUILDING_CHAINS } from '../config/buildingChains';
@@ -5650,70 +5650,10 @@ export const simulateTick = ({
     let nextPopulation = population;
     let raidPopulationLoss = 0;
 
-    // Wealth Decay (Lifestyle Inflation)
-    // Prevents infinite accumulation by "burning" a small percentage of wealth daily
-    // representing maintenance, services, and non-goods consumption.
-    // NEW: Decay is based on per-capita wealth percentage, not total wealth
-    perfStart('wealthDecay');
-    Object.keys(STRATA).forEach(key => {
-        const currentWealth = wealth[key] || 0;
-        const population = popStructure[key] || 0;
-
-        if (currentWealth > 0 && population > 0) {
-            // Check living standard to see if decay should apply
-            // Only apply decay if living standard is at least "Comfortable" (小康)
-            // Levels: 赤贫 (Destitute), 贫困 (Poor), 温饱 (Subsistence), 小康 (Comfortable)...
-            const standard = classLivingStandard[key];
-            const level = standard?.level;
-
-            // Skip decay for Destitute, Poor, and Subsistence
-            if (level === '赤贫' || level === '贫困' || level === '温饱') {
-                return;
-            }
-
-            // Calculate per-capita wealth and apply decay rate
-            // 根据生活水平档位设置不同的挥霍率，刚进入小康时挥霍很?
-            const perCapitaWealth = currentWealth / population;
-            const wealthRatio = WEALTH_BASELINE > 0 ? perCapitaWealth / WEALTH_BASELINE : 0;
-
-            // Safeguard: Only apply decay if they have accumulated some wealth buffer (e.g. > 120% baseline)
-            // This prevents "newly comfortable" strata from immediately losing their savings
-            if (wealthRatio < 1.2 && level !== '奢华') {
-                return;
-            }
-
-            let decayRate = WEALTH_DECAY_RATE; // 默认0.5% (奢华)
-            if (level === '小康') {
-                decayRate = 0.001; // 0.1% - 刚进入小康，挥霍很少
-            } else if (level === '富裕') {
-                decayRate = 0.003; // 0.3% - 开始享受生?
-            }
-            // '奢华' 保持默认?.5%
-
-            const perCapitaDecay = perCapitaWealth * decayRate;
-            // Removed Math.max(1, floor(...)) to allow fractional decay and prevent subsidy waste
-            // Use toFixed(2) for clean display and deduction
-            const rawDecay = perCapitaDecay * population;
-            let decay = parseFloat(rawDecay.toFixed(2));
-
-            // [NEW] Cap decay at 50% of current tick's luxury spending
-            // Represents that lavish spending (waste) cannot exceed a fraction of actual luxury consumption
-            let totalLuxurySpend = 0;
-            if (classFinancialData[key] && classFinancialData[key].expense && classFinancialData[key].expense.luxuryNeeds) {
-                Object.values(classFinancialData[key].expense.luxuryNeeds).forEach(item => {
-                    totalLuxurySpend += (item.cost || 0);
-                });
-            }
-            const maxDecay = parseFloat((totalLuxurySpend * 0.5).toFixed(2));
-            decay = Math.min(decay, maxDecay);
-
-            if (decay > 0) {
-                ledger.transfer(key, 'void', decay, TRANSACTION_CATEGORIES.EXPENSE.DECAY, TRANSACTION_CATEGORIES.EXPENSE.DECAY);
-                // Record decay as expense so UI balances
-                roleExpense[key] = (roleExpense[key] || 0) + decay;
-            }
-        }
-    });
+    // 富裕性挥霍 / Wealth Decay 机制已废弃：
+    // 历史上此处会按生活水平对高净值阶层施加 0.1%~0.5% 的每日财富蒸发，
+    // 对应 UI 中的“富裕性挥霍”。该设计已被取消，阶层财富只通过消费、税收、
+    // 投资等真实资金流动变化，不再凭空销毁。
 
     perfStart('influenceCalc');
     // [FIX] Apply safe wealth limit to ALL strata wealth values before returning
@@ -5913,7 +5853,6 @@ export const simulateTick = ({
         stabilityFlat: bonuses.stabilityFlat || 0
     });
     perfEnd('buffsDebuffs');
-    perfEnd('wealthDecay');
     perfEnd('stabilityCalc');
 
     // [PERF] Tick预算保护：critical级分段全部完成，检查已用时间

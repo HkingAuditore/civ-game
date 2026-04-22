@@ -10,13 +10,6 @@
 export const GAME_SPEEDS = [0.5, 1, 2, 3, 5];
 
 /**
- * 财富衰减率 (生活损耗/Lifestyle Inflation)
- * 每日按比例衰减财富，防止无限积累
- * 0.005 = 0.5% per day
- */
-export const WEALTH_DECAY_RATE = 0.005;
-
-/**
  * 日志与历史记录存储上限
  * Reduced to minimize save file size and prevent localStorage quota issues
  */

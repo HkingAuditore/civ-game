@@ -4463,9 +4463,9 @@ export const useGameState = () => {
                 console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
                 trackErrorError(`SaveWriteError: ${error.message}`);
                 if (source === 'auto') {
-                    addLogEntry(`�?自动存档失败�?{error.message}`);
+                    addLogEntry(`❌ 自动存档失败：${error.message}`);
                 } else {
-                    addLogEntry(`�?存档失败�?{error.message}`);
+                    addLogEntry(`❌ 存档失败：${error.message}`);
                 }
             }
             setIsSaving(false);
@@ -4575,7 +4575,7 @@ export const useGameState = () => {
             return true;
         } catch (error) {
             console.error('Load game failed:', error);
-            addLogEntry(`�?读取存档失败�?{error.message}`);
+            addLogEntry(`❌ 读取存档失败：${error.message}`);
             trackErrorError(`SaveLoadError: ${error.message}`);
             return false;
         }
@@ -4632,7 +4632,7 @@ export const useGameState = () => {
             return true;
         } catch (error) {
             console.error('Delete save failed:', error);
-            addLogEntry(`�?删除存档失败�?{error.message}`);
+            addLogEntry(`❌ 删除存档失败：${error.message}`);
             return false;
         }
     };
@@ -4815,7 +4815,7 @@ export const useGameState = () => {
             return false;
         } catch (error) {
             console.error('Export save failed:', error);
-            addLogEntry(`�?导出存档失败�?{error.message}`);
+            addLogEntry(`❌ 导出存档失败：${error.message}`);
             throw error;
         }
     };
@@ -4871,7 +4871,7 @@ export const useGameState = () => {
             throw new Error('无法复制到剪贴板');
         } catch (error) {
             console.error('Export to clipboard failed:', error);
-            addLogEntry(`�?复制失败�?{error.message}`);
+            addLogEntry(`❌ 复制失败：${error.message}`);
             throw error;
         }
     };
@@ -5001,7 +5001,7 @@ export const useGameState = () => {
             return true;
         } catch (error) {
             console.error('Import save failed:', error);
-            addLogEntry(`�?导入存档失败�?{error.message}`);
+            addLogEntry(`❌ 导入存档失败：${error.message}`);
             throw error;
         }
     };
@@ -5107,9 +5107,9 @@ export const useGameState = () => {
         } catch (error) {
             console.error('Import from text failed:', error);
             if (error instanceof SyntaxError) {
-                addLogEntry('�?导入失败：存档数据格式无效，请确保完整复制�');
+                addLogEntry('❌ 导入失败：存档数据格式无效，请确保完整复制。');
             } else {
-                addLogEntry(`�?导入存档失败�?{error.message}`);
+                addLogEntry(`❌ 导入存档失败：${error.message}`);
             }
             throw error;
         }

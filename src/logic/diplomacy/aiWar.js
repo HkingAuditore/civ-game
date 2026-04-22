@@ -1914,47 +1914,82 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
         if (activeEnemyIds.length === 0) continue;
 
         // 获取该国所有可用AI军团（按兵力降序）
-        const availCorps = (militaryCorps || [])
-            .filter(c => c?.isAI && c.nationId === nationId && getCorpsTotalUnits(c) > 0)
-            .sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
-        if (availCorps.length === 0) continue;
+        const allNationCorps = (militaryCorps || [])
+            .filter(c => c?.isAI && c.nationId === nationId && getCorpsTotalUnits(c) > 0);
+        if (allNationCorps.length === 0) continue;
 
-        // 为每场战争评分（基于战线位置威胁程度）
-        const scoredWars = activeEnemyIds.map(eid => {
-            const war = nation.foreignWars[eid];
-            const linePos = Number(war?.linePosition ?? 50);
-            // linePos < 50 表示被敌人推进，越低越危险
-            const threat = Math.max(0, (50 - linePos) / 50) * 3;
-            // 基础优先级1.0 + 威胁分
-            const priority = 1.0 + threat;
-            return { enemyId: eid, priority };
-        }).sort((a, b) => b.priority - a.priority);
+        // [FIX/虚空战力] 按是否已部署到真实战线（=玩家战线）区分两类军团：
+        // - 已部署（assignedFrontId != null）：物理上正在玩家战线参战，抽象推进中只能归属玩家敌对方。
+        //   否则同一军团会被同时分配给玩家前线（真实战斗）与 AI-AI 抽象战争（线位推进），
+        //   出现"多个附庸围攻一国，该国对我方战力不减、对每个附庸还能再拉出满战力"的双倍战力bug。
+        // - 空闲（assignedFrontId == null）：真正可供抽象战争调度的预备力量。
+        const deployedCorps = allNationCorps.filter(c => c.assignedFrontId);
+        const idleCorps = allNationCorps
+            .filter(c => !c.assignedFrontId)
+            .sort((a, b) => getCorpsTotalUnits(b) - getCorpsTotalUnits(a));
+
+        const hasPlayerEnemy = activeEnemyIds.includes('player');
+        const aiEnemyIds = activeEnemyIds.filter(eid => eid !== 'player');
 
         const allocMap = new Map();
-        for (const sw of scoredWars) allocMap.set(sw.enemyId, new Set());
+        for (const eid of activeEnemyIds) allocMap.set(eid, new Set());
 
-        // 第一轮：每场战争至少分1个军团
-        let corpIdx = 0;
-        for (const sw of scoredWars) {
-            if (corpIdx >= availCorps.length) break;
-            allocMap.get(sw.enemyId).add(availCorps[corpIdx].id);
-            corpIdx++;
+        // 1) 已部署军团 → 仅归属玩家敌对方（若无玩家战争则这些军团视为暂时脱离抽象分配）
+        if (hasPlayerEnemy) {
+            for (const c of deployedCorps) allocMap.get('player').add(c.id);
         }
-        // 第二轮：剩余军团按优先级权重分配
-        while (corpIdx < availCorps.length) {
-            let bestEid = scoredWars[0]?.enemyId;
-            let minWeighted = Infinity;
+
+        // 2) 空闲军团分配给 AI-AI 敌对方（AI-AI 抽象战争的实际战力来源）
+        //    为避免新开的玩家战争（尚未部署军团）导致玩家pair战力归零，
+        //    当同时存在玩家战争 且 暂无已部署军团 且 空闲军团多于 AI 敌人数量时，为玩家预留 1 个。
+        if (aiEnemyIds.length > 0 && idleCorps.length > 0) {
+            const reserveForPlayer = (hasPlayerEnemy && deployedCorps.length === 0 && idleCorps.length > aiEnemyIds.length) ? 1 : 0;
+            const availIdleCount = Math.max(0, idleCorps.length - reserveForPlayer);
+
+            const scoredWars = aiEnemyIds.map(eid => {
+                const war = nation.foreignWars[eid];
+                const linePos = Number(war?.linePosition ?? 50);
+                // linePos < 50 表示被敌人推进，越低越危险
+                const threat = Math.max(0, (50 - linePos) / 50) * 3;
+                // 基础优先级1.0 + 威胁分
+                const priority = 1.0 + threat;
+                return { enemyId: eid, priority };
+            }).sort((a, b) => b.priority - a.priority);
+
+            // 第一轮：每场AI-AI战争至少分1个空闲军团
+            let corpIdx = 0;
             for (const sw of scoredWars) {
-                const count = allocMap.get(sw.enemyId).size;
-                const weighted = count - sw.priority * 0.5;
-                if (weighted < minWeighted) {
-                    minWeighted = weighted;
-                    bestEid = sw.enemyId;
-                }
+                if (corpIdx >= availIdleCount) break;
+                allocMap.get(sw.enemyId).add(idleCorps[corpIdx].id);
+                corpIdx++;
             }
-            if (!bestEid) break;
-            allocMap.get(bestEid).add(availCorps[corpIdx].id);
-            corpIdx++;
+            // 第二轮：剩余军团按优先级权重分配
+            while (corpIdx < availIdleCount) {
+                let bestEid = scoredWars[0]?.enemyId;
+                let minWeighted = Infinity;
+                for (const sw of scoredWars) {
+                    const count = allocMap.get(sw.enemyId).size;
+                    const weighted = count - sw.priority * 0.5;
+                    if (weighted < minWeighted) {
+                        minWeighted = weighted;
+                        bestEid = sw.enemyId;
+                    }
+                }
+                if (!bestEid) break;
+                allocMap.get(bestEid).add(idleCorps[corpIdx].id);
+                corpIdx++;
+            }
+        }
+
+        // 3) 剩余未分配的空闲军团 → 归入玩家敌对方（作为尚未部署的抽象预备队）
+        if (hasPlayerEnemy) {
+            const usedIdleIds = new Set();
+            for (const eid of aiEnemyIds) {
+                for (const cid of (allocMap.get(eid) || [])) usedIdleIds.add(cid);
+            }
+            for (const c of idleCorps) {
+                if (!usedIdleIds.has(c.id)) allocMap.get('player').add(c.id);
+            }
         }
 
         aiWarCorpsAlloc.set(nationId, allocMap);
