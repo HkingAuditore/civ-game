@@ -230,6 +230,35 @@ export const OfficialsPanel = ({
         return filteredOfficials.slice(start, start + pageSize);
     }, [filteredOfficials, safePage, pageSize]);
 
+    // 统一在父层计算官员政治主张满足状态，避免列表/详情口径不一致和重复计算
+    const stanceSatisfiedByOfficialId = useMemo(() => {
+        const result = new Map();
+        officials.forEach((official) => {
+            if (!official?.id) return;
+            if (!official.politicalStance) {
+                result.set(official.id, null);
+                return;
+            }
+            result.set(
+                official.id,
+                isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams)
+            );
+        });
+        return result;
+    }, [officials, stanceContext]);
+
+    const selectedOfficialStanceSatisfied = useMemo(() => {
+        if (!selectedOfficial?.politicalStance) return null;
+        if (selectedOfficial?.id && stanceSatisfiedByOfficialId.has(selectedOfficial.id)) {
+            return stanceSatisfiedByOfficialId.get(selectedOfficial.id);
+        }
+        return isStanceSatisfied(
+            selectedOfficial.politicalStance,
+            stanceContext,
+            selectedOfficial.stanceConditionParams
+        );
+    }, [selectedOfficial, stanceSatisfiedByOfficialId, stanceContext]);
+
     useEffect(() => {
         setPage(1);
     }, [searchText, stanceFilter, stratumFilter, loyaltyFilter, sortKey, sortDir, pageSize]);
@@ -787,7 +816,7 @@ export const OfficialsPanel = ({
                                     onViewDetail={setSelectedOfficial}
                                     compact={true}
                                     currentDay={currentTick}
-                                    isStanceSatisfied={official.politicalStance ? (official.isStanceSatisfied ?? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams)) : null}
+                                    isStanceSatisfied={stanceSatisfiedByOfficialId.get(official.id) ?? null}
                                     generals={generals}
                                 />
                             ))}
@@ -910,7 +939,7 @@ export const OfficialsPanel = ({
                 onUpdateSalary={onUpdateOfficialSalary}
                 onUpdateName={onUpdateOfficialName}
                 currentDay={currentTick}
-                isStanceSatisfied={selectedOfficial?.politicalStance ? isStanceSatisfied(selectedOfficial.politicalStance, stanceContext, selectedOfficial.stanceConditionParams) : null}
+                isStanceSatisfied={selectedOfficialStanceSatisfied}
                 stability={stability}
                 officialsPaid={officialsPaid}
                 market={market}
