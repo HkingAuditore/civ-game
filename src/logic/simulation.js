@@ -1414,11 +1414,13 @@ export const simulateTick = ({
         applyIdeologyEffects(equippedIdeologies, bonuses);
 
         // Compute buildingCategoryCounts: count buildings by category (gather/industry/civic/military)
+        // 同时维护 'all' 聚合，便于理念配置使用 category: 'all' 表示"任意建筑总数"
         const buildingCategoryCounts = {};
         for (const b of BUILDINGS) {
             const count = buildings[b.id] || 0;
             if (count > 0 && b.cat) {
                 buildingCategoryCounts[b.cat] = (buildingCategoryCounts[b.cat] || 0) + count;
+                buildingCategoryCounts.all = (buildingCategoryCounts.all || 0) + count;
             }
         }
 
@@ -1447,12 +1449,15 @@ export const simulateTick = ({
         }
 
         // --- V2: unit category counts for unit_count_bonus trigger ---
+        // 同时维护 'all' / '_all' 聚合，便于配置使用 category: 'all' 表示"任何兵种总数"
         const unitCategoryCounts = {};
         if (army && typeof army === 'object') {
             for (const [unitId, count] of Object.entries(army)) {
                 const unitDef = UNIT_TYPES?.[unitId];
                 if (unitDef?.category && count > 0) {
                     unitCategoryCounts[unitDef.category] = (unitCategoryCounts[unitDef.category] || 0) + count;
+                    unitCategoryCounts.all = (unitCategoryCounts.all || 0) + count;
+                    unitCategoryCounts._all = (unitCategoryCounts._all || 0) + count;
                 }
             }
         }
@@ -1822,6 +1827,10 @@ export const simulateTick = ({
     // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位?
     perfStart('ownerJobsAdjust');
     const buildingJobsRequired = {};
+    // [BUGFIX] 记录每个建筑类型的业主分布，用于按比例分摊工资责任
+    // 修复：1 个本国阶层业主被错误地承担了同类型 N 栋建筑（含外资/官员私产/国有）的全部雇员工资
+    // 结构：{ buildingId: { stratumCount, officialCount, officialOwners: { officialId: count }, foreignCount, stateCount, stateManagedBy: { officialId: count }, totalCount } }
+    const buildingOwnershipMap = {};
 
     BUILDINGS.forEach(building => {
         const buildingCount = buildings[building.id] || 0;
@@ -1853,9 +1862,7 @@ export const simulateTick = ({
 
         buildingJobsRequired[building.id] = totalJobsByRole;
 
-        const ownerRole = building.owner;
-        if (!ownerRole || ownerSlotsTotal <= 0) return;
-
+        // [BUGFIX] 即使没有 owner 也要构建 ownership（虽然此时通常无需分摊）
         const ownershipList = buildOwnershipListFromLegacy(
             building.id,
             buildingCount,
@@ -1864,12 +1871,49 @@ export const simulateTick = ({
             building
         );
 
+        // [BUGFIX] 汇总业主分布并保存到 map，供后续工资支付分摊使用
+        const ownershipSummary = {
+            stratumCount: 0,
+            officialCount: 0,
+            officialOwners: {}, // { officialId: count }
+            foreignCount: 0,
+            stateCount: 0,
+            stateManagedBy: {}, // { officialId: count } 代经营关系
+            totalCount: buildingCount,
+        };
         let nonStratumCount = 0;
         ownershipList.forEach(ownership => {
+            const cnt = ownership.count || 0;
+            switch (ownership.ownerType) {
+                case OWNER_TYPES.STRATUM:
+                    ownershipSummary.stratumCount += cnt;
+                    break;
+                case OWNER_TYPES.OFFICIAL:
+                    ownershipSummary.officialCount += cnt;
+                    Object.entries(ownership.details || {}).forEach(([officialId, c]) => {
+                        ownershipSummary.officialOwners[officialId] = (ownershipSummary.officialOwners[officialId] || 0) + c;
+                    });
+                    break;
+                case OWNER_TYPES.FOREIGN:
+                    ownershipSummary.foreignCount += cnt;
+                    break;
+                case OWNER_TYPES.STATE:
+                    ownershipSummary.stateCount += cnt;
+                    Object.entries(ownership.details || {}).forEach(([officialId, c]) => {
+                        ownershipSummary.stateManagedBy[officialId] = (ownershipSummary.stateManagedBy[officialId] || 0) + c;
+                    });
+                    break;
+                default:
+                    break;
+            }
             if (!providesOwnerJobs(ownership.ownerType)) {
-                nonStratumCount += ownership.count || 0;
+                nonStratumCount += cnt;
             }
         });
+        buildingOwnershipMap[building.id] = ownershipSummary;
+
+        const ownerRole = building.owner;
+        if (!ownerRole || ownerSlotsTotal <= 0) return;
 
         if (nonStratumCount > 0) {
             const averageOwnerSlots = buildingCount > 0 ? ownerSlotsTotal / buildingCount : 0;
@@ -3251,65 +3295,133 @@ export const simulateTick = ({
             };
         });
 
-        // Wage payment must follow EACH building's actual wage distribution level.
-        // Previously we computed a global wageRatio pooled by owners which could desync from
-        // building-level payout displays and create runaway wage bills.
-        const ownerPaidRatio = {}; // { ownerKey: paid / bill }
+        // [BUGFIX] 业主工资责任按 ownership 类型分摊，避免 1 个本国阶层业主为外资/官员私产/国有建筑的雇员买单
+        // ownerPaidRatio 保留为按"虚拟 owner 通道"区分的比例对象，仅供 UI/调试参考；
+        // 实际工资发放使用 building-level 整体支付比例 buildingWagePaidRatio。
+        const ownerPaidRatio = {}; // { ownerKey | _official | _state | _foreign: paid / bill }
+        let buildingWagePaidRatio = 1;
 
         // Keep a copy for UI debug/inspection
         buildingFinancialData[b.id].wagePaidRatioByOwner = ownerPaidRatio;
 
         if (plannedWageBill > 0) {
-            // 使用 preparedWagePlans 汇总 owner 责任，确保与 expectedSlotWage 完全同口径
-            const ownerWageBills = {};
-            preparedWagePlans.forEach((plan) => {
-                if (plan.filled <= 0 || plan.expectedSlotWage <= 0) return;
-                ownerWageBills[plan.ownerKey] = (ownerWageBills[plan.ownerKey] || 0)
-                    + (plan.expectedSlotWage * plan.filled);
-            });
+            // 计算 ownership 占比（无 ownership 数据时回退到原行为：全部由 b.owner 承担；'state'/无 owner 由国库承担）
+            const ownership = buildingOwnershipMap[b.id] || null;
+            const stratumOwnerKey = b.owner || null;
+            const totalOwnedCount = ownership ? Math.max(1, ownership.totalCount) : count;
+            let stratumShare;
+            let officialShare;
+            let foreignShare;
+            let stateShare;
+            if (ownership) {
+                stratumShare = ownership.stratumCount / totalOwnedCount;
+                officialShare = ownership.officialCount / totalOwnedCount;
+                foreignShare = ownership.foreignCount / totalOwnedCount;
+                stateShare = ownership.stateCount / totalOwnedCount;
+            } else {
+                stratumShare = stratumOwnerKey && stratumOwnerKey !== 'state' ? 1 : 0;
+                officialShare = 0;
+                foreignShare = 0;
+                stateShare = 1 - stratumShare;
+            }
 
-            // 按每?owner 的实际工资责任支付（并记录每?owner 的支付比例）
-            Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
-                if (ownerBill <= 0) {
-                    ownerPaidRatio[oKey] = 0;
-                    return;
+            let totalActuallyPaid = 0;
+
+            // 1) 阶层业主部分：从 wealth[ownerKey] 扣除（保留业主底线检查）
+            if (stratumOwnerKey && stratumOwnerKey !== 'state' && stratumShare > 0) {
+                const stratumBill = plannedWageBill * stratumShare;
+                if (stratumBill > 0) {
+                    const oKey = stratumOwnerKey;
+                    const available = wealth[oKey] || 0;
+
+                    // Prioritize owner's own basic needs before paying wages
+                    let reservedWealth = 0;
+                    const ownerDef = STRATA[oKey];
+                    if (ownerDef && ownerDef.needs) {
+                        Object.entries(ownerDef.needs).forEach(([resKey, amount]) => {
+                            const price = getPrice(resKey);
+                            reservedWealth += amount * price;
+                        });
+                        reservedWealth *= 1.2;
+                    }
+                    // 双底线之业主底线：至少保留业主人均收入底线对应的总财富空间
+                    // [OWNER-CAP] 使用实际到岗的 owner 数量而非总岗位需求
+                    const ownerSlotsRequired = ownerSlotsByKey[oKey] || 1;
+                    const ownerPopFilled = popStructure[oKey] || 0;
+                    const ownerSlots = Math.max(1, Math.min(ownerSlotsRequired, ownerPopFilled));
+                    const ownerIncomeFloorPerCapita = getOwnerIncomeFloorPerCapita(oKey);
+                    const ownerIncomeReserve = ownerIncomeFloorPerCapita * ownerSlots;
+                    reservedWealth = Math.max(reservedWealth, ownerIncomeReserve);
+
+                    const disposableWealth = Math.max(0, available - reservedWealth);
+                    const paid = Math.min(disposableWealth, stratumBill);
+
+                    if (paid > 0) {
+                        ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
+                        roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
+                    }
+                    ownerPaidRatio[oKey] = stratumBill > 0 ? paid / stratumBill : 0;
+                    totalActuallyPaid += paid;
                 }
-                const available = wealth[oKey] || 0;
+            }
 
-                // Prioritize owner's own basic needs before paying wages
-                let reservedWealth = 0;
-                const ownerDef = STRATA[oKey];
-                if (ownerDef && ownerDef.needs) {
-                    Object.entries(ownerDef.needs).forEach(([resKey, amount]) => {
-                        const price = getPrice(resKey);
-                        reservedWealth += amount * price;
-                    });
-                    reservedWealth *= 1.2;
+            // 2) 官员私产部分：按 officialOwners 详情从对应 official.wealth 扣除
+            // 注意：不走 ledger.transfer('official',...)，避免与 4815 行 classFinancialData.official.expense.wages 双重计账（该处已按比例分摊）
+            if (officialShare > 0 && ownership && ownership.officialCount > 0) {
+                const officialBill = plannedWageBill * officialShare;
+                let officialPaid = 0;
+                const officialOwners = ownership.officialOwners || {};
+                const officialCountTotal = Math.max(1, ownership.officialCount);
+                Object.entries(officialOwners).forEach(([officialId, ownedCount]) => {
+                    if (!ownedCount || ownedCount <= 0) return;
+                    const officialBillShare = officialBill * (ownedCount / officialCountTotal);
+                    if (officialBillShare <= 0) return;
+                    const off = (officials || []).find(o => (o?.id || o?.name) === officialId);
+                    if (!off) return;
+                    const availableWealth = Math.max(0, off.wealth || 0);
+                    const paid = Math.min(availableWealth, officialBillShare);
+                    if (paid > 0) {
+                        off.wealth = Math.max(0, availableWealth - paid);
+                        officialPaid += paid;
+                    }
+                });
+                ownerPaidRatio['_official'] = officialBill > 0 ? officialPaid / officialBill : 0;
+                totalActuallyPaid += officialPaid;
+            }
+
+            // 3) 国有/代经营部分：从国库 silver 扣除
+            if (stateShare > 0) {
+                const stateBill = plannedWageBill * stateShare;
+                if (stateBill > 0) {
+                    const treasury = res.silver || 0;
+                    const paid = Math.min(treasury, stateBill);
+                    if (paid > 0) {
+                        ledger.transfer('state', 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
+                    }
+                    ownerPaidRatio['_state'] = stateBill > 0 ? paid / stateBill : 0;
+                    totalActuallyPaid += paid;
                 }
-                // 双底线之业主底线：至少保留业主人均收入底线对应的总财富空间
-                // [OWNER-CAP] 使用实际到岗的 owner 数量而非总岗位需求
-                // 避免 10 个 owner 被迫为 100 个岗位的保底买单
-                const ownerSlotsRequired = ownerSlotsByKey[oKey] || 1;
-                const ownerPopFilled = popStructure[oKey] || 0;
-                const ownerSlots = Math.max(1, Math.min(ownerSlotsRequired, ownerPopFilled));
-                const ownerIncomeFloorPerCapita = getOwnerIncomeFloorPerCapita(oKey);
-                const ownerIncomeReserve = ownerIncomeFloorPerCapita * ownerSlots;
-                reservedWealth = Math.max(reservedWealth, ownerIncomeReserve);
+            }
 
-                const disposableWealth = Math.max(0, available - reservedWealth);
-                const paid = Math.min(disposableWealth, ownerBill);
+            // 4) 外资部分：外资侧 processForeignInvestments 已在 wageCost 中扣过外资利润
+            // 这里不再让本国任何账户出钱；视为外资从海外汇入支付给本国工人，全额视作"已支付"
+            if (foreignShare > 0) {
+                const foreignBill = plannedWageBill * foreignShare;
+                if (foreignBill > 0) {
+                    ownerPaidRatio['_foreign'] = 1;
+                    totalActuallyPaid += foreignBill;
+                }
+            }
 
-                ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
-                roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
-
-                ownerPaidRatio[oKey] = ownerBill > 0 ? paid / ownerBill : 0;
-            });
+            buildingWagePaidRatio = plannedWageBill > 0
+                ? Math.max(0, Math.min(1, totalActuallyPaid / plannedWageBill))
+                : 1;
         }
 
-        // Pay wages following building-level "distribution" (owner-paid-ratio).
+        // Pay wages using building-level paid ratio (unified across all roles within the same building).
         // Also update wage stats by the ACTUAL average wage paid for this role.
         preparedWagePlans.forEach(plan => {
-            const ratio = ownerPaidRatio[plan.ownerKey] ?? 0;
+            const ratio = buildingWagePaidRatio;
             const actualSlotWage = plan.expectedSlotWage * ratio;
 
             // Stats: use SIMULATED utilization to ensure empty buildings broadcast their wage ability

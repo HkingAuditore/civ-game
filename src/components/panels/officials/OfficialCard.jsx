@@ -117,6 +117,7 @@ const OfficialCardInner = ({
     onViewDetail,
     compact = false,
     generals = [], // Generals list for checking if official is leading a corps
+    militaryCorps = [], // 现存军团，用于过滤孤立的将领→军团引用，避免无效阻塞解雇
 }) => {
     const [showDisposalMenu, setShowDisposalMenu] = useState(false);
 
@@ -124,7 +125,12 @@ const OfficialCardInner = ({
 
     // Check if this official is serving as a general
     const linkedGeneral = generals.find(g => g.officialId === official.id);
-    const isLeadingCorps = !!linkedGeneral?.assignedCorpsId;
+    // 仅当将领指派到一个仍然存在的军团，才算“领军中”；
+    // 防止因状态错乱导致 assignedCorpsId 指向已不存在的军团而无法解雇官员。
+    const isLeadingCorps = !!(
+        linkedGeneral?.assignedCorpsId &&
+        (militaryCorps || []).some((corps) => corps?.id === linkedGeneral.assignedCorpsId)
+    );
 
     const stratumKey = official.sourceStratum || official.stratum;
     const stratumDef = STRATA[stratumKey];
@@ -1050,7 +1056,8 @@ const officialCardPropsAreEqual = (prevProps, nextProps) => {
         prevProps.currentDay !== nextProps.currentDay ||
         prevProps.isStanceSatisfied !== nextProps.isStanceSatisfied ||
         prevProps.compact !== nextProps.compact ||
-        prevProps.generals !== nextProps.generals
+        prevProps.generals !== nextProps.generals ||
+        prevProps.militaryCorps !== nextProps.militaryCorps
     ) {
         return false;
     }

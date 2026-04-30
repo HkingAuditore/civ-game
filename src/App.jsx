@@ -889,6 +889,48 @@ function GameApp({ gameState }) {
             })
     ), [gameState.militaryCorps]);
 
+    // 自愈：清理将领与军团之间的孤立引用
+    // 触发场景：异常崩溃、HMR、AI 军团清理流程异常等可能让 general.assignedCorpsId
+    // 指向已不存在的军团；同理 corps.generalId 也可能指向已被解除/兼任失效的将领。
+    // 这种孤立引用会让“将领已被指派”逻辑成立，从而在军团面板中无法重新指派、
+    // 并阻止官员面板上的解雇操作。这里在状态层一次性修正。
+    useEffect(() => {
+        const generals = gameState.generals;
+        const militaryCorps = gameState.militaryCorps;
+        if (!Array.isArray(generals) || generals.length === 0) return;
+
+        const corpsList = Array.isArray(militaryCorps) ? militaryCorps : [];
+        const validCorpsIds = new Set(corpsList.map((c) => c?.id).filter(Boolean));
+        const validGeneralIds = new Set(generals.map((g) => g?.id).filter(Boolean));
+
+        let generalsChanged = false;
+        const healedGenerals = generals.map((g) => {
+            if (!g) return g;
+            if (g.assignedCorpsId && !validCorpsIds.has(g.assignedCorpsId)) {
+                generalsChanged = true;
+                return { ...g, assignedCorpsId: null };
+            }
+            return g;
+        });
+
+        let corpsChanged = false;
+        const healedCorps = corpsList.map((c) => {
+            if (!c) return c;
+            if (c.generalId && !validGeneralIds.has(c.generalId)) {
+                corpsChanged = true;
+                return { ...c, generalId: null };
+            }
+            return c;
+        });
+
+        if (generalsChanged && typeof gameState.setGenerals === 'function') {
+            gameState.setGenerals(healedGenerals);
+        }
+        if (corpsChanged && typeof gameState.setMilitaryCorps === 'function') {
+            gameState.setMilitaryCorps(healedCorps);
+        }
+    }, [gameState.generals, gameState.militaryCorps, gameState.setGenerals, gameState.setMilitaryCorps]);
+
     const undeployedPlayerFronts = useMemo(() => (
         playerActiveFronts.filter((front) => {
             const playerSide = getPlayerSide(front);
@@ -1976,6 +2018,7 @@ function GameApp({ gameState }) {
                                                 decrees={gameState.decrees}
                                                 onToggleDecree={actions.toggleDecree}
                                                 generals={gameState.generals}
+                                                militaryCorps={gameState.militaryCorps}
                                                 changeOfficialPropertyPolicy={actions.changeOfficialPropertyPolicy}
                                             />
                                         )}

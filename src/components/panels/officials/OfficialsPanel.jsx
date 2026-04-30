@@ -81,6 +81,8 @@ export const OfficialsPanel = ({
     officialsPaid = true,  // 是否支付了全额薪水
     // [NEW] Generals for OfficialCard display
     generals = [],
+    // [NEW] Military corps used to verify whether a linked general is actually deployed
+    militaryCorps = [],
     // [NEW] 产业政策切换回调
     onChangeOfficialPolicy,
 }) => {
@@ -660,6 +662,7 @@ export const OfficialsPanel = ({
                                 compact={true}
                                 onViewDetail={setSelectedOfficial}
                                 generals={generals}
+                                militaryCorps={militaryCorps}
                             />
                         ))}
                     </div>
@@ -818,6 +821,7 @@ export const OfficialsPanel = ({
                                     currentDay={currentTick}
                                     isStanceSatisfied={stanceSatisfiedByOfficialId.get(official.id) ?? null}
                                     generals={generals}
+                                    militaryCorps={militaryCorps}
                                 />
                             ))}
                         </div>

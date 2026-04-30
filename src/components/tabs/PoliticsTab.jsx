@@ -601,6 +601,8 @@ const PoliticsTabComponent = ({
     onShowDecreeDetails,
     // [NEW] Generals for OfficialCard display
     generals = [],
+    // [NEW] Military corps used to validate general assignment in OfficialCard
+    militaryCorps = [],
     // [NEW] 产业政策切换回调
     changeOfficialPropertyPolicy,
 }) => {
@@ -1179,6 +1181,7 @@ const PoliticsTabComponent = ({
                         onToggleDecree={onToggleDecree}
                         onShowDecreeDetails={onShowDecreeDetails}
                         generals={generals}
+                        militaryCorps={militaryCorps}
                         onChangeOfficialPolicy={changeOfficialPropertyPolicy}
                     />
                 ) : (

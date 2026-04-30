@@ -210,7 +210,10 @@ function _applyPopRatioBonus(trigger, gameState, bonuses, levelScale) {
 
 /**
  * 产业链关联型：根据完整产业链数量提供加成
- * 例: { type: 'chain_count_bonus', countType: 'complete', perCount: { militaryBonus: 0.10 } }
+ * 例: { type: 'chain_count_bonus', countType: 'complete', perCount: { militaryBonus: 0.10 }, cap: 0.30 }
+ *     { type: 'chain_count_bonus', perCount: { scienceBonus: 0.03 }, cap: { scienceBonus: 0.15 } }
+ *
+ * 兼容嵌套对象（如 perCount: { categories: { industry: 0.03 } }）：通过 _applyScaledBonus 走 applyEffects 完整 DSL。
  */
 function _applyChainCountBonus(trigger, gameState, bonuses, levelScale) {
     const perCount = trigger.perCount || trigger.bonus;
@@ -219,18 +222,19 @@ function _applyChainCountBonus(trigger, gameState, bonuses, levelScale) {
     const chainCount = gameState.completedChains || 0;
     if (chainCount <= 0) return;
 
-    // 上限：最多10条产业链计入
+    // 仍保留 10 条产业链的硬安全上限，叠加到用户配置的 cap 上
     const cappedCount = Math.min(chainCount, 10);
     const divisor = Number.isFinite(trigger.per) && trigger.per > 0 ? trigger.per : 1;
-    for (const [key, value] of Object.entries(perCount)) {
-        const total = value * cappedCount * levelScale;
-        _addToBonusField(bonuses, key, total / divisor);
-    }
+    const multiplier = (cappedCount * levelScale) / divisor;
+    _applyScaledBonus(perCount, multiplier, trigger.cap, bonuses);
 }
 
 /**
  * 知识计数型：根据已研发知识数量提供加成
  * 例: { type: 'tech_count_bonus', perTech: { flatPop: 10 } }
+ *     { type: 'tech_count_bonus', perTech: { scienceBonus: 0.002 }, cap: 0.45 }
+ *
+ * flatPop 仍走时代缩放走 oneTimeEffects；其他字段统一交给 _applyScaledBonus（兼容 categories 等嵌套）。
  */
 function _applyTechCountBonus(trigger, gameState, bonuses, oneTimeEffects, levelScale) {
     const perTech = _resolvePerTechBonus(trigger);
@@ -238,14 +242,19 @@ function _applyTechCountBonus(trigger, gameState, bonuses, oneTimeEffects, level
     const techCount = gameState.techsUnlocked ? gameState.techsUnlocked.length : 0;
     if (techCount <= 0) return;
 
+    // 拆分 flatPop（需要按时代缩放并写入 oneTimeEffects）与其他常规字段
+    const restPerTech = {};
     for (const [key, value] of Object.entries(perTech)) {
-        const total = value * techCount * levelScale;
-        if (key === 'flatPop') {
+        if (key === 'flatPop' && typeof value === 'number') {
+            const total = value * techCount * levelScale;
             const scaledFlatPop = scaleLegacyFlatPopulation(total, gameState.ideologyScaling);
             oneTimeEffects.flatPop = (oneTimeEffects.flatPop || 0) + scaledFlatPop;
         } else {
-            _addToBonusField(bonuses, key, total);
+            restPerTech[key] = value;
         }
+    }
+    if (Object.keys(restPerTech).length > 0) {
+        _applyScaledBonus(restPerTech, techCount * levelScale, trigger.cap, bonuses);
     }
 }
 
@@ -297,7 +306,11 @@ function _applyResourceThreshold(trigger, gameState, bonuses, levelScale) {
 /**
  * 建筑计数型：根据指定类别建筑数量提供加成（对数缩放）
  * 后期建筑上万时仍能提供有感的递增加成，但增速递减避免爆炸
- * 例: { type: 'building_count_bonus', category: 'military', per: 10, bonus: { categories: { gather: 0.05 } } }
+ * 例: { type: 'building_count_bonus', category: 'military', per: 10, bonus: { categories: { gather: 0.05 } }, cap: 0.30 }
+ *     { type: 'building_count_bonus', category: 'civic', per: 5, bonus: { stability: 0.5 }, cap: 10 }
+ *
+ * 通过 _applyScaledBonus 走 applyEffects 完整 DSL，支持 categories / perPopPassive 等嵌套对象，
+ * 同时强制执行配置里的 cap（标量 cap 或 { key: cap } 形式）。
  */
 function _applyBuildingCountBonus(trigger, gameState, bonuses, levelScale) {
     if (!trigger.category || !trigger.per || !trigger.bonus) return;
@@ -314,26 +327,21 @@ function _applyBuildingCountBonus(trigger, gameState, bonuses, levelScale) {
     // Logarithmic scaling: effective = sets * (1 + ln(1 + sets/10)) / (1 + sets/10)
     // Early game (~10 sets): near-linear; Late game (1000+ sets): ~6-7x multiplier with diminishing returns
     const effectiveSets = _logScaleSets(sets);
-
-    for (const [key, value] of Object.entries(normalizedBonus)) {
-        const total = value * effectiveSets * levelScale;
-        _addToBonusField(bonuses, key, total);
-    }
+    _applyScaledBonus(normalizedBonus, effectiveSets * levelScale, trigger.cap, bonuses);
 }
 
 /**
  * 时代关联型：按当前时代编号提供累积加成
  * 例: { type: 'epoch_scaling', perEpoch: { production: 0.02 } }
+ *     { type: 'epoch_scaling', perEpoch: { categories: { gather: 0.01 } } }
+ *
+ * 改用 _applyScaledBonus，避免 perEpoch.categories 等嵌套对象被静默吞掉。
  */
 function _applyEpochScaling(trigger, gameState, bonuses, levelScale) {
     if (!trigger.perEpoch) return;
     const epoch = gameState.epoch || 0;
     if (epoch <= 0) return;
-
-    for (const [key, value] of Object.entries(trigger.perEpoch)) {
-        const total = value * epoch * levelScale;
-        _addToBonusField(bonuses, key, total);
-    }
+    _applyScaledBonus(trigger.perEpoch, epoch * levelScale, trigger.cap, bonuses);
 }
 
 /**
@@ -349,23 +357,16 @@ function _applyInverseScaling(trigger, gameState, bonuses, levelScale) {
     const sourceVal = _readTriggerSource(trigger.source, gameState, bonuses);
 
     const diff = sourceVal - trigger.threshold;
-    const cap = trigger.cap || 0.15;
+    // 默认 cap 0.15 维持历史平衡；显式 cap 优先
+    const cap = trigger.cap != null ? trigger.cap : 0.15;
 
     if (diff > 0 && trigger.aboveBonus) {
         // 高于阈值：每超1点应用aboveBonus（通常为负面）
-        for (const [key, perUnit] of Object.entries(trigger.aboveBonus)) {
-            const raw = perUnit * diff * levelScale;
-            const capped = Math.sign(raw) * Math.min(Math.abs(raw), cap);
-            _addToBonusField(bonuses, key, capped);
-        }
+        _applyScaledBonus(trigger.aboveBonus, diff * levelScale, cap, bonuses);
     } else if (diff < 0 && trigger.belowBonus) {
         // 低于阈值：每低1点应用belowBonus（通常为正面）
         const absDiff = Math.abs(diff);
-        for (const [key, perUnit] of Object.entries(trigger.belowBonus)) {
-            const raw = perUnit * absDiff * levelScale;
-            const capped = Math.sign(raw) * Math.min(Math.abs(raw), cap);
-            _addToBonusField(bonuses, key, capped);
-        }
+        _applyScaledBonus(trigger.belowBonus, absDiff * levelScale, cap, bonuses);
     }
     // diff === 0 时无效果
 }
@@ -408,11 +409,7 @@ function _applyDiminishingReturns(trigger, ideology, categoryCounts, bonuses, le
 
     const extraCount = count - threshold;
     if (!trigger.perExtra) return;
-
-    for (const [key, perExtraVal] of Object.entries(trigger.perExtra)) {
-        const total = perExtraVal * extraCount * levelScale;
-        _addToBonusField(bonuses, key, total);
-    }
+    _applyScaledBonus(trigger.perExtra, extraCount * levelScale, trigger.cap, bonuses);
 }
 
 /**
@@ -527,7 +524,11 @@ function _applyApprovalThresholdBonus(trigger, gameState, bonuses, levelScale) {
 /**
  * V2: Building-specific bonus — bonus per N instances of a specific building (by ID, not category).
  * Uses logarithmic scaling so late-game 10k+ buildings still provide meaningful but diminishing returns.
- * { type: 'building_specific_bonus', buildingId: 'large_estate', per: 1, bonus: { production: 0.02 }, cap: 0.10, target?: string }
+ * 例: { type: 'building_specific_bonus', buildingId: 'shrine', per: 50, bonus: { categories: { gather: 0.02 } }, cap: 0.30 }
+ *     { type: 'building_specific_bonus', buildingId: 'temple', per: 50, bonus: { stability: 0.8 }, cap: 12 }
+ *
+ * 通过 _applyScaledBonus 走 applyEffects 完整 DSL：嵌套 categories/perPopPassive 等都能正确分发；
+ * 用户配置的 cap 也会被强制执行（per-key 或全局）。
  */
 function _applyBuildingSpecificBonus(trigger, gameState, bonuses, levelScale) {
     if (!trigger.buildingId || !trigger.bonus) return;
@@ -538,16 +539,14 @@ function _applyBuildingSpecificBonus(trigger, gameState, bonuses, levelScale) {
 
     // Logarithmic scaling: same formula as building_count_bonus
     const effectiveSets = _logScaleSets(sets);
-
-    for (const [key, value] of Object.entries(trigger.bonus)) {
-        const total = value * effectiveSets * levelScale;
-        _addToBonusField(bonuses, key, total);
-    }
+    _applyScaledBonus(trigger.bonus, effectiveSets * levelScale, trigger.cap, bonuses);
 }
 
 /**
  * V2: Unit count bonus — bonus based on military unit category count.
- * { type: 'unit_count_bonus', category: 'cavalry', per: 5, bonus: { militaryBonus: 0.02 }, cap: 0.12 }
+ * 例: { type: 'unit_count_bonus', category: 'cavalry', per: 5, bonus: { militaryBonus: 0.02 }, cap: 0.12 }
+ *
+ * 通过 _applyScaledBonus 走 applyEffects 完整 DSL，支持嵌套对象与 per-key cap。
  */
 function _applyUnitCountBonus(trigger, gameState, bonuses, levelScale) {
     if (!trigger.category || !trigger.bonus) return;
@@ -555,17 +554,17 @@ function _applyUnitCountBonus(trigger, gameState, bonuses, levelScale) {
     const per = trigger.per || 1;
     const sets = Math.floor(count / per);
     if (sets <= 0) return;
-    const cap = trigger.cap || 0.20;
-    for (const [key, value] of Object.entries(trigger.bonus)) {
-        const total = value * sets * levelScale;
-        const capped = Math.sign(total) * Math.min(Math.abs(total), cap);
-        _addToBonusField(bonuses, key, capped);
-    }
+    // 默认 cap 0.20 维持历史平衡；显式 cap 优先
+    const cap = trigger.cap != null ? trigger.cap : 0.20;
+    _applyScaledBonus(trigger.bonus, sets * levelScale, cap, bonuses);
 }
 
 /**
  * V2: Coalition diversity bonus — bonus for each unique stratum in the ruling coalition.
  * { type: 'coalition_diversity_bonus', perStratum: { cultureBonus: 0.03 }, cap: 0.18 }
+ *
+ * 注意：perStratum 同时含百分比类（cultureBonus）与绝对值类（stability）时，
+ * 推荐用 cap: { stability: 12, cultureBonus: 0.18 } 形式分别封顶；标量 cap 会对所有 key 共用。
  */
 function _applyCoalitionDiversityBonus(trigger, gameState, bonuses, levelScale) {
     if (!trigger.perStratum) return;
@@ -575,12 +574,8 @@ function _applyCoalitionDiversityBonus(trigger, gameState, bonuses, levelScale) 
     const uniqueStrata = new Set(coalition.map(c => typeof c === 'string' ? c : c?.stratum || c?.key).filter(Boolean));
     const count = uniqueStrata.size;
     if (count <= 0) return;
-    const cap = trigger.cap || 0.20;
-    for (const [key, value] of Object.entries(trigger.perStratum)) {
-        const total = value * count * levelScale;
-        const capped = Math.sign(total) * Math.min(Math.abs(total), cap);
-        _addToBonusField(bonuses, key, capped);
-    }
+    const cap = trigger.cap != null ? trigger.cap : 0.20;
+    _applyScaledBonus(trigger.perStratum, count * levelScale, cap, bonuses);
 }
 
 /**
@@ -598,14 +593,9 @@ function _applyOfficialFactionBonus(trigger, gameState, bonuses, levelScale) {
     ).length;
     const sets = Math.floor(matchCount / per);
     if (sets <= 0) return;
-    const capObj = trigger.cap || {};
-    const capVal = typeof capObj === 'number' ? capObj : null;
-    for (const [key, value] of Object.entries(trigger.bonus)) {
-        const total = value * sets * levelScale;
-        const keyCap = capVal ?? (typeof capObj === 'object' ? capObj[key] : null) ?? 0.20;
-        const capped = Math.sign(total) * Math.min(Math.abs(total), keyCap);
-        _addToBonusField(bonuses, key, capped);
-    }
+    // 默认 cap 0.20 维持历史平衡；显式 cap 优先（标量或 { key: cap } 形式）
+    const cap = trigger.cap != null ? trigger.cap : 0.20;
+    _applyScaledBonus(trigger.bonus, sets * levelScale, cap, bonuses);
 }
 
 // ============ 联动效果 ============
@@ -816,7 +806,23 @@ function _readSourceValue(converter, triggerState) {
         case 'specificBuilding':
             return triggerState.buildingCounts?.[source] || 0;
         case 'unitCategory':
+            // 'all' 视为所有兵种类别求和（unitCategoryCounts 由 simulation 维护，已含 _all 聚合）
+            if (source === 'all' || source === '_all') {
+                return triggerState.unitCategoryCounts?._all
+                    ?? Object.values(triggerState.unitCategoryCounts || {})
+                        .reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+            }
             return triggerState.unitCategoryCounts?.[source] || 0;
+        case 'techCount':
+            return Array.isArray(triggerState.techsUnlocked)
+                ? triggerState.techsUnlocked.length
+                : (triggerState.techCount || 0);
+        case 'buildingCategoryCount':
+            // 显式 building 类别计数；'all' 走 totalBuildings
+            if (source === 'all' || source === '_all') {
+                return triggerState.totalBuildings || 0;
+            }
+            return triggerState.buildingCategoryCounts?.[source] || 0;
         default:
             return 0;
     }
@@ -1051,6 +1057,70 @@ function _logScaleSets(rawSets) {
 }
 
 /**
+ * 在数值上施加对称封顶（保留正负方向）。
+ * cap 为非有限值时不做截断，便于"未配置 cap 即不限"。
+ */
+function _capValue(value, cap) {
+    if (typeof cap !== 'number' || !Number.isFinite(cap)) return value;
+    const absCap = Math.abs(cap);
+    return Math.sign(value) * Math.min(Math.abs(value), absCap);
+}
+
+/**
+ * 解析 cap 配置在某个 key 上的有效值。
+ * 支持：
+ *  - cap 为 number → 所有 key 共享该 cap
+ *  - cap 为对象 → 取 cap[key]，若没有再尝试 cap._global，否则视为不封顶
+ */
+function _resolveCap(cap, key) {
+    if (cap == null) return null;
+    if (typeof cap === 'number') return cap;
+    if (typeof cap === 'object') {
+        if (typeof cap[key] === 'number') return cap[key];
+        if (typeof cap._global === 'number') return cap._global;
+    }
+    return null;
+}
+
+/**
+ * 安全缩放型分发：把 bonus 对象按 multiplier 缩放后交给 applyEffects 完整 DSL 分发。
+ * 同时支持嵌套对象（categories / passive / passivePercent / perPopPassive / approval / buildings 等）。
+ * cap 既可对每个顶层 key 截断，也可对嵌套子 key 单独截断（cap 写成 { categories: { gather: 0.3 } }）。
+ *
+ * 这是为缩放型 trigger（per-set 累乘 / per-epoch / per-tech / per-stratum 等）设计的统一入口，
+ * 替代直接遍历 + _addToBonusField 的写法，从根本上避免嵌套对象 × number = NaN 的静默失效。
+ */
+function _applyScaledBonus(bonusObj, multiplier, cap, bonuses) {
+    if (!bonusObj || typeof bonusObj !== 'object' || Array.isArray(bonusObj)) return;
+    if (!Number.isFinite(multiplier) || multiplier === 0) return;
+
+    const scaled = {};
+    for (const [key, value] of Object.entries(bonusObj)) {
+        const keyCap = _resolveCap(cap, key);
+        if (typeof value === 'number') {
+            const total = value * multiplier;
+            scaled[key] = _capValue(total, keyCap);
+        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // 嵌套对象（categories/passive/perPopPassive/approval/buildings 等）按二级 key 缩放
+            const nested = {};
+            for (const [subKey, subVal] of Object.entries(value)) {
+                if (typeof subVal === 'number') {
+                    const subTotal = subVal * multiplier;
+                    const subCap = _resolveCap(keyCap, subKey);
+                    nested[subKey] = _capValue(subTotal, subCap);
+                } else {
+                    // 不可缩放的字段原样保留（如布尔/字符串）
+                    nested[subKey] = subVal;
+                }
+            }
+            scaled[key] = nested;
+        }
+        // 其他非缩放类型直接忽略，避免污染 applyEffects
+    }
+    applyEffects(scaled, bonuses);
+}
+
+/**
  * 将值添加到 bonuses 的指定字段
  */
 function _addToBonusField(bonuses, key, value) {
@@ -1130,14 +1200,31 @@ function _readTriggerSource(source, gameState, bonuses) {
             return gameState.treasury || 0;
         case 'militaryBonus':
             return bonuses.militaryBonus || 0;
+        case 'productionBonus':
+            return bonuses.productionBonus || 0;
+        case 'scienceBonus':
+            return bonuses.scienceBonus || 0;
+        case 'cultureBonus':
+            return bonuses.cultureBonus || 0;
         case 'totalBuildings':
             return gameState.totalBuildings || 0;
+        case 'techCount':
+            return Array.isArray(gameState.techsUnlocked) ? gameState.techsUnlocked.length : 0;
         default:
             break;
     }
 
     if (typeof source === 'string' && source.includes('.')) {
         const path = source.split('.');
+        // 'categories.<cat>' 别名：先尝试当前累计的 bonuses.categoryBonuses，再退回 gameState.buildingCategoryCounts
+        if (path[0] === 'categories' && path.length === 2) {
+            const cat = path[1];
+            const fromBonuses = bonuses?.categoryBonuses?.[cat];
+            if (typeof fromBonuses === 'number') return fromBonuses;
+            const fromCounts = gameState?.buildingCategoryCounts?.[cat];
+            if (typeof fromCounts === 'number') return fromCounts;
+            return 0;
+        }
         let current = gameState;
         for (const segment of path) {
             if (current == null) return 0;

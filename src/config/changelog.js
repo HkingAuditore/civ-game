@@ -4,9 +4,23 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.56',
+        date: '2026-04-30',
+        isLatest: true,
+        highlights: [
+            '业主工资责任按实际所有权分摊，本国业主不再为外资/官员私产/国有建筑买单',
+            '官员私产、国有、外资建筑的雇员工资各自由对应账户支付',
+        ],
+        changes: [
+            { type: 'fix', text: '修复严重的工资责任错配 BUG：本国阶层业主曾被错误地承担同类型全部建筑（含外资/官员私产/国有）的非业主雇员工资。例如 10 栋同类建筑只有 1 栋为本国业主持有，原逻辑下这 1 个本国业主要为另外 9 栋建筑的全部雇员发工资，导致业主财富瞬时透支与外资/官员部分双重计费。' },
+            { type: 'improve', text: '工资支付逻辑按建筑业主类型分摊：本国阶层业主部分仍按生计/业主双底线由 wealth[业主阶层] 支付；官员私产部分按 officialOwners 详情从对应官员私人 wealth 扣除；国有/代经营部分由国库 silver 支付（不足时降额）；外资部分不再扣本国账户（外资侧 processForeignInvestments 已在 wageCost 中扣过外资利润，此处视为外资从海外汇入）。' },
+            { type: 'improve', text: '在 ownerJobsAdjust 阶段缓存 buildingOwnershipMap，统一记录每种建筑的 stratum/official/foreign/state 数量及业主明细（officialOwners、stateManagedBy），供工资支付与后续财务统计共享，避免分散计算导致的口径漂移。' },
+        ],
+    },
+    {
         version: '2.3.55',
         date: '2026-04-23',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '官员政治主张满足状态统一计算，列表与详情展示口径一致',
             '官员面板复用判定结果，减少重复计算带来的界面抖动',
