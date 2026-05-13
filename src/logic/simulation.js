@@ -5713,7 +5713,8 @@ export const simulateTick = ({
         }
         approvalBreakdown[key].effectiveApprovalCap = effectiveApprovalCap;
 
-        let currentApproval = classApproval[key] || 50;
+        const persistedApproval = previousApproval?.[key] ?? classApproval[key] ?? 50;
+        let currentApproval = persistedApproval;
         approvalBreakdown[key].currentApprovalStart = currentApproval;
         approvalBreakdown[key].adjustmentSpeed = 0.02;
 
@@ -5750,6 +5751,24 @@ export const simulateTick = ({
 
         classApproval[key] = Math.max(0, Math.min(100, newApproval));
     });
+
+    if (updatedOfficials.length > 0) {
+        const averageOfficialLoyalty = updatedOfficials.reduce((sum, official) => {
+            return sum + Math.max(0, Math.min(100, official?.loyalty ?? 75));
+        }, 0) / updatedOfficials.length;
+        const officialApproval = Math.max(0, Math.min(100, averageOfficialLoyalty));
+        classApproval.official = officialApproval;
+        if (approvalBreakdown.official) {
+            approvalBreakdown.official.currentApprovalStart = previousApproval?.official ?? officialApproval;
+            approvalBreakdown.official.targetApprovalPreShockCap = officialApproval;
+            approvalBreakdown.official.targetApprovalFinal = officialApproval;
+            approvalBreakdown.official.inertiaDelta = officialApproval - approvalBreakdown.official.currentApprovalStart;
+            approvalBreakdown.official.effectiveApprovalCap = 100;
+            approvalBreakdown.official.capApplied = null;
+            approvalBreakdown.official.approvalAfterCap = officialApproval;
+            approvalBreakdown.official.approvalFinal = officialApproval;
+        }
+    }
 
     if ((popStructure.unemployed || 0) === 0 && previousApproval.unemployed !== undefined) {
         classApproval.unemployed = Math.min(100, previousApproval.unemployed + 5);

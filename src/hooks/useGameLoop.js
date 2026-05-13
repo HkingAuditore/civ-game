@@ -2703,27 +2703,73 @@ difficulty, // 游戏难度
                             const newPopStructure = { ...(result.popStructure || {}) };
                             let populationLoss = 1;
 
-                            // 从 _propertySummary 计算政变后的建筑/人口损失
+                            // 携资叛逃：只扣除该官员的"私产"建筑（_propertySummary）。
+                            // 注意：代经营/国有建筑（_managedSummary）不会跟着官员走，这里不动。
+                            // [BUG FIX] 旧实现只减 buildings 不减 buildingUpgrades，会出现
+                            //   buildings[bid] 已为 0 但 buildingUpgrades[bid][level] 残留的数据漂移。
+                            //   按官员私产的等级分布（_propertySummary.byBuildingLevel）从高到低同步扣减。
                             const coupPropertySummary = target.official._propertySummary || {};
+                            const coupByBuildingLevel = coupPropertySummary.byBuildingLevel || {};
+
                             Object.entries(coupPropertySummary.byBuilding || {}).forEach(([buildingId, count]) => {
+                                if (!count) return;
+
+                                const nationCount = newBuildings[buildingId] || 0;
+                                // 兜底防御：扣除数不超过国家实际持有数，避免任何数据偏移把 buildings 减为负
+                                const actualLoss = Math.min(count, nationCount);
+                                if (actualLoss <= 0) return;
+
+                                // 同步减少 buildings 总数
+                                newBuildings[buildingId] = nationCount - actualLoss;
+                                if (newBuildings[buildingId] === 0) {
+                                    delete newBuildings[buildingId];
+                                }
+
+                                // 同步减少 buildingUpgrades：按官员私产的等级分布从高到低优先扣除
+                                // （高等级建筑通常是官员"自掏腰包升级"的，谋反时跟随）
+                                const levelMap = coupByBuildingLevel[buildingId] || {};
+                                const upgradeLevels = Object.keys(levelMap)
+                                    .map(l => Number(l))
+                                    .filter(l => Number.isFinite(l) && l > 0)
+                                    .sort((a, b) => b - a);
+
+                                let remainingLoss = actualLoss;
+                                if (upgradeLevels.length > 0 && newBuildingUpgrades[buildingId]) {
+                                    const buildingUpgradeCopy = { ...newBuildingUpgrades[buildingId] };
+                                    upgradeLevels.forEach(level => {
+                                        if (remainingLoss <= 0) return;
+                                        const upgradeCount = buildingUpgradeCopy[level] || 0;
+                                        const officialUpgradeCount = levelMap[level] || 0;
+                                        if (upgradeCount <= 0 || officialUpgradeCount <= 0) return;
+                                        const take = Math.min(upgradeCount, officialUpgradeCount, remainingLoss);
+                                        if (take <= 0) return;
+                                        const next = upgradeCount - take;
+                                        if (next <= 0) {
+                                            delete buildingUpgradeCopy[level];
+                                        } else {
+                                            buildingUpgradeCopy[level] = next;
+                                        }
+                                        remainingLoss -= take;
+                                    });
+                                    if (Object.keys(buildingUpgradeCopy).length === 0) {
+                                        delete newBuildingUpgrades[buildingId];
+                                    } else {
+                                        newBuildingUpgrades[buildingId] = buildingUpgradeCopy;
+                                    }
+                                }
+
+                                // 减少对应岗位人口
                                 const building = BUILDINGS.find(b => b.id === buildingId);
                                 if (building) {
                                     const config = getBuildingEffectiveConfig(building, 0);
                                     Object.entries(config.jobs || {}).forEach(([role, slots]) => {
                                         if (!slots) return;
-                                        const loss = Math.min(newPopStructure[role] || 0, slots * count);
+                                        const loss = Math.min(newPopStructure[role] || 0, slots * actualLoss);
                                         if (loss > 0) {
                                             newPopStructure[role] = Math.max(0, (newPopStructure[role] || 0) - loss);
                                             populationLoss += loss;
                                         }
                                     });
-                                }
-
-                                if (newBuildings[buildingId]) {
-                                    newBuildings[buildingId] = Math.max(0, newBuildings[buildingId] - count);
-                                    if (newBuildings[buildingId] === 0) {
-                                        delete newBuildings[buildingId];
-                                    }
                                 }
                             });
 

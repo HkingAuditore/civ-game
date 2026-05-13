@@ -1085,17 +1085,22 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
 
     // 从代经营制切换走：清除代管关系
     if (fromPolicy === 'state_managed') {
-        if (toPolicy === 'private') {
-            // 代管→私产：代管建筑转为私产
-            newPropertySummary = {
-                byBuilding: { ...newPropertySummary.byBuilding, ...newManagedSummary.byBuilding },
-                byBuildingLevel: { ...newPropertySummary.byBuildingLevel },
-                totalCount: (newPropertySummary.totalCount || 0) + (newManagedSummary.totalCount || 0),
-            };
-            newManagedSummary = { byBuilding: {}, totalCount: 0 };
-        } else {
-            newManagedSummary = { byBuilding: {}, totalCount: 0 };
+        // [BUG FIX] 代管建筑是"国有"资产，与该官员的个人产权无关。
+        //   - 旧实现：代管→私产 时把 _managedSummary 整个并入 _propertySummary，
+        //     把国有建筑直接"洗白"成官员私产；该官员之后一旦政变，就会把这些
+        //     "假私产"（实为国有）一并带走 → 表现为"官员谋反后几乎所有建筑都没了"。
+        //   - 正确语义：切换出代经营后，官员只解除"代管职责"，国有建筑实体保留，
+        //     归属归类自然回退为"阶层业主"（参见 ownerTypes.buildOwnershipListFromLegacy
+        //     的剩余兜底逻辑）。政变只会带走真正的私产，不会触及曾经代管的建筑。
+        const managedReleaseCount = newManagedSummary.totalCount || 0;
+        if (managedReleaseCount > 0) {
+            logMessages.push(
+                toPolicy === 'private'
+                    ? `${official.name}解除${managedReleaseCount}处国有建筑的代管，归还本国阶层经营`
+                    : `${official.name}解除${managedReleaseCount}处国有建筑的代管`
+            );
         }
+        newManagedSummary = { byBuilding: {}, totalCount: 0 };
     }
 
     const newLoyalty = Math.max(0, Math.min(100, (official.loyalty || 75) + loyaltyChange));
