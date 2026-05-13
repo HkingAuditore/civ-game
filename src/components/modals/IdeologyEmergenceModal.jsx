@@ -1,6 +1,6 @@
 /**
- * 理念涌现弹窗 — 三选一
- * 当理念分数达到阈值时弹出，展示3张候选理念卡牌
+ * 理念涌现弹窗 — 五选一
+ * 当理念分数达到阈值时弹出，展示 5 张候选理念卡牌
  * 若收藏已满（非升级），进入第二步"替换"流程
  */
 
@@ -17,7 +17,7 @@ const MotionDiv = motion.div;
 
 const IdeologyEmergenceModalComponent = ({
     show = false,
-    candidates = [],   // 3个候选理念对象
+    candidates = [],   // 5 个候选理念对象
     onSelect,           // (ideologyId, discardId?) => void
     onSkip,             // () => void  跳过本次涌现
     equippedIds = [],   // 当前已装备的理念id
@@ -33,7 +33,7 @@ const IdeologyEmergenceModalComponent = ({
 
     const overlayClassName = 'absolute inset-0 bg-black/85 backdrop-blur-sm';
     const containerClassName = 'fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4';
-    const shellClassName = 'relative w-full max-w-[1200px] flex flex-col items-center px-1';
+    const shellClassName = 'relative w-full max-w-[1400px] flex flex-col items-center px-1';
     const gridViewportStyle = isLowPerformanceMode
         ? { overflowX: 'clip', WebkitOverflowScrolling: 'touch', padding: '12px' }
         : { overflowX: 'clip', WebkitOverflowScrolling: 'touch', padding: '6px 12px' };
@@ -140,7 +140,7 @@ const IdeologyEmergenceModalComponent = ({
                                 </div>
 
                                 <div className="overflow-y-auto flex-1 min-h-0 w-full mb-2" style={gridViewportStyle}>
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 w-full">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 w-full">
                                         {candidates.map((candidate, index) => (
                                             <MotionDiv
                                                 key={candidate.id}
@@ -150,7 +150,7 @@ const IdeologyEmergenceModalComponent = ({
                                                     y: 0,
                                                     rotateY: 0,
                                                 }}
-                                                transition={{ delay: 0.3 + index * 0.15, type: "spring", damping: 20, stiffness: 200 }}
+                                                transition={{ delay: 0.2 + index * 0.08, type: "spring", damping: 20, stiffness: 200 }}
                                             >
                                                 <IdeologyCard
                                                     ideology={candidate}
