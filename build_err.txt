@@ -1,0 +1,102 @@
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[33m[esbuild css minify]
+▲ [WARNING] Expected identifier but found whitespace [css-syntax-error]
+
+    <stdin>:4162:21:
+      4162 │   --tw-gradient-from: ${theme.secondaryColor} var(--tw-gradient-...
+           ╵                      ^
+
+
+▲ [WARNING] Unexpected "$" [css-syntax-error]
+
+    <stdin>:4162:22:
+      4162 │   --tw-gradient-from: ${theme.secondaryColor} var(--tw-gradient-...
+           ╵                       ^
+
+
+▲ [WARNING] Expected ":" [css-syntax-error]
+
+    <stdin>:4162:29:
+      4162 │   --tw-gradient-from: ${theme.secondaryColor} var(--tw-gradient-...
+           │                              ^
+           ╵                              :
+
+
+▲ [WARNING] Expected identifier but found "var(" [css-syntax-error]
+
+    <stdin>:4162:46:
+      4162 │ ...-from: ${theme.secondaryColor} var(--tw-gradient-from-position);
+           ╵                                   ~~~~
+
+
+▲ [WARNING] Expected identifier but found whitespace [css-syntax-error]
+
+    <stdin>:4744:19:
+      4744 │   --tw-gradient-to: ${theme.primaryColor} var(--tw-gradient-to-p...
+           ╵                    ^
+
+
+▲ [WARNING] Unexpected "$" [css-syntax-error]
+
+    <stdin>:4744:20:
+      4744 │   --tw-gradient-to: ${theme.primaryColor} var(--tw-gradient-to-p...
+           ╵                     ^
+
+
+▲ [WARNING] Expected ":" [css-syntax-error]
+
+    <stdin>:4744:27:
+      4744 │   --tw-gradient-to: ${theme.primaryColor} var(--tw-gradient-to-p...
+           │                            ^
+           ╵                            :
+
+
+▲ [WARNING] Expected identifier but found "var(" [css-syntax-error]
+
+    <stdin>:4744:42:
+      4744 │ ...adient-to: ${theme.primaryColor} var(--tw-gradient-to-position);
+           ╵                                     ~~~~
+
+
+▲ [WARNING] Expected identifier but found whitespace [css-syntax-error]
+
+    <stdin>:6148:14:
+      6148 │   --tw-shadow: 0 0 20px ${theme.glowColor};
+           ╵               ^
+
+
+▲ [WARNING] Unexpected "0" [css-syntax-error]
+
+    <stdin>:6148:15:
+      6148 │   --tw-shadow: 0 0 20px ${theme.glowColor};
+           ╵                ^
+
+
+▲ [WARNING] Expected ":" [css-syntax-error]
+
+    <stdin>:6148:31:
+      6148 │   --tw-shadow: 0 0 20px ${theme.glowColor};
+           │                                ^
+           ╵                                :
+
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/config/diplomacy.js is dynamically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js but also statically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/DiplomacyDashboard.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/DiplomacyLayout.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/NationDetailView.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/NegotiationDialog.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/negotiation/DealStatus.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/negotiation/TreatyTerms.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/EraProgressionPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/VassalManagementSheet.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/VassalOverviewPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/config/events/diplomaticEvents.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/config/index.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameLoop.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/aiWar.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/autonomousInvestment.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/nations.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/organizationDiplomacy.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/overseasInvestment.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/populationMigration.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/vassalGovernors.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/vassalSystem.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/warEconomy.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/utils/diplomacyUtils.js, dynamic import will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/vassalSystem.js is dynamically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js but also statically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/VassalManagementSheet.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/VassalOverviewPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/aiDiplomacy.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/aiWar.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/index.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/nations.js, dynamic import will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/overseasInvestment.js is dynamically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js but also statically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/diplomacy/NationDetailView.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/InternationalEconomyPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/InvestmentRow.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/components/panels/OverseasInvestmentPanel.jsx, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameLoop.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/autonomousInvestment.js, C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/simulation.js, dynamic import will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/logic/diplomacy/autonomousInvestment.js is dynamically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameActions.js but also statically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useGameLoop.js, dynamic import will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/node_modules/@capgo/capacitor-updater/dist/esm/index.js is dynamically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/utils/otaInfo.js but also statically imported by C:/Users/hkinghuang/Documents/GitHub/simple_nation_game/civ-game/src/hooks/useOtaUpdate.js, dynamic import will not move module into another chunk.
+[39m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
