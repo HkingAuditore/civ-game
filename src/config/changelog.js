@@ -4,9 +4,32 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.58',
+        date: '2026-05-18',
+        isLatest: true,
+        highlights: [
+            '粮食、布料价格上限大幅放开，饥荒时价格能真正反映稀缺',
+            '补贴政策全面打通迁移决策，加税减税不再"无人响应"',
+            '关键生产者保留锁上线，自耕农不再攒够钱就升级跑路',
+            '生存危机迁移机制重做，缺粮时工匠也会回去种田',
+        ],
+        changes: [
+            { type: 'fix', text: '修复必需品价格信号失灵：粮食 maxPrice 从 150 提升到 500、布料从 325 提升到 750（饥荒时"米斗万钱"级），并移除危机段写死的 5× 上限，改为按 maxPrice/basePrice 推导真实上限，库存归零时价格能真正逼近上限；同时把库存极低（<0.1）时的价格平滑速度从 ~10-20 tick 提升到 0.3-0.7（约 2-3 tick 到位），避免目标价飙升而成交价仍卡在低位的"价格信号失灵"。' },
+            { type: 'fix', text: '修复必需品在低供需权重下的危机价格压制：粮食 supplyDemandWeight 从 0.4 调高到 0.6，且当 essential 资源库存比 < 0.3 时按危机深度逐步把权重抬升至 1.0，避免补贴/紧缺时价格被"必需品权重低"反向削平，让玩家能看到真正的稀缺信号。' },
+            { type: 'balance', text: '调整资源分类：spice（香料）、coffee（咖啡）从 essential 改为纯 manufactured 奢侈品定位，避免危机时这些贸易品被错误纳入"生存必需品"逻辑触发不合理的价格爆涨与迁移压力。' },
+            { type: 'fix', text: '修复"宁愿饿死也不去种田"问题：生存危机（食物/布料严重短缺）时，工匠、工人、书吏等非紧缺生产角色即使收入正常也允许作为迁出源，且按 pop 优先疏散富余劳动力；同时把降级到紧缺生产角色的阻力 clamp 至 1.0（与升 tier 同等严格度），让高 tier 富余人口能真正下沉到农田。' },
+            { type: 'fix', text: '修复"自耕农攒够钱就升 tier 跑路再次缺粮"循环：新增关键生产者保留锁（peasant 等），三层单向阻止迁出——危机锁（出现紧缺时绝不迁出）、岗位空缺锁（自家在岗率不足 95% 不迁出）、补贴依赖锁（补贴占收入比 ≥ 25% 且仍有空缺则视为政策维持中）。三锁仅阻止迁出，不影响迁入，避免补贴反成为升 tier 燃料。' },
+            { type: 'fix', text: '修复补贴政策对迁移决策"无声"的核心 BUG：把人头税补贴和业务税补贴的人均到账金额显式上报为 subsidyPerCapita 字段（口径与 taxes.js 实际银币流完全一致：人头税补贴 = |headRate| × effectiveTaxModifier；业务税补贴 = Σ |buildingRate| × count × effectiveEfficiency / 在岗分母）。补贴拉力（×2.8 迁移速率）、同 tier 阻力削减、单向冷却才能真正生效。' },
+            { type: 'improve', text: '重写补贴拉力机制：当目标角色补贴显著（potentialIncome ≥ 平均值 × 1.5）时启用迁移加速（介于普通与紧急之间，约 2.8× 速率），并仅对源角色设迁移冷却，让目标岗位下一 tick 仍可继续迁入，避免一次冷却屏蔽连续补贴拉力；同 tier 阻力按补贴强度（占源收入比 ≥ 0.3）线性削减至 1.0，下放工业到农田/手工业到工业等"政策导向"流动更顺畅。' },
+            { type: 'fix', text: '修复业主收入信号被全阶层稀释问题：netIncomePerCapita 分母从总 pop 改为本 tick 实际在岗 pop（三级回退：在岗→岗位数容量→总 pop 兜底）。例如农田 0/42 时业务税补贴不再被全国失业 peasant 稀释成 4 银/人，而是按真实岗位容量计算，让 peasant 收入信号在补贴政策下真正高于工匠、迁移决策能正确响应。' },
+            { type: 'improve', text: '把"明显落后于最佳机会"的源候选门槛从 0.6 放宽到 0.85（保留 15% 容差避免微小差距引发不必要迁移）；空岗位冷启动工资预估在建筑享受业务税补贴时，按"利润分润 40%"路径并入估算工资，让从未有人涉足的紧缺岗位也能因补贴而显示有吸引力的工资信号。' },
+            { type: 'improve', text: '新增 7 个补贴/危机迁移可调常量（SUBSIDY_PULL_MULTIPLIER、SUBSIDY_RESISTANCE_REDUCTION_THRESHOLD、SUBSIDY_HIGH_ATTRACTIVENESS_RATIO、CRISIS_SUBSIDY_SIGNAL_MULTIPLIER、CRITICAL_SHORTAGE_ATTRACTIVENESS_MULTIPLIER、CRISIS_DOWNGRADE_RESISTANCE_CAP、SUBSIDY_DEPENDENCY_LOCK_RATIO 等），统一收敛到 utils/constants.js 并附带文件级 sanity check（开发模式 console.warn，不抛错），便于后续平衡调优。' },
+        ],
+    },
+    {
         version: '2.3.57',
         date: '2026-05-13',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '理念涌现升级为五选一，抽卡选择空间更大',
             '游戏百科新增理念体系专栏，可直接查看每张理念的分级与触发细节',

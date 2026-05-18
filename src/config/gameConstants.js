@@ -51,13 +51,13 @@ export const RESOURCES = {
         color: "text-yellow-400",
         basePrice: 1.0,
         minPrice: 0,
-        maxPrice: 150,  // Essential: 150x cap for social stability
+        maxPrice: 500,  // Survival essential: 500x cap (饥荒时"米斗万钱"级别，足以驱动剧烈劳动力转移)
         defaultOwner: 'peasant',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material'],
         // 粮食的差异化市场配置：作为基础必需品，价格波动更小，库存目标更高
         marketConfig: {
-            supplyDemandWeight: 0.4,        // 供需对价格影响较小（必需品价格相对稳定）
+            supplyDemandWeight: 0.6,        // [FIX-C] 0.4→0.6：让供需信号更敏感，避免补贴/紧缺时价格被压制（危机段已自动解除压制）
             inventoryTargetDays: 146.0,       // 目标库存天数（战略储备）
             inventoryPriceImpact: 0.15,     // 库存对价格影响较小
             demandElasticity: 0.2,          // 需求弹性低（必需品，价格变化对需求影响小）
@@ -108,7 +108,7 @@ export const RESOURCES = {
         color: "text-indigo-300",
         basePrice: 1.5,
         minPrice: 0,
-        maxPrice: 325,  // Essential: 217x cap for social stability
+        maxPrice: 750,  // Survival essential: 500x cap (与粮食对齐，衣物短缺亦是社会稳定底线)
         defaultOwner: 'worker',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material', 'manufactured'],
@@ -388,7 +388,7 @@ export const RESOURCES = {
         defaultOwner: 'merchant',
         unlockEpoch: 4,
         unlockTech: 'cartography',
-        tags: ['essential', 'manufactured'],
+        tags: ['manufactured'],  // 贸易奢侈品，非生存必需
         // 贸易商品：高波动性
         marketConfig: {
             supplyDemandWeight: 1.4,        // 供需影响大（贸易品）
@@ -452,7 +452,7 @@ export const RESOURCES = {
         defaultOwner: 'merchant',
         unlockEpoch: 5,
         unlockTech: 'coffee_agronomy',
-        tags: ['essential', 'manufactured'],
+        tags: ['manufactured'],  // 日常消费奢侈品，非生存必需
         // 消费品：中高波动性
         marketConfig: {
             supplyDemandWeight: 1.2,        // 供需影响较大

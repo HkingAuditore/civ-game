@@ -227,6 +227,7 @@ import {
     TECH_MAP,
     CRITICAL_SHORTAGE_THRESHOLD,
     CRITICAL_RESOURCES,
+    SUBSIDY_INCOME_SIGNAL_BONUS,
     // Helper functions
     clamp,
     isTradableResource,
@@ -2237,13 +2238,24 @@ export const simulateTick = ({
                 // [FIX] 冷启动修复：当历史工资极低时，基于建筑利润反推合理工资预期
                 // 计算建筑的潜在利润来推测雇员应得的合理工资预期
                 const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
-                
+
                 // 计算建筑利润以推断合理的雇员工资（解决新行业冷启动问题）
                 let estimatedWage = avgPaidWage;
                 const baseExpected = getExpectedWage(role);
-                
-                // 如果历史工资明显偏低（低于基础预期的 50%），尝试用利润反推
-                if (avgPaidWage < baseExpected * 0.5) {
+
+                // 【需求 2.1 / 2.5】业务税补贴 → 雇员吸引力传导
+                // 当所属建筑 businessTaxRate < 0（享受业务税补贴）时，
+                // 将到账补贴金额按"利润分润 40%"加入雇员合理工资预估，
+                // 与 taxes.js / 业主分支口径一致（不放大、不绕过 effectiveTaxModifier）。
+                const buildingBusinessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
+                let businessTaxSubsidyAmount = 0;
+                if (Number.isFinite(buildingBusinessTaxRate) && buildingBusinessTaxRate < 0) {
+                    businessTaxSubsidyAmount = Math.abs(buildingBusinessTaxRate) * effectiveEfficiency;
+                }
+
+                // 触发条件：(a) 历史工资明显偏低（冷启动） OR (b) 该建筑享受业务税补贴
+                const shouldEstimateFromProfit = (avgPaidWage < baseExpected * 0.5) || businessTaxSubsidyAmount > 0;
+                if (shouldEstimateFromProfit) {
                     let buildingOutputValue = 0;
                     if (config.output) {
                         Object.entries(config.output).forEach(([resource, amount]) => {
@@ -2259,9 +2271,11 @@ export const simulateTick = ({
                             buildingInputCost += amount * price;
                         });
                     }
-                    const buildingProfit = buildingOutputValue - buildingInputCost;
-                    
-                    // 如果建筑有利润，将 40% 的利润分配给所有雇员作为合理工资预期
+                    // 把业务税补贴金额并入建筑利润口径，使补贴像额外利润一样
+                    // 通过"利润分润 0.4"路径抬升雇员的合理工资预期
+                    const buildingProfit = buildingOutputValue - buildingInputCost + businessTaxSubsidyAmount;
+
+                    // 如果建筑有利润（含补贴），将 40% 分配给所有雇员作为合理工资预期
                     if (buildingProfit > 0) {
                         const totalEmployeeSlots = Object.entries(jobs)
                             .filter(([r]) => r !== building.owner)
@@ -2291,7 +2305,20 @@ export const simulateTick = ({
         // 这太复杂了。目前先复用原有逻辑，依?VACANT_BONUS 提升吸引?
         const totalIncome = ownerIncome + employeeWage;
         const averageIncome = totalIncome / totalSlots;
-        return Math.max(getExpectedWage(role), averageIncome * VACANT_BONUS);
+        const baseEstimate = Math.max(getExpectedWage(role), averageIncome * VACANT_BONUS);
+
+        // 【需求 1.4 / 2.3】人头税补贴预估注入：
+        // 当该角色 headRate < 0（享受人头税补贴）时，将人均到账补贴金额追加进入预估收入，
+        // 使从未有人涉足的岗位（pop === 0 路径主要消费者）也能因补贴变得有吸引力。
+        // 与 taxes.js collectHeadTax 的负 headRate 分支口径一致：due = count * headRate * effectiveTaxModifier，
+        // 因此人均补贴 = |headRate| * effectiveTaxModifier。
+        const roleHeadRate = getHeadTaxRate(role);
+        let headSubsidyPerCapita = 0;
+        if (Number.isFinite(roleHeadRate) && roleHeadRate < 0) {
+            headSubsidyPerCapita = Math.abs(roleHeadRate) * effectiveTaxModifier;
+        }
+
+        return baseEstimate + headSubsidyPerCapita;
     };
 
     // [FIX] 智能工资获取：当岗位人数少时，用预估潜力代替历史工资吸引人
@@ -7597,18 +7624,33 @@ export const simulateTick = ({
                     const inventoryRatio = inventoryDays / inventoryTargetDays;
                     let priceMultiplier = 1.0;
 
-                    // [FIX] Smoothed price curve to reduce extreme oscillations.
-                    // Old curve: 0.1→10x, 0.5→6x caused violent tick-to-tick swings.
-                    // New curve: gentler slopes, max 5x, continuous transitions.
+                    // [FIX-A] 危机段去除写死的 5x 上限，改用 maxPrice 推导出的 maxMultiplier，
+                    // 这样必需品库存归零时价格能真正向 maxPrice 靠拢（粮食 maxPrice=150 → 150x basePrice）。
+                    const _basePriceForMul = getBasePrice(resource);
+                    const maxMultiplier = (resourceDef?.maxPrice != null && _basePriceForMul > 0)
+                        ? resourceDef.maxPrice / _basePriceForMul
+                        : 50.0;
+
                     if (inventoryRatio < 0.1) {
-                        // Extreme shortage: steep but capped at 5x (was 10x)
-                        priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
-                        priceMultiplier = Math.min(5.0, priceMultiplier);
+                        // [FIX-D] essential 资源（粮食/布料）库存归零时必须能逼近 maxPrice，
+                        // 避免出现"奢侈品比生存品还贵"的反常现象。
+                        // 采用指数曲线让 ratio→0 时 priceMultiplier→maxMultiplier。
+                        const isEssential = !!resourceDef?.tags?.includes('essential');
+                        if (isEssential) {
+                            // ratio=0.1 → 3x；ratio=0 → maxMultiplier；中间用凸曲线
+                            const shortageDepth = Math.max(0, 1 - inventoryRatio / 0.1); // 0..1
+                            const crisisCurve = Math.pow(shortageDepth, 1.5); // 越缺越快涨
+                            priceMultiplier = 3.0 + (maxMultiplier - 3.0) * crisisCurve;
+                        } else {
+                            // 非 essential：保留原温和曲线，避免奢侈品/工业品价格异常飙升
+                            priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 200.0;
+                        }
+                        priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
                     } else if (inventoryRatio < 0.5) {
-                        // Low inventory: moderate increase, max 3x (was 6x)
+                        // Low inventory: moderate increase
                         priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                     } else if (inventoryRatio < 1.0) {
-                        // Slightly low: gentle increase 1.0-1.5x (was 1.0-2.0x)
+                        // Slightly low: gentle increase 1.0-1.5x
                         priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 0.5;
                     } else if (inventoryRatio > 3.0) {
                         // Severe oversupply: deeper discount
@@ -7621,6 +7663,15 @@ export const simulateTick = ({
                         // Slightly high: gentle decrease 0.85-1.0x
                         priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                     }
+
+                    // [FIX-C] 应用 supplyDemandWeight；必需品在极度短缺时逐步解除价格压制，
+                    // 避免 supplyDemandWeight<1 把"价格信号"削平到无人察觉
+                    let effectiveWeight = supplyDemandWeight;
+                    if (resourceDef?.tags?.includes('essential') && inventoryRatio < 0.3 && supplyDemandWeight < 1.0) {
+                        const crisisLift = 1.0 - inventoryRatio / 0.3;
+                        effectiveWeight = supplyDemandWeight + (1.0 - supplyDemandWeight) * crisisLift;
+                    }
+                    priceMultiplier = 1.0 + (priceMultiplier - 1.0) * effectiveWeight;
 
                     // 时代过渡缓冲：当前时代刚解锁的资源，库存积累期内限制价格上涨
                     const resUnlockEpoch = resourceDef?.unlockEpoch || 0;
@@ -7688,10 +7739,23 @@ export const simulateTick = ({
                 const inventoryRatio = inventoryDays / inventoryTargetDays;
                 let priceMultiplier = 1.0;
 
-                // [FIX] Same smoothed price curve as building-based pricing
+                // [FIX-A] 与建筑分支保持一致：去除 5x 写死上限，改用 maxMultiplier
+                const maxMultiplier = (resourceDef?.maxPrice != null && basePrice > 0)
+                    ? resourceDef.maxPrice / basePrice
+                    : 50.0;
+
                 if (inventoryRatio < 0.1) {
-                    priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
-                    priceMultiplier = Math.min(5.0, priceMultiplier);
+                    // [FIX-D] essential 资源（粮食/布料）在 fallback 分支同样要能逼近 maxMultiplier，
+                    // 否则"国内无人种地"时价格会被旧的线性公式（≤23x）卡死，价格信号失效
+                    const isEssentialFallback = !!resourceDef?.tags?.includes('essential');
+                    if (isEssentialFallback) {
+                        const shortageDepth = Math.max(0, 1 - inventoryRatio / 0.1);
+                        const crisisCurve = Math.pow(shortageDepth, 1.5);
+                        priceMultiplier = 3.0 + (maxMultiplier - 3.0) * crisisCurve;
+                    } else {
+                        priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 200.0;
+                    }
+                    priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
                 } else if (inventoryRatio < 0.5) {
                     priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                 } else if (inventoryRatio < 1.0) {
@@ -7704,6 +7768,14 @@ export const simulateTick = ({
                 } else if (inventoryRatio > 1.0) {
                     priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                 }
+
+                // [FIX-C] 应用 supplyDemandWeight + essential 危机解除压制（与建筑分支一致）
+                let effectiveWeight = supplyDemandWeight;
+                if (resourceDef?.tags?.includes('essential') && inventoryRatio < 0.3 && supplyDemandWeight < 1.0) {
+                    const crisisLift = 1.0 - inventoryRatio / 0.3;
+                    effectiveWeight = supplyDemandWeight + (1.0 - supplyDemandWeight) * crisisLift;
+                }
+                priceMultiplier = 1.0 + (priceMultiplier - 1.0) * effectiveWeight;
 
                 if (isVolatile) {
                     priceMultiplier = volatileFlowMultiplier;
@@ -7770,7 +7842,14 @@ export const simulateTick = ({
             // [FIX] Reduced smoothing speed to dampen price oscillations.
             // Base smoothing 0.05 (was 0.1); max 0.2 (was 0.4).
             // This means prices take ~10-20 ticks to converge instead of ~3-5.
-            const dynamicSmoothing = Math.min(0.2, 0.05 + priceGapRatio * 0.15);
+            let dynamicSmoothing = Math.min(0.2, 0.05 + priceGapRatio * 0.15);
+            // [FIX-B] 危机模式：库存极低（<0.1 ratio）的必需品需要快速跳涨，
+            // 否则即便目标价已上调，平滑后价格仍要十几个 tick 才到位，价格信号失灵
+            const _crisisInvRatio = inventoryDays / inventoryTargetDays;
+            if (_crisisInvRatio < 0.1 && resourceDef?.tags?.includes('essential')) {
+                const urgency = 1.0 - Math.max(0, _crisisInvRatio) / 0.1; // 0~1
+                dynamicSmoothing = Math.max(dynamicSmoothing, 0.3 + 0.4 * urgency); // 0.3~0.7
+            }
             const smoothed = prevPrice + (ideoAdjustedMarketPrice - prevPrice) * dynamicSmoothing;
 
             // 应用价格限制
@@ -8168,6 +8247,54 @@ export const simulateTick = ({
         return result;
     };
 
+    // 【需求 2.1 / 卡点 A 修复】业务税补贴 → owner 阶层 subsidyPerCapita 信号
+    // 背景：业务税补贴（businessTaxRate < 0）的实际银币流口径是
+    //   subsidyAmount = |rate| × count（每 tick 固定，与 outputValue 无关）
+    //   actualSubsidyAmount = subsidyAmount × effectiveEfficiency
+    //   ledger.transfer('state', owner, ...)  + roleWagePayout[owner] += actualSubsidyAmount
+    // 因此该补贴已隐式进入 owner 阶层的 netIncomePerCapita（potentialIncome 主项）。
+    // 但下方 subsidyPerCapita 字段过去仅反映人头税补贴，导致 jobs.js 的
+    //   - SUBSIDY_HIGH_ATTRACTIVENESS_RATIO 判定
+    //   - SUBSIDY_PULL_MULTIPLIER 加速
+    //   - SAME_TIER_MIGRATION_RESISTANCE 削减
+    // 全部认为"无补贴"而失效。此处显式把业务税补贴均摊到该 owner 阶层全体 pop 上，
+    // 与"实际银币也是注入整池 roleWagePayout[owner]"的口径完全一致——只是把已隐式存在
+    // 于 incomeSignal 中的补贴金额"显式标注"到 subsidyPerCapita，不重复加到 potentialIncome。
+    const businessSubsidyPerCapitaByOwner = {};
+    {
+        // 与 simulation.js:3621-3625 业务税补贴分发段使用同一口径计算 effectiveEfficiency
+        const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+        const outerEffectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
+        BUILDINGS.forEach(building => {
+            const count = builds[building.id] || 0;
+            if (count <= 0) return;
+            const ownerKey = building.owner;
+            if (!ownerKey) return;
+            const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
+            if (!Number.isFinite(businessTaxRate) || businessTaxRate >= 0) return;
+            // 与银币流口径一致：subsidyAmount = |rate| × count；actualSubsidy = × efficiency
+            const actualSubsidy = Math.abs(businessTaxRate) * count * outerEffectiveEfficiency;
+            businessSubsidyPerCapitaByOwner[ownerKey] = (businessSubsidyPerCapitaByOwner[ownerKey] || 0) + actualSubsidy;
+        });
+    }
+
+    // 【修复 A：在岗 pop 分母】聚合本 tick 各角色"实际在岗"人数，
+    // 用作 netIncomePerCapita 的分母，避免高粮价/补贴等业主收入被全阶层 pop 稀释。
+    // 复用生产循环中已写入的 buildingFinancialData[*].filledByRole（simulation.js:2666）。
+    // 场景：farm jobs={peasant:3} 且 owner=peasant → 业主收入入 roleWagePayout[peasant]，
+    //   但失业 peasant 与在岗 peasant 同属一个阶层池子，按总 pop 均摊会让"有效收入信号"
+    //   显著低于在岗者实际所得，导致迁移决策低估 peasant 吸引力。
+    const employedPopByRole = {};
+    Object.values(buildingFinancialData || {}).forEach((finance) => {
+        if (!finance) return;
+        Object.entries(finance.filledByRole || {}).forEach(([role, filled]) => {
+            const v = Number(filled) || 0;
+            if (v > 0) {
+                employedPopByRole[role] = (employedPopByRole[role] || 0) + v;
+            }
+        });
+    });
+
     const activeRoleMetrics = ROLE_PRIORITY.map(role => {
         const pop = popStructure[role] || 0;
         const wealthNow = getRoleWealthSnapshot(role);
@@ -8180,7 +8307,27 @@ export const simulateTick = ({
         const totalExpense = roleExpense[role] || 0;
         const capitalOutlayAdjustment = role === 'merchant' ? merchantCapitalInvested : 0;
         const netIncome = totalIncome - totalExpense + capitalOutlayAdjustment;
-        const netIncomePerCapita = netIncome / Math.max(1, pop);
+        // 【修复 A】使用"在岗 pop"作分母；当无人在岗时回退到总 pop，最低 1 防除零。
+        // 商人例外：merchant 没有 jobs 配置，filledByRole 不会统计到，仍走总 pop。
+        const employedPop = role === 'merchant'
+            ? pop
+            : Math.max(0, Math.floor(employedPopByRole[role] || 0));
+        // 【修复 D / 自耕农信号】岗位完全空置（如 农田 0/42）时，
+        //   employedPop=0 → 旧逻辑回退到总 pop，业务税补贴会被全阶层失业/其它岗位人口稀释，
+        //   导致 peasant.netIncomePerCapita 看起来"补贴 ÷ 100 人 = 4 银/人"而非真实"补贴 ÷ 42 个潜在岗位"。
+        //   这会让 peasant.potentialIncome 远低于工匠，工匠转 peasant 永远过不了 1.3× 阻力门槛。
+        // 三级回退分母：在岗人 → 岗位数（潜在容量）→ 总 pop（最后兜底，防除零）。
+        // 商人继续走总 pop（merchant 无 jobs 配置）。
+        let incomeDivisor;
+        if (employedPop > 0) {
+            incomeDivisor = employedPop;
+        } else if (role !== 'merchant') {
+            const slots = Math.max(0, Math.floor(jobsAvailable[role] || 0));
+            incomeDivisor = slots > 0 ? slots : Math.max(1, pop);
+        } else {
+            incomeDivisor = Math.max(1, pop);
+        }
+        const netIncomePerCapita = netIncome / incomeDivisor;
         const roleWage = updatedWages[role] || getExpectedWage(role);
         const roleWageForTax = updatedWages[role] || getExpectedWage(role);
         const sumHeadRate = getHeadTaxRate(role);
@@ -8225,16 +8372,22 @@ export const simulateTick = ({
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
-        // 补贴收入信号加成：当角色享受补贴（负人头税）时，额外提升收入信号
-        // 使补贴政策对人口迁移决策产生更直接的吸引力
-        const SUBSIDY_SIGNAL_BONUS = 0.5; // 补贴金额的50%作为额外收入信号
+        // 【需求 1.1 / 1.6】补贴信号量级修复：
+        // 当角色享受补贴（sumHeadRate < 0）时，将人均到账补贴金额（已按 effectiveTaxModifier 折扣）
+        // 以 1.0 倍直接并入 incomeSignal 主项，使补贴像工资一样对迁移决策产生有效拉力。
+        // 对账依据：taxCostPerCapita = sumHeadRate * effectiveTaxModifier（sumHeadRate < 0 分支），
+        // 与 taxes.js collectHeadTax 中 due = count * headRate * effectiveTaxModifier 的人均口径一致。
+        // 当 sumHeadRate >= 0（征税或零）时，不进入此分支，避免信号残留（需求 1.5）。
         let subsidySignalBonus = 0;
-        if (sumHeadRate < 0 && pop > 0) {
-            // taxCostPerCapita is negative when subsidized, so negate it to get positive bonus
-            subsidySignalBonus = Math.abs(taxCostPerCapita) * SUBSIDY_SIGNAL_BONUS;
+        if (sumHeadRate < 0 && pop > 0 && Number.isFinite(taxCostPerCapita)) {
+            // taxCostPerCapita 为负值（人均补贴到账金额），取绝对值即正向拉力金额
+            subsidySignalBonus = Math.abs(taxCostPerCapita);
         }
+        // 保留 SUBSIDY_INCOME_SIGNAL_BONUS 常量的引用语义：用于潜在的征税侧信号缓和（向后兼容）
+        // 当前主项采用 1.0× 并入，常量本身在 constants.js 仍以 0.5 为默认值。
+        void SUBSIDY_INCOME_SIGNAL_BONUS;
 
-        // 以上一tick的人均净收入为主导，辅以小幅稳定度奖励和补贴信号加成，避免理论工资误导
+        // 以上一tick的人均净收入为主导，辅以小幅稳定度奖励和补贴信号主项并入
         const potentialIncome = incomeSignal + stabilityBonus + subsidySignalBonus;
 
         return {
@@ -8244,6 +8397,17 @@ export const simulateTick = ({
             perCapDelta: effectivePerCapDelta,
             potentialIncome,
             vacancy: roleVacancies[role] || 0,
+            // 【需求 3.1 / 1.3 / 卡点 A 修复】补贴信号字段：
+            // 用于 handleJobMigration 识别"补贴显著候选"并启用补贴拉力加速 / 阻力削减。
+            // 与 taxes.js / 业务税补贴实际到账口径一致：
+            //   - 人头税补贴：sumHeadRate < 0 → |sumHeadRate| × effectiveTaxModifier（人均）
+            //   - 业务税补贴：Σ |buildingRate| × buildingCount × effectiveEfficiency / divisor
+            // 注意：业务税补贴的实际银币已通过 roleWagePayout 进入 netIncomePerCapita，
+            // 因此 potentialIncome 主项不再重复加它；此处仅作为"政策可见性"信号上报，
+            // 让迁移决策器能识别补贴候选并启用拉力 / 阻力削减分支。
+            // 【修复 D】分母与 incomeDivisor 同源，避免 0/42 时补贴被失业总池稀释成 0。
+            subsidyPerCapita: subsidySignalBonus
+                + ((businessSubsidyPerCapitaByOwner[role] || 0) / incomeDivisor),
         };
     });
 
