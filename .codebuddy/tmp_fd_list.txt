@@ -1,0 +1,5 @@
+/root/.openclaw/memory/main.sqlite
+/root/.openclaw/tasks/runs.sqlite
+/root/.openclaw/tasks/runs.sqlite-shm
+/root/.openclaw/tasks/runs.sqlite-wal
+/tmp/openclaw-0/gateway.a504a3cd.lock
