@@ -47,3 +47,5 @@ ai_reports/_build_report.cjs
 ai_reports/_precompute.cjs
 ai_reports/_query_features.cjs
 commit_msg.txt
+
+.codebuddy/tmp/
