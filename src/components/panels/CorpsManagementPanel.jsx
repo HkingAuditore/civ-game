@@ -15,7 +15,6 @@ import {
     getCorpsTotalUnits,
     getCorpsGeneral,
     getTraitDetails,
-    getGeneralBonuses,
     MAX_CORPS_PER_PLAYER,
     createGeneralFromOfficial,
 } from '../../logic/diplomacy/corpsSystem';
@@ -25,7 +24,7 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
  * 数量步进器组件 — 带 +/- 按钮和长按加速
  * 长按策略：前300ms单步，之后每80ms步进，800ms后加速到每40ms步进5
  */
-const QuantityStepper = memo(({ value, min = 0, max, onChange, unitName }) => {
+const QuantityStepper = memo(({ value, min = 0, max, onChange }) => {
     const longPressRef = useRef(null);
 
     // 清除长按定时器
@@ -320,6 +319,18 @@ const CorpsManagementPanel = ({
         onUpdateGenerals(updated);
     };
 
+    const handleDismissGeneral = (generalId) => {
+        const gen = generals.find(g => g.id === generalId);
+        if (!gen) return;
+        if (!window.confirm(`确定要解雇将领「${gen.name}」吗？`)) return;
+
+        const updatedCorps = militaryCorps.map(c =>
+            c.id === gen.assignedCorpsId || c.generalId === generalId ? { ...c, generalId: null } : c
+        );
+        onUpdateCorps(updatedCorps);
+        onUpdateGenerals(generals.filter(g => g.id !== generalId));
+    };
+
     // ========== Render ==========
 
     return (
@@ -539,7 +550,6 @@ const CorpsManagementPanel = ({
                                                                     value={assignAmounts[uid] || 0}
                                                                     min={0}
                                                                     max={available}
-                                                                    unitName={UNIT_TYPES[uid]?.name || uid}
                                                                     onChange={(updater) => {
                                                                         setAssignAmounts(prev => {
                                                                             const oldVal = prev[uid] || 0;
@@ -693,7 +703,6 @@ const CorpsManagementPanel = ({
                     <div className="space-y-1">
                         {playerGenerals.map(gen => {
                             const traits = getTraitDetails(gen.traits);
-                            const bonuses = getGeneralBonuses(gen);
                             const assignedCorps = militaryCorps.find(c => c.id === gen.assignedCorpsId);
                             return (
                                 <div key={gen.id} className="flex items-center justify-between bg-gray-900/30 rounded px-2 py-1.5">
@@ -708,8 +717,16 @@ const CorpsManagementPanel = ({
                                             </span>
                                         ))}
                                     </div>
-                                    <div className="text-xs text-gray-500">
-                                        {assignedCorps ? `指派至: ${assignedCorps.name}` : '待命'}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500">
+                                            {assignedCorps ? `指派至: ${assignedCorps.name}` : '待命'}
+                                        </span>
+                                        <button
+                                            className="px-2 py-0.5 text-xs bg-red-900/30 border border-red-500/30 rounded hover:bg-red-900/50 text-red-300"
+                                            onClick={() => handleDismissGeneral(gen.id)}
+                                        >
+                                            解雇
+                                        </button>
                                     </div>
                                 </div>
                             );

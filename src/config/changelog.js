@@ -4,9 +4,22 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.59',
+        date: '2026-05-21',
+        isLatest: true,
+        highlights: [
+            '将领列表新增解雇入口，军团管理更完整',
+            '解雇会同步清理军团指派，避免残留引用',
+        ],
+        changes: [
+            { type: 'new', text: '将领列表新增“解雇”按钮，玩家无需先进入具体军团详情，也能直接移除不再需要的将领，让军团管理操作更完整。' },
+            { type: 'fix', text: '解雇将领时会同步清理对应军团的 generalId 引用，并兼容 assignedCorpsId 与 generalId 不一致的旧存档状态，避免军团继续显示已被移除的将领。' },
+        ],
+    },
+    {
         version: '2.3.58',
         date: '2026-05-18',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '粮食、布料价格上限大幅放开，饥荒时价格能真正反映稀缺',
             '补贴政策全面打通迁移决策，加税减税不再"无人响应"',
@@ -1053,7 +1066,7 @@ export const CHANGELOG = [
         ],
         changes: [
             { type: 'new', text: '新增 `analytics-server/ANALYTICS_GUIDE.md` 数据分析手册：集中整理 sessions、design_events、resource_events、error_events 的字段说明、event_id 全索引与按场景分类的查询模板，便于快速定位玩法平衡与留存问题。' },
-            { type: 'new', text: '新增 `analytics-server/scripts/query.cjs` 命令行查询脚本：支持通过 `node scripts/query.cjs \"SQL\"` 直接执行 SQL 并输出 JSON 结果，减少临时写脚本和手工连接数据库的重复操作。' },
+            { type: 'new', text: '新增 `analytics-server/scripts/query.cjs` 命令行查询脚本：支持通过 `node scripts/query.cjs "SQL"` 直接执行 SQL 并输出 JSON 结果，减少临时写脚本和手工连接数据库的重复操作。' },
             { type: 'improve', text: '新增 `skills/civ-analytics/SKILL.md` 分析技能文档，统一数据分析步骤、查询约束和结果解读流程，提升后续版本排查与调参的一致性。' },
         ],
     },
