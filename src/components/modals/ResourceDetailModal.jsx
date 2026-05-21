@@ -772,7 +772,7 @@ const AutoChainFlowGraph = ({ graph, resourceKey, buildingCounts = {} }) => {
 };
 
 /** Building IO card — shows a building's inputs→outputs with the current resource highlighted */
-const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side = 'producer' }) => {
+const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side = 'producer', onNavigateToBuilding }) => {
     const rd = RESOURCES[resourceKey];
     const isProducer = side === 'producer';
     // The "other" resources: for a producer, show its inputs; for a consumer, show its other inputs (co-inputs)
@@ -794,13 +794,20 @@ const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side 
         }`}>
             {/* Building name + count */}
             <div className="flex items-center justify-between gap-1 mb-1.5">
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div
+                    className={`flex items-center gap-1.5 min-w-0 ${onNavigateToBuilding ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
+                    onClick={onNavigateToBuilding ? () => onNavigateToBuilding(building.id) : undefined}
+                    title={onNavigateToBuilding ? `查看 ${building.name} 的建筑详情` : undefined}
+                >
                     <Icon name="Factory" size={11} className={isUnlocked ? 'text-ancient-gold/70' : 'text-gray-600'} />
                     <span className={`text-[11px] font-medium truncate ${
                         isUnlocked ? 'text-ancient-parchment' : 'text-gray-500'
-                    }`}>
+                    } ${onNavigateToBuilding ? 'underline decoration-dotted underline-offset-2 decoration-ancient-gold/40' : ''}`}>
                         {building.name}
                     </span>
+                    {onNavigateToBuilding && (
+                        <Icon name="ExternalLink" size={9} className="text-ancient-gold/40 flex-shrink-0" />
+                    )}
                 </div>
                 {currentBuildingCount > 0 && (
                     <span className="text-[9px] text-emerald-400/80 bg-emerald-950/40 px-1 py-0.5 rounded flex-shrink-0">
@@ -883,7 +890,7 @@ const BuildingIOCard = ({ building, resourceKey, currentBuildingCount = 0, side 
 };
 
 /** 产业链主视图 — 简化版：直接展示上下游建筑 */
-const DynamicChainView = ({ resourceKey, buildings = {}, epoch = 0 }) => {
+const DynamicChainView = ({ resourceKey, buildings = {}, epoch = 0, onNavigateToBuilding }) => {
     const resourceDef = RESOURCES[resourceKey];
 
     // Directly query which buildings produce/consume this resource
@@ -931,6 +938,7 @@ const DynamicChainView = ({ resourceKey, buildings = {}, epoch = 0 }) => {
                                         resourceKey={resourceKey}
                                         currentBuildingCount={buildings[b.id] || 0}
                                         side="producer"
+                                        onNavigateToBuilding={onNavigateToBuilding}
                                     />
                                 ))}
                             </div>
@@ -953,6 +961,7 @@ const DynamicChainView = ({ resourceKey, buildings = {}, epoch = 0 }) => {
                                         resourceKey={resourceKey}
                                         currentBuildingCount={buildings[b.id] || 0}
                                         side="consumer"
+                                        onNavigateToBuilding={onNavigateToBuilding}
                                     />
                                 ))}
                             </div>
@@ -991,6 +1000,7 @@ const ResourceDetailContent = ({
     activeDebuffs = [],
     buildingFinancialData = {},
     economicIndicators = {}, // 新增：经济指标数据
+    onNavigateToBuilding, // 点击建筑跳转到建筑调控界面
 }) => {
     const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].id);
     const [showEconomicDetails, setShowEconomicDetails] = useState(false); // 新增：经济指标详情折叠状态
@@ -2236,7 +2246,14 @@ const ResourceDetailContent = ({
                                                                     className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.hasBonus ? 'border-amber-500/30 bg-amber-950/20' : 'border-gray-800/60 bg-gray-900/60'} p-2 lg:p-3`}
                                                                 >
                                                                     <div>
-                                                                        <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                                                        <p
+                                                                            className={`text-xs lg:text-sm font-semibold text-white ${onNavigateToBuilding ? 'cursor-pointer hover:text-ancient-gold underline decoration-dotted underline-offset-2 decoration-ancient-gold/40 inline-flex items-center gap-1' : ''}`}
+                                                                            onClick={onNavigateToBuilding ? () => onNavigateToBuilding(item.id) : undefined}
+                                                                            title={onNavigateToBuilding ? `查看 ${item.name} 的建筑详情` : undefined}
+                                                                        >
+                                                                            {item.name}
+                                                                            {onNavigateToBuilding && <Icon name="ExternalLink" size={10} className="text-ancient-gold/40" />}
+                                                                        </p>
                                                                         <p className="text-xs lg:text-xs text-gray-500">{item.formula}</p>
                                                                         {item.mods && item.mods.length > 0 && (
                                                                             <p className="text-xs text-amber-400 mt-0.5">
@@ -2340,7 +2357,14 @@ const ResourceDetailContent = ({
                                                                 } p-2 lg:p-3`}
                                                         >
                                                             <div>
-                                                                <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                                                <p
+                                                                    className={`text-xs lg:text-sm font-semibold text-white ${onNavigateToBuilding && item.id !== 'import' ? 'cursor-pointer hover:text-ancient-gold underline decoration-dotted underline-offset-2 decoration-ancient-gold/40 inline-flex items-center gap-1' : ''}`}
+                                                                    onClick={onNavigateToBuilding && item.id !== 'import' ? () => onNavigateToBuilding(item.id) : undefined}
+                                                                    title={onNavigateToBuilding && item.id !== 'import' ? `查看 ${item.name} 的建筑详情` : undefined}
+                                                                >
+                                                                    {item.name}
+                                                                    {onNavigateToBuilding && item.id !== 'import' && <Icon name="ExternalLink" size={10} className="text-ancient-gold/40" />}
+                                                                </p>
                                                                 <p className="text-xs lg:text-xs text-gray-500">{item.formula}</p>
                                                                 {item.mods && item.mods.length > 0 && (
                                                                     <p className="text-xs text-emerald-400">{item.mods.join(' · ')}</p>
@@ -2419,7 +2443,7 @@ const ResourceDetailContent = ({
                                 )}
 
                                 {activeTab === 'chain' && (
-                                    <DynamicChainView resourceKey={resourceKey} buildings={buildings} epoch={epoch} />
+                                    <DynamicChainView resourceKey={resourceKey} buildings={buildings} epoch={epoch} onNavigateToBuilding={onNavigateToBuilding} />
                                 )}
                             </div>
                         </div>

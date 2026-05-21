@@ -164,6 +164,17 @@ const CorpsManagementPanel = ({
     const playerCorps = useMemo(() => militaryCorps.filter(c => !c.isAI), [militaryCorps]);
     const playerGenerals = useMemo(() => generals.filter(g => !g.id?.startsWith('ai_gen_') && !g.isAI), [generals]);
 
+    // 现存军团 ID 集合，用于识别将领的孤立 assignedCorpsId 引用
+    // （孤立的引用应被视为“未指派”，避免将领因脏数据无法在新军团中重新指派）
+    const validCorpsIdSet = useMemo(
+        () => new Set(militaryCorps.map(c => c?.id).filter(Boolean)),
+        [militaryCorps]
+    );
+    const isGeneralAssigned = useCallback(
+        (general) => Boolean(general?.assignedCorpsId && validCorpsIdSet.has(general.assignedCorpsId)),
+        [validCorpsIdSet]
+    );
+
     // [FIX] Unassigned army = army state itself
     // assignUnitsToCorps already physically removes units from global army,
     // so army IS the unassigned pool. No need to subtract corps units again (was causing double-deduction).
@@ -575,7 +586,7 @@ const CorpsManagementPanel = ({
                                                 </div>
                                             ) : (
                                                 <div className="space-y-1">
-                                    {playerGenerals.filter(g => !g.assignedCorpsId).map(g => (
+                                    {playerGenerals.filter(g => !isGeneralAssigned(g)).map(g => (
                                         <div key={g.id} className="flex items-center justify-between text-xs">
                                             <span className="text-gray-300">{g.name} (Lv.{g.level})</span>
                                             <button
@@ -586,7 +597,7 @@ const CorpsManagementPanel = ({
                                             </button>
                                         </div>
                                     ))}
-                                    {playerGenerals.filter(g => !g.assignedCorpsId).length === 0 && (
+                                    {playerGenerals.filter(g => !isGeneralAssigned(g)).length === 0 && (
                                         <span className="text-xs text-gray-500">无可用将领</span>
                                     )}
                                                 </div>

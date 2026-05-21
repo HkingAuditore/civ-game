@@ -30,6 +30,17 @@ import {
     CRITICAL_RESOURCES,
     SHORTAGE_MIGRATION_BONUS,
     EMERGENCY_MIGRATION_RATIO,
+    // 【需求 3.1 / 3.3】补贴拉力与同 tier 阻力削减
+    SUBSIDY_PULL_MULTIPLIER,
+    SUBSIDY_RESISTANCE_REDUCTION_THRESHOLD,
+    SUBSIDY_HIGH_ATTRACTIVENESS_RATIO,
+    // 生存危机迁移强化（方案 A）
+    CRISIS_SUBSIDY_SIGNAL_MULTIPLIER,
+    CRITICAL_SHORTAGE_ATTRACTIVENESS_MULTIPLIER,
+    CRISIS_DOWNGRADE_RESISTANCE_CAP,
+    // 关键生产者保留锁
+    SUBSIDY_DEPENDENCY_LOCK_RATIO,
+    CRITICAL_PRODUCER_RETENTION_FILL_RATE,
 } from '../utils/constants';
 
 import { RESOURCES } from '../../config';
@@ -508,6 +519,33 @@ export const handleJobMigration = ({
         }
     }
 
+    // ============== 关键生产者集合 ==============
+    // 包含所有 CRITICAL_RESOURCES 的默认生产者（如 peasant 之于 food）。
+    // 不论是否触发"危机阈值"，只要这些角色岗位仍未填满，禁止其作为迁出源。
+    // 这避免了"自耕农攒够钱→升 tier 跑路→农田再次空缺"的循环。
+    const criticalProducerRoles = new Set();
+    for (const res of CRITICAL_RESOURCES) {
+        const producer = RESOURCES[res]?.defaultOwner;
+        if (producer) criticalProducerRoles.add(producer);
+    }
+
+    // ============== 方案 A：危机时补贴信号放大（仅信号层，不动税收结算）==============
+    // 当生存危机 + 目标角色是紧缺生产者 + 享受补贴 三者同时成立时，
+    // 对该角色的 potentialIncome 做就地补丁，让它在迁移决策中显得更有吸引力。
+    // 不修改 wealth/银币流，仅影响候选筛选与阻力比较。
+    if (hasCriticalShortage && CRISIS_SUBSIDY_SIGNAL_MULTIPLIER > 1) {
+        roleMetrics.forEach(r => {
+            if (!criticalShortageRoles.has(r.role)) return;
+            const sub = Math.max(0, r.subsidyPerCapita || 0);
+            if (sub <= 0) return;
+            // 增量 = 补贴金额 × (放大倍率 - 1)，叠加到原 potentialIncome
+            const boost = sub * (CRISIS_SUBSIDY_SIGNAL_MULTIPLIER - 1);
+            if (Number.isFinite(boost) && boost > 0) {
+                r.potentialIncome = (r.potentialIncome || 0) + boost;
+            }
+        });
+    }
+
     // Decrease all cooldowns by 1 each tick
     const updatedCooldowns = {};
     Object.entries(migrationCooldowns).forEach(([role, cooldown]) => {
@@ -543,19 +581,78 @@ export const handleJobMigration = ({
                 if (updatedCooldowns[r.role] && updatedCooldowns[r.role] > 0) return false;
             }
 
+            // ============== 关键生产者保留锁（三层保护，单向阻止迁出）==============
+            // 经济原理：peasant 等关键资源生产者享受补贴的目的是"留人种田"，
+            // 不应让攒下的补贴反成为升 tier 的燃料。一旦自家岗位仍未填满，
+            // 该角色不允许作为 sourceCandidate（仅阻止迁出，不影响外部迁入）。
+            if (criticalProducerRoles.has(r.role)) {
+                // 锁 1：危机锁——出现 food/cloth 危机且本角色是当前紧缺生产者，绝不迁出
+                if (hasCriticalShortage && criticalShortageRoles.has(r.role)) {
+                    return false;
+                }
+                // 锁 2：岗位空缺锁——自家岗位仍有空缺则不迁出
+                //   r.vacancy 为该角色当前岗位缺口（来自 simulation 构造的 roleVacancies）
+                //   或 hasBuildingVacancyForRole(r.role) 报告至少一个建筑还能容纳
+                const hasOwnVacancy = (r.vacancy || 0) > 0 || hasBuildingVacancyForRole(r.role);
+                // 计算自家在岗率：pop / (pop + vacancy)，留 5% 容差避免边界震荡
+                const totalSlots = (r.pop || 0) + Math.max(0, r.vacancy || 0);
+                const fillRate = totalSlots > 0 ? (r.pop || 0) / totalSlots : 1;
+                if (hasOwnVacancy && fillRate < CRITICAL_PRODUCER_RETENTION_FILL_RATE) {
+                    return false;
+                }
+                // 锁 3：补贴依赖锁——补贴占收入比超过阈值且仍有空缺，视为政策维持中
+                const incomeRef = Math.max(1e-6, r.potentialIncome || 0);
+                const subsidyRatio = (r.subsidyPerCapita || 0) / incomeRef;
+                if (subsidyRatio >= SUBSIDY_DEPENDENCY_LOCK_RATIO && hasOwnVacancy) {
+                    return false;
+                }
+            }
+
             const percentageThreshold = r.perCap * 0.05;
             const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
             
+            // 【障碍 1 修复】生存危机时：非紧缺生产者（如工匠）即使收入正常，
+            // 也允许成为迁出源——避免"宁愿饿死也不去种田"。
+            // 排除条件：
+            //   - 自身是紧缺生产者（不能让 peasant 转走）
+            //   - pop 太少（不值得拆）
+            if (hasCriticalShortage && !criticalShortageRoles.has(r.role) && r.pop > 0) {
+                return true;
+            }
+
             // Criteria for seeking new job:
             // 1. "Push": Income is below 70% of population average
             // 2. "Push": Income is declining significantly
-            // 3. "Pull": [NEW] Income is below 60% of the BEST available opportunity (e.g. profitable factories)
+            // 3. "Pull": [NEW] Income is below 85% of the BEST available opportunity (e.g. profitable factories)
+            //   修复 B：将 max 比例从 0.6 放宽到 0.85。原 0.6 过严——当 peasant 因高粮价/补贴
+            //   把 maxPotentialIncome 拉爆时，artisan 等"普通收入"角色仍难以进入候选源池，
+            //   导致补贴政策的拉力无人响应。0.85 让"明显落后于最佳机会"的角色都能成为 source，
+            //   且仍保留 15% 的容差避免微小差距引发不必要迁移。
             return r.potentialIncome < averagePotentialIncome * 0.7 ||
                 r.perCapDelta < adjustedDeltaThreshold ||
-                (maxPotentialIncome > 0 && r.potentialIncome < maxPotentialIncome * 0.6);
+                (maxPotentialIncome > 0 && r.potentialIncome < maxPotentialIncome * 0.85);
         })
         .reduce((lowest, current) => {
             if (!lowest) return current;
+            // 【障碍 1 修复】危机时优先选 pop 最大的"非紧缺生产者"作为迁出源，
+            // 这样工匠/工人/书吏等有大量富余人口的角色优先被疏散去种田。
+            if (hasCriticalShortage) {
+                const lowestIsCritical = criticalShortageRoles.has(lowest.role);
+                const currentIsCritical = criticalShortageRoles.has(current.role);
+                // 紧缺生产者绝不作为源（被前置过滤已剔除，但二次保险）
+                if (currentIsCritical) return lowest;
+                if (lowestIsCritical) return current;
+                // 都是非紧缺生产者：优先选 pop 大的（有富余劳力可疏散）
+                if (current.pop !== lowest.pop) {
+                    return current.pop > lowest.pop ? current : lowest;
+                }
+                // pop 相同时选 tier 高的（更有"可降级空间"）
+                const lowestTier = STRATUM_TIERS[lowest.role] ?? 0;
+                const currentTier = STRATUM_TIERS[current.role] ?? 0;
+                if (currentTier !== lowestTier) {
+                    return currentTier > lowestTier ? current : lowest;
+                }
+            }
             // Prioritize the one with the biggest gap to the max potential
             // (or originally: lowest potential income)
             if (current.potentialIncome < lowest.potentialIncome) return current;
@@ -579,7 +676,7 @@ export const handleJobMigration = ({
      * - Same tier: harder (higher multiplier)  
      * - Downward: much harder (highest multiplier)
      */
-    const getTierResistanceMultiplier = (targetRole) => {
+    const getTierResistanceMultiplier = (targetRole, targetSubsidyPerCapita = 0) => {
         const targetTier = STRATUM_TIERS[targetRole] ?? 0;
         const tierDiff = targetTier - sourceTier;
 
@@ -588,6 +685,17 @@ export const handleJobMigration = ({
             resistance = UPGRADE_MIGRATION_BONUS;
         } else if (tierDiff === 0) {
             resistance = SAME_TIER_MIGRATION_RESISTANCE;
+            // 【需求 3.3】同 tier 场景下，若补贴金额足够显著，
+            // 按补贴强度线性削减同 tier 阻力，下限 1.0（等同升 tier 严格度）。
+            // 仅对本次迁移生效，不修改常量。
+            const sourceIncomeRef = Math.max(1e-6, sourceCandidate?.potentialIncome || 0);
+            const subsidyStrengthRatio = (targetSubsidyPerCapita || 0) / sourceIncomeRef;
+            if (subsidyStrengthRatio >= SUBSIDY_RESISTANCE_REDUCTION_THRESHOLD) {
+                const t = Math.max(0, Math.min(1,
+                    (subsidyStrengthRatio - SUBSIDY_RESISTANCE_REDUCTION_THRESHOLD) / 0.7
+                ));
+                resistance = SAME_TIER_MIGRATION_RESISTANCE * (1 - t) + 1.0 * t;
+            }
         } else {
             const tiersBelowCount = Math.abs(tierDiff);
             resistance = DOWNGRADE_MIGRATION_RESISTANCE * Math.pow(MULTI_TIER_DOWNGRADE_PENALTY, tiersBelowCount - 1);
@@ -596,6 +704,12 @@ export const handleJobMigration = ({
         // 生存危机时，转向紧缺资源生产者的阻力大幅降低
         if (hasCriticalShortage && criticalShortageRoles.has(targetRole)) {
             resistance *= SHORTAGE_MIGRATION_BONUS;
+            // 【障碍 2 修复】危机时：降级到紧缺生产角色的阻力直接 clamp 至上限，
+            // 避免“工匠→peasant”需要 2.6× 收入才能迁移的门槛。
+            // 不需要别的条件——只要是“转向紧缺生产角色”，什么方向的迁移都应该被鼓励。
+            if (tierDiff < 0 && resistance > CRISIS_DOWNGRADE_RESISTANCE_CAP) {
+                resistance = CRISIS_DOWNGRADE_RESISTANCE_CAP;
+            }
         }
 
         return resistance;
@@ -617,6 +731,12 @@ export const handleJobMigration = ({
             attractiveness += tierBonus;
         }
 
+        // 【障碍 3 修复】生存危机时，紧缺资源生产角色的吸引力额外 ×1.5，
+        // 使其在 targetCandidate 筛选中能压倒其他高收入但非紧缺的选项。
+        if (hasCriticalShortage && criticalShortageRoles.has(targetRole)) {
+            attractiveness *= CRITICAL_SHORTAGE_ATTRACTIVENESS_MULTIPLIER;
+        }
+
         return attractiveness;
     };
 
@@ -626,7 +746,8 @@ export const handleJobMigration = ({
             if (r.role === sourceCandidate.role || r.vacancy <= 0) return false;
 
             // Get the resistance multiplier for this migration direction
-            const resistanceMultiplier = getTierResistanceMultiplier(r.role);
+            // 【需求 3.3】传入补贴金额以启动同 tier 阻力削减
+            const resistanceMultiplier = getTierResistanceMultiplier(r.role, r.subsidyPerCapita || 0);
             // Base threshold is 1.3x income difference, modified by resistance
             const effectiveThreshold = 1.3 * resistanceMultiplier;
 
@@ -645,10 +766,27 @@ export const handleJobMigration = ({
             const currentAttractiveness = calculateEffectiveAttractiveness(current.role, current.potentialIncome);
             const bestAttractiveness = calculateEffectiveAttractiveness(best.role, best.potentialIncome);
             if (currentAttractiveness > bestAttractiveness) return current;
+            // 【需求 1.3 / 8】tie-break：当有效吸引力接近（±5%）时，优先选补贴金额更高者
+            // 避免多阶层同时享受补贴时“只有一个生效”。
+            const denom = Math.max(1e-6, Math.abs(bestAttractiveness));
+            const closeRatio = Math.abs(currentAttractiveness - bestAttractiveness) / denom;
+            if (closeRatio <= 0.05) {
+                const currSub = current.subsidyPerCapita || 0;
+                const bestSub = best.subsidyPerCapita || 0;
+                if (currSub > bestSub) return current;
+            }
             return best;
         }, null);
 
     if (!targetCandidate) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
+
+    // 【需求 3.1 / 4.5】补贴驱动识别：
+    // 目标享受补贴 AND potentialIncome 明显高于平均值（× SUBSIDY_HIGH_ATTRACTIVENESS_RATIO）
+    // 才启动拉力加速与单向冷却，避免微小补贴也触发加速。
+    const targetSubsidyPerCapita = Math.max(0, targetCandidate.subsidyPerCapita || 0);
+    const isSubsidyDriven = targetSubsidyPerCapita > 0
+        && Number.isFinite(averagePotentialIncome)
+        && targetCandidate.potentialIncome >= averagePotentialIncome * SUBSIDY_HIGH_ATTRACTIVENESS_RATIO;
 
     // Execute migration with low population guarantee
     // 生存危机 + 目标是紧缺资源生产者时使用紧急迁移速率
@@ -658,6 +796,9 @@ export const handleJobMigration = ({
         effectiveMigrationRatio = JOB_MIGRATION_LOW_POP_GUARANTEE;
     } else if (isSurvivalMigration) {
         effectiveMigrationRatio = EMERGENCY_MIGRATION_RATIO;
+    } else if (isSubsidyDriven) {
+        // 【需求 3.1】补贴拉力加速：有限提高迁移比例（介于普通与紧急之间）
+        effectiveMigrationRatio = JOB_MIGRATION_RATIO * SUBSIDY_PULL_MULTIPLIER;
     } else {
         effectiveMigrationRatio = JOB_MIGRATION_RATIO;
     }
@@ -702,8 +843,12 @@ export const handleJobMigration = ({
             // Set cooldown for BOTH source and target roles to prevent:
             // 1. Source role from migrating again too soon
             // 2. Target role from reverse-migrating back (prevents A→B then B→A oscillation)
+            // 【需求 3.2】补贴拉力驱动场景下，仅对源角色设冷却，
+            // 目标角色不进入冷却，以免下一 tick 仍有空缺却被自身冷却屏蔽。
             updatedCooldowns[sourceCandidate.role] = MIGRATION_COOLDOWN_TICKS;
-            updatedCooldowns[targetCandidate.role] = MIGRATION_COOLDOWN_TICKS;
+            if (!isSubsidyDriven) {
+                updatedCooldowns[targetCandidate.role] = MIGRATION_COOLDOWN_TICKS;
+            }
         }
     }
 

@@ -4,9 +4,219 @@
  */
 export const CHANGELOG = [
     {
+        version: '2.3.58',
+        date: '2026-05-18',
+        isLatest: true,
+        highlights: [
+            '粮食、布料价格上限大幅放开，饥荒时价格能真正反映稀缺',
+            '补贴政策全面打通迁移决策，加税减税不再"无人响应"',
+            '关键生产者保留锁上线，自耕农不再攒够钱就升级跑路',
+            '生存危机迁移机制重做，缺粮时工匠也会回去种田',
+        ],
+        changes: [
+            { type: 'fix', text: '修复必需品价格信号失灵：粮食 maxPrice 从 150 提升到 500、布料从 325 提升到 750（饥荒时"米斗万钱"级），并移除危机段写死的 5× 上限，改为按 maxPrice/basePrice 推导真实上限，库存归零时价格能真正逼近上限；同时把库存极低（<0.1）时的价格平滑速度从 ~10-20 tick 提升到 0.3-0.7（约 2-3 tick 到位），避免目标价飙升而成交价仍卡在低位的"价格信号失灵"。' },
+            { type: 'fix', text: '修复必需品在低供需权重下的危机价格压制：粮食 supplyDemandWeight 从 0.4 调高到 0.6，且当 essential 资源库存比 < 0.3 时按危机深度逐步把权重抬升至 1.0，避免补贴/紧缺时价格被"必需品权重低"反向削平，让玩家能看到真正的稀缺信号。' },
+            { type: 'balance', text: '调整资源分类：spice（香料）、coffee（咖啡）从 essential 改为纯 manufactured 奢侈品定位，避免危机时这些贸易品被错误纳入"生存必需品"逻辑触发不合理的价格爆涨与迁移压力。' },
+            { type: 'fix', text: '修复"宁愿饿死也不去种田"问题：生存危机（食物/布料严重短缺）时，工匠、工人、书吏等非紧缺生产角色即使收入正常也允许作为迁出源，且按 pop 优先疏散富余劳动力；同时把降级到紧缺生产角色的阻力 clamp 至 1.0（与升 tier 同等严格度），让高 tier 富余人口能真正下沉到农田。' },
+            { type: 'fix', text: '修复"自耕农攒够钱就升 tier 跑路再次缺粮"循环：新增关键生产者保留锁（peasant 等），三层单向阻止迁出——危机锁（出现紧缺时绝不迁出）、岗位空缺锁（自家在岗率不足 95% 不迁出）、补贴依赖锁（补贴占收入比 ≥ 25% 且仍有空缺则视为政策维持中）。三锁仅阻止迁出，不影响迁入，避免补贴反成为升 tier 燃料。' },
+            { type: 'fix', text: '修复补贴政策对迁移决策"无声"的核心 BUG：把人头税补贴和业务税补贴的人均到账金额显式上报为 subsidyPerCapita 字段（口径与 taxes.js 实际银币流完全一致：人头税补贴 = |headRate| × effectiveTaxModifier；业务税补贴 = Σ |buildingRate| × count × effectiveEfficiency / 在岗分母）。补贴拉力（×2.8 迁移速率）、同 tier 阻力削减、单向冷却才能真正生效。' },
+            { type: 'improve', text: '重写补贴拉力机制：当目标角色补贴显著（potentialIncome ≥ 平均值 × 1.5）时启用迁移加速（介于普通与紧急之间，约 2.8× 速率），并仅对源角色设迁移冷却，让目标岗位下一 tick 仍可继续迁入，避免一次冷却屏蔽连续补贴拉力；同 tier 阻力按补贴强度（占源收入比 ≥ 0.3）线性削减至 1.0，下放工业到农田/手工业到工业等"政策导向"流动更顺畅。' },
+            { type: 'fix', text: '修复业主收入信号被全阶层稀释问题：netIncomePerCapita 分母从总 pop 改为本 tick 实际在岗 pop（三级回退：在岗→岗位数容量→总 pop 兜底）。例如农田 0/42 时业务税补贴不再被全国失业 peasant 稀释成 4 银/人，而是按真实岗位容量计算，让 peasant 收入信号在补贴政策下真正高于工匠、迁移决策能正确响应。' },
+            { type: 'improve', text: '把"明显落后于最佳机会"的源候选门槛从 0.6 放宽到 0.85（保留 15% 容差避免微小差距引发不必要迁移）；空岗位冷启动工资预估在建筑享受业务税补贴时，按"利润分润 40%"路径并入估算工资，让从未有人涉足的紧缺岗位也能因补贴而显示有吸引力的工资信号。' },
+            { type: 'improve', text: '新增 7 个补贴/危机迁移可调常量（SUBSIDY_PULL_MULTIPLIER、SUBSIDY_RESISTANCE_REDUCTION_THRESHOLD、SUBSIDY_HIGH_ATTRACTIVENESS_RATIO、CRISIS_SUBSIDY_SIGNAL_MULTIPLIER、CRITICAL_SHORTAGE_ATTRACTIVENESS_MULTIPLIER、CRISIS_DOWNGRADE_RESISTANCE_CAP、SUBSIDY_DEPENDENCY_LOCK_RATIO 等），统一收敛到 utils/constants.js 并附带文件级 sanity check（开发模式 console.warn，不抛错），便于后续平衡调优。' },
+        ],
+    },
+    {
+        version: '2.3.57',
+        date: '2026-05-13',
+        isLatest: false,
+        highlights: [
+            '理念涌现升级为五选一，抽卡选择空间更大',
+            '游戏百科新增理念体系专栏，可直接查看每张理念的分级与触发细节',
+            '理念卡牌与百科共享同一套文案格式化逻辑，展示口径更一致',
+        ],
+        changes: [
+            { type: 'improve', text: '理念涌现候选数量从 3 提升到 5，并同步优化弹窗网格布局与出场动效节奏，减少“这一轮全都不想选”的挫败感，让玩家更容易拿到符合当前阵容的理念。' },
+            { type: 'new', text: 'Wiki 新增“理念体系”分类与完整理念条目：支持按时代与稀有度检索理念，展示每级增量效果、继承效果、触发事件与出现倾向，降低理念系统的学习门槛。' },
+            { type: 'improve', text: '新增 ideologyFormatter 共享工具并让理念卡牌与 Wiki 详情页复用同一套描述函数，统一了 converters / ruleMods / triggerEffects 的中文说明，避免不同界面出现同一效果不同文案的理解偏差。' },
+        ],
+    },
+    {
+        version: '2.3.56',
+        date: '2026-04-30',
+        isLatest: false,
+        highlights: [
+            '业主工资责任按实际所有权分摊，本国业主不再为外资/官员私产/国有建筑买单',
+            '官员私产、国有、外资建筑的雇员工资各自由对应账户支付',
+        ],
+        changes: [
+            { type: 'fix', text: '修复严重的工资责任错配 BUG：本国阶层业主曾被错误地承担同类型全部建筑（含外资/官员私产/国有）的非业主雇员工资。例如 10 栋同类建筑只有 1 栋为本国业主持有，原逻辑下这 1 个本国业主要为另外 9 栋建筑的全部雇员发工资，导致业主财富瞬时透支与外资/官员部分双重计费。' },
+            { type: 'improve', text: '工资支付逻辑按建筑业主类型分摊：本国阶层业主部分仍按生计/业主双底线由 wealth[业主阶层] 支付；官员私产部分按 officialOwners 详情从对应官员私人 wealth 扣除；国有/代经营部分由国库 silver 支付（不足时降额）；外资部分不再扣本国账户（外资侧 processForeignInvestments 已在 wageCost 中扣过外资利润，此处视为外资从海外汇入）。' },
+            { type: 'improve', text: '在 ownerJobsAdjust 阶段缓存 buildingOwnershipMap，统一记录每种建筑的 stratum/official/foreign/state 数量及业主明细（officialOwners、stateManagedBy），供工资支付与后续财务统计共享，避免分散计算导致的口径漂移。' },
+        ],
+    },
+    {
+        version: '2.3.55',
+        date: '2026-04-23',
+        isLatest: false,
+        highlights: [
+            '官员政治主张满足状态统一计算，列表与详情展示口径一致',
+            '官员面板复用判定结果，减少重复计算带来的界面抖动',
+        ],
+        changes: [
+            { type: 'fix', text: '修复官员面板中“政治主张是否满足”在列表卡片与详情面板之间可能出现口径不一致的问题：改为在 OfficialsPanel 父层统一计算并按官员 ID 透传，避免同一官员在不同位置显示不同状态。' },
+            { type: 'improve', text: '优化官员主张满足判定链路：列表与详情复用同一份 memo 结果，仅在必要时兜底重算，减少重复调用带来的额外渲染开销，提升官员列表浏览稳定性。' },
+        ],
+    },
+    {
+        version: '2.3.54',
+        date: '2026-04-22',
+        isLatest: false,
+        highlights: [
+            '人头税“税/补”切换默认值修正，重置后不再误跳 100% 税率',
+            '取消“富裕性挥霍”机制，财富只由真实收支流动变化',
+            'AI 多战线军团分配修复，避免玩家战线与 AI 战线双重计战力',
+            '存档失败提示文案修复，错误反馈不再乱码',
+        ],
+        changes: [
+            { type: 'fix', text: '修复政治页人头税“税/补”切换时默认值错误：征税模式改为回落到 5% 默认税率（headPercentToMultiplier(5)），避免从补贴切回征税后被误设为 100% 税率。' },
+            { type: 'remove', text: '移除“富裕性挥霍（Wealth Decay）”机制及其收支展示：不再按生活水平对财富做额外蒸发扣减，相关账本分类与面板条目同步清理，阶层财富只由消费、税收、投资与贸易等真实资金流动变化。' },
+            { type: 'fix', text: '修复自动/手动存档失败日志提示乱码：失败时会正确记录“自动存档失败/存档失败 + 错误信息”，便于玩家与排障日志准确识别问题。' },
+            { type: 'fix', text: '修复 AI 战争军团分配在玩家战线与 AI-AI 抽象战线间重复计入的问题：已部署军团优先归属玩家战线，空闲军团再按威胁权重分配到 AI 战争，避免同一军团被双重计战力导致战局失真。' },
+        ],
+    },
+    {
+        version: '2.3.53',
+        date: '2026-04-16',
+        isLatest: false,
+        highlights: [
+            '自动存档调度重构为“空闲时执行”，高速档卡顿与误超时风险明显下降',
+            '存档系统升级为分片 + Worker 序列化，主线程存档抖动显著减少',
+            '存档全链路新增性能埋点与回退监控，后续定位卡顿和失败更精准',
+            '新增存档 Worker 与可选 gzip 压缩通道，为后续大存档优化打好基础',
+        ],
+        changes: [
+            { type: 'improve', text: '重构自动存档调度策略：useAutoSave 从固定 setInterval 改为 setTimeout + requestIdleCallback 链式触发，并补充 inflight 防重入与页面可见性补偿，避免存档与渲染关键帧抢主线程，降低高倍速下的卡顿和 worker timeout 风险。' },
+            { type: 'new', text: '新增 save.worker 分片序列化链路：将 state/nations/history/market/social 五个分片的 JSON.stringify 从主线程迁移到专用 Worker，并支持队列合并覆盖与 superseded 快速跳过，减少连续自动存档时的主线程阻塞。' },
+            { type: 'improve', text: '存档格式升级到 v2 分片存档：IndexedDB 优先写入 shard 数据，localStorage 仅保存轻量 stub；加载侧新增分片合并与兼容读取（含旧版 v1 / 外部存储路径），删除存档时会同步清理所有 shard，降低大存档场景的写入压力与碎片残留。' },
+            { type: 'new', text: '新增存档性能观测埋点：补充 Save:Duration / Save:Bytes / Save:Path / Save:WorkerFallback / Save:Skip 事件，支持按手动/自动来源、分片字节和回退路径统计，为线上性能分析与故障归因提供直接数据。' },
+            { type: 'improve', text: '优化 saveGame 序列化与回退链路：统一“一次 stringify 多处复用”，减少重复 JSON 构建与 Blob 开销，并将配额不足时的 compact/minimal/cleanup 重试路径统一纳入可观测流程，提升极端存储压力下的成功率和一致性。' },
+            { type: 'new', text: '新增 saveWorkerClient 与 save.worker 模块，并调整 Vite worker 输出命名为 assets/[name].js：在保留 simulation.worker 固定路径兼容的同时支持多 worker 并存，且预留可选 gzip 压缩开关用于后续灰度。' },
+            { type: 'improve', text: '清理主循环中的重复自动存档检测：useGameLoop 不再每 tick 做 autoSave 判定，避免高速档下无效检查和潜在重入，自动存档职责统一收敛到 useAutoSave 专用调度器。' },
+        ],
+    },
+    {
+        version: '2.3.52',
+        date: '2026-04-16',
+        isLatest: false,
+        highlights: [
+            '税收批量重置默认值修正，重置后不再误回到 100% 人头税',
+            '外资入境分批周期完成态修复，10 天节奏恢复稳定',
+            '建筑回写改为“按改动返回”，减少无效状态覆盖与额外渲染',
+        ],
+        changes: [
+            { type: 'fix', text: '修复政治页税收批量重置的人头税默认值错误：重置逻辑从硬编码倍率 1 调整为 headPercentToMultiplier(5)，避免玩家点击“重置”后人头税被错误恢复到 100% 而不是默认 5%。' },
+            { type: 'fix', text: '修复外资入境投资分批循环在一个 10 天周期内重复触发的问题：inboundInvestmentBatchRef 新增 completed 标记，周期处理完后显式置为完成，直到下个周期开启前不再重复进入，避免同周期多次扫描。' },
+            { type: 'fix', text: '修复入境投资缓存签名未纳入国家投资冷却字段导致的失效判断偏差：computeInboundSignature 新增 lastForeignInvestmentDay 聚合参与签名，防止缓存命中后绕过冷却校验。' },
+            { type: 'improve', text: '优化 simulation 建筑状态回写策略：仅在自由市场扩建、官员投资、部长扩建等路径真实修改建筑数量时返回 buildings，否则返回 null，减少无意义 setState 与潜在覆盖。' },
+        ],
+    },
+    {
+        version: '2.3.51',
+        date: '2026-04-16',
+        isLatest: false,
+        highlights: [
+            '商业建筑产出重新平衡：贸易站、市场、贸易港的粮食与银币比例更合理',
+            '升级链数值同步校准，与基础建筑倍率保持一致',
+        ],
+        changes: [
+            { type: 'balance', text: '贸易站基础产出从 food:4 / silver:1.6 调整为 food:1.5 / silver:2.8：降低早期贸易站的粮食溢出，提高银币收益占比，使商人阶层的经济定位更偏向货币流通而非粮食生产。' },
+            { type: 'balance', text: '市场基础产出从 food:4 调整为 food:2 / silver:1.5：市场不再是纯粮食来源，新增银币产出体现商业税收功能，并同步校准升级链"大市场"和"交易所"的产出倍率（1.3x / 2.25x）。' },
+            { type: 'balance', text: '贸易港基础产出从 food:12 / silver:2 调整为 food:5 / silver:5：大幅削减贸易港的粮食产出优势，提升银币比重，避免后期贸易港堆叠导致粮食经济过度膨胀。升级链"繁荣港口"和"贸易枢纽"产出同步重算。' },
+        ],
+    },
+    {
+        version: '2.3.50',
+        date: '2026-04-16',
+        isLatest: false,
+        highlights: [
+            '修复导致白屏闪退的 React #185 无限循环：战线部署、教程系统、移动端视口高度三条路径已堵住',
+            'Worker 模拟线程不再因第三方 SDK 访问 window 而崩溃，性能回退问题消除',
+            '错误上报系统大幅降噪：健康事件不再被标为崩溃，重复写入已修正',
+        ],
+        changes: [
+            { type: 'fix', text: '修复战线部署 effect 链导致 React #185 无限循环闪退：handleAssignCorpsToFront、focusMilitaryWarfront 等 6 个 useCallback 的依赖从不稳定的 [gameState] 整对象改为通过 useRef 读取，使下游 useEffect 引用稳定，消除战争状态下每帧重跑 → setState → 再渲染的死循环。' },
+            { type: 'fix', text: '修复教程系统 useTutorialSystem 中 onComplete 内联函数导致 nextStep 每帧重建的问题：改用 onCompleteRef 持有回调，skipTutorial 和 nextStep 的依赖不再包含 onComplete，教程激活时校验 effect 不再高频无效重跑。' },
+            { type: 'fix', text: '修复 useViewportHeight 中 [vh] 自依赖导致的移动端循环渲染：effect 改用 vhRef 比较当前值，依赖改为空数组，WebView 输入法弹出/收起不再触发 setState → effect → setState 的无限循环。' },
+            { type: 'fix', text: '修复 Worker 模拟线程 "window is not defined" 崩溃：在 Vite Worker 构建中通过 plugin 将 gaTracker、gameanalytics 等分析模块替换为空 stub，彻底避免第三方 SDK 的模块级代码在 Worker 中因访问 window 而报错。' },
+            { type: 'fix', text: '修复分期赔款 installmentPayment.paidAmount 的 null ref 崩溃风险：所有读取 paidAmount、amount、totalAmount 的路径增加 || 0 防御性兜底，兼容旧存档中字段缺失的情况。' },
+            { type: 'improve', text: '错误上报系统降噪：Worker 健康事件（worker_ready）不再覆盖崩溃日志槽位，启动时按 type 区分真实崩溃与诊断事件的上报级别，去除 bufferErrorEvent 重复调用，每条错误不再产生两条记录。' },
+        ],
+    },
+    {
+        version: '2.3.49',
+        date: '2026-04-15',
+        isLatest: false,
+        highlights: [
+            '法令冷却写回兼容性修复，旧存档与新状态字段命名保持一致',
+            'Worker 环境补齐更多 DOM 垫片，第三方模块在模拟线程初始化更稳定',
+            '开发期热更新后配置与数据恢复链路更稳，降低隐性状态错位风险',
+        ],
+        changes: [
+            { type: 'fix', text: '修复法令冷却字段命名不一致导致的状态回写风险：统一使用 setDecreeCooldowns 作为标准写入入口，并保留 setDecreCooldowns 兼容别名，避免旧调用路径在重构后出现冷却数据丢失或写错字段。' },
+            { type: 'fix', text: '修复 Worker 场景下部分依赖访问 document/window API 时的初始化异常：为 document.createElement、querySelector、head/body 挂载等接口补齐空实现与返回兜底，减少第三方模块在 Worker 启动时因 DOM 缺失触发报错。' },
+            { type: 'improve', text: '优化存档加载阶段的法令冷却恢复路径：loadGame 改为直接走标准拼写 setter，降低后续维护中因拼写差异导致的行为偏差，使状态恢复逻辑更可预期。' },
+        ],
+    },
+    {
+        version: '2.3.48',
+        date: '2026-04-15',
+        isLatest: false,
+        highlights: [
+            '热重载稳定性大幅提升：开发期重复定时器、重复监听与 Worker 失效导致的异常明显减少',
+            '大规模状态管理重构：合并多组状态钩子，降低 Hook 数量，提升长时间开发与调试稳定性',
+            '拆除建筑后会同步回收对应外资持有量，避免出现“建筑已拆但外资残留”',
+            'AI 对 AI 多战线分兵逻辑修复，未分配兵团的战线不再错误回退到整国战力',
+        ],
+        changes: [
+            { type: 'fix', text: '修复开发期 HMR 下定时器与全局监听重复注册的问题：分析上报、崩溃上报、主循环与 Worker 生命周期新增幂等保护与销毁清理，避免多次热更新后出现重复心跳、重复上报、Worker 残留或锁死。' },
+            { type: 'improve', text: 'useGameState 大规模状态结构改造：将理念、外交、军事、政策、经济等高关联状态分组迁移到 useGroupedState（useReducer）管理，在保持外部调用方式不变的前提下显著减少 Hook 数量，提升 Fast Refresh 稳定性与维护可读性。' },
+            { type: 'fix', text: '修复建筑拆除与外资系统的数量一致性问题：当玩家拆除建筑时会同步裁剪对应 foreignInvestments 的 operating 持有量，并按剩余数量等比收缩投资与经营数据，避免“建筑归零但外资仍在运营”的状态错位。' },
+            { type: 'fix', text: '修复 AI 对 AI 战争中分兵与战线战力计算异常：军团分配改为覆盖完整国家集合，且在已有军团体系数据时，未分配到战线的国家不再回退到整国宏观战力，减少多战线下战力重复与僵持异常。' },
+            { type: 'improve', text: '新增 useAutoSave 独立钩子并改进入口与性能补丁幂等保护：自动存档与主循环解耦，主入口仅初始化一次控制台与性能补丁，降低热更新期间副作用叠加风险。' },
+            { type: 'fix', text: '修复旧业主数据转 ownershipList 的计数溢出问题：官员、代管、外资计数统一受剩余建筑数量约束，并兼容外资 count 字段，确保所有业主类型总和不超过建筑总量。' },
+        ],
+    },
+    {
+        version: '2.3.47',
+        date: '2026-04-13',
+        isLatest: false,
+        highlights: [
+            '兼容旧版 Android WebView：补充 flat/flatMap polyfill，低版本设备不再白屏',
+        ],
+        changes: [
+            { type: 'fix', text: '为旧版浏览器（Chrome < 69 / Android WebView < 69）添加 Array.prototype.flat 与 flatMap 的 polyfill：部分低版本安卓设备因缺少该方法导致应用启动即白屏崩溃，现已在应用入口提前注入兼容补丁。' },
+        ],
+    },
+    {
+        version: '2.3.46',
+        date: '2026-04-10',
+        isLatest: false,
+        highlights: [
+            '官员系统再修一轮：同帧雇佣与解雇都能稳定落地，不再互相覆盖',
+            'simulation 回写会同时处理“新增官员”和“已移除官员”，状态更一致',
+            '官员列表竞态分支细化，减少 tick 期间错乱与回退',
+        ],
+        changes: [
+            { type: 'fix', text: '修复官员列表在 simulation 回写时对“已解雇官员”缺少过滤的问题：当玩家在 tick 内解雇官员后，旧快照返回的数据不会再把该官员错误写回。' },
+            { type: 'improve', text: '官员合并逻辑升级为双向校验：除保留同帧新雇佣官员外，还会识别并移除 simulation 结果中的失效官员，确保回写后的官员列表与当前状态一致。' },
+            { type: 'fix', text: '优化官员回写短路条件与映射流程，降低同帧高频操作下的竞态覆盖概率，提升官员数据连续性与稳定性。' },
+        ],
+    },
+    {
         version: '2.3.45',
         date: '2026-04-10',
-        isLatest: true,
+        isLatest: false,
         highlights: [
             '官员雇佣与解雇改为双向合并校正，tick 竞态下不再出现“幽灵官员”回写',
             'simulation 写回官员列表会同时保留新雇佣并剔除已解雇对象',

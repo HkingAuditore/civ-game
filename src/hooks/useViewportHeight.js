@@ -15,7 +15,7 @@
  * - 检测输入框聚焦状态，输入法弹出时暂停更新
  */
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 
 // 存储当前视口高度，避免重复计算
 let cachedVh = null;
@@ -154,31 +154,31 @@ function initViewportHeight() {
  */
 export function useViewportHeight() {
     const [vh, setVh] = useState(() => cachedVh || (typeof window !== 'undefined' ? window.innerHeight * 0.01 : 8));
+    // Use ref to break the [vh] self-dependency cycle that caused React #185
+    // on mobile WebViews where viewport height oscillates rapidly.
+    const vhRef = useRef(vh);
 
     useEffect(() => {
-        // 初始化
         initViewportHeight();
 
-        // 更新状态
         const updateVh = () => {
             const newVh = setViewportHeight(false);
-            if (newVh !== vh) {
+            if (newVh !== vhRef.current) {
+                vhRef.current = newVh;
                 setVh(newVh);
             }
         };
 
-        // 立即更新
         updateVh();
 
-        // 监听变化 - 使用节流而非每次resize都更新状态
         let rafId = null;
         let lastUpdate = 0;
-        const THROTTLE_MS = 500; // 状态更新节流时间
+        const THROTTLE_MS = 500;
 
         const handleResize = () => {
             const now = Date.now();
             if (now - lastUpdate < THROTTLE_MS) return;
-            
+
             if (rafId) cancelAnimationFrame(rafId);
             rafId = requestAnimationFrame(() => {
                 lastUpdate = now;
@@ -192,7 +192,7 @@ export function useViewportHeight() {
             window.removeEventListener('resize', handleResize);
             if (rafId) cancelAnimationFrame(rafId);
         };
-    }, [vh]);
+    }, []);
 
     return vh;
 }

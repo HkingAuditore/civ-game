@@ -90,8 +90,9 @@ import {
     trackProgressionStart,
     trackErrorCritical,
     trackErrorWarning,
+    trackErrorInfo,
 } from './analytics/gaTracker';
-import { initCustomBackend, updateDimensions, bufferErrorEvent } from './analytics/customBackend';
+import { initCustomBackend, updateDimensions } from './analytics/customBackend';
 import { setReportCallback } from './utils/crashReporter';
 
 const EPOCH_DIMENSIONS = ['stone', 'bronze', 'classical', 'feudal', 'exploration', 'enlightenment', 'industrial', 'information', 'future'];
@@ -275,15 +276,23 @@ function GameApp({ gameState }) {
         const pendingCrash = window.__CIV_PENDING_CRASH__;
         const abnormalExit = window.__CIV_ABNORMAL_EXIT__;
         if (pendingCrash) {
+            const REAL_CRASH_TYPES = new Set([
+                'uncaught_error', 'unhandled_rejection', 'react_render_error',
+                'worker_crash', 'worker_create_fail', 'worker_circuit_broken',
+            ]);
             const msg = `[PrevSession] ${pendingCrash.type}: ${pendingCrash.message} (v${pendingCrash.appVersion}, mem=${pendingCrash.memoryMB}MB)`;
-            trackErrorCritical(msg.slice(0, 256));
-            bufferErrorEvent('critical', msg.slice(0, 1024));
+            if (REAL_CRASH_TYPES.has(pendingCrash.type)) {
+                trackErrorCritical(msg.slice(0, 256));
+            } else {
+                trackErrorInfo(msg.slice(0, 256));
+            }
+            // trackError* already calls bufferErrorEvent internally — no extra call needed
             delete window.__CIV_PENDING_CRASH__;
         }
         if (abnormalExit && !pendingCrash) {
             const msg = `[PrevSession] abnormal_exit: session not properly closed (possible OOM/force-kill, lastAlive=${new Date(abnormalExit.lastAliveAt).toISOString()})`;
             trackErrorWarning(msg.slice(0, 256));
-            bufferErrorEvent('warning', msg.slice(0, 1024));
+            // trackErrorWarning already calls bufferErrorEvent internally
             delete window.__CIV_ABNORMAL_EXIT__;
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -732,11 +741,16 @@ function GameApp({ gameState }) {
     }, []);
 
     // === Military front/battle callbacks ===
+    // Use ref to read latest gameState inside stable callbacks, preventing
+    // [gameState] dependency from destabilizing the entire effect chain (React #185).
+    const gameStateRef = useRef(gameState);
+    gameStateRef.current = gameState;
 
     // Assign a corps to a front (update front.assignedCorps + corps.status)
     // If there's an active battle on the front, the corps joins as reinforcement
     const handleAssignCorpsToFront = useCallback((frontId, corpsId) => {
-        const fronts = gameState.activeFronts || [];
+        const gs = gameStateRef.current;
+        const fronts = gs.activeFronts || [];
         const front = fronts.find(f => f.id === frontId);
         if (!front) return;
 
@@ -744,34 +758,31 @@ function GameApp({ gameState }) {
         if (!playerSide) return;
 
         const updatedFront = assignCorpsToFront(front, corpsId, playerSide);
-        gameState.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
+        gs.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
 
-        // Check if there's an active battle on this front
-        const activeBattles = gameState.activeBattles || [];
+        const activeBattles = gs.activeBattles || [];
         const frontBattle = activeBattles.find(b => b.frontId === frontId && isBattleActive(b));
-        const corps = (gameState.militaryCorps || []).find(c => c.id === corpsId);
+        const corps = (gs.militaryCorps || []).find(c => c.id === corpsId);
 
         if (frontBattle && corps) {
-            // Reinforce the ongoing battle with the new corps' units
             const reinforcedBattle = processReinforcement(frontBattle, playerSide, corps.units || {}, corps);
-            gameState.setActiveBattles(prev => prev.map(b =>
+            gs.setActiveBattles(prev => prev.map(b =>
                 b.id === frontBattle.id ? reinforcedBattle : b
             ));
-            // Mark corps as in_combat since it's now part of the battle
-            gameState.setMilitaryCorps(prev => prev.map(c =>
+            gs.setMilitaryCorps(prev => prev.map(c =>
                 c.id === corpsId ? { ...c, status: 'in_combat', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
             ));
         } else {
-            // No active battle: just deploy normally
-            gameState.setMilitaryCorps(prev => prev.map(c =>
+            gs.setMilitaryCorps(prev => prev.map(c =>
                 c.id === corpsId ? { ...c, status: 'deployed', assignedFrontId: frontId, frontTask: c.frontTask || 'assault' } : c
             ));
         }
-    }, [gameState]);
+    }, []);
 
     // Remove a corps from a front (restore to idle)
     const handleRemoveCorpsFromFront = useCallback((frontId, corpsId) => {
-        const fronts = gameState.activeFronts || [];
+        const gs = gameStateRef.current;
+        const fronts = gs.activeFronts || [];
         const front = fronts.find(f => f.id === frontId);
         if (!front) return;
 
@@ -779,56 +790,55 @@ function GameApp({ gameState }) {
         if (!playerSide) return;
 
         const updatedFront = removeCorpsFromFront(front, corpsId, playerSide);
-        gameState.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
+        gs.setActiveFronts(prev => prev.map(f => f.id === frontId ? updatedFront : f));
 
-        // Restore corps status to 'idle'
-        gameState.setMilitaryCorps(prev => prev.map(c =>
+        gs.setMilitaryCorps(prev => prev.map(c =>
             c.id === corpsId ? { ...c, status: 'idle', assignedFrontId: null } : c
         ));
-    }, [gameState]);
+    }, []);
 
     // Set battle tactic for the player side
     const handleSetBattleTactic = useCallback((battleId, side, tacticId) => {
-        gameState.setActiveBattles(prev => prev.map(b => {
+        gameStateRef.current.setActiveBattles(prev => prev.map(b => {
             if (b.id !== battleId) return b;
             return setTacticOrder(b, side, tacticId);
         }));
-    }, [gameState]);
+    }, []);
 
     // Create a new battle on a front
     const handleCreateBattle = useCallback((battleParams) => {
         if (!battleParams?.attackerCorps || !battleParams?.defenderCorps) return;
         const battle = createBattle(battleParams);
         if (!battle) return;
-        gameState.setActiveBattles(prev => [...prev, battle]);
+        const gs = gameStateRef.current;
+        gs.setActiveBattles(prev => [...prev, battle]);
         if (battleParams.front?.id) {
-            gameState.setActiveFronts(prev => prev.map(front =>
+            gs.setActiveFronts(prev => prev.map(front =>
                 front.id === battleParams.front.id ? { ...front, activeBattleId: battle.id } : front
             ));
         }
-        // Mark participating corps as in combat
         const corpsIds = [battleParams.attackerCorps?.id, battleParams.defenderCorps?.id].filter(Boolean);
         if (corpsIds.length > 0) {
-            gameState.setMilitaryCorps(prev => prev.map(c =>
+            gs.setMilitaryCorps(prev => prev.map(c =>
                 corpsIds.includes(c.id) ? { ...c, status: 'in_combat' } : c
             ));
         }
-    }, [gameState]);
+    }, []);
 
     // Set tactical posture for a front
     const handleSetPosture = useCallback((frontId, posture) => {
-        gameState.setActiveFronts(prev => prev.map(f =>
+        gameStateRef.current.setActiveFronts(prev => prev.map(f =>
             f.id === frontId ? { ...f, posture } : f
         ));
-    }, [gameState]);
+    }, []);
 
     const focusMilitaryWarfront = useCallback((frontId = null) => {
-        gameState.setActiveTab('military');
+        gameStateRef.current.setActiveTab('military');
         setWarfrontFocusRequest({
             frontId: frontId || null,
             token: Date.now(),
         });
-    }, [gameState]);
+    }, []);
 
     const scheduleWarfrontFocus = useCallback((frontId = null) => {
         if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
@@ -878,6 +888,48 @@ function GameApp({ gameState }) {
                 return Number(right?.morale || 100) - Number(left?.morale || 100);
             })
     ), [gameState.militaryCorps]);
+
+    // 自愈：清理将领与军团之间的孤立引用
+    // 触发场景：异常崩溃、HMR、AI 军团清理流程异常等可能让 general.assignedCorpsId
+    // 指向已不存在的军团；同理 corps.generalId 也可能指向已被解除/兼任失效的将领。
+    // 这种孤立引用会让“将领已被指派”逻辑成立，从而在军团面板中无法重新指派、
+    // 并阻止官员面板上的解雇操作。这里在状态层一次性修正。
+    useEffect(() => {
+        const generals = gameState.generals;
+        const militaryCorps = gameState.militaryCorps;
+        if (!Array.isArray(generals) || generals.length === 0) return;
+
+        const corpsList = Array.isArray(militaryCorps) ? militaryCorps : [];
+        const validCorpsIds = new Set(corpsList.map((c) => c?.id).filter(Boolean));
+        const validGeneralIds = new Set(generals.map((g) => g?.id).filter(Boolean));
+
+        let generalsChanged = false;
+        const healedGenerals = generals.map((g) => {
+            if (!g) return g;
+            if (g.assignedCorpsId && !validCorpsIds.has(g.assignedCorpsId)) {
+                generalsChanged = true;
+                return { ...g, assignedCorpsId: null };
+            }
+            return g;
+        });
+
+        let corpsChanged = false;
+        const healedCorps = corpsList.map((c) => {
+            if (!c) return c;
+            if (c.generalId && !validGeneralIds.has(c.generalId)) {
+                corpsChanged = true;
+                return { ...c, generalId: null };
+            }
+            return c;
+        });
+
+        if (generalsChanged && typeof gameState.setGenerals === 'function') {
+            gameState.setGenerals(healedGenerals);
+        }
+        if (corpsChanged && typeof gameState.setMilitaryCorps === 'function') {
+            gameState.setMilitaryCorps(healedCorps);
+        }
+    }, [gameState.generals, gameState.militaryCorps, gameState.setGenerals, gameState.setMilitaryCorps]);
 
     const undeployedPlayerFronts = useMemo(() => (
         playerActiveFronts.filter((front) => {
@@ -932,7 +984,8 @@ function GameApp({ gameState }) {
             return;
         }
 
-        const corps = (gameState.militaryCorps || []).find((item) => item.id === pendingWarDeployment.autoDeployCorpsId);
+        const gs = gameStateRef.current;
+        const corps = (gs.militaryCorps || []).find((item) => item.id === pendingWarDeployment.autoDeployCorpsId);
         if (!corps || corps.isAI || corps.assignedFrontId || corps.status !== 'idle' || getCorpsTotalUnits(corps) <= 0) {
             addLog('⚠️ 预定派往前线的军团当前不可用，已为你打开战局页。');
             setPendingWarDeployment(null);
@@ -944,12 +997,12 @@ function GameApp({ gameState }) {
         if (!alreadyAssigned) {
             handleAssignCorpsToFront(matchingFront.id, corps.id);
             const enemyId = matchingFront.attackerId === 'player' ? matchingFront.defenderId : matchingFront.attackerId;
-            const enemyName = gameState.nations?.find((nation) => nation.id === enemyId)?.name || enemyId || '敌军';
+            const enemyName = gs.nations?.find((nation) => nation.id === enemyId)?.name || enemyId || '敌军';
             addLog(`🛡️ ${corps.name} 已自动派往对 ${enemyName} 的前线。`);
         }
 
         setPendingWarDeployment(null);
-    }, [addLog, gameState.militaryCorps, gameState.nations, handleAssignCorpsToFront, pendingWarDeployment, playerActiveFronts, scheduleWarfrontFocus]);
+    }, [addLog, handleAssignCorpsToFront, pendingWarDeployment, playerActiveFronts, scheduleWarfrontFocus]);
 
     const clampOrganization = (value) => Math.max(0, Math.min(100, value ?? 0));
 
@@ -1965,6 +2018,7 @@ function GameApp({ gameState }) {
                                                 decrees={gameState.decrees}
                                                 onToggleDecree={actions.toggleDecree}
                                                 generals={gameState.generals}
+                                                militaryCorps={gameState.militaryCorps}
                                                 changeOfficialPropertyPolicy={actions.changeOfficialPropertyPolicy}
                                             />
                                         )}
@@ -2417,6 +2471,10 @@ function GameApp({ gameState }) {
                     activeDebuffs={gameState.activeDebuffs}
                     buildingFinancialData={gameState.buildingFinancialData}
                     economicIndicators={gameState.economicIndicators}
+                    onNavigateToBuilding={(buildingId) => {
+                        gameState.setResourceDetailView(null);
+                        handleShowBuildingDetails(buildingId);
+                    }}
                 />
             )}
 

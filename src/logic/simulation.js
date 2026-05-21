@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, TREATY_TYPE_LABELS, OFFICIAL_SIM_CONFIG, getTreatyDailyMaintenance } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { BUILDING_CHAINS } from '../config/buildingChains';
@@ -227,6 +227,7 @@ import {
     TECH_MAP,
     CRITICAL_SHORTAGE_THRESHOLD,
     CRITICAL_RESOURCES,
+    SUBSIDY_INCOME_SIGNAL_BONUS,
     // Helper functions
     clamp,
     isTradableResource,
@@ -1414,11 +1415,13 @@ export const simulateTick = ({
         applyIdeologyEffects(equippedIdeologies, bonuses);
 
         // Compute buildingCategoryCounts: count buildings by category (gather/industry/civic/military)
+        // 同时维护 'all' 聚合，便于理念配置使用 category: 'all' 表示"任意建筑总数"
         const buildingCategoryCounts = {};
         for (const b of BUILDINGS) {
             const count = buildings[b.id] || 0;
             if (count > 0 && b.cat) {
                 buildingCategoryCounts[b.cat] = (buildingCategoryCounts[b.cat] || 0) + count;
+                buildingCategoryCounts.all = (buildingCategoryCounts.all || 0) + count;
             }
         }
 
@@ -1447,12 +1450,15 @@ export const simulateTick = ({
         }
 
         // --- V2: unit category counts for unit_count_bonus trigger ---
+        // 同时维护 'all' / '_all' 聚合，便于配置使用 category: 'all' 表示"任何兵种总数"
         const unitCategoryCounts = {};
         if (army && typeof army === 'object') {
             for (const [unitId, count] of Object.entries(army)) {
                 const unitDef = UNIT_TYPES?.[unitId];
                 if (unitDef?.category && count > 0) {
                     unitCategoryCounts[unitDef.category] = (unitCategoryCounts[unitDef.category] || 0) + count;
+                    unitCategoryCounts.all = (unitCategoryCounts.all || 0) + count;
+                    unitCategoryCounts._all = (unitCategoryCounts._all || 0) + count;
                 }
             }
         }
@@ -1664,7 +1670,8 @@ export const simulateTick = ({
 
     perfStart('preProduction');
     const rates = {};
-    const builds = buildings;
+    const builds = { ...buildings };
+    let _buildingsModified = false;
 
     // ========== 战争经济：建筑现已真实销毁，直接使用 builds ==========
     const playerActiveFrontsForDamage = (activeFronts || []).filter(front =>
@@ -1821,6 +1828,10 @@ export const simulateTick = ({
     // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位?
     perfStart('ownerJobsAdjust');
     const buildingJobsRequired = {};
+    // [BUGFIX] 记录每个建筑类型的业主分布，用于按比例分摊工资责任
+    // 修复：1 个本国阶层业主被错误地承担了同类型 N 栋建筑（含外资/官员私产/国有）的全部雇员工资
+    // 结构：{ buildingId: { stratumCount, officialCount, officialOwners: { officialId: count }, foreignCount, stateCount, stateManagedBy: { officialId: count }, totalCount } }
+    const buildingOwnershipMap = {};
 
     BUILDINGS.forEach(building => {
         const buildingCount = buildings[building.id] || 0;
@@ -1852,9 +1863,7 @@ export const simulateTick = ({
 
         buildingJobsRequired[building.id] = totalJobsByRole;
 
-        const ownerRole = building.owner;
-        if (!ownerRole || ownerSlotsTotal <= 0) return;
-
+        // [BUGFIX] 即使没有 owner 也要构建 ownership（虽然此时通常无需分摊）
         const ownershipList = buildOwnershipListFromLegacy(
             building.id,
             buildingCount,
@@ -1863,12 +1872,49 @@ export const simulateTick = ({
             building
         );
 
+        // [BUGFIX] 汇总业主分布并保存到 map，供后续工资支付分摊使用
+        const ownershipSummary = {
+            stratumCount: 0,
+            officialCount: 0,
+            officialOwners: {}, // { officialId: count }
+            foreignCount: 0,
+            stateCount: 0,
+            stateManagedBy: {}, // { officialId: count } 代经营关系
+            totalCount: buildingCount,
+        };
         let nonStratumCount = 0;
         ownershipList.forEach(ownership => {
+            const cnt = ownership.count || 0;
+            switch (ownership.ownerType) {
+                case OWNER_TYPES.STRATUM:
+                    ownershipSummary.stratumCount += cnt;
+                    break;
+                case OWNER_TYPES.OFFICIAL:
+                    ownershipSummary.officialCount += cnt;
+                    Object.entries(ownership.details || {}).forEach(([officialId, c]) => {
+                        ownershipSummary.officialOwners[officialId] = (ownershipSummary.officialOwners[officialId] || 0) + c;
+                    });
+                    break;
+                case OWNER_TYPES.FOREIGN:
+                    ownershipSummary.foreignCount += cnt;
+                    break;
+                case OWNER_TYPES.STATE:
+                    ownershipSummary.stateCount += cnt;
+                    Object.entries(ownership.details || {}).forEach(([officialId, c]) => {
+                        ownershipSummary.stateManagedBy[officialId] = (ownershipSummary.stateManagedBy[officialId] || 0) + c;
+                    });
+                    break;
+                default:
+                    break;
+            }
             if (!providesOwnerJobs(ownership.ownerType)) {
-                nonStratumCount += ownership.count || 0;
+                nonStratumCount += cnt;
             }
         });
+        buildingOwnershipMap[building.id] = ownershipSummary;
+
+        const ownerRole = building.owner;
+        if (!ownerRole || ownerSlotsTotal <= 0) return;
 
         if (nonStratumCount > 0) {
             const averageOwnerSlots = buildingCount > 0 ? ownerSlotsTotal / buildingCount : 0;
@@ -2192,13 +2238,24 @@ export const simulateTick = ({
                 // [FIX] 冷启动修复：当历史工资极低时，基于建筑利润反推合理工资预期
                 // 计算建筑的潜在利润来推测雇员应得的合理工资预期
                 const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
-                
+
                 // 计算建筑利润以推断合理的雇员工资（解决新行业冷启动问题）
                 let estimatedWage = avgPaidWage;
                 const baseExpected = getExpectedWage(role);
-                
-                // 如果历史工资明显偏低（低于基础预期的 50%），尝试用利润反推
-                if (avgPaidWage < baseExpected * 0.5) {
+
+                // 【需求 2.1 / 2.5】业务税补贴 → 雇员吸引力传导
+                // 当所属建筑 businessTaxRate < 0（享受业务税补贴）时，
+                // 将到账补贴金额按"利润分润 40%"加入雇员合理工资预估，
+                // 与 taxes.js / 业主分支口径一致（不放大、不绕过 effectiveTaxModifier）。
+                const buildingBusinessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
+                let businessTaxSubsidyAmount = 0;
+                if (Number.isFinite(buildingBusinessTaxRate) && buildingBusinessTaxRate < 0) {
+                    businessTaxSubsidyAmount = Math.abs(buildingBusinessTaxRate) * effectiveEfficiency;
+                }
+
+                // 触发条件：(a) 历史工资明显偏低（冷启动） OR (b) 该建筑享受业务税补贴
+                const shouldEstimateFromProfit = (avgPaidWage < baseExpected * 0.5) || businessTaxSubsidyAmount > 0;
+                if (shouldEstimateFromProfit) {
                     let buildingOutputValue = 0;
                     if (config.output) {
                         Object.entries(config.output).forEach(([resource, amount]) => {
@@ -2214,9 +2271,11 @@ export const simulateTick = ({
                             buildingInputCost += amount * price;
                         });
                     }
-                    const buildingProfit = buildingOutputValue - buildingInputCost;
-                    
-                    // 如果建筑有利润，将 40% 的利润分配给所有雇员作为合理工资预期
+                    // 把业务税补贴金额并入建筑利润口径，使补贴像额外利润一样
+                    // 通过"利润分润 0.4"路径抬升雇员的合理工资预期
+                    const buildingProfit = buildingOutputValue - buildingInputCost + businessTaxSubsidyAmount;
+
+                    // 如果建筑有利润（含补贴），将 40% 分配给所有雇员作为合理工资预期
                     if (buildingProfit > 0) {
                         const totalEmployeeSlots = Object.entries(jobs)
                             .filter(([r]) => r !== building.owner)
@@ -2246,7 +2305,20 @@ export const simulateTick = ({
         // 这太复杂了。目前先复用原有逻辑，依?VACANT_BONUS 提升吸引?
         const totalIncome = ownerIncome + employeeWage;
         const averageIncome = totalIncome / totalSlots;
-        return Math.max(getExpectedWage(role), averageIncome * VACANT_BONUS);
+        const baseEstimate = Math.max(getExpectedWage(role), averageIncome * VACANT_BONUS);
+
+        // 【需求 1.4 / 2.3】人头税补贴预估注入：
+        // 当该角色 headRate < 0（享受人头税补贴）时，将人均到账补贴金额追加进入预估收入，
+        // 使从未有人涉足的岗位（pop === 0 路径主要消费者）也能因补贴变得有吸引力。
+        // 与 taxes.js collectHeadTax 的负 headRate 分支口径一致：due = count * headRate * effectiveTaxModifier，
+        // 因此人均补贴 = |headRate| * effectiveTaxModifier。
+        const roleHeadRate = getHeadTaxRate(role);
+        let headSubsidyPerCapita = 0;
+        if (Number.isFinite(roleHeadRate) && roleHeadRate < 0) {
+            headSubsidyPerCapita = Math.abs(roleHeadRate) * effectiveTaxModifier;
+        }
+
+        return baseEstimate + headSubsidyPerCapita;
     };
 
     // [FIX] 智能工资获取：当岗位人数少时，用预估潜力代替历史工资吸引人
@@ -2652,10 +2724,34 @@ export const simulateTick = ({
             // }
         }
 
+        // [OWNER-CAP] 业主填坑上限：owner 数量不足时，等比压缩有效建筑数
+        // 核心语义：每 X 个 owner 岗位对应 1 栋建筑，到岗 owner 不足则多余建筑停工
+        // 国有建筑（state）豁免此约束
+        let ownerFillCapMultiplier = 1;
+        if (Object.keys(ownerLevelGroups).length > 0) {
+            let minOwnerFillRate = Infinity;
+            let hasPrivateOwner = false;
+            for (const oKey of Object.keys(ownerLevelGroups)) {
+                if (oKey === 'state') continue; // 国有建筑不受 owner 填坑约束
+                hasPrivateOwner = true;
+                const totalOwnerSlotsForKey = jobsAvailable[oKey] || 0; // 该 owner 角色的全局总岗位需求
+                const ownerPopForKey = popStructure[oKey] || 0; // 该 owner 角色的实际人口
+                const ownerFillRate = totalOwnerSlotsForKey > 0
+                    ? Math.min(1, ownerPopForKey / totalOwnerSlotsForKey)
+                    : (ownerPopForKey > 0 ? 1 : 0); // 无岗位需求但有人口视为满员
+                minOwnerFillRate = Math.min(minOwnerFillRate, ownerFillRate);
+            }
+            if (hasPrivateOwner && minOwnerFillRate < Infinity) {
+                ownerFillCapMultiplier = minOwnerFillRate;
+            }
+        }
+
         // Capture multiplier BEFORE staffing application for potential calculation
         const potentialMultiplierBeforeStaffing = multiplier;
 
         multiplier *= staffingRatio;
+        // [OWNER-CAP] 应用业主填坑上限（在 staffingRatio 之后叠加）
+        multiplier *= ownerFillCapMultiplier;
 
         if (forcedLabor && (b.jobs?.serf || b.jobs?.miner)) {
             multiplier *= 1.2;
@@ -3226,61 +3322,133 @@ export const simulateTick = ({
             };
         });
 
-        // Wage payment must follow EACH building's actual wage distribution level.
-        // Previously we computed a global wageRatio pooled by owners which could desync from
-        // building-level payout displays and create runaway wage bills.
-        const ownerPaidRatio = {}; // { ownerKey: paid / bill }
+        // [BUGFIX] 业主工资责任按 ownership 类型分摊，避免 1 个本国阶层业主为外资/官员私产/国有建筑的雇员买单
+        // ownerPaidRatio 保留为按"虚拟 owner 通道"区分的比例对象，仅供 UI/调试参考；
+        // 实际工资发放使用 building-level 整体支付比例 buildingWagePaidRatio。
+        const ownerPaidRatio = {}; // { ownerKey | _official | _state | _foreign: paid / bill }
+        let buildingWagePaidRatio = 1;
 
         // Keep a copy for UI debug/inspection
         buildingFinancialData[b.id].wagePaidRatioByOwner = ownerPaidRatio;
 
         if (plannedWageBill > 0) {
-            // 使用 preparedWagePlans 汇总 owner 责任，确保与 expectedSlotWage 完全同口径
-            const ownerWageBills = {};
-            preparedWagePlans.forEach((plan) => {
-                if (plan.filled <= 0 || plan.expectedSlotWage <= 0) return;
-                ownerWageBills[plan.ownerKey] = (ownerWageBills[plan.ownerKey] || 0)
-                    + (plan.expectedSlotWage * plan.filled);
-            });
+            // 计算 ownership 占比（无 ownership 数据时回退到原行为：全部由 b.owner 承担；'state'/无 owner 由国库承担）
+            const ownership = buildingOwnershipMap[b.id] || null;
+            const stratumOwnerKey = b.owner || null;
+            const totalOwnedCount = ownership ? Math.max(1, ownership.totalCount) : count;
+            let stratumShare;
+            let officialShare;
+            let foreignShare;
+            let stateShare;
+            if (ownership) {
+                stratumShare = ownership.stratumCount / totalOwnedCount;
+                officialShare = ownership.officialCount / totalOwnedCount;
+                foreignShare = ownership.foreignCount / totalOwnedCount;
+                stateShare = ownership.stateCount / totalOwnedCount;
+            } else {
+                stratumShare = stratumOwnerKey && stratumOwnerKey !== 'state' ? 1 : 0;
+                officialShare = 0;
+                foreignShare = 0;
+                stateShare = 1 - stratumShare;
+            }
 
-            // 按每?owner 的实际工资责任支付（并记录每?owner 的支付比例）
-            Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
-                if (ownerBill <= 0) {
-                    ownerPaidRatio[oKey] = 0;
-                    return;
+            let totalActuallyPaid = 0;
+
+            // 1) 阶层业主部分：从 wealth[ownerKey] 扣除（保留业主底线检查）
+            if (stratumOwnerKey && stratumOwnerKey !== 'state' && stratumShare > 0) {
+                const stratumBill = plannedWageBill * stratumShare;
+                if (stratumBill > 0) {
+                    const oKey = stratumOwnerKey;
+                    const available = wealth[oKey] || 0;
+
+                    // Prioritize owner's own basic needs before paying wages
+                    let reservedWealth = 0;
+                    const ownerDef = STRATA[oKey];
+                    if (ownerDef && ownerDef.needs) {
+                        Object.entries(ownerDef.needs).forEach(([resKey, amount]) => {
+                            const price = getPrice(resKey);
+                            reservedWealth += amount * price;
+                        });
+                        reservedWealth *= 1.2;
+                    }
+                    // 双底线之业主底线：至少保留业主人均收入底线对应的总财富空间
+                    // [OWNER-CAP] 使用实际到岗的 owner 数量而非总岗位需求
+                    const ownerSlotsRequired = ownerSlotsByKey[oKey] || 1;
+                    const ownerPopFilled = popStructure[oKey] || 0;
+                    const ownerSlots = Math.max(1, Math.min(ownerSlotsRequired, ownerPopFilled));
+                    const ownerIncomeFloorPerCapita = getOwnerIncomeFloorPerCapita(oKey);
+                    const ownerIncomeReserve = ownerIncomeFloorPerCapita * ownerSlots;
+                    reservedWealth = Math.max(reservedWealth, ownerIncomeReserve);
+
+                    const disposableWealth = Math.max(0, available - reservedWealth);
+                    const paid = Math.min(disposableWealth, stratumBill);
+
+                    if (paid > 0) {
+                        ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
+                        roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
+                    }
+                    ownerPaidRatio[oKey] = stratumBill > 0 ? paid / stratumBill : 0;
+                    totalActuallyPaid += paid;
                 }
-                const available = wealth[oKey] || 0;
+            }
 
-                // Prioritize owner's own basic needs before paying wages
-                let reservedWealth = 0;
-                const ownerDef = STRATA[oKey];
-                if (ownerDef && ownerDef.needs) {
-                    Object.entries(ownerDef.needs).forEach(([resKey, amount]) => {
-                        const price = getPrice(resKey);
-                        reservedWealth += amount * price;
-                    });
-                    reservedWealth *= 1.2;
+            // 2) 官员私产部分：按 officialOwners 详情从对应 official.wealth 扣除
+            // 注意：不走 ledger.transfer('official',...)，避免与 4815 行 classFinancialData.official.expense.wages 双重计账（该处已按比例分摊）
+            if (officialShare > 0 && ownership && ownership.officialCount > 0) {
+                const officialBill = plannedWageBill * officialShare;
+                let officialPaid = 0;
+                const officialOwners = ownership.officialOwners || {};
+                const officialCountTotal = Math.max(1, ownership.officialCount);
+                Object.entries(officialOwners).forEach(([officialId, ownedCount]) => {
+                    if (!ownedCount || ownedCount <= 0) return;
+                    const officialBillShare = officialBill * (ownedCount / officialCountTotal);
+                    if (officialBillShare <= 0) return;
+                    const off = (officials || []).find(o => (o?.id || o?.name) === officialId);
+                    if (!off) return;
+                    const availableWealth = Math.max(0, off.wealth || 0);
+                    const paid = Math.min(availableWealth, officialBillShare);
+                    if (paid > 0) {
+                        off.wealth = Math.max(0, availableWealth - paid);
+                        officialPaid += paid;
+                    }
+                });
+                ownerPaidRatio['_official'] = officialBill > 0 ? officialPaid / officialBill : 0;
+                totalActuallyPaid += officialPaid;
+            }
+
+            // 3) 国有/代经营部分：从国库 silver 扣除
+            if (stateShare > 0) {
+                const stateBill = plannedWageBill * stateShare;
+                if (stateBill > 0) {
+                    const treasury = res.silver || 0;
+                    const paid = Math.min(treasury, stateBill);
+                    if (paid > 0) {
+                        ledger.transfer('state', 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
+                    }
+                    ownerPaidRatio['_state'] = stateBill > 0 ? paid / stateBill : 0;
+                    totalActuallyPaid += paid;
                 }
-                // 双底线之业主底线：至少保留业主人均收入底线对应的总财富空间
-                const ownerSlots = Math.max(1, ownerSlotsByKey[oKey] || 1);
-                const ownerIncomeFloorPerCapita = getOwnerIncomeFloorPerCapita(oKey);
-                const ownerIncomeReserve = ownerIncomeFloorPerCapita * ownerSlots;
-                reservedWealth = Math.max(reservedWealth, ownerIncomeReserve);
+            }
 
-                const disposableWealth = Math.max(0, available - reservedWealth);
-                const paid = Math.min(disposableWealth, ownerBill);
+            // 4) 外资部分：外资侧 processForeignInvestments 已在 wageCost 中扣过外资利润
+            // 这里不再让本国任何账户出钱；视为外资从海外汇入支付给本国工人，全额视作"已支付"
+            if (foreignShare > 0) {
+                const foreignBill = plannedWageBill * foreignShare;
+                if (foreignBill > 0) {
+                    ownerPaidRatio['_foreign'] = 1;
+                    totalActuallyPaid += foreignBill;
+                }
+            }
 
-                ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
-                roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
-
-                ownerPaidRatio[oKey] = ownerBill > 0 ? paid / ownerBill : 0;
-            });
+            buildingWagePaidRatio = plannedWageBill > 0
+                ? Math.max(0, Math.min(1, totalActuallyPaid / plannedWageBill))
+                : 1;
         }
 
-        // Pay wages following building-level "distribution" (owner-paid-ratio).
+        // Pay wages using building-level paid ratio (unified across all roles within the same building).
         // Also update wage stats by the ACTUAL average wage paid for this role.
         preparedWagePlans.forEach(plan => {
-            const ratio = ownerPaidRatio[plan.ownerKey] ?? 0;
+            const ratio = buildingWagePaidRatio;
             const actualSlotWage = plan.expectedSlotWage * ratio;
 
             // Stats: use SIMULATED utilization to ensure empty buildings broadcast their wage ability
@@ -4375,6 +4543,8 @@ export const simulateTick = ({
             });
             // Update the main `builds` object for the rest of the tick
             Object.assign(builds, newBuildingsCount);
+            _buildingsModified = true;
+            console.warn('[SIM-BUILD] Free Market expanded:', expansions.map(e => e.buildingId));
         }
     }
     perfEnd('cabinetMechanics');
@@ -4622,13 +4792,15 @@ export const simulateTick = ({
         const debugAfterGoodsConsumption = currentWealth;
 
         // 人头税：官员拥有独立财富，因此在此单独结算
-        // [FIX] 使用本 tick 官员实际到手薪俸，而非 previousWages 工资信号
+        // [FIX] 税基 = 本 tick 薪俸 + 上一 tick 产业收入（与商人贸易收入同理，产业收入在人头税之后才结算）
         const headRate = getHeadTaxRate('official');
         const taxRatioOff = TAX_BASE_RATES?.HEAD_TAX_INCOME_RATIO || 1.0;
+        const previousPropertyIncome = normalizedOfficial.lastDayPropertyIncome || 0;
+        const officialTotalTaxableIncome = officialThisTickIncome + (previousPropertyIncome > 0 ? previousPropertyIncome : 0);
         let plannedPerCapitaTax;
         if (headRate > 0) {
-            const officialIncomeBase = (Number.isFinite(officialThisTickIncome) && officialThisTickIncome > 0)
-                ? officialThisTickIncome * taxRatioOff : 0;
+            const officialIncomeBase = (Number.isFinite(officialTotalTaxableIncome) && officialTotalTaxableIncome > 0)
+                ? officialTotalTaxableIncome * taxRatioOff : 0;
             plannedPerCapitaTax = officialIncomeBase * headRate * effectiveTaxModifier;
         } else if (headRate < 0) {
             plannedPerCapitaTax = headRate * effectiveTaxModifier;
@@ -4657,6 +4829,11 @@ export const simulateTick = ({
                     }
                 }
             }
+        }
+
+        // [FIX] 记录官员应税收入到 classFinancialData，供 UI 显示正确的税基
+        if (classFinancialData.official) {
+            classFinancialData.official.income.taxableIncome = (classFinancialData.official.income.taxableIncome || 0) + officialTotalTaxableIncome;
         }
 
         // [BUG FIX] 移除重复扣支出的代码
@@ -4904,6 +5081,8 @@ export const simulateTick = ({
             }
             investmentProfile.lastInvestmentDay = tick;
             builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
+            _buildingsModified = true;
+            console.warn('[SIM-BUILD] Official investment:', investmentDecision.buildingId, 'by', normalizedOfficial.name, 'policy:', officialPolicy);
             } // end if (investmentCost > 0)
         }
 
@@ -5561,7 +5740,8 @@ export const simulateTick = ({
         }
         approvalBreakdown[key].effectiveApprovalCap = effectiveApprovalCap;
 
-        let currentApproval = classApproval[key] || 50;
+        const persistedApproval = previousApproval?.[key] ?? classApproval[key] ?? 50;
+        let currentApproval = persistedApproval;
         approvalBreakdown[key].currentApprovalStart = currentApproval;
         approvalBreakdown[key].adjustmentSpeed = 0.02;
 
@@ -5599,6 +5779,24 @@ export const simulateTick = ({
         classApproval[key] = Math.max(0, Math.min(100, newApproval));
     });
 
+    if (updatedOfficials.length > 0) {
+        const averageOfficialLoyalty = updatedOfficials.reduce((sum, official) => {
+            return sum + Math.max(0, Math.min(100, official?.loyalty ?? 75));
+        }, 0) / updatedOfficials.length;
+        const officialApproval = Math.max(0, Math.min(100, averageOfficialLoyalty));
+        classApproval.official = officialApproval;
+        if (approvalBreakdown.official) {
+            approvalBreakdown.official.currentApprovalStart = previousApproval?.official ?? officialApproval;
+            approvalBreakdown.official.targetApprovalPreShockCap = officialApproval;
+            approvalBreakdown.official.targetApprovalFinal = officialApproval;
+            approvalBreakdown.official.inertiaDelta = officialApproval - approvalBreakdown.official.currentApprovalStart;
+            approvalBreakdown.official.effectiveApprovalCap = 100;
+            approvalBreakdown.official.capApplied = null;
+            approvalBreakdown.official.approvalAfterCap = officialApproval;
+            approvalBreakdown.official.approvalFinal = officialApproval;
+        }
+    }
+
     if ((popStructure.unemployed || 0) === 0 && previousApproval.unemployed !== undefined) {
         classApproval.unemployed = Math.min(100, previousApproval.unemployed + 5);
     }
@@ -5610,70 +5808,10 @@ export const simulateTick = ({
     let nextPopulation = population;
     let raidPopulationLoss = 0;
 
-    // Wealth Decay (Lifestyle Inflation)
-    // Prevents infinite accumulation by "burning" a small percentage of wealth daily
-    // representing maintenance, services, and non-goods consumption.
-    // NEW: Decay is based on per-capita wealth percentage, not total wealth
-    perfStart('wealthDecay');
-    Object.keys(STRATA).forEach(key => {
-        const currentWealth = wealth[key] || 0;
-        const population = popStructure[key] || 0;
-
-        if (currentWealth > 0 && population > 0) {
-            // Check living standard to see if decay should apply
-            // Only apply decay if living standard is at least "Comfortable" (小康)
-            // Levels: 赤贫 (Destitute), 贫困 (Poor), 温饱 (Subsistence), 小康 (Comfortable)...
-            const standard = classLivingStandard[key];
-            const level = standard?.level;
-
-            // Skip decay for Destitute, Poor, and Subsistence
-            if (level === '赤贫' || level === '贫困' || level === '温饱') {
-                return;
-            }
-
-            // Calculate per-capita wealth and apply decay rate
-            // 根据生活水平档位设置不同的挥霍率，刚进入小康时挥霍很?
-            const perCapitaWealth = currentWealth / population;
-            const wealthRatio = WEALTH_BASELINE > 0 ? perCapitaWealth / WEALTH_BASELINE : 0;
-
-            // Safeguard: Only apply decay if they have accumulated some wealth buffer (e.g. > 120% baseline)
-            // This prevents "newly comfortable" strata from immediately losing their savings
-            if (wealthRatio < 1.2 && level !== '奢华') {
-                return;
-            }
-
-            let decayRate = WEALTH_DECAY_RATE; // 默认0.5% (奢华)
-            if (level === '小康') {
-                decayRate = 0.001; // 0.1% - 刚进入小康，挥霍很少
-            } else if (level === '富裕') {
-                decayRate = 0.003; // 0.3% - 开始享受生?
-            }
-            // '奢华' 保持默认?.5%
-
-            const perCapitaDecay = perCapitaWealth * decayRate;
-            // Removed Math.max(1, floor(...)) to allow fractional decay and prevent subsidy waste
-            // Use toFixed(2) for clean display and deduction
-            const rawDecay = perCapitaDecay * population;
-            let decay = parseFloat(rawDecay.toFixed(2));
-
-            // [NEW] Cap decay at 50% of current tick's luxury spending
-            // Represents that lavish spending (waste) cannot exceed a fraction of actual luxury consumption
-            let totalLuxurySpend = 0;
-            if (classFinancialData[key] && classFinancialData[key].expense && classFinancialData[key].expense.luxuryNeeds) {
-                Object.values(classFinancialData[key].expense.luxuryNeeds).forEach(item => {
-                    totalLuxurySpend += (item.cost || 0);
-                });
-            }
-            const maxDecay = parseFloat((totalLuxurySpend * 0.5).toFixed(2));
-            decay = Math.min(decay, maxDecay);
-
-            if (decay > 0) {
-                ledger.transfer(key, 'void', decay, TRANSACTION_CATEGORIES.EXPENSE.DECAY, TRANSACTION_CATEGORIES.EXPENSE.DECAY);
-                // Record decay as expense so UI balances
-                roleExpense[key] = (roleExpense[key] || 0) + decay;
-            }
-        }
-    });
+    // 富裕性挥霍 / Wealth Decay 机制已废弃：
+    // 历史上此处会按生活水平对高净值阶层施加 0.1%~0.5% 的每日财富蒸发，
+    // 对应 UI 中的“富裕性挥霍”。该设计已被取消，阶层财富只通过消费、税收、
+    // 投资等真实资金流动变化，不再凭空销毁。
 
     perfStart('influenceCalc');
     // [FIX] Apply safe wealth limit to ALL strata wealth values before returning
@@ -5873,7 +6011,6 @@ export const simulateTick = ({
         stabilityFlat: bonuses.stabilityFlat || 0
     });
     perfEnd('buffsDebuffs');
-    perfEnd('wealthDecay');
     perfEnd('stabilityCalc');
 
     // [PERF] Tick预算保护：critical级分段全部完成，检查已用时间
@@ -7487,18 +7624,33 @@ export const simulateTick = ({
                     const inventoryRatio = inventoryDays / inventoryTargetDays;
                     let priceMultiplier = 1.0;
 
-                    // [FIX] Smoothed price curve to reduce extreme oscillations.
-                    // Old curve: 0.1→10x, 0.5→6x caused violent tick-to-tick swings.
-                    // New curve: gentler slopes, max 5x, continuous transitions.
+                    // [FIX-A] 危机段去除写死的 5x 上限，改用 maxPrice 推导出的 maxMultiplier，
+                    // 这样必需品库存归零时价格能真正向 maxPrice 靠拢（粮食 maxPrice=150 → 150x basePrice）。
+                    const _basePriceForMul = getBasePrice(resource);
+                    const maxMultiplier = (resourceDef?.maxPrice != null && _basePriceForMul > 0)
+                        ? resourceDef.maxPrice / _basePriceForMul
+                        : 50.0;
+
                     if (inventoryRatio < 0.1) {
-                        // Extreme shortage: steep but capped at 5x (was 10x)
-                        priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
-                        priceMultiplier = Math.min(5.0, priceMultiplier);
+                        // [FIX-D] essential 资源（粮食/布料）库存归零时必须能逼近 maxPrice，
+                        // 避免出现"奢侈品比生存品还贵"的反常现象。
+                        // 采用指数曲线让 ratio→0 时 priceMultiplier→maxMultiplier。
+                        const isEssential = !!resourceDef?.tags?.includes('essential');
+                        if (isEssential) {
+                            // ratio=0.1 → 3x；ratio=0 → maxMultiplier；中间用凸曲线
+                            const shortageDepth = Math.max(0, 1 - inventoryRatio / 0.1); // 0..1
+                            const crisisCurve = Math.pow(shortageDepth, 1.5); // 越缺越快涨
+                            priceMultiplier = 3.0 + (maxMultiplier - 3.0) * crisisCurve;
+                        } else {
+                            // 非 essential：保留原温和曲线，避免奢侈品/工业品价格异常飙升
+                            priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 200.0;
+                        }
+                        priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
                     } else if (inventoryRatio < 0.5) {
-                        // Low inventory: moderate increase, max 3x (was 6x)
+                        // Low inventory: moderate increase
                         priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                     } else if (inventoryRatio < 1.0) {
-                        // Slightly low: gentle increase 1.0-1.5x (was 1.0-2.0x)
+                        // Slightly low: gentle increase 1.0-1.5x
                         priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 0.5;
                     } else if (inventoryRatio > 3.0) {
                         // Severe oversupply: deeper discount
@@ -7511,6 +7663,15 @@ export const simulateTick = ({
                         // Slightly high: gentle decrease 0.85-1.0x
                         priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                     }
+
+                    // [FIX-C] 应用 supplyDemandWeight；必需品在极度短缺时逐步解除价格压制，
+                    // 避免 supplyDemandWeight<1 把"价格信号"削平到无人察觉
+                    let effectiveWeight = supplyDemandWeight;
+                    if (resourceDef?.tags?.includes('essential') && inventoryRatio < 0.3 && supplyDemandWeight < 1.0) {
+                        const crisisLift = 1.0 - inventoryRatio / 0.3;
+                        effectiveWeight = supplyDemandWeight + (1.0 - supplyDemandWeight) * crisisLift;
+                    }
+                    priceMultiplier = 1.0 + (priceMultiplier - 1.0) * effectiveWeight;
 
                     // 时代过渡缓冲：当前时代刚解锁的资源，库存积累期内限制价格上涨
                     const resUnlockEpoch = resourceDef?.unlockEpoch || 0;
@@ -7578,10 +7739,23 @@ export const simulateTick = ({
                 const inventoryRatio = inventoryDays / inventoryTargetDays;
                 let priceMultiplier = 1.0;
 
-                // [FIX] Same smoothed price curve as building-based pricing
+                // [FIX-A] 与建筑分支保持一致：去除 5x 写死上限，改用 maxMultiplier
+                const maxMultiplier = (resourceDef?.maxPrice != null && basePrice > 0)
+                    ? resourceDef.maxPrice / basePrice
+                    : 50.0;
+
                 if (inventoryRatio < 0.1) {
-                    priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
-                    priceMultiplier = Math.min(5.0, priceMultiplier);
+                    // [FIX-D] essential 资源（粮食/布料）在 fallback 分支同样要能逼近 maxMultiplier，
+                    // 否则"国内无人种地"时价格会被旧的线性公式（≤23x）卡死，价格信号失效
+                    const isEssentialFallback = !!resourceDef?.tags?.includes('essential');
+                    if (isEssentialFallback) {
+                        const shortageDepth = Math.max(0, 1 - inventoryRatio / 0.1);
+                        const crisisCurve = Math.pow(shortageDepth, 1.5);
+                        priceMultiplier = 3.0 + (maxMultiplier - 3.0) * crisisCurve;
+                    } else {
+                        priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 200.0;
+                    }
+                    priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
                 } else if (inventoryRatio < 0.5) {
                     priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
                 } else if (inventoryRatio < 1.0) {
@@ -7594,6 +7768,14 @@ export const simulateTick = ({
                 } else if (inventoryRatio > 1.0) {
                     priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.15;
                 }
+
+                // [FIX-C] 应用 supplyDemandWeight + essential 危机解除压制（与建筑分支一致）
+                let effectiveWeight = supplyDemandWeight;
+                if (resourceDef?.tags?.includes('essential') && inventoryRatio < 0.3 && supplyDemandWeight < 1.0) {
+                    const crisisLift = 1.0 - inventoryRatio / 0.3;
+                    effectiveWeight = supplyDemandWeight + (1.0 - supplyDemandWeight) * crisisLift;
+                }
+                priceMultiplier = 1.0 + (priceMultiplier - 1.0) * effectiveWeight;
 
                 if (isVolatile) {
                     priceMultiplier = volatileFlowMultiplier;
@@ -7660,7 +7842,14 @@ export const simulateTick = ({
             // [FIX] Reduced smoothing speed to dampen price oscillations.
             // Base smoothing 0.05 (was 0.1); max 0.2 (was 0.4).
             // This means prices take ~10-20 ticks to converge instead of ~3-5.
-            const dynamicSmoothing = Math.min(0.2, 0.05 + priceGapRatio * 0.15);
+            let dynamicSmoothing = Math.min(0.2, 0.05 + priceGapRatio * 0.15);
+            // [FIX-B] 危机模式：库存极低（<0.1 ratio）的必需品需要快速跳涨，
+            // 否则即便目标价已上调，平滑后价格仍要十几个 tick 才到位，价格信号失灵
+            const _crisisInvRatio = inventoryDays / inventoryTargetDays;
+            if (_crisisInvRatio < 0.1 && resourceDef?.tags?.includes('essential')) {
+                const urgency = 1.0 - Math.max(0, _crisisInvRatio) / 0.1; // 0~1
+                dynamicSmoothing = Math.max(dynamicSmoothing, 0.3 + 0.4 * urgency); // 0.3~0.7
+            }
             const smoothed = prevPrice + (ideoAdjustedMarketPrice - prevPrice) * dynamicSmoothing;
 
             // 应用价格限制
@@ -8058,6 +8247,54 @@ export const simulateTick = ({
         return result;
     };
 
+    // 【需求 2.1 / 卡点 A 修复】业务税补贴 → owner 阶层 subsidyPerCapita 信号
+    // 背景：业务税补贴（businessTaxRate < 0）的实际银币流口径是
+    //   subsidyAmount = |rate| × count（每 tick 固定，与 outputValue 无关）
+    //   actualSubsidyAmount = subsidyAmount × effectiveEfficiency
+    //   ledger.transfer('state', owner, ...)  + roleWagePayout[owner] += actualSubsidyAmount
+    // 因此该补贴已隐式进入 owner 阶层的 netIncomePerCapita（potentialIncome 主项）。
+    // 但下方 subsidyPerCapita 字段过去仅反映人头税补贴，导致 jobs.js 的
+    //   - SUBSIDY_HIGH_ATTRACTIVENESS_RATIO 判定
+    //   - SUBSIDY_PULL_MULTIPLIER 加速
+    //   - SAME_TIER_MIGRATION_RESISTANCE 削减
+    // 全部认为"无补贴"而失效。此处显式把业务税补贴均摊到该 owner 阶层全体 pop 上，
+    // 与"实际银币也是注入整池 roleWagePayout[owner]"的口径完全一致——只是把已隐式存在
+    // 于 incomeSignal 中的补贴金额"显式标注"到 subsidyPerCapita，不重复加到 potentialIncome。
+    const businessSubsidyPerCapitaByOwner = {};
+    {
+        // 与 simulation.js:3621-3625 业务税补贴分发段使用同一口径计算 effectiveEfficiency
+        const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+        const outerEffectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
+        BUILDINGS.forEach(building => {
+            const count = builds[building.id] || 0;
+            if (count <= 0) return;
+            const ownerKey = building.owner;
+            if (!ownerKey) return;
+            const businessTaxRate = getBusinessTaxRateFromModule(building.id, policies?.businessTaxRates || {});
+            if (!Number.isFinite(businessTaxRate) || businessTaxRate >= 0) return;
+            // 与银币流口径一致：subsidyAmount = |rate| × count；actualSubsidy = × efficiency
+            const actualSubsidy = Math.abs(businessTaxRate) * count * outerEffectiveEfficiency;
+            businessSubsidyPerCapitaByOwner[ownerKey] = (businessSubsidyPerCapitaByOwner[ownerKey] || 0) + actualSubsidy;
+        });
+    }
+
+    // 【修复 A：在岗 pop 分母】聚合本 tick 各角色"实际在岗"人数，
+    // 用作 netIncomePerCapita 的分母，避免高粮价/补贴等业主收入被全阶层 pop 稀释。
+    // 复用生产循环中已写入的 buildingFinancialData[*].filledByRole（simulation.js:2666）。
+    // 场景：farm jobs={peasant:3} 且 owner=peasant → 业主收入入 roleWagePayout[peasant]，
+    //   但失业 peasant 与在岗 peasant 同属一个阶层池子，按总 pop 均摊会让"有效收入信号"
+    //   显著低于在岗者实际所得，导致迁移决策低估 peasant 吸引力。
+    const employedPopByRole = {};
+    Object.values(buildingFinancialData || {}).forEach((finance) => {
+        if (!finance) return;
+        Object.entries(finance.filledByRole || {}).forEach(([role, filled]) => {
+            const v = Number(filled) || 0;
+            if (v > 0) {
+                employedPopByRole[role] = (employedPopByRole[role] || 0) + v;
+            }
+        });
+    });
+
     const activeRoleMetrics = ROLE_PRIORITY.map(role => {
         const pop = popStructure[role] || 0;
         const wealthNow = getRoleWealthSnapshot(role);
@@ -8070,7 +8307,27 @@ export const simulateTick = ({
         const totalExpense = roleExpense[role] || 0;
         const capitalOutlayAdjustment = role === 'merchant' ? merchantCapitalInvested : 0;
         const netIncome = totalIncome - totalExpense + capitalOutlayAdjustment;
-        const netIncomePerCapita = netIncome / Math.max(1, pop);
+        // 【修复 A】使用"在岗 pop"作分母；当无人在岗时回退到总 pop，最低 1 防除零。
+        // 商人例外：merchant 没有 jobs 配置，filledByRole 不会统计到，仍走总 pop。
+        const employedPop = role === 'merchant'
+            ? pop
+            : Math.max(0, Math.floor(employedPopByRole[role] || 0));
+        // 【修复 D / 自耕农信号】岗位完全空置（如 农田 0/42）时，
+        //   employedPop=0 → 旧逻辑回退到总 pop，业务税补贴会被全阶层失业/其它岗位人口稀释，
+        //   导致 peasant.netIncomePerCapita 看起来"补贴 ÷ 100 人 = 4 银/人"而非真实"补贴 ÷ 42 个潜在岗位"。
+        //   这会让 peasant.potentialIncome 远低于工匠，工匠转 peasant 永远过不了 1.3× 阻力门槛。
+        // 三级回退分母：在岗人 → 岗位数（潜在容量）→ 总 pop（最后兜底，防除零）。
+        // 商人继续走总 pop（merchant 无 jobs 配置）。
+        let incomeDivisor;
+        if (employedPop > 0) {
+            incomeDivisor = employedPop;
+        } else if (role !== 'merchant') {
+            const slots = Math.max(0, Math.floor(jobsAvailable[role] || 0));
+            incomeDivisor = slots > 0 ? slots : Math.max(1, pop);
+        } else {
+            incomeDivisor = Math.max(1, pop);
+        }
+        const netIncomePerCapita = netIncome / incomeDivisor;
         const roleWage = updatedWages[role] || getExpectedWage(role);
         const roleWageForTax = updatedWages[role] || getExpectedWage(role);
         const sumHeadRate = getHeadTaxRate(role);
@@ -8115,16 +8372,22 @@ export const simulateTick = ({
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
-        // 补贴收入信号加成：当角色享受补贴（负人头税）时，额外提升收入信号
-        // 使补贴政策对人口迁移决策产生更直接的吸引力
-        const SUBSIDY_SIGNAL_BONUS = 0.5; // 补贴金额的50%作为额外收入信号
+        // 【需求 1.1 / 1.6】补贴信号量级修复：
+        // 当角色享受补贴（sumHeadRate < 0）时，将人均到账补贴金额（已按 effectiveTaxModifier 折扣）
+        // 以 1.0 倍直接并入 incomeSignal 主项，使补贴像工资一样对迁移决策产生有效拉力。
+        // 对账依据：taxCostPerCapita = sumHeadRate * effectiveTaxModifier（sumHeadRate < 0 分支），
+        // 与 taxes.js collectHeadTax 中 due = count * headRate * effectiveTaxModifier 的人均口径一致。
+        // 当 sumHeadRate >= 0（征税或零）时，不进入此分支，避免信号残留（需求 1.5）。
         let subsidySignalBonus = 0;
-        if (sumHeadRate < 0 && pop > 0) {
-            // taxCostPerCapita is negative when subsidized, so negate it to get positive bonus
-            subsidySignalBonus = Math.abs(taxCostPerCapita) * SUBSIDY_SIGNAL_BONUS;
+        if (sumHeadRate < 0 && pop > 0 && Number.isFinite(taxCostPerCapita)) {
+            // taxCostPerCapita 为负值（人均补贴到账金额），取绝对值即正向拉力金额
+            subsidySignalBonus = Math.abs(taxCostPerCapita);
         }
+        // 保留 SUBSIDY_INCOME_SIGNAL_BONUS 常量的引用语义：用于潜在的征税侧信号缓和（向后兼容）
+        // 当前主项采用 1.0× 并入，常量本身在 constants.js 仍以 0.5 为默认值。
+        void SUBSIDY_INCOME_SIGNAL_BONUS;
 
-        // 以上一tick的人均净收入为主导，辅以小幅稳定度奖励和补贴信号加成，避免理论工资误导
+        // 以上一tick的人均净收入为主导，辅以小幅稳定度奖励和补贴信号主项并入
         const potentialIncome = incomeSignal + stabilityBonus + subsidySignalBonus;
 
         return {
@@ -8134,6 +8397,17 @@ export const simulateTick = ({
             perCapDelta: effectivePerCapDelta,
             potentialIncome,
             vacancy: roleVacancies[role] || 0,
+            // 【需求 3.1 / 1.3 / 卡点 A 修复】补贴信号字段：
+            // 用于 handleJobMigration 识别"补贴显著候选"并启用补贴拉力加速 / 阻力削减。
+            // 与 taxes.js / 业务税补贴实际到账口径一致：
+            //   - 人头税补贴：sumHeadRate < 0 → |sumHeadRate| × effectiveTaxModifier（人均）
+            //   - 业务税补贴：Σ |buildingRate| × buildingCount × effectiveEfficiency / divisor
+            // 注意：业务税补贴的实际银币已通过 roleWagePayout 进入 netIncomePerCapita，
+            // 因此 potentialIncome 主项不再重复加它；此处仅作为"政策可见性"信号上报，
+            // 让迁移决策器能识别补贴候选并启用拉力 / 阻力削减分支。
+            // 【修复 D】分母与 incomeDivisor 同源，避免 0/42 时补贴被失业总池稀释成 0。
+            subsidyPerCapita: subsidySignalBonus
+                + ((businessSubsidyPerCapitaByOwner[role] || 0) / incomeDivisor),
         };
     });
 
@@ -8287,6 +8561,8 @@ export const simulateTick = ({
 
             applyResourceChange('silver', -bestCandidate.silverCost, 'minister_expansion');
             builds[bestCandidate.building.id] = (builds[bestCandidate.building.id] || 0) + 1;
+            _buildingsModified = true;
+            console.warn('[SIM-BUILD] Minister expansion:', bestCandidate.building.id, 'role:', bestCandidate.role);
             builtCount += 1;
             builtByRole[bestCandidate.role] = (builtByRole[bestCandidate.role] || 0) + 1;
             remainingBudget = Math.max(0, remainingBudget - bestCandidate.silverCost);
@@ -9388,7 +9664,7 @@ export const simulateTick = ({
         officials: updatedOfficials, // 更新后的官员列表（含财务数据?
         // 计算有效官员容量（基于时代、政体、科技和理念）
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked, bonuses.ideoOfficialCapacityBonus || 0),
-        buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
+        buildings: _buildingsModified ? builds : null, // [FIX] Only return when actually modified to prevent unnecessary state updates
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,
         diplomaticReputation: updatedDiplomaticReputation, // [NEW] Return updated diplomatic reputation
         // [PERF] Only serialize full audit log in debug mode; otherwise return aggregated totals only.

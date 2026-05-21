@@ -46,7 +46,7 @@ export const BUILDINGS = [
         name: "贸易站",
         desc: "原始的物资交换场所，提供商人岗位。",
         baseCost: { wood: 50, stone: 10 },
-        output: { food: 4, silver: 1.6 },
+        output: { food: 1.5, silver: 2.8 },
         jobs: { merchant: 2 },
         owner: 'merchant',
         epoch: 0,
@@ -60,7 +60,7 @@ export const BUILDINGS = [
         name: "庄园",
         desc: "地主控制的土地，雇佣佃农。",
         baseCost: { wood: 100, plank: 25 },
-        output: { food: 27.00 },
+        output: { food: 33.00 }, // 人均 3.67 (>精耕田Lv2 3.24)
         jobs: { serf: 8, landowner: 1 },
         owner: 'landowner',
         epoch: 3,
@@ -83,7 +83,7 @@ export const BUILDINGS = [
         desc: "砍伐木材，基础采集建筑。",
         baseCost: { food: 18 },
         input: {},
-        output: { wood: 4.6 },
+        output: { wood: 4.6 }, // 人均 1.53 (基础)
         jobs: { lumberjack: 3 },
         owner: 'lumberjack',
         epoch: 0,
@@ -313,8 +313,8 @@ export const BUILDINGS = [
         name: "香料种植园",
         desc: "开垦殖民地香料田，本土培育珍贵辛香料，产量远胜海运贸易。",
         baseCost: { wood: 200, tools: 30, food: 50 },
-        input: { food: 0.8, tools: 0.05 },
-        output: { spice: 1.20 },
+        input: { food: 1.67, tools: 0.104 },
+        output: { spice: 2.50 }, // 人均 0.278 (>皇家船厂 spice 0.258)
         jobs: { serf: 8, landowner: 1 },
         owner: 'landowner',
         epoch: 5,
@@ -442,7 +442,7 @@ export const BUILDINGS = [
         desc: "官员办公地，提供官员岗位，需要少量维护。",
         baseCost: { brick: 200, plank: 200, cloth: 20 },
         input: { brick: 0.20, papyrus: 0.02, delicacies: 0.05, fine_clothes: 0.02, culture: 0.03, science: 0.05 },
-        output: { silver: 4, culture: 1 },
+        output: { silver: 8, culture: 1 }, // silver 主产（行政税收），culture 副产
         jobs: { official: 7 },
         epoch: 3,
         cat: 'civic',
@@ -455,8 +455,8 @@ export const BUILDINGS = [
         name: "教堂",
         desc: "安抚民心，产出文化。",
         baseCost: { stone: 150, plank: 50, brick: 60 },
-        input: { furniture: 0.08, fine_clothes: 0.06 }, // 降低输入消耗，使基础版净产出为正
-        output: { culture: 8, silver: 1.6 },
+        input: { furniture: 0.10, fine_clothes: 0.075 },
+        output: { culture: 22, silver: 1.6 }, // 人均 2.75 (>剧场Lv2 2.5)
         jobs: { cleric: 4, worker: 4 },
         owner: 'cleric',
         epoch: 3,
@@ -487,8 +487,8 @@ export const BUILDINGS = [
         name: "纺织工场",
         desc: "规模化的羊毛加工作坊，封建领地的重要经济支柱。",
         baseCost: { plank: 100, brick: 50, tools: 15 },
-        input: { food: 0.9, tools: 0.045 },
-        output: { cloth: 12.0, fine_clothes: 0.75 },
+        input: { food: 1.08, tools: 0.054 },
+        output: { cloth: 14.4, fine_clothes: 0.9 }, // 人均 1.8 (>大织布坊Lv2 1.62)
         jobs: { serf: 4, artisan: 1, worker: 3 },
         owner: 'artisan',
         epoch: 3,
@@ -514,8 +514,8 @@ export const BUILDINGS = [
         name: "采石工场",
         desc: "使用铁器工具的专业采石场，为城堡和教堂建设提供大量优质石料。",
         baseCost: { plank: 80, iron: 30, tools: 20 },
-        input: { tools: 0.12 },
-        output: { stone: 14 },
+        input: { tools: 0.154 },
+        output: { stone: 18 }, // 人均 2.0 (>大采石场Lv2 1.69)
         jobs: { miner: 4, worker: 4, artisan: 1 },
         owner: 'artisan',
         epoch: 3,
@@ -529,8 +529,8 @@ export const BUILDINGS = [
         name: "硬木林场",
         desc: "有计划的森林采伐，提供大量木材与优质硬木。",
         baseCost: { plank: 100, iron: 25, tools: 25 },
-        input: { tools: 0.16 },
-        output: { wood: 22 },
+        input: { tools: 0.196 },
+        output: { wood: 27 }, // 人均 2.45 (>林场Lv2 2.16)
         jobs: { lumberjack: 5, worker: 5, merchant: 1 },
         owner: 'merchant',
         epoch: 3,
@@ -548,8 +548,8 @@ export const BUILDINGS = [
         name: "剧场",
         desc: "古典时代的文化舞台，激发灵感。",
         baseCost: { stone: 200, brick: 80, dye: 10 },
-        input: { fine_clothes: 0.15, brick: 0.0333, dye: 0.0333 }, // 降低输入消耗，使基础版人均净产出合理；添加染料需求增加dye早期消费
-        output: { culture: 9 },
+        input: { fine_clothes: 0.083, brick: 0.0185, dye: 0.0185 }, // 同步降低输入
+        output: { culture: 5 }, // 人均 1.0（5/5），早期娱乐建筑
         jobs: { cleric: 3, worker: 2 },
         owner: 'cleric',
         epoch: 2,
@@ -563,7 +563,7 @@ export const BUILDINGS = [
         name: "航海学院",
         desc: "培养探索时代的开路者，产出科研文化。",
         baseCost: { wood: 160, papyrus: 80, brick: 70 },
-        output: { science: 2.0, culture: 1.2 },
+        output: { science: 2.5, culture: 1.5 }, // 人均 0.5 (>书院Lv2 0.4)
         jobs: { merchant: 1, navigator: 3, scribe: 1},
         owner: 'merchant',
         epoch: 4,
@@ -577,8 +577,8 @@ export const BUILDINGS = [
         name: "竖井矿场",
         desc: "利用绞盘与更好的通风设施深入地下，同时开采铜铁矿脉。",
         baseCost: { brick: 150, plank: 100, tools: 50 },
-        input: { tools: 0.3703, wood: 0.7714, science: 0.1286 },
-        output: { iron: 5.4, copper: 3.24 },
+        input: { tools: 0.481, wood: 1.00, science: 0.167 },
+        output: { iron: 7.0, copper: 4.2 }, // iron 人均 0.368 (>大铁矿Lv2 0.286)
         jobs: { miner: 6, engineer: 12, merchant: 1 },
         owner: 'merchant',
         epoch: 4,
@@ -597,8 +597,8 @@ export const BUILDINGS = [
         name: "印染工坊",
         desc: "使用新世界染料的专业印染作坊，如珍贵的胭脂虫红。",
         baseCost: { brick: 100, plank: 80, tools: 20 },
-        input: { food: 2.16, cloth: 1.08, spice: 0.135, science: 0.036 },
-        output: { dye: 3.24, fine_clothes: 0.81 },
+        input: { food: 3.67, cloth: 1.84, spice: 0.23, science: 0.061 },
+        output: { dye: 5.50, fine_clothes: 1.38 }, // 人均 0.611 (>染色工坊Lv2 0.506)
         jobs: { artisan: 3, worker: 6 },
         owner: 'artisan',
         epoch: 4,
@@ -613,7 +613,7 @@ export const BUILDINGS = [
         desc: "啜饮咖啡、交流思想的启蒙沙龙。",
         baseCost: { plank: 140, coffee: 40, cloth: 20, delicacies: 15, science: 100 },
         input: { coffee: 0.50, delicacies: 0.25 },
-        output: { culture: 6, science: 1.9999 },
+        output: { culture: 25, science: 1.9999 }, // 人均 4.17 (>主教座堂 4.0)
         jobs: { merchant: 1, scribe: 5 },
         owner: 'merchant',
         epoch: 5,
@@ -696,8 +696,8 @@ export const BUILDINGS = [
         name: "青铜铸坊",
         desc: "熔炼铜与木炭，制造精良工具。",
         baseCost: { wood: 140, stone: 75, copper: 35 },
-        input: { copper: 0.8, wood: 0.5333 },
-        output: { tools: 1.90 },
+        input: { copper: 1.68, wood: 1.12 },
+        output: { tools: 4.0 }, // 人均 1.0 (>大工匠铺Lv2 0.9)
         jobs: { worker: 3, artisan: 1 },
         owner: 'artisan',
         epoch: 1,
@@ -715,8 +715,8 @@ export const BUILDINGS = [
         name: "铁器铺",
         desc: "以铁为原料，锻造坚固耐用的工具。",
         baseCost: { plank: 150, brick: 80 },
-        input: { wood: 0.6667, iron: 1.0667 },
-        output: { tools: 3.10 },
+        input: { wood: 1.29, iron: 2.07 },
+        output: { tools: 6.0 }, // 人均 1.5 (>大铸坊Lv2 1.5)
         jobs: { worker: 3, artisan: 1 },
         owner: 'artisan',
         epoch: 2,
@@ -735,8 +735,8 @@ export const BUILDINGS = [
         name: "工厂",
         desc: "蒸汽驱动的流水线生产工具与机械。",
         baseCost: { brick: 400, steel: 200, science: 350 },
-        input: { steel: 2.00, coal: 2.00, science: 0.50 },
-        output: { tools: 18.90, machinery: 0.82 },
+        input: { steel: 4.66, coal: 4.66, science: 1.16 },
+        output: { tools: 44.00, machinery: 1.91 }, // 人均 3.14 (>大冶金坊Lv2 3.0)
         jobs: { worker: 10, engineer: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
@@ -750,8 +750,8 @@ export const BUILDINGS = [
         name: "印刷所",
         desc: "启蒙时代的出版重镇，大量复制知识。",
         baseCost: { brick: 200, papyrus: 80, wood: 60, science: 150 },
-        input: { papyrus: 0.40, coffee: 0.08, science: 0.10 }, // 降低输入消耗，使基础版人均净产出合理
-        output: { science: 2.40, culture: 2.0 },
+        input: { papyrus: 1.30, coffee: 0.26, science: 0.325 },
+        output: { science: 7.80, culture: 4.50 }, // 人均 0.867 (>航海学院Lv2 0.75)
         jobs: { worker: 5, scribe: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 5,
@@ -796,7 +796,7 @@ export const BUILDINGS = [
         desc: "自动平衡市场供需：将盈余的滞销资源出口，换取急需的短缺资源。产出少量商业税收。",
         baseCost: { plank: 100 },
         input: { brick: 0.1 },
-        output: { food: 4 },
+        output: { food: 1.0, silver: 4.5 }, // silver 主产，food 副产（贸易换粮）
         jobs: { merchant: 3, worker: 1 },
         owner: 'merchant',
         epoch: 1,
@@ -855,7 +855,7 @@ export const BUILDINGS = [
         desc: "汇聚香料、银币与海外特许的繁忙港口。",
         baseCost: { plank: 220, spice: 60 },
         input: { spice: 0.35 },
-        output: { food: 12, silver: 2 },
+        output: { food: 2.5, silver: 12.0 }, // silver 主产，food 副产（贸易换粮）
         jobs: { merchant: 4, worker: 6 },
         owner: 'merchant',
         epoch: 4,
@@ -1012,10 +1012,10 @@ export const BUILDINGS = [
     {
         id: 'arms_factory',
         name: "兵工厂",
-        desc: "蒸汽驱动的大规模军火生产线，制造制式武器与弹药。",
+        desc: "蒸汽驱动的大规模军火生产线，主产军械（火炮），辅产弹药。",
         baseCost: { brick: 400, steel: 200, tools: 100, science: 300 },
         input: { steel: 0.90, coal: 0.80, science: 0.20, machinery: 0.10 },
-        output: { ordnance: 0.60, ammunition: 1.20 },
+        output: { ordnance: 2.40, ammunition: 1.20 }, // ordnance 主产 (1.20 < 70% × 2.40 = 1.68)
         jobs: { worker: 15, engineer: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
@@ -1036,8 +1036,8 @@ export const BUILDINGS = [
         name: "纺织厂",
         desc: "水力驱动的纺织机，大幅提升布料和成衣产量。",
         baseCost: { brick: 180, plank: 120, tools: 60, science: 150 },
-        input: { cotton: 6.60, dye: 0.90, tools: 0.10 },
-        output: { cloth: 50.40, fine_clothes: 3.10 },
+        input: { cotton: 7.85, dye: 1.07, tools: 0.119 },
+        output: { cloth: 60.0, fine_clothes: 3.69 }, // 人均 3.33 (>大棉纺织坊Lv2 3.07)
         jobs: { worker: 17, capitalist: 1 },
         owner: 'capitalist',
         epoch: 5,
@@ -1075,8 +1075,8 @@ export const BUILDINGS = [
         name: "木材加工厂",
         desc: "水力锯木机与烘干设备，高效生产优质木板。",
         baseCost: { brick: 160, plank: 100, tools: 50 },
-        input: { wood: 6.4286 },
-        output: { plank: 17.1429 },
+        input: { wood: 8.25 },
+        output: { plank: 22.0 }, // 人均 1.83 (>大锯木坊Lv2 1.56)
         jobs: { worker: 11, capitalist: 1 },
         owner: 'capitalist',
         epoch: 5,
@@ -1094,9 +1094,9 @@ export const BUILDINGS = [
         name: "家具工厂",
         desc: "流水线生产标准化家具，满足城市中产阶级需求。",
         baseCost: { brick: 280, steel: 120, tools: 80, science: 280 },
-        input: { plank: 5.6250, cloth: 1.80, coal: 0.5625 },
-        output: { furniture: 7.8750, culture: 0.4500 },
-        jobs: { worker: 21, engineer: 1, capitalist: 1 },
+        input: { plank: 7.50, cloth: 2.40, coal: 0.75 },
+        output: { furniture: 10.50, culture: 0.60 }, // 人均 0.808 (>大家具坊Lv2 0.72), 减少worker
+        jobs: { worker: 11, engineer: 1, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
         cat: 'industry',
@@ -1114,8 +1114,8 @@ export const BUILDINGS = [
         name: "冶金工坊",
         desc: "改良的熔炉与锻造技术，高效生产精良工具。",
         baseCost: { brick: 200, iron: 100, tools: 60 },
-        input: { iron: 2.10, copper: 0.45, wood: 0.90 },
-        output: { tools: 6.36 },
+        input: { iron: 4.46, copper: 0.96, wood: 1.91 },
+        output: { tools: 13.5 }, // 人均 2.25 (>大铁匠铺Lv2 2.1)
         jobs: { worker: 3, artisan: 2, engineer: 1 },
         owner: 'artisan',
         epoch: 4,
@@ -1133,8 +1133,8 @@ export const BUILDINGS = [
         name: "钢铁联合体",
         desc: "垂直整合的大型钢铁企业，从矿石到成品一条龙生产。",
         baseCost: { brick: 500, steel: 250, tools: 150, science: 400 },
-        input: { iron: 1.44, coal: 1.20, science: 0.40, machinery: 0.05 },
-        output: { steel: 1.44, tools: 0.96 },
+        input: { iron: 5.50, coal: 4.58, science: 1.53, machinery: 0.19 },
+        output: { steel: 5.50, tools: 3.67 }, // steel 人均 0.22 (>钢铁联合厂Lv2 0.171)
         jobs: { worker: 18, engineer: 5, capitalist: 2 },
         owner: 'capitalist',
         epoch: 7,
@@ -1192,9 +1192,9 @@ export const BUILDINGS = [
         name: "罐头厂",
         desc: "革命性的食品保存技术，将珍馐装罐长期保存。",
         baseCost: { brick: 250, steel: 100, tools: 60, science: 280 },
-        input: { food: 5.6250, iron: 0.6750, coal: 0.5625 },
-        output: { delicacies: 7.8750 },
-        jobs: { worker: 21, engineer: 1, capitalist: 1 },
+        input: { food: 9.50, iron: 1.14, coal: 0.95 },
+        output: { delicacies: 13.30 }, // 人均 1.025 (>御膳房Lv2 0.9), 减少worker使生产更紧凑
+        jobs: { worker: 11, engineer: 1, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
         cat: 'industry',
@@ -1250,8 +1250,8 @@ export const BUILDINGS = [
         name: "出版社",
         desc: "现代印刷与发行一体化，传播知识启迪民智。",
         baseCost: { brick: 300, steel: 80, papyrus: 100, science: 320 },
-        input: { papyrus: 2.00, coffee: 0.40, coal: 0.30 },
-        output: { science: 5.00, culture: 2.00 },
+        input: { papyrus: 9.36, coffee: 1.872, coal: 1.40 },
+        output: { science: 23.40, culture: 9.36 }, // 人均 1.671 (>印刷所Lv2 1.556)
         jobs: { scribe: 8, worker: 4, engineer: 1, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
@@ -1270,8 +1270,8 @@ export const BUILDINGS = [
         name: "工业矿场",
         desc: "蒸汽动力的深井采矿设备，大幅提升矿石产量。",
         baseCost: { brick: 350, steel: 200, tools: 100 },
-        input: { tools: 0.2615, coal: 0.5231 },
-        output: { iron: 6.40, copper: 2.20 },
+        input: { tools: 0.388, coal: 0.776 },
+        output: { iron: 9.50, copper: 3.27 }, // iron 人均 0.594 (>蒸汽矿井Lv2 0.500)
         jobs: { worker: 13, engineer: 2, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
@@ -1289,8 +1289,8 @@ export const BUILDINGS = [
         name: "机械化农场",
         desc: "蒸汽拖拉机与收割机，农业产量飞跃式提升。",
         baseCost: { brick: 200, steel: 150, tools: 80 },
-        input: { tools: 0.175, coal: 0.35 },
-        output: { food: 48.0 },
+        input: { tools: 0.241, coal: 0.481 },
+        output: { food: 66.0 }, // 人均 5.5 (>领主庄园Lv2 5.78,需进一步提升庄园Lv2)
         jobs: { worker: 10, engineer: 1, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
@@ -1308,8 +1308,8 @@ export const BUILDINGS = [
         name: "伐木公司",
         desc: "配备蒸汽锯和运输铁路的大型伐木企业。",
         baseCost: { brick: 180, steel: 100, tools: 60 },
-        input: { tools: 0.1333, coal: 0.25 },
-        output: { wood: 46.80 },
+        input: { tools: 0.171, coal: 0.321 },
+        output: { wood: 60.00 }, // 人均 3.53 (>皇家御林Lv2 3.23)
         jobs: { worker: 15, engineer: 1, capitalist: 1 },
         owner: 'capitalist',
         epoch: 6,
@@ -1356,9 +1356,9 @@ export const BUILDINGS = [
         name: "歌剧院",
         desc: "华丽的艺术殿堂，展示文明的文化成就。",
         baseCost: { brick: 350, plank: 150, furniture: 80, culture: 40, dye: 20, science: 160 },
-        input: { fine_clothes: 0.40, delicacies: 0.30, brick: 0.10 },
-        output: { culture: 10, silver: 2.8573 },
-        jobs: { cleric: 5, worker: 10, scribe: 5 },
+        input: { fine_clothes: 1.8, delicacies: 1.35, brick: 0.45 },
+        output: { culture: 45.0, silver: 12.86 }, // 人均 4.5 (>主教座堂 4.0)
+        jobs: { cleric: 3, worker: 5, scribe: 2 }, // 精简 jobs 提升人均效率
         owner: 'cleric',
         epoch: 5,
         cat: 'civic',
@@ -1401,8 +1401,8 @@ export const BUILDINGS = [
         name: "棉纺织坊",
         desc: "将棉花纺织为布匹和少量华服，探索时代的升级纺织建筑。",
         baseCost: { brick: 120, plank: 80, tools: 30 },
-        input: { cotton: 2.2, tools: 0.07 },
-        output: { cloth: 13.2, fine_clothes: 0.88 },
+        input: { cotton: 2.67, tools: 0.085 },
+        output: { cloth: 16.0, fine_clothes: 1.07 }, // 人均 2.67 (>领主纺织工场Lv2 2.333)
         jobs: { worker: 4, artisan: 2 },
         owner: 'artisan',
         epoch: 4,
@@ -1543,8 +1543,8 @@ export const BUILDINGS = [
         name: "广播电台",
         desc: "通过电波传播信息，大幅提升科研和文化产出。知识链再次延长。",
         baseCost: { silver: 1800, wiring: 10, steel: 8 },
-        input: { electricity: 0.75, papyrus: 0.25 },
-        output: { science: 10.5, culture: 5 },
+        input: { electricity: 2.05, papyrus: 0.683 },
+        output: { science: 28.5, culture: 13.6 }, // 人均 1.9 (>出版社 1.671)
         jobs: { scribe: 7, worker: 5, engineer: 2, capitalist: 1 },
         owner: 'capitalist',
         epoch: 7,
@@ -1571,8 +1571,8 @@ export const BUILDINGS = [
         name: "电气纺织厂",
         desc: "电力驱动的大规模纺织工厂，将棉花加工为大量布匹和高级成衣。",
         baseCost: { steel: 350, brick: 300, tools: 150, science: 500 },
-        input: { cotton: 3.0, coal: 0.3, dye: 0.5, electricity: 0.35 },
-        output: { cloth: 68.25, fine_clothes: 5.60 },
+        input: { cotton: 3.66, coal: 0.366, dye: 0.61, electricity: 0.427 },
+        output: { cloth: 83.0, fine_clothes: 6.83 }, // 人均 3.95 (>纺织工场Lv2 3.8)
         jobs: { worker: 17, engineer: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 7,
@@ -1683,10 +1683,10 @@ export const BUILDINGS = [
     {
         id: 'television_station',
         name: "电视台",
-        desc: "电子影像传播文化，比广播更具影响力。",
+        desc: "电子影像传播文化与广告收入，大众媒体平台。",
         baseCost: { silver: 4000, electronics: 8, wiring: 10, steel: 10 },
-        input: { electricity: 0.8143, electronics: 0.1357 },
-        output: { culture: 12.4857, science: 4.3429 },
+        input: { electricity: 1.108, electronics: 0.1846 },
+        output: { culture: 17.0, science: 5.91, silver: 80 }, // silver 主产（广告收入），culture 副产
         jobs: { scribe: 10, technician: 5, engineer: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 8,
@@ -1713,8 +1713,8 @@ export const BUILDINGS = [
         name: "军工综合体",
         desc: "整合电子、钢铁和化学品生产现代化军事装备。",
         baseCost: { silver: 6000, steel: 50, electronics: 10, chemicals: 15 },
-        input: { electronics: 0.2591, steel: 0.3455, chemicals: 0.1727, electricity: 0.2591 },
-        output: { ordnance: 0.5182 },
+        input: { electronics: 2.75, steel: 3.667, chemicals: 1.833, electricity: 2.75 },
+        output: { ordnance: 5.50 }, // 人均 0.289 (>军工联合体 0.270)
         jobs: { worker: 10, technician: 5, engineer: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 8,
@@ -1758,7 +1758,7 @@ export const BUILDINGS = [
         desc: "开发各种软件产品和服务，知识经济的核心。",
         baseCost: { silver: 6000, electronics: 10 },
         input: { semiconductors: 0.125, electricity: 0.75 },
-        output: { software: 0.5, science: 0.75 },
+        output: { software: 1.5, science: 0.75 }, // software 主产 (0.75 < 70% × 1.5 = 1.05)
         jobs: { engineer: 11, technician: 8, capitalist: 1 },
         owner: 'capitalist',
         epoch: 9,
@@ -1799,8 +1799,8 @@ export const BUILDINGS = [
         name: "太阳能电站",
         desc: "利用半导体光伏板将阳光转化为电能。石料（硅砂）的终极旅程。",
         baseCost: { silver: 5000, semiconductors: 8, aluminum: 15, steel: 20 },
-        input: { stone: 0.2057, aluminum: 0.1543, composites: 0.1029 },
-        output: { electricity: 6.6857 },
+        input: { stone: 0.74, aluminum: 0.555, composites: 0.37 },
+        output: { electricity: 24.0 }, // 人均 1.333 (>快中子堆Lv2 1.267)
         jobs: { technician: 11, engineer: 6, capitalist: 1 },
         owner: 'capitalist',
         epoch: 9,
@@ -1827,8 +1827,8 @@ export const BUILDINGS = [
         name: "研究院",
         desc: "顶级科研机构，整合半导体和学术文献（纸张）推动前沿研究。",
         baseCost: { silver: 10000, semiconductors: 10, electronics: 15 },
-        input: { semiconductors: 0.1278, electricity: 0.7667, papyrus: 0.3833, composites: 0.0511 },
-        output: { science: 20.4444, culture: 3.5778 },
+        input: { semiconductors: 0.357, electricity: 2.143, papyrus: 1.071, composites: 0.143 },
+        output: { science: 75.0, culture: 13.5 }, // 人均 3.26 (>全国广播网 3.067)
         jobs: { scientist: 11, scribe: 6, engineer: 5, capitalist: 1 },
         owner: 'capitalist',
         epoch: 9,
@@ -1856,7 +1856,7 @@ export const BUILDINGS = [
         desc: "基因工程和分子生物学的前沿研究基地。",
         baseCost: { silver: 8000, medicine: 10, electronics: 10 },
         input: { medicine: 0.23, electronics: 0.115, chemicals: 0.23 },
-        output: { science: 3.45, medicine: 0.345 },
+        output: { medicine: 4.0, science: 3.45 }, // medicine 主产，科研副产
         jobs: { scientist: 12, technician: 7, engineer: 3, capitalist: 1 },
         owner: 'capitalist',
         epoch: 9,
@@ -1867,10 +1867,10 @@ export const BUILDINGS = [
     {
         id: 'automated_mine',
         name: "自动化矿场",
-        desc: "机器人和AI驱动的全自动采矿系统，多种矿产同时开采。",
+        desc: "机器人和AI驱动的全自动采矿系统，多种矿产同时开采（铜矿主产）。",
         baseCost: { silver: 6000, semiconductors: 5, machinery: 10, steel: 30 },
-        input: { electricity: 0.9 },
-        output: { copper: 7.2, iron: 3.6, coal: 5.7, stone: 5.7 },
+        input: { electricity: 2.45 },
+        output: { copper: 22.0, iron: 13.0, coal: 12.0, stone: 12.0 }, // copper 主产人均 1.467 (>露天 0.69); iron 0.867 (>矿业公司Lv2 0.806)
         jobs: { technician: 8, engineer: 6, capitalist: 1 },
         owner: 'capitalist',
         epoch: 9,

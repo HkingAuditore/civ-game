@@ -17,6 +17,25 @@ import {
     STATIC_DIPLOMATIC_EVENTS,
 } from '../../config';
 import { POLITY_DEFINITIONS, formatPolityEffects } from '../../config/polityEffects';
+import { IDEOLOGIES, IDEOLOGY_CATEGORIES } from '../../config/ideologies';
+import {
+    RARITY_CONFIG as IDEOLOGY_RARITY_CONFIG,
+    LEVEL_STAGE_LABELS,
+    RULE_MOD_LABELS,
+    CATEGORY_LABELS as IDEOLOGY_CATEGORY_LABELS,
+    RESOURCE_LABELS as IDEOLOGY_RESOURCE_LABELS,
+    UNIT_CATEGORY_LABELS as IDEOLOGY_UNIT_CATEGORY_LABELS,
+    effectsToTags as ideologyEffectsToTags,
+    formatEffectValue as formatIdeologyEffectValue,
+    formatDuration as formatIdeologyDuration,
+    describeConverter,
+    describeEventEffect,
+    describeTriggerEffect,
+    getLevelIncrementalEffects,
+    getLevelInheritedItems,
+    getAggregatedTriggerEffects,
+} from '../../utils/ideologyFormatter';
+import { EVENT_DISPLAY_NAMES } from '../../logic/ideology/ideologyEventBus';
 
 // --- 核心机制攻略文案数据 ---
 const MECHANICS_GUIDES = [
@@ -1149,11 +1168,99 @@ const MECHANICS_GUIDES = [
                 ]
             }
         ]
+    },
+    {
+        id: 'mech_ideology',
+        name: '理念体系',
+        icon: 'Sparkles',
+        summary: '理念分数、涌现五选一、卡槽装备与联动机制',
+        content: [
+            { type: 'h4', text: '✨ 系统概述' },
+            { type: 'p', text: '理念是你的文明在历史中沉淀的思想纲领。通过日常治理累积"理念分数"，达到阈值后会触发涌现弹窗，从 5 个候选理念中挑选 1 个加入你的收藏，再装备到卡槽里发挥效果。' },
+
+            { type: 'h4', text: '1. 理念分数的来源' },
+            { type: 'p', text: '在"理念"标签页可以看到当前进度。以下行为会增加理念分数：' },
+            {
+                type: 'list', items: [
+                    '⚗ 研发知识 +6~+42/项（基础 15，按时代加权）',
+                    '🏛 进入新时代 +36~+144（基础 60，按时代加权）',
+                    '🏗 建筑里程碑 基础 +20，每达成下一档（50→150→450→…×3）触发一次',
+                    '👥 人口里程碑 基础 +26，每达成下一档（100→400→1600→…×4）触发一次',
+                    '🚢 贸易里程碑 基础 +14，按 500→1500→4000→10000→25000→60000→150000 累计',
+                    '⚔ 战争结果 胜利+26 / 失利+18',
+                    '🏭 完成完整产业链 +26/条',
+                    '🌟 已装备理念触发的事件可能直接奖励额外分数'
+                ]
+            },
+
+            { type: 'h4', text: '2. 涌现五选一' },
+            { type: 'p', text: '当可用分数（总分数 − 已支出）达到阈值时，游戏自动暂停并弹出涌现窗口：' },
+            {
+                type: 'list', items: [
+                    '系统按权重从可用池中抽取 5 个候选，每个都展示 3 级的成长路线预览',
+                    '权重综合考量：稀有度、时代匹配（当前时代×2、相邻×1.3）、执政联盟阶层、自定义条件（weightModifiers），并对同时代候选做了均衡',
+                    '若候选与你已拥有的理念同 ID，会显示为"升级"选项；满级（3 级）的理念不会再出现',
+                    '你也可以选择"跳过"：跳过会累积稀有度加成（最多 3 次），下次抽取时更易出现高稀有理念，并保底至少 1 个达到指定档位（1→稀有 / 2→史诗 / 3→史诗）'
+                ]
+            },
+
+            { type: 'h4', text: '3. 收藏与卡槽' },
+            {
+                type: 'list', items: [
+                    '未装备的理念库上限 9：满了之后选择新理念时会进入第二步，提示你放弃 1 个旧的',
+                    '卡槽数量随时代逐步解锁：起始 3 个，最多 10 个',
+                    '点击卡槽里的理念可"卸下"，卸下后会有冷却期不能立刻重装',
+                    '装备到卡槽的理念才会真正生效，未装备的只贡献集卡进度'
+                ]
+            },
+
+            { type: 'h4', text: '4. 稀有度与等级' },
+            {
+                type: 'list', items: [
+                    '稀有度：普通（灰）/ 稀有（绿）/ 史诗（蓝）/ 传奇（金），权重与稀有度负相关',
+                    '每个理念有 3 级：1 级解锁身份效果、2 级强化引擎、3 级解锁临界/危机能力',
+                    '升级理念只能通过涌现抽到同一 ID 的"升级"选项',
+                    '高级效果通常是 converters（按资源/人口转化收益）、ruleMods（规则修正）和 onEvents（事件触发奖励）三类'
+                ]
+            },
+
+            { type: 'h4', text: '5. 联动与反协同' },
+            { type: 'p', text: '同时装备特定组合的理念会触发联动/矛盾：' },
+            {
+                type: 'list', items: [
+                    '联动（IDEOLOGY_SYNERGIES）：满足条件的理念组合获得额外加成，部分还会解锁特殊机制（auto_build / resource_echo / crisis_immunity / epoch_rush）',
+                    '反协同（ANTI_SYNERGIES）：观念冲突的理念组合会触发负面效果，比如"自由 vs 集权"',
+                    '理念详情页会标注与该理念相关的所有联动/反协同，便于规划阵容'
+                ]
+            },
+
+            { type: 'h4', text: '6. 特殊机制说明' },
+            {
+                type: 'list', items: [
+                    'auto_build：联动激活后，每 N 天自动建造指定建筑',
+                    'resource_echo：获得某资源时额外得到一定比例的另一种资源（回声）',
+                    'crisis_immunity：免疫某类危机事件（如稳定度危机）',
+                    'epoch_rush：时代升级所需资源减少'
+                ]
+            },
+
+            { type: 'h4', text: '7. 策略建议' },
+            {
+                type: 'list', items: [
+                    '前期优先选与你国策匹配的常驻效果（稳定度、采集、生产）',
+                    '中期开始关注 converters：储备越多收益越线性放大',
+                    '满级理念是性价比最高的，遇到已拥有的高稀有理念优先升级',
+                    '配对联动能拿到机制效果，远超单卡数值，是中后期质变的关键',
+                    '注意反协同，规划阵容前看下详情页的"理念矛盾"提示'
+                ]
+            }
+        ]
     }
 ];
 const CATEGORY_CONFIG = [
     { id: 'mechanics', label: '核心机制', icon: 'BookOpen' },
     { id: 'polities', label: '政体系统', icon: 'Crown' },
+    { id: 'ideologies', label: '理念体系', icon: 'Sparkles' },
     { id: 'economy', label: '社会阶层', icon: 'Users' },
     { id: 'buildings', label: '建筑设施', icon: 'Home' },
     { id: 'military', label: '军事单位', icon: 'Shield' },
@@ -1196,6 +1303,34 @@ const STRATA_NAME_MAP = Object.entries(STRATA || {}).reduce((acc, [key, value]) 
 const techNameById = (id) => TECH_NAME_MAP[id] || id;
 const buildingNameById = (id) => BUILDING_NAME_MAP[id] || id;
 const stratumNameById = (id) => STRATA_NAME_MAP[id] || id;
+
+/** 稀有度优先级（用于条目排序）：传奇 > 史诗 > 稀有 > 普通 */
+const IDEOLOGY_RARITY_PRIORITY = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
+
+/**
+ * 构建理念百科条目：按解锁时代升序、稀有度由高到低、最后按名称稳定排序。
+ */
+function buildIdeologyEntries() {
+    const list = [...IDEOLOGIES].sort((a, b) => {
+        const epochDiff = (a.unlockEpoch ?? 0) - (b.unlockEpoch ?? 0);
+        if (epochDiff !== 0) return epochDiff;
+        const rarityDiff = (IDEOLOGY_RARITY_PRIORITY[a.rarity] ?? 99) - (IDEOLOGY_RARITY_PRIORITY[b.rarity] ?? 99);
+        if (rarityDiff !== 0) return rarityDiff;
+        return (a.name || '').localeCompare(b.name || '', 'zh');
+    });
+    return list.map(ideology => {
+        const categoryMeta = IDEOLOGY_CATEGORIES[ideology.category] || {};
+        return {
+            id: ideology.id,
+            name: ideology.name,
+            summary: ideology.desc,
+            icon: ideology.icon || categoryMeta.icon || 'Sparkles',
+            iconColor: ideology.color || categoryMeta.color || 'text-purple-300',
+            type: 'ideology',
+            data: ideology,
+        };
+    });
+}
 
 const WIKI_DATA = buildWikiData();
 
@@ -1297,6 +1432,7 @@ function buildWikiData() {
             // 去重：只保留第一次出现的id
             self.findIndex(e => e.id === event.id) === index
         ),
+        ideologies: buildIdeologyEntries(),
         polities: POLITY_DEFINITIONS.filter(p => p.priority >= 0).map(polity => {
             // 生成触发条件描述
             const cond = polity.conditions || {};
@@ -1792,6 +1928,8 @@ const renderEntryDetails = (entry) => {
             return renderResourceDetails(data);
         case 'polity':
             return renderPolityDetails(data);
+        case 'ideology':
+            return renderIdeologyDetails(data);
         case 'event':
             return renderEventDetails(data);
         default:
@@ -2160,6 +2298,256 @@ const renderPolityDetails = (data) => {
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// --- 理念显示逻辑 ---
+
+const IdeologyEffectTag = ({ tag, isDelta = false }) => {
+    const formatted = typeof tag.value === 'number'
+        ? formatIdeologyEffectValue(tag.effectKey, tag.value)
+        : tag.value;
+    const cls = tag.positive
+        ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/40'
+        : 'bg-red-900/40 text-red-300 border border-red-700/40';
+    return (
+        <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded ${cls}`}>
+            {isDelta && <span className="text-green-400 font-bold">▲</span>}
+            <span>{tag.label}: {formatted}</span>
+        </span>
+    );
+};
+
+const renderIdeologyOnEvents = (onEvents, isInherited = false) => {
+    if (!onEvents?.length) return null;
+    return onEvents.map((oe, i) => {
+        const eventName = EVENT_DISPLAY_NAMES[oe.event] || oe.event;
+        const effectDesc = describeEventEffect(oe.effect);
+        const cooldownInfo = oe.cooldownDays ? `；冷却${formatIdeologyDuration(oe.cooldownDays)}` : '';
+        const maxInfo = oe.maxTriggers ? `；最多触发${oe.maxTriggers}次` : '';
+        return (
+            <p key={`oe-${i}`} className={`text-xs leading-snug ${isInherited ? 'text-amber-300/60' : 'text-amber-300'}`}>
+                ⚡ {isInherited ? <span className="text-amber-300/60">继承：</span> : null}
+                每次{eventName}：{effectDesc}{cooldownInfo}{maxInfo}
+            </p>
+        );
+    });
+};
+
+const renderIdeologyConverters = (converters, isInherited = false) => {
+    if (!converters?.length) return null;
+    return converters.map((c, i) => (
+        <p key={`c-${i}`} className={`text-xs leading-snug ${isInherited ? 'text-blue-300/60' : 'text-blue-300'}`}>
+            🔄 {isInherited ? <span className="text-blue-300/60">继承：</span> : null}
+            {describeConverter(c)}
+        </p>
+    ));
+};
+
+const renderIdeologyRuleMods = (ruleMods, isInherited = false) => {
+    if (!ruleMods?.length) return null;
+    return ruleMods.map((rm, i) => {
+        const label = RULE_MOD_LABELS[rm.type] || rm.type;
+        const scopeName = rm.scope && rm.scope !== '_global'
+            ? (IDEOLOGY_CATEGORY_LABELS[rm.scope] || IDEOLOGY_RESOURCE_LABELS[rm.scope] || IDEOLOGY_UNIT_CATEGORY_LABELS[rm.scope] || rm.scope)
+            : '';
+        const scopeText = scopeName ? `(${scopeName})` : '';
+        const valText = rm.value > 0 ? `+${(rm.value * 100).toFixed(0)}%` : `${(rm.value * 100).toFixed(0)}%`;
+        return (
+            <p key={`rm-${i}`} className={`text-xs leading-snug ${isInherited ? 'text-cyan-300/60' : 'text-cyan-300'}`}>
+                ⚙️ {isInherited ? <span className="text-cyan-300/60">继承：</span> : null}
+                {label}{scopeText}: {valText}
+            </p>
+        );
+    });
+};
+
+const renderIdeologyTriggerEffects = (triggerEffects, isInherited = false) => {
+    if (!triggerEffects?.length) return null;
+    return triggerEffects.map((te, i) => (
+        <p key={`te-${i}`} className={`text-xs leading-snug ${isInherited ? 'text-purple-300/60' : 'text-purple-300'}`}>
+            <Icon name="Zap" size={10} className={`inline mr-1 ${isInherited ? 'text-purple-400/60' : 'text-purple-400'}`} />
+            {isInherited ? <span className="text-purple-300/60">继承：</span> : null}
+            {describeTriggerEffect(te)}
+        </p>
+    ));
+};
+
+const renderWeightModifiers = (modifiers) => {
+    if (!modifiers || !modifiers.length) return null;
+    const items = modifiers.map((mod, idx) => {
+        const cond = mod.condition || {};
+        const parts = [];
+        if (cond.stratum && cond.minPop) {
+            parts.push(`${stratumNameById(cond.stratum)}人口≥${cond.minPop}`);
+        }
+        if (cond.minTechs) parts.push(`已研发科技≥${cond.minTechs}`);
+        if (cond.minEpoch !== undefined) parts.push(`至少进入${formatEpoch(cond.minEpoch)}`);
+        if (cond.stabilityBelow !== undefined) parts.push(`稳定度<${cond.stabilityBelow}`);
+        if (cond.recentWar !== undefined) parts.push(`近期发生战争`);
+        const conditionText = parts.length > 0 ? parts.join('，') : '默认';
+        const mult = mod.multiplier ?? 1;
+        const sign = mult >= 1 ? '×' : '×';
+        const valStr = `${sign}${mult.toFixed(2)}`;
+        const isBoost = mult > 1;
+        return (
+            <li key={idx} className={`text-xs ${isBoost ? 'text-emerald-300' : 'text-orange-300'}`}>
+                {conditionText} → 出现权重 {valStr}
+            </li>
+        );
+    });
+    return (
+        <div>
+            <h4 className="text-sm font-medium text-gray-400 mb-2 border-l-4 border-pink-500/50 pl-3">出现倾向</h4>
+            <ul className="bg-gray-800/60 p-3 rounded-lg border border-gray-700/50 space-y-1 list-disc list-inside">
+                {items}
+            </ul>
+        </div>
+    );
+};
+
+const renderIdeologyDetails = (data) => {
+    const categoryMeta = IDEOLOGY_CATEGORIES[data.category] || {};
+    const rarityMeta = IDEOLOGY_RARITY_CONFIG[data.rarity] || IDEOLOGY_RARITY_CONFIG.common;
+    const levels = data.effects?.levels || [];
+    const aggregatedTriggers = getAggregatedTriggerEffects(data, levels.length || 3);
+
+    const tagRows = [
+        { label: '分类', value: categoryMeta.name || data.category },
+        { label: '稀有度', value: rarityMeta.label || data.rarity },
+        { label: '解锁时代', value: formatEpoch(data.unlockEpoch) || '起始' },
+    ];
+
+    return (
+        <div className="space-y-4">
+            {/* 顶部 banner：分类 + 稀有度 + 时代 */}
+            <div className="flex flex-wrap gap-2 items-center">
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border ${categoryMeta.bgClass || 'bg-gray-800/70'} ${categoryMeta.color || 'text-gray-300'} border-gray-700/60`}>
+                    <Icon name={categoryMeta.icon || 'Sparkles'} size={12} />
+                    {categoryMeta.name || data.category}
+                </span>
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border font-semibold ${rarityMeta.bgBadge} ${rarityMeta.color} ${rarityMeta.borderColor}/40`}>
+                    {rarityMeta.label || data.rarity}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border bg-gray-800/70 text-gray-300 border-gray-700/60">
+                    <Icon name="Clock" size={12} className="text-indigo-300" />
+                    {formatEpoch(data.unlockEpoch) || '起始时代'}
+                </span>
+            </div>
+
+            {/* 主描述 */}
+            <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+                <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
+                {data.lore && (
+                    <p className="text-gray-500 text-xs mt-2 italic border-l-2 border-amber-500/40 pl-2">
+                        {data.lore}
+                    </p>
+                )}
+            </div>
+
+            <InfoGrid rows={tagRows} />
+
+            {/* 3 级递进效果 */}
+            {levels.length > 0 && (
+                <div>
+                    <h4 className="text-sm font-medium text-gray-400 mb-2 border-l-4 border-indigo-500/50 pl-3">效果递进（每级在前一级基础上叠加）</h4>
+                    <div className="space-y-3">
+                        {levels.map((_, i) => {
+                            const delta = getLevelIncrementalEffects(levels, i);
+                            const deltaTags = ideologyEffectsToTags(delta);
+                            const inheritedConverters = getLevelInheritedItems(levels, i, 'converters');
+                            const inheritedRuleMods = getLevelInheritedItems(levels, i, 'ruleMods');
+                            const inheritedTriggers = getLevelInheritedItems(levels, i, 'triggerEffects');
+                            const inheritedOnEvents = getLevelInheritedItems(levels, i, 'onEvents');
+                            const hasAnything = deltaTags.length > 0
+                                || delta.onEvents?.length > 0
+                                || delta.converters?.length > 0
+                                || delta.ruleMods?.length > 0
+                                || delta.triggerEffects?.length > 0
+                                || inheritedOnEvents.length > 0
+                                || inheritedConverters.length > 0
+                                || inheritedRuleMods.length > 0
+                                || inheritedTriggers.length > 0;
+                            return (
+                                <div key={i} className="bg-gray-800/50 rounded-lg border border-gray-700/50 p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xs font-semibold text-amber-300">
+                                            {LEVEL_STAGE_LABELS[i] || `${i + 1}级`}
+                                        </span>
+                                        {i === 0 && (
+                                            <span className="text-[10px] text-gray-500">解锁身份效果</span>
+                                        )}
+                                        {i === 1 && (
+                                            <span className="text-[10px] text-gray-500">强化引擎</span>
+                                        )}
+                                        {i === 2 && (
+                                            <span className="text-[10px] text-gray-500">解锁临界能力</span>
+                                        )}
+                                    </div>
+
+                                    {/* 数值标签 */}
+                                    {deltaTags.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mb-2">
+                                            {deltaTags.map((tag, j) => (
+                                                <IdeologyEffectTag key={j} tag={tag} isDelta={i > 0} />
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* 新增的特殊效果 */}
+                                    {(delta.onEvents?.length > 0
+                                        || delta.converters?.length > 0
+                                        || delta.ruleMods?.length > 0
+                                        || delta.triggerEffects?.length > 0) && (
+                                        <div className="space-y-1 mb-2">
+                                            {renderIdeologyOnEvents(delta.onEvents)}
+                                            {renderIdeologyConverters(delta.converters)}
+                                            {renderIdeologyRuleMods(delta.ruleMods)}
+                                            {renderIdeologyTriggerEffects(delta.triggerEffects)}
+                                        </div>
+                                    )}
+
+                                    {/* 继承的特殊效果 */}
+                                    {(inheritedOnEvents.length > 0
+                                        || inheritedConverters.length > 0
+                                        || inheritedRuleMods.length > 0
+                                        || inheritedTriggers.length > 0) && (
+                                        <div className="space-y-1 pt-2 border-t border-gray-700/40">
+                                            {renderIdeologyOnEvents(inheritedOnEvents, true)}
+                                            {renderIdeologyConverters(inheritedConverters, true)}
+                                            {renderIdeologyRuleMods(inheritedRuleMods, true)}
+                                            {renderIdeologyTriggerEffects(inheritedTriggers, true)}
+                                        </div>
+                                    )}
+
+                                    {!hasAnything && (
+                                        <p className="text-xs text-gray-500">本级无新增效果</p>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* 满级特殊效果总览 */}
+            {aggregatedTriggers.length > 0 && (
+                <div>
+                    <h4 className="text-sm font-medium text-gray-400 mb-2 border-l-4 border-purple-500/50 pl-3">满级特殊效果总览</h4>
+                    <div className="bg-purple-900/20 rounded-lg border border-purple-700/30 p-3 space-y-1">
+                        {aggregatedTriggers.map((te, i) => (
+                            <p key={i} className="text-xs text-purple-200 leading-snug">
+                                <Icon name="Zap" size={10} className="inline text-purple-400 mr-1" />
+                                {describeTriggerEffect(te)}
+                            </p>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* 出现倾向（weightModifiers） */}
+            {renderWeightModifiers(data.weightModifiers)}
         </div>
     );
 };

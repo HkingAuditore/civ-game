@@ -1123,7 +1123,7 @@ const MilitaryTabComponent = ({
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <h4 className="text-xs font-bold text-white font-decorative truncate">{unit.name}</h4>
-                                                        <span className="text-xs text-gray-400">×{army[unitId] || 0}</span>
+                                                        <span className="text-xs text-gray-400 flex-shrink-0">×{formatNumberShortCN(army[unitId] || 0)}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1 text-xs text-gray-400">
                                                         <span className={`px-1 py-0.5 rounded whitespace-nowrap ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
@@ -1139,15 +1139,17 @@ const MilitaryTabComponent = ({
                                                     onClick={(e) => { e.stopPropagation(); onRecruit(unitId, { count: recruitCount }); }}
                                                     disabled={!affordable}
                                                     title={!affordable ? getRecruitDisabledReason(unit, recruitCount) : `点击招募 ${recruitCount} 个`}
-                                                    className={`flex-1 px-2 py-1 rounded text-xs font-semibold transition-all active:scale-95 ${affordable
+                                                    className={`flex-1 min-w-0 px-1.5 py-1 rounded text-xs font-semibold transition-all active:scale-95 ${affordable
                                                         ? 'bg-green-600 hover:bg-green-500 text-white active:brightness-110'
                                                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                         }`}
                                                 >
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <Icon name="Plus" size={10} />
-                                                        {recruitCount > 1 && <span>x{recruitCount} </span>}
-                                                        <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
+                                                    <div className="flex items-center justify-center gap-0.5 flex-wrap">
+                                                        <span className="flex items-center gap-0.5">
+                                                            <Icon name="Plus" size={10} />
+                                                            {recruitCount > 1 && <span>x{formatNumberShortCN(recruitCount)}</span>}
+                                                        </span>
+                                                        <span className={`truncate ${(resources.silver || 0) < silverCost ? 'text-red-300' : ''}`}>
                                                             {formatSilverCost(silverCost)}
                                                         </span>
                                                     </div>
@@ -1175,7 +1177,7 @@ const MilitaryTabComponent = ({
                                                             e.preventDefault();
                                                             handlePressEnd(unitId);
                                                         }}
-                                                        className="relative px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-xs transition-colors select-none overflow-hidden"
+                                                        className="relative flex-shrink-0 px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-xs transition-colors select-none overflow-hidden whitespace-nowrap"
                                                         title={`点击解散${disbandCount}个，长按解散全部`}
                                                     >
                                                         <span className="relative z-10">解散{disbandCount > 1 ? `x${disbandCount}` : ''}</span>

@@ -162,7 +162,8 @@ const TaxBatchSheet = memo(({
     const resetAll = () => {
         onUpdateTaxPolicies(prev => {
             const headUpdated = { ...(prev?.headTaxRates || {}) };
-            strataToDisplay.forEach(key => { headUpdated[key] = 1; });
+            const defaultHeadTaxRate = headPercentToMultiplier(5);
+            strataToDisplay.forEach(key => { headUpdated[key] = defaultHeadTaxRate; });
             const resUpdated = { ...(prev?.resourceTaxRates || {}) };
             taxableResourceKeys.forEach(key => { resUpdated[key] = 0; });
             const bizUpdated = { ...(prev?.businessTaxRates || {}) };
@@ -600,6 +601,8 @@ const PoliticsTabComponent = ({
     onShowDecreeDetails,
     // [NEW] Generals for OfficialCard display
     generals = [],
+    // [NEW] Military corps used to validate general assignment in OfficialCard
+    militaryCorps = [],
     // [NEW] 产业政策切换回调
     changeOfficialPropertyPolicy,
 }) => {
@@ -897,7 +900,7 @@ const PoliticsTabComponent = ({
                 </div>
                 <div className="flex items-center gap-1">
                     <button type="button" onClick={() => {
-                        const newValue = isSubsidy ? 1.0 : -0.05;
+                        const newValue = isSubsidy ? headPercentToMultiplier(5) : -0.05;
                         onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates || {}), [key]: newValue } }));
                         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
                     }} className={`btn-compact flex-shrink-0 w-5 h-5 border rounded text-xs font-bold flex items-center justify-center transition-colors ${isSubsidy ? 'bg-green-900/50 hover:bg-green-800/50 border-green-600 text-green-300' : 'bg-gray-700 hover:bg-gray-600 border-gray-500 text-gray-300'}`}>{isSubsidy ? '补' : '税'}</button>
@@ -1178,6 +1181,7 @@ const PoliticsTabComponent = ({
                         onToggleDecree={onToggleDecree}
                         onShowDecreeDetails={onShowDecreeDetails}
                         generals={generals}
+                        militaryCorps={militaryCorps}
                         onChangeOfficialPolicy={changeOfficialPropertyPolicy}
                     />
                 ) : (

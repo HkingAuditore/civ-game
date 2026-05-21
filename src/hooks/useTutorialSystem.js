@@ -38,6 +38,9 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
     // 稳定引用 gameState，避免 useCallback/useEffect 因 gameState 对象身份变化而频繁重建
     const gameStateRef = useRef(gameState);
     gameStateRef.current = gameState;
+    // 稳定引用 onComplete，防止调用方内联函数导致 nextStep/skipTutorial 每帧重建 → React #185
+    const onCompleteRef = useRef(onComplete);
+    onCompleteRef.current = onComplete;
 
     // 获取当前步骤信息
     const currentStep = getStepById(currentStepId);
@@ -95,8 +98,8 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
     const skipTutorial = useCallback(() => {
         setIsActive(false);
         markTutorialCompleted();
-        onComplete?.();
-    }, [markTutorialCompleted, onComplete]);
+        onCompleteRef.current?.();
+    }, [markTutorialCompleted]);
 
     /**
      * 进入下一步
@@ -122,9 +125,9 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
         } else {
             setIsActive(false);
             markTutorialCompleted();
-            onComplete?.();
+            onCompleteRef.current?.();
         }
-    }, [currentStepId, markTutorialCompleted, onComplete]);
+    }, [currentStepId, markTutorialCompleted]);
 
     /**
      * 更新目标元素位置

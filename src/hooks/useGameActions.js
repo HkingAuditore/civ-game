@@ -84,6 +84,8 @@ import {
 import { getOrganizationStage, getPhaseFromStage } from '../logic/organizationSystem';
 import { ORGANIZATION_TYPE_CONFIGS, createOrganization, getOrganizationMaxMembers } from '../logic/diplomacy/organizationDiplomacy';
 import { getLegacyPolicyDecrees } from '../logic/officials/cabinetSynergy';
+import { getGovernmentType } from '../logic/rulingCoalition';
+import { getPolityOfficialPreferences } from '../config/polityEffects';
 import {
     triggerSelection,
     hireOfficial,
@@ -115,6 +117,87 @@ const applyCooldownModifier = (baseDays, modifier = 0) => {
     if (!Number.isFinite(baseDays) || baseDays <= 0) return baseDays;
     const normalizedModifier = Number.isFinite(modifier) ? modifier : 0;
     return Math.max(1, Math.round(baseDays * (1 + normalizedModifier)));
+};
+
+const normalizeInvestmentCount = (investment) => {
+    const rawCount = Number(investment?.count);
+    return Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 1;
+};
+
+const scaleInvestmentByCount = (investment, nextCount) => {
+    const currentCount = normalizeInvestmentCount(investment);
+    const targetCount = Math.max(0, Number(nextCount) || 0);
+    if (targetCount >= currentCount) {
+        return {
+            ...investment,
+            count: targetCount,
+        };
+    }
+
+    const ratio = currentCount > 0 ? targetCount / currentCount : 0;
+    const scaleValue = (value) => (Number.isFinite(value) ? value * ratio : value);
+
+    const operatingData = investment?.operatingData
+        ? {
+            ...investment.operatingData,
+            outputValue: scaleValue(investment.operatingData.outputValue),
+            inputCost: scaleValue(investment.operatingData.inputCost),
+            wageCost: scaleValue(investment.operatingData.wageCost),
+            businessTaxCost: scaleValue(investment.operatingData.businessTaxCost),
+            transportCost: scaleValue(investment.operatingData.transportCost),
+            tariffCost: scaleValue(investment.operatingData.tariffCost),
+            tariffRevenue: scaleValue(investment.operatingData.tariffRevenue),
+            tariffSubsidy: scaleValue(investment.operatingData.tariffSubsidy),
+            taxPaid: scaleValue(investment.operatingData.taxPaid),
+            profitRepatriated: scaleValue(investment.operatingData.profitRepatriated),
+            theoreticalProfit: scaleValue(investment.operatingData.theoreticalProfit),
+            profit: scaleValue(investment.operatingData.profit),
+        }
+        : investment?.operatingData;
+
+    return {
+        ...investment,
+        count: targetCount,
+        investmentAmount: scaleValue(investment?.investmentAmount),
+        dailyProfit: scaleValue(investment?.dailyProfit),
+        jobsProvided: scaleValue(investment?.jobsProvided),
+        operatingData,
+    };
+};
+
+const clampForeignInvestmentsByBuildingCount = (foreignInvestments, buildingId, maxBuildingCount) => {
+    if (!Array.isArray(foreignInvestments) || !buildingId) return foreignInvestments;
+
+    const maxCount = Math.max(0, Number(maxBuildingCount) || 0);
+    const operatingTotal = foreignInvestments.reduce((sum, inv) => {
+        if (inv?.buildingId !== buildingId || inv?.status !== 'operating') return sum;
+        return sum + normalizeInvestmentCount(inv);
+    }, 0);
+
+    if (operatingTotal <= maxCount) return foreignInvestments;
+
+    let toRemove = operatingTotal - maxCount;
+    const next = [...foreignInvestments];
+
+    // 从最新外资开始回收，确保拆除后外资持有不超过剩余建筑数
+    for (let i = next.length - 1; i >= 0 && toRemove > 0; i--) {
+        const investment = next[i];
+        if (investment?.buildingId !== buildingId || investment?.status !== 'operating') continue;
+
+        const currentCount = normalizeInvestmentCount(investment);
+        const removeCount = Math.min(currentCount, toRemove);
+        const keptCount = currentCount - removeCount;
+        toRemove -= removeCount;
+
+        if (keptCount <= 0) {
+            next[i] = null;
+            continue;
+        }
+
+        next[i] = scaleInvestmentByCount(investment, keptCount);
+    }
+
+    return next.filter(Boolean);
 };
 
 
@@ -1767,6 +1850,12 @@ export const useGameActions = (gameState, addLog) => {
             return { ...prev, [id]: newVal };
         });
 
+        // 修复：拆除后同步裁剪该建筑的外资持有量，避免出现“建筑归零但外资残留”
+        const targetBuildingCount = Math.max(0, currentCount - sellCount);
+        setForeignInvestments(prev =>
+            clampForeignInvestmentsByBuildingCount(prev, id, targetBuildingCount)
+        );
+
         // 写入 pending queue，防止 tick 覆盖此操作
         if (pendingActionsRef?.current) {
             pendingActionsRef.current.buildingDeltas[id] =
@@ -2377,7 +2466,21 @@ export const useGameActions = (gameState, addLog) => {
             addLog('选拔仍在冷却中。');
             return;
         }
-        const candidates = triggerSelection(epoch, popStructure, classInfluence, market, rates, officials || []);
+
+        // 计算当前政体的官员偏好
+        let polityPreferences = null;
+        if (rulingCoalition && rulingCoalition.length > 0) {
+            const currentPolity = getGovernmentType(
+                rulingCoalition,
+                classInfluence || {},
+                gameState.totalInfluence || 0
+            );
+            if (currentPolity && currentPolity.name) {
+                polityPreferences = getPolityOfficialPreferences(currentPolity.name);
+            }
+        }
+
+        const candidates = triggerSelection(epoch, popStructure, classInfluence, market, rates, officials || [], polityPreferences);
         setOfficialCandidates(candidates);
         setLastSelectionDay(daysElapsed);
         addLog('已举行新一轮官员选拔，请查看候选人名单。');

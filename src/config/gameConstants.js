@@ -10,13 +10,6 @@
 export const GAME_SPEEDS = [0.5, 1, 2, 3, 5];
 
 /**
- * 财富衰减率 (生活损耗/Lifestyle Inflation)
- * 每日按比例衰减财富，防止无限积累
- * 0.005 = 0.5% per day
- */
-export const WEALTH_DECAY_RATE = 0.005;
-
-/**
  * 日志与历史记录存储上限
  * Reduced to minimize save file size and prevent localStorage quota issues
  */
@@ -57,14 +50,14 @@ export const RESOURCES = {
         icon: 'Wheat',
         color: "text-yellow-400",
         basePrice: 1.0,
-        minPrice: 0.1,
-        maxPrice: 150,  // Essential: 150x cap for social stability
+        minPrice: 0,
+        maxPrice: 500,  // Survival essential: 500x cap (饥荒时"米斗万钱"级别，足以驱动剧烈劳动力转移)
         defaultOwner: 'peasant',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material'],
         // 粮食的差异化市场配置：作为基础必需品，价格波动更小，库存目标更高
         marketConfig: {
-            supplyDemandWeight: 0.4,        // 供需对价格影响较小（必需品价格相对稳定）
+            supplyDemandWeight: 0.6,        // [FIX-C] 0.4→0.6：让供需信号更敏感，避免补贴/紧缺时价格被压制（危机段已自动解除压制）
             inventoryTargetDays: 146.0,       // 目标库存天数（战略储备）
             inventoryPriceImpact: 0.15,     // 库存对价格影响较小
             demandElasticity: 0.2,          // 需求弹性低（必需品，价格变化对需求影响小）
@@ -76,7 +69,7 @@ export const RESOURCES = {
         icon: 'Trees',
         color: "text-emerald-400",
         basePrice: 2.0,
-        minPrice: 0.02,
+        minPrice: 0,
         maxPrice: 300,  // Raw material: 150x cap
         defaultOwner: 'lumberjack',
         unlockEpoch: 0,
@@ -95,7 +88,7 @@ export const RESOURCES = {
         icon: 'Pickaxe',
         color: "text-stone-400",
         basePrice: 3.0,
-        minPrice: 0.03,
+        minPrice: 0,
         maxPrice: 450,  // Raw material: 150x cap
         defaultOwner: 'miner',
         unlockEpoch: 0,
@@ -114,8 +107,8 @@ export const RESOURCES = {
         icon: 'Shirt',
         color: "text-indigo-300",
         basePrice: 1.5,
-        minPrice: 0.015,
-        maxPrice: 325,  // Essential: 217x cap for social stability
+        minPrice: 0,
+        maxPrice: 750,  // Survival essential: 500x cap (与粮食对齐，衣物短缺亦是社会稳定底线)
         defaultOwner: 'worker',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material', 'manufactured'],
@@ -133,7 +126,7 @@ export const RESOURCES = {
         icon: 'Home',
         color: "text-red-400",
         basePrice: 6.0,
-        minPrice: 0.06,
+        minPrice: 0,
         maxPrice: 1500,  // Industrial: 250x cap
         defaultOwner: 'artisan',
         unlockEpoch: 0,
@@ -153,7 +146,7 @@ export const RESOURCES = {
         icon: 'Anvil',
         color: "text-blue-300",
         basePrice: 16.0,
-        minPrice: 0.16,
+        minPrice: 0,
         maxPrice: 4000,  // Industrial: 250x cap
         defaultOwner: 'artisan',
         unlockEpoch: 0,
@@ -175,7 +168,7 @@ export const RESOURCES = {
         icon: 'TreeDeciduous',
         color: "text-amber-600",
         basePrice: 5.0,
-        minPrice: 0.05,
+        minPrice: 0,
         maxPrice: 1250,  // Industrial: 250x cap
         defaultOwner: 'worker',
         unlockEpoch: 1,
@@ -195,7 +188,7 @@ export const RESOURCES = {
         icon: 'Pickaxe',
         color: "text-orange-400",
         basePrice: 5.5,
-        minPrice: 0.055,
+        minPrice: 0,
         maxPrice: 825,  // Raw material: 150x cap
         defaultOwner: 'miner',
         unlockEpoch: 1,
@@ -215,7 +208,7 @@ export const RESOURCES = {
         icon: 'Droplets',
         color: "text-pink-500",
         basePrice: 5.0,
-        minPrice: 0.05,
+        minPrice: 0,
         maxPrice: 750,  // Raw material: 150x cap
         defaultOwner: 'artisan',
         unlockEpoch: 1,
@@ -236,7 +229,7 @@ export const RESOURCES = {
         icon: 'ScrollText',
         color: "text-lime-300",
         basePrice: 6.5,
-        minPrice: 0.065,
+        minPrice: 0,
         maxPrice: 1625,  // Industrial: 250x cap
         defaultOwner: 'scribe',
         unlockEpoch: 2,
@@ -256,7 +249,7 @@ export const RESOURCES = {
         icon: 'UtensilsCrossed',
         color: "text-rose-400",
         basePrice: 24,
-        minPrice: 0.24,
+        minPrice: 0,
         maxPrice: 12000,  // Luxury: 500x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
@@ -276,7 +269,7 @@ export const RESOURCES = {
         icon: 'Armchair',
         color: "text-amber-500",
         basePrice: 28,
-        minPrice: 0.28,
+        minPrice: 0,
         maxPrice: 14000,  // Luxury: 500x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
@@ -292,7 +285,7 @@ export const RESOURCES = {
         }
     },
     ale: {
-        name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 18, minPrice: 0.18, maxPrice: 1800,  // Luxury: 100x cap
+        name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 18, minPrice: 0, maxPrice: 1800,  // Luxury: 100x cap
         defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'],
         // Tier 3 奢侈品资源：高波动性、高敏感度配置
         marketConfig: { supplyDemandWeight: 1.6, inventoryTargetDays: 150.0, inventoryPriceImpact: 0.5, demandElasticity: 1.5, outputVariation: 0.2 }
@@ -303,7 +296,7 @@ export const RESOURCES = {
         icon: 'Shirt',
         color: "text-purple-400",
         basePrice: 32,
-        minPrice: 0.32,
+        minPrice: 0,
         maxPrice: 3200,  // Luxury: 100x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
@@ -324,7 +317,7 @@ export const RESOURCES = {
         icon: 'Pickaxe',
         color: "text-zinc-400",
         basePrice: 8.0,
-        minPrice: 0.08,
+        minPrice: 0,
         maxPrice: 240,  // Raw material: 30x cap
         defaultOwner: 'miner',
         unlockEpoch: 2,
@@ -346,7 +339,7 @@ export const RESOURCES = {
         icon: 'Swords',
         color: "text-slate-300",
         basePrice: 20.0,
-        minPrice: 0.2,
+        minPrice: 0,
         maxPrice: 600,  // Military manufactured: 30x cap
         defaultOwner: 'artisan',
         unlockEpoch: 2,
@@ -368,7 +361,7 @@ export const RESOURCES = {
         icon: 'Shield',
         color: "text-zinc-300",
         basePrice: 35.0,
-        minPrice: 0.35,
+        minPrice: 0,
         maxPrice: 1050,  // Military manufactured: 30x cap
         defaultOwner: 'artisan',
         unlockEpoch: 3,
@@ -390,12 +383,12 @@ export const RESOURCES = {
         icon: 'Leaf',
         color: "text-amber-400",
         basePrice: 26,
-        minPrice: 0.26,
+        minPrice: 0,
         maxPrice: 2600,  // Luxury trade good: 100x cap
         defaultOwner: 'merchant',
         unlockEpoch: 4,
         unlockTech: 'cartography',
-        tags: ['essential', 'manufactured'],
+        tags: ['manufactured'],  // 贸易奢侈品，非生存必需
         // 贸易商品：高波动性
         marketConfig: {
             supplyDemandWeight: 1.4,        // 供需影响大（贸易品）
@@ -412,7 +405,7 @@ export const RESOURCES = {
         icon: 'Flame',
         color: "text-orange-500",
         basePrice: 18.0,
-        minPrice: 0.18,
+        minPrice: 0,
         maxPrice: 540,  // Military consumable: 30x cap
         defaultOwner: 'artisan',
         unlockEpoch: 4,
@@ -432,7 +425,7 @@ export const RESOURCES = {
         icon: 'Crosshair',
         color: "text-amber-600",
         basePrice: 30.0,
-        minPrice: 0.3,
+        minPrice: 0,
         maxPrice: 900,  // Military manufactured: 30x cap
         defaultOwner: 'artisan',
         unlockEpoch: 4,
@@ -454,12 +447,12 @@ export const RESOURCES = {
         icon: 'Coffee',
         color: "text-amber-700",
         basePrice: 24,
-        minPrice: 0.24,
+        minPrice: 0,
         maxPrice: 2400,  // Luxury consumable: 100x cap
         defaultOwner: 'merchant',
         unlockEpoch: 5,
         unlockTech: 'coffee_agronomy',
-        tags: ['essential', 'manufactured'],
+        tags: ['manufactured'],  // 日常消费奢侈品，非生存必需
         // 消费品：中高波动性
         marketConfig: {
             supplyDemandWeight: 1.2,        // 供需影响较大
@@ -476,7 +469,7 @@ export const RESOURCES = {
         icon: 'Target',
         color: "text-gray-400",
         basePrice: 45.0,
-        minPrice: 0.45,
+        minPrice: 0,
         maxPrice: 1350,  // Military manufactured: 30x cap
         defaultOwner: 'artisan',
         unlockEpoch: 5,
@@ -496,7 +489,7 @@ export const RESOURCES = {
         icon: 'Bomb',
         color: "text-red-500",
         basePrice: 15.0,
-        minPrice: 0.15,
+        minPrice: 0,
         maxPrice: 450,  // Military consumable: 30x cap
         defaultOwner: 'artisan',
         unlockEpoch: 5,
@@ -518,7 +511,7 @@ export const RESOURCES = {
         icon: 'Flame',
         color: "text-slate-300",
         basePrice: 7.5,
-        minPrice: 0.075,
+        minPrice: 0,
         maxPrice: 225,  // Raw material: 30x cap
         defaultOwner: 'miner',
         unlockEpoch: 6,
@@ -538,7 +531,7 @@ export const RESOURCES = {
         icon: 'Cog',
         color: "text-gray-300",
         basePrice: 40,
-        minPrice: 0.4,
+        minPrice: 0,
         maxPrice: 2000,  // Industrial: 50x cap
         defaultOwner: 'engineer',
         unlockEpoch: 6,
@@ -560,7 +553,7 @@ export const RESOURCES = {
         icon: 'Bomb',
         color: "text-red-600",
         basePrice: 60.0,
-        minPrice: 0.6,
+        minPrice: 0,
         maxPrice: 9000,  // Military manufactured: 150x cap
         defaultOwner: 'engineer',
         unlockEpoch: 6,
@@ -582,7 +575,7 @@ export const RESOURCES = {
         icon: 'Flower2',
         color: "text-amber-100",
         basePrice: 4.0,
-        minPrice: 0.04,
+        minPrice: 0,
         maxPrice: 200,
         defaultOwner: 'merchant',
         unlockEpoch: 4,
@@ -603,7 +596,7 @@ export const RESOURCES = {
         icon: 'Droplet',
         color: "text-amber-900",
         basePrice: 8.0,
-        minPrice: 0.08,
+        minPrice: 0,
         maxPrice: 400,
         defaultOwner: 'capitalist',
         unlockEpoch: 7,
@@ -622,7 +615,7 @@ export const RESOURCES = {
         icon: 'Circle',
         color: "text-gray-600",
         basePrice: 6.0,
-        minPrice: 0.06,
+        minPrice: 0,
         maxPrice: 300,
         defaultOwner: 'merchant',
         unlockEpoch: 7,
@@ -641,7 +634,7 @@ export const RESOURCES = {
         icon: 'Beaker',
         color: "text-green-400",
         basePrice: 18.0,
-        minPrice: 0.18,
+        minPrice: 0,
         maxPrice: 1800,
         defaultOwner: 'engineer',
         unlockEpoch: 7,
@@ -660,7 +653,7 @@ export const RESOURCES = {
         icon: 'Zap',
         color: "text-yellow-500",
         basePrice: 14.0,
-        minPrice: 0.14,
+        minPrice: 0,
         maxPrice: 1400,
         defaultOwner: 'engineer',
         unlockEpoch: 7,
@@ -679,7 +672,7 @@ export const RESOURCES = {
         icon: 'Zap',
         color: "text-yellow-300",
         basePrice: 10.0,
-        minPrice: 0.1,
+        minPrice: 0,
         maxPrice: 500,
         defaultOwner: 'engineer',
         unlockEpoch: 7,
@@ -703,7 +696,7 @@ export const RESOURCES = {
         icon: 'Cog',
         color: "text-zinc-400",
         basePrice: 25.0,
-        minPrice: 0.25,
+        minPrice: 0,
         maxPrice: 2500,
         defaultOwner: 'engineer',
         unlockEpoch: 7,
@@ -722,7 +715,7 @@ export const RESOURCES = {
         icon: 'Layers',
         color: "text-purple-400",
         basePrice: 18.0,
-        minPrice: 0.18,
+        minPrice: 0,
         maxPrice: 1800,
         defaultOwner: 'capitalist',
         unlockEpoch: 7,
@@ -741,7 +734,7 @@ export const RESOURCES = {
         icon: 'Sprout',
         color: "text-green-400",
         basePrice: 15.0,
-        minPrice: 0.15,
+        minPrice: 0,
         maxPrice: 2250,
         defaultOwner: 'engineer',
         unlockEpoch: 7,
@@ -760,7 +753,7 @@ export const RESOURCES = {
         icon: 'Car',
         color: "text-blue-400",
         basePrice: 150.0,
-        minPrice: 1.5,
+        minPrice: 0,
         maxPrice: 15000,
         defaultOwner: 'capitalist',
         unlockEpoch: 7,
@@ -781,7 +774,7 @@ export const RESOURCES = {
         icon: 'Package',
         color: "text-blue-300",
         basePrice: 15.0,
-        minPrice: 0.15,
+        minPrice: 0,
         maxPrice: 1500,
         defaultOwner: 'engineer',
         unlockEpoch: 8,
@@ -800,7 +793,7 @@ export const RESOURCES = {
         icon: 'Cpu',
         color: "text-emerald-300",
         basePrice: 40.0,
-        minPrice: 0.4,
+        minPrice: 0,
         maxPrice: 4000,
         defaultOwner: 'engineer',
         unlockEpoch: 8,
@@ -819,7 +812,7 @@ export const RESOURCES = {
         icon: 'Atom',
         color: "text-lime-400",
         basePrice: 12.0,
-        minPrice: 0.12,
+        minPrice: 0,
         maxPrice: 1200,
         defaultOwner: 'official',
         unlockEpoch: 8,
@@ -838,7 +831,7 @@ export const RESOURCES = {
         icon: 'Layers',
         color: "text-slate-300",
         basePrice: 22.0,
-        minPrice: 0.22,
+        minPrice: 0,
         maxPrice: 2200,
         defaultOwner: 'engineer',
         unlockEpoch: 8,
@@ -857,7 +850,7 @@ export const RESOURCES = {
         icon: 'Syringe',
         color: "text-red-300",
         basePrice: 35.0,
-        minPrice: 0.35,
+        minPrice: 0,
         maxPrice: 3500,
         defaultOwner: 'engineer',
         unlockEpoch: 8,
@@ -878,7 +871,7 @@ export const RESOURCES = {
         icon: 'Cpu',
         color: "text-teal-300",
         basePrice: 80.0,
-        minPrice: 0.8,
+        minPrice: 0,
         maxPrice: 8000,
         defaultOwner: 'engineer',
         unlockEpoch: 9,
@@ -897,7 +890,7 @@ export const RESOURCES = {
         icon: 'Code',
         color: "text-blue-400",
         basePrice: 50.0,
-        minPrice: 0.5,
+        minPrice: 0,
         maxPrice: 5000,
         defaultOwner: 'capitalist',
         unlockEpoch: 9,
@@ -916,7 +909,7 @@ export const RESOURCES = {
         icon: 'Layers',
         color: "text-indigo-300",
         basePrice: 45.0,
-        minPrice: 0.45,
+        minPrice: 0,
         maxPrice: 4500,
         defaultOwner: 'engineer',
         unlockEpoch: 9,
@@ -949,7 +942,7 @@ export const RESOURCES = {
         icon: 'Cpu',
         color: "text-cyan-400",
         basePrice: 5,
-        minPrice: 0.05,
+        minPrice: 0,
         maxPrice: 100,  // Special: 20x cap (government controlled)
         defaultOwner: 'official',
         unlockEpoch: 0,
@@ -968,7 +961,7 @@ export const RESOURCES = {
         icon: 'ScrollText',
         color: "text-pink-400",
         basePrice: 2.0,
-        minPrice: 0.025,
+        minPrice: 0,
         maxPrice: 40,  // Special: 20x cap
         defaultOwner: 'cleric',
         unlockEpoch: 1,

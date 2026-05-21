@@ -24,9 +24,11 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
  * @param {Object} classInfluence - 当前影响力占比 { stratumKey: influencePercent }
  * @param {Object} market - 当前市场数据（包含 prices 等信息）
  * @param {Object} rates - 当前资源速率（用于估算规模）
+ * @param {Array} existingOfficials - 已有官员列表
+ * @param {Object|null} polityPreferences - 政体官员偏好 { stratumWeights: {}, statBonuses: {} }
  * @returns {Array} 新生成的候选人列表
  */
-export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, existingOfficials = []) => {
+export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, existingOfficials = [], polityPreferences = null) => {
     const candidates = [];
     // 收集已有官员和候选人的名字，避免重名
     const usedNames = new Set(existingOfficials.map(o => o.name).filter(Boolean));
@@ -34,7 +36,7 @@ export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, 
     let attempts = 0;
     const maxAttempts = 20; // 最多尝试20次，防止死循环
     while (candidates.length < 5 && attempts < maxAttempts) {
-        const candidate = generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length);
+        const candidate = generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length, polityPreferences);
         if (!usedNames.has(candidate.name)) {
             usedNames.add(candidate.name);
             candidates.push(candidate);
@@ -43,7 +45,7 @@ export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, 
     }
     // 如果尝试次数用完仍不足5人，直接补充（允许重名）
     while (candidates.length < 5) {
-        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length));
+        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates, candidates.length, polityPreferences));
     }
     return candidates;
 };
@@ -1083,17 +1085,22 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
 
     // 从代经营制切换走：清除代管关系
     if (fromPolicy === 'state_managed') {
-        if (toPolicy === 'private') {
-            // 代管→私产：代管建筑转为私产
-            newPropertySummary = {
-                byBuilding: { ...newPropertySummary.byBuilding, ...newManagedSummary.byBuilding },
-                byBuildingLevel: { ...newPropertySummary.byBuildingLevel },
-                totalCount: (newPropertySummary.totalCount || 0) + (newManagedSummary.totalCount || 0),
-            };
-            newManagedSummary = { byBuilding: {}, totalCount: 0 };
-        } else {
-            newManagedSummary = { byBuilding: {}, totalCount: 0 };
+        // [BUG FIX] 代管建筑是"国有"资产，与该官员的个人产权无关。
+        //   - 旧实现：代管→私产 时把 _managedSummary 整个并入 _propertySummary，
+        //     把国有建筑直接"洗白"成官员私产；该官员之后一旦政变，就会把这些
+        //     "假私产"（实为国有）一并带走 → 表现为"官员谋反后几乎所有建筑都没了"。
+        //   - 正确语义：切换出代经营后，官员只解除"代管职责"，国有建筑实体保留，
+        //     归属归类自然回退为"阶层业主"（参见 ownerTypes.buildOwnershipListFromLegacy
+        //     的剩余兜底逻辑）。政变只会带走真正的私产，不会触及曾经代管的建筑。
+        const managedReleaseCount = newManagedSummary.totalCount || 0;
+        if (managedReleaseCount > 0) {
+            logMessages.push(
+                toPolicy === 'private'
+                    ? `${official.name}解除${managedReleaseCount}处国有建筑的代管，归还本国阶层经营`
+                    : `${official.name}解除${managedReleaseCount}处国有建筑的代管`
+            );
         }
+        newManagedSummary = { byBuilding: {}, totalCount: 0 };
     }
 
     const newLoyalty = Math.max(0, Math.min(100, (official.loyalty || 75) + loyaltyChange));

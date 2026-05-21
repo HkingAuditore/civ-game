@@ -1,9 +1,12 @@
 /**
- * 理念涌现抽取与三选一机制
- * 使用加权随机算法从可用理念池中抽取3个候选理念
+ * 理念涌现抽取与五选一机制
+ * 使用加权随机算法从可用理念池中抽取 5 个候选理念
  */
 
 import { IDEOLOGIES, IDEOLOGY_MAP } from '../../config/ideologies';
+
+/** 涌现候选数量 —— 集中常量，便于未来调整 */
+const EMERGENCE_CANDIDATE_COUNT = 5;
 
 const RARITY_WEIGHT_MULTIPLIERS = {
     common: 1,
@@ -36,11 +39,11 @@ const EPOCH_BALANCE_MAX_MULTIPLIER = 1.45;
 const SAME_EPOCH_PICK_DAMPING = 0.55;
 
 /**
- * 从可用理念池中加权随机抽取3个候选理念
+ * 从可用理念池中加权随机抽取候选理念
  * @param {Object} gameState - 游戏状态
  * @param {Array} ideologyCollection - 已拥有的理念库 [{ id, level }]
  * @param {number} rarityBonus - 跳过累积的稀有度加成（0~3，每次跳过+1）
- * @returns {Array} 3个候选理念对象 [{ ...ideologyConfig, isUpgrade: boolean, currentLevel: number }]
+ * @returns {Array} EMERGENCE_CANDIDATE_COUNT 个候选理念对象 [{ ...ideologyConfig, isUpgrade: boolean, currentLevel: number }]
  */
 export function generateEmergenceCandidates(gameState, ideologyCollection = [], rarityBonus = 0) {
     const { epoch = 0, rulingCoalition = [] } = gameState;
@@ -60,9 +63,9 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
         return true;
     });
 
-    // 如果池子不足3个，返回所有可用的
+    // 如果池子不足候选数量，返回所有可用的
     if (availablePool.length === 0) return [];
-    if (availablePool.length <= 3) {
+    if (availablePool.length <= EMERGENCE_CANDIDATE_COUNT) {
         return availablePool.map(ideology => _enrichCandidate(ideology, ownedMap));
     }
 
@@ -140,7 +143,7 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
         }
     }
 
-    for (let i = selected.length; i < 3 && pool.length > 0; i++) {
+    for (let i = selected.length; i < EMERGENCE_CANDIDATE_COUNT && pool.length > 0; i++) {
         const picked = _pickWeightedWithEpochDamping(pool, selected);
         if (!picked) break;
         selected.push(picked.ideology);

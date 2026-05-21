@@ -94,7 +94,7 @@ export const SHORTAGE_MIGRATION_BONUS = 0.3;
 export const EMERGENCY_MIGRATION_RATIO = JOB_MIGRATION_RATIO * 5;
 
 // Price calculation constants
-export const PRICE_FLOOR = 0.0001;
+export const PRICE_FLOOR = 0;
 export const BASE_WAGE_REFERENCE = 1;
 
 // Resources that cannot be traded normally
@@ -174,8 +174,75 @@ export const TIER_UPGRADE_ATTRACTIVENESS_BONUS = 0.08;
 // so that the subsidy policy is more visible to the migration decision system.
 // 补贴收入信号加成：当角色享受补贴（负人头税）时，额外提升其收入信号
 // 使补贴政策对人口迁移决策产生更直接的吸引力
+// 说明：自需求 1.1 修复后，补贴金额已按 1.0 倍并入 incomeSignal 主项；
+// 该常量保留用于"非补贴"语义场景（例如对正向 taxCostPerCapita 的信号缓和），向后兼容。
 export const SUBSIDY_INCOME_SIGNAL_BONUS = 0.5;
+
+// 补贴拉力加速倍率：当某阶层因补贴成为"显著高吸引力候选"时，
+// 本次迁移的有效迁移比例使用 JOB_MIGRATION_RATIO * SUBSIDY_PULL_MULTIPLIER。
+// 量级介于普通迁移（1×）与紧急迁移（5×）之间，确保补贴政策可见但不爆炸。
+// 来源：requirements.md 需求 3.1
+export const SUBSIDY_PULL_MULTIPLIER = 2.8;
+
+// 补贴强度阈值：补贴金额（人均日值）相对源角色 potentialIncome 的占比超过此值时，
+// 触发同 tier 阻力的线性削减（下限 1.0）。
+// 来源：requirements.md 需求 3.3
+export const SUBSIDY_RESISTANCE_REDUCTION_THRESHOLD = 0.3;
+
+// "显著高吸引力候选"判定倍率：目标候选 potentialIncome ≥ avgPotentialIncome * 此倍率
+// 且存在补贴时，启用补贴拉力加速与单向冷却。
+// 来源：requirements.md 需求 3.1
+export const SUBSIDY_HIGH_ATTRACTIVENESS_RATIO = 1.5;
+
+// ============== 生存危机迁移强化常量（方案 A：补贴信号危机时放大）==============
+// 解决"宁愿饿死也不去种田"问题：当生存物资严重短缺时，
+// 必须让"非紧缺生产者（如工匠）"作为迁出源、并大幅降低降级阻力 + 放大补贴信号。
+
+// 危机+紧缺生产+享受补贴 三重叠加时，对该角色的 incomeSignal 额外放大倍率
+// 例如：补贴金额 3 银币 + 倍率 4.0 → 信号增量 12（接近工匠工资数量级）
+// 仅在迁移决策的信号层放大，不影响实际银币流（保持税收结算语义不变）
+export const CRISIS_SUBSIDY_SIGNAL_MULTIPLIER = 4.0;
+
+// 危机时对紧缺资源生产角色的额外吸引力倍率
+// 即便该角色 potentialIncome 仅中等水平，也能在危机时被优先选为迁入目标
+export const CRITICAL_SHORTAGE_ATTRACTIVENESS_MULTIPLIER = 1.5;
+
+// 危机时降级到紧缺生产角色的阻力上限
+// 正常降级阻力 = DOWNGRADE_MIGRATION_RESISTANCE × MULTI_TIER_DOWNGRADE_PENALTY^(n-1) = 2.0+
+// 危机时直接 clamp 至此值，让工匠等高 tier 富余角色能下沉到 peasant
+export const CRISIS_DOWNGRADE_RESISTANCE_CAP = 1.0;
 
 // 空岗位吸引力加成系数（让空岗位预估收入稍微偏高，吸引人去尝试）
 // Vacant role attractiveness bonus - makes estimated income slightly higher to encourage migration
 export const VACANT_ROLE_ATTRACTIVENESS_BONUS = 1.2;
+
+// ============== 关键生产者保留锁常量 ==============
+// 用途：阻止 peasant 等关键资源生产者在自家岗位仍有空缺时被迁出（升 tier 跑路）。
+// 触发条件之一：补贴占收入比超过此阈值时，视为"政策维持"，禁止迁出。
+// 经济语义：补贴是政府用来留住该生产者的"工资支柱"，不该反成为升 tier 的燃料。
+export const SUBSIDY_DEPENDENCY_LOCK_RATIO = 0.25;
+
+// 关键生产者岗位空缺保留率：只要在岗率低于此值（即仍缺人），即使没触发危机阈值，
+// 该角色也禁止作为 sourceCandidate（防止"刚到岗就被升 tier 抽走"的循环）。
+// 1.0 表示岗位必须 100% 满员才允许迁出；0.95 留 5% 容差，避免边界震荡。
+export const CRITICAL_PRODUCER_RETENTION_FILL_RATE = 0.95;
+
+// ============== Sanity Check（需求 4.6 / E5）==============
+// 文件级自检：确保新增 Subsidy 常量为有限正数，避免上游 NaN 污染迁移决策。
+// 若任一常量异常，开发模式下 console.warn 而非抛错，保证主循环稳定性（需求 4.4）。
+(() => {
+    const subsidyConstants = {
+        SUBSIDY_INCOME_SIGNAL_BONUS,
+        SUBSIDY_PULL_MULTIPLIER,
+        SUBSIDY_RESISTANCE_REDUCTION_THRESHOLD,
+        SUBSIDY_HIGH_ATTRACTIVENESS_RATIO,
+        CRISIS_SUBSIDY_SIGNAL_MULTIPLIER,
+        CRITICAL_SHORTAGE_ATTRACTIVENESS_MULTIPLIER,
+        CRISIS_DOWNGRADE_RESISTANCE_CAP,
+    };
+    for (const [name, value] of Object.entries(subsidyConstants)) {
+        if (!Number.isFinite(value) || value < 0) {
+            console.warn(`[constants] Subsidy constant ${name} is invalid:`, value);
+        }
+    }
+})();

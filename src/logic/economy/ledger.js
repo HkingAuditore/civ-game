@@ -25,7 +25,6 @@ export const TRANSACTION_CATEGORIES = {
         WAGES_PAID: 'wages', // 业主支付给工人的工资
         ESSENTIAL_CONSUMPTION: 'essentialNeeds',
         LUXURY_CONSUMPTION: 'luxuryNeeds',
-        DECAY: 'decay', // 财富自然衰减
         MAINTENANCE: 'maintenance', // 维护费
         TRADE_EXPORT: 'tradeExport', // 贸易出口支出
         TRADE_EXPORT_PURCHASE: 'tradeExportPurchase', // 贸易出口购买成本

@@ -86,6 +86,7 @@ export function calculateEffectiveJobs(building, ownershipList) {
  */
 export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, foreignInvestments, building) {
     const ownershipList = [];
+    let remainingCount = Math.max(0, Number(totalCount) || 0);
     
     // 1. 统计官员私产数量（从 _propertySummary 读取）
     let officialCount = 0;
@@ -101,34 +102,47 @@ export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, 
         }
     });
     
-    if (officialCount > 0) {
+    if (officialCount > 0 && remainingCount > 0) {
+        const effectiveOfficialCount = Math.min(officialCount, remainingCount);
         ownershipList.push({
             ownerType: OWNER_TYPES.OFFICIAL,
-            count: officialCount,
+            count: effectiveOfficialCount,
             details: officialOwners, // 详细信息：哪个官员持有多少
         });
+        remainingCount -= effectiveOfficialCount;
     }
     
     // 2. 统计代经营（国有）建筑数量
-    // 逐官员模式：只要官员有 managedBuildings 就统计（不依赖全局策略标志）
+    // 优先读取 _managedSummary（新格式），兼容旧 managedBuildings 数组
     let stateCount = 0;
     const stateManagedBy = {}; // { officialId: count } 哪个官员代管多少
     (officials || []).forEach(official => {
-        (official.managedBuildings || []).forEach(mb => {
-            if (mb.buildingId === buildingId) {
-                stateCount += 1;
-                const managerId = official.id || official.name || 'unknown';
-                stateManagedBy[managerId] = (stateManagedBy[managerId] || 0) + 1;
-            }
-        });
+        const managedSummary = official._managedSummary;
+        if (managedSummary?.byBuilding?.[buildingId]) {
+            const cnt = managedSummary.byBuilding[buildingId];
+            stateCount += cnt;
+            const managerId = official.id || official.name || 'unknown';
+            stateManagedBy[managerId] = (stateManagedBy[managerId] || 0) + cnt;
+        } else if (Array.isArray(official.managedBuildings)) {
+            // 旧格式 fallback（未迁移的存档）
+            official.managedBuildings.forEach(mb => {
+                if (mb.buildingId === buildingId) {
+                    stateCount += 1;
+                    const managerId = official.id || official.name || 'unknown';
+                    stateManagedBy[managerId] = (stateManagedBy[managerId] || 0) + 1;
+                }
+            });
+        }
     });
 
-    if (stateCount > 0) {
+    if (stateCount > 0 && remainingCount > 0) {
+        const effectiveStateCount = Math.min(stateCount, remainingCount);
         ownershipList.push({
             ownerType: OWNER_TYPES.STATE,
-            count: stateCount,
+            count: effectiveStateCount,
             details: stateManagedBy, // 详细信息：哪个官员代管多少
         });
+        remainingCount -= effectiveStateCount;
     }
     
     // 3. 统计外资数量
@@ -136,22 +150,25 @@ export function buildOwnershipListFromLegacy(buildingId, totalCount, officials, 
     const foreignOwners = {}; // { nationId: count }
     (foreignInvestments || []).forEach(inv => {
         if (inv.buildingId === buildingId && inv.status === 'operating') {
-            foreignCount += 1;
+            const invCount = Math.max(0, Number(inv.count) || 1);
+            foreignCount += invCount;
             const nationId = inv.ownerNationId || 'unknown';
-            foreignOwners[nationId] = (foreignOwners[nationId] || 0) + 1;
+            foreignOwners[nationId] = (foreignOwners[nationId] || 0) + invCount;
         }
     });
     
-    if (foreignCount > 0) {
+    if (foreignCount > 0 && remainingCount > 0) {
+        const effectiveForeignCount = Math.min(foreignCount, remainingCount);
         ownershipList.push({
             ownerType: OWNER_TYPES.FOREIGN,
-            count: foreignCount,
+            count: effectiveForeignCount,
             details: foreignOwners, // 详细信息：哪个国家持有多少
         });
+        remainingCount -= effectiveForeignCount;
     }
     
     // 4. 剩余为阶层业主
-    const stratumCount = Math.max(0, totalCount - officialCount - stateCount - foreignCount);
+    const stratumCount = remainingCount;
     if (stratumCount > 0) {
         ownershipList.push({
             ownerType: OWNER_TYPES.STRATUM,
@@ -231,18 +248,36 @@ export function getOwnerTypeColors(ownerType) {
 export function getStateManagedBuildingStats(officials) {
     const stats = { totalCount: 0, byBuilding: {} };
     (officials || []).forEach(official => {
-        (official.managedBuildings || []).forEach(mb => {
-            const bid = mb.buildingId;
-            if (!stats.byBuilding[bid]) {
-                stats.byBuilding[bid] = { count: 0, managers: [] };
-            }
-            stats.byBuilding[bid].count += 1;
-            stats.byBuilding[bid].managers.push({
-                officialId: official.id || official.name,
-                officialName: official.name,
+        const managedSummary = official._managedSummary;
+        if (managedSummary?.byBuilding) {
+            // 新格式：从 _managedSummary 读取
+            Object.entries(managedSummary.byBuilding).forEach(([bid, cnt]) => {
+                if (!cnt) return;
+                if (!stats.byBuilding[bid]) {
+                    stats.byBuilding[bid] = { count: 0, managers: [] };
+                }
+                stats.byBuilding[bid].count += cnt;
+                stats.byBuilding[bid].managers.push({
+                    officialId: official.id || official.name,
+                    officialName: official.name,
+                });
+                stats.totalCount += cnt;
             });
-            stats.totalCount += 1;
-        });
+        } else if (Array.isArray(official.managedBuildings)) {
+            // 旧格式 fallback
+            official.managedBuildings.forEach(mb => {
+                const bid = mb.buildingId;
+                if (!stats.byBuilding[bid]) {
+                    stats.byBuilding[bid] = { count: 0, managers: [] };
+                }
+                stats.byBuilding[bid].count += 1;
+                stats.byBuilding[bid].managers.push({
+                    officialId: official.id || official.name,
+                    officialName: official.name,
+                });
+                stats.totalCount += 1;
+            });
+        }
     });
     return stats;
 }

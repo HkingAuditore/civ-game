@@ -739,14 +739,14 @@ export const updateNations = ({
 
         // Process installment payments
         if (next.installmentPayment && next.installmentPayment.remainingDays > 0) {
-            const payment = next.installmentPayment.amount;
+            const payment = next.installmentPayment.amount || 0;
             applyTreasuryChange(res, payment, 'installment_payment_income', onTreasuryChange);
             warIndemnityIncome += payment;
-            next.installmentPayment.paidAmount += payment;
+            next.installmentPayment.paidAmount = (next.installmentPayment.paidAmount || 0) + payment;
             next.installmentPayment.remainingDays -= 1;
 
             if (next.installmentPayment.remainingDays === 0) {
-                logs.push(`💰 ${next.name} completed all installment payments (total ${next.installmentPayment.totalAmount} silver).`);
+                logs.push(`💰 ${next.name} completed all installment payments (total ${next.installmentPayment.totalAmount || 0} silver).`);
                 delete next.installmentPayment;
             }
         }

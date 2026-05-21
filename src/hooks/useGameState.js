@@ -2,6 +2,7 @@
 // 集中管理所有游戏状态，避免App.jsx中状态定义过�?
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useGroupedState } from './useGroupedState';
 import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
 import { HISTORY_STORAGE_LIMIT, LOG_STORAGE_LIMIT } from '../config/gameConstants';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
@@ -17,13 +18,77 @@ import { clampBootstrapPopulation } from '../utils/populationClamp';
 import { createAnnualReportAccumulator } from '../utils/annualReport';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { trackSaveGame, trackLoadGame, trackResetGame, trackNewGame, trackErrorError, trackExportSave, trackImportSave, trackCoalitionChange, trackIdeologyEquip, trackIdeologyUnequip } from '../analytics/gaTracker';
+import {
+    trackSaveGame, trackLoadGame, trackResetGame, trackNewGame, trackErrorError,
+    trackExportSave, trackImportSave, trackCoalitionChange,
+    trackIdeologyEquip, trackIdeologyUnequip,
+    // [PR-1] 存档性能观测
+    trackSaveDuration, trackSaveBytes, trackSavePath,
+} from '../analytics/gaTracker';
+// [PR-4] save.worker 客户端：把 5 片 shard 的 JSON.stringify 搬离主线程
+// [PR-5] 同时提供 gzip 压缩开关（默认关闭，按灰度开启）
+import { stringifyShardsInWorker, SAVE_WORKER_ERROR_KINDS, isSaveCompressionEnabled } from '../utils/saveWorkerClient';
+import { trackSaveWorkerFallback } from '../analytics/gaTracker';
+
+// [PR-5] 解压缩辅助：把 IDB 读到的 Uint8Array/ArrayBuffer/Blob 解成 JSON 字符串。
+// 读取端永远尝试识别压缩负载，所以即便以后关掉写入侧的 gzip 开关，历史存档也能继续读。
+const GZIP_MAGIC_0 = 0x1f;
+const GZIP_MAGIC_1 = 0x8b;
+
+const toUint8 = async (raw) => {
+    if (raw == null) return null;
+    if (raw instanceof Uint8Array) return raw;
+    if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
+    if (typeof Blob !== 'undefined' && raw instanceof Blob) {
+        const buf = await raw.arrayBuffer();
+        return new Uint8Array(buf);
+    }
+    return null;
+};
+
+const isGzipBytes = (bytes) => !!(bytes && bytes.length >= 2 && bytes[0] === GZIP_MAGIC_0 && bytes[1] === GZIP_MAGIC_1);
+
+const decompressGzipToString = async (bytes) => {
+    if (typeof DecompressionStream === 'undefined') {
+        throw new Error('DecompressionStream unavailable');
+    }
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    const text = await new Response(ds.readable).text();
+    return text;
+};
+
+/**
+ * 把从 IDB 读出的 shard 原始值规范化为字符串。
+ *   - string: 原样返回（v2 未压缩路径）
+ *   - Uint8Array/ArrayBuffer/Blob: 若是 gzip 头则解压，否则按 UTF-8 文本解码
+ *   - 其它：返回 null，由调用方按"缺失"处理
+ */
+const normalizeShardRawToJsonString = async (raw) => {
+    if (raw == null) return null;
+    if (typeof raw === 'string') return raw;
+    const bytes = await toUint8(raw);
+    if (!bytes) return null;
+    if (isGzipBytes(bytes)) {
+        return decompressGzipToString(bytes);
+    }
+    // 兜底：非 gzip 的二进制（极少见），按 UTF-8 解码
+    if (typeof TextDecoder !== 'undefined') {
+        return new TextDecoder('utf-8').decode(bytes);
+    }
+    return null;
+};
 
 // 多存档槽位系�?
 const SAVE_SLOT_COUNT = 10; // 手动存档槽位数量
 const SAVE_SLOT_PREFIX = 'civ_game_save_slot_';
 const AUTOSAVE_KEY = 'civ_game_autosave_v1';
-const SAVE_FORMAT_VERSION = 1;
+// [PR-2] SAVE_FORMAT_VERSION v1 = 单块 JSON 全量存档；v2 = 分片存档（state/nations/history/market/social）
+// v1 存档仍兼容读取；首次加载后保存时会自动升级为 v2
+const SAVE_FORMAT_VERSION = 2;
+const LEGACY_SAVE_FORMAT_VERSION = 1;
 const DISCOVERY_SAVE_VERSION = 1;
 const SAVE_FILE_EXTENSION = 'cgsave';
 const SAVE_OBFUSCATION_KEY = 'civ_game_simple_mask_v1';
@@ -205,23 +270,141 @@ const buildExternalSaveStub = (payload, { storage = EXTERNAL_SAVE_STORAGE, sizeB
 
 const isExternalSaveStub = (data) => !!(data && data[EXTERNAL_SAVE_FLAG]);
 
-// Helper function to calculate save size
-const calculateSaveSize = (data) => {
-    try {
-        const jsonString = JSON.stringify(data);
-        const sizeInBytes = new Blob([jsonString]).size;
-        const sizeInKB = (sizeInBytes / 1024).toFixed(1);
-        const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2);
-        return {
-            bytes: sizeInBytes,
-            kb: sizeInKB,
-            mb: sizeInMB,
-            display: sizeInBytes > 1024 * 1024 ? `${sizeInMB}MB` : `${sizeInKB}KB`
-        };
-    } catch (e) {
+// ══════════════════════════════════════════════════════════════════
+// [PR-2] 分片存档（Sharded Save）相关工具
+// ══════════════════════════════════════════════════════════════════
+// 分片目标：把原本一个大 JSON（通常 1–3MB）拆成 5 个小 JSON 独立写入 IDB。
+// 主线程不必一次 stringify 整个对象；每个分片独立 stringify + put，单次失败
+// 不阻塞其它分片；未来可以结合 dirty-bit 只写变化过的分片。
+//
+// 分片划分原则：
+//   state   —— 核心业务态，每 tick 都会变化但体积小（单数值 / 小对象）
+//   nations —— 最大的单字段，独立分片便于后续只写它
+//   history —— 时间序列+历史记录，体积中大、变化低频
+//   market  —— 市场/价格历史，体积中等、变化中等
+//   social  —— 阶层/建筑财务明细 + 派生历史，体积中大、变化中低
+// ══════════════════════════════════════════════════════════════════
+
+const SHARD_FLAG = '__shardedSave';
+const SHARD_VERSION = 2;
+const SHARD_NAMES = ['state', 'nations', 'history', 'market', 'social'];
+const SHARD_KEY_SUFFIX = ':shard:';
+
+// 哪些顶层字段属于哪个分片；未列出的字段全部归入 state 分片
+const SHARD_FIELD_MAP = {
+    nations: ['nations'],
+    history: [
+        'history',
+        'annualReportHistory',
+        'eventHistory',
+        'logs',
+        'vassalDiplomacyHistory',
+    ],
+    market: [
+        'market',
+        'priceHistory',
+        'equilibriumPrices',
+        'economicIndicators',
+    ],
+    social: [
+        'classIncome',
+        'classExpense',
+        'classFinancialData',
+        'buildingFinancialData',
+        'classWealthHistory',
+        'classNeedsHistory',
+        'totalInfluence',
+        'totalWealth',
+        'activeBuffs',
+        'activeDebuffs',
+    ],
+};
+
+// field → shardName 反向映射
+const SHARD_FIELD_INDEX = (() => {
+    const idx = {};
+    for (const [shard, fields] of Object.entries(SHARD_FIELD_MAP)) {
+        for (const f of fields) idx[f] = shard;
+    }
+    return idx;
+})();
+
+const shardKeyFor = (baseKey, shardName) => `${baseKey}${SHARD_KEY_SUFFIX}${shardName}`;
+
+// 把 flat payload 拆成 { state, nations, history, market, social } 五个子对象
+const splitPayloadToShards = (payload) => {
+    const shards = { state: {}, nations: null, history: {}, market: {}, social: {} };
+    if (!payload || typeof payload !== 'object') return shards;
+    for (const key of Object.keys(payload)) {
+        const value = payload[key];
+        const targetShard = SHARD_FIELD_INDEX[key];
+        if (targetShard === 'nations') {
+            shards.nations = value;
+        } else if (targetShard) {
+            shards[targetShard][key] = value;
+        } else {
+            shards.state[key] = value;
+        }
+    }
+    return shards;
+};
+
+// 把五个分片合并回 flat payload；缺失分片用空兜底保证加载不 break
+const mergeShardsToPayload = ({ state, nations, history, market, social } = {}) => {
+    const merged = { ...(state || {}) };
+    if (nations !== undefined && nations !== null) {
+        merged.nations = nations;
+    }
+    if (history && typeof history === 'object') Object.assign(merged, history);
+    if (market && typeof market === 'object') Object.assign(merged, market);
+    if (social && typeof social === 'object') Object.assign(merged, social);
+    return merged;
+};
+
+// 分片 stub（写入 localStorage 的小索引）：
+//   保留现有 EXTERNAL_SAVE_FLAG 以便老 loadGame 分支自动走 IDB 路径
+//   附加 SHARD_FLAG + shards 列表，让新 loadGame 分支识别"走分片读取"
+const buildShardedSaveStub = (payload, { sizeBytes = 0, shardSizes = null, failedShards = null } = {}) => ({
+    [EXTERNAL_SAVE_FLAG]: true,
+    [SHARD_FLAG]: true,
+    shardVersion: SHARD_VERSION,
+    storage: 'idb-sharded',
+    sizeBytes,
+    updatedAt: payload?.updatedAt,
+    saveSource: payload?.saveSource,
+    difficulty: payload?.difficulty,
+    empireName: payload?.empireName,
+    daysElapsed: payload?.daysElapsed,
+    epoch: payload?.epoch,
+    population: payload?.population,
+    shards: SHARD_NAMES.slice(),
+    shardSizes: shardSizes || undefined,
+    failedShards: failedShards && failedShards.length ? failedShards : undefined,
+});
+
+const isShardedSaveStub = (data) => !!(data && data[SHARD_FLAG] && Array.isArray(data.shards));
+
+
+// 把"已经 stringify 好的字符串"换算成尺寸描述。
+// PR-1：避免 new Blob + 重复 stringify。估算规则：
+//  - ASCII 主导（游戏存档 JSON 绝大部分是 ASCII 字段名/数字） → 1 char ≈ 1 byte
+//  - 尾部乘以 1.02 作为安全系数，防止 Unicode 字段（国家名中文）被低估
+// 对"是否需要 IDB 分流"的阈值判断而言，这个近似足够精确。
+const sizeDescFromString = (jsonString) => {
+    if (typeof jsonString !== 'string') {
         return { bytes: 0, kb: '0', mb: '0', display: '0KB' };
     }
+    const approxBytes = Math.ceil(jsonString.length * 1.02);
+    const kb = (approxBytes / 1024).toFixed(1);
+    const mb = (approxBytes / (1024 * 1024)).toFixed(2);
+    return {
+        bytes: approxBytes,
+        kb,
+        mb,
+        display: approxBytes > 1024 * 1024 ? `${mb}MB` : `${kb}KB`,
+    };
 };
+
 
 const getLoadedCorpsTotalUnits = (corps) => Object.values(corps?.units || {}).reduce((sum, count) => sum + Number(count || 0), 0);
 
@@ -342,7 +525,16 @@ export const deleteSaveSlot = (slotIndex) => {
 
         try {
             const parsed = JSON.parse(rawData);
-            if (isExternalSaveStub(parsed)) {
+            // [PR-2] 分片存档：清理所有 shard:* key
+            if (isShardedSaveStub(parsed)) {
+                const shardNames = Array.isArray(parsed.shards) && parsed.shards.length
+                    ? parsed.shards
+                    : SHARD_NAMES;
+                for (const name of shardNames) {
+                    void removeSaveFromIndexedDb(shardKeyFor(targetKey, name));
+                }
+                void removeSaveFromIndexedDb(targetKey);
+            } else if (isExternalSaveStub(parsed)) {
                 void removeSaveFromIndexedDb(targetKey);
             }
         } catch (parseError) {
@@ -1713,32 +1905,87 @@ export const useGameState = () => {
     const [epoch, setEpoch] = useState(0);
 
     // ========== 理念系统状态 ==========
-    const [ideologyScore, setIdeologyScore] = useState(0);
-    const [ideologyScoreSpent, setIdeologyScoreSpent] = useState(0);
-    const [ideologyCollection, setIdeologyCollection] = useState([]); // [{ id, level }]
-    const [equippedIdeologies, setEquippedIdeologies] = useState([]); // string[]
-    const [ideologySlotCount, setIdeologySlotCount] = useState(3);
-    const [ideologyCooldowns, setIdeologyCooldowns] = useState({}); // { [id]: days }
-    const [ideologyMilestones, setIdeologyMilestones] = useState([]); // string[]
-    const [pendingIdeologyEmergence, setPendingIdeologyEmergence] = useState(null); // null | { candidates }
-    const [ideologyEmergenceRarityBonus, setIdeologyEmergenceRarityBonus] = useState(0); // 跳过累积的稀有度加成（0~3）
-    const [lastEmergenceWasSkipped, setLastEmergenceWasSkipped] = useState(false); // 上次涌现是否是跳过（用于判断加成是否留存）
+    // ========== 理念系统（grouped: 10 useState → 1 useReducer） ==========
+    const { values: _ideologyState, setters: _ideologySetters, resetAll: _resetIdeologyState } = useGroupedState({
+        ideologyScore: 0,
+        ideologyScoreSpent: 0,
+        ideologyCollection: [], // [{ id, level }]
+        equippedIdeologies: [], // string[]
+        ideologySlotCount: 3,
+        ideologyCooldowns: {}, // { [id]: days }
+        ideologyMilestones: [], // string[]
+        pendingIdeologyEmergence: null, // null | { candidates }
+        ideologyEmergenceRarityBonus: 0, // 跳过累积的稀有度加成（0~3）
+        lastEmergenceWasSkipped: false, // 上次涌现是否是跳过（用于判断加成是否留存）
+    });
+    const ideologyScore = _ideologyState.ideologyScore;
+    const setIdeologyScore = _ideologySetters.setIdeologyScore;
+    const ideologyScoreSpent = _ideologyState.ideologyScoreSpent;
+    const setIdeologyScoreSpent = _ideologySetters.setIdeologyScoreSpent;
+    const ideologyCollection = _ideologyState.ideologyCollection;
+    const setIdeologyCollection = _ideologySetters.setIdeologyCollection;
+    const equippedIdeologies = _ideologyState.equippedIdeologies;
+    const setEquippedIdeologies = _ideologySetters.setEquippedIdeologies;
+    const ideologySlotCount = _ideologyState.ideologySlotCount;
+    const setIdeologySlotCount = _ideologySetters.setIdeologySlotCount;
+    const ideologyCooldowns = _ideologyState.ideologyCooldowns;
+    const setIdeologyCooldowns = _ideologySetters.setIdeologyCooldowns;
+    const ideologyMilestones = _ideologyState.ideologyMilestones;
+    const setIdeologyMilestones = _ideologySetters.setIdeologyMilestones;
+    const pendingIdeologyEmergence = _ideologyState.pendingIdeologyEmergence;
+    const setPendingIdeologyEmergence = _ideologySetters.setPendingIdeologyEmergence;
+    const ideologyEmergenceRarityBonus = _ideologyState.ideologyEmergenceRarityBonus;
+    const setIdeologyEmergenceRarityBonus = _ideologySetters.setIdeologyEmergenceRarityBonus;
+    const lastEmergenceWasSkipped = _ideologyState.lastEmergenceWasSkipped;
+    const setLastEmergenceWasSkipped = _ideologySetters.setLastEmergenceWasSkipped;
 
-    // ========== 游戏控制状�?==========
-    const [activeTab, setActiveTab] = useState('overview');
-    const [gameSpeed, setGameSpeed] = useState(1);
-    const [isPaused, setIsPaused] = useState(false);
-    const [pausedBeforeEvent, setPausedBeforeEvent] = useState(false); // 事件触发前的暂停状�?
-    const [autoSaveInterval, setAutoSaveInterval] = useState(60); // 自动存档间隔（秒�?
-    const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(true); // 自动存档开�?
-    const [lastAutoSaveTime, setLastAutoSaveTime] = useState(() => Date.now()); // 上次自动存档时间
-    const [autoSaveBlocked, setAutoSaveBlocked] = useState(false); // 自动存档因配额被禁用
-    const [isSaving, setIsSaving] = useState(false); // UI保存状态指�?
-    const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY); // 游戏难度
-    const [empireName, setEmpireName] = useState('我的帝国'); // 国家/帝国名称
-    const [eventConfirmationEnabled, setEventConfirmationEnabled] = useState(false); // 事件二次确认开�?
+    // ========== 游戏控制状态（grouped: 12 useState → 1 useReducer） ==========
+    const { values: _gameControlState, setters: _gameControlSetters, resetAll: _resetGameControlState } = useGroupedState({
+        activeTab: 'overview',
+        gameSpeed: 1,
+        isPaused: false,
+        pausedBeforeEvent: false, // 事件触发前的暂停状态
+        autoSaveInterval: 60, // 自动存档间隔（秒）
+        isAutoSaveEnabled: true, // 自动存档开关
+        lastAutoSaveTime: Date.now(), // 上次自动存档时间
+        autoSaveBlocked: false, // 自动存档因配额被禁用
+        isSaving: false, // UI保存状态指示
+        difficulty: DEFAULT_DIFFICULTY, // 游戏难度
+        empireName: '我的帝国', // 国家/帝国名称
+        eventConfirmationEnabled: false, // 事件二次确认开关
+    });
+    const activeTab = _gameControlState.activeTab;
+    const setActiveTab = _gameControlSetters.setActiveTab;
+    const gameSpeed = _gameControlState.gameSpeed;
+    const setGameSpeed = _gameControlSetters.setGameSpeed;
+    const isPaused = _gameControlState.isPaused;
+    const setIsPaused = _gameControlSetters.setIsPaused;
+    const pausedBeforeEvent = _gameControlState.pausedBeforeEvent;
+    const setPausedBeforeEvent = _gameControlSetters.setPausedBeforeEvent;
+    const autoSaveInterval = _gameControlState.autoSaveInterval;
+    const setAutoSaveInterval = _gameControlSetters.setAutoSaveInterval;
+    const isAutoSaveEnabled = _gameControlState.isAutoSaveEnabled;
+    const setIsAutoSaveEnabled = _gameControlSetters.setIsAutoSaveEnabled;
+    const lastAutoSaveTime = _gameControlState.lastAutoSaveTime;
+    const setLastAutoSaveTime = _gameControlSetters.setLastAutoSaveTime;
+    const autoSaveBlocked = _gameControlState.autoSaveBlocked;
+    const setAutoSaveBlocked = _gameControlSetters.setAutoSaveBlocked;
+    const isSaving = _gameControlState.isSaving;
+    const setIsSaving = _gameControlSetters.setIsSaving;
+    const difficulty = _gameControlState.difficulty;
+    const setDifficulty = _gameControlSetters.setDifficulty;
+    const empireName = _gameControlState.empireName;
+    const setEmpireName = _gameControlSetters.setEmpireName;
+    const eventConfirmationEnabled = _gameControlState.eventConfirmationEnabled;
+    const setEventConfirmationEnabled = _gameControlSetters.setEventConfirmationEnabled;
     const savingIndicatorTimer = useRef(null);
     const autoSaveQuotaNotifiedRef = useRef(false);
+    // [PR-3] 分片增量写入缓存：
+    //   结构为 { [targetKey]: { state: lastJson, nations: lastJson, ... } }
+    //   每次成功 writeShardedSave 后记录每片的 JSON 字符串；下次 autoSave
+    //   时把当前 shard JSON 和上一份做 O(n) 字符串比较，只把变化过的分片写回 IDB。
+    //   手动存档 / 槽位切换 / applyLoadedGameState 后会清空这个缓存以强制全量写入。
+    const lastSavedShardJsonsRef = useRef({});
 
     // ========== Pending Actions Queue（玩家操作增量队列）==========
     // 解决 tick 覆盖玩家操作的竞争条件：
@@ -1748,95 +1995,190 @@ export const useGameState = () => {
         resourceDeltas: {},   // { [resourceId]: deltaAmount } 负数=消耗
     });
 
-    // ========== 政令与外交状态 ==========
-    const [nations, setNations] = useState(buildInitialNations());
-    const [diplomaticReputation, setDiplomaticReputation] = useState(50); // 国际声誉 (0-100)
-
-    // ========== 海外投资系统状�?==========
-    const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投�?
-    const [foreignInvestments, setForeignInvestments] = useState([]);
-    const [foreignInvestmentPolicy, setForeignInvestmentPolicy] = useState('normal');      // 外国在玩家国的投�?
-    const [foreignInvestmentPolicyOverrides, setForeignInvestmentPolicyOverrides] = useState({});  // 逐国税率覆盖
-
-    // ========== 官员系统状�?==========
-    const [officials, setOfficials] = useState([]);           // 当前雇佣的官�?
-    const [officialsSimCursor, setOfficialsSimCursor] = useState(0); // 官员分片模拟游标
-    const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
-    const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时�?
-    const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
-    // 注意：产业政策已迁移为逐官员字段 official.propertyPolicy（默认 'private'）
-    const [ministerAssignments, setMinisterAssignments] = useState(buildInitialMinisterAssignments());
-    const [ministerAutoExpansion, setMinisterAutoExpansion] = useState(buildInitialMinisterAutoExpansion());
-    const [lastMinisterExpansionDay, setLastMinisterExpansionDay] = useState(buildInitialMinisterExpansionCooldowns());
-    // ========== 内阁协同系统状�?==========
-    // Permanent policy decrees (legacy) - stored as array of { id, active, modifiers, ... }
-    const [decrees, setDecrees] = useState([]);
-
-    const [activeDecrees, setActiveDecrees] = useState({});           // 当前生效的临时法�?
-    const [decreeCooldowns, setDecreCooldowns] = useState({});       // 法令冷却时间
-    const [quotaTargets, setQuotaTargets] = useState({});             // 计划经济阶层配额目标
-    const [expansionSettings, setExpansionSettings] = useState({});   // 自由市场建筑扩张设置
-    // ========== 政府价格管制状态（计划经济�?==========
-    const [priceControls, setPriceControls] = useState({
-        enabled: false,              // 是否启用价格管制
-        governmentBuyPrices: {},     // 政府收购�?{ resourceKey: price }
-        governmentSellPrices: {},    // 政府出售�?{ resourceKey: price }
+    // ========== 政令与外交状态（grouped: 7 useState → 1 useReducer） ==========
+    const { values: _diplomacyState, setters: _diplomacySetters, resetAll: _resetDiplomacyState } = useGroupedState({
+        nations: buildInitialNations(),
+        diplomaticReputation: 50, // 国际声誉 (0-100)
+        overseasInvestments: [],    // 玩家在附庸国的投资
+        foreignInvestments: [],
+        foreignInvestmentPolicy: 'normal',      // 外国在玩家国的投资
+        foreignInvestmentPolicyOverrides: {},  // 逐国税率覆盖
     });
+    const nations = _diplomacyState.nations;
+    const setNations = _diplomacySetters.setNations;
+    const diplomaticReputation = _diplomacyState.diplomaticReputation;
+    const setDiplomaticReputation = _diplomacySetters.setDiplomaticReputation;
+    const overseasInvestments = _diplomacyState.overseasInvestments;
+    const setOverseasInvestments = _diplomacySetters.setOverseasInvestments;
+    const foreignInvestments = _diplomacyState.foreignInvestments;
+    const setForeignInvestments = _diplomacySetters.setForeignInvestments;
+    const foreignInvestmentPolicy = _diplomacyState.foreignInvestmentPolicy;
+    const setForeignInvestmentPolicy = _diplomacySetters.setForeignInvestmentPolicy;
+    const foreignInvestmentPolicyOverrides = _diplomacyState.foreignInvestmentPolicyOverrides;
+    const setForeignInvestmentPolicyOverrides = _diplomacySetters.setForeignInvestmentPolicyOverrides;
+
+    // ========== 官员系统（grouped: 8 useState → 1 useReducer） ==========
+    const { values: _officialState, setters: _officialSetters, resetAll: _resetOfficialState } = useGroupedState({
+        officials: [],           // 当前雇佣的官员
+        officialsSimCursor: 0, // 官员分片模拟游标
+        officialCandidates: [], // 当前候选人列表
+        lastSelectionDay: -999,   // 上次举办选拔的时间
+        officialCapacity: 2,      // 官员容量
+        ministerAssignments: buildInitialMinisterAssignments(),
+        ministerAutoExpansion: buildInitialMinisterAutoExpansion(),
+        lastMinisterExpansionDay: buildInitialMinisterExpansionCooldowns(),
+    });
+    const officials = _officialState.officials;
+    const setOfficials = _officialSetters.setOfficials;
+    const officialsSimCursor = _officialState.officialsSimCursor;
+    const setOfficialsSimCursor = _officialSetters.setOfficialsSimCursor;
+    const officialCandidates = _officialState.officialCandidates;
+    const setOfficialCandidates = _officialSetters.setOfficialCandidates;
+    const lastSelectionDay = _officialState.lastSelectionDay;
+    const setLastSelectionDay = _officialSetters.setLastSelectionDay;
+    const officialCapacity = _officialState.officialCapacity;
+    const setOfficialCapacity = _officialSetters.setOfficialCapacity;
+    // 注意：产业政策已迁移为逐官员字段 official.propertyPolicy（默认 'private'）
+    const ministerAssignments = _officialState.ministerAssignments;
+    const setMinisterAssignments = _officialSetters.setMinisterAssignments;
+    const ministerAutoExpansion = _officialState.ministerAutoExpansion;
+    const setMinisterAutoExpansion = _officialSetters.setMinisterAutoExpansion;
+    const lastMinisterExpansionDay = _officialState.lastMinisterExpansionDay;
+    const setLastMinisterExpansionDay = _officialSetters.setLastMinisterExpansionDay;
+    // ========== 内阁协同系统（grouped: 6 useState → 1 useReducer） ==========
+    const { values: _policyState, setters: _policySetters, resetAll: _resetPolicyState } = useGroupedState({
+        decrees: [],
+        activeDecrees: {},           // 当前生效的临时法令
+        decreeCooldowns: {},       // 法令冷却时间
+        quotaTargets: {},             // 计划经济阶层配额目标
+        expansionSettings: {},   // 自由市场建筑扩张设置
+        priceControls: {
+            enabled: false,
+            governmentBuyPrices: {},
+            governmentSellPrices: {},
+        },
+    });
+    const decrees = _policyState.decrees;
+    const setDecrees = _policySetters.setDecrees;
+    const activeDecrees = _policyState.activeDecrees;
+    const setActiveDecrees = _policySetters.setActiveDecrees;
+    const decreeCooldowns = _policyState.decreeCooldowns;
+    const setDecreeCooldowns = _policySetters.setDecreeCooldowns;
+    const setDecreCooldowns = setDecreeCooldowns; // 兼容旧拼写调用
+    const quotaTargets = _policyState.quotaTargets;
+    const setQuotaTargets = _policySetters.setQuotaTargets;
+    const expansionSettings = _policyState.expansionSettings;
+    const setExpansionSettings = _policySetters.setExpansionSettings;
+    const priceControls = _policyState.priceControls;
+    const setPriceControls = _policySetters.setPriceControls;
 
 
-    // ========== 社会阶层状�?==========
-    const [classApproval, setClassApproval] = useState({});
-    const [approvalBreakdown, setApprovalBreakdown] = useState({}); // [NEW] 各阶层满意度分解数据（来�?simulation�?
-    const [classInfluence, setClassInfluence] = useState({});
+    // ========== 社会阶层（grouped: 18 useState → 1 useReducer, classWealth kept separate for custom setter） ==========
+    const { values: _socialState, setters: _socialSetters, resetAll: _resetSocialState } = useGroupedState({
+        classApproval: {},
+        approvalBreakdown: {}, // [NEW] 各阶层满意度分解数据
+        classInfluence: {},
+        classWealthDelta: {},
+        classIncome: {},
+        classExpense: {},
+        classFinancialData: {}, // Detailed financial breakdown
+        buildingFinancialData: {}, // Per-building realized financial stats
+        stateBuildingSilverOutput: 0,
+        totalInfluence: 0,
+        totalWealth: 0,
+        activeBuffs: [],
+        activeDebuffs: [],
+        classInfluenceShift: {},
+        classShortages: {},
+        classLivingStandard: {}, // 各阶层生活水平数据
+        livingStandardStreaks: buildInitialLivingStandardStreaks(),
+        migrationCooldowns: {}, // 阶层迁移冷却状态 { roleKey: ticksRemaining }
+        taxShock: {}, // [NEW] 各阶层累积税收冲击值 { roleKey: number }
+    });
+    const classApproval = _socialState.classApproval;
+    const setClassApproval = _socialSetters.setClassApproval;
+    const approvalBreakdown = _socialState.approvalBreakdown;
+    const setApprovalBreakdown = _socialSetters.setApprovalBreakdown;
+    const classInfluence = _socialState.classInfluence;
+    const setClassInfluence = _socialSetters.setClassInfluence;
     const [classWealth, setClassWealthState] = useState(buildInitialWealth());
-    const [classWealthDelta, setClassWealthDelta] = useState({});
-    const [classIncome, setClassIncome] = useState({});
-    const [classExpense, setClassExpense] = useState({});
-    const [classFinancialData, setClassFinancialData] = useState({}); // Detailed financial breakdown
-    const [buildingFinancialData, setBuildingFinancialData] = useState({}); // Per-building realized financial stats
-    const [stateBuildingSilverOutput, setStateBuildingSilverOutput] = useState(0);
+    const classWealthDelta = _socialState.classWealthDelta;
+    const setClassWealthDelta = _socialSetters.setClassWealthDelta;
+    const classIncome = _socialState.classIncome;
+    const setClassIncome = _socialSetters.setClassIncome;
+    const classExpense = _socialState.classExpense;
+    const setClassExpense = _socialSetters.setClassExpense;
+    const classFinancialData = _socialState.classFinancialData;
+    const setClassFinancialData = _socialSetters.setClassFinancialData;
+    const buildingFinancialData = _socialState.buildingFinancialData;
+    const setBuildingFinancialData = _socialSetters.setBuildingFinancialData;
+    const stateBuildingSilverOutput = _socialState.stateBuildingSilverOutput;
+    const setStateBuildingSilverOutput = _socialSetters.setStateBuildingSilverOutput;
+    const totalInfluence = _socialState.totalInfluence;
+    const setTotalInfluence = _socialSetters.setTotalInfluence;
+    const totalWealth = _socialState.totalWealth;
+    const setTotalWealth = _socialSetters.setTotalWealth;
+    const activeBuffs = _socialState.activeBuffs;
+    const setActiveBuffs = _socialSetters.setActiveBuffs;
+    const activeDebuffs = _socialState.activeDebuffs;
+    const setActiveDebuffs = _socialSetters.setActiveDebuffs;
+    const classInfluenceShift = _socialState.classInfluenceShift;
+    const setClassInfluenceShift = _socialSetters.setClassInfluenceShift;
+    const classShortages = _socialState.classShortages;
+    const setClassShortages = _socialSetters.setClassShortages;
+    const classLivingStandard = _socialState.classLivingStandard;
+    const setClassLivingStandard = _socialSetters.setClassLivingStandard;
+    const livingStandardStreaks = _socialState.livingStandardStreaks;
+    const setLivingStandardStreaks = _socialSetters.setLivingStandardStreaks;
+    const migrationCooldowns = _socialState.migrationCooldowns;
+    const setMigrationCooldowns = _socialSetters.setMigrationCooldowns;
+    const taxShock = _socialState.taxShock;
+    const setTaxShock = _socialSetters.setTaxShock;
+    // Kept as independent useState (high-frequency or special handling)
     const [classWealthHistory, setClassWealthHistory] = useState(buildInitialWealthHistory());
     const [classNeedsHistory, setClassNeedsHistory] = useState(buildInitialNeedsHistory());
-    const [totalInfluence, setTotalInfluence] = useState(0);
-    const [totalWealth, setTotalWealth] = useState(0);
-    const [activeBuffs, setActiveBuffs] = useState([]);
-    const [activeDebuffs, setActiveDebuffs] = useState([]);
-    const [classInfluenceShift, setClassInfluenceShift] = useState({});
     const [stability, setStability] = useState(50);
     const [stratumDetailView, setStratumDetailView] = useState(null);
     const [resourceDetailView, setResourceDetailView] = useState(null);
-    const [classShortages, setClassShortages] = useState({});
-    const [classLivingStandard, setClassLivingStandard] = useState({}); // 各阶层生活水平数�?
-    const [livingStandardStreaks, setLivingStandardStreaks] = useState(buildInitialLivingStandardStreaks());
-    const [migrationCooldowns, setMigrationCooldowns] = useState({}); // 阶层迁移冷却状�?{ roleKey: ticksRemaining }
-    const [taxShock, setTaxShock] = useState({}); // [NEW] 各阶层累积税收冲击�?{ roleKey: number }
     const [populationDetailView, setPopulationDetailView] = useState(false);
     const [history, setHistory] = useState(buildInitialHistory());
     
-    // ========== 经济指标 ==========
-    const [priceHistory, setPriceHistory] = useState({}); // 价格历史（最�?65天）
-    const [equilibriumPrices, setEquilibriumPrices] = useState({}); // 长期均衡价格�?0天滚动平均）
-    const [economicIndicators, setEconomicIndicators] = useState({
-        gdp: { total: 0, consumption: 0, investment: 0, government: 0, netExports: 0, change: 0 },
-        cpi: { index: 100, change: 0, breakdown: {} },
-        ppi: { index: 100, change: 0, breakdown: {} },
+    // ========== 经济指标与财政（grouped: 7 useState → 1 useReducer） ==========
+    const { values: _economicState, setters: _economicSetters, resetAll: _resetEconomicState } = useGroupedState({
+        priceHistory: {}, // 价格历史（最近65天）
+        equilibriumPrices: {}, // 长期均衡价格（30天滚动平均）
+        economicIndicators: {
+            gdp: { total: 0, consumption: 0, investment: 0, government: 0, netExports: 0, change: 0 },
+            cpi: { index: 100, change: 0, breakdown: {} },
+            ppi: { index: 100, change: 0, breakdown: {} },
+        },
+        eventEffectSettings: DEFAULT_EVENT_EFFECT_SETTINGS,
+        activeEventEffects: buildInitialEventEffects(),
+        fiscalActual: {
+            silverDelta: 0,
+            officialSalaryPaid: 0,
+            forcedSubsidyPaid: 0,
+            forcedSubsidyUnpaid: 0,
+        },
+        treasuryChangeLog: [],
+        dailyMilitaryExpense: null,
     });
-    
-    const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
-    const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());
-
-    // ========== 财政（实际口径） ==========
-    // Stores realized per-tick treasury changes and actual payments (not "planned" amounts).
-    const [fiscalActual, setFiscalActual] = useState({
-        silverDelta: 0,
-        officialSalaryPaid: 0,
-        forcedSubsidyPaid: 0,
-        forcedSubsidyUnpaid: 0,
-    });
-    const [treasuryChangeLog, setTreasuryChangeLog] = useState([]);
-
-    // [FIX] 每日军队维护成本（simulation返回的完整数据）
-    const [dailyMilitaryExpense, setDailyMilitaryExpense] = useState(null);
+    const priceHistory = _economicState.priceHistory;
+    const setPriceHistory = _economicSetters.setPriceHistory;
+    const equilibriumPrices = _economicState.equilibriumPrices;
+    const setEquilibriumPrices = _economicSetters.setEquilibriumPrices;
+    const economicIndicators = _economicState.economicIndicators;
+    const setEconomicIndicators = _economicSetters.setEconomicIndicators;
+    const eventEffectSettings = _economicState.eventEffectSettings;
+    const setEventEffectSettings = _economicSetters.setEventEffectSettings;
+    const activeEventEffects = _economicState.activeEventEffects;
+    const setActiveEventEffects = _economicSetters.setActiveEventEffects;
+    const fiscalActual = _economicState.fiscalActual;
+    const setFiscalActual = _economicSetters.setFiscalActual;
+    const treasuryChangeLog = _economicState.treasuryChangeLog;
+    const setTreasuryChangeLog = _economicSetters.setTreasuryChangeLog;
+    const dailyMilitaryExpense = _economicState.dailyMilitaryExpense;
+    const setDailyMilitaryExpense = _economicSetters.setDailyMilitaryExpense;
 
     // ========== 时间状�?==========
     const [daysElapsed, setDaysElapsed] = useState(0);
@@ -1936,60 +2278,125 @@ export const useGameState = () => {
         });
     };
 
-    // ========== 军事系统状�?==========
-    const [army, setArmy] = useState({});
-    const [militaryQueue, setMilitaryQueue] = useState([]);
-    const [selectedTarget, setSelectedTarget] = useState(null);
-    const [battleResult, setBattleResult] = useState(null);
-    const [battleNotifications, setBattleNotifications] = useState([]); // 战斗通知队列
-    const [militaryWageRatio, setMilitaryWageRatio] = useState(1.5);
-    const [autoRecruitEnabled, setAutoRecruitEnabled] = useState(false);  // 自动补兵开�?
-    const [targetArmyComposition, setTargetArmyComposition] = useState({});  // 目标军队编制
-    const [lastBattleTargetId, setLastBattleTargetId] = useState(null); // 上次攻击的目标ID
-    const [lastBattleDay, setLastBattleDay] = useState(-999); // 上次攻击的时�?
-    const [militaryCorps, setMilitaryCorps] = useState([]); // 军团列表
-    const [generals, setGenerals] = useState([]); // 将领列表
-    const [activeFronts, setActiveFronts] = useState([]); // 活跃战线
-    const [activeBattles, setActiveBattles] = useState([]); // 进行中的战斗
-    const [pendingRepairs, setPendingRepairs] = useState([]); // 战后待修复建筑[{ buildingId, count, source }]
-    const [corpsReplenishQueue, setCorpsReplenishQueue] = useState({}); // 军团补兵缺额队列 { [corpsId]: { [unitId]: deficitCount } }
+    // ========== 军事系统（grouped: 16 useState → 1 useReducer） ==========
+    const { values: _militaryState, setters: _militarySetters, resetAll: _resetMilitaryState } = useGroupedState({
+        army: {},
+        militaryQueue: [],
+        selectedTarget: null,
+        battleResult: null,
+        battleNotifications: [], // 战斗通知队列
+        militaryWageRatio: 1.5,
+        autoRecruitEnabled: false,  // 自动补兵开关
+        targetArmyComposition: {},  // 目标军队编制
+        lastBattleTargetId: null, // 上次攻击的目标ID
+        lastBattleDay: -999, // 上次攻击的时间
+        militaryCorps: [], // 军团列表
+        generals: [], // 将领列表
+        activeFronts: [], // 活跃战线
+        activeBattles: [], // 进行中的战斗
+        pendingRepairs: [], // 战后待修复建筑[{ buildingId, count, source }]
+        corpsReplenishQueue: {}, // 军团补兵缺额队列 { [corpsId]: { [unitId]: deficitCount } }
+    });
+    const army = _militaryState.army;
+    const setArmy = _militarySetters.setArmy;
+    const militaryQueue = _militaryState.militaryQueue;
+    const setMilitaryQueue = _militarySetters.setMilitaryQueue;
+    const selectedTarget = _militaryState.selectedTarget;
+    const setSelectedTarget = _militarySetters.setSelectedTarget;
+    const battleResult = _militaryState.battleResult;
+    const setBattleResult = _militarySetters.setBattleResult;
+    const battleNotifications = _militaryState.battleNotifications;
+    const setBattleNotifications = _militarySetters.setBattleNotifications;
+    const militaryWageRatio = _militaryState.militaryWageRatio;
+    const setMilitaryWageRatio = _militarySetters.setMilitaryWageRatio;
+    const autoRecruitEnabled = _militaryState.autoRecruitEnabled;
+    const setAutoRecruitEnabled = _militarySetters.setAutoRecruitEnabled;
+    const targetArmyComposition = _militaryState.targetArmyComposition;
+    const setTargetArmyComposition = _militarySetters.setTargetArmyComposition;
+    const lastBattleTargetId = _militaryState.lastBattleTargetId;
+    const setLastBattleTargetId = _militarySetters.setLastBattleTargetId;
+    const lastBattleDay = _militaryState.lastBattleDay;
+    const setLastBattleDay = _militarySetters.setLastBattleDay;
+    const militaryCorps = _militaryState.militaryCorps;
+    const setMilitaryCorps = _militarySetters.setMilitaryCorps;
+    const generals = _militaryState.generals;
+    const setGenerals = _militarySetters.setGenerals;
+    const activeFronts = _militaryState.activeFronts;
+    const setActiveFronts = _militarySetters.setActiveFronts;
+    const activeBattles = _militaryState.activeBattles;
+    const setActiveBattles = _militarySetters.setActiveBattles;
+    const pendingRepairs = _militaryState.pendingRepairs;
+    const setPendingRepairs = _militarySetters.setPendingRepairs;
+    const corpsReplenishQueue = _militaryState.corpsReplenishQueue;
+    const setCorpsReplenishQueue = _militarySetters.setCorpsReplenishQueue;
 
-    // ========== Annual report system ==========
-    const [festivalModal, setFestivalModal] = useState(null); // { reportData, year }
-    const [annualReportBaseline, setAnnualReportBaseline] = useState(null); // Year-start baseline snapshot
-    const [annualReportAccumulator, setAnnualReportAccumulator] = useState(createAnnualReportAccumulator); // 当前年度累计器
-    const [lastFestivalYear, setLastFestivalYear] = useState(1); // Last report year (starts at 1 to avoid year-1 trigger)
-    const [annualReportHistory, setAnnualReportHistory] = useState([]); // Historical reports: [{ year, epoch, reportData }]
-    // ========== 商人交易状�?==========
-    const [merchantState, setMerchantState] = useState(buildInitialMerchantState); // 商人交易状态：买入-持有-卖出周期
+    // ========== Annual report system (grouped: 5 useState → 1 useReducer) ==========
+    const { values: _annualState, setters: _annualSetters, resetAll: _resetAnnualState } = useGroupedState({
+        festivalModal: null, // { reportData, year }
+        annualReportBaseline: null, // Year-start baseline snapshot
+        annualReportAccumulator: createAnnualReportAccumulator(), // 当前年度累计器
+        lastFestivalYear: 1, // Last report year (starts at 1 to avoid year-1 trigger)
+        annualReportHistory: [], // Historical reports: [{ year, epoch, reportData }]
+    });
+    const festivalModal = _annualState.festivalModal;
+    const setFestivalModal = _annualSetters.setFestivalModal;
+    const annualReportBaseline = _annualState.annualReportBaseline;
+    const setAnnualReportBaseline = _annualSetters.setAnnualReportBaseline;
+    const annualReportAccumulator = _annualState.annualReportAccumulator;
+    const setAnnualReportAccumulator = _annualSetters.setAnnualReportAccumulator;
+    const lastFestivalYear = _annualState.lastFestivalYear;
+    const setLastFestivalYear = _annualSetters.setLastFestivalYear;
+    const annualReportHistory = _annualState.annualReportHistory;
+    const setAnnualReportHistory = _annualSetters.setAnnualReportHistory;
+    // ========== 贸易与外交组织（grouped: 6 useState → 1 useReducer） ==========
+    const { values: _tradeState, setters: _tradeSetters, resetAll: _resetTradeState } = useGroupedState({
+        merchantState: buildInitialMerchantState(), // 商人交易状态
+        tradeStats: { tradeTax: 0 }, // 每日贸易税收
+        diplomacyOrganizations: buildInitialDiplomacyOrganizations(),
+        vassalDiplomacyQueue: [],
+        vassalDiplomacyHistory: [],
+        overseasBuildings: buildInitialOverseasBuildings(),
+    });
+    const merchantState = _tradeState.merchantState;
+    const setMerchantState = _tradeSetters.setMerchantState;
+    const tradeStats = _tradeState.tradeStats;
+    const setTradeStats = _tradeSetters.setTradeStats;
+    const diplomacyOrganizations = _tradeState.diplomacyOrganizations;
+    const setDiplomacyOrganizations = _tradeSetters.setDiplomacyOrganizations;
+    const vassalDiplomacyQueue = _tradeState.vassalDiplomacyQueue;
+    const setVassalDiplomacyQueue = _tradeSetters.setVassalDiplomacyQueue;
+    const vassalDiplomacyHistory = _tradeState.vassalDiplomacyHistory;
+    const setVassalDiplomacyHistory = _tradeSetters.setVassalDiplomacyHistory;
+    const overseasBuildings = _tradeState.overseasBuildings;
+    const setOverseasBuildings = _tradeSetters.setOverseasBuildings;
 
-    // ========== 贸易统计状态 ==========
-    const [tradeStats, setTradeStats] = useState({ tradeTax: 0 }); // 每日贸易税收
-    const [diplomacyOrganizations, setDiplomacyOrganizations] = useState(buildInitialDiplomacyOrganizations);
-    const [vassalDiplomacyQueue, setVassalDiplomacyQueue] = useState([]);
-    const [vassalDiplomacyHistory, setVassalDiplomacyHistory] = useState([]);
-    const [overseasBuildings, setOverseasBuildings] = useState(buildInitialOverseasBuildings);
-
-    // ========== 和平协议状�?==========
-    // ========== 策略行动状�?==========
-    const [actionCooldowns, setActionCooldowns] = useState({});
-    const [actionUsage, setActionUsage] = useState({});
-    const [promiseTasks, setPromiseTasks] = useState([]);
-
-    const [playerInstallmentPayment, setPlayerInstallmentPayment] = useState(null); // 玩家的分期支付协�?
-
-    // ========== 叛乱系统状�?==========
-    // 追踪各阶层的叛乱状�?
-    // 格式: { [stratumKey]: { dissatisfactionDays: number, phase: string, influenceShare: number } }
-    const [rebellionStates, setRebellionStates] = useState({});
-
-    // ========== 执政联盟状�?==========
-    // 默认自耕农(peasant)为联盟成�?
-    const [rulingCoalition, setRulingCoalition] = useState(['peasant']); // 联盟成员阶层键数�?
-    const [legitimacy, setLegitimacy] = useState(0); // 合法性�?(0-100)
-
-    // ========== 游戏运算中间值（Modifiers�?==========
-    const [modifiers, setModifiers] = useState({});
+    // ========== 策略行动与事件（grouped: 8 useState → 1 useReducer） ==========
+    const { values: _eventActionState, setters: _eventActionSetters, resetAll: _resetEventActionState } = useGroupedState({
+        actionCooldowns: {},
+        actionUsage: {},
+        promiseTasks: [],
+        playerInstallmentPayment: null, // 玩家的分期支付协议
+        rebellionStates: {},
+        rulingCoalition: ['peasant'], // 联盟成员阶层键数组
+        legitimacy: 0, // 合法性值(0-100)
+        modifiers: {},
+    });
+    const actionCooldowns = _eventActionState.actionCooldowns;
+    const setActionCooldowns = _eventActionSetters.setActionCooldowns;
+    const actionUsage = _eventActionState.actionUsage;
+    const setActionUsage = _eventActionSetters.setActionUsage;
+    const promiseTasks = _eventActionState.promiseTasks;
+    const setPromiseTasks = _eventActionSetters.setPromiseTasks;
+    const playerInstallmentPayment = _eventActionState.playerInstallmentPayment;
+    const setPlayerInstallmentPayment = _eventActionSetters.setPlayerInstallmentPayment;
+    const rebellionStates = _eventActionState.rebellionStates;
+    const setRebellionStates = _eventActionSetters.setRebellionStates;
+    const rulingCoalition = _eventActionState.rulingCoalition;
+    const setRulingCoalition = _eventActionSetters.setRulingCoalition;
+    const legitimacy = _eventActionState.legitimacy;
+    const setLegitimacy = _eventActionSetters.setLegitimacy;
+    const modifiers = _eventActionState.modifiers;
+    const setModifiers = _eventActionSetters.setModifiers;
 
     // ========== 教程系统状�?==========
     const [showTutorial, setShowTutorial] = useState(() => {
@@ -2326,6 +2733,11 @@ export const useGameState = () => {
 
     const buildSavePayload = ({ source = 'manual', timestamp = Date.now() } = {}) => {
         const nextLastAuto = source === 'auto' ? timestamp : lastAutoSaveTime;
+        // [PR-1] buildSavePayload 剔除纯 UI 态 / 临时展示结构：
+        //   - activeTab / stratumDetailView / resourceDetailView / populationDetailView
+        //   - selectedTarget / battleResult / festivalModal / currentEvent / showTutorial
+        //   - classWealthDelta / classInfluenceShift （单 tick 衍生值，下个 tick 会重算）
+        // 这些字段在 applyLoadedGameState 里都已经用 `data.X || default` 兜底，老存档仍可读。
         return {
             payload: {
                 saveFormatVersion: SAVE_FORMAT_VERSION,
@@ -2339,7 +2751,6 @@ export const useGameState = () => {
                 buildingUpgrades,
                 techsUnlocked,
                 epoch,
-                activeTab,
                 gameSpeed,
                 isPaused,
                 nations,
@@ -2361,7 +2772,7 @@ export const useGameState = () => {
                 classApproval,
                 classInfluence,
                 classWealth,
-                classWealthDelta,
+                // classWealthDelta / classInfluenceShift 是单 tick 衍生量，不入存档
                 classIncome,
                 classExpense,
                 classFinancialData,
@@ -2372,15 +2783,12 @@ export const useGameState = () => {
                 totalWealth,
                 activeBuffs,
                 activeDebuffs,
-                classInfluenceShift,
                 stability,
-                stratumDetailView,
-                resourceDetailView,
+                // stratumDetailView / resourceDetailView / populationDetailView 是 UI 弹窗选中项
                 classShortages,
                 classLivingStandard,
                 livingStandardStreaks,
                 migrationCooldowns,
-                populationDetailView,
                 history,
                 // 经济指标
                 priceHistory,
@@ -2395,19 +2803,17 @@ export const useGameState = () => {
                 activeBattles,
                 pendingRepairs,
                 corpsReplenishQueue,
-                selectedTarget,
-                battleResult,
+                // selectedTarget / battleResult 为 UI 选择/临时结算展示，不入存档
                 playerInstallmentPayment,
                 autoRecruitEnabled,
                 targetArmyComposition,
                 militaryWageRatio,
-                festivalModal,
+                // festivalModal 为年度节庆弹窗，下一 tick 的年度检测会自然重建
                 annualReportBaseline,
                 annualReportAccumulator,
                 lastFestivalYear,
                 annualReportHistory,
-                showTutorial,
-                currentEvent,
+                // showTutorial / currentEvent 为弹窗 UI 态；showTutorial 已有独立教程进度存储
                 eventHistory,
                 logs,
                 clicks,
@@ -2924,7 +3330,7 @@ export const useGameState = () => {
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
         setDecrees(Array.isArray(data.decrees) ? data.decrees : []);
         setActiveDecrees(data.activeDecrees || {});
-        setDecreCooldowns(data.decreeCooldowns || {});
+        setDecreeCooldowns(data.decreeCooldowns || {});
         // Planned economy quota controls: keep backward compatibility with older saves
         const loadedQuotaTargets = data.quotaTargets;
         const normalizedQuotaTargets = loadedQuotaTargets
@@ -3020,15 +3426,51 @@ export const useGameState = () => {
         const shouldUseFastMilitaryLoad = (loadedMilitaryCorps.length + loadedGenerals.length) > FAST_LOAD_MILITARY_ENTITY_THRESHOLD;
         if (shouldUseFastMilitaryLoad) {
             console.warn(`[Save Migration] Large military payload detected (corps=${loadedMilitaryCorps.length}, generals=${loadedGenerals.length}), using fast-load path.`);
-            loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => ({
-                ...corps,
-                generalId: null,
-                assignedFrontId: null,
-                status: 'idle',
-            }));
+            // 快速加载：仅重置将领分配和AI兵团部署，保留玩家兵团的部署状态
+            const fastLoadFronts = (data.activeFronts || []).map(front => ensureFrontDefaults(front));
+            const fastFrontIdSet = new Set(fastLoadFronts.filter(f => f.status === 'active').map(f => f.id));
+            loadedMilitaryCorps = loadedMilitaryCorps.map((corps) => {
+                if (corps.isAI) {
+                    // AI兵团：重置部署以节省加载时间（AI会在游戏tick中重新部署）
+                    return { ...corps, generalId: null, assignedFrontId: null, status: 'idle' };
+                }
+                // 玩家兵团：保留有效的前线分配
+                const assignedFrontId = fastFrontIdSet.has(corps.assignedFrontId) ? corps.assignedFrontId : null;
+                return {
+                    ...corps,
+                    generalId: null,  // 将领仍然重置以保持快速加载的性能优势
+                    assignedFrontId,
+                    status: assignedFrontId ? 'deployed' : 'idle',
+                };
+            });
+            // 重建前线的 assignedCorps 玩家侧列表
+            const playerCorpsByFrontFast = new Map();
+            for (const corps of loadedMilitaryCorps) {
+                if (corps.isAI || !corps.assignedFrontId) continue;
+                if (!playerCorpsByFrontFast.has(corps.assignedFrontId)) {
+                    playerCorpsByFrontFast.set(corps.assignedFrontId, []);
+                }
+                playerCorpsByFrontFast.get(corps.assignedFrontId).push(corps.id);
+            }
+            const reconciledFastFronts = fastLoadFronts.map((front) => {
+                const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
+                const playerCorpsForFront = playerCorpsByFrontFast.get(front.id) || [];
+                return {
+                    ...front,
+                    assignedCorps: {
+                        ...front.assignedCorps,
+                        [playerSide]: playerCorpsForFront,
+                    },
+                    frontlineCorpsOrder: {
+                        ...(front.frontlineCorpsOrder || {}),
+                        [playerSide]: playerCorpsForFront,
+                    },
+                    activeBattleId: null,
+                };
+            });
             setMilitaryCorps(loadedMilitaryCorps);
             setGenerals(loadedGenerals);
-            setActiveFronts([]);
+            setActiveFronts(reconciledFastFronts);
             setActiveBattles([]);
             setPendingRepairs(data.pendingRepairs || []);
         } else {
@@ -3158,18 +3600,58 @@ export const useGameState = () => {
                 });
             }
             const corpsIdSet = new Set(loadedMilitaryCorps.map((corps) => corps.id));
+            // 构建从 frontId → 各侧兵团ID 的映射，用于重建 assignedCorps
+            const playerCorpsByFront = new Map();
+            const aiCorpsByFront = new Map();
+            for (const corps of loadedMilitaryCorps) {
+                if (!corps.assignedFrontId) continue;
+                const targetMap = corps.isAI ? aiCorpsByFront : playerCorpsByFront;
+                if (!targetMap.has(corps.assignedFrontId)) {
+                    targetMap.set(corps.assignedFrontId, []);
+                }
+                targetMap.get(corps.assignedFrontId).push(corps.id);
+            }
             reconciledFronts = reconciledFronts.map((front) => {
                 const pruneList = (list = []) => list.filter((id) => corpsIdSet.has(id));
+                const playerSide = front.attackerId === 'player' ? 'attacker' : 'defender';
+                const enemySide = playerSide === 'attacker' ? 'defender' : 'attacker';
+                // 先修剪无效ID
+                const prunedAttacker = pruneList(front.assignedCorps?.attacker);
+                const prunedDefender = pruneList(front.assignedCorps?.defender);
+                // 从兵团数据重建玩家侧和AI侧的 assignedCorps（补全缺失的兵团ID）
+                const playerCorpsForFront = playerCorpsByFront.get(front.id) || [];
+                const aiCorpsForFront = aiCorpsByFront.get(front.id) || [];
+                const existingPlayerSet = new Set(playerSide === 'attacker' ? prunedAttacker : prunedDefender);
+                const existingEnemySet = new Set(enemySide === 'attacker' ? prunedAttacker : prunedDefender);
+                // 将缺失的兵团ID注入到对应侧
+                for (const corpsId of playerCorpsForFront) {
+                    if (!existingPlayerSet.has(corpsId)) existingPlayerSet.add(corpsId);
+                }
+                for (const corpsId of aiCorpsForFront) {
+                    if (!existingEnemySet.has(corpsId)) existingEnemySet.add(corpsId);
+                }
+                const rebuiltPlayerList = [...existingPlayerSet];
+                const rebuiltEnemyList = [...existingEnemySet];
+                const rebuiltAssignedCorps = {
+                    [playerSide]: rebuiltPlayerList,
+                    [enemySide]: rebuiltEnemyList,
+                };
+                // 同样重建 frontlineCorpsOrder
+                const prunedFrontlineAttacker = pruneList(front.frontlineCorpsOrder?.attacker);
+                const prunedFrontlineDefender = pruneList(front.frontlineCorpsOrder?.defender);
+                const existingFrontlinePlayer = new Set(playerSide === 'attacker' ? prunedFrontlineAttacker : prunedFrontlineDefender);
+                for (const corpsId of playerCorpsForFront) {
+                    if (!existingFrontlinePlayer.has(corpsId)) existingFrontlinePlayer.add(corpsId);
+                }
+                const rebuiltFrontlinePlayer = [...existingFrontlinePlayer];
+                const rebuiltFrontlineCorpsOrder = {
+                    [playerSide]: rebuiltFrontlinePlayer,
+                    [enemySide]: enemySide === 'attacker' ? prunedFrontlineAttacker : prunedFrontlineDefender,
+                };
                 return {
                     ...front,
-                    assignedCorps: {
-                        attacker: pruneList(front.assignedCorps?.attacker),
-                        defender: pruneList(front.assignedCorps?.defender),
-                    },
-                    frontlineCorpsOrder: {
-                        attacker: pruneList(front.frontlineCorpsOrder?.attacker),
-                        defender: pruneList(front.frontlineCorpsOrder?.defender),
-                    },
+                    assignedCorps: rebuiltAssignedCorps,
+                    frontlineCorpsOrder: rebuiltFrontlineCorpsOrder,
                     activeBattleId: null,
                 };
             });
@@ -3365,6 +3847,9 @@ export const useGameState = () => {
         setActionUsage(data.actionUsage || {});
         setPromiseTasks(data.promiseTasks || []);
         setEventConfirmationEnabled(data.eventConfirmationEnabled || false);
+        // [PR-3] 加载完成后清空分片 dirty 缓存，强制下一次 saveGame 全量写入所有分片，
+        // 以确保 IDB 内容与刚加载的内存状态完全一致（避免残留的上次会话快照造成跳过）
+        lastSavedShardJsonsRef.current = {};
     };
 
     const saveGame = async ({ source = 'manual', slotIndex = 0 } = {}) => {
@@ -3374,10 +3859,46 @@ export const useGameState = () => {
         trackSaveGame(daysElapsed, source);
         const timestamp = Date.now();
         const { payload } = buildSavePayload({ source, timestamp });
-        // Always compact saves to reduce storage usage (both manual and auto)
+        // [PR-1] 始终走 compact 路径（manual/auto 一致，减少历史分支）
         const payloadToSave = compactSavePayload(payload);
         let targetKey;
         let friendlyName;
+
+        // [PR-1] 通用辅助：一次 stringify 得到 JSON + size 描述
+        const stringifyAndSize = (obj) => {
+            const json = JSON.stringify(obj);
+            return { json, size: sizeDescFromString(json) };
+        };
+        const primaryStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+        // [PR-2] 分片路径：IDB 可用时优先使用，避免单次 stringify 整个 payload。
+        //   localStorage 只写一个极小的 stub，所有重量级数据落到 IDB 分片中。
+        // [PR-1] 如果分片路径不可用（IDB 不可用或分片写入失败），才回退到 stringify 整个 payload 的旧路径。
+        let primaryJson = null;
+        let saveSize = { bytes: 0, kb: '0', mb: '0', display: '0KB' };
+
+        // 贯穿整个 saveGame 的状态变量，用于结束时统一上报埋点
+        let savePathLabel = 'unknown';
+        let saveSucceeded = false;
+        let saveBytesReported = 0;
+        const shardByteBreakdown = {};
+
+        // [PR-2/PR-3] 工具：清理一个存档 key 关联的所有存储
+        //   localStorage stub + IDB 主键 + IDB 所有分片 + 本地 dirty-bit 缓存
+        const removeSaveEverywhere = (key, { parsedStub = null } = {}) => {
+            try { localStorage.removeItem(key); } catch { /* noop */ }
+            void removeSaveFromIndexedDb(key);
+            const shardNames = (parsedStub && Array.isArray(parsedStub.shards) && parsedStub.shards.length)
+                ? parsedStub.shards
+                : SHARD_NAMES;
+            for (const name of shardNames) {
+                void removeSaveFromIndexedDb(shardKeyFor(key, name));
+            }
+            // 清掉 dirty-bit 缓存，让下次保存到这个 key 时走全量
+            if (lastSavedShardJsonsRef.current[key]) {
+                delete lastSavedShardJsonsRef.current[key];
+            }
+        };
 
         // Helper function to clean up old saves
         const cleanupOldSaves = ({ includeAutoSave = false } = {}) => {
@@ -3390,10 +3911,10 @@ export const useGameState = () => {
                     if (data) {
                         try {
                             const parsed = JSON.parse(data);
-                            saveSlots.push({ key, timestamp: parsed.updatedAt || 0, size: data.length });
+                            saveSlots.push({ key, timestamp: parsed.updatedAt || 0, size: data.length, parsed });
                         } catch (e) {
-                            // Invalid save, remove it
-                            localStorage.removeItem(key);
+                            // Invalid save, remove it（还有可能留下孤儿分片，这里顺手清一下）
+                            removeSaveEverywhere(key);
                         }
                     }
                 }
@@ -3402,15 +3923,15 @@ export const useGameState = () => {
                 saveSlots.sort((a, b) => a.timestamp - b.timestamp);
                 const toRemove = saveSlots.slice(0, Math.max(0, saveSlots.length - 3));
                 toRemove.forEach(slot => {
-                    localStorage.removeItem(slot.key);
-                    void removeSaveFromIndexedDb(slot.key);
+                    removeSaveEverywhere(slot.key, { parsedStub: slot.parsed });
                     console.log(`Cleaned up old save: ${slot.key} (${(slot.size / 1024).toFixed(1)}KB)`);
                 });
 
                 let removedAuto = false;
                 if (includeAutoSave && localStorage.getItem(AUTOSAVE_KEY)) {
-                    localStorage.removeItem(AUTOSAVE_KEY);
-                    void removeSaveFromIndexedDb(AUTOSAVE_KEY);
+                    let autoParsed = null;
+                    try { autoParsed = JSON.parse(localStorage.getItem(AUTOSAVE_KEY)); } catch { /* noop */ }
+                    removeSaveEverywhere(AUTOSAVE_KEY, { parsedStub: autoParsed });
                     removedAuto = true;
                     console.log('Cleaned up autosave to free space.');
                 }
@@ -3428,27 +3949,31 @@ export const useGameState = () => {
 
         const shouldUseExternalStorage = (bytes) => hasIndexedDb() && bytes >= LOCAL_STORAGE_SOFT_LIMIT;
 
-        const persistExternalSave = async (payloadToStore, saveSize) => {
+        // [PR-1] persistExternalSave 统一接收"已 stringify 的 JSON 字符串 + 原始 payload + size 描述"
+        //   jsonString：直接 put 进 IDB，避免在写盘时再 stringify 一次
+        //   payloadForStub：用于构造 localStorage stub（只读小字段）
+        const persistExternalSave = async (jsonString, payloadForStub, saveSize) => {
             if (!hasIndexedDb()) {
                 return false;
             }
             try {
-                await writeSaveToIndexedDb(targetKey, JSON.stringify(payloadToStore));
+                await writeSaveToIndexedDb(targetKey, jsonString);
             } catch (error) {
                 console.error('External save failed:', error);
                 return false;
             }
 
-            const stub = buildExternalSaveStub(payloadToStore, { sizeBytes: saveSize.bytes });
+            const stub = buildExternalSaveStub(payloadForStub, { sizeBytes: saveSize.bytes });
+            const stubJson = JSON.stringify(stub);
             let stubStored = false;
             try {
-                localStorage.setItem(targetKey, JSON.stringify(stub));
+                localStorage.setItem(targetKey, stubJson);
                 stubStored = true;
             } catch (stubError) {
                 const cleaned = cleanupOldSaves({ includeAutoSave: source !== 'auto' });
                 if (cleaned) {
                     try {
-                        localStorage.setItem(targetKey, JSON.stringify(stub));
+                        localStorage.setItem(targetKey, stubJson);
                         stubStored = true;
                     } catch (retryError) {
                         console.warn('Failed to store external save stub:', retryError);
@@ -3470,6 +3995,202 @@ export const useGameState = () => {
             return true;
         };
 
+        // [PR-2/PR-3] 把 payload 拆成 5 个分片独立写入 IDB；localStorage 只留 stub 索引
+        //   - 成功条件：state + nations 两片必须都成功（或被判定为未变更）；
+        //     其余 history/market/social 失败不阻断 save，仅在 stub.failedShards 里记录。
+        //   - PR-3 dirty-bit：对比每片 JSON 与上次写入的版本，未变更的分片直接跳过 IDB 写入，
+        //     只在 stub.shardSizes 里沿用旧尺寸。手动存档 (source==='manual') 强制全量。
+        const writeShardedSave = async (shardedPayload) => {
+            if (!hasIndexedDb()) {
+                return { ok: false, reason: 'no-idb' };
+            }
+            const shards = splitPayloadToShards(shardedPayload);
+            const shardSizes = {};
+            const shardJsons = {};
+            let totalBytes = 0;
+
+            // [PR-4] 优先把 stringify 丢给 save.worker；主线程只负责 postMessage（≈structuredClone 一次）
+            //   - worker 成功：直接拿到所有 shard 的 json/size，主线程跳过 3MB 级的 JSON.stringify
+            //   - worker 失败或不存在：回退到主线程串行 stringify 路径（PR-1 的实现）
+            //   - "superseded" 不算错误，但作为合并覆盖的信号让上层跳过本次写入
+            // [PR-5] 同时可选让 worker 做 gzip 压缩，降低 IDB 写盘量（实测 10–20% 原体积）
+            let workerUsed = false;
+            let supersededBySaveWorker = false;
+            let shardBlobs = null;           // [PR-5] 每片的 gzip Uint8Array（若压缩启用且成功）
+            let shardCompressedSizes = null; // [PR-5] 每片的压缩字节数
+            let compressionActive = false;   // [PR-5] 本次写入最终是否走了压缩通道
+            try {
+                const workerShards = {
+                    state: shards.state,
+                    nations: shards.nations,
+                    history: shards.history,
+                    market: shards.market,
+                    social: shards.social,
+                };
+                const compressRequested = isSaveCompressionEnabled();
+                const result = await stringifyShardsInWorker(workerShards, { compress: compressRequested });
+                if (result && result.jsons) {
+                    for (const name of SHARD_NAMES) {
+                        const json = result.jsons[name];
+                        shardJsons[name] = typeof json === 'string' ? json : 'null';
+                        const size = result.sizes && typeof result.sizes[name] === 'number'
+                            ? result.sizes[name]
+                            : Math.ceil(shardJsons[name].length * 1.02);
+                        shardSizes[name] = size;
+                        totalBytes += size;
+                    }
+                    if (result.compressionUsed && result.compressedBlobs) {
+                        shardBlobs = result.compressedBlobs;
+                        shardCompressedSizes = result.compressedSizes || {};
+                        compressionActive = true;
+                    }
+                    workerUsed = true;
+                }
+            } catch (err) {
+                const kind = (err && err.kind) || 'unknown';
+                if (kind === SAVE_WORKER_ERROR_KINDS.SUPERSEDED) {
+                    // 更新的一次自动存档已经进入队列：直接放弃当前写入，让后面那次来做
+                    supersededBySaveWorker = true;
+                } else if (kind === SAVE_WORKER_ERROR_KINDS.NO_WORKER) {
+                    // 环境不支持 Worker / 被 runtime flag 关掉；不做埋点（saveWorkerClient 已经点过一次）
+                } else {
+                    console.warn('[Save] save.worker failed, fallback to main-thread stringify:', err);
+                    try { trackSaveWorkerFallback(kind); } catch { /* noop */ }
+                }
+            }
+
+            if (supersededBySaveWorker) {
+                return { ok: false, reason: 'superseded' };
+            }
+
+            if (!workerUsed) {
+                // 主线程兜底路径：串行 stringify 5 份；每份都比整 payload 小得多
+                for (const name of SHARD_NAMES) {
+                    const value = name === 'nations' ? shards.nations : shards[name];
+                    const json = value === null || value === undefined ? 'null' : JSON.stringify(value);
+                    shardJsons[name] = json;
+                    shardSizes[name] = Math.ceil(json.length * 1.02);
+                    totalBytes += shardSizes[name];
+                }
+            }
+
+            // [PR-3] 基于上一次 save 快照计算每片是否需要写入
+            const forceAll = source === 'manual';
+            const lastSnap = lastSavedShardJsonsRef.current[targetKey] || {};
+            const dirtyFlags = {};
+            const skippedShards = [];
+            for (const name of SHARD_NAMES) {
+                if (forceAll || lastSnap[name] !== shardJsons[name]) {
+                    dirtyFlags[name] = true;
+                } else {
+                    dirtyFlags[name] = false;
+                    skippedShards.push(name);
+                }
+            }
+
+            // 优先写 state + nations（必选，若未 dirty 则直接判通过）
+            // [PR-5] 若本次压缩成功，写入 Uint8Array（IDB 原生支持 Blob/ArrayBuffer/TypedArray），
+            //        否则写入 JSON 字符串；两种格式 loadGame 侧都会识别
+            const writeOne = async (name) => {
+                if (!dirtyFlags[name]) return; // 脏位清零跳过
+                const value = (compressionActive && shardBlobs && shardBlobs[name])
+                    ? shardBlobs[name]
+                    : shardJsons[name];
+                await writeSaveToIndexedDb(shardKeyFor(targetKey, name), value);
+            };
+            try {
+                await writeOne('state');
+                await writeOne('nations');
+            } catch (error) {
+                console.error('[Save] sharded primary write failed:', error);
+                // 清理已写入的部分，防止下次读取时把半截数据 merge 进去
+                for (const name of SHARD_NAMES) {
+                    try { await removeSaveFromIndexedDb(shardKeyFor(targetKey, name)); } catch { /* noop */ }
+                }
+                delete lastSavedShardJsonsRef.current[targetKey];
+                return { ok: false, reason: 'shard-primary-failed', error };
+            }
+
+            const secondary = ['history', 'market', 'social'];
+            const secondaryResults = await Promise.allSettled(secondary.map(writeOne));
+            const failedSecondary = [];
+            secondaryResults.forEach((r, i) => {
+                if (r.status === 'rejected') failedSecondary.push(secondary[i]);
+            });
+
+            // [PR-5] 若本次压缩成功，stub.sizeBytes 以压缩后的字节为准（反映真实磁盘占用），
+            //        并附带原始字节供回看；loadGame 不依赖这里，纯粹观测用
+            let stubSizeBytes = totalBytes;
+            let totalCompressedBytes = 0;
+            if (compressionActive && shardCompressedSizes) {
+                totalCompressedBytes = SHARD_NAMES.reduce(
+                    (sum, n) => sum + (shardCompressedSizes[n] || 0),
+                    0
+                );
+                if (totalCompressedBytes > 0) stubSizeBytes = totalCompressedBytes;
+            }
+
+            // 写 stub 到 localStorage（小数据，同步写但 < 1KB，主线程开销可忽略）
+            const stub = buildShardedSaveStub(shardedPayload, {
+                sizeBytes: stubSizeBytes,
+                shardSizes: compressionActive && shardCompressedSizes ? shardCompressedSizes : shardSizes,
+                failedShards: failedSecondary,
+            });
+            if (compressionActive) {
+                stub.compression = 'gzip';
+                stub.rawBytes = totalBytes; // 未压缩体积，调试/观测用
+            }
+            const stubJson = JSON.stringify(stub);
+            try {
+                localStorage.setItem(targetKey, stubJson);
+            } catch (stubError) {
+                // stub 写失败往往是 localStorage 满：清理老存档后再试一次
+                const cleaned = cleanupOldSaves({ includeAutoSave: source !== 'auto' });
+                if (cleaned) {
+                    try {
+                        localStorage.setItem(targetKey, stubJson);
+                    } catch (retryError) {
+                        console.warn('[Save] Failed to store sharded stub after cleanup:', retryError);
+                        // 删掉已写入的分片，保持一致性
+                        for (const name of SHARD_NAMES) {
+                            try { await removeSaveFromIndexedDb(shardKeyFor(targetKey, name)); } catch { /* noop */ }
+                        }
+                        return { ok: false, reason: 'stub-quota', error: retryError };
+                    }
+                } else {
+                    for (const name of SHARD_NAMES) {
+                        try { await removeSaveFromIndexedDb(shardKeyFor(targetKey, name)); } catch { /* noop */ }
+                    }
+                    return { ok: false, reason: 'stub-quota', error: stubError };
+                }
+            }
+
+            // 升级清理：v1 存档在 targetKey 下的 IDB 整块 payload 现在已废弃
+            // 如果这是一次从 v1 → v2 的保存，顺手清掉那个整块，防止占空间
+            try { await removeSaveFromIndexedDb(targetKey); } catch { /* noop */ }
+
+            // [PR-3] 记录本次写入的快照；失败的 secondary 分片不更新（保持 dirty），下次重试
+            const nextSnap = { ...(lastSavedShardJsonsRef.current[targetKey] || {}) };
+            for (const name of SHARD_NAMES) {
+                if (failedSecondary.includes(name)) continue;
+                nextSnap[name] = shardJsons[name];
+            }
+            lastSavedShardJsonsRef.current[targetKey] = nextSnap;
+
+            return {
+                ok: true,
+                bytes: totalBytes,
+                shardSizes,
+                failedSecondary,
+                skippedShards,
+                dirtyShards: SHARD_NAMES.filter((n) => dirtyFlags[n]),
+                // [PR-5] 压缩相关，供 saveGame 上报埋点用
+                compressionUsed: compressionActive,
+                compressedBytes: totalCompressedBytes,
+                shardCompressedSizes: compressionActive ? shardCompressedSizes : null,
+            };
+        };
+
         try {
 
             // 确定存储 key
@@ -3483,18 +4204,84 @@ export const useGameState = () => {
                 friendlyName = `存档 ${safeIndex + 1}`;
             }
 
-            // Calculate and log save size
-            const saveSize = calculateSaveSize(payloadToSave);
+            // [PR-2] 主路径：IDB 分片。IDB 可用即优先使用。
+            if (hasIndexedDb()) {
+                const sharded = await writeShardedSave(payloadToSave);
+                if (sharded.ok) {
+                    // [PR-3/PR-5] shardByteBreakdown 只记录真正写入 IDB 的分片字节数，
+                    // 未 dirty 的分片以 0 上报（便于在看板上看 dirty-bit 的命中率）
+                    // 压缩启用时改用压缩后的字节，反映真实磁盘写入量
+                    const sizeTable = sharded.compressionUsed && sharded.shardCompressedSizes
+                        ? sharded.shardCompressedSizes
+                        : sharded.shardSizes;
+                    for (const name of SHARD_NAMES) {
+                        const wroteThisShard = sharded.dirtyShards && sharded.dirtyShards.includes(name);
+                        shardByteBreakdown[name] = wroteThisShard ? (sizeTable[name] || 0) : 0;
+                    }
+                    const bytesWritten = (sharded.dirtyShards || []).reduce((sum, n) => sum + (sizeTable[n] || 0), 0);
+                    triggerSavingIndicator();
+                    if (source === 'auto') {
+                        setLastAutoSaveTime(timestamp);
+                    } else {
+                        // 用"本次写入量"构造 sizeDesc；手动存档 dirty-bit 强制全量所以等于 bytes 总量
+                        const bytesForDisplay = source === 'manual' ? sharded.bytes : bytesWritten || sharded.bytes;
+                        saveSize = {
+                            bytes: bytesForDisplay,
+                            kb: (bytesForDisplay / 1024).toFixed(1),
+                            mb: (bytesForDisplay / (1024 * 1024)).toFixed(2),
+                            display: bytesForDisplay > 1024 * 1024
+                                ? `${(bytesForDisplay / (1024 * 1024)).toFixed(2)}MB`
+                                : `${(bytesForDisplay / 1024).toFixed(1)}KB`,
+                        };
+                        addLogEntry(`💾 游戏已保存到${friendlyName}�?${saveSize.display})`);
+                    }
+                    if (sharded.failedSecondary && sharded.failedSecondary.length) {
+                        savePathLabel = 'idb_sharded_partial';
+                    } else if (sharded.skippedShards && sharded.skippedShards.length === SHARD_NAMES.length) {
+                        // 全部 shard 都未变更：只更新了 stub（几百字节）
+                        savePathLabel = 'idb_sharded_stuponly';
+                    } else if (sharded.skippedShards && sharded.skippedShards.length > 0) {
+                        savePathLabel = 'idb_sharded_incremental';
+                    } else {
+                        savePathLabel = 'idb_sharded';
+                    }
+                    // [PR-5] 压缩路径单独打一个后缀，便于看板区分 gzip/未压缩的写入分布
+                    if (sharded.compressionUsed) {
+                        savePathLabel = `${savePathLabel}_gz`;
+                    }
+                    saveSucceeded = true;
+                    // 上报"实际写入字节"而非 payload 总大小，观测 dirty-bit 的收益
+                    saveBytesReported = bytesWritten || sharded.bytes;
+                    return;
+                }
+                // [PR-4] save.worker 合并覆盖：这次请求被后一次新请求取代了。
+                // 不是错误，直接静默返回，让更新的那次写入完成即可，避免多次落盘。
+                if (sharded.reason === 'superseded') {
+                    savePathLabel = 'superseded';
+                    saveBytesReported = 0;
+                    return;
+                }
+                // 分片写失败：落到下面的旧路径
+                console.warn('[Save] Sharded path unavailable, falling back to legacy single-blob:', sharded.reason);
+            }
+
+            // [Legacy] 单 blob 路径（仅在 IDB 不可用 / 分片写失败时走）
+            const primary = stringifyAndSize(payloadToSave);
+            primaryJson = primary.json;
+            saveSize = primary.size;
             console.log(`Attempting to save (${friendlyName}): ${saveSize.display}`);
 
             if (shouldUseExternalStorage(saveSize.bytes)) {
-                const stored = await persistExternalSave(payloadToSave, saveSize);
+                const stored = await persistExternalSave(primaryJson, payloadToSave, saveSize);
                 if (stored) {
+                    savePathLabel = 'idb_direct';
+                    saveSucceeded = true;
+                    saveBytesReported = saveSize.bytes;
                     return;
                 }
             }
 
-            localStorage.setItem(targetKey, JSON.stringify(payloadToSave));
+            localStorage.setItem(targetKey, primaryJson);
             triggerSavingIndicator();
 
             if (source === 'auto') {
@@ -3502,18 +4289,30 @@ export const useGameState = () => {
             } else {
                 addLogEntry(`💾 游戏已保存到${friendlyName}�?${saveSize.display})`);
             }
+            savePathLabel = 'localstorage_direct';
+            saveSucceeded = true;
+            saveBytesReported = saveSize.bytes;
         } catch (error) {
             const isQuotaExceeded = error?.name === 'QuotaExceededError'
                 || `${error?.message || ''}`.toLowerCase().includes('quota');
             if (isQuotaExceeded) {
+                // [PR-1] Quota 回退链内每一步也只 stringify 一次，沿用相同字符串做尺寸估算与写盘
+                const stringifyAndSize = (obj) => {
+                    const json = JSON.stringify(obj);
+                    return { json, size: sizeDescFromString(json) };
+                };
+
                 // On quota exceeded, try IndexedDB first (don't rely on size threshold)
                 if (hasIndexedDb()) {
                     console.log('Quota exceeded - trying IndexedDB directly...');
                     const compactedPayload = compactSavePayload(payload, { aggressive: true });
-                    const compactSize = calculateSaveSize(compactedPayload);
-                    const stored = await persistExternalSave(compactedPayload, compactSize);
+                    const { json: compactJson, size: compactSize } = stringifyAndSize(compactedPayload);
+                    const stored = await persistExternalSave(compactJson, compactedPayload, compactSize);
                     if (stored) {
                         addLogEntry(`⚠️ 存档空间不足，已保存到浏览器数据�?(${compactSize.display})。`);
+                        savePathLabel = 'idb_compact';
+                        saveSucceeded = true;
+                        saveBytesReported = compactSize.bytes;
                         return;
                     }
                 }
@@ -3521,15 +4320,18 @@ export const useGameState = () => {
                 // Fallback: Try aggressive compaction to localStorage
                 try {
                     const compactedPayload = compactSavePayload(payload, { aggressive: true });
-                    const compactSize = calculateSaveSize(compactedPayload);
+                    const { json: compactJson, size: compactSize } = stringifyAndSize(compactedPayload);
                     console.log(`Trying compact save: ${compactSize.display}`);
 
-                    localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
+                    localStorage.setItem(targetKey, compactJson);
                     triggerSavingIndicator();
                     if (source === 'auto') {
                         setLastAutoSaveTime(timestamp);
                     }
                     addLogEntry(`⚠️ 存档空间不足，已使用精简存档 (${compactSize.display})。`);
+                    savePathLabel = 'localstorage_compact';
+                    saveSucceeded = true;
+                    saveBytesReported = compactSize.bytes;
                     return;
                 } catch (fallbackError) {
                     console.error('Compact save failed:', fallbackError);
@@ -3542,21 +4344,27 @@ export const useGameState = () => {
                             ...buildMinimalAutoSavePayload(payload),
                             saveSource: 'manual-minimal',
                         };
-                        const minimalSize = calculateSaveSize(minimalPayload);
+                        const { json: minimalJson, size: minimalSize } = stringifyAndSize(minimalPayload);
                         console.log(`Trying minimal manual save: ${minimalSize.display}`);
 
                         // Try IndexedDB first for minimal save too
                         if (hasIndexedDb()) {
-                            const stored = await persistExternalSave(minimalPayload, minimalSize);
+                            const stored = await persistExternalSave(minimalJson, minimalPayload, minimalSize);
                             if (stored) {
                                 addLogEntry(`⚠️ 存档已保存到浏览器数据库 (${minimalSize.display})。`);
+                                savePathLabel = 'idb_minimal';
+                                saveSucceeded = true;
+                                saveBytesReported = minimalSize.bytes;
                                 return;
                             }
                         }
 
-                        localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                        localStorage.setItem(targetKey, minimalJson);
                         triggerSavingIndicator();
                         addLogEntry(`⚠️ 存档空间不足，已切换为最小存�?(${minimalSize.display})。`);
+                        savePathLabel = 'localstorage_minimal';
+                        saveSucceeded = true;
+                        saveBytesReported = minimalSize.bytes;
                         return;
                     } catch (minimalManualError) {
                         console.error('Minimal manual save failed:', minimalManualError);
@@ -3567,22 +4375,28 @@ export const useGameState = () => {
                 if (source === 'auto') {
                     try {
                         const minimalPayload = buildMinimalAutoSavePayload(payload);
-                        const minimalSize = calculateSaveSize(minimalPayload);
+                        const { json: minimalJson, size: minimalSize } = stringifyAndSize(minimalPayload);
                         console.log(`Trying minimal save: ${minimalSize.display}`);
 
                         // Try IndexedDB first for minimal save too
                         if (hasIndexedDb()) {
-                            const stored = await persistExternalSave(minimalPayload, minimalSize);
+                            const stored = await persistExternalSave(minimalJson, minimalPayload, minimalSize);
                             if (stored) {
                                 setLastAutoSaveTime(timestamp);
+                                savePathLabel = 'idb_minimal';
+                                saveSucceeded = true;
+                                saveBytesReported = minimalSize.bytes;
                                 return;
                             }
                         }
 
-                        localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                        localStorage.setItem(targetKey, minimalJson);
                         triggerSavingIndicator();
                         setLastAutoSaveTime(timestamp);
                         addLogEntry(`⚠️ 自动存档已切换为最小存�?(${minimalSize.display})。`);
+                        savePathLabel = 'localstorage_minimal';
+                        saveSucceeded = true;
+                        saveBytesReported = minimalSize.bytes;
                         return;
                     } catch (minimalError) {
                         console.error('Minimal auto save failed:', minimalError);
@@ -3596,27 +4410,33 @@ export const useGameState = () => {
                         const minimalPayload = source === 'auto'
                             ? buildMinimalAutoSavePayload(payload)
                             : compactSavePayload(payload, { aggressive: true });
-                        const retrySize = calculateSaveSize(minimalPayload);
+                        const { json: retryJson, size: retrySize } = stringifyAndSize(minimalPayload);
                         console.log(`Retrying after cleanup: ${retrySize.display}`);
 
                         // Try IndexedDB first after cleanup
                         if (hasIndexedDb()) {
-                            const stored = await persistExternalSave(minimalPayload, retrySize);
+                            const stored = await persistExternalSave(retryJson, minimalPayload, retrySize);
                             if (stored) {
                                 if (source === 'auto') {
                                     setLastAutoSaveTime(timestamp);
                                 }
                                 addLogEntry(`⚠️ 已清理旧存档并保�?(${retrySize.display})。`);
+                                savePathLabel = 'idb_retry_clean';
+                                saveSucceeded = true;
+                                saveBytesReported = retrySize.bytes;
                                 return;
                             }
                         }
 
-                        localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                        localStorage.setItem(targetKey, retryJson);
                         triggerSavingIndicator();
                         if (source === 'auto') {
                             setLastAutoSaveTime(timestamp);
                         }
                         addLogEntry(`⚠️ 已清理旧存档并保�?(${retrySize.display})。建议定期导出存档。`);
+                        savePathLabel = 'localstorage_retry_clean';
+                        saveSucceeded = true;
+                        saveBytesReported = retrySize.bytes;
                         return;
                     } catch (retryError) {
                         console.error('Save failed after cleanup:', retryError);
@@ -3626,6 +4446,7 @@ export const useGameState = () => {
                 // Remove redundant final IndexedDB attempt since we already tried it first
 
                 // All attempts failed
+                savePathLabel = 'quota_blocked';
                 if (source === 'auto') {
                     setIsAutoSaveEnabled(false);
                     setAutoSaveBlocked(true);
@@ -3638,15 +4459,35 @@ export const useGameState = () => {
                     addLogEntry('�?存档失败：存储空间不足。请导出当前存档或清理浏览器缓存�');
                 }
             } else {
+                savePathLabel = 'error';
                 console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
                 trackErrorError(`SaveWriteError: ${error.message}`);
                 if (source === 'auto') {
-                    addLogEntry(`�?自动存档失败�?{error.message}`);
+                    addLogEntry(`❌ 自动存档失败：${error.message}`);
                 } else {
-                    addLogEntry(`�?存档失败�?{error.message}`);
+                    addLogEntry(`❌ 存档失败：${error.message}`);
                 }
             }
             setIsSaving(false);
+        } finally {
+            // [PR-1/PR-2] 统一的 saveGame 结束埋点：无论成功/失败/哪条分支，都只上报一次
+            try {
+                const endTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                const durationMs = Math.max(0, endTime - primaryStart);
+                trackSaveDuration(source, durationMs);
+                trackSavePath(source, savePathLabel);
+                if (saveSucceeded && saveBytesReported > 0) {
+                    trackSaveBytes(source, saveBytesReported);
+                    // [PR-2] 分片路径下额外上报每片字节数，便于观察哪个分片最重
+                    for (const [name, bytes] of Object.entries(shardByteBreakdown)) {
+                        if (Number.isFinite(bytes) && bytes > 0) {
+                            trackSaveBytes(source, bytes, name);
+                        }
+                    }
+                }
+            } catch {
+                // 埋点异常绝不影响主流程
+            }
         }
     };
 
@@ -3674,6 +4515,42 @@ export const useGameState = () => {
             }
 
             const data = JSON.parse(rawData);
+
+            // [PR-2] 分片存档 (v2)：stub 本身只含索引，真正 payload 分散在 IDB 的 5 个分片里
+            if (isShardedSaveStub(data)) {
+                if (!hasIndexedDb()) {
+                    addLogEntry(`�?${friendlyName}读取失败：浏览器不支持扩展存储。`);
+                    return false;
+                }
+                const shardReads = await Promise.all(SHARD_NAMES.map(async (name) => {
+                    try {
+                        const raw = await readSaveFromIndexedDb(shardKeyFor(targetKey, name));
+                        if (raw === null || raw === undefined) return [name, null];
+                        // [PR-5] 写入端可能是字符串或 gzip Uint8Array；这里统一转成 JSON 字符串再解析
+                        const jsonString = await normalizeShardRawToJsonString(raw);
+                        if (jsonString === null) return [name, null];
+                        return [name, JSON.parse(jsonString)];
+                    } catch (shardError) {
+                        console.warn(`[Load] shard '${name}' read failed:`, shardError);
+                        return [name, null];
+                    }
+                }));
+                const shardMap = Object.fromEntries(shardReads);
+                // state + nations 缺任一，视为损坏
+                if (!shardMap.state || shardMap.nations === null || shardMap.nations === undefined) {
+                    addLogEntry(`�?${friendlyName}读取失败：核心分片缺失。`);
+                    return false;
+                }
+                const merged = mergeShardsToPayload(shardMap);
+                // 回填 stub 的 meta（updatedAt / saveSource 等，防止 state 分片没有）
+                merged.updatedAt = merged.updatedAt ?? data.updatedAt;
+                merged.saveSource = merged.saveSource ?? data.saveSource;
+                applyLoadedGameState(merged);
+                addLogEntry(`📂 ${friendlyName}读取成功！`);
+                trackLoadGame(merged?.daysElapsed || daysElapsed);
+                return true;
+            }
+
             if (isExternalSaveStub(data)) {
                 if (!hasIndexedDb()) {
                     addLogEntry(`�?${friendlyName}读取失败：浏览器不支持扩展存储。`);
@@ -3698,7 +4575,7 @@ export const useGameState = () => {
             return true;
         } catch (error) {
             console.error('Load game failed:', error);
-            addLogEntry(`�?读取存档失败�?{error.message}`);
+            addLogEntry(`❌ 读取存档失败：${error.message}`);
             trackErrorError(`SaveLoadError: ${error.message}`);
             return false;
         }
@@ -3733,7 +4610,17 @@ export const useGameState = () => {
 
             try {
                 const parsed = JSON.parse(rawData);
-                if (isExternalSaveStub(parsed)) {
+                // [PR-2] 分片存档：一并清理所有 shard:* 键
+                if (isShardedSaveStub(parsed)) {
+                    const shardNames = Array.isArray(parsed.shards) && parsed.shards.length
+                        ? parsed.shards
+                        : SHARD_NAMES;
+                    for (const name of shardNames) {
+                        void removeSaveFromIndexedDb(shardKeyFor(targetKey, name));
+                    }
+                    // 旧路径上也可能有 targetKey 的残余（v1 迁移过来），顺手清一下
+                    void removeSaveFromIndexedDb(targetKey);
+                } else if (isExternalSaveStub(parsed)) {
                     void removeSaveFromIndexedDb(targetKey);
                 }
             } catch (parseError) {
@@ -3745,7 +4632,7 @@ export const useGameState = () => {
             return true;
         } catch (error) {
             console.error('Delete save failed:', error);
-            addLogEntry(`�?删除存档失败�?{error.message}`);
+            addLogEntry(`❌ 删除存档失败：${error.message}`);
             return false;
         }
     };
@@ -3928,7 +4815,7 @@ export const useGameState = () => {
             return false;
         } catch (error) {
             console.error('Export save failed:', error);
-            addLogEntry(`�?导出存档失败�?{error.message}`);
+            addLogEntry(`❌ 导出存档失败：${error.message}`);
             throw error;
         }
     };
@@ -3984,13 +4871,15 @@ export const useGameState = () => {
             throw new Error('无法复制到剪贴板');
         } catch (error) {
             console.error('Export to clipboard failed:', error);
-            addLogEntry(`�?复制失败�?{error.message}`);
+            addLogEntry(`❌ 复制失败：${error.message}`);
             throw error;
         }
     };
 
     const persistImportedSave = async (payload, targetKey) => {
-        const size = calculateSaveSize(payload);
+        // [PR-1] 一次 stringify 贯穿整条 import 写入路径
+        const payloadJson = JSON.stringify(payload);
+        const size = sizeDescFromString(payloadJson);
         const storeStub = (stub) => {
             try {
                 localStorage.setItem(targetKey, JSON.stringify(stub));
@@ -4001,7 +4890,7 @@ export const useGameState = () => {
         };
 
         const saveToIndexedDb = async () => {
-            await writeSaveToIndexedDb(targetKey, JSON.stringify(payload));
+            await writeSaveToIndexedDb(targetKey, payloadJson);
             const stub = buildExternalSaveStub(payload, { sizeBytes: size.bytes });
             const stubStored = storeStub(stub);
             if (!stubStored) {
@@ -4020,7 +4909,7 @@ export const useGameState = () => {
         }
 
         try {
-            localStorage.setItem(targetKey, JSON.stringify(payload));
+            localStorage.setItem(targetKey, payloadJson);
             return { stored: true, external: false, size };
         } catch (error) {
             if (hasIndexedDb()) {
@@ -4112,7 +5001,7 @@ export const useGameState = () => {
             return true;
         } catch (error) {
             console.error('Import save failed:', error);
-            addLogEntry(`�?导入存档失败�?{error.message}`);
+            addLogEntry(`❌ 导入存档失败：${error.message}`);
             throw error;
         }
     };
@@ -4218,9 +5107,9 @@ export const useGameState = () => {
         } catch (error) {
             console.error('Import from text failed:', error);
             if (error instanceof SyntaxError) {
-                addLogEntry('�?导入失败：存档数据格式无效，请确保完整复制�');
+                addLogEntry('❌ 导入失败：存档数据格式无效，请确保完整复制。');
             } else {
-                addLogEntry(`�?导入存档失败�?{error.message}`);
+                addLogEntry(`❌ 导入存档失败：${error.message}`);
             }
             throw error;
         }
@@ -4419,7 +5308,7 @@ export const useGameState = () => {
         decreeCooldowns,
         setDecreCooldowns,
         // Alias with correct spelling for callers
-        setDecreeCooldowns: setDecreCooldowns,
+        setDecreeCooldowns,
         quotaTargets,
         setQuotaTargets,
         expansionSettings,
@@ -4650,4 +5539,10 @@ export const useGameState = () => {
         pendingActionsRef,
     };
 };
+
+// ── HMR: force full refresh for core hook changes ──
+// Fast Refresh cannot safely preserve 138+ useState hooks; invalidate to trigger full reload.
+if (import.meta.hot) {
+    import.meta.hot.invalidate();
+}
 

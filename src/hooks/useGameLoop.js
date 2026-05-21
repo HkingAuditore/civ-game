@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
 import { useSimulationWorker } from './useSimulationWorker';
+import { useAutoSave } from './useAutoSave';
 import { isLowPerformance } from './useDevicePerformance';
 import {
     BUILDINGS,
@@ -932,6 +933,9 @@ difficulty, // 游戏难度
         gameSpeed,
         nations,
         classWealth,
+        livingStandardStreaks, // [FIX] Was in Object.assign but missing from init
+        migrationCooldowns, // [FIX] Was in Object.assign but missing from init
+        taxShock, // [FIX] Was in Object.assign but missing from init
         army,
         militaryQueue,
         jobFill,
@@ -975,6 +979,7 @@ difficulty, // 游戏难度
         legitimacy, // 褰撳墠鍚堟硶鎬у€?
 difficulty, // 游戏难度
         officials,
+        officialsSimCursor, // [FIX] Was in Object.assign but missing from init
         officialCapacity, // [FIX] 娣诲姞瀹樺憳瀹归噺锛岀敤浜?getCabinetStatus 计算
         ministerAssignments,
         ministerAutoExpansion,
@@ -983,6 +988,12 @@ difficulty, // 游戏难度
         quotaTargets, // [NEW] Planned Economy targets
         expansionSettings, // [NEW] Free Market settings
         priceControls, // [NEW] 价格管制设置
+        diplomaticReputation, // [FIX] Was in Object.assign but missing from init
+        militaryCorps, // [FIX] Was in Object.assign but missing from init
+        generals, // [FIX] Was in Object.assign but missing from init
+        activeFronts, // [FIX] Was in Object.assign but missing from init
+        activeBattles, // [FIX] Was in Object.assign but missing from init
+        foreignInvestments, // [FIX] Was in Object.assign but missing from init
         corpsReplenishQueue, // Corps replenish deficit queue
         // 理念系统
         equippedIdeologies,
@@ -1041,7 +1052,7 @@ difficulty, // 游戏难度
 
     // [NEW] 娴峰鎶曡祫鍒嗘壒澶勭悊鐘舵€佽拷韪?
     const outboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null });
-    const inboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null }); // [NEW] 澶栧浗瀵规垜鍥芥姇璧?
+    const inboundInvestmentBatchRef = useRef({ offset: 0, lastProcessDay: null, completed: false }); // [NEW] 澶栧浗瀵规垜鍥芥姇璧?
 
     // ========== 历史数据 Ref 管理 ==========
     // 使用 Ref 存储高频更新的历史数据，避免每帧触发 React 閲嶆覆鏌?
@@ -1123,6 +1134,9 @@ difficulty, // 游戏难度
         saveGameRef.current = gameState.saveGame;
     }, [gameState.saveGame]);
 
+    // [REFACTOR] Extracted auto-save logic into independent hook for HMR safety
+    useAutoSave({ stateRef, saveGameRef, isPaused });
+
     // [PERF] 检测理念配置变化时同步到 Worker 缓存，避免每 tick 传输静态配置
     const prevEquippedIdeologiesRef = useRef(null);
     useEffect(() => {
@@ -1167,6 +1181,7 @@ difficulty, // 游戏难度
         corpsReplenishQueue, equippedIdeologies, ideologyCollection, ideologyScore,
         ideologyScoreSpent, ideologyCooldowns, ideologyMilestones,
         pendingIdeologyEmergence, ideologyEmergenceRarityBonus,
+        lastEmergenceWasSkipped, // [FIX] Was in stateRef init but missing from sync
     });
 
     // 监听国家列表变化，自动清理无效的商人派驻
@@ -1228,22 +1243,10 @@ difficulty, // 游戏难度
             initCheatCodes(gameState, addLog, { setMerchantState });
         }
 
-        // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独管理
+        // 暂停时不设置游戏循环定时器
+        // Auto-save is now handled by useAutoSave hook independently
         if (isPaused) {
-            // 设置独立的自动保存定时器（每60秒检查一次）
-            const autoSaveTimer = setInterval(() => {
-                const current = stateRef.current;
-                if (current.isAutoSaveEnabled) {
-                    const intervalSeconds = Math.max(60, current.autoSaveInterval || 60);
-                    const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
-                    if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
-                        saveGameRef.current({ source: 'auto' });
-                        stateRef.current.lastAutoSaveTime = Date.now();
-                    }
-                }
-            }, 60000);
-
-            return () => clearInterval(autoSaveTimer);
+            return;
         }
 
         // 计算 Tick 闂撮殧锛氬熀浜庢父鎴忛€熷害鍔ㄦ€佽皟鏁?
@@ -1258,15 +1261,9 @@ difficulty, // 游戏难度
             const current = stateRef.current;
             let effectiveCorpsReplenishQueue = current.corpsReplenishQueue || {};
 
-            // 自动存档检测：即使暂停也照常运行，避免长时间停留丢进度
-            if (current.isAutoSaveEnabled) {
-                const intervalSeconds = Math.max(60, current.autoSaveInterval || 60);
-                const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
-                if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
-                    saveGameRef.current({ source: 'auto' });
-                    stateRef.current.lastAutoSaveTime = Date.now();
-                }
-            }
+            // [PR-1] 自动存档调度已移到 useAutoSave hook 内独立跑（setTimeout + rIC）
+            // 主循环 tick 不再做 autoSave 检测，避免高速档下每 200ms 一次的重复判断、
+            // 以及 saveGame 被卡在渲染帧之中造成主线程阻塞 → WorkerTimeout。
 
             // 妫€鏌ユ槸鍚﹂渶瑕佽Е鍙戝勾搴﹀簡鍏?
             // 淇锛氭娴嬪勾浠藉彉鍖栬€岄潪鐗瑰畾鏃ユ湡锛岄伩鍏嶅姞閫熸ā寮忎笅璺宠繃瑙﹀彂鐐?
@@ -2445,7 +2442,8 @@ difficulty, // 游戏难度
                     : (effectiveDaysElapsed - lastInboundDay >= 10); // 鍚庣画瑙﹀彂锛氳窛绂讳笂娆″鐞?>= 10 澶?
                 const isInInboundCycle = lastInboundDay !== null &&
                     effectiveDaysElapsed - lastInboundDay < 10 &&
-                    effectiveDaysElapsed > lastInboundDay;
+                    effectiveDaysElapsed > lastInboundDay &&
+                    !inboundInvestmentBatchRef.current.completed;
 
                 debugLog('trade', '? [INBOUND-CYCLE] Day', effectiveDaysElapsed,
                     '- shouldStart:', shouldStartInboundCycle,
@@ -2462,6 +2460,7 @@ difficulty, // 游戏难度
                             debugLog('trade', '? [INBOUND-CYCLE] 寮€濮嬫柊鍛ㄦ湡锛岄噸缃?offset');
                             inboundInvestmentBatchRef.current.offset = 0;
                             inboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
+                            inboundInvestmentBatchRef.current.completed = false;
                         }
 
                         // [FIX] 玩家数据不在 nations 鏁扮粍涓紝鐩存帴浠?current 获取
@@ -2500,9 +2499,10 @@ difficulty, // 游戏难度
                         // 鏇存柊鎵规鐘舵€?
                         inboundInvestmentBatchRef.current.offset = nextOffset;
                         if (!hasMore) {
-                            // 本周期处理完毕，重置为当前天数；下次需等满10天才重新触发
+                            // 本周期处理完毕，标记完成；下次需等满10天才重新触发
                             debugLog('trade', '[INBOUND-CYCLE] 本周期处理完毕');
                             inboundInvestmentBatchRef.current.lastProcessDay = effectiveDaysElapsed;
+                            inboundInvestmentBatchRef.current.completed = true;
                         }
 
                         if (investments.length === 0) {
@@ -2703,27 +2703,73 @@ difficulty, // 游戏难度
                             const newPopStructure = { ...(result.popStructure || {}) };
                             let populationLoss = 1;
 
-                            // 从 _propertySummary 计算政变后的建筑/人口损失
+                            // 携资叛逃：只扣除该官员的"私产"建筑（_propertySummary）。
+                            // 注意：代经营/国有建筑（_managedSummary）不会跟着官员走，这里不动。
+                            // [BUG FIX] 旧实现只减 buildings 不减 buildingUpgrades，会出现
+                            //   buildings[bid] 已为 0 但 buildingUpgrades[bid][level] 残留的数据漂移。
+                            //   按官员私产的等级分布（_propertySummary.byBuildingLevel）从高到低同步扣减。
                             const coupPropertySummary = target.official._propertySummary || {};
+                            const coupByBuildingLevel = coupPropertySummary.byBuildingLevel || {};
+
                             Object.entries(coupPropertySummary.byBuilding || {}).forEach(([buildingId, count]) => {
+                                if (!count) return;
+
+                                const nationCount = newBuildings[buildingId] || 0;
+                                // 兜底防御：扣除数不超过国家实际持有数，避免任何数据偏移把 buildings 减为负
+                                const actualLoss = Math.min(count, nationCount);
+                                if (actualLoss <= 0) return;
+
+                                // 同步减少 buildings 总数
+                                newBuildings[buildingId] = nationCount - actualLoss;
+                                if (newBuildings[buildingId] === 0) {
+                                    delete newBuildings[buildingId];
+                                }
+
+                                // 同步减少 buildingUpgrades：按官员私产的等级分布从高到低优先扣除
+                                // （高等级建筑通常是官员"自掏腰包升级"的，谋反时跟随）
+                                const levelMap = coupByBuildingLevel[buildingId] || {};
+                                const upgradeLevels = Object.keys(levelMap)
+                                    .map(l => Number(l))
+                                    .filter(l => Number.isFinite(l) && l > 0)
+                                    .sort((a, b) => b - a);
+
+                                let remainingLoss = actualLoss;
+                                if (upgradeLevels.length > 0 && newBuildingUpgrades[buildingId]) {
+                                    const buildingUpgradeCopy = { ...newBuildingUpgrades[buildingId] };
+                                    upgradeLevels.forEach(level => {
+                                        if (remainingLoss <= 0) return;
+                                        const upgradeCount = buildingUpgradeCopy[level] || 0;
+                                        const officialUpgradeCount = levelMap[level] || 0;
+                                        if (upgradeCount <= 0 || officialUpgradeCount <= 0) return;
+                                        const take = Math.min(upgradeCount, officialUpgradeCount, remainingLoss);
+                                        if (take <= 0) return;
+                                        const next = upgradeCount - take;
+                                        if (next <= 0) {
+                                            delete buildingUpgradeCopy[level];
+                                        } else {
+                                            buildingUpgradeCopy[level] = next;
+                                        }
+                                        remainingLoss -= take;
+                                    });
+                                    if (Object.keys(buildingUpgradeCopy).length === 0) {
+                                        delete newBuildingUpgrades[buildingId];
+                                    } else {
+                                        newBuildingUpgrades[buildingId] = buildingUpgradeCopy;
+                                    }
+                                }
+
+                                // 减少对应岗位人口
                                 const building = BUILDINGS.find(b => b.id === buildingId);
                                 if (building) {
                                     const config = getBuildingEffectiveConfig(building, 0);
                                     Object.entries(config.jobs || {}).forEach(([role, slots]) => {
                                         if (!slots) return;
-                                        const loss = Math.min(newPopStructure[role] || 0, slots * count);
+                                        const loss = Math.min(newPopStructure[role] || 0, slots * actualLoss);
                                         if (loss > 0) {
                                             newPopStructure[role] = Math.max(0, (newPopStructure[role] || 0) - loss);
                                             populationLoss += loss;
                                         }
                                     });
-                                }
-
-                                if (newBuildings[buildingId]) {
-                                    newBuildings[buildingId] = Math.max(0, newBuildings[buildingId] - count);
-                                    if (newBuildings[buildingId] === 0) {
-                                        delete newBuildings[buildingId];
-                                    }
                                 }
                             });
 
@@ -6387,7 +6433,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                 if (!prev) return prev;
                                 return {
                                     ...prev,
-                                    paidAmount: prev.paidAmount + paymentAmount,
+                                    paidAmount: (prev.paidAmount || 0) + paymentAmount,
                                     remainingDays: prev.remainingDays - 1
                                 };
                             });
@@ -7787,7 +7833,9 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                         ).length;
                                         const MAX_CONCURRENT_WARS = 3;
 
-                        if (currentPlayerWars < MAX_CONCURRENT_WARS && !attacker.isAtWar) {
+                        // [FIX] 移除 !attacker.isAtWar 条件：攻击者可能已因附庸保护等原因
+                        // 在同一 tick 中被设为与玩家交战状态，但盟友连锁参战仍应执行
+                        if (currentPlayerWars < MAX_CONCURRENT_WARS) {
                                             // === 联盟连锁：攻击者的盟友也对玩家宣战，玩家的盟友也对攻击者宣战 ===
                                             const orgs = diplomacyOrganizations?.organizations || [];
                                             const getMilitaryOrgMembers = (nationKey) => {
@@ -7810,6 +7858,8 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                                             setNations(prev => {
                                                 let updated = prev.map(n => {
                                                     if (n.id === attacker.id) {
+                                                        // [FIX] 如果攻击者已经与玩家交战，不重复设置战争状态（避免覆盖已有战争数据）
+                                                        if (n.isAtWar) return n;
                                                         return {
                                                             ...n,
                                                             isAtWar: true,
@@ -8903,7 +8953,19 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 console.error('[GameLoop] Tick error:', err);
             }
         }, tickInterval); // 根据游戏速度动态调整执行频率
-        return () => clearInterval(timer);
+        return () => {
+            clearInterval(timer);
+            // Reset guards on cleanup (HMR/unmount) to prevent stale locks
+            tickProcessingRef.current = false;
+            simInFlightRef.current = false;
+        };
     }, [gameSpeed, isPaused, setFestivalModal, setLastFestivalYear, setIsPaused]); // Dependencies: game speed, pause state, and annual report related state
 };
+
+// ── HMR: force full refresh for core hook changes ──
+// useGameLoop has an 8900-line useEffect with complex stateRef synchronization;
+// Fast Refresh partial updates would leave stateRef out of sync. Force full reload.
+if (import.meta.hot) {
+    import.meta.hot.invalidate();
+}
 

@@ -6,6 +6,21 @@
 
 if (typeof window === 'undefined') {
     const noop = () => {};
+    const noopArray = () => [];
+    const nullResult = () => null;
+    const createMockElement = () => ({
+        style: {},
+        setAttribute: noop,
+        getAttribute: () => null,
+        removeAttribute: noop,
+        appendChild: noop,
+        removeChild: noop,
+        addEventListener: noop,
+        removeEventListener: noop,
+        querySelector: nullResult,
+        querySelectorAll: noopArray,
+        relList: { supports: () => false },
+    });
     const noopProxy = new Proxy(noop, {
         get: () => noopProxy,
         apply: () => noopProxy,
@@ -28,7 +43,14 @@ if (typeof window === 'undefined') {
         globalThis.document = {
             addEventListener: noop,
             removeEventListener: noop,
-            createElement: () => ({ style: {} }),
+            createElement: createMockElement,
+            createTextNode: () => ({}),
+            querySelector: nullResult,
+            querySelectorAll: noopArray,
+            getElementById: nullResult,
+            getElementsByTagName: noopArray,
+            head: { appendChild: noop, removeChild: noop },
+            body: { appendChild: noop, removeChild: noop },
             documentElement: { style: {} },
             visibilityState: 'visible',
         };

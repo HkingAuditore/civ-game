@@ -52,7 +52,11 @@ function resetWorkerFailCount() {
     _safeSet(WORKER_FAIL_COUNT_KEY, '0');
 }
 
-/** Persist a Worker health event to civ_crash_log + history (mirrors crashReporter pattern) */
+/** Persist a Worker health event to crash history only.
+ *  Does NOT write to civ_crash_log (the "pending crash" slot) — only actual
+ *  crashes (worker_crash, worker_create_fail) should overwrite that key,
+ *  otherwise healthy events like worker_ready get reported as critical on
+ *  next session start. */
 function persistWorkerHealthEvent(eventType, details = {}) {
     const otaInfo = getOtaInfoSync();
     const record = {
@@ -66,9 +70,12 @@ function persistWorkerHealthEvent(eventType, details = {}) {
         baseURI: typeof document !== 'undefined' ? document.baseURI : '',
         ...details.extra,
     };
-    // Write to civ_crash_log (latest)
-    _safeSet(CRASH_LOG_KEY, JSON.stringify(record));
-    // Append to history ring buffer
+    // Only overwrite civ_crash_log for real error events
+    const ERROR_TYPES = new Set(['worker_crash', 'worker_create_fail', 'worker_circuit_broken']);
+    if (ERROR_TYPES.has(eventType)) {
+        _safeSet(CRASH_LOG_KEY, JSON.stringify(record));
+    }
+    // Always append to history ring buffer (useful for diagnostics)
     try {
         const raw = _safeGet(CRASH_HISTORY_KEY);
         const history = raw ? JSON.parse(raw) : [];
@@ -97,7 +104,25 @@ export function useSimulationWorker() {
 
     // Initialize worker on mount
     useEffect(() => {
-        if (isInitializedRef.current) return;
+        // HMR safety: if Fast Refresh preserved the ref but the old Worker
+        // was terminated during cleanup, we need to re-initialize.
+        if (isInitializedRef.current) {
+            // Check if the Worker is still alive
+            if (workerRef.current) {
+                try {
+                    workerRef.current.postMessage({ type: 'PING' });
+                    return; // Worker is still alive, skip re-init
+                } catch {
+                    // Worker was terminated or broken, fall through to re-init
+                    console.warn('[SimulationWorker] HMR: stale Worker detected, re-initializing');
+                    workerRef.current = null;
+                    setIsUsingWorker(false);
+                }
+            } else {
+                // Ref says initialized but no Worker — need to re-init
+                console.warn('[SimulationWorker] HMR: Worker ref lost, re-initializing');
+            }
+        }
         isInitializedRef.current = true;
 
         // Circuit breaker: skip Worker entirely if it failed too many times in a row
@@ -267,12 +292,29 @@ export function useSimulationWorker() {
             }
         }
         
-        // Cleanup on unmount
+        // Cleanup on unmount (including HMR)
         return () => {
+            // Reject all pending promises before terminating
+            if (pendingResolveRef.current) {
+                // Don't call reject — just silently discard to avoid error noise during HMR
+                pendingResolveRef.current = null;
+            }
+            if (pendingRejectRef.current) {
+                try { pendingRejectRef.current(new Error('Worker terminated (HMR/unmount)')); } catch { /* ignore */ }
+                pendingRejectRef.current = null;
+            }
+            if (pendingLatestRef.current) {
+                try { pendingLatestRef.current.reject(new Error('Worker terminated (HMR/unmount)')); } catch { /* ignore */ }
+                pendingLatestRef.current = null;
+            }
+
             if (workerRef.current) {
                 workerRef.current.terminate();
                 workerRef.current = null;
             }
+
+            // Reset so next mount (HMR) can re-initialize
+            isInitializedRef.current = false;
         };
     }, []);
 

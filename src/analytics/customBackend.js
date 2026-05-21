@@ -34,6 +34,7 @@ const buffer = {
 };
 
 let flushTimer = null;
+let heartbeatTimer = null;
 let enabled = false;
 let sessionEnded = false;
 const sessionDimensions = {
@@ -49,13 +50,30 @@ function normalizeDimensionValue(value) {
 
 // ── 初始化 ──
 
+// Named handlers for proper removal during HMR dispose
+function _handleVisibilityChange() {
+    if (document.visibilityState === 'hidden') flush();
+}
+function _handlePageHide() {
+    endSession();
+}
+function _handleBeforeUnload() {
+    endSession();
+}
+
 export function initCustomBackend({ difficulty = null, scenario = null } = {}) {
     if (!API_URL) {
         console.warn('[Analytics] No VITE_ANALYTICS_API_URL configured, custom backend disabled');
         return;
     }
+
+    // Clean up old timers before re-init (HMR idempotency)
+    if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
+    if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+
     console.log('[Analytics] Custom backend init →', API_URL);
     enabled = true;
+    sessionEnded = false;
     sessionDimensions.difficulty = normalizeDimensionValue(difficulty);
     sessionDimensions.scenario = normalizeDimensionValue(scenario);
 
@@ -72,7 +90,7 @@ export function initCustomBackend({ difficulty = null, scenario = null } = {}) {
 
     flushTimer = setInterval(flush, FLUSH_INTERVAL_MS);
 
-    setInterval(() => {
+    heartbeatTimer = setInterval(() => {
         sendJSON(`${API_URL}/api/session/heartbeat`, {
             sessionId,
             difficulty: sessionDimensions.difficulty,
@@ -80,17 +98,9 @@ export function initCustomBackend({ difficulty = null, scenario = null } = {}) {
         });
     }, 120_000);
 
-    window.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') flush();
-    });
-
-    window.addEventListener('pagehide', () => {
-        endSession();
-    });
-
-    window.addEventListener('beforeunload', () => {
-        endSession();
-    });
+    window.addEventListener('visibilitychange', _handleVisibilityChange);
+    window.addEventListener('pagehide', _handlePageHide);
+    window.addEventListener('beforeunload', _handleBeforeUnload);
 }
 
 // ── 缓冲入口 ──
@@ -212,5 +222,19 @@ export function updateDimensions({ difficulty, scenario } = {}) {
         sessionId,
         difficulty: sessionDimensions.difficulty,
         scenario: sessionDimensions.scenario,
+    });
+}
+
+// ── HMR dispose: clean up all module-level side effects ──
+
+if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+        if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
+        if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        window.removeEventListener('visibilitychange', _handleVisibilityChange);
+        window.removeEventListener('pagehide', _handlePageHide);
+        window.removeEventListener('beforeunload', _handleBeforeUnload);
+        enabled = false;
+        sessionEnded = false;
     });
 }

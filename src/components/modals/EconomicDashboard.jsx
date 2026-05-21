@@ -29,7 +29,6 @@ const LABEL_MAP = {
   tariffs: '关税',
   essentialNeeds: '必需品消费',
   luxuryNeeds: '奢侈品消费',
-  decay: '富裕性挥霍',
   productionCosts: '生产成本',
   investmentCosts: '投资成本',
   maintenanceCosts: '维护成本',

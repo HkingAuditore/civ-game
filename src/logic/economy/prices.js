@@ -241,11 +241,25 @@ export const updateMarketPrices = ({
                 : 50.0;
 
             // Price adjustment based on inventory - continuous piecewise function
-            // [FIX] Smoothed curve to reduce oscillations (consistent with simulation.js)
+            // [FIX-A] 危机段去除写死的 5x 上限，让 maxMultiplier (=maxPrice/basePrice) 真正成为价格上限
+            // [FIX-D] essential 资源（粮食/布料）在库存归零时必须能逼近 maxPrice，
+            //         避免出现"奢侈品比生存品还贵"的反常现象。
+            //         采用指数曲线让 ratio→0 时 priceMultiplier→maxMultiplier。
+            const isEssential = !!resourceDef?.tags?.includes('essential');
             let priceMultiplier = 1.0;
             if (inventoryRatio < 0.1) {
-                priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 20.0;
-                priceMultiplier = Math.min(Math.min(5.0, maxMultiplier), priceMultiplier);
+                if (isEssential) {
+                    // essential：在 ratio=0.1 时给到 3x，ratio→0 时指数逼近 maxMultiplier
+                    // 公式：mult = 3 + (maxMultiplier - 3) * (1 - ratio/0.1)^k
+                    // k=2 时：ratio=0.05 给到 ~(3+max)/4*~ 接近一半，ratio=0 拿到 maxMultiplier
+                    const shortageDepth = Math.max(0, 1 - inventoryRatio / 0.1); // 0..1
+                    const crisisCurve = Math.pow(shortageDepth, 1.5); // 偏向"越缺越快涨"
+                    priceMultiplier = 3.0 + (maxMultiplier - 3.0) * crisisCurve;
+                } else {
+                    // 非 essential：保留原温和曲线，避免奢侈品/工业品在小幅短缺时价格爆炸
+                    priceMultiplier = 3.0 + (0.1 - inventoryRatio) * 200.0;
+                }
+                priceMultiplier = Math.min(maxMultiplier, priceMultiplier);
             } else if (inventoryRatio < 0.5) {
                 priceMultiplier = 1.0 + (0.5 - inventoryRatio) * 5.0;
             } else if (inventoryRatio > 3.0) {
@@ -290,7 +304,13 @@ export const updateMarketPrices = ({
             // [FIX] Reduced smoothing to dampen oscillations (consistent with simulation.js)
             const currentPrice = priceMap[resource] || basePrice;
             const gapRatio = currentPrice > 0 ? Math.abs(targetPrice - currentPrice) / currentPrice : 0;
-            const smoothing = Math.min(0.2, 0.05 + gapRatio * 0.15);
+            let smoothing = Math.min(0.2, 0.05 + gapRatio * 0.15);
+            // [FIX-B] 必需品库存危机时（<0.1 ratio）提升 smoothing 让价格快速跳涨，
+            // 否则即便 targetPrice 已飙升，平滑后价格仍要十几 tick 才到位，价格信号失灵
+            if (inventoryRatio < 0.1 && resourceDef?.tags?.includes('essential')) {
+                const urgency = 1.0 - Math.max(0, inventoryRatio) / 0.1;
+                smoothing = Math.max(smoothing, 0.3 + 0.4 * urgency);
+            }
             updatedPrices[resource] = parseFloat(
                 (currentPrice + (targetPrice - currentPrice) * smoothing).toFixed(2)
             );
