@@ -50,6 +50,19 @@ export const TIER01_MIN_NET_INCOME_FLOOR = 0.01;
 // Allows poor populations to occasionally jump tiers
 export const LUCKY_PROMOTION_CHANCE = 0.0001; // 0.01% chance
 
+// ============== 高收入空缺业主岗位晋升助推（C 方案）==============
+// 打破"无业主 → 建筑停工 → 无业主收入 → 低阶层攒不够钱 → 永远无人晋升"的死循环。
+// 当某 Tier2/3 岗位本身有利可图（estimateRoleNetIncome > 0）但低阶层人均财富不足以
+// 越过晋升财富门槛时，按"人均财富接近门槛的程度"放行一小部分候选晋升（系统补足差额财富），
+// 而不再是"全有或全无 + 仅 0.01% 中彩票"。这样地主/矿主等高收入空岗能被逐步填满。
+// 每 tick 放行比例 = sourcePop × (人均财富/门槛财富) × 本系数，并叠加原有幸运晋升取较大值。
+// [调参] 0.05→0.4：严重空缺档以"空缺量×本系数"为基准，配合下方更高的填补速率，让高收入空岗快速填满。
+export const LUCRATIVE_PROMOTION_BOOTSTRAP_RATIO = 0.4;
+
+// 严重空缺(在岗<50%编制)的高收入岗位，迁移系统使用的快速迁移比例（单 tick 从来源迁出的比例）。
+// 用于打破"业主/自耕农岗填补过慢"，远高于普通迁移(JOB_MIGRATION_RATIO=1.2%)，受目标空缺与来源人口约束。
+export const UNDERFILLED_TARGET_MIGRATION_RATIO = 0.3;
+
 // ============== Migration Tier Resistance Constants ==============
 // These control how difficult it is to migrate between different tiers
 // Higher value = more resistance = needs larger income difference to trigger
@@ -79,7 +92,9 @@ export const MIGRATION_COOLDOWN_TICKS = 5;
 
 // Critical shortage threshold: supply/demand ratio below this triggers survival migration
 // 当供需比低于此阈值时，触发生存本能转职
-export const CRITICAL_SHORTAGE_THRESHOLD = 0.5;
+// [调参] 0.5→0.7：粮价高弹性，缺口 20~30% 价格就已飙升，但旧阈值要缺口 50% 才触发生存转职，
+//   导致"粮价暴涨却没人下田"。提高阈值让真实短缺（缺口 30%）即可启动应急转职、降低下田阻力。
+export const CRITICAL_SHORTAGE_THRESHOLD = 0.7;
 
 // Critical resources that trigger survival migration when in shortage
 // 触发生存本能的关键资源（基本生存需求）
@@ -96,6 +111,14 @@ export const EMERGENCY_MIGRATION_RATIO = JOB_MIGRATION_RATIO * 5;
 // Price calculation constants
 export const PRICE_FLOOR = 0;
 export const BASE_WAGE_REFERENCE = 1;
+
+// ============== 业主利润保护 ==============
+// 业主在制定工资前，先从建筑毛利（产出价值 − 原料成本）中保留这一比例作为利润，
+// 再用剩余部分决定可发放的工资。等价于赋予业主"压低工资以保住自身利润"的主动权，
+// 避免业主长期把全部毛利都发成工资、连税费/生活成本都覆盖不了而陷入亏损与岗位流失。
+// 工人侧仍受生计工资下限（getBuildingLivingCostFloor）与工资压力下限（0.65）保护，不会跌破温饱。
+// 可被单个建筑的 marketConfig.wage.ownerProfitMargin 覆盖。
+export const OWNER_PROFIT_MARGIN = 0.12;
 
 // Resources that cannot be traded normally
 export const SPECIAL_TRADE_RESOURCES = new Set(['science', 'culture']);

@@ -1,10 +1,11 @@
 import React, { memo, useState } from 'react';
 import { Icon } from '../../common/UIComponents';
-import { STRATA, RESOURCES, BUILDINGS } from '../../../config';
+import { STRATA, BUILDINGS } from '../../../config';
 import { POLITICAL_STANCES, POLITICAL_ISSUES } from '../../../config/politicalStances';
 import { PROPERTY_POLICY_CONFIG } from '../../../config/officials';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
 import { calculatePrestige, getPrestigeLevel, DISPOSAL_TYPES } from '../../../logic/officials/manager';
+import { getTargetName, formatEffect } from '../../../logic/officials/effectFormat';
 // 效果类型的显示名称映射
 const EFFECT_TYPE_NAMES = {
     buildings: '建筑产出',
@@ -35,19 +36,7 @@ const FINANCIAL_STATUS_STYLES = {
 };
 
 // 获取目标的显示名称
-const getTargetName = (target, type) => {
-    const buildingDef = BUILDINGS.find(b => b.id === target);
-    if (buildingDef) return buildingDef.name;
-    if (STRATA[target]) return STRATA[target].name;
-    if (RESOURCES[target]) return RESOURCES[target].name;
-    const categoryNames = { gather: '采集', industry: '工业', civic: '民用', military: '军事' };
-    if (categoryNames[target]) return categoryNames[target];
-    if (target === 'silver') return '银币';
-    if (target === 'food') return '粮食';
-    if (target === 'culture') return '文化';
-    if (target === 'science') return '科技';
-    return target;
-};
+// （getTargetName 已抽取至 logic/officials/effectFormat.js，此处直接复用导入）
 
 
 // 格式化效果显示
@@ -237,116 +226,7 @@ const OfficialCardInner = ({
     };
 
     // 格式化单个效果的描述（完整汉化）
-    const formatEffect = (type, target, value) => {
-        const targetName = target ? getTargetName(target, type) : null;
-        const isPositive = value > 0;
-        const absValue = Math.abs(value);
-        let isGood = isPositive;
-        let description = '';
-        const formatScalar = (v) => {
-            if (!Number.isFinite(v)) return v;
-            const abs = Math.abs(v);
-            if (abs >= 10) return v.toFixed(0);
-            if (abs >= 1) return v.toFixed(1);
-            return v.toFixed(2);
-        };
-        const pct = (v) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
-        const num = (v) => `${v > 0 ? '+' : ''}${formatScalar(v)}`;
-
-        switch (type) {
-            // 建筑/类别产出
-            case 'buildings': description = `${targetName}产出 ${pct(value)}`; break;
-            case 'categories': description = `${targetName}类产出 ${pct(value)}`; break;
-
-            // 贸易/税收
-            case 'tradeBonus': description = `贸易利润 ${pct(value)}`; break;
-            case 'taxEfficiency': description = `税收效率 ${pct(value)}`; break;
-            case 'taxIncome': description = `税收加成 ${pct(value)}`; break;
-
-            // 建筑成本
-            case 'buildingCostMod': isGood = value < 0; description = `建筑成本 ${pct(value)}`; break;
-
-            // 被动产出
-            case 'passive': description = `每日${targetName || '产出'} ${num(value)}`; break;
-            case 'passivePercent':
-                if (target === 'silver') {
-                    description = `银币收入 ${pct(value)}`;
-                } else {
-                    description = `${targetName || '资源'}产出 ${pct(value)}`;
-                }
-                break;
-
-            // 需求/消耗
-            case 'stratumDemandMod': isGood = value < 0; description = `${targetName}消耗 ${pct(value)}`; break;
-            case 'resourceDemandMod': isGood = value < 0; description = `${targetName}需求 ${pct(value)}`; break;
-            case 'resourceSupplyMod': description = `${targetName}供给 ${pct(value)}`; break;
-            case 'needsReduction': isGood = value > 0; description = `全民消耗 ${value > 0 ? '-' : '+'}${(absValue * 100).toFixed(0)}%`; break;
-
-            // 人口
-            case 'maxPop': description = `人口上限 ${pct(value)}`; break;
-            case 'populationGrowth': description = `人口增长 ${pct(value)}`; break;
-
-            // 科研/文化
-            case 'researchSpeed': description = `科研产出 ${pct(value)}`; break;
-            case 'cultureBonus': description = `文化产出 ${pct(value)}`; break;
-
-            // 满意度/稳定度
-            case 'approval': description = `${targetName || '全体'}满意度 ${isPositive ? '+' : ''}${formatScalar(value)}`; break;
-            case 'coalitionApproval': description = `联盟满意度 ${isPositive ? '+' : ''}${formatScalar(value)}`; break;
-            case 'legitimacyBonus': description = `合法性 ${pct(value)}`; break;
-            case 'stability': description = `稳定度 ${pct(value)}`; break;
-
-            // 军事
-            case 'militaryBonus': description = `军队战力 ${pct(value)}`; break;
-            case 'militaryUpkeep': isGood = value < 0; description = `军事维护 ${pct(value)}`; break;
-            case 'wartimeProduction': description = `战时生产 ${pct(value)}`; break;
-
-            // 组织度
-            case 'organizationDecay': isGood = value < 0; description = `组织度增速 ${pct(value)}`; break;
-
-            // 外交
-            case 'diplomaticBonus': description = `外交关系 ${isPositive ? '+' : ''}${formatScalar(value)}/日`; break;
-
-            // 资源浪费
-            case 'resourceWaste': isGood = value < 0; description = `${targetName || '资源'}浪费 ${pct(value)}`; break;
-
-            // 派系冲突
-            case 'factionConflict': isGood = value < 0; description = `派系冲突 ${value > 0 ? '-' : '+'}${(Math.abs(value) * 100).toFixed(0)}%稳定`; break;
-
-            // 腐败
-            case 'corruption': isGood = value < 0; description = `腐败 ${value > 0 ? '-' : '+'}${(Math.abs(value) * 100).toFixed(0)}%税收`; break;
-
-            // 外交事件
-            case 'diplomaticIncident': isGood = value < 0; description = `外交关系衰减 +${value.toFixed(1)}/日`; break;
-
-            // 外交冷却
-            case 'diplomaticCooldown': isGood = value < 0; description = `外交冷却 ${pct(value)}`; break;
-
-            // 生产成本修正（新增）
-            case 'productionInputCost':
-                isGood = value < 0;
-                description = `${targetName || '建筑'}原料消耗 ${pct(value)}`;
-                break;
-
-            // 其他
-            case 'influenceBonus': description = `影响力 ${pct(value)}`; break;
-            case 'wageModifier': isGood = value < 0; description = `薪俸成本 ${pct(value)}`; break;
-            case 'corruptionMod': isGood = value < 0; description = `腐败程度 ${pct(value)}`; break;
-
-            default:
-                // 尝试智能汉化未知类型
-                const typeNames = {
-                    'production': '生产', 'bonus': '加成', 'penalty': '惩罚',
-                    'mod': '调整', 'rate': '速率', 'cost': '成本',
-                };
-                let cnType = type;
-                Object.entries(typeNames).forEach(([en, cn]) => {
-                    cnType = cnType.replace(new RegExp(en, 'gi'), cn);
-                });
-                description = `${cnType}${targetName ? ` (${targetName})` : ''}: ${typeof value === 'number' && Math.abs(value) < 10 ? value.toFixed(2) : value}`;
-        }
-        return { description, isGood };
-    };
+    // formatEffect 已抽取至 logic/officials/effectFormat.js，此处直接复用导入
 
     // 渲染效果列表
     const effectData = (() => {

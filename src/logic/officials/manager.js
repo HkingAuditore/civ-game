@@ -12,6 +12,16 @@ import {
     getCabinetEffects,
     getActiveDecreeEffects,
 } from './cabinetSynergy';
+import {
+    MINISTER_ROLES,
+    getMinisterStatValue,
+    getMinisterProductionBonus,
+    getMinisterTradeBonus,
+    getMinisterMilitaryBonus,
+    getMinisterTrainingSpeedBonus,
+    getMinisterDiplomaticBonus,
+} from './ministers';
+import { EFFECT_CATEGORY, CATEGORY_ORDER } from './effectFormat';
 
 // 选拔冷却时间 (半年 = 180天)
 export const OFFICIAL_SELECTION_COOLDOWN = 180;
@@ -709,8 +719,13 @@ export const getAggregatedStanceEffects = (officials, gameState) => {
         if (!official) return;
 
         // 检查该官员的政治立场条件是否满足
+        // [FIX] 与官员卡片/详情页统一口径：优先采用模拟端每帧缓存的生效值
+        // （official.isStanceSatisfied），缺失时再用传入的 gameState 实时计算。
+        // 避免汇总面板"满足X/未满足Y"统计与卡片显示不一致。
         const conditionParams = official.stanceConditionParams;
-        const satisfied = isStanceSatisfied(official.politicalStance, gameState, conditionParams);
+        const satisfied = typeof official.isStanceSatisfied === 'boolean'
+            ? official.isStanceSatisfied
+            : isStanceSatisfied(official.politicalStance, gameState, conditionParams);
 
         if (satisfied) {
             satisfiedCount++;
@@ -1175,3 +1190,156 @@ export {
     getCabinetEffects,
     getActiveDecreeEffects,
 } from './cabinetSynergy';
+
+// ========== 全部官员加成统一聚合（汇总面板用）==========
+
+// 部长经济职位 -> 类别产出 target（用于把部长产出加成归一到 categories 条目）
+const MINISTER_ROLE_TO_CATEGORY = {
+    agriculture: 'gather',
+    industry: 'industry',
+    commerce: 'commerce',
+    civic: 'civic',
+};
+
+/**
+ * 计算部长任命加成，归一化为与 effects 同构的条目列表
+ * @param {Object} ministerAssignments - { role: officialId }
+ * @param {Array} officials - 在任官员（用于查属性）
+ * @returns {Array<{type,target,value}>}
+ */
+const getMinisterBonusEntries = (ministerAssignments = {}, officials = []) => {
+    const entries = [];
+    if (!ministerAssignments || typeof ministerAssignments !== 'object') return entries;
+    const roster = new Map();
+    (officials || []).forEach(o => { if (o?.id) roster.set(o.id, o); });
+
+    MINISTER_ROLES.forEach(role => {
+        const officialId = ministerAssignments[role];
+        if (!officialId) return;
+        const official = roster.get(officialId);
+        if (!official) return;
+        const statValue = getMinisterStatValue(official, role);
+
+        if (MINISTER_ROLE_TO_CATEGORY[role]) {
+            const prod = getMinisterProductionBonus(role, statValue);
+            if (prod) entries.push({ type: 'categories', target: MINISTER_ROLE_TO_CATEGORY[role], value: prod });
+        }
+        if (role === 'commerce') {
+            const trade = getMinisterTradeBonus(statValue);
+            if (trade) entries.push({ type: 'tradeBonus', target: null, value: trade });
+        }
+        if (role === 'military') {
+            const mil = getMinisterMilitaryBonus(statValue);
+            if (mil) entries.push({ type: 'militaryBonus', target: null, value: mil });
+            const train = getMinisterTrainingSpeedBonus(statValue);
+            if (train) entries.push({ type: 'trainingSpeed', target: null, value: train });
+        }
+        if (role === 'diplomacy') {
+            const dipl = getMinisterDiplomaticBonus(statValue);
+            if (dipl) entries.push({ type: 'diplomaticBonus', target: null, value: dipl });
+        }
+    });
+    return entries;
+};
+
+/**
+ * 把聚合后的扁平效果对象展开为 {type,target,value} 条目列表
+ * 支持简单数值与嵌套对象（如 buildings:{farm:0.1}）
+ */
+const flattenEffectObject = (obj) => {
+    const entries = [];
+    if (!obj || typeof obj !== 'object') return entries;
+    Object.entries(obj).forEach(([type, valueOrObj]) => {
+        if (valueOrObj && typeof valueOrObj === 'object') {
+            Object.entries(valueOrObj).forEach(([target, value]) => {
+                if (typeof value === 'number') entries.push({ type, target, value });
+            });
+        } else if (typeof valueOrObj === 'number') {
+            entries.push({ type, target: null, value: valueOrObj });
+        }
+    });
+    return entries;
+};
+
+/**
+ * 统一聚合所有在任官员的加成（基础效果 + 政治立场效果 + 部长任命加成），
+ * 按 type|target 累加净值，再按类别分组，供「全部加成汇总」面板使用。
+ *
+ * @param {Object} params
+ * @param {Array}  params.officials           在任官员列表
+ * @param {boolean} params.officialsPaid       是否全额支付薪水（否则基础效果减半）
+ * @param {Object} params.stanceContext        立场条件判定所需的游戏状态
+ * @param {Object} params.ministerAssignments  { role: officialId }
+ * @returns {{
+ *   groups: Array<{category:string, items:Array<{type,target,value}>}>,
+ *   officialCount:number, stanceSatisfied:number, stanceUnsatisfied:number,
+ *   totalItems:number
+ * }}
+ */
+export const aggregateAllOfficialBonuses = ({
+    officials = [],
+    officialsPaid = true,
+    stanceContext = {},
+    ministerAssignments = {},
+} = {}) => {
+    const safeOfficials = Array.isArray(officials) ? officials : [];
+
+    // 1. 基础效果（含 drawbacks、腐败、财务惩罚、未付薪减半）
+    const baseEffects = getAggregatedOfficialEffects(safeOfficials, officialsPaid);
+
+    // 2. 政治立场效果（满足/未满足）
+    const stanceResult = getAggregatedStanceEffects(safeOfficials, stanceContext || {});
+    const stanceEffects = stanceResult?.aggregatedEffects || {};
+
+    // 3. 部长任命加成
+    const ministerEntries = getMinisterBonusEntries(ministerAssignments, safeOfficials);
+
+    // 合并三来源为统一条目，按 type|target 累加
+    const merged = new Map(); // key: `${type}|${target}` -> {type,target,value}
+    const addEntry = ({ type, target, value }) => {
+        if (!type || typeof value !== 'number' || !Number.isFinite(value)) return;
+        const key = `${type}|${target ?? ''}`;
+        const prev = merged.get(key);
+        if (prev) {
+            prev.value += value;
+        } else {
+            merged.set(key, { type, target: target ?? null, value });
+        }
+    };
+
+    flattenEffectObject(baseEffects).forEach(addEntry);
+    flattenEffectObject(stanceEffects).forEach(addEntry);
+    ministerEntries.forEach(addEntry);
+
+    // 过滤净值近零的条目
+    const EPS = 1e-6;
+    const allItems = Array.from(merged.values()).filter(it => Math.abs(it.value) > EPS);
+
+    // 按类别分组
+    const groupMap = new Map();
+    allItems.forEach(item => {
+        const category = EFFECT_CATEGORY[item.type] || 'other';
+        if (!groupMap.has(category)) groupMap.set(category, []);
+        groupMap.get(category).push(item);
+    });
+
+    // 组内排序：正面在前、绝对值降序
+    groupMap.forEach(items => {
+        items.sort((a, b) => {
+            if ((a.value > 0) !== (b.value > 0)) return a.value > 0 ? -1 : 1;
+            return Math.abs(b.value) - Math.abs(a.value);
+        });
+    });
+
+    const groups = CATEGORY_ORDER
+        .filter(cat => groupMap.has(cat))
+        .map(cat => ({ category: cat, items: groupMap.get(cat) }));
+
+    return {
+        groups,
+        officialCount: safeOfficials.length,
+        stanceSatisfied: stanceResult?.satisfiedCount || 0,
+        stanceUnsatisfied: stanceResult?.unsatisfiedCount || 0,
+        totalItems: allItems.length,
+    };
+};

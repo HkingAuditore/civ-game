@@ -1,3 +1,17 @@
+// ── Polyfill: Promise.allSettled (ES2020)，旧安卓 WebView / 小程序运行时可能缺失 ──
+if (typeof Promise !== 'undefined' && !Promise.allSettled) {
+    Promise.allSettled = function(promises) {
+        return Promise.all(
+            Array.from(promises).map(p =>
+                Promise.resolve(p).then(
+                    value => ({ status: 'fulfilled', value }),
+                    reason => ({ status: 'rejected', reason })
+                )
+            )
+        );
+    };
+}
+
 import { createRoot } from 'react-dom/client';
 import './index.css'
 import App from './App.jsx'

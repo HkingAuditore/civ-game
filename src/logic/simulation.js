@@ -209,6 +209,7 @@ import {
     JOB_MIGRATION_RATIO,
     PRICE_FLOOR,
     BASE_WAGE_REFERENCE,
+    OWNER_PROFIT_MARGIN,
     SPECIAL_TRADE_RESOURCES,
     MERCHANT_SAFE_STOCK,
     MERCHANT_CAPACITY_PER_POP,
@@ -2228,7 +2229,18 @@ export const simulateTick = ({
                     ? businessTaxCost * effectiveEfficiency
                     : businessTaxCost;
 
-                const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
+                // [修复：业主吸引力] 业主受"利润保留机制"保护，不会把毛利全发成工资而亏本。
+                //   旧实现按"全额市场工资"扣减，服务业抬高工资后矿井/庄园业主估算转负，
+                //   导致人口判定"当业主不划算"而全涌向工匠/商人/神职，无人当地主/自耕农。
+                //   与实际发薪口径对齐：业主至少保住毛利的 ownerProfitMargin，工资高时只发得起的部分，剩余归业主。
+                const estOwnerProfitMargin = (() => {
+                    const ov = building.marketConfig?.wage?.ownerProfitMargin;
+                    const ratio = Number.isFinite(ov) ? ov : OWNER_PROFIT_MARGIN;
+                    return Math.max(0, Math.min(0.6, ratio));
+                })();
+                const grossMargin = Math.max(0, outputValue - inputCost);
+                const ownerGrossTake = Math.max(grossMargin * estOwnerProfitMargin, outputValue - inputCost - wageCost);
+                const netProfit = ownerGrossTake - headTaxCost - effectiveBusinessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
 
                 ownerIncome += profitPerOwner * roleSlots * count;
@@ -2864,12 +2876,21 @@ export const simulateTick = ({
             }
         }
 
+        // [业主主动权] 业主利润保护比例：先从毛利中保留这一比例作为利润再决定工资。
+        //   允许单个建筑通过 marketConfig.wage.ownerProfitMargin 覆盖；clamp 防止异常配置吃光工资。
+        const ownerProfitMargin = (() => {
+            const override = b.marketConfig?.wage?.ownerProfitMargin;
+            const ratio = Number.isFinite(override) ? override : OWNER_PROFIT_MARGIN;
+            return Math.max(0, Math.min(0.6, ratio));
+        })();
+
         const baseWageCostPerMultiplier = simBaseMultiplier > 0 ? expectedWageBillBase / simBaseMultiplier : expectedWageBillBase;
         // All estimates use SIMULATED/POTENTIAL multiplier to generate correct wage pressure signals
         const estimatedRevenue = outputValuePerMultiplier * simTargetMultiplier;
         const estimatedInputCost = inputCostPerMultiplier * simTargetMultiplier;
         const baseWageCost = baseWageCostPerMultiplier * simTargetMultiplier;
-        const valueAvailableForLabor = Math.max(0, estimatedRevenue - estimatedInputCost);
+        // [业主主动权] 可用于发薪的毛利先扣除业主目标利润，避免业主把全部毛利发成工资而亏损
+        const valueAvailableForLabor = Math.max(0, (estimatedRevenue - estimatedInputCost) * (1 - ownerProfitMargin));
         const wageCoverage = baseWageCost > 0 ? valueAvailableForLabor / baseWageCost : 1;
         const wagePressure = (() => {
             if (!Number.isFinite(wageCoverage)) return 1;
@@ -2996,8 +3017,19 @@ export const simulateTick = ({
             // BUG FIX: 使用实际可支付的运营成本，而不是基于市场工资的成本
             let minAffordableMultiplier = Infinity;
             const ownerDetails = debugData ? [] : null;
+            // [口径统一] 业主可负担门槛只覆盖该阶层"实际拥有"的建筑份额。
+            //   官员私产 / 外资 / 国有部分由各自渠道出资（参见工资分摊 stratumShare 段），
+            //   不应让本国阶层业主为这些非己有建筑垫付运营现金、连带把整类型产量拖垮。
+            const ownershipForAfford = buildingOwnershipMap[b.id] || null;
+            const stratumOwnedShare = (ownershipForAfford && ownershipForAfford.totalCount > 0)
+                ? ownershipForAfford.stratumCount / ownershipForAfford.totalCount
+                : 1;
             Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
-                const ownerProportion = group.totalCount / count;
+                let ownerProportion = group.totalCount / count;
+                // 仅本国阶层业主（非国有）按实际持有份额缩减其需自筹的运营成本
+                if (oKey === b.owner && oKey !== 'state') {
+                    ownerProportion *= stratumOwnedShare;
+                }
                 const ownerOperatingCost = actualOperatingCostPerMultiplier * ownerProportion;
                 const ownerCash = wealth[oKey] || 0;
                 const ownerAffordable = ownerOperatingCost > 0 ? ownerCash / ownerOperatingCost : Infinity;
@@ -3210,7 +3242,9 @@ export const simulateTick = ({
             }
 
             // 计算该等级的工资压力因子
-            const valueAvailable = Math.max(0, levelOutputValue - levelInputCost);
+            // [业主主动权] 与建筑级口径一致：先扣除业主目标利润，再用剩余毛利衡量工资覆盖率，
+            //   使"实际发放工资"也为业主预留利润，而不仅在估算/可负担判定中预留。
+            const valueAvailable = Math.max(0, (levelOutputValue - levelInputCost) * (1 - ownerProfitMargin));
             const coverage = levelWageCost > 0 ? valueAvailable / levelWageCost : 1;
             let levelWagePressure = 1;
             if (!Number.isFinite(coverage)) {
@@ -3310,12 +3344,20 @@ export const simulateTick = ({
             // 双底线之雇员底线：每个岗位必须至少覆盖该建筑的生计下限
             expectedSlotWage = Math.max(expectedSlotWage, getBuildingLivingCostFloor(plan.role));
 
-            const due = expectedSlotWage * plan.filled;
+            // [OWNER-CAP 修复] 工资责任随"业主填坑上限"同比缩减。
+            //   业主不足时（如 5 个庄园只有 1 个地主），多余建筑视为停工：
+            //   产出已按 ownerFillCapMultiplier 缩减（见 baseMultiplier），但旧逻辑里
+            //   雇员工资账单没有同步缩减，导致业主"只拿 1 份产出、却付 N 份工资"而严重亏损、
+            //   进而引发业主阶层（地主）持续流失。这里让发薪雇员数同比缩减，
+            //   只为实际运营的建筑支付工资；多余雇员因人均收入下降而自然迁出。
+            const ownerCappedFilled = plan.filled * ownerFillCapMultiplier;
+            const due = expectedSlotWage * ownerCappedFilled;
             plannedWageBill += due;
             return {
                 ...plan,
                 ownerKey: planOwnerKey,
                 expectedSlotWage,
+                cappedFilled: ownerCappedFilled, // 业主填坑上限后的有效计薪雇员数
                 wagePressure: planWagePressure, // 保存用于调试
                 wageMode, // Track for debugging
                 subsistenceMultiplier: wageMode === 'subsistence' ? subsistenceMultiplier : undefined,
@@ -3456,8 +3498,10 @@ export const simulateTick = ({
             const statSlotWage = plan.baseWage * simUtilization * plan.wagePressure;
             roleWageStats[plan.role].weightedWage += statSlotWage * plan.roleSlots;
 
-            if (plan.filled > 0 && actualSlotWage > 0) {
-                const payout = actualSlotWage * plan.filled;
+            // [OWNER-CAP 修复] 实际发薪雇员数同样按业主填坑上限缩减，与上方 plannedWageBill 口径一致。
+            const payoutFilled = Number.isFinite(plan.cappedFilled) ? plan.cappedFilled : plan.filled;
+            if (payoutFilled > 0 && actualSlotWage > 0) {
+                const payout = actualSlotWage * payoutFilled;
 
                 // Per-building wage totals (for UI)
                 buildingFinancialData[b.id].wagesByRole[plan.role] =
@@ -8163,7 +8207,18 @@ export const simulateTick = ({
                     ? businessTaxCost * effectiveEfficiency
                     : businessTaxCost;
 
-                const netProfit = outputValue - inputCost - wageCost - headTaxCost - effectiveBusinessTaxCost;
+                // [修复：业主吸引力] 业主受"利润保留机制"保护，不会把毛利全发成工资而亏本。
+                //   旧实现按"全额市场工资"扣减，服务业抬高工资后矿井/庄园业主估算转负，
+                //   导致人口判定"当业主不划算"而全涌向工匠/商人/神职，无人当地主/自耕农。
+                //   与实际发薪口径对齐：业主至少保住毛利的 ownerProfitMargin，工资高时只发得起的部分，剩余归业主。
+                const estOwnerProfitMargin = (() => {
+                    const ov = building.marketConfig?.wage?.ownerProfitMargin;
+                    const ratio = Number.isFinite(ov) ? ov : OWNER_PROFIT_MARGIN;
+                    return Math.max(0, Math.min(0.6, ratio));
+                })();
+                const grossMargin = Math.max(0, outputValue - inputCost);
+                const ownerGrossTake = Math.max(grossMargin * estOwnerProfitMargin, outputValue - inputCost - wageCost);
+                const netProfit = ownerGrossTake - headTaxCost - effectiveBusinessTaxCost;
                 const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
 
                 ownerIncome += profitPerOwner * roleSlots * count;
@@ -8349,6 +8404,15 @@ export const simulateTick = ({
 
         // 【空岗位预估收入】当该行业无人工作时，使用基于建筑产出的预估收入
         // 解决恶性循环：无人工作 → 收入零 → 更无人愿意去
+        // 【修复 / 自耕农与业主死循环】severelyUnderfilled：岗位严重空缺（在岗 < 50% 编制）时，
+        //   少量在岗者会因 owner-cap 减产 + 自身消耗（粮荒时尤甚）导致"实际人均收入"被压得很低，
+        //   于是整个岗位显得不赚钱 → 无人迁入 → 永远停在 1~2 人（如 农田 1/42、地主 0/47）。
+        //   这正是"没有成本的自耕农也没人做"的根因：信号用的是被压低的实际值而非潜在值。
+        //   修复：严重空缺时取「实际净收入」与「按建筑产出估算的潜在收入」的较大值，
+        //   让真正赚钱的空岗（高粮价下的农田、高利润的矿井业主）能正确吸引迁入；
+        //   低价值岗位的潜在估算本身就低，不会被过度吸引，故自我调节、不会误伤。
+        const roleSlotsForFill = Math.max(0, Math.floor(jobsAvailable[role] || 0));
+        const severelyUnderfilled = role !== 'merchant' && roleSlotsForFill > 0 && pop < roleSlotsForFill * 0.5;
         let incomeSignal;
         if (pop === 0) {
             // 无人工作时，使用预估收入（区分业主和雇员）
@@ -8368,6 +8432,10 @@ export const simulateTick = ({
                 incomeSignal = historicalIncomePerCapita;
             } else {
                 incomeSignal = fallbackIncome;
+            }
+            // 严重空缺时，用潜在收入兜底，打破"少量在岗→实际收入被压低→无人迁入"的死循环
+            if (severelyUnderfilled) {
+                incomeSignal = Math.max(incomeSignal, estimateVacantRoleIncome(role));
             }
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;

@@ -25,6 +25,9 @@ import {
     TIER01_MIN_NET_INCOME_FLOOR,
     // Lucky promotion
     LUCKY_PROMOTION_CHANCE,
+    // 高收入空缺业主岗位晋升助推（C 方案）
+    LUCRATIVE_PROMOTION_BOOTSTRAP_RATIO,
+    UNDERFILLED_TARGET_MIGRATION_RATIO,
     // Survival migration
     CRITICAL_SHORTAGE_THRESHOLD,
     CRITICAL_RESOURCES,
@@ -337,7 +340,11 @@ export const fillVacancies = ({
     // Fill vacancies with tier-based constraints
     vacancyRanking.forEach(entry => {
         // Tier 0/1 使用更高的填补速率，确保 2 tick 内填满空缺
-        const fillRatio = entry.tier <= 1
+        // [加速] 严重空缺(在岗<50%编制)且有利可图的 Tier2/3 业主岗，也使用高填补速率，
+        //   避免"高利润空岗以 25%/tick 慢慢填"——这是地主等业主岗填得太慢的主因之一。
+        const entrySlots = jobsAvailable[entry.role] || 0;
+        const entrySeverelyUnderstaffed = entrySlots > 0 && entry.vacancy >= entrySlots * 0.5;
+        const fillRatio = (entry.tier <= 1 || (entrySeverelyUnderstaffed && entry.netIncome > 0))
             ? VACANCY_FILL_RATIO_TIER01
             : VACANCY_FILL_RATIO_PER_TICK;
         const perRoleFillCap = Math.max(
@@ -424,7 +431,29 @@ export const fillVacancies = ({
                     // Chance is small (e.g. 0.01%)
                     const expectedLucky = sourcePop * LUCKY_PROMOTION_CHANCE;
                     // Probabilistic rounding
-                    const luckyCount = Math.floor(expectedLucky) + (Math.random() < (expectedLucky % 1) ? 1 : 0);
+                    let luckyCount = Math.floor(expectedLucky) + (Math.random() < (expectedLucky % 1) ? 1 : 0);
+
+                    // [C方案] 高收入空缺业主岗位晋升助推：打破"无业主→停工→无收入→无人晋升"死循环。
+                    //   当目标岗位本身有利可图（netIncome>0，如赚钱的矿井/庄园业主岗）时，放行一股引导晋升流，
+                    //   让贫穷阶层也能晋升进入，无需先攒够全部门槛财富（差额由系统补足，见下方 extraWealth）。
+                    //   分两档，避免旧实现 sourcePop×财富比×0.05 被 floor 取整成 0 而完全失效：
+                    //   - 严重空缺(填充率<50%)：以"空缺量"为基准给强引导流，确保高收入空岗能被真正填上；
+                    //   - 轻度空缺：温和按"财富接近度"引导，避免对接近满员的岗位过度放水。
+                    if (entry.netIncome > 0 && entry.wealthRequired > 0) {
+                        const targetSlots = jobsAvailable[entry.role] || 0;
+                        const understaffRatio = targetSlots > 0 ? entry.vacancy / targetSlots : 0;
+                        let bootstrapCount;
+                        if (understaffRatio >= 0.5) {
+                            // 实际填补速率仍受 perRoleFillCap(25%/tick) 与 remainingVacancy 约束
+                            bootstrapCount = Math.min(sourcePop, Math.max(1, Math.ceil(entry.vacancy * LUCRATIVE_PROMOTION_BOOTSTRAP_RATIO)));
+                        } else if (perCapWealth > 0) {
+                            const wealthFraction = Math.min(1, perCapWealth / entry.wealthRequired);
+                            bootstrapCount = Math.floor(sourcePop * wealthFraction * LUCRATIVE_PROMOTION_BOOTSTRAP_RATIO);
+                        } else {
+                            bootstrapCount = 0;
+                        }
+                        if (bootstrapCount > luckyCount) luckyCount = bootstrapCount;
+                    }
 
                     if (luckyCount > 0) {
                         eligibleCount = luckyCount;
@@ -778,6 +807,26 @@ export const handleJobMigration = ({
             return best;
         }, null);
 
+    // [转职诊断] 当地主/自耕农岗严重空缺时，输出关键角色的收入/人口/空缺/是否有建筑空位，
+    //   以及本 tick 选中的迁移 源→目标，帮助定位"业主岗为何永远排不上"。节流：约每 60 次调用输出一次。
+    try {
+        const starved = activeRoleMetrics.find(r =>
+            (r.role === 'landowner' || r.role === 'peasant') && (r.vacancy || 0) > 5 && (r.pop || 0) < 5
+        );
+        if (starved && Array.isArray(logs)) {
+            globalThis.__MIG_DIAG_N = (globalThis.__MIG_DIAG_N || 0) + 1;
+            if (globalThis.__MIG_DIAG_N % 60 === 1) {
+                const fmt = (role) => {
+                    const m = activeRoleMetrics.find(x => x.role === role);
+                    if (!m) return `${role}:无`;
+                    return `${role}(收入${(m.potentialIncome || 0).toFixed(1)}/人${m.pop}/缺${m.vacancy || 0}/建筑空位${hasBuildingVacancyForRole(role) ? '有' : '无'})`;
+                };
+                logs.push('[转职诊断] ' + ['landowner', 'peasant', 'miner', 'artisan', 'merchant', 'cleric'].map(fmt).join(' ')
+                    + ` | 危机:${hasCriticalShortage ? '是' : '否'} 源:${sourceCandidate?.role || '无'}→目标:${targetCandidate?.role || '无'}`);
+            }
+        }
+    } catch (e) { /* diagnostic only */ }
+
     if (!targetCandidate) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     // 【需求 3.1 / 4.5】补贴驱动识别：
@@ -791,11 +840,16 @@ export const handleJobMigration = ({
     // Execute migration with low population guarantee
     // 生存危机 + 目标是紧缺资源生产者时使用紧急迁移速率
     const isSurvivalMigration = hasCriticalShortage && criticalShortageRoles.has(targetCandidate.role);
+    // [加速] 目标岗位严重空缺（空缺 ≥ 在岗）：用高迁移速率快速填补，受目标空缺与来源人口约束。
+    //   解决"自耕农/业主岗有人却填得极慢"——普通 1.2%/tick 单对迁移太慢。
+    const targetSeverelyUnderfilled = targetCandidate.vacancy >= Math.max(1, targetCandidate.pop || 0);
     let effectiveMigrationRatio;
     if (sourceCandidate.pop < LOW_POP_THRESHOLD) {
         effectiveMigrationRatio = JOB_MIGRATION_LOW_POP_GUARANTEE;
     } else if (isSurvivalMigration) {
-        effectiveMigrationRatio = EMERGENCY_MIGRATION_RATIO;
+        effectiveMigrationRatio = Math.max(EMERGENCY_MIGRATION_RATIO, UNDERFILLED_TARGET_MIGRATION_RATIO);
+    } else if (targetSeverelyUnderfilled) {
+        effectiveMigrationRatio = UNDERFILLED_TARGET_MIGRATION_RATIO;
     } else if (isSubsidyDriven) {
         // 【需求 3.1】补贴拉力加速：有限提高迁移比例（介于普通与紧急之间）
         effectiveMigrationRatio = JOB_MIGRATION_RATIO * SUBSIDY_PULL_MULTIPLIER;

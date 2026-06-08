@@ -2698,9 +2698,13 @@ difficulty, // 游戏难度
                                     }
                                 }
                             const newOfficials = officialsList.filter(o => o && o.id && o.id !== targetId);
-                            const newBuildings = { ...(result.buildings || {}) };
-                            const newBuildingUpgrades = { ...(result.buildingUpgrades || {}) };
-                            const newPopStructure = { ...(result.popStructure || {}) };
+                            // [BUG FIX] simulation 仅在建筑发生变动时才返回 result.buildings，否则为 null（性能优化）。
+                            //   政变多半发生在没有建筑变动的 tick，若此处用 result.buildings(=null) 会得到空对象 {}，
+                            //   随后写回 setBuildings 时会把玩家所有建筑清空（表现为"官员叛乱后建筑全部消失"）。
+                            //   回退到本 tick 喂给 simulation 的 mergedBuildings（含 pending 增量）作为权威建筑状态。
+                            const newBuildings = { ...(result.buildings || mergedBuildings || current.buildings || {}) };
+                            const newBuildingUpgrades = { ...(result.buildingUpgrades || current.buildingUpgrades || {}) };
+                            const newPopStructure = { ...(result.popStructure || current.popStructure || {}) };
                             let populationLoss = 1;
 
                             // 携资叛逃：只扣除该官员的"私产"建筑（_propertySummary）。
@@ -3271,6 +3275,12 @@ difficulty, // 游戏难度
                             setApprovalBreakdown(result.approvalBreakdown);
                         }
                     }
+                    // [CRITICAL BUG FIX] popStructure/maxPop 必须每 tick 直写 stateRef（与下方 classApproval/stability 一致）。
+                    //   否则高速模式下，非 UI tick 计算出的人口变化（转职/晋升/生育/死亡）不会回写 stateRef，
+                    //   下一 tick 读到陈旧人口 → 转职把人移进业主/自耕农岗却被整批丢弃，表现为"业主/自耕农岗永远填不满"，
+                    //   并导致人口结构在高速模式下整体失真甚至崩溃。
+                    stateRef.current.popStructure = nextPopStructure;
+                    stateRef.current.maxPop = result.maxPop;
                     stateRef.current.classApproval = result.classApproval;
                     const adjustedInfluence = { ...(result.classInfluence || {}) };
                     Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
@@ -6500,6 +6510,9 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 });
 
                 // 鏇存柊浜哄彛锛堝鏋滄湁鍙樺寲锛?
+                // [CRITICAL BUG FIX] 同 popStructure：population 也每 tick 直写 stateRef，
+                //   确保高速模式非 UI tick 的人口总量变化传递到下一 tick，避免与 popStructure 口径漂移。
+                stateRef.current.population = nextPopulation;
                 if (nextPopulation !== current.population) {
                     setPopulation(nextPopulation);
                 }

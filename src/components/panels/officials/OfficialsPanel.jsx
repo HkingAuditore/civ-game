@@ -13,6 +13,7 @@ import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH, calculatePolicySlots, getCentri
 import { PROPERTY_POLICY_CONFIG } from '../../../config/officials';
 import { EPOCHS } from '../../../config/epochs';
 import { OfficialDetailModal } from '../../modals/OfficialDetailModal';
+import { OfficialEffectsSummary } from './OfficialEffectsSummary';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
 import {
     MINISTER_LABELS,
@@ -241,9 +242,15 @@ export const OfficialsPanel = ({
                 result.set(official.id, null);
                 return;
             }
+            // [FIX] 统一数据源：在任官员优先使用模拟端每帧算好并缓存的 isStanceSatisfied
+            // （它才是真正驱动忠诚度增减的"生效值"）；仅当缺失（候选官员/旧存档）时
+            // 才用 stanceContext 实时计算回退。避免 UI 口径与模拟端口径分歧导致
+            // "卡片显示未满足、详情显示已满足"的不一致。
             result.set(
                 official.id,
-                isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams)
+                typeof official.isStanceSatisfied === 'boolean'
+                    ? official.isStanceSatisfied
+                    : isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams)
             );
         });
         return result;
@@ -253,6 +260,10 @@ export const OfficialsPanel = ({
         if (!selectedOfficial?.politicalStance) return null;
         if (selectedOfficial?.id && stanceSatisfiedByOfficialId.has(selectedOfficial.id)) {
             return stanceSatisfiedByOfficialId.get(selectedOfficial.id);
+        }
+        // [FIX] 与列表口径保持一致：优先用模拟端缓存的生效值，缺失时再实时计算
+        if (typeof selectedOfficial.isStanceSatisfied === 'boolean') {
+            return selectedOfficial.isStanceSatisfied;
         }
         return isStanceSatisfied(
             selectedOfficial.politicalStance,
@@ -392,6 +403,16 @@ export const OfficialsPanel = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* 2.5 全部加成汇总（可折叠） */}
+            {officials.length > 0 && (
+                <OfficialEffectsSummary
+                    officials={officials}
+                    officialsPaid={officialsPaid}
+                    stanceContext={stanceContext}
+                    ministerAssignments={ministerAssignments}
+                />
             )}
 
             {officials.length > 0 && (
