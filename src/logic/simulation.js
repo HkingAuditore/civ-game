@@ -2361,6 +2361,26 @@ export const simulateTick = ({
         return getExpectedWage(role);
     };
 
+    // [口粮安全锁] 禁止"自家岗位还没填满"的粮食/布料生产者（peasant 等）被晋升抽去高 tier 岗位。
+    //   背景：fillVacancies 的"晋升 bootstrap"会按高收入空缺岗（工匠空缺数千、收入畸高）一次性
+    //   把低 tier 人口大量晋升上去。若不拦截，刚被招募/动员来种田的自耕农下一 tick 就被工匠岗抽干，
+    //   导致"农田永远 0/150、人口全挤在服务业、饥荒不止"。
+    //   为何不用"满足度"判定饥荒：饥荒时富裕服务业（高工资工匠）吃得饱、满足度高，会把全局加权满足度
+    //   拉高从而误判"无饥荒"，锁失效——真正挨饿的是穷人/农民。改用最可靠且自调节的信号：
+    //   该生产者"自家岗位填充率 < 90%"即视为产能不足，先保口粮、禁止被晋升抽走；
+    //   农田/织布坊填满（≥90%）后自动解锁，富余人口才可正常晋升发展。
+    const fillLockedSourceRoles = new Set();
+    ['food', 'cloth'].forEach(resKey => {
+        const producer = RESOURCES[resKey]?.defaultOwner;
+        if (!producer) return;
+        const slots = jobsAvailable[producer] || 0;
+        const pop = popStructure[producer] || 0;
+        const fillRate = slots > 0 ? pop / slots : 1;
+        if (slots > 0 && fillRate < 0.9) {
+            fillLockedSourceRoles.add(producer);
+        }
+    });
+
     // 自动填补（招工）：使?job.js 中的 fillVacancies 函数，支持阶层流?
     const filledResult = fillVacancies({
         popStructure,
@@ -2368,7 +2388,8 @@ export const simulateTick = ({
         wealth,
         getExpectedWage: getSmartExpectedWage, // [FIX] 使用智能工资预估
         getHeadTaxRate,
-        effectiveTaxModifier
+        effectiveTaxModifier,
+        lockedSourceRoles: fillLockedSourceRoles
     });
     perfEnd('populationJobs');
 
@@ -7252,6 +7273,67 @@ export const simulateTick = ({
         popStructure.unemployed = (popStructure.unemployed || 0) + fertilityBirths;
         nextPopulation = Math.min(totalMaxPop, nextPopulation + fertilityBirths);
     }
+
+    // [饥荒兜底动员] 饥荒时（全局粮食满足度 < 70%，即 famineFertilityPenalty < 1），
+    //   把闲置失业者直接征召为自耕农（peasant），上限为农田空缺。
+    //   背景：newborns 在 fillVacancies（本 tick 前段）之后才出生并进入失业池，普通流程要等到
+    //   下一 tick 才可能被招募，期间无工作、无收入，紧接着就在下方饿死循环里直接饿死——
+    //   表现为"来了失业者却没去种田就饿死了"。征召为 peasant 后：
+    //   ① 下一 tick 即可产粮，打破"无人种田→饥荒→人口崩溃"的死亡螺旋；
+    //   ② peasant 此前人数≈0、无长期缺粮历史，可免于本 tick 的长期缺粮死亡判定。
+    if (famineFertilityPenalty < 1) {
+        const peasantSlots = Math.max(0, jobsAvailable.peasant || 0);
+        let peasantVacancy = Math.max(0, peasantSlots - (popStructure.peasant || 0));
+
+        // 把人征召为自耕农并携带人均财富的小工具
+        const draftToPeasant = (sourceRole, count) => {
+            if (count <= 0) return 0;
+            const srcPop = popStructure[sourceRole] || 0;
+            const moved = Math.min(count, srcPop, peasantVacancy);
+            if (moved <= 0) return 0;
+            popStructure[sourceRole] = srcPop - moved;
+            popStructure.peasant = (popStructure.peasant || 0) + moved;
+            const srcWealth = wealth[sourceRole] || 0;
+            const perCap = srcPop > 0 ? srcWealth / srcPop : 0;
+            if (perCap > 0) {
+                const transfer = perCap * moved;
+                wealth[sourceRole] = Math.max(0, srcWealth - transfer);
+                wealth.peasant = safeWealth((wealth.peasant || 0) + transfer);
+            }
+            peasantVacancy -= moved;
+            return moved;
+        };
+
+        // 第一步：优先征召闲置失业者（含本 tick 刚出生、尚无工作的人口）。
+        const fromIdle = draftToPeasant('unemployed', popStructure.unemployed || 0);
+        if (fromIdle > 0) {
+            recordAggregatedLog(`饥荒动员：${fromIdle} 名失业者被征召为自耕农开垦农田。`);
+        }
+
+        // 第二步：严重饥荒（全局粮食满足度 < 50%，即 famineFertilityPenalty < ~0.71）且自耕农严重缺员时，
+        //   从在职的"非必需服务业"按比例抽人去种田。这是打破大崩溃的关键——
+        //   崩溃中绝大多数劳力被锁在服务业（工匠/商人/神职），单对、限速的迁移来不及把他们调去种田，
+        //   人就先饿死了。此处直接、批量地把闲置服务业劳力调往农田，上限为农田空缺（填满即停，自限不震荡）。
+        const SEVERE_FAMINE = famineFertilityPenalty < 0.71;
+        const peasantSeverelyUnderstaffed = peasantSlots > 0 && (popStructure.peasant || 0) < peasantSlots * 0.5;
+        if (SEVERE_FAMINE && peasantSeverelyUnderstaffed && peasantVacancy > 0) {
+            // 非必需服务业：不产粮/布的中高 tier 服务岗，可被临时抽调去种田求生。
+            const DRAFT_POOL = ['artisan', 'merchant', 'cleric', 'scribe', 'navigator', 'technician'];
+            const DRAFT_FRACTION = 0.3; // 每 tick 最多抽走该岗 30%，给经济缓冲
+            let totalDrafted = 0;
+            for (const role of DRAFT_POOL) {
+                if (peasantVacancy <= 0) break;
+                const pop = popStructure[role] || 0;
+                if (pop <= 0) continue;
+                const quota = Math.max(1, Math.floor(pop * DRAFT_FRACTION));
+                totalDrafted += draftToPeasant(role, quota);
+            }
+            if (totalDrafted > 0) {
+                recordAggregatedLog(`饥荒动员：${totalDrafted} 名服务业者被紧急调往农田以缓解粮荒。`);
+            }
+        }
+    }
+
     if ((res.food || 0) <= 0) {
         res.food = 0;
         if (Math.random() > 0.9 && nextPopulation > 2) {

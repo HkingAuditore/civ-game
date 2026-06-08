@@ -259,8 +259,13 @@ export const fillVacancies = ({
     getExpectedWage,
     getHeadTaxRate,
     effectiveTaxModifier,
-    wealthChangeLog = null  // Optional: for tracking changes
+    wealthChangeLog = null,  // Optional: for tracking changes
+    // [饥荒锁] 饥荒时传入"受保护的粮食/布料生产者"集合（如 peasant）。
+    //   这些角色禁止作为晋升来源被抽去高 tier 岗位（工匠等），
+    //   否则刚被征召/招募来种田的人会立刻被高收入空缺岗（工匠空缺数千）晋升抽走，净增为 0。
+    lockedSourceRoles = null
 }) => {
+    const lockedSources = lockedSourceRoles instanceof Set ? lockedSourceRoles : new Set();
     // Estimate net income for each role
     const estimateRoleNetIncome = (role) => {
         const wage = getExpectedWage(role);
@@ -385,6 +390,9 @@ export const fillVacancies = ({
                     if (role === entry.role) return false; // Don't hire from same role
                     if (role === 'soldier') return false; // Soldier cannot migrate to other jobs
                     if (role === 'official') return false; // Official is managed separately
+                    // [饥荒锁] 饥荒时不允许从粮食/布料生产者（peasant 等）晋升抽人到更高 tier 岗位，
+                    //   保住种田的人，打破"刚种田就被工匠岗抽走"的泄漏。
+                    if (lockedSources.has(role)) return false;
                     const pop = popStructure[role] || 0;
                     if (pop <= 0) return false;
 
@@ -778,7 +786,18 @@ export const handleJobMigration = ({
             // 【需求 3.3】传入补贴金额以启动同 tier 阻力削减
             const resistanceMultiplier = getTierResistanceMultiplier(r.role, r.subsidyPerCapita || 0);
             // Base threshold is 1.3x income difference, modified by resistance
-            const effectiveThreshold = 1.3 * resistanceMultiplier;
+            let effectiveThreshold = 1.3 * resistanceMultiplier;
+            // [饥荒优先] 危机时，进入紧缺资源生产者（如 peasant 之于 food）的门槛大幅下调，
+            //   让收入更高的服务业人口（cleric/merchant 等）也能被拉去种田，
+            //   打破"宁可饿死也不种田 → 无人产粮 → 饥荒持续 → 人口崩溃"的死亡螺旋。
+            if (hasCriticalShortage && criticalShortageRoles.has(r.role)) {
+                effectiveThreshold = Math.min(effectiveThreshold, 0.4);
+            }
+            // [取消自耕农门槛] 自耕农（peasant）是最基础的粮食生产者，作为最底层的"兜底"职业，
+            //   不应有收入对比门槛——只要农田有空位、有正收益，任何人都能去种田。
+            if (r.role === 'peasant') {
+                effectiveThreshold = 0;
+            }
 
             if (r.role === 'soldier') {
                 return r.potentialIncome > sourceCandidate.potentialIncome * effectiveThreshold;
@@ -791,6 +810,14 @@ export const handleJobMigration = ({
         })
         .reduce((best, current) => {
             if (!best) return current;
+            // [饥荒优先] 危机时：紧缺资源生产者（如 peasant）优先于任何非紧缺角色，
+            //   不论后者收入多高（如 landowner 矿井 5400）。确保饥荒时先把劳力导向粮食生产，
+            //   而不是继续涌向更赚钱但不产粮的岗位。
+            if (hasCriticalShortage) {
+                const curCrit = criticalShortageRoles.has(current.role);
+                const bestCrit = criticalShortageRoles.has(best.role);
+                if (curCrit !== bestCrit) return curCrit ? current : best;
+            }
             // Compare using effective attractiveness
             const currentAttractiveness = calculateEffectiveAttractiveness(current.role, current.potentialIncome);
             const bestAttractiveness = calculateEffectiveAttractiveness(best.role, best.potentialIncome);
