@@ -834,26 +834,6 @@ export const handleJobMigration = ({
             return best;
         }, null);
 
-    // [转职诊断] 当地主/自耕农岗严重空缺时，输出关键角色的收入/人口/空缺/是否有建筑空位，
-    //   以及本 tick 选中的迁移 源→目标，帮助定位"业主岗为何永远排不上"。节流：约每 60 次调用输出一次。
-    try {
-        const starved = activeRoleMetrics.find(r =>
-            (r.role === 'landowner' || r.role === 'peasant') && (r.vacancy || 0) > 5 && (r.pop || 0) < 5
-        );
-        if (starved && Array.isArray(logs)) {
-            globalThis.__MIG_DIAG_N = (globalThis.__MIG_DIAG_N || 0) + 1;
-            if (globalThis.__MIG_DIAG_N % 60 === 1) {
-                const fmt = (role) => {
-                    const m = activeRoleMetrics.find(x => x.role === role);
-                    if (!m) return `${role}:无`;
-                    return `${role}(收入${(m.potentialIncome || 0).toFixed(1)}/人${m.pop}/缺${m.vacancy || 0}/建筑空位${hasBuildingVacancyForRole(role) ? '有' : '无'})`;
-                };
-                logs.push('[转职诊断] ' + ['landowner', 'peasant', 'miner', 'artisan', 'merchant', 'cleric'].map(fmt).join(' ')
-                    + ` | 危机:${hasCriticalShortage ? '是' : '否'} 源:${sourceCandidate?.role || '无'}→目标:${targetCandidate?.role || '无'}`);
-            }
-        }
-    } catch (e) { /* diagnostic only */ }
-
     if (!targetCandidate) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     // 【需求 3.1 / 4.5】补贴驱动识别：

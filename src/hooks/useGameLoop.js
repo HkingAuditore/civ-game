@@ -6512,8 +6512,15 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                 // 鏇存柊浜哄彛锛堝鏋滄湁鍙樺寲锛?
                 // [CRITICAL BUG FIX] 同 popStructure：population 也每 tick 直写 stateRef，
                 //   确保高速模式非 UI tick 的人口总量变化传递到下一 tick，避免与 popStructure 口径漂移。
+                // [CRITICAL BUG FIX] 必须在直写 stateRef 之前捕获旧值再比较。
+                //   因为 current === stateRef.current（同一引用），若先执行下一行的直写，
+                //   再用 current.population 比较，则两者必然相等 → setPopulation 永不触发 →
+                //   React state 的 population 永远停在旧值 → 每次渲染时 1163 行的回灌又把
+                //   stateRef.current.population 覆盖回旧值 → 总人口被冻结，出生的新生儿因
+                //   diff = 冻结人口 - 实际人口 < 0 而被当作"人口减少"逐 tick 裁掉（人口不增长）。
+                const prevPopulationForSync = current.population;
                 stateRef.current.population = nextPopulation;
-                if (nextPopulation !== current.population) {
+                if (nextPopulation !== prevPopulationForSync) {
                     setPopulation(nextPopulation);
                 }
                 if (typeof result.birthAccumulator === 'number') {

@@ -4,9 +4,24 @@
  */
 export const CHANGELOG = [
     {
-        version: '2.3.61',
+        version: '2.3.62',
         date: '2026-06-08',
         isLatest: true,
+        highlights: [
+            '修复高速模式下总人口冻结、人口不增长',
+            '大臣扩建加入劳动力余量守卫',
+            '移除饥荒强制征召，改由市场机制调节',
+        ],
+        changes: [
+            { type: 'fix', text: '修复高速模式下总人口被冻结、人口无法增长的严重 BUG：population 同步时 current 与 stateRef.current 为同一引用，若先直写 stateRef 再与 current.population 比较则两者必然相等，导致 setPopulation 永不触发、React state 停在旧值，出生的新生儿被逐 tick 当作"人口减少"裁掉；现改为直写前先捕获旧值再比较。' },
+            { type: 'balance', text: '大臣自动扩建新增劳动力余量守卫：人口已达上限且无失业者时，禁止大臣继续扩建建筑，避免新建岗位只会从现有生产者抢人、不带来净产能的无效扩张。' },
+            { type: 'remove', text: '移除 2.3.61 引入的饥荒强制征召机制（失业者/服务业者直接抽调为自耕农），改由口粮安全锁、危机转职优先级与市场迁移机制自然调节劳力分配，避免强制动员带来的经济震荡。' },
+        ],
+    },
+    {
+        version: '2.3.61',
+        date: '2026-06-08',
+        isLatest: false,
         highlights: [
             '饥荒时锁定口粮生产者，不再被晋升抽走',
             '饥荒动员征召失业者与服务业者下田',

@@ -7274,66 +7274,6 @@ export const simulateTick = ({
         nextPopulation = Math.min(totalMaxPop, nextPopulation + fertilityBirths);
     }
 
-    // [饥荒兜底动员] 饥荒时（全局粮食满足度 < 70%，即 famineFertilityPenalty < 1），
-    //   把闲置失业者直接征召为自耕农（peasant），上限为农田空缺。
-    //   背景：newborns 在 fillVacancies（本 tick 前段）之后才出生并进入失业池，普通流程要等到
-    //   下一 tick 才可能被招募，期间无工作、无收入，紧接着就在下方饿死循环里直接饿死——
-    //   表现为"来了失业者却没去种田就饿死了"。征召为 peasant 后：
-    //   ① 下一 tick 即可产粮，打破"无人种田→饥荒→人口崩溃"的死亡螺旋；
-    //   ② peasant 此前人数≈0、无长期缺粮历史，可免于本 tick 的长期缺粮死亡判定。
-    if (famineFertilityPenalty < 1) {
-        const peasantSlots = Math.max(0, jobsAvailable.peasant || 0);
-        let peasantVacancy = Math.max(0, peasantSlots - (popStructure.peasant || 0));
-
-        // 把人征召为自耕农并携带人均财富的小工具
-        const draftToPeasant = (sourceRole, count) => {
-            if (count <= 0) return 0;
-            const srcPop = popStructure[sourceRole] || 0;
-            const moved = Math.min(count, srcPop, peasantVacancy);
-            if (moved <= 0) return 0;
-            popStructure[sourceRole] = srcPop - moved;
-            popStructure.peasant = (popStructure.peasant || 0) + moved;
-            const srcWealth = wealth[sourceRole] || 0;
-            const perCap = srcPop > 0 ? srcWealth / srcPop : 0;
-            if (perCap > 0) {
-                const transfer = perCap * moved;
-                wealth[sourceRole] = Math.max(0, srcWealth - transfer);
-                wealth.peasant = safeWealth((wealth.peasant || 0) + transfer);
-            }
-            peasantVacancy -= moved;
-            return moved;
-        };
-
-        // 第一步：优先征召闲置失业者（含本 tick 刚出生、尚无工作的人口）。
-        const fromIdle = draftToPeasant('unemployed', popStructure.unemployed || 0);
-        if (fromIdle > 0) {
-            recordAggregatedLog(`饥荒动员：${fromIdle} 名失业者被征召为自耕农开垦农田。`);
-        }
-
-        // 第二步：严重饥荒（全局粮食满足度 < 50%，即 famineFertilityPenalty < ~0.71）且自耕农严重缺员时，
-        //   从在职的"非必需服务业"按比例抽人去种田。这是打破大崩溃的关键——
-        //   崩溃中绝大多数劳力被锁在服务业（工匠/商人/神职），单对、限速的迁移来不及把他们调去种田，
-        //   人就先饿死了。此处直接、批量地把闲置服务业劳力调往农田，上限为农田空缺（填满即停，自限不震荡）。
-        const SEVERE_FAMINE = famineFertilityPenalty < 0.71;
-        const peasantSeverelyUnderstaffed = peasantSlots > 0 && (popStructure.peasant || 0) < peasantSlots * 0.5;
-        if (SEVERE_FAMINE && peasantSeverelyUnderstaffed && peasantVacancy > 0) {
-            // 非必需服务业：不产粮/布的中高 tier 服务岗，可被临时抽调去种田求生。
-            const DRAFT_POOL = ['artisan', 'merchant', 'cleric', 'scribe', 'navigator', 'technician'];
-            const DRAFT_FRACTION = 0.3; // 每 tick 最多抽走该岗 30%，给经济缓冲
-            let totalDrafted = 0;
-            for (const role of DRAFT_POOL) {
-                if (peasantVacancy <= 0) break;
-                const pop = popStructure[role] || 0;
-                if (pop <= 0) continue;
-                const quota = Math.max(1, Math.floor(pop * DRAFT_FRACTION));
-                totalDrafted += draftToPeasant(role, quota);
-            }
-            if (totalDrafted > 0) {
-                recordAggregatedLog(`饥荒动员：${totalDrafted} 名服务业者被紧急调往农田以缓解粮荒。`);
-            }
-        }
-    }
-
     if ((res.food || 0) <= 0) {
         res.food = 0;
         if (Math.random() > 0.9 && nextPopulation > 2) {
@@ -8631,8 +8571,15 @@ export const simulateTick = ({
         (role) => ministerAssignments?.[role] && ministerAutoExpansion?.[role] === true
     );
 
+    // 劳动力余量守卫：人口已达上限且无失业者时，新建建筑只会从现有岗位抢人，
+    // 不会带来净产能，因此禁止大臣扩建（与"无空闲劳动力则不盲目扩建"语义一致）。
+    const ministerCurrentTotalPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0)
+        + (popStructure.unemployed || 0);
+    const hasLaborHeadroomForExpansion = (popStructure.unemployed || 0) > 0
+        || ministerCurrentTotalPop < totalMaxPop;
+
     const ministerExpansionCfg = MINISTER_EXPANSION_CONFIG;
-    if (shouldAttemptMinisterExpansion && (tick - (nextLastMinisterExpansionDay.global || 0) >= ministerExpansionCfg.globalCooldownDays)) {
+    if (shouldAttemptMinisterExpansion && hasLaborHeadroomForExpansion && (tick - (nextLastMinisterExpansionDay.global || 0) >= ministerExpansionCfg.globalCooldownDays)) {
         const difficultyLevel = difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
