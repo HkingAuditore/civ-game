@@ -20,14 +20,14 @@ export const IDEOLOGY_CATEGORIES = {
  * 每种行为类型的基础分数和计算公式
  */
 export const IDEOLOGY_SCORE_TRIGGERS = {
-    research_tech:     { base: 15,  epochScale: 8,   desc: '研发知识' },
-    epoch_advance:     { base: 60, epochScale: 20,  desc: '进入新时代' },
-    achievement:       { base: 20, maxBase: 50,     desc: '达成成就' },
-    building_milestone:{ base: 40, desc: '建筑里程碑（指数递增：50→150→450→…×3）' },
-    pop_milestone:     { base: 45, desc: '人口里程碑（指数递增：100→400→1600→…×4）' },
-    war_result:        { baseWin: 50, baseLose: 30,  desc: '战争结果' },
-    chain_complete:    { base: 45, desc: '产业链完成' },
-    trade_milestone:   { base: 25, milestones: [500, 1500, 4000, 10000, 25000, 60000, 150000], desc: '贸易里程碑' },
+    research_tech:     { base: 22,  epochScale: 12,  desc: '研发知识' },
+    epoch_advance:     { base: 90, epochScale: 30,  desc: '进入新时代' },
+    achievement:       { base: 30, maxBase: 75,     desc: '达成成就' },
+    building_milestone:{ base: 60, desc: '建筑里程碑（指数递增：50→150→450→…×3）' },
+    pop_milestone:     { base: 68, desc: '人口里程碑（指数递增：100→400→1600→…×4）' },
+    war_result:        { baseWin: 75, baseLose: 45,  desc: '战争结果' },
+    chain_complete:    { base: 68, desc: '产业链完成' },
+    trade_milestone:   { base: 38, milestones: [500, 1500, 4000, 10000, 25000, 60000, 150000], desc: '贸易里程碑' },
 };
 
 /**

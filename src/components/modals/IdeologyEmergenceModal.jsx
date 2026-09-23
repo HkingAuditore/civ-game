@@ -21,7 +21,7 @@ const IdeologyEmergenceModalComponent = ({
     onSelect,           // (ideologyId, discardId?) => void
     onSkip,             // () => void  跳过本次涌现
     equippedIds = [],   // 当前已装备的理念id
-    collectionFull = false,   // 未装备收藏是否已满（>=10）
+    collectionFull = false,   // 未装备收藏是否已满（>=27）
     collectionList = [],      // 当前未装备的理念列表 [{id, level, config}]
     rarityBonus = 0,    // 当前跳过累积的稀有度加成（0~3）
 }) => {
@@ -133,7 +133,7 @@ const IdeologyEmergenceModalComponent = ({
                                         {collectionFull && (
                                             <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-900/30 border border-red-500/40 text-xs text-red-300">
                                                 <Icon name="AlertTriangle" size={12} className="text-red-400" />
-                                                收藏已满（10/10），选择后需放弃一个旧理念
+                                                收藏已满（27/27），选择后需放弃一个旧理念
                                             </div>
                                         )}
                                     </MotionDiv>

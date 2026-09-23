@@ -11,7 +11,7 @@ import { IDEOLOGY_SCORE_TRIGGERS } from '../../config/ideologies';
  * @returns {number} 阈值
  */
 export function getEmergenceThreshold(ownedCount) {
-    return 35 + ownedCount * 20;
+    return 30 + ownedCount * 14;
 }
 
 /**

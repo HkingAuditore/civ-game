@@ -61,10 +61,10 @@ import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { collectAnnualSnapshot, generateExportText } from './utils/annualReport';
 
 const ANNUAL_REPORT_IDEOLOGY_REWARD = {
-    S: 60,
-    A: 40,
-    B: 25,
-    C: 10,
+    S: 90,
+    A: 60,
+    B: 38,
+    C: 15,
     D: 0,
     F: 0,
 };
@@ -2728,7 +2728,7 @@ function GameApp({ gameState }) {
                 show={!!gameState.pendingIdeologyEmergence}
                 candidates={gameState.pendingIdeologyEmergence?.candidates || []}
                 equippedIds={gameState.equippedIdeologies || []}
-                collectionFull={(gameState.ideologyCollection || []).filter(e => !(gameState.equippedIdeologies || []).includes(e.id)).length >= 9}
+                collectionFull={(gameState.ideologyCollection || []).filter(e => !(gameState.equippedIdeologies || []).includes(e.id)).length >= 27}
                 collectionList={(gameState.ideologyCollection || [])
                     .filter(e => !(gameState.equippedIdeologies || []).includes(e.id))
                     .map(e => ({ ...e, config: IDEOLOGY_MAP[e.id] || e }))}

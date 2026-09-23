@@ -18,7 +18,7 @@ const DEFAULT_EVENT_GROUP_FLAGS = {
     diplomacy_controls: false, // 外交微操偏好，不直接影响平衡
     strategic: false, // 低频且当前利用率低
     demand: false, // 诉求链路尚未稳定接线
-    ai: true, // AI 国家状态采样 + AI 宣战/和平
+    ai: false, // AI 国家逐日采样会把库灌满；宣战/和平如需分析再临时打开
     treaty: false, // 条约细分尚未形成稳定分析口径
 };
 
@@ -186,34 +186,13 @@ function bucketDurationMs(ms) {
     if (ms < 1000) return '300_1000';
     return 'gt1000';
 }
-export function trackSaveDuration(source, ms) {
-    // 形如 Save:Duration:auto:100_300 —— 既能按来源分，又能看分布
-    const safeSource = source === 'auto' ? 'auto' : 'manual';
-    trackDesign(`${GA_EVENTS.SAVE_DURATION}:${safeSource}:${bucketDurationMs(ms)}`, Math.round(ms));
+export function trackSaveDuration(_source, _ms) {
+    // 存档性能埋点会按分片连发，已改由服务端丢弃；新客户端不再上报。
 }
-export function trackSaveBytes(source, bytes, shard) {
-    const safeSource = source === 'auto' ? 'auto' : 'manual';
-    const kb = Math.max(0, Math.round(Number(bytes || 0) / 1024));
-    if (shard) {
-        trackDesign(`${GA_EVENTS.SAVE_BYTES}:${safeSource}:${shard}`, kb);
-    } else {
-        trackDesign(`${GA_EVENTS.SAVE_BYTES}:${safeSource}`, kb);
-    }
-}
-export function trackSavePath(source, pathLabel) {
-    const safeSource = source === 'auto' ? 'auto' : 'manual';
-    const safeLabel = String(pathLabel || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 24);
-    trackDesign(`${GA_EVENTS.SAVE_PATH}:${safeSource}:${safeLabel}`);
-}
-export function trackSaveWorkerFallback(reason) {
-    const safeReason = String(reason || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 24);
-    trackDesign(`${GA_EVENTS.SAVE_WORKER_FALLBACK}:${safeReason}`);
-}
-export function trackSaveSkip(source, reason) {
-    const safeSource = source === 'auto' ? 'auto' : 'manual';
-    const safeReason = String(reason || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 24);
-    trackDesign(`${GA_EVENTS.SAVE_SKIP}:${safeSource}:${safeReason}`);
-}
+export function trackSaveBytes(_source, _bytes, _shard) {}
+export function trackSavePath(_source, _pathLabel) {}
+export function trackSaveWorkerFallback(_reason) {}
+export function trackSaveSkip(_source, _reason) {}
 export function trackResetGame(daysElapsed) {
     trackDesign(GA_EVENTS.GAME_RESET, daysElapsed);
 }

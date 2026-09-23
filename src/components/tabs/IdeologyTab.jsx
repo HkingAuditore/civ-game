@@ -210,7 +210,7 @@ const EmptySlot = ({ isLocked = false, unlockHint = '' }) => (
 );
 
 /** 未装备理念收藏上限 */
-const MAX_COLLECTION_SIZE = 9;
+const MAX_COLLECTION_SIZE = 27;
 
 /**
  * 理念Tab主组件
@@ -366,13 +366,13 @@ const IdeologyTabComponent = ({
                 <div className="mt-2 pt-2 border-t border-gray-700/40">
                     <p className="text-[10px] text-gray-500 mb-1">获取途径：</p>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
-                        <span>⚗ 研发知识 +6~+42/项</span>
-                        <span>🏛 进入新时代 +36~+144</span>
-                        <span>🏗 建筑里程碑 +20（50→150→450→…×3）</span>
-                        <span>👥 人口里程碑 +26（100→400→1600→…×4）</span>
-                        <span>🚢 贸易里程碑 +14（1000→5000→20000→100000）</span>
-                        <span>⚔ 战争结果 胜利+26 / 失利+18</span>
-                        <span>🏭 完成产业链 +26/条</span>
+                        <span>⚗ 研发知识 +10~+66/项</span>
+                        <span>🏛 进入新时代 +54~+216</span>
+                        <span>🏗 建筑里程碑 +30（50→150→450→…×3）</span>
+                        <span>👥 人口里程碑 +34（100→400→1600→…×4）</span>
+                        <span>🚢 贸易里程碑 +22（1000→5000→20000→100000）</span>
+                        <span>⚔ 战争结果 胜利+39 / 失利+27</span>
+                        <span>🏭 完成产业链 +41/条</span>
                         <span>⚡ 部分理念触发事件奖励</span>
                     </div>
                 </div>
@@ -417,7 +417,7 @@ const IdeologyTabComponent = ({
                         <EmptySlot key={`empty-${i}`} />
                     ))}
                     {/* 锁定卡槽（展示未来可解锁的） */}
-                    {maxSlots < 10 && (
+                    {maxSlots < 15 && (
                         <EmptySlot isLocked unlockHint={`时代${epoch + 1}解锁`} />
                     )}
                 </div>
